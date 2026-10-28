@@ -18,6 +18,14 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/cove-commerce-private-qa-deploy.yml"
+      - "src/features/fore/commerce.server.ts"
+      - "src/features/fore/delivery.server.ts"
+      - "src/features/fore/commercial-audio.server.ts"
+      - "src/features/fore/offline-epub.server.ts"
+      - "src/features/fore/offline-audio.server.ts"
+      - "src/lib/cloudflare-ssr-stage-gate.server.ts"
+      - "scripts/staging/check-deployed-commerce-browser.mjs"
+      - "scripts/staging/run-protected-deployed-commerce-qa.mjs"
   workflow_dispatch:
 permissions:
   contents: read
@@ -25,6 +33,24 @@ concurrency:
   group: cove-exclusive-commerce-qa-worker
   cancel-in-progress: false
 jobs:
+  verify-qa-source:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Assert private QA D1, R2, hostname and disabled workers.dev
+        run: node scripts/staging/check-commerce-private-qa-stage.mjs
+      - name: Prove only bearer-gated synthetic commerce API writes
+        run: node scripts/staging/check-commerce-qa-stage-write-gate.mjs
+      - name: Validate isolated deployed browser / Stripe-CLI harness syntax
+        run: |
+          node --check scripts/staging/run-protected-deployed-commerce-qa.mjs
+          node --check scripts/staging/check-deployed-commerce-browser.mjs
   private-commerce:
     if: >-
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
