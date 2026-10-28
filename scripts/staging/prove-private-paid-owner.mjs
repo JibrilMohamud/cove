@@ -10,10 +10,13 @@ import {build} from "esbuild";
 import {spawnSync,spawn} from "node:child_process";
 import {createServer} from "node:http";
 
-const runId=process.env.GITHUB_RUN_ID;
+// A GitHub Actions rerun reuses GITHUB_RUN_ID. Isolate fresh synthetic
+// payments, owners and order idempotency keys by the actual attempt as well.
+// Never reuse a prior attempt's potentially paid or refunded QA order.
+const runId=process.env.GITHUB_RUN_ID+"-"+(process.env.GITHUB_RUN_ATTEMPT||"1");
 const token=process.env.CLOUDFLARE_API_TOKEN;
 const account=process.env.CLOUDFLARE_ACCOUNT_ID;
-assert.match(runId||"",/^\d{8,15}$/);
+assert.match(runId||"",/^\d{8,15}-\d{1,5}$/);
 assert.match(account||"",/^[a-f0-9]{32}$/);
 assert.ok(token,"Cloudflare QA authorization required");
 const ownerName="cove-paid-legal-owner-"+runId;
