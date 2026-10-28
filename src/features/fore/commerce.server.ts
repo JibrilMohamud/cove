@@ -2707,6 +2707,7 @@ async function syncDispute(db: CatalogDB, d: any, eventType: string) {
         .prepare("UPDATE commerce_orders SET status='chargeback_lost',updated_at=? WHERE id=?")
         .bind(at, order.id)
         .run();
+      if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")
       await db
         .prepare(
           "UPDATE entitlements SET status='revoked',updated_at=? WHERE user_id=? AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND entitlement_type='purchase'",
