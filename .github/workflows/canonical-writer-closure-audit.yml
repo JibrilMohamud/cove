@@ -6,6 +6,7 @@ on:
       - "worker/**"
       - "workers/**"
       - "scripts/check-canonical-writer-closure.mjs"
+      - "scripts/canonical-writer-baseline.mjs"
       - "scripts/test-canonical-writer-closure.mjs"
       - ".github/workflows/canonical-writer-closure-audit.yml"
   push:
@@ -15,6 +16,7 @@ on:
       - "worker/**"
       - "workers/**"
       - "scripts/check-canonical-writer-closure.mjs"
+      - "scripts/canonical-writer-baseline.mjs"
       - "scripts/test-canonical-writer-closure.mjs"
       - ".github/workflows/canonical-writer-closure-audit.yml"
   workflow_dispatch:
@@ -33,6 +35,8 @@ jobs:
           node-version: "22"
       - name: Inventory production rights, finance, delivery and publication writers
         run: node scripts/test-canonical-writer-closure.mjs
+      - name: Refuse newly introduced unfenced production canonical mutations
+        run: node scripts/check-canonical-writer-closure.mjs --no-new-writers
       - name: Save reviewable line-addressed mutation evidence
         env:
           COVE_WRITER_AUDIT_OUTPUT: ${{ runner.temp }}/cove-canonical-writer-inventory.json
