@@ -9,6 +9,7 @@ import {
   productionOrigin,
   requestedLanguages,
   safeProbeTelemetry,
+  safeCloudflareRay,
   strictTtfbTargetMs,
   validateHtml,
   visibleServerBookCount,
@@ -112,6 +113,21 @@ test("failure diagnostics retain only aggregate numeric timings and safe cache l
     ),
     { ttfbMs: 250, totalMs: 260, timing: "", vercelCache: "unknown" },
   );
+});
+
+test("Cloudflare request Ray identifiers are tightly validated before provider logging", () => {
+  const safe = "a518d36158d88596-MSP";
+  assert.equal(safeCloudflareRay(new Headers({ "CF-Ray": safe })), safe);
+  for (const value of [
+    "", "Ray #123", "not-a-ray-MSP", "a518d36158d88596-abc",
+    "a518d36158d88596-MSP\\r\\nSet-Cookie: session=leak",
+    "a518d36158d88596-MSP,session=leak",
+    "a518d36158d88596-IAD/secret",
+    "a518d36158d88596-MSP" + "a".repeat(500),
+  ]) {
+    assert.equal(safeCloudflareRay(new Headers({ "cf-ray": value })), null);
+  }
+  assert.equal(safeCloudflareRay(new Headers({ "set-cookie": "private=secret" })), null);
 });
 
 test("D1 counters retain bounded numeric attempt and row counts without treating them as time", () => {
