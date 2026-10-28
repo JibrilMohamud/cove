@@ -299,7 +299,7 @@ const table = [
   "",
   "All requests use a temporary secret; no private visitor or credential fields are retained.",
   "This is synthetic runner TTFB, not a field performance guarantee.",
-  "Workers.dev staging is not the production hostname.",
+  "Protected staging canary is not the production storefront and may not receive public traffic.",
   "",
   "The first counted SSR homepage request is the first HTTP request in the newly deployed Worker gate.",
   "Residual = client TTFB - timed Worker duration; not necessarily a cold-start diagnosis.",
