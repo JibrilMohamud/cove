@@ -1,0 +1,43 @@
+name: stage-canonical-write-fence
+on:
+  pull_request:
+    paths:
+      - "src/server.ts"
+      - "src/storefront-strangler/legal-primary-write-lock.ts"
+      - "scripts/test-legal-primary-write-lock.mjs"
+      - "scripts/check-legal-primary-write-lock.mjs"
+      - ".github/workflows/stage-canonical-write-fence.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/server.ts"
+      - "src/storefront-strangler/legal-primary-write-lock.ts"
+      - "scripts/test-legal-primary-write-lock.mjs"
+      - "scripts/check-legal-primary-write-lock.mjs"
+      - ".github/workflows/stage-canonical-write-fence.yml"
+permissions:
+  contents: read
+jobs:
+  legal-writes-denied-staging-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Require runtime fence to be wired in Cloudflare SSR ingress
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'import { scopeStageLegalWriterEnv }' src/server.ts
+          grep -q 'nativeEnv.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1"' src/server.ts
+          grep -q 'production_legal_writer_cutover_not_certified' src/storefront-strangler/legal-primary-write-lock.ts
+      - name: Exercise all protected SQL, comments and D1 binding batch guards
+        run: |
+          node scripts/test-legal-primary-write-lock.mjs
+          node scripts/check-legal-primary-write-lock.mjs
