@@ -3,13 +3,17 @@ on:
   pull_request:
     paths:
       - "drizzle/0087_paid_revocation_terminal_guard.sql"
+      - "drizzle/0088_paid_repurchase_fresh_entitlement.sql"
       - "scripts/check-paid-revocation-no-revival.mjs"
+      - "scripts/check-paid-repurchase-fresh-entitlement.mjs"
       - ".github/workflows/paid-terminal-no-revival.yml"
   push:
     branches: [main]
     paths:
       - "drizzle/0087_paid_revocation_terminal_guard.sql"
+      - "drizzle/0088_paid_repurchase_fresh_entitlement.sql"
       - "scripts/check-paid-revocation-no-revival.mjs"
+      - "scripts/check-paid-repurchase-fresh-entitlement.mjs"
       - ".github/workflows/paid-terminal-no-revival.yml"
   workflow_dispatch:
 permissions:
@@ -26,6 +30,8 @@ jobs:
         with:
           node-version: "22"
       - name: Assert production SQL revocation, refund and delivery terminal fences
-        run: node scripts/check-paid-revocation-no-revival.mjs
+        run: |
+          node scripts/check-paid-revocation-no-revival.mjs
+          node scripts/check-paid-repurchase-fresh-entitlement.mjs
       - name: Refuse new unowned canonical SQL writers
         run: node scripts/check-canonical-writer-closure.mjs --no-new-writers
