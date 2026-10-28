@@ -413,10 +413,7 @@ try {
     ],
     // Actual customer revocation is terminal. Do NOT reactivate the same
     // entitlement to reset a synthetic fixture: require a fresh purchase.
-    [
-      "UPDATE entitlements SET status='revoked' WHERE id='offline-purchase-test'",
-      null,
-    ],
+    ["UPDATE entitlements SET status='revoked' WHERE id='offline-purchase-test'", null],
   ]) {
     await db.prepare(deny).run();
     await assert.rejects(checkStored(), /no longer active/);
@@ -424,7 +421,9 @@ try {
       await db.prepare(restore).run();
     } else {
       await assert.rejects(
-        db.prepare("UPDATE entitlements SET status='active' WHERE id='offline-purchase-test'").run(),
+        db
+          .prepare("UPDATE entitlements SET status='active' WHERE id='offline-purchase-test'")
+          .run(),
         /fresh independently authorized purchase/,
       );
       await assert.rejects(checkStored(), /no longer active/);
