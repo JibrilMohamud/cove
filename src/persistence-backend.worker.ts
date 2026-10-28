@@ -1,6 +1,9 @@
 import { seedMusicProfiles } from "./features/fore/music-profiles.server";
 import { scopePublicationOwnerEnv } from "./storefront-strangler/publication-owner-routing.server";
-import { attestDisabledOwnerFromBackend, DISABLED_OWNER_ATTEST_ROUTE } from "./storefront-strangler/production-disabled-owner-attestation";
+import {
+  attestDisabledOwnerFromBackend,
+  DISABLED_OWNER_ATTEST_ROUTE,
+} from "./storefront-strangler/production-disabled-owner-attestation";
 import { verifyAudioStorage } from "./features/fore/audio-coverage.server";
 import { runLiteraryProfileTick } from "./features/fore/literary-profiles.server";
 import { runStoredAssetTick } from "./features/fore/catalog-assets.server";
@@ -906,8 +909,7 @@ export default {
     // It cannot enable the owner or authorize a commercial action: the
     // disabled production DO must echo a fresh, secret-authenticated nonce.
     if (path === DISABLED_OWNER_ATTEST_ROUTE) {
-      if (request.method !== "POST")
-        return json({ error: "Method not allowed." }, 405);
+      if (request.method !== "POST") return json({ error: "Method not allowed." }, 405);
       try {
         const verdict = await attestDisabledOwnerFromBackend(env);
         return json(verdict);
