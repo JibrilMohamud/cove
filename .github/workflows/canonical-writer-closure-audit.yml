@@ -8,6 +8,9 @@ on:
       - "scripts/check-canonical-writer-closure.mjs"
       - "scripts/canonical-writer-baseline.mjs"
       - "scripts/test-canonical-writer-closure.mjs"
+      - "scripts/reconcile-canonical-writers.mjs"
+      - "scripts/test-canonical-writer-review.mjs"
+      - "docs/architecture/canonical-writer-review.json"
       - ".github/workflows/canonical-writer-closure-audit.yml"
   push:
     branches: [main]
@@ -18,6 +21,9 @@ on:
       - "scripts/check-canonical-writer-closure.mjs"
       - "scripts/canonical-writer-baseline.mjs"
       - "scripts/test-canonical-writer-closure.mjs"
+      - "scripts/reconcile-canonical-writers.mjs"
+      - "scripts/test-canonical-writer-review.mjs"
+      - "docs/architecture/canonical-writer-review.json"
       - ".github/workflows/canonical-writer-closure-audit.yml"
   workflow_dispatch:
 permissions:
@@ -37,6 +43,12 @@ jobs:
         run: node scripts/test-canonical-writer-closure.mjs
       - name: Refuse newly introduced unfenced production canonical mutations
         run: node scripts/check-canonical-writer-closure.mjs --no-new-writers
+      - name: Install parser for exact SQL-site reconciliation
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Reconcile every candidate without approving production ownership
+        run: |
+          node scripts/reconcile-canonical-writers.mjs
+          node scripts/test-canonical-writer-review.mjs
       - name: Save reviewable line-addressed mutation evidence
         env:
           COVE_WRITER_AUDIT_OUTPUT: ${{ runner.temp }}/cove-canonical-writer-inventory.json

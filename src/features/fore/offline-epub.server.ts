@@ -86,6 +86,23 @@ export async function issueOfflineEpubLicense(
       "This edition requires external DRM that Cove's in-app offline reader does not support.",
     );
   const issuedAt = new Date();
+  // The seven-day product limit is a ceiling, not an extension of the
+  // underlying entitlement. Bind this lookup to the grant just issued for
+  // this exact buyer/product; a caller-provided expiry is never trusted.
+  const entitlement = await env.DB.prepare(
+    "SELECT e.status,e.starts_at,e.ends_at FROM commercial_delivery_grants g JOIN entitlements e ON e.id=g.entitlement_id AND e.user_id=g.user_id AND e.product_id=g.product_id WHERE g.id=? AND g.user_id=? AND g.product_id=? AND g.status='active'",
+  )
+    .bind(grant.grantId, userId, productId)
+    .first<{ status: string; starts_at: string | null; ends_at: string | null }>();
+  const startsAt = entitlement?.starts_at == null ? null : Date.parse(entitlement.starts_at);
+  const endsAt = entitlement?.ends_at == null ? null : Date.parse(entitlement.ends_at);
+  if (
+    !entitlement ||
+    entitlement.status !== "active" ||
+    (startsAt !== null && (!Number.isFinite(startsAt) || startsAt > issuedAt.getTime())) ||
+    (endsAt !== null && (!Number.isFinite(endsAt) || endsAt <= issuedAt.getTime()))
+  )
+    throw new ApiError(403, "This entitlement cannot issue a new offline license.");
   const claims: OfflineEpubClaims = {
     version: 1,
     audience: "cove-offline-epub",
@@ -95,7 +112,9 @@ export async function issueOfflineEpubLicense(
     assetVersionId: grant.assetVersionId,
     licenseId: grant.grantId,
     issuedAt: issuedAt.toISOString(),
-    expiresAt: new Date(issuedAt.getTime() + OFFLINE_EPUB_MAX_MS).toISOString(),
+    expiresAt: new Date(
+      Math.min(issuedAt.getTime() + OFFLINE_EPUB_MAX_MS, endsAt ?? Infinity),
+    ).toISOString(),
     keyId: await audioKeyId(publicKey),
   };
   const payload = base64Url(new TextEncoder().encode(JSON.stringify(claims)));

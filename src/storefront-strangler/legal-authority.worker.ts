@@ -176,7 +176,8 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         const items=(await env.PRIMARY_DB.prepare(
           `SELECT oi.id,oi.product_id,oi.sales_channel,oi.preorder_id,
                   oi.entitlement_status,oi.rights_grant_id,oi.rights_snapshot_json,
-                  e.id entitlement_id,e.status entitlement_state,e.source entitlement_source
+                  e.id entitlement_id,e.status entitlement_state,e.source entitlement_source,
+                  e.starts_at entitlement_starts_at,e.ends_at entitlement_ends_at
              FROM commerce_order_items oi LEFT JOIN entitlements e
                ON e.order_item_id=oi.id AND e.user_id=? AND
                   e.product_id=oi.product_id AND e.entitlement_type='purchase'
@@ -186,7 +187,8 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           preorder_id:string|null;entitlement_status:string;
           rights_grant_id:string|null;rights_snapshot_json:string|null;
           entitlement_id:string|null;entitlement_state:string|null;
-          entitlement_source:string|null;
+          entitlement_source:string|null;entitlement_starts_at:string|null;
+          entitlement_ends_at:string|null;
         }>()).results;
         if(!items.length||items.length>25||
            new Set(items.map(x=>x.product_id)).size!==items.length)
@@ -208,6 +210,16 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         const lines:VerifiedPaidOrderLine[]=[];
         const now=Date.now();
         for(const item of delivered){
+          // A multi-book cart obeys the same time window as a single
+          // purchase. Invalid canonical timestamps fail closed rather than
+          // issuing a fresh five-minute owner lease for an expired line.
+          const starts=item.entitlement_starts_at===null?null:
+            Date.parse(item.entitlement_starts_at);
+          const ends=item.entitlement_ends_at===null?null:
+            Date.parse(item.entitlement_ends_at);
+          if((starts!==null&&(!Number.isFinite(starts)||starts>now))||
+             (ends!==null&&(!Number.isFinite(ends)||ends<=now)))
+            return new Response(null,{status:409,headers:noStore});
           const rows=readCommercialProofs(sql,[item.product_id],
             q.territory,"retail");
           if(rows.length!==1)return new Response(null,{status:409,headers:noStore});
@@ -226,7 +238,8 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
              acquired.contractVersionId!==rights.contract_version_id||
              acquired.territory!==q.territory||acquired.salesChannel!=="retail")
             return new Response(null,{status:409,headers:noStore});
-          const expiry=Math.min(now+5*60_000,Date.parse(rights.valid_until));
+          const expiry=Math.min(now+5*60_000,Date.parse(rights.valid_until),
+            ends??Number.POSITIVE_INFINITY);
           if(!Number.isFinite(expiry)||expiry<=now)
             return new Response(null,{status:409,headers:noStore});
           const scope={
@@ -268,18 +281,32 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         if(!ent||ent.status!=="active"||ent.entitlement_type!=="purchase"||
            ent.source!=="commerce"||!ent.order_item_id)
           return new Response(null,{status:409,headers:noStore});
-        const clock=new Date().toISOString();
-        if((ent.starts_at&&ent.starts_at>clock)||
-           (ent.ends_at&&ent.ends_at<=clock))
+        const now=Date.now();
+        const starts=ent.starts_at===null?null:Date.parse(ent.starts_at);
+        const ends=ent.ends_at===null?null:Date.parse(ent.ends_at);
+        if((starts!==null&&(!Number.isFinite(starts)||starts>now))||
+           (ends!==null&&(!Number.isFinite(ends)||ends<=now)))
           return new Response(null,{status:409,headers:noStore});
         const order=await env.PRIMARY_DB.prepare(
-          "SELECT co.id order_id,coi.entitlement_status,co.status order_status,coi.rights_grant_id,coi.rights_snapshot_json FROM commerce_order_items coi JOIN commerce_orders co ON co.id=coi.order_id WHERE coi.id=? AND coi.product_id=? AND co.user_id=?"
+          "SELECT co.id order_id,co.territory_code,coi.sales_channel,coi.preorder_id,coi.entitlement_status,co.status order_status,coi.rights_grant_id,coi.rights_snapshot_json FROM commerce_order_items coi JOIN commerce_orders co ON co.id=coi.order_id WHERE coi.id=? AND coi.product_id=? AND co.user_id=?"
         ).bind(ent.order_item_id,scope.productId,scope.userId)
-          .first<{order_id:string;entitlement_status:string;order_status:string;
+          .first<{order_id:string;territory_code:string;sales_channel:string;preorder_id:string|null;
+          entitlement_status:string;order_status:string;
           rights_grant_id:string|null;rights_snapshot_json:string|null}>();
         if(!order||order.entitlement_status!=="granted"||
-           order.order_status!=="paid" ||
+           order.order_status!=="paid" ||order.preorder_id!==null||
+           order.territory_code!==input.territory||
+           order.sales_channel!==input.channel||
            order.rights_grant_id!==rights[0].grant_id)
+          return new Response(null,{status:409,headers:noStore});
+        // This compatibility endpoint may only publish a genuinely
+        // single-delivery order. Otherwise a caller could expose the first
+        // valid line of a cart whose second line fails atomic certification.
+        // Preorders are financial reservations and do not deliver here.
+        const inventory=await env.PRIMARY_DB.prepare(
+          "SELECT COUNT(*) delivery_count FROM commerce_order_items WHERE order_id=? AND preorder_id IS NULL"
+        ).bind(order.order_id).first<{delivery_count:number}>();
+        if(!inventory||inventory.delivery_count!==1)
           return new Response(null,{status:409,headers:noStore});
         let purchased:unknown=null;
         try{purchased=JSON.parse(order.rights_snapshot_json||"");}
@@ -305,7 +332,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         ).bind(ent.order_item_id).first<{ok:number}>();
         if(hold)return new Response(null,{status:409,headers:noStore});
         const expiry=Math.min(Date.now()+5*60000,
-          ent.ends_at?Date.parse(ent.ends_at):Number.POSITIVE_INFINITY,
+          ends??Number.POSITIVE_INFINITY,
           Date.parse(rights[0].valid_until));
         if(!Number.isFinite(expiry)||expiry<=Date.now())
           return new Response(null,{status:409,headers:noStore});
