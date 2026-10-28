@@ -59,7 +59,7 @@ try {
   assert.equal(stageNoStore(new Response("ok"), false).headers.get("x-robots-tag"), null);
   const wrangler = fs.readFileSync("wrangler.frontend.staging.toml", "utf8");
   assert.match(wrangler, /^workers_dev\s*=\s*true$/m);
-  assert.match(wrangler, /^run_worker_first\s*=\s*true$/m);
+  assert.match(wrangler, /^run_worker_first\s*=\s*\["\/\*"\]$/m);
   assert.match(wrangler, /\[\[ratelimits\]\][\s\S]*?name = "COVE_STOREFRONT_READ_LIMITER"/);
   assert.match(wrangler, /\[ratelimits\.simple\]\s*\nlimit = 180\s*\nperiod = 60/);
   // This isolated trial now tests default ingress-edge placement, matching
