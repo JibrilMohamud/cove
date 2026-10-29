@@ -111,6 +111,25 @@ export function assessDeployedCanonicalD1Principals({scripts,settingsByName,
         (b.id||b.database_id)==="400c3af3-5d40-41fd-83cc-98228e40ddac")||
       bindings.some(b=>b.type==="plain_text"&&b.name.endsWith("_ENABLED")&&b.text!=="0");
   });
+  const retiredFastWorkerNames=["cove-fast-architecture-qa","cove-fast-customer-gateway"];
+  const retiredFastWorkerViolations=retiredFastWorkerNames.filter(name=>{
+    if(!names.includes(name))return false; // Deleting an obsolete Worker is safe.
+    const worker=settingsByName[name];
+    assert.ok(worker&&Array.isArray(worker.bindings),"Missing retired fast Worker settings");
+    const schedules=schedulesByName[name],dev=subdomainsByName[name];
+    assert.ok(Array.isArray(schedules),"Missing retired fast Worker schedules");
+    assert.equal(typeof dev?.enabled,"boolean","Missing retired fast Worker ingress");
+    const bindings=worker.bindings;
+    return bindings.some(b=>b.type==="d1"&&(b.id||b.database_id)===CANONICAL_D1)||
+      bindings.some(b=>b.name==="COVE_STRANGLER_DATABASE_ID")||
+      bindings.find(b=>b.name==="COVE_STRANGLER_RELEASE_CERTIFIED")?.text!=="0"||
+      bindings.find(b=>b.name==="COVE_STRANGLER_MODE")?.text!=="customer-gateway"||
+      schedules.length>0||
+      dev.previews_enabled===true||
+      (name==="cove-fast-architecture-qa"&&dev.enabled)||
+      routes.some(r=>r.script===name)||
+      domains.some(d=>d.service===name);
+  });
   const historicalDrivers=names.filter(name=>/^cove-pub-\d+-driver$/.test(name));
   const legacyDriverExposure=historicalDrivers.map(name=>{
     const schedule=schedulesByName[name],dev=subdomainsByName[name];
@@ -136,6 +155,7 @@ export function assessDeployedCanonicalD1Principals({scripts,settingsByName,
     boundScriptsWithCrons:scheduled.length,
     boundScriptsWithNetworkIngress:exposed.length,
     unsafeFastArchitectureQAIngress,
+    retiredFastWorkerViolations,
     retiredHistoricalCaptureScriptsInspected:retiredHistoricalCaptures.length,
     retiredCaptureReactivations,
     retiredDisabledLiteraryReactivations,
@@ -152,6 +172,7 @@ export function assessDeployedCanonicalD1Principals({scripts,settingsByName,
       ...(scheduled.some(x=>!x.owner)?["non_owner_cron_can_use_canonical_d1"]:[]),
       ...(unsafeLegacyDrivers.length?["historical_qa_driver_public_ingress_reopened"]:[]),
       ...(unsafeFastArchitectureQAIngress?["production_d1_qa_architecture_public_ingress"]:[]),
+      ...(retiredFastWorkerViolations.length?["retired_fast_worker_d1_or_activation_restored"]:[]),
       ...(retiredCaptureReactivations.length?["retired_historical_capture_canonical_d1_or_execution_restored"]:[]),
       ...(retiredDisabledLiteraryReactivations.length?["disabled_literary_worker_canonical_d1_or_execution_restored"]:[]),
     ],
@@ -187,7 +208,7 @@ export function compareKnownUnsafeFleet(report,baseline){
     unsafeHistoricalBindingsStillPresent:report.directCanonicalBindings,
     // Even zero drift is not approval of legacy credentials.
     productionAuthorized:false,
-    strictDriftPass:newBindings.length===0&&newSchedules.length===0&&report.ownerEnabled===false&&report.unsafeLegacyDriverIngress===0&&(report.retiredCaptureReactivations||[]).length===0&&report.unsafeFastArchitectureQAIngress===0&&(report.retiredDisabledLiteraryReactivations||[]).length===0&&report.directCanonicalBindings<=12&&report.nonOwnerBindings<=11};
+    strictDriftPass:newBindings.length===0&&newSchedules.length===0&&report.ownerEnabled===false&&report.unsafeLegacyDriverIngress===0&&(report.retiredCaptureReactivations||[]).length===0&&report.unsafeFastArchitectureQAIngress===0&&(report.retiredDisabledLiteraryReactivations||[]).length===0&&(report.retiredFastWorkerViolations||[]).length===0&&report.directCanonicalBindings<=10&&report.nonOwnerBindings<=9};
 }
 
 /** Read-only. Abort the entire audit if even one Worker settings or owner
@@ -209,6 +230,7 @@ export async function collectCanonicalD1Fleet({fetcher=fetch,token,account,zone}
   const settingsByName=Object.fromEntries(sorted.map((w,i)=>[w.id,settingsList[i]]));
   const targets=sorted.filter(w=>
     /^cove-pub-\d+-driver$/.test(w.id)||
+    w.id==="cove-fast-architecture-qa"||w.id==="cove-fast-customer-gateway"||
     settingsByName[w.id].bindings?.some(b=>
     b.type==="d1"&&(b.id||b.database_id)===CANONICAL_D1));
   const details=await mapBounded(targets,12,async w=>{
