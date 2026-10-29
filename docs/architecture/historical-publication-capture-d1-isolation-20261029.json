@@ -1,0 +1,92 @@
+{
+  "schema": "cove.retired-historical-publication-captures.v1",
+  "observedOn": "2026-10-29",
+  "irreversibleDeletion": false,
+  "source": "Read-only Cloudflare script settings and 100% deployment version checks independently verified for every listed Worker after PATCH /settings",
+  "previousCanonicalBindingCount": 57,
+  "afterCanonicalBindingCount": 14,
+  "previousNonOwnerCanonicalBindingCount": 56,
+  "afterNonOwnerCanonicalBindingCount": 13,
+  "retiredCount": 43,
+  "enabledBefore": "1",
+  "enabledAfter": "0",
+  "removedBinding": {
+    "name": "SOURCE_DB",
+    "type": "d1",
+    "database_id": "4bd657ac-8789-403e-a28c-93aba8d0a989"
+  },
+  "preservedBinding": {
+    "name": "PUBLIC_SOURCE_DB",
+    "type": "d1",
+    "database_id": "1825b4a1-0329-408d-9cc2-a40e6a17c822"
+  },
+  "deployedVersionReadback": "All 43 new versions confirmed 100% traffic; 0 errors",
+  "prerequisiteEvidence": "Each old capture had only a paired driver as service caller, paired driver Workers.dev ingress disabled, no custom routes/domains, no schedules, and no incoming driver callers. Continuous publication capture remains untouched.",
+  "rollback": {
+    "warning": "Do not restore production SOURCE_DB or re-enable old capture before independent service authentication and rights-owner review. The rollback binding is retained for break-glass only.",
+    "endpoint": "PATCH /accounts/{account_id}/workers/scripts/{name}/settings",
+    "multipartField": "settings",
+    "bindings": [
+      {
+        "name": "COVE_PUBLICATION_CAPTURE_ENABLED",
+        "type": "plain_text",
+        "text": "1"
+      },
+      {
+        "name": "PUBLIC_SOURCE_DB",
+        "type": "d1",
+        "database_id": "1825b4a1-0329-408d-9cc2-a40e6a17c822"
+      },
+      {
+        "name": "SOURCE_DB",
+        "type": "d1",
+        "database_id": "4bd657ac-8789-403e-a28c-93aba8d0a989"
+      }
+    ]
+  },
+  "scripts": [
+    "cove-pub-39799386907-capture",
+    "cove-pub-39814918487-capture",
+    "cove-pub-39864827014-capture",
+    "cove-pub-39874731109-capture",
+    "cove-pub-39875348234-capture",
+    "cove-pub-39875482260-capture",
+    "cove-pub-39876672164-capture",
+    "cove-pub-39886321018-capture",
+    "cove-pub-39887199004-capture",
+    "cove-pub-39887380154-capture",
+    "cove-pub-39888072871-capture",
+    "cove-pub-39888243230-capture",
+    "cove-pub-39888544249-capture",
+    "cove-pub-39892594581-capture",
+    "cove-pub-39892725426-capture",
+    "cove-pub-39892876548-capture",
+    "cove-pub-39893123992-capture",
+    "cove-pub-39893351271-capture",
+    "cove-pub-39894133610-capture",
+    "cove-pub-39894287399-capture",
+    "cove-pub-39894586510-capture",
+    "cove-pub-39894812739-capture",
+    "cove-pub-39894973192-capture",
+    "cove-pub-39898473759-capture",
+    "cove-pub-39899209678-capture",
+    "cove-pub-39899580375-capture",
+    "cove-pub-39901465669-capture",
+    "cove-pub-39901574018-capture",
+    "cove-pub-39901726053-capture",
+    "cove-pub-39902190810-capture",
+    "cove-pub-39903770441-capture",
+    "cove-pub-39903775506-capture",
+    "cove-pub-39905358602-capture",
+    "cove-pub-39905802639-capture",
+    "cove-pub-39909544207-capture",
+    "cove-pub-39909695065-capture",
+    "cove-pub-39910117998-capture",
+    "cove-pub-39910272448-capture",
+    "cove-pub-39913124970-capture",
+    "cove-pub-39913387441-capture",
+    "cove-pub-39915405410-capture",
+    "cove-pub-39922729708-capture",
+    "cove-pub-39936418754-capture"
+  ]
+}
