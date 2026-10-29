@@ -88,7 +88,7 @@ try {
           if(failWrite)throw Error("primary_write_outage");
           writes++;
         }
-        return {meta:primary.prepare(query).run(...params)};
+        return {success:true,meta:primary.prepare(query).run(...params)};
       }
     });return statement();},
       async batch(statements){
