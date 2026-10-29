@@ -45,7 +45,9 @@ try {
       CREATE TABLE entitlements(id TEXT PRIMARY KEY,user_id TEXT,order_item_id TEXT,
         entitlement_type TEXT,status TEXT);
       CREATE TABLE audio_offline_licenses(id TEXT PRIMARY KEY,entitlement_id TEXT,
-        status TEXT,revoked_at TEXT,revocation_reason TEXT);`);
+        status TEXT,revoked_at TEXT,revocation_reason TEXT);
+      CREATE TABLE commercial_delivery_grants(id TEXT PRIMARY KEY, user_id TEXT,
+        entitlement_id TEXT, status TEXT);`);
     primary.prepare("INSERT INTO commerce_orders(id,user_id) VALUES(?,?)").run(orderId,"buyer_primary_01");
     primary.prepare("INSERT INTO commerce_orders(id,user_id) VALUES(?,?)").run(otherOrder,"buyer_other_01");
     // More than the old per-item owner RPC bound; revocation remains one command.
@@ -55,10 +57,16 @@ try {
         .run("ent_"+i,"buyer_primary_01","item_"+i);
       primary.prepare("INSERT INTO audio_offline_licenses(id,entitlement_id,status) VALUES(?,?,'active')")
         .run("offline_"+i,"ent_"+i);
+      primary.prepare("INSERT INTO commercial_delivery_grants(id,user_id,entitlement_id,status) VALUES(?,?,?,'active')")
+        .run("epub_"+i,"buyer_primary_01","ent_"+i);
     }
     primary.prepare("INSERT INTO commerce_order_items(id,order_id) VALUES('item_unrelated',?)").run(otherOrder);
     primary.exec("INSERT INTO entitlements VALUES('other_ent','buyer_other_01','item_unrelated','purchase','active')");
     primary.exec("INSERT INTO audio_offline_licenses(id,entitlement_id,status) VALUES('offline_other','other_ent','active')");
+    primary.exec("INSERT INTO commercial_delivery_grants(id,user_id,entitlement_id,status) VALUES('epub_other','buyer_other_01','other_ent','active')");
+    // A corrupted grant on the same entitlement but a different buyer must
+    // never be modified by an order scoped to the legitimate purchaser.
+    primary.exec("INSERT INTO commercial_delivery_grants(id,user_id,entitlement_id,status) VALUES('epub_wrong_buyer','buyer_other_01','ent_0','active')");
     // A damaged row from another buyer must not be revoked by guessed item IDs.
     primary.exec("INSERT INTO entitlements VALUES('wrong_buyer','buyer_other_01','item_0','purchase','active')");
     primary.exec("INSERT INTO entitlements VALUES('subscription','buyer_primary_01','item_0','subscription','active')");
@@ -128,6 +136,11 @@ try {
     "All forty linked offline audio licenses must be atomically withdrawn before the owner acknowledges");
   assert.equal(f.primary.prepare("SELECT status FROM audio_offline_licenses WHERE id='offline_other'").get().status,"active",
     "Refund must not withdraw another customer's offline license");
+  assert.equal(f.primary.prepare("SELECT count(*) n FROM commercial_delivery_grants WHERE user_id='buyer_primary_01' AND status='revoked'").get().n,40,
+    "Every existing EPUB delivery token must be revoked by the same canonical batch");
+  assert.equal(f.primary.prepare("SELECT status FROM commercial_delivery_grants WHERE id='epub_other'").get().status,"active");
+  assert.equal(f.primary.prepare("SELECT status FROM commercial_delivery_grants WHERE id='epub_wrong_buyer'").get().status,"active",
+    "Malicious or inconsistent buyer claims cannot widen scope");
   assert.equal(f.primary.prepare("SELECT status FROM entitlements WHERE id='other_ent'").get().status,"active");
   assert.equal(f.primary.prepare("SELECT status FROM entitlements WHERE id='wrong_buyer'").get().status,"active");
   assert.equal(f.primary.prepare("SELECT status FROM entitlements WHERE id='subscription'").get().status,"active");
@@ -141,6 +154,8 @@ try {
   assert.equal(failed.active(),40);
   assert.equal(failed.primary.prepare("SELECT count(*) n FROM audio_offline_licenses WHERE status='active' AND entitlement_id LIKE 'ent_%'").get().n,40,
     "An aborted canonical batch cannot partially revoke offline licenses");
+  assert.equal(failed.primary.prepare("SELECT count(*) n FROM commercial_delivery_grants WHERE user_id='buyer_primary_01' AND status='active'").get().n,40,
+    "D1 failure must not produce a partially revoked EPUB grant set");
   assert.equal(failed.owned.prepare("SELECT count(*) n FROM cove_paid_refunded_orders WHERE order_id=?").get(orderId).n,1,
     "Primary failure must not roll back the durable order denial");
   failed.setFailWrite(false);
@@ -148,6 +163,8 @@ try {
   assert.equal(failed.active(),0,"Same immutable command repairs an interrupted reconciliation");
   assert.equal(failed.primary.prepare("SELECT count(*) n FROM audio_offline_licenses WHERE status='revoked' AND revocation_reason='order_refunded'").get().n,40,
     "A replay must reconcile the offline-license rows after a failed canonical batch");
+  assert.equal(failed.primary.prepare("SELECT count(*) n FROM commercial_delivery_grants WHERE user_id='buyer_primary_01' AND status='revoked'").get().n,40,
+    "The exact replay must also repair all old EPUB delivery tokens");
   const concurrent=fixture();
   await Promise.all(Array.from({length:8},()=>revokePaidOrderAccess(concurrent.clientEnv,orderId,operationId)));
   assert.equal(concurrent.active(),0);
