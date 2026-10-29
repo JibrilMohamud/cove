@@ -1,0 +1,91 @@
+{
+  "schema": "cove.canonical-d1-unsafe-principal-baseline.v1",
+  "observedOn": "2026-10-29",
+  "reason": "Historically deployed, unsafe capability baseline ONLY: not a list of authorized canonical writers and not production release approval",
+  "canonicalD1": "4bd657ac-8789-403e-a28c-93aba8d0a989",
+  "knownDirectBindingScripts": [
+    "cove-fast-architecture-qa",
+    "cove-fast-customer-gateway",
+    "cove-legal-authority-production",
+    "cove-literary-handoff-draining-20261025",
+    "cove-literary-handoff-isolated-disabled",
+    "cove-literary-infer-draining-20261025",
+    "cove-literary-infer-isolated-disabled",
+    "cove-literary-prepare-draining-20261025",
+    "cove-literary-prepare-isolated-disabled",
+    "cove-literary-publisher-isolated-disabled",
+    "cove-persistence-backend",
+    "cove-pub-39799386907-capture",
+    "cove-pub-39814918487-capture",
+    "cove-pub-39864827014-capture",
+    "cove-pub-39874731109-capture",
+    "cove-pub-39875348234-capture",
+    "cove-pub-39875482260-capture",
+    "cove-pub-39876672164-capture",
+    "cove-pub-39886321018-capture",
+    "cove-pub-39887199004-capture",
+    "cove-pub-39887380154-capture",
+    "cove-pub-39888072871-capture",
+    "cove-pub-39888243230-capture",
+    "cove-pub-39888544249-capture",
+    "cove-pub-39892594581-capture",
+    "cove-pub-39892725426-capture",
+    "cove-pub-39892876548-capture",
+    "cove-pub-39893123992-capture",
+    "cove-pub-39893351271-capture",
+    "cove-pub-39894133610-capture",
+    "cove-pub-39894287399-capture",
+    "cove-pub-39894586510-capture",
+    "cove-pub-39894812739-capture",
+    "cove-pub-39894973192-capture",
+    "cove-pub-39898473759-capture",
+    "cove-pub-39899209678-capture",
+    "cove-pub-39899580375-capture",
+    "cove-pub-39901465669-capture",
+    "cove-pub-39901574018-capture",
+    "cove-pub-39901726053-capture",
+    "cove-pub-39902190810-capture",
+    "cove-pub-39903770441-capture",
+    "cove-pub-39903775506-capture",
+    "cove-pub-39905358602-capture",
+    "cove-pub-39905802639-capture",
+    "cove-pub-39909544207-capture",
+    "cove-pub-39909695065-capture",
+    "cove-pub-39910117998-capture",
+    "cove-pub-39910272448-capture",
+    "cove-pub-39913124970-capture",
+    "cove-pub-39913387441-capture",
+    "cove-pub-39915405410-capture",
+    "cove-pub-39922729708-capture",
+    "cove-pub-39936418754-capture",
+    "cove-pub-qa-continuous-capture",
+    "cove-sounds-publication",
+    "cove-storefront-ssr-staging"
+  ],
+  "knownSchedules": {
+    "cove-literary-handoff-draining-20261025": [
+      "* * * * *"
+    ],
+    "cove-literary-infer-isolated-disabled": [
+      "* * * * *"
+    ],
+    "cove-literary-prepare-draining-20261025": [
+      "* * * * *"
+    ],
+    "cove-persistence-backend": [
+      "* * * * *",
+      "*/10 * * * *",
+      "*/5 * * * *",
+      "17 3 * * *",
+      "23 * * * *",
+      "41 4 * * *"
+    ],
+    "cove-pub-qa-continuous-capture": [
+      "* * * * *"
+    ],
+    "cove-sounds-publication": [
+      "11 * * * *"
+    ]
+  },
+  "certified": false
+}
