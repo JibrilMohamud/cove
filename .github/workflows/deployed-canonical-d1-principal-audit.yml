@@ -1,0 +1,78 @@
+name: deployed-canonical-d1-principal-audit
+on:
+  pull_request:
+    paths:
+      - "scripts/audit-live-canonical-d1-principals.mjs"
+      - "scripts/test-live-canonical-d1-principals.mjs"
+      - ".github/workflows/deployed-canonical-d1-principal-audit.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/audit-live-canonical-d1-principals.mjs"
+      - "scripts/test-live-canonical-d1-principals.mjs"
+      - ".github/workflows/deployed-canonical-d1-principal-audit.yml"
+  workflow_dispatch:
+    inputs:
+      release_gate:
+        description: "Fail closed unless independent external production certification is supplied"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with: {node-version: "22"}
+      - name: Verify deployed D1 principal scanner is strict and self-certification impossible
+        run: |
+          node --check scripts/audit-live-canonical-d1-principals.mjs
+          node --test scripts/test-live-canonical-d1-principals.mjs
+
+  live:
+    needs: regression
+    # Secrets must not be shared with pull requests.
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
+      CLOUDFLARE_ZONE_ID: "07e218b2e74bc522122e0994b8e37576"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      COVE_D1_FLEET_AUDIT_OUTPUT: ${{ runner.temp }}/cove-live-canonical-d1-principals.json
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with: {node-version: "22"}
+      - name: Read-only audit of ALL deployed Worker bindings and execution triggers
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          if [[ "${{ inputs.release_gate || 'false' }}" == "true" ]]; then
+            node scripts/audit-live-canonical-d1-principals.mjs --release-gate
+          else
+            node scripts/audit-live-canonical-d1-principals.mjs --audit
+          fi
+      - name: Preserve audit evidence even when release gate rejects deployment
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cove-live-canonical-d1-principal-inventory
+          path: ${{ runner.temp }}/cove-live-canonical-d1-principals.json
+          retention-days: 30
+          if-no-files-found: warn
+      - name: Explain the production ownership boundary
+        if: always()
+        run: |
+          echo '### Production canonical D1 principal inventory (read-only)' >> "$GITHUB_STEP_SUMMARY"
+          echo 'This report measures deployed Worker bindings, schedules, ingress, and service references. It cannot prove SQL mutation, isolate credentials, certify Stripe/rights grants, or authorize release.' >> "$GITHUB_STEP_SUMMARY"
