@@ -9,7 +9,7 @@ const current=currentWriterSites();
 const result=reconcileWriterSites(current,review);
 assert.deepEqual(result.unknown,[]);assert.deepEqual(result.stale,[]);
 assert.equal(current.length,461);
-assert.equal(new Set(current.map(x=>x.file)).size,26);
+assert.equal(new Set(current.map(x=>x.file)).size,27);
 assert.equal(current.filter(x=>x.literal).length,461,
   "All existing scan candidates are executable SQL literals; only the isolated fixture is outside deployed production");
 const counts={};for(const x of review.sites)counts[x.disposition]=(counts[x.disposition]||0)+1;
