@@ -22,6 +22,7 @@ import {
 } from "../../storefront-strangler/owner-stripe-webhook.server";
 import { updateStageOwnerPaymentState } from "../../storefront-strangler/owner-stripe-payment-status.server";
 import { attachStageOwnerCheckoutPayment } from "../../storefront-strangler/owner-checkout-payment.server";
+import { registerStageOwnerStripeCustomer } from "../../storefront-strangler/owner-stripe-customer.server";
 import { recordStageOwnerRefundProvider } from "../../storefront-strangler/owner-refund-provider.server";
 import {
   settleStageOwnerPaidOrder,
@@ -704,13 +705,20 @@ async function ensureStripeCustomer(env: CoveEnv, user: User) {
     },
     idempotencyKey: `fore-customer-${user.id}`,
   });
-  const at = now();
-  await db
-    .prepare(
-      `INSERT INTO commerce_customers(user_id,stripe_customer_id,email,created_at,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET stripe_customer_id=excluded.stripe_customer_id,email=excluded.email,updated_at=excluded.updated_at`,
-    )
-    .bind(user.id, customer.id, user.email || "", at, at)
-    .run();
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1") {
+    await registerStageOwnerStripeCustomer(env, {
+      userId: user.id,
+      customerId: String(customer.id),
+    });
+  } else {
+    const at = now();
+    await db
+      .prepare(
+        `INSERT INTO commerce_customers(user_id,stripe_customer_id,email,created_at,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET stripe_customer_id=excluded.stripe_customer_id,email=excluded.email,updated_at=excluded.updated_at`,
+      )
+      .bind(user.id, customer.id, user.email || "", at, at)
+      .run();
+  }
   return String(customer.id);
 }
 function invoiceNumber() {
