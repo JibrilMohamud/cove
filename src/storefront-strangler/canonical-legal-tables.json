@@ -25,6 +25,7 @@
   "delivery_grants",
   "offline_epub_licenses",
   "commerce_orders",
+  "commerce_settlement_receipts",
   "commerce_order_items",
   "commerce_refunds",
   "commerce_ledger_entries",

@@ -20,6 +20,10 @@ const account=process.env.CLOUDFLARE_ACCOUNT_ID;
 assert.match(runId||"",/^\d{8,15}-\d{1,5}$/);
 assert.match(account||"",/^[a-f0-9]{32}$/);
 assert.ok(token,"Cloudflare QA authorization required");
+const stripeSecret=process.env.COVE_SANDBOX_SECRET_KEY||"";
+assert.match(stripeSecret,/^(?:sk|rk|rkcs)_test_[A-Za-z0-9]+$/,"Independent owner requires a real TEST Stripe credential");
+const interruptTrigger="qa_settlement_interrupt_"+runId.replaceAll("-","_");
+let interruptTriggerCreated=false;
 const ownerName="cove-paid-legal-owner-"+runId;
 const callerName="cove-paid-legal-caller-"+runId;
 const writerName="cove-paid-legal-writer-"+runId;
@@ -120,6 +124,9 @@ async function prepareInitialCommerceQaSchema(){
     await qaSql(row.sql);
     installed++;
   }
+  // Apply the exact new recovery schema ONLY to this fixed, distinct QA D1.
+  const settlementDdl=fs.readFileSync("drizzle/0089_atomic_paid_settlement.sql","utf8").replace(/--[^\n]*/g,"");
+  for(const statement of settlementDdl.split(";").map(x=>x.trim()).filter(Boolean))await qaSql(statement);
   console.log("QA schema-only dependencies ready: "+installed+" missing tables/indexes added");
 }
 const initialOrder="order_initial_qa_"+runId;
@@ -286,10 +293,12 @@ try {
   original.name=ownerName;
   original.vars.COVE_RIGHTS_OWNER_ENABLED="1";
   original.vars.COVE_RIGHTS_OWNER_TEST_EXPIRES_AT=String(expires);
+  original.vars.STRIPE_LIVEMODE="false";
+  original.vars.STRIPE_TAX_ENABLED="false";
   fs.writeFileSync(ownerCfg,JSON.stringify(original));
   ownerCreated=true;
-  await deploy(ownerCfg,{COVE_RIGHTS_OWNER_SECRET:secret});
-  await verifySecrets(ownerName,["COVE_RIGHTS_OWNER_SECRET"]);
+  await deploy(ownerCfg,{COVE_RIGHTS_OWNER_SECRET:secret,STRIPE_SECRET_KEY:stripeSecret});
+  await verifySecrets(ownerName,["COVE_RIGHTS_OWNER_SECRET","STRIPE_SECRET_KEY"]);
   const writer=JSON.parse(fs.readFileSync(
     "wrangler.legal-paid-writer.example.jsonc","utf8"));
   assert.equal(writer.workers_dev,false);
@@ -413,7 +422,6 @@ try {
   // original bytes to the *deployed* staged Cove stripeWebhook implementation.
   // This QA fixture is already canonically paid: the signed event proves the
   // paid-webhook-to-owner recovery branch, not initial ledger settlement.
-  const stripeSecret=process.env.COVE_SANDBOX_SECRET_KEY||"";
   assert.match(stripeSecret,/^(?:sk|rk|rkcs)_test_[A-Za-z0-9]+$/,
     "Full-schema paid owner requires real TEST Stripe credential for signed event");
   webhookServer=createServer(async(req,res)=>{
@@ -762,6 +770,19 @@ try {
     assert.equal(check.status,451,
       "No EPUB/audio bytes or offline license may issue before Stripe settlement");
   }
+  // Real payee terms are required: the atomic engine will not silently
+  // swallow a missing royalty contract. All records are synthetic and scoped
+  // to this exact QA product, never a default contract for customer titles.
+  const financeParty="qa_party_"+runId,financeContract="qa_contract_"+runId,financeVersion="qa_contract_v_"+runId;
+  await qaSql("INSERT INTO finance_parties(id,party_type,display_name,created_at,updated_at) VALUES(?,'author','Synthetic settlement payee',?,?)",[financeParty,nowSql,nowSql]);
+  await qaSql("INSERT INTO finance_royalty_contracts(id,name,product_id,effective_from,created_at,updated_at) VALUES(?,'Synthetic QA settlement terms',?,?,?,?)",[financeContract,test.productId,nowSql,nowSql,nowSql]);
+  await qaSql("INSERT INTO finance_royalty_contract_versions(id,contract_id,version,effective_from,created_at) VALUES(?,?,1,?,?)",[financeVersion,financeContract,nowSql,nowSql]);
+  await qaSql("INSERT INTO finance_royalty_splits(id,contract_version_id,party_id,share_bps,created_at) VALUES(?,?,?,10000,?)",["qa_split_"+runId,financeVersion,financeParty,nowSql]);
+  // An actual canonical D1 fault AFTER the financial transaction prevents
+  // owner publication. No fault-injection knob exists on the owner command.
+  assert.match(initialOrder,/^order_initial_qa_\d{8,15}-\d{1,5}$/);
+  await qaSql("CREATE TRIGGER "+interruptTrigger+" BEFORE UPDATE OF effects_completed_at ON commerce_settlement_receipts WHEN NEW.order_id='"+initialOrder+"' BEGIN SELECT RAISE(ABORT,'isolated_settlement_effect_interruption'); END");
+  interruptTriggerCreated=true;
   const initialPI=await stripeRequest("payment_intents",{
     amount:"399",currency:"usd",
     "metadata[fore_order_id]":initialOrder,
@@ -783,6 +804,18 @@ try {
     x.raw?.includes(initialPaymentIntentId)&&x.status===503),
     "initial_signed_webhook_interruption",60000);
   assert.equal(initialOutageInjected,true);
+  // Stripe's asynchronous balance transaction can appear after the success
+  // event. Preserve every failed attempt; replay the same signed event until
+  // the independently verified fee permits the atomic batch to commit.
+  await until(async()=>{
+    const state=await qaSql("SELECT status FROM commerce_orders WHERE id=?",[initialOrder]);
+    if(state.results?.[0]?.status==="paid")return true;
+    const retry=await fetch(settlementOrigin+"/signed-stripe-settlement",{method:"POST",
+      headers:{"content-type":"application/json",authorization:"Bearer "+gate,"stripe-signature":interrupted.signature},
+      body:interrupted.raw,signal:AbortSignal.timeout(15000)});
+    assert.equal(retry.status,503,"Injected effect fault must prevent any successful ACK");
+    await pause(1000);return false;
+  },"independently_verified_atomic_payment",60000);
   const initialPaid=await qaSql(
     "SELECT status,paid_at FROM commerce_orders WHERE id=?",[initialOrder]);
   assert.equal(initialPaid.results?.[0]?.status,"paid",
@@ -800,13 +833,11 @@ try {
     "The actual Cove pending-order finalizer must post financial ledger entries");
   assert.equal(ledgerBefore.results.reduce((sum,r)=>sum+Number(r.amount_minor),0),0,
     "Canonical financial ledger MUST balance");
-  const outbox=await qaSql(
-    "SELECT event_type,status FROM publishing_outbox WHERE aggregate_id=?",
-    [initialOrder]);
-  assert.ok(outbox.results.some(r=>
-    r.event_type==="finance.royalty_fee_reconciliation_required" &&
-    r.status==="pending"),
-    "Unhydrated Stripe fee requires a durable settlement-reconciliation outbox");
+  const pendingReceipt=await qaSql("SELECT effects_completed_at,owner_published_at FROM commerce_settlement_receipts WHERE order_id=?",[initialOrder]);
+  assert.deepEqual(pendingReceipt.results?.[0],{effects_completed_at:null,owner_published_at:null},"Real financial transaction must retain a durable recovery obligation");
+  assert.ok(ledgerBefore.results.some(r=>r.entry_type==="processor_fee"),"Verified Stripe fee must be in the atomic journal");
+  assert.ok(ledgerBefore.results.some(r=>r.entry_type==="royalty_accrual"),"All royalty allocations must precede owner ACK");
+  await qaSql("DROP TRIGGER "+interruptTrigger);interruptTriggerCreated=false;
   const replayHeaders={
     "content-type":"application/json",authorization:"Bearer "+gate,
     "stripe-signature":interrupted.signature
@@ -1131,6 +1162,10 @@ try {
   console.log("PASS: private R2 EPUB/WAV exact SHA256 bytes from isolated paid order, wrong-buyer and outage denial, original EPUB/audio receipt expiry and audio renewal, prepayment and refund byte/license veto; isolated QA adapters and original handlers, not production certification");
 
  } finally {
+  if(interruptTriggerCreated){
+    try{await qaSql("DROP TRIGGER IF EXISTS "+interruptTrigger);interruptTriggerCreated=false;}
+    catch(error){cleanupError=error;console.error("QA settlement interruption cleanup failed");}
+  }
   if(listener?.pid){
     try{process.kill(-listener.pid,"SIGTERM");}catch{
       try{listener.kill("SIGTERM");}catch{}

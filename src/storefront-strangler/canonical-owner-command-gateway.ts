@@ -14,6 +14,8 @@ const source=z.string().regex(/^(?:[0-9]{1,10}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90
 const evidence=z.string().regex(/^gre_[a-z0-9_:-]{1,120}$/);
 const version=z.string().min(3).max(160).regex(/^[a-zA-Z0-9_-]+$/);
 const routes={
+  "commerce.settle-order":{path:"/commercial/order/settle",schema:z.object({orderId:ownerId}).strict()},
+  "commerce.recover-settlements":{path:"/commercial/order/recover-settlements",schema:z.object({limit:z.number().int().min(1).max(25)}).strict()},
   "commerce.revoke-order":{path:"/commercial/order/revoke",schema:z.object({orderId:ownerId,operationId:operation}).strict()},
   "commerce.post-refund-accounting":{path:"/commercial/refund/post-accounting",schema:z.object({
     orderId:ownerId,refundId:ownerId}).strict()},
@@ -98,6 +100,17 @@ export async function dispatchCanonicalOwnerCommand(
   try{ack=JSON.parse(bytes);}catch{throw Error("canonical_command_receipt_invalid");}
   if(!record(ack))throw Error("canonical_command_receipt_invalid");
   switch(kind){
+    case "commerce.recover-settlements":
+      if(ack.schema!=="cove.owner-settlement-recovery.v1"||
+         ![ack.checked,ack.recovered,ack.blocked].every(n=>Number.isSafeInteger(n)&&Number(n)>=0&&Number(n)<=Number(body.limit))||
+         Number(ack.checked)!==Number(ack.recovered)+Number(ack.blocked))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "commerce.settle-order":
+      if(ack.schema!=="cove.owner-paid-settlement.v1"||ack.orderId!==body.orderId||
+         ack.settled!==true||ack.effectsReconciled!==true||ack.accessPublished!==true||
+         typeof ack.applied!=="boolean")throw Error("canonical_command_receipt_mismatch");
+      break;
     case "commerce.revoke-order":
       if(ack.schema!=="cove.paid-order-revocation.v1"||ack.orderDenied!==true||
          ack.reconciled!==true||ack.orderId!==body.orderId||ack.operationId!==body.operationId)

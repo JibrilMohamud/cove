@@ -18,7 +18,7 @@ export function buildWorkflowInventory(review,sites) {
   const checked=reconcileWriterSites(sites,review);
   assert.deepEqual(checked.unknown,[],"Unreviewed SQL requires independent review");
   assert.deepEqual(checked.stale,[],"Stale SQL review requires reconciliation");
-  const counts={"owner-command-required":0,"non-authorizing-write":0,"isolated-test-fixture":0};
+  const counts={"owner-command-required":0,"non-authorizing-write":0,"isolated-test-fixture":0,"private-owner-qa-executor":0};
   const families=new Map(),byFile=new Map();
   for(const {review:row,...site} of checked.rows) {
     assert.ok(row,"Missing reviewed mutation");
@@ -62,6 +62,7 @@ export function buildWorkflowInventory(review,sites) {
       ownerRequiredSqlSites:counts["owner-command-required"],
       classifiedNonAuthorizingSqlSites:counts["non-authorizing-write"],
       isolatedFixtureSqlSites:counts["isolated-test-fixture"],
+      privateOwnerQaExecutorSqlSites:counts["private-owner-qa-executor"],
       recordedCommandFamilies:workflows.length,
       productionCertifiedCommandFamilies:0
     },

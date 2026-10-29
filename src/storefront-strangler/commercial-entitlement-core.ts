@@ -18,6 +18,13 @@ export function validatePaidEntitlementScope(raw:unknown):EntitlementScope {
   return {entitlementId:r.entitlementId,userId:r.userId,productId:r.productId};
 }
 export function createPaidEntitlementSchema(sql:AuthoritySql) {
+  sql.exec(`CREATE TABLE IF NOT EXISTS cove_paid_settlement_recovery_cursors(
+    scope TEXT PRIMARY KEY,after_id TEXT NOT NULL,after_time TEXT NOT NULL
+  ) WITHOUT ROWID`);
+  sql.exec(`CREATE TABLE IF NOT EXISTS cove_paid_settlement_commands(
+    order_id TEXT PRIMARY KEY,payment_reference TEXT NOT NULL,
+    state TEXT NOT NULL CHECK(state IN ('pending','complete'))
+  ) WITHOUT ROWID`);
   sql.exec(`CREATE TABLE IF NOT EXISTS cove_paid_entitlement_authority(
     entitlement_id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
@@ -216,6 +223,8 @@ export function publishFreshEntitlement(
     throw Error("paid_entitlement_scope_changed");
   if(sql.exec("SELECT order_id FROM cove_paid_refunded_orders WHERE order_id=?",orderId).toArray().length)
     throw Error("paid_order_already_revoked");
+  if(sql.exec("SELECT 1 ok FROM cove_paid_settlement_commands WHERE order_id=? AND state='pending'",orderId).toArray().length)
+    throw Error("paid_order_settlement_incomplete");
   // A denial is terminal for THIS entitlement ID. Otherwise a lagging
   // canonical entitlement row could reauthorize the same refunded or held
   // buyer immediately after an acknowledged owner-first withdrawal.
@@ -295,6 +304,7 @@ export function readPaidAccess(sql:AuthoritySql,raw:unknown,now=new Date().toISO
      AND e.product_epoch=p.epoch
      WHERE e.entitlement_id=? AND e.user_id=? AND e.product_id=? AND e.verdict='allow'
        AND NOT EXISTS(SELECT 1 FROM cove_paid_refunded_orders d WHERE d.order_id=eo.order_id)
+       AND NOT EXISTS(SELECT 1 FROM cove_paid_settlement_commands sc WHERE sc.order_id=eo.order_id AND sc.state='pending')
        AND NOT EXISTS(SELECT 1 FROM cove_commercial_subject_denials sd
          WHERE (sd.subject_kind='grant' AND sd.subject_id=p.grant_id)
             OR (sd.subject_kind='contract' AND sd.subject_id=p.contract_id))

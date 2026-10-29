@@ -13,7 +13,7 @@ assert.equal(a.scannedSqlSites,review.sites.length);
 assert.equal(a.ownerRequiredSqlSites,review.sites.filter(x=>x.disposition==="owner-command-required").length);
 assert.equal(a.classifiedNonAuthorizingSqlSites,review.sites.filter(x=>x.disposition==="non-authorizing-write").length);
 assert.equal(a.isolatedFixtureSqlSites,review.sites.filter(x=>x.disposition==="isolated-test-fixture").length);
-assert.equal(a.ownerRequiredSqlSites+a.classifiedNonAuthorizingSqlSites+a.isolatedFixtureSqlSites,a.scannedSqlSites);
+assert.equal(a.ownerRequiredSqlSites+a.classifiedNonAuthorizingSqlSites+a.isolatedFixtureSqlSites+a.privateOwnerQaExecutorSqlSites,a.scannedSqlSites);
 assert.equal(a.recordedCommandFamilies,new Set(review.sites.filter(x=>x.commandFamily).map(x=>x.commandFamily)).size);
 assert.equal(report.workflows.reduce((n,x)=>n+x.ownerRequiredSites,0),a.ownerRequiredSqlSites);
 assert.equal(report.productionReleaseEligible,false);

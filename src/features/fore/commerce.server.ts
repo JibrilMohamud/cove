@@ -17,6 +17,10 @@ import { revokePaidOrderAccess } from "../../storefront-strangler/paid-order-rev
 import { postStageOwnerRefundAccounting } from "../../storefront-strangler/owner-refund-accounting.server";
 import { recordStageOwnerRefundProvider } from "../../storefront-strangler/owner-refund-provider.server";
 import {
+  settleStageOwnerPaidOrder,
+  recoverStageOwnerPaidSettlements,
+} from "../../storefront-strangler/owner-paid-settlement.server";
+import {
   assertStagePaidOrderNotWithdrawn,
   certifyStagePaidSettlement,
 } from "../../storefront-strangler/paid-settlement-publication.server";
@@ -1305,7 +1309,7 @@ async function hydrateProcessorFees(
     );
     const charge = typeof pi.latest_charge === "object" ? pi.latest_charge : null,
       bt = charge?.balance_transaction;
-    if (!bt || Number(bt.fee || 0) <= 0) return null;
+    if (!bt || !Number.isSafeInteger(bt.fee) || bt.fee < 0) return null;
     const fee = Number(bt.fee),
       items = (
         await env.DB.prepare(
@@ -1368,8 +1372,20 @@ export async function finalizePaidOrder(
     order = await db.prepare("SELECT * FROM commerce_orders WHERE id=?").bind(orderId).first<any>();
   if (!order) throw new ApiError(404, "Order not found.");
   if (["paid", "partially_refunded", "refunded"].includes(order.status)) {
-    if (order.status === "paid")
+    if (order.status === "paid") {
+      // Existing purchases predate the atomic-receipt migration. They retain
+      // read-only owner certification; a new receipt may never be invented
+      // for a partially written historical sale.
+      if (
+        env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1" &&
+        (await db
+          .prepare("SELECT order_id FROM commerce_settlement_receipts WHERE order_id=?")
+          .bind(orderId)
+          .first())
+      )
+        return settleStageOwnerPaidOrder(env, orderId);
       await certifyStagePaidSettlement(env, String(order.id), String(order.user_id));
+    }
     return order;
   }
   // A valid, signed and correctly linked success event can arrive after
@@ -1377,6 +1393,8 @@ export async function finalizePaidOrder(
   // entitlements, consume tender or accrue royalties for those orders.
   if (!["pending_payment", "processing", "authorized", "payment_failed"].includes(order.status))
     throw new ApiError(409, "Terminal or invalid order cannot be settled.");
+  // Enrolled new settlements have NO caller-side mutation or fallback.
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1") return settleStageOwnerPaidOrder(env, orderId);
   // No late Stripe success can resurrect a buyer refunded in the owner.
   await assertStagePaidOrderNotWithdrawn(env, String(order.id));
   const at = now();
@@ -1647,6 +1665,99 @@ export async function finalizePaidOrder(
   // Stripe event can finish owner publication after a temporary owner outage.
   await certifyStagePaidSettlement(env, String(order.id), String(order.user_id));
   return db.prepare("SELECT * FROM commerce_orders WHERE id=?").bind(orderId).first<any>();
+}
+
+/** Retryable owner-side obligations. The atomic receipt is the outbox: a
+ * committed order is not acknowledged for access until these obligations
+ * finish. A provider/royalty/notification outage retains the pending marker. */
+export async function reconcileOwnerPaidSettlementEffects(env: CoveEnv, orderId: string) {
+  const db = env.DB;
+  const receipt = await db
+    .prepare("SELECT effects_completed_at FROM commerce_settlement_receipts WHERE order_id=?")
+    .bind(orderId)
+    .first<AnyRow>();
+  if (!receipt) throw new ApiError(409, "Atomic settlement receipt is missing.");
+  if (receipt.effects_completed_at) return;
+  const order = await db
+    .prepare("SELECT * FROM commerce_orders WHERE id=?")
+    .bind(orderId)
+    .first<AnyRow>();
+  if (!order || order.status !== "paid")
+    throw new ApiError(409, "Settlement was revoked before reconciliation.");
+  const items = await db
+    .prepare("SELECT * FROM commerce_order_items WHERE order_id=? ORDER BY id")
+    .bind(orderId)
+    .all<AnyRow>();
+  const purchaseEvents: AnyRow[] = [];
+  for (const item of items.results) {
+    const pricingCampaign = await db
+      .prepare(
+        `SELECT pr.campaign_id,pd.promotion_amount_minor FROM pricing_decisions pd JOIN promotions pr ON pr.id=pd.promotion_id WHERE pd.id=?`,
+      )
+      .bind(item.pricing_decision_id || "")
+      .first<AnyRow>();
+    const campaignFunding = new Map<string, number>();
+    if (item.promotion_campaign_id)
+      campaignFunding.set(
+        String(item.promotion_campaign_id),
+        Number(item.publisher_discount_funding_minor || 0) +
+          Number(item.fore_discount_funding_minor || 0),
+      );
+    if (pricingCampaign?.campaign_id)
+      campaignFunding.set(
+        String(pricingCampaign.campaign_id),
+        (campaignFunding.get(String(pricingCampaign.campaign_id)) || 0) +
+          Number(pricingCampaign.promotion_amount_minor || 0),
+      );
+    for (const [campaignId, fundingMinor] of campaignFunding)
+      await recordPromotionAttribution(db, {
+        campaignId,
+        productId: item.product_id,
+        userId: order.user_id,
+        eventType: "order",
+        orderId: order.id,
+        orderItemId: item.id,
+        amountMinor: Number(item.total_minor || 0),
+        fundingMinor,
+        currency: order.currency,
+        sourceSurface: item.source_surface || "checkout",
+        dedupeKey: `order:${order.id}:${item.id}:${campaignId}`,
+      });
+    purchaseEvents.push({
+      eventType: "purchase_completed",
+      productId: String(item.product_id),
+      sourceSurface: String(item.source_surface || "checkout"),
+      sourceRequestId: item.source_request_id || null,
+      territory: String(order.territory_code || "US"),
+      currency: String(order.currency),
+      amountMinor: Number(item.total_minor || 0),
+      properties: {
+        orderId: order.id,
+        orderItemId: item.id,
+        preorder: !!item.preorder_id,
+        promotionCampaignId: item.promotion_campaign_id || null,
+      },
+      dedupeKey: `purchase:${order.id}:${item.id}`,
+    });
+  }
+  for (const event of purchaseEvents) await recordRetailEvent(db, order.user_id, event);
+  await recordTaxTransaction(env, order);
+  await emitNotification(db, {
+    userId: String(order.user_id),
+    eventType: "purchase_receipt",
+    dedupeKey: `purchase-receipt:${orderId}`,
+    title: `Receipt ${order.invoice_number}`,
+    body: `Your Cove order is complete. Total ${formatMinorCurrency(Number(order.total_minor || 0), String(order.currency || "USD"))}.`,
+    subjectType: "order",
+    subjectId: orderId,
+    actionUrl: `/orders/${encodeURIComponent(orderId)}`,
+    payload: {
+      orderId,
+      invoiceNumber: order.invoice_number,
+      currency: order.currency,
+      totalMinor: Number(order.total_minor || 0),
+    },
+  });
 }
 
 export async function recoverPayment(env: CoveEnv, userId: string, orderId: string) {
@@ -2940,6 +3051,11 @@ export async function commerceAdminSnapshot(db: CatalogDB) {
 }
 
 export async function reconcileStripe(env: CoveEnv, limit = 100) {
+  // Includes internal-only tender and failures after effects completed but
+  // before the owner's publication ACK. No Stripe-only scan can find all
+  // of these interrupted transactions.
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1")
+    await recoverStageOwnerPaidSettlements(env, Math.max(1, Math.min(25, limit)));
   const db = env.DB,
     id = `recon_${crypto.randomUUID()}`,
     started = now();
@@ -2963,6 +3079,25 @@ export async function reconcileStripe(env: CoveEnv, limit = 100) {
         `payment_intents/${encodeURIComponent(o.stripe_payment_intent_id)}`,
         { method: "GET", params: { expand: ["latest_charge.balance_transaction"] } },
       );
+      // Enrolled scheduled reconciliation uses the same complete owner
+      // transaction and durable obligations as signed webhook settlement.
+      // No fee/receipt/royalty write below can run outside that executor.
+      if (
+        env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1" &&
+        ["paid", "partially_refunded", "refunded", "disputed", "chargeback_lost"].includes(o.status)
+      ) {
+        if (o.status === "paid") {
+          await finalizePaidOrder(env, String(o.id), {
+            provider: "stripe",
+            paymentIntentId: pi.id,
+            chargeId: null,
+            receiptUrl: null,
+          });
+          repaired++;
+          details.push({ orderId: o.id, action: "owner_settlement_reconciled" });
+        }
+        continue;
+      }
       const ageMs = Date.now() - Date.parse(String(o.updated_at || o.created_at || 0)),
         staleRecoverable =
           ["pending_payment", "payment_failed"].includes(o.status) &&
