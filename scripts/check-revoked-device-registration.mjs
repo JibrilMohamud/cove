@@ -39,18 +39,32 @@ try {
   assert.equal(db.prepare("SELECT name FROM devices WHERE id='device_1'").get().name, "Updated");
 
   db.prepare("UPDATE devices SET revoked_at=? WHERE id=?").run(at, "device_1");
-  assert.equal(insert("device_3", "buyer_1", key, "Stolen"), undefined,
-    "Re-enrolling the same revoked public key must not resurrect it");
+  assert.equal(
+    insert("device_3", "buyer_1", key, "Stolen"),
+    undefined,
+    "Re-enrolling the same revoked public key must not resurrect it",
+  );
   const revoked = db.prepare("SELECT name,revoked_at FROM devices WHERE id='device_1'").get();
   assert.equal(revoked.name, "Updated");
   assert.equal(revoked.revoked_at, at);
-  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM devices").get().n, 1,
-    "Revoked key must not create a second device row");
-  assert.equal(insert("device_4", "buyer_1", "brand-new-device-public-key-002", "New")?.id,
-    "device_4", "A user may explicitly enroll a fresh key");
-  assert.equal(insert("device_5", "buyer_2", key, "Other buyer")?.id,
-    "device_5", "One user's revoked key must not block a different account");
-  console.log("PASS: revoked device keys cannot resurrect; active re-registration, key rotation, buyer isolation preserved");
+  assert.equal(
+    db.prepare("SELECT COUNT(*) AS n FROM devices").get().n,
+    1,
+    "Revoked key must not create a second device row",
+  );
+  assert.equal(
+    insert("device_4", "buyer_1", "brand-new-device-public-key-002", "New")?.id,
+    "device_4",
+    "A user may explicitly enroll a fresh key",
+  );
+  assert.equal(
+    insert("device_5", "buyer_2", key, "Other buyer")?.id,
+    "device_5",
+    "One user's revoked key must not block a different account",
+  );
+  console.log(
+    "PASS: revoked device keys cannot resurrect; active re-registration, key rotation, buyer isolation preserved",
+  );
 } finally {
   db.close();
 }
