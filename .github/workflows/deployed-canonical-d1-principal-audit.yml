@@ -46,7 +46,7 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
       CLOUDFLARE_ZONE_ID: "07e218b2e74bc522122e0994b8e37576"
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      COVE_D1_FLEET_AUDIT_OUTPUT: ${{ runner.temp }}/cove-live-canonical-d1-principals.json
+      COVE_D1_FLEET_AUDIT_OUTPUT: artifacts/cove-live-canonical-d1-principals.json
     steps:
       - uses: actions/checkout@v6
         with:
@@ -68,7 +68,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cove-live-canonical-d1-principal-inventory
-          path: ${{ runner.temp }}/cove-live-canonical-d1-principals.json
+          path: artifacts/cove-live-canonical-d1-principals.json
           retention-days: 30
           if-no-files-found: warn
       - name: Explain the production ownership boundary
