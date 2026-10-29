@@ -1,0 +1,53 @@
+{
+  "schema": "cove.fast-qa-customer-d1-retirement.v1",
+  "checkedOn": "2026-10-29",
+  "previousDirectCanonicalD1Bindings": 12,
+  "remainingDirectCanonicalD1Bindings": 10,
+  "previousNonOwnerBindings": 11,
+  "remainingNonOwnerBindings": 9,
+  "productionOwnerEnabled": false,
+  "deployments": [
+    {
+      "name": "cove-fast-architecture-qa",
+      "workerVersion": "596df13d-9474-4a0b-aea3-9f521c176f9a",
+      "deployedPercent": 100,
+      "databaseBindings": 0,
+      "databaseSelectorPresent": false,
+      "releaseCertified": "0",
+      "workersDev": false,
+      "crons": 0,
+      "changes": "Closed public ingress, removed production DB and selector, reset release flag 1 to 0. Kept secret, rate limiter and R2."
+    },
+    {
+      "name": "cove-fast-customer-gateway",
+      "workerVersion": "346cdeef-a105-4c6c-b23e-d764a181e9bb",
+      "deployedPercent": 100,
+      "databaseBindings": 0,
+      "databaseSelectorPresent": false,
+      "releaseCertified": "0",
+      "workersDev": true,
+      "crons": 0,
+      "changes": "Protected GitHub main deploy removed DB and selector, retained disabled worker mode, independently verified actual live HTTP 503 on homepage, checkout, library and API."
+    }
+  ],
+  "evidence": {
+    "independentCloudflareSettings": true,
+    "deploymentsAt100Percent": true,
+    "protectedGithubDeployment": "https://github.com/JibrilMohamud/cove/actions/runs/40839451530",
+    "protectedGateRetainsDisabledCustomerMode": true
+  },
+  "rollback": {
+    "warning": "Do not restore canonical DB/activation via a simple config flip. A future customer gateway needs independent rights owner, paid media, hosted capacity and protected routing certification.",
+    "fastQaWorkersDevRecovery": {
+      "method": "POST",
+      "path": "/accounts/{account_id}/workers/scripts/cove-fast-architecture-qa/subdomain",
+      "body": {
+        "enabled": true,
+        "previews_enabled": false
+      }
+    },
+    "customerRouting": "Unchanged Vercel production routing; no traffic rollback needed"
+  },
+  "productionOwnerAuthorizationCertified": false,
+  "sourceReviewOwnerRequiredSitesRemain": 426
+}

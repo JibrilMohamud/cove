@@ -60,13 +60,16 @@ test("no synthetic or source-only configuration can self-certify deployment",()=
   assert.equal(clean.productionAuthorized,false);
   assert.equal(clean.independentDeploymentAuthorizationRequired,true);
 });
-test("43 retired captures never regain production D1 or restart, and 14-binding unsafe baseline is pinned",()=>{
+test("47 retired direct D1 capabilities cannot return and the 10-binding unsafe baseline stays pinned",()=>{
   const retired=JSON.parse(readFileSync("docs/architecture/historical-publication-capture-d1-isolation-20261029.json","utf8"));
   const baseline=JSON.parse(readFileSync("docs/architecture/deployed-canonical-d1-baseline.json","utf8"));
   assert.equal(retired.scripts.length,43);
-  assert.equal(baseline.knownDirectBindings.length,12);
-  assert.equal(baseline.retirementEvidence.totalBindingsRemoved,45);
-  assert.equal(baseline.retirementEvidence.remainingNonOwnerBindings,11);
+  assert.equal(baseline.knownDirectBindings.length,10);
+  assert.equal(baseline.retirementEvidence.totalBindingsRemoved,47);
+  assert.equal(baseline.retirementEvidence.remainingNonOwnerBindings,9);
+  for(const n of ["cove-fast-architecture-qa","cove-fast-customer-gateway"])
+    assert.ok(!baseline.knownDirectBindings.some(x=>x.script===n),
+      "Retired fast gateway cannot be an unsafe legacy binding: "+n);
   assert.equal(baseline.certified,false);
   assert.equal(baseline.retirementEvidence.historicalCaptureBindingsRemoved,43);
   for(const name of retired.scripts)assert.ok(
@@ -171,8 +174,43 @@ test("production-D1-capable fast architecture QA cannot restore publicly reachab
     knownDirectBindings:[{script:OWNER_SCRIPT,binding:"PRIMARY_DB"},
       {script:"cove-disabled-qa",binding:"SOURCE_DB"},{script:name,binding:"DB"}],
     knownSchedules:{"cove-disabled-qa":["* * * * *"]}};
-  assert.equal(compareKnownUnsafeFleet(safe,snapshot).strictDriftPass,true);
+  assert.equal(compareKnownUnsafeFleet(safe,snapshot).strictDriftPass,false,
+    "The retired fast QA Worker can no longer retain D1 even when its public ingress is closed");
   assert.equal(compareKnownUnsafeFleet(opened,snapshot).strictDriftPass,false);
+});
+test("retired fast QA and customer gateway never regain canonical D1, activation or public QA ingress",()=>{
+  const qa="cove-fast-architecture-qa",gateway="cove-fast-customer-gateway";
+  const settings=(mode="customer-gateway")=>({bindings:[
+    {name:"COVE_STRANGLER_MODE",type:"plain_text",text:mode},
+    {name:"COVE_STRANGLER_RELEASE_CERTIFIED",type:"plain_text",text:"0"}]});
+  const input={...params,
+    scripts:[...params.scripts,{id:qa},{id:gateway}],
+    settingsByName:{...params.settingsByName,[qa]:settings(),[gateway]:settings()},
+    schedulesByName:{...params.schedulesByName,[qa]:[],[gateway]:[]},
+    subdomainsByName:{...params.subdomainsByName,
+      [qa]:{enabled:false,previews_enabled:false},
+      [gateway]:{enabled:true,previews_enabled:false}}};
+  const good=assessDeployedCanonicalD1Principals(input);
+  assert.deepEqual(good.retiredFastWorkerViolations,[]);
+  const dbRebound=assessDeployedCanonicalD1Principals({...input,
+    settingsByName:{...input.settingsByName,[qa]:{bindings:[
+      ...settings().bindings,{name:"DB",type:"d1",id:CANONICAL_D1}
+    ]}}});
+  assert.deepEqual(dbRebound.retiredFastWorkerViolations,[qa]);
+  assert.ok(dbRebound.blockerCodes.includes("retired_fast_worker_d1_or_activation_restored"));
+  const reactivation=assessDeployedCanonicalD1Principals({...input,
+    settingsByName:{...input.settingsByName,[gateway]:{bindings:[
+      {name:"COVE_STRANGLER_MODE",type:"plain_text",text:"customer-gateway"},
+      {name:"COVE_STRANGLER_RELEASE_CERTIFIED",type:"plain_text",text:"1"}]}}});
+  assert.deepEqual(reactivation.retiredFastWorkerViolations,[gateway]);
+  const republished=assessDeployedCanonicalD1Principals({...input,
+    subdomainsByName:{...input.subdomainsByName,[qa]:{enabled:true,previews_enabled:false}}});
+  assert.deepEqual(republished.retiredFastWorkerViolations,[qa]);
+  const selector=assessDeployedCanonicalD1Principals({...input,
+    settingsByName:{...input.settingsByName,[gateway]:{bindings:[
+      ...settings().bindings,{name:"COVE_STRANGLER_DATABASE_ID",type:"plain_text",text:CANONICAL_D1}
+    ]}}});
+  assert.deepEqual(selector.retiredFastWorkerViolations,[gateway]);
 });
 test("baseline is unsafe history, never authorization; added bindings and cron are refused",()=>{
   const report=assessDeployedCanonicalD1Principals(params);
