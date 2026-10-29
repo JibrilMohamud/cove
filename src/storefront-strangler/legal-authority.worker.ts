@@ -5,6 +5,7 @@ import {DISABLED_OWNER_ATTEST_ROUTE,PRODUCTION_OWNER_OBJECT,isDisabledProduction
 import {publishVerifiedPaidOrderAtomic,type VerifiedPaidOrderLine} from "./paid-order-atomic-publication";
 import {executeOwnerRefundAccounting} from "./refund-accounting-owner-executor";
 import {executeOwnerRefundReservation} from "./refund-reservation-owner-executor";
+import {executeOwnerCheckoutPaymentBinding} from "./checkout-payment-binding-owner-executor";
 import {executeOwnerPaidSettlement} from "./paid-settlement-owner-executor";
 import {createMarketAuthoritySchema,denyMarket,marketIsWithdrawn} from "./market-authority-core";
 import { authorizeStorefrontPresentationIds, type CatalogDB } from "../features/fore/catalog-model.server";
@@ -132,6 +133,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/order/settle",
       "/commercial/order/recover-settlements",
       "/commercial/refund/reserve",
+      "/commercial/checkout/attach-payment-intent",
       "/commercial/payment/update-state",
       "/commercial/webhook/claim",
       "/commercial/webhook/finish",
@@ -523,6 +525,34 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         return Response.json({schema:"cove.paid-order-revocation.v1",
           orderDenied:true,reconciled:true,orderId:input.orderId,
           operationId:input.operationId},{status:200,headers:noStore});
+      }
+      if(route==="/commercial/checkout/attach-payment-intent"){
+        const receipt=await executeOwnerCheckoutPaymentBinding(env,raw,async input=>{
+          const {command:c,order,at,paymentAttemptId,stripeStatus,paymentMethodTypes}=input;
+          const db=env.PRIMARY_DB;
+          const results=await db.batch([
+            db.prepare(
+              "UPDATE commerce_orders SET stripe_customer_id=?,stripe_payment_intent_id=?,updated_at=? WHERE id=? AND user_id=? AND quote_id=? AND status IN ('pending_payment','processing','authorized','payment_failed') AND (stripe_payment_intent_id IS NULL OR stripe_payment_intent_id=?) AND (stripe_customer_id IS NULL OR stripe_customer_id=?)"
+            ).bind(c.customerId,c.paymentIntentId,at,c.orderId,c.userId,order.quote_id,c.paymentIntentId,c.customerId),
+            db.prepare(
+              "INSERT INTO commerce_payment_attempts(id,order_id,provider,provider_payment_id,status,amount_minor,currency,provider_payload_json,created_at,updated_at) SELECT ?,o.id,'stripe',?,?,?,?,?,?,? FROM commerce_orders o WHERE o.id=? AND o.user_id=? AND o.stripe_payment_intent_id=? AND o.stripe_customer_id=? AND NOT EXISTS (SELECT 1 FROM commerce_payment_attempts pa WHERE pa.order_id=o.id AND pa.provider_payment_id=?)"
+            ).bind(paymentAttemptId,c.paymentIntentId,stripeStatus,Number(order.stripe_due_minor),
+              order.currency,JSON.stringify({payment_method_types:paymentMethodTypes,
+                capture_method:order.capture_method}),at,at,
+              c.orderId,c.userId,c.paymentIntentId,c.customerId,c.paymentIntentId)
+          ]) as Array<{meta?:{changes?:number}}>;
+          const bound=await db.prepare(
+            "SELECT stripe_payment_intent_id,stripe_customer_id FROM commerce_orders WHERE id=? AND user_id=?"
+          ).bind(c.orderId,c.userId).first<{stripe_payment_intent_id:string;stripe_customer_id:string}>();
+          const attempt=await db.prepare(
+            "SELECT id FROM commerce_payment_attempts WHERE order_id=? AND provider_payment_id=?"
+          ).bind(c.orderId,c.paymentIntentId).first<{id:string}>();
+          if(bound?.stripe_payment_intent_id!==c.paymentIntentId||
+             bound.stripe_customer_id!==c.customerId||!attempt)
+            throw Error("owner_checkout_payment_binding_unconfirmed");
+          return {applied:results[1]?.meta?.changes===1};
+        });
+        return Response.json(receipt,{headers:noStore});
       }
       if(route==="/commercial/payment/update-state"){
         // Only exact signed-Stripe adapters on the private QA lease may call
