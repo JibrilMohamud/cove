@@ -2074,7 +2074,9 @@ async function completeRequestedRefund(env: CoveEnv, o: RefundOrder, intent: Ref
       await recordOwnerStripeRefundReceipt(env, String(o.id), id, refund);
     } else {
       await db
-        .prepare("UPDATE commerce_refunds SET provider_refund_id=?,status=?,updated_at=? WHERE id=?")
+        .prepare(
+          "UPDATE commerce_refunds SET provider_refund_id=?,status=?,updated_at=? WHERE id=?",
+        )
         .bind(refund.id, refund.status || "pending", now(), id)
         .run();
     }
