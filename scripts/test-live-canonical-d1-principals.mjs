@@ -174,7 +174,8 @@ test("production-D1-capable fast architecture QA cannot restore publicly reachab
     knownDirectBindings:[{script:OWNER_SCRIPT,binding:"PRIMARY_DB"},
       {script:"cove-disabled-qa",binding:"SOURCE_DB"},{script:name,binding:"DB"}],
     knownSchedules:{"cove-disabled-qa":["* * * * *"]}};
-  assert.equal(compareKnownUnsafeFleet(safe,snapshot).strictDriftPass,true);
+  assert.equal(compareKnownUnsafeFleet(safe,snapshot).strictDriftPass,false,
+    "The retired fast QA Worker can no longer retain D1 even when its public ingress is closed");
   assert.equal(compareKnownUnsafeFleet(opened,snapshot).strictDriftPass,false);
 });
 test("retired fast QA and customer gateway never regain canonical D1, activation or public QA ingress",()=>{
