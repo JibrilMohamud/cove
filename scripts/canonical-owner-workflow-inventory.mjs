@@ -8,7 +8,7 @@ import {currentWriterSites,reconcileWriterSites,REVIEW_PATH} from "./reconcile-c
 
 export const WORKFLOW_SCHEMA="cove.canonical-workflow-inventory.v1";
 export const workflowId=name=>{
-  assert.match(name,/^[a-z][a-z0-9-]*\\.[a-zA-Z][a-zA-Z0-9_-]*$/);
+  assert.match(name,/^[a-z][a-z0-9-]*\.[a-zA-Z][a-zA-Z0-9_-]*$/);
   // Stable across unrelated changes to a large source file; not a permission.
   return createHash("sha256").update("cove-owner-command:"+name).digest("hex").slice(0,24);
 };
