@@ -1,0 +1,410 @@
+{
+  "schema": "cove.canonical-writer-classification-baseline.v1",
+  "baselineCommit": "e6fc9d39e13c609f0ecad771e064fc8b71e0b15a",
+  "rationale": "Immutable pre-migration identities for previously audited exceptions. Retained exceptions must be a subset of these identities; no unresolved authorizing writer can be reclassified to make the remaining count drop.",
+  "nonAuthorizing": [
+    {
+      "file": "src/features/fore/account-management.server.ts",
+      "functionName": "processAccountDeletionQueue",
+      "table": "commercial_audio_playback",
+      "operation": "DELETE FROM",
+      "sqlSha256": "4a685a358d6fe992f093ef8d46bfca225c4170e4129d418b5fb6bbd51e9f0185"
+    },
+    {
+      "file": "src/features/fore/commercial-audio.server.ts",
+      "functionName": "handleCommercialAudio",
+      "table": "commercial_audio_playback",
+      "operation": "INSERT INTO",
+      "sqlSha256": "d8a9f53555ea98165e4158b1215fc8eace14acdfc5011fcbd94900b181b7a507"
+    },
+    {
+      "file": "src/features/fore/commercial-audio.server.ts",
+      "functionName": "handleCommercialAudio",
+      "table": "commercial_audio_playback",
+      "operation": "UPDATE",
+      "sqlSha256": "4ff58b523b3cbcd92d9682464d5bdbf45016cbbc161c42d7ad91b0f0d3e971ba"
+    },
+    {
+      "file": "src/features/fore/delivery.server.ts",
+      "functionName": "audit",
+      "table": "commercial_download_audit",
+      "operation": "INSERT INTO",
+      "sqlSha256": "4fb75f2ea3c9b50e97eca308b827e12b41eb215a9ac2e15c30020d4c0d16dcda"
+    },
+    {
+      "file": "src/features/fore/delivery.server.ts",
+      "functionName": "setDistributionControl",
+      "table": "publication_version_distribution_events",
+      "operation": "INSERT INTO",
+      "sqlSha256": "0cb96f48fae764400b4b0239b067cdec22050a118ba890a7ebe896f78b08158f"
+    },
+    {
+      "file": "src/features/fore/publishing-trust.server.ts",
+      "functionName": "disputeEvent",
+      "table": "rights_dispute_events",
+      "operation": "INSERT INTO",
+      "sqlSha256": "3d68b397ccbbd17a152b906f7dda387c67e63244f11a72602346b5224e9befa0"
+    },
+    {
+      "file": "src/features/fore/publishing-trust.server.ts",
+      "functionName": "notify",
+      "table": "rights_notification_jobs",
+      "operation": "INSERT INTO",
+      "sqlSha256": "4f7ed0f839ac5cd0341c72257036cd82d704b6acd34fbb5f6471fed1196ac393"
+    },
+    {
+      "file": "src/features/fore/publishing-trust.server.ts",
+      "functionName": "leaseRightsNotificationJobs",
+      "table": "rights_notification_jobs",
+      "operation": "UPDATE",
+      "sqlSha256": "7192f7c10645a7d1e89ec06d95ae04f83559f4af5b80a5fc1eb953a91af131d2"
+    },
+    {
+      "file": "src/features/fore/publishing-trust.server.ts",
+      "functionName": "leaseRightsNotificationJobs",
+      "table": "rights_notification_jobs",
+      "operation": "UPDATE",
+      "sqlSha256": "6c71483871312d284c215a9f1b4a86ecd757ba628d51f0683b40123134acf91d"
+    },
+    {
+      "file": "src/features/fore/publishing-trust.server.ts",
+      "functionName": "completeRightsNotificationJob",
+      "table": "rights_notification_jobs",
+      "operation": "UPDATE",
+      "sqlSha256": "8099103432575b54e6a01122715e4f7f942003a1391f87d5a08b712d1d567323"
+    },
+    {
+      "file": "src/features/fore/publishing.server.ts",
+      "functionName": "setPublishingUpdatePolicy",
+      "table": "publishing_owner_version_events",
+      "operation": "INSERT INTO",
+      "sqlSha256": "25b281acc8fe039350c330745631b408a0af713162574b15de1657296c47bde9"
+    },
+    {
+      "file": "src/features/fore/publishing.server.ts",
+      "functionName": "optInOwnedPublicationUpdate",
+      "table": "publishing_owner_version_events",
+      "operation": "INSERT INTO",
+      "sqlSha256": "062ffaaa58cfbd5ff706723f03080363cc3e292ce7f3cc1812eb79596657b402"
+    },
+    {
+      "file": "src/features/fore/retail-intelligence.server.ts",
+      "functionName": "refreshRetailRankings",
+      "table": "catalog_search_documents",
+      "operation": "UPDATE",
+      "sqlSha256": "2e700841c68e5e6ba658e33363aa8e36d7eb4beb37c108385f1a1689f0c58161"
+    },
+    {
+      "file": "src/features/fore/rights.server.ts",
+      "functionName": "resolveRightsDecision",
+      "table": "rights_decisions",
+      "operation": "INSERT INTO",
+      "sqlSha256": "7327f841d0674807dc7651e9c68933d4598d9fd3196557edfda0954d6275684b"
+    },
+    {
+      "file": "src/features/fore/rights.server.ts",
+      "functionName": "upsertTerritorySet",
+      "table": "rights_configuration_audit",
+      "operation": "INSERT INTO",
+      "sqlSha256": "c8ad19e1bef9ed84c5e10d8c966358b6006e9d19a013431e131df00138b10501"
+    },
+    {
+      "file": "src/features/fore/rights.server.ts",
+      "functionName": "upsertRightsContract",
+      "table": "rights_configuration_audit",
+      "operation": "INSERT INTO",
+      "sqlSha256": "c8ad19e1bef9ed84c5e10d8c966358b6006e9d19a013431e131df00138b10501"
+    },
+    {
+      "file": "src/features/fore/search.server.ts",
+      "functionName": "refreshSearchQualitySignals",
+      "table": "catalog_search_documents",
+      "operation": "UPDATE",
+      "sqlSha256": "b44b6a38f0afbbebca207293beeb8f920a9ab2f4d9429e3735fd6df1735d4846"
+    },
+    {
+      "file": "src/features/fore/sync.server.ts",
+      "functionName": "applyDomainMutation",
+      "table": "commercial_audio_playback",
+      "operation": "DELETE FROM",
+      "sqlSha256": "78d0bc8a0172709abd745258fbb0f01608ba29806aa5d6654867d4efed1416c8"
+    },
+    {
+      "file": "src/features/fore/sync.server.ts",
+      "functionName": "applyDomainMutation",
+      "table": "commercial_audio_playback",
+      "operation": "UPDATE",
+      "sqlSha256": "b02c8bd4b4ad791f85d4f272cc73836e9263257d9e1130ffe41d10aa2d3eb918"
+    },
+    {
+      "file": "src/features/fore/sync.server.ts",
+      "functionName": "applyDomainMutation",
+      "table": "commercial_audio_playback",
+      "operation": "INSERT INTO",
+      "sqlSha256": "a1bb7b283db41d445831813aabf5c709a312406dbf1118b11485ac8e79849758"
+    },
+    {
+      "file": "src/features/fore/taxonomy.server.ts",
+      "functionName": "syncEditionTaxonomy",
+      "table": "catalog_search_documents",
+      "operation": "UPDATE",
+      "sqlSha256": "d1d1d2cc7543e64d6540506ea48a0d2f9cf141909166686bd5bb8af3fc11f2f9"
+    },
+    {
+      "file": "src/features/fore/taxonomy.server.ts",
+      "functionName": "refreshTaxonomyProjection",
+      "table": "catalog_search_documents",
+      "operation": "UPDATE",
+      "sqlSha256": "944f959c04e967c1942229c023cd38e86f042ef7693718495cb68b1ec40baacf"
+    },
+    {
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "functionName": "savePartnerProfile",
+      "table": "publisher_validation_responses",
+      "operation": "UPDATE",
+      "sqlSha256": "062559a63ed5f36939fe7da2e6fcd8a41d6a05424ff5d6b6d1fd331fcde8588c"
+    },
+    {
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "functionName": "authenticatePartnerRequest",
+      "table": "publisher_partner_credentials",
+      "operation": "UPDATE",
+      "sqlSha256": "a840a3004f2b07369c457c726fd511516b0e733ea2795cb020943186b6120530"
+    },
+    {
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "functionName": "submitPartnerFeed",
+      "table": "publisher_validation_responses",
+      "operation": "INSERT INTO",
+      "sqlSha256": "9b62e7340a1298d0887944f2665b5247fca14e5e887776a0b155b7ecb44b9a68"
+    },
+    {
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "functionName": "submitPartnerFeed",
+      "table": "publisher_validation_responses",
+      "operation": "INSERT INTO",
+      "sqlSha256": "9b62e7340a1298d0887944f2665b5247fca14e5e887776a0b155b7ecb44b9a68"
+    },
+    {
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "functionName": "processPartnerFeedQueue",
+      "table": "publisher_validation_responses",
+      "operation": "INSERT INTO",
+      "sqlSha256": "9b62e7340a1298d0887944f2665b5247fca14e5e887776a0b155b7ecb44b9a68"
+    },
+    {
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "functionName": "deliverPartnerValidationResponses",
+      "table": "publisher_validation_responses",
+      "operation": "UPDATE",
+      "sqlSha256": "d5ac54232f09734941e4b1b2764d644178f6db0f578c32f4dc65df245e3c3789"
+    },
+    {
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "functionName": "deliverPartnerValidationResponses",
+      "table": "publisher_validation_responses",
+      "operation": "UPDATE",
+      "sqlSha256": "4e02eb4f36cb8088566bf282609e61e57d8dcabe2461a677d4a5168a350c56cc"
+    },
+    {
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "functionName": "deliverPartnerValidationResponses",
+      "table": "publisher_validation_responses",
+      "operation": "UPDATE",
+      "sqlSha256": "38878e7913ab259c6d7a22222313b197bbcbf6fdf6f291114dcecbef41e4311f"
+    },
+    {
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "functionName": "deliverPartnerValidationResponses",
+      "table": "publisher_validation_responses",
+      "operation": "UPDATE",
+      "sqlSha256": "177702614190cea713cac98b7125915052b511054fd9484c0acc346e1cf85ed7"
+    },
+    {
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "functionName": "saveContractVersion",
+      "table": "rights_contract_audit",
+      "operation": "INSERT INTO",
+      "sqlSha256": "874344af32ba0a182c99ce11f762edb80a742c31bdc1d55e37b689cfc44fa1fb"
+    },
+    {
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "functionName": "assignPublisherContract",
+      "table": "rights_contract_audit",
+      "operation": "INSERT INTO",
+      "sqlSha256": "353bbf7b541a04c9e2d7d370caaa476e0d06f643858068959d59dcc77eb36484"
+    }
+  ],
+  "privateQaExecutor": [
+    {
+      "file": "src/features/fore/paid-settlement-transaction.server.ts",
+      "functionName": "postPaidSettlementTransaction",
+      "table": "commerce_gift_cards",
+      "operation": "UPDATE",
+      "sqlSha256": "de37b2c07ea2f446c1370c8dca49805bef4a0a18b8cf2d17015e258e14143580"
+    },
+    {
+      "file": "src/features/fore/paid-settlement-transaction.server.ts",
+      "functionName": "postPaidSettlementTransaction",
+      "table": "commerce_gift_card_ledger",
+      "operation": "INSERT INTO",
+      "sqlSha256": "9a988c935bb6270c84ec471c60912fe1e3cbee632ff5937e9f3caa1dbbcac0cf"
+    },
+    {
+      "file": "src/features/fore/paid-settlement-transaction.server.ts",
+      "functionName": "postPaidSettlementTransaction",
+      "table": "commerce_store_credit_ledger",
+      "operation": "INSERT INTO",
+      "sqlSha256": "e719789f5e8a50939fcacf27123f58aecde40d1265bf5deb12f542277e335820"
+    },
+    {
+      "file": "src/features/fore/paid-settlement-transaction.server.ts",
+      "functionName": "postPaidSettlementTransaction",
+      "table": "commerce_balance_reservations",
+      "operation": "UPDATE",
+      "sqlSha256": "a5e4cf85996681360df0161e70d77f900b2175a3858c8e5eba1e56c7b0937840"
+    },
+    {
+      "file": "src/features/fore/paid-settlement-transaction.server.ts",
+      "functionName": "postPaidSettlementTransaction",
+      "table": "commerce_promo_codes",
+      "operation": "UPDATE",
+      "sqlSha256": "98462ee4e2cbd19a9762abbecf7ca85ac45241f5fd46e165f1e170844cf62732"
+    },
+    {
+      "file": "src/features/fore/paid-settlement-transaction.server.ts",
+      "functionName": "postPaidSettlementTransaction",
+      "table": "commerce_promo_redemptions",
+      "operation": "UPDATE",
+      "sqlSha256": "5227908ce4cd6d9fed3470c1bfb81634e2cb6263bcae28ace9499ad255331182"
+    },
+    {
+      "file": "src/features/fore/paid-settlement-transaction.server.ts",
+      "functionName": "postPaidSettlementTransaction",
+      "table": "preorders",
+      "operation": "INSERT INTO",
+      "sqlSha256": "54b78e5e62a9995ef78edaba96115905acc0ddd1fa9fb4fca81a5e4c8c84fc9e"
+    },
+    {
+      "file": "src/features/fore/paid-settlement-transaction.server.ts",
+      "functionName": "postPaidSettlementTransaction",
+      "table": "commerce_order_items",
+      "operation": "UPDATE",
+      "sqlSha256": "a4bbd4c1738010feefed7e11290c0cc4ba09f18daa1a7ff0f53527bd1d7f4923"
+    },
+    {
+      "file": "src/features/fore/paid-settlement-transaction.server.ts",
+      "functionName": "postPaidSettlementTransaction",
+      "table": "publishing_outbox",
+      "operation": "INSERT INTO",
+      "sqlSha256": "774e105bf65c351e17f452924ea677bcf3b2b4d4ce6fc261390750a410e85336"
+    },
+    {
+      "file": "src/features/fore/paid-settlement-transaction.server.ts",
+      "functionName": "postPaidSettlementTransaction",
+      "table": "entitlements",
+      "operation": "INSERT INTO",
+      "sqlSha256": "50222b97d88e73d57de7ec26e6af95e96160bd31b5496ae7750a2c133a5fca21"
+    },
+    {
+      "file": "src/features/fore/paid-settlement-transaction.server.ts",
+      "functionName": "postPaidSettlementTransaction",
+      "table": "commerce_order_items",
+      "operation": "UPDATE",
+      "sqlSha256": "0cc13255ed6ece6f2173aaa8946d1cf9354e162960ded9097095547c7eb794b9"
+    },
+    {
+      "file": "src/features/fore/paid-settlement-transaction.server.ts",
+      "functionName": "postPaidSettlementTransaction",
+      "table": "publishing_entitlement_version_pins",
+      "operation": "INSERT INTO",
+      "sqlSha256": "98a2b7eb338c8fe7db15d567311d2375e6d7e10446039ebd6ff688a40f839b5c"
+    },
+    {
+      "file": "src/features/fore/paid-settlement-transaction.server.ts",
+      "functionName": "postPaidSettlementTransaction",
+      "table": "publishing_owner_version_events",
+      "operation": "INSERT INTO",
+      "sqlSha256": "3df4e3937ee9074128e363468b98a569e0e47ea34ef343662e7d26282330068b"
+    },
+    {
+      "file": "src/features/fore/paid-settlement-transaction.server.ts",
+      "functionName": "postPaidSettlementTransaction",
+      "table": "entitlement_ownership_records",
+      "operation": "INSERT INTO",
+      "sqlSha256": "24e584c2f5ad689d3756fdadd32ae56fbf1cd0e7fd2cd8553159278654052f67"
+    },
+    {
+      "file": "src/features/fore/paid-settlement-transaction.server.ts",
+      "functionName": "postPaidSettlementTransaction",
+      "table": "commerce_order_items",
+      "operation": "UPDATE",
+      "sqlSha256": "c3f6c903bba528849b312f1a6bbbf739b9d5d1971d2379820783cef62cdc7093"
+    },
+    {
+      "file": "src/features/fore/paid-settlement-transaction.server.ts",
+      "functionName": "postPaidSettlementTransaction",
+      "table": "commerce_ledger_entries",
+      "operation": "INSERT INTO",
+      "sqlSha256": "553dd00d11ca91bdde11864ea1ec20927a8d0ccc8336ee1a8ca0fda25cd29bad"
+    },
+    {
+      "file": "src/features/fore/paid-settlement-transaction.server.ts",
+      "functionName": "postPaidSettlementTransaction",
+      "table": "commerce_ledger_entries",
+      "operation": "INSERT INTO",
+      "sqlSha256": "bb6e251d9c4b2461b298b3b99efe9e211a1b1f5056d9786e874c594bb8602f96"
+    },
+    {
+      "file": "src/features/fore/paid-settlement-transaction.server.ts",
+      "functionName": "postPaidSettlementTransaction",
+      "table": "commerce_orders",
+      "operation": "UPDATE",
+      "sqlSha256": "82a33ac87727432ea9888bc8d8ff5a8a4157691353e904f34811433174a2a484"
+    },
+    {
+      "file": "src/features/fore/paid-settlement-transaction.server.ts",
+      "functionName": "postPaidSettlementTransaction",
+      "table": "commerce_settlement_receipts",
+      "operation": "INSERT INTO",
+      "sqlSha256": "1e615909eb6b7b9b8713e46657e490dccf735aba9955b6a094b5e181b93e0ceb"
+    },
+    {
+      "file": "src/features/fore/paid-settlement-transaction.server.ts",
+      "functionName": "postPaidSettlementTransaction",
+      "table": "commerce_settlement_receipts",
+      "operation": "UPDATE",
+      "sqlSha256": "e9fe3e3335d6fbe4ab02234f4af2e410805d8c6869868048709e66d365a8a34c"
+    },
+    {
+      "file": "src/storefront-strangler/paid-settlement-owner-executor.ts",
+      "functionName": "executeOwnerPaidSettlement",
+      "table": "commerce_settlement_receipts",
+      "operation": "UPDATE",
+      "sqlSha256": "884fc9a9ad6eabb090aa328900708e092ac594e14f1eb9db258a2da9a8a619fc"
+    },
+    {
+      "file": "src/storefront-strangler/paid-settlement-owner-executor.ts",
+      "functionName": "executeOwnerPaidSettlement",
+      "table": "commerce_settlement_receipts",
+      "operation": "UPDATE",
+      "sqlSha256": "653f8cc091552041f3f8d078102bb6d92bd10f2c345907c85c6cd18f130ba625"
+    },
+    {
+      "file": "src/storefront-strangler/publication-materialization-command.ts",
+      "functionName": "executePublicationMaterialization",
+      "table": "catalog_search_documents",
+      "operation": "INSERT INTO",
+      "sqlSha256": "fda891706381100a64e41d3bdc2d5b2c51700a4d4a39873f1e819ae0f3a67743"
+    }
+  ],
+  "testFixture": [
+    {
+      "file": "scripts/browser-qa-server.mjs",
+      "functionName": "<module>",
+      "table": "asset_versions",
+      "operation": "UPDATE",
+      "sqlSha256": "8148ea0b1522c4aba7d3d79b666ee03bd942c97f069e2c5240b673ef83312bf3"
+    }
+  ]
+}
