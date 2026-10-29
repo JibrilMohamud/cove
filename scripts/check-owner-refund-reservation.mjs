@@ -56,6 +56,10 @@ try{
     };}};}};
     return {db,refunds,counts:()=>inserts};
   }
+  const invoke=(f,input)=>invoke(f,input,row=>f.db.prepare(
+    "INSERT INTO commerce_refunds(id,order_id,amount_minor,stripe_amount_minor,gift_card_amount_minor,store_credit_amount_minor,currency,reason,status,idempotency_key,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)"
+  ).bind(row.refundId,row.orderId,row.amount,row.stripe,row.gift,row.store,
+    row.currency,row.reason,"pending",row.idempotencyKey,row.at,row.at).run());
   const f=fixture();
   for(const invalid of [
     {...request,sql:"DROP TABLE commerce_refunds"},
@@ -64,40 +68,40 @@ try{
     {...request,amountMinor:0},
     {...request,idempotencyKey:"short"},
     {...request,reason:5},
-  ])await assert.rejects(()=>execute(f.db,invalid),/invalid_owner_refund_reservation_command/);
+  ])await assert.rejects(()=>invoke(f,invalid),/invalid_owner_refund_reservation_command/);
   assert.equal(f.counts(),0,"Bad commands never write");
-  const first=await execute(f.db,request);
+  const first=await invoke(f,request);
   assert.equal(first.schema,"cove.owner-refund-reservation.v1");
   assert.equal(first.created,true);
   assert.equal(first.amountMinor,1000);
   assert.deepEqual([first.stripeAmountMinor,first.storeCreditAmountMinor,first.giftCardAmountMinor],[600,300,100]);
   assert.match(first.refundId,/^ref_[a-f0-9-]{36}$/);
-  const replay=await execute(f.db,request);
+  const replay=await invoke(f,request);
   assert.equal(replay.created,false);
   assert.equal(replay.refundId,first.refundId);
   assert.equal(f.counts(),1,"A lost ACK cannot double-reserve tender");
-  await assert.rejects(()=>execute(f.db,{...request,amountMinor:200}),
+  await assert.rejects(()=>invoke(f,{...request,amountMinor:200}),
     /owner_refund_idempotency_collision/);
-  await assert.rejects(()=>execute(f.db,{...request,reason:"fraudulent"}),
+  await assert.rejects(()=>invoke(f,{...request,reason:"fraudulent"}),
     /owner_refund_idempotency_collision/);
-  await assert.rejects(()=>execute(f.db,{...request,idempotencyKey:"different-owner-refund-key-0002"}),
+  await assert.rejects(()=>invoke(f,{...request,idempotencyKey:"different-owner-refund-key-0002"}),
     /owner_refund_balance_exhausted/);
   const partial=fixture();
-  await assert.rejects(()=>execute(partial.db,{...request,amountMinor:500}),
+  await assert.rejects(()=>invoke(partial,{...request,amountMinor:500}),
     /owner_refund_partial_scope_unsupported/);
   assert.equal(partial.counts(),0);
   const internal=fixture({stripe:0,store:750,gift:250});
   assert.deepEqual((({stripeAmountMinor,storeCreditAmountMinor,giftCardAmountMinor})=>
     [stripeAmountMinor,storeCreditAmountMinor,giftCardAmountMinor])(
-    await execute(internal.db,request)),[0,750,250]);
+    await invoke(internal,request)),[0,750,250]);
   const canceled=fixture({orderStatus:"canceled"});
-  await assert.rejects(()=>execute(canceled.db,request),/owner_refund_order_not_refundable/);
+  await assert.rejects(()=>invoke(canceled,request),/owner_refund_order_not_refundable/);
   const unavailable=fixture({failInsert:true});
-  await assert.rejects(()=>execute(unavailable.db,request),/canonical_D1_unavailable/);
+  await assert.rejects(()=>invoke(unavailable,request),/canonical_D1_unavailable/);
   assert.equal(unavailable.refunds.size,0);
-  assert.equal((await execute(unavailable.db,request)).created,true);
+  assert.equal((await invoke(unavailable,request)).created,true);
   const race=fixture({concurrent:true});
-  await assert.rejects(()=>execute(race.db,request),/owner_refund_concurrent_reservation_conflict/);
+  await assert.rejects(()=>invoke(race,request),/owner_refund_concurrent_reservation_conflict/);
   assert.equal(race.refunds.size,1,"Competing idempotency key keeps its own original tender");
   const commerce=readFileSync("src/features/fore/commerce.server.ts","utf8");
   const entry=commerce.indexOf("export async function refundOrder(");
@@ -107,5 +111,8 @@ try{
     "An enrolled caller must route through the owner BEFORE legacy D1 reservation");
   assert.match(commerce.slice(ownerBranch,rawInsert),/reserveStageOwnerRefundIntent/);
   assert.match(commerce.slice(ownerBranch,rawInsert),/return completeRequestedRefund/);
+  const worker=readFileSync("src/storefront-strangler/legal-authority.worker.ts","utf8");
+  assert.match(worker,/route==="\/commercial\/refund\/reserve"/);
+  assert.match(worker,/INSERT INTO commerce_refunds\(id,order_id,amount_minor/);
   console.log("PASS: private owner refund intent reserves immutable tender once; replay, collision, racing keys, D1 failure and QA-only caller fence");
 }finally{rmSync(folder,{recursive:true,force:true});}
