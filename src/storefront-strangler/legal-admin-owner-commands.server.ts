@@ -1,6 +1,7 @@
 /* eslint-disable prettier/prettier -- Security-sensitive, tightly scoped stage canonical commands. */
 import {z} from "zod/v3";
 import {ApiError} from "../features/fore/service";
+import {dispatchCanonicalOwnerCommand} from "./canonical-owner-command-gateway";
 
 /**
  * Actual Cove administrator -> authenticated, isolated owner-first writer.
@@ -75,32 +76,14 @@ export async function executeStageCanonicalAdminCommand(
      !env.LEGAL_QUARANTINE_WRITER?.fetch)
     throw new ApiError(503,"Owner-first canonical writer is not configured for isolated staging.");
   const x=command.parse(input);
-  const routes={
-    "suspend-grant":"/commercial/suspend-grant",
-    "quarantine-source":"/quarantine",
-    "revoke-source-evidence":"/evidence/revoke",
-    "retract-sources":"/source/retract-batch",
-    "suspend-contract":"/commercial/suspend-contract",
-    "withdraw-retail":"/commercial/retail/withdraw",
-    "publish-retail":"/commercial/retail/publish-verified",
-    "pause-market":"/market/withdraw",
-    "revoke-entitlement":"/commercial/entitlement/revoke",
-    "withdraw-distribution":"/commercial/distribution/withdraw",
-  } as const;
-  let reply:Response,ack:OwnerAck;
+  let ack:OwnerAck;
   try{
-    reply=await env.LEGAL_QUARANTINE_WRITER.fetch(
-      new Request("https://legal-quarantine.internal"+routes[x.action],{
-        method:"POST",
-        headers:{
-          "authorization":"Bearer "+env.COVE_LEGAL_QUARANTINE_SECRET,
-          "content-type":"application/json",
-        },
-        body:JSON.stringify(x),
-      })
+    ack=await dispatchCanonicalOwnerCommand(
+      env.LEGAL_QUARANTINE_WRITER,
+      env.COVE_LEGAL_QUARANTINE_SECRET!,
+      ("rights."+x.action) as Parameters<typeof dispatchCanonicalOwnerCommand>[2],
+      x
     );
-    if(reply.status!==200)throw Error("owner_writer_unavailable");
-    ack=await reply.json() as OwnerAck;
   }catch{
     throw new ApiError(503,"Canonical legal owner write was not acknowledged.");
   }
