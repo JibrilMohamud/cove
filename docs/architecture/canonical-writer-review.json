@@ -5956,7 +5956,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "580c3c27857f7e2a63c3cbac90f412dfbddf4b0d58c9d90f491f75b4948a1703",
+      "siteId": "a644154050054dd92e3ff122ea14edb9617ec57de714828f0f205803d68bee07",
       "file": "src/storefront-strangler/refund-provider-owner-executor.ts",
       "line": 49,
       "functionName": "executeOwnerRefundProvider",
