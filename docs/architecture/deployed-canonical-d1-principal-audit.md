@@ -57,6 +57,17 @@ On October 29, a separate live Cloudflare preflight found `cove-fast-architectur
 
 A distinct deployed `cove-fast-customer-gateway` is configured with `COVE_STRANGLER_RELEASE_CERTIFIED=0` and returns HTTP 503 before using D1. The new locked-gateway configuration removes its production `DB` binding and `COVE_STRANGLER_DATABASE_ID` selector, with an executable bundled-Worker test asserting every sample account/checkout/storefront path remains 503 **without** a DB binding. The protected deployment must independently verify the live bindings and public responses; source configuration alone is not sufficient. The unsafe baseline remains unchanged until that deployment succeeds.
 
+## Two fast QA/customer gateway canonical D1 retirements (2026-10-29)
+
+After the preceding 45 historical/publication/disabled-literary retirements, two additional fast Workers were separated from production D1:
+
+- `cove-fast-architecture-qa` previously had a public Workers.dev endpoint, `COVE_STRANGLER_RELEASE_CERTIFIED=1` and a canonical production DB binding. Cloudflare readback confirms public ingress disabled, canonical DB and selector removed, release flag reset `0`, and its original private secret, rate limiter and R2 retained at new version `596df13d-9474-4a0b-aea3-9f521c176f9a` with 100% traffic.
+- `cove-fast-customer-gateway` was already release-locked at `0`; the protected main deployment `40839451530` deployed its checked-in DB-less configuration, verified live binding absence, and exercised public homepage, checkout, library and API endpoints, all returning HTTP 503. Cloudflare independently reports version `346cdeef-a105-4c6c-b23e-d764a181e9bb`, 100% deployed.
+
+The frozen, unsafe binding baseline is now **10 total**, **9 non-owner** versus the original 57 and 56. The new audit refuses any restoration of a retired fast Worker’s canonical DB binding, database selector, private QA public ingress, or release-certification flag, independently of whether the historical baseline file is tampered with. These are actual Cloudflare capability removals, not a reclassification of any of the **426** source-level owner-required SQL sites.
+
+The exact deployment evidence and rollback boundary are preserved in `docs/architecture/fast-qa-customer-gateway-d1-retirement-20261029.json`. Live production owner, payouts, publication, rights, and public routing are unchanged, and owner-only release remains blocked.
+
 ## Required retirement sequence
 
 1. Independently record every scheduled/HTTP/queue/service caller for each publication driver, capture, literary and music publisher. Trace the full transitive service-binding graph; a worker with zero direct cron and public ingress may still receive service calls.
