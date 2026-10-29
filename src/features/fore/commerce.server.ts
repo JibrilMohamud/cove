@@ -15,6 +15,7 @@ import { promotionPermitted } from "./rights.server";
 import { requireStageLegalConsumerProof } from "../../storefront-strangler/legal-consumer-fence.server";
 import { revokePaidOrderAccess } from "../../storefront-strangler/paid-order-revocation.server";
 import { postStageOwnerRefundAccounting } from "../../storefront-strangler/owner-refund-accounting.server";
+import { reserveStageOwnerRefundIntent } from "../../storefront-strangler/owner-refund-reservation.server";
 import { recordStageOwnerRefundProvider } from "../../storefront-strangler/owner-refund-provider.server";
 import {
   settleStageOwnerPaidOrder,
@@ -1982,6 +1983,32 @@ export async function refundOrder(env: CoveEnv, raw: unknown) {
       })
       .parse(raw),
     db = env.DB;
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1") {
+    // Enrolled requests never write a refund intent through caller-owned D1.
+    // The owner atomically reserves the original tender and returns a strictly
+    // verified receipt before the caller may contact Stripe.
+    const ack = await reserveStageOwnerRefundIntent(env, input);
+    const intent = await db.prepare("SELECT * FROM commerce_refunds WHERE id=?")
+      .bind(ack.refundId).first<RefundIntent>();
+    if (!intent || intent.id !== ack.refundId ||
+        intent.order_id !== input.orderId ||
+        intent.idempotency_key !== input.idempotencyKey ||
+        intent.reason !== input.reason ||
+        Number(intent.amount_minor) !== ack.amountMinor ||
+        Number(intent.stripe_amount_minor) !== ack.stripeAmountMinor ||
+        Number(intent.gift_card_amount_minor) !== ack.giftCardAmountMinor ||
+        Number(intent.store_credit_amount_minor) !== ack.storeCreditAmountMinor)
+      throw new ApiError(503, "Canonical refund reservation projection does not match the owner.");
+    const order = await db.prepare("SELECT * FROM commerce_orders WHERE id=?")
+      .bind(intent.order_id).first<RefundOrder>();
+    if (!order) throw new ApiError(503, "Canonical refund order is unavailable.");
+    if (intent.succeeded_at) {
+      await applyRefundSuccess(env, intent.id, null);
+      return refundResponse(intent);
+    }
+    if (!["pending", "succeeded"].includes(intent.status)) return refundResponse(intent);
+    return completeRequestedRefund(env, order, intent);
+  }
   const existing = await db
     .prepare("SELECT * FROM commerce_refunds WHERE idempotency_key=?")
     .bind(input.idempotencyKey)
