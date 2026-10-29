@@ -15,6 +15,12 @@ Audit date: October 29, 2026. This is a **read-only capability inventory**, not 
 
 `scripts/audit-live-canonical-d1-principals.mjs --audit` inspects the entire account's deployed Worker inventory, D1 bindings, cron schedules, Workers.dev exposure, custom zone routes/domains and incoming service references. An unavailable Worker settings response or unknown exposure causes failure. It never inserts, updates, or deletes a Cloudflare resource.
 
+## Pinned unsafe baseline (no blanket exemption)
+
+`docs/architecture/deployed-canonical-d1-baseline.json` stores the **observed** 57 direct D1 script/binding pairs and six Worker cron schedules. It is explicitly marked `certified:false` and does **not** mean any legacy writer is authorized or safe.
+
+Every protected live audit compares the currently deployed bindings and schedules with this snapshot. A **new** canonical D1 principal/binding or a **new** schedule on an existing canonically bound Worker fails CI. Removing bindings or schedules is permitted as progress, but production owner activation still fails until separate security and authorization certification. Changes to this baseline require an independently reviewed source change and an updated account-wide read-only capture.
+
 The protected GitHub workflow `deployed-canonical-d1-principal-audit.yml` runs its unit tests without any credentials on pull requests; on every protected `main` commit, daily at 07:13 UTC, or manual dispatch it rechecks Cloudflare using the existing secrets and uploads a 30-day inventory artifact. `--release-gate` **always fails closed**: a zero-binding inventory alone cannot certify owner-state provenance, Stripe entitlement, denial epochs, payment refunds, capacity, or rollback.
 
 ## Required retirement sequence
