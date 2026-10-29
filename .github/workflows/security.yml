@@ -59,7 +59,9 @@ jobs:
           npm run test:social-reading
           npm run test:stripe-webhooks
       - name: Seven-day licensed EPUB signed-receipt regressions
-        run: npm run test:licensed-epub
+        run: |
+          npm run test:licensed-epub
+          node scripts/check-commercial-epub-token-buyer-scope.mjs
       - name: Notification delivery and opt-out regressions
         run: npm run test:notifications-delivery
       - name: Customer support, status and recovery regressions
