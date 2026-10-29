@@ -1,6 +1,7 @@
 /* eslint-disable prettier/prettier -- Owner accounting is deny-first, exact-scope and replay-safe. */
 import "./check-owner-refund-reservation.mjs";
 import "./check-owner-stripe-webhook.mjs";
+import "./check-owner-checkout-payment.mjs";
 import assert from "node:assert/strict";
 import {build} from "esbuild";
 import {mkdtempSync,rmSync,readFileSync} from "node:fs";
