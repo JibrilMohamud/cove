@@ -84,7 +84,12 @@ export async function executeStageCanonicalAdminCommand(
       ("rights."+x.action) as Parameters<typeof dispatchCanonicalOwnerCommand>[2],
       x
     );
-  }catch{
+  }catch(error){
+    if(error instanceof Error&&error.message==="canonical_command_receipt_mismatch")
+      throw new ApiError(503,"Canonical legal owner write receipt does not match the request.");
+    if(error instanceof Error&&
+       ["canonical_command_receipt_invalid","canonical_command_receipt_too_large"].includes(error.message))
+      throw new ApiError(503,"Canonical legal owner write receipt malformed.");
     throw new ApiError(503,"Canonical legal owner write was not acknowledged.");
   }
   if(!ack||typeof ack!=="object"||Array.isArray(ack))
