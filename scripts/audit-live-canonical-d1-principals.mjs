@@ -1,6 +1,6 @@
 /* eslint-disable prettier/prettier -- Read-only account-wide deployed D1 authority inventory. */
 import assert from "node:assert/strict";
-import {mkdirSync,writeFileSync} from "node:fs";
+import {mkdirSync,writeFileSync,readFileSync} from "node:fs";
 import {dirname,resolve} from "node:path";
 import {pathToFileURL} from "node:url";
 
@@ -106,6 +106,34 @@ export function assessDeployedCanonicalD1Principals({scripts,settingsByName,
   };
 }
 
+/** A known-unsafe baseline prevents privilege drift without granting any
+ * grandfathered principal production authorization. Removal is progress;
+ * new direct canonical D1 bindings or new scheduled triggers are failures. */
+export function compareKnownUnsafeFleet(report,baseline){
+  assert.equal(baseline?.schema,"cove.canonical-d1-unsafe-principal-baseline.v1");
+  assert.equal(baseline.certified,false);
+  assert.equal(baseline.canonicalD1,CANONICAL_D1);
+  assert.ok(Array.isArray(baseline.knownDirectBindings));
+  const entries=baseline.knownDirectBindings.map(x=>x.script+"::"+x.binding);
+  assert.equal(new Set(entries).size,entries.length,"Duplicate unsafe baseline binding");
+  const allowed=new Set(entries);
+  const newBindings=report.principals
+    .filter(x=>!allowed.has(x.script+"::"+x.binding))
+    .map(x=>({script:x.script,binding:x.binding}));
+  const newSchedules=[];
+  for(const p of report.principals){
+    const previously=baseline.knownSchedules?.[p.script]||[];
+    for(const cron of p.crons)if(!previously.includes(cron))
+      newSchedules.push({script:p.script,cron});
+  }
+  return {schema:"cove.canonical-d1-capability-drift.v1",
+    newBindings,newSchedules,
+    unsafeHistoricalBindingsStillPresent:report.directCanonicalBindings,
+    // Even zero drift is not approval of legacy credentials.
+    productionAuthorized:false,
+    strictDriftPass:newBindings.length===0&&newSchedules.length===0&&report.ownerEnabled===false};
+}
+
 /** Read-only. Abort the entire audit if even one Worker settings or owner
  * schedule request is inaccessible: incomplete evidence is not a pass. */
 export async function collectCanonicalD1Fleet({fetcher=fetch,token,account,zone}){
@@ -161,6 +189,13 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).hr
       writeFileSync(resolve(process.env.COVE_D1_FLEET_AUDIT_OUTPUT),json);
     }
     console.log(json);
+    const baseline=JSON.parse(readFileSync("docs/architecture/deployed-canonical-d1-baseline.json","utf8"));
+    const drift=compareKnownUnsafeFleet(report,baseline);
+    console.log(JSON.stringify(drift,null,2));
+    if(!drift.strictDriftPass){
+      console.error("BLOCKED: unexpected new canonical D1 Worker privilege, cron schedule, or owner enabled before cutover.");
+      process.exitCode=1;
+    }
     if(release){
       console.error("BLOCKED: deployed binding isolation alone never proves live authorization, positive rights issuance, payment refund/revocation or rollback.");
       process.exitCode=1;
