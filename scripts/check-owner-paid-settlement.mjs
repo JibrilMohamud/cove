@@ -190,6 +190,18 @@ try{
   // The hosted schema bootstrap previously omitted royalty_holds. Actual
   // settlement must deny without consuming tender, then recover once the
   // reviewed schema-only bootstrap restores that required table.
+  const typeFault=fixture({stripe:0,gift:0,store:100});
+  const originalPrepare=typeFault.DB.prepare;
+  typeFault.DB.prepare=(query)=>{
+    if(query==="SELECT * FROM commerce_orders WHERE id=?")
+      throw new TypeError("private buyer identifier and payment information must not leak");
+    return originalPrepare(query);
+  };
+  const typeResponse=await typeFault.command();
+  assert.equal(typeResponse.status,503);
+  assert.equal(typeResponse.headers.get("x-cove-owner-settlement-failure"),
+    "owner_settlement_phase_canonical_order_read");
+  assert.equal(typeFault.snapshot().receipt,0);
   const missingHold=fixture({stripe:0,gift:0,store:100});
   const holdsDdl=missingHold.primary.prepare("SELECT sql FROM sqlite_master WHERE name='royalty_holds'").get().sql;
   missingHold.primary.exec("DROP TABLE royalty_holds");
