@@ -796,6 +796,21 @@ export async function serveCommercialEpubGrant(env: CoveEnv, rawToken: string, r
       .bind(grant.entitlement_id)
       .first<any>(),
     accessAt = now();
+  // A bearer token names an exact buyer/product/entitlement triple. Its
+  // backing entitlement must still belong to that same buyer and product;
+  // merely finding SOME active entitlement by ID is not sufficient.
+  // Check before resolving assets or fetching private R2 bytes, including
+  // when the isolated legal-owner stage is intentionally disabled.
+  if (
+    ent &&
+    (String(ent.user_id) !== String(grant.user_id) ||
+      String(ent.product_id) !== String(grant.product_id))
+  )
+    return fail(
+      403,
+      "The entitlement backing this delivery does not match this delivery grant.",
+      "entitlement_scope_mismatch",
+    );
   if (ent) await assertNoBuyerFulfillmentHold(db, ent);
   if (
     !ent ||
