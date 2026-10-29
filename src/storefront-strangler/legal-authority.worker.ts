@@ -2,6 +2,7 @@
 import { DurableObject } from "cloudflare:workers";
 import {DISABLED_OWNER_ATTEST_ROUTE,PRODUCTION_OWNER_OBJECT,isDisabledProductionOwner,validOwnerChallenge,disabledOwnerReceipt} from "./production-disabled-owner-attestation";
 import {publishVerifiedPaidOrderAtomic,type VerifiedPaidOrderLine} from "./paid-order-atomic-publication";
+import {executeOwnerRefundAccounting} from "./refund-accounting-owner-executor";
 import {createMarketAuthoritySchema,denyMarket,marketIsWithdrawn} from "./market-authority-core";
 import { authorizeStorefrontPresentationIds, type CatalogDB } from "../features/fore/catalog-model.server";
 import { resolveProductRights } from "../features/fore/rights.server";
@@ -115,6 +116,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/storefront/authorize-batch","/storefront/publish-commercial",
       "/market/deny-next",
       "/commercial/order/deny-next","/commercial/order/verify","/commercial/order/revoke",
+      "/commercial/refund/post-accounting",
       "/commercial/entitlement/deny-next","/commercial/entitlement/deny-batch",
       "/commercial/entitlement/publish-verified",
       "/commercial/entitlement/publish-order-verified",
@@ -431,6 +433,14 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         return Response.json({schema:"cove.paid-order-revocation.v1",
           orderDenied:true,reconciled:true,orderId:input.orderId,
           operationId:input.operationId},{status:200,headers:noStore});
+      }
+      if(route==="/commercial/refund/post-accounting"){
+        // Canonical finance posting is never delegated to caller-supplied SQL.
+        // Only a persisted Stripe-success (or internal tender) refund under
+        // the already durable whole-order owner veto can post. No rollback of
+        // the owner denial occurs when D1 fails or a retry is interrupted.
+        const receipt=await executeOwnerRefundAccounting(env.PRIMARY_DB,sql,raw);
+        return Response.json(receipt,{status:200,headers:noStore});
       }
       if(route==="/commercial/entitlement/deny-batch"){
         const storage=this.ctx.storage as typeof this.ctx.storage & {
