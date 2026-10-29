@@ -14,6 +14,7 @@ import {
 import { promotionPermitted } from "./rights.server";
 import { requireStageLegalConsumerProof } from "../../storefront-strangler/legal-consumer-fence.server";
 import { revokePaidOrderAccess } from "../../storefront-strangler/paid-order-revocation.server";
+import { postStageOwnerRefundAccounting } from "../../storefront-strangler/owner-refund-accounting.server";
 import {
   assertStagePaidOrderNotWithdrawn,
   certifyStagePaidSettlement,
@@ -2098,7 +2099,10 @@ async function applyRefundSuccess(env: CoveEnv, refundId: string, refundPayload:
   // owner revocation is implemented.
   if (full || env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1")
     await stageRevokeRefundEntitlements(env, String(o.id), refundId);
-  await postRefundAccounting(db, refundId, at, env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1");
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1")
+    await postStageOwnerRefundAccounting(env, String(o.id), refundId);
+  else
+    await postRefundAccounting(db, refundId, at, false);
   // A completed financial posting is safe to replay while repairing a
   // later royalty, analytics or tax projection interrupted by a crash.
   await reverseRoyaltiesForRefund(db, r.id);
