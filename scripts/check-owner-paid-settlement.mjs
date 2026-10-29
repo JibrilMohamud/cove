@@ -37,6 +37,17 @@ try{
     assert.equal(observed,expected);
     assert.equal(observed.includes("private"),false,"Owner diagnostic must never disclose provider or buyer details");
   }
+  for(const [frame,code] of [
+    ["calculateAndAccrueRoyalty","settlement_royalty_calculation_failed"],
+    ["postPaidSettlementTransaction","settlement_atomic_transaction_failed"],
+    ["reconcileOwnerPaidSettlementEffects","settlement_postcommit_effects_failed"],
+    ["executeOwnerPaidSettlement","settlement_owner_execution_failed"]
+  ]) {
+    const failure=new Error("Untrusted buyer token / custom SQL / provider payload");
+    failure.stack="Error: private failure\\n at "+frame+" (secret/path:12:34)";
+    assert.equal(diagnostic(failure),code,"Private owner diagnostic must expose only a constant stage");
+    assert.ok(!diagnostic(failure).includes("secret"));
+  }
   const orderId="order_atomic_settlement",userId="user_atomic_settlement",secret="d".repeat(64),at="2026-01-01T00:00:00.000Z";
   const migrations=readdirSync("drizzle").filter(x=>x.endsWith(".sql")).sort().map(x=>readFileSync(join("drizzle",x),"utf8"));
   const stripePayment={provider:"stripe",paymentIntentId:"pi_atomic_settlement",chargeId:"ch_atomic_settlement",receiptUrl:null,paymentMethod:"card",processorFee:{amountMinor:2,currency:"USD",reference:"txn_atomic_settlement",netMinor:48}};
