@@ -11,6 +11,12 @@ on:
       - "scripts/reconcile-canonical-writers.mjs"
       - "scripts/canonical-owner-workflow-inventory.mjs"
       - "scripts/test-canonical-owner-workflow-inventory.mjs"
+      - "scripts/check-canonical-owner-command-gateway.mjs"
+      - "src/storefront-strangler/canonical-owner-command-gateway.ts"
+      - "src/storefront-strangler/paid-order-revocation.server.ts"
+      - "src/storefront-strangler/paid-settlement-publication.server.ts"
+      - "src/storefront-strangler/publication-owner-routing.server.ts"
+      - "src/storefront-strangler/legal-admin-owner-commands.server.ts"
       - "src/storefront-strangler/canonical-legal-tables.json"
       - "src/storefront-strangler/legal-primary-write-lock.ts"
       - "docs/architecture/canonical-writer-workflow-migration-v2.md"
@@ -34,6 +40,12 @@ on:
       - "scripts/reconcile-canonical-writers.mjs"
       - "scripts/canonical-owner-workflow-inventory.mjs"
       - "scripts/test-canonical-owner-workflow-inventory.mjs"
+      - "scripts/check-canonical-owner-command-gateway.mjs"
+      - "src/storefront-strangler/canonical-owner-command-gateway.ts"
+      - "src/storefront-strangler/paid-order-revocation.server.ts"
+      - "src/storefront-strangler/paid-settlement-publication.server.ts"
+      - "src/storefront-strangler/publication-owner-routing.server.ts"
+      - "src/storefront-strangler/legal-admin-owner-commands.server.ts"
       - "src/storefront-strangler/canonical-legal-tables.json"
       - "src/storefront-strangler/legal-primary-write-lock.ts"
       - "docs/architecture/canonical-writer-workflow-migration-v2.md"
@@ -73,6 +85,7 @@ jobs:
           node scripts/reconcile-canonical-writers.mjs
           node scripts/test-canonical-writer-review.mjs
           node scripts/test-canonical-owner-workflow-inventory.mjs
+          node scripts/check-canonical-owner-command-gateway.mjs
           node scripts/check-audio-progress-nonauthorizing.mjs
           node scripts/check-nonauthorizing-legal-history.mjs
           node scripts/check-audio-playback-remaining-nonauthorizing.mjs

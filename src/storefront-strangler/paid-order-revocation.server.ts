@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Exact owner-command receipts are a payment trust boundary. */
 import {ApiError} from "../features/fore/service";
+import {dispatchCanonicalOwnerCommand} from "./canonical-owner-command-gateway";
 import type {CoveEnv} from "../features/fore/api.server";
 
 const QA_PRIMARY_IDS=new Set([
@@ -26,15 +27,10 @@ export async function revokePaidOrderAccess(
     throw new ApiError(503,"Refund entitlement owner is not certified.");
   let payload:unknown;
   try {
-    const response=await env.LEGAL_AUTHORITY
-      .getByName("cove-staged-legal-global-v1")
-      .fetch(new Request("https://legal-authority.internal/commercial/order/revoke",{
-        method:"POST",headers:{"content-type":"application/json",
-          authorization:"Bearer "+env.COVE_RIGHTS_OWNER_SECRET},
-        body:JSON.stringify({orderId,operationId})
-      }));
-    if(response.status!==200)throw Error("owner_revocation_unavailable");
-    payload=await response.json();
+    payload=await dispatchCanonicalOwnerCommand(
+      env.LEGAL_AUTHORITY.getByName("cove-staged-legal-global-v1"),
+      env.COVE_RIGHTS_OWNER_SECRET!,"commerce.revoke-order",{orderId,operationId}
+    );
   }catch{
     throw new ApiError(503,"Refund owner did not acknowledge entitlement withdrawal.");
   }
