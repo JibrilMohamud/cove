@@ -85,7 +85,7 @@ export function assessDeployedCanonicalD1Principals({scripts,settingsByName,
   // 2026-10-29. Do not let a later stage deploy restore canonical D1 or
   // re-enable their source capture flag, even though they have no public URL.
   const retiredHistoricalCaptures=names.filter(name=>
-    /^cove-pub-\\d+-capture$/.test(name));
+    /^cove-pub-\d+-capture$/.test(name));
   const retiredCaptureReactivations=retiredHistoricalCaptures.filter(name=>{
     const bindings=settingsByName[name]?.bindings||[];
     return bindings.some(b=>b.type==="d1"&&
