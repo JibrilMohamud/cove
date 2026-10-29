@@ -480,7 +480,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           const write=await env.PRIMARY_DB.prepare(
             "UPDATE commerce_refunds SET provider_refund_id=?,status=CASE WHEN succeeded_at IS NOT NULL OR status='succeeded' THEN 'succeeded' ELSE ? END,updated_at=? WHERE id=? AND order_id=? AND (provider_refund_id IS NULL OR provider_refund_id=?)"
           ).bind(q.providerRefundId,state,new Date().toISOString(),
-            q.refundId,q.orderId,q.providerRefundId).run();
+            q.refundId,q.orderId,q.providerRefundId).run() as {meta?:{changes?:number}};
           if((write.meta?.changes??0)===0)
             throw Error("owner_refund_provider_write_conflict");
         }
