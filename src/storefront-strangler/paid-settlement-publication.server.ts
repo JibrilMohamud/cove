@@ -1,6 +1,7 @@
 /* eslint-disable prettier/prettier -- Private payment-to-owner handoff is a security-sensitive boundary. */
 import type {CoveEnv} from "../features/fore/api.server";
 import {ApiError} from "../features/fore/service";
+import {dispatchCanonicalOwnerCommand} from "./canonical-owner-command-gateway";
 
 // These exact synthetic QA databases are segregated from both production and
 // the 100-RPS capacity fixture. The second has canonical paid-order schema.
@@ -179,17 +180,8 @@ export async function certifyStagePaidSettlement(
       throw new ApiError(409,"Paid entitlement inventory is incomplete.");
     let result:unknown;
     try {
-      const response=await owner.fetch(new Request(
-        "https://legal-authority.internal/commercial/entitlement/publish-order-verified",{
-          method:"POST",headers:{"content-type":"application/json",
-            "authorization":"Bearer "+env.COVE_RIGHTS_OWNER_SECRET},
-          body:JSON.stringify({
-            orderId,userId,territory:order.territory_code,channel:"retail"
-          })
-        }
-      ));
-      if(response.status!==200)throw Error("atomic_paid_owner_refused");
-      result=await response.json();
+      result=await dispatchCanonicalOwnerCommand(owner,env.COVE_RIGHTS_OWNER_SECRET!,
+        "commerce.publish-order",{orderId,userId,territory:order.territory_code,channel:"retail"});
     }catch{
       throw new ApiError(503,"Atomic paid owner settlement unavailable.");
     }
@@ -217,20 +209,11 @@ export async function certifyStagePaidSettlement(
       throw new ApiError(409,"Paid entitlement is not ready for authorization.");
     let receipt:unknown;
     try{
-      const response=await owner.fetch(new Request(
-        "https://legal-authority.internal/commercial/entitlement/publish-verified",{
-          method:"POST",
-          headers:{"content-type":"application/json",
-            "authorization":"Bearer "+env.COVE_RIGHTS_OWNER_SECRET},
-          body:JSON.stringify({
-            entitlementId:line.entitlement_id,
-            userId,productId:line.product_id,
-            territory:order.territory_code,channel:"retail"
-          })
-        }
-      ));
-      if(response.status!==200)throw Error("owner_refused_entitlement");
-      receipt=await response.json();
+      receipt=await dispatchCanonicalOwnerCommand(owner,env.COVE_RIGHTS_OWNER_SECRET!,
+        "commerce.publish-entitlement",{
+          entitlementId:line.entitlement_id!,userId,productId:line.product_id,
+          territory:order.territory_code,channel:"retail"
+        });
     }catch{
       throw new ApiError(503,"Paid owner settlement receipt unavailable.");
     }
