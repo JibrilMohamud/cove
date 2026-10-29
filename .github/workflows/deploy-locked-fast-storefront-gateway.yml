@@ -1,5 +1,10 @@
 name: deploy-locked-fast-storefront-gateway
 on:
+  pull_request:
+    paths:
+      - "wrangler.storefront-strangler.customer.jsonc"
+      - "scripts/check-locked-customer-gateway-no-d1.mjs"
+      - ".github/workflows/deploy-locked-fast-storefront-gateway.yml"
   push:
     branches: [main]
     paths:
@@ -14,7 +19,18 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  static-gateway-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - run: node scripts/check-locked-customer-gateway-no-d1.mjs
   deploy-off-by-default:
+    needs: static-gateway-proof
     if: github.ref == 'refs/heads/main' && github.repository == 'JibrilMohamud/cove'
     runs-on: ubuntu-latest
     timeout-minutes: 20
