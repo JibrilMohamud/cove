@@ -202,7 +202,7 @@ try {
       "Original refund must revoke before contacting Stripe");
     calls.push({url:String(url),options});
     assert.ok(String(url).startsWith("https://api.stripe.com/v1/refunds"));
-    return Response.json({id:"re_original_pending_01",status:"pending"});
+    return Response.json({id:"re_original_pending_01",status:"pending",amount:1000,currency:"usd",payment_intent:"pi_test_order_01"});
   };
   recovery.ownerEnv.COVE_RIGHTS_OWNER_ENABLED="0";
   await assert.rejects(()=>refundOrder(recovery.clientEnv,refundInput));
@@ -233,7 +233,7 @@ try {
     assert.equal(options.headers["Idempotency-Key"],lostKey);
     providerAttempts++;
     if(providerAttempts===1)throw Error("Provider accepted request but response was lost");
-    return Response.json({id:"re_original_recovered_01",status:"pending"});
+    return Response.json({id:"re_original_recovered_01",status:"pending",amount:1000,currency:"usd",payment_intent:"pi_test_order_01"});
   };
   await assert.rejects(()=>refundOrder(lost.clientEnv,{orderId,idempotencyKey:lostKey}));
   assert.equal(lost.primary.prepare("SELECT status FROM commerce_refunds").get().status,"pending",
@@ -244,7 +244,7 @@ try {
   assert.equal(providerAttempts,2);
   const competing=fixture();let competingProviderCalls=0;
   globalThis.fetch=async()=>{competingProviderCalls++;
-    return Response.json({id:"re_competing_budget_01",status:"pending"});};
+    return Response.json({id:"re_competing_budget_01",status:"pending",amount:1000,currency:"usd",payment_intent:"pi_test_order_01"});};
   const outcomes=await Promise.allSettled([
     refundOrder(competing.clientEnv,{orderId,idempotencyKey:"competing-refund-key-01"}),
     refundOrder(competing.clientEnv,{orderId,idempotencyKey:"competing-refund-key-02"}),
