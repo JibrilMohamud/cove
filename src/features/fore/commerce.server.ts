@@ -21,6 +21,7 @@ import {
   finishStageOwnerStripeWebhook,
 } from "../../storefront-strangler/owner-stripe-webhook.server";
 import { updateStageOwnerPaymentState } from "../../storefront-strangler/owner-stripe-payment-status.server";
+import { attachStageOwnerCheckoutPayment } from "../../storefront-strangler/owner-checkout-payment.server";
 import { recordStageOwnerRefundProvider } from "../../storefront-strangler/owner-refund-provider.server";
 import {
   settleStageOwnerPaidOrder,
@@ -1064,31 +1065,40 @@ export async function createCheckoutPayment(env: CoveEnv, user: User, raw: unkno
           : {}),
       },
     });
-    await db
-      .prepare(
-        "UPDATE commerce_orders SET stripe_customer_id=?,stripe_payment_intent_id=?,updated_at=? WHERE id=?",
-      )
-      .bind(customer, pi.id, now(), orderId)
-      .run();
-    await db
-      .prepare(
-        "INSERT INTO commerce_payment_attempts(id,order_id,provider,provider_payment_id,status,amount_minor,currency,provider_payload_json,created_at,updated_at) VALUES(?,?,'stripe',?,?,?,?,?,?,?)",
-      )
-      .bind(
-        `pay_${crypto.randomUUID()}`,
+    if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1") {
+      await attachStageOwnerCheckoutPayment(env, {
         orderId,
-        pi.id,
-        pi.status,
-        order.stripe_due_minor,
-        order.currency,
-        JSON.stringify({
-          payment_method_types: pi.payment_method_types || [],
-          capture_method: pi.capture_method,
-        }),
-        at,
-        at,
-      )
-      .run();
+        userId: user.id,
+        paymentIntentId: String(pi.id),
+        customerId: String(customer),
+      });
+    } else {
+      await db
+        .prepare(
+          "UPDATE commerce_orders SET stripe_customer_id=?,stripe_payment_intent_id=?,updated_at=? WHERE id=?",
+        )
+        .bind(customer, pi.id, now(), orderId)
+        .run();
+      await db
+        .prepare(
+          "INSERT INTO commerce_payment_attempts(id,order_id,provider,provider_payment_id,status,amount_minor,currency,provider_payload_json,created_at,updated_at) VALUES(?,?,'stripe',?,?,?,?,?,?,?)",
+        )
+        .bind(
+          `pay_${crypto.randomUUID()}`,
+          orderId,
+          pi.id,
+          pi.status,
+          order.stripe_due_minor,
+          order.currency,
+          JSON.stringify({
+            payment_method_types: pi.payment_method_types || [],
+            capture_method: pi.capture_method,
+          }),
+          at,
+          at,
+        )
+        .run();
+    }
     return {
       orderId,
       status: "pending_payment",
@@ -1098,6 +1108,9 @@ export async function createCheckoutPayment(env: CoveEnv, user: User, raw: unkno
       currency: order.currency,
     };
   } catch (e) {
+    // After the external Stripe call an unacknowledged owner identity must
+    // remain retryable, never be mutated by the caller's untrusted D1 path.
+    if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1") throw e;
     await releaseOrderReservations(db, orderId);
     await db
       .prepare(
