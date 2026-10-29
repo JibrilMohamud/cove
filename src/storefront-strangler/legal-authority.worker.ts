@@ -132,6 +132,8 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/order/settle",
       "/commercial/order/recover-settlements",
       "/commercial/refund/reserve",
+      "/commercial/webhook/claim",
+      "/commercial/webhook/finish",
       "/commercial/refund/post-accounting",
       "/commercial/refund/record-provider",
       "/commercial/entitlement/deny-next","/commercial/entitlement/deny-batch",
@@ -520,6 +522,62 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         return Response.json({schema:"cove.paid-order-revocation.v1",
           orderDenied:true,reconciled:true,orderId:input.orderId,
           operationId:input.operationId},{status:200,headers:noStore});
+      }
+      if(route==="/commercial/webhook/claim"){
+        // Only a private, stage-leased owner sees this command. The public
+        // caller must have already verified Stripe HMAC and livemode. The
+        // owner leases the canonical event using a conditional SQL claim;
+        // repeated event IDs with altered payload digests never pass.
+        if(!raw||typeof raw!=="object"||Array.isArray(raw))
+          throw Error("owner_webhook_claim_invalid");
+        const q=raw as Record<string,unknown>;
+        if(Object.keys(q).sort().join(",")!=="eventId,eventType,livemode,payloadSha256"||
+          typeof q.eventId!=="string"||!/^evt_[a-zA-Z0-9_-]{4,150}$/.test(q.eventId)||
+          typeof q.eventType!=="string"||!/^[a-z0-9_.]{3,120}$/.test(q.eventType)||
+          typeof q.livemode!=="boolean"||
+          typeof q.payloadSha256!=="string"||!/^[a-f0-9]{64}$/.test(q.payloadSha256))
+          throw Error("owner_webhook_claim_invalid");
+        const at=new Date().toISOString(),token=crypto.randomUUID(),
+          lease=new Date(Date.now()+300_000).toISOString();
+        const claimed=await env.PRIMARY_DB.prepare(
+          "INSERT INTO commerce_webhook_events(provider_event_id,event_type,livemode,payload_sha256,status,received_at,processing_token,processing_lease_until) VALUES(?,?,?,?,'received',?,?,?) ON CONFLICT(provider_event_id) DO UPDATE SET status='received',error='',processing_token=excluded.processing_token,processing_lease_until=excluded.processing_lease_until WHERE commerce_webhook_events.payload_sha256=excluded.payload_sha256 AND commerce_webhook_events.event_type=excluded.event_type AND commerce_webhook_events.livemode=excluded.livemode AND commerce_webhook_events.status<>'processed' AND (commerce_webhook_events.status='failed' OR commerce_webhook_events.processing_lease_until<=?) RETURNING provider_event_id"
+        ).bind(q.eventId,q.eventType,q.livemode?1:0,q.payloadSha256,at,token,lease,at)
+          .first<{provider_event_id:string}>();
+        if(!claimed){
+          const existing=await env.PRIMARY_DB.prepare(
+            "SELECT event_type,livemode,status,payload_sha256 FROM commerce_webhook_events WHERE provider_event_id=?"
+          ).bind(q.eventId).first<{event_type:string;livemode:number;status:string;payload_sha256:string}>();
+          if(!existing||existing.payload_sha256!==q.payloadSha256||
+             existing.event_type!==q.eventType||Boolean(existing.livemode)!==q.livemode)
+            throw Error("owner_webhook_event_identity_collision");
+          if(existing.status!=="processed")throw Error("owner_webhook_lease_active");
+          return Response.json({schema:"cove.owner-webhook-claim.v1",
+            eventId:q.eventId,payloadSha256:q.payloadSha256,
+            claimed:false,duplicate:true,token:null},{headers:noStore});
+        }
+        return Response.json({schema:"cove.owner-webhook-claim.v1",
+          eventId:q.eventId,payloadSha256:q.payloadSha256,
+          claimed:true,duplicate:false,token},{headers:noStore});
+      }
+      if(route==="/commercial/webhook/finish"){
+        if(!raw||typeof raw!=="object"||Array.isArray(raw))
+          throw Error("owner_webhook_finish_invalid");
+        const q=raw as Record<string,unknown>;
+        if(Object.keys(q).sort().join(",")!=="eventId,outcome,payloadSha256,token"||
+          typeof q.eventId!=="string"||!/^evt_[a-zA-Z0-9_-]{4,150}$/.test(q.eventId)||
+          typeof q.payloadSha256!=="string"||!/^[a-f0-9]{64}$/.test(q.payloadSha256)||
+          typeof q.token!=="string"||!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(q.token)||
+          (q.outcome!=="processed"&&q.outcome!=="failed"))
+          throw Error("owner_webhook_finish_invalid");
+        const at=new Date().toISOString();
+        const changed=await env.PRIMARY_DB.prepare(
+          "UPDATE commerce_webhook_events SET status=?,processed_at=?,error=CASE WHEN ?='failed' THEN 'webhook_processing_failed' ELSE '' END,processing_lease_until='' WHERE provider_event_id=? AND payload_sha256=? AND processing_token=? AND status='received'"
+        ).bind(q.outcome,at,q.outcome,q.eventId,q.payloadSha256,q.token)
+          .run() as {meta?:{changes?:number}};
+        if(changed.meta?.changes!==1)throw Error("owner_webhook_finish_lease_lost");
+        return Response.json({schema:"cove.owner-webhook-finish.v1",
+          eventId:q.eventId,payloadSha256:q.payloadSha256,token:q.token,
+          outcome:q.outcome,finished:true},{headers:noStore});
       }
       if(route==="/commercial/refund/reserve"){
         // This reservation is the ONLY allowed enrolled refund intent writer.
