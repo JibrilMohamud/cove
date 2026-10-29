@@ -39,5 +39,23 @@ export function ownerSettlementDiagnostic(error:unknown):string {
   if(/UNIQUE constraint failed/i.test(message))return "database_duplicate_rejected";
   if(/NOT NULL constraint failed/i.test(message))return "database_required_value_missing";
   if(/D1_ERROR|SQLITE_ERROR/.test(message))return "database_execution_failed";
+  // Source/stack is used only to choose a fixed code. Never reflect it back:
+  // deployed errors can contain SQL, provider messages, or customer identifiers.
+  // These names survive the owner's isolated bundled build in the QA harness.
+  const stack=typeof error.stack==="string"?error.stack:"";
+  for(const [frame,code] of [
+    ["calculateAndAccrueRoyalty","settlement_royalty_calculation_failed"],
+    ["accrueSaleRoyaltiesForOrder","settlement_royalty_accrual_failed"],
+    ["postPaidSettlementTransaction","settlement_atomic_transaction_failed"],
+    ["reconcileOwnerPaidSettlementEffects","settlement_postcommit_effects_failed"],
+    ["recordTaxTransaction","settlement_tax_effects_failed"],
+    ["recordPromotionAttribution","settlement_promotion_effects_failed"],
+    ["verifiedPayment","settlement_provider_verification_failed"],
+    ["executeOwnerPaidSettlement","settlement_owner_execution_failed"]
+  ] as const) {
+    if(stack.includes(frame))return code;
+  }
+  if(error.name==="TypeError")return "settlement_type_error";
+  if(error.name==="RangeError")return "settlement_range_error";
   return "unclassified_failure";
 }
