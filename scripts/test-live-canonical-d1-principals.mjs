@@ -128,6 +128,28 @@ test("two retired literary Workers cannot regain D1 or be re-enabled by redeploy
   });
   assert.deepEqual(reenabled.retiredDisabledLiteraryReactivations,[name]);
 });
+test("a forged expanded baseline cannot increase 12 deployed canonical D1 principals",()=>{
+  const baseline={schema:"cove.canonical-d1-unsafe-principal-baseline.v1",certified:false,
+    canonicalD1:CANONICAL_D1,
+    knownDirectBindings:[{script:OWNER_SCRIPT,binding:"PRIMARY_DB"},
+      {script:"cove-disabled-qa",binding:"SOURCE_DB"}],
+    knownSchedules:{"cove-disabled-qa":["* * * * *"]}};
+  const original=assessDeployedCanonicalD1Principals(params);
+  assert.equal(compareKnownUnsafeFleet(original,baseline).strictDriftPass,true);
+  const extraBindings=Array.from({length:13},(_,i)=>({
+    script:"new-direct-"+i,binding:"DB",crons:[],owner:false
+  }));
+  const artificiallyForged={...original,directCanonicalBindings:14,
+    nonOwnerBindings:13,
+    principals:[...original.principals,...extraBindings]};
+  const forgedBaseline={...baseline,knownDirectBindings:[
+    ...baseline.knownDirectBindings,
+    ...extraBindings.map(x=>({script:x.script,binding:x.binding}))
+  ]};
+  const verdict=compareKnownUnsafeFleet(artificiallyForged,forgedBaseline);
+  assert.equal(verdict.newBindings.length,0);
+  assert.equal(verdict.strictDriftPass,false);
+});
 test("baseline is unsafe history, never authorization; added bindings and cron are refused",()=>{
   const report=assessDeployedCanonicalD1Principals(params);
   const baseline={schema:"cove.canonical-d1-unsafe-principal-baseline.v1",certified:false,
