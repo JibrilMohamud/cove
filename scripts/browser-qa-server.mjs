@@ -18,6 +18,12 @@ execFileSync(process.execPath, ["scripts/build-offline-reader.mjs"], { stdio: "i
 const scratch = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "cove-browser-qa-")));
 for (const dir of ["src", "public", "drizzle"])
   fs.cpSync(path.join(checkout, dir), path.join(scratch, dir), { recursive: true });
+// Keep the isolated Vite source tree aligned with the production SQL fence.
+fs.mkdirSync(path.join(scratch, "config"), { recursive: true });
+fs.copyFileSync(
+  path.join(checkout, "config/canonical-legal-tables.json"),
+  path.join(scratch, "config/canonical-legal-tables.json"),
+);
 fs.cpSync(path.join(checkout, ".output/public"), path.join(scratch, "public"), { recursive: true });
 for (const file of ["package.json", "vite.config.ts", "tsconfig.json"])
   fs.copyFileSync(path.join(checkout, file), path.join(scratch, file));
