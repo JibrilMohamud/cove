@@ -8,12 +8,12 @@ const review=JSON.parse(readFileSync(REVIEW_PATH,"utf8"));
 const current=currentWriterSites();
 const result=reconcileWriterSites(current,review);
 assert.deepEqual(result.unknown,[]);assert.deepEqual(result.stale,[]);
-assert.equal(current.length,460);
+assert.equal(current.length,461);
 assert.equal(new Set(current.map(x=>x.file)).size,26);
-assert.equal(current.filter(x=>x.literal).length,460,
+assert.equal(current.filter(x=>x.literal).length,461,
   "All existing scan candidates are executable SQL literals; only the isolated fixture is outside deployed production");
 const counts={};for(const x of review.sites)counts[x.disposition]=(counts[x.disposition]||0)+1;
-assert.deepEqual(counts,{"isolated-test-fixture":1,"owner-command-required":426,"non-authorizing-write":33});
+assert.deepEqual(counts,{"isolated-test-fixture":1,"owner-command-required":427,"non-authorizing-write":33});
 const versionEvents=review.sites.filter(x=>x.table==="publishing_owner_version_events");
 assert.equal(versionEvents.length,4);
 assert.equal(versionEvents.filter(x=>x.disposition==="owner-command-required").length,2);
@@ -63,4 +63,4 @@ assert.throws(()=>reconcileWriterSites(current,{...review,sites:[{...review.site
   /cannot assert deployed production ownership/);
 const release=spawnSync(process.execPath,["scripts/check-canonical-writer-closure.mjs","--release-gate"],{encoding:"utf8"});
 assert.equal(release.status,1,"Reviewed classification must not open the owner-only release gate");
-console.log("PASS: all 460 sites reconciled; 260 priority-file candidates; semantic SQL edits invalidate review; production release still denied");
+console.log("PASS: all 461 sites reconciled; 260 priority-file candidates; semantic SQL edits invalidate review; production release still denied");
