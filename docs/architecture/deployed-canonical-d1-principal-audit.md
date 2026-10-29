@@ -51,6 +51,12 @@ The resulting production live inventory is **12 direct canonical D1 bindings: 11
 
 Active literary processing, scheduled publication and Sounds jobs, commerce and storefront workers, and other reachable services were explicitly **not** modified. These need owner-first command migration or separate production-safe isolation.
 
+## Fast storefront QA ingress lockdown and locked gateway privilege retirement
+
+On October 29, a separate live Cloudflare preflight found `cove-fast-architecture-qa` had `COVE_STRANGLER_RELEASE_CERTIFIED=1`, production D1 `DB`, a private relay-key secret, and public Workers.dev ingress. It had no cron or custom route/domain; the account-wide audit also found no incoming service-binding caller. **The Workers.dev ingress was disabled and immediately verified**; the production D1 binding still exists and is **not certified** as a read-only capability. Restore `enabled:true, previews_enabled:false` at the subdomain settings endpoint only under a new protected QA ingress review. The account-wide auditor will now block any unreviewed public ingress restoration while this QA Worker has production D1.
+
+A distinct deployed `cove-fast-customer-gateway` is configured with `COVE_STRANGLER_RELEASE_CERTIFIED=0` and returns HTTP 503 before using D1. The new locked-gateway configuration removes its production `DB` binding and `COVE_STRANGLER_DATABASE_ID` selector, with an executable bundled-Worker test asserting every sample account/checkout/storefront path remains 503 **without** a DB binding. The protected deployment must independently verify the live bindings and public responses; source configuration alone is not sufficient. The unsafe baseline remains unchanged until that deployment succeeds.
+
 ## Required retirement sequence
 
 1. Independently record every scheduled/HTTP/queue/service caller for each publication driver, capture, literary and music publisher. Trace the full transitive service-binding graph; a worker with zero direct cron and public ingress may still receive service calls.
