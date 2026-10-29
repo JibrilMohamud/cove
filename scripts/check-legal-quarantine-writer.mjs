@@ -32,6 +32,7 @@ try {
   db.exec("CREATE TABLE products(id TEXT PRIMARY KEY,edition_id TEXT,source_name TEXT)");
   db.exec("CREATE TABLE entitlements(id TEXT PRIMARY KEY,user_id TEXT,product_id TEXT,status TEXT,entitlement_type TEXT,order_item_id TEXT)");
   db.exec("CREATE TABLE audio_offline_licenses(id TEXT PRIMARY KEY,entitlement_id TEXT,status TEXT,revoked_at TEXT,revocation_reason TEXT)");
+  db.exec("CREATE TABLE commercial_delivery_grants(id TEXT PRIMARY KEY,entitlement_id TEXT,user_id TEXT,product_id TEXT,status TEXT)");
   db.exec("CREATE TABLE commerce_orders(id TEXT PRIMARY KEY,user_id TEXT)");
   db.exec("CREATE TABLE commerce_order_items(id TEXT PRIMARY KEY,order_id TEXT)");
   db.exec("INSERT INTO rights_contracts VALUES('rcontract_17','active')");
@@ -346,6 +347,13 @@ try {
   db.prepare("INSERT INTO audio_offline_licenses(id,entitlement_id,status) VALUES(?,?,'active')").run("offline_a",entitlementId);
   db.prepare("INSERT INTO audio_offline_licenses(id,entitlement_id,status) VALUES(?,?,'active')").run("offline_b",entitlementId);
   db.prepare("INSERT INTO audio_offline_licenses(id,entitlement_id,status) VALUES(?,?,'active')").run("offline_other","different_entitlement");
+  for(const id of ["epub_1","epub_2"])
+    db.prepare("INSERT INTO commercial_delivery_grants(id,entitlement_id,user_id,product_id,status) VALUES(?,?,?,?,'active')")
+      .run(id,entitlementId,"user_paid_17","prd_commercial_a17");
+  db.prepare("INSERT INTO commercial_delivery_grants(id,entitlement_id,user_id,product_id,status) VALUES(?,?,?,?,'active')")
+    .run("epub_unrelated","unrelated","other_user","prd_commercial_a17");
+  db.prepare("INSERT INTO commercial_delivery_grants(id,entitlement_id,user_id,product_id,status) VALUES(?,?,?,?,'active')")
+    .run("epub_wrong_user",entitlementId,"other_user","prd_commercial_a17");
   operations.length=0;
   const revoke={entitlementId,operationId:"refund:order17:ent17"};
   assert.equal((await post(revoke,{},"/commercial/entitlement/revoke")).status,200);
@@ -357,6 +365,11 @@ try {
     "All linked offline licenses are revoked in the same canonical D1 batch");
   assert.equal(db.prepare("SELECT status FROM audio_offline_licenses WHERE id='offline_other'").get().status,"active",
     "Unrelated buyers cannot be affected by entitlement revocation");
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM commercial_delivery_grants WHERE entitlement_id=? AND user_id='user_paid_17' AND status='revoked'").get(entitlementId).n,2,
+    "Both active EPUB delivery grants must be revoked in the same atomic batch");
+  assert.equal(db.prepare("SELECT status FROM commercial_delivery_grants WHERE id='epub_unrelated'").get().status,"active");
+  assert.equal(db.prepare("SELECT status FROM commercial_delivery_grants WHERE id='epub_wrong_user'").get().status,"active",
+    "A corrupted grant for a different buyer must not be revoked");
   assert.equal(paidEnt.captureEntitlementEpoch(sql,{
     entitlementId,userId:"user_paid_17",productId:"prd_commercial_a17"
   }),1);
@@ -380,6 +393,8 @@ try {
     "D1 failure must leave both canonical rows unchanged");
   assert.equal(db.prepare("SELECT COUNT(*) n FROM audio_offline_licenses WHERE entitlement_id=? AND status='active'").get(entitlementId).n,0,
     "Previously revoked offline licenses cannot be reactivated by a failed retry");
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM commercial_delivery_grants WHERE user_id='user_paid_17' AND status='revoked'").get().n,2,
+    "An owner replay outage must leave previously revoked EPUB tokens denied");
   failPrimaryBatch=false;
   operations.length=0;
   assert.equal((await post({...revoke,operationId:"refund:order17:ent19"},
