@@ -5,6 +5,7 @@ import {DISABLED_OWNER_ATTEST_ROUTE,PRODUCTION_OWNER_OBJECT,isDisabledProduction
 import {publishVerifiedPaidOrderAtomic,type VerifiedPaidOrderLine} from "./paid-order-atomic-publication";
 import {executeOwnerRefundAccounting} from "./refund-accounting-owner-executor";
 import {executeOwnerRefundReservation} from "./refund-reservation-owner-executor";
+import {executeOwnerCheckoutPaymentBinding} from "./checkout-payment-binding-owner-executor";
 import {executeOwnerPaidSettlement} from "./paid-settlement-owner-executor";
 import {createMarketAuthoritySchema,denyMarket,marketIsWithdrawn} from "./market-authority-core";
 import { authorizeStorefrontPresentationIds, type CatalogDB } from "../features/fore/catalog-model.server";
@@ -132,6 +133,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/order/settle",
       "/commercial/order/recover-settlements",
       "/commercial/refund/reserve",
+      "/commercial/checkout/attach-payment-intent",
       "/commercial/payment/update-state",
       "/commercial/webhook/claim",
       "/commercial/webhook/finish",
@@ -523,6 +525,10 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         return Response.json({schema:"cove.paid-order-revocation.v1",
           orderDenied:true,reconciled:true,orderId:input.orderId,
           operationId:input.operationId},{status:200,headers:noStore});
+      }
+      if(route==="/commercial/checkout/attach-payment-intent"){
+        const receipt=await executeOwnerCheckoutPaymentBinding(env,raw);
+        return Response.json(receipt,{headers:noStore});
       }
       if(route==="/commercial/payment/update-state"){
         // Only exact signed-Stripe adapters on the private QA lease may call
