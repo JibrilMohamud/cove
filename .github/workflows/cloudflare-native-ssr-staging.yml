@@ -162,10 +162,8 @@ permissions:
   contents: read
 
 concurrency:
-  # PRs only build/dry-run; separate them so an unrelated PR cannot replace
-  # another pending verification. Keep the original deployment group name
-  # across old/new workflows so secret-rotating cold trials never overlap.
-  group: ${{ github.event_name == 'pull_request' && format('cove-ssr-pr-{0}', github.event.pull_request.number) || 'cove-exclusive-real-primary-cold-acceptance' }}
+  # Source verification is independent; only live trials share the primary lock.
+  group: cove-ssr-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -226,6 +224,10 @@ jobs:
   deploy-staging:
     needs: verify
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    concurrency:
+      group: cove-exclusive-real-primary-cold-acceptance
+      queue: max
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:

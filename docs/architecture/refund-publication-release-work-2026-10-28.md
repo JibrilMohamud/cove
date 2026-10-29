@@ -19,7 +19,13 @@ enablement stayed `0`; the namespace is
 `83d7eadf3957436389a7b072120a9829`, with canonical primary
 `4bd657ac-8789-403e-a28c-93aba8d0a989`.
 
-## Functional changes under integration
+## Functional changes merged for deployed certification
+
+[PR 424](https://github.com/JibrilMohamud/cove/pull/424) merged at
+`272e6e0e7aec1bf9b739d1d8fd92ae2b728e4235`. Functional source, security,
+publishing, owner, six browser-profile and screen-reader checks passed.
+Failing release capacity results remain blocking; merging these repairs
+does not authorize a frontend traffic change.
 
 - Refund requests resume a persisted pending intent after owner/provider
   outage using the original Stripe idempotency key or exact provider object.
@@ -72,10 +78,21 @@ withdrawal races, original audio signing, expiry and device changes. These
 tests use SQLite plus the actual bundled application handlers; they are not
 a deployed customer certificate.
 
-The deployed Stripe TEST campaign additionally checks original EPUB/audio
-bytes, renewal token rotation, prior-token rejection, exact signed/stored expiry,
-owner outage and refund. Results for the final merged revision must be
-recorded from the workflow before claiming success.
+The deployed Stripe TEST campaign on merge `272e6e0e`,
+[run 40790471374](https://github.com/JibrilMohamud/cove/actions/runs/40790471374),
+passed original EPUB/audio bytes, renewal token rotation, prior-token rejection,
+exact signed/stored expiry, owner outage and refund. The genuine two-account
+Supabase browser journey,
+[run 40790471325](https://github.com/JibrilMohamud/cove/actions/runs/40790471325),
+passed login, signed fulfillment, original EPUB/audio, outsider denial and the
+actual refund endpoint. Cleanup removed the temporary isolated refund role,
+destroyed the offline signing key and disabled QA ingress. These separate
+isolated QA campaigns do not certify production owner authorization.
+
+The production backend deployment,
+[run 40790471333](https://github.com/JibrilMohamud/cove/actions/runs/40790471333),
+passed again at version `883337b7-9683-4ecd-87bc-bd939c586dc7`, including the
+fresh-nonce disabled-owner handshake and deletion of its verifier.
 
 The protected owned-domain campaign tests actual native SSR through
 `ssr-canary.covereads.com`: independently rotated cold bursts at 1/4/8/16/32,
@@ -87,12 +104,57 @@ permits the authorized campaign; production's 180/minute policy is unchanged.
 The canary is detached and its two temporary Workers deleted after testing.
 This campaign does not certify ORD/LAX/IAD/DFW repeatability.
 
+The first real owned-ingress campaign on source `9a191023`,
+[run 40788876111](https://github.com/JibrilMohamud/cove/actions/runs/40788876111),
+**failed**. Its initial 20-request probe passed with p95 173 ms, but independent
+cold maxima were 492/576/819/1,253/1,598 ms at 1/4/8/16/32 concurrency.
+Warm 32-concurrent maximum was 914 ms. The two 100-RPS phases returned
+894/2,000 and 958/2,000 valid responses, with 1,106 and 1,042 dropped arrivals;
+p95 was 3,971/3,595 ms and max 5,291/3,921 ms. All failed samples remain in
+artifact `12860488706`. These requests reached STL, which is not a certificate
+for the required four regions. Mobile lab LCP p75 was 4,020 ms. Cleanup passed.
+
+Catalog calls in that run had medians of 1,475/1,276 ms while their SQL
+execution medians were 11.0/10.7 ms; context calls had medians of
+1,865/2,174 ms. This supports primary-service queueing/latency as a material
+bottleneck; it does not isolate every provider or background-workload cause.
+
+An acceptance scheduling defect also canceled a required main campaign:
+GitHub's default shared concurrency group retains only one pending run.
+Both source verification workflows now have independent PR groups; only
+their live deployment jobs share the exclusive queued group. Both live campaigns
+use `queue: max` with cancellation disabled, so independent real-primary load
+tests remain serial without replacing pending runs. PRs run owned-ingress
+source checks; the live owned campaign runs on main or manual dispatch.
+This scheduling change does not make failed performance evidence pass.
+
 Before these functional changes were deployed, a read-only probe from the
 Work execution environment against `https://www.covereads.com` at
 2026-10-28 23:26:56 UTC completed 20 valid HTML responses with 24 cards each,
 but 16 exceeded 800 ms: p75 1,259 ms and p95 2,038 ms. This is one egress
 observation, not field LCP, an independent cold deployment, or a provider-only
 latency diagnosis.
+
+On merge `272e6e0e`, native staging
+[run 40790471385](https://github.com/JibrilMohamud/cove/actions/runs/40790471385)
+failed: cold-trial p95 was 1,149/245/173 ms, with four responses at least
+800 ms in the first trial. Concurrency 8/16 maxima were 1,004/1,107 ms.
+Fresh-browser staging LCP p75 passed at desktop 816 ms and mobile 1,684 ms,
+with no failed script or stylesheet requests. This does not override the
+cold/concurrent failures or certify geography and field vitals.
+
+The default Vercel production-host probe on the same merged source,
+[run 40790471392](https://github.com/JibrilMohamud/cove/actions/runs/40790471392),
+failed with 18 slow responses and p95 1,067 ms. Separately, a fresh probe of
+`https://www.covereads.com` at 2026-10-29 00:02:22 UTC returned 20 valid
+24-card HTML responses, but 12 were slow; p75 was 1,047 ms and p95 3,326 ms.
+Neither probe is an independently cold deployment or a field-vitals result.
+
+Read-only control-plane inspection after these campaigns confirmed owner
+switch `0`, the exact production primary and owner bindings, unproxied Vercel
+CNAMEs for apex/www, no attached owned canary, and no remaining temporary
+owned-auth gateway/assets Workers. The stable isolated customer-QA Worker
+remains present with its ingress and temporary signing capability disabled.
 
 ## Release decision
 
