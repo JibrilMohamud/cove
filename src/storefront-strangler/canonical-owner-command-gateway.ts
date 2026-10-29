@@ -17,6 +17,9 @@ const routes={
   "commerce.settle-order":{path:"/commercial/order/settle",schema:z.object({orderId:ownerId}).strict()},
   "commerce.recover-settlements":{path:"/commercial/order/recover-settlements",schema:z.object({limit:z.number().int().min(1).max(25)}).strict()},
   "commerce.revoke-order":{path:"/commercial/order/revoke",schema:z.object({orderId:ownerId,operationId:operation}).strict()},
+  "commerce.register-stripe-customer":{path:"/commercial/checkout/register-stripe-customer",schema:z.object({
+    userId:ownerId,customerId:z.string().regex(/^cus_[a-zA-Z0-9_-]{4,150}$/)
+  }).strict()},
   "commerce.attach-payment-intent":{path:"/commercial/checkout/attach-payment-intent",schema:z.object({
     orderId:ownerId,userId:ownerId,
     paymentIntentId:z.string().regex(/^pi_[a-zA-Z0-9_-]{4,150}$/),
@@ -141,6 +144,12 @@ export async function dispatchCanonicalOwnerCommand(
     case "commerce.revoke-order":
       if(ack.schema!=="cove.paid-order-revocation.v1"||ack.orderDenied!==true||
          ack.reconciled!==true||ack.orderId!==body.orderId||ack.operationId!==body.operationId)
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "commerce.register-stripe-customer":
+      if(ack.schema!=="cove.owner-stripe-customer.v1"||ack.userId!==body.userId||
+         ack.customerId!==body.customerId||ack.bound!==true||
+         typeof ack.applied!=="boolean")
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "commerce.attach-payment-intent":
