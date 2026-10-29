@@ -2106,8 +2106,7 @@ async function applyRefundSuccess(env: CoveEnv, refundId: string, refundPayload:
   }
   // An enrolled owner has already reversed royalties before acknowledging.
   // Legacy callers retain this direct projection until migrated to the owner.
-  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")
-    await reverseRoyaltiesForRefund(db, r.id);
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1") await reverseRoyaltiesForRefund(db, r.id);
   const refundItems = await db
     .prepare(
       "SELECT id,product_id,total_minor,source_surface,source_request_id FROM commerce_order_items WHERE order_id=? ORDER BY id",
