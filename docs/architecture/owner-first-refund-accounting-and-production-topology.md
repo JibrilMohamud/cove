@@ -21,7 +21,25 @@ The live Cloudflare API reported:
 - Owner Worker `cove-legal-authority-production`: production `PRIMARY_DB` D1 binding and `COVE_RIGHTS_OWNER_ENABLED=0`.
 - Additional write-capable canonical D1 bindings: `cove-sounds-publication` has `SOURCE_DB` to the production database and its own `11 * * * *` cron; `cove-storefront-ssr-staging` also has `DB` bound to the production database, despite being a gated staging Worker. Both were independently observed using deployed Cloudflare binding settings on October 29, 2026. Neither can be counted as isolated merely because its name includes staging or its intended code path is read-only.
 
-Those facts verify configuration and **do not** prove every deployed code path, direct API credential or external writer is fenced. The release must remain blocked.
+Those facts verify configuration and **do not** prove every deployed code path, direct API credential or external writer is fenced.
+
+### Account-wide live Worker binding inventory (2026-10-29)
+
+A read-only Cloudflare API sweep inspected **450 Cove-named deployed Worker scripts** and their current bindings. **57** have direct canonical production D1 bindings: **44** legacy publication-capture Worker scripts, **7** literary-processing scripts, **2** fast-architecture/customer-gateway scripts, and **4** core/staging scripts (persistence, legal owner, Sounds publication, SSR staging). This snapshot reported **zero API errors**.
+
+Of those 57 bound principals, **six Worker scripts have one or more active schedules**:
+- `cove-persistence-backend` (six cron expressions)
+- `cove-sounds-publication` (hourly at minute 11)
+- `cove-pub-qa-continuous-capture` (every minute)
+- `cove-literary-handoff-draining-20261025` (every minute)
+- `cove-literary-infer-isolated-disabled` (every minute)
+- `cove-literary-prepare-draining-20261025` (every minute)
+
+A binding is a capability and not evidence of actual SQL mutation. Likewise, a cron schedule can remain installed even if its code is paused. Nonetheless, production writer exclusivity is **not certified** while these principals retain direct canonical database access without isolated read-only credentials, independently verified guards, or controlled retirement. Do not blindly delete them: identify dependencies and remove/disable schedules and routes with a rollback plan.
+
+The source-only topology checker covers the documented production configs; it is **not** a replacement for an account-wide deployed Worker and external D1 API credential audit.
+
+ The release must remain blocked.
 
 ## Remaining production acceptance before owner cutover
 
