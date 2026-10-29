@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import {
-  CANONICAL_D1,OWNER_SCRIPT,assessDeployedCanonicalD1Principals,collectCanonicalD1Fleet
+  CANONICAL_D1,OWNER_SCRIPT,assessDeployedCanonicalD1Principals,collectCanonicalD1Fleet,compareKnownUnsafeFleet
 } from "./audit-live-canonical-d1-principals.mjs";
 const owner={bindings:[
   {type:"d1",name:"PRIMARY_DB",id:CANONICAL_D1},
@@ -58,6 +58,29 @@ test("no synthetic or source-only configuration can self-certify deployment",()=
   assert.equal(clean.releaseEligible,false);
   assert.equal(clean.productionAuthorized,false);
   assert.equal(clean.independentDeploymentAuthorizationRequired,true);
+});
+test("baseline is unsafe history, never authorization; added bindings and cron are refused",()=>{
+  const report=assessDeployedCanonicalD1Principals(params);
+  const baseline={schema:"cove.canonical-d1-unsafe-principal-baseline.v1",certified:false,
+    canonicalD1:CANONICAL_D1,
+    knownDirectBindings:[{script:OWNER_SCRIPT,binding:"PRIMARY_DB"},
+      {script:"cove-disabled-qa",binding:"SOURCE_DB"}],
+    knownSchedules:{"cove-disabled-qa":["* * * * *"]}};
+  const accepted=compareKnownUnsafeFleet(report,baseline);
+  assert.equal(accepted.strictDriftPass,true);
+  assert.equal(accepted.productionAuthorized,false);
+  const extra=compareKnownUnsafeFleet(report,{
+    ...baseline,knownDirectBindings:baseline.knownDirectBindings.slice(0,1)});
+  assert.deepEqual(extra.newBindings,[{script:"cove-disabled-qa",binding:"SOURCE_DB"}]);
+  assert.equal(extra.strictDriftPass,false);
+  const changedCron=compareKnownUnsafeFleet(report,{...baseline,knownSchedules:{}});
+  assert.deepEqual(changedCron.newSchedules,[{script:"cove-disabled-qa",cron:"* * * * *"}]);
+  assert.equal(changedCron.strictDriftPass,false);
+  assert.throws(()=>compareKnownUnsafeFleet(report,{...baseline,certified:true}));
+  const forgedOwner=compareKnownUnsafeFleet({
+    ...report,ownerEnabled:true
+  },baseline);
+  assert.equal(forgedOwner.strictDriftPass,false);
 });
 test("missing binding/schedule/public ingress or duplicate Worker inventory fails closed",()=>{
   assert.throws(()=>assessDeployedCanonicalD1Principals({...params,
