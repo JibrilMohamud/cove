@@ -22,6 +22,21 @@ try{
   const {finalizePaidOrder}=await load("src/features/fore/commerce.server.ts","caller");
   const {makeStageLegalWriterLock}=await load("src/storefront-strangler/legal-primary-write-lock.ts","lock");
   const legal=await load("src/storefront-strangler/commercial-legal-core.ts","legal");
+  const {ownerSettlementDiagnostic:diagnostic}=await load(
+    "src/storefront-strangler/owner-settlement-diagnostic.ts","diagnostic");
+  for(const [message,expected] of [
+    ["Settlement line inventory is invalid or already partially written.","settlement_line_inventory_invalid"],
+    ["Settlement reservations do not cover canonical tender.","settlement_reservation_mismatch"],
+    ["No active royalty contract covers prd_private_buy_99 / US / retail.","settlement_royalty_contract_missing"],
+    ["Royalty contract version private_contract_v5 has no payee splits.","settlement_royalty_splits_missing"],
+    ["Royalty split must allocate exactly 100% for contract version private_contract_v5; found 75%.","settlement_royalty_splits_invalid"],
+    ["isolated_settlement_effect_interruption","qa_expected_effect_interruption"],
+    ["an unreviewed private provider response","unclassified_failure"]
+  ]) {
+    const observed=diagnostic(new Error(message));
+    assert.equal(observed,expected);
+    assert.equal(observed.includes("private"),false,"Owner diagnostic must never disclose provider or buyer details");
+  }
   const orderId="order_atomic_settlement",userId="user_atomic_settlement",secret="d".repeat(64),at="2026-01-01T00:00:00.000Z";
   const migrations=readdirSync("drizzle").filter(x=>x.endsWith(".sql")).sort().map(x=>readFileSync(join("drizzle",x),"utf8"));
   const stripePayment={provider:"stripe",paymentIntentId:"pi_atomic_settlement",chargeId:"ch_atomic_settlement",receiptUrl:null,paymentMethod:"card",processorFee:{amountMinor:2,currency:"USD",reference:"txn_atomic_settlement",netMinor:48}};
