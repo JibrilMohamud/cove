@@ -27,7 +27,10 @@ async function verifiedPayment(env:OwnerEnv,order:SettlementOrder):Promise<Settl
     throw Error("owner_stripe_verifier_unavailable");
   const url="https://api.stripe.com/v1/payment_intents/"+encodeURIComponent(String(order.stripe_payment_intent_id))+"?expand[]=latest_charge.balance_transaction";
   const response=await fetch(url,{headers:{authorization:"Bearer "+key},
-    redirect:"error",signal:AbortSignal.timeout(15_000)});
+    // Workerd rejects redirect:error at Request construction. Do not follow
+    // redirects from the payment verifier; any 3xx denies settlement.
+    redirect:"manual",signal:AbortSignal.timeout(15_000)});
+  if(response.status>=300&&response.status<400)throw Error("owner_stripe_redirect_forbidden");
   if(response.status!==200){
     const reason=response.status===401?"owner_stripe_credential_rejected":
       response.status===403?"owner_stripe_permission_denied":

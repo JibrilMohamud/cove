@@ -219,8 +219,8 @@ try{
   const nativeFetch=globalThis.fetch;
   try{
     for(const [status,code] of [[401,"owner_stripe_credential_rejected"],[403,"owner_stripe_permission_denied"],
-      [404,"owner_stripe_payment_not_found"],[429,"owner_stripe_verification_rate_limited"],[400,"owner_stripe_verification_request_rejected"]]){
-      const deniedProvider=fixture();globalThis.fetch=async()=>new Response(null,{status});
+      [404,"owner_stripe_payment_not_found"],[429,"owner_stripe_verification_rate_limited"],[400,"owner_stripe_verification_request_rejected"],[302,"owner_stripe_redirect_forbidden"]]){
+      const deniedProvider=fixture();globalThis.fetch=async(_url,options)=>{assert.equal(options.redirect,"manual","Workerd must not receive unsupported redirect:error");return new Response(null,{status});};
       const deniedResponse=await deniedProvider.command();assert.equal(deniedResponse.status,503);
       assert.equal(deniedResponse.headers.get("x-cove-owner-settlement-failure"),code);
       assert.equal(deniedProvider.snapshot().receipt,0);
