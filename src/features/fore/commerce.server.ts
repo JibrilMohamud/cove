@@ -16,6 +16,10 @@ import { requireStageLegalConsumerProof } from "../../storefront-strangler/legal
 import { revokePaidOrderAccess } from "../../storefront-strangler/paid-order-revocation.server";
 import { postStageOwnerRefundAccounting } from "../../storefront-strangler/owner-refund-accounting.server";
 import { reserveStageOwnerRefundIntent } from "../../storefront-strangler/owner-refund-reservation.server";
+import {
+  claimStageOwnerStripeWebhook,
+  finishStageOwnerStripeWebhook,
+} from "../../storefront-strangler/owner-stripe-webhook.server";
 import { recordStageOwnerRefundProvider } from "../../storefront-strangler/owner-refund-provider.server";
 import {
   settleStageOwnerPaidOrder,
@@ -2471,6 +2475,36 @@ export async function stripeWebhook(env: CoveEnv, request: Request) {
     at = now(),
     token = crypto.randomUUID();
   const leaseUntil = new Date(Date.now() + 5 * 60_000).toISOString();
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1") {
+    // A validated HMAC event cannot mutate the canonical journal using this
+    // caller's D1 binding. The isolated owner leases, fences and completes
+    // its event by immutable payload digest, event identity and lease token.
+    // There is deliberately no fallback on an unavailable private owner.
+    const claimed = await claimStageOwnerStripeWebhook(env, {
+      eventId: id,
+      eventType: String(event.type),
+      livemode: Boolean(event.livemode),
+      payloadSha256: hash,
+    });
+    if (claimed.duplicate) return { received: true, duplicate: true };
+    if (!claimed.claimed || !claimed.token)
+      throw new ApiError(503, "Canonical webhook claim was not acknowledged.");
+    const completion = {
+      eventId: id,
+      payloadSha256: hash,
+      token: claimed.token,
+    };
+    try {
+      await processStripeEvent(env, event);
+      await finishStageOwnerStripeWebhook(env, { ...completion, outcome: "processed" });
+      return { received: true };
+    } catch (error) {
+      // The owner retains the failed event for replay with the same digest.
+      // Failure to acknowledge is a 503, NEVER a caller-owned D1 update.
+      await finishStageOwnerStripeWebhook(env, { ...completion, outcome: "failed" });
+      throw error;
+    }
+  }
   const claimed = await db
     .prepare(
       `INSERT INTO commerce_webhook_events(provider_event_id,event_type,livemode,payload_sha256,status,received_at,processing_token,processing_lease_until)
