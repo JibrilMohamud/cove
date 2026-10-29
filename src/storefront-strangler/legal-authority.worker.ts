@@ -132,6 +132,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/order/settle",
       "/commercial/order/recover-settlements",
       "/commercial/refund/reserve",
+      "/commercial/payment/update-state",
       "/commercial/webhook/claim",
       "/commercial/webhook/finish",
       "/commercial/refund/post-accounting",
@@ -522,6 +523,66 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         return Response.json({schema:"cove.paid-order-revocation.v1",
           orderDenied:true,reconciled:true,orderId:input.orderId,
           operationId:input.operationId},{status:200,headers:noStore});
+      }
+      if(route==="/commercial/payment/update-state"){
+        // Only exact signed-Stripe adapters on the private QA lease may call
+        // this fixed state machine; the owner independently verifies the
+        // canonical order/PI mapping. Paid/refunded/withdrawn orders are
+        // never reset to pending, authorized or canceled by stale webhooks.
+        if(!raw||typeof raw!=="object"||Array.isArray(raw))
+          throw Error("invalid_owner_payment_state_command");
+        const q=raw as Record<string,unknown>,
+          validId=/^[a-zA-Z0-9_-]{8,160}$/;
+        if(Object.keys(q).sort().join(",")!=="failureCode,orderId,paymentIntentId,state"||
+           typeof q.orderId!=="string"||!validId.test(q.orderId)||
+           typeof q.paymentIntentId!=="string"||!/^pi_[a-zA-Z0-9_-]{4,150}$/.test(q.paymentIntentId)||
+           !["processing","authorized","payment_failed","canceled"].includes(String(q.state))||
+           (q.failureCode!==null&&(typeof q.failureCode!=="string"||
+              !/^[a-zA-Z0-9_]{0,100}$/.test(q.failureCode)))||
+           (q.state!=="payment_failed"&&q.failureCode!==null))
+          throw Error("invalid_owner_payment_state_command");
+        const existing=await env.PRIMARY_DB.prepare(
+          "SELECT id,status FROM commerce_orders WHERE id=? AND stripe_payment_intent_id=?"
+        ).bind(q.orderId,q.paymentIntentId).first<{id:string;status:string}>();
+        if(!existing||existing.id!==q.orderId)
+          throw Error("owner_payment_intent_order_mismatch");
+        const at=new Date().toISOString();
+        let applied=false;
+        if(q.state==="authorized"){
+          const result=await env.PRIMARY_DB.prepare(
+            "UPDATE commerce_orders SET status='authorized',authorized_at=COALESCE(authorized_at,?),updated_at=? WHERE id=? AND stripe_payment_intent_id=? AND status IN ('pending_payment','processing','authorized')"
+          ).bind(at,at,q.orderId,q.paymentIntentId).run() as {meta?:{changes?:number}};
+          applied=result.meta?.changes===1;
+        }else if(q.state==="processing"){
+          const result=await env.PRIMARY_DB.prepare(
+            "UPDATE commerce_orders SET status='processing',updated_at=? WHERE id=? AND stripe_payment_intent_id=? AND status='pending_payment'"
+          ).bind(at,q.orderId,q.paymentIntentId).run() as {meta?:{changes?:number}};
+          applied=result.meta?.changes===1;
+        }else if(q.state==="payment_failed"){
+          const result=await env.PRIMARY_DB.prepare(
+            "UPDATE commerce_orders SET status='payment_failed',failure_code=?,failure_message='Payment failed',updated_at=? WHERE id=? AND stripe_payment_intent_id=? AND status IN ('pending_payment','processing','authorized','payment_failed')"
+          ).bind(q.failureCode,at,q.orderId,q.paymentIntentId).run() as {meta?:{changes?:number}};
+          applied=result.meta?.changes===1;
+        }else{
+          // Cancellation and tender release must be one D1 batch. A retry
+          // against an already canceled order repairs reserved tender but
+          // can never release funds for a paid/refunded successor.
+          const results=await env.PRIMARY_DB.batch([
+            env.PRIMARY_DB.prepare(
+              "UPDATE commerce_orders SET status='canceled',canceled_at=COALESCE(canceled_at,?),updated_at=? WHERE id=? AND stripe_payment_intent_id=? AND status IN ('pending_payment','processing','authorized','payment_failed')"
+            ).bind(at,at,q.orderId,q.paymentIntentId),
+            env.PRIMARY_DB.prepare(
+              "UPDATE commerce_balance_reservations SET status='released',updated_at=? WHERE order_id=? AND status='reserved' AND EXISTS(SELECT 1 FROM commerce_orders WHERE id=? AND stripe_payment_intent_id=? AND status='canceled')"
+            ).bind(at,q.orderId,q.orderId,q.paymentIntentId),
+            env.PRIMARY_DB.prepare(
+              "UPDATE commerce_promo_redemptions SET status='released',updated_at=? WHERE order_id=? AND status='reserved' AND EXISTS(SELECT 1 FROM commerce_orders WHERE id=? AND stripe_payment_intent_id=? AND status='canceled')"
+            ).bind(at,q.orderId,q.orderId,q.paymentIntentId)
+          ]) as Array<{meta?:{changes?:number}}>;
+          applied=results[0]?.meta?.changes===1;
+        }
+        return Response.json({schema:"cove.owner-payment-state.v1",
+          orderId:q.orderId,paymentIntentId:q.paymentIntentId,state:q.state,
+          ownerRecorded:true,applied},{headers:noStore});
       }
       if(route==="/commercial/webhook/claim"){
         // Only a private, stage-leased owner sees this command. The public
