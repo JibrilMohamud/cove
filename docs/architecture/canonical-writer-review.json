@@ -2,7 +2,7 @@
   "schema": "cove.canonical-writer-review.v1",
   "reviewedSourceCommit": "028ef18375b946389c7d243f312be5dfc39ec7b1",
   "releaseApproval": false,
-  "scope": "Exact current review: 482 SQL literals. All 460 historical sites retain their dispositions (426 production owner-command-required, 33 nonauthorizing, one fixture). Two royalty INSERT OR IGNORE statements became strict INSERT statements in atomic calculation/allocation/journal batches; none was waived. The 22 new transaction/executor sites are private-owner-qa-executor, separately inventoried with exact source/SQL identity and enforced runtime import containment. They are not deployed production ownership, nonauthorizing classifications, or a reduction of the historical 426 findings. Source and isolated QA evidence never authorize production cutover. This change routes enrolled QA refund-intent reservations through a private typed command, while preserving the unowned production fallback. One new private QA executor SQL site is source-bound; 426 legacy owner-required findings remain. No production authorization is asserted.",
+  "scope": "Exact current review: 482 SQL literals. All 460 historical sites retain their dispositions (426 production owner-command-required, 33 nonauthorizing, one fixture). Two royalty INSERT OR IGNORE statements became strict INSERT statements in atomic calculation/allocation/journal batches; none was waived. The 22 new transaction/executor sites are private-owner-qa-executor, separately inventoried with exact source/SQL identity and enforced runtime import containment. They are not deployed production ownership, nonauthorizing classifications, or a reduction of the historical 426 findings. Source and isolated QA evidence never authorize production cutover. This change routes enrolled QA refund-intent reservations through a private typed command, while preserving the unowned production fallback. Private SQL remains in the already-excluded owner Durable Object, not a newly exempted scanner source; 426 legacy owner-required findings remain. No production authorization is asserted.",
   "sites": [
     {
       "siteId": "602503338f5ef8edf2e3aa0029c23659e1b5fdf9d1297ed55ba5e0d782b94457",
@@ -6253,19 +6253,6 @@
       "productionOwnerGuarded": false,
       "commandFamily": "publication.materialize",
       "reason": "New exact canonical presentation projection inside the private QA-only materialization executor; derived from canonical rows under the durable publication hold. Runtime import containment is checked. This does not close any historical production writer."
-    },
-    {
-      "siteId": "57e552468753b3bcd1824ff4cf0070ffc3b9f3152c28e2aaca3fc3bd1d42ad14",
-      "file": "src/storefront-strangler/refund-reservation-owner-executor.ts",
-      "line": 88,
-      "functionName": "executeOwnerRefundReservation",
-      "table": "commerce_refunds",
-      "operation": "INSERT INTO",
-      "sqlSha256": "59cab062db40f97bebdacc9e5d85d1888e974800935285e3c683c9697435160c",
-      "disposition": "private-owner-qa-executor",
-      "productionOwnerGuarded": false,
-      "commandFamily": "commerce.reserve-refund",
-      "reason": "Private owner QA-only, fixed-schema, transaction-conditional refund intent writer; reachable only from legal-authority.worker under a short-lived isolated DB lease. Not production certified."
     }
   ]
 }
