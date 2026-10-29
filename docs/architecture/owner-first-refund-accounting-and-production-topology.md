@@ -19,6 +19,7 @@ Editing the large `commerce.server.ts` changed its entire source-file SHA. The 5
 The live Cloudflare API reported:
 - Persistence Worker `cove-persistence-backend`: direct D1 `DB` binding to `cove-production`, plus six enabled cron schedules (`* * * * *`, `*/5 * * * *`, `*/10 * * * *`, `23 * * * *`, `17 3 * * *`, `41 4 * * *`).
 - Owner Worker `cove-legal-authority-production`: production `PRIMARY_DB` D1 binding and `COVE_RIGHTS_OWNER_ENABLED=0`.
+- Additional write-capable canonical D1 bindings: `cove-sounds-publication` has `SOURCE_DB` to the production database and its own `11 * * * *` cron; `cove-storefront-ssr-staging` also has `DB` bound to the production database, despite being a gated staging Worker. Both were independently observed using deployed Cloudflare binding settings on October 29, 2026. Neither can be counted as isolated merely because its name includes staging or its intended code path is read-only.
 
 Those facts verify configuration and **do not** prove every deployed code path, direct API credential or external writer is fenced. The release must remain blocked.
 
