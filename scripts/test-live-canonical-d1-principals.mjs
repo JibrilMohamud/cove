@@ -1,6 +1,7 @@
 /* eslint-disable prettier/prettier -- Adversarial deployed-principal inventory proof. */
 import assert from "node:assert/strict";
 import {test} from "node:test";
+import {readFileSync} from "node:fs";
 import {
   CANONICAL_D1,OWNER_SCRIPT,assessDeployedCanonicalD1Principals,collectCanonicalD1Fleet,compareKnownUnsafeFleet
 } from "./audit-live-canonical-d1-principals.mjs";
@@ -58,6 +59,45 @@ test("no synthetic or source-only configuration can self-certify deployment",()=
   assert.equal(clean.releaseEligible,false);
   assert.equal(clean.productionAuthorized,false);
   assert.equal(clean.independentDeploymentAuthorizationRequired,true);
+});
+test("43 retired captures never regain production D1 or restart, and 14-binding unsafe baseline is pinned",()=>{
+  const retired=JSON.parse(readFileSync("docs/architecture/historical-publication-capture-d1-isolation-20261029.json","utf8"));
+  const baseline=JSON.parse(readFileSync("docs/architecture/deployed-canonical-d1-baseline.json","utf8"));
+  assert.equal(retired.scripts.length,43);
+  assert.equal(baseline.knownDirectBindings.length,14);
+  assert.equal(baseline.certified,false);
+  assert.equal(baseline.retirementEvidence.historicalCaptureBindingsRemoved,43);
+  for(const name of retired.scripts)assert.ok(
+    !baseline.knownDirectBindings.some(x=>x.script===name),
+    "retired capture cannot survive in remaining unsafe D1 allowlist: "+name);
+  const name=retired.scripts[0];
+  const settings={bindings:[
+    {name:"COVE_PUBLICATION_CAPTURE_ENABLED",type:"plain_text",text:"0"},
+    {name:"PUBLIC_SOURCE_DB",type:"d1",id:"1825b4a1-0329-408d-9cc2-a40e6a17c822"}
+  ]};
+  const input={...params,
+    scripts:[...params.scripts,{id:name}],
+    settingsByName:{...params.settingsByName,[name]:settings}};
+  const safe=assessDeployedCanonicalD1Principals(input);
+  assert.equal(safe.retiredHistoricalCaptureScriptsInspected,1);
+  assert.deepEqual(safe.retiredCaptureReactivations,[]);
+  const restored=assessDeployedCanonicalD1Principals({...input,
+    settingsByName:{...input.settingsByName,[name]:{bindings:[
+      ...settings.bindings,{name:"SOURCE_DB",type:"d1",id:CANONICAL_D1}]}} ,
+    schedulesByName:{...params.schedulesByName,[name]:[]},
+    subdomainsByName:{...params.subdomainsByName,[name]:{enabled:false}}
+  });
+  assert.deepEqual(restored.retiredCaptureReactivations,[name]);
+  assert.ok(restored.blockerCodes.includes("retired_historical_capture_canonical_d1_or_execution_restored"));
+  assert.equal(compareKnownUnsafeFleet(restored,baseline).strictDriftPass,false);
+  const restarted=assessDeployedCanonicalD1Principals({...input,
+    settingsByName:{...input.settingsByName,[name]:{bindings:[
+      {name:"COVE_PUBLICATION_CAPTURE_ENABLED",type:"plain_text",text:"1"},
+      settings.bindings[1]
+    ]}}
+  });
+  assert.deepEqual(restarted.retiredCaptureReactivations,[name]);
+  assert.equal(compareKnownUnsafeFleet(restarted,baseline).strictDriftPass,false);
 });
 test("baseline is unsafe history, never authorization; added bindings and cron are refused",()=>{
   const report=assessDeployedCanonicalD1Principals(params);
