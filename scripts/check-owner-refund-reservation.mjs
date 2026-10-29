@@ -57,7 +57,7 @@ try{
     };}};}};
     return {db,refunds,counts:()=>inserts};
   }
-  const invoke=(f,input)=>invoke(f,input,row=>f.db.prepare(
+  const invoke=(f,input)=>execute(f.db,input,row=>f.db.prepare(
     "INSERT INTO commerce_refunds(id,order_id,amount_minor,stripe_amount_minor,gift_card_amount_minor,store_credit_amount_minor,currency,reason,status,idempotency_key,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)"
   ).bind(row.refundId,row.orderId,row.amount,row.stripe,row.gift,row.store,
     row.currency,row.reason,"pending",row.idempotencyKey,row.at,row.at).run());
