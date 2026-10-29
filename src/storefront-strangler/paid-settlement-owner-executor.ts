@@ -64,15 +64,19 @@ export async function executeOwnerPaidSettlement(ctx:OwnerContext,raw:unknown){
      typeof (raw as {orderId?:unknown}).orderId!=="string"||!id.test((raw as {orderId:string}).orderId))
     throw Error("invalid_owner_settlement_command");
   const {orderId}=raw as {orderId:string};
+  // Fixed stage labels are used only to classify unexpected private-owner TypeErrors.
+  let phase="owner_authority_gate";
   if(ctx.executing.has(orderId))throw Error("owner_settlement_already_executing");
   ctx.executing.add(orderId);
   try{
     const {env,sql}=ctx,db=env.PRIMARY_DB;
     if(!readPaidOrderPermission(sql,{orderId}).allowed)throw Error("owner_settlement_order_withdrawn");
+    phase="canonical_order_read";
     const order=await db.prepare("SELECT * FROM commerce_orders WHERE id=?").bind(orderId).first<SettlementOrder>();
     if(!order||!id.test(order.user_id)||!/^[A-Z]{2}$/.test(order.territory_code)||
        !["pending_payment","processing","authorized","payment_failed","paid"].includes(order.status)||
        marketIsWithdrawn(sql,order.territory_code))throw Error("owner_settlement_order_scope_invalid");
+    phase="canonical_lines_read";
     const lines=(await db.prepare("SELECT product_id,rights_grant_id,rights_snapshot_json,sales_channel FROM commerce_order_items WHERE order_id=? ORDER BY id LIMIT 26")
       .bind(orderId).all<SettlementAcquiredLine>()).results;
     if(!lines.length||lines.length>25||new Set(lines.map(l=>l.product_id)).size!==lines.length)
@@ -90,9 +94,13 @@ export async function executeOwnerPaidSettlement(ctx:OwnerContext,raw:unknown){
           throw Error("owner_settlement_acquired_rights_changed");
       }
     };
+    phase="initial_rights_check";
     verifyRights();
+    phase="stripe_payment_verification";
     const payment=await verifiedPayment(env,order);
+    phase="verified_rights_recheck";
     verifyRights();
+    phase="durable_owner_command";
     const reference=payment.paymentIntentId||"internal:"+orderId;
     const prior=sql.exec<{payment_reference:string}>("SELECT payment_reference FROM cove_paid_settlement_commands WHERE order_id=?",orderId).toArray()[0];
     if(prior&&prior.payment_reference!==reference)throw Error("owner_settlement_identity_collision");
@@ -100,16 +108,26 @@ export async function executeOwnerPaidSettlement(ctx:OwnerContext,raw:unknown){
     // If D1 commits but its acknowledgement is lost, the SAME command loads
     // the atomic canonical receipt after a DO restart, without extra tender,
     // entitlements, promo counters or sale ledger entries.
+    phase="atomic_canonical_transaction";
     const result=await postPaidSettlementTransaction(db,orderId,payment);
+    phase="postcommit_effects";
     await reconcileOwnerPaidSettlementEffects({...env,DB:db,STRIPE_LIVEMODE:env.STRIPE_LIVEMODE||"false"} as unknown as CoveEnv,orderId);
+    phase="effects_receipt";
     await db.prepare("UPDATE commerce_settlement_receipts SET effects_completed_at=COALESCE(effects_completed_at,?) WHERE order_id=?")
       .bind(new Date().toISOString(),orderId).run();
     verifyRights();
     sql.exec("UPDATE cove_paid_settlement_commands SET state='complete' WHERE order_id=?",orderId);
+    phase="owner_permission_publication";
     await ctx.publish({id:orderId,user_id:order.user_id,territory_code:order.territory_code});
+    phase="publication_receipt";
     await db.prepare("UPDATE commerce_settlement_receipts SET owner_published_at=COALESCE(owner_published_at,?) WHERE order_id=? AND effects_completed_at IS NOT NULL")
       .bind(new Date().toISOString(),orderId).run();
     return {schema:"cove.owner-paid-settlement.v1",orderId,settled:true,
       effectsReconciled:true,accessPublished:true,applied:result.applied};
+  }catch(error){
+    // Never reflect raw unexpected exceptions to QA: only a fixed stage code.
+    // An unknown failure does not authorize fallback or reopen buyer access.
+    if(error instanceof TypeError)throw Error("owner_settlement_phase_"+phase);
+    throw error;
   }finally{ctx.executing.delete(orderId);}
 }
