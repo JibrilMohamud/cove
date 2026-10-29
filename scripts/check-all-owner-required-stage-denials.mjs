@@ -22,7 +22,8 @@ assert.deepEqual(check.unknown,[],"All current authorizing SQL requires source-b
 assert.deepEqual(check.stale,[],"Removed or changed SQL must be reconciled");
 const byId=new Map(review.sites.map(x=>[x.siteId,x]));
 const required=current.filter(x=>byId.get(x.siteId)?.disposition==="owner-command-required");
-assert.ok(required.length>=400,"Unexpected disappearance of protected authorizing SQL from the review inventory");
+// No minimum: legitimate typed owner-command migration must be able to
+// shrink this set to zero once the source-bound review is reconciled.
 
 const folder=mkdtempSync(join(tmpdir(),"cove-all-legal-sql-fence-"));
 try{
