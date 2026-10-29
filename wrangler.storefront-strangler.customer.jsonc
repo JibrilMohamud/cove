@@ -3,25 +3,27 @@
   "name": "cove-fast-customer-gateway",
   "main": ".output/strangler/index.mjs",
   "compatibility_date": "2026-10-19",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "workers_dev": true,
   "preview_urls": false,
-  "observability": { "enabled": true },
-  "d1_databases": [{
-    "binding": "DB",
-    "database_name": "cove-production",
-    "database_id": "4bd657ac-8789-403e-a28c-93aba8d0a989",
-    "migrations_dir": "drizzle"
-  }],
-  "ratelimits": [{
-    "name": "COVE_STOREFRONT_READ_LIMITER",
-    "namespace_id": "732032",
-    "simple": { "limit": 180, "period": 60 }
-  }],
+  "observability": {
+    "enabled": true
+  },
+  "ratelimits": [
+    {
+      "name": "COVE_STOREFRONT_READ_LIMITER",
+      "namespace_id": "732032",
+      "simple": {
+        "limit": 180,
+        "period": 60
+      }
+    }
+  ],
   "vars": {
     "COVE_STRANGLER_MODE": "customer-gateway",
     "COVE_STRANGLER_RELEASE_CERTIFIED": "0",
-    "COVE_STRANGLER_DATABASE_ID": "4bd657ac-8789-403e-a28c-93aba8d0a989",
     "COVE_STRANGLER_EXPERIENCE": "1",
     "FORE_ENVIRONMENT": "production",
     "FORE_DEFAULT_TERRITORY": "US",
