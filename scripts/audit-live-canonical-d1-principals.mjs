@@ -93,6 +93,19 @@ export function assessDeployedCanonicalD1Principals({scripts,settingsByName,
       bindings.some(b=>b.name==="COVE_PUBLICATION_CAPTURE_ENABLED"&&
         (b.type!=="plain_text"||b.text!=="0"));
   });
+  const retiredDisabledLiteraryNames=[
+    "cove-literary-handoff-isolated-disabled",
+    "cove-literary-prepare-isolated-disabled"
+  ];
+  const retiredDisabledLiteraryReactivations=retiredDisabledLiteraryNames.filter(name=>{
+    const worker=settingsByName[name];
+    if(!worker)return true;
+    const bindings=worker.bindings||[];
+    return bindings.some(b=>b.type==="d1"&&(b.id||b.database_id)===CANONICAL_D1)||
+      !bindings.some(b=>b.type==="d1"&&b.name==="CONTENT_DB"&&
+        (b.id||b.database_id)==="400c3af3-5d40-41fd-83cc-98228e40ddac")||
+      bindings.some(b=>b.type==="plain_text"&&b.name.endsWith("_ENABLED")&&b.text!=="0");
+  });
   const historicalDrivers=names.filter(name=>/^cove-pub-\d+-driver$/.test(name));
   const legacyDriverExposure=historicalDrivers.map(name=>{
     const schedule=schedulesByName[name],dev=subdomainsByName[name];
@@ -119,6 +132,7 @@ export function assessDeployedCanonicalD1Principals({scripts,settingsByName,
     boundScriptsWithNetworkIngress:exposed.length,
     retiredHistoricalCaptureScriptsInspected:retiredHistoricalCaptures.length,
     retiredCaptureReactivations,
+    retiredDisabledLiteraryReactivations,
     legacyPublicationDriversInspected:historicalDrivers.length,
     unsafeLegacyDriverIngress:unsafeLegacyDrivers.length,
     legacyDriverExposure,
@@ -132,6 +146,7 @@ export function assessDeployedCanonicalD1Principals({scripts,settingsByName,
       ...(scheduled.some(x=>!x.owner)?["non_owner_cron_can_use_canonical_d1"]:[]),
       ...(unsafeLegacyDrivers.length?["historical_qa_driver_public_ingress_reopened"]:[]),
       ...(retiredCaptureReactivations.length?["retired_historical_capture_canonical_d1_or_execution_restored"]:[]),
+      ...(retiredDisabledLiteraryReactivations.length?["disabled_literary_worker_canonical_d1_or_execution_restored"]:[]),
     ],
     productionAuthorized:false,
     releaseEligible:false,
@@ -165,7 +180,7 @@ export function compareKnownUnsafeFleet(report,baseline){
     unsafeHistoricalBindingsStillPresent:report.directCanonicalBindings,
     // Even zero drift is not approval of legacy credentials.
     productionAuthorized:false,
-    strictDriftPass:newBindings.length===0&&newSchedules.length===0&&report.ownerEnabled===false&&report.unsafeLegacyDriverIngress===0&&(report.retiredCaptureReactivations||[]).length===0};
+    strictDriftPass:newBindings.length===0&&newSchedules.length===0&&report.ownerEnabled===false&&report.unsafeLegacyDriverIngress===0&&(report.retiredCaptureReactivations||[]).length===0&&(report.retiredDisabledLiteraryReactivations||[]).length===0};
 }
 
 /** Read-only. Abort the entire audit if even one Worker settings or owner
