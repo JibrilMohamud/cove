@@ -13,7 +13,12 @@ assert.equal(new Set(current.map(x=>x.file)).size,26);
 assert.equal(current.filter(x=>x.literal).length,460,
   "All existing scan candidates are executable SQL literals; only the isolated fixture is outside deployed production");
 const counts={};for(const x of review.sites)counts[x.disposition]=(counts[x.disposition]||0)+1;
-assert.deepEqual(counts,{"isolated-test-fixture":1,"owner-command-required":432,"non-authorizing-write":27});
+assert.deepEqual(counts,{"isolated-test-fixture":1,"owner-command-required":431,"non-authorizing-write":28});
+const legalHistory=review.sites.filter(x=>["publishing_lifecycle_events","publication_version_distribution_events"].includes(x.table));
+assert.equal(legalHistory.length,10);
+assert.equal(legalHistory.filter(x=>x.disposition==="owner-command-required").length,9);
+assert.equal(legalHistory.filter(x=>x.disposition==="non-authorizing-write").length,1);
+assert.ok(legalHistory.every(x=>x.productionOwnerGuarded===false));
 const playback=review.sites.filter(x=>x.file==="src/features/fore/sync.server.ts"&&x.table==="commercial_audio_playback");
 assert.equal(playback.length,3);
 assert.ok(playback.every(x=>x.disposition==="non-authorizing-write"&&x.productionOwnerGuarded===false));
