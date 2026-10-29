@@ -18,11 +18,15 @@ try{
   assert.equal(result.staticScanOnly,true);
   // The canonical registry is an inventory on main, not evidence that the
   // still-draft owner-first runtime denial fence has been deployed.
+  const names=JSON.parse(readFileSync("src/storefront-strangler/canonical-legal-tables.json","utf8"));
+  assert.ok(Array.isArray(names),"Canonical table registry must be a JSON array");
+  assert.ok(names.every(name=>/^[a-z][a-z0-9_]*$/.test(name)),"Invalid protected table name");
   const scanner=readFileSync("scripts/check-canonical-writer-closure.mjs","utf8");
-  const begin=scanner.indexOf("const protectedTables=[");
-  const end=scanner.indexOf("];",begin);
-  assert.ok(begin>=0 && end>begin, "Missing canonical protected-table inventory");
-  const names=[...scanner.slice(begin,end).matchAll(/"([a-z_]+)"/g)].map(x=>x[1]);
+  const lock=readFileSync("src/storefront-strangler/legal-primary-write-lock.ts","utf8");
+  assert.ok(scanner.includes('from "../src/storefront-strangler/canonical-legal-tables.json"'));
+  assert.ok(lock.includes('from "./canonical-legal-tables.json"'));
+  assert.match(scanner,/const protectedTables=canonicalProtectedTables/);
+  assert.match(lock,/const LEGAL_TABLES = canonicalProtectedTables/);
   assert.ok(names.length>=120, "Every protected rights, finance and media table must be inventoried");
   assert.equal(names.length,new Set(names).size,"Duplicate canonical protected-table registry name");
   assert.ok(result.scannedFiles>50);

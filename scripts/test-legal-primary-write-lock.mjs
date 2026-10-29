@@ -14,10 +14,11 @@ try {
   const {guardProtectedLegalSql,makeStageLegalWriterLock,
     scopeStageLegalWriterEnv}=await import(pathToFileURL(file).href);
   const source=fs.readFileSync("src/storefront-strangler/legal-primary-write-lock.ts","utf8");
-  const start=source.indexOf("const LEGAL_TABLES = [");
-  const end=source.indexOf("] as const;",start);
-  assert.ok(start>=0&&end>start);
-  const tables=[...source.slice(start,end).matchAll(/"([a-z_]+)"/g)].map(m=>m[1]);
+  assert.ok(source.includes('from "./canonical-legal-tables.json"'),
+    "Runtime SQL fence must import the same registry used by the scanner");
+  const tables=JSON.parse(fs.readFileSync("src/storefront-strangler/canonical-legal-tables.json","utf8"));
+  assert.ok(Array.isArray(tables));
+  assert.equal(tables.length,new Set(tables).size,"Protected-table registry must not have duplicates");
   assert.ok(tables.length>=90,"Incomplete guarded-table registry");
   for(const name of tables){
     for(const sql of [

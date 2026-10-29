@@ -9,6 +9,11 @@ on:
       - "scripts/canonical-writer-baseline.mjs"
       - "scripts/test-canonical-writer-closure.mjs"
       - "scripts/reconcile-canonical-writers.mjs"
+      - "scripts/canonical-owner-workflow-inventory.mjs"
+      - "scripts/test-canonical-owner-workflow-inventory.mjs"
+      - "src/storefront-strangler/canonical-legal-tables.json"
+      - "src/storefront-strangler/legal-primary-write-lock.ts"
+      - "docs/architecture/canonical-writer-workflow-migration-v2.md"
       - "scripts/test-canonical-writer-review.mjs"
       - "scripts/check-audio-progress-nonauthorizing.mjs"
       - "scripts/check-nonauthorizing-legal-history.mjs"
@@ -27,6 +32,11 @@ on:
       - "scripts/canonical-writer-baseline.mjs"
       - "scripts/test-canonical-writer-closure.mjs"
       - "scripts/reconcile-canonical-writers.mjs"
+      - "scripts/canonical-owner-workflow-inventory.mjs"
+      - "scripts/test-canonical-owner-workflow-inventory.mjs"
+      - "src/storefront-strangler/canonical-legal-tables.json"
+      - "src/storefront-strangler/legal-primary-write-lock.ts"
+      - "docs/architecture/canonical-writer-workflow-migration-v2.md"
       - "scripts/test-canonical-writer-review.mjs"
       - "scripts/check-audio-progress-nonauthorizing.mjs"
       - "scripts/check-nonauthorizing-legal-history.mjs"
@@ -62,10 +72,15 @@ jobs:
         run: |
           node scripts/reconcile-canonical-writers.mjs
           node scripts/test-canonical-writer-review.mjs
+          node scripts/test-canonical-owner-workflow-inventory.mjs
           node scripts/check-audio-progress-nonauthorizing.mjs
           node scripts/check-nonauthorizing-legal-history.mjs
           node scripts/check-audio-playback-remaining-nonauthorizing.mjs
           node scripts/check-nonauthorizing-owner-version-history.mjs
+      - name: Export source-bound workflow migration inventory
+        env:
+          COVE_WORKFLOW_AUDIT_OUTPUT: ${{ runner.temp }}/cove-canonical-workflow-inventory.json
+        run: node scripts/canonical-owner-workflow-inventory.mjs
       - name: Save reviewable line-addressed mutation evidence
         env:
           COVE_WRITER_AUDIT_OUTPUT: ${{ runner.temp }}/cove-canonical-writer-inventory.json
@@ -74,5 +89,11 @@ jobs:
         with:
           name: canonical-writer-inventory
           path: ${{ runner.temp }}/cove-canonical-writer-inventory.json
+          retention-days: 30
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: canonical-workflow-inventory
+          path: ${{ runner.temp }}/cove-canonical-workflow-inventory.json
           retention-days: 30
           if-no-files-found: error
