@@ -11,7 +11,7 @@ const folder=mkdtempSync(join(tmpdir(),"cove-owner-checkout-binding-"));
 const primary=new DatabaseSync(":memory:"),durable=new DatabaseSync(":memory:");
 const oldFetch=globalThis.fetch;
 try{
-  const workerFile=join(folder,"worker.mjs"),facadeFile=join(folder,"facade.mjs");
+  const workerFile=join(folder,"worker.mjs"),facadeFile=join(folder,"facade.mjs"),customerFile=join(folder,"customer.mjs");
   await build({entryPoints:["src/storefront-strangler/legal-authority.worker.ts"],
     outfile:workerFile,bundle:true,platform:"node",format:"esm",target:"node22",logLevel:"silent",
     plugins:[{name:"durable-host",setup(b){
@@ -21,8 +21,11 @@ try{
     }}]});
   await build({entryPoints:["src/storefront-strangler/owner-checkout-payment.server.ts"],
     outfile:facadeFile,bundle:true,platform:"node",format:"esm",target:"node22",logLevel:"silent"});
+  await build({entryPoints:["src/storefront-strangler/owner-stripe-customer.server.ts"],
+    outfile:customerFile,bundle:true,platform:"node",format:"esm",target:"node22",logLevel:"silent"});
   const {CoveLegalAuthority}=await import(pathToFileURL(workerFile).href);
   const {attachStageOwnerCheckoutPayment:attach}=await import(pathToFileURL(facadeFile).href);
+  const {registerStageOwnerStripeCustomer:registerCustomer}=await import(pathToFileURL(customerFile).href);
   primary.exec(`CREATE TABLE commerce_orders(
     id TEXT PRIMARY KEY,user_id TEXT NOT NULL,quote_id TEXT,invoice_number TEXT,
     status TEXT,currency TEXT,stripe_due_minor INTEGER,capture_method TEXT,
@@ -114,6 +117,34 @@ try{
     {COVE_LEGAL_WRITER_PRIMARY_ID:"4bd657ac-8789-403e-a28c-93aba8d0a989"},
     {COVE_RIGHTS_OWNER_SECRET:"invalid"},{LEGAL_AUTHORITY:null}
   ])await assert.rejects(()=>attach({...stage,...overrides},cmd));
+  // The same real owner also enrolls a new Stripe customer after independently
+  // checking provider identity. A replay never reassigns the customer.
+  const newCustomer={userId:"user_customer_new_qa",customerId:"cus_customer_new_qa"};
+  let provider={object:"customer",id:newCustomer.customerId,livemode:false,
+    deleted:false,email:"NEW@EXAMPLE.TEST",metadata:{fore_user_id:newCustomer.userId}};
+  globalThis.fetch=async(url,options)=>{
+    assert.equal(url,"https://api.stripe.com/v1/customers/"+newCustomer.customerId);
+    assert.equal(options.headers.authorization,"Bearer "+ownerEnv.STRIPE_SECRET_KEY);
+    assert.equal(options.redirect,"manual");
+    return Response.json(provider);
+  };
+  const firstCustomer=await registerCustomer(stage,newCustomer);
+  assert.equal(firstCustomer.bound,true);assert.equal(firstCustomer.applied,true);
+  assert.equal(primary.prepare("SELECT stripe_customer_id,email FROM commerce_customers WHERE user_id=?")
+    .get(newCustomer.userId).email,"new@example.test");
+  assert.equal((await registerCustomer(stage,newCustomer)).applied,false);
+  for(const patch of [
+    {livemode:true},{id:"cus_different_qa_01"},
+    {metadata:{fore_user_id:"user_different_qa_01"}},{deleted:true}
+  ]) {
+    const prev=provider;provider={...prev,...patch};
+    await assert.rejects(()=>registerCustomer(stage,newCustomer),/not acknowledged/);
+    provider=prev;
+  }
+  await assert.rejects(()=>registerCustomer(stage,{...newCustomer,userId:"user_customer_other_qa"}));
+  await assert.rejects(()=>registerCustomer(stage,{...newCustomer,sql:"UPDATE commerce_customers"}));
+  assert.equal(primary.prepare("SELECT count(*) n FROM commerce_customers WHERE stripe_customer_id=?")
+    .get(newCustomer.customerId).n,1);
   ownerEnv.COVE_RIGHTS_OWNER_ENABLED="0";
   await assert.rejects(()=>attach(stage,cmd),/not acknowledged/);
   assert.equal(primary.prepare("SELECT count(*) n FROM commerce_payment_attempts").get().n,1);
