@@ -64,7 +64,7 @@ try{
     ["commerce.post-refund-accounting",{orderId,refundId:"ref_gateway_01"},
       "/commercial/refund/post-accounting",
       {schema:"cove.owner-refund-accounting.v1",ownerDenied:true,posted:true,
-        orderId,refundId:"ref_gateway_01",applied:true}]
+        orderId,refundId:"ref_gateway_01",applied:true,royaltiesReconciled:true}]
   ];
   let calls=0;
   for(const [kind,body,path,receipt] of tests){
