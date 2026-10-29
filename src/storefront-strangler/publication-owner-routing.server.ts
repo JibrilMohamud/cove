@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- A typed publication command, never a delegated SQL executor. */
 import {ApiError} from "../features/fore/service";
+import {dispatchCanonicalOwnerCommand} from "./canonical-owner-command-gateway";
 import type {CatalogDB} from "../features/fore/catalog-model.server";
 type OwnerPort={fetch(request:Request):Promise<Response>};
 type Context={owner:OwnerPort;secret:string;territory:string;currency:string};
@@ -31,12 +32,9 @@ export async function dispatchPublicationRecovery(db:object) {
   if(!context)throw new ApiError(503,"Publication owner is not configured.");
   const operationId="publication-recovery:"+crypto.randomUUID();
   try {
-    const response=await context.owner.fetch(new Request("https://legal-authority.internal/publication/recover-recorded",{
-      method:"POST",headers:{authorization:"Bearer "+context.secret,"content-type":"application/json"},
-      body:JSON.stringify({operationId})
-    }));
-    if(response.status!==200)throw Error("publication_recovery_refused");
-    const result=await response.json() as {schema?:unknown;ownerFirst?:unknown;operationId?:unknown;
+    const result=await dispatchCanonicalOwnerCommand(
+      context.owner,context.secret,"publication.recover",{operationId}
+    ) as {schema?:unknown;ownerFirst?:unknown;operationId?:unknown;
       checked?:unknown;recovered?:unknown;blocked?:unknown}|null;
     if(!result||result.schema!=="cove.publication-recovery.v1"||result.ownerFirst!==true||
       result.operationId!==operationId||[result.checked,result.recovered,result.blocked]
@@ -71,15 +69,11 @@ export async function dispatchPublicationActivation(db:object,command:Publicatio
   const context=owners.get(db);
   if(!context)throw new ApiError(503,"Publication owner is not configured.");
   const operationId="activation:"+crypto.randomUUID();
-  let response:Response,receipt:unknown;
-  try {
-    response=await context.owner.fetch(new Request("https://legal-authority.internal/publication/activate-version",{
-      method:"POST",headers:{authorization:"Bearer "+context.secret,"content-type":"application/json"},
-      body:JSON.stringify({...command,operationId,territory:context.territory,currency:context.currency})
-    }));
-    if(response.status!==200)throw Error("publication_owner_refused");
-    receipt=await response.json();
-  } catch {throw new ApiError(503,"Publication activation owner did not acknowledge completion.");}
+  let receipt:unknown;
+  try{
+    receipt=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+      "publication.activate",{...command,operationId,territory:context.territory,currency:context.currency});
+  }catch{throw new ApiError(503,"Publication activation owner did not acknowledge completion.");}
   const result=receipt as {schema?:unknown;operationId?:unknown;publicationVersionId?:unknown;
     ownerFirst?:unknown;state?:unknown;versionNumber?:unknown}|null;
   if(!result||result.schema!=="cove.publication-activation.v1"||result.operationId!==operationId||
@@ -95,15 +89,11 @@ export async function dispatchPublicationPreorder(db:object,command:{publication
   const context=owners.get(db);
   if(!context)throw new ApiError(503,"Publication owner is not configured.");
   const operationId="preorder:"+crypto.randomUUID();
-  let response:Response,receipt:unknown;
-  try {
-    response=await context.owner.fetch(new Request("https://legal-authority.internal/publication/open-preorder",{
-      method:"POST",headers:{authorization:"Bearer "+context.secret,"content-type":"application/json"},
-      body:JSON.stringify({...command,operationId,territory:context.territory,currency:context.currency})
-    }));
-    if(response.status!==200)throw Error("publication_owner_refused");
-    receipt=await response.json();
-  } catch {throw new ApiError(503,"Preorder publication owner did not acknowledge completion.");}
+  let receipt:unknown;
+  try{
+    receipt=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+      "publication.open-preorder",{...command,operationId,territory:context.territory,currency:context.currency});
+  }catch{throw new ApiError(503,"Preorder publication owner did not acknowledge completion.");}
   const result=receipt as {schema?:unknown;operationId?:unknown;publicationVersionId?:unknown;
     ownerFirst?:unknown;state?:unknown;versionNumber?:unknown}|null;
   if(!result||result.schema!=="cove.publication-preorder.v1"||result.operationId!==operationId||
