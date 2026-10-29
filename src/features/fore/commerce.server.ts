@@ -20,6 +20,7 @@ import {
   claimStageOwnerStripeWebhook,
   finishStageOwnerStripeWebhook,
 } from "../../storefront-strangler/owner-stripe-webhook.server";
+import { updateStageOwnerPaymentState } from "../../storefront-strangler/owner-stripe-payment-status.server";
 import { recordStageOwnerRefundProvider } from "../../storefront-strangler/owner-refund-provider.server";
 import {
   settleStageOwnerPaidOrder,
@@ -2582,6 +2583,61 @@ async function processStripeEvent(env: CoveEnv, event: any) {
   const db = env.DB,
     obj = event.data?.object || {},
     type = String(event.type || "");
+  if (
+    env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1" &&
+    [
+      "payment_intent.amount_capturable_updated",
+      "payment_intent.processing",
+      "payment_intent.payment_failed",
+      "payment_intent.canceled",
+    ].includes(type)
+  ) {
+    // One typed owner command handles each non-settlement transition.
+    // The owner rechecks exact order/Stripe-intent identity, terminal-state
+    // immutability and atomic cancellation of reserved tender.
+    const order = await orderFromPI(db, obj);
+    if (!order) return;
+    const state =
+      type === "payment_intent.amount_capturable_updated"
+        ? "authorized"
+        : type === "payment_intent.payment_failed"
+          ? "payment_failed"
+          : type === "payment_intent.canceled"
+            ? "canceled"
+            : "processing";
+    const ack = await updateStageOwnerPaymentState(env, {
+      orderId: String(order.id),
+      paymentIntentId: String(obj.id),
+      state,
+      failureCode: state === "payment_failed" ? String(obj.last_payment_error?.code || "") : null,
+    });
+    if (state === "payment_failed" && ack.applied) {
+      try {
+        await emitNotification(db, {
+          userId: String(order.user_id),
+          eventType: "payment_failed",
+          dedupeKey: `payment-failed:${order.id}:${obj.id}`,
+          title: "Payment failed",
+          body: String(
+            obj.last_payment_error?.message ||
+              "Your payment method was declined or could not be charged.",
+          ),
+          urgency: "high",
+          subjectType: "order",
+          subjectId: order.id,
+          actionUrl: `/checkout?order=${encodeURIComponent(order.id)}`,
+          payload: {
+            orderId: order.id,
+            paymentIntentId: obj.id,
+            errorCode: obj.last_payment_error?.code || null,
+          },
+        });
+      } catch {
+        // Notification delivery is best effort; the owner already persisted payment failure.
+      }
+    }
+    return;
+  }
   if (type === "payment_intent.succeeded") {
     const o = await orderFromPI(db, obj);
     // Never acknowledge a Cove-tagged captured payment as processed when its

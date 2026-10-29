@@ -17,6 +17,11 @@ const routes={
   "commerce.settle-order":{path:"/commercial/order/settle",schema:z.object({orderId:ownerId}).strict()},
   "commerce.recover-settlements":{path:"/commercial/order/recover-settlements",schema:z.object({limit:z.number().int().min(1).max(25)}).strict()},
   "commerce.revoke-order":{path:"/commercial/order/revoke",schema:z.object({orderId:ownerId,operationId:operation}).strict()},
+  "commerce.update-payment-state":{path:"/commercial/payment/update-state",schema:z.object({
+    orderId:ownerId,paymentIntentId:z.string().regex(/^pi_[a-zA-Z0-9_-]{4,150}$/),
+    state:z.enum(["processing","authorized","payment_failed","canceled"]),
+    failureCode:z.string().max(100).regex(/^[a-zA-Z0-9_]*$/).nullable()
+  }).strict()},
   "commerce.claim-webhook":{path:"/commercial/webhook/claim",schema:z.object({
     eventId:z.string().regex(/^evt_[a-zA-Z0-9_-]{4,150}$/),
     eventType:z.string().regex(/^[a-z0-9_.]{3,120}$/),
@@ -131,6 +136,12 @@ export async function dispatchCanonicalOwnerCommand(
     case "commerce.revoke-order":
       if(ack.schema!=="cove.paid-order-revocation.v1"||ack.orderDenied!==true||
          ack.reconciled!==true||ack.orderId!==body.orderId||ack.operationId!==body.operationId)
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "commerce.update-payment-state":
+      if(ack.schema!=="cove.owner-payment-state.v1"||ack.orderId!==body.orderId||
+         ack.paymentIntentId!==body.paymentIntentId||ack.state!==body.state||
+         typeof ack.applied!=="boolean"||ack.ownerRecorded!==true)
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "commerce.claim-webhook":
