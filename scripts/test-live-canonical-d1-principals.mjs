@@ -174,6 +174,40 @@ test("production-D1-capable fast architecture QA cannot restore publicly reachab
   assert.equal(compareKnownUnsafeFleet(safe,snapshot).strictDriftPass,true);
   assert.equal(compareKnownUnsafeFleet(opened,snapshot).strictDriftPass,false);
 });
+test("retired fast QA and customer gateway never regain canonical D1, activation or public QA ingress",()=>{
+  const qa="cove-fast-architecture-qa",gateway="cove-fast-customer-gateway";
+  const settings=(mode="customer-gateway")=>({bindings:[
+    {name:"COVE_STRANGLER_MODE",type:"plain_text",text:mode},
+    {name:"COVE_STRANGLER_RELEASE_CERTIFIED",type:"plain_text",text:"0"}]});
+  const input={...params,
+    scripts:[...params.scripts,{id:qa},{id:gateway}],
+    settingsByName:{...params.settingsByName,[qa]:settings(),[gateway]:settings()},
+    schedulesByName:{...params.schedulesByName,[qa]:[],[gateway]:[]},
+    subdomainsByName:{...params.subdomainsByName,
+      [qa]:{enabled:false,previews_enabled:false},
+      [gateway]:{enabled:true,previews_enabled:false}}};
+  const good=assessDeployedCanonicalD1Principals(input);
+  assert.deepEqual(good.retiredFastWorkerViolations,[]);
+  const dbRebound=assessDeployedCanonicalD1Principals({...input,
+    settingsByName:{...input.settingsByName,[qa]:{bindings:[
+      ...settings().bindings,{name:"DB",type:"d1",id:CANONICAL_D1}
+    ]}}});
+  assert.deepEqual(dbRebound.retiredFastWorkerViolations,[qa]);
+  assert.ok(dbRebound.blockerCodes.includes("retired_fast_worker_d1_or_activation_restored"));
+  const reactivation=assessDeployedCanonicalD1Principals({...input,
+    settingsByName:{...input.settingsByName,[gateway]:{bindings:[
+      {name:"COVE_STRANGLER_MODE",type:"plain_text",text:"customer-gateway"},
+      {name:"COVE_STRANGLER_RELEASE_CERTIFIED",type:"plain_text",text:"1"}]}}});
+  assert.deepEqual(reactivation.retiredFastWorkerViolations,[gateway]);
+  const republished=assessDeployedCanonicalD1Principals({...input,
+    subdomainsByName:{...input.subdomainsByName,[qa]:{enabled:true,previews_enabled:false}}});
+  assert.deepEqual(republished.retiredFastWorkerViolations,[qa]);
+  const selector=assessDeployedCanonicalD1Principals({...input,
+    settingsByName:{...input.settingsByName,[gateway]:{bindings:[
+      ...settings().bindings,{name:"COVE_STRANGLER_DATABASE_ID",type:"plain_text",text:CANONICAL_D1}
+    ]}}});
+  assert.deepEqual(selector.retiredFastWorkerViolations,[gateway]);
+});
 test("baseline is unsafe history, never authorization; added bindings and cron are refused",()=>{
   const report=assessDeployedCanonicalD1Principals(params);
   const baseline={schema:"cove.canonical-d1-unsafe-principal-baseline.v1",certified:false,
