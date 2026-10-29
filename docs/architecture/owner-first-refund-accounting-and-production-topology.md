@@ -20,6 +20,14 @@ The existing royalty reversal generates a deterministic per-sale calculation ID 
 
 The `commerce.server.ts` edit has been reconciled against all 56 previously reviewed site identities using the actual whole-file SHA-256, unchanged SQL literal digest/function mapping, and unchanged source line positions. The conservative 426 owner-command-required sites remain unresolved; the audit has **not** reclassified any as certified. This implementation is still **isolated QA only**, not an owner-first production rollout.
 
+## Stripe provider result persistence under the isolated owner
+
+The staged refund API and signed `refund.created`/`refund.updated` webhook previously wrote `commerce_refunds.provider_refund_id` and `status` directly from the caller after owner revocation. The new `commerce.record-refund-provider` command uses the same fixed private owner service, short-lived QA lease, auth secret and isolated canonical D1 as refund accounting. Its input is **only** `{orderId,refundId,providerRefundId,status}` (strict schema, allowed Stripe statuses and provider ID syntax). The owner verifies the persisted refund/order mapping, the durable refunded-order denial, and provider identity consistency. It rejects collisions and replay attempts that would regress a completed refund. It persists status by canonical compare-and-set and verifies its committed identity before acknowledging; no arbitrary SQL or browser-controlled endpoint is accepted.
+
+The webhook path calls the durable whole-order revocation before recording provider status; the API was already revoking before contacting Stripe. On enrolled QA traffic, the refund request, webhook, and error-recovery paths no longer write these refund-provider columns directly. Unenrolled legacy production behavior is unchanged. The owner command relies on the **authenticated Stripe API result or correctly verified webhook** supplied by its server caller; it is not independent live Stripe confirmation and does not authorize production owner activation.
+
+The exact 56 `commerce.server.ts` SQL sites were re-fingerprinted after verifying their statement literals and named functions remained unchanged. None of the 426 owner-required review sites were declared certified. Provider collision, status replay, no-denial, wrong-order, forged operation, D1 failure and downstream refund reconciliation are covered by protected tests.
+
 ## Exact SQL-site review
 
 Editing the large `commerce.server.ts` changed its entire source-file SHA. The 56 affected v1 site IDs were re-derived after verifying that the only source modifications are one import and the guarded accounting call. Every existing SQL literal fingerprint, named function, disposition and `productionOwnerGuarded:false` status remains unchanged. This is a review bookkeeping update, not certification.
