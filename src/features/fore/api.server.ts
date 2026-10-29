@@ -3515,7 +3515,10 @@ async function handleCoveRequest(
         if (input && typeof input === "object" && !Array.isArray(input) && "ownerAction" in input)
           return json(await executeStageMarketEditorPause(env, input));
         if (env.COVE_SSR_STAGING === "1" || env.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1")
-          throw new ApiError(503, "Staging market edits require a verified owner-first pause command.");
+          throw new ApiError(
+            503,
+            "Staging market edits require a verified owner-first pause command.",
+          );
         return json(await upsertMarket(db, staff.userId, input));
       }
       if (request.method === "POST" && path === "/admin/localization/taxonomy") {
