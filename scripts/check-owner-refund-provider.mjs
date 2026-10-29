@@ -46,7 +46,7 @@ try{
       async run(){
         assert.ok(sql.startsWith("UPDATE commerce_refunds SET provider_refund_id="));
         if(state.failWrite)throw Error("canonical_D1_temporarily_unavailable");
-        assert.deepEqual(args.slice(0,2),[providerRefundId,args[1]]);
+        assert.equal(args[0],providerRefundId);
         assert.equal(args[3],refundId);
         assert.equal(args[4],orderId);
         assert.equal(args[5],providerRefundId);
@@ -115,10 +115,13 @@ try{
   assert.equal((await call(input,owner,"b".repeat(64))).status,401);
   assert.equal((await call(input,create({...env,COVE_RIGHTS_OWNER_ENABLED:"0"}))).status,503);
   assert.equal((await call(input,create({...env,COVE_RIGHTS_OWNER_PRIMARY_ID:"4bd657ac-8789-403e-a28c-93aba8d0a989"}))).status,503);
+  state.status="pending";
   state.failWrite=true;
   assert.notEqual((await call({...input,status:"failed"})).status,200);
-  assert.equal(state.status,"succeeded");
+  assert.equal(state.status,"pending","D1 outage must not forge a provider status change");
   state.failWrite=false;
+  assert.equal((await call({...input,status:"succeeded"})).status,200);
+  assert.equal(state.status,"succeeded");
   const commerce=readFileSync("src/features/fore/commerce.server.ts","utf8");
   assert.match(commerce,/recordOwnerStripeRefundReceipt\(env, String\(o.id\), id, refund\)/);
   assert.match(commerce,/recordOwnerStripeRefundReceipt\(env, String\(r.order_id\), String\(r.id\), obj\)/);
