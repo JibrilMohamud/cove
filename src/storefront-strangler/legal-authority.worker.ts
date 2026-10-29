@@ -413,17 +413,20 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         // this denial committed; the exact command can safely reconcile on
         // retry. An operation ID cannot be replayed for a different order.
         storage.transactionSync(()=>denyPaidOrder(sql,input));
-        // A refunded buyer must not retain an active online license record.
-        // Reconcile entitlement rows and ALL linked audio offline licenses
-        // together, after the durable owner veto. A failed D1 batch leaves
-        // the order denied and can be repaired with the same operation ID.
+        // A refunded buyer must not retain an active EPUB delivery token or
+        // audio offline-license record. Reconcile all three canonical tables
+        // atomically AFTER the durable owner veto. An interrupted D1 batch
+        // leaves the whole order denied and is repairable with the same ID.
         await env.PRIMARY_DB.batch([
           env.PRIMARY_DB.prepare(
             "UPDATE entitlements SET status='revoked' WHERE user_id=? AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND entitlement_type='purchase' AND status='active'"
           ).bind(order.user_id,input.orderId),
           env.PRIMARY_DB.prepare(
             "UPDATE audio_offline_licenses SET status='revoked',revoked_at=COALESCE(revoked_at,?),revocation_reason='order_refunded' WHERE entitlement_id IN (SELECT id FROM entitlements WHERE user_id=? AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND entitlement_type='purchase') AND status='active'"
-          ).bind(new Date().toISOString(),order.user_id,input.orderId)
+          ).bind(new Date().toISOString(),order.user_id,input.orderId),
+          env.PRIMARY_DB.prepare(
+            "UPDATE commercial_delivery_grants SET status='revoked' WHERE user_id=? AND entitlement_id IN (SELECT id FROM entitlements WHERE user_id=? AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND entitlement_type='purchase') AND status='active'"
+          ).bind(order.user_id,order.user_id,input.orderId)
         ]);
         return Response.json({schema:"cove.paid-order-revocation.v1",
           orderDenied:true,reconciled:true,orderId:input.orderId,
