@@ -52,7 +52,7 @@ try{
         },
         async run(){
           if(sql.startsWith("INSERT INTO commercial_download_audit")){
-            audits.push({eventType:args[8],reasonCode:args[12]});return {meta:{changes:1}};
+            audits.push({eventType:args[7],reasonCode:args[11]});return {meta:{changes:1}};
           }
           if(sql.startsWith("UPDATE commercial_delivery_grants SET uses=uses+1"))
             return {meta:{changes:1}};
