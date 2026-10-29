@@ -92,7 +92,7 @@ test("Cloudflare network audit calls every Worker, never ignores non-Cove princi
   const fetcher=async(url,opts)=>{
     assert.equal(opts.headers.authorization,"Bearer "+"z".repeat(30));
     assert.equal(opts.method,"GET");
-    const path=new URL(url).pathname;
+    const path=new URL(url).pathname.replace(/^\/client\/v4/,"");
     calls.push(path);
     if(!(path in replies))return Response.json({success:false},{status:404});
     return Response.json({success:true,result:replies[path]});
