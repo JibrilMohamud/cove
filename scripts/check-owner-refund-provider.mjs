@@ -60,7 +60,7 @@ try{
     };}};
   }};
   const sql={exec(statement,...args){
-    if(statement.includes("cove_paid_refunded_orders")){
+    if(/^SELECT\s/i.test(statement)&&statement.includes("cove_paid_refunded_orders")){
       assert.deepEqual(args,[orderId]);
       return {toArray:()=>state.denied?[{ok:1}]:[]};
     }
