@@ -1,11 +1,9 @@
 {
   "schema": "cove.canonical-d1-unsafe-principal-baseline.v1",
-  "observedOn": "2026-10-29 (post-45 binding retirements)",
-  "reason": "Known unsafe 12-binding baseline, not certified owner-first writers. 45 previously deployed canonical production D1 capabilities were revoked: 43 unreachable historical capture Workers and 2 disabled literary Workers. Restoration is new security drift.",
+  "observedOn": "2026-10-29 (post-47 non-owner capability retirements)",
+  "reason": "10 historically unsafe production D1 bindings remain: 9 non-owner, 1 disabled legal authority. No legacy/QA binding is an approved writer. 47 non-owner canonical D1 capabilities were removed and any restoration is denied.",
   "canonicalD1": "4bd657ac-8789-403e-a28c-93aba8d0a989",
   "knownDirectBindingScripts": [
-    "cove-fast-architecture-qa",
-    "cove-fast-customer-gateway",
     "cove-legal-authority-production",
     "cove-literary-handoff-draining-20261025",
     "cove-literary-infer-draining-20261025",
@@ -44,14 +42,6 @@
   },
   "certified": false,
   "knownDirectBindings": [
-    {
-      "script": "cove-fast-architecture-qa",
-      "binding": "DB"
-    },
-    {
-      "script": "cove-fast-customer-gateway",
-      "binding": "DB"
-    },
     {
       "script": "cove-legal-authority-production",
       "binding": "PRIMARY_DB"
@@ -96,17 +86,22 @@
   "retirementEvidence": {
     "historicalCaptureBindingsRemoved": 43,
     "previousDirectBindings": 57,
-    "remainingDirectBindings": 12,
+    "remainingDirectBindings": 10,
     "previousNonOwnerBindings": 56,
-    "remainingNonOwnerBindings": 11,
+    "remainingNonOwnerBindings": 9,
     "liveCloudflareReadback": true,
     "ownerStillDisabled": true,
     "snapshot": "docs/architecture/historical-publication-capture-d1-isolation-20261029.json",
     "disabledLiteraryBindingsRemoved": 2,
-    "totalBindingsRemoved": 45,
+    "totalBindingsRemoved": 47,
     "disabledLiteraryWorkerNames": [
       "cove-literary-handoff-isolated-disabled",
       "cove-literary-prepare-isolated-disabled"
-    ]
+    ],
+    "additionalRetiredFastWorkers": [
+      "cove-fast-architecture-qa",
+      "cove-fast-customer-gateway"
+    ],
+    "fastRetirementEvidence": "docs/architecture/fast-qa-customer-gateway-d1-retirement-20261029.json"
   }
 }
