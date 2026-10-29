@@ -8,6 +8,12 @@ on:
       - "src/storefront-strangler/paid-settlement-publication.server.ts"
       - "src/storefront-strangler/legal-consumer-fence.server.ts"
       - "src/features/fore/commerce.server.ts"
+      - "src/features/fore/paid-settlement-transaction.server.ts"
+      - "src/features/fore/royalty-engine.server.ts"
+      - "src/storefront-strangler/paid-settlement-owner-executor.ts"
+      - "src/storefront-strangler/owner-paid-settlement.server.ts"
+      - "drizzle/0089_atomic_paid_settlement.sql"
+      - "scripts/check-owner-paid-settlement.mjs"
       - "src/features/fore/delivery.server.ts"
       - "src/features/fore/commercial-audio.server.ts"
       - "src/features/fore/offline-audio.server.ts"
@@ -40,6 +46,12 @@ on:
       - "src/storefront-strangler/paid-settlement-publication.server.ts"
       - "src/storefront-strangler/legal-consumer-fence.server.ts"
       - "src/features/fore/commerce.server.ts"
+      - "src/features/fore/paid-settlement-transaction.server.ts"
+      - "src/features/fore/royalty-engine.server.ts"
+      - "src/storefront-strangler/paid-settlement-owner-executor.ts"
+      - "src/storefront-strangler/owner-paid-settlement.server.ts"
+      - "drizzle/0089_atomic_paid_settlement.sql"
+      - "scripts/check-owner-paid-settlement.mjs"
       - "src/features/fore/delivery.server.ts"
       - "src/features/fore/commercial-audio.server.ts"
       - "src/features/fore/offline-audio.server.ts"
@@ -77,6 +89,7 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: node scripts/check-paid-stage-initial-identity.mjs
+      - run: node scripts/check-owner-paid-settlement.mjs
       - run: node scripts/check-offline-epub-issuer-expiry.mjs
       - run: node scripts/check-offline-audio-issuer-authorization.mjs
       - run: node scripts/check-customer-media-owner-order.mjs

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { build } from "esbuild";
 
 const root = process.cwd(),
   read = (p) => fs.readFileSync(path.join(root, p), "utf8");
@@ -216,10 +217,47 @@ for (const token of [
   "Publisher tax compliance",
 ])
   assert.ok(ui.includes(token), `staff investigation UI missing ${token}`);
-assert.ok(
-  risk.includes("party_type||\"\")==='publisher'") && risk.includes("verified:false"),
-  "publisher finance parties must fail closed without a verified publishing tax profile",
+// Verify the actual withholding decision rather than source whitespace.
+const bundledRisk = await build({
+  entryPoints: ["src/features/fore/risk-tax.server.ts"],
+  bundle: true,
+  write: false,
+  format: "esm",
+  platform: "node",
+  target: "node22",
+  logLevel: "silent",
+  alias: { jszip: "jszip/dist/jszip.min.js" },
+});
+const { effectivePublisherWithholding } = await import(
+  "data:text/javascript;base64," + Buffer.from(bundledRisk.outputFiles[0].text).toString("base64")
 );
+for (const partyType of ["publisher", "author"]) {
+  const withholding = await effectivePublisherWithholding(
+    {
+      prepare(sql) {
+        return {
+          bind() {
+            return {
+              async first() {
+                if (sql.includes("FROM publishing_accounts")) return null;
+                assert.ok(sql.includes("FROM finance_parties"));
+                return { party_type: partyType, withholding_bps: 3000 };
+              },
+            };
+          },
+        };
+      },
+    },
+    "party_without_publishing_tax_profile",
+  );
+  assert.equal(
+    withholding.verified,
+    partyType !== "publisher",
+    "Publisher finance parties must fail closed without a verified publishing tax profile",
+  );
+  assert.equal(withholding.bps, 3000);
+}
+
 assert.ok(
   !risk.includes("jurisdiction_code,recipient_country_code"),
   "tax operations snapshot must use real withholding-rule columns",
@@ -237,10 +275,10 @@ assert.equal(
   2,
   "finance ops needs dedicated tax-compliance permissions",
 );
-for (const f of ["docs/RISK_TAX_COMPLIANCE.md", "FORE_SETUP.md", ".env.example"])
+for (const f of ["docs/RISK_TAX_COMPLIANCE.md", "COVE_SETUP.md", ".env.example"])
   assert.ok(
     read(f).includes("FORE_TAX_WEBHOOK_SECRET") ||
-      (f === "FORE_SETUP.md" && read(f).includes("Fraud, risk, and tax compliance")),
+      (f === "COVE_SETUP.md" && read(f).includes("Fraud, risk, and tax compliance")),
     `missing risk/tax operations documentation in ${f}`,
   );
 console.log(

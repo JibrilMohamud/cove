@@ -74,6 +74,12 @@ try{
       {schema:"cove.owner-refund-accounting.v1",ownerDenied:true,posted:true,
         orderId,refundId:"ref_gateway_01",applied:true,royaltiesReconciled:true}]
   ];
+  tests.push(
+    ["commerce.settle-order",{orderId},"/commercial/order/settle",
+      {schema:"cove.owner-paid-settlement.v1",orderId,settled:true,effectsReconciled:true,accessPublished:true,applied:true}],
+    ["commerce.recover-settlements",{limit:10},"/commercial/order/recover-settlements",
+      {schema:"cove.owner-settlement-recovery.v1",checked:2,recovered:1,blocked:1}]
+  );
   let calls=0;
   for(const [kind,body,path,receipt] of tests){
     const writer=kind.startsWith("rights.");
@@ -128,6 +134,10 @@ try{
     ()=>invoke(response(ack),secret,good[0],good[1]),
     /canonical_command_receipt/
   );
+  const settlement=tests.find(([kind])=>kind==="commerce.settle-order");
+  for(const field of ["settled","effectsReconciled","accessPublished","applied"]){
+    await assert.rejects(()=>invoke(response({...settlement[3],[field]:null}),secret,settlement[0],settlement[1]),/canonical_command_receipt/);
+  }
   const refundCommand=tests.find(([kind])=>kind==="commerce.post-refund-accounting");
   assert.ok(refundCommand);
   const [refundKind,refundBody,,refundReceipt]=refundCommand;

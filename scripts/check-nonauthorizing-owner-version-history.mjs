@@ -9,7 +9,10 @@ import {currentWriterSites,REVIEW_PATH} from "./reconcile-canonical-writers.mjs"
 const history="publishing_owner_version_events";
 const review=JSON.parse(readFileSync(REVIEW_PATH,"utf8"));
 const all=currentWriterSites().filter(x=>x.table===history);
-assert.equal(all.length,4,"The whole owner-version audit inventory needs fresh review if history writers change");
+assert.equal(all.length,5,"The whole owner-version audit inventory needs fresh review if history writers change");
+const privatePins=all.filter(x=>x.file==="src/features/fore/paid-settlement-transaction.server.ts");
+assert.equal(privatePins.length,1,"Only the new atomic settlement executor adds a QA grant-pin history writer");
+assert.equal(privatePins[0].functionName,"postPaidSettlementTransaction");
 const safeFunctions=new Map([
   ["setPublishingUpdatePolicy","policy_pin"],
   ["optInOwnedPublicationUpdate","owner_opt_in"]
@@ -36,6 +39,11 @@ try{
     const row=review.sites.find(x=>x.siteId===site.siteId);
     assert.ok(row,"Every historical SQL site must retain its source-bound review");
     assert.equal(row.productionOwnerGuarded,false);
+    if(site.siteId===privatePins[0].siteId){
+      assert.equal(row.disposition,"private-owner-qa-executor",
+        "The new grant_pin is authorizing QA executor code, never a nonauthorizing history exemption");
+      continue;
+    }
     if(!safeFunctions.has(site.functionName)){
       assert.equal(row.disposition,"owner-command-required",
         "grant_pin inserts can affect preorder idempotency and must stay owner-required");

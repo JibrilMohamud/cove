@@ -7,6 +7,7 @@ import {join} from "node:path";
 import {spawnSync} from "node:child_process";
 import {pathToFileURL} from "node:url";
 import ts from "typescript";
+import {assertPrivateSettlementSourceBoundary,PRIVATE_SETTLEMENT_MODULES} from "./owner-settlement-source-boundary.mjs";
 
 export const REVIEW_PATH="docs/architecture/canonical-writer-review.json";
 const digest=text=>createHash("sha256").update(text).digest("hex");
@@ -70,13 +71,16 @@ export function reconcileWriterSites(sites,review) {
   const current=new Set(sites.map(site=>site.siteId));
   const stale=review.sites.filter(site=>!current.has(site.siteId));
   const unknown=sites.filter(site=>!byId.has(site.siteId));
-  const validStatuses=new Set(["owner-command-required","non-authorizing-write","isolated-test-fixture"]);
+  const validStatuses=new Set(["owner-command-required","non-authorizing-write","isolated-test-fixture","private-owner-qa-executor"]);
+  if(review.sites.some(s=>s.disposition==="private-owner-qa-executor"))assertPrivateSettlementSourceBoundary();
   for(const site of review.sites) {
     assert.ok(validStatuses.has(site.disposition),"Unknown review disposition");
     assert.equal(typeof site.reason,"string");assert.ok(site.reason.length>20);
     assert.equal(site.productionOwnerGuarded,false,
       "This pre-migration review cannot assert deployed production ownership");
     if(site.disposition==="owner-command-required")assert.ok(site.commandFamily);
+    if(site.disposition==="private-owner-qa-executor")assert.ok(PRIVATE_SETTLEMENT_MODULES.has(site.file),
+      "Private executor classification cannot erase legacy SQL findings");
   }
   return {unknown,stale,rows:sites.map(site=>({...site,review:byId.get(site.siteId)||null}))};
 }

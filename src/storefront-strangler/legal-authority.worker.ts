@@ -3,6 +3,7 @@ import { DurableObject } from "cloudflare:workers";
 import {DISABLED_OWNER_ATTEST_ROUTE,PRODUCTION_OWNER_OBJECT,isDisabledProductionOwner,validOwnerChallenge,disabledOwnerReceipt} from "./production-disabled-owner-attestation";
 import {publishVerifiedPaidOrderAtomic,type VerifiedPaidOrderLine} from "./paid-order-atomic-publication";
 import {executeOwnerRefundAccounting} from "./refund-accounting-owner-executor";
+import {executeOwnerPaidSettlement} from "./paid-settlement-owner-executor";
 import {createMarketAuthoritySchema,denyMarket,marketIsWithdrawn} from "./market-authority-core";
 import { authorizeStorefrontPresentationIds, type CatalogDB } from "../features/fore/catalog-model.server";
 import { resolveProductRights } from "../features/fore/rights.server";
@@ -39,6 +40,9 @@ type LegalAuthorityEnv = {
   COVE_RIGHTS_OWNER_ENABLED?: string;
   COVE_RIGHTS_OWNER_PRIMARY_ID?: string;
   COVE_RIGHTS_OWNER_TEST_EXPIRES_AT?: string;
+  STRIPE_SECRET_KEY?:string;
+  STRIPE_LIVEMODE?:string;
+  STRIPE_TAX_ENABLED?:string;
   LEGAL_AUTHORITY?: {getByName(name:string):{fetch(request:Request):Promise<Response>}};
 };
 // Never accept an unspecified primary binding. This is a newly provisioned,
@@ -67,6 +71,8 @@ function qaOwnerLeaseLive(env:LegalAuthorityEnv) {
 export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
   private publicationExecutions=new Set<string>();
   private publicationRecoveryRunning=false;
+  private settlementExecutions=new Set<string>();
+  private settlementRecoveryRunning=false;
   constructor(ctx: { storage: { sql: unknown } }, env: LegalAuthorityEnv) {
     super(ctx, env);
     createAuthoritySchema(ctx.storage.sql as unknown as AuthoritySql);
@@ -116,6 +122,8 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/storefront/authorize-batch","/storefront/publish-commercial",
       "/market/deny-next",
       "/commercial/order/deny-next","/commercial/order/verify","/commercial/order/revoke",
+      "/commercial/order/settle",
+      "/commercial/order/recover-settlements",
       "/commercial/refund/post-accounting",
       "/commercial/refund/record-provider",
       "/commercial/entitlement/deny-next","/commercial/entitlement/deny-batch",
@@ -136,6 +144,65 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     }catch {return new Response(null,{status:400,headers:noStore});}
     const sql=this.ctx.storage.sql as unknown as AuthoritySql;
     try {
+      if(route==="/commercial/order/recover-settlements"){
+        const input=raw as {limit?:unknown}|null;
+        if(!input||Object.keys(input).join(",")!=="limit"||!Number.isSafeInteger(input.limit)||Number(input.limit)<1||Number(input.limit)>25)
+          return new Response(null,{status:400,headers:noStore});
+        if(this.settlementRecoveryRunning)return new Response(null,{status:409,headers:noStore});
+        this.settlementRecoveryRunning=true;
+        try{
+          // Two independent crash windows: a journal without a committed D1
+          // receipt, and a receipt whose owner publication was interrupted.
+          // Keyset cursors advance past blocked orders so retries cannot
+          // starve later settlements, including internal-only tender.
+          const cursors=sql.exec<{scope:string;after_id:string;after_time:string}>("SELECT scope,after_id,after_time FROM cove_paid_settlement_recovery_cursors").toArray();
+          const journalCursor=cursors.find(c=>c.scope==="journal")?.after_id||"";
+          let recorded=sql.exec<{order_id:string}>("SELECT order_id FROM cove_paid_settlement_commands WHERE state='pending' AND order_id>? ORDER BY order_id LIMIT ?",journalCursor,Number(input.limit)).toArray();
+          if(!recorded.length&&journalCursor)recorded=sql.exec<{order_id:string}>("SELECT order_id FROM cove_paid_settlement_commands WHERE state='pending' ORDER BY order_id LIMIT ?",Number(input.limit)).toArray();
+          const receiptCursor=cursors.find(c=>c.scope==="receipt");
+          const readReceipts=(afterTime:string,afterId:string)=>env.PRIMARY_DB.prepare("SELECT order_id,settled_at FROM commerce_settlement_receipts WHERE owner_published_at IS NULL AND (settled_at>? OR (settled_at=? AND order_id>?)) ORDER BY settled_at,order_id LIMIT ?")
+            .bind(afterTime,afterTime,afterId,input.limit).all<{order_id:string;settled_at:string}>();
+          let receipts=(await readReceipts(receiptCursor?.after_time||"",receiptCursor?.after_id||"")).results;
+          if(!receipts.length&&receiptCursor)receipts=(await readReceipts("","")).results;
+          const pending:Array<{order_id:string}>=[],seen=new Set<string>();
+          const through:{journal:string|null;receipt:{order_id:string;settled_at:string}|null}={journal:null,receipt:null};
+          const receiptFirst=cursors.find(c=>c.scope==="turn")?.after_id==="receipt";
+          for(let i=0;i<Number(input.limit)&&pending.length<Number(input.limit);i++){
+            const takeJournal=()=>{const j=recorded[i];if(j&&pending.length<Number(input.limit)){
+              through.journal=j.order_id;if(!seen.has(j.order_id)){seen.add(j.order_id);pending.push(j);}
+            }};
+            const takeReceipt=()=>{const r=receipts[i];if(r&&pending.length<Number(input.limit)){
+              through.receipt=r;if(!seen.has(r.order_id)){seen.add(r.order_id);pending.push(r);}
+            }};
+            if(receiptFirst){takeReceipt();takeJournal();}else{takeJournal();takeReceipt();}
+          }
+          sql.exec("INSERT INTO cove_paid_settlement_recovery_cursors(scope,after_id,after_time) VALUES('turn',?,'') ON CONFLICT(scope) DO UPDATE SET after_id=excluded.after_id",receiptFirst?"journal":"receipt");
+          if(through.journal)sql.exec("INSERT INTO cove_paid_settlement_recovery_cursors(scope,after_id,after_time) VALUES('journal',?,'') ON CONFLICT(scope) DO UPDATE SET after_id=excluded.after_id",through.journal);
+          if(through.receipt)sql.exec("INSERT INTO cove_paid_settlement_recovery_cursors(scope,after_id,after_time) VALUES('receipt',?,?) ON CONFLICT(scope) DO UPDATE SET after_id=excluded.after_id,after_time=excluded.after_time",through.receipt.order_id,through.receipt.settled_at);
+          let recovered=0,blocked=0;
+          for(const row of pending){
+            const response=await this.fetch(new Request("https://legal-authority.internal/commercial/order/settle",{
+              method:"POST",headers:{authorization:"Bearer "+env.COVE_RIGHTS_OWNER_SECRET,"content-type":"application/json"},
+              body:JSON.stringify({orderId:row.order_id})
+            }));
+            if(response.status===200)recovered++;else blocked++;
+          }
+          return Response.json({schema:"cove.owner-settlement-recovery.v1",checked:pending.length,recovered,blocked},{headers:noStore});
+        }finally{this.settlementRecoveryRunning=false;}
+      }
+      if(route==="/commercial/order/settle"){
+        const receipt=await executeOwnerPaidSettlement({env,sql,executing:this.settlementExecutions,
+          publish:async order=>{
+            const lines=(await env.PRIMARY_DB.prepare("SELECT id FROM commerce_order_items WHERE order_id=? AND preorder_id IS NULL LIMIT 26").bind(order.id).all<{id:string}>()).results;
+            if(!lines.length)return; // Financial preorder reservation grants no bytes.
+            const response=await this.fetch(new Request("https://legal-authority.internal/commercial/entitlement/publish-order-verified",{
+              method:"POST",headers:{authorization:"Bearer "+env.COVE_RIGHTS_OWNER_SECRET,"content-type":"application/json"},
+              body:JSON.stringify({orderId:order.id,userId:order.user_id,territory:order.territory_code,channel:"retail"})
+            }));
+            if(response.status!==200)throw Error("owner_settlement_publication_incomplete");
+          }},raw);
+        return Response.json(receipt,{headers:noStore});
+      }
       if(route==="/publication/recover-recorded") {
         const input=raw as {operationId?:unknown}|null;
         if(!input||Object.keys(input).join(",")!=="operationId"||

@@ -2,20 +2,21 @@
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {spawnSync} from "node:child_process";
+import {assertPrivateSettlementSourceBoundary} from "./owner-settlement-source-boundary.mjs";
 import {currentWriterSites,identifyWriterSites,reconcileWriterSites,REVIEW_PATH} from "./reconcile-canonical-writers.mjs";
 
 const review=JSON.parse(readFileSync(REVIEW_PATH,"utf8"));
 const current=currentWriterSites();
 const result=reconcileWriterSites(current,review);
 assert.deepEqual(result.unknown,[]);assert.deepEqual(result.stale,[]);
-assert.equal(current.length,460);
-assert.equal(new Set(current.map(x=>x.file)).size,26);
-assert.equal(current.filter(x=>x.literal).length,460,
-  "All existing scan candidates are executable SQL literals; only the isolated fixture is outside deployed production");
+assert.equal(current.length,482);
+assert.equal(new Set(current.map(x=>x.file)).size,28);
+assert.equal(current.filter(x=>x.literal).length,482,
+  "All scan candidates remain visible SQL literals, including the separate private QA executor inventory");
 const counts={};for(const x of review.sites)counts[x.disposition]=(counts[x.disposition]||0)+1;
-assert.deepEqual(counts,{"isolated-test-fixture":1,"owner-command-required":426,"non-authorizing-write":33});
+assert.deepEqual(counts,{"isolated-test-fixture":1,"owner-command-required":426,"non-authorizing-write":33,"private-owner-qa-executor":22});
 const versionEvents=review.sites.filter(x=>x.table==="publishing_owner_version_events");
-assert.equal(versionEvents.length,4);
+assert.equal(versionEvents.length,5);
 assert.equal(versionEvents.filter(x=>x.disposition==="owner-command-required").length,2);
 assert.equal(versionEvents.filter(x=>x.disposition==="non-authorizing-write").length,2);
 const allAudioPlayback=review.sites.filter(x=>x.table==="commercial_audio_playback");
@@ -63,4 +64,14 @@ assert.throws(()=>reconcileWriterSites(current,{...review,sites:[{...review.site
   /cannot assert deployed production ownership/);
 const release=spawnSync(process.execPath,["scripts/check-canonical-writer-closure.mjs","--release-gate"],{encoding:"utf8"});
 assert.equal(release.status,1,"Reviewed classification must not open the owner-only release gate");
-console.log("PASS: all 460 sites reconciled; 260 priority-file candidates; semantic SQL edits invalidate review; production release still denied");
+const syntheticBoundary=new Map([
+  ["src/features/fore/paid-settlement-transaction.server.ts","export function transaction() {}"],
+  ["src/storefront-strangler/paid-settlement-owner-executor.ts",'import {transaction} from "../features/fore/paid-settlement-transaction.server";'],
+  ["src/storefront-strangler/legal-authority.worker.ts",'import "./paid-settlement-owner-executor";'],
+]);
+assert.equal(assertPrivateSettlementSourceBoundary(syntheticBoundary),true);
+for(const declaration of ['import "./paid-settlement-transaction.server";','export * from "./paid-settlement-transaction.server";','const x=import("./paid-settlement-transaction.server");'])
+  assert.throws(()=>assertPrivateSettlementSourceBoundary(new Map([...syntheticBoundary,["src/features/fore/rogue.server.ts",declaration]])),/Non-owner runtime importer/);
+const legacy=review.sites.find(x=>x.disposition==="owner-command-required");
+assert.throws(()=>reconcileWriterSites(current,{...review,sites:review.sites.map(x=>x===legacy?{...x,disposition:"private-owner-qa-executor"}:x)}),/cannot erase legacy/);
+console.log("PASS: all 482 sites reconciled; 260 priority-file candidates; semantic SQL edits invalidate review; production release still denied");

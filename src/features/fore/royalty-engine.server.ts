@@ -261,7 +261,8 @@ async function activeDisputeHold(db: CatalogDB, productId: string) {
     .first<any>());
 }
 
-async function ledger(
+function ledger(
+  statements: Parameters<CatalogDB["batch"]>[0],
   db: CatalogDB,
   orderId: string | null,
   userId: string | null,
@@ -272,33 +273,38 @@ async function ledger(
   external: string,
   metadata: Record<string, unknown> = {},
 ) {
-  const existing = await db
-    .prepare(
-      "SELECT 1 ok FROM commerce_ledger_entries WHERE COALESCE(order_id,'')=COALESCE(?,'') AND entry_type=? AND account_code=? AND external_reference=? LIMIT 1",
-    )
-    .bind(orderId, type, account, external)
-    .first<any>();
-  if (existing) return;
-  await db
-    .prepare(
-      "INSERT OR IGNORE INTO commerce_ledger_entries(id,order_id,user_id,entry_type,account_code,amount_minor,currency,external_reference,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
-    )
-    .bind(
-      id("led"),
-      orderId,
-      userId,
-      type,
-      account,
-      amount,
-      currency,
-      external,
-      JSON.stringify(metadata),
-      now(),
-    )
-    .run();
+  statements.push(
+    db
+      .prepare(
+        "INSERT INTO commerce_ledger_entries(id,order_id,user_id,entry_type,account_code,amount_minor,currency,external_reference,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+      )
+      .bind(
+        id("led"),
+        orderId,
+        userId,
+        type,
+        account,
+        amount,
+        currency,
+        external,
+        JSON.stringify(metadata),
+        now(),
+      ),
+  );
 }
 
-export async function calculateAndAccrueRoyalty(db: CatalogDB, ctx: RoyaltyContext) {
+export type SaleRoyaltyPlan = {
+  statements: Parameters<CatalogDB["batch"]>[0];
+  at: string;
+  processorFees?: Map<string, number>;
+  preorderReleaseDates?: Map<string, string>;
+};
+
+export async function calculateAndAccrueRoyalty(
+  db: CatalogDB,
+  ctx: RoyaltyContext,
+  plan?: SaleRoyaltyPlan,
+) {
   const existing = await db
     .prepare(
       "SELECT * FROM finance_royalty_calculations WHERE source_type=? AND source_id=? AND product_id=? ORDER BY calculated_at DESC LIMIT 1",
@@ -367,8 +373,9 @@ export async function calculateAndAccrueRoyalty(db: CatalogDB, ctx: RoyaltyConte
       `Royalty split must allocate exactly 100% for contract version ${contract.contract_version_id}; found ${totalShare / 100}%.`,
     );
 
+  const statements: Parameters<CatalogDB["batch"]>[0] = plan?.statements || [];
   const calcId = id("roycalc"),
-    calculatedAt = now();
+    calculatedAt = plan?.at || now();
   const snapshot = {
     context: ctx,
     economics,
@@ -380,45 +387,46 @@ export async function calculateAndAccrueRoyalty(db: CatalogDB, ctx: RoyaltyConte
     },
     rule: chosen ? { id: chosen.id, key: chosen.rule_key } : null,
   };
-  await db
-    .prepare(
-      `INSERT INTO finance_royalty_calculations(id,source_type,source_id,order_id,order_item_id,usage_event_id,product_id,contract_id,contract_version_id,contract_version_hash,rule_id,territory_code,format,sales_channel,currency,quantity,list_price_minor,customer_price_minor,tax_minor,processor_fee_minor,promotion_discount_minor,fore_funded_discount_minor,publisher_funded_discount_minor,distributor_fee_minor,net_receipts_minor,basis_minor,fore_commission_minor,royalty_pool_minor,rule_trace_json,input_snapshot_json,calculated_at)
+  statements.push(
+    db
+      .prepare(
+        `INSERT INTO finance_royalty_calculations(id,source_type,source_id,order_id,order_item_id,usage_event_id,product_id,contract_id,contract_version_id,contract_version_hash,rule_id,territory_code,format,sales_channel,currency,quantity,list_price_minor,customer_price_minor,tax_minor,processor_fee_minor,promotion_discount_minor,fore_funded_discount_minor,publisher_funded_discount_minor,distributor_fee_minor,net_receipts_minor,basis_minor,fore_commission_minor,royalty_pool_minor,rule_trace_json,input_snapshot_json,calculated_at)
     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    )
-    .bind(
-      calcId,
-      ctx.sourceType,
-      ctx.sourceId,
-      ctx.orderId || null,
-      ctx.orderItemId || null,
-      ctx.usageEventId || null,
-      ctx.productId,
-      contract.id,
-      contract.contract_version_id,
-      versionHash,
-      chosen?.id || null,
-      ctx.territory.toUpperCase(),
-      ctx.format,
-      ctx.salesChannel,
-      ctx.currency.toUpperCase(),
-      Math.max(1, Math.round(Number(ctx.quantity || 1))),
-      economics.list,
-      economics.customer,
-      economics.tax,
-      economics.processor,
-      minor(ctx.promotionDiscountMinor),
-      economics.foreFunded,
-      economics.publisherFunded,
-      economics.distributor,
-      economics.netReceipts,
-      economics.basis,
-      economics.commission,
-      economics.pool,
-      JSON.stringify(trace),
-      JSON.stringify(snapshot),
-      calculatedAt,
-    )
-    .run();
+      )
+      .bind(
+        calcId,
+        ctx.sourceType,
+        ctx.sourceId,
+        ctx.orderId || null,
+        ctx.orderItemId || null,
+        ctx.usageEventId || null,
+        ctx.productId,
+        contract.id,
+        contract.contract_version_id,
+        versionHash,
+        chosen?.id || null,
+        ctx.territory.toUpperCase(),
+        ctx.format,
+        ctx.salesChannel,
+        ctx.currency.toUpperCase(),
+        Math.max(1, Math.round(Number(ctx.quantity || 1))),
+        economics.list,
+        economics.customer,
+        economics.tax,
+        economics.processor,
+        minor(ctx.promotionDiscountMinor),
+        economics.foreFunded,
+        economics.publisherFunded,
+        economics.distributor,
+        economics.netReceipts,
+        economics.basis,
+        economics.commission,
+        economics.pool,
+        JSON.stringify(trace),
+        JSON.stringify(snapshot),
+        calculatedAt,
+      ),
+  );
   const held = await activeDisputeHold(db, ctx.productId);
   const paymentTerms = Math.max(
     0,
@@ -452,66 +460,62 @@ export async function calculateAndAccrueRoyalty(db: CatalogDB, ctx: RoyaltyConte
       ["sale", "refund", "chargeback"].includes(ctx.sourceType)
     ) {
       legacyId = id("roy");
-      await db
-        .prepare(
-          `INSERT OR IGNORE INTO finance_royalty_events(id,order_id,order_item_id,contract_version_id,party_id,event_type,basis_minor,royalty_minor,withholding_minor,reserve_minor,payable_minor,currency,status,available_at,external_reference,created_at,royalty_calculation_id,sales_channel,territory_code,product_id)
+      statements.push(
+        db
+          .prepare(
+            `INSERT INTO finance_royalty_events(id,order_id,order_item_id,contract_version_id,party_id,event_type,basis_minor,royalty_minor,withholding_minor,reserve_minor,payable_minor,currency,status,available_at,external_reference,created_at,royalty_calculation_id,sales_channel,territory_code,product_id)
         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          )
+          .bind(
+            legacyId,
+            ctx.orderId,
+            ctx.orderItemId,
+            contract.contract_version_id,
+            split.party_id,
+            ctx.sourceType,
+            economics.basis,
+            royalty,
+            withholding,
+            reserve,
+            payable,
+            ctx.currency,
+            status,
+            availableAt,
+            ctx.sourceId,
+            calculatedAt,
+            calcId,
+            ctx.salesChannel,
+            ctx.territory,
+            ctx.productId,
+          ),
+      );
+    }
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO finance_royalty_allocations(id,calculation_id,party_id,share_bps,royalty_minor,withholding_minor,reserve_minor,payable_minor,currency,status,available_at,legacy_royalty_event_id,created_at,tax_profile_id,withholding_rule_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         )
         .bind(
-          legacyId,
-          ctx.orderId,
-          ctx.orderItemId,
-          contract.contract_version_id,
+          id("royalloc"),
+          calcId,
           split.party_id,
-          ctx.sourceType,
-          economics.basis,
+          Number(split.share_bps),
           royalty,
           withholding,
           reserve,
           payable,
-          ctx.currency,
+          ctx.currency.toUpperCase(),
           status,
           availableAt,
-          ctx.sourceId,
+          legacyId,
           calculatedAt,
-          calcId,
-          ctx.salesChannel,
-          ctx.territory,
-          ctx.productId,
-        )
-        .run();
-      const persisted = await db
-        .prepare(
-          "SELECT id FROM finance_royalty_events WHERE royalty_calculation_id=? AND party_id=? LIMIT 1",
-        )
-        .bind(calcId, split.party_id)
-        .first<any>();
-      legacyId = persisted?.id || null;
-    }
-    await db
-      .prepare(
-        `INSERT INTO finance_royalty_allocations(id,calculation_id,party_id,share_bps,royalty_minor,withholding_minor,reserve_minor,payable_minor,currency,status,available_at,legacy_royalty_event_id,created_at,tax_profile_id,withholding_rule_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      )
-      .bind(
-        id("royalloc"),
-        calcId,
-        split.party_id,
-        Number(split.share_bps),
-        royalty,
-        withholding,
-        reserve,
-        payable,
-        ctx.currency.toUpperCase(),
-        status,
-        availableAt,
-        legacyId,
-        calculatedAt,
-        tax.taxProfileId || null,
-        tax.ruleId || null,
-      )
-      .run();
+          tax.taxProfileId || null,
+          tax.ruleId || null,
+        ),
+    );
     const ref = `${calcId}:${split.party_id}`;
-    await ledger(
+    ledger(
+      statements,
       db,
       ctx.orderId || null,
       orderUser?.user_id || null,
@@ -527,7 +531,8 @@ export async function calculateAndAccrueRoyalty(db: CatalogDB, ctx: RoyaltyConte
         sourceType: ctx.sourceType,
       },
     );
-    await ledger(
+    ledger(
+      statements,
       db,
       ctx.orderId || null,
       orderUser?.user_id || null,
@@ -539,7 +544,8 @@ export async function calculateAndAccrueRoyalty(db: CatalogDB, ctx: RoyaltyConte
       { calculationId: calcId },
     );
     if (withholding)
-      await ledger(
+      ledger(
+        statements,
         db,
         ctx.orderId || null,
         orderUser?.user_id || null,
@@ -551,7 +557,8 @@ export async function calculateAndAccrueRoyalty(db: CatalogDB, ctx: RoyaltyConte
         { calculationId: calcId },
       );
     if (reserve)
-      await ledger(
+      ledger(
+        statements,
         db,
         ctx.orderId || null,
         orderUser?.user_id || null,
@@ -563,13 +570,27 @@ export async function calculateAndAccrueRoyalty(db: CatalogDB, ctx: RoyaltyConte
         { calculationId: calcId },
       );
   }
+  // A calculation marker can never survive without ALL payee allocations
+  // and its complete balanced journal. Unknown commit outcomes replay via
+  // the existing unique source identity.
+  if (plan)
+    return {
+      id: calcId,
+      contract_version_id: contract.contract_version_id,
+      fore_commission_minor: economics.commission,
+    };
+  await db.batch(statements);
   return db
     .prepare("SELECT * FROM finance_royalty_calculations WHERE id=?")
     .bind(calcId)
     .first<any>();
 }
 
-export async function accrueSaleRoyaltiesForOrder(db: CatalogDB, orderId: string) {
+export async function accrueSaleRoyaltiesForOrder(
+  db: CatalogDB,
+  orderId: string,
+  plan?: SaleRoyaltyPlan,
+) {
   const order = await db
     .prepare("SELECT * FROM commerce_orders WHERE id=?")
     .bind(orderId)
@@ -590,7 +611,7 @@ export async function accrueSaleRoyaltiesForOrder(db: CatalogDB, orderId: string
       .bind(orderId)
       .all<any>()
   ).results;
-  const at = order.paid_at || now();
+  const at = plan?.at || order.paid_at || now();
   for (const item of items) {
     const promoDiscount =
       Number(item.discount_minor || 0) + Number(item.promotion_amount_minor || 0);
@@ -607,51 +628,59 @@ export async function accrueSaleRoyaltiesForOrder(db: CatalogDB, orderId: string
     const pricingCoveFunding = pricingPromo - pricingPublisherFunding;
     const checkoutPublisherFunding = Number(item.publisher_discount_funding_minor || 0);
     const checkoutCoveFunding = Number(item.fore_discount_funding_minor || 0);
-    const calc = await calculateAndAccrueRoyalty(db, {
-      sourceType: "sale",
-      sourceId: item.id,
-      orderId,
-      orderItemId: item.id,
-      productId: item.product_id,
-      publisherId: item.publisher_id,
-      territory: order.territory_code,
-      format: item.format,
-      salesChannel: item.sales_channel || "retail",
-      currency: order.currency,
-      quantity: 1,
-      listPriceMinor: Number(
-        item.scheduled_amount_minor ?? item.base_amount_minor ?? item.unit_amount_minor,
-      ),
-      customerPriceMinor: Math.max(
-        0,
-        Number(item.unit_amount_minor) - Number(item.discount_minor || 0),
-      ),
-      taxMinor: Number(item.tax_minor || 0),
-      processorFeeMinor: Number(item.processor_fee_minor || 0),
-      promotionDiscountMinor: promoDiscount,
-      foreFundedDiscountMinor: pricingCoveFunding + checkoutCoveFunding,
-      publisherFundedDiscountMinor: pricingPublisherFunding + checkoutPublisherFunding,
-      distributorFeeMinor: Number(item.distributor_fee_minor || 0),
-      rightsBasis: item.rights_basis || null,
-      promotionType: item.checkout_promotion_type || item.pricing_promotion_type || null,
-      promotionFundingSource: item.checkout_funding_source || item.pricing_funding_source || null,
-      occurredAt: at,
-      availabilityAnchorAt:
-        item.fulfillment_type === "preorder" ? item.preorder_release_at || null : null,
-      metadata: {
-        invoiceNumber: order.invoice_number,
-        pricingDecisionId: item.pricing_decision_id || null,
-        promotionCampaignId: item.promotion_campaign_id || null,
-        preorderReleaseAt: item.preorder_release_at || null,
+    const calc = await calculateAndAccrueRoyalty(
+      db,
+      {
+        sourceType: "sale",
+        sourceId: item.id,
+        orderId,
+        orderItemId: item.id,
+        productId: item.product_id,
+        publisherId: item.publisher_id,
+        territory: order.territory_code,
+        format: item.format,
+        salesChannel: item.sales_channel || "retail",
+        currency: order.currency,
+        quantity: 1,
+        listPriceMinor: Number(
+          item.scheduled_amount_minor ?? item.base_amount_minor ?? item.unit_amount_minor,
+        ),
+        customerPriceMinor: Math.max(
+          0,
+          Number(item.unit_amount_minor) - Number(item.discount_minor || 0),
+        ),
+        taxMinor: Number(item.tax_minor || 0),
+        processorFeeMinor:
+          plan?.processorFees?.get(item.id) ?? Number(item.processor_fee_minor || 0),
+        promotionDiscountMinor: promoDiscount,
+        foreFundedDiscountMinor: pricingCoveFunding + checkoutCoveFunding,
+        publisherFundedDiscountMinor: pricingPublisherFunding + checkoutPublisherFunding,
+        distributorFeeMinor: Number(item.distributor_fee_minor || 0),
+        rightsBasis: item.rights_basis || null,
+        promotionType: item.checkout_promotion_type || item.pricing_promotion_type || null,
+        promotionFundingSource: item.checkout_funding_source || item.pricing_funding_source || null,
+        occurredAt: at,
+        availabilityAnchorAt:
+          plan?.preorderReleaseDates?.get(item.id) ||
+          (item.fulfillment_type === "preorder" ? item.preorder_release_at || null : null),
+        metadata: {
+          invoiceNumber: order.invoice_number,
+          pricingDecisionId: item.pricing_decision_id || null,
+          promotionCampaignId: item.promotion_campaign_id || null,
+          preorderReleaseAt: item.preorder_release_at || null,
+        },
       },
-    });
-    if (calc)
-      await db
+      plan,
+    );
+    if (calc) {
+      const statement = db
         .prepare(
           "UPDATE commerce_order_items SET royalty_contract_version_id=?,recognized_revenue_minor=? WHERE id=?",
         )
-        .bind(calc.contract_version_id, Number(calc.fore_commission_minor || 0), item.id)
-        .run();
+        .bind(calc.contract_version_id, Number(calc.fore_commission_minor || 0), item.id);
+      if (plan) plan.statements.push(statement);
+      else await statement.run();
+    }
   }
 }
 
