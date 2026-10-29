@@ -50,10 +50,10 @@ try{
   assert.deepEqual(result, result2,"The canonical-writer report cannot vary by clock or runner");
   const freeze=run(["--no-new-writers"]);
   assert.equal(freeze.status,0,freeze.stderr);
-  assert.match(freeze.stdout,/Existing 482 source candidates STILL BLOCK/);
+  assert.match(freeze.stdout,/Existing 483 source candidates STILL BLOCK/);
   const {canonicalWriterDrift,canonicalWriterBaseline}=await import("./canonical-writer-baseline.mjs");
   const baseline=canonicalWriterBaseline();
-  assert.equal([...baseline.values()].reduce((a,b)=>a+b,0),482);
+  assert.equal([...baseline.values()].reduce((a,b)=>a+b,0),483);
   assert.deepEqual(canonicalWriterDrift(result.findings,baseline),[],
     "Frozen exact file/table/operation inventory must match trusted main");
   const first=result.findings[0];

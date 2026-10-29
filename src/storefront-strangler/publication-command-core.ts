@@ -22,7 +22,7 @@ export function readPublicationCommand(sql:AuthoritySql,operationId:string) {
  * as its durable hold. The recovery runner never accepts caller-supplied SQL
  * or infers a positive transition from an incomplete canonical write. */
 export function recordPublicationRecovery(sql:AuthoritySql,input:PublicationCommandIdentity,
-  route:"/publication/activate-version"|"/publication/open-preorder",body:Record<string,unknown>) {
+  route:"/publication/activate-version"|"/publication/open-preorder"|"/publication/materialize-submission",body:Record<string,unknown>) {
   validate(input);
   const row=readPublicationCommand(sql,input.operationId);
   const encoded=JSON.stringify({route,body:{...body,operationId:input.operationId}});
@@ -49,7 +49,9 @@ export function beginPublicationCommand(sql:AuthoritySql,input:PublicationComman
       const state=sql.exec<{epoch:number;verdict:string}>(
         "SELECT epoch,verdict FROM cove_commercial_authority WHERE product_id=?",input.productId).toArray()[0];
       const continuable=state&&(old.published_epoch!==null?
-        state.epoch===old.published_epoch&&state.verdict==="allow":
+        old.published_epoch===0?
+          state.epoch===old.epoch&&state.verdict==="deny"&&JSON.parse(old.result_json||"{}").preparedOnly===true:
+          state.epoch===old.published_epoch&&state.verdict==="allow":
         state.epoch===old.epoch&&state.verdict==="deny"||
         state.epoch===old.epoch+1&&state.verdict==="allow");
       if(!continuable)throw Error("publication_command_superseded_by_withdrawal");
@@ -97,4 +99,18 @@ export function commitPublicationCommand(
   sql.exec("UPDATE cove_publication_commands SET state='committed',result_json=? WHERE operation_id=? AND state='pending'",
     encoded,input.operationId);
   return readPublicationCommand(sql,input.operationId)!;
+}
+
+/** A first scheduled publication prepares private records without publishing
+ * allowance. Zero is an explicit completed-without-positive-publication
+ * sentinel, never an authority epoch. Subsequent activation needs its own
+ * command and independent current evidence. */
+export function markPublicationPrepared(sql:AuthoritySql,input:PublicationCommandIdentity) {
+  validate(input);
+  const row=readPublicationCommand(sql,input.operationId);
+  if(!row||row.state!=="committed"||row.product_id!==input.productId||
+    row.command_sha256!==input.commandSha256||JSON.parse(row.result_json||"{}").preparedOnly!==true||
+    captureCommercialEpoch(sql,{productId:input.productId})!==row.epoch)
+    throw Error("publication_preparation_not_owned");
+  sql.exec("UPDATE cove_publication_commands SET published_epoch=0 WHERE operation_id=?",input.operationId);
 }

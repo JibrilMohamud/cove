@@ -4,6 +4,7 @@ import {readdirSync,readFileSync} from "node:fs";
 import {dirname,join,normalize} from "node:path";
 import ts from "typescript";
 export const PRIVATE_SETTLEMENT_MODULES=new Map([
+  ["src/storefront-strangler/publication-materialization-command.ts",new Set(["src/storefront-strangler/legal-authority.worker.ts"])],
   ["src/features/fore/paid-settlement-transaction.server.ts",new Set(["src/storefront-strangler/paid-settlement-owner-executor.ts"])],
   ["src/storefront-strangler/paid-settlement-owner-executor.ts",new Set(["src/storefront-strangler/legal-authority.worker.ts"])],
 ]);
@@ -15,7 +16,7 @@ function sourceFiles(dir="src",result=[]){
   }
   return result;
 }
-/** New SQL in these two modules is owner-executor QA code, not a removed
+/** New SQL in these private modules is owner-executor QA code, not a removed
  * legacy production finding. Any new runtime importer invalidates that
  * classification, even when the protected SQL itself did not change.
  */

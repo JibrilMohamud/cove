@@ -31,6 +31,7 @@ import {
   dispatchPublicationActivation,
   dispatchPublicationPreorder,
   dispatchPublicationRecovery,
+  dispatchPublicationMaterialization,
 } from "../../storefront-strangler/publication-owner-routing.server";
 
 export type PublishingDB = {
@@ -3359,6 +3360,28 @@ export async function materializePublishingSubmission(
   submissionId: string,
   reviewerUserId: string,
 ) {
+  if (hasPublicationOwner(env.DB))
+    return dispatchPublicationMaterialization(env.DB, { submissionId, reviewerUserId });
+  return materializePublishingSubmissionOwned(env, submissionId, reviewerUserId);
+}
+
+/** The owner reserves canonical identities and holds the product before this
+ * complete implementation can write. Unenrolled legacy callers retain their
+ * existing path until production writer closure is certified. */
+export async function materializePublishingSubmissionOwned(
+  env: PublishingEnv,
+  submissionId: string,
+  reviewerUserId: string,
+  owned?: {
+    workId: string;
+    editionId: string;
+    productId: string;
+    commandSha256: string;
+    preparePresentation?: () => Promise<void>;
+  },
+) {
+  if (hasPublicationOwner(env.DB))
+    throw new ApiError(503, "Publication materialization must execute inside the legal owner.");
   const db = env.DB;
   const submission = await db
     .prepare("SELECT * FROM publishing_submission_snapshots WHERE id=?")
@@ -3521,9 +3544,9 @@ export async function materializePublishingSubmission(
         .bind(imprintId, publisherId, edition.imprint_name, at, at)
         .run();
   }
-  const workId = edition.catalog_work_id || id("work"),
-    catalogEditionId = edition.catalog_edition_id || id("edition"),
-    productId = edition.catalog_product_id || id("product");
+  const workId = edition.catalog_work_id || owned?.workId || id("work"),
+    catalogEditionId = edition.catalog_edition_id || owned?.editionId || id("edition"),
+    productId = edition.catalog_product_id || owned?.productId || id("product");
   if (!stageOnly) {
     if (!edition.catalog_work_id)
       await db
@@ -4347,6 +4370,13 @@ export async function materializePublishingSubmission(
       at,
     )
     .run();
+  if (["preorder", "scheduled"].includes(desiredState) && edition.release_date)
+    try {
+      await ensurePreorderReleasePlan(db as any, productId, reviewerUserId);
+    } catch (e) {
+      console.error("Unable to materialize preorder operations plan", e);
+    }
+  if (owned?.preparePresentation) await owned.preparePresentation();
   await audit(db, account.id, reviewerUserId, "publishing_submission", submissionId, "published", {
     publicationId,
     publicationVersionId,
@@ -4356,13 +4386,8 @@ export async function materializePublishingSubmission(
     productId,
     releaseState: desiredState,
     ownerUpdatePolicy: latestLifecycle.owner_update_policy || "auto_update",
+    ...(owned ? { ownerCommandSha256: owned.commandSha256 } : {}),
   });
-  if (["preorder", "scheduled"].includes(desiredState) && edition.release_date)
-    try {
-      await ensurePreorderReleasePlan(db as any, productId, reviewerUserId);
-    } catch (e) {
-      console.error("Unable to materialize preorder operations plan", e);
-    }
   return {
     ...(await db
       .prepare("SELECT * FROM publishing_publications WHERE id=?")

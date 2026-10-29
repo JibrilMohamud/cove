@@ -31,6 +31,9 @@ const routes={
     orderId:ownerId,userId:ownerId,territory,channel:z.literal("retail")}).strict()},
   "commerce.publish-entitlement":{path:"/commercial/entitlement/publish-verified",schema:z.object({
     entitlementId:ownerId,userId:ownerId,productId:product,territory,channel:z.literal("retail")}).strict()},
+  "publication.materialize":{path:"/publication/materialize-submission",schema:z.object({
+    submissionId:version,reviewerUserId:z.string().regex(/^(?:[a-zA-Z0-9_-]{3,160}|system:automated-review)$/),
+    operationId:shortOperation,territory,currency}).strict()},
   "publication.activate":{path:"/publication/activate-version",schema:z.object({
     publicationVersionId:version,actorUserId:subject.nullable(),
     triggerType:z.enum(["schedule","rollback","staff"]),
@@ -139,6 +142,18 @@ export async function dispatchCanonicalOwnerCommand(
       break;
     case "commerce.publish-entitlement":
       if(ack.applied!==true||!positiveEpoch(ack.epoch))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "publication.materialize":
+      if(ack.schema!=="cove.publication-materialization.v1"||ack.ownerFirst!==true||
+         ack.operationId!==body.operationId||ack.submissionId!==body.submissionId||
+         typeof ack.productId!=="string"||!product.safeParse(ack.productId).success||
+         !version.safeParse(ack.publicationId).success||!version.safeParse(ack.publicationVersionId).success||
+         !version.safeParse(ack.editionId).success||!version.safeParse(ack.workId).success||
+         !["auto_update","manual_opt_in","preserve_purchased_version"].includes(String(ack.ownerUpdatePolicy))||
+         !["live","updated","preorder","scheduled"].includes(String(ack.releaseState))||
+         typeof ack.accessPublished!=="boolean"||ack.releaseState!=="scheduled"&&ack.accessPublished!==true||
+         !positiveEpoch(ack.versionNumber))
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "publication.activate":

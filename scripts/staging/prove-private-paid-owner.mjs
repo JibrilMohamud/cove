@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import {randomBytes,createHash,generateKeyPairSync} from "node:crypto";
 import {pathToFileURL} from "node:url";
+import {isPaidOwnerQaSchemaTable} from "./paid-owner-schema-policy.mjs";
 import {provisionPublishedQaAudio} from "./provision-original-audio-qa.mjs";
 import JSZip from "jszip";
 import {build} from "esbuild";
@@ -105,12 +106,13 @@ async function prepareInitialCommerceQaSchema(){
   assert.equal(records?.[0]?.success,true);
   const present=(await qaSql("SELECT type,name FROM sqlite_master WHERE type IN ('table','index')")).results;
   const existing=new Set(present.map(x=>x.type+":"+x.name));
-  const allowed=(name)=>/^(commerce_|finance_|publishing_|publication_|retail_|pricing_|promotion|risk_|entitlement|reading_|preview_|wishlist_|shopping_cart|notification|digital_assets$|asset_versions$|commercial_|narration_|licenses$|devices$|annotation_|annotations$|text_bookmarks$|text_bookmark_|delivery_grants$|offline_epub_licenses$|audio_offline_licenses$|user_books$|user_library$|source_|publisher_|device_|preorders$|preorder_|completion_events$|sync_)/.test(name);
+  const allowed=isPaidOwnerQaSchemaTable;
   const targetTables=new Set(records[0].results
     .filter(x=>x.type==="table"&&allowed(x.name)&&!x.name.startsWith("sqlite_"))
     .map(x=>x.name));
   assert.ok(targetTables.has("commerce_ledger_entries") &&
     targetTables.has("publishing_outbox") &&
+    targetTables.has("royalty_holds") &&
     targetTables.has("reading_states"),"Synthetic schema source missing real payment dependencies");
   let installed=0;
   for(const row of records[0].results){
