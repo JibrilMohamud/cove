@@ -2,7 +2,7 @@
   "schema": "cove.canonical-writer-review.v1",
   "reviewedSourceCommit": "c706eae6dc9fbc1951451f086b64739bb4720790",
   "releaseApproval": false,
-  "scope": "Exact review of all 460 current SQL candidates after refund transaction extraction (formerly 458). All 435 authorizing candidates remain unclosed; 24 non-authorizing and one isolated fixture classifications confer no production release approval. A read-only publication scheduler due-date filter changed; all 88 publishing protected SQL literals, operations, functions, source lines, and owner-required dispositions remain unchanged. Source-bound IDs have been re-reviewed without conferring production authorization. Two presentation-only newline changes formatted the scheduler to satisfy strict lint; all 88 protected publishing SQL literals and dispositions remain identical. The authenticated localization market pause route now dispatches a strict negative owner-first QA command, rejecting mixed edits and staging raw-D1 fallback. No existing protected SQL mutation literal or production owner-guard disposition was changed. The 33 API file source identities were rebound for exact site review. Formatting-only changes to the locked market pause guard do not change any protected API SQL literal, authorizing classification, or approval status. The customer-support negative entitlement revoke branch now uses the owner-first QA command (with atomic offline D1 repair); all eight existing protected support SQL literals remain present, unchanged and production-owner-required. Source-bound fingerprints were re-reviewed without granting production approval.",
+  "scope": "Exact review of all 460 current SQL candidates after refund transaction extraction (formerly 458). All 435 authorizing candidates remain unclosed; 24 non-authorizing and one isolated fixture classifications confer no production release approval. A read-only publication scheduler due-date filter changed; all 88 publishing protected SQL literals, operations, functions, source lines, and owner-required dispositions remain unchanged. Source-bound IDs have been re-reviewed without conferring production authorization. Two presentation-only newline changes formatted the scheduler to satisfy strict lint; all 88 protected publishing SQL literals and dispositions remain identical. The authenticated localization market pause route now dispatches a strict negative owner-first QA command, rejecting mixed edits and staging raw-D1 fallback. No existing protected SQL mutation literal or production owner-guard disposition was changed. The 33 API file source identities were rebound for exact site review. Formatting-only changes to the locked market pause guard do not change any protected API SQL literal, authorizing classification, or approval status. The customer-support negative entitlement revoke branch now uses the owner-first QA command (with atomic offline D1 repair); all eight existing protected support SQL literals remain present, unchanged and production-owner-required. Source-bound fingerprints were re-reviewed without granting production approval. Typed result from staged support command (no additional direct SQL or changed protected literals); all eight support-site identity fingerprints revalidated.",
   "sites": [
     {
       "siteId": "602503338f5ef8edf2e3aa0029c23659e1b5fdf9d1297ed55ba5e0d782b94457",
@@ -5042,7 +5042,7 @@
       "reason": "This exact projection UPDATE changes ratings, ranking scores or taxonomy text only. It does not change rights, offers, suppression or permission; candidate delivery still needs current legal authorization."
     },
     {
-      "siteId": "2acb5efd40637788b8b61bddd9b4915f88955666bafe0e882d556dc822b1cde0",
+      "siteId": "5419ff9f014ba6273be37a2b8aeec07feaa54a32eaa4d0d55bf7588c8fb69600",
       "file": "src/features/fore/support.server.ts",
       "line": 489,
       "functionName": "executeSupportAction",
@@ -5055,7 +5055,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "df29160929d0f1412ed9cdca076e1d94fdb787710aae84bb8df6803cd6b43590",
+      "siteId": "ac94bdf2d8d1e5b937186610f0a17bf40e9fce2f4c68f2237352c8c78023fc8a",
       "file": "src/features/fore/support.server.ts",
       "line": 581,
       "functionName": "executeSupportAction",
@@ -5068,7 +5068,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "a8afbb189456a8df2d99ed492808facb2fea93d7df62c9e9acbe602b92fcbe87",
+      "siteId": "a62d7cfeac5ffa3a8c2776407ec8e0dad5e503e4fe47a65d1990cf926017302d",
       "file": "src/features/fore/support.server.ts",
       "line": 587,
       "functionName": "executeSupportAction",
@@ -5081,7 +5081,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "56f23f592706324dbad0431d217d18b5ede957d48342dfd2b8383cf6b49db602",
+      "siteId": "08ef97ce0967e76555ac7ed63618d0905b8ebfc155d85e8bbf9e9e8e14aab1d7",
       "file": "src/features/fore/support.server.ts",
       "line": 605,
       "functionName": "executeSupportAction",
@@ -5094,7 +5094,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "e545bfab80e31d450c9a0eb367de98b26ab0b5151e8e233b012e3601d6907189",
+      "siteId": "7c4327603065f0fb37d64760b314264fe3389ca5103973042a13e4f57be04dbc",
       "file": "src/features/fore/support.server.ts",
       "line": 610,
       "functionName": "executeSupportAction",
@@ -5107,7 +5107,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "8bf8658ea03bead323702a29ebfd6fec716bf9cdd8595b2cf5ab556c96f0b041",
+      "siteId": "315a011cf72b4956b56c57b80a00f5b26bb2c3e8cebc846c66ddeea5a29b4e8a",
       "file": "src/features/fore/support.server.ts",
       "line": 642,
       "functionName": "executeSupportAction",
@@ -5120,7 +5120,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "d71bc8ddbf15dc0924a83da53222609dc48b4e8df61e93d187f32d8aec42c2a6",
+      "siteId": "036918e08ec9506174bf368a9d1b879680d0a34957a4c3ea66b2ac8af92757a2",
       "file": "src/features/fore/support.server.ts",
       "line": 647,
       "functionName": "executeSupportAction",
@@ -5133,7 +5133,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "33761e3914e10a185919747379016ce30cad3f2376aec3d4e4a3f311334cd717",
+      "siteId": "7352c578cacd28f79733fa7e4da7ab34380d2a019b168d2b0edeea14a0d80348",
       "file": "src/features/fore/support.server.ts",
       "line": 666,
       "functionName": "executeSupportAction",
