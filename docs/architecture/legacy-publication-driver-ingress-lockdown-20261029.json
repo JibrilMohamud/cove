@@ -1,0 +1,240 @@
+{
+  "schema": "cove.legacy-pub-qa-driver-public-ingress-lockdown.v1",
+  "date": "2026-10-29",
+  "scope": "Only 43 historical cove-pub-{number}-driver Workers.dev entrypoints; capture services, D1 bindings, cron schedules and live storefront unchanged",
+  "previous": {
+    "enabled": true,
+    "previews_enabled": false
+  },
+  "current": {
+    "enabled": false,
+    "previews_enabled": false
+  },
+  "liveReadbackVerified": true,
+  "rollback": {
+    "method": "POST",
+    "uriTemplate": "/accounts/{account_id}/workers/scripts/{name}/subdomain",
+    "body": {
+      "enabled": true,
+      "previews_enabled": false
+    },
+    "warning": "Re-enable only with renewed private QA gate review; any public driver can forward requests to a production-D1-bound capture via service binding."
+  },
+  "workers": [
+    {
+      "name": "cove-pub-39799386907-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39814918487-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39864827014-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39874731109-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39875348234-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39875482260-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39876672164-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39886321018-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39887199004-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39887380154-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39888072871-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39888243230-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39888544249-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39892594581-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39892725426-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39892876548-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39893123992-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39893351271-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39894133610-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39894287399-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39894586510-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39894812739-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39894973192-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39898473759-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39899209678-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39899580375-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39901465669-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39901574018-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39901726053-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39902190810-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39903770441-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39903775506-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39905358602-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39905802639-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39909544207-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39909695065-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39910117998-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39910272448-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39913124970-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39913387441-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39915405410-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39922729708-driver",
+      "enabled": false,
+      "previews_enabled": false
+    },
+    {
+      "name": "cove-pub-39936418754-driver",
+      "enabled": false,
+      "previews_enabled": false
+    }
+  ]
+}
