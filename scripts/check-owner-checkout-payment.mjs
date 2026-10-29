@@ -30,7 +30,7 @@ try{
     id TEXT PRIMARY KEY,user_id TEXT NOT NULL,quote_id TEXT,invoice_number TEXT,
     status TEXT,currency TEXT,stripe_due_minor INTEGER,capture_method TEXT,
     stripe_customer_id TEXT,stripe_payment_intent_id TEXT,updated_at TEXT);
-    CREATE TABLE commerce_customers(user_id TEXT PRIMARY KEY,stripe_customer_id TEXT);
+    CREATE TABLE commerce_customers(user_id TEXT PRIMARY KEY,stripe_customer_id TEXT,email TEXT,created_at TEXT,updated_at TEXT);
     CREATE TABLE commerce_checkout_quotes(id TEXT PRIMARY KEY,user_id TEXT,consumed_at TEXT,expires_at TEXT);
     CREATE TABLE commerce_order_items(id TEXT PRIMARY KEY,order_id TEXT);
     CREATE TABLE commerce_payment_attempts(
@@ -43,7 +43,7 @@ try{
   const cmd={orderId,userId,paymentIntentId,customerId};
   primary.prepare("INSERT INTO commerce_orders(id,user_id,quote_id,invoice_number,status,currency,stripe_due_minor,capture_method) VALUES(?,?,?,'FORE-20261029-TEST','pending_payment','USD',1900,'automatic_async')")
     .run(orderId,userId,"quote_binding_qa_01");
-  primary.prepare("INSERT INTO commerce_customers VALUES(?,?)").run(userId,customerId);
+  primary.prepare("INSERT INTO commerce_customers(user_id,stripe_customer_id) VALUES(?,?)").run(userId,customerId);
   primary.prepare("INSERT INTO commerce_checkout_quotes VALUES(?,?,?,?)")
     .run("quote_binding_qa_01",userId,new Date().toISOString(),new Date(Date.now()+86400000).toISOString());
   primary.prepare("INSERT INTO commerce_order_items VALUES(?,?)").run("oi_binding_qa_01",orderId);
