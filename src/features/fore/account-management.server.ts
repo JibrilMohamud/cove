@@ -359,10 +359,13 @@ export async function registerDevice(
     at = now();
   const row = await db
     .prepare(
-      `INSERT INTO devices(id,user_id,device_key,name,platform,last_seen_at,revoked_at,created_at) VALUES(?,?,?,?,?,?,NULL,?) ON CONFLICT(user_id,device_key) DO UPDATE SET name=excluded.name,platform=excluded.platform,last_seen_at=excluded.last_seen_at,revoked_at=NULL RETURNING id,name,platform,last_seen_at,created_at`,
+      `INSERT INTO devices(id,user_id,device_key,name,platform,last_seen_at,revoked_at,created_at) VALUES(?,?,?,?,?,?,NULL,?) ON CONFLICT(user_id,device_key) DO UPDATE SET name=excluded.name,platform=excluded.platform,last_seen_at=excluded.last_seen_at WHERE devices.revoked_at IS NULL RETURNING id,name,platform,last_seen_at,created_at`,
     )
     .bind(id("device"), userId, x.deviceKey, x.name, x.platform, at, at)
     .first<any>();
+  // A removed device key must never restore itself merely by registering
+  // again. Rotate the key and explicitly enroll a new device instead.
+  if (!row) throw new ApiError(409, "This device was revoked. Register with a new device key.");
   await recordAccountSecurityEvent(db, userId, "device_registered", request, {
     deviceId: row?.id,
     platform: x.platform,

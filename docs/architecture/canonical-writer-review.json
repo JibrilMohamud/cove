@@ -2,7 +2,7 @@
   "schema": "cove.canonical-writer-review.v1",
   "reviewedSourceCommit": "c706eae6dc9fbc1951451f086b64739bb4720790",
   "releaseApproval": false,
-  "scope": "Exact review of all 460 current SQL candidates after refund transaction extraction (formerly 458). All 435 authorizing candidates remain unclosed; 24 non-authorizing and one isolated fixture classifications confer no production release approval. A read-only publication scheduler due-date filter changed; all 88 publishing protected SQL literals, operations, functions, source lines, and owner-required dispositions remain unchanged. Source-bound IDs have been re-reviewed without conferring production authorization. Two presentation-only newline changes formatted the scheduler to satisfy strict lint; all 88 protected publishing SQL literals and dispositions remain identical. The authenticated localization market pause route now dispatches a strict negative owner-first QA command, rejecting mixed edits and staging raw-D1 fallback. No existing protected SQL mutation literal or production owner-guard disposition was changed. The 33 API file source identities were rebound for exact site review. Formatting-only changes to the locked market pause guard do not change any protected API SQL literal, authorizing classification, or approval status. The customer-support negative entitlement revoke branch now uses the owner-first QA command (with atomic offline D1 repair); all eight existing protected support SQL literals remain present, unchanged and production-owner-required. Source-bound fingerprints were re-reviewed without granting production approval. Typed result from staged support command (no additional direct SQL or changed protected literals); all eight support-site identity fingerprints revalidated.",
+  "scope": "Exact review of all 460 current SQL candidates after refund transaction extraction (formerly 458). All 435 authorizing candidates remain unclosed; 24 non-authorizing and one isolated fixture classifications confer no production release approval. A read-only publication scheduler due-date filter changed; all 88 publishing protected SQL literals, operations, functions, source lines, and owner-required dispositions remain unchanged. Source-bound IDs have been re-reviewed without conferring production authorization. Two presentation-only newline changes formatted the scheduler to satisfy strict lint; all 88 protected publishing SQL literals and dispositions remain identical. The authenticated localization market pause route now dispatches a strict negative owner-first QA command, rejecting mixed edits and staging raw-D1 fallback. No existing protected SQL mutation literal or production owner-guard disposition was changed. The 33 API file source identities were rebound for exact site review. Formatting-only changes to the locked market pause guard do not change any protected API SQL literal, authorizing classification, or approval status. The customer-support negative entitlement revoke branch now uses the owner-first QA command (with atomic offline D1 repair); all eight existing protected support SQL literals remain present, unchanged and production-owner-required. Source-bound fingerprints were re-reviewed without granting production approval. Typed result from staged support command (no additional direct SQL or changed protected literals); all eight support-site identity fingerprints revalidated. Device registration UPSERT is now monotonic: revoked keys cannot be reinstated by ON CONFLICT; nine account-management SQL sites were re-reviewed, and the changed device SQL literal remains owner-command-required. Production legal owner is not certified by this safety fix. Formatting-only change to revoked-device error reporting; the nine reviewed account writer literals are unchanged and still require full owner-first closure.",
   "sites": [
     {
       "siteId": "602503338f5ef8edf2e3aa0029c23659e1b5fdf9d1297ed55ba5e0d782b94457",
@@ -17,22 +17,22 @@
       "reason": "Browser QA seeds an isolated temporary database through localBindings; this development server is not a deployed production writer."
     },
     {
-      "siteId": "ae0450d9f1db8a931e5a306bfd742180c923c3952dffbc4bd251e730b2da71c1",
+      "siteId": "5bc25453070dfa401c6f458ecd0d7d213c8cafadcf961df0de104d938a222db1",
       "file": "src/features/fore/account-management.server.ts",
       "line": 362,
       "functionName": "registerDevice",
       "table": "devices",
       "operation": "INSERT INTO",
-      "sqlSha256": "ec402124a91665e8cb3b6ba9e74685aa213134b0abf6f9bf64e8ac4bd9668c0c",
+      "sqlSha256": "3740c122d2f5dff75bcb7d0ef4ba85365332228e782f3292fe4b716b59f0f362",
       "disposition": "owner-command-required",
       "productionOwnerGuarded": false,
       "commandFamily": "account-management.registerDevice",
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "6ce6380033d706d20117eb7744fccfeefc02ff5e30c610839da29dcb82b11ee5",
+      "siteId": "6d39594790bb190ca705c3d4fdacdbd304d0e4a847e7ab9fbd30d4006241dbed",
       "file": "src/features/fore/account-management.server.ts",
-      "line": 382,
+      "line": 385,
       "functionName": "revokeDevice",
       "table": "devices",
       "operation": "UPDATE",
@@ -43,9 +43,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "142ffa6d0e83e79482dcfe2aaefdb4f545538b740edabb316341b764dd7470d1",
+      "siteId": "440ae093ce4849cbab8771ea7cc872ddf6fb5e4c8503f8a193bc3c79ddd6e018",
       "file": "src/features/fore/account-management.server.ts",
-      "line": 389,
+      "line": 392,
       "functionName": "revokeDevice",
       "table": "audio_offline_licenses",
       "operation": "UPDATE",
@@ -56,9 +56,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "a5b08b94eedadfd555ede79f37c3d29b12854839432f09ce4d66af215324be1f",
+      "siteId": "2cdd2f7f226aa132e83e4e6fb4a14f78d6acbf0f6f76a9139b17f3e2ec57e25d",
       "file": "src/features/fore/account-management.server.ts",
-      "line": 1074,
+      "line": 1077,
       "functionName": "processAccountDeletionQueue",
       "table": "commercial_audio_playback",
       "operation": "DELETE FROM",
@@ -69,9 +69,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "5f464efa634dea9dfbe99cb94b82be139ccf52a8371ba0b003e19fcc43a06d87",
+      "siteId": "34f861637c24f76e7678ca6819c0f9f96fa639243eafcc263c21c6ca905e1720",
       "file": "src/features/fore/account-management.server.ts",
-      "line": 1106,
+      "line": 1109,
       "functionName": "processAccountDeletionQueue",
       "table": "audio_offline_licenses",
       "operation": "UPDATE",
@@ -82,9 +82,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "9f22977d26e39deea01144aaac77b8a5eebf02404f0aae6d8c5f36ec7d6811f1",
+      "siteId": "4e64879a39e100e460bc9cc522b3807fb5854e0c0700350e92c9da2f2813784c",
       "file": "src/features/fore/account-management.server.ts",
-      "line": 1110,
+      "line": 1113,
       "functionName": "processAccountDeletionQueue",
       "table": "commerce_customers",
       "operation": "UPDATE",
@@ -95,9 +95,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "009bcfd87e34fec97f1c6107ad581f8c69b842b41ea40c342ea051953b64a8aa",
+      "siteId": "4f88d9388073d0b3a1dee0e00e29caecdc9fee2ee7d2af4168d4ddf0324d8e99",
       "file": "src/features/fore/account-management.server.ts",
-      "line": 1119,
+      "line": 1122,
       "functionName": "processAccountDeletionQueue",
       "table": "devices",
       "operation": "UPDATE",
@@ -108,9 +108,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "db1f1727f53fb4102093ba9107ad0886b9b1990311c7594fe8f8f12371bcb2a1",
+      "siteId": "aaf368c2d5c907dd054d01d56416440b2a897b7fca4594bf831f254bb4a16e21",
       "file": "src/features/fore/account-management.server.ts",
-      "line": 1128,
+      "line": 1131,
       "functionName": "processAccountDeletionQueue",
       "table": "products",
       "operation": "DELETE FROM",
@@ -121,9 +121,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "02e2311c1955609d99092cb3c90aaef9886e3cacb2150d72e0b1e2670563aa76",
+      "siteId": "17dd7a1f537ad97fef96ede0406de2850fc829c4df45ac4b20f050f383f0fd52",
       "file": "src/features/fore/account-management.server.ts",
-      "line": 1130,
+      "line": 1133,
       "functionName": "processAccountDeletionQueue",
       "table": "editions",
       "operation": "DELETE FROM",
