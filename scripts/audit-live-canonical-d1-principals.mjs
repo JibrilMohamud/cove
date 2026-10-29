@@ -81,7 +81,7 @@ export function assessDeployedCanonicalD1Principals({scripts,settingsByName,
   const owner=bound.filter(x=>x.owner);
   const scheduled=bound.filter(x=>x.crons.length>0);
   const exposed=bound.filter(x=>x.publicWorkersDev||x.customRoutes.length||x.customDomains.length);
-  const historicalDrivers=names.filter(name=>/^cove-pub-\\d+-driver$/.test(name));
+  const historicalDrivers=names.filter(name=>/^cove-pub-\d+-driver$/.test(name));
   const legacyDriverExposure=historicalDrivers.map(name=>{
     const schedule=schedulesByName[name],dev=subdomainsByName[name];
     assert.ok(Array.isArray(schedule),"Missing legacy driver schedules: "+name);
@@ -171,7 +171,7 @@ export async function collectCanonicalD1Fleet({fetcher=fetch,token,account,zone}
     apiGet(fetcher,token,root+"/workers/scripts/"+safeWorker(w.id)+"/settings"));
   const settingsByName=Object.fromEntries(sorted.map((w,i)=>[w.id,settingsList[i]]));
   const targets=sorted.filter(w=>
-    /^cove-pub-\\d+-driver$/.test(w.id)||
+    /^cove-pub-\d+-driver$/.test(w.id)||
     settingsByName[w.id].bindings?.some(b=>
     b.type==="d1"&&(b.id||b.database_id)===CANONICAL_D1));
   const details=await mapBounded(targets,12,async w=>{
