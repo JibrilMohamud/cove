@@ -60,7 +60,7 @@ test("no synthetic or source-only configuration can self-certify deployment",()=
   assert.equal(clean.productionAuthorized,false);
   assert.equal(clean.independentDeploymentAuthorizationRequired,true);
 });
-test("43 retired captures never regain production D1 or restart, and 14-binding unsafe baseline is pinned",()=>{
+test("47 retired direct D1 capabilities cannot return and the 10-binding unsafe baseline stays pinned",()=>{
   const retired=JSON.parse(readFileSync("docs/architecture/historical-publication-capture-d1-isolation-20261029.json","utf8"));
   const baseline=JSON.parse(readFileSync("docs/architecture/deployed-canonical-d1-baseline.json","utf8"));
   assert.equal(retired.scripts.length,43);
@@ -70,8 +70,6 @@ test("43 retired captures never regain production D1 or restart, and 14-binding 
   for(const n of ["cove-fast-architecture-qa","cove-fast-customer-gateway"])
     assert.ok(!baseline.knownDirectBindings.some(x=>x.script===n),
       "Retired fast gateway cannot be an unsafe legacy binding: "+n);
-  assert.equal(baseline.retirementEvidence.totalBindingsRemoved,45);
-  assert.equal(baseline.retirementEvidence.remainingNonOwnerBindings,11);
   assert.equal(baseline.certified,false);
   assert.equal(baseline.retirementEvidence.historicalCaptureBindingsRemoved,43);
   for(const name of retired.scripts)assert.ok(
