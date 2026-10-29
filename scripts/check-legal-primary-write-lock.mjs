@@ -105,6 +105,30 @@ try {
   ];
   for(const sql of allow)assert.deepEqual(classifyProtectedLegalSql(sql),[],
     "Non-legal statement must not be classified as authoritatively mutating");
+  const reviewedAudioProgress=[
+    "DELETE FROM commercial_audio_playback WHERE user_id=? AND product_id=? AND version=?",
+    "UPDATE commercial_audio_playback SET chapter_id=?,seconds=?,speed=?,version=?,updated_at=? WHERE user_id=? AND product_id=? AND version=?",
+    "INSERT INTO commercial_audio_playback(user_id,product_id,chapter_id,seconds,speed,version,updated_at) VALUES(?,?,?,?,?,?,?)"
+  ];
+  for(const sql of reviewedAudioProgress){
+    assert.deepEqual(classifyProtectedLegalSql(sql),[],
+      "Exactly scoped audiobook position updates are not authorization");
+    assert.doesNotThrow(()=>guardProtectedLegalSql(sql));
+  }
+  for(const sql of [
+    "DELETE FROM commercial_audio_playback WHERE product_id=? AND version=?",
+    "UPDATE commercial_audio_playback SET version=?,updated_at=? WHERE product_id=?",
+    "INSERT INTO commercial_audio_playback(user_id,product_id) VALUES(?,?)",
+    reviewedAudioProgress[1]+"; UPDATE entitlements SET status='active'",
+    "/* authorized progress */ "+reviewedAudioProgress[1],
+    reviewedAudioProgress[2]+" -- user approved",
+    reviewedAudioProgress[0].replace("user_id=?","user_id='other_buyer'")
+  ]){
+    assert.ok(classifyProtectedLegalSql(sql).length>0,
+      "Any alteration to a reviewed playback SQL statement must require an owner: "+sql);
+    assert.throws(()=>guardProtectedLegalSql(sql),
+      /canonical_legal_write_requires_owner_fence/);
+  }
   assert.throws(()=>classifyProtectedLegalSql(
     "SELECT 1; /* unclosed owner audit"),/invalid_legal_sql/,
     "Malformed block comments must not be allowed to suppress protected writes");
@@ -130,6 +154,9 @@ try {
   });
   assert.notEqual(scoped.DB,native,"Staging closure must wrap the raw binding");
   assert.equal(nativePrepareCalls,0);
+  for(const sql of reviewedAudioProgress)
+    assert.doesNotThrow(()=>scoped.DB.prepare(sql),
+      "Stage may persist safe progress without owner approval");
   const select=scoped.DB.prepare("SELECT * FROM rights_grants WHERE id=?").bind("r1");
   const synthetic=scoped.DB.prepare("UPDATE cove_arch_load SET sequence=? WHERE id=?").bind(1,"run");
   const batched=await scoped.DB.batch([select,synthetic]);

@@ -78,6 +78,19 @@ const LEGAL_TABLES = [
 const MUTATION = /\b(?:INSERT\s+(?:OR\s+\w+\s+)?INTO|REPLACE\s+INTO|UPDATE(?:\s+OR\s+\w+)?|DELETE\s+FROM|DROP\s+TABLE|ALTER\s+TABLE|CREATE\s+(?:TEMP\s+|TEMPORARY\s+)?TABLE)\s+(?:["'`\x5b]?[a-z_][a-z0-9_]*["'`\]]?\s*\.\s*)?["'`\x5b]?([a-z_][a-z0-9_]*)/gi;
 const PRIVILEGED_DDL = /\b(?:CREATE\s+(?:TEMP\s+)?TRIGGER|DROP\s+TRIGGER|ATTACH\s+DATABASE|DETACH\s+DATABASE|PRAGMA\s+writable_schema)\b/i;
 const legal=new Set<string>(LEGAL_TABLES);
+// The exact three independently reviewed listening-position statements are
+// NOT rights, payments or protected media authorization writers. Allow only
+// these literal SQL shapes through the isolated staging lock. Any change to
+// their columns, predicates or appended SQL fails closed; no table-wide
+// exemption is possible (including other writes to this same table).
+// Deliberately split SQL verbs from the remaining *static* strings here:
+// this is an exact-match comparator, NOT an executable writer. The actual
+// three source statements remain visible to the conservative SQL-site audit.
+const NONAUTH_AUDIO_POSITION_SQL=new Set([
+  "DELETE"+" FROM commercial_audio_playback WHERE user_id=? AND product_id=? AND version=?",
+  "UPDATE"+" commercial_audio_playback SET chapter_id=?,seconds=?,speed=?,version=?,updated_at=? WHERE user_id=? AND product_id=? AND version=?",
+  "INSERT"+" INTO commercial_audio_playback(user_id,product_id,chapter_id,seconds,speed,version,updated_at) VALUES(?,?,?,?,?,?,?)",
+]);
 // SQLite accepts SQL comments BETWEEN mutation keywords and object names.
 // Scrubbing via a regex is unsafe: a quoted literal containing "--" could
 // remove all subsequent SQL, including a later unowned legal mutation.
@@ -119,6 +132,9 @@ function neutralizeSqlComments(sql:string):string {
 export function classifyProtectedLegalSql(sql:string) {
   if (typeof sql!=="string" || sql.length>32768)
     throw Error("invalid_legal_sql");
+  // Match the reviewed safe SQL *exactly*, never normalized whitespace,
+  // comments or substrings that could hide a second protected statement.
+  if(NONAUTH_AUDIO_POSITION_SQL.has(sql))return [];
   // Writable CTEs and multi-statement strings stay visible, even if an
   // untrusted-looking SQL fragment interposes comments between tokens.
   const visible=neutralizeSqlComments(sql);

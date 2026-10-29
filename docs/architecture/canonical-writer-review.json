@@ -2,7 +2,7 @@
   "schema": "cove.canonical-writer-review.v1",
   "reviewedSourceCommit": "c706eae6dc9fbc1951451f086b64739bb4720790",
   "releaseApproval": false,
-  "scope": "Exact review of all 460 current SQL candidates after refund transaction extraction (formerly 458). All 435 authorizing candidates remain unclosed; 24 non-authorizing and one isolated fixture classifications confer no production release approval. A read-only publication scheduler due-date filter changed; all 88 publishing protected SQL literals, operations, functions, source lines, and owner-required dispositions remain unchanged. Source-bound IDs have been re-reviewed without conferring production authorization. Two presentation-only newline changes formatted the scheduler to satisfy strict lint; all 88 protected publishing SQL literals and dispositions remain identical. The authenticated localization market pause route now dispatches a strict negative owner-first QA command, rejecting mixed edits and staging raw-D1 fallback. No existing protected SQL mutation literal or production owner-guard disposition was changed. The 33 API file source identities were rebound for exact site review. Formatting-only changes to the locked market pause guard do not change any protected API SQL literal, authorizing classification, or approval status. The customer-support negative entitlement revoke branch now uses the owner-first QA command (with atomic offline D1 repair); all eight existing protected support SQL literals remain present, unchanged and production-owner-required. Source-bound fingerprints were re-reviewed without granting production approval. Typed result from staged support command (no additional direct SQL or changed protected literals); all eight support-site identity fingerprints revalidated. Device registration UPSERT is now monotonic: revoked keys cannot be reinstated by ON CONFLICT; nine account-management SQL sites were re-reviewed, and the changed device SQL literal remains owner-command-required. Production legal owner is not certified by this safety fix. Formatting-only change to revoked-device error reporting; the nine reviewed account writer literals are unchanged and still require full owner-first closure.",
+  "scope": "Exact review of all 460 current SQL candidates after refund transaction extraction (formerly 458). All 435 authorizing candidates remain unclosed; 24 non-authorizing and one isolated fixture classifications confer no production release approval. A read-only publication scheduler due-date filter changed; all 88 publishing protected SQL literals, operations, functions, source lines, and owner-required dispositions remain unchanged. Source-bound IDs have been re-reviewed without conferring production authorization. Two presentation-only newline changes formatted the scheduler to satisfy strict lint; all 88 protected publishing SQL literals and dispositions remain identical. The authenticated localization market pause route now dispatches a strict negative owner-first QA command, rejecting mixed edits and staging raw-D1 fallback. No existing protected SQL mutation literal or production owner-guard disposition was changed. The 33 API file source identities were rebound for exact site review. Formatting-only changes to the locked market pause guard do not change any protected API SQL literal, authorizing classification, or approval status. The customer-support negative entitlement revoke branch now uses the owner-first QA command (with atomic offline D1 repair); all eight existing protected support SQL literals remain present, unchanged and production-owner-required. Source-bound fingerprints were re-reviewed without granting production approval. Typed result from staged support command (no additional direct SQL or changed protected literals); all eight support-site identity fingerprints revalidated. Device registration UPSERT is now monotonic: revoked keys cannot be reinstated by ON CONFLICT; nine account-management SQL sites were re-reviewed, and the changed device SQL literal remains owner-command-required. Production legal owner is not certified by this safety fix. Formatting-only change to revoked-device error reporting; the nine reviewed account writer literals are unchanged and still require full owner-first closure. Independent review of three versioned, buyer-scoped commercial_audio_playback sync mutations confirms they only change listening position. Exact SQL, user-isolation and unchanged revoked entitlement are regression tested. These three are non-authorizing; they remain in the conservative staging D1 lock, and no production owner cutover is authorized.",
   "sites": [
     {
       "siteId": "602503338f5ef8edf2e3aa0029c23659e1b5fdf9d1297ed55ba5e0d782b94457",
@@ -5153,10 +5153,9 @@
       "table": "commercial_audio_playback",
       "operation": "DELETE FROM",
       "sqlSha256": "78d0bc8a0172709abd745258fbb0f01608ba29806aa5d6654867d4efed1416c8",
-      "disposition": "owner-command-required",
+      "disposition": "non-authorizing-write",
       "productionOwnerGuarded": false,
-      "commandFamily": "sync.applyDomainMutation",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
+      "reason": "This exact optimistic-concurrency audiobook location SQL changes only per-user listening progress (chapter, seconds, speed, version, timestamp) or deletes that progress. It does not create or change any entitlement, grant, offer, purchased order, offline license, protected asset or delivery permission. Exact statement and unrelated-buyer behavior are exercised by scripts/check-audio-progress-nonauthorizing.mjs; publication and playback bytes remain independently gated."
     },
     {
       "siteId": "c6c973515884587b613d1e6b9f2fe7ae1d5208bc4e47846c403070cd1a8803df",
@@ -5166,10 +5165,9 @@
       "table": "commercial_audio_playback",
       "operation": "UPDATE",
       "sqlSha256": "b02c8bd4b4ad791f85d4f272cc73836e9263257d9e1130ffe41d10aa2d3eb918",
-      "disposition": "owner-command-required",
+      "disposition": "non-authorizing-write",
       "productionOwnerGuarded": false,
-      "commandFamily": "sync.applyDomainMutation",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
+      "reason": "This exact optimistic-concurrency audiobook location SQL changes only per-user listening progress (chapter, seconds, speed, version, timestamp) or deletes that progress. It does not create or change any entitlement, grant, offer, purchased order, offline license, protected asset or delivery permission. Exact statement and unrelated-buyer behavior are exercised by scripts/check-audio-progress-nonauthorizing.mjs; publication and playback bytes remain independently gated."
     },
     {
       "siteId": "14ceddad9174cd25f1ef8804aea2a690ac59232441beb62c35dc318dae336bca",
@@ -5179,10 +5177,9 @@
       "table": "commercial_audio_playback",
       "operation": "INSERT INTO",
       "sqlSha256": "a1bb7b283db41d445831813aabf5c709a312406dbf1118b11485ac8e79849758",
-      "disposition": "owner-command-required",
+      "disposition": "non-authorizing-write",
       "productionOwnerGuarded": false,
-      "commandFamily": "sync.applyDomainMutation",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
+      "reason": "This exact optimistic-concurrency audiobook location SQL changes only per-user listening progress (chapter, seconds, speed, version, timestamp) or deletes that progress. It does not create or change any entitlement, grant, offer, purchased order, offline license, protected asset or delivery permission. Exact statement and unrelated-buyer behavior are exercised by scripts/check-audio-progress-nonauthorizing.mjs; publication and playback bytes remain independently gated."
     },
     {
       "siteId": "885af27d57bb775be63c673c9171f0c4ca1ef25734db77940cbb906b83c5f15e",
