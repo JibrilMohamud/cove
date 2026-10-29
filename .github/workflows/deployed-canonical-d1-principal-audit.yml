@@ -7,10 +7,8 @@ on:
       - ".github/workflows/deployed-canonical-d1-principal-audit.yml"
   push:
     branches: [main]
-    paths:
-      - "scripts/audit-live-canonical-d1-principals.mjs"
-      - "scripts/test-live-canonical-d1-principals.mjs"
-      - ".github/workflows/deployed-canonical-d1-principal-audit.yml"
+  schedule:
+    - cron: "13 7 * * *"
   workflow_dispatch:
     inputs:
       release_gate:
@@ -20,6 +18,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: production-canonical-d1-fleet-audit
+  cancel-in-progress: false
 
 jobs:
   regression:
