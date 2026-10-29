@@ -17,6 +17,10 @@ const routes={
   "commerce.settle-order":{path:"/commercial/order/settle",schema:z.object({orderId:ownerId}).strict()},
   "commerce.recover-settlements":{path:"/commercial/order/recover-settlements",schema:z.object({limit:z.number().int().min(1).max(25)}).strict()},
   "commerce.revoke-order":{path:"/commercial/order/revoke",schema:z.object({orderId:ownerId,operationId:operation}).strict()},
+  "commerce.reserve-refund":{path:"/commercial/refund/reserve",schema:z.object({
+    orderId:ownerId,reason:z.string().max(500),idempotencyKey:z.string().min(16).max(200),
+    amountMinor:z.number().int().positive().max(1_000_000_000_000).optional()
+  }).strict()},
   "commerce.post-refund-accounting":{path:"/commercial/refund/post-accounting",schema:z.object({
     orderId:ownerId,refundId:ownerId}).strict()},
   "commerce.record-refund-provider":{path:"/commercial/refund/record-provider",schema:z.object({
@@ -117,6 +121,18 @@ export async function dispatchCanonicalOwnerCommand(
     case "commerce.revoke-order":
       if(ack.schema!=="cove.paid-order-revocation.v1"||ack.orderDenied!==true||
          ack.reconciled!==true||ack.orderId!==body.orderId||ack.operationId!==body.operationId)
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "commerce.reserve-refund":
+      if(ack.schema!=="cove.owner-refund-reservation.v1"||
+         ack.orderId!==body.orderId||!ownerId.safeParse(ack.refundId).success||
+         typeof ack.created!=="boolean"||
+         ![ack.amountMinor,ack.stripeAmountMinor,ack.giftCardAmountMinor,ack.storeCreditAmountMinor]
+          .every(n=>Number.isSafeInteger(n)&&Number(n)>=0&&Number(n)<=1_000_000_000_000)||
+         Number(ack.amountMinor)===0||
+         Number(ack.stripeAmountMinor)+Number(ack.giftCardAmountMinor)+
+         Number(ack.storeCreditAmountMinor)!==Number(ack.amountMinor)||
+         (body.amountMinor!==undefined&&ack.amountMinor!==body.amountMinor))
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "commerce.record-refund-provider":
