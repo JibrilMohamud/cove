@@ -15,6 +15,8 @@ const evidence=z.string().regex(/^gre_[a-z0-9_:-]{1,120}$/);
 const version=z.string().min(3).max(160).regex(/^[a-zA-Z0-9_-]+$/);
 const routes={
   "commerce.revoke-order":{path:"/commercial/order/revoke",schema:z.object({orderId:ownerId,operationId:operation}).strict()},
+  "commerce.post-refund-accounting":{path:"/commercial/refund/post-accounting",schema:z.object({
+    orderId:ownerId,refundId:ownerId}).strict()},
   "commerce.publish-order":{path:"/commercial/entitlement/publish-order-verified",schema:z.object({
     orderId:ownerId,userId:ownerId,territory,channel:z.literal("retail")}).strict()},
   "commerce.publish-entitlement":{path:"/commercial/entitlement/publish-verified",schema:z.object({
@@ -91,6 +93,12 @@ export async function dispatchCanonicalOwnerCommand(
     case "commerce.revoke-order":
       if(ack.schema!=="cove.paid-order-revocation.v1"||ack.orderDenied!==true||
          ack.reconciled!==true||ack.orderId!==body.orderId||ack.operationId!==body.operationId)
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "commerce.post-refund-accounting":
+      if(ack.schema!=="cove.owner-refund-accounting.v1"||ack.ownerDenied!==true||
+        ack.posted!==true||ack.orderId!==body.orderId||ack.refundId!==body.refundId||
+        typeof ack.applied!=="boolean")
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "commerce.publish-order":
