@@ -46,7 +46,9 @@ jobs:
       - name: Offline reading, account restoration and reader-safe notifications
         run: npm run test:reader-recovery
       - name: Paginated private account data and cross-user isolation
-        run: npm run test:account-pagination
+        run: |
+          npm run test:account-pagination
+          node scripts/check-revoked-device-registration.mjs
       - name: Full wired-label coverage in all five supported locales
         run: npm run test:localization-coverage
       - name: Reading UI localization and content pipeline behavior
