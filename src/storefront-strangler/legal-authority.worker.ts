@@ -524,7 +524,14 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       if(route==="/commercial/refund/reserve"){
         // This reservation is the ONLY allowed enrolled refund intent writer.
         // The owner computes tender splits; no caller can supply a SQL string.
-        const receipt=await executeOwnerRefundReservation(env.PRIMARY_DB,raw);
+        const receipt=await executeOwnerRefundReservation(env.PRIMARY_DB,raw,async row=>{
+          const write=await env.PRIMARY_DB.prepare(
+            "INSERT INTO commerce_refunds(id,order_id,amount_minor,stripe_amount_minor,gift_card_amount_minor,store_credit_amount_minor,currency,reason,status,idempotency_key,created_at,updated_at) SELECT ?,?,?,?,?,?,?,?,'pending',?,?,? FROM commerce_orders o WHERE o.id=? AND o.status IN ('paid','partially_refunded','disputed') AND ?<=o.total_minor-COALESCE((SELECT SUM(amount_minor) FROM commerce_refunds WHERE order_id=o.id AND status IN ('pending','succeeded')),0) AND ?<=o.stripe_due_minor-COALESCE((SELECT SUM(stripe_amount_minor) FROM commerce_refunds WHERE order_id=o.id AND status IN ('pending','succeeded')),0) AND ?<=o.gift_card_minor-COALESCE((SELECT SUM(gift_card_amount_minor) FROM commerce_refunds WHERE order_id=o.id AND status IN ('pending','succeeded')),0) AND ?<=o.store_credit_minor-COALESCE((SELECT SUM(store_credit_amount_minor) FROM commerce_refunds WHERE order_id=o.id AND status IN ('pending','succeeded')),0)"
+          ).bind(row.refundId,row.orderId,row.amount,row.stripe,row.gift,row.store,
+            row.currency,row.reason,row.idempotencyKey,row.at,row.at,row.orderId,
+            row.amount,row.stripe,row.gift,row.store).run() as {meta?:{changes?:number}};
+          return write;
+        });
         return Response.json(receipt,{status:200,headers:noStore});
       }
       if(route==="/commercial/refund/record-provider"){
