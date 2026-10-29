@@ -23,9 +23,9 @@ export function inspectCanonicalProductionTopology(backendToml,ownerJson,otherWo
       :null;
     const d1=config?.d1_databases||[];
     const bindings=worker.name==="cove-storefront-ssr-staging"
-      ?(worker.config.match(/\\[\\[d1_databases\\]\\][\\s\\S]*?(?=\\n\\[|$)/g)||[])
+      ?(worker.config.match(/\[\[d1_databases\]\][\s\S]*?(?=\n\[|$)/g)||[])
         .filter(block=>block.includes('database_id = "'+productionId+'"'))
-        .map(block=>(block.match(/binding\\s*=\\s*"([^"]+)"/)||[])[1])
+        .map(block=>(block.match(/binding\s*=\s*"([^"]+)"/)||[])[1])
       :d1.filter(row=>row.database_id===productionId).map(row=>row.binding);
     for(const binding of bindings)additionalCanonicalBindings.push({
       worker:worker.name,binding,
