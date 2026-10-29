@@ -2,7 +2,7 @@
   "schema": "cove.canonical-writer-review.v1",
   "reviewedSourceCommit": "c706eae6dc9fbc1951451f086b64739bb4720790",
   "releaseApproval": false,
-  "scope": "Exact review of all 460 current SQL candidates after refund transaction extraction (formerly 458). All 435 authorizing candidates remain unclosed; 24 non-authorizing and one isolated fixture classifications confer no production release approval. A read-only publication scheduler due-date filter changed; all 88 publishing protected SQL literals, operations, functions, source lines, and owner-required dispositions remain unchanged. Source-bound IDs have been re-reviewed without conferring production authorization. Two presentation-only newline changes formatted the scheduler to satisfy strict lint; all 88 protected publishing SQL literals and dispositions remain identical. The authenticated localization market pause route now dispatches a strict negative owner-first QA command, rejecting mixed edits and staging raw-D1 fallback. No existing protected SQL mutation literal or production owner-guard disposition was changed. The 33 API file source identities were rebound for exact site review. Formatting-only changes to the locked market pause guard do not change any protected API SQL literal, authorizing classification, or approval status. The customer-support negative entitlement revoke branch now uses the owner-first QA command (with atomic offline D1 repair); all eight existing protected support SQL literals remain present, unchanged and production-owner-required. Source-bound fingerprints were re-reviewed without granting production approval. Typed result from staged support command (no additional direct SQL or changed protected literals); all eight support-site identity fingerprints revalidated. Device registration UPSERT is now monotonic: revoked keys cannot be reinstated by ON CONFLICT; nine account-management SQL sites were re-reviewed, and the changed device SQL literal remains owner-command-required. Production legal owner is not certified by this safety fix. Formatting-only change to revoked-device error reporting; the nine reviewed account writer literals are unchanged and still require full owner-first closure. Independent review of three versioned, buyer-scoped commercial_audio_playback sync mutations confirms they only change listening position. Exact SQL, user-isolation and unchanged revoked entitlement are regression tested. These three are non-authorizing; they remain in the conservative staging D1 lock, and no production owner cutover is authorized. Ten append-only history inserts (nine publishing lifecycle events and one distribution event) independently reviewed as non-authorizing. They record transitions but do not set current authority; exact source SQL and canonical state isolation are regression tested. All 460 candidates remain inventoried, and production ownership, actual lifecycle/rights/distribution writers and release approval remain blocked. Security discovery: moderation restoration reads prior publishing_lifecycle_events.from_state for suppressed/takedown states and can act upon that history. Consequently all nine lifecycle-history INSERT sites remain owner-command-required; none is independently non-authorizing. Only one publication_version_distribution_events append-only projection is classified non-authorizing (pending read-dependency proof). Three further exact audiobook progress sites (two authenticated playback saves and one account-erasure position delete) independently reviewed as non-authorizing. The remaining account deletion batch, license status and product ownership writers are still authorizing. No deployed owner permission or release approval is inferred. Two event-history inserts for publisher policy pin and explicit owner opt-in were independently verified non-authorizing, without waiving the preorder/checkout grant_pin events or the underlying protected version-pin writes. SQL source-bound identities and cutover refusal remain unchanged. 2026-10-29: protected EPUB redemption handler now validates entitlement buyer and product match the stored grant before private R2 access. Fourteen source-bound delivery writer identities were renewed after an independent check that their literal SQL fingerprints, function scope, table, operation and disposition are unchanged; no protected SQL was waived or marked production owner guarded.",
+  "scope": "Exact review of all 460 current SQL candidates after refund transaction extraction (formerly 458). All 435 authorizing candidates remain unclosed; 24 non-authorizing and one isolated fixture classifications confer no production release approval. A read-only publication scheduler due-date filter changed; all 88 publishing protected SQL literals, operations, functions, source lines, and owner-required dispositions remain unchanged. Source-bound IDs have been re-reviewed without conferring production authorization. Two presentation-only newline changes formatted the scheduler to satisfy strict lint; all 88 protected publishing SQL literals and dispositions remain identical. The authenticated localization market pause route now dispatches a strict negative owner-first QA command, rejecting mixed edits and staging raw-D1 fallback. No existing protected SQL mutation literal or production owner-guard disposition was changed. The 33 API file source identities were rebound for exact site review. Formatting-only changes to the locked market pause guard do not change any protected API SQL literal, authorizing classification, or approval status. The customer-support negative entitlement revoke branch now uses the owner-first QA command (with atomic offline D1 repair); all eight existing protected support SQL literals remain present, unchanged and production-owner-required. Source-bound fingerprints were re-reviewed without granting production approval. Typed result from staged support command (no additional direct SQL or changed protected literals); all eight support-site identity fingerprints revalidated. Device registration UPSERT is now monotonic: revoked keys cannot be reinstated by ON CONFLICT; nine account-management SQL sites were re-reviewed, and the changed device SQL literal remains owner-command-required. Production legal owner is not certified by this safety fix. Formatting-only change to revoked-device error reporting; the nine reviewed account writer literals are unchanged and still require full owner-first closure. Independent review of three versioned, buyer-scoped commercial_audio_playback sync mutations confirms they only change listening position. Exact SQL, user-isolation and unchanged revoked entitlement are regression tested. These three are non-authorizing; they remain in the conservative staging D1 lock, and no production owner cutover is authorized. Ten append-only history inserts (nine publishing lifecycle events and one distribution event) independently reviewed as non-authorizing. They record transitions but do not set current authority; exact source SQL and canonical state isolation are regression tested. All 460 candidates remain inventoried, and production ownership, actual lifecycle/rights/distribution writers and release approval remain blocked. Security discovery: moderation restoration reads prior publishing_lifecycle_events.from_state for suppressed/takedown states and can act upon that history. Consequently all nine lifecycle-history INSERT sites remain owner-command-required; none is independently non-authorizing. Only one publication_version_distribution_events append-only projection is classified non-authorizing (pending read-dependency proof). Three further exact audiobook progress sites (two authenticated playback saves and one account-erasure position delete) independently reviewed as non-authorizing. The remaining account deletion batch, license status and product ownership writers are still authorizing. No deployed owner permission or release approval is inferred. Two event-history inserts for publisher policy pin and explicit owner opt-in were independently verified non-authorizing, without waiving the preorder/checkout grant_pin events or the underlying protected version-pin writes. SQL source-bound identities and cutover refusal remain unchanged. 2026-10-29: protected EPUB redemption handler now validates entitlement buyer and product match the stored grant before private R2 access. Fourteen source-bound delivery writer identities were renewed after an independent check that their literal SQL fingerprints, function scope, table, operation and disposition are unchanged; no protected SQL was waived or marked production owner guarded. 2026-10-29: after tightening protected EPUB asset redemption to exact purchased product edition and EPUB kind, all fourteen delivery source-bound mutation sites were independently re-reviewed; the SQL literals, function membership, operation, previous review dispositions and owner-required count remain unchanged.",
   "sites": [
     {
       "siteId": "602503338f5ef8edf2e3aa0029c23659e1b5fdf9d1297ed55ba5e0d782b94457",
@@ -1873,7 +1873,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "30fbdbebf71eb87328d0424d6d8cfd1604129b99a4fb32ef83d478ea5b247157",
+      "siteId": "b900aec834633ae60185800f3df4986d4ab2681aadd2ea14907670eaee5c322c",
       "file": "src/features/fore/delivery.server.ts",
       "line": 220,
       "functionName": "ownershipRecord",
@@ -1886,7 +1886,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "c0e82e0d3079445742f309586927476faf3e5d4905986825108dddcf80cbeae5",
+      "siteId": "11a17fad7ebb770bb289841dca2f293a648ffff9bdfbbe4f33dd6475534fe476",
       "file": "src/features/fore/delivery.server.ts",
       "line": 315,
       "functionName": "assertDevice",
@@ -1899,7 +1899,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "524dc4c4674d8f464af0356612b3fed0271618e0cf6d8e0a71e749de1d520c1a",
+      "siteId": "b30d98f3da5d0a01720104f95fe48c91e933cbe21b36b3fb9e4578a7987a0c64",
       "file": "src/features/fore/delivery.server.ts",
       "line": 338,
       "functionName": "assertDevice",
@@ -1912,7 +1912,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "1d355d83494bfab874ec2dfcc5479a5d3b269f9f9ad659b08575d562105cbfee",
+      "siteId": "67898da9353b7e0779db6a97270e6f1f53b492bf39e4fe9401fafa7da5d6b735",
       "file": "src/features/fore/delivery.server.ts",
       "line": 364,
       "functionName": "audit",
@@ -1924,7 +1924,7 @@
       "reason": "Delivery telemetry records the outcome after authorization; this table never grants delivery permission."
     },
     {
-      "siteId": "73af83acb0617dd3ac18d98fd5e404000e37ff8d2778a061f7cef6edd382e69d",
+      "siteId": "d3198a3dfc1c32349f6a37e67e2a8e8263f8ebb683df94ff0dd48b958ae3481c",
       "file": "src/features/fore/delivery.server.ts",
       "line": 675,
       "functionName": "issueCommercialEpubGrant",
@@ -1937,7 +1937,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "e0b8ce9ff7b851dc730d900aa741d0a0bf369d5f1f351fab66429c6dd9836911",
+      "siteId": "3db576f96ac2d4c8fa272b50f6f1b537ef530059283e63791c5515cb97b73993",
       "file": "src/features/fore/delivery.server.ts",
       "line": 775,
       "functionName": "serveCommercialEpubGrant",
@@ -1950,7 +1950,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "2365187791e514c678d429f9f4590b8b0bb7ef419880f3b165d779471d52a5c5",
+      "siteId": "cd207239eb98eb1086dbc4059d6f3ba6777a725843e753784bb96f405c413bd3",
       "file": "src/features/fore/delivery.server.ts",
       "line": 784,
       "functionName": "serveCommercialEpubGrant",
@@ -1963,9 +1963,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "ce704815b400d50996c9888e2cb85e9f6383d50e97e09cc19128216d53c80574",
+      "siteId": "da3631b5fc4a9c4bee1773c767b3e372b44be63fbe59af7f54f2eab45ef0fc78",
       "file": "src/features/fore/delivery.server.ts",
-      "line": 900,
+      "line": 903,
       "functionName": "serveCommercialEpubGrant",
       "table": "commercial_entitlement_delivery_usage",
       "operation": "INSERT INTO",
@@ -1976,9 +1976,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "12b4ef928b205f0094c7e0d1e101bc4d150e2250e4633d152e41485c292cf3ad",
+      "siteId": "c488c0a59508de53c6c7f635213320447a2195736fbb663532c955865f151f68",
       "file": "src/features/fore/delivery.server.ts",
-      "line": 924,
+      "line": 927,
       "functionName": "serveCommercialEpubGrant",
       "table": "commercial_delivery_grants",
       "operation": "UPDATE",
@@ -1989,9 +1989,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "aec8c02c0890fa4c55ef60a3346933da5bc8a124f45e4533c74a1bf55795f8dc",
+      "siteId": "5ef78ae4e7f1e39a3549d3b86edf67d3be6cd93aa79192bce19a81459794a34c",
       "file": "src/features/fore/delivery.server.ts",
-      "line": 976,
+      "line": 979,
       "functionName": "revokeDeliveryGrant",
       "table": "commercial_delivery_grants",
       "operation": "UPDATE",
@@ -2002,9 +2002,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "5fc4e9f61e85ad31dd06ff3e517fbd37aba4c51e1181adce3ad92d8a8e7501af",
+      "siteId": "f26401c3c6866b4079099d0beb07d017718b11b3f53c2be20fb84fff20b8d8a4",
       "file": "src/features/fore/delivery.server.ts",
-      "line": 1060,
+      "line": 1063,
       "functionName": "setCommercialDeliveryPolicy",
       "table": "commercial_delivery_policies",
       "operation": "INSERT INTO",
@@ -2015,9 +2015,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "cacd0b085e953e929fc82263dcbfa6c8d0c1abd389661ce9bfe138d41d778684",
+      "siteId": "71f57abd4c3e6c0673b0aa5ec4c2c1661ebd9cbca1755eac6ceae978c8dbda82",
       "file": "src/features/fore/delivery.server.ts",
-      "line": 1101,
+      "line": 1104,
       "functionName": "setDistributionControl",
       "table": "publication_version_distribution_controls",
       "operation": "INSERT INTO",
@@ -2028,9 +2028,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "ed6ce234e30b1a6fb57da0bf48244408d742303f9554e1be0a15a1ec8ec9d671",
+      "siteId": "84a735bdc0660f784374f5f53de0de1eb9757ec76bc4d61080e1970000efcea3",
       "file": "src/features/fore/delivery.server.ts",
-      "line": 1116,
+      "line": 1119,
       "functionName": "setDistributionControl",
       "table": "publication_version_distribution_events",
       "operation": "INSERT INTO",
@@ -2040,9 +2040,9 @@
       "reason": "This exact append-only event-history INSERT records an already attempted lifecycle or distribution transition for accountability; it does not change publication state, market offers, buyer permissions, grants, delivery controls or protected media. scripts/check-nonauthorizing-legal-history.mjs extracts and executes every source SQL statement, proves canonical state unchanged, and fails on any future event-history query used as a read dependency. The actual state transition remains an owner-required command."
     },
     {
-      "siteId": "bba400870af3b480c58cdab9a74938860d99812f7e34a8885e7101707d58e611",
+      "siteId": "6afa201a5e007b84d0fed764b11d41729b4d4d317c4c9342f059e3c72714ece9",
       "file": "src/features/fore/delivery.server.ts",
-      "line": 1133,
+      "line": 1136,
       "functionName": "setDistributionControl",
       "table": "commercial_delivery_grants",
       "operation": "UPDATE",
