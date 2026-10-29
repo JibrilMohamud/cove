@@ -1,0 +1,40 @@
+name: all-owner-required-stage-denials
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "worker/**"
+      - "workers/**"
+      - "docs/architecture/canonical-writer-review.json"
+      - "scripts/reconcile-canonical-writers.mjs"
+      - "scripts/check-canonical-writer-closure.mjs"
+      - "scripts/check-all-owner-required-stage-denials.mjs"
+      - ".github/workflows/all-owner-required-stage-denials.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "worker/**"
+      - "workers/**"
+      - "docs/architecture/canonical-writer-review.json"
+      - "scripts/reconcile-canonical-writers.mjs"
+      - "scripts/check-canonical-writer-closure.mjs"
+      - "scripts/check-all-owner-required-stage-denials.mjs"
+      - ".github/workflows/all-owner-required-stage-denials.yml"
+permissions:
+  contents: read
+jobs:
+  reject-unowned-stage-sql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Reject every reviewed authorizing SQL mutation at staging D1 boundary
+        run: node scripts/check-all-owner-required-stage-denials.mjs
