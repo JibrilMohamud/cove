@@ -18,7 +18,7 @@ assert.equal(config.preview_urls, false);
 assert.equal(config.vars.FORE_CONTENT_PROCESSOR_ROLE, "literary-handoff");
 assert.deepEqual(
   config.d1_databases.map((x) => x.database_id),
-  [primary, secondary],
+  [secondary],
 );
 assert.deepEqual(
   config.r2_buckets.map((x) => x.bucket_name),
@@ -107,9 +107,9 @@ for (let i = 0; i < 10; i++) {
     "FORE_LITERARY_DRAIN_RECONCILE_ENABLED",
   ].every((key) => get(key)?.text === "0");
   if (
-    ids.includes(primary) &&
+    !ids.includes(primary) &&
     ids.includes(secondary) &&
-    ids.length === 2 &&
+    ids.length === 1 &&
     r2.length === 1 &&
     r2[0] === bucket &&
     get("FORE_CONTENT_PROCESSOR_ROLE")?.text === "literary-handoff" &&

@@ -9,11 +9,6 @@
   },
   "d1_databases": [
     {
-      "binding": "DB",
-      "database_name": "cove-production",
-      "database_id": "4bd657ac-8789-403e-a28c-93aba8d0a989"
-    },
-    {
       "binding": "CONTENT_DB",
       "database_name": "cove-literary-content-isolated-20261024",
       "database_id": "400c3af3-5d40-41fd-83cc-98228e40ddac"

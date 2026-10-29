@@ -4,6 +4,10 @@ on:
     paths:
       - "scripts/audit-live-canonical-d1-principals.mjs"
       - "scripts/test-live-canonical-d1-principals.mjs"
+      - "docs/architecture/deployed-canonical-d1-baseline.json"
+      - "docs/architecture/historical-publication-capture-d1-isolation-20261029.json"
+      - "wrangler.content-literary-handoff.prod-disabled.jsonc"
+      - "wrangler.content-literary-prepare.prod-disabled.jsonc"
       - ".github/workflows/deployed-canonical-d1-principal-audit.yml"
   push:
     branches: [main]

@@ -1,0 +1,34 @@
+{
+  "schema": "cove.disabled-literary-canonical-d1-binding-retirement.v1",
+  "observedOn": "2026-10-29",
+  "capabilityRemovals": 2,
+  "deployedVersionVerifiedAt100Percent": true,
+  "scripts": [
+    {
+      "name": "cove-literary-handoff-isolated-disabled",
+      "newVersion": "a2b84e5c-44e7-4ccb-af86-391a305972d8"
+    },
+    {
+      "name": "cove-literary-prepare-isolated-disabled",
+      "newVersion": "377a87b5-5ae9-45f9-a8c6-c625d507d3c1"
+    }
+  ],
+  "change": "Remove DB production D1 binding only. Preserve CONTENT_DB isolated D1, BUCKET R2, and other preexisting bindings/flags at disabled state",
+  "preflight": "Both Workers already had all execution enablement flags at 0, no Workers.dev ingress or preview URLs, no cron, no custom routes/domains and zero incoming service references in independently recorded live account-wide audit.",
+  "rollbackWarning": "Restore only by a reviewed, intentional production deployment. Never reactivate a retired Worker by merely toggling a feature flag without legal owner and isolated source review.",
+  "restoreBinding": {
+    "name": "DB",
+    "type": "d1",
+    "database_id": "4bd657ac-8789-403e-a28c-93aba8d0a989"
+  },
+  "continueContentBinding": {
+    "name": "CONTENT_DB",
+    "type": "d1",
+    "database_id": "400c3af3-5d40-41fd-83cc-98228e40ddac"
+  },
+  "latestSourceConfig": [
+    "wrangler.content-literary-handoff.prod-disabled.jsonc",
+    "wrangler.content-literary-prepare.prod-disabled.jsonc"
+  ],
+  "productionAuthorizationCertified": false
+}

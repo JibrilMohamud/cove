@@ -1,6 +1,7 @@
 /* eslint-disable prettier/prettier -- Adversarial deployed-principal inventory proof. */
 import assert from "node:assert/strict";
 import {test} from "node:test";
+import {readFileSync} from "node:fs";
 import {
   CANONICAL_D1,OWNER_SCRIPT,assessDeployedCanonicalD1Principals,collectCanonicalD1Fleet,compareKnownUnsafeFleet
 } from "./audit-live-canonical-d1-principals.mjs";
@@ -58,6 +59,96 @@ test("no synthetic or source-only configuration can self-certify deployment",()=
   assert.equal(clean.releaseEligible,false);
   assert.equal(clean.productionAuthorized,false);
   assert.equal(clean.independentDeploymentAuthorizationRequired,true);
+});
+test("43 retired captures never regain production D1 or restart, and 14-binding unsafe baseline is pinned",()=>{
+  const retired=JSON.parse(readFileSync("docs/architecture/historical-publication-capture-d1-isolation-20261029.json","utf8"));
+  const baseline=JSON.parse(readFileSync("docs/architecture/deployed-canonical-d1-baseline.json","utf8"));
+  assert.equal(retired.scripts.length,43);
+  assert.equal(baseline.knownDirectBindings.length,12);
+  assert.equal(baseline.retirementEvidence.totalBindingsRemoved,45);
+  assert.equal(baseline.retirementEvidence.remainingNonOwnerBindings,11);
+  assert.equal(baseline.certified,false);
+  assert.equal(baseline.retirementEvidence.historicalCaptureBindingsRemoved,43);
+  for(const name of retired.scripts)assert.ok(
+    !baseline.knownDirectBindings.some(x=>x.script===name),
+    "retired capture cannot survive in remaining unsafe D1 allowlist: "+name);
+  const name=retired.scripts[0];
+  const settings={bindings:[
+    {name:"COVE_PUBLICATION_CAPTURE_ENABLED",type:"plain_text",text:"0"},
+    {name:"PUBLIC_SOURCE_DB",type:"d1",id:"1825b4a1-0329-408d-9cc2-a40e6a17c822"}
+  ]};
+  const input={...params,
+    scripts:[...params.scripts,{id:name}],
+    settingsByName:{...params.settingsByName,[name]:settings}};
+  const safe=assessDeployedCanonicalD1Principals(input);
+  assert.equal(safe.retiredHistoricalCaptureScriptsInspected,1);
+  assert.deepEqual(safe.retiredCaptureReactivations,[]);
+  const restored=assessDeployedCanonicalD1Principals({...input,
+    settingsByName:{...input.settingsByName,[name]:{bindings:[
+      ...settings.bindings,{name:"SOURCE_DB",type:"d1",id:CANONICAL_D1}]}} ,
+    schedulesByName:{...params.schedulesByName,[name]:[]},
+    subdomainsByName:{...params.subdomainsByName,[name]:{enabled:false}}
+  });
+  assert.deepEqual(restored.retiredCaptureReactivations,[name]);
+  assert.ok(restored.blockerCodes.includes("retired_historical_capture_canonical_d1_or_execution_restored"));
+  assert.equal(compareKnownUnsafeFleet(restored,baseline).strictDriftPass,false);
+  const restarted=assessDeployedCanonicalD1Principals({...input,
+    settingsByName:{...input.settingsByName,[name]:{bindings:[
+      {name:"COVE_PUBLICATION_CAPTURE_ENABLED",type:"plain_text",text:"1"},
+      settings.bindings[1]
+    ]}}
+  });
+  assert.deepEqual(restarted.retiredCaptureReactivations,[name]);
+  assert.equal(compareKnownUnsafeFleet(restarted,baseline).strictDriftPass,false);
+});
+test("two retired literary Workers cannot regain D1 or be re-enabled by redeploy",()=>{
+  const name="cove-literary-handoff-isolated-disabled";
+  const initial={bindings:[
+    {name:"CONTENT_DB",type:"d1",id:"400c3af3-5d40-41fd-83cc-98228e40ddac"},
+    {name:"FORE_CONTENT_PROCESSOR_ENABLED",type:"plain_text",text:"0"},
+    {name:"FORE_CONTENT_HANDOFF_ENABLED",type:"plain_text",text:"0"}
+  ]};
+  const fixture={...params,scripts:[...params.scripts,{id:name}],
+    settingsByName:{...params.settingsByName,[name]:initial}};
+  assert.deepEqual(assessDeployedCanonicalD1Principals(fixture).retiredDisabledLiteraryReactivations,[]);
+  const reopened=assessDeployedCanonicalD1Principals({...fixture,
+    settingsByName:{...fixture.settingsByName,[name]:{
+      bindings:[...initial.bindings,{name:"DB",type:"d1",id:CANONICAL_D1}]
+    }},
+    schedulesByName:{...params.schedulesByName,[name]:[]},
+    subdomainsByName:{...params.subdomainsByName,[name]:{enabled:false}}
+  });
+  assert.deepEqual(reopened.retiredDisabledLiteraryReactivations,[name]);
+  assert.ok(reopened.blockerCodes.includes("disabled_literary_worker_canonical_d1_or_execution_restored"));
+  const reenabled=assessDeployedCanonicalD1Principals({...fixture,
+    settingsByName:{...fixture.settingsByName,[name]:{bindings:[
+      initial.bindings[0],
+      {name:"FORE_CONTENT_PROCESSOR_ENABLED",type:"plain_text",text:"1"}
+    ]}}
+  });
+  assert.deepEqual(reenabled.retiredDisabledLiteraryReactivations,[name]);
+});
+test("a forged expanded baseline cannot increase 12 deployed canonical D1 principals",()=>{
+  const baseline={schema:"cove.canonical-d1-unsafe-principal-baseline.v1",certified:false,
+    canonicalD1:CANONICAL_D1,
+    knownDirectBindings:[{script:OWNER_SCRIPT,binding:"PRIMARY_DB"},
+      {script:"cove-disabled-qa",binding:"SOURCE_DB"}],
+    knownSchedules:{"cove-disabled-qa":["* * * * *"]}};
+  const original=assessDeployedCanonicalD1Principals(params);
+  assert.equal(compareKnownUnsafeFleet(original,baseline).strictDriftPass,true);
+  const extraBindings=Array.from({length:13},(_,i)=>({
+    script:"new-direct-"+i,binding:"DB",crons:[],owner:false
+  }));
+  const artificiallyForged={...original,directCanonicalBindings:14,
+    nonOwnerBindings:13,
+    principals:[...original.principals,...extraBindings]};
+  const forgedBaseline={...baseline,knownDirectBindings:[
+    ...baseline.knownDirectBindings,
+    ...extraBindings.map(x=>({script:x.script,binding:x.binding}))
+  ]};
+  const verdict=compareKnownUnsafeFleet(artificiallyForged,forgedBaseline);
+  assert.equal(verdict.newBindings.length,0);
+  assert.equal(verdict.strictDriftPass,false);
 });
 test("baseline is unsafe history, never authorization; added bindings and cron are refused",()=>{
   const report=assessDeployedCanonicalD1Principals(params);
