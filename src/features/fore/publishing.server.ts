@@ -4671,13 +4671,13 @@ export async function advancePublishingReleaseSchedules(db: PublishingDB) {
   // final owner commit fails. Recover recorded holds before the lifecycle
   // query, which intentionally selects only still-due releases.
   const recovery = hasPublicationOwner(db) ? await dispatchPublicationRecovery(db) : null;
-  const atMs = Date.now(),
+  const atMs = Date.now(), atSeconds = Math.floor(atMs / 1000),
     rows = (
       await db
         .prepare(
-          `SELECT l.*,pv.id version_id,pv.manifest_json,pv.version_number FROM publishing_release_lifecycles l LEFT JOIN publishing_publication_versions pv ON pv.id=COALESCE(l.pending_publication_version_id,l.current_publication_version_id) WHERE l.state IN ('scheduled','preorder') ORDER BY l.updated_at LIMIT 500`,
+          `SELECT l.*,pv.id version_id,pv.manifest_json,pv.version_number FROM publishing_release_lifecycles l LEFT JOIN publishing_publication_versions pv ON pv.id=COALESCE(l.pending_publication_version_id,l.current_publication_version_id) WHERE l.state IN ('scheduled','preorder') AND CASE WHEN json_valid(pv.manifest_json) THEN (CAST(strftime('%s',json_extract(pv.manifest_json,'$.metadata.releaseDate')) AS INTEGER)<=? OR (l.state='scheduled' AND l.pending_publication_version_id IS NULL AND CAST(strftime('%s',json_extract(pv.manifest_json,'$.metadata.preorderDate')) AS INTEGER)<=?)) ELSE 0 END ORDER BY l.updated_at,l.id LIMIT 500`,
         )
-        .all<any>()
+        .bind(atSeconds, atSeconds).all<any>()
     ).results;
   const advanced: any[] = [];
   for (const row of rows) {
