@@ -4,6 +4,33 @@ export function ownerSettlementDiagnostic(error:unknown):string {
   const message=error.message;
   // These are fixed internal verifier codes, not arbitrary exception text.
   if(/^(?:owner_(?:stripe|settlement)_[a-z_]+|invalid_owner_settlement_command|internal_order_has_stripe_identity)$/.test(message))return message;
+  // Diagnose the exact stage that refused a real hosted Stripe TEST order.
+  // No resource IDs, buyer data, provider bodies or raw exception text are
+  // returned to the QA ingress: only fixed, reviewed classifications.
+  const knownSettlementFailures:Record<string,string>={
+    "Order not found.":"settlement_order_not_found",
+    "Settlement provider does not match canonical tender.":"settlement_tender_mismatch",
+    "Settlement receipt has been superseded.":"settlement_receipt_conflict",
+    "Terminal or invalid order cannot be settled.":"settlement_terminal_order",
+    "Settlement amounts do not balance.":"settlement_amount_mismatch",
+    "Settlement line inventory is invalid or already partially written.":"settlement_line_inventory_invalid",
+    "Settlement reservations do not cover canonical tender.":"settlement_reservation_mismatch",
+    "Settlement product is unavailable.":"settlement_product_unavailable",
+    "Preorder plan cannot accept this settlement.":"settlement_preorder_plan_invalid",
+    "Complete Stripe fee evidence is required before settlement.":"settlement_fee_evidence_missing",
+    "Unbalanced settlement journal.":"settlement_journal_unbalanced",
+    "Settlement commit was not acknowledged.":"settlement_commit_unacknowledged",
+    "Atomic settlement receipt is missing.":"settlement_effects_receipt_missing",
+    "Settlement was revoked before reconciliation.":"settlement_revoked_during_recovery",
+    "isolated_settlement_effect_interruption":"qa_expected_effect_interruption"
+  };
+  if(Object.hasOwn(knownSettlementFailures,message))return knownSettlementFailures[message];
+  if(/^No active royalty contract covers .+ \/ [A-Z]{2} \/ [a-z_]+\.$/.test(message))
+    return "settlement_royalty_contract_missing";
+  if(/^Royalty contract version .+ has no payee splits\.$/.test(message))
+    return "settlement_royalty_splits_missing";
+  if(/^Royalty split must allocate exactly 100% for contract version .+; found [0-9.]+%\.$/.test(message))
+    return "settlement_royalty_splits_invalid";
   const missing=message.match(/no such (table|column):\s*([a-z_][a-z0-9_.]*)/i);
   if(missing)return "missing_"+missing[1].toLowerCase()+":"+missing[2].toLowerCase().slice(0,100);
   if(/too many SQL variables/i.test(message))return "database_parameter_limit";
