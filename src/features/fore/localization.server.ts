@@ -57,6 +57,15 @@ const currencySchema = z
   .toUpperCase()
   .regex(/^[A-Z]{3}$/);
 
+type PaymentMethodRow = {
+  payment_method: string;
+  provider: string;
+  currency: string | null;
+  availability: string;
+  priority: number;
+};
+type TranslationRow = { message_key: string; message_value: string };
+
 const blockedNetworkCodes = new Set(["XX", "T1", "ZZ"]);
 const cookie = (request: Request, key: string) => {
   const raw = request.headers.get("cookie") || "";
@@ -125,6 +134,7 @@ async function marketWithSupportedLocales(
   db: StorefrontDB,
   country: string,
   includeMarkets = false,
+  anonymousLocales?: string[],
 ) {
   // Add an independent presentation-only market list to the same D1 response
   // for anonymous homepage bootstrap. All markets are fresh for THIS request.
@@ -168,21 +178,68 @@ async function marketWithSupportedLocales(
           ORDER BY rowid LIMIT 65
         ) p) homepage_presentation_json`
     : "";
+  // Cookie-free homepage requests have no currency override or account
+  // preference. Negotiate their locale and read its translations/payment
+  // methods in this same primary snapshot, avoiding the dependent D1 batch.
+  // Other callers retain the full preference-aware resolver below.
+  const anonymousPrelude = anonymousLocales ? `WITH RECURSIVE
+    active_market AS MATERIALIZED (
+      SELECT * FROM storefront_markets WHERE country_code=? AND market_status='active'
+    ), active_locales AS MATERIALIZED (
+      SELECT l.*,ml.priority FROM active_market m
+      JOIN storefront_market_locales ml ON ml.country_code=m.country_code AND ml.active=1
+      JOIN storefront_locales l ON l.locale=ml.locale AND l.status='active'
+    ), requested_locales AS MATERIALIZED (
+      SELECT CAST(j.key AS INTEGER) preference,lower(replace(trim(j.value),'_','-')) tag
+      FROM active_market m,json_each(json_insert(?,'$[#]',m.default_locale)) j
+    ), chosen_locale AS MATERIALIZED (
+      SELECT l.* FROM active_locales l ORDER BY
+        COALESCE((SELECT MIN(r.preference*2+CASE WHEN lower(l.locale)=r.tag THEN 0 ELSE 1 END)
+          FROM requested_locales r WHERE lower(l.locale)=r.tag
+            OR lower(l.language_code)=CASE WHEN instr(r.tag,'-')>0
+              THEN substr(r.tag,1,instr(r.tag,'-')-1) ELSE r.tag END),2147483647),
+        l.priority,l.locale LIMIT 1
+    ), locale_chain(locale,depth,seen) AS (
+      SELECT locale,0,','||lower(locale)||',' FROM chosen_locale
+      UNION ALL
+      SELECT l.fallback_locale,c.depth+1,c.seen||lower(l.fallback_locale)||','
+      FROM locale_chain c JOIN storefront_locales l ON l.locale=c.locale AND l.status='active'
+      WHERE l.fallback_locale IS NOT NULL AND c.depth<4
+        AND instr(c.seen,','||lower(l.fallback_locale)||',')=0
+    ), ordered_locales AS (
+      SELECT locale,depth precedence FROM locale_chain
+      UNION ALL SELECT 'en-US',99
+      WHERE NOT EXISTS(SELECT 1 FROM locale_chain WHERE lower(locale)='en-us')
+    )` : "";
+  const anonymousProjection = anonymousLocales ? `,
+    (SELECT json_group_array(json_object('payment_method',payment_method,'provider',provider,
+      'currency',currency,'availability',availability,'priority',priority)) FROM (
+        SELECT * FROM storefront_payment_methods WHERE country_code=m.country_code
+          AND availability='available' AND (currency IS NULL OR currency=upper(m.default_currency))
+        ORDER BY priority,payment_method
+    )) payment_methods_json,
+    (SELECT json_group_array(json_object('message_key',message_key,'message_value',message_value)) FROM (
+      SELECT t.message_key,t.message_value FROM ordered_locales o
+      JOIN ui_translation_bundles b ON b.id=(SELECT id FROM ui_translation_bundles
+        WHERE locale=o.locale AND status='active' ORDER BY version DESC LIMIT 1)
+      JOIN ui_translation_messages t ON t.bundle_id=b.id ORDER BY o.precedence DESC
+    )) translation_messages_json` : "";
   const rows = (
     await db
       .prepare(
-        `SELECT m.*,l.locale active_locale,l.language_code active_language_code,
-          l.direction active_direction,ml.priority active_priority
-          ${marketProjection}
-          FROM storefront_markets m
+        `${anonymousPrelude}
+          SELECT m.*,l.locale active_locale,l.language_code active_language_code,
+          l.direction active_direction,${anonymousLocales ? "l" : "ml"}.priority active_priority
+          ${marketProjection}${anonymousProjection}
+          ${anonymousLocales ? "FROM active_market m LEFT JOIN chosen_locale l ON 1=1" : `FROM storefront_markets m
           LEFT JOIN storefront_market_locales ml
             ON ml.country_code=m.country_code AND ml.active=1
           LEFT JOIN storefront_locales l
             ON l.locale=ml.locale AND l.status='active'
           WHERE m.country_code=? AND m.market_status='active'
-          ORDER BY ml.priority,l.locale`,
+          ORDER BY ml.priority,l.locale`}`,
       )
-      .bind(country)
+      .bind(...(anonymousLocales ? [country, JSON.stringify(anonymousLocales)] : [country]))
       .all<any>()
   ).results;
   const availableMarkets: Awaited<ReturnType<typeof storefrontMarkets>> | undefined =
@@ -208,6 +265,10 @@ async function marketWithSupportedLocales(
     selectedMarket: rows[0] || null,
     availableMarkets,
     homepageRows,
+    anonymousDetails: anonymousLocales && rows[0] ? {
+      paymentMethods: { results: JSON.parse(String(rows[0].payment_methods_json || "[]")) as PaymentMethodRow[] },
+      translationRows: { results: JSON.parse(String(rows[0].translation_messages_json || "[]")) as TranslationRow[] },
+    } : null,
     localeRows: rows
       .filter((row) => row.active_locale)
       .map((row) => ({
@@ -279,6 +340,13 @@ export async function resolveStorefrontContext(
 ): Promise<StorefrontContext> {
   const network = networkCountry(request, fallbackCountry);
   const pref = await preference(db, userId);
+  const prefLocale = String(pref?.locale || cookie(request, "fore-locale") || "").trim();
+  const requestedLocales = [
+    ...(prefLocale ? [prefLocale] : []),
+    ...parseAcceptLanguage(request.headers.get("accept-language") || ""),
+  ];
+  const anonymousLocales = includeMarkets && !userId && !request.headers.has("cookie")
+    ? requestedLocales : undefined;
   const cookieCountry = cookie(request, "fore-storefront-country").toUpperCase();
   const requestedCountry = /^[A-Z]{2}$/.test(String(pref?.country_code || ""))
     ? String(pref.country_code)
@@ -298,35 +366,34 @@ export async function resolveStorefrontContext(
     effectiveCountry = network.country;
     countrySource = network.source;
   }
-  let { selectedMarket, localeRows, availableMarkets, homepageRows } = await marketWithSupportedLocales(
+  let { selectedMarket, localeRows, availableMarkets, homepageRows, anonymousDetails } = await marketWithSupportedLocales(
     db,
     effectiveCountry,
     includeMarkets,
+    anonymousLocales,
   );
   if (!selectedMarket) {
     effectiveCountry = network.country;
     countrySource = network.source;
-    ({ selectedMarket, localeRows, availableMarkets, homepageRows } = await marketWithSupportedLocales(
+    ({ selectedMarket, localeRows, availableMarkets, homepageRows, anonymousDetails } = await marketWithSupportedLocales(
       db,
       effectiveCountry,
       includeMarkets,
+      anonymousLocales,
     ));
   }
   if (!selectedMarket) {
     effectiveCountry = "US";
     countrySource = "default";
-    ({ selectedMarket, localeRows, availableMarkets, homepageRows } = await marketWithSupportedLocales(
+    ({ selectedMarket, localeRows, availableMarkets, homepageRows, anonymousDetails } = await marketWithSupportedLocales(
       db,
       "US",
       includeMarkets,
+      anonymousLocales,
     ));
   }
   if (!selectedMarket) throw new ApiError(503, "No active Cove storefront market is configured.");
 
-  const requestedLocales: string[] = [];
-  const prefLocale = String(pref?.locale || cookie(request, "fore-locale") || "").trim();
-  if (prefLocale) requestedLocales.push(prefLocale);
-  requestedLocales.push(...parseAcceptLanguage(request.headers.get("accept-language") || ""));
   requestedLocales.push(String(selectedMarket.default_locale));
   const loc = chooseSupportedLocale(localeRows, requestedLocales);
   if (!loc) throw new ApiError(503, "This storefront has no active locale configured.");
@@ -353,7 +420,9 @@ export async function resolveStorefrontContext(
   // other. D1.batch sends them in ONE database service round trip instead
   // of two independent session requests; SQL executes sequentially under
   // one consistent D1 session. This read-only batch cannot grant rights.
-  const [paymentMethods, translationRows] = (await db.batch([
+  const [paymentMethods, translationRows] = anonymousDetails
+    ? [anonymousDetails.paymentMethods, anonymousDetails.translationRows]
+    : (await db.batch([
     db
       .prepare(
         `SELECT payment_method,provider,currency,availability,priority FROM storefront_payment_methods

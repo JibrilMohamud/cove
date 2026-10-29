@@ -2187,9 +2187,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "2bf3541927a3f62e35f9d3ee3a0becb53b793f0755ad2aa161617d86a7da29f1",
+      "siteId": "24d4dd184d5855d0eda532cd26eb0f22d07cd978645d240c8ee182b08aa4951e",
       "file": "src/features/fore/localization.server.ts",
-      "line": 593,
+      "line": 662,
       "functionName": "upsertMarket",
       "table": "storefront_markets",
       "operation": "INSERT INTO",

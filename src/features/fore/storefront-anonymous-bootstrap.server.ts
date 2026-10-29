@@ -77,6 +77,9 @@ export async function serveLeanAnonymousBootstrap(
   // No cookie/account data is present. This same canonical resolver also
   // drives resolveStorefrontContext's country for anonymous visitors.
   const trustedCountry = networkCountry(request, env.FORE_DEFAULT_TERRITORY || "US").country;
+  // Admission precedes every primary read. Rejected requests cannot launch
+  // catalog/translation work merely by abandoning their eventual response.
+  await timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180));
   const d1Metrics: { sqlDurationMs?: number; rowsRead?: number; attempts?: number } = {};
   let homepageRows: Record<string, unknown>[] | null = null;
   // Launch the authoritative primary-rights query *before* waiting for
@@ -113,9 +116,8 @@ export async function serveLeanAnonymousBootstrap(
           ),
     ),
   );
-  const [context, , catalog, page] = await Promise.all([
+  const [context, catalog, page] = await Promise.all([
     contextPromise,
-    timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180)),
     // NULL currency means active-market currency is looked up in this SAME
     // live primary D1 statement with the full retail-grant view.
     timed(

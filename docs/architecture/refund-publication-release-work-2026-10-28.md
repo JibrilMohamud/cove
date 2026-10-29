@@ -156,7 +156,49 @@ CNAMEs for apex/www, no attached owned canary, and no remaining temporary
 owned-auth gateway/assets Workers. The stable isolated customer-QA Worker
 remains present with its ingress and temporary signing capability disabled.
 
-## Release decision
+## Anonymous primary context follow-up
+
+The cookie-free bootstrap now negotiates its supported locale, follows the
+bounded translation fallback chain, selects payment methods, and reads the
+market/homepage presentation in one fresh primary statement. It removes the
+dependent payment/translation D1 batch; the separate live territorial retail
+rights statement remains mandatory. Session-bearing requests continue through
+the preference-aware resolver. Native anonymous admission now completes before
+any primary query starts.
+
+Executable checks compare the new snapshot with the original resolver across
+49 country/language pairs, unknown-market fallback, cyclic translation fallback,
+live translation/payment edits and absent active locales. Existing tests retain
+the exact rights-filtered shelf, cookie preferences, supported currencies,
+rate-limit denial and concurrent context/shelf ordering. Typechecking, lint
+baseline and backend build pass. The unchanged `upsertMarket` writer was
+reviewed byte-for-byte; only its source identity/line changed in the inventory.
+All 435 required production owner migrations remain open. Hosted performance
+must be measured on the deployed follow-up revision; local parity is not a
+capacity certificate.
+
+## Acceptance queue verified on main
+
+[PR 425](https://github.com/JibrilMohamud/cove/pull/425) merged at
+`4ad4df3f2b13afc90f16299f8fa8b216be59707d` after six successful browser
+profiles, source, security and screen-reader checks. Owned-ingress
+[run 40792375327](https://github.com/JibrilMohamud/cove/actions/runs/40792375327)
+completed with its original failures retained. Its initial 20-request check
+passed (p95 509 ms). Independently cold 1/4/8/16/32 maxima were
+861/905/1,189/1,135/1,491 ms; warm 32 reached 1,105 ms. Both 100-RPS phases
+failed: 971/2,000 and 844/2,000 valid responses, with 1,029/1,156 dropped
+arrivals and p95 3,544/4,241 ms. Artifact `12862995359` preserves every sample.
+Observed ORD/YYZ ingress is not the required four-region certificate.
+Mobile lab LCP p75 was 1,532 ms; desktop failed its full gate because one
+navigation reached 6,477 ms TTFB despite p75 LCP of 760 ms.
+
+The native main campaign waited pending while the owned job held the shared
+lock, then started after its cleanup; neither pending run was replaced.
+Control-plane reads confirmed the canary detached, apex/www still on Vercel,
+the exact production primary/owner binding and owner enablement `0`.
+These are baseline results before the local anonymous-context follow-up.
+
+## Release decision (unchanged)
 
 The production owner remains disabled. Positive production writer closure,
 production customer certification, all strict hosted/geographic results and
