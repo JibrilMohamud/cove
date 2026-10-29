@@ -9,6 +9,10 @@ type Order={id:string;user_id:string;invoice_number:string;status:string;currenc
 const orderIdPattern=/^[a-zA-Z0-9_-]{8,160}$/;
 const stripeId=(prefix:string)=>new RegExp("^"+prefix+"_[a-zA-Z0-9_-]{4,150}$");
 const integer=(v:unknown)=>Number.isSafeInteger(v)&&Number(v)>0;
+export type CheckoutPaymentWrite=(args:{
+  command:Command;order:Order;stripeStatus:string;paymentMethodTypes:string[];
+  at:string;paymentAttemptId:string
+})=>Promise<{applied:boolean}>;
 function parse(raw:unknown):Command{
   if(!raw||typeof raw!=="object"||Array.isArray(raw))throw Error("invalid_owner_payment_binding");
   const v=raw as Record<string,unknown>;
@@ -20,7 +24,7 @@ function parse(raw:unknown):Command{
     throw Error("invalid_owner_payment_binding");
   return v as Command;
 }
-export async function executeOwnerCheckoutPaymentBinding(env:OwnerEnv,raw:unknown){
+export async function executeOwnerCheckoutPaymentBinding(env:OwnerEnv,raw:unknown,write:CheckoutPaymentWrite){
   const cmd=parse(raw),db=env.PRIMARY_DB;
   const order=await db.prepare("SELECT * FROM commerce_orders WHERE id=? AND user_id=?")
     .bind(cmd.orderId,cmd.userId).first<Order>();
@@ -66,32 +70,14 @@ export async function executeOwnerCheckoutPaymentBinding(env:OwnerEnv,raw:unknow
      !["requires_payment_method","requires_confirmation","requires_action",
        "requires_capture","processing","succeeded"].includes(pi.status))
     throw Error("owner_checkout_provider_scope_mismatch");
-  const at=new Date().toISOString(),
-    attemptId="pay_"+crypto.randomUUID(),
-    details=JSON.stringify({
-      payment_method_types:Array.isArray(pi.payment_method_types)?
-        pi.payment_method_types.slice(0,12):[],
-      capture_method:pi.capture_method
-    });
-  const committed=await db.batch([
-    db.prepare(
-      "UPDATE commerce_orders SET stripe_customer_id=?,stripe_payment_intent_id=?,updated_at=? WHERE id=? AND user_id=? AND quote_id=? AND status IN ('pending_payment','processing','authorized','payment_failed') AND (stripe_payment_intent_id IS NULL OR stripe_payment_intent_id=?) AND (stripe_customer_id IS NULL OR stripe_customer_id=?)"
-    ).bind(cmd.customerId,cmd.paymentIntentId,at,cmd.orderId,cmd.userId,order.quote_id,cmd.paymentIntentId,cmd.customerId),
-    db.prepare(
-      "INSERT INTO commerce_payment_attempts(id,order_id,provider,provider_payment_id,status,amount_minor,currency,provider_payload_json,created_at,updated_at) SELECT ?,o.id,'stripe',?,?,?,?,?,?,? FROM commerce_orders o WHERE o.id=? AND o.user_id=? AND o.stripe_payment_intent_id=? AND o.stripe_customer_id=? AND NOT EXISTS (SELECT 1 FROM commerce_payment_attempts pa WHERE pa.order_id=o.id AND pa.provider_payment_id=?)"
-    ).bind(attemptId,cmd.paymentIntentId,pi.status,Number(order.stripe_due_minor),order.currency,details,at,at,
-      cmd.orderId,cmd.userId,cmd.paymentIntentId,cmd.customerId,cmd.paymentIntentId)
-  ]) as Array<{meta?:{changes?:number}}>;
-  const bound=await db.prepare(
-    "SELECT id,stripe_payment_intent_id,stripe_customer_id FROM commerce_orders WHERE id=? AND user_id=?"
-  ).bind(cmd.orderId,cmd.userId).first<{id:string;stripe_payment_intent_id:string;stripe_customer_id:string}>();
-  const attempt=await db.prepare(
-    "SELECT id FROM commerce_payment_attempts WHERE order_id=? AND provider_payment_id=?"
-  ).bind(cmd.orderId,cmd.paymentIntentId).first<{id:string}>();
-  if(bound?.stripe_payment_intent_id!==cmd.paymentIntentId||
-     bound.stripe_customer_id!==cmd.customerId||!attempt)
-    throw Error("owner_checkout_payment_binding_unconfirmed");
+  // The executor owns all provider, buyer and order validation. The actual
+  // canonical SQL is implemented only inside the excluded private DO worker,
+  // never in an importable non-owner module or a caller-selected SQL RPC.
+  const at=new Date().toISOString();
+  const {applied}=await write({command:cmd,order,
+    stripeStatus:pi.status,paymentMethodTypes:Array.isArray(pi.payment_method_types)?
+      pi.payment_method_types.slice(0,12):[],at,paymentAttemptId:"pay_"+crypto.randomUUID()});
   return {schema:"cove.owner-checkout-payment-binding.v1",orderId:cmd.orderId,
     userId:cmd.userId,paymentIntentId:cmd.paymentIntentId,customerId:cmd.customerId,
-    stripeDueMinor:Number(order.stripe_due_minor),bound:true,applied:committed[1]?.meta?.changes===1};
+    stripeDueMinor:Number(order.stripe_due_minor),bound:true,applied};
 }
