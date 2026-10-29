@@ -82,6 +82,36 @@ test("baseline is unsafe history, never authorization; added bindings and cron a
   },baseline);
   assert.equal(forgedOwner.strictDriftPass,false);
 });
+test("historic QA publication drivers must retain disabled public ingress even without D1 binding",()=>{
+  const driver="cove-pub-39936418754-driver";
+  const input={
+    ...params,
+    scripts:[...params.scripts,{id:driver}],
+    settingsByName:{...params.settingsByName,[driver]:{
+      bindings:[{type:"secret_text",name:"GATE"},
+        {type:"service",name:"CAPTURE",service:"cove-pub-39936418754-capture"}]}},
+    schedulesByName:{...params.schedulesByName,[driver]:[]},
+    subdomainsByName:{...params.subdomainsByName,[driver]:{
+      enabled:false,previews_enabled:false}}
+  };
+  const safe=assessDeployedCanonicalD1Principals(input);
+  assert.equal(safe.legacyPublicationDriversInspected,1);
+  assert.equal(safe.unsafeLegacyDriverIngress,0);
+  const baseline={schema:"cove.canonical-d1-unsafe-principal-baseline.v1",certified:false,
+    canonicalD1:CANONICAL_D1,knownDirectBindings:[
+      {script:OWNER_SCRIPT,binding:"PRIMARY_DB"},
+      {script:"cove-disabled-qa",binding:"SOURCE_DB"}],
+    knownSchedules:{"cove-disabled-qa":["* * * * *"]}};
+  assert.equal(compareKnownUnsafeFleet(safe,baseline).strictDriftPass,true);
+  const reopened=assessDeployedCanonicalD1Principals({...input,
+    subdomainsByName:{...input.subdomainsByName,[driver]:{
+      enabled:true,previews_enabled:false}}});
+  assert.equal(reopened.unsafeLegacyDriverIngress,1);
+  assert.ok(reopened.blockerCodes.includes("historical_qa_driver_public_ingress_reopened"));
+  assert.equal(compareKnownUnsafeFleet(reopened,baseline).strictDriftPass,false);
+  assert.throws(()=>assessDeployedCanonicalD1Principals({...input,
+    schedulesByName:params.schedulesByName}),/Missing legacy driver schedules/);
+});
 test("missing binding/schedule/public ingress or duplicate Worker inventory fails closed",()=>{
   assert.throws(()=>assessDeployedCanonicalD1Principals({...params,
     settingsByName:{[OWNER_SCRIPT]:owner}}),/Missing deployed Worker settings/);
