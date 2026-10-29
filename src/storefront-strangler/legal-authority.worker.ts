@@ -133,6 +133,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/order/settle",
       "/commercial/order/recover-settlements",
       "/commercial/refund/reserve",
+      "/commercial/checkout/register-stripe-customer",
       "/commercial/checkout/attach-payment-intent",
       "/commercial/payment/update-state",
       "/commercial/webhook/claim",
@@ -525,6 +526,56 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         return Response.json({schema:"cove.paid-order-revocation.v1",
           orderDenied:true,reconciled:true,orderId:input.orderId,
           operationId:input.operationId},{status:200,headers:noStore});
+      }
+      if(route==="/commercial/checkout/register-stripe-customer"){
+        if(!raw||typeof raw!=="object"||Array.isArray(raw))
+          throw Error("owner_stripe_customer_invalid");
+        const c=raw as {userId?:unknown;customerId?:unknown};
+        if(Object.keys(c).sort().join(",")!=="customerId,userId"||
+          typeof c.userId!=="string"||!/^[a-zA-Z0-9_-]{8,160}$/.test(c.userId)||
+          typeof c.customerId!=="string"||!/^cus_[a-zA-Z0-9_-]{4,150}$/.test(c.customerId))
+          throw Error("owner_stripe_customer_invalid");
+        const live=env.STRIPE_LIVEMODE==="true",secret=env.STRIPE_SECRET_KEY||"";
+        if(!(live?/^(sk|rk)_live_/:/^(sk|rk|rkcs)_test_/).test(secret))
+          throw Error("owner_stripe_customer_verifier_unavailable");
+        const reply=await fetch(
+          "https://api.stripe.com/v1/customers/"+encodeURIComponent(c.customerId),
+          {headers:{authorization:"Bearer "+secret},redirect:"manual",signal:AbortSignal.timeout(15_000)}
+        );
+        if(reply.status!==200)throw Error("owner_stripe_customer_provider_unavailable");
+        const bytes=await reply.text();
+        if(bytes.length>32768)throw Error("owner_stripe_customer_provider_receipt_oversize");
+        let customer:{object?:unknown;id?:unknown;livemode?:unknown;deleted?:unknown;
+          metadata?:{fore_user_id?:unknown};email?:unknown};
+        try{customer=JSON.parse(bytes);}catch{throw Error("owner_stripe_customer_provider_receipt_invalid");}
+        if(customer.object!=="customer"||customer.deleted===true||
+          customer.id!==c.customerId||customer.livemode!==live||
+          customer.metadata?.fore_user_id!==c.userId)
+          throw Error("owner_stripe_customer_provider_identity_mismatch");
+        const email=typeof customer.email==="string"?customer.email.trim().toLowerCase():"";
+        if(email.length>254)throw Error("owner_stripe_customer_provider_email_invalid");
+        const already=await env.PRIMARY_DB.prepare(
+          "SELECT user_id FROM commerce_customers WHERE stripe_customer_id=?"
+        ).bind(c.customerId).first<{user_id:string}>();
+        if(already&&already.user_id!==c.userId)
+          throw Error("owner_stripe_customer_already_assigned");
+        const present=await env.PRIMARY_DB.prepare(
+          "SELECT stripe_customer_id FROM commerce_customers WHERE user_id=?"
+        ).bind(c.userId).first<{stripe_customer_id:string|null}>();
+        if(present?.stripe_customer_id&&present.stripe_customer_id!==c.customerId)
+          throw Error("owner_stripe_customer_identity_immutable");
+        const at=new Date().toISOString();
+        const changed=await env.PRIMARY_DB.prepare(
+          "INSERT INTO commerce_customers(user_id,stripe_customer_id,email,created_at,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET email=excluded.email,updated_at=excluded.updated_at,stripe_customer_id=excluded.stripe_customer_id WHERE commerce_customers.stripe_customer_id IS NULL OR commerce_customers.stripe_customer_id=excluded.stripe_customer_id"
+        ).bind(c.userId,c.customerId,email,at,at).run() as {meta?:{changes?:number}};
+        const confirmed=await env.PRIMARY_DB.prepare(
+          "SELECT stripe_customer_id FROM commerce_customers WHERE user_id=?"
+        ).bind(c.userId).first<{stripe_customer_id:string|null}>();
+        if(confirmed?.stripe_customer_id!==c.customerId)
+          throw Error("owner_stripe_customer_binding_unconfirmed");
+        return Response.json({schema:"cove.owner-stripe-customer.v1",
+          userId:c.userId,customerId:c.customerId,bound:true,applied:!present&&changed.meta?.changes===1},
+          {headers:noStore});
       }
       if(route==="/commercial/checkout/attach-payment-intent"){
         const receipt=await executeOwnerCheckoutPaymentBinding(env,raw,async input=>{
