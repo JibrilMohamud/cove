@@ -98,7 +98,7 @@ try{
 
   // Exercise the production schedule SELECT, not a reimplementation: 510 old
   // future releases must not monopolize the 500-row cap ahead of a due title.
-  const found=source.match(/`(SELECT l\\.\\*,pv\\.id version_id,pv\\.manifest_json,pv\\.version_number FROM publishing_release_lifecycles l[^`]+LIMIT 500)`/);
+  const found=source.match(/`(SELECT l\.\*,pv\.id version_id,pv\.manifest_json,pv\.version_number FROM publishing_release_lifecycles l[^`]+LIMIT 500)`/);
   assert.ok(found,"Missing production bounded schedule query");
   db.exec("CREATE TABLE publishing_release_lifecycles(id TEXT PRIMARY KEY,state TEXT,updated_at TEXT,pending_publication_version_id TEXT,current_publication_version_id TEXT)");
   db.exec("CREATE TABLE publishing_publication_versions(id TEXT PRIMARY KEY,manifest_json TEXT,version_number INTEGER)");
