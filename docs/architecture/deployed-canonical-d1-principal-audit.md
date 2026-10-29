@@ -37,11 +37,19 @@ An exact-state, live Cloudflare deployment operation retired **43** historical `
 
 For each capture, `PATCH /workers/scripts/{name}/settings` changed only the binding list and capture flag: removed production `SOURCE_DB`, retained independent `PUBLIC_SOURCE_DB`, and set `COVE_PUBLICATION_CAPTURE_ENABLED=0`. The Workers and data were not deleted. The live API confirmed **43/43** have the expected settings and a single new Worker version at **100% traffic**. Zero patch or verification errors.
 
-A separate complete account readback confirmed **450 Worker scripts**, now **14** directly bound to production D1 (13 non-owner + 1 currently-disabled legal owner), down from **57** (56 non-owner + owner). That is **43 actual credential/capability removals**, not an audit classification change.
+A separate complete account readback confirmed **450 Worker scripts**, initially **14** directly bound to production D1 (13 non-owner + 1 currently-disabled legal owner) after the 43 capture retirements, down from **57** (56 non-owner + owner). That is **43 actual credential/capability removals**, not an audit classification change.
 
 The exact 43 Worker names and break-glass restore schema are preserved in `docs/architecture/historical-publication-capture-d1-isolation-20261029.json`. The unsafe baseline was reduced from 57 to 14; restoring a previously retired canonical D1 binding is now a **new binding regression** and fails the protected drift audit. The audit additionally checks that none of the 43 retired captures is re-enabled even without a production D1 binding.
 
 **Still blocked:** The 13 remaining non-owner D1 bindings include the live backend, customer/fast gateways, scheduled literary processing, production Sounds publication, continuous publication QA capture, and storefront SSR staging. These require separately validated domain write migration or retirement. The 426 source-level owner-required SQL findings remain unresolved, and Stripe + protected media/rollback certification is still missing. The separate owner is still disabled and no public routing was changed. This retirement does **not** certify production authorization.
+
+## Two additional disabled literary Workers isolated (2026-10-29)
+
+After the 43 legacy capture reductions, the account-wide audit and fresh preflight confirmed that `cove-literary-handoff-isolated-disabled` and `cove-literary-prepare-isolated-disabled` were unreachable via cron, Workers.dev, custom routes or incoming service calls, with all execution flags set to `0`. Each Worker previously held both the canonical production `DB` binding and the separate `CONTENT_DB` binding. I removed only the canonical `DB` binding, preserved content D1/R2, and confirmed the new deployment at **100%** traffic. I also updated the checked-in disabled Wrangler configurations so redeployment does not restore canonical access.
+
+The resulting production live inventory is **12 direct canonical D1 bindings: 11 non-owner plus the disabled legal owner**. This is **45 removed non-owner D1 bindings** from the previous 56, while 426 direct canonical SQL mutation findings remain unresolved. The two-Worker evidence and guarded rollback are in `docs/architecture/disabled-literary-d1-binding-retirement-20261029.json`.
+
+Active literary processing, scheduled publication and Sounds jobs, commerce and storefront workers, and other reachable services were explicitly **not** modified. These need owner-first command migration or separate production-safe isolation.
 
 ## Required retirement sequence
 
