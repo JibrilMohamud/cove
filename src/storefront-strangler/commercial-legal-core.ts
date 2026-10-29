@@ -80,10 +80,18 @@ export function createCommercialAuthoritySchema(sql:AuthoritySql){
     operation_id TEXT PRIMARY KEY,product_id TEXT NOT NULL,
     command_sha256 TEXT NOT NULL,epoch INTEGER NOT NULL CHECK(epoch>0),
     state TEXT NOT NULL CHECK(state IN ('pending','committed')),
-    result_json TEXT,published_epoch INTEGER
+    result_json TEXT,published_epoch INTEGER,recovery_json TEXT
   ) WITHOUT ROWID`);
+  const commandSchema=sql.exec<{sql:string}>(
+    "SELECT sql FROM sqlite_master WHERE type='table' AND name='cove_publication_commands'").toArray()[0];
+  if(!/\brecovery_json\s+TEXT\b/i.test(commandSchema?.sql||""))
+    sql.exec("ALTER TABLE cove_publication_commands ADD COLUMN recovery_json TEXT");
   sql.exec(`CREATE UNIQUE INDEX IF NOT EXISTS cove_publication_one_pending_product
     ON cove_publication_commands(product_id) WHERE state='pending'`);
+  sql.exec(`CREATE TABLE IF NOT EXISTS cove_publication_recovery_scan(
+    id INTEGER PRIMARY KEY CHECK(id=1),after_operation_id TEXT NOT NULL
+  )`);
+  sql.exec("INSERT OR IGNORE INTO cove_publication_recovery_scan(id,after_operation_id) VALUES(1,'')");
 }
 type EpochRow={epoch:number;verdict:"deny"|"allow"};
 const current=(sql:AuthoritySql,id:string)=>

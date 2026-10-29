@@ -7,7 +7,8 @@ import { authorizeStorefrontPresentationIds, type CatalogDB } from "../features/
 import { resolveProductRights } from "../features/fore/rights.server";
 import {activatePublicationVersionOwned} from "../features/fore/publishing.server";
 import {executePublicationPreorder} from "./publication-preorder-command";
-import {beginPublicationCommand,commitPublicationCommand,readPublicationCommand,markPublicationPublished} from "./publication-command-core";
+import {beginPublicationCommand,commitPublicationCommand,readPublicationCommand,markPublicationPublished,recordPublicationRecovery} from "./publication-command-core";
+import {recoverPublicationCommands} from "./publication-command-recovery";
 import {
   captureEntitlementEpoch,createPaidEntitlementSchema,
   denyPaidOrder,denyPaidEntitlement,denyPaidEntitlementsBatch,
@@ -64,6 +65,7 @@ function qaOwnerLeaseLive(env:LegalAuthorityEnv) {
 
 export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
   private publicationExecutions=new Set<string>();
+  private publicationRecoveryRunning=false;
   constructor(ctx: { storage: { sql: unknown } }, env: LegalAuthorityEnv) {
     super(ctx, env);
     createAuthoritySchema(ctx.storage.sql as unknown as AuthoritySql);
@@ -118,6 +120,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/entitlement/publish-order-verified",
       "/publication/activate-version",
       "/publication/open-preorder",
+      "/publication/recover-recorded",
       "/commercial/entitlement/authorize"].includes(route))
       return new Response(null,{status:404,headers:noStore});
     if (request.headers.get("content-type")?.split(";")[0]?.trim()!=="application/json")
@@ -130,6 +133,22 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     }catch {return new Response(null,{status:400,headers:noStore});}
     const sql=this.ctx.storage.sql as unknown as AuthoritySql;
     try {
+      if(route==="/publication/recover-recorded") {
+        const input=raw as {operationId?:unknown}|null;
+        if(!input||Object.keys(input).join(",")!=="operationId"||
+          typeof input.operationId!=="string"||!/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,95}$/.test(input.operationId))
+          return new Response(null,{status:400,headers:noStore});
+        if(this.publicationRecoveryRunning)return new Response(null,{status:409,headers:noStore});
+        this.publicationRecoveryRunning=true;
+        try {
+          const result=await recoverPublicationCommands(sql,(path,body)=>this.fetch(new Request(
+            "https://legal-authority.internal"+path,{method:"POST",headers:{
+              authorization:"Bearer "+env.COVE_RIGHTS_OWNER_SECRET,"content-type":"application/json"
+            },body:JSON.stringify(body)})));
+          return Response.json({schema:"cove.publication-recovery.v1",ownerFirst:true,
+            operationId:input.operationId,...result},{headers:noStore});
+        } finally {this.publicationRecoveryRunning=false;}
+      }
       if(route==="/publication/open-preorder") {
         const storage=this.ctx.storage as typeof this.ctx.storage & {transactionSync<T>(fn:()=>T):T};
         return await executePublicationPreorder({primary:env.PRIMARY_DB,sql,
@@ -273,6 +292,10 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         }
         const command=storage.transactionSync(()=>{
           const pending=beginPublicationCommand(sql,identity);
+          if(!resuming)recordPublicationRecovery(sql,identity,"/publication/activate-version",{
+            publicationVersionId:input.publicationVersionId,actorUserId:input.actorUserId,
+            triggerType:input.triggerType,territory:input.territory,currency:input.currency
+          });
           retiring.forEach((subject,index)=>denyCommercialSubject(sql,{
             ...subject,operationId:"publication:"+identity.operationId+":retire:"+index
           }));

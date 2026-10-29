@@ -106,7 +106,11 @@ try {
         release_state:"live",created_by_user_id:"user_owner_publication",created_at:at});
       primary.prepare("UPDATE publishing_release_lifecycles SET current_publication_version_id='pubv_owner_previous',state='scheduled'").run();
     }
-    const sql={exec(query,...args){const q=owned.prepare(query);
+    let failMarkPublished=false;
+    const sql={exec(query,...args){
+      if(failMarkPublished&&/UPDATE cove_publication_commands SET published_epoch/.test(query))
+        throw Error("simulated_final_publication_epoch_interruption");
+      const q=owned.prepare(query);
       const rows=q.columns().length?q.all(...args):(q.run(...args),[]);return {toArray:()=>rows};}};
     let beforeWrite=null,reads=0,writes=0,failWrites=false,failOwnerCommit=false;
     const DB={prepare(query){
@@ -143,6 +147,7 @@ try {
       preorder:(overrides={})=>post("/publication/open-preorder",{operationId:"preorder:test:01",publicationVersionId:versionId,territory:"US",currency:"USD",...overrides}),
       setBeforeWrite(fn){beforeWrite=fn;},setFailWrites(value){failWrites=value;},
       setFailOwnerCommit(value){failOwnerCommit=value;},
+      setFailMarkPublished(value){failMarkPublished=value;},
       restart(){owner=new CoveLegalAuthority(ctx,env);},
       stats:()=>({reads,writes})};
   }
@@ -207,8 +212,11 @@ try {
   const caller=fixture();let dispatched=0;
   const callerDB=routing.bindPublicationOwner(caller.DB,{
     secret,territory:"US",currency:"USD",owner:{async fetch(request){
-      assert.equal(new URL(request.url).pathname,"/publication/activate-version");
-      const input=await request.json();dispatched++;
+      const path=new URL(request.url).pathname,input=await request.json();
+      if(path==="/publication/recover-recorded")return Response.json({
+        schema:"cove.publication-recovery.v1",ownerFirst:true,operationId:input.operationId,
+        checked:0,recovered:0,blocked:0});
+      assert.equal(path,"/publication/activate-version");dispatched++;
       assert.equal(input.publicationVersionId,versionId);
       return Response.json({schema:"cove.publication-activation.v1",ownerFirst:true,
         operationId:input.operationId,publicationVersionId:versionId,state:"live",versionNumber:1});
@@ -344,7 +352,70 @@ try {
   assert.equal(legal.readCommercialProofs(withdrawnPre.sql,[productId],"US","retail").length,0);
   assert.equal((await withdrawnPre.preorder()).status,503,"Replaying old preorder cannot reverse a concurrent withdrawal");
 
+  const ownerDb=f=>routing.bindPublicationOwner(publisher.makeStageLegalWriterLock(f.DB),{
+    secret,territory:"US",currency:"USD",owner:{async fetch(request){
+      return f.post(new URL(request.url).pathname,await request.json());
+    }}
+  });
+  for(const kind of ["activation","preorder","final-positive-marker"]) {
+    const stranded=kind==="preorder"?preorderFixture():fixture();
+    if(kind==="final-positive-marker")stranded.setFailMarkPublished(true);
+    else stranded.setFailOwnerCommit(true);
+    assert.equal((await (kind==="preorder"?stranded.preorder():stranded.activate())).status,503);
+    assert.equal(stranded.primary.prepare("SELECT state FROM publishing_release_lifecycles").get().state,
+      kind==="preorder"?"preorder":"live");
+    const writes=stranded.stats().writes;
+    stranded.restart();stranded.setFailOwnerCommit(false);stranded.setFailMarkPublished(false);
+    const recovered=await publisher.advancePublishingReleaseSchedules(ownerDb(stranded));
+    assert.deepEqual(recovered.recovery,{checked:1,recovered:1,blocked:0},kind+": actual scheduler repairs orphaned owner completion");
+    assert.equal(recovered.advanced.length,0,"Completed live/preorder item is not activated again");
+    assert.equal(stranded.stats().writes,writes,"Recovery performs no primary mutations");
+    assert.equal(legal.readCommercialProofs(stranded.sql,[productId],"US","retail").length,1);
+    assert.deepEqual((await publisher.advancePublishingReleaseSchedules(ownerDb(stranded))).recovery,
+      {checked:0,recovered:0,blocked:0},"Completed recovery leaves no replayable pending work");
+  }
+  const incomplete=preorderFixture();let partialWrites=0;
+  incomplete.setBeforeWrite(()=>{if(++partialWrites===3)incomplete.setFailWrites(true);});
+  assert.equal((await incomplete.preorder()).status,503);
+  const incompleteWrites=incomplete.stats().writes;
+  incomplete.restart();incomplete.setFailWrites(false);incomplete.setBeforeWrite(null);
+  const refused=await incomplete.post("/publication/recover-recorded",{operationId:"recovery:partial"});
+  assert.deepEqual(await refused.json(),{schema:"cove.publication-recovery.v1",ownerFirst:true,
+    operationId:"recovery:partial",checked:1,recovered:0,blocked:1});
+  assert.equal(incomplete.stats().writes,incompleteWrites,"Partial primary command is never blindly replayed");
+  assert.equal(legal.readCommercialProofs(incomplete.sql,[productId],"US","retail").length,0);
+  const stillWithdrawn=await withdrawnPre.post("/publication/recover-recorded",{operationId:"recovery:withdrawn"});
+  assert.equal((await stillWithdrawn.json()).blocked,1,"Recovery cannot reverse concurrent withdrawal");
+  assert.equal(legal.readCommercialProofs(withdrawnPre.sql,[productId],"US","retail").length,0);
+  assert.equal((await incomplete.post("/publication/recover-recorded",{operationId:"recovery:invalid",sql:"not a typed command"})).status,400);
+  const malformedReceipt=routing.bindPublicationOwner(f.DB,{secret,territory:"US",currency:"USD",
+    owner:{async fetch(){return Response.json({schema:"cove.publication-recovery.v1",ownerFirst:true,
+      operationId:"forged",checked:0,recovered:0,blocked:0});}}});
+  await assert.rejects(publisher.advancePublishingReleaseSchedules(malformedReceipt),/did not acknowledge/);
+
+  const rotation=fixture();
+  for(let n=0;n<27;n++)rotation.owned.prepare(
+    "INSERT INTO cove_publication_commands(operation_id,product_id,command_sha256,epoch,state,recovery_json) VALUES(?,?,?,1,'pending',?)"
+  ).run("recovery-blocked:"+String(n).padStart(2,"0"),"prd_recovery_blocked_"+n,"a".repeat(64),"{}");
+  const scan=async id=>(await rotation.post("/publication/recover-recorded",{operationId:id})).json();
+  assert.equal((await scan("scan:first")).checked,25,"Recovery batch is bounded");
+  assert.equal((await scan("scan:second")).checked,2,"Blocked older commands cannot starve later pages");
+  assert.equal((await scan("scan:wrap")).checked,25,"Recovery scan wraps to retry unresolved commands");
+
+  const legacy=fixture();legacy.setFailWrites(true);
+  assert.equal((await legacy.activate()).status,503);
+  const legacyWrites=legacy.stats().writes;
+  legacy.owned.exec("ALTER TABLE cove_publication_commands DROP COLUMN recovery_json");
+  legacy.restart();legacy.setFailWrites(false);
+  assert.ok(legacy.owned.prepare("PRAGMA table_info(cove_publication_commands)").all().some(x=>x.name==="recovery_json"),
+    "Existing owner SQLite journal receives the additive recovery migration");
+  assert.equal((await (await legacy.post("/publication/recover-recorded",{operationId:"recovery:legacy"})).json()).checked,0,
+    "Legacy holds without an immutable recorded envelope are not reconstructed from caller arguments");
+  assert.equal(legacy.stats().writes,legacyWrites);
+  assert.equal(legal.readCommercialProofs(legacy.sql,[productId],"US","retail").length,0);
+
   const unavailable=fixture();unavailable.env.COVE_RIGHTS_OWNER_ENABLED="0";
+  assert.equal((await unavailable.post("/publication/recover-recorded",{operationId:"recovery:disabled"})).status,503);
   assert.equal((await unavailable.activate()).status,503);
   assert.equal(unavailable.stats().writes,0,"Owner outage cannot fall back to caller-side activation writes");
   assert.ok(migrations.length>100);assert.ok(publisher.activatePublicationVersionOwned);

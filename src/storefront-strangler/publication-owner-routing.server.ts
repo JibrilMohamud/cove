@@ -26,6 +26,26 @@ export function bindPublicationOwner<T extends CatalogDB>(db:T,context:Context):
   owners.set(facade,context);return facade;
 }
 export function hasPublicationOwner(db:object){return owners.has(db);}
+export async function dispatchPublicationRecovery(db:object) {
+  const context=owners.get(db);
+  if(!context)throw new ApiError(503,"Publication owner is not configured.");
+  const operationId="publication-recovery:"+crypto.randomUUID();
+  try {
+    const response=await context.owner.fetch(new Request("https://legal-authority.internal/publication/recover-recorded",{
+      method:"POST",headers:{authorization:"Bearer "+context.secret,"content-type":"application/json"},
+      body:JSON.stringify({operationId})
+    }));
+    if(response.status!==200)throw Error("publication_recovery_refused");
+    const result=await response.json() as {schema?:unknown;ownerFirst?:unknown;operationId?:unknown;
+      checked?:unknown;recovered?:unknown;blocked?:unknown}|null;
+    if(!result||result.schema!=="cove.publication-recovery.v1"||result.ownerFirst!==true||
+      result.operationId!==operationId||[result.checked,result.recovered,result.blocked]
+        .some(n=>!Number.isSafeInteger(n)||Number(n)<0||Number(n)>25)||
+      Number(result.recovered)+Number(result.blocked)!==result.checked)
+      throw Error("publication_recovery_receipt_mismatch");
+    return {checked:Number(result.checked),recovered:Number(result.recovered),blocked:Number(result.blocked)};
+  } catch {throw new ApiError(503,"Publication recovery owner did not acknowledge completion.");}
+}
 export function scopePublicationOwnerEnv<T extends {
   DB:CatalogDB;COVE_PUBLICATION_COMMANDS_ENABLED?:string;COVE_SSR_STAGING?:string;
   COVE_LEGAL_WRITER_PRIMARY_ID?:string;COVE_RIGHTS_OWNER_SECRET?:string;

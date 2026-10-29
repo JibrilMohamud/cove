@@ -30,6 +30,7 @@ import {
   hasPublicationOwner,
   dispatchPublicationActivation,
   dispatchPublicationPreorder,
+  dispatchPublicationRecovery,
 } from "../../storefront-strangler/publication-owner-routing.server";
 
 export type PublishingDB = {
@@ -4666,6 +4667,10 @@ export async function openPublicationPreorderOwned(db: PublishingDB, publication
 }
 
 export async function advancePublishingReleaseSchedules(db: PublishingDB) {
+  // A complete primary activation can already be live/preorder when its
+  // final owner commit fails. Recover recorded holds before the lifecycle
+  // query, which intentionally selects only still-due releases.
+  const recovery = hasPublicationOwner(db) ? await dispatchPublicationRecovery(db) : null;
   const atMs = Date.now(),
     rows = (
       await db
@@ -4698,7 +4703,7 @@ export async function advancePublishingReleaseSchedules(db: PublishingDB) {
       );
     }
   }
-  return { checked: rows.length, advanced };
+  return { checked: rows.length, advanced, ...(recovery ? { recovery } : {}) };
 }
 
 export async function rollbackPublishingVersion(

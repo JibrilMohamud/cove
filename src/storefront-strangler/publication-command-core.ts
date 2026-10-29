@@ -6,7 +6,8 @@ export type PublicationCommandIdentity={
   operationId:string;productId:string;commandSha256:string;
 };
 type CommandRow={operation_id:string;product_id:string;command_sha256:string;
-  epoch:number;state:"pending"|"committed";result_json:string|null;published_epoch:number|null};
+  epoch:number;state:"pending"|"committed";result_json:string|null;published_epoch:number|null;
+  recovery_json:string|null};
 function validate(raw:PublicationCommandIdentity) {
   if(!raw||typeof raw.operationId!=="string"||
     !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,95}$/.test(raw.operationId)||
@@ -16,6 +17,22 @@ function validate(raw:PublicationCommandIdentity) {
 export function readPublicationCommand(sql:AuthoritySql,operationId:string) {
   return sql.exec<CommandRow>("SELECT * FROM cove_publication_commands WHERE operation_id=?",
     operationId).toArray()[0]??null;
+}
+/** Record only the typed, already validated command in the same transaction
+ * as its durable hold. The recovery runner never accepts caller-supplied SQL
+ * or infers a positive transition from an incomplete canonical write. */
+export function recordPublicationRecovery(sql:AuthoritySql,input:PublicationCommandIdentity,
+  route:"/publication/activate-version"|"/publication/open-preorder",body:Record<string,unknown>) {
+  validate(input);
+  const row=readPublicationCommand(sql,input.operationId);
+  const encoded=JSON.stringify({route,body:{...body,operationId:input.operationId}});
+  if(!row||row.product_id!==input.productId||row.command_sha256!==input.commandSha256||
+    encoded.length>2048||row.recovery_json!==null&&row.recovery_json!==encoded)
+    throw Error("publication_recovery_scope_collision");
+  // Legacy journal entries retain their denial and require explicit repair.
+  // Never retrofit an old hold from newly supplied command arguments.
+  if(row.recovery_json===null)
+    sql.exec("UPDATE cove_publication_commands SET recovery_json=? WHERE operation_id=?",encoded,input.operationId);
 }
 /** Execute inside transactionSync. Nothing is allowed to publish until a
  * matching command finishes. A failed/interrupted primary command retains

@@ -10,6 +10,13 @@ on:
       - "scripts/check-covereads-owned-canary-live.mjs"
       - "scripts/covereads-owned-canary-domain.mjs"
       - "src/cloudflare/staging-auth-gateway.mjs"
+      - "src/server.ts"
+      - "src/lib/persistence-backend.ts"
+      - "src/features/fore/storefront-*.ts"
+      - "src/features/fore/localization.server.ts"
+      - "src/features/fore/search.server.ts"
+      - "src/features/fore/catalog-model.server.ts"
+      - "src/features/fore/Store.tsx"
       - "wrangler.staging-auth-gateway.test.toml"
       - "wrangler.frontend.production.toml"
       - "wrangler.frontend.staging.toml"
@@ -25,6 +32,13 @@ on:
       - "scripts/performance/prepare-owned-cold-trial.mjs"
       - "scripts/check-covereads-owned-canary-live.mjs"
       - "src/cloudflare/staging-auth-gateway.mjs"
+      - "src/server.ts"
+      - "src/lib/persistence-backend.ts"
+      - "src/features/fore/storefront-*.ts"
+      - "src/features/fore/localization.server.ts"
+      - "src/features/fore/search.server.ts"
+      - "src/features/fore/catalog-model.server.ts"
+      - "src/features/fore/Store.tsx"
   workflow_dispatch:
 
 permissions:

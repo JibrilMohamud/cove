@@ -4,7 +4,7 @@ import {openPublicationPreorderOwned} from "../features/fore/publishing.server";
 import type {AuthoritySql} from "./legal-authority-core";
 import {commercialProductId} from "./commercial-legal-core";
 import {marketIsWithdrawn} from "./market-authority-core";
-import {beginPublicationCommand,commitPublicationCommand,markPublicationPublished,readPublicationCommand} from "./publication-command-core";
+import {beginPublicationCommand,commitPublicationCommand,markPublicationPublished,readPublicationCommand,recordPublicationRecovery} from "./publication-command-core";
 
 type Context={
   primary:CatalogDB;sql:AuthoritySql;executing:Set<string>;
@@ -70,7 +70,13 @@ export async function executePublicationPreorder(context:Context,raw:unknown):Pr
       identity.operationId=pending.operation_id;
     const resuming=readPublicationCommand(sql,identity.operationId)!==null;
     if(version.state==="preorder"&&!resuming)return new Response(null,{status:409,headers:noStore});
-    const command=context.transactionSync(()=>beginPublicationCommand(sql,identity));
+    const command=context.transactionSync(()=>{
+      const held=beginPublicationCommand(sql,identity);
+      if(!resuming)recordPublicationRecovery(sql,identity,"/publication/open-preorder",{
+        publicationVersionId:input.publicationVersionId,territory:input.territory,currency:input.currency
+      });
+      return held;
+    });
     let result:{publicationVersionId:string;state:string;versionNumber:number};
     if(version.state==="preorder") {
       result={publicationVersionId:input.publicationVersionId,state:"preorder",versionNumber:Number(version.version_number)};
