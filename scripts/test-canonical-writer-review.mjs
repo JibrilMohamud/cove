@@ -97,6 +97,8 @@ assert.throws(()=>assertFrozenExceptionLineage([...review.sites,another]),/New o
 const withoutOne=review.sites.filter(x=>x!==legacy);
 assert.equal(assertFrozenExceptionLineage(withoutOne),true,
   "A genuinely deleted authorizing SQL site may lower the open count");
+assert.equal(reconcileWriterSites(current,{...review,sites:withoutOne}).unknown.length,1,
+  "The active source must still prevent deleting a review row without removing its SQL");
 
 assert.throws(()=>reconcileWriterSites(current,{...review,sites:review.sites.map(x=>x===legacy?{...x,disposition:"private-owner-qa-executor"}:x)}),/cannot erase legacy/);
 console.log("PASS: "+current.length+" exact SQL sites reconciled; "+(counts["owner-command-required"]||0)+" owner-required; frozen exception lineage prevents reclassification; source edits invalidate review; production release still denied");
