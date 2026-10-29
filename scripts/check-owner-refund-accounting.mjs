@@ -13,7 +13,10 @@ try {
     outfile,bundle:true,platform:"node",format:"esm",target:"node22",logLevel:"silent"});
   const {executeOwnerRefundAccounting:execute}=await import(pathToFileURL(outfile).href);
   const commerce=readFileSync("src/features/fore/commerce.server.ts","utf8");
-  assert.match(commerce,/if \\(env\\.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1"\\)\\s+await reverseRoyaltiesForRefund\\(db, r\\.id\\)/,
+  const legacyRoyaltyGuard='if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")';
+  const position=commerce.indexOf(legacyRoyaltyGuard);
+  assert.ok(position>=0&&commerce.slice(position,position+155)
+    .includes("await reverseRoyaltiesForRefund(db, r.id);"),
     "Enrolled stage owner must own all refund royalty reversals, with no parallel legacy D1 posting");
   const orderId="order_accounting_01",refundId="ref_accounting_01";
   function fixture({denied=true,stripeAmount=100,status="succeeded",provider="re_owner_refund_01",royaltyRows=false,failRoyaltyOnce=false}={}){
