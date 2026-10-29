@@ -23,6 +23,14 @@ Every protected live audit compares the currently deployed bindings and schedule
 
 The protected GitHub workflow `deployed-canonical-d1-principal-audit.yml` runs its unit tests without any credentials on pull requests; on every protected `main` commit, daily at 07:13 UTC, or manual dispatch it rechecks Cloudflare using the existing secrets and uploads a 30-day inventory artifact. `--release-gate` **always fails closed**: a zero-binding inventory alone cannot certify owner-state provenance, Stripe entitlement, denial epochs, payment refunds, capacity, or rollback.
 
+## Completed live ingress restriction (2026-10-29)
+
+After independently inspecting all 43 numbered historical publication QA driver Workers, the team applied and verified `enabled:false,previews_enabled:false` on their Workers.dev subdomain configurations. Exactly 43/43 returned the expected disabled state, with **zero failed writes**. Only the Workers.dev ingress setting changed; no source or capture Workers were deleted, no canonical DB binding was removed, and no schedule, service binding, customer route, or production owner flag was changed.
+
+The verified pre/post/rollback snapshot, including all exact Worker names, is retained in `docs/architecture/legacy-publication-driver-ingress-lockdown-20261029.json`. To reverse a single Worker (only after reviewing its private QA gate), POST `{enabled:true,previews_enabled:false}` to its Cloudflare Worker subdomain settings endpoint. No production customer flow relies on this operation for settlement.
+
+The live fleet auditor now queries the **driver endpoints as well as the canonically bound capture services** and marks any reopened Workers.dev ingress, preview URL, new cron, custom route or account custom domain as a security drift failure. This network restriction reduces externally reachable paths but **does not establish canonical mutation exclusivity**: the capture Workers still have production D1 bindings, and callers using the relevant private service binding may remain.
+
 ## Required retirement sequence
 
 1. Independently record every scheduled/HTTP/queue/service caller for each publication driver, capture, literary and music publisher. Trace the full transitive service-binding graph; a worker with zero direct cron and public ingress may still receive service calls.
