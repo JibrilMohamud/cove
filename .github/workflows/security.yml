@@ -62,6 +62,7 @@ jobs:
         run: |
           npm run test:licensed-epub
           node scripts/check-commercial-epub-token-buyer-scope.mjs
+          node scripts/check-commercial-epub-asset-scope.mjs
       - name: Notification delivery and opt-out regressions
         run: npm run test:notifications-delivery
       - name: Customer support, status and recovery regressions

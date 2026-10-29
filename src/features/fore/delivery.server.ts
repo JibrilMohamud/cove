@@ -882,9 +882,12 @@ export async function serveCommercialEpubGrant(env: CoveEnv, rawToken: string, r
   }
   const asset = await db
     .prepare(
-      "SELECT av.*,da.downloadable,da.drm_status FROM asset_versions av JOIN digital_assets da ON da.id=av.asset_id WHERE av.id=?",
+      // The version embedded in a bearer token must belong to the same
+      // purchased edition and be an EPUB. A stale or incorrectly projected
+      // grant cannot use an unrelated publisher asset as a substitute.
+      "SELECT av.*,da.downloadable,da.drm_status FROM asset_versions av JOIN digital_assets da ON da.id=av.asset_id JOIN products p ON p.edition_id=da.edition_id WHERE av.id=? AND p.id=? AND da.kind='epub'",
     )
-    .bind(grant.asset_version_id)
+    .bind(grant.asset_version_id, grant.product_id)
     .first<any>();
   if (!asset?.object_key)
     return fail(503, "The licensed asset is unavailable from secure storage.", "asset_missing");
