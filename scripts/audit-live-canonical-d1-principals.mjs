@@ -81,6 +81,21 @@ export function assessDeployedCanonicalD1Principals({scripts,settingsByName,
   const owner=bound.filter(x=>x.owner);
   const scheduled=bound.filter(x=>x.crons.length>0);
   const exposed=bound.filter(x=>x.publicWorkersDev||x.customRoutes.length||x.customDomains.length);
+  const historicalDrivers=names.filter(name=>/^cove-pub-\\d+-driver$/.test(name));
+  const legacyDriverExposure=historicalDrivers.map(name=>{
+    const schedule=schedulesByName[name],dev=subdomainsByName[name];
+    assert.ok(Array.isArray(schedule),"Missing legacy driver schedules: "+name);
+    assert.equal(typeof dev?.enabled,"boolean","Missing legacy driver ingress: "+name);
+    const customRoutes=routes.filter(x=>x.script===name).map(x=>x.pattern);
+    const customDomains=domains.filter(x=>x.service===name).map(x=>x.hostname);
+    return {script:name,publicWorkersDev:dev.enabled,
+      previewUrls:dev.previews_enabled===true,crons:schedule,
+      customRoutes,customDomains,
+      incomingServiceBindings:(incoming.get(name)||[]).length};
+  });
+  const unsafeLegacyDrivers=legacyDriverExposure.filter(x=>
+    x.publicWorkersDev||x.previewUrls||x.crons.length||
+    x.customRoutes.length||x.customDomains.length);
   const ownerEnabled=(settingsByName[OWNER_SCRIPT]?.bindings||[]).find(x=>x.name==="COVE_RIGHTS_OWNER_ENABLED")?.text==="1";
   return {
     schema:"cove.deployed-canonical-d1-principal-inventory.v1",
@@ -90,6 +105,9 @@ export function assessDeployedCanonicalD1Principals({scripts,settingsByName,
     nonOwnerBindings:unauthorized.length,
     boundScriptsWithCrons:scheduled.length,
     boundScriptsWithNetworkIngress:exposed.length,
+    legacyPublicationDriversInspected:historicalDrivers.length,
+    unsafeLegacyDriverIngress:unsafeLegacyDrivers.length,
+    legacyDriverExposure,
     ownerEnabled,
     principals:bound,
     blockerCodes:[
@@ -98,6 +116,7 @@ export function assessDeployedCanonicalD1Principals({scripts,settingsByName,
       ...(owner.length!==1?["production_owner_binding_count_invalid"]:[]),
       ...(!ownerEnabled?["production_owner_disabled"]:[]),
       ...(scheduled.some(x=>!x.owner)?["non_owner_cron_can_use_canonical_d1"]:[]),
+      ...(unsafeLegacyDrivers.length?["historical_qa_driver_public_ingress_reopened"]:[]),
     ],
     productionAuthorized:false,
     releaseEligible:false,
@@ -131,7 +150,7 @@ export function compareKnownUnsafeFleet(report,baseline){
     unsafeHistoricalBindingsStillPresent:report.directCanonicalBindings,
     // Even zero drift is not approval of legacy credentials.
     productionAuthorized:false,
-    strictDriftPass:newBindings.length===0&&newSchedules.length===0&&report.ownerEnabled===false};
+    strictDriftPass:newBindings.length===0&&newSchedules.length===0&&report.ownerEnabled===false&&report.unsafeLegacyDriverIngress===0};
 }
 
 /** Read-only. Abort the entire audit if even one Worker settings or owner
@@ -151,7 +170,9 @@ export async function collectCanonicalD1Fleet({fetcher=fetch,token,account,zone}
   const settingsList=await mapBounded(sorted,12,async w=>
     apiGet(fetcher,token,root+"/workers/scripts/"+safeWorker(w.id)+"/settings"));
   const settingsByName=Object.fromEntries(sorted.map((w,i)=>[w.id,settingsList[i]]));
-  const targets=sorted.filter(w=>settingsByName[w.id].bindings?.some(b=>
+  const targets=sorted.filter(w=>
+    /^cove-pub-\\d+-driver$/.test(w.id)||
+    settingsByName[w.id].bindings?.some(b=>
     b.type==="d1"&&(b.id||b.database_id)===CANONICAL_D1));
   const details=await mapBounded(targets,12,async w=>{
     const name=safeWorker(w.id);
