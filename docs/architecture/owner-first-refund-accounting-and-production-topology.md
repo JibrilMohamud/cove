@@ -10,6 +10,16 @@ The owner-side `executeOwnerRefundAccounting` checks the canonical refund-to-ord
 
 Production and un-enrolled flows retain their existing legacy finance writes; **their direct D1 permissions have not been migrated or certified**. The upstream refund intent reservation, Stripe webhooks, tender consumption, settlement, grants, publishing and background writers still require owner-first migration. No feature flag in this PR turns on production owner authorization.
 
+## Owner-scoped royalty reversal and interrupted replay (next migration slice)
+
+The enrolled QA refund-success path previously ran the atomic refund ledger under the owner, **then wrote finance royalty reversals directly using the caller's D1 handle**. That left an alternate financial mutation after the owner receipt.
+
+The private `executeOwnerRefundAccounting` now performs `reverseRoyaltiesForRefund` after its atomic refund posting and succeeded-marker read, before sending the owner receipt. The typed gateway refuses any receipt missing `royaltiesReconciled:true`. An enrolled caller no longer executes `reverseRoyaltiesForRefund` directly. Unenrolled production behavior is preserved until it can be migrated and certified.
+
+The existing royalty reversal generates a deterministic per-sale calculation ID and wraps its calculation, allocations and ledger in one D1 batch. If refund accounting commits and a royalty reversal subsequently fails, the owner does **not** ACK. The strong owner denial persists, and replay skips the already-posted refund while retrying any missing royalty reversals. The adversarial test covers this specific interrupted transition, verifies no duplicate refund/royalty batches and rejects a forged success receipt without reconciled royalties. This does not claim cross-database atomicity: reconciliation after a partial failure is intentionally retry-based under continued denial.
+
+The `commerce.server.ts` edit has been reconciled against all 56 previously reviewed site identities using the actual whole-file SHA-256, unchanged SQL literal digest/function mapping, and exact line shift. The conservative 426 owner-command-required sites remain unresolved; the audit has **not** reclassified any as certified. This implementation is still **isolated QA only**, not an owner-first production rollout.
+
 ## Exact SQL-site review
 
 Editing the large `commerce.server.ts` changed its entire source-file SHA. The 56 affected v1 site IDs were re-derived after verifying that the only source modifications are one import and the guarded accounting call. Every existing SQL literal fingerprint, named function, disposition and `productionOwnerGuarded:false` status remains unchanged. This is a review bookkeeping update, not certification.
