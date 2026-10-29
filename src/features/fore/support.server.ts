@@ -2,6 +2,7 @@ import { z } from "zod/v3";
 import type { CoveEnv } from "./api.server";
 import { ApiError, now } from "./service";
 import { refundOrder } from "./commerce.server";
+import { executeStageCanonicalAdminCommand } from "../../storefront-strangler/legal-admin-owner-commands.server";
 import type { StaffContext } from "./moderation.server";
 
 const id = (p: string) => `${p}_${crypto.randomUUID()}`;
@@ -543,6 +544,37 @@ export async function executeSupportAction(
             "The originating order no longer supports an active sale entitlement. Refund/chargeback state must be resolved through commerce operations.",
           );
       }
+    }
+    // Negative support actions must cross the same strongly consistent
+    // owner boundary as refunds. The owner derives the buyer and product
+    // from canonical evidence; support staff cannot supply either identity.
+    // The private writer commits its durable denial FIRST, then reconciles
+    // the entitlement and related offline-license state in primary D1.
+    // Repeating the same case operation repairs D1 after an owner-first
+    // partial failure, without regranting withdrawn rights.
+    const ownerStaging =
+      env.COVE_SSR_STAGING === "1" ||
+      env.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1" ||
+      env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1";
+    if (ownerStaging) {
+      if (x.actionType === "restore_entitlement")
+        throw new ApiError(
+          503,
+          "Staging entitlement restoration requires fresh owner-verified positive rights.",
+        );
+      const operationId = "support-entitlement:" + (await sha256(x.idempotencyKey));
+      await executeStageCanonicalAdminCommand(env, {
+        action: "revoke-entitlement",
+        entitlementId: x.targetId,
+        operationId,
+      });
+      const after = await db
+        .prepare("SELECT * FROM entitlements WHERE id=?")
+        .bind(x.targetId)
+        .first<any>();
+      if (!after || after.status !== "revoked")
+        throw new ApiError(503, "Owner-first entitlement denial was not reconciled.");
+      return recordAction(db, staff, { ...x, targetType: "entitlement" }, before, after);
     }
     const status = x.actionType === "restore_entitlement" ? "active" : "revoked";
     await db
