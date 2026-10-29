@@ -64,7 +64,12 @@ test("43 retired captures never regain production D1 or restart, and 14-binding 
   const retired=JSON.parse(readFileSync("docs/architecture/historical-publication-capture-d1-isolation-20261029.json","utf8"));
   const baseline=JSON.parse(readFileSync("docs/architecture/deployed-canonical-d1-baseline.json","utf8"));
   assert.equal(retired.scripts.length,43);
-  assert.equal(baseline.knownDirectBindings.length,12);
+  assert.equal(baseline.knownDirectBindings.length,10);
+  assert.equal(baseline.retirementEvidence.totalBindingsRemoved,47);
+  assert.equal(baseline.retirementEvidence.remainingNonOwnerBindings,9);
+  for(const n of ["cove-fast-architecture-qa","cove-fast-customer-gateway"])
+    assert.ok(!baseline.knownDirectBindings.some(x=>x.script===n),
+      "Retired fast gateway cannot be an unsafe legacy binding: "+n);
   assert.equal(baseline.retirementEvidence.totalBindingsRemoved,45);
   assert.equal(baseline.retirementEvidence.remainingNonOwnerBindings,11);
   assert.equal(baseline.certified,false);
