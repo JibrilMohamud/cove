@@ -16,7 +16,10 @@ import { requireStageLegalConsumerProof } from "../../storefront-strangler/legal
 import { revokePaidOrderAccess } from "../../storefront-strangler/paid-order-revocation.server";
 import { postStageOwnerRefundAccounting } from "../../storefront-strangler/owner-refund-accounting.server";
 import { reserveStageOwnerRefundIntent } from "../../storefront-strangler/owner-refund-reservation.server";
-import { claimStageOwnerStripeWebhook, finishStageOwnerStripeWebhook } from "../../storefront-strangler/owner-stripe-webhook.server";
+import {
+  claimStageOwnerStripeWebhook,
+  finishStageOwnerStripeWebhook,
+} from "../../storefront-strangler/owner-stripe-webhook.server";
 import { recordStageOwnerRefundProvider } from "../../storefront-strangler/owner-refund-provider.server";
 import {
   settleStageOwnerPaidOrder,
