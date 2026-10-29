@@ -97,7 +97,7 @@ export async function dispatchCanonicalOwnerCommand(
       break;
     case "commerce.post-refund-accounting":
       if(ack.schema!=="cove.owner-refund-accounting.v1"||ack.ownerDenied!==true||
-        ack.posted!==true||ack.orderId!==body.orderId||ack.refundId!==body.refundId||
+        ack.posted!==true||ack.royaltiesReconciled!==true||ack.orderId!==body.orderId||ack.refundId!==body.refundId||
         typeof ack.applied!=="boolean")
         throw Error("canonical_command_receipt_mismatch");
       break;
