@@ -80,6 +80,52 @@ try {
     /Unbounded/,
   );
   const env = localBindings(root);
+  await build({
+    entryPoints: ["src/features/fore/localization.server.ts"], bundle: true,
+    platform: "node", format: "esm", outfile: path.join(root, "localization.mjs"),
+    logLevel: "silent",
+  });
+  const { resolveStorefrontContext } = await import(path.join(root, "localization.mjs"));
+  // Compare the single-statement anonymous snapshot against the existing
+  // preference-aware resolver, rather than two callers of the new fast path.
+  let snapshotReads = 0;
+  const snapshotDb = new Proxy(env.DB, { get(target, key) {
+    if (key === "prepare") return (sql) => {
+      if (/active_market AS MATERIALIZED/.test(sql)) snapshotReads++;
+      else assert.fail("Anonymous metadata unexpectedly needed a dependent primary query");
+      return target.prepare(sql);
+    };
+    if (key === "batch") return () => assert.fail("Anonymous metadata issued a dependent D1 batch");
+    return Reflect.get(target, key);
+  }});
+  const compareContexts = async (country, language, singleRead = true) => {
+    const request = new Request("https://cove.test/api/fore/storefront/bootstrap", {
+      headers: { "cf-ipcountry": country, "accept-language": language },
+    });
+    const expected = await resolveStorefrontContext(env.DB, request, null);
+    const { availableMarkets, ...actual } = await resolveStorefrontContext(
+      singleRead ? snapshotDb : env.DB, request, null, "US", true,
+    );
+    assert.deepEqual(actual, expected, `${country}/${language}: anonymous snapshot parity`);
+    assert.ok(availableMarkets.length);
+  };
+  for (const country of ["US", "CA", "GB", "SA", "AE", "JP", "DE"])
+    for (const language of ["", "en-GB", "en-US", "fr-CA", "fr-BE", "AR_sa", "zz;q=1, de-DE;q=0.8, en;q=0.5"])
+      await compareContexts(country, language);
+  assert.equal(snapshotReads, 49, "One fresh primary metadata statement per active market visit");
+  await compareContexts("AQ", "fr-CA", false);
+  // New requests observe immediate translation and payment changes.
+  await env.DB.prepare("UPDATE storefront_payment_methods SET availability='disabled' WHERE country_code='AE'").run();
+  await env.DB.prepare("UPDATE storefront_locales SET fallback_locale='ar-AE' WHERE locale='ar-SA'").run();
+  await env.DB.prepare("UPDATE ui_translation_messages SET message_value='Fresh translation' WHERE message_key='account.create' AND bundle_id IN (SELECT id FROM ui_translation_bundles WHERE locale='ar-AE')").run();
+  await compareContexts("AE", "ar-AE");
+  await compareContexts("US", "ar-SA");
+  // A market without any active locale must still fail closed.
+  await env.DB.prepare("UPDATE storefront_market_locales SET active=0 WHERE country_code='AE'").run();
+  await assert.rejects(() => resolveStorefrontContext(env.DB,
+    new Request("https://cove.test", { headers: { "cf-ipcountry": "AE" } }), null, "US", true),
+    /no active locale/);
+  await env.DB.prepare("UPDATE storefront_market_locales SET active=1 WHERE country_code='AE'").run();
   // Guard the cold SSR path itself, not merely its JSON shape: a future
   // refactor must not silently bring large live taxonomy scans back into
   // the render-blocking bootstrap.
@@ -105,7 +151,7 @@ try {
               !/SELECT l\.\*,ml\.priority FROM storefront_market_locales/i.test(sql),
               "first paint must not perform separate supported-locale round trips",
             );
-            if (/FROM storefront_markets m\s+LEFT JOIN storefront_market_locales ml/i.test(sql))
+            if (/FROM storefront_markets m\s+LEFT JOIN storefront_market_locales ml|active_market AS MATERIALIZED/i.test(sql))
               joinedMarketLocaleReads += 1;
             if (/WITH eligible AS MATERIALIZED/i.test(sql)) {
               assert.match(sql, /JOIN eligible selected ON selected\.product_id=p\.id/);
@@ -260,7 +306,7 @@ try {
           };
         if (property === "prepare")
           return (sql) => {
-            if (/FROM storefront_markets m\s+LEFT JOIN storefront_market_locales ml/i.test(sql))
+            if (/FROM storefront_markets m\s+LEFT JOIN storefront_market_locales ml|active_market AS MATERIALIZED/i.test(sql))
               primaryPresentationReads++;
             if (/\beligible AS MATERIALIZED/i.test(sql)) {
               assert.match(sql, /retail_product_availability_rows/i);
@@ -351,10 +397,8 @@ try {
     );
   }
   assert.ok(joinedMarketLocaleReads >= 4, "One live joined market/locale read per bootstrap");
-  assert.ok(
-    localePaymentBatches >= 4,
-    "Every regional canonical context must batch payment metadata and translations",
-  );
+  assert.equal(localePaymentBatches, 0,
+    "Cookie-free regional bootstrap must resolve payments/translations in its first primary read");
   // The generic API serves the current Vercel frontend as well as native
   // SSR. Neither path may regress to the replica bootstrap that exhibited
   // multi-second service stalls. All anonymous reads remain on primary.
@@ -431,7 +475,7 @@ try {
         return (sql) => {
           const statement = target.prepare(sql);
           const isMarket =
-            /FROM storefront_markets m\s+LEFT JOIN storefront_market_locales ml/i.test(sql);
+            /FROM storefront_markets m\s+LEFT JOIN storefront_market_locales ml|active_market AS MATERIALIZED/i.test(sql);
           const isRights = /WITH first_paint_currency\(currency\) AS MATERIALIZED/i.test(sql);
           if (/SELECT m\.\*,\(SELECT GROUP_CONCAT/i.test(sql)) standaloneMarketReads++;
           if (/FROM storefront_pages WHERE path=/i.test(sql)) standalonePageReads++;
@@ -522,6 +566,16 @@ try {
     0,
     "Rate-limited requests cannot launch speculative primary rights queries",
   );
+  let rejectedLeanReads = 0;
+  await assert.rejects(() => serveLeanAnonymousBootstrap(
+    new Request("https://cove.test/api/fore/storefront/bootstrap", { headers: {
+      "x-cove-client-country": "US", "cf-connecting-ip": "203.0.113.125",
+    }}), {
+      ...env, FORE_ENVIRONMENT: "production",
+      DB: { ...env.DB, prepare() { rejectedLeanReads++; throw Error("Unexpected primary read"); } },
+      COVE_STOREFRONT_READ_LIMITER: { limit: async () => ({ success: false }) },
+    }), /Please wait a minute/);
+  assert.equal(rejectedLeanReads, 0, "Rejected lean SSR must launch no primary reads");
 
   assert.ok(
     atomicRightsShelfQueries >= 4,

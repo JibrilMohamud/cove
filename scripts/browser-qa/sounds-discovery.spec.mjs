@@ -56,6 +56,11 @@ test("Cove Sounds atmosphere is instantly available and loads discovery on inten
   await page.getByRole("button", { name: "Check book editions available in my region" }).click();
   await catalogRequest;
   await expect.poll(() => reads.catalog).toBeGreaterThan(0);
+  // All featured-book requests belong to one query. Wait for that query's
+  // settled UI before clicking below its results: WebKit can finish scrolling
+  // the shelf button just before the book cards move it between mouse down/up.
+  // Waiting only for the first request to start does not make this layout stable.
+  await expect(page.getByRole("button", { name: "Refresh available editions" })).toBeEnabled();
   expect(reads.shelves).toBe(0);
 
   const shelvesRequest = page.waitForRequest(
