@@ -1,5 +1,10 @@
 name: deploy-locked-fast-storefront-gateway
 on:
+  pull_request:
+    paths:
+      - "wrangler.storefront-strangler.customer.jsonc"
+      - "scripts/check-locked-customer-gateway-no-d1.mjs"
+      - ".github/workflows/deploy-locked-fast-storefront-gateway.yml"
   push:
     branches: [main]
     paths:
@@ -14,7 +19,18 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  static-gateway-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - run: node scripts/check-locked-customer-gateway-no-d1.mjs
   deploy-off-by-default:
+    needs: static-gateway-proof
     if: github.ref == 'refs/heads/main' && github.repository == 'JibrilMohamud/cove'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -42,8 +58,8 @@ jobs:
           assert.equal(f.name,"cove-fast-customer-gateway");
           assert.equal(f.vars.COVE_STRANGLER_MODE,"customer-gateway");
           assert.equal(f.vars.COVE_STRANGLER_RELEASE_CERTIFIED,"0");
-          assert.equal(f.vars.COVE_STRANGLER_DATABASE_ID,"4bd657ac-8789-403e-a28c-93aba8d0a989");
-          assert.equal(f.d1_databases[0].database_id,f.vars.COVE_STRANGLER_DATABASE_ID);
+          assert.equal(f.vars.COVE_STRANGLER_DATABASE_ID,undefined);
+          assert.equal(f.d1_databases,undefined,"No direct production D1 capability on locked customer gateway");
           assert.equal(f.workers_dev,true);
           assert.ok(!f.routes && !f.route && !f.services && !f.r2_buckets && !f.queues);
           assert.equal(f.vars.COVE_FAST_RELAY_KEY,undefined);
@@ -53,10 +69,31 @@ jobs:
         run: |
           node scripts/check-fast-storefront-relay.mjs
           node scripts/check-storefront-strangler.mjs
+      - name: Prove disabled gateway rejects all paths without a D1 binding
+        run: node scripts/check-locked-customer-gateway-no-d1.mjs
       - name: Compile standalone Worker
         run: node scripts/build-storefront-strangler.mjs
       - name: Deploy disabled customer gateway with no route bindings
         run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.storefront-strangler.customer.jsonc
+      - name: Independently verify deployed Worker lost canonical D1 capability
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          const target="https://api.cloudflare.com/client/v4/accounts/"+process.env.CLOUDFLARE_ACCOUNT_ID+
+            "/workers/scripts/cove-fast-customer-gateway/settings";
+          const response=await fetch(target,{headers:{
+            authorization:"Bearer "+process.env.CLOUDFLARE_API_TOKEN
+          },signal:AbortSignal.timeout(20000)});
+          assert.ok(response.ok,"Cannot attest deployed gateway settings");
+          const json=await response.json();
+          assert.equal(json.success,true);
+          const bs=json.result?.bindings||[];
+          assert.ok(!bs.some(x=>x.type==="d1"),"Deployed gateway regained direct D1");
+          assert.ok(!bs.some(x=>x.name==="COVE_STRANGLER_DATABASE_ID"),"Deployed gateway regained production DB selector");
+          assert.equal(bs.find(x=>x.name==="COVE_STRANGLER_RELEASE_CERTIFIED")?.text,"0");
+          assert.equal(bs.find(x=>x.name==="COVE_STRANGLER_MODE")?.text,"customer-gateway");
+          console.log("PASS: live customer gateway has zero D1 grants and release mode locked");
+          '
       - name: Validate public endpoint cannot serve or leak data
         run: |
           node --input-type=module -e '

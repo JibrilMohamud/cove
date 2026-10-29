@@ -150,6 +150,30 @@ test("a forged expanded baseline cannot increase 12 deployed canonical D1 princi
   assert.equal(verdict.newBindings.length,0);
   assert.equal(verdict.strictDriftPass,false);
 });
+test("production-D1-capable fast architecture QA cannot restore publicly reachable Workers.dev ingress",()=>{
+  const name="cove-fast-architecture-qa";
+  const input={...params,
+    scripts:[...params.scripts,{id:name}],
+    settingsByName:{...params.settingsByName,[name]:{bindings:[
+      {name:"DB",type:"d1",id:CANONICAL_D1},
+      {name:"COVE_STRANGLER_RELEASE_CERTIFIED",type:"plain_text",text:"1"}
+    ]}},
+    schedulesByName:{...params.schedulesByName,[name]:[]},
+    subdomainsByName:{...params.subdomainsByName,[name]:{enabled:false,previews_enabled:false}}};
+  const safe=assessDeployedCanonicalD1Principals(input);
+  assert.equal(safe.unsafeFastArchitectureQAIngress,0);
+  const opened=assessDeployedCanonicalD1Principals({...input,
+    subdomainsByName:{...input.subdomainsByName,[name]:{enabled:true,previews_enabled:false}}});
+  assert.equal(opened.unsafeFastArchitectureQAIngress,1);
+  assert.ok(opened.blockerCodes.includes("production_d1_qa_architecture_public_ingress"));
+  const snapshot={schema:"cove.canonical-d1-unsafe-principal-baseline.v1",
+    certified:false,canonicalD1:CANONICAL_D1,
+    knownDirectBindings:[{script:OWNER_SCRIPT,binding:"PRIMARY_DB"},
+      {script:"cove-disabled-qa",binding:"SOURCE_DB"},{script:name,binding:"DB"}],
+    knownSchedules:{"cove-disabled-qa":["* * * * *"]}};
+  assert.equal(compareKnownUnsafeFleet(safe,snapshot).strictDriftPass,true);
+  assert.equal(compareKnownUnsafeFleet(opened,snapshot).strictDriftPass,false);
+});
 test("baseline is unsafe history, never authorization; added bindings and cron are refused",()=>{
   const report=assessDeployedCanonicalD1Principals(params);
   const baseline={schema:"cove.canonical-d1-unsafe-principal-baseline.v1",certified:false,
