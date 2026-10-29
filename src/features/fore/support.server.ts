@@ -571,7 +571,7 @@ export async function executeSupportAction(
       const after = await db
         .prepare("SELECT * FROM entitlements WHERE id=?")
         .bind(x.targetId)
-        .first<any>();
+        .first<{ id: string; status: string }>();
       if (!after || after.status !== "revoked")
         throw new ApiError(503, "Owner-first entitlement denial was not reconciled.");
       return recordAction(db, staff, { ...x, targetType: "entitlement" }, before, after);
