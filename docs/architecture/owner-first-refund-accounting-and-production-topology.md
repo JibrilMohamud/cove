@@ -20,6 +20,16 @@ The existing royalty reversal generates a deterministic per-sale calculation ID 
 
 The `commerce.server.ts` edit has been reconciled against all 56 previously reviewed site identities using the actual whole-file SHA-256, unchanged SQL literal digest/function mapping, and unchanged source line positions. The conservative 426 owner-command-required sites remain unresolved; the audit has **not** reclassified any as certified. This implementation is still **isolated QA only**, not an owner-first production rollout.
 
+## Owner-scoped Stripe refund provider recording (synthetic QA only)
+
+Both the Stripe refund API response and signed Stripe `refund.updated`/`refund.created` webhook previously wrote `commerce_refunds` provider ID/status using the application D1 handle even when the private owner was enrolled. A failed owner RPC could also run a legacy catch-path status write. Those were alternate financial writers.
+
+The enrolled paths now dispatch `commerce.record-refund-provider` to the private short-lived QA owner; **unenrolled production retains its original D1 writes** until production migration certification. The owner accepts exactly seven typed fields, validates immutable refund/order and Stripe payment-intent IDs, exact Stripe tender amount/currency and an existing strong whole-order denial, then immutably stores the provider refund ID and monotonic status. Out-of-order pending webhook replays cannot downgrade a succeeded refund. A write outage, altered provider ID, wrong payment intent, amount/currency mismatch, missing owner veto, expired QA lease, or non-QA database fails closed with no caller D1 fallback.
+
+The owner **does not independently call Stripe**. It accepts provider evidence only from the private service's Stripe API response or signature-checked webhook; production cutover requires independently certified Stripe provenance and positive/negative rights journeys. A real leased-owner Durable Object regression test exercises the private route, exact replay, ID collision, stale webhook, owner-unavailable and D1 failures. The existing owner ledger/reversal command runs only after provider evidence is persisted and confirmed.
+
+The commerce source fingerprint changed; its **56 reviewed canonical SQL findings were individually reconciled against the exact scanner inventory and unchanged SQL order/table/operation and identities**. No findings were marked fixed merely because the enrolled QA branch is protected. The 426 owner-command-required source findings remain unresolved.
+
 ## Exact SQL-site review
 
 Editing the large `commerce.server.ts` changed its entire source-file SHA. The 56 affected v1 site IDs were re-derived after verifying that the only source modifications are one import and the guarded accounting call. Every existing SQL literal fingerprint, named function, disposition and `productionOwnerGuarded:false` status remains unchanged. This is a review bookkeeping update, not certification.
