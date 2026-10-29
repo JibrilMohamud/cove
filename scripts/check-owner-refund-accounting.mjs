@@ -1,7 +1,7 @@
 /* eslint-disable prettier/prettier -- Owner accounting is deny-first, exact-scope and replay-safe. */
 import assert from "node:assert/strict";
 import {build} from "esbuild";
-import {mkdtempSync,rmSync} from "node:fs";
+import {mkdtempSync,rmSync,readFileSync} from "node:fs";
 import {join} from "node:path";
 import {tmpdir} from "node:os";
 import {pathToFileURL} from "node:url";
@@ -12,6 +12,9 @@ try {
   await build({entryPoints:["src/storefront-strangler/refund-accounting-owner-executor.ts"],
     outfile,bundle:true,platform:"node",format:"esm",target:"node22",logLevel:"silent"});
   const {executeOwnerRefundAccounting:execute}=await import(pathToFileURL(outfile).href);
+  const commerce=readFileSync("src/features/fore/commerce.server.ts","utf8");
+  assert.match(commerce,/if \\(env\\.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1"\\)\\s+await reverseRoyaltiesForRefund\\(db, r\\.id\\)/,
+    "Enrolled stage owner must own all refund royalty reversals, with no parallel legacy D1 posting");
   const orderId="order_accounting_01",refundId="ref_accounting_01";
   function fixture({denied=true,stripeAmount=100,status="succeeded",provider="re_owner_refund_01",royaltyRows=false,failRoyaltyOnce=false}={}){
     let batchCount=0,posted=false,firstCount=0,royaltyBatches=0,royaltyPostedId=null,royaltyFailures=0;
