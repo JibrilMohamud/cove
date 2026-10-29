@@ -15,7 +15,7 @@ Audit date: October 29, 2026. This is a **read-only capability inventory**, not 
 
 `scripts/audit-live-canonical-d1-principals.mjs --audit` inspects the entire account's deployed Worker inventory, D1 bindings, cron schedules, Workers.dev exposure, custom zone routes/domains and incoming service references. An unavailable Worker settings response or unknown exposure causes failure. It never inserts, updates, or deletes a Cloudflare resource.
 
-The protected GitHub workflow `deployed-canonical-d1-principal-audit.yml` runs its unit tests without any credentials on pull requests; on protected `main` or manual dispatch it rechecks Cloudflare using the existing secrets and uploads a 30-day inventory artifact. `--release-gate` **always fails closed**: a zero-binding inventory alone cannot certify owner-state provenance, Stripe entitlement, denial epochs, payment refunds, capacity, or rollback.
+The protected GitHub workflow `deployed-canonical-d1-principal-audit.yml` runs its unit tests without any credentials on pull requests; on every protected `main` commit, daily at 07:13 UTC, or manual dispatch it rechecks Cloudflare using the existing secrets and uploads a 30-day inventory artifact. `--release-gate` **always fails closed**: a zero-binding inventory alone cannot certify owner-state provenance, Stripe entitlement, denial epochs, payment refunds, capacity, or rollback.
 
 ## Required retirement sequence
 
