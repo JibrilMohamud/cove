@@ -25,7 +25,7 @@ assert.match(branch,/after\.status !== "revoked"/);
 assert.doesNotMatch(branch,/\.prepare\("UPDATE entitlements/);
 assert.doesNotMatch(branch,/\.prepare\("UPDATE audio_offline_licenses/);
 const rpc=writer.slice(writer.indexOf("      if(isEntitlement){"),writer.indexOf("      if(isCommercial){"));
-const denied=rpc.indexOf('"/commercial/entitlement/deny-next"');
+const denied=rpc.indexOf("/commercial/entitlement/deny-next");
 const canonical=rpc.indexOf("await env.PRIMARY_DB.batch([");
 assert.ok(denied>=0&&canonical>denied,"Durable owner denial precedes canonical batch");
 assert.match(rpc,/UPDATE entitlements SET status='revoked'/);
