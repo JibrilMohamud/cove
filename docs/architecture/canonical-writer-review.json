@@ -835,7 +835,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "a292ea70d85c51a2a7e4512c136c34e5eaa3f8d3cdce52b938c3917087cbd838",
+      "siteId": "9e17565c2505707fa70b49eaa1c8e69d2cc8e20d0e7fce298ead061560e0235a",
       "file": "src/features/fore/commerce.server.ts",
       "line": 616,
       "functionName": "checkoutQuote",
@@ -848,7 +848,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "f00c65ded79a807170e29546b216a01c1ea9abd17608579dc49570284dc3e2b3",
+      "siteId": "d70bf9ba5e163e529218a9605f6f6d5cc5b0be19f27246a1c21c658eb9795631",
       "file": "src/features/fore/commerce.server.ts",
       "line": 698,
       "functionName": "ensureStripeCustomer",
@@ -861,7 +861,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "5a96831013ae54b4ab671eddd82a04cc784f10592618683c156a6766df858091",
+      "siteId": "54c0fa8b868042381aab469a028486098dc7c44b529980331c8be056d614a025",
       "file": "src/features/fore/commerce.server.ts",
       "line": 744,
       "functionName": "reserveTender",
@@ -874,7 +874,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "44d3a7e8c68a461791f89f9a97ab3a12223d47cbec139ca4c78f7883ca525c8e",
+      "siteId": "aff357601a41dfe7c5a3a963a28449a11573d8f7f9c0a49109488c30eda13767",
       "file": "src/features/fore/commerce.server.ts",
       "line": 767,
       "functionName": "reserveTender",
@@ -887,7 +887,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "136ca619348e20a2b247b0355eb58f00ccfaeb9ed805bdba646be2f6e72a22bd",
+      "siteId": "c002f6eb0a0fb6cb8cf8f74977d10013f14f1e576a403186ed73595a74f27c46",
       "file": "src/features/fore/commerce.server.ts",
       "line": 797,
       "functionName": "reservePromo",
@@ -900,7 +900,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "8cb051f9a43ce8555a9ad9a8de1a9abafe74090cda65422cb047a6b0d08a58cb",
+      "siteId": "15fa64d5facc7cbc71b61cc86c4b462be14ff931e9f2f060b7a24243d0f731f4",
       "file": "src/features/fore/commerce.server.ts",
       "line": 887,
       "functionName": "createCheckoutPayment",
@@ -913,7 +913,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "10559153d12296181a979b2dcac94662b0c83b69e443d78de209d987b620d578",
+      "siteId": "2952d7d554b8605a05d7cb4ad4a8bb480621d394fdece51a0fa13b308247a271",
       "file": "src/features/fore/commerce.server.ts",
       "line": 941,
       "functionName": "createCheckoutPayment",
@@ -926,7 +926,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "3e01d80a3a2a3ed38ddee4303d82ca3ca8a8628c3bce641cc86f4840b758958e",
+      "siteId": "0d2452753cc99f99f908c4711732db6e73ec3c19043b3f807013fb1c77b8c539",
       "file": "src/features/fore/commerce.server.ts",
       "line": 986,
       "functionName": "createCheckoutPayment",
@@ -939,7 +939,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "75b487fd17ebda90f51c494303c1628658866fe1c5f188128ddb98f53bc91daf",
+      "siteId": "456dc7b02cf4094c7774025b61121a3d6bbc68364c9bb04ba328fa3936f4293c",
       "file": "src/features/fore/commerce.server.ts",
       "line": 998,
       "functionName": "createCheckoutPayment",
@@ -952,7 +952,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "35ee46b21139f6d1d4bf215b813e0321849fc7f8458eeffcf61e6ce40a424369",
+      "siteId": "7422ff770c65fd65d3483e784251574245c12176001650d1238ece3f3865d5db",
       "file": "src/features/fore/commerce.server.ts",
       "line": 1009,
       "functionName": "createCheckoutPayment",
@@ -965,7 +965,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "11962c07cc5f6e0d7b40b3fefdd50919be57e7a00e2bc30a7002434b1c5d4b05",
+      "siteId": "f06cd816a3a10eaf564962f3de46d7199b60c6638e1bf636ee7551ca353d40d0",
       "file": "src/features/fore/commerce.server.ts",
       "line": 1015,
       "functionName": "createCheckoutPayment",
@@ -978,7 +978,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "beb3af47a8bc3d0da2457eeef3dc78210f37228f16df029eb7d89ed100cb4774",
+      "siteId": "c67f4102173450b6935067c1fd4efa4b1fd8ba662eeebb2b14afb4a94083d9e7",
       "file": "src/features/fore/commerce.server.ts",
       "line": 1058,
       "functionName": "createCheckoutPayment",
@@ -991,7 +991,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "cf6040aa8e5a0f38d73d04ad10074f2249f17ebfe6294e5f7567b8cd9d569c19",
+      "siteId": "d7fbc70a9ef8719d0b42170d591c7242f1543b92ae894f4370e661dac0dedcc8",
       "file": "src/features/fore/commerce.server.ts",
       "line": 1064,
       "functionName": "createCheckoutPayment",
@@ -1004,7 +1004,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "e52d819e94b46e70e6c77432f5a13d1ab844d1b5a38882401b98d168f7bb0476",
+      "siteId": "fd1fb5155d83a2611c1603d0b35ce6627484079ffdfeb9837a51f8f98ab948e7",
       "file": "src/features/fore/commerce.server.ts",
       "line": 1093,
       "functionName": "createCheckoutPayment",
@@ -1017,7 +1017,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "60460d6898162979f6f3095452fc9be0a4e37ca3d175c371491bff0337850868",
+      "siteId": "ad77dc1807506433e8bc17cb64dff45f1a8a6baac609d18dffb2c2278930223f",
       "file": "src/features/fore/commerce.server.ts",
       "line": 1118,
       "functionName": "releaseOrderReservations",
@@ -1030,7 +1030,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "fdc86ba60463202b4cbefc126586d20d3c176abdc69f6b93b551f450f782b389",
+      "siteId": "db3737a3987e38fc1586f0e7300691bae911c2d19860a693a4141c76a84a5565",
       "file": "src/features/fore/commerce.server.ts",
       "line": 1124,
       "functionName": "releaseOrderReservations",
@@ -1043,7 +1043,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "f6a3db4d512d38bd85e82efad3dc67a432581623ffa2980a6c54a91ecde21ba7",
+      "siteId": "6b268f8e5905ec5d77c9c10aff89ed5a7dcab42a794ee564e6558fac0eb4d08d",
       "file": "src/features/fore/commerce.server.ts",
       "line": 1151,
       "functionName": "ledger",
@@ -1056,7 +1056,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "7a140373eeb289ea4c4daba5ee163e6b91024a62aaa835bde854a1f0f5002fcc",
+      "siteId": "cfb5eb3bf644bad660978234c66e64f71666501e4974a16422ff12cea89a5aee",
       "file": "src/features/fore/commerce.server.ts",
       "line": 1193,
       "functionName": "consumeTender",
@@ -1069,7 +1069,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "fc1d5ec721f2581b977c09aba2ef578790f86deebad0354f21a7ffa75b196478",
+      "siteId": "759729f8bc05a17cbd96c95200298af953b52d7cd85134855fb6b5167f9da243",
       "file": "src/features/fore/commerce.server.ts",
       "line": 1199,
       "functionName": "consumeTender",
@@ -1082,7 +1082,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "ca65e6cf6288d5a700d8a483288c036075b3d023eee7404b1466c9ebadbaa475",
+      "siteId": "d74e8527c5c7c7e9dfd16d692590631b1dffcca362afb3f4179afb9ee4d9b00c",
       "file": "src/features/fore/commerce.server.ts",
       "line": 1206,
       "functionName": "consumeTender",
@@ -1095,7 +1095,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "94c74fc31e41920a0ca0f4f482cf7933909938c461f81086567b6db84480f0f8",
+      "siteId": "c094d27a2ba081b082fe82935189d4c4f243c148824fdeec80ab206179bb1928",
       "file": "src/features/fore/commerce.server.ts",
       "line": 1220,
       "functionName": "consumeTender",
@@ -1108,7 +1108,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "6d802a19d85e208720f7e0edab39335730d5baf3d510a36e59d1858379283b51",
+      "siteId": "ee1643e504c92c4a6ba5818f69899dc1b47aa52ab8cfe8ad1094592d0ab38170",
       "file": "src/features/fore/commerce.server.ts",
       "line": 1241,
       "functionName": "recordTaxTransaction",
@@ -1121,7 +1121,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "2ad8c7bfd72c410334d3a4dc150904e4e6d850e30a5cf89e266ba957656a5a04",
+      "siteId": "02e247ad30232a7073ba9c5c479fb8e12a924862d6bcbde3e3c59f5dfe72c625",
       "file": "src/features/fore/commerce.server.ts",
       "line": 1267,
       "functionName": "pinPurchasedPublishingVersion",
@@ -1134,7 +1134,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "3d7d26b4299303831f4f427e3dcc5fbf25d5e9e2154978ac69ea720458fb9512",
+      "siteId": "b720bc62cf56a9188b71aefc5f2cad70bbfc3c5c4daeab7f8dda25dc40341bd1",
       "file": "src/features/fore/commerce.server.ts",
       "line": 1280,
       "functionName": "pinPurchasedPublishingVersion",
@@ -1147,7 +1147,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "91d31e1a09751885847a7c85afad7d02f0a988d5d82a0f72d6a0e45e66efe650",
+      "siteId": "1c189d7003fb99c972ddd91846583947c56e70c0af09926b442b072b3729c05f",
       "file": "src/features/fore/commerce.server.ts",
       "line": 1321,
       "functionName": "hydrateProcessorFees",
@@ -1160,7 +1160,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "ed70f91479f55adfc9e881858c055f1b04c78adc1ab08777490992d3d4e756e1",
+      "siteId": "f5007d48a500c0b1222eb76479e03db31b2296f0e232a277c61995376fc31328",
       "file": "src/features/fore/commerce.server.ts",
       "line": 1385,
       "functionName": "finalizePaidOrder",
@@ -1173,7 +1173,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "454a518e3079d58726908a814ded268dc464c9ddd85b67204d28656cab53f38b",
+      "siteId": "59b59dc87a8c4f316d31a20fe11238c8bb07a3ee119091aaf004bdc6af8419b2",
       "file": "src/features/fore/commerce.server.ts",
       "line": 1397,
       "functionName": "finalizePaidOrder",
@@ -1186,7 +1186,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "3af989208b82a2a35deab7e78f148224e17651b432a4e34f385cb0460fa22a02",
+      "siteId": "d60214e000bb2b34784690de3854ff445f418bd69f02baa7ec3a565427f5a3a6",
       "file": "src/features/fore/commerce.server.ts",
       "line": 1420,
       "functionName": "finalizePaidOrder",
@@ -1199,7 +1199,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "80b2b8ec2d88bcaf8c72656b91d4224504ee00e5a4dbe9a049e4081defd9fd5e",
+      "siteId": "243d3d6921e5f499a9fd280b15d80631d46ab24fb76281f89065cb30306ae258",
       "file": "src/features/fore/commerce.server.ts",
       "line": 1446,
       "functionName": "finalizePaidOrder",
@@ -1212,7 +1212,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "ca6855fc61ca764b982c7ceaa695289637feed83d9a2cedc9f369ad3392f0045",
+      "siteId": "2803e78692d7acbe83ec8eb6565b447362d781b6ad1df28c305fd900b2173edb",
       "file": "src/features/fore/commerce.server.ts",
       "line": 1521,
       "functionName": "finalizePaidOrder",
@@ -1225,7 +1225,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "127030dc218c3489c6fa7c0185e364799c4a45d0320d6be155d57344e083bb59",
+      "siteId": "556c74c3b909ddde1a945909cda0748692203cfdbb2289919ff0f4ade1990ff7",
       "file": "src/features/fore/commerce.server.ts",
       "line": 1606,
       "functionName": "finalizePaidOrder",
@@ -1238,7 +1238,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "c3136f7ebc6dc19a72992eba0215e22b8b6b3fc8ba954ab8aed8020f6ec2cbc1",
+      "siteId": "11c1e917bfbc15f88efbea18f109fca9aa41a31ed7668a4ac202987304d4481b",
       "file": "src/features/fore/commerce.server.ts",
       "line": 1709,
       "functionName": "cancelCheckoutOrder",
@@ -1251,7 +1251,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "51de3cb0efdcc9c59e002f2fdb4fa9c17b741fbd9d9e2039f996170a3b8e43c8",
+      "siteId": "a0c7276d231a42a705ef4c5be1ed2dea9f88148e36a3198a178c8c28950acb0d",
       "file": "src/features/fore/commerce.server.ts",
       "line": 1944,
       "functionName": "refundOrder",
@@ -1264,7 +1264,7 @@
       "reason": "Reviewed refund transaction/refund reservation writer: exact tender and ledger mutations are replay-safe in an atomic D1 batch or conditional reservation, but production owner enrollment is unimplemented. Keep this protected SQL visible and required for owner migration; local crash-injection tests do not certify deployed ownership."
     },
     {
-      "siteId": "c72d0db5160ef87f79872e50764a56d9260708335a7f50a00dca5a7904e4d36a",
+      "siteId": "08243607dcdc4e2adcde5e27b51586f049d5ce9c1964823102b9730ead5598cd",
       "file": "src/features/fore/commerce.server.ts",
       "line": 2049,
       "functionName": "completeRequestedRefund",
@@ -1277,7 +1277,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "d6eceb07398ef2d354f438aaffd24bd67a099494bb4019c357e3f6fe3e243712",
+      "siteId": "6dc0e6eaacb1b2a44780ae97ac2ff0304a1ba38f9bcd43834fa9806aab44634d",
       "file": "src/features/fore/commerce.server.ts",
       "line": 2068,
       "functionName": "completeRequestedRefund",
@@ -1290,7 +1290,7 @@
       "reason": "Reviewed refund transaction/refund reservation writer: exact tender and ledger mutations are replay-safe in an atomic D1 batch or conditional reservation, but production owner enrollment is unimplemented. Keep this protected SQL visible and required for owner migration; local crash-injection tests do not certify deployed ownership."
     },
     {
-      "siteId": "eadf020f2a509eeadf855519112e5f5abaa89bd6957c1e0b0b3b0760f6bb2acd",
+      "siteId": "c4e2c33eb6eb8a3de9924231e150c3c8f6f04f73100632222b576ea835cbcc9c",
       "file": "src/features/fore/commerce.server.ts",
       "line": 2195,
       "functionName": "applyRefundSuccess",
@@ -1303,7 +1303,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "c4209afd2a52c00def6fb4363bfc7570f9272c6e167d8e8cd41a168c3707b2a1",
+      "siteId": "9165463743d51a3bab8ef36a7fe56d205a03e9cad10e463b4137bc05328aebff",
       "file": "src/features/fore/commerce.server.ts",
       "line": 2296,
       "functionName": "stripeWebhook",
@@ -1316,7 +1316,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "77d607d8bb2b1d48ff6d141739ffffc5cac964c9a13db9438fd584d3a5912b9e",
+      "siteId": "c05be68b2490de050ba186f9f102631a929ede97c67f3073369d0c67b87e7b92",
       "file": "src/features/fore/commerce.server.ts",
       "line": 2320,
       "functionName": "stripeWebhook",
@@ -1329,7 +1329,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "84a0d7e8764740be0a6610d96af849b1e8328b7d77d1e12f5f6c1476b7972610",
+      "siteId": "4aaf25be71243da0496f814c05a497c792779bfe817937f191369887ed6e5011",
       "file": "src/features/fore/commerce.server.ts",
       "line": 2328,
       "functionName": "stripeWebhook",
@@ -1342,7 +1342,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "51a4e9f2098a5df5543329c3cda5a7f3d3cc7ac430359e2dc1233878f66316b9",
+      "siteId": "bc55f98c7c67e619d1f7e5f312d1169f0f51847b2c7c80a67ce81e13f5246bef",
       "file": "src/features/fore/commerce.server.ts",
       "line": 2415,
       "functionName": "processStripeEvent",
@@ -1355,7 +1355,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "622caf08df8741a9b501d46ccd1baf1734c625f1214b4de4f08fa86b287d0190",
+      "siteId": "de38fd2be5d331fd5e5cc1add098726ba3429ebc7290caa1905e60d1252f0901",
       "file": "src/features/fore/commerce.server.ts",
       "line": 2424,
       "functionName": "processStripeEvent",
@@ -1368,7 +1368,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "3d5349b5c011eb15707dfc85cb0a7a154846859596d19fb169fb6f0fdb0067c7",
+      "siteId": "51dea9b1444d6472b4b78a2e6628f50c294c82a1d59df421e2e3afba6e9a2f09",
       "file": "src/features/fore/commerce.server.ts",
       "line": 2433,
       "functionName": "processStripeEvent",
@@ -1381,7 +1381,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "e6671800966b0231af6f037d9d6a41a5d6957a46eaa725f44dca490b704445e0",
+      "siteId": "6715c97c1053b540f1a4ae1dfa3d3c6b696894e03329da1470a8f29c7f690c42",
       "file": "src/features/fore/commerce.server.ts",
       "line": 2473,
       "functionName": "processStripeEvent",
@@ -1394,7 +1394,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "efc15923478c016351fc9c5f45ad90d652278b82f2177d61435d4d81587a47b9",
+      "siteId": "883a65076f445d3bdc8df0ec3b4e636a32f74db9d0116d8f63ba5bd32dc491a7",
       "file": "src/features/fore/commerce.server.ts",
       "line": 2490,
       "functionName": "processStripeEvent",
@@ -1407,7 +1407,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "774d3e7c64480555192b892e761204f37e8f3d84bd6ba58fbd310097483a2bda",
+      "siteId": "1716047f70c479aa13512d2a4407b11491ddba311849212314a6fd19824ecef2",
       "file": "src/features/fore/commerce.server.ts",
       "line": 2576,
       "functionName": "processStripeEvent",
@@ -1420,7 +1420,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "da838b811214e3adc498acfcbc55943782cec1f850bbd47bf97f052832b00efb",
+      "siteId": "61649060a127a7bf7a1fae71e3065e66889a4dabe5c35d73a4b0990d1aa62e97",
       "file": "src/features/fore/commerce.server.ts",
       "line": 2616,
       "functionName": "syncDispute",
@@ -1433,7 +1433,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "2a90321fef1faa19be0fa56b53d09a64f81e9e7d4a372198e377325ab6cb1224",
+      "siteId": "867a0080b175f9fb91f9237ea38fa850a4475b75fbdc0a2f24bb1e44ae28614b",
       "file": "src/features/fore/commerce.server.ts",
       "line": 2640,
       "functionName": "syncDispute",
@@ -1446,7 +1446,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "2ae3059cd9ac829496f42f650a2d0a9a551d59b0321992f60df6972b7bb1dbef",
+      "siteId": "0f5dbf57e06ac1f089a65f510d0e63a88b5c4ee9e4562d86bf9af1323986037c",
       "file": "src/features/fore/commerce.server.ts",
       "line": 2668,
       "functionName": "syncDispute",
@@ -1459,7 +1459,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "dd55787ba256ac2e4f652edf211895962fcf7f48e1badf93a851a31a2ffa9323",
+      "siteId": "d530af8e1a5f327c9ec0a49411ced2336cb7b8e9ff48e77d31e6fed04c2841ab",
       "file": "src/features/fore/commerce.server.ts",
       "line": 2674,
       "functionName": "syncDispute",
@@ -1472,7 +1472,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "c77758a25c2553e6361804bd6a111e131a921175c54d9bbdcb68d8a7dca91069",
+      "siteId": "98288952d1f871f5722b2796ce54f6ad0d26df04df11ba2d95f7fe5a21dda694",
       "file": "src/features/fore/commerce.server.ts",
       "line": 2709,
       "functionName": "syncDispute",
@@ -1485,7 +1485,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "9edc5243c4a302e65738b1847d537af5405d69cf61e1c34f05c080d8b7dff6cf",
+      "siteId": "726ba97d6b42d6a4e3b678ad37b18dacb4a2de62f87a4784ff8e1ae25564b3d3",
       "file": "src/features/fore/commerce.server.ts",
       "line": 2765,
       "functionName": "createPromoCode",
@@ -1498,7 +1498,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "f557a6e18f1eb319c54256797cf060593120df139b0ba20e6f5de59d3490089d",
+      "siteId": "5833808efcd379adda61d45332aed15a7872e60859ae075c4acf64008536606f",
       "file": "src/features/fore/commerce.server.ts",
       "line": 2801,
       "functionName": "issueGiftCard",
@@ -1511,7 +1511,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "4f5d4b3144227350795d0eceb16582bb0889bc217dc291c43ad1f16d29dcf60b",
+      "siteId": "08a116919856b3f9c1c08b72ef2720443fce773e55fb24c2b7bf534ab6ccadc3",
       "file": "src/features/fore/commerce.server.ts",
       "line": 2844,
       "functionName": "adjustStoreCredit",
@@ -1524,7 +1524,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "f65b0247708be1e8e34c4ebdc7ee04dca543f19fef6c715610432cdbbedbef9a",
+      "siteId": "9650c372037c22e6a3414b2aecd33fe290ba48004739f3d333630f2a5d019605",
       "file": "src/features/fore/commerce.server.ts",
       "line": 2947,
       "functionName": "reconcileStripe",
@@ -1537,7 +1537,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "f8a7d97e97b5fc31e64728ba24616515a2b616427b8737312c2c3f46faff9d81",
+      "siteId": "282c614ec11b849306fe2b76836778c8ccef81d7fa50cf88ceaf618bfb66cc66",
       "file": "src/features/fore/commerce.server.ts",
       "line": 2998,
       "functionName": "reconcileStripe",
@@ -1550,7 +1550,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "7e9e5f23573a19a46fdb56d95e5f29ac56390acc0c51285fe000d9eb4e9f5b50",
+      "siteId": "77b11b748fe7c554d47b3bb5060626819f7de11d5e7ddede1157333726de8d2c",
       "file": "src/features/fore/commerce.server.ts",
       "line": 3032,
       "functionName": "reconcileStripe",

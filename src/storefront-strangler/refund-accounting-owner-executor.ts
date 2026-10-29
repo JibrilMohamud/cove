@@ -1,6 +1,7 @@
 /* eslint-disable prettier/prettier -- Private owner-first accounting command; never accepts caller SQL. */
 import type {CatalogDB} from "../features/fore/catalog-model.server";
 import {postRefundAccounting} from "../features/fore/refund-accounting.server";
+import {reverseRoyaltiesForRefund} from "../features/fore/finance.server";
 import {readPaidOrderPermission} from "./commercial-entitlement-core";
 import type {AuthoritySql} from "./legal-authority-core";
 
@@ -48,6 +49,14 @@ export async function executeOwnerRefundAccounting(
   if(!confirmed||confirmed.id!==x.refundId||confirmed.order_id!==x.orderId||
     !confirmed.succeeded_at)
     throw Error("owner_refund_canonical_posting_unverified");
+  // Royalty reversals are commercial financial mutations, not an ancillary
+  // browser/API projection. Execute them under this same private owner
+  // command after the atomic refund marker. Each per-sale reversal batch
+  // uses a deterministic unique calculation marker, so an outage after the
+  // refund posting or mid-reversal remains denied and is recoverable by
+  // repeating the exact refund command. Never return a successful owner
+  // receipt until every originally accrued sale royalty is reconciled.
+  await reverseRoyaltiesForRefund(db,x.refundId);
   return {schema:"cove.owner-refund-accounting.v1",ownerDenied:true,posted:true,
-    refundId:x.refundId,orderId:x.orderId,applied:result.applied};
+    royaltiesReconciled:true,refundId:x.refundId,orderId:x.orderId,applied:result.applied};
 }

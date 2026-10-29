@@ -2104,9 +2104,9 @@ async function applyRefundSuccess(env: CoveEnv, refundId: string, refundPayload:
   } else {
     await postRefundAccounting(db, refundId, at, false);
   }
-  // A completed financial posting is safe to replay while repairing a
-  // later royalty, analytics or tax projection interrupted by a crash.
-  await reverseRoyaltiesForRefund(db, r.id);
+  // An enrolled owner has already reversed royalties before acknowledging.
+  // Legacy callers retain this direct projection until migrated to the owner.
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1") await reverseRoyaltiesForRefund(db, r.id);
   const refundItems = await db
     .prepare(
       "SELECT id,product_id,total_minor,source_surface,source_request_id FROM commerce_order_items WHERE order_id=? ORDER BY id",

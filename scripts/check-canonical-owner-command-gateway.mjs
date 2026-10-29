@@ -64,7 +64,7 @@ try{
     ["commerce.post-refund-accounting",{orderId,refundId:"ref_gateway_01"},
       "/commercial/refund/post-accounting",
       {schema:"cove.owner-refund-accounting.v1",ownerDenied:true,posted:true,
-        orderId,refundId:"ref_gateway_01",applied:true}]
+        orderId,refundId:"ref_gateway_01",applied:true,royaltiesReconciled:true}]
   ];
   let calls=0;
   for(const [kind,body,path,receipt] of tests){
@@ -119,6 +119,19 @@ try{
   for(const ack of badReceipts)await assert.rejects(
     ()=>invoke(response(ack),secret,good[0],good[1]),
     /canonical_command_receipt/
+  );
+  const refundCommand=tests.find(([kind])=>kind==="commerce.post-refund-accounting");
+  assert.ok(refundCommand);
+  const [refundKind,refundBody,,refundReceipt]=refundCommand;
+  for(const invalidReceipt of [
+    {...refundReceipt,royaltiesReconciled:false},
+    {...refundReceipt,royaltiesReconciled:null},
+    {...refundReceipt,refundId:"ref_wrong_owner_01"},
+    {schema:"cove.owner-refund-accounting.v1",posted:true,ownerDenied:true}
+  ])await assert.rejects(
+    ()=>invoke(response(invalidReceipt),secret,refundKind,refundBody),
+    /canonical_command_receipt_mismatch/,
+    "Never acknowledge a refund whose royalty posting is missing or unscoped"
   );
   const failures=[
     {async fetch(){return new Response(null,{status:503});}},
