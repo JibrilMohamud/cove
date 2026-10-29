@@ -37,7 +37,8 @@ try{
         assert.ok(sql.startsWith("INSERT INTO commerce_refunds("));
         inserts++;
         if(failInsert&&!failed){failed=true;throw Error("canonical_D1_unavailable");}
-        const [id,orderId,amount,stripeAmount,giftAmount,storeAmount,currency,reason,key]=args;
+        const [id,orderId,amount,stripeAmount,giftAmount,storeAmount,currency,reason,status,key]=args;
+        assert.equal(status,"pending");
         if(concurrent&&!refunds.size){
           // A competing refund wins the transaction between SELECT and INSERT.
           refunds.set("competing",{id:"ref_competing_01",order_id:orderId,
