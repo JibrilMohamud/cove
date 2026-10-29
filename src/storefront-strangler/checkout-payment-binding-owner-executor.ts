@@ -57,7 +57,10 @@ export async function executeOwnerCheckoutPaymentBinding(env:OwnerEnv,raw:unknow
   if(response.status!==200)throw Error("owner_checkout_stripe_verification_failed");
   const bytes=await response.text();
   if(bytes.length>131072)throw Error("owner_checkout_provider_receipt_too_large");
-  let pi:any;
+  let pi:{id?:string;object?:string;customer?:string;livemode?:boolean;
+    metadata?:{fore_order_id?:string;fore_user_id?:string;fore_invoice?:string};
+    amount?:number;currency?:string;capture_method?:string;status?:string;
+    payment_method_types?:string[]};
   try{pi=JSON.parse(bytes);}catch{throw Error("owner_checkout_provider_receipt_invalid");}
   if(!pi||pi.object!=="payment_intent"||pi.id!==cmd.paymentIntentId||
      pi.customer!==cmd.customerId||pi.livemode!==live||
