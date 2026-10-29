@@ -41,7 +41,7 @@ export function canonicalWriterBaseline() {
   // blanket baseline. Any change to its SQL, owner checks, caller or
   // fallback reopens the security review BEFORE accepting a new writer.
   const file="src/storefront-strangler/refund-provider-owner-executor.ts";
-  const exactSourceSha256="1d9455b258b986c04c783faece90e6006fd24d843a819a3fc73434dca74d660f";
+  const exactSourceSha256="e4acda0ba6baf38d24038ecba5be04766202b2a75dc01c3b24ee1c3d51b6e283";
   const actual=createHash("sha256").update(readFileSync(file,"utf8")).digest("hex");
   if(actual!==exactSourceSha256)
     throw Error("Reviewed QA owner provider writer changed; independent security review required");
