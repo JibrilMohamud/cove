@@ -5,15 +5,21 @@
   "compatibility_date": "2026-10-09",
   "workers_dev": false,
   "preview_urls": false,
-  "limits": { "cpu_ms": 300000 },
+  "limits": {
+    "cpu_ms": 300000
+  },
   "d1_databases": [
-    { "binding": "DB", "database_name": "cove-production",
-      "database_id": "4bd657ac-8789-403e-a28c-93aba8d0a989" },
-    { "binding": "CONTENT_DB", "database_name": "cove-literary-content-isolated-20261024",
-      "database_id": "400c3af3-5d40-41fd-83cc-98228e40ddac" }
+    {
+      "binding": "CONTENT_DB",
+      "database_name": "cove-literary-content-isolated-20261024",
+      "database_id": "400c3af3-5d40-41fd-83cc-98228e40ddac"
+    }
   ],
   "r2_buckets": [
-    { "binding": "BUCKET", "bucket_name": "cove-literary-originals-isolated-20261024" }
+    {
+      "binding": "BUCKET",
+      "bucket_name": "cove-literary-originals-isolated-20261024"
+    }
   ],
   "vars": {
     "FORE_CONTENT_PROCESSOR_ROLE": "literary-handoff",
