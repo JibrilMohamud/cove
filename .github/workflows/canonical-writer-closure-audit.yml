@@ -12,6 +12,11 @@ on:
       - "scripts/canonical-owner-workflow-inventory.mjs"
       - "scripts/test-canonical-owner-workflow-inventory.mjs"
       - "scripts/check-canonical-owner-command-gateway.mjs"
+      - "scripts/check-owner-refund-accounting.mjs"
+      - "scripts/check-production-writer-topology.mjs"
+      - "scripts/test-production-writer-topology.mjs"
+      - "wrangler.backend.production.toml"
+      - "wrangler.legal-authority.production-locked.jsonc"
       - "src/storefront-strangler/canonical-owner-command-gateway.ts"
       - "src/storefront-strangler/paid-order-revocation.server.ts"
       - "src/storefront-strangler/paid-settlement-publication.server.ts"
@@ -41,6 +46,11 @@ on:
       - "scripts/canonical-owner-workflow-inventory.mjs"
       - "scripts/test-canonical-owner-workflow-inventory.mjs"
       - "scripts/check-canonical-owner-command-gateway.mjs"
+      - "scripts/check-owner-refund-accounting.mjs"
+      - "scripts/check-production-writer-topology.mjs"
+      - "scripts/test-production-writer-topology.mjs"
+      - "wrangler.backend.production.toml"
+      - "wrangler.legal-authority.production-locked.jsonc"
       - "src/storefront-strangler/canonical-owner-command-gateway.ts"
       - "src/storefront-strangler/paid-order-revocation.server.ts"
       - "src/storefront-strangler/paid-settlement-publication.server.ts"
@@ -86,6 +96,8 @@ jobs:
           node scripts/test-canonical-writer-review.mjs
           node scripts/test-canonical-owner-workflow-inventory.mjs
           node scripts/check-canonical-owner-command-gateway.mjs
+          node scripts/check-owner-refund-accounting.mjs
+          node scripts/test-production-writer-topology.mjs
           node scripts/check-audio-progress-nonauthorizing.mjs
           node scripts/check-nonauthorizing-legal-history.mjs
           node scripts/check-audio-playback-remaining-nonauthorizing.mjs
