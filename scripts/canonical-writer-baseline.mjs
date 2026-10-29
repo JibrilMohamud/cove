@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Exact reviewed pre-migration inventory snapshot, no automatic allowances. */
 import {createHash} from "node:crypto";
+import {readFileSync} from "node:fs";
 import {inflateSync} from "node:zlib";
 
 /**
@@ -34,7 +35,21 @@ export function canonicalWriterBaseline() {
     if(counts.has(key))throw Error("Duplicate canonical writer baseline entry");
     counts.set(key,row[3]);
   }
-  if([...counts.values()].reduce((a,b)=>a+b,0)!==460)throw Error("Writer baseline total mismatch");
+  if([...counts.values()].reduce((a,b)=>a+b,0)!==460)throw Error("Historical writer baseline mismatch");
+  // Reviewed NEW canonical mutation in the independently leased QA owner.
+  // This is a bounded, source-hash-pinned addendum, not a regenerated
+  // blanket baseline. Any change to its SQL, owner checks, caller or
+  // fallback reopens the security review BEFORE accepting a new writer.
+  const file="src/storefront-strangler/refund-provider-owner-executor.ts";
+  const exactSourceSha256="1d9455b258b986c04c783faece90e6006fd24d843a819a3fc73434dca74d660f";
+  const actual=createHash("sha256").update(readFileSync(file,"utf8")).digest("hex");
+  if(actual!==exactSourceSha256)
+    throw Error("Reviewed QA owner provider writer changed; independent security review required");
+  const key=JSON.stringify([file,"commerce_refunds","UPDATE"]);
+  if(counts.has(key))throw Error("Duplicate QA owner provider writer review");
+  counts.set(key,1);
+  if([...counts.values()].reduce((a,b)=>a+b,0)!==461)
+    throw Error("Writer review must include exactly 460 historical plus one QA owner site");
   return counts;
 }
 export function canonicalWriterDrift(findings,baseline=canonicalWriterBaseline()) {
