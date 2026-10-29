@@ -96,7 +96,7 @@ export function assessDeployedCanonicalD1Principals({scripts,settingsByName,
   const retiredDisabledLiteraryNames=[
     "cove-literary-handoff-isolated-disabled",
     "cove-literary-prepare-isolated-disabled"
-  ];
+  ].filter(name=>names.includes(name));
   const retiredDisabledLiteraryReactivations=retiredDisabledLiteraryNames.filter(name=>{
     const worker=settingsByName[name];
     if(!worker)return true;
