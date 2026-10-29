@@ -207,9 +207,16 @@ try {
   recovery.ownerEnv.COVE_RIGHTS_OWNER_ENABLED="0";
   await assert.rejects(()=>refundOrder(recovery.clientEnv,refundInput));
   assert.equal(calls.length,0);
-  const intent=recovery.primary.prepare("SELECT * FROM commerce_refunds").get();
-  assert.equal(intent.status,"pending");
+  assert.equal(recovery.primary.prepare("SELECT count(*) n FROM commerce_refunds").get().n,0,
+    "A failed owner reservation cannot fall back to a legacy refund INSERT");
   recovery.ownerEnv.COVE_RIGHTS_OWNER_ENABLED="1";
+  recovery.setFailWrite(true);
+  await assert.rejects(()=>refundOrder(recovery.clientEnv,refundInput));
+  assert.equal(calls.length,0,"Failed owner veto reconciliation must not call Stripe");
+  const intent=recovery.primary.prepare("SELECT * FROM commerce_refunds").get();
+  assert.equal(intent.status,"pending",
+    "Owner reservation survives a later, interrupted deny-before-provider step");
+  recovery.setFailWrite(false);
   const resumed=await refundOrder(recovery.clientEnv,refundInput);
   assert.equal(resumed.id,intent.id);assert.equal(resumed.status,"pending");
   assert.equal(calls.length,1);assert.equal(calls[0].options.headers["Idempotency-Key"],requestKey);

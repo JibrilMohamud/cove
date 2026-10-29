@@ -7,6 +7,7 @@ export const PRIVATE_SETTLEMENT_MODULES=new Map([
   ["src/storefront-strangler/publication-materialization-command.ts",new Set(["src/storefront-strangler/legal-authority.worker.ts"])],
   ["src/features/fore/paid-settlement-transaction.server.ts",new Set(["src/storefront-strangler/paid-settlement-owner-executor.ts"])],
   ["src/storefront-strangler/paid-settlement-owner-executor.ts",new Set(["src/storefront-strangler/legal-authority.worker.ts"])],
+  ["src/storefront-strangler/refund-reservation-owner-executor.ts",new Set(["src/storefront-strangler/legal-authority.worker.ts"])],
 ]);
 function sourceFiles(dir="src",result=[]){
   for(const entry of readdirSync(dir,{withFileTypes:true})){

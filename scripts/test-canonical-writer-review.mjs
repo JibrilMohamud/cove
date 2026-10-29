@@ -67,8 +67,9 @@ assert.equal(release.status,1,"Reviewed classification must not open the owner-o
 const syntheticBoundary=new Map([
   ["src/features/fore/paid-settlement-transaction.server.ts","export function transaction() {}"],
   ["src/storefront-strangler/paid-settlement-owner-executor.ts",'import {transaction} from "../features/fore/paid-settlement-transaction.server";'],
-  ["src/storefront-strangler/legal-authority.worker.ts",'import "./paid-settlement-owner-executor"; import "./publication-materialization-command";'],
+  ["src/storefront-strangler/legal-authority.worker.ts",'import "./paid-settlement-owner-executor"; import "./publication-materialization-command"; import "./refund-reservation-owner-executor";'],
   ["src/storefront-strangler/publication-materialization-command.ts","export function publication() {}"],
+  ["src/storefront-strangler/refund-reservation-owner-executor.ts","export function reserve() {}"],
 ]);
 assert.equal(assertPrivateSettlementSourceBoundary(syntheticBoundary),true);
 for(const declaration of ['import "./paid-settlement-transaction.server";','export * from "./paid-settlement-transaction.server";','const x=import("./paid-settlement-transaction.server");'])
