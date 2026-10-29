@@ -1,0 +1,175 @@
+/* eslint-disable prettier/prettier -- Private, typed canonical authority RPC. Never expose SQL or a caller-chosen route. */
+import {z} from "zod/v3";
+
+export type CanonicalOwnerPort={fetch(request:Request):Promise<Response>};
+const ownerId=z.string().regex(/^[a-zA-Z0-9_-]{8,160}$/);
+const subject=z.string().regex(/^[a-zA-Z0-9_-]{3,160}$/);
+const operation=z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/);
+const shortOperation=z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,95}$/);
+const territory=z.string().regex(/^[A-Z]{2}$/);
+const currency=z.string().regex(/^[A-Z]{3}$/);
+const product=z.string().regex(/^prd_[a-zA-Z0-9_-]{3,120}$/)
+  .refine(id=>!id.startsWith("prd_gutenberg_"),"Commercial product required");
+const source=z.string().regex(/^(?:[0-9]{1,10}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90})$/);
+const evidence=z.string().regex(/^gre_[a-z0-9_:-]{1,120}$/);
+const version=z.string().min(3).max(160).regex(/^[a-zA-Z0-9_-]+$/);
+const routes={
+  "commerce.revoke-order":{path:"/commercial/order/revoke",schema:z.object({orderId:ownerId,operationId:operation}).strict()},
+  "commerce.publish-order":{path:"/commercial/entitlement/publish-order-verified",schema:z.object({
+    orderId:ownerId,userId:ownerId,territory,channel:z.literal("retail")}).strict()},
+  "commerce.publish-entitlement":{path:"/commercial/entitlement/publish-verified",schema:z.object({
+    entitlementId:ownerId,userId:ownerId,productId:product,territory,channel:z.literal("retail")}).strict()},
+  "publication.activate":{path:"/publication/activate-version",schema:z.object({
+    publicationVersionId:version,actorUserId:subject.nullable(),
+    triggerType:z.enum(["schedule","rollback","staff"]),
+    operationId:shortOperation,territory,currency}).strict()},
+  "publication.open-preorder":{path:"/publication/open-preorder",schema:z.object({
+    publicationVersionId:version,operationId:shortOperation,territory,currency}).strict()},
+  "publication.recover":{path:"/publication/recover-recorded",schema:z.object({
+    operationId:shortOperation}).strict()},
+  "rights.suspend-grant":{path:"/commercial/suspend-grant",schema:z.object({
+    action:z.literal("suspend-grant"),targetId:subject,operationId:operation}).strict()},
+  "rights.suspend-contract":{path:"/commercial/suspend-contract",schema:z.object({
+    action:z.literal("suspend-contract"),targetId:subject,operationId:operation}).strict()},
+  "rights.quarantine-source":{path:"/quarantine",schema:z.object({
+    action:z.literal("quarantine-source"),sourceId:source,operationId:operation,message:z.string().max(500)}).strict()},
+  "rights.revoke-source-evidence":{path:"/evidence/revoke",schema:z.object({
+    action:z.literal("revoke-source-evidence"),sourceId:source,evidenceId:evidence,
+    territory,operationId:operation}).strict()},
+  "rights.retract-sources":{path:"/source/retract-batch",schema:z.object({
+    action:z.literal("retract-sources"),operations:z.array(z.object({
+      sourceId:source,operationId:operation
+    }).strict()).min(1).max(25).refine(rows=>new Set(rows.map(r=>r.sourceId)).size===rows.length)}).strict()},
+  "rights.withdraw-retail":{path:"/commercial/retail/withdraw",schema:z.object({
+    action:z.literal("withdraw-retail"),productId:product,operationId:operation}).strict()},
+  "rights.publish-retail":{path:"/commercial/retail/publish-verified",schema:z.object({
+    action:z.literal("publish-retail"),productId:product,territory,currency,operationId:operation}).strict()},
+  "rights.pause-market":{path:"/market/withdraw",schema:z.object({
+    action:z.literal("pause-market"),territory,operationId:operation}).strict()},
+  "rights.revoke-entitlement":{path:"/commercial/entitlement/revoke",schema:z.object({
+    action:z.literal("revoke-entitlement"),entitlementId:ownerId,operationId:operation}).strict()},
+  "rights.withdraw-distribution":{path:"/commercial/distribution/withdraw",schema:z.object({
+    action:z.literal("withdraw-distribution"),publicationVersionId:subject,
+    status:z.enum(["blocked","recalled"]),allowExistingOwners:z.literal(false),
+    reasonCode:z.string().min(1).max(120),reasonDetail:z.string().max(2000),
+    actorUserId:subject,operationId:operation}).strict()}
+} as const;
+export type CanonicalCommandKind=keyof typeof routes;
+const isQuarantine=(kind:CanonicalCommandKind)=>kind.startsWith("rights.");
+const record=(x:unknown):x is Record<string,unknown>=>!!x&&typeof x==="object"&&!Array.isArray(x);
+const positiveEpoch=(x:unknown)=>Number.isSafeInteger(x)&&Number(x)>0;
+
+/** Fixed route catalog: callers cannot pick a URL, substitute an identity,
+ * attach raw SQL, or select the wrong private writer plane. Receipt checks
+ * below are deliberately duplicated by sensitive domain consumers; neither
+ * layer may treat HTTP 200 alone as proof of a successful authorization. */
+export async function dispatchCanonicalOwnerCommand(
+  port:CanonicalOwnerPort,secret:string,kind:CanonicalCommandKind,raw:unknown
+):Promise<Record<string,unknown>> {
+  const definition=Object.prototype.hasOwnProperty.call(routes,kind)?
+    routes[kind]:undefined;
+  if(!definition||!/^[a-f0-9]{64}$/.test(secret)||!port||typeof port.fetch!=="function")
+    throw Error("canonical_command_binding_invalid");
+  const body=definition.schema.parse(raw) as Record<string,unknown>;
+  const encoded=JSON.stringify(body);
+  if(encoded.length>8192)throw Error("canonical_command_too_large");
+  const root=isQuarantine(kind)?"https://legal-quarantine.internal":"https://legal-authority.internal";
+  const response=await port.fetch(new Request(root+definition.path,{
+    method:"POST",headers:{
+      "authorization":"Bearer "+secret,
+      "content-type":"application/json",
+      "cache-control":"no-store"
+    },body:encoded
+  }));
+  if(response.status!==200)throw Error("canonical_command_owner_refused");
+  const bytes=await response.text();
+  if(bytes.length>131072)throw Error("canonical_command_receipt_too_large");
+  let ack:unknown;
+  try{ack=JSON.parse(bytes);}catch{throw Error("canonical_command_receipt_invalid");}
+  if(!record(ack))throw Error("canonical_command_receipt_invalid");
+  switch(kind){
+    case "commerce.revoke-order":
+      if(ack.schema!=="cove.paid-order-revocation.v1"||ack.orderDenied!==true||
+         ack.reconciled!==true||ack.orderId!==body.orderId||ack.operationId!==body.operationId)
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "commerce.publish-order":
+      if(ack.applied!==true||ack.orderId!==body.orderId||
+         !Array.isArray(ack.receipts)||!ack.receipts.length||ack.receipts.length>25||
+         ack.receipts.some(x=>!record(x)||typeof x.entitlementId!=="string"||!positiveEpoch(x.epoch)))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "commerce.publish-entitlement":
+      if(ack.applied!==true||!positiveEpoch(ack.epoch))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "publication.activate":
+      if(ack.schema!=="cove.publication-activation.v1"||ack.ownerFirst!==true||
+         ack.operationId!==body.operationId||ack.publicationVersionId!==body.publicationVersionId||
+         !["live","updated"].includes(String(ack.state))||!positiveEpoch(ack.versionNumber))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "publication.open-preorder":
+      if(ack.schema!=="cove.publication-preorder.v1"||ack.ownerFirst!==true||
+         ack.operationId!==body.operationId||ack.publicationVersionId!==body.publicationVersionId||
+         ack.state!=="preorder"||!positiveEpoch(ack.versionNumber))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "publication.recover":
+      if(ack.schema!=="cove.publication-recovery.v1"||ack.ownerFirst!==true||
+         ack.operationId!==body.operationId||
+         ![ack.checked,ack.recovered,ack.blocked].every(n=>Number.isSafeInteger(n)&&Number(n)>=0&&Number(n)<=25)||
+         Number(ack.checked)!==Number(ack.recovered)+Number(ack.blocked))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "rights.suspend-grant":
+    case "rights.suspend-contract":
+      if(ack.suspended!==true||ack.ownerDenied!==true||
+         ack.subject!==(kind==="rights.suspend-grant"?"grant":"contract")||
+         ack.subjectId!==body.targetId)throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "rights.quarantine-source":
+      if(ack.quarantined!==true||ack.sourceId!==body.sourceId)
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "rights.revoke-source-evidence":
+      if(ack.evidenceRevoked!==true||ack.sourceId!==body.sourceId||
+         ack.evidenceId!==body.evidenceId||ack.territory!==body.territory)
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "rights.retract-sources":
+      if(ack.retracted!==(body.operations as unknown[]).length||
+         !Array.isArray(ack.sourceIds)||
+         ack.sourceIds.length!==(body.operations as unknown[]).length||
+         ack.sourceIds.some((id,i)=>id!==(body.operations as {sourceId:string}[])[i]?.sourceId))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "rights.withdraw-retail":
+      if(ack.withdrawn!==true||!positiveEpoch(ack.ownerEpoch))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "rights.publish-retail":
+      if(ack.published!==true||!positiveEpoch(ack.ownerEpoch))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "rights.pause-market":
+      if(ack.marketWithdrawn!==true||ack.territory!==body.territory)
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "rights.revoke-entitlement":
+      if(ack.revoked!==true||!positiveEpoch(ack.epoch))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "rights.withdraw-distribution":
+      if(ack.withdrawn!==true||ack.ownerDenied!==true||
+         ack.publicationVersionId!==body.publicationVersionId||
+         ack.status!==body.status||!positiveEpoch(ack.ownerEpoch))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    default: {
+      const impossible:never=kind;
+      throw Error("unknown_canonical_command_"+String(impossible));
+    }
+  }
+  return ack;
+}
