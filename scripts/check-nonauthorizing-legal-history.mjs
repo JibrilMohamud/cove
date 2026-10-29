@@ -1,112 +1,81 @@
-/* eslint-disable prettier/prettier -- Forensic SQL-site assertions depend on literal text and exact column lists. */
+/* eslint-disable prettier/prettier -- Review exact immutable history SQL; never reclassify restoration inputs. */
 import assert from "node:assert/strict";
 import {readFileSync,readdirSync} from "node:fs";
 import {join} from "node:path";
 import {DatabaseSync} from "node:sqlite";
 import ts from "typescript";
-import {currentWriterSites,identifyWriterSites,REVIEW_PATH} from "./reconcile-canonical-writers.mjs";
+import {currentWriterSites,REVIEW_PATH} from "./reconcile-canonical-writers.mjs";
 
-const eventColumns={
-  publishing_lifecycle_events:new Set([
-    "id","lifecycle_id","from_state","to_state","trigger_type",
-    "actor_user_id","reason_code","metadata_json","created_at"
-  ]),
-  publication_version_distribution_events:new Set([
-    "id","publication_version_id","from_status","to_status",
-    "allow_existing_owners","reason_code","reason_detail","actor_user_id","created_at"
-  ])
-};
-const targetFiles=new Set([
-  "src/features/fore/moderation.server.ts",
-  "src/features/fore/publishing-trust.server.ts",
-  "src/features/fore/publishing.server.ts",
-  "src/features/fore/delivery.server.ts"
-]);
-const approvedCount={publishing_lifecycle_events:9,publication_version_distribution_events:1};
 const review=JSON.parse(readFileSync(REVIEW_PATH,"utf8"));
 const current=currentWriterSites();
-const targets=current.filter(s=>Object.hasOwn(eventColumns,s.table));
-assert.equal(targets.length,10);
+const lifecycle=current.filter(x=>x.table==="publishing_lifecycle_events");
+assert.equal(lifecycle.length,9);
+for(const site of lifecycle){
+  const row=review.sites.find(x=>x.siteId===site.siteId);
+  assert.equal(row?.disposition,"owner-command-required",
+    "Publishing lifecycle history drives restoration and may NOT be waived");
+  assert.equal(row?.productionOwnerGuarded,false);
+}
+// An authenticated staff restoration consumes historical from_state and can
+// change the real current lifecycle; the source demonstrates history is NOT
+// harmless telemetry. Keep these nine authorizing until owner-first migration.
+const moderation=readFileSync("src/features/fore/moderation.server.ts","utf8");
+assert.match(moderation,/SELECT from_state FROM publishing_lifecycle_events WHERE lifecycle_id=\? AND to_state IN \('suppressed','takedown'\)/);
+assert.match(moderation,/restoredFrom\s*=\s*prior\?\.from_state/);
+assert.match(moderation,/const target\s*=\s*restoring\s*&&\s*restoredFrom/);
+
+const table="publication_version_distribution_events";
+const historical=current.filter(x=>x.table===table);
+assert.equal(historical.length,1);
+const site=historical[0],row=review.sites.find(x=>x.siteId===site.siteId);
+assert.equal(row?.disposition,"non-authorizing-write");
+assert.equal(row?.productionOwnerGuarded,false);
+assert.equal(site.file,"src/features/fore/delivery.server.ts");
+assert.equal(site.functionName,"setDistributionControl");
+assert.equal(site.operation,"INSERT INTO");
+const source=readFileSync(site.file,"utf8"),
+  tree=ts.createSourceFile(site.file,source,ts.ScriptTarget.Latest,true),
+  literalNodes=[];
+function visit(node){
+  if(ts.isStringLiteral(node)||ts.isNoSubstitutionTemplateLiteral(node))literalNodes.push(node);
+  ts.forEachChild(node,visit);
+}
+visit(tree);
+const from=tree.getPositionOfLineAndCharacter(site.line-1,0),to=source.indexOf("\n",from);
+const choices=literalNodes.filter(node=>node.getStart(tree)<=to&&node.end>from&&node.text.includes(table));
+assert.equal(choices.length,1);
+const sql=choices[0].text;
+assert.equal(sql,
+  "INSERT INTO publication_version_distribution_events(id,publication_version_id,from_status,to_status,allow_existing_owners,reason_code,reason_detail,actor_user_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+  "The only nonauthorizing writer must append the exact reviewed history fields");
+
 const db=new DatabaseSync(":memory:");
 try{
-  db.exec("CREATE TABLE publishing_release_lifecycles(id TEXT PRIMARY KEY,state TEXT)");
-  db.exec("CREATE TABLE publication_version_distribution_controls(publication_version_id TEXT PRIMARY KEY,distribution_status TEXT)");
-  db.exec("INSERT INTO publishing_release_lifecycles VALUES('lifecycle_root','takedown')");
-  db.exec("INSERT INTO publication_version_distribution_controls VALUES('version_root','recalled')");
-  for(const [table,cols] of Object.entries(eventColumns)){
-    db.exec("CREATE TABLE "+table+"("+[...cols].map(c=>c+" TEXT").join(",")+")");
-  }
-  const counts={publishing_lifecycle_events:0,publication_version_distribution_events:0};
-  const sources=new Map();
-  for(const site of targets){
-    assert.ok(targetFiles.has(site.file),"Unknown direct writer of legal event history: "+site.file);
-    assert.equal(site.operation,"INSERT INTO","Audit history must be append-only");
-    const reviewed=review.sites.find(s=>s.siteId===site.siteId);
-    assert.ok(reviewed,"Exact SQL/source review is required for each history writer");
-    assert.equal(reviewed.table,site.table);
-    assert.equal(reviewed.file,site.file);
-    assert.equal(reviewed.disposition,"non-authorizing-write");
-    assert.equal(reviewed.productionOwnerGuarded,false);
-    let parsed=sources.get(site.file);
-    if(!parsed){
-      const text=readFileSync(site.file,"utf8"),tree=ts.createSourceFile(site.file,text,ts.ScriptTarget.Latest,true);
-      const literalNodes=[];
-      function visit(node){
-        if(ts.isStringLiteral(node)||ts.isNoSubstitutionTemplateLiteral(node))
-          literalNodes.push(node);
-        ts.forEachChild(node,visit);
-      }
-      visit(tree);
-      parsed={text,tree,literalNodes};
-      sources.set(site.file,parsed);
-    }
-    const lineStart=parsed.tree.getPositionOfLineAndCharacter(site.line-1,0);
-    const lineEnd=parsed.text.indexOf("\n",lineStart);
-    const candidates=parsed.literalNodes.filter(n=>n.getStart(parsed.tree)<=lineEnd&&n.end>lineStart&&
-      n.text.includes(site.table)).sort((a,b)=>(a.end-a.pos)-(b.end-b.pos));
-    assert.ok(candidates.length,"Event insert SQL literal must be discoverable: "+site.file+":"+site.line);
-    const sql=candidates[0].text.trim();
-    const statement=sql.match(/^INSERT INTO (publishing_lifecycle_events|publication_version_distribution_events)\s*\(([^)]+)\)\s*VALUES\s*\(([^;]+)\)$/i);
-    assert.ok(statement,"History writes must be one static parameterized INSERT, not conditional or dynamic SQL: "+sql);
-    assert.equal(statement[1].toLowerCase(),site.table);
-    const cols=statement[2].split(",").map(x=>x.trim().toLowerCase());
-    assert.equal(new Set(cols).size,cols.length);
-    assert.ok(cols.every(x=>eventColumns[site.table].has(x)),"No protected authorizing columns in event history: "+sql);
-    assert.equal(cols[0],"id");
-    assert.ok(!/\b(?:UPDATE|DELETE|REPLACE|SELECT|RETURNING|ON CONFLICT|WITH)\b/i.test(sql),
-      "Audit history must not contain any read-modify-write or cross-table mutation");
-    const args=Array.from({length:(sql.match(/\?/g)||[]).length},(_,i)=>i===0?"history_"+site.table+"_"+counts[site.table]: "audit_value");
-    assert.equal(db.prepare(sql).run(...args).changes,1);
-    counts[site.table]++;
-  }
-  for(const [table,n] of Object.entries(approvedCount)){
-    assert.equal(counts[table],n,"Each reviewed history source must be exercised");
-    assert.equal(db.prepare("SELECT COUNT(*) n FROM "+table).get().n,n);
-  }
-  assert.equal(db.prepare("SELECT state FROM publishing_release_lifecycles WHERE id='lifecycle_root'").get().state,"takedown",
-    "Publishing history events cannot transition a lifecycle to live");
-  assert.equal(db.prepare("SELECT distribution_status FROM publication_version_distribution_controls WHERE publication_version_id='version_root'").get().distribution_status,"recalled",
-    "Distribution history events cannot reauthorize recalled delivery");
+  db.exec("CREATE TABLE publication_version_distribution_controls(publication_version_id TEXT PRIMARY KEY,distribution_status TEXT,allow_existing_owners INTEGER)");
+  db.exec("CREATE TABLE publication_version_distribution_events(id TEXT PRIMARY KEY,publication_version_id TEXT,from_status TEXT,to_status TEXT,allow_existing_owners INTEGER,reason_code TEXT,reason_detail TEXT,actor_user_id TEXT,created_at TEXT)");
+  db.exec("INSERT INTO publication_version_distribution_controls VALUES('version_root','recalled',0)");
+  assert.equal(db.prepare(sql).run("event_1","version_root","distributable","distributable",1,"","", "actor","now").changes,1);
+  const authority=db.prepare("SELECT distribution_status,allow_existing_owners FROM publication_version_distribution_controls WHERE publication_version_id='version_root'").get();
+  assert.equal(authority.distribution_status,"recalled");
+  assert.equal(authority.allow_existing_owners,0,
+    "Forged distribution event history cannot reinstate a recalled asset");
 }finally{db.close();}
 
-// Protect the classification from future implicit event-history authority
-// dependencies. A new read of event rows must be separately analyzed before
-// these sites remain non-authorizing; audit/fixture scripts are excluded.
-function walk(dir,output=[]){
-  for(const entry of readdirSync(dir,{withFileTypes:true})){
-    const path=join(dir,entry.name);
-    if(entry.isDirectory())walk(path,output);
-    else if(entry.isFile()&&/\.(ts|tsx|js|mjs)$/.test(entry.name))output.push(path);
+// If any deployed source begins reading distribution history to compute
+// permission, this classification MUST fail CI until independently reviewed.
+function walk(dir,out=[]){
+  for(const e of readdirSync(dir,{withFileTypes:true})){
+    const p=join(dir,e.name);
+    if(e.isDirectory())walk(p,out);
+    else if(e.isFile()&&/\.(ts|tsx|js|mjs)$/.test(e.name))out.push(p);
   }
-  return output;
+  return out;
 }
 for(const path of walk("src")){
-  const contents=readFileSync(path,"utf8");
-  for(const name of Object.keys(eventColumns)){
-    const query=new RegExp("\\b(?:FROM|JOIN)\\s+[`\\\"']?"+name+"\\b","gi");
-    assert.equal([...contents.matchAll(query)].length,0,
-      "Event history is no longer write-only; inspect whether reads confer authority: "+path+":"+name);
-  }
+  const contents=readFileSync(path,"utf8"),
+    expression=/\b(?:FROM|JOIN)\s+publication_version_distribution_events\b/gi;
+  assert.equal([...contents.matchAll(expression)].length,0,
+    "Distribution event history became a read dependency: "+path);
 }
 assert.equal(review.releaseApproval,false);
-console.log("PASS: ten exact append-only legal history SQL sites never mutate publishing or distribution authority; no event-history reads are used to grant access");
+console.log("PASS: one distribution history projection never grants access; all nine restoration-sensitive publishing lifecycle events correctly remain owner-required");
