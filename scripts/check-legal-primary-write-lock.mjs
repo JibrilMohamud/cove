@@ -108,7 +108,10 @@ try {
   const reviewedAudioProgress=[
     "DELETE FROM commercial_audio_playback WHERE user_id=? AND product_id=? AND version=?",
     "UPDATE commercial_audio_playback SET chapter_id=?,seconds=?,speed=?,version=?,updated_at=? WHERE user_id=? AND product_id=? AND version=?",
-    "INSERT INTO commercial_audio_playback(user_id,product_id,chapter_id,seconds,speed,version,updated_at) VALUES(?,?,?,?,?,?,?)"
+    "INSERT INTO commercial_audio_playback(user_id,product_id,chapter_id,seconds,speed,version,updated_at) VALUES(?,?,?,?,?,?,?)",
+    "INSERT INTO commercial_audio_playback(user_id,product_id,chapter_id,seconds,speed,version,updated_at) VALUES(?,?,?,?,?,1,?) ON CONFLICT(user_id,product_id) DO NOTHING RETURNING version,updated_at",
+    "UPDATE commercial_audio_playback SET chapter_id=?,seconds=?,speed=?,version=version+1,updated_at=? WHERE user_id=? AND product_id=? AND version=? RETURNING version,updated_at",
+    "DELETE FROM commercial_audio_playback WHERE user_id=?"
   ];
   for(const sql of reviewedAudioProgress){
     assert.deepEqual(classifyProtectedLegalSql(sql),[],
@@ -122,7 +125,10 @@ try {
     reviewedAudioProgress[1]+"; UPDATE entitlements SET status='active'",
     "/* authorized progress */ "+reviewedAudioProgress[1],
     reviewedAudioProgress[2]+" -- user approved",
-    reviewedAudioProgress[0].replace("user_id=?","user_id='other_buyer'")
+    reviewedAudioProgress[0].replace("user_id=?","user_id='other_buyer'"),
+    reviewedAudioProgress[3].replace("ON CONFLICT(user_id,product_id) DO NOTHING","ON CONFLICT(user_id,product_id) DO UPDATE SET version=99"),
+    reviewedAudioProgress[4].replace("WHERE user_id=? AND product_id=? AND version=?","WHERE product_id=? AND version=?"),
+    reviewedAudioProgress[5].replace("WHERE user_id=?","WHERE product_id=?")
   ]){
     assert.ok(classifyProtectedLegalSql(sql).length>0,
       "Any alteration to a reviewed playback SQL statement must require an owner: "+sql);
