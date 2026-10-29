@@ -60,7 +60,11 @@ try{
       publicationVersionId:"pubv_gateway_01",status:"recalled",allowExistingOwners:false,
       reasonCode:"legal_recall",reasonDetail:"Rights dispute",actorUserId:userId,operationId},
       "/commercial/distribution/withdraw",
-      {withdrawn:true,ownerDenied:true,publicationVersionId:"pubv_gateway_01",status:"recalled",ownerEpoch:3}]
+      {withdrawn:true,ownerDenied:true,publicationVersionId:"pubv_gateway_01",status:"recalled",ownerEpoch:3}],
+    ["commerce.post-refund-accounting",{orderId,refundId:"ref_gateway_01"},
+      "/commercial/refund/post-accounting",
+      {schema:"cove.owner-refund-accounting.v1",ownerDenied:true,posted:true,
+        orderId,refundId:"ref_gateway_01",applied:true}]
   ];
   let calls=0;
   for(const [kind,body,path,receipt] of tests){
