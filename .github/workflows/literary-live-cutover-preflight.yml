@@ -44,7 +44,7 @@ jobs:
         with: { node-version: "22" }
       - name: Audit primary and independent literary domain without any write
         run: node scripts/staging/audit-literary-cutover-preflight.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: literary-production-readonly-cutover-${{ github.sha }}

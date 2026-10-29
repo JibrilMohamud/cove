@@ -40,7 +40,7 @@ jobs:
           python scripts/soundtracks/verify-production-playback.py "${args[@]}"
       - name: Keep non-secret live playback evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: soundtrack-playback-health
           path: soundtrack-playback-receipt.json

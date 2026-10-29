@@ -83,7 +83,7 @@ jobs:
       - name: Re-disable publisher after rollback
         if: (failure() || cancelled()) && steps.preflight.outcome == 'success'
         run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.literary-publisher.prod-disabled.jsonc
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: literary-real-publication-${{ github.sha }}

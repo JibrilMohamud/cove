@@ -45,7 +45,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Synthetic end-to-end handoff on dedicated remote D1 and private R2
         run: node scripts/staging/certify-literary-remote-synthetic-journey.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: literary-remote-staging-synthetic-${{ github.sha }}

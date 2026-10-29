@@ -74,7 +74,7 @@ jobs:
           command -v ffprobe
       - name: Verify one live Commons original and all audio frames (no R2 or D1 writes)
         run: python scripts/soundtracks/qualify-isolated-commons.py --max-recordings 1 --max-seconds 840 --profile-dsp --output commons-original-dry-run.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: commons-original-private-technical-dry-run
@@ -135,7 +135,7 @@ jobs:
           python scripts/soundtracks/queue-open-review-cases.py \
             --max-recordings 2 --apply-isolated \
             --output commons-private-review-cases.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: isolated-commons-technical-qa-receipts

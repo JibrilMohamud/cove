@@ -40,7 +40,7 @@ jobs:
           "COVE_NVDA_CONFIG=$profile" >> $env:GITHUB_ENV
       - name: Native screen-reader speech and focus audit
         run: node scripts/native-a11y/audit.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: native-nvda-audit

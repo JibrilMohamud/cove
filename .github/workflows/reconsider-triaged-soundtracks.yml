@@ -82,7 +82,7 @@ jobs:
             --max-imports 12 --max-minutes 13 --output soundtrack-reconsider-import-receipts.json
       - name: Preserve non-secret reconsideration results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: soundtrack-policy-reconsideration
           path: |
