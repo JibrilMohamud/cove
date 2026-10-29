@@ -365,8 +365,7 @@ export async function registerDevice(
     .first<any>();
   // A removed device key must never restore itself merely by registering
   // again. Rotate the key and explicitly enroll a new device instead.
-  if (!row)
-    throw new ApiError(409, "This device was revoked. Register with a new device key.");
+  if (!row) throw new ApiError(409, "This device was revoked. Register with a new device key.");
   await recordAccountSecurityEvent(db, userId, "device_registered", request, {
     deviceId: row?.id,
     platform: x.platform,
