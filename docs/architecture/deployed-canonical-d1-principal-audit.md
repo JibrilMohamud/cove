@@ -31,6 +31,18 @@ The verified pre/post/rollback snapshot, including all exact Worker names, is re
 
 The live fleet auditor now queries the **driver endpoints as well as the canonically bound capture services** and marks any reopened Workers.dev ingress, preview URL, new cron, custom route or account custom domain as a security drift failure. This network restriction reduces externally reachable paths but **does not establish canonical mutation exclusivity**: the capture Workers still have production D1 bindings, and callers using the relevant private service binding may remain.
 
+## Completed canonical D1 binding retirement (2026-10-29)
+
+An exact-state, live Cloudflare deployment operation retired **43** historical `cove-pub-{run}-capture` scripts. The preflight required a single known source D1 binding, a single canonical production D1 binding, and the existing execution flag; no cron, Workers.dev, Preview URL, route or custom domain; and exactly one incoming service binding from the corresponding historical driver. All 43 drivers already had Workers.dev disabled, no service callers, no cron, and no production D1 binding.
+
+For each capture, `PATCH /workers/scripts/{name}/settings` changed only the binding list and capture flag: removed production `SOURCE_DB`, retained independent `PUBLIC_SOURCE_DB`, and set `COVE_PUBLICATION_CAPTURE_ENABLED=0`. The Workers and data were not deleted. The live API confirmed **43/43** have the expected settings and a single new Worker version at **100% traffic**. Zero patch or verification errors.
+
+A separate complete account readback confirmed **450 Worker scripts**, now **14** directly bound to production D1 (13 non-owner + 1 currently-disabled legal owner), down from **57** (56 non-owner + owner). That is **43 actual credential/capability removals**, not an audit classification change.
+
+The exact 43 Worker names and break-glass restore schema are preserved in `docs/architecture/historical-publication-capture-d1-isolation-20261029.json`. The unsafe baseline was reduced from 57 to 14; restoring a previously retired canonical D1 binding is now a **new binding regression** and fails the protected drift audit. The audit additionally checks that none of the 43 retired captures is re-enabled even without a production D1 binding.
+
+**Still blocked:** The 13 remaining non-owner D1 bindings include the live backend, customer/fast gateways, scheduled literary processing, production Sounds publication, continuous publication QA capture, and storefront SSR staging. These require separately validated domain write migration or retirement. The 426 source-level owner-required SQL findings remain unresolved, and Stripe + protected media/rollback certification is still missing. The separate owner is still disabled and no public routing was changed. This retirement does **not** certify production authorization.
+
 ## Required retirement sequence
 
 1. Independently record every scheduled/HTTP/queue/service caller for each publication driver, capture, literary and music publisher. Trace the full transitive service-binding graph; a worker with zero direct cron and public ingress may still receive service calls.
