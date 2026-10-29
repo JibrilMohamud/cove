@@ -66,6 +66,7 @@ try {
       const rows=q.columns().length?q.all(...params):(q.run(...params),[]);
       return {toArray:()=>rows};}};
     let failWrite=false,failRead=false,writes=0;
+    let batchQueue=Promise.resolve();
     const DB={prepare(query){const statement=(params=[])=>({
       bind:(...args)=>statement(args),
       async first(){if(failRead)throw Error("primary_read_outage");
@@ -83,13 +84,20 @@ try {
       }
     });return statement();},
       async batch(statements){
-        primary.exec("BEGIN");
-        try {
-          const results=[];
-          for(const entry of statements)results.push(await entry.run());
-          primary.exec("COMMIT");
-          return results;
-        }catch(error){primary.exec("ROLLBACK");throw error;}
+        // D1 serializes atomic batches. The independent SQLite fixture must
+        // emulate that queue when eight owner replays arrive concurrently;
+        // overlapping BEGIN calls in one in-memory connection are not D1.
+        const task=batchQueue.then(async()=>{
+          primary.exec("BEGIN");
+          try {
+            const results=[];
+            for(const entry of statements)results.push(await entry.run());
+            primary.exec("COMMIT");
+            return results;
+          }catch(error){primary.exec("ROLLBACK");throw error;}
+        });
+        batchQueue=task.then(()=>{},()=>{});
+        return task;
       }
     };
     const ownerEnv={PRIMARY_DB:DB,COVE_RIGHTS_OWNER_ENABLED:"1",
