@@ -10,7 +10,7 @@ try{
   const out=path.join(dir,"legal-admin.mjs");
   await build({entryPoints:["src/storefront-strangler/legal-admin-owner-commands.server.ts"],
     outfile:out,bundle:true,platform:"node",format:"esm",logLevel:"silent"});
-  const {executeStageCanonicalAdminCommand:run,executeStageRightsEditorSuspension:editor}=await import(pathToFileURL(out).href);
+  const {executeStageCanonicalAdminCommand:run,executeStageRightsEditorSuspension:editor,executeStageMarketEditorPause:pauseMarket}=await import(pathToFileURL(out).href);
   const secret="a".repeat(64),messages=[];
   let status=200,override=null,unavailable=false;
   const responses={
@@ -70,6 +70,23 @@ try{
   const rightsContract=await editor(env,"contract",{ownerAction:"suspend",id:"rcontract_123",status:"suspended",operationId:"editor:contract:1"});
   assert.equal(rightsContract.ownerFirst,true);
   assert.equal(messages.at(-1).route,"/commercial/suspend-contract");
+  const marketPause=await pauseMarket(env,{ownerAction:"pause",countryCode:"US",operationId:"market:editor:1"});
+  assert.equal(marketPause.ownerFirst,true);
+  assert.equal(messages.at(-1).route,"/market/withdraw");
+  assert.deepEqual(messages.at(-1).payload,{action:"pause-market",territory:"US",operationId:"market:editor:1"});
+  const countAfterPause=messages.length;
+  for(const invalid of [
+    {ownerAction:"activate",countryCode:"US",operationId:"market:bad"},
+    {ownerAction:"pause",countryCode:"US",operationId:"market:bad",checkoutEnabled:true},
+    {ownerAction:"pause",countryCode:"US",operationId:"market:bad",status:"active"},
+    {ownerAction:"pause",countryCode:"*",operationId:"market:bad"},
+    {ownerAction:"pause",countryCode:"us",operationId:"market:bad"},
+    {ownerAction:"pause",countryCode:"US",operationId:""},
+  ]) await assert.rejects(()=>pauseMarket(env,invalid));
+  assert.equal(messages.length,countAfterPause,"Mixed or malformed market edits must never reach owner");
+  await assert.rejects(()=>pauseMarket({...env,COVE_SSR_STAGING:"0"},
+    {ownerAction:"pause",countryCode:"US",operationId:"market:no-stage"}),/not configured/);
+  assert.equal(messages.length,countAfterPause,"A production caller cannot borrow the staged market owner");
   await assert.rejects(()=>editor(env,"grant",{ownerAction:"suspend",id:"right_123",status:"active",operationId:"edit:invalid"}));
   await assert.rejects(()=>editor(env,"contract",{ownerAction:"suspend",id:"rcontract_123",status:"suspended",name:"unverified",operationId:"edit:invalid"}));
   const called=messages.length;
