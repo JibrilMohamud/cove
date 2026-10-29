@@ -32,6 +32,7 @@ try {
   db.exec("CREATE TABLE products(id TEXT PRIMARY KEY,edition_id TEXT,source_name TEXT)");
   db.exec("CREATE TABLE entitlements(id TEXT PRIMARY KEY,user_id TEXT,product_id TEXT,status TEXT,entitlement_type TEXT,order_item_id TEXT)");
   db.exec("CREATE TABLE audio_offline_licenses(id TEXT PRIMARY KEY,entitlement_id TEXT,status TEXT,revoked_at TEXT,revocation_reason TEXT)");
+  db.exec("CREATE TABLE commercial_delivery_grants(id TEXT PRIMARY KEY,entitlement_id TEXT,user_id TEXT,product_id TEXT,status TEXT)");
   db.exec("CREATE TABLE commerce_orders(id TEXT PRIMARY KEY,user_id TEXT)");
   db.exec("CREATE TABLE commerce_order_items(id TEXT PRIMARY KEY,order_id TEXT)");
   db.exec("INSERT INTO rights_contracts VALUES('rcontract_17','active')");
@@ -346,6 +347,13 @@ try {
   db.prepare("INSERT INTO audio_offline_licenses(id,entitlement_id,status) VALUES(?,?,'active')").run("offline_a",entitlementId);
   db.prepare("INSERT INTO audio_offline_licenses(id,entitlement_id,status) VALUES(?,?,'active')").run("offline_b",entitlementId);
   db.prepare("INSERT INTO audio_offline_licenses(id,entitlement_id,status) VALUES(?,?,'active')").run("offline_other","different_entitlement");
+  for(const id of ["epub_1","epub_2"])
+    db.prepare("INSERT INTO commercial_delivery_grants(id,entitlement_id,user_id,product_id,status) VALUES(?,?,?,?,'active')")
+      .run(id,entitlementId,"user_paid_17","prd_commercial_a17");
+  db.prepare("INSERT INTO commercial_delivery_grants(id,entitlement_id,user_id,product_id,status) VALUES(?,?,?,?,'active')")
+    .run("epub_unrelated","unrelated","other_user","prd_commercial_a17");
+  db.prepare("INSERT INTO commercial_delivery_grants(id,entitlement_id,user_id,product_id,status) VALUES(?,?,?,?,'active')")
+    .run("epub_wrong_user",entitlementId,"other_user","prd_commercial_a17");
   operations.length=0;
   const revoke={entitlementId,operationId:"refund:order17:ent17"};
   assert.equal((await post(revoke,{},"/commercial/entitlement/revoke")).status,200);
@@ -357,6 +365,11 @@ try {
     "All linked offline licenses are revoked in the same canonical D1 batch");
   assert.equal(db.prepare("SELECT status FROM audio_offline_licenses WHERE id='offline_other'").get().status,"active",
     "Unrelated buyers cannot be affected by entitlement revocation");
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM commercial_delivery_grants WHERE entitlement_id=? AND user_id='user_paid_17' AND status='revoked'").get(entitlementId).n,2,
+    "Both active EPUB delivery grants must be revoked in the same atomic batch");
+  assert.equal(db.prepare("SELECT status FROM commercial_delivery_grants WHERE id='epub_unrelated'").get().status,"active");
+  assert.equal(db.prepare("SELECT status FROM commercial_delivery_grants WHERE id='epub_wrong_user'").get().status,"active",
+    "A corrupted grant for a different buyer must not be revoked");
   assert.equal(paidEnt.captureEntitlementEpoch(sql,{
     entitlementId,userId:"user_paid_17",productId:"prd_commercial_a17"
   }),1);
@@ -380,6 +393,8 @@ try {
     "D1 failure must leave both canonical rows unchanged");
   assert.equal(db.prepare("SELECT COUNT(*) n FROM audio_offline_licenses WHERE entitlement_id=? AND status='active'").get(entitlementId).n,0,
     "Previously revoked offline licenses cannot be reactivated by a failed retry");
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM commercial_delivery_grants WHERE user_id='user_paid_17' AND status='revoked'").get().n,2,
+    "An owner replay outage must leave previously revoked EPUB tokens denied");
   failPrimaryBatch=false;
   operations.length=0;
   assert.equal((await post({...revoke,operationId:"refund:order17:ent19"},
@@ -399,6 +414,10 @@ try {
     db.prepare("INSERT INTO commerce_order_items VALUES(?,?)").run(row.item,refundOrderId);
     db.prepare("INSERT INTO entitlements(id,user_id,product_id,status,entitlement_type,order_item_id) VALUES(?,?,?,'active','purchase',?)")
       .run(row.id,"user_paid_17",row.product,row.item);
+    db.prepare("INSERT INTO audio_offline_licenses(id,entitlement_id,status) VALUES(?,?,'active')")
+      .run("audio_order_"+row.id,row.id);
+    db.prepare("INSERT INTO commercial_delivery_grants(id,entitlement_id,user_id,product_id,status) VALUES(?,?,?,?,'active')")
+      .run("epub_order_"+row.id,row.id,"user_paid_17",row.product);
   }
   // A 32-item order proves that the former 25-entitlement ceiling is gone.
   for(let i=0;i<30;i++){
@@ -414,10 +433,16 @@ try {
   operations.length=0;
   const fullRefund={orderId:refundOrderId,operationId:"refund_paid_order_21"};
   assert.equal((await post(fullRefund,{},"/commercial/entitlement/revoke-order")).status,200);
-  assert.deepEqual(operations,["canonical-evidence-check","authority","canonical-write"],
-    "ONE strong order veto before ONE indexed canonical UPDATE for all 33 items");
+  assert.deepEqual(operations,["canonical-evidence-check","authority","canonical-atomic-batch"],
+    "ONE strong order veto before ONE indexed canonical batch for all 33 items");
   assert.equal(db.prepare("SELECT COUNT(*) n FROM entitlements WHERE status='revoked' AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?)").get(refundOrderId).n,
     33,"Even an oversized mixed paid/public-domain purchase has every entitlement revoked");
+  for(const row of refundEnts){
+    assert.equal(db.prepare("SELECT status FROM audio_offline_licenses WHERE id=?").get("audio_order_"+row.id).status,"revoked");
+    assert.equal(db.prepare("SELECT status FROM commercial_delivery_grants WHERE id=?").get("epub_order_"+row.id).status,"revoked");
+  }
+  assert.equal(db.prepare("SELECT status FROM commercial_delivery_grants WHERE id='epub_wrong_user'").get().status,"active",
+    "Order refunds must not touch an unrelated delivery token");
   for(const row of refundEnts){
     assert.equal(db.prepare("SELECT status FROM entitlements WHERE id=?").get(row.id).status,
       "revoked");
@@ -441,7 +466,7 @@ try {
     {},"/commercial/entitlement/revoke-order")).status,503);
   assert.deepEqual(operations,["canonical-evidence-check","authority"],
     "Owner outage must prevent even discovering/changing canonical refund entitlements");
-  failOwner=false;failPrimaryWrite=true;
+  failOwner=false;failPrimaryBatch=true;
   db.prepare("UPDATE entitlements SET status='active' WHERE id=?").run(refundEnts[0].id);
   assert.equal((await post({...fullRefund,operationId:"refund_paid_order_23"},
     {},"/commercial/entitlement/revoke-order")).status,503);
@@ -449,7 +474,11 @@ try {
     "active","Simulated D1 failure must occur after the whole-order owner denial");
   assert.equal(db.prepare("SELECT COUNT(*) n FROM cove_paid_refunded_orders WHERE order_id=?").get(refundOrderId).n,
     1,"Post-denial D1 failure MUST NOT restore buyer rights at the owner");
-  failPrimaryWrite=false;
+  failPrimaryBatch=false;
+  // An exact owner replay must finish all three D1 projections.
+  assert.equal((await post({...fullRefund,operationId:"refund_paid_order_23"},
+    {},"/commercial/entitlement/revoke-order")).status,200);
+  assert.equal(db.prepare("SELECT status FROM entitlements WHERE id=?").get(refundEnts[0].id).status,"revoked");
   // No caller-provided price, edition, grant or contract is trusted.
   const publish={productId:"prd_commercial_a17",territory:"US",currency:"USD",
     operationId:"qa:retail:a17:publish"};
