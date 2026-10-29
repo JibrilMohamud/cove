@@ -15,7 +15,7 @@ or service credentials. New audit grouping never implies a safe production migra
 
 ## Changes
 
-- `config/canonical-legal-tables.json` is the single 120-table deny-first registry
+- `src/storefront-strangler/canonical-legal-tables.json` is the single 120-table deny-first registry
   consumed by the source scanner and the staging runtime D1 write lock. No table
   exclusions or runtime allowances are introduced.
 - `node scripts/canonical-owner-workflow-inventory.mjs` reconciles every SQL site

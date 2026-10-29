@@ -15,7 +15,7 @@ import {join,relative,resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 import assert from "node:assert/strict";
 import {canonicalWriterDrift} from "./canonical-writer-baseline.mjs";
-import canonicalProtectedTables from "../config/canonical-legal-tables.json" with {type:"json"};
+import canonicalProtectedTables from "../src/storefront-strangler/canonical-legal-tables.json" with {type:"json"};
 const root=resolve(fileURLToPath(new URL("..",import.meta.url)));
 const sources=["src","scripts","worker","workers"];
 const protectedTables=canonicalProtectedTables;

@@ -12,7 +12,7 @@
  * Until Cloudflare bindings and all writer paths are migrated, the
  * switch is ONLY used in isolated staging. It is not a production cutover.
  */
-import canonicalProtectedTables from "../../config/canonical-legal-tables.json";
+import canonicalProtectedTables from "./canonical-legal-tables.json";
 
 const LEGAL_TABLES = canonicalProtectedTables;
 
