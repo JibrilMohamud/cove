@@ -147,6 +147,26 @@ export async function executeStageCanonicalAdminCommand(
 }
 
 /**
+ * Explicit market PAUSE only. The legacy market editor accepts positive
+ * activations and arbitrary metadata; those cannot be represented by a
+ * withdrawal receipt. Never accept or ignore extra edit fields.
+ * Authenticated localization.manage callers enter the same private
+ * strongly consistent denial command used by commerce administrators.
+ */
+export async function executeStageMarketEditorPause(
+  env:StageCanonicalAdminEnv,input:unknown
+){
+  const x=z.object({
+    ownerAction:z.literal("pause"),
+    countryCode:territory,
+    operationId,
+  }).strict().parse(input);
+  return executeStageCanonicalAdminCommand(env,{
+    action:"pause-market",territory:x.countryCode,operationId:x.operationId,
+  });
+}
+
+/**
  * Existing rights-editor POST endpoints may opt into the owner-first
  * *negative-only* transition with an explicit, minimal command. Never accept
  * a mixed edit+withdraw request: an uncommitted metadata edit cannot be
