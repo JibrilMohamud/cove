@@ -43,7 +43,9 @@ try {
       CREATE TABLE pricing_decisions(id TEXT,promotion_amount_minor INTEGER,promotion_id TEXT);
       CREATE TABLE promotions(id TEXT,campaign_id TEXT);
       CREATE TABLE entitlements(id TEXT PRIMARY KEY,user_id TEXT,order_item_id TEXT,
-        entitlement_type TEXT,status TEXT);`);
+        entitlement_type TEXT,status TEXT);
+      CREATE TABLE audio_offline_licenses(id TEXT PRIMARY KEY,entitlement_id TEXT,
+        status TEXT,revoked_at TEXT,revocation_reason TEXT);`);
     primary.prepare("INSERT INTO commerce_orders(id,user_id) VALUES(?,?)").run(orderId,"buyer_primary_01");
     primary.prepare("INSERT INTO commerce_orders(id,user_id) VALUES(?,?)").run(otherOrder,"buyer_other_01");
     // More than the old per-item owner RPC bound; revocation remains one command.
@@ -51,9 +53,12 @@ try {
       primary.prepare("INSERT INTO commerce_order_items(id,order_id) VALUES(?,?)").run("item_"+i,orderId);
       primary.prepare("INSERT INTO entitlements VALUES(?,?,?,'purchase','active')")
         .run("ent_"+i,"buyer_primary_01","item_"+i);
+      primary.prepare("INSERT INTO audio_offline_licenses(id,entitlement_id,status) VALUES(?,?,'active')")
+        .run("offline_"+i,"ent_"+i);
     }
     primary.prepare("INSERT INTO commerce_order_items(id,order_id) VALUES('item_unrelated',?)").run(otherOrder);
     primary.exec("INSERT INTO entitlements VALUES('other_ent','buyer_other_01','item_unrelated','purchase','active')");
+    primary.exec("INSERT INTO audio_offline_licenses(id,entitlement_id,status) VALUES('offline_other','other_ent','active')");
     // A damaged row from another buyer must not be revoked by guessed item IDs.
     primary.exec("INSERT INTO entitlements VALUES('wrong_buyer','buyer_other_01','item_0','purchase','active')");
     primary.exec("INSERT INTO entitlements VALUES('subscription','buyer_primary_01','item_0','subscription','active')");
@@ -76,7 +81,17 @@ try {
         }
         return {meta:primary.prepare(query).run(...params)};
       }
-    });return statement();}};
+    });return statement();},
+      async batch(statements){
+        primary.exec("BEGIN");
+        try {
+          const results=[];
+          for(const entry of statements)results.push(await entry.run());
+          primary.exec("COMMIT");
+          return results;
+        }catch(error){primary.exec("ROLLBACK");throw error;}
+      }
+    };
     const ownerEnv={PRIMARY_DB:DB,COVE_RIGHTS_OWNER_ENABLED:"1",
       COVE_RIGHTS_OWNER_PRIMARY_ID:"7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
       COVE_RIGHTS_OWNER_TEST_EXPIRES_AT:String(Date.now()+600_000),
@@ -101,6 +116,10 @@ try {
   const f=fixture(),operationId="refund:command_01";
   await revokePaidOrderAccess(f.clientEnv,orderId,operationId);
   assert.equal(f.active(),0);assert.equal(f.writes(),1);
+  assert.equal(f.primary.prepare("SELECT count(*) n FROM audio_offline_licenses WHERE status='revoked' AND revoked_at IS NOT NULL AND revocation_reason='order_refunded'").get().n,40,
+    "All forty linked offline audio licenses must be atomically withdrawn before the owner acknowledges");
+  assert.equal(f.primary.prepare("SELECT status FROM audio_offline_licenses WHERE id='offline_other'").get().status,"active",
+    "Refund must not withdraw another customer's offline license");
   assert.equal(f.primary.prepare("SELECT status FROM entitlements WHERE id='other_ent'").get().status,"active");
   assert.equal(f.primary.prepare("SELECT status FROM entitlements WHERE id='wrong_buyer'").get().status,"active");
   assert.equal(f.primary.prepare("SELECT status FROM entitlements WHERE id='subscription'").get().status,"active");
@@ -112,11 +131,15 @@ try {
   const failed=fixture();failed.setFailWrite(true);
   await assert.rejects(()=>revokePaidOrderAccess(failed.clientEnv,orderId,operationId));
   assert.equal(failed.active(),40);
+  assert.equal(failed.primary.prepare("SELECT count(*) n FROM audio_offline_licenses WHERE status='active' AND entitlement_id LIKE 'ent_%'").get().n,40,
+    "An aborted canonical batch cannot partially revoke offline licenses");
   assert.equal(failed.owned.prepare("SELECT count(*) n FROM cove_paid_refunded_orders WHERE order_id=?").get(orderId).n,1,
     "Primary failure must not roll back the durable order denial");
   failed.setFailWrite(false);
   await revokePaidOrderAccess(failed.clientEnv,orderId,operationId);
   assert.equal(failed.active(),0,"Same immutable command repairs an interrupted reconciliation");
+  assert.equal(failed.primary.prepare("SELECT count(*) n FROM audio_offline_licenses WHERE status='revoked' AND revocation_reason='order_refunded'").get().n,40,
+    "A replay must reconcile the offline-license rows after a failed canonical batch");
   const concurrent=fixture();
   await Promise.all(Array.from({length:8},()=>revokePaidOrderAccess(concurrent.clientEnv,orderId,operationId)));
   assert.equal(concurrent.active(),0);
