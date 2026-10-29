@@ -95,5 +95,33 @@ try{
   db.prepare("UPDATE rights_contract_versions SET status='active',effective_to='2026-10-01T00:00:00.000Z'").run();
   assert.equal(offerRun("grant_other"),0,"Expired contract version must not reactivate price");
   assert.equal(db.prepare("SELECT active FROM offers").get().active,0);
+
+  // Exercise the production schedule SELECT, not a reimplementation: 510 old
+  // future releases must not monopolize the 500-row cap ahead of a due title.
+  const found=source.match(/`(SELECT l\.\*,pv\.id version_id,pv\.manifest_json,pv\.version_number FROM publishing_release_lifecycles l[^`]+LIMIT 500)`/);
+  assert.ok(found,"Missing production bounded schedule query");
+  db.exec("CREATE TABLE publishing_release_lifecycles(id TEXT PRIMARY KEY,state TEXT,updated_at TEXT,pending_publication_version_id TEXT,current_publication_version_id TEXT)");
+  db.exec("CREATE TABLE publishing_publication_versions(id TEXT PRIMARY KEY,manifest_json TEXT,version_number INTEGER)");
+  const addVersion=db.prepare("INSERT INTO publishing_publication_versions VALUES(?,?,1)");
+  const addLifecycle=db.prepare("INSERT INTO publishing_release_lifecycles VALUES(?,?,?,?,?)");
+  const future=JSON.stringify({metadata:{releaseDate:"2027-10-28T12:00:00.000Z"}});
+  const due=JSON.stringify({metadata:{releaseDate:"2026-10-27T12:00:00.000Z"}});
+  const preorder=JSON.stringify({metadata:{releaseDate:"2027-10-28T12:00:00.000Z",preorderDate:"2026-10-27T12:00:00.000Z"}});
+  for(let i=0;i<510;i++){
+    const key="future_"+String(i).padStart(3,"0");
+    addVersion.run(key,future);
+    addLifecycle.run(key,"scheduled","2025-01-01T00:00:00.000Z",null,key);
+  }
+  addVersion.run("due_retail",due);
+  addLifecycle.run("due_retail","scheduled","2026-10-28T00:00:00.000Z",null,"due_retail");
+  addVersion.run("due_preorder",preorder);
+  addLifecycle.run("due_preorder","scheduled","2026-10-28T01:00:00.000Z",null,"due_preorder");
+  addVersion.run("bad_manifest","{not json");
+  addLifecycle.run("bad_manifest","scheduled","2026-10-28T02:00:00.000Z",null,"bad_manifest");
+  const nowSeconds=Math.floor(Date.parse(at)/1000);
+  const scheduled=db.prepare(found[1]).all(nowSeconds,nowSeconds);
+  assert.deepEqual(scheduled.map(row=>row.id),["due_retail","due_preorder"],
+    "Non-due or malformed releases must not crowd out due retail/preorder titles");
+  console.log("PASS: bounded publishing scheduler selects due releases ahead of 510 older future titles");
   console.log("PASS: scheduled activation cannot revive suspended/revoked legal authority or expose retail offers without active matching grants");
 }finally{db.close();}
