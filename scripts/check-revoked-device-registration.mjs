@@ -41,8 +41,9 @@ try {
   db.prepare("UPDATE devices SET revoked_at=? WHERE id=?").run(at, "device_1");
   assert.equal(insert("device_3", "buyer_1", key, "Stolen"), undefined,
     "Re-enrolling the same revoked public key must not resurrect it");
-  assert.deepEqual(db.prepare("SELECT name,revoked_at FROM devices WHERE id='device_1'").get(),
-    {name:"Updated",revoked_at:at});
+  const revoked = db.prepare("SELECT name,revoked_at FROM devices WHERE id='device_1'").get();
+  assert.equal(revoked.name, "Updated");
+  assert.equal(revoked.revoked_at, at);
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM devices").get().n, 1,
     "Revoked key must not create a second device row");
   assert.equal(insert("device_4", "buyer_1", "brand-new-device-public-key-002", "New")?.id,
