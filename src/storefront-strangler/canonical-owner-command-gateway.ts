@@ -108,7 +108,8 @@ export async function dispatchCanonicalOwnerCommand(
          ack.ownerDenied!==true||ack.providerRecorded!==true||
          ack.orderId!==body.orderId||ack.refundId!==body.refundId||
          ack.providerRefundId!==body.providerRefundId||
-         !["pending","requires_action","succeeded","failed","canceled"].includes(ack.status))
+         (typeof ack.status!=="string"||
+          !["pending","requires_action","succeeded","failed","canceled"].includes(ack.status)))
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "commerce.post-refund-accounting":
