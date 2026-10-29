@@ -1988,19 +1988,26 @@ export async function refundOrder(env: CoveEnv, raw: unknown) {
     // The owner atomically reserves the original tender and returns a strictly
     // verified receipt before the caller may contact Stripe.
     const ack = await reserveStageOwnerRefundIntent(env, input);
-    const intent = await db.prepare("SELECT * FROM commerce_refunds WHERE id=?")
-      .bind(ack.refundId).first<RefundIntent>();
-    if (!intent || intent.id !== ack.refundId ||
-        intent.order_id !== input.orderId ||
-        intent.idempotency_key !== input.idempotencyKey ||
-        intent.reason !== input.reason ||
-        Number(intent.amount_minor) !== ack.amountMinor ||
-        Number(intent.stripe_amount_minor) !== ack.stripeAmountMinor ||
-        Number(intent.gift_card_amount_minor) !== ack.giftCardAmountMinor ||
-        Number(intent.store_credit_amount_minor) !== ack.storeCreditAmountMinor)
+    const intent = await db
+      .prepare("SELECT * FROM commerce_refunds WHERE id=?")
+      .bind(ack.refundId)
+      .first<RefundIntent>();
+    if (
+      !intent ||
+      intent.id !== ack.refundId ||
+      intent.order_id !== input.orderId ||
+      intent.idempotency_key !== input.idempotencyKey ||
+      intent.reason !== input.reason ||
+      Number(intent.amount_minor) !== ack.amountMinor ||
+      Number(intent.stripe_amount_minor) !== ack.stripeAmountMinor ||
+      Number(intent.gift_card_amount_minor) !== ack.giftCardAmountMinor ||
+      Number(intent.store_credit_amount_minor) !== ack.storeCreditAmountMinor
+    )
       throw new ApiError(503, "Canonical refund reservation projection does not match the owner.");
-    const order = await db.prepare("SELECT * FROM commerce_orders WHERE id=?")
-      .bind(intent.order_id).first<RefundOrder>();
+    const order = await db
+      .prepare("SELECT * FROM commerce_orders WHERE id=?")
+      .bind(intent.order_id)
+      .first<RefundOrder>();
     if (!order) throw new ApiError(503, "Canonical refund order is unavailable.");
     if (intent.succeeded_at) {
       await applyRefundSuccess(env, intent.id, null);
