@@ -61,6 +61,11 @@ try{
       reasonCode:"legal_recall",reasonDetail:"Rights dispute",actorUserId:userId,operationId},
       "/commercial/distribution/withdraw",
       {withdrawn:true,ownerDenied:true,publicationVersionId:"pubv_gateway_01",status:"recalled",ownerEpoch:3}],
+    ["commerce.record-refund-provider",{
+      orderId,refundId:"ref_gateway_01",providerRefundId:"re_gateway_012345",status:"succeeded"},
+      "/commercial/refund/record-provider",
+      {schema:"cove.owner-refund-provider.v1",ownerDenied:true,recorded:true,
+        orderId,refundId:"ref_gateway_01",providerRefundId:"re_gateway_012345",status:"succeeded"}],
     ["commerce.post-refund-accounting",{orderId,refundId:"ref_gateway_01"},
       "/commercial/refund/post-accounting",
       {schema:"cove.owner-refund-accounting.v1",ownerDenied:true,posted:true,
@@ -120,6 +125,19 @@ try{
     ()=>invoke(response(ack),secret,good[0],good[1]),
     /canonical_command_receipt/
   );
+  const providerCommand=tests.find(([kind])=>kind==="commerce.record-refund-provider");
+  assert.ok(providerCommand);
+  const [providerKind,providerBody,,providerReceipt]=providerCommand;
+  for(const bad of [
+    {...providerReceipt,providerRefundId:"re_wrong_identifier"},
+    {...providerReceipt,status:"failed"},
+    {...providerReceipt,ownerDenied:false},
+    {...providerReceipt,recorded:false},
+    {...providerReceipt,refundId:"ref_other_refund"}
+  ])await assert.rejects(()=>invoke(response(bad),secret,providerKind,providerBody),
+    /canonical_command_receipt_mismatch/);
+  await assert.rejects(()=>invoke(response(providerReceipt),secret,providerKind,
+    {...providerBody,sql:"UPDATE commerce_refunds"}));
   const refundCommand=tests.find(([kind])=>kind==="commerce.post-refund-accounting");
   assert.ok(refundCommand);
   const [refundKind,refundBody,,refundReceipt]=refundCommand;
