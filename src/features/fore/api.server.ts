@@ -1,5 +1,6 @@
 import {
   executeStageCanonicalAdminCommand,
+  executeStageMarketEditorPause,
   executeStageRightsEditorSuspension,
 } from "../../storefront-strangler/legal-admin-owner-commands.server";
 import { saveTasteControls, loadTasteControls } from "./discovery-intelligence.server";
@@ -3507,7 +3508,18 @@ async function handleCoveRequest(
       }
       if (request.method === "POST" && path === "/admin/localization/market") {
         const staff = await requireStaffPermission(db, who, "localization.manage", request);
-        return json(await upsertMarket(db, staff.userId, await body(request)));
+        const input = await body(request);
+        // A pause must be committed by the private legal owner before any
+        // canonical market write. This explicit minimal command cannot carry
+        // a simultaneous positive market activation or metadata edit.
+        if (input && typeof input === "object" && !Array.isArray(input) && "ownerAction" in input)
+          return json(await executeStageMarketEditorPause(env, input));
+        if (env.COVE_SSR_STAGING === "1" || env.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1")
+          throw new ApiError(
+            503,
+            "Staging market edits require a verified owner-first pause command.",
+          );
+        return json(await upsertMarket(db, staff.userId, input));
       }
       if (request.method === "POST" && path === "/admin/localization/taxonomy") {
         const staff = await requireStaffPermission(db, who, "localization.manage", request);

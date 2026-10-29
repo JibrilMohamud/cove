@@ -25,12 +25,29 @@ assert.match(
 );
 assert.match(source, /executeStageRightsEditorSuspension\(env, "grant", input\)/);
 assert.match(source, /executeStageRightsEditorSuspension\(env, "contract", input\)/);
+// Localization admins have their own permission boundary, not a commerce
+// delegation. A mixed update must not bypass the private market veto.
+const localizationRoute = source.indexOf('path === "/admin/localization/market"');
+const localizationAuth = source.lastIndexOf(
+  'requireStaffPermission(db, who, "localization.manage", request)',
+  localizationRoute + 280,
+);
+assert.ok(localizationRoute > 0 && localizationAuth > localizationRoute);
+const localizationEnd = source.indexOf(
+  'path === "/admin/localization/taxonomy"',
+  localizationRoute,
+);
+const marketSnippet = source.slice(localizationRoute, localizationEnd);
+assert.match(marketSnippet, /executeStageMarketEditorPause\(env, input\)/);
+assert.match(marketSnippet, /env\.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1"/);
+assert.match(marketSnippet, /Staging market edits require a verified owner-first pause command/);
+assert.doesNotMatch(marketSnippet, /db\.prepare\(/);
 const lockedStagingPattern =
   /env\.COVE_SSR_STAGING === "1" \|\| env\.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1"/g;
 assert.equal(
   [...source.matchAll(lockedStagingPattern)].length,
-  2,
-  "Both legacy rights editors must deny raw D1 in isolated locked staging",
+  3,
+  "Both legacy rights editors and the market editor must deny raw D1 in isolated locked staging",
 );
 assert.equal(
   (source.match(/Staging rights edits require verified owner-first commands/g) || []).length,
