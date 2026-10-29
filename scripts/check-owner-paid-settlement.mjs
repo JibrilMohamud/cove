@@ -180,6 +180,13 @@ try{
   assert.equal((await disabled.command()).status,503);assert.equal(disabled.snapshot().receipt,0);
   const nativeFetch=globalThis.fetch;
   try{
+    for(const [status,code] of [[401,"owner_stripe_credential_rejected"],[403,"owner_stripe_permission_denied"],
+      [404,"owner_stripe_payment_not_found"],[429,"owner_stripe_verification_rate_limited"],[400,"owner_stripe_verification_request_rejected"]]){
+      const deniedProvider=fixture();globalThis.fetch=async()=>new Response(null,{status});
+      const deniedResponse=await deniedProvider.command();assert.equal(deniedResponse.status,503);
+      assert.equal(deniedResponse.headers.get("x-cove-owner-settlement-failure"),code);
+      assert.equal(deniedProvider.snapshot().receipt,0);
+    }
     const provider=fixture();let requests=0;
     globalThis.fetch=async url=>{requests++;assert.ok(String(url).startsWith("https://api.stripe.com/v1/payment_intents/pi_atomic_settlement"));return Response.json({id:stripePayment.paymentIntentId,object:"payment_intent",status:"succeeded",livemode:false,amount:50,amount_received:50,currency:"usd",metadata:{fore_order_id:orderId},latest_charge:null});};
     // Provider confirmation succeeds, fee evidence unavailable: atomic money
