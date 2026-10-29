@@ -64,7 +64,9 @@ test("43 retired captures never regain production D1 or restart, and 14-binding 
   const retired=JSON.parse(readFileSync("docs/architecture/historical-publication-capture-d1-isolation-20261029.json","utf8"));
   const baseline=JSON.parse(readFileSync("docs/architecture/deployed-canonical-d1-baseline.json","utf8"));
   assert.equal(retired.scripts.length,43);
-  assert.equal(baseline.knownDirectBindings.length,14);
+  assert.equal(baseline.knownDirectBindings.length,12);
+  assert.equal(baseline.retirementEvidence.totalBindingsRemoved,45);
+  assert.equal(baseline.retirementEvidence.remainingNonOwnerBindings,11);
   assert.equal(baseline.certified,false);
   assert.equal(baseline.retirementEvidence.historicalCaptureBindingsRemoved,43);
   for(const name of retired.scripts)assert.ok(
@@ -98,6 +100,33 @@ test("43 retired captures never regain production D1 or restart, and 14-binding 
   });
   assert.deepEqual(restarted.retiredCaptureReactivations,[name]);
   assert.equal(compareKnownUnsafeFleet(restarted,baseline).strictDriftPass,false);
+});
+test("two retired literary Workers cannot regain D1 or be re-enabled by redeploy",()=>{
+  const name="cove-literary-handoff-isolated-disabled";
+  const initial={bindings:[
+    {name:"CONTENT_DB",type:"d1",id:"400c3af3-5d40-41fd-83cc-98228e40ddac"},
+    {name:"FORE_CONTENT_PROCESSOR_ENABLED",type:"plain_text",text:"0"},
+    {name:"FORE_CONTENT_HANDOFF_ENABLED",type:"plain_text",text:"0"}
+  ]};
+  const fixture={...params,scripts:[...params.scripts,{id:name}],
+    settingsByName:{...params.settingsByName,[name]:initial}};
+  assert.deepEqual(assessDeployedCanonicalD1Principals(fixture).retiredDisabledLiteraryReactivations,[]);
+  const reopened=assessDeployedCanonicalD1Principals({...fixture,
+    settingsByName:{...fixture.settingsByName,[name]:{
+      bindings:[...initial.bindings,{name:"DB",type:"d1",id:CANONICAL_D1}]
+    }},
+    schedulesByName:{...params.schedulesByName,[name]:[]},
+    subdomainsByName:{...params.subdomainsByName,[name]:{enabled:false}}
+  });
+  assert.deepEqual(reopened.retiredDisabledLiteraryReactivations,[name]);
+  assert.ok(reopened.blockerCodes.includes("disabled_literary_worker_canonical_d1_or_execution_restored"));
+  const reenabled=assessDeployedCanonicalD1Principals({...fixture,
+    settingsByName:{...fixture.settingsByName,[name]:{bindings:[
+      initial.bindings[0],
+      {name:"FORE_CONTENT_PROCESSOR_ENABLED",type:"plain_text",text:"1"}
+    ]}}
+  });
+  assert.deepEqual(reenabled.retiredDisabledLiteraryReactivations,[name]);
 });
 test("baseline is unsafe history, never authorization; added bindings and cron are refused",()=>{
   const report=assessDeployedCanonicalD1Principals(params);
