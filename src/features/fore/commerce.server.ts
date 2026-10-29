@@ -2099,10 +2099,11 @@ async function applyRefundSuccess(env: CoveEnv, refundId: string, refundPayload:
   // owner revocation is implemented.
   if (full || env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1")
     await stageRevokeRefundEntitlements(env, String(o.id), refundId);
-  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1")
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1") {
     await postStageOwnerRefundAccounting(env, String(o.id), refundId);
-  else
+  } else {
     await postRefundAccounting(db, refundId, at, false);
+  }
   // A completed financial posting is safe to replay while repairing a
   // later royalty, analytics or tax projection interrupted by a crash.
   await reverseRoyaltiesForRefund(db, r.id);
