@@ -17,6 +17,16 @@ const routes={
   "commerce.settle-order":{path:"/commercial/order/settle",schema:z.object({orderId:ownerId}).strict()},
   "commerce.recover-settlements":{path:"/commercial/order/recover-settlements",schema:z.object({limit:z.number().int().min(1).max(25)}).strict()},
   "commerce.revoke-order":{path:"/commercial/order/revoke",schema:z.object({orderId:ownerId,operationId:operation}).strict()},
+  "commerce.claim-webhook":{path:"/commercial/webhook/claim",schema:z.object({
+    eventId:z.string().regex(/^evt_[a-zA-Z0-9_-]{4,150}$/),
+    eventType:z.string().regex(/^[a-z0-9_.]{3,120}$/),
+    payloadSha256:z.string().regex(/^[a-f0-9]{64}$/),livemode:z.boolean()
+  }).strict()},
+  "commerce.finish-webhook":{path:"/commercial/webhook/finish",schema:z.object({
+    eventId:z.string().regex(/^evt_[a-zA-Z0-9_-]{4,150}$/),
+    payloadSha256:z.string().regex(/^[a-f0-9]{64}$/),
+    token:z.string().uuid(),outcome:z.enum(["processed","failed"])
+  }).strict()},
   "commerce.reserve-refund":{path:"/commercial/refund/reserve",schema:z.object({
     orderId:ownerId,reason:z.string().max(500),idempotencyKey:z.string().min(16).max(200),
     amountMinor:z.number().int().positive().max(1_000_000_000_000).optional()
@@ -121,6 +131,20 @@ export async function dispatchCanonicalOwnerCommand(
     case "commerce.revoke-order":
       if(ack.schema!=="cove.paid-order-revocation.v1"||ack.orderDenied!==true||
          ack.reconciled!==true||ack.orderId!==body.orderId||ack.operationId!==body.operationId)
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "commerce.claim-webhook":
+      if(ack.schema!=="cove.owner-webhook-claim.v1"||ack.eventId!==body.eventId||
+         ack.payloadSha256!==body.payloadSha256||typeof ack.duplicate!=="boolean"||
+         typeof ack.claimed!=="boolean"||ack.duplicate===ack.claimed||
+         (ack.claimed&&!z.string().uuid().safeParse(ack.token).success)||
+         (ack.duplicate&&ack.token!==null))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "commerce.finish-webhook":
+      if(ack.schema!=="cove.owner-webhook-finish.v1"||
+         ack.eventId!==body.eventId||ack.payloadSha256!==body.payloadSha256||
+         ack.outcome!==body.outcome||ack.token!==body.token||ack.finished!==true)
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "commerce.reserve-refund":
