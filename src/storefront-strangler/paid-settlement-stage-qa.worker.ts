@@ -80,6 +80,7 @@ export default {
       request.headers.get("x-cove-qa-interrupt-postpaid")==="1";
     const simulateOwnerOutage=!signedStripe &&
       request.headers.get("x-cove-qa-simulate-owner-outage")==="1";
+    let ownerFailure:string|null=null;
     const facade={...env,DB:env.PRIMARY_DB,BUCKET:env.QA_MEDIA,
       FORE_DEFAULT_TERRITORY:"US",
       STRIPE_TAX_ENABLED:"false",
@@ -87,13 +88,17 @@ export default {
         getByName(name:string){
           if(name!=="cove-staged-legal-global-v1")throw Error("invalid_owner_namespace");
           return {
-            fetch(ownerRequest:Request){
+            async fetch(ownerRequest:Request){
               if((interruptOwnerAfterPaid &&
                 new URL(ownerRequest.url).pathname==="/commercial/entitlement/publish-verified") ||
                 (simulateOwnerOutage &&
                  new URL(ownerRequest.url).pathname==="/commercial/entitlement/authorize"))
                 return Promise.resolve(new Response(null,{status:503}));
-              return env.LEGAL_PRIVATE!.fetch(ownerRequest);
+              const response=await env.LEGAL_PRIVATE!.fetch(ownerRequest);
+              const diagnostic=response.headers.get("x-cove-owner-settlement-failure");
+              if(new URL(ownerRequest.url).pathname==="/commercial/order/settle"&&
+                 diagnostic&&/^[a-z_]+(?::[a-z_][a-z0-9_.]{0,99})?$/.test(diagnostic))ownerFailure=diagnostic;
+              return response;
             }
           };
         }
@@ -132,7 +137,7 @@ export default {
       }catch(e){
         const status=typeof e==="object"&&e!==null&&"status" in e?
           Number((e as {status:unknown}).status):503;
-        return Response.json({ok:false},{status:[400,409,451,503].includes(status)?status:503,headers});
+        return Response.json({ok:false,...(ownerFailure?{ownerFailure}:{})},{status:[400,409,451,503].includes(status)?status:503,headers});
       }
     }
     // Invoke the ORIGINAL Cove customer commercial media functions on an

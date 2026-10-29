@@ -806,6 +806,8 @@ try {
     x.raw?.includes(initialPaymentIntentId)&&x.status===503),
     "initial_signed_webhook_interruption",60000);
   assert.equal(initialOutageInjected,true);
+  let lastOwnerFailure=interrupted.body?.ownerFailure||null;
+  if(lastOwnerFailure)console.log("QA initial owner failure: "+lastOwnerFailure);
   // Stripe's asynchronous balance transaction can appear after the success
   // event. Preserve every failed attempt; replay the same signed event until
   // the independently verified fee permits the atomic batch to commit.
@@ -816,6 +818,10 @@ try {
       headers:{"content-type":"application/json",authorization:"Bearer "+gate,"stripe-signature":interrupted.signature},
       body:interrupted.raw,signal:AbortSignal.timeout(15000)});
     assert.equal(retry.status,503,"Injected effect fault must prevent any successful ACK");
+    const retryBody=await retry.json();
+    if(retryBody.ownerFailure&&retryBody.ownerFailure!==lastOwnerFailure){
+      lastOwnerFailure=retryBody.ownerFailure;console.log("QA initial owner failure: "+lastOwnerFailure);
+    }
     await pause(1000);return false;
   },"independently_verified_atomic_payment",60000);
   const initialPaid=await qaSql(

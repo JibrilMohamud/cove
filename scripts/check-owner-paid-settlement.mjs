@@ -168,7 +168,9 @@ try{
   const holdsDdl=missingHold.primary.prepare("SELECT sql FROM sqlite_master WHERE name='royalty_holds'").get().sql;
   missingHold.primary.exec("DROP TABLE royalty_holds");
   const missingBefore=missingHold.snapshot();
-  assert.equal((await missingHold.command()).status,503);
+  const missingResponse=await missingHold.command();
+  assert.equal(missingResponse.status,503);
+  assert.equal(missingResponse.headers.get("x-cove-owner-settlement-failure"),"missing_table:royalty_holds");
   assert.deepEqual(missingHold.snapshot(),missingBefore);
   assert.ok(isPaidOwnerQaSchemaTable("royalty_holds"));
   assert.equal(isPaidOwnerQaSchemaTable("royalty_holds_untrusted"),false);
@@ -182,7 +184,8 @@ try{
     globalThis.fetch=async url=>{requests++;assert.ok(String(url).startsWith("https://api.stripe.com/v1/payment_intents/pi_atomic_settlement"));return Response.json({id:stripePayment.paymentIntentId,object:"payment_intent",status:"succeeded",livemode:false,amount:50,amount_received:50,currency:"usd",metadata:{fore_order_id:orderId},latest_charge:null});};
     // Provider confirmation succeeds, fee evidence unavailable: atomic money
     // remains committed and access remains denied until provider retry.
-    assert.equal((await provider.command()).status,503);assert.ok(requests>=1);assert.equal(provider.snapshot().receipt,0);
+    const unavailableFee=await provider.command();
+    assert.equal(unavailableFee.status,503);assert.equal(unavailableFee.headers.get("x-cove-owner-settlement-failure"),"owner_stripe_fee_not_available");assert.ok(requests>=1);assert.equal(provider.snapshot().receipt,0);
     assert.equal(provider.owned.prepare("SELECT COUNT(*) n FROM cove_paid_settlement_commands").get().n,0);
     for(const overrides of [{amount_received:49},{amount:49},{currency:"eur"},{livemode:true},{status:"processing"},{metadata:{fore_order_id:"other_order"}}]){
       const bad=fixture();globalThis.fetch=async()=>Response.json({id:stripePayment.paymentIntentId,object:"payment_intent",status:"succeeded",livemode:false,amount:50,amount_received:50,currency:"usd",metadata:{fore_order_id:orderId},...overrides});

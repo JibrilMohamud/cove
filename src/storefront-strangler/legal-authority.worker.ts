@@ -1,4 +1,5 @@
 /* eslint-disable prettier/prettier -- Private legal-authority boundary is security-sensitive. */
+import {ownerSettlementDiagnostic} from "./owner-settlement-diagnostic";
 import { DurableObject } from "cloudflare:workers";
 import {DISABLED_OWNER_ATTEST_ROUTE,PRODUCTION_OWNER_OBJECT,isDisabledProductionOwner,validOwnerChallenge,disabledOwnerReceipt} from "./production-disabled-owner-attestation";
 import {publishVerifiedPaidOrderAtomic,type VerifiedPaidOrderLine} from "./paid-order-atomic-publication";
@@ -1046,7 +1047,8 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       return Response.json(verdict,{status:200,headers:noStore});
     } catch(error) {
       console.error("cove_legal_authority_closed",error instanceof Error?error.name:"unknown");
-      return new Response(null,{status:503,headers:noStore});
+      return new Response(null,{status:503,headers:route==="/commercial/order/settle"?
+        {...noStore,"x-cove-owner-settlement-failure":ownerSettlementDiagnostic(error)}:noStore});
     }
   }
 }
