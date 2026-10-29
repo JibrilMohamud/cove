@@ -1,6 +1,6 @@
 /* eslint-disable prettier/prettier -- Strict QA-only owner refund provider command; source is an authenticated Stripe response, never SQL. */
 import type {CatalogDB} from "../features/fore/catalog-model.server";
-import type {AuthoritySql} from "./commercial-entitlement-core";
+import type {AuthoritySql} from "./legal-authority-core";
 import {readPaidOrderPermission} from "./commercial-entitlement-core";
 
 const ownerId=/^[a-zA-Z0-9_-]{8,160}$/;
