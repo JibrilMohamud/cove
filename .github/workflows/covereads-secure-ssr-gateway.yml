@@ -31,9 +31,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: cove-exclusive-real-primary-cold-acceptance
-  queue: max
-  cancel-in-progress: false
+  group: cove-owned-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   source-fail-closed:
@@ -58,6 +57,10 @@ jobs:
   isolated-asset-auth:
     needs: source-fail-closed
     if: github.event_name != 'pull_request'
+    concurrency:
+      group: cove-exclusive-real-primary-cold-acceptance
+      queue: max
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
