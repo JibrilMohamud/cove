@@ -14,12 +14,14 @@ assert.equal(a.ownerRequiredSqlSites,review.sites.filter(x=>x.disposition==="own
 assert.equal(a.classifiedNonAuthorizingSqlSites,review.sites.filter(x=>x.disposition==="non-authorizing-write").length);
 assert.equal(a.isolatedFixtureSqlSites,review.sites.filter(x=>x.disposition==="isolated-test-fixture").length);
 assert.equal(a.ownerRequiredSqlSites+a.classifiedNonAuthorizingSqlSites+a.isolatedFixtureSqlSites+a.privateOwnerQaExecutorSqlSites,a.scannedSqlSites);
-assert.equal(a.recordedCommandFamilies,new Set(review.sites.filter(x=>x.commandFamily).map(x=>x.commandFamily)).size);
+assert.equal(a.recordedCommandFamilies,new Set(review.sites.filter(x=>x.commandFamily&&x.disposition==="owner-command-required").map(x=>x.commandFamily)).size);
 assert.equal(report.workflows.reduce((n,x)=>n+x.ownerRequiredSites,0),a.ownerRequiredSqlSites);
 assert.equal(report.productionReleaseEligible,false);
 assert.equal(report.productionOwnerCertified,false);
 assert.equal(report.observedRuntimeWriterBypasses,null);
 assert.equal(a.productionCertifiedCommandFamilies,0);
+assert.ok(!report.workflows.some(x=>x.name==="publication.materialize"),
+  "A new private QA executor must not be reported as a production writer family");
 assert.ok(report.workflows.every(x=>x.productionStatus==="unverified"));
 assert.ok(report.workflows.every(x=>x.files.length&&x.tables.length));
 assert.equal(workflowId("commerce.postRefundAccounting"),workflowId("commerce.postRefundAccounting"));

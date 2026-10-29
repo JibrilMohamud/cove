@@ -102,3 +102,19 @@ export async function dispatchPublicationPreorder(db:object,command:{publication
     throw new ApiError(503,"Publication owner receipt does not match this preorder.");
   return {publicationVersionId:command.publicationVersionId,state:"preorder",versionNumber:Number(result.versionNumber)};
 }
+
+export async function dispatchPublicationMaterialization(db:object,command:{submissionId:string;reviewerUserId:string}) {
+  const context=owners.get(db);
+  if(!context)throw new ApiError(503,"Publication owner is not configured.");
+  const operationId="materialize:"+crypto.randomUUID();
+  try {
+    const receipt=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+      "publication.materialize",{...command,operationId,territory:context.territory,currency:context.currency});
+    // Canonical fields preserve the original materializer's result contract.
+    // The caller cannot supply a product or substitute an owner's identities.
+    return {id:receipt.publicationId,submission_id:command.submissionId,
+      product_id:receipt.productId,edition_id:receipt.editionId,work_id:receipt.workId,
+      publicationVersionId:receipt.publicationVersionId,versionNumber:receipt.versionNumber,
+      releaseState:receipt.releaseState,ownerUpdatePolicy:receipt.ownerUpdatePolicy};
+  } catch {throw new ApiError(503,"Publication materialization owner did not acknowledge completion.");}
+}

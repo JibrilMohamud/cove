@@ -19,7 +19,7 @@ export async function recoverPublicationCommands(sql:AuthoritySql,
   for(const row of rows) {
     try {
       const recorded=JSON.parse(row.recovery_json) as {route?:unknown;body?:unknown};
-      if(!recorded||!["/publication/activate-version","/publication/open-preorder"].includes(String(recorded.route))||
+      if(!recorded||!["/publication/activate-version","/publication/open-preorder","/publication/materialize-submission"].includes(String(recorded.route))||
         !recorded.body||typeof recorded.body!=="object"||Array.isArray(recorded.body)||
         (recorded.body as Record<string,unknown>).operationId!==row.operation_id)
         continue;
@@ -29,7 +29,8 @@ export async function recoverPublicationCommands(sql:AuthoritySql,
       const complete=sql.exec<{state:string;published_epoch:number|null}>(
         "SELECT state,published_epoch FROM cove_publication_commands WHERE operation_id=?",row.operation_id).toArray()[0];
       if(response.status===200&&complete?.state==="committed"&&
-        Number.isSafeInteger(complete.published_epoch)&&Number(complete.published_epoch)>0)recovered++;
+        Number.isSafeInteger(complete.published_epoch)&&(Number(complete.published_epoch)>0||
+          recorded.route==="/publication/materialize-submission"&&complete.published_epoch===0))recovered++;
     } catch { /* Keep the durable denial; continue other independent repairs. */ }
   }
   sql.exec("UPDATE cove_publication_recovery_scan SET after_operation_id=? WHERE id=1",

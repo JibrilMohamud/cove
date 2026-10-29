@@ -8,6 +8,8 @@ import {createMarketAuthoritySchema,denyMarket,marketIsWithdrawn} from "./market
 import { authorizeStorefrontPresentationIds, type CatalogDB } from "../features/fore/catalog-model.server";
 import { resolveProductRights } from "../features/fore/rights.server";
 import {activatePublicationVersionOwned} from "../features/fore/publishing.server";
+import {createPublicationMaterializationSchema,executePublicationMaterialization} from "./publication-materialization-command";
+import type {PublishingEnv} from "../features/fore/publishing.server";
 import {executePublicationPreorder} from "./publication-preorder-command";
 import {beginPublicationCommand,commitPublicationCommand,readPublicationCommand,markPublicationPublished,recordPublicationRecovery} from "./publication-command-core";
 import {recoverPublicationCommands} from "./publication-command-recovery";
@@ -36,6 +38,8 @@ import {
 
 type LegalAuthorityEnv = {
   PRIMARY_DB: CatalogDB;
+  BUCKET?:PublishingEnv["BUCKET"];
+  FORE_PUBLISHING_AUTO_APPROVE_LOW_RISK?:string;
   COVE_RIGHTS_OWNER_SECRET?: string;
   COVE_RIGHTS_OWNER_ENABLED?: string;
   COVE_RIGHTS_OWNER_PRIMARY_ID?: string;
@@ -81,6 +85,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     createCommercialStorefrontSchema(ctx.storage.sql as unknown as AuthoritySql);
     createPaidEntitlementSchema(ctx.storage.sql as unknown as AuthoritySql);
     createMarketAuthoritySchema(ctx.storage.sql as unknown as AuthoritySql);
+    createPublicationMaterializationSchema(ctx.storage.sql as unknown as AuthoritySql);
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -129,6 +134,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/entitlement/deny-next","/commercial/entitlement/deny-batch",
       "/commercial/entitlement/publish-verified",
       "/commercial/entitlement/publish-order-verified",
+      "/publication/materialize-submission",
       "/publication/activate-version",
       "/publication/open-preorder",
       "/publication/recover-recorded",
@@ -218,6 +224,16 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           return Response.json({schema:"cove.publication-recovery.v1",ownerFirst:true,
             operationId:input.operationId,...result},{headers:noStore});
         } finally {this.publicationRecoveryRunning=false;}
+      }
+      if(route==="/publication/materialize-submission") {
+        const storage=this.ctx.storage as typeof this.ctx.storage & {transactionSync<T>(fn:()=>T):T};
+        return await executePublicationMaterialization({primary:env.PRIMARY_DB,bucket:env.BUCKET,sql,
+          autoApprove:env.FORE_PUBLISHING_AUTO_APPROVE_LOW_RISK,
+          executing:this.publicationExecutions,transactionSync:fn=>storage.transactionSync(fn),
+          publish:(path,body)=>this.fetch(new Request("https://legal-authority.internal"+path,{
+            method:"POST",headers:{authorization:"Bearer "+env.COVE_RIGHTS_OWNER_SECRET,
+              "content-type":"application/json"},body:JSON.stringify(body)
+          }))},raw);
       }
       if(route==="/publication/open-preorder") {
         const storage=this.ctx.storage as typeof this.ctx.storage & {transactionSync<T>(fn:()=>T):T};

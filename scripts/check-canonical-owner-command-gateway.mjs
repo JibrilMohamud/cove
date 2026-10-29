@@ -80,6 +80,13 @@ try{
     ["commerce.recover-settlements",{limit:10},"/commercial/order/recover-settlements",
       {schema:"cove.owner-settlement-recovery.v1",checked:2,recovered:1,blocked:1}]
   );
+  tests.push(["publication.materialize",{submissionId:"pubsub_gateway_01",reviewerUserId:"staff_gateway_01",
+    operationId:"materialize:gateway_01",territory:"US",currency:"USD"},"/publication/materialize-submission",{
+      schema:"cove.publication-materialization.v1",ownerFirst:true,operationId:"materialize:gateway_01",
+      submissionId:"pubsub_gateway_01",publicationId:"publication_gateway_01",publicationVersionId:"pubv_gateway_01",
+      productId,editionId:"ed_gateway_01",workId:"wrk_gateway_01",releaseState:"live",versionNumber:1,
+      ownerUpdatePolicy:"auto_update",accessPublished:true
+    }]);
   let calls=0;
   for(const [kind,body,path,receipt] of tests){
     const writer=kind.startsWith("rights.");
@@ -134,6 +141,11 @@ try{
     ()=>invoke(response(ack),secret,good[0],good[1]),
     /canonical_command_receipt/
   );
+  const materialize=tests.find(([kind])=>kind==="publication.materialize");
+  for(const overrides of [{submissionId:"pubsub_other"},{operationId:"materialize:other"},{productId:"prd_gutenberg_123"},
+    {editionId:""},{workId:""},{publicationVersionId:""},{ownerUpdatePolicy:"unsafe"},{accessPublished:false}])
+    await assert.rejects(()=>invoke(response({...materialize[3],...overrides}),secret,materialize[0],materialize[1]),/receipt_mismatch/);
+  await assert.rejects(()=>invoke(response(materialize[3]),secret,materialize[0],{...materialize[1],productId}),/unrecognized_keys/);
   const settlement=tests.find(([kind])=>kind==="commerce.settle-order");
   for(const field of ["settled","effectsReconciled","accessPublished","applied"]){
     await assert.rejects(()=>invoke(response({...settlement[3],[field]:null}),secret,settlement[0],settlement[1]),/canonical_command_receipt/);

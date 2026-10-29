@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Real SQLite transactions, full schema and actual private owner handlers. */
 import assert from "node:assert/strict";
+import {isPaidOwnerQaSchemaTable} from "./staging/paid-owner-schema-policy.mjs";
 import {DatabaseSync} from "node:sqlite";
 import {build} from "esbuild";
 import {mkdtempSync,readdirSync,readFileSync,rmSync,copyFileSync} from "node:fs";
@@ -160,6 +161,19 @@ try{
   const denied=fixture({stripe:0,gift:0,store:100});
   await denied.owner.fetch(denied.request("/commercial/order/deny-next",{orderId,operationId:"refund:before:settlement"}));
   assert.equal((await denied.command()).status,503);assert.equal(denied.snapshot().receipt,0);
+  // The hosted schema bootstrap previously omitted royalty_holds. Actual
+  // settlement must deny without consuming tender, then recover once the
+  // reviewed schema-only bootstrap restores that required table.
+  const missingHold=fixture({stripe:0,gift:0,store:100});
+  const holdsDdl=missingHold.primary.prepare("SELECT sql FROM sqlite_master WHERE name='royalty_holds'").get().sql;
+  missingHold.primary.exec("DROP TABLE royalty_holds");
+  const missingBefore=missingHold.snapshot();
+  assert.equal((await missingHold.command()).status,503);
+  assert.deepEqual(missingHold.snapshot(),missingBefore);
+  assert.ok(isPaidOwnerQaSchemaTable("royalty_holds"));
+  assert.equal(isPaidOwnerQaSchemaTable("royalty_holds_untrusted"),false);
+  missingHold.primary.exec(holdsDdl);
+  assert.equal((await missingHold.command()).status,200,"Schema-only QA repair must unblock the real owner transaction");
   const disabled=fixture({stripe:0,gift:0,store:100});disabled.env.COVE_RIGHTS_OWNER_ENABLED="0";
   assert.equal((await disabled.command()).status,503);assert.equal(disabled.snapshot().receipt,0);
   const nativeFetch=globalThis.fetch;

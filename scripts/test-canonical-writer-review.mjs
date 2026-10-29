@@ -9,12 +9,12 @@ const review=JSON.parse(readFileSync(REVIEW_PATH,"utf8"));
 const current=currentWriterSites();
 const result=reconcileWriterSites(current,review);
 assert.deepEqual(result.unknown,[]);assert.deepEqual(result.stale,[]);
-assert.equal(current.length,482);
-assert.equal(new Set(current.map(x=>x.file)).size,28);
-assert.equal(current.filter(x=>x.literal).length,482,
+assert.equal(current.length,483);
+assert.equal(new Set(current.map(x=>x.file)).size,29);
+assert.equal(current.filter(x=>x.literal).length,483,
   "All scan candidates remain visible SQL literals, including the separate private QA executor inventory");
 const counts={};for(const x of review.sites)counts[x.disposition]=(counts[x.disposition]||0)+1;
-assert.deepEqual(counts,{"isolated-test-fixture":1,"owner-command-required":426,"non-authorizing-write":33,"private-owner-qa-executor":22});
+assert.deepEqual(counts,{"isolated-test-fixture":1,"owner-command-required":426,"non-authorizing-write":33,"private-owner-qa-executor":23});
 const versionEvents=review.sites.filter(x=>x.table==="publishing_owner_version_events");
 assert.equal(versionEvents.length,5);
 assert.equal(versionEvents.filter(x=>x.disposition==="owner-command-required").length,2);
@@ -67,11 +67,12 @@ assert.equal(release.status,1,"Reviewed classification must not open the owner-o
 const syntheticBoundary=new Map([
   ["src/features/fore/paid-settlement-transaction.server.ts","export function transaction() {}"],
   ["src/storefront-strangler/paid-settlement-owner-executor.ts",'import {transaction} from "../features/fore/paid-settlement-transaction.server";'],
-  ["src/storefront-strangler/legal-authority.worker.ts",'import "./paid-settlement-owner-executor";'],
+  ["src/storefront-strangler/legal-authority.worker.ts",'import "./paid-settlement-owner-executor"; import "./publication-materialization-command";'],
+  ["src/storefront-strangler/publication-materialization-command.ts","export function publication() {}"],
 ]);
 assert.equal(assertPrivateSettlementSourceBoundary(syntheticBoundary),true);
 for(const declaration of ['import "./paid-settlement-transaction.server";','export * from "./paid-settlement-transaction.server";','const x=import("./paid-settlement-transaction.server");'])
   assert.throws(()=>assertPrivateSettlementSourceBoundary(new Map([...syntheticBoundary,["src/features/fore/rogue.server.ts",declaration]])),/Non-owner runtime importer/);
 const legacy=review.sites.find(x=>x.disposition==="owner-command-required");
 assert.throws(()=>reconcileWriterSites(current,{...review,sites:review.sites.map(x=>x===legacy?{...x,disposition:"private-owner-qa-executor"}:x)}),/cannot erase legacy/);
-console.log("PASS: all 482 sites reconciled; 260 priority-file candidates; semantic SQL edits invalidate review; production release still denied");
+console.log("PASS: all 483 sites reconciled; 260 priority-file candidates; semantic SQL edits invalidate review; production release still denied");

@@ -25,6 +25,10 @@ on:
       - "src/storefront-strangler/publication-command-core.ts"
       - "src/storefront-strangler/publication-command-recovery.ts"
       - "src/storefront-strangler/publication-preorder-command.ts"
+      - "src/storefront-strangler/publication-materialization-command.ts"
+      - "scripts/check-publication-materialization-owner.mjs"
+      - "src/features/fore/publishing.server.ts"
+      - "drizzle/0090_owner_publication_completion_evidence.sql"
       - "src/storefront-strangler/publication-owner-routing.server.ts"
       - "scripts/check-publication-owner-command.mjs"
       - "scripts/check-production-owner-binding.mjs"
@@ -61,6 +65,10 @@ on:
       - "src/storefront-strangler/publication-command-core.ts"
       - "src/storefront-strangler/publication-command-recovery.ts"
       - "src/storefront-strangler/publication-preorder-command.ts"
+      - "src/storefront-strangler/publication-materialization-command.ts"
+      - "scripts/check-publication-materialization-owner.mjs"
+      - "src/features/fore/publishing.server.ts"
+      - "drizzle/0090_owner_publication_completion_evidence.sql"
       - "src/storefront-strangler/publication-owner-routing.server.ts"
       - "scripts/check-publication-owner-command.mjs"
       - "scripts/check-production-owner-binding.mjs"
@@ -103,6 +111,7 @@ jobs:
           node scripts/check-refund-royalty-atomic.mjs
           node scripts/check-paid-owner-worker-handlers.mjs
           node scripts/check-publication-owner-command.mjs
+          node scripts/check-publication-materialization-owner.mjs
           node scripts/check-production-owner-binding.mjs
           node scripts/test-production-owner-binding.mjs
           node scripts/check-market-authority-closure.mjs
