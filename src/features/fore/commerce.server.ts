@@ -2632,7 +2632,9 @@ async function processStripeEvent(env: CoveEnv, event: any) {
             errorCode: obj.last_payment_error?.code || null,
           },
         });
-      } catch {}
+      } catch {
+        // Notification delivery is best effort; the owner already persisted payment failure.
+      }
     }
     return;
   }
