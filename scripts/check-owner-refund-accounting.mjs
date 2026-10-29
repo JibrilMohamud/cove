@@ -14,9 +14,11 @@ try {
   const {executeOwnerRefundAccounting:execute}=await import(pathToFileURL(outfile).href);
   const commerce=readFileSync("src/features/fore/commerce.server.ts","utf8");
   const legacyRoyaltyGuard='if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")';
-  const position=commerce.indexOf(legacyRoyaltyGuard);
-  assert.ok(position>=0&&commerce.slice(position,position+155)
-    .includes("await reverseRoyaltiesForRefund(db, r.id);"),
+  const royaltyLine="await reverseRoyaltiesForRefund(db, r.id);";
+  const royaltyPosition=commerce.indexOf(royaltyLine);
+  const guardPosition=commerce.lastIndexOf(legacyRoyaltyGuard,royaltyPosition);
+  assert.ok(royaltyPosition>=0&&guardPosition>=0&&
+    royaltyPosition-guardPosition<130,
     "Enrolled stage owner must own all refund royalty reversals, with no parallel legacy D1 posting");
   const orderId="order_accounting_01",refundId="ref_accounting_01";
   function fixture({denied=true,stripeAmount=100,status="succeeded",provider="re_owner_refund_01",royaltyRows=false,failRoyaltyOnce=false}={}){

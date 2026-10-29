@@ -117,6 +117,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/market/deny-next",
       "/commercial/order/deny-next","/commercial/order/verify","/commercial/order/revoke",
       "/commercial/refund/post-accounting",
+      "/commercial/refund/record-provider",
       "/commercial/entitlement/deny-next","/commercial/entitlement/deny-batch",
       "/commercial/entitlement/publish-verified",
       "/commercial/entitlement/publish-order-verified",
@@ -433,6 +434,70 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         return Response.json({schema:"cove.paid-order-revocation.v1",
           orderDenied:true,reconciled:true,orderId:input.orderId,
           operationId:input.operationId},{status:200,headers:noStore});
+      }
+      if(route==="/commercial/refund/record-provider"){
+        // Synthetic QA owner lease + private DO bearer are enforced above.
+        // Production must separately certify provider evidence provenance.
+        if(!raw||typeof raw!=="object"||Array.isArray(raw))
+          throw Error("invalid_refund_provider_command");
+        const q=raw as Record<string,unknown>;
+        const validId=/^[a-zA-Z0-9_-]{8,160}$/;
+        const provider=/^re_[a-zA-Z0-9_-]{4,200}$/;
+        const payment=/^pi_[a-zA-Z0-9_-]{4,200}$/;
+        const accepted=new Set(["pending","requires_action","succeeded","failed","canceled"]);
+        if(Object.keys(q).sort().join(",")!==
+             "amountMinor,currency,orderId,paymentIntentId,providerRefundId,refundId,status"||
+           typeof q.orderId!=="string"||!validId.test(q.orderId)||
+           typeof q.refundId!=="string"||!validId.test(q.refundId)||
+           typeof q.providerRefundId!=="string"||!provider.test(q.providerRefundId)||
+           typeof q.paymentIntentId!=="string"||!payment.test(q.paymentIntentId)||
+           typeof q.currency!=="string"||!/^[A-Z]{3}$/.test(q.currency)||
+           typeof q.status!=="string"||!accepted.has(q.status)||
+           !Number.isSafeInteger(q.amountMinor)||Number(q.amountMinor)<=0||
+           Number(q.amountMinor)>1_000_000_000_000)
+          throw Error("invalid_refund_provider_command");
+        const refund=await env.PRIMARY_DB.prepare(
+          "SELECT id,order_id,provider_refund_id,stripe_amount_minor,currency,status,succeeded_at FROM commerce_refunds WHERE id=?"
+        ).bind(q.refundId).first<{id:string;order_id:string;provider_refund_id:string|null;
+          stripe_amount_minor:number;currency:string;status:string;succeeded_at:string|null}>();
+        const order=await env.PRIMARY_DB.prepare(
+          "SELECT id,stripe_payment_intent_id,currency FROM commerce_orders WHERE id=?"
+        ).bind(q.orderId).first<{id:string;stripe_payment_intent_id:string|null;currency:string}>();
+        if(!refund||refund.id!==q.refundId||refund.order_id!==q.orderId||
+           !order||order.id!==q.orderId||
+           order.stripe_payment_intent_id!==q.paymentIntentId||
+           order.currency!==q.currency||refund.currency!==q.currency||
+           Number(refund.stripe_amount_minor)!==q.amountMinor||
+           (refund.provider_refund_id&&refund.provider_refund_id!==q.providerRefundId))
+          throw Error("owner_refund_provider_scope_mismatch");
+        if(readPaidOrderPermission(sql,{orderId:q.orderId}).allowed!==false)
+          throw Error("owner_refund_denial_required");
+        // Provider identity is immutable and succeeded cannot regress under
+        // out-of-order signed Stripe webhooks or caller retries.
+        const state=refund.succeeded_at||refund.status==="succeeded"?
+          "succeeded":q.status;
+        if(refund.provider_refund_id!==q.providerRefundId||refund.status!==state){
+          const write=await env.PRIMARY_DB.prepare(
+            "UPDATE commerce_refunds SET provider_refund_id=?,status=CASE WHEN succeeded_at IS NOT NULL OR status='succeeded' THEN 'succeeded' ELSE ? END,updated_at=? WHERE id=? AND order_id=? AND (provider_refund_id IS NULL OR provider_refund_id=?)"
+          ).bind(q.providerRefundId,state,new Date().toISOString(),
+            q.refundId,q.orderId,q.providerRefundId).run() as {meta?:{changes?:number}};
+          if((write.meta?.changes??0)===0)
+            throw Error("owner_refund_provider_write_conflict");
+        }
+        const confirmed=await env.PRIMARY_DB.prepare(
+          "SELECT id,order_id,provider_refund_id,status FROM commerce_refunds WHERE id=?"
+        ).bind(q.refundId).first<{
+          id:string;order_id:string;provider_refund_id:string|null;status:string}>();
+        if(!confirmed||confirmed.id!==q.refundId||
+           confirmed.order_id!==q.orderId||
+           confirmed.provider_refund_id!==q.providerRefundId||
+           confirmed.status!==state)
+          throw Error("owner_refund_provider_confirmation_failed");
+        return Response.json({schema:"cove.owner-refund-provider.v1",
+          orderId:q.orderId,refundId:q.refundId,
+          providerRefundId:q.providerRefundId,status:confirmed.status,
+          ownerDenied:true,providerRecorded:true},
+          {status:200,headers:noStore});
       }
       if(route==="/commercial/refund/post-accounting"){
         // Canonical finance posting is never delegated to caller-supplied SQL.

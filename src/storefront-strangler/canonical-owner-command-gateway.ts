@@ -17,6 +17,14 @@ const routes={
   "commerce.revoke-order":{path:"/commercial/order/revoke",schema:z.object({orderId:ownerId,operationId:operation}).strict()},
   "commerce.post-refund-accounting":{path:"/commercial/refund/post-accounting",schema:z.object({
     orderId:ownerId,refundId:ownerId}).strict()},
+  "commerce.record-refund-provider":{path:"/commercial/refund/record-provider",schema:z.object({
+    orderId:ownerId,refundId:ownerId,
+    providerRefundId:z.string().regex(/^re_[a-zA-Z0-9_-]{4,200}$/),
+    paymentIntentId:z.string().regex(/^pi_[a-zA-Z0-9_-]{4,200}$/),
+    amountMinor:z.number().int().positive().max(1_000_000_000_000),
+    currency:z.string().regex(/^[A-Z]{3}$/),
+    status:z.enum(["pending","requires_action","succeeded","failed","canceled"])
+  }).strict()},
   "commerce.publish-order":{path:"/commercial/entitlement/publish-order-verified",schema:z.object({
     orderId:ownerId,userId:ownerId,territory,channel:z.literal("retail")}).strict()},
   "commerce.publish-entitlement":{path:"/commercial/entitlement/publish-verified",schema:z.object({
@@ -93,6 +101,15 @@ export async function dispatchCanonicalOwnerCommand(
     case "commerce.revoke-order":
       if(ack.schema!=="cove.paid-order-revocation.v1"||ack.orderDenied!==true||
          ack.reconciled!==true||ack.orderId!==body.orderId||ack.operationId!==body.operationId)
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "commerce.record-refund-provider":
+      if(ack.schema!=="cove.owner-refund-provider.v1"||
+         ack.ownerDenied!==true||ack.providerRecorded!==true||
+         ack.orderId!==body.orderId||ack.refundId!==body.refundId||
+         ack.providerRefundId!==body.providerRefundId||
+         (typeof ack.status!=="string"||
+          !["pending","requires_action","succeeded","failed","canceled"].includes(ack.status)))
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "commerce.post-refund-accounting":
