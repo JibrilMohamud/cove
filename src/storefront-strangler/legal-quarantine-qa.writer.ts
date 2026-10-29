@@ -291,14 +291,21 @@ export default {
         const orderReceipt=await orderOwner.json() as {applied?:boolean;orderId?:string};
         if(!orderReceipt.applied || orderReceipt.orderId!==orderId)
           throw Error("refund_order_owner_receipt_invalid");
-        // Once the whole paid order has a durable negative fence, one
-        // atomic, indexed canonical UPDATE reconciles all of its entitlements.
-        // There is no 25-item RPC fanout and no unrevoked tail in a large
-        // order. This also handles mixed commercial/public-domain carts,
-        // without ever granting either type of access.
-        await env.PRIMARY_DB.prepare(
-          "UPDATE entitlements SET status='revoked' WHERE user_id=? AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND entitlement_type='purchase' AND status='active'"
-        ).bind(order.user_id,orderId).run();
+        // Once the whole order is durably denied, reconcile purchase
+        // entitlements, offline audio licenses, and issued EPUB tokens in
+        // ONE atomic, indexed canonical batch. This also handles orders
+        // larger than the former 25-line cap and public-domain mixed carts.
+        await env.PRIMARY_DB.batch([
+          env.PRIMARY_DB.prepare(
+            "UPDATE entitlements SET status='revoked' WHERE user_id=? AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND entitlement_type='purchase' AND status='active'"
+          ).bind(order.user_id,orderId),
+          env.PRIMARY_DB.prepare(
+            "UPDATE audio_offline_licenses SET status='revoked',revoked_at=COALESCE(revoked_at,?),revocation_reason='order_refunded' WHERE entitlement_id IN (SELECT id FROM entitlements WHERE user_id=? AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND entitlement_type='purchase') AND status='active'"
+          ).bind(new Date().toISOString(),order.user_id,orderId),
+          env.PRIMARY_DB.prepare(
+            "UPDATE commercial_delivery_grants SET status='revoked' WHERE user_id=? AND entitlement_id IN (SELECT id FROM entitlements WHERE user_id=? AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND entitlement_type='purchase') AND status='active'"
+          ).bind(order.user_id,order.user_id,orderId)
+        ]);
         return Response.json({orderDenied:true},{status:200,headers});
       }
       if(isEntitlement){
