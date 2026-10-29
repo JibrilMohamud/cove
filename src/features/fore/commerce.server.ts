@@ -15,6 +15,7 @@ import { promotionPermitted } from "./rights.server";
 import { requireStageLegalConsumerProof } from "../../storefront-strangler/legal-consumer-fence.server";
 import { revokePaidOrderAccess } from "../../storefront-strangler/paid-order-revocation.server";
 import { postStageOwnerRefundAccounting } from "../../storefront-strangler/owner-refund-accounting.server";
+import { recordStageOwnerRefundProvider } from "../../storefront-strangler/owner-refund-provider.server";
 import {
   assertStagePaidOrderNotWithdrawn,
   certifyStagePaidSettlement,
@@ -2045,10 +2046,20 @@ async function completeRequestedRefund(env: CoveEnv, o: RefundOrder, intent: Ref
             metadata: { fore_order_id: o.id, fore_refund_id: id, fore_total_refund_minor: amount },
           },
         });
-    await db
-      .prepare("UPDATE commerce_refunds SET provider_refund_id=?,status=?,updated_at=? WHERE id=?")
-      .bind(refund.id, refund.status || "pending", now(), id)
-      .run();
+    if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1") {
+      await recordStageOwnerRefundProvider(
+        env,
+        String(o.id),
+        id,
+        String(refund.id),
+        String(refund.status || "pending"),
+      );
+    } else {
+      await db
+        .prepare("UPDATE commerce_refunds SET provider_refund_id=?,status=?,updated_at=? WHERE id=?")
+        .bind(refund.id, refund.status || "pending", now(), id)
+        .run();
+    }
     if (refund.status === "succeeded") await applyRefundSuccess(env, id, refund);
     return {
       id,
@@ -2063,12 +2074,14 @@ async function completeRequestedRefund(env: CoveEnv, o: RefundOrder, intent: Ref
     // A transport or reconciliation failure does not prove the provider
     // rejected the refund. Retain its tender reservation until retry can
     // reconcile the same key; a second request cannot spend that budget.
-    await db
-      .prepare(
-        "UPDATE commerce_refunds SET status=CASE WHEN succeeded_at IS NOT NULL THEN 'succeeded' ELSE 'pending' END,updated_at=? WHERE id=?",
-      )
-      .bind(now(), id)
-      .run();
+    if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1") {
+      await db
+        .prepare(
+          "UPDATE commerce_refunds SET status=CASE WHEN succeeded_at IS NOT NULL THEN 'succeeded' ELSE 'pending' END,updated_at=? WHERE id=?",
+        )
+        .bind(now(), id)
+        .run();
+    }
     throw e;
   }
 }
@@ -2571,12 +2584,25 @@ async function processStripeEvent(env: CoveEnv, event: any) {
       .bind(obj.id)
       .first<any>();
     if (r) {
-      await db
-        .prepare(
-          "UPDATE commerce_refunds SET status=CASE WHEN succeeded_at IS NOT NULL OR status='succeeded' THEN 'succeeded' ELSE ? END,updated_at=? WHERE id=?",
-        )
-        .bind(obj.status || r.status, now(), r.id)
-        .run();
+      if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1") {
+        // The signed webhook uses the same durable owner denial and exact
+        // provider identity as the customer-initiated refund reconciliation.
+        await stageRevokeRefundEntitlements(env, String(r.order_id), String(r.id));
+        await recordStageOwnerRefundProvider(
+          env,
+          String(r.order_id),
+          String(r.id),
+          String(obj.id),
+          String(obj.status || r.status),
+        );
+      } else {
+        await db
+          .prepare(
+            "UPDATE commerce_refunds SET status=CASE WHEN succeeded_at IS NOT NULL OR status='succeeded' THEN 'succeeded' ELSE ? END,updated_at=? WHERE id=?",
+          )
+          .bind(obj.status || r.status, now(), r.id)
+          .run();
+      }
       if (obj.status === "succeeded") await applyRefundSuccess(env, r.id, obj);
     }
   } else if (type.startsWith("charge.dispute.")) {
