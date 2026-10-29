@@ -632,6 +632,21 @@ try {
   // QUERY makes no mutation, so a bounded route-only retry is safe. Record
   // every such 404 with its Cloudflare Ray. NEVER retry positive publishing,
   // signed Stripe payment/refund, or measured hosted-capacity requests here.
+  // This known private route maps application errors to 409/451/503,
+  // never 404. A 404 is a pre-handler workers.dev propagation response.
+  // Retry ONLY 404: never replay a successful command, timeout, or Stripe
+  // webhook, and never treat a 404 as evidence of authorization denial.
+  const certifyPaidRoute=async()=>{
+    let result;
+    for(let attempt=0;attempt<5;attempt++){
+      result=await postSettlement("/certify-paid");
+      if(result.status!==404)return result;
+      console.error("QA paid route workers.dev 404",
+        JSON.stringify({attempt:attempt+1,ray:result.ray}));
+      if(attempt<4)await pause((attempt+1)*400);
+    }
+    return result;
+  };
   const readDelivery=async()=>{
     let response;
     for(let attempt=0;attempt<3;attempt++){
@@ -704,7 +719,7 @@ try {
   );
   assert.equal(proof.results?.[0]?.status,"processed",
     "Real signed payment event must have a durable canonical D1 dedupe receipt");
-  const stagePublished=await postSettlement("/certify-paid");
+  const stagePublished=await certifyPaidRoute();
   assert.equal(stagePublished.status,200,
     "Real deployed Cove paid-settlement function must reverify full-schema canonical buyer");
   assert.equal(stagePublished.body?.ok,true);
@@ -750,7 +765,7 @@ try {
   const revokedDelivery=await readDelivery();
   assert.equal(revokedDelivery.status,451,
     "Protected paid delivery must deny the exact buyer after durable owner refund");
-  const stageReplayed=await postSettlement("/certify-paid");
+  const stageReplayed=await certifyPaidRoute();
   assert.notEqual(stageReplayed.status,200,
     "After refund, actual staged paid settlement must never resurrect protected access");
   const replay=await post("/commercial/entitlement/revoke-order",refund);
