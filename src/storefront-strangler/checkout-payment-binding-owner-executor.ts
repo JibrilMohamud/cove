@@ -70,6 +70,7 @@ export async function executeOwnerCheckoutPaymentBinding(env:OwnerEnv,raw:unknow
      pi.currency?.toUpperCase()!==order.currency||
      !integer(pi.amount)||pi.amount!==Number(order.stripe_due_minor)||
      pi.capture_method!==order.capture_method||
+     typeof pi.status!=="string"||
      !["requires_payment_method","requires_confirmation","requires_action",
        "requires_capture","processing","succeeded"].includes(pi.status))
     throw Error("owner_checkout_provider_scope_mismatch");
