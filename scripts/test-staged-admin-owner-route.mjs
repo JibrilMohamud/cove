@@ -42,8 +42,8 @@ const lockedStagingPattern =
   /env\.COVE_SSR_STAGING === "1" \|\| env\.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1"/g;
 assert.equal(
   [...source.matchAll(lockedStagingPattern)].length,
-  2,
-  "Both legacy rights editors must deny raw D1 in isolated locked staging",
+  3,
+  "Both legacy rights editors and the market editor must deny raw D1 in isolated locked staging",
 );
 assert.equal(
   (source.match(/Staging rights edits require verified owner-first commands/g) || []).length,
