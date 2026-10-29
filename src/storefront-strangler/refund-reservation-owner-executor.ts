@@ -43,12 +43,16 @@ function receipt(input:ReserveInput,record:RefundRow,created:boolean) {
     giftCardAmountMinor:Number(record.gift_card_amount_minor),
     storeCreditAmountMinor:Number(record.store_credit_amount_minor),created};
 }
+export type RefundReservationWrite=(row:{
+  refundId:string;orderId:string;amount:number;stripe:number;gift:number;store:number;
+  currency:string;reason:string;idempotencyKey:string;at:string;
+})=>Promise<{meta?:{changes?:number}}>;
 /** The owner alone derives amounts from the canonical order and reserves the
  * complete refund under a transaction-current SQL balance predicate.
  * It never trusts caller-supplied tender splits or a stale checkout read.
  * A lost ACK is safe to replay with the same idempotency key; a new key
  * cannot spend funds held by a pending request. */
-export async function executeOwnerRefundReservation(db:CatalogDB,raw:unknown) {
+export async function executeOwnerRefundReservation(db:CatalogDB,raw:unknown,write:RefundReservationWrite) {
   const input=validate(raw);
   const existing=await db.prepare("SELECT * FROM commerce_refunds WHERE idempotency_key=?")
     .bind(input.idempotencyKey).first<RefundRow>();
@@ -84,10 +88,8 @@ export async function executeOwnerRefundReservation(db:CatalogDB,raw:unknown) {
     throw Error("owner_refund_tender_unavailable");
   const refundId="ref_"+crypto.randomUUID(),at=new Date().toISOString();
   try{
-    const result=await db.prepare(
-      "INSERT INTO commerce_refunds(id,order_id,amount_minor,stripe_amount_minor,gift_card_amount_minor,store_credit_amount_minor,currency,reason,status,idempotency_key,created_at,updated_at) SELECT ?,?,?,?,?,?,?,?,'pending',?,?,? FROM commerce_orders o WHERE o.id=? AND o.status IN ('paid','partially_refunded','disputed') AND ?<=o.total_minor-COALESCE((SELECT SUM(amount_minor) FROM commerce_refunds WHERE order_id=o.id AND status IN ('pending','succeeded')),0) AND ?<=o.stripe_due_minor-COALESCE((SELECT SUM(stripe_amount_minor) FROM commerce_refunds WHERE order_id=o.id AND status IN ('pending','succeeded')),0) AND ?<=o.gift_card_minor-COALESCE((SELECT SUM(gift_card_amount_minor) FROM commerce_refunds WHERE order_id=o.id AND status IN ('pending','succeeded')),0) AND ?<=o.store_credit_minor-COALESCE((SELECT SUM(store_credit_amount_minor) FROM commerce_refunds WHERE order_id=o.id AND status IN ('pending','succeeded')),0)"
-    ).bind(refundId,order.id,amount,stripe,gift,store,order.currency,input.reason,
-      input.idempotencyKey,at,at,order.id,amount,stripe,gift,store).run() as {meta?:{changes?:number}};
+    const result=await write({refundId,orderId:order.id,amount,stripe,gift,store,
+      currency:order.currency,reason:input.reason,idempotencyKey:input.idempotencyKey,at});
     if(result.meta?.changes!==1)throw Error("owner_refund_concurrent_reservation_conflict");
   }catch(error){
     // A losing concurrent request can succeed only when the immutable key
