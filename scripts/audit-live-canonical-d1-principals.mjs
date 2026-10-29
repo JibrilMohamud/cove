@@ -77,6 +77,11 @@ export function assessDeployedCanonicalD1Principals({scripts,settingsByName,
       customDomains:domains.filter(x=>x.service===script).map(x=>x.hostname).sort(),
       modeFlags:flags};
   }).sort((a,b)=>a.script.localeCompare(b.script)||a.binding.localeCompare(b.binding));
+  const fastArchitectureQA=bound.find(x=>x.script==="cove-fast-architecture-qa");
+  const unsafeFastArchitectureQAIngress=fastArchitectureQA &&
+    (fastArchitectureQA.publicWorkersDev||fastArchitectureQA.crons.length>0||
+     fastArchitectureQA.customRoutes.length>0||fastArchitectureQA.customDomains.length>0)
+      ?1:0;
   const unauthorized=bound.filter(x=>!x.owner);
   const owner=bound.filter(x=>x.owner);
   const scheduled=bound.filter(x=>x.crons.length>0);
@@ -130,6 +135,7 @@ export function assessDeployedCanonicalD1Principals({scripts,settingsByName,
     nonOwnerBindings:unauthorized.length,
     boundScriptsWithCrons:scheduled.length,
     boundScriptsWithNetworkIngress:exposed.length,
+    unsafeFastArchitectureQAIngress,
     retiredHistoricalCaptureScriptsInspected:retiredHistoricalCaptures.length,
     retiredCaptureReactivations,
     retiredDisabledLiteraryReactivations,
@@ -145,6 +151,7 @@ export function assessDeployedCanonicalD1Principals({scripts,settingsByName,
       ...(!ownerEnabled?["production_owner_disabled"]:[]),
       ...(scheduled.some(x=>!x.owner)?["non_owner_cron_can_use_canonical_d1"]:[]),
       ...(unsafeLegacyDrivers.length?["historical_qa_driver_public_ingress_reopened"]:[]),
+      ...(unsafeFastArchitectureQAIngress?["production_d1_qa_architecture_public_ingress"]:[]),
       ...(retiredCaptureReactivations.length?["retired_historical_capture_canonical_d1_or_execution_restored"]:[]),
       ...(retiredDisabledLiteraryReactivations.length?["disabled_literary_worker_canonical_d1_or_execution_restored"]:[]),
     ],
@@ -180,7 +187,7 @@ export function compareKnownUnsafeFleet(report,baseline){
     unsafeHistoricalBindingsStillPresent:report.directCanonicalBindings,
     // Even zero drift is not approval of legacy credentials.
     productionAuthorized:false,
-    strictDriftPass:newBindings.length===0&&newSchedules.length===0&&report.ownerEnabled===false&&report.unsafeLegacyDriverIngress===0&&(report.retiredCaptureReactivations||[]).length===0&&(report.retiredDisabledLiteraryReactivations||[]).length===0&&report.directCanonicalBindings<=12&&report.nonOwnerBindings<=11};
+    strictDriftPass:newBindings.length===0&&newSchedules.length===0&&report.ownerEnabled===false&&report.unsafeLegacyDriverIngress===0&&(report.retiredCaptureReactivations||[]).length===0&&report.unsafeFastArchitectureQAIngress===0&&(report.retiredDisabledLiteraryReactivations||[]).length===0&&report.directCanonicalBindings<=12&&report.nonOwnerBindings<=11};
 }
 
 /** Read-only. Abort the entire audit if even one Worker settings or owner
