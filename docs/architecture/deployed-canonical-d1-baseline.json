@@ -1,18 +1,16 @@
 {
   "schema": "cove.canonical-d1-unsafe-principal-baseline.v1",
-  "observedOn": "2026-10-29 (post-43-historical-capture isolation)",
-  "reason": "Known unsafe 14-binding BASELINE ONLY, not authorized writers; 43 unreachable historical capture SOURCE_DB production bindings were verifiably revoked. Any restoration is a NEW unsafe binding and fails live audit.",
+  "observedOn": "2026-10-29 (post-45 binding retirements)",
+  "reason": "Known unsafe 12-binding baseline, not certified owner-first writers. 45 previously deployed canonical production D1 capabilities were revoked: 43 unreachable historical capture Workers and 2 disabled literary Workers. Restoration is new security drift.",
   "canonicalD1": "4bd657ac-8789-403e-a28c-93aba8d0a989",
   "knownDirectBindingScripts": [
     "cove-fast-architecture-qa",
     "cove-fast-customer-gateway",
     "cove-legal-authority-production",
     "cove-literary-handoff-draining-20261025",
-    "cove-literary-handoff-isolated-disabled",
     "cove-literary-infer-draining-20261025",
     "cove-literary-infer-isolated-disabled",
     "cove-literary-prepare-draining-20261025",
-    "cove-literary-prepare-isolated-disabled",
     "cove-literary-publisher-isolated-disabled",
     "cove-persistence-backend",
     "cove-pub-qa-continuous-capture",
@@ -63,10 +61,6 @@
       "binding": "DB"
     },
     {
-      "script": "cove-literary-handoff-isolated-disabled",
-      "binding": "DB"
-    },
-    {
       "script": "cove-literary-infer-draining-20261025",
       "binding": "DB"
     },
@@ -76,10 +70,6 @@
     },
     {
       "script": "cove-literary-prepare-draining-20261025",
-      "binding": "DB"
-    },
-    {
-      "script": "cove-literary-prepare-isolated-disabled",
       "binding": "DB"
     },
     {
@@ -106,11 +96,17 @@
   "retirementEvidence": {
     "historicalCaptureBindingsRemoved": 43,
     "previousDirectBindings": 57,
-    "remainingDirectBindings": 14,
+    "remainingDirectBindings": 12,
     "previousNonOwnerBindings": 56,
-    "remainingNonOwnerBindings": 13,
+    "remainingNonOwnerBindings": 11,
     "liveCloudflareReadback": true,
     "ownerStillDisabled": true,
-    "snapshot": "docs/architecture/historical-publication-capture-d1-isolation-20261029.json"
+    "snapshot": "docs/architecture/historical-publication-capture-d1-isolation-20261029.json",
+    "disabledLiteraryBindingsRemoved": 2,
+    "totalBindingsRemoved": 45,
+    "disabledLiteraryWorkerNames": [
+      "cove-literary-handoff-isolated-disabled",
+      "cove-literary-prepare-isolated-disabled"
+    ]
   }
 }
