@@ -90,6 +90,12 @@ const NONAUTH_AUDIO_POSITION_SQL=new Set([
   "DELETE"+" FROM commercial_audio_playback WHERE user_id=? AND product_id=? AND version=?",
   "UPDATE"+" commercial_audio_playback SET chapter_id=?,seconds=?,speed=?,version=?,updated_at=? WHERE user_id=? AND product_id=? AND version=?",
   "INSERT"+" INTO commercial_audio_playback(user_id,product_id,chapter_id,seconds,speed,version,updated_at) VALUES(?,?,?,?,?,?,?)",
+  // The production /commercial-audio/playback PUT route checks signed-in
+  // access, buyer risk and live legal owner BEFORE these progress writes.
+  "INSERT"+" INTO commercial_audio_playback(user_id,product_id,chapter_id,seconds,speed,version,updated_at) VALUES(?,?,?,?,?,1,?) ON CONFLICT(user_id,product_id) DO NOTHING RETURNING version,updated_at",
+  "UPDATE"+" commercial_audio_playback SET chapter_id=?,seconds=?,speed=?,version=version+1,updated_at=? WHERE user_id=? AND product_id=? AND version=? RETURNING version,updated_at",
+  // Account deletion can erase progress but cannot thereby grant access.
+  "DELETE"+" FROM commercial_audio_playback WHERE user_id=?",
 ]);
 // SQLite accepts SQL comments BETWEEN mutation keywords and object names.
 // Scrubbing via a regex is unsafe: a quoted literal containing "--" could

@@ -12,6 +12,7 @@ on:
       - "scripts/test-canonical-writer-review.mjs"
       - "scripts/check-audio-progress-nonauthorizing.mjs"
       - "scripts/check-nonauthorizing-legal-history.mjs"
+      - "scripts/check-audio-playback-remaining-nonauthorizing.mjs"
       - "scripts/test-stage-distribution-owner.mjs"
       - "docs/architecture/canonical-writer-review.json"
       - ".github/workflows/canonical-writer-closure-audit.yml"
@@ -28,6 +29,7 @@ on:
       - "scripts/test-canonical-writer-review.mjs"
       - "scripts/check-audio-progress-nonauthorizing.mjs"
       - "scripts/check-nonauthorizing-legal-history.mjs"
+      - "scripts/check-audio-playback-remaining-nonauthorizing.mjs"
       - "docs/architecture/canonical-writer-review.json"
       - ".github/workflows/canonical-writer-closure-audit.yml"
   workflow_dispatch:
@@ -60,6 +62,7 @@ jobs:
           node scripts/test-canonical-writer-review.mjs
           node scripts/check-audio-progress-nonauthorizing.mjs
           node scripts/check-nonauthorizing-legal-history.mjs
+          node scripts/check-audio-playback-remaining-nonauthorizing.mjs
       - name: Save reviewable line-addressed mutation evidence
         env:
           COVE_WRITER_AUDIT_OUTPUT: ${{ runner.temp }}/cove-canonical-writer-inventory.json
