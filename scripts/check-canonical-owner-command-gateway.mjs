@@ -61,6 +61,14 @@ try{
       reasonCode:"legal_recall",reasonDetail:"Rights dispute",actorUserId:userId,operationId},
       "/commercial/distribution/withdraw",
       {withdrawn:true,ownerDenied:true,publicationVersionId:"pubv_gateway_01",status:"recalled",ownerEpoch:3}],
+    ["commerce.record-refund-provider",{
+      orderId,refundId:"ref_gateway_01",
+      providerRefundId:"re_gateway_123",paymentIntentId:"pi_gateway_123",
+      amountMinor:125,currency:"USD",status:"succeeded"
+    },"/commercial/refund/record-provider",{
+      schema:"cove.owner-refund-provider.v1",ownerDenied:true,providerRecorded:true,
+      orderId,refundId:"ref_gateway_01",providerRefundId:"re_gateway_123",status:"succeeded"
+    }],
     ["commerce.post-refund-accounting",{orderId,refundId:"ref_gateway_01"},
       "/commercial/refund/post-accounting",
       {schema:"cove.owner-refund-accounting.v1",ownerDenied:true,posted:true,
@@ -132,6 +140,27 @@ try{
     ()=>invoke(response(invalidReceipt),secret,refundKind,refundBody),
     /canonical_command_receipt_mismatch/,
     "Never acknowledge a refund whose royalty posting is missing or unscoped"
+  );
+  const recordCommand=tests.find(([kind])=>kind==="commerce.record-refund-provider");
+  assert.ok(recordCommand);
+  const [recordKind,recordBody,,recordReceipt]=recordCommand;
+  for(const badInput of [
+    {...recordBody,providerRefundId:"re_untrusted_bad/../"},
+    {...recordBody,paymentIntentId:"pi_other^"},
+    {...recordBody,amountMinor:0},
+    {...recordBody,status:"approved"},
+    {...recordBody,currency:"usd"},
+    {...recordBody,sql:"UPDATE commerce_refunds"}
+  ])await assert.rejects(()=>invoke(response(recordReceipt),secret,recordKind,badInput));
+  for(const badAck of [
+    {...recordReceipt,ownerDenied:false},
+    {...recordReceipt,providerRecorded:false},
+    {...recordReceipt,providerRefundId:"re_other_id"},
+    {...recordReceipt,orderId:"order_bad"},
+    {...recordReceipt,status:"invalid"}
+  ])await assert.rejects(
+    ()=>invoke(response(badAck),secret,recordKind,recordBody),
+    /canonical_command_receipt_mismatch/
   );
   const failures=[
     {async fetch(){return new Response(null,{status:503});}},
