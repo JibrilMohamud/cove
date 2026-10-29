@@ -17,6 +17,8 @@ on:
       - "src/storefront-strangler/paid-order-atomic-publication.ts"
       - "src/storefront-strangler/paid-order-revocation.server.ts"
       - "src/features/fore/commerce.server.ts"
+      - "src/features/fore/support.server.ts"
+      - "scripts/check-support-owner-revocation.mjs"
       - "src/features/fore/refund-accounting.server.ts"
       - "src/features/fore/finance.server.ts"
       - "scripts/check-refund-*.mjs"
@@ -51,6 +53,8 @@ on:
       - "src/storefront-strangler/paid-order-atomic-publication.ts"
       - "src/storefront-strangler/paid-order-revocation.server.ts"
       - "src/features/fore/commerce.server.ts"
+      - "src/features/fore/support.server.ts"
+      - "scripts/check-support-owner-revocation.mjs"
       - "src/features/fore/refund-accounting.server.ts"
       - "src/features/fore/finance.server.ts"
       - "scripts/check-refund-*.mjs"
@@ -103,6 +107,7 @@ jobs:
           node scripts/test-production-owner-binding.mjs
           node scripts/check-market-authority-closure.mjs
           node scripts/check-legal-quarantine-writer.mjs
+          node scripts/check-support-owner-revocation.mjs
           node scripts/test-legal-admin-owner-commands.mjs
           node scripts/test-staged-admin-owner-route.mjs
       - name: Compile dormant Durable Object and fenced private writer

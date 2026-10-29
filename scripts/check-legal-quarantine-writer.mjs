@@ -31,6 +31,7 @@ try {
   db.prepare("INSERT INTO offers VALUES('offer_a17_eur','prd_commercial_a17','EUR',1,'2026-10-26T00:00:00Z')").run();
   db.exec("CREATE TABLE products(id TEXT PRIMARY KEY,edition_id TEXT,source_name TEXT)");
   db.exec("CREATE TABLE entitlements(id TEXT PRIMARY KEY,user_id TEXT,product_id TEXT,status TEXT,entitlement_type TEXT,order_item_id TEXT)");
+  db.exec("CREATE TABLE audio_offline_licenses(id TEXT PRIMARY KEY,entitlement_id TEXT,status TEXT,revoked_at TEXT,revocation_reason TEXT)");
   db.exec("CREATE TABLE commerce_orders(id TEXT PRIMARY KEY,user_id TEXT)");
   db.exec("CREATE TABLE commerce_order_items(id TEXT PRIMARY KEY,order_id TEXT)");
   db.exec("INSERT INTO rights_contracts VALUES('rcontract_17','active')");
@@ -342,13 +343,20 @@ try {
   db.prepare("INSERT INTO entitlements(id,user_id,product_id,status) VALUES(?,?,?,'active')").run(
     entitlementId,"user_paid_17","prd_commercial_a17"
   );
+  db.prepare("INSERT INTO audio_offline_licenses(id,entitlement_id,status) VALUES(?,?,'active')").run("offline_a",entitlementId);
+  db.prepare("INSERT INTO audio_offline_licenses(id,entitlement_id,status) VALUES(?,?,'active')").run("offline_b",entitlementId);
+  db.prepare("INSERT INTO audio_offline_licenses(id,entitlement_id,status) VALUES(?,?,'active')").run("offline_other","different_entitlement");
   operations.length=0;
   const revoke={entitlementId,operationId:"refund:order17:ent17"};
   assert.equal((await post(revoke,{},"/commercial/entitlement/revoke")).status,200);
-  assert.deepEqual(operations,["canonical-evidence-check","authority","canonical-write"],
-    "D1 beneficiary discovery, strong paid buyer deny, THEN canonical entitlement revoke");
+  assert.deepEqual(operations,["canonical-evidence-check","authority","canonical-atomic-batch"],
+    "D1 beneficiary discovery, strong paid buyer deny, THEN atomic canonical entitlement/offline revoke");
   assert.equal(db.prepare("SELECT status FROM entitlements WHERE id=?").get(entitlementId).status,
     "revoked");
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM audio_offline_licenses WHERE entitlement_id=? AND status='revoked' AND revoked_at IS NOT NULL AND revocation_reason='entitlement_revoked'").get(entitlementId).n,2,
+    "All linked offline licenses are revoked in the same canonical D1 batch");
+  assert.equal(db.prepare("SELECT status FROM audio_offline_licenses WHERE id='offline_other'").get().status,"active",
+    "Unrelated buyers cannot be affected by entitlement revocation");
   assert.equal(paidEnt.captureEntitlementEpoch(sql,{
     entitlementId,userId:"user_paid_17",productId:"prd_commercial_a17"
   }),1);
@@ -361,14 +369,24 @@ try {
   assert.deepEqual(operations,["canonical-evidence-check","authority"]);
   assert.equal(db.prepare("SELECT status FROM entitlements WHERE id=?").get(entitlementId).status,
     "active","An unavailable strong owner cannot commit a refund revocation");
-  failOwner=false;failPrimaryWrite=true;
+  failOwner=false;failPrimaryBatch=true;
   const loss=await post({...revoke,operationId:"refund:order17:ent19"},
     {},"/commercial/entitlement/revoke");
   assert.equal(loss.status,503);
   assert.equal(paidEnt.captureEntitlementEpoch(sql,{
     entitlementId,userId:"user_paid_17",productId:"prd_commercial_a17"
-  }),2,"Failed canonical refund update leaves owner denial in place");
-  failPrimaryWrite=false;
+  }),2,"Failed atomic D1 reconciliation leaves durable owner denial in place");
+  assert.equal(db.prepare("SELECT status FROM entitlements WHERE id=?").get(entitlementId).status,"active",
+    "D1 failure must leave both canonical rows unchanged");
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM audio_offline_licenses WHERE entitlement_id=? AND status='active'").get(entitlementId).n,0,
+    "Previously revoked offline licenses cannot be reactivated by a failed retry");
+  failPrimaryBatch=false;
+  operations.length=0;
+  assert.equal((await post({...revoke,operationId:"refund:order17:ent19"},
+    {},"/commercial/entitlement/revoke")).status,200,
+    "Exact retry reconciles the previously denied entitlement");
+  assert.deepEqual(operations,["canonical-evidence-check","authority","canonical-atomic-batch"]);
+  assert.equal(db.prepare("SELECT status FROM entitlements WHERE id=?").get(entitlementId).status,"revoked");
   // One owner-order veto instantly withdraws every buyer proof. A single
   // indexed D1 UPDATE reconciles any number of items without RPC fanout.
   const refundOrderId="co_refund_21";
