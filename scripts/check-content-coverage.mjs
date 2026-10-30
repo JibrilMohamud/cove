@@ -20,9 +20,9 @@ try {
       "stored-epub.server",
       "epub-retry-policy",
       "public-status.server",
-    ].map((f) => `src/features/fore/${f}.ts`).concat([
-      "src/storefront-strangler/publication-owner-routing.server.ts",
-    ]),
+    ]
+      .map((f) => `src/features/fore/${f}.ts`)
+      .concat(["src/storefront-strangler/publication-owner-routing.server.ts"]),
     bundle: true,
     splitting: true,
     platform: "node",
