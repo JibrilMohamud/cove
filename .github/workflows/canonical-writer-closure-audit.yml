@@ -133,6 +133,8 @@ jobs:
           node scripts/check-canonical-owner-command-gateway.mjs
           node scripts/check-commerce-d1-write-fence.mjs
           node scripts/check-duplicate-market-writer-retirement.mjs
+          node scripts/check-retired-checkout-money-writers.mjs
+          node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/retired-checkout-money-source-attestation-20261030.json
           node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/duplicate-market-writer-source-attestation-20261030.json
           node scripts/check-owner-checkout-quote-routing.mjs
           node scripts/check-owner-refund-accounting.mjs
