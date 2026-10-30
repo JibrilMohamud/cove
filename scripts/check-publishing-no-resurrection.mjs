@@ -4,8 +4,11 @@ import {readFileSync} from "node:fs";
 import {DatabaseSync} from "node:sqlite";
 
 const source=readFileSync("src/features/fore/publishing.server.ts","utf8");
+const activationSource=readFileSync("src/storefront-strangler/legal-authority.worker.ts","utf8");
+assert.ok(!source.includes("UPDATE rights_contracts SET status='active'"),
+  "Unowned publishing module must not retain any positive rights-activation SQL");
 const sql=(pattern,label)=>{
-  const match=source.match(pattern);
+  const match=activationSource.match(pattern);
   assert.ok(match,"Missing production SQL for "+label);
   return match[1];
 };
@@ -23,9 +26,9 @@ assert.match(offer,/g.id IN \(\?\)/,"Frozen grant ID must be bound in offer SQL"
 assert.match(offer,/g.contract_version_id=\?/);
 assert.match(offer,/rcv.status='active'/);
 assert.match(offer,/rcv.effective_to IS NULL OR rcv.effective_to>\?/);
-assert.match(source,/if \(!activatingIds.length\)/,"Missing grant manifest must deny activation");
+assert.match(activationSource,/if \(!activatingIds.length\)/,"Missing grant manifest must deny activation");
 assert.match(offer,/g.contract_id IS NULL OR rc.status='active'/);
-assert.match(source,/if \(Number\(offer\?\.active \|\| 0\)\s*!==\s*1\)/,
+assert.match(activationSource,/if \(Number\(offer\?\.active \|\| 0\)\s*!==\s*1\)/,
   "Publishing must fail closed if a guarded offer update did not activate");
 
 const db=new DatabaseSync(":memory:");
