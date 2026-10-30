@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Independent byte-exact duplicate source review confirmed the entire optimized upsertMarket body was identical to the canonical localization implementation before replacement. Direct re-export preserves the exact running function, validation, transaction and staff audit. Removed one redundant SQL owner-required site, not the original canonical writer.",
+  "files": [
+    {
+      "path": "src/storefront-strangler/localization-optimized.server.ts",
+      "sha256": "44a8c61a28ae4577b1f7657d19a2a2826cae7c51ba00416d5c26577479b316f7",
+      "review": "Reviewed the complete optimized upsertMarket implementation against the original canonical localization.server.ts implementation and confirmed a byte-exact match, re-export preserving existing behavior."
+    }
+  ],
+  "retirementEvidence": "docs/architecture/duplicate-market-writer-retirement-20261030.md"
+}
