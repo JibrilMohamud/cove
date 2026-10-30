@@ -19,6 +19,7 @@ on:
       - "scripts/check-owner-paid-settlement.mjs"
       - "scripts/check-owner-checkout-draft.mjs"
       - "scripts/check-owner-checkout-preparation.mjs"
+      - "scripts/check-owner-checkout-full-schema.mjs"
       - "src/features/fore/delivery.server.ts"
       - "src/features/fore/commercial-audio.server.ts"
       - "src/features/fore/offline-audio.server.ts"
@@ -64,6 +65,7 @@ on:
       - "scripts/check-owner-paid-settlement.mjs"
       - "scripts/check-owner-checkout-draft.mjs"
       - "scripts/check-owner-checkout-preparation.mjs"
+      - "scripts/check-owner-checkout-full-schema.mjs"
       - "src/features/fore/delivery.server.ts"
       - "src/features/fore/commercial-audio.server.ts"
       - "src/features/fore/offline-audio.server.ts"
@@ -107,6 +109,7 @@ jobs:
       - run: node scripts/check-qa-synthetic-audio.mjs
       - run: node scripts/check-owner-checkout-draft.mjs
       - run: node scripts/check-owner-checkout-preparation.mjs
+      - run: node scripts/check-owner-checkout-full-schema.mjs
       - run: node scripts/check-owner-paid-settlement.mjs
       - run: node scripts/check-offline-epub-issuer-expiry.mjs
       - run: node scripts/check-offline-audio-issuer-authorization.mjs
@@ -141,6 +144,7 @@ jobs:
           node scripts/check-staged-paid-settlement.mjs
           node scripts/check-owner-checkout-draft.mjs
           node scripts/check-owner-checkout-preparation.mjs
+          node scripts/check-owner-checkout-full-schema.mjs
           node scripts/check-paid-stage-initial-identity.mjs
           node scripts/check-legal-consumer-fence.mjs
           node scripts/check-legal-quarantine-writer.mjs

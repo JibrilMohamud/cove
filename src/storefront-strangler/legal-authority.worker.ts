@@ -2864,6 +2864,11 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
            order.stripe_payment_intent_id!==null||
            !Number.isSafeInteger(Number(order.stripe_due_minor)))
           return new Response(null,{status:409,headers:noStore});
+        // A durable fraud/refund/withdrawal denial wins over every retry.
+        // The private owner must check its own tombstone rather than relying
+        // only on an earlier API-layer /commercial/order/verify request.
+        if(readPaidOrderPermission(sql,{orderId:order.id}).allowed!==true)
+          return new Response(null,{status:409,headers:noStore});
         const verified=async()=>{
           const counts=await db.prepare(
             "SELECT COUNT(*) n,COALESCE(SUM(CASE WHEN source_type='gift_card' THEN amount_minor ELSE 0 END),0) gift,COALESCE(SUM(CASE WHEN source_type='store_credit' THEN amount_minor ELSE 0 END),0) store FROM commerce_balance_reservations WHERE order_id=? AND status='reserved'"
@@ -2976,6 +2981,8 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           // resume that already-created order; a key linked to another quote
           // is always rejected by this exact owner-and-quote check.
           if(old.results.length!==1||existing.quote_id!==command.quoteId)
+            return new Response(null,{status:409,headers:noStore});
+          if(readPaidOrderPermission(sql,{orderId:existing.id}).allowed!==true)
             return new Response(null,{status:409,headers:noStore});
           const lines=await db.prepare(
             "SELECT COUNT(*) n FROM commerce_order_items WHERE order_id=?"
