@@ -134,7 +134,7 @@ assert.match(commerce, /payment_intents/);
 assert.match(commerce, /automatic_payment_methods/);
 assert.match(commerce, /Idempotency-Key/);
 assert.match(apiOwner,/createStageOwnerCheckoutQuote/);
-assert.match(owner,/\/commercial\/checkout\/quote/);
+assert.match(owner,/\/commercial\/checkout\/create-quote/);
 assert.match(commerce, /txcd_10302000/);
 assert.match(commerce, /tax\/transactions\/create_from_calculation/);
 assert.match(commerce, /tax\/transactions\/create_reversal/);
