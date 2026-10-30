@@ -149,6 +149,25 @@ try {
     assert.equal(a.count("commerce_promo_redemptions"),0,"No partial promo on rejected prep");
     assert.equal(a.db.prepare("SELECT consumed_at FROM commerce_checkout_quotes WHERE id=?").get(quoteId).consumed_at,null);
   }
+  const lost=fixture();
+  lost.loseAck();
+  assert.equal((await lost.create()).status,503,"Lost initial order commit ACK is unconfirmed");
+  const replayed=await lost.create();
+  assert.equal(replayed.status,200,"Retry after committed but unacknowledged order must recover");
+  assert.equal((await replayed.json()).created,false);
+  assert.equal(lost.count("commerce_orders"),1);
+  const revoked=fixture(),revDraft=await revoked.create();
+  assert.equal(revDraft.status,200);
+  const revokedOrderId=(await revDraft.json()).orderId;
+  const deniedOrder=await revoked.call("/commercial/order/deny-next",{
+    orderId:revokedOrderId,operationId:"qa:checkout:owner-deny"});
+  assert.equal(deniedOrder.status,200,"Private owner must persist the negative order decision");
+  assert.equal((await revoked.prepare(revokedOrderId)).status,409,
+    "Durable revocation must veto checkout monetary preparation");
+  assert.equal(revoked.count("commerce_balance_reservations"),0);
+  assert.equal(revoked.db.prepare("SELECT consumed_at FROM commerce_checkout_quotes").get().consumed_at,null);
+  assert.equal((await revoked.create()).status,409,
+    "Previously denied order must not be resumed");
   const late=fixture({expires:"2020-01-01T00:00:00.000Z"});
   assert.notEqual((await late.create()).status,200,"Expired quote cannot create order");
   const denied=fixture();
