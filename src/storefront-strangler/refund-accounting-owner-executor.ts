@@ -1,6 +1,5 @@
 /* eslint-disable prettier/prettier -- Private owner-first accounting command; never accepts caller SQL. */
 import type {CatalogDB} from "../features/fore/catalog-model.server";
-import {postRefundAccounting} from "../features/fore/refund-accounting.server";
 import {reverseRoyaltiesForRefund} from "../features/fore/finance.server";
 import {readPaidOrderPermission} from "./commercial-entitlement-core";
 import type {AuthoritySql} from "./legal-authority-core";
@@ -17,7 +16,11 @@ type CompletedRefund={id:string;order_id:string;succeeded_at:string|null};
  * The owner verifies persisted provider state, not a caller's 'success' flag.
  */
 export async function executeOwnerRefundAccounting(
-  db:CatalogDB,ownerSql:AuthoritySql,raw:unknown,at=new Date().toISOString()
+  db:CatalogDB,ownerSql:AuthoritySql,raw:unknown,
+  post: (db:CatalogDB,refundId:string,at:string,ownerEnrolled:boolean)=>Promise<{
+    applied:boolean;
+  }>,
+  at=new Date().toISOString()
 ) {
   if(!raw||typeof raw!=="object"||Array.isArray(raw))
     throw Error("invalid_owner_refund_command");
@@ -42,7 +45,7 @@ export async function executeOwnerRefundAccounting(
     throw Error("owner_refund_provider_not_confirmed");
   if(readPaidOrderPermission(ownerSql,{orderId:x.orderId}).allowed!==false)
     throw Error("owner_refund_denial_required");
-  const result=await postRefundAccounting(db,x.refundId,at,true);
+  const result=await post(db,x.refundId,at,true);
   const confirmed=await db.prepare(
     "SELECT id,order_id,succeeded_at FROM commerce_refunds WHERE id=?"
   ).bind(x.refundId).first<CompletedRefund>();
