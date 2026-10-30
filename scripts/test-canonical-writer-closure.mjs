@@ -50,7 +50,7 @@ try{
   assert.deepEqual(result, result2,"The canonical-writer report cannot vary by clock or runner");
   const freeze=run(["--no-new-writers"]);
   assert.equal(freeze.status,0,freeze.stderr);
-  assert.match(freeze.stdout,/Existing 483 source candidates STILL BLOCK/);
+  assert.match(freeze.stdout,new RegExp("Existing "+result.unresolvedDirectWrites+" source candidates STILL BLOCK"));
   const {canonicalWriterDrift,canonicalWriterBaseline}=await import("./canonical-writer-baseline.mjs");
   const baseline=canonicalWriterBaseline();
   assert.equal([...baseline.values()].reduce((a,b)=>a+b,0),483);
