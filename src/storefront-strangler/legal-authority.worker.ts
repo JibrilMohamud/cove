@@ -3330,7 +3330,47 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
               dispute.id,JSON.stringify({disputeId:dispute.id}),at,marker));
           }
         }
-        /*__DISPUTE_INSERT_CONTINUE__*/
+        await db.batch(statements);
+        const recorded=await db.prepare(
+          "SELECT provider_dispute_id,order_id,charge_id,amount_minor,currency,status FROM commerce_disputes WHERE provider_dispute_id=?"
+        ).bind(dispute.id).first<{provider_dispute_id:string;order_id:string|null;
+          charge_id:string;amount_minor:number;currency:string;status:string}>();
+        if(!recorded||recorded.provider_dispute_id!==dispute.id||
+           (recorded.order_id||"")!==(order?.id||"")||
+           recorded.charge_id!==dispute.chargeId||
+           recorded.amount_minor!==dispute.amountMinor||
+           recorded.currency!==dispute.currency||
+           recorded.status!==dispute.status)
+          throw Error("owner_dispute_canonical_commit_unconfirmed");
+        if(order){
+          const expected:Array<[string,string,number]>=[
+            ["dispute_open","dispute_receivable",dispute.amountMinor],
+            ["dispute_open","stripe_receivable",-dispute.amountMinor]
+          ];
+          if(lost)expected.push(["dispute_lost","chargeback_loss",dispute.amountMinor],
+            ["dispute_lost","dispute_receivable",-dispute.amountMinor]);
+          if(won)expected.push(["dispute_won","stripe_receivable",dispute.amountMinor],
+            ["dispute_won","dispute_receivable",-dispute.amountMinor]);
+          for(const [type,account,amount] of expected){
+            const marker="led_dispute:"+dispute.id+":"+type+":"+account;
+            const entry=await db.prepare(
+              "SELECT order_id,entry_type,account_code,amount_minor,currency,external_reference FROM commerce_ledger_entries WHERE id=?"
+            ).bind(marker).first<{order_id:string;entry_type:string;account_code:string;
+              amount_minor:number;currency:string;external_reference:string}>();
+            if(!entry||entry.order_id!==order.id||entry.entry_type!==type||
+               entry.account_code!==account||entry.amount_minor!==amount||
+               entry.currency!==dispute.currency||entry.external_reference!==dispute.id)
+              throw Error("owner_dispute_ledger_unreconciled");
+          }
+          if(lost)await reverseRoyaltiesForChargeback(db,order.id,dispute.id);
+          if(readPaidOrderPermission(sql,{orderId:order.id}).allowed!==false)
+            throw Error("owner_dispute_denial_lost");
+        }
+        return Response.json({schema:"cove.owner-dispute-sync.v1",
+          disputeId:dispute.id,synced:true,linked:!!order,ownerDenied:!!order,
+          accountingReconciled:true},{status:200,headers:noStore});
+      }
+      if(route==="/commercial/refund/record-provider"){
         // Synthetic QA owner lease + private DO bearer are enforced above.
         // Production must separately certify provider evidence provenance.
         if(!raw||typeof raw!=="object"||Array.isArray(raw))
