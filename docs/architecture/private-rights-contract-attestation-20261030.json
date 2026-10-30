@@ -1,0 +1,18 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Independently examined the shared rights contract writer, private publication owner call site, and source-bound reviewed SQL inventory. The complete original contract write transaction has no shared callable executor after the edit; private materialization keeps the exact business logic and all previously existing owner checks. External production principals, staff editor cutover and positive routing remain uncertified and explicitly blocked.",
+  "files": [
+    {
+      "path": "src/features/fore/rights.server.ts",
+      "sha256": "361d7cae482c469f9b864493891d851904d050861e3dde5478270e42949c8784",
+      "review": "Verified the original shared rights contract export now fails closed with 503 and contains none of the four removed SQL literals; all other reviewed rights SQL identities are preserved."
+    },
+    {
+      "path": "src/storefront-strangler/legal-authority.worker.ts",
+      "sha256": "3bb6e241c333db66864244fe52896c998174a25a4a94b1f071b1af11b1e3579a",
+      "review": "Verified private legal owner no longer imports the shared rights contract writer and uses a non-exported, parity-checked implementation exclusively for previously owner-checked publication materialization."
+    }
+  ],
+  "retirementEvidence": "docs/architecture/private-rights-contract-retirement-20261030.md"
+}

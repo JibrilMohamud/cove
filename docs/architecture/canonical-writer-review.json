@@ -2,7 +2,7 @@
   "schema": "cove.canonical-writer-review.v1",
   "reviewedSourceCommit": "028ef18375b946389c7d243f312be5dfc39ec7b1",
   "releaseApproval": false,
-  "scope": "Exact current review: 482 SQL literals. All 460 historical sites retain their dispositions (426 production owner-command-required, 33 nonauthorizing, one fixture). Two royalty INSERT OR IGNORE statements became strict INSERT statements in atomic calculation/allocation/journal batches; none was waived. The 22 new transaction/executor sites are private-owner-qa-executor, separately inventoried with exact source/SQL identity and enforced runtime import containment. They are not deployed production ownership, nonauthorizing classifications, or a reduction of the historical 426 findings. Source and isolated QA evidence never authorize production cutover. This change routes enrolled QA refund-intent reservations through a private typed command, while preserving the unowned production fallback. Private SQL remains in the already-excluded owner Durable Object, not a newly exempted scanner source; 426 legacy owner-required findings remain. No production authorization is asserted. Enrolled QA Stripe webhook journal claims and completion now use only typed private owner commands. Legacy production SQL is unchanged and remains owner-required; production owner activation is still blocked. Signed Stripe payment-intent processing, authorization, failure and cancellation now dispatch strict typed owner state transitions in isolated QA. Cancellation and held tender release are one owner-controlled D1 batch. Production fallback and all 426 owner-required findings remain explicitly unresolved. Enrolled isolated-QA checkout now has the owner independently verify the canonical order and provider PaymentIntent before atomically attaching the Stripe identity and payment attempt. Mutable SQL lives exclusively inside the private legal-owner Worker. Production checkout remains on its unowned legacy D1 branch and all 426 owner-required findings remain unresolved pending cutover. Isolated QA now registers Stripe customer identities through the owner after independent provider verification. The direct D1 customer upsert remains reachable in legacy production and is still owner-command-required; 426 production findings remain, with no release permission granted.",
+  "scope": "Current source review: 432 exact candidates, 377 owner-required SQL mutations. Four shared rights-contract SQL sites (three authorizing and one append-only audit) were removed together; their unchanged business implementation is now private and service-bound. The historical 426-site baseline remains frozen. Production owner authorization, external principal cutover and paid routing remain blocked. Exact current review: 482 SQL literals. All 460 historical sites retain their dispositions (426 production owner-command-required, 33 nonauthorizing, one fixture). Two royalty INSERT OR IGNORE statements became strict INSERT statements in atomic calculation/allocation/journal batches; none was waived. The 22 new transaction/executor sites are private-owner-qa-executor, separately inventoried with exact source/SQL identity and enforced runtime import containment. They are not deployed production ownership, nonauthorizing classifications, or a reduction of the historical 426 findings. Source and isolated QA evidence never authorize production cutover. This change routes enrolled QA refund-intent reservations through a private typed command, while preserving the unowned production fallback. Private SQL remains in the already-excluded owner Durable Object, not a newly exempted scanner source; 426 legacy owner-required findings remain. No production authorization is asserted. Enrolled QA Stripe webhook journal claims and completion now use only typed private owner commands. Legacy production SQL is unchanged and remains owner-required; production owner activation is still blocked. Signed Stripe payment-intent processing, authorization, failure and cancellation now dispatch strict typed owner state transitions in isolated QA. Cancellation and held tender release are one owner-controlled D1 batch. Production fallback and all 426 owner-required findings remain explicitly unresolved. Enrolled isolated-QA checkout now has the owner independently verify the canonical order and provider PaymentIntent before atomically attaching the Stripe identity and payment attempt. Mutable SQL lives exclusively inside the private legal-owner Worker. Production checkout remains on its unowned legacy D1 branch and all 426 owner-required findings remain unresolved pending cutover. Isolated QA now registers Stripe customer identities through the owner after independent provider verification. The direct D1 customer upsert remains reachable in legacy production and is still owner-command-required; 426 production findings remain, with no release permission granted.",
   "sites": [
     {
       "siteId": "602503338f5ef8edf2e3aa0029c23659e1b5fdf9d1297ed55ba5e0d782b94457",
@@ -4359,7 +4359,7 @@
       "reason": "This exact projection UPDATE changes ratings, ranking scores or taxonomy text only. It does not change rights, offers, suppression or permission; candidate delivery still needs current legal authorization."
     },
     {
-      "siteId": "6bc083114a15cf6540d0ac053ba562475ebf0d92fff888d4c57ee38a9d68cc64",
+      "siteId": "95c17a478274ac3ebc88fee574419bca47d74eb7e9420afff587a2e12c40f1b4",
       "file": "src/features/fore/rights.server.ts",
       "line": 845,
       "functionName": "resolveRightsDecision",
@@ -4371,7 +4371,7 @@
       "reason": "Evaluation history is written after resolving rights. Authorization re-evaluates grants; the recorded decision is not a reusable positive grant."
     },
     {
-      "siteId": "4f146f43dde6d3dc8420f0dc9fa2faebeb1f210e60ebd73cbe6c9d780daf10fc",
+      "siteId": "800f4b7aaa624876d2df909f5d6cef729dcda86ab0cace284c8f7c0f6d99eb79",
       "file": "src/features/fore/rights.server.ts",
       "line": 953,
       "functionName": "upsertRightsParty",
@@ -4384,7 +4384,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "2ef04fd1d7ef2e377995f988327a0517794b5dd4b4e872fea2e8e1517d2dcc00",
+      "siteId": "dff8a2b06212aa77f3f1b30188a3447f912d4e9c8c5ee956f09f5bf9e61acce0",
       "file": "src/features/fore/rights.server.ts",
       "line": 1040,
       "functionName": "rebuildAllTerritorySets",
@@ -4397,7 +4397,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "4dbc7d997614d4ad5a973dada753e13dd8d6bb1b3c50d389331a6214d8f9d415",
+      "siteId": "fdc557b80ef29f922617c4d6e16b1d7d4c4063a7af5194b47974ecc2df93b391",
       "file": "src/features/fore/rights.server.ts",
       "line": 1049,
       "functionName": "rebuildAllTerritorySets",
@@ -4410,7 +4410,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "2aaddd5913ea44a7b1b2e588d43a671e6626fb5ba2ae057b4440448d3703ec4b",
+      "siteId": "df9474dbb92585bd266945bb3fdf62470eb1cc6539708dfd98ab72e3b6f76763",
       "file": "src/features/fore/rights.server.ts",
       "line": 1095,
       "functionName": "upsertTerritorySet",
@@ -4423,7 +4423,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "b7e4b3830662a6efa29127cbd9ea12f0f07ac29dc185a0ad60aca6c2af76bbb2",
+      "siteId": "cb543ad4069bfc801fadbdc0ebd827b80ef5b91bf9487b8fba4f190793a2d149",
       "file": "src/features/fore/rights.server.ts",
       "line": 1098,
       "functionName": "upsertTerritorySet",
@@ -4436,7 +4436,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "e9ae1720aa5ae943b9c81c503d1b0e2145240ad96dc86502e326c7250bf90f1e",
+      "siteId": "6a84eaea74f0e89b5d4327c68094cda5b91de30dbe8f79f9ea2b028ae0e081b0",
       "file": "src/features/fore/rights.server.ts",
       "line": 1104,
       "functionName": "upsertTerritorySet",
@@ -4449,7 +4449,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "16d7560a86d3c0dddefa931ad32f1512002ec8c40ca9ff69d80ccf534b8b99c9",
+      "siteId": "f1ab2cf0efbf71e3fd98b6a2a28843fc7f6da0798400f5decb5d7ea4d6d4ef62",
       "file": "src/features/fore/rights.server.ts",
       "line": 1124,
       "functionName": "upsertTerritorySet",
@@ -4461,60 +4461,9 @@
       "reason": "Append-only configuration history is read by operations dashboards, not the online authorization evaluator."
     },
     {
-      "siteId": "50e4217b97971800785fcda7544b3091efc6e25791b938c434cffccfb5fe8566",
+      "siteId": "c3854619b5620dce4992c8d1255065bc1527425613534357e1c3a8589ffe8dac",
       "file": "src/features/fore/rights.server.ts",
-      "line": 1185,
-      "functionName": "upsertRightsContract",
-      "table": "rights_contracts",
-      "operation": "INSERT INTO",
-      "sqlSha256": "25fb334d74698f1262955389207667e424e23334ea6a97f081f5e574cfaa666c",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "rights.upsertRightsContract",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "31902704a5e65388c3c337d5d2aca49df2e0e6a832485c6ffa52d436324876be",
-      "file": "src/features/fore/rights.server.ts",
-      "line": 1201,
-      "functionName": "upsertRightsContract",
-      "table": "rights_contract_languages",
-      "operation": "DELETE FROM",
-      "sqlSha256": "85a22c5ace8ccc0dbbd4db36028441745b043c1514c662bb83ef3b8d383e6a41",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "rights.upsertRightsContract",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "b63d81a69de3e42eaca196489a98102714d041978dac857b5bc0c4c58ea51d56",
-      "file": "src/features/fore/rights.server.ts",
-      "line": 1212,
-      "functionName": "upsertRightsContract",
-      "table": "rights_contract_languages",
-      "operation": "INSERT INTO",
-      "sqlSha256": "621f739caebff1630a0f5cd77a1309667057cffe49f30a8e9b3d41210a6f7311",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "rights.upsertRightsContract",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "bf2559562b4bcd32f0a7fb95794ad5eff75e56d7117ece1d804b99772fd6bd4b",
-      "file": "src/features/fore/rights.server.ts",
-      "line": 1231,
-      "functionName": "upsertRightsContract",
-      "table": "rights_configuration_audit",
-      "operation": "INSERT INTO",
-      "sqlSha256": "c8ad19e1bef9ed84c5e10d8c966358b6006e9d19a013431e131df00138b10501",
-      "disposition": "non-authorizing-write",
-      "productionOwnerGuarded": false,
-      "reason": "Append-only configuration history is read by operations dashboards, not the online authorization evaluator."
-    },
-    {
-      "siteId": "c6c8e94ee51842cfba19589452b8bf691ee2f30065e1b8c023c83db3d0e8fbfa",
-      "file": "src/features/fore/rights.server.ts",
-      "line": 1629,
+      "line": 1527,
       "functionName": "upsertRightsGrant",
       "table": "rights_grants",
       "operation": "INSERT INTO",
@@ -4525,9 +4474,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "3b028e9accaecf4812961ead0251fb3fd8ad1d93d25c9f62bd3e082efd7ac1d2",
+      "siteId": "5f5eb79330280bf5a4a2f03f0367c8d4b3be90b885fd9a0486cf587110884b97",
       "file": "src/features/fore/rights.server.ts",
-      "line": 1659,
+      "line": 1557,
       "functionName": "upsertRightsGrant",
       "table": "rights_grant_territory_scopes",
       "operation": "DELETE FROM",
@@ -4538,9 +4487,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "6a7a44181e7f4cd093379fab7f812b4dddb1d4a0b3b89f270051e6cebdbb3f7b",
+      "siteId": "6c3563b5daef55775c1776ce411576ec12a53cc5dfa70443eae6b17e94225b3e",
       "file": "src/features/fore/rights.server.ts",
-      "line": 1660,
+      "line": 1558,
       "functionName": "upsertRightsGrant",
       "table": "rights_grant_territories",
       "operation": "DELETE FROM",
@@ -4551,9 +4500,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "a8d2c9608158e81c33925921ff6194d796be307b46a51bba6c1a5cd44acc4013",
+      "siteId": "fc393444042e3d3c56a546355ef36b32e714a1add618a9ee1c5c687ff7382837",
       "file": "src/features/fore/rights.server.ts",
-      "line": 1666,
+      "line": 1564,
       "functionName": "upsertRightsGrant",
       "table": "rights_grant_territory_scopes",
       "operation": "INSERT INTO",
@@ -4564,9 +4513,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "b6aa8f413e2a3a49eef36465af09d8557b75800a26167a29e0ae92828d656674",
+      "siteId": "56df61b982ed8cb405a643e1a46d138dedd52800b71b26ee4fb6c0431da49fc3",
       "file": "src/features/fore/rights.server.ts",
-      "line": 1686,
+      "line": 1584,
       "functionName": "upsertRightsGrant",
       "table": "rights_grant_territories",
       "operation": "INSERT INTO",
@@ -4577,9 +4526,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "16be15a4632611542887a450c0361387a9554c923643e0f53be0268c589e6d7c",
+      "siteId": "74023c895a345cc6a5fdee5187a691b90fef622fc8913c28dde48f542b4b58c7",
       "file": "src/features/fore/rights.server.ts",
-      "line": 1695,
+      "line": 1593,
       "functionName": "upsertRightsGrant",
       "table": "rights_grant_scope_snapshots",
       "operation": "INSERT INTO",

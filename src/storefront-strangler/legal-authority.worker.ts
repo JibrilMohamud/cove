@@ -7,7 +7,8 @@ import {executeOwnerRefundAccounting} from "./refund-accounting-owner-executor";
 import {executeOwnerRefundReservation} from "./refund-reservation-owner-executor";
 import {executeOwnerCheckoutPaymentBinding} from "./checkout-payment-binding-owner-executor";
 import {executeOwnerPaidSettlement} from "./paid-settlement-owner-executor";
-import {upsertRightsContract,upsertRightsGrant} from "../features/fore/rights.server";
+import {upsertRightsGrant} from "../features/fore/rights.server";
+import {z} from "zod/v3";
 import {createRoyaltyContractVersion} from "../features/fore/royalty-engine.server";
 import {ensurePreorderReleasePlan} from "../features/fore/preorder.server";
 import {
@@ -82,6 +83,120 @@ function qaOwnerLeaseLive(env:LegalAuthorityEnv) {
     expires<=now+15*60*1000 &&
     !!env.COVE_RIGHTS_OWNER_SECRET &&
     /^[a-f0-9]{64}$/.test(env.COVE_RIGHTS_OWNER_SECRET);
+}
+
+// Canonical publishing-managed rights contract writes are privately owned.
+// This implementation is not exported to an API, scheduler, or external D1 caller.
+// The publication materialization command independently checks the immutable
+// submission, reviewer, legal proof and durable owner hold before invoking it.
+async function upsertRightsContractPrivate(db: CatalogDB, raw: unknown) {
+  const channelSchema=z.enum(["retail","subscription","library"]);
+  const now=()=>new Date().toISOString();
+  const languageRule = z.object({
+    languageCode: z
+      .string()
+      .trim()
+      .min(2)
+      .max(35)
+      .transform((v) => v.toLowerCase()),
+    decision: z.enum(["allow", "deny"]).default("allow"),
+    format: z.string().max(40).nullable().optional(),
+    salesChannel: channelSchema.nullable().optional(),
+    startsAt: z.string().datetime().nullable().optional(),
+    endsAt: z.string().datetime().nullable().optional(),
+    notes: z.string().max(500).default(""),
+  });
+  const x = z
+    .object({
+      id: z.string().max(180).optional(),
+      referenceCode: z.string().trim().min(1).max(200),
+      name: z.string().trim().min(1).max(240),
+      rightsholderPartyId: z.string().max(180).nullable().optional(),
+      status: z.enum(["draft", "active", "suspended", "expired", "terminated"]).default("active"),
+      effectiveFrom: z.string().datetime().nullable().optional(),
+      effectiveTo: z.string().datetime().nullable().optional(),
+      languageMatchMode: z.enum(["any", "all"]).default("all"),
+      source: z.string().max(120).default("operator"),
+      notes: z.string().max(2000).default(""),
+      languages: z.array(languageRule).max(250).default([]),
+    })
+    .parse(raw);
+  if (x.effectiveFrom && x.effectiveTo && x.effectiveTo <= x.effectiveFrom)
+    throw new ApiError(400, "Contract end date must be after its start date.");
+  if (x.rightsholderPartyId) {
+    const party = await db
+      .prepare("SELECT id FROM rights_parties WHERE id=? AND status='active'")
+      .bind(x.rightsholderPartyId)
+      .first<any>();
+    if (!party) throw new ApiError(400, "Unknown or inactive contract rightsholder.");
+  }
+  const id = x.id || `rcontract_${crypto.randomUUID()}`,
+    at = now(),
+    before = x.id
+      ? await db.prepare("SELECT created_at FROM rights_contracts WHERE id=?").bind(id).first<any>()
+      : null;
+  const statements: any[] = [
+    db
+      .prepare(
+        `INSERT INTO rights_contracts(id,reference_code,name,rightsholder_party_id,status,effective_from,effective_to,language_match_mode,source,notes,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET reference_code=excluded.reference_code,name=excluded.name,rightsholder_party_id=excluded.rightsholder_party_id,status=excluded.status,effective_from=excluded.effective_from,effective_to=excluded.effective_to,language_match_mode=excluded.language_match_mode,source=excluded.source,notes=excluded.notes,updated_at=excluded.updated_at`,
+      )
+      .bind(
+        id,
+        x.referenceCode,
+        x.name,
+        x.rightsholderPartyId || null,
+        x.status,
+        x.effectiveFrom || null,
+        x.effectiveTo || null,
+        x.languageMatchMode,
+        x.source,
+        x.notes,
+        before?.created_at || at,
+        at,
+      ),
+    db.prepare("DELETE FROM rights_contract_languages WHERE contract_id=?").bind(id),
+  ];
+  x.languages.forEach((r) => {
+    if (r.startsAt && r.endsAt && r.endsAt <= r.startsAt)
+      throw new ApiError(
+        400,
+        `Language-right end date must follow its start for ${r.languageCode}.`,
+      );
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO rights_contract_languages(id,contract_id,language_code,decision,format,sales_channel,starts_at,ends_at,notes,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)`,
+        )
+        .bind(
+          `rclang_${crypto.randomUUID()}`,
+          id,
+          r.languageCode,
+          r.decision,
+          r.format || null,
+          r.salesChannel || null,
+          r.startsAt || null,
+          r.endsAt || null,
+          r.notes,
+          at,
+        ),
+    );
+  });
+  statements.push(
+    db
+      .prepare(
+        "INSERT INTO rights_configuration_audit(id,entity_type,entity_id,action,snapshot_json,recorded_at) VALUES(?,?,?,?,?,?)",
+      )
+      .bind(
+        `rca_${crypto.randomUUID()}`,
+        "contract",
+        id,
+        x.id ? "update" : "insert",
+        JSON.stringify(x),
+        at,
+      ),
+  );
+  await db.batch(statements);
+  return { id, conflicts: await detectRightsConflicts(db) };
 }
 
 // The only physical executor of distribution-contract D1 mutations is compiled
@@ -846,7 +961,7 @@ async function materializePublishingSubmissionOwned(
       );
     rightsContract = { id: String(assigned.id) };
   } else {
-    rightsContract = await upsertRightsContract(db as any, {
+    rightsContract = await upsertRightsContractPrivate(db, {
       referenceCode: `FORE-PUBLISH-${submissionId}`,
       name: `Cove Publishing rights — ${edition.title}`,
       rightsholderPartyId: rightsPartyId,
