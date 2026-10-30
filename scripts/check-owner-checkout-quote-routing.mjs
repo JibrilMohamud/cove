@@ -6,7 +6,7 @@ const owner=readFileSync("src/storefront-strangler/legal-authority.worker.ts","u
 const gateway=readFileSync("src/storefront-strangler/canonical-owner-command-gateway.ts","utf8");
 const port=readFileSync("src/storefront-strangler/owner-checkout-quote.server.ts","utf8");
 assert.match(api,/path === "\/checkout\/quote"[\s\S]{0,350}createStageOwnerCheckoutQuote\(env/);
-assert.match(api,/env\.COVE_LEGAL_CONSUMER_STAGE_ENABLED==="1"[\s\S]{0,200}createStageOwnerCheckoutQuote/);
+assert.match(api,/env\.COVE_LEGAL_CONSUMER_STAGE_ENABLED\s*===\s*"1"[\s\S]{0,200}createStageOwnerCheckoutQuote/);
 assert.match(owner,/route==="\/commercial\/checkout\/create-quote"[\s\S]{0,1800}checkoutQuote\(ownerEnv/);
 assert.match(owner,/quote=await checkoutQuote\(ownerEnv,[\s\S]{0,1500}owner_checkout_quote_commit_unconfirmed/);
 assert.match(gateway,/"commerce.create-quote":\{path:"\/commercial\/checkout\/create-quote"/);
