@@ -7,6 +7,8 @@ import {executeOwnerRefundAccounting} from "./refund-accounting-owner-executor";
 import {executeOwnerRefundReservation} from "./refund-reservation-owner-executor";
 import {executeOwnerCheckoutPaymentBinding} from "./checkout-payment-binding-owner-executor";
 import {checkoutDraftCommand,planOwnerCheckoutDraft} from "./checkout-draft-owner-plan";
+import {assessBuyerOrderRisk} from "../features/fore/risk-tax.server";
+import {stationBySlug} from "../features/fore/cove-sounds-stations";
 import {executeOwnerPaidSettlement} from "./paid-settlement-owner-executor";
 import {channelSchema,scopeRuleSchema,restrictionsSchema,grantScopeFromInput,drmSatisfiesRequirement,normalizeTerritoryCode} from "../features/fore/rights.server";
 import {z} from "zod/v3";
@@ -2426,6 +2428,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/order/recover-settlements",
       "/commercial/refund/reserve",
       "/commercial/checkout/materialize-draft",
+      "/commercial/checkout/prepare-draft",
       "/commercial/checkout/register-stripe-customer",
       "/commercial/checkout/attach-payment-intent",
       "/commercial/payment/update-state",
@@ -2830,6 +2833,133 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           orderDenied:true,reconciled:true,orderId:input.orderId,
           operationId:input.operationId},{status:200,headers:noStore});
       }
+      if(route==="/commercial/checkout/prepare-draft"){
+        // PRE-PAYMENT OWNER ONLY. A failed conditional balance reservation
+        // makes the whole batch abort (SQLite JSON1 error sentinel), including
+        // quote consumption and ALL earlier tender/promo inserts. Never
+        // return ready based on a preflight balance read alone.
+        if(!raw||typeof raw!=="object"||Array.isArray(raw))
+          return new Response(null,{status:400,headers:noStore});
+        const input=raw as {userId?:unknown;orderId?:unknown;quoteId?:unknown};
+        if(Object.keys(input).sort().join(",")!=="orderId,quoteId,userId"||
+           typeof input.userId!=="string"||!/^[A-Za-z0-9_-]{8,160}$/.test(input.userId)||
+           typeof input.orderId!=="string"||!/^ord_[a-f0-9-]{36}$/.test(input.orderId)||
+           typeof input.quoteId!=="string"||!/^[A-Za-z0-9_-]{8,160}$/.test(input.quoteId))
+          return new Response(null,{status:400,headers:noStore});
+        const db=env.PRIMARY_DB,at=new Date().toISOString();
+        const order=await db.prepare(
+          "SELECT id,user_id,quote_id,status,capture_method,risk_assessment_id,risk_action,gift_card_minor,store_credit_minor,promo_discount_minor,stripe_due_minor,currency,total_minor,stripe_payment_intent_id FROM commerce_orders WHERE id=? AND user_id=? AND quote_id=?"
+        ).bind(input.orderId,input.userId,input.quoteId)
+          .first<{id:string;user_id:string;quote_id:string;status:string;capture_method:string;
+            risk_assessment_id:string|null;risk_action:string|null;
+            gift_card_minor:number;store_credit_minor:number;promo_discount_minor:number;
+            stripe_due_minor:number;currency:string;
+            total_minor:number;stripe_payment_intent_id:string|null}>();
+        const quote=await db.prepare(
+          "SELECT id,user_id,gift_card_hash,promo_code_hash,consumed_at,expires_at FROM commerce_checkout_quotes WHERE id=? AND user_id=?"
+        ).bind(input.quoteId,input.userId)
+          .first<{id:string;user_id:string;gift_card_hash:string|null;promo_code_hash:string|null;
+            consumed_at:string|null;expires_at:string}>();
+        if(!order||!quote||order.status!=="pending_payment"||
+           order.stripe_payment_intent_id!==null||
+           !Number.isSafeInteger(Number(order.stripe_due_minor)))
+          return new Response(null,{status:409,headers:noStore});
+        const verified=async()=>{
+          const counts=await db.prepare(
+            "SELECT COUNT(*) n,COALESCE(SUM(CASE WHEN source_type='gift_card' THEN amount_minor ELSE 0 END),0) gift,COALESCE(SUM(CASE WHEN source_type='store_credit' THEN amount_minor ELSE 0 END),0) store FROM commerce_balance_reservations WHERE order_id=? AND status='reserved'"
+          ).bind(order.id).first<{n:number;gift:number;store:number}>();
+          const promo=await db.prepare(
+            "SELECT COUNT(*) n,COALESCE(SUM(amount_minor),0) amount FROM commerce_promo_redemptions WHERE order_id=? AND status='reserved'"
+          ).bind(order.id).first<{n:number;amount:number}>();
+          return !!(counts&&promo&&
+            Number(counts.n)===(Number(order.gift_card_minor)>0?1:0)+(Number(order.store_credit_minor)>0?1:0)&&
+            Number(counts.gift)===Number(order.gift_card_minor)&&
+            Number(counts.store)===Number(order.store_credit_minor)&&
+            Number(promo.n)===(Number(order.promo_discount_minor)>0?1:0)&&
+            Number(promo.amount)===Number(order.promo_discount_minor));
+        };
+        if(quote.consumed_at){
+          if(!order.risk_assessment_id||!order.risk_action||
+             !["allow","monitor","challenge","hold"].includes(order.risk_action)||
+             !(await verified()))
+            return new Response(null,{status:409,headers:noStore});
+          return Response.json({schema:"cove.owner-checkout-preparation.v1",
+            userId:input.userId,orderId:input.orderId,quoteId:input.quoteId,
+            ready:true,blocked:false,riskAction:order.risk_action,
+            captureMethod:order.capture_method,tenderReserved:true,quoteConsumed:true,
+            applied:false},{headers:noStore});
+        }
+        if(quote.expires_at<=at)
+          return new Response(null,{status:409,headers:noStore});
+        // Persisted buyer risk is reused across retries. The first evaluation
+        // is owner-invoked, rather than a stale caller-supplied risk verdict.
+        const risk=order.risk_assessment_id&&order.risk_action?
+          {action:order.risk_action}:
+          await assessBuyerOrderRisk(db,order.id);
+        if(!["allow","monitor","challenge","hold","block"].includes(risk.action))
+          throw Error("owner_checkout_unknown_risk_action");
+        if(risk.action==="block"||
+           (risk.action==="hold"&&Number(order.stripe_due_minor)===0)){
+          await db.prepare(
+            "UPDATE commerce_orders SET status='canceled',canceled_at=?,failure_code='RISK_BLOCK',failure_message='Checkout requires fraud review.',updated_at=? WHERE id=? AND user_id=? AND status='pending_payment' AND stripe_payment_intent_id IS NULL"
+          ).bind(at,at,order.id,input.userId).run();
+          return Response.json({schema:"cove.owner-checkout-preparation.v1",
+            userId:input.userId,orderId:input.orderId,quoteId:input.quoteId,
+            ready:false,blocked:true,riskAction:risk.action,
+            tenderReserved:false,quoteConsumed:false,applied:false},{headers:noStore});
+        }
+        const expires=new Date(Date.parse(at)+24*60*60_000).toISOString();
+        const stmts=[];
+        if(Number(order.gift_card_minor)>0){
+          if(!quote.gift_card_hash)throw Error("owner_checkout_gift_identity_missing");
+          stmts.push(db.prepare(
+            "INSERT INTO commerce_balance_reservations(id,user_id,order_id,source_type,source_key,amount_minor,currency,status,expires_at,created_at,updated_at) SELECT ?,?,?,'gift_card',?,?,?,'reserved',?,?,? WHERE ? <= (SELECT balance_minor-COALESCE((SELECT SUM(amount_minor) FROM commerce_balance_reservations WHERE source_type='gift_card' AND source_key=? AND status='reserved'),0) FROM commerce_gift_cards WHERE code_hash=? AND status='active' AND currency=?)"
+          ).bind(crypto.randomUUID(),input.userId,order.id,quote.gift_card_hash,
+            order.gift_card_minor,order.currency,expires,at,at,
+            order.gift_card_minor,quote.gift_card_hash,quote.gift_card_hash,order.currency));
+        }
+        if(Number(order.store_credit_minor)>0){
+          stmts.push(db.prepare(
+            "INSERT INTO commerce_balance_reservations(id,user_id,order_id,source_type,source_key,amount_minor,currency,status,expires_at,created_at,updated_at) SELECT ?,?,?,'store_credit',?,?,?,'reserved',?,?,? WHERE ? <= ((SELECT COALESCE(SUM(amount_minor),0) FROM commerce_store_credit_ledger WHERE user_id=? AND currency=?)-COALESCE((SELECT SUM(amount_minor) FROM commerce_balance_reservations WHERE source_type='store_credit' AND source_key=? AND currency=? AND status='reserved'),0))"
+          ).bind(crypto.randomUUID(),input.userId,order.id,input.userId,
+            order.store_credit_minor,order.currency,expires,at,at,
+            order.store_credit_minor,input.userId,order.currency,input.userId,order.currency));
+        }
+        if(Number(order.promo_discount_minor)>0){
+          if(!quote.promo_code_hash)throw Error("owner_checkout_promo_identity_missing");
+          stmts.push(db.prepare(
+            "INSERT INTO commerce_promo_redemptions(id,code_hash,user_id,order_id,quote_id,amount_minor,status,created_at,updated_at) SELECT ?,p.code_hash,?,?,?,?, 'reserved',?,? FROM commerce_promo_codes p WHERE p.code_hash=? AND p.active=1 AND (p.starts_at IS NULL OR p.starts_at<=?) AND (p.ends_at IS NULL OR p.ends_at>?) AND (p.max_redemptions IS NULL OR (SELECT COUNT(*) FROM commerce_promo_redemptions r WHERE r.code_hash=p.code_hash AND r.status IN ('reserved','applied'))<p.max_redemptions) AND (SELECT COUNT(*) FROM commerce_promo_redemptions r WHERE r.code_hash=p.code_hash AND r.user_id=? AND r.status IN ('reserved','applied'))<p.max_per_user"
+          ).bind(crypto.randomUUID(),input.userId,order.id,input.quoteId,
+            order.promo_discount_minor,at,at,quote.promo_code_hash,at,at,input.userId));
+        }
+        stmts.push(db.prepare(
+          "UPDATE commerce_orders SET capture_method=?,updated_at=? WHERE id=? AND user_id=? AND quote_id=? AND risk_assessment_id IS NOT NULL AND risk_action=? AND status='pending_payment' AND stripe_payment_intent_id IS NULL"
+        ).bind(risk.action==="hold"?"manual":order.capture_method,
+          at,order.id,input.userId,input.quoteId,risk.action));
+        stmts.push(db.prepare(
+          "UPDATE commerce_checkout_quotes SET consumed_at=? WHERE id=? AND user_id=? AND consumed_at IS NULL AND expires_at>?"
+        ).bind(at,input.quoteId,input.userId,at));
+        // SQLite's CASE is lazy; the malformed JSON branch raises an error
+        // that rolls back the ENTIRE D1 batch when any reservation or quote
+        // invariant failed. No partial gift, credit or promotion hold can
+        // become externally visible on an unsuccessful attempt.
+        stmts.push(db.prepare(
+          "SELECT CASE WHEN (SELECT consumed_at FROM commerce_checkout_quotes WHERE id=? AND user_id=?)=? AND (SELECT COUNT(*) FROM commerce_balance_reservations WHERE order_id=? AND status='reserved')=? AND (SELECT COALESCE(SUM(amount_minor),0) FROM commerce_balance_reservations WHERE order_id=? AND status='reserved' AND source_type='gift_card')=? AND (SELECT COALESCE(SUM(amount_minor),0) FROM commerce_balance_reservations WHERE order_id=? AND status='reserved' AND source_type='store_credit')=? AND (SELECT COUNT(*) FROM commerce_promo_redemptions WHERE order_id=? AND status='reserved')=? AND (SELECT COALESCE(SUM(amount_minor),0) FROM commerce_promo_redemptions WHERE order_id=? AND status='reserved')=? AND (SELECT COUNT(*) FROM commerce_orders WHERE id=? AND user_id=? AND status='pending_payment' AND risk_assessment_id IS NOT NULL AND risk_action=? AND capture_method=? AND stripe_payment_intent_id IS NULL)=1 THEN 1 ELSE json_extract('invalid-checkout-preparation','$') END verified"
+        ).bind(input.quoteId,input.userId,at,order.id,
+          (Number(order.gift_card_minor)>0?1:0)+(Number(order.store_credit_minor)>0?1:0),
+          order.id,order.gift_card_minor,order.id,order.store_credit_minor,
+          order.id,Number(order.promo_discount_minor)>0?1:0,
+          order.id,order.promo_discount_minor,order.id,input.userId,risk.action,
+          risk.action==="hold"?"manual":order.capture_method));
+        await db.batch(stmts);
+        if(!(await verified()))
+          throw Error("owner_checkout_preparation_commit_unconfirmed");
+        return Response.json({schema:"cove.owner-checkout-preparation.v1",
+          userId:input.userId,orderId:input.orderId,quoteId:input.quoteId,
+          ready:true,blocked:false,riskAction:risk.action,
+          captureMethod:risk.action==="hold"?"manual":order.capture_method,
+          tenderReserved:true,quoteConsumed:true,applied:true},{headers:noStore});
+      }
       if(route==="/commercial/checkout/materialize-draft"){
         // A *pre-payment* isolated QA building block, NOT a completed
         // checkout: no risk verdict, tender reservation, quote consumption,
@@ -2842,8 +2972,10 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           .all<{id:string;quote_id:string;idempotency_key:string;currency:string;stripe_due_minor:number}>();
         if(old.results.length){
           const existing=old.results[0];
-          if(old.results.length!==1||existing.quote_id!==command.quoteId||
-             existing.idempotency_key!==command.idempotencyKey)
+          // A second client idempotency key for the SAME canonical quote may
+          // resume that already-created order; a key linked to another quote
+          // is always rejected by this exact owner-and-quote check.
+          if(old.results.length!==1||existing.quote_id!==command.quoteId)
             return new Response(null,{status:409,headers:noStore});
           const lines=await db.prepare(
             "SELECT COUNT(*) n FROM commerce_order_items WHERE order_id=?"
@@ -2883,6 +3015,11 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
             line.salesChannel,line.promotionCampaignId,line.publisherFunding,
             line.foreFunding,at))
         ];
+        if(command.soundsStation&&stationBySlug(command.soundsStation)){
+          statements.push(db.prepare(
+            "INSERT OR IGNORE INTO commerce_sounds_purchase_attribution(order_id,station_slug,recording_id,captured_at) VALUES(?,?,?,?)"
+          ).bind(plan.orderId,command.soundsStation,command.soundsRecording||null,at));
+        }
         await db.batch(statements);
         const confirmed=await db.prepare(
           "SELECT COUNT(*) n FROM commerce_order_items WHERE order_id=?"

@@ -1,0 +1,12 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Source-only rebasing of all fifty-six retained direct commercial SQL sites following a strictly QA-leased early return to a typed owner checkout preparation path. No site disposition is changed and no production write privilege, checkout authority, entitlement or public routing is approved. Every unchanged SQL literal remains independently inventoried and owner-required.",
+  "files": [
+    {
+      "path": "src/features/fore/commerce.server.ts",
+      "sha256": "88eeb72caddf8280154995cd375cda7fd7b9ec3073585ff29c73ce9860bd856a",
+      "review": "Reviewed the Prettier-only checkout helper formatting after the original 56 SQL source-identity rebase. Every existing SQL literal and functionName remained byte-for-byte identical; the original 56 protected site dispositions remain blocked until production migration and separate authorization."
+    }
+  ]
+}

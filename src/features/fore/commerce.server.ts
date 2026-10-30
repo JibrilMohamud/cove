@@ -22,6 +22,10 @@ import {
 } from "../../storefront-strangler/owner-stripe-webhook.server";
 import { updateStageOwnerPaymentState } from "../../storefront-strangler/owner-stripe-payment-status.server";
 import { attachStageOwnerCheckoutPayment } from "../../storefront-strangler/owner-checkout-payment.server";
+import {
+  materializeStageCheckoutDraft,
+  prepareStageCheckoutDraft,
+} from "../../storefront-strangler/owner-checkout-creation.server";
 import { registerStageOwnerStripeCustomer } from "../../storefront-strangler/owner-stripe-customer.server";
 import { recordStageOwnerRefundProvider } from "../../storefront-strangler/owner-refund-provider.server";
 import {
@@ -838,6 +842,144 @@ async function reservePromo(db: CatalogDB, order: AnyRow) {
     throw new ApiError(409, "Your promotion is no longer available.");
 }
 
+// Synthetic staging checkout is exclusively enrolled behind the private legal
+// owner. There is NO fallback to direct commercial D1 writes on owner refusal.
+async function createStageOwnerCheckoutPayment(
+  env: CoveEnv,
+  user: User,
+  input: {
+    quoteId: string;
+    idempotencyKey: string;
+    soundsStation?: string;
+    soundsRecording?: string;
+  },
+  quote: AnyRow,
+  reprice: boolean,
+) {
+  const db = env.DB;
+  if (reprice) {
+    const cart = await cartPricing(db, user.id, String(quote.territory_code), env);
+    if (cart.fingerprint !== quote.cart_fingerprint)
+      throw new ApiError(409, "Your cart changed. Recalculate checkout before paying.");
+  }
+  const captureMethod = (
+    ["manual", "automatic", "automatic_async"].includes(String(env.STRIPE_CAPTURE_METHOD))
+      ? String(env.STRIPE_CAPTURE_METHOD)
+      : "automatic_async"
+  ) as "manual" | "automatic" | "automatic_async";
+  const station =
+    input.soundsStation && stationBySlug(input.soundsStation) ? input.soundsStation : undefined;
+  const draft = await materializeStageCheckoutDraft(env, {
+    userId: user.id,
+    quoteId: input.quoteId,
+    idempotencyKey: input.idempotencyKey,
+    cartFingerprint: String(quote.cart_fingerprint),
+    captureMethod,
+    ...(station ? { soundsStation: station, soundsRecording: input.soundsRecording } : {}),
+  });
+  const orderId = String(draft.orderId);
+  // Durable legal denials are checked before any monetary reservation;
+  // settlement independently rechecks in case rights are withdrawn later.
+  await assertStagePaidOrderNotWithdrawn(env, orderId);
+  const prep = await prepareStageCheckoutDraft(env, {
+    userId: user.id,
+    orderId,
+    quoteId: input.quoteId,
+  });
+  if (prep.ready !== true || prep.blocked === true)
+    throw new ApiError(
+      403,
+      "This checkout requires manual verification before it can be completed.",
+    );
+  const order = await db
+    .prepare(
+      "SELECT id,invoice_number,status,currency,stripe_due_minor,quote_id,stripe_payment_intent_id FROM commerce_orders WHERE id=? AND user_id=?",
+    )
+    .bind(orderId, user.id)
+    .first<any>();
+  if (
+    !order ||
+    order.quote_id !== input.quoteId ||
+    order.status !== "pending_payment" ||
+    Number(order.stripe_due_minor) !== Number(draft.stripeDueMinor)
+  )
+    throw new ApiError(503, "Checkout owner receipt differs from canonical order.");
+  // Original analytics remain idempotent; a failed best-effort event must not
+  // convert an owner-prepared order into a second monetary reservation.
+  if (draft.created) {
+    let items: AnyRow[] = [];
+    try {
+      items = JSON.parse(String(quote.items_json || "[]"));
+    } catch {
+      items = [];
+    }
+    for (const item of items)
+      await recordRetailEvent(db, user.id, {
+        eventType: "checkout_started",
+        productId: String(item.productId),
+        externalBookId: String(item.externalId || ""),
+        sourceSurface: String(item.sourceSurface || "checkout"),
+        sourceRequestId: item.sourceRequestId || null,
+        territory: String(quote.territory_code),
+        currency: String(quote.currency),
+        amountMinor: Number(item.amountMinor || 0) - Number(item.discountMinor || 0),
+        properties: { orderId, quoteId: input.quoteId },
+        dedupeKey: `checkout:${orderId}:${item.productId}`,
+      }).catch(() => undefined);
+  }
+  if (Number(order.stripe_due_minor) === 0) {
+    await finalizePaidOrder(env, orderId, {
+      provider: "internal",
+      paymentIntentId: null,
+      chargeId: null,
+      receiptUrl: null,
+      paymentMethod: "Cove balance",
+    });
+    return {
+      orderId,
+      status: "paid",
+      clientSecret: null,
+      stripeDueMinor: 0,
+      currency: order.currency,
+    };
+  }
+  const customer = await ensureStripeCustomer(env, user);
+  const pi = await stripeRequest(env, "payment_intents", {
+    idempotencyKey: `fore-pi-${orderId}`,
+    params: {
+      amount: Number(order.stripe_due_minor),
+      currency: String(order.currency).toLowerCase(),
+      customer,
+      receipt_email: user.email || undefined,
+      automatic_payment_methods: { enabled: true },
+      capture_method: String(prep.captureMethod),
+      description: `Cove order ${order.invoice_number}`,
+      metadata: {
+        fore_order_id: orderId,
+        fore_user_id: user.id,
+        fore_invoice: order.invoice_number,
+      },
+      ...(prep.riskAction === "challenge"
+        ? { payment_method_options: { card: { request_three_d_secure: "any" } } }
+        : {}),
+    },
+  });
+  await attachStageOwnerCheckoutPayment(env, {
+    orderId,
+    userId: user.id,
+    paymentIntentId: String(pi.id),
+    customerId: String(customer),
+  });
+  return {
+    orderId,
+    status: "pending_payment",
+    clientSecret: pi.client_secret,
+    paymentIntentId: pi.id,
+    stripeDueMinor: Number(order.stripe_due_minor),
+    currency: order.currency,
+  };
+}
+
 export async function createCheckoutPayment(env: CoveEnv, user: User, raw: unknown) {
   const input = z
       .object({
@@ -855,12 +997,40 @@ export async function createCheckoutPayment(env: CoveEnv, user: User, raw: unkno
     .prepare("SELECT * FROM commerce_orders WHERE idempotency_key=? AND user_id=?")
     .bind(input.idempotencyKey, user.id)
     .first<any>();
-  if (existing) return existingOrderSetup(env, existing);
+  if (existing) {
+    if (
+      env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1" &&
+      existing.status === "pending_payment" &&
+      !existing.stripe_payment_intent_id
+    ) {
+      const q = await db
+        .prepare("SELECT * FROM commerce_checkout_quotes WHERE id=? AND user_id=?")
+        .bind(existing.quote_id, user.id)
+        .first<any>();
+      if (!q) throw new ApiError(409, "The checkout quote is unavailable.");
+      return createStageOwnerCheckoutPayment(env, user, input, q, false);
+    }
+    return existingOrderSetup(env, existing);
+  }
   existing = await db
     .prepare("SELECT * FROM commerce_orders WHERE quote_id=? AND user_id=?")
     .bind(input.quoteId, user.id)
     .first<any>();
-  if (existing) return existingOrderSetup(env, existing);
+  if (existing) {
+    if (
+      env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1" &&
+      existing.status === "pending_payment" &&
+      !existing.stripe_payment_intent_id
+    ) {
+      const q = await db
+        .prepare("SELECT * FROM commerce_checkout_quotes WHERE id=? AND user_id=?")
+        .bind(existing.quote_id, user.id)
+        .first<any>();
+      if (!q) throw new ApiError(409, "The checkout quote is unavailable.");
+      return createStageOwnerCheckoutPayment(env, user, input, q, false);
+    }
+    return existingOrderSetup(env, existing);
+  }
   const quote = await db
     .prepare(
       "SELECT * FROM commerce_checkout_quotes WHERE id=? AND user_id=? AND consumed_at IS NULL AND expires_at>?",
@@ -872,6 +1042,8 @@ export async function createCheckoutPayment(env: CoveEnv, user: User, raw: unkno
     currentFingerprint = cart.fingerprint;
   if (currentFingerprint !== quote.cart_fingerprint)
     throw new ApiError(409, "Your cart changed. Recalculate checkout before paying.");
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1")
+    return createStageOwnerCheckoutPayment(env, user, input, quote, false);
   const items = JSON.parse(String(quote.items_json || "[]"));
   const orderId = `ord_${crypto.randomUUID()}`,
     at = now();

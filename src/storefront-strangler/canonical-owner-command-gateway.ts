@@ -20,11 +20,16 @@ const routes={
   "commerce.register-stripe-customer":{path:"/commercial/checkout/register-stripe-customer",schema:z.object({
     userId:ownerId,customerId:z.string().regex(/^cus_[a-zA-Z0-9_-]{4,150}$/)
   }).strict()},
+  "commerce.prepare-checkout-draft":{path:"/commercial/checkout/prepare-draft",schema:z.object({
+    userId:ownerId,orderId:ownerId,quoteId:ownerId
+  }).strict()},
   "commerce.materialize-checkout-draft":{path:"/commercial/checkout/materialize-draft",schema:z.object({
     userId:ownerId,quoteId:ownerId,
     idempotencyKey:z.string().min(16).max(200),
     cartFingerprint:z.string().min(16).max(1024),
-    captureMethod:z.enum(["manual","automatic","automatic_async"])
+    captureMethod:z.enum(["manual","automatic","automatic_async"]),
+    soundsStation:z.string().regex(/^[a-z0-9-]{1,80}$/).optional(),
+    soundsRecording:z.string().regex(/^(?:cm_[0-9]{1,15}|ex_[0-9a-f-]{36})$/).optional()
   }).strict()},
   "commerce.attach-payment-intent":{path:"/commercial/checkout/attach-payment-intent",schema:z.object({
     orderId:ownerId,userId:ownerId,
@@ -160,6 +165,20 @@ export async function dispatchCanonicalOwnerCommand(
       if(ack.schema!=="cove.owner-stripe-customer.v1"||ack.userId!==body.userId||
          ack.customerId!==body.customerId||ack.bound!==true||
          typeof ack.applied!=="boolean")
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "commerce.prepare-checkout-draft":
+      if(ack.schema!=="cove.owner-checkout-preparation.v1"||
+         ack.userId!==body.userId||ack.orderId!==body.orderId||
+         ack.quoteId!==body.quoteId||
+         (ack.ready!==true&&ack.ready!==false)||
+         (ack.ready===true&&(
+           ack.blocked!==false||ack.riskAction===undefined||
+           !["allow","monitor","challenge","hold"].includes(String(ack.riskAction))||
+           !["manual","automatic","automatic_async"].includes(String(ack.captureMethod))||
+           ack.tenderReserved!==true||ack.quoteConsumed!==true))||
+         (ack.ready===false&&(ack.blocked!==true||ack.tenderReserved!==false||
+           ack.quoteConsumed!==false)))
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "commerce.materialize-checkout-draft":
