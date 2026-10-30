@@ -152,6 +152,30 @@ try {
     assert.equal(a.count("commerce_promo_redemptions"),0,"No partial promo on rejected prep");
     assert.equal(a.db.prepare("SELECT consumed_at FROM commerce_checkout_quotes WHERE id=?").get(quoteId).consumed_at,null);
   }
+  // Independent quote/order integrity: a write or configuration error after
+  // order creation but before reservation must not authorize different terms.
+  // Assert the REAL handler denies before fraud or monetary writes.
+  for(const [column,value] of [
+    ["subtotal_minor",1200],["total_minor",995],["stripe_due_minor",695],
+    ["gift_card_minor",150],["tax_minor",95],["territory_code","CA"],
+    ["currency","CAD"]
+  ]){
+    const changed=fixture(),made=await changed.create();
+    assert.equal(made.status,200,"Real-schema draft setup must succeed");
+    const draftId=(await made.json()).orderId;
+    changed.db.prepare("UPDATE commerce_checkout_quotes SET "+column+"=? WHERE id=?")
+      .run(value,quoteId);
+    const rejected=await changed.prepare(draftId);
+    assert.equal(rejected.status,409,
+      "Owner must deny a changed "+column+" before tender/risk writes");
+    assert.equal(changed.count("commerce_balance_reservations"),0);
+    assert.equal(changed.count("commerce_promo_redemptions"),0);
+    assert.equal(changed.count("risk_assessments"),0);
+    assert.equal(changed.db.prepare("SELECT consumed_at FROM commerce_checkout_quotes WHERE id=?")
+      .get(quoteId).consumed_at,null);
+    assert.equal(changed.db.prepare("SELECT stripe_payment_intent_id FROM commerce_orders WHERE id=?")
+      .get(draftId).stripe_payment_intent_id,null);
+  }
   const lost=fixture();
   lost.loseAck();
   assert.equal((await lost.create()).status,503,"Lost initial order commit ACK is unconfirmed");
