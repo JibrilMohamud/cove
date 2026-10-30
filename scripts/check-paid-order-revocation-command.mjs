@@ -202,8 +202,8 @@ try {
       return null;
     assert.equal(options.method,"GET");
     const id=String(url).split("/").at(-1);
-    const row=fixture.primary.prepare("SELECT id FROM commerce_refunds WHERE provider_refund_id=?")
-      .get(id);
+    const row=fixture.primary.prepare("SELECT id FROM commerce_refunds WHERE order_id=? ORDER BY created_at DESC LIMIT 1")
+      .get(orderId);
     assert.ok(row,"Private owner's independently checked refund must have a canonical intent");
     return Response.json({object:"refund",id,livemode:false,
       payment_intent:"pi_test_order_01",amount:1000,currency:"usd",
