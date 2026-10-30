@@ -23,7 +23,7 @@ for(const [name,next] of [["createPromoCode","issueGiftCard"],["issueGiftCard","
 assert.match(api,/executeStageOwnerMonetaryAdmin/);
 assert.match(api,/createStageOwnerCheckoutQuote/);
 const sites=review.sites.filter(x=>x.file==="src/features/fore/commerce.server.ts");
-assert.equal(sites.length,2);
+assert.equal(sites.length,3);
 assert.ok(sites.every(x=>x.disposition==="owner-command-required"));
 assert.equal(review.sites.filter(x=>x.disposition==="owner-command-required").length,305);
 assert.equal(review.releaseApproval,false);
