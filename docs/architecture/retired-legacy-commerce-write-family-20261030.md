@@ -1,0 +1,11 @@
+# Legacy commerce production-writer retirement — October 30, 2026
+
+**38** physically removed direct canonical D1 mutations from `src/features/fore/commerce.server.ts`, reducing its findings **40 → 2** and project owner-required SQL findings **343 → 305**. Exact original source statement identities were checked before removal. None of the frozen non-authorizing or private-QA exceptions were modified. The two unretired tax writes are still authorizing; they must move behind the owner before the commerce family is complete.
+
+## Actual replacement paths and safety
+
+Checkout quote requests already route to independently repricing `createStageOwnerCheckoutQuote` when enrolled. Checkout payment, draft materialization, fraud/tender reservation, Stripe customer binding and PI binding route to the private owner. Settlement and purchased entitlement grant use an atomic owner receipt. Refund intent reservations, refunds and royalty reversal, webhook journal claim/ack, payment-status cancellation/release, disputes and reconciliation already have typed owner commands and crash/replay QA. This PR removes only the superseded direct-D1 implementations. The non-enrolled checkout quote/payment, settlement, refund, webhook, cancellation and reconciliation paths now fail 503; no legacy financial mutations or Stripe side effects are attempted.
+
+This **does not** enable live owner mode or live Stripe. The public commerce system remains disabled until independent owner authentication and binding, Stripe LIVE payment/refund/revocation verification, all remaining direct production D1 writer-principal retirement, and a tested deny-first rollback. Owner unavailability fails closed. Existing orders and entitlement projections are retained for read-only inspection. Reverting source after any private-owner money event is NOT a safe rollback without reconciliation; the safe rollback is to retain the payment lock.
+
+Independent CI must confirm the exact scanner inventory, native TypeScript/build, private-owner Stripe TEST, browser, attribution and security checks. The remaining two `commerce.server.ts` owner-required tax D1 mutations are deliberately left open; an unowned tax write is not silently waived.
