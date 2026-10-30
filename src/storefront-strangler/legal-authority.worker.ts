@@ -3217,6 +3217,9 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           STRIPE_LIVEMODE:env.STRIPE_LIVEMODE,
           STRIPE_TAX_ENABLED:env.STRIPE_TAX_ENABLED,
           STRIPE_MINIMUM_CHARGE_MINOR:env.STRIPE_MINIMUM_CHARGE_MINOR,
+          // This flag is minted *inside* the independently authorized QA owner,
+          // never by a public backend request or its D1 capability.
+          COVE_LEGAL_CONSUMER_STAGE_ENABLED:"1",
         } as CoveEnv;
         const quote=await checkoutQuote(ownerEnv,{id:command.userId},command.request);
         // The quote, tax evidence and provider calculation were persisted
