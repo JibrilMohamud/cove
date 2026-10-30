@@ -19,6 +19,7 @@ on:
       - "scripts/check-owner-refund-provider.mjs"
       - "scripts/check-owner-contract-version.mjs"
       - "scripts/check-owner-contract-version-source-boundary.mjs"
+      - "scripts/check-private-materialization-source-boundary.mjs"
       - "scripts/check-production-writer-topology.mjs"
       - "scripts/test-production-writer-topology.mjs"
       - "wrangler.backend.production.toml"
@@ -61,6 +62,7 @@ on:
       - "scripts/check-owner-refund-provider.mjs"
       - "scripts/check-owner-contract-version.mjs"
       - "scripts/check-owner-contract-version-source-boundary.mjs"
+      - "scripts/check-private-materialization-source-boundary.mjs"
       - "scripts/check-production-writer-topology.mjs"
       - "scripts/test-production-writer-topology.mjs"
       - "wrangler.backend.production.toml"
@@ -118,6 +120,7 @@ jobs:
           node scripts/check-owner-refund-provider.mjs
           node scripts/check-owner-contract-version.mjs
           node scripts/check-owner-contract-version-source-boundary.mjs
+          node scripts/check-private-materialization-source-boundary.mjs
           node scripts/test-production-writer-topology.mjs
           node scripts/check-audio-progress-nonauthorizing.mjs
           node scripts/check-nonauthorizing-legal-history.mjs

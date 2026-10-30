@@ -1,6 +1,6 @@
 /* eslint-disable prettier/prettier -- Complete typed publication workflow under a durable owner hold. */
 import {z} from "zod/v3";
-import {materializePublishingSubmissionOwned,type PublishingEnv} from "../features/fore/publishing.server";
+import type {PublishingEnv} from "../features/fore/publishing.server";
 import type {CatalogDB} from "../features/fore/catalog-model.server";
 import type {AuthoritySql} from "./legal-authority-core";
 import {commercialProductId,denyCommercialSubject} from "./commercial-legal-core";
@@ -29,7 +29,11 @@ type Reservation={submission_id:string;operation_id:string;product_id:string;edi
   work_id:string;command_sha256:string};
 type Context={primary:CatalogDB;bucket?:PublishingEnv["BUCKET"];sql:AuthoritySql;
   autoApprove?:string;executing:Set<string>;transactionSync<T>(fn:()=>T):T;
-  publish(path:string,body:Record<string,unknown>):Promise<Response>};
+  publish(path:string,body:Record<string,unknown>):Promise<Response>;
+  materialize(env:PublishingEnv,submissionId:string,reviewerUserId:string,owned:{
+    workId:string;editionId:string;productId:string;commandSha256:string;
+    preparePresentation?:()=>Promise<void>;
+  }):Promise<unknown>};
 const digest=async(text:string)=>[...new Uint8Array(await crypto.subtle.digest("SHA-256",
   new TextEncoder().encode(text)))].map(b=>b.toString(16).padStart(2,"0")).join("");
 function requireState(condition:unknown,reason:string):asserts condition {
@@ -208,7 +212,7 @@ export async function executePublicationMaterialization(ctx:Context,raw:unknown)
       put:(key,value,options)=>ctx.bucket!.put(key,value,options),
       delete:key=>ctx.bucket!.delete(key)
     };
-    if(!resuming)await materializePublishingSubmissionOwned({DB:db,BUCKET:checkedBucket},
+    if(!resuming)await ctx.materialize({DB:db,BUCKET:checkedBucket},
       input.submissionId,input.reviewerUserId,{workId,editionId,productId,commandSha256,
         preparePresentation:async()=>{
           // This projection contains presentation data, but retail visibility

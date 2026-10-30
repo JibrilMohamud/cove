@@ -227,7 +227,11 @@ try {
   const enrolled=api.bindPublicationOwner(api.makeStageLegalWriterLock(locked.DB),{owner:locked.port,secret,territory:"US",currency:"USD"});
   const published=await api.materializePublishingSubmission({DB:enrolled},"pubsub_materialize","staff_materialize");
   assert.ok(published.publicationVersionId);assert.ok(published.product_id.startsWith("prd_"));
-  await assert.rejects(()=>api.materializePublishingSubmissionOwned({DB:enrolled},"pubsub_materialize","staff_materialize"));
+  assert.equal(typeof api.materializePublishingSubmissionOwned,"undefined",
+    "The physical D1 materializer must not be exported to any shared API caller");
+  await assert.rejects(()=>api.materializePublishingSubmission({DB:locked.DB},"pubsub_materialize","staff_materialize"),
+    /canonical private owner/,
+    "Unenrolled publication materialization cannot fall back to direct primary D1");
   assert.equal((await locked.post("/commercial/deny-next",{productId:published.product_id,operationId:"withdraw:after-materialization"})).status,200);
   assert.equal((await locked.materialize({operationId:"materialize:after-withdrawal"})).status,503,"Old published evidence cannot erase a withdrawal");
   console.log("PASS: "+writeCount+" injected primary failures; owner/marker lost acknowledgements; scheduler recovery; scheduled preparation; byte corruption/races; reviewer/compliance/withdrawal denials; original caller with legal SQL locked");

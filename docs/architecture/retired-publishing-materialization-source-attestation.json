@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Complete source-level review: all nineteen authorizing materialization SQL literals are physically removed from API-importable publishing.server, and are now private unexported methods in legal-authority.worker.ts, called only by the existing authenticated QA owner. Unchanged remaining literal SQL identities and dispositions are rebound to the new full-source SHA. No simulated owner-first production release is claimed.",
+  "retirementEvidence": "docs/architecture/retired-publishing-materialization-20261030.md",
+  "files": [
+    {
+      "path": "src/features/fore/publishing.server.ts",
+      "sha256": "66714d23738dac0c971cc1dc1b220cb28c2ec23b3fb0a129a680c503698a32e7",
+      "review": "Examined full 1030-line function relocation, fail-closed legacy caller, 19 unchanged private SQL statements and new helper exports. All remaining 69 reviewed source SQL sites retain their exact statement hashes and original disposition."
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+# Publishing materialization: physical legacy D1 writer retirement
+
+Source review date: October 30, 2026. This evidence covers the **19** `owner-command-required` mutation sites formerly in `materializePublishingSubmissionOwned` in `src/features/fore/publishing.server.ts`.
+
+## Source-level closure
+The complete implementation (including canonical edition, product, asset-version, offer, royalty, publication, release lifecycle, and outbox mutations) is no longer callable through the shared publishing API module. It now resides as a **non-exported** function in the private `CoveLegalAuthority` Worker, injected into `executePublicationMaterialization` solely through its owner's internal callback. This is not a change of SQL classifications, a new public endpoint, or a regex scanner exception. The shared `materializePublishingSubmission` entry point dispatches to the already authenticated, frozen-snapshot owner command **only** for an enrolled isolated QA owner; otherwise it returns 503. No legacy production fallback writes remain in that function.
+
+The private owner command independently verifies immutable submission digest, staff review, publisher compliance, exact versioned contract assignment, asset bytes, product identity, replay reservation, durable product holds, withdrawal order and owner receipt. The private function performs the existing database mutation and creates no positive access proof by itself. The owner retains denial until final proof and publication checks succeed.
+
+## Safety constraints and rollback
+Production legal owner remains deliberately disabled. Unenrolled production publication materialization is unavailable (a deliberate capability pause, not an implicit successful publish). Normal production rights/publication direct D1 bindings remain elsewhere and still block owner-only release. Do not disable the production write lock to restore this path.
+
+A lost acknowledgement, pending journal, failed byte copy, or primary D1 outage must remain denied; do not independently replay an uncommitted snapshot against canonical D1. To roll back, retain the owner's denied state while reconciling the exact publication operation, snapshot SHA, product/version identity, asset copy, lifecycle event, and publication receipts; never reintroduce the original direct writer while a partially applied owner command remains. Before any production activation, independently verify the production service binding, least-privileged D1 access, legacy deployment retirement, positive grant and immediate withdrawal, Stripe-to-media journeys, cross-region behavior, scheduled job writers, and a deployed rollback rehearsal. The source-level audit does **not** provide that certification.
