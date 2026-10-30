@@ -33,6 +33,8 @@ jobs:
         run: node --test scripts/vercel-ignore-build.test.mjs
       - name: Security/domain regressions
         run: npm run test:security-sync
+      - name: Private-owner Stripe terminal-state replay
+        run: node scripts/check-stripe-terminal-order-states.mjs
       - name: Persistence backend regressions
         run: npm run test:persistence-backend
       - name: Reading statistics and audiobook regressions
