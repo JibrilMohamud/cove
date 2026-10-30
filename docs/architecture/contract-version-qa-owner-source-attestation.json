@@ -1,0 +1,12 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Independent review of the staff distribution contract route: the only behavioral edit is dispatch to an authenticated, isolated QA private-owner command while unenrolled production retains the exact old contract-version implementation. All existing SQL literals, surrounding permission checks and classification labels are preserved.",
+  "files": [
+    {
+      "path": "src/features/fore/api.server.ts",
+      "sha256": "b7ba31a63ee242f3918cd194585ca6e1289db6b2c415b33bb673425456a8efd9",
+      "review": "Checked the complete API file change and staff.finance.contract.manage guard; no direct SQL was added, removed, reclassified, or made reachable outside prior paths."
+    }
+  ]
+}
