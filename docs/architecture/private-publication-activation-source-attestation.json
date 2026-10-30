@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Reviewed 18 SQL site removals from API-callable publication activation, commercial term activation, and preorder activation. The exact SQL has moved to nonexported private legal authority functions, with owner denial-first command and typed internal preorder callback; the shared API retains only fail-closed stubs. Unchanged SQL sites retain their exact literals and original classifications. Static closure is not proof of deployed production authorization. The accessibility sync UPDATE of canonical editions is now also physically private rather than publicly exported.",
+  "retirementEvidence": "docs/architecture/private-publication-activation-retirement-20261030.md",
+  "files": [
+    {
+      "path": "src/features/fore/publishing.server.ts",
+      "sha256": "24e9ff5840c8957f26e14c21eab0d10ea978428a021d23d08fade8ed8d8e8436",
+      "review": "Attested three former shared canonical write functions replaced with unowned 503 stubs; retained source SQL identity/function/table/operation and verified 17 physical removals into private owner source. Verified the final one-site accessibility sync migration and exact source line remapping. One blank-line formatting edit after the helper retirement was source-rebased with no additional SQL or privilege changes."
+    }
+  ]
+}

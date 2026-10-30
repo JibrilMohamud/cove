@@ -226,7 +226,7 @@ try {
   assert.equal(dispatched,1);assert.equal(scheduled.advanced.length,1);
   assert.equal(caller.stats().writes,0,"Scheduled activation caller must not execute canonical writes outside owner");
   await assert.rejects(publisher.activatePublicationVersionOwned(callerDB,versionId,null,"staff"),
-    /inside the legal owner/);
+    /requires its private owner/);
   const restricted=fixture();
   restricted.primary.prepare("UPDATE publishing_accounts SET identity_status='expired'").run();
   assert.equal((await restricted.activate()).status,409);

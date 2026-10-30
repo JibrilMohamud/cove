@@ -1,6 +1,5 @@
 /* eslint-disable prettier/prettier -- A preorder is a positive legal publication, never an unfenced scheduler write. */
 import type {CatalogDB} from "../features/fore/catalog-model.server";
-import {openPublicationPreorderOwned} from "../features/fore/publishing.server";
 import type {AuthoritySql} from "./legal-authority-core";
 import {commercialProductId} from "./commercial-legal-core";
 import {marketIsWithdrawn} from "./market-authority-core";
@@ -9,6 +8,7 @@ import {beginPublicationCommand,commitPublicationCommand,markPublicationPublishe
 type Context={
   primary:CatalogDB;sql:AuthoritySql;executing:Set<string>;
   transactionSync<T>(fn:()=>T):T;
+  openPreorder(db:CatalogDB,publicationVersionId:string):Promise<{publicationVersionId:string;state:string;versionNumber:number}>;
   publish(path:string,input:{productId:string;territory:string;currency:string;channel:"retail"}):Promise<Response>;
 };
 const noStore={"cache-control":"no-store"};
@@ -84,7 +84,7 @@ export async function executePublicationPreorder(context:Context,raw:unknown):Pr
       // A partial D1 command cannot be replayed after process loss: no
       // inference from a few written rows may release the durable denial.
       if(resuming||command.state==="committed")return new Response(null,{status:503,headers:noStore});
-      result=await openPublicationPreorderOwned(primary,input.publicationVersionId);
+      result=await context.openPreorder(primary,input.publicationVersionId);
     }
     const complete=await primary.prepare(
       "SELECT p.storefront_status,e.release_status,l.state,l.current_publication_version_id FROM products p JOIN editions e ON e.id=p.edition_id JOIN publishing_release_lifecycles l ON l.id=? WHERE p.id=? AND EXISTS (SELECT 1 FROM publishing_publication_activations a WHERE a.lifecycle_id=l.id AND a.publication_version_id=? AND a.reason_code='preorder_opened')"
