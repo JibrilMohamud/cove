@@ -8,7 +8,7 @@ const shared=readFileSync("src/features/fore/rights.server.ts","utf8");
 const review=JSON.parse(readFileSync("docs/architecture/canonical-writer-review.json","utf8"));
 const expectedSourceHash="9bfa170cca3c305d2137001b9d109e575d3c0f9a4487e655138ce9cd4a1e9b53";
 const start=owner.indexOf("async function upsertRightsContractPrivate(");
-const end=owner.indexOf("\n// The only physical executor of distribution-contract",start);
+const end=owner.indexOf("\n/* eslint-enable @typescript-eslint/no-explicit-any */",start);
 assert.ok(start>=0&&end>start,"Private owner contract executor must exist");
 const privateBody=owner.slice(start,end).replace(
   "async function upsertRightsContractPrivate(db: CatalogDB, raw: unknown) {\n  const channelSchema=z.enum([\"retail\",\"subscription\",\"library\"]);\n  const now=()=>new Date().toISOString();",
