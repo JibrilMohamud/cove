@@ -68,8 +68,15 @@ try {
     const active=db.prepare("UPDATE risk_policy_versions SET policy_json=? WHERE domain='buyer' AND status='active'")
       .run(JSON.stringify(policy));
     assert.ok(active.changes>=1,"Canonical full schema must seed a buyer policy");
-    const sql={exec(query,...args){const st=durable.prepare(query);
-      return {toArray:()=>st.columns().length?st.all(...args):(st.run(...args),[])};}};
+    const sql={exec(query,...args){
+      // Cloudflare's storage.sql.exec accepts multi-statement DDL;
+      // node:sqlite prepare() accepts only one statement at a time.
+      if(!args.length&&/^(?:CREATE|ALTER|DROP|PRAGMA)\\b/i.test(query.trim())){
+        durable.exec(query);return {toArray:()=>[]};
+      }
+      const st=durable.prepare(query);
+      return {toArray:()=>st.columns().length?st.all(...args):(st.run(...args),[])};
+    }};
     let loseAck=false;
     const DB={prepare(query){
       const binding=(params=[])=>({bind:(...v)=>binding(v),
