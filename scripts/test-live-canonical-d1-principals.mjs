@@ -328,4 +328,70 @@ test("failed Cloudflare settings response must abort the entire audit",async()=>
   }),/HTTP 403/);
   assert.equal(requests,2);
 });
+
+test("an independently absent 16-hex owner handshake triggers a COMPLETE rescan, including newly added DB writers",async()=>{
+  const account="a".repeat(32),zone="b".repeat(32),
+    base="/accounts/"+account+"/workers/scripts",
+    vanished="cove-owner-handshake-0123456789abcdef",
+    writer="cove-live-db-writer-added-during-scan",calls=[];
+  let listRequests=0;
+  const fetcher=async(url,opts)=>{
+    assert.equal(opts.method,"GET");
+    const path=new URL(url).pathname.replace(/^\/client\/v4/,"");
+    calls.push(path);
+    if(path===base){
+      listRequests++;
+      return Response.json({success:true,result:listRequests===1?
+        [{id:OWNER_SCRIPT},{id:vanished}]:
+        [{id:OWNER_SCRIPT},{id:writer}]});
+    }
+    const payload={
+      [base+"/"+OWNER_SCRIPT+"/settings"]:owner,
+      [base+"/"+writer+"/settings"]:other,
+      [base+"/"+OWNER_SCRIPT+"/schedules"]:{schedules:[]},
+      [base+"/"+writer+"/schedules"]:{schedules:[]},
+      [base+"/"+OWNER_SCRIPT+"/subdomain"]:{enabled:false},
+      [base+"/"+writer+"/subdomain"]:{enabled:false},
+      ["/zones/"+zone+"/workers/routes"]:[],
+      ["/accounts/"+account+"/workers/domains"]:[]
+    };
+    if(!(path in payload))return Response.json({success:false},{status:404});
+    return Response.json({success:true,result:payload[path]});
+  };
+  const result=await collectCanonicalD1Fleet({
+    fetcher,token:"z".repeat(30),account,zone});
+  assert.equal(listRequests,3,"Original, verification and complete fresh scan are required");
+  assert.equal(result.workerScriptsInspected,2);
+  assert.equal(result.nonOwnerBindings,1,
+    "Brand-new production D1 writer during handshake deletion MUST be scanned");
+  assert.ok(result.principals.some(x=>x.script===writer));
+  assert.ok(!result.principals.some(x=>x.script===vanished));
+  assert.ok(calls.includes(base+"/"+writer+"/settings"));
+});
+test("still-listed disappearing handshake, arbitrary 404 and authorization failure ALL block",async()=>{
+  const account="a".repeat(32),zone="b".repeat(32),
+    base="/accounts/"+account+"/workers/scripts",vanished="cove-owner-handshake-abcdef0123456789";
+  const attempt=(name,status,listAfter)=>collectCanonicalD1Fleet({
+    account,zone,token:"z".repeat(30),
+    fetcher:async url=>{
+      const path=new URL(url).pathname.replace(/^\/client\/v4/,"");
+      if(path===base)return Response.json({success:true,result:listAfter?
+        [{id:OWNER_SCRIPT},{id:name}]:[{id:OWNER_SCRIPT}]});
+      if(path===base+"/"+OWNER_SCRIPT+"/settings")return Response.json({success:true,result:owner});
+      return Response.json({success:false},{status});
+    }
+  });
+  await assert.rejects(
+    ()=>attempt(vanished,404,true),
+    /still listed but settings are inaccessible/
+  );
+  await assert.rejects(
+    ()=>attempt("cove-persistence-backend",404,true),
+    /not a known ephemeral handshake/
+  );
+  await assert.rejects(
+    ()=>attempt(vanished,403,true),
+    /HTTP 403/
+  );
+});
 console.log("PASS: deployed principal account-wide audit is read-only, fail-closed, and cannot self-certify production authorization");
