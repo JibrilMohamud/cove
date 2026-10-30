@@ -30,6 +30,7 @@ on:
       - "scripts/check-stripe-terminal-order-states.mjs"
       - "scripts/staging/prove-private-paid-owner.mjs"
       - "scripts/staging/paid-owner-schema-policy.mjs"
+      - "scripts/check-qa-synthetic-audio.mjs"
       - "scripts/staging/provision-original-audio-qa.mjs"
       - "scripts/check-paid-stage-initial-identity.mjs"
       - "scripts/build-storefront-strangler.mjs"
@@ -66,6 +67,8 @@ on:
       - "scripts/check-customer-media-owner-order.mjs"
       - "scripts/staging/prove-private-paid-owner.mjs"
       - "scripts/staging/paid-owner-schema-policy.mjs"
+      - "scripts/staging/provision-original-audio-qa.mjs"
+      - "scripts/check-qa-synthetic-audio.mjs"
       - "scripts/check-paid-stage-initial-identity.mjs"
       - "scripts/check-offline-epub-issuer-expiry.mjs"
       - "scripts/check-offline-audio-issuer-authorization.mjs"
@@ -91,6 +94,7 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: node scripts/check-paid-stage-initial-identity.mjs
+      - run: node scripts/check-qa-synthetic-audio.mjs
       - run: node scripts/check-owner-paid-settlement.mjs
       - run: node scripts/check-offline-epub-issuer-expiry.mjs
       - run: node scripts/check-offline-audio-issuer-authorization.mjs
