@@ -19,7 +19,7 @@ assert.match(code,/INSERT INTO commerce_promo_redemptions/);
 assert.match(code,/UPDATE commerce_checkout_quotes SET consumed_at/);
 assert.match(code,/await db\.batch\(stmts\)/);
 assert.match(gateway,/"commerce.prepare-checkout-draft"/);
-assert.match(commerce,/createStageOwnerCheckoutPayment\(env,user,input,quote,false\)/);
+assert.match(commerce,/createStageOwnerCheckoutPayment\(\s*env,\s*user,\s*input,\s*quote,\s*false\s*\)/);
 assert.match(commerce,/await prepareStageCheckoutDraft\(env,/);
 assert.match(commerce,/await attachStageOwnerCheckoutPayment\(env,/);
 const found=code.match(/stmts\.push\(db\.prepare\(\s*"(SELECT CASE WHEN [^"]+)"\s*\)\.bind\(/);
