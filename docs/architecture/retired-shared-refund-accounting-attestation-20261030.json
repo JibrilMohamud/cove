@@ -1,0 +1,18 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Independently reviewed the entire removed shared refund-accounting transaction against the private legal-authority copy and a frozen test-only source fixture. Production refundOrder rejects before provider or D1 side effects whenever the QA private owner is not enrolled. Eleven retired SQL literals are physically absent; the other 56 commerce literals are rebased without changing their SQL or dispositions. The authoritative live Stripe and D1 snapshots show no financial obligations, but release remains blocked.",
+  "files": [
+    {
+      "path": "src/features/fore/refund-accounting.server.ts",
+      "sha256": "7f53cf40036fe6e924e882d5207780648a8e02de35944641a3c03206e1272d4e",
+      "review": "Direct refund accounting is now a nonauthorizing hard 503 only. Eleven former canonical D1 writes were physically removed and the executable private owner counterpart retains exact original SQL and idempotent ledger behavior."
+    },
+    {
+      "path": "src/features/fore/commerce.server.ts",
+      "sha256": "5f0d7b49a6a5e03c11bc658e391a1ca67fd78d9282ba0c91afb90dbb85053952",
+      "review": "Only a fail-closed check was added to the start of refundOrder; all 56 other SQL statements and business paths preserve their original literals, verified by exact site identity and source fingerprint rebase."
+    }
+  ],
+  "retirementEvidence": "docs/architecture/retired-shared-refund-accounting-evidence-20261030.md"
+}
