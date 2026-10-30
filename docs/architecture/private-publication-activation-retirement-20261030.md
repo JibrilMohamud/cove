@@ -1,10 +1,11 @@
 # Publication activation and preorder direct writer retirement
 
-**Review:** October 30, 2026. **Scope:** 17 reviewed owner-required SQL sites in `src/features/fore/publishing.server.ts`:
+**Review:** October 30, 2026. **Scope:** 18 reviewed owner-required SQL sites in `src/features/fore/publishing.server.ts`:
 
 - 8 `publishing.activatePublicationCommercialTerms` rows covering offers, contracts, royalty contracts, and rights grants;
 - 5 `publication.activate-version` rows covering editions, assets, products, lifecycle state and activation history;
-- 4 `publishing.advancePublishingReleaseSchedules` rows in `openPublicationPreorderOwned` covering scheduled releases and preorder activation.
+- 4 `publishing.advancePublishingReleaseSchedules` rows in `openPublicationPreorderOwned` covering scheduled releases and preorder activation;
+- 1 `publishing.syncCatalogAccessibility` row for accessibility layout syncing, moved with the only remaining activation consumer.
 
 ## Source and execution boundary
 The complete source bodies are relocated without SQL reclassification to non-exported functions physically inside `CoveLegalAuthority`. The existing owner activation route invokes its private function after independently loading a frozen publication and applying the owner publication command hold; the preorder owner executor receives an internal private callback instead of importing the API-accessible function. The owner-private materialization path also resolves commercial terms locally. Legacy `activatePublicationCommercialTerms`, `activatePublicationVersionOwned`, and `openPublicationPreorderOwned` exports remain present **only as 503 fail-closed stubs** so no external caller silently gets raw canonical D1 write access. The normal scheduler must use the typed owner's bound facade; unenrolled scheduled release and rollback are deliberately blocked, not marked successful.
