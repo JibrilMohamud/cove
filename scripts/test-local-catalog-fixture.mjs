@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Historical SQL copied only for isolated Node test fixtures; no production imports. */
 // Test/local-fixture ONLY. Not imported by production API or deployed Workers.
 // Historical catalog source SQL is retained strictly to prepare isolated local
 // SQLite fixtures after shared canonical write-builder retirement.
