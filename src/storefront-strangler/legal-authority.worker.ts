@@ -1611,8 +1611,6 @@ async function activatePublicationVersionOwned(
   actorUserId: string | null,
   triggerType: "schedule" | "rollback" | "staff",
 ) {
-  if (hasPublicationOwner(db))
-    throw new ApiError(503, "Canonical publication writes must execute inside the legal owner.");
   const v = await db
     .prepare(
       `SELECT pv.*,l.publishing_edition_id,l.state,l.current_publication_version_id,l.owner_update_policy FROM publishing_publication_versions pv JOIN publishing_release_lifecycles l ON l.id=pv.lifecycle_id WHERE pv.id=?`,
@@ -1796,8 +1794,6 @@ async function activatePublicationVersionOwned(
 }
 
 async function openPublicationPreorderOwned(db: PublishingDB, publicationVersionId: string) {
-  if (hasPublicationOwner(db))
-    throw new ApiError(503, "Preorder publication writes must execute inside the legal owner.");
   const row = await db
     .prepare(
       "SELECT l.*,pv.id version_id,pv.manifest_json,pv.version_number FROM publishing_release_lifecycles l JOIN publishing_publication_versions pv ON pv.lifecycle_id=l.id AND pv.id=l.current_publication_version_id WHERE pv.id=?",
@@ -3081,8 +3077,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         return Response.json(verdict,{status:409,headers:noStore});
       return Response.json(verdict,{status:200,headers:noStore});
     } catch(error) {
-      console.error("cove_legal_authority_closed",error instanceof Error?error.name:"unknown",
-        error instanceof ReferenceError?error.message:"");
+      console.error("cove_legal_authority_closed",error instanceof Error?error.name:"unknown");
       return new Response(null,{status:503,headers:route==="/commercial/order/settle"?
         {...noStore,"x-cove-owner-settlement-failure":ownerSettlementDiagnostic(error)}:noStore});
     }
