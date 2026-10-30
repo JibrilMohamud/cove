@@ -75,7 +75,10 @@ try {
         durable.exec(query);return {toArray:()=>[]};
       }
       const st=durable.prepare(query);
-      return {toArray:()=>st.columns().length?st.all(...args):(st.run(...args),[])};
+      // Workers SQLite executes immediately, even when a mutation's returned
+      // cursor is discarded. Do NOT defer execution until toArray() is read.
+      const rows=st.columns().length?st.all(...args):(st.run(...args),[]);
+      return {toArray:()=>rows};
     }};
     let loseAck=false;
     const DB={prepare(query){
