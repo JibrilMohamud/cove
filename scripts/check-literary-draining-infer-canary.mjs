@@ -31,7 +31,9 @@ assert.ok(workflow.includes("github.ref == 'refs/heads/main'"));
 assert.ok(workflow.includes("cancel-in-progress: false"));
 assert.ok(workflow.includes("persist-credentials: false"));
 assert.ok(
-  !workflow.includes("wrangler deploy --config wrangler.content-literary-infer.prod-draining.jsonc"),
+  !workflow.includes(
+    "wrangler deploy --config wrangler.content-literary-infer.prod-draining.jsonc",
+  ),
   "Retired Worker must never be redeployed by legacy QA canary",
 );
 assert.ok(workflow.includes("node --check scripts/staging/stop-literary-draining-infer.mjs"));
