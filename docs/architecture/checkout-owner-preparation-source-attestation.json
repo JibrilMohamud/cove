@@ -5,8 +5,8 @@
   "files": [
     {
       "path": "src/features/fore/commerce.server.ts",
-      "sha256": "b6d232536003c93d5e096bc6d462b7fe52caeb4e7bc71ae749f07b0ba2a2caba",
-      "review": "Reviewed unchanged SQL strings, mapped exact original SQL-bearing source lines to new lines, confirmed all 56 old source digests and occurrence IDs, and preserved all nonowner writer classifications; owner checkout branch is gated to the isolated staging primary."
+      "sha256": "88eeb72caddf8280154995cd375cda7fd7b9ec3073585ff29c73ce9860bd856a",
+      "review": "Reviewed the Prettier-only checkout helper formatting after the original 56 SQL source-identity rebase. Every existing SQL literal and functionName remained byte-for-byte identical; the original 56 protected site dispositions remain blocked until production migration and separate authorization."
     }
   ]
 }
