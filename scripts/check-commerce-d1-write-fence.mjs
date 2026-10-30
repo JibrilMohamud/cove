@@ -35,11 +35,24 @@ try{
   assert.equal(scopeCommerceProductionD1(base),base,"Production default must be exact no-op");
   assert.equal(scopeCommerceProductionD1({...base,COVE_COMMERCE_OWNER_D1_FENCE:"0"}).DB,raw);
   const enrolled={...base,COVE_COMMERCE_OWNER_D1_FENCE:"1",
+    COVE_COMMERCE_OWNER_PRODUCTION_ENABLED:"1",
+    COVE_RIGHTS_OWNER_ENABLED:"1",STRIPE_LIVEMODE:"1",
     COVE_CANONICAL_LEGAL_WRITE_LOCK:"1",
     COVE_LEGAL_WRITER_PRIMARY_ID:"4bd657ac-8789-403e-a28c-93aba8d0a989",
     COVE_RIGHTS_OWNER_SECRET:"a".repeat(64),
     LEGAL_AUTHORITY:{getByName:()=>({fetch:()=>new Response(null,{status:503})})}};
+  for(const noFence of [
+    {...base,COVE_COMMERCE_OWNER_PRODUCTION_ENABLED:"1"},
+    {...base,COVE_COMMERCE_OWNER_PRODUCTION_ENABLED:"enabled"},
+    {...enrolled,COVE_COMMERCE_OWNER_D1_FENCE:"0"},
+    {...enrolled,COVE_COMMERCE_OWNER_D1_FENCE:undefined}
+  ])assert.throws(()=>scopeCommerceProductionD1(noFence),
+    /activation_without_write_fence/,"Production enrollment without write isolation must fail closed");
   for(const unsafe of [
+    {...enrolled,COVE_COMMERCE_OWNER_PRODUCTION_ENABLED:"enabled"},
+    {...enrolled,COVE_COMMERCE_OWNER_PRODUCTION_ENABLED:"0"},
+    {...enrolled,COVE_RIGHTS_OWNER_ENABLED:"0"},
+    {...enrolled,STRIPE_LIVEMODE:"0"},
     {...enrolled,COVE_COMMERCE_OWNER_D1_FENCE:"enabled"},
     {...enrolled,COVE_CANONICAL_LEGAL_WRITE_LOCK:"0"},
     {...enrolled,COVE_LEGAL_WRITER_PRIMARY_ID:"5e3a6b69-6f3d-4b19-b837-01f7aa56ce87"},
@@ -48,7 +61,7 @@ try{
     {...enrolled,COVE_RIGHTS_OWNER_SECRET:"bad"},
     {...enrolled,LEGAL_AUTHORITY:null},
     {...enrolled,DB:null}
-  ])assert.throws(()=>scopeCommerceProductionD1(unsafe),/cutover_not_certified/);
+  ])assert.throws(()=>scopeCommerceProductionD1(unsafe),/(cutover_not_certified|activation_without_write_fence)/);
   const restricted=scopeCommerceProductionD1(enrolled);
   assert.notEqual(restricted.DB,raw);
   assert.deepEqual(Object.keys(restricted.DB).sort(),["batch","prepare"]);

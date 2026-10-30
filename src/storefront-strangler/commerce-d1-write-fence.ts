@@ -29,6 +29,9 @@ type Prepared={
 };
 type DB={prepare(sql:string):Prepared;batch(stmts:Prepared[]):Promise<unknown>};
 type Env={DB:DB;COVE_COMMERCE_OWNER_D1_FENCE?:string;
+  COVE_COMMERCE_OWNER_PRODUCTION_ENABLED?:string;
+  COVE_RIGHTS_OWNER_ENABLED?:string;
+  STRIPE_LIVEMODE?:string;
   COVE_CANONICAL_LEGAL_WRITE_LOCK?:string;
   COVE_LEGAL_WRITER_PRIMARY_ID?:string;
   COVE_SSR_STAGING?:string;COVE_LEGAL_CONSUMER_STAGE_ENABLED?:string;
@@ -121,8 +124,16 @@ export function commerceRestrictedCanonicalD1<T extends DB>(db:T):T {
  * never permission to fall back to legacy commerce SQL. */
 export function scopeCommerceProductionD1<T extends Env>(env:T):T {
   const setting=env.COVE_COMMERCE_OWNER_D1_FENCE;
+  const activation=env.COVE_COMMERCE_OWNER_PRODUCTION_ENABLED;
+  // Do not permit the legacy writer fallback if production enrollment is
+  // requested while the database execution fence is missing.
+  if(activation!==undefined&&activation!=="0"&&setting!=="1")
+    throw Error("canonical_d1_commerce_activation_without_write_fence");
   if(setting===undefined||setting==="0")return env;
   if(setting!=="1"||
+     activation!=="1"||
+     env.COVE_RIGHTS_OWNER_ENABLED!=="1"||
+     env.STRIPE_LIVEMODE!=="1"||
      env.COVE_CANONICAL_LEGAL_WRITE_LOCK!=="1"||
      env.COVE_LEGAL_WRITER_PRIMARY_ID!==PROD_D1||
      env.COVE_LEGAL_CONSUMER_STAGE_ENABLED==="1"||
