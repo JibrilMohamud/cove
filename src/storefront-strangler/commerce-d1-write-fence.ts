@@ -42,7 +42,7 @@ const deny=():never=>{throw Error("canonical_d1_commerce_nonowner_write_denied")
  * Reject comments, stacked statements and unmatched literals before D1.
  * This is a deliberately restrictive lexical gate, NOT a full SQL parser. */
 function checkedTokens(sql:unknown):string {
-  if(typeof sql!=="string"||sql.length<1||sql.length>65536)deny();
+  if(typeof sql!=="string"||sql.length<1||sql.length>65536)return deny();
   let tokens="",state:"plain"|"single"|"double"|"tick"|"bracket"="plain";
   for(let i=0;i<sql.length;i++){
     const c=sql[i],next=sql[i+1]||"";
@@ -76,7 +76,7 @@ function checkedTokens(sql:unknown):string {
 function commerceSqlAllowed(sql:unknown):boolean {
   const tokens=checkedTokens(sql);
   const start=/^\s*(SELECT|INSERT|REPLACE|UPDATE|DELETE)\b/i.exec(tokens);
-  if(!start)deny(); // deny DDL, PRAGMA, WITH/CTE, ATTACH, EXPLAIN, VACUUM, etc
+  if(!start)return deny(); // deny DDL, PRAGMA, WITH/CTE, ATTACH, EXPLAIN, VACUUM, etc
   if(start[1].toUpperCase()==="SELECT")return true;
   if(protectedSqlIdentifiers.test(tokens))deny();
   // This facade can only assert that the direct SQL statement is isolated.
