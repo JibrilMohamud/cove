@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Owner-only, journaled distribution contract version mutation. */
 import {saveContractVersion} from "../features/fore/traditional-publishing.server";
+import {ownerContractVersionSchema} from "./owner-contract-version-schema";
 import type {CatalogDB} from "../features/fore/catalog-model.server";
 import type {AuthoritySql} from "./legal-authority-core";
 import {denyCommercialSubject} from "./commercial-legal-core";
@@ -27,7 +28,11 @@ export async function executeOwnerContractVersion(ctx:{
     typeof raw.actorUserId!=="string"||!identity.test(raw.actorUserId)||
     typeof raw.operationId!=="string"||!operation.test(raw.operationId)||
     !isRecord(raw.contract))return fail("owner_contract_invalid_command");
-  const input=raw as Input,contractId=input.contract.contractId;
+  const input=raw as Input;
+  const parsed=ownerContractVersionSchema.safeParse(input.contract);
+  if(!parsed.success)return fail("owner_contract_invalid_terms");
+  const checked=parsed.data;
+  const contractId=checked.contractId;
   if(typeof contractId!=="string"||!identity.test(contractId)||
     !Number.isSafeInteger(input.contract.versionNumber)||Number(input.contract.versionNumber)<1||
     (input.contract.status!==undefined&&!statuses.has(String(input.contract.status))))
@@ -36,7 +41,7 @@ export async function executeOwnerContractVersion(ctx:{
   if(ctx.executing.has(lock))return fail("owner_contract_concurrent_version");
   ctx.executing.add(lock);
   try {
-    const payload=JSON.stringify([input.actorUserId,input.contract]);
+    const payload=JSON.stringify([input.actorUserId,checked]);
     const payloadSha256=[...new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(payload)))]
       .map(v=>v.toString(16).padStart(2,"0")).join("");
     const old=ctx.sql.exec<{payload_sha256:string;state:string;receipt_json:string|null}>(
@@ -57,18 +62,31 @@ export async function executeOwnerContractVersion(ctx:{
       "SELECT id,status FROM rights_contracts WHERE id=?"
     ).bind(contractId).first<{id:string;status:string}>();
     if(!contract||contract.status!=="active")return fail("owner_contract_not_active");
+    if(checked.effectiveTo&&checked.effectiveTo<=checked.effectiveFrom)
+      return fail("owner_contract_invalid_time_window");
+    const existing=await ctx.primary.prepare(
+      "SELECT id,status FROM rights_contract_versions WHERE contract_id=? AND version_number=?"
+    ).bind(contractId,checked.versionNumber).first<{id:string;status:string}>();
+    if(existing&&existing.status!=="draft")return fail("owner_contract_immutable_version");
+    if(checked.status==="active"){
+      const conflicting=await ctx.primary.prepare(
+        "SELECT id FROM rights_contract_versions WHERE contract_id=? AND status='active' AND id<>COALESCE(?, '') AND effective_from>=? AND (? IS NULL OR effective_from<?) LIMIT 1"
+      ).bind(contractId,existing?.id||null,checked.effectiveFrom,checked.effectiveTo||null,
+        checked.effectiveTo||"9999").first<{id:string}>();
+      if(conflicting)return fail("owner_contract_overlapping_active_version");
+    }
     // Draft updates do not change a live grant. Non-draft transitions always
     // deny rights at the owner first; positive reauthorization is a separate
     // independently verified command, never an implication of this write.
-    const status=String(input.contract.status||"draft"),deny=status!=="draft";
+    const status=checked.status,deny=status!=="draft";
     ctx.transactionSync(()=>{
       ctx.sql.exec("INSERT INTO cove_owner_contract_version_commands(operation_id,payload_sha256,state) VALUES(?,?,'pending')",
         input.operationId,payloadSha256);
       if(deny)denyCommercialSubject(ctx.sql,{subjectKind:"contract",subjectId:contractId,
         operationId:"contract:"+input.operationId});
     });
-    const result=await saveContractVersion(ctx.primary,input.actorUserId,input.contract);
-    if(result.contractId!==contractId||result.versionNumber!==input.contract.versionNumber||
+    const result=await saveContractVersion(ctx.primary,input.actorUserId,checked);
+    if(result.contractId!==contractId||result.versionNumber!==checked.versionNumber||
       result.status!==status||typeof result.id!=="string"||!identity.test(result.id))
       return fail("owner_contract_primary_receipt_mismatch");
     const current=await ctx.primary.prepare(
