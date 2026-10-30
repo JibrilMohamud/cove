@@ -43,7 +43,7 @@ const routes={
   }).strict()},
   "commerce.sync-dispute":{path:"/commercial/dispute/sync-verified",schema:z.object({
     disputeId:z.string().regex(/^dp_[a-zA-Z0-9_-]{4,150}$/),
-    eventType:z.enum(["charge.dispute.created","charge.dispute.updated","charge.dispute.closed"])
+    eventType:z.enum(["charge.dispute.created","charge.dispute.updated","charge.dispute.closed","charge.dispute.funds_withdrawn","charge.dispute.funds_reinstated"])
   }).strict()},
   "commerce.claim-webhook":{path:"/commercial/webhook/claim",schema:z.object({
     eventId:z.string().regex(/^evt_[a-zA-Z0-9_-]{4,150}$/),
