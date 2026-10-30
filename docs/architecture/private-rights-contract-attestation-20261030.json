@@ -10,7 +10,7 @@
     },
     {
       "path": "src/storefront-strangler/legal-authority.worker.ts",
-      "sha256": "3bb6e241c333db66864244fe52896c998174a25a4a94b1f071b1af11b1e3579a",
+      "sha256": "b2712af4ef14fd202de8ade42bb889eb27b6df2e269764e959f38a7ecc80b339",
       "review": "Verified private legal owner no longer imports the shared rights contract writer and uses a non-exported, parity-checked implementation exclusively for previously owner-checked publication materialization."
     }
   ],
