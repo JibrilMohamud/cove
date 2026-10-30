@@ -13,6 +13,16 @@ try{
     outfile:output,bundle:true,platform:"node",format:"esm",target:"node22",logLevel:"silent"});
   const {scopeCommerceProductionD1,commerceRestrictedCanonicalD1}=await import(pathToFileURL(output).href);
   const backend=readFileSync("src/persistence-backend.worker.ts","utf8");
+  const privateOwner=readFileSync("src/storefront-strangler/legal-authority.worker.ts","utf8");
+  const ownerLiveMatches=(privateOwner.match(/STRIPE_LIVEMODE==="true"/g)||[]).length;
+  assert.ok(ownerLiveMatches>=2,
+    "Private Stripe cancellation/refund provenance MUST use exact true live-mode contract");
+  const fenceSource=readFileSync("src/storefront-strangler/commerce-d1-write-fence.ts","utf8");
+  assert.match(fenceSource,/env\.STRIPE_LIVEMODE!=="true"/,
+    "Production commerce D1 fence must require the exact same private owner live-mode contract");
+  const locked=readFileSync("wrangler.legal-authority.production-locked.jsonc","utf8");
+  assert.match(locked,/"COVE_RIGHTS_OWNER_ENABLED": "0"/,
+    "The live legal owner must remain deployment-locked until independent Stripe/rights certification");
   assert.equal(backend.split("scopeCommerceProductionD1(scopeExclusiveCanonicalD1(scopePublicationOwnerEnv(env)))").length-1,2,
     "Commerce domain fence must be applied to BOTH authenticated HTTP and scheduled cron paths");
   let prepared=0,mutation=0,batches=0;
@@ -36,7 +46,7 @@ try{
   assert.equal(scopeCommerceProductionD1({...base,COVE_COMMERCE_OWNER_D1_FENCE:"0"}).DB,raw);
   const enrolled={...base,COVE_COMMERCE_OWNER_D1_FENCE:"1",
     COVE_COMMERCE_OWNER_PRODUCTION_ENABLED:"1",
-    COVE_RIGHTS_OWNER_ENABLED:"1",STRIPE_LIVEMODE:"1",
+    COVE_RIGHTS_OWNER_ENABLED:"1",STRIPE_LIVEMODE:"true",
     COVE_CANONICAL_LEGAL_WRITE_LOCK:"1",
     COVE_LEGAL_WRITER_PRIMARY_ID:"4bd657ac-8789-403e-a28c-93aba8d0a989",
     COVE_RIGHTS_OWNER_SECRET:"a".repeat(64),
@@ -53,6 +63,10 @@ try{
     {...enrolled,COVE_COMMERCE_OWNER_PRODUCTION_ENABLED:"0"},
     {...enrolled,COVE_RIGHTS_OWNER_ENABLED:"0"},
     {...enrolled,STRIPE_LIVEMODE:"0"},
+    {...enrolled,STRIPE_LIVEMODE:"1"},
+    {...enrolled,STRIPE_LIVEMODE:"TRUE"},
+    {...enrolled,STRIPE_LIVEMODE:"false"},
+    {...enrolled,STRIPE_LIVEMODE:undefined},
     {...enrolled,COVE_COMMERCE_OWNER_D1_FENCE:"enabled"},
     {...enrolled,COVE_CANONICAL_LEGAL_WRITE_LOCK:"0"},
     {...enrolled,COVE_LEGAL_WRITER_PRIMARY_ID:"5e3a6b69-6f3d-4b19-b837-01f7aa56ce87"},
