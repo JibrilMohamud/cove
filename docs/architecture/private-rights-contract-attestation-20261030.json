@@ -10,7 +10,7 @@
     },
     {
       "path": "src/storefront-strangler/legal-authority.worker.ts",
-      "sha256": "6e2ebdadd2403bd7bb70de697fbbf2b721ca5a3f406ea45656e435edcd805163",
+      "sha256": "457ea74610053d05ad600aaf1aba9aa29db3c054df52fddc6faf9c340354b485",
       "review": "Verified private contract and grant transactions are unexported, byte-exact implementation copies reached from the existing authenticated materialization command, with no shared D1 writer imports."
     }
   ],

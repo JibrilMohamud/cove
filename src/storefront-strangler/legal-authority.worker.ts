@@ -7,7 +7,7 @@ import {executeOwnerRefundAccounting} from "./refund-accounting-owner-executor";
 import {executeOwnerRefundReservation} from "./refund-reservation-owner-executor";
 import {executeOwnerCheckoutPaymentBinding} from "./checkout-payment-binding-owner-executor";
 import {executeOwnerPaidSettlement} from "./paid-settlement-owner-executor";
-import {channelSchema,scopeRuleSchema,restrictionsSchema,grantScopeFromInput,drmSatisfiesRequirement,normalizeTerritoryCode,detectRightsConflicts} from "../features/fore/rights.server";
+import {channelSchema,scopeRuleSchema,restrictionsSchema,grantScopeFromInput,drmSatisfiesRequirement,normalizeTerritoryCode} from "../features/fore/rights.server";
 import {z} from "zod/v3";
 import {createRoyaltyContractVersion} from "../features/fore/royalty-engine.server";
 import {ensurePreorderReleasePlan} from "../features/fore/preorder.server";
