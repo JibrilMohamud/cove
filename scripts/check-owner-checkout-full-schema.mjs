@@ -420,8 +420,9 @@ try {
   insert(admin.db,"staff_principals",{user_id:user,sso_provider:"supabase",
     sso_subject:actor.authSubject,status:"active",mfa_required:1,
     created_at:start,updated_at:start});
-  insert(admin.db,"staff_principal_roles",{user_id:user,role_id:"role_moderation_admin",granted_at:start});
-  admin.db.prepare("INSERT OR IGNORE INTO staff_role_permissions(role_id,permission) VALUES('role_moderation_admin','commerce.manage')").run();
+  insert(admin.db,"staff_roles",{id:"role_monetary_full_qa",name:"monetary_qa"});
+  insert(admin.db,"staff_role_permissions",{role_id:"role_monetary_full_qa",permission:"commerce.manage"});
+  insert(admin.db,"staff_principal_roles",{user_id:user,role_id:"role_monetary_full_qa",granted_at:start});
   const adminRoute="/commercial/admin/monetary";
   const adminCommand=(action,operationId,payload)=>({action,operationId,actor,payload});
   let operation=adminCommand("gift-card","monetary-gift-issued-once-001",
@@ -467,7 +468,7 @@ try {
     actor:{...actor,aal:"aal1"}})).status,200,"MFA downgrade denied");
   assert.notEqual((await admin.call(adminRoute,{...operation,
     actor:{...actor,authSubject:"forged"}})).status,200,"SSO mismatch denied");
-  admin.db.prepare("DELETE FROM staff_role_permissions WHERE role_id='role_moderation_admin' AND permission='commerce.manage'").run();
+  admin.db.prepare("DELETE FROM staff_role_permissions WHERE role_id='role_monetary_full_qa' AND permission='commerce.manage'").run();
   assert.notEqual((await admin.call(adminRoute,adminCommand("gift-card",
     "monetary-role-revoked-001",{currency:"USD",amountMinor:100}))).status,200,
     "Role withdrawal must take effect in the owner before money issues");
