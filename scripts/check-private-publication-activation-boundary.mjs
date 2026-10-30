@@ -40,6 +40,7 @@ assert.match(owner,/openPreorder:openPublicationPreorderOwned/,
   "The preorder command must receive a private writer in the owner only");
 assert.match(preorder,/context\.openPreorder\(primary,input\.publicationVersionId\)/);
 assert.doesNotMatch(preorder,/import\s*\{openPublicationPreorderOwned/);
-assert.equal(review.sites.filter(x=>x.disposition==="owner-command-required").length,380);
+assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=380,
+  "Later genuine owner retirements may reduce open findings, never raise them");
 assert.equal(review.releaseApproval,false,"Never self-certify production owner release");
 console.log("PASS: 18 publication activation, rights terms, preorder and accessibility SQL sites retired into unexported private owner; legacy writes fail closed");
