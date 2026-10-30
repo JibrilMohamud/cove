@@ -5,7 +5,7 @@
   "files": [
     {
       "path": "src/storefront-strangler/localization-optimized.server.ts",
-      "sha256": "44a8c61a28ae4577b1f7657d19a2a2826cae7c51ba00416d5c26577479b316f7",
+      "sha256": "4167f4226ee52c195bb4b2888a4dcc044488a2cf6e7df4c05fc2c573ab3bd489",
       "review": "Reviewed the complete optimized upsertMarket implementation against the original canonical localization.server.ts implementation and confirmed a byte-exact match, re-export preserving existing behavior."
     }
   ],
