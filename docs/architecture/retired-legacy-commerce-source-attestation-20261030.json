@@ -5,7 +5,7 @@
   "files": [
     {
       "path": "src/features/fore/commerce.server.ts",
-      "sha256": "36c3dc43d19acde009e800437f4e6487fc44bf16a9a55ebba14863f1fa7b6452",
+      "sha256": "116f24a42a463947939e120919db25ebcbc5ac09a3ef8fb3d8a2b769031e70d8",
       "review": "Commerce legacy SQL removed from quote, tender, settlement, refund, webhook, dispute and reconciliation paths. Each live-money API denies unenrolled access prior to mutation. The two surviving tax SQL writes remain owner-required with unchanged SQL and verified new fingerprints. Source-only formatting and explicit fail-safe refund error logging are now included; exact surviving SQL remained unchanged. Independent review restored the owner-only checkout quote persistence and blocks public unenrolled callers; the quote SQL is still classified owner-required."
     }
   ],
