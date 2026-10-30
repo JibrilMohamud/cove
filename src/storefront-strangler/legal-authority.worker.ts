@@ -21,7 +21,7 @@ import {createMarketAuthoritySchema,denyMarket,marketIsWithdrawn} from "./market
 import { authorizeStorefrontPresentationIds, type CatalogDB } from "../features/fore/catalog-model.server";
 import { resolveProductRights,detectRightsConflicts } from "../features/fore/rights.server";
 import {createPublicationMaterializationSchema,executePublicationMaterialization} from "./publication-materialization-command";
-import type {PublishingEnv} from "../features/fore/publishing.server";
+import type {PublishingEnv,PublishingDB} from "../features/fore/publishing.server";
 import {executePublicationPreorder} from "./publication-preorder-command";
 import {beginPublicationCommand,commitPublicationCommand,readPublicationCommand,markPublicationPublished,recordPublicationRecovery} from "./publication-command-core";
 import {recoverPublicationCommands} from "./publication-command-recovery";
@@ -3081,7 +3081,8 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         return Response.json(verdict,{status:409,headers:noStore});
       return Response.json(verdict,{status:200,headers:noStore});
     } catch(error) {
-      console.error("cove_legal_authority_closed",error instanceof Error?error.name:"unknown");
+      console.error("cove_legal_authority_closed",error instanceof Error?error.name:"unknown",
+        error instanceof ReferenceError?error.message:"");
       return new Response(null,{status:503,headers:route==="/commercial/order/settle"?
         {...noStore,"x-cove-owner-settlement-failure":ownerSettlementDiagnostic(error)}:noStore});
     }
