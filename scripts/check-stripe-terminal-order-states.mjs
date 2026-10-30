@@ -14,8 +14,10 @@ assert.doesNotMatch(caller,/await consumeTender\(db, order\)/);
 assert.match(caller,/if \(env\.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1"\)[\s\S]{0,120}throw new ApiError\(503, "Paid settlement requires the private commerce owner\."\)/);
 const finalizer=caller.slice(caller.indexOf("export async function finalizePaidOrder("),caller.indexOf("export async function reconcileOwnerPaidSettlementEffects("));
 assert.ok(finalizer.includes('["pending_payment", "processing", "authorized", "payment_failed"].includes(order.status)'));
-assert.ok(finalizer.indexOf('["pending_payment", "processing", "authorized", "payment_failed"].includes(order.status)') <
-  finalizer.indexOf("return settleStageOwnerPaidOrder(env, orderId)"));
+const firstTime=finalizer.slice(finalizer.indexOf("// A valid, signed and correctly linked success event"));
+assert.ok(firstTime.indexOf('["pending_payment", "processing", "authorized", "payment_failed"].includes(order.status)') <
+  firstTime.indexOf("return settleStageOwnerPaidOrder(env, orderId)"),
+  "Terminal order must be rejected before first-time owner settlement");
 assert.match(settlement,/if\(!mutable\.includes\(order\.status\)\)throw new ApiError\(409/);
 assert.ok(settlement.indexOf("if(!mutable.includes(order.status))") <
   settlement.indexOf("const statements:Parameters<CatalogDB"));
