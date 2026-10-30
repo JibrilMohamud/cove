@@ -5459,19 +5459,6 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "94ddd9f98e67afe98a5b5fb8fd302205f1b550df5a8a949256f9faa88915b3ef",
-      "file": "src/storefront-strangler/localization-optimized.server.ts",
-      "line": 844,
-      "functionName": "upsertMarket",
-      "table": "storefront_markets",
-      "operation": "INSERT INTO",
-      "sqlSha256": "aeb2380b1736b3c1d2a3d691cb512ccbece0e4b896d4f4c28e83c72cda6ee03c",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "localization-optimized.upsertMarket",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
       "file": "src/storefront-strangler/paid-settlement-owner-executor.ts",
       "line": 119,
       "table": "commerce_settlement_receipts",
