@@ -597,8 +597,11 @@ try {
     .bind(job, user, at, at, at)
     .run();
   const uploadId = `upload_${crypto.randomUUID()}`;
-  assert.equal(catalog.personalImportStatements, undefined,
-    "Private imports must never expose a shared D1 writer");
+  assert.equal(
+    catalog.personalImportStatements,
+    undefined,
+    "Private imports must never expose a shared D1 writer",
+  );
   env.seedLocalPersonalImport({
     id: uploadId,
     userId: user,
