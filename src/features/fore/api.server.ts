@@ -384,7 +384,6 @@ import {
   rebuildWorkIdentityKeys,
   revealPartnerWebhookSecret,
   revokePartnerCredential,
-  saveContractVersion,
   savePartnerChannel,
   savePartnerProfile,
   submitPartnerFeed,
