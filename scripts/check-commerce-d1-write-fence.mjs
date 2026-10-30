@@ -13,6 +13,16 @@ try{
     outfile:output,bundle:true,platform:"node",format:"esm",target:"node22",logLevel:"silent"});
   const {scopeCommerceProductionD1,commerceRestrictedCanonicalD1}=await import(pathToFileURL(output).href);
   const backend=readFileSync("src/persistence-backend.worker.ts","utf8");
+  const privateOwner=readFileSync("src/storefront-strangler/legal-authority.worker.ts","utf8");
+  const ownerLiveMatches=(privateOwner.match(/STRIPE_LIVEMODE==="true"/g)||[]).length;
+  assert.ok(ownerLiveMatches>=2,
+    "Private Stripe cancellation/refund provenance MUST use exact true live-mode contract");
+  const fenceSource=readFileSync("src/storefront-strangler/commerce-d1-write-fence.ts","utf8");
+  assert.match(fenceSource,/env\.STRIPE_LIVEMODE!=="true"/,
+    "Production commerce D1 fence must require the exact same private owner live-mode contract");
+  const locked=readFileSync("wrangler.legal-authority.production-locked.jsonc","utf8");
+  assert.match(locked,/"COVE_RIGHTS_OWNER_ENABLED": "0"/,
+    "The live legal owner must remain deployment-locked until independent Stripe/rights certification");
   assert.equal(backend.split("scopeCommerceProductionD1(scopeExclusiveCanonicalD1(scopePublicationOwnerEnv(env)))").length-1,2,
     "Commerce domain fence must be applied to BOTH authenticated HTTP and scheduled cron paths");
   let prepared=0,mutation=0,batches=0;
