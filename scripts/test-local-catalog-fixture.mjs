@@ -393,6 +393,138 @@ function commercialCatalogStatements(db,externalId,at) {
 }
 
 
+// Byte-identical original taxonomy maintenance, executed only on disposable
+// local SQLite samples rather than the deployed source/owner write plane.
+const now=()=>new Date().toISOString();
+function syncEditionTaxonomy(db,editionId,sourceUnchanged=false,popularityOnly=false) {
+  const at = now();
+  // Reconcile rather than destroy/recreate every mapping on every source
+  // heartbeat. Existing manual links and exact-match mapping provenance remain
+  // untouched. Retries repair missing/stale assignments; changed confidence
+  // re-enters the existing INSERT path.
+  db
+    .prepare(
+      `WITH source_values(source_scheme,source_value) AS (
+        SELECT c.scheme,c.name FROM edition_categories ec
+          JOIN categories c ON c.id=ec.category_id WHERE ec.edition_id=?
+        UNION ALL
+        SELECT CASE WHEN s.scheme='gutenberg' THEN 'gutenberg-subject' ELSE s.scheme END,s.name
+          FROM edition_subjects es JOIN subjects s ON s.id=es.subject_id
+          WHERE es.edition_id=?
+      ), expected AS (
+        SELECT DISTINCT m.taxonomy_node_id,
+          CASE WHEN m.match_mode='exact' THEN 1.0 ELSE 0.85 END AS confidence
+        FROM source_values src JOIN storefront_taxonomy_mappings m ON m.active=1
+          AND (m.source_scheme='*' OR m.source_scheme=src.source_scheme)
+          AND ((m.match_mode='exact' AND lower(src.source_value)=lower(m.source_value))
+            OR (m.match_mode='prefix' AND lower(src.source_value) LIKE lower(m.source_value)||'%')
+            OR (m.match_mode='contains' AND lower(src.source_value) LIKE '%'||lower(m.source_value)||'%'))
+      )
+      DELETE FROM edition_taxonomy_nodes
+      WHERE edition_id=? AND source='mapping'
+        AND NOT EXISTS (SELECT 1 FROM expected e
+          WHERE e.taxonomy_node_id=edition_taxonomy_nodes.taxonomy_node_id
+            AND e.confidence=edition_taxonomy_nodes.confidence)`,
+    )
+    .bind(editionId, editionId, editionId)
+    .run();
+  db
+    .prepare(
+      `INSERT OR IGNORE INTO edition_taxonomy_nodes(edition_id,taxonomy_node_id,source,confidence,is_primary,created_at)
+    SELECT DISTINCT src.edition_id,m.taxonomy_node_id,'mapping',CASE WHEN m.match_mode='exact' THEN 1.0 ELSE 0.85 END,0,?
+    FROM (
+      SELECT ec.edition_id,c.scheme source_scheme,c.name source_value
+      FROM edition_categories ec JOIN categories c ON c.id=ec.category_id WHERE ec.edition_id=?
+      UNION ALL
+      SELECT es.edition_id,CASE WHEN s.scheme='gutenberg' THEN 'gutenberg-subject' ELSE s.scheme END,s.name
+      FROM edition_subjects es JOIN subjects s ON s.id=es.subject_id WHERE es.edition_id=?
+    ) src
+    JOIN storefront_taxonomy_mappings m ON m.active=1
+      AND (m.source_scheme='*' OR m.source_scheme=src.source_scheme)
+      AND ((m.match_mode='exact' AND lower(src.source_value)=lower(m.source_value))
+        OR (m.match_mode='prefix' AND lower(src.source_value) LIKE lower(m.source_value)||'%')
+        OR (m.match_mode='contains' AND lower(src.source_value) LIKE '%'||lower(m.source_value)||'%'))`,
+    )
+    .bind(at, editionId, editionId)
+    .run();
+  // Before rebuilding the ancestor closure, remove only ancestors which
+  // are no longer reachable (or whose confidence changed). Unchanged rows
+  // no longer incur a primary-D1 delete + insert on every ingestion sweep.
+  db
+    .prepare(
+      `WITH RECURSIVE ancestors(node_id,parent_id,confidence) AS (
+        SELECT n.id,n.parent_id,et.confidence
+        FROM edition_taxonomy_nodes et JOIN storefront_taxonomy_nodes n ON n.id=et.taxonomy_node_id
+        WHERE et.edition_id=? AND et.source IN ('mapping','manual')
+        UNION ALL
+        SELECT n.id,n.parent_id,a.confidence FROM ancestors a
+        JOIN storefront_taxonomy_nodes n ON n.id=a.parent_id WHERE a.parent_id IS NOT NULL
+      )
+      DELETE FROM edition_taxonomy_nodes
+      WHERE edition_id=? AND source='ancestor'
+        AND NOT EXISTS (SELECT 1 FROM ancestors a
+          WHERE a.node_id=edition_taxonomy_nodes.taxonomy_node_id
+            AND a.confidence=edition_taxonomy_nodes.confidence)`,
+    )
+    .bind(editionId, editionId)
+    .run();
+  db
+    .prepare(
+      `WITH RECURSIVE ancestors(edition_id,node_id,parent_id,confidence) AS (
+      SELECT et.edition_id,n.id,n.parent_id,et.confidence
+      FROM edition_taxonomy_nodes et JOIN storefront_taxonomy_nodes n ON n.id=et.taxonomy_node_id
+      WHERE et.edition_id=? AND et.source IN ('mapping','manual')
+      UNION ALL
+      SELECT a.edition_id,n.id,n.parent_id,a.confidence
+      FROM ancestors a JOIN storefront_taxonomy_nodes n ON n.id=a.parent_id
+      WHERE a.parent_id IS NOT NULL
+    )
+    INSERT OR IGNORE INTO edition_taxonomy_nodes(edition_id,taxonomy_node_id,source,confidence,is_primary,created_at)
+    SELECT edition_id,node_id,'ancestor',confidence,0,? FROM ancestors`,
+    )
+    .bind(editionId, at)
+    .run();
+  // Avoid firing FTS5 UPDATE triggers when assignments are unchanged.
+  // The preceding mapping/ancestor reconciliation still runs every time,
+  // including after a partial previous attempt or a changed mapping rule.
+  const taxonomyTextWrite = db
+    .prepare(
+      `UPDATE catalog_search_documents SET taxonomy_text=COALESCE((
+    SELECT group_concat(n.path,' | ') FROM products p
+    JOIN edition_taxonomy_nodes et ON et.edition_id=p.edition_id
+    JOIN storefront_taxonomy_nodes n ON n.id=et.taxonomy_node_id
+    WHERE p.id=catalog_search_documents.product_id
+  ),''), updated_at=updated_at
+  WHERE product_id IN (SELECT id FROM products WHERE edition_id=?)
+    AND taxonomy_text IS NOT COALESCE((
+      SELECT group_concat(n.path,' | ') FROM products p
+      JOIN edition_taxonomy_nodes et ON et.edition_id=p.edition_id
+      JOIN storefront_taxonomy_nodes n ON n.id=et.taxonomy_node_id
+      WHERE p.id=catalog_search_documents.product_id
+    ),'')`,
+    )
+    .bind(editionId)
+    .run();
+  // Exact source equality and a zero-row taxonomy update allow preserving an
+  // already queued search event. Insert-if-missing still repairs interrupted
+  // publication. Missing D1 changes telemetry keeps the conservative old path.
+  const changedRows = taxonomyTextWrite?.meta?.changes;
+  // A popularity-only refresh is NOT evidence that a separate legal
+  // withdrawal was reversed. Keep any queued delete tombstone, even though
+  // a new download-count ranking needs an upsert for otherwise active books.
+  const preservePendingEvent = sourceUnchanged && changedRows === 0;
+  db
+    .prepare(
+      `INSERT INTO search_index_outbox(product_id,operation,queued_at,attempts,last_error)
+    SELECT id,'upsert',?,0,'' FROM products WHERE edition_id=? AND source_name<>'upload'
+    ON CONFLICT(product_id) DO UPDATE SET operation='upsert',queued_at=excluded.queued_at,attempts=0,last_error=''
+    WHERE ?=0 AND (?=0 OR search_index_outbox.operation<>'delete')`,
+    )
+    .bind(at, editionId, preservePendingEvent ? 1 : 0, popularityOnly ? 1 : 0)
+    .run();
+}
+
+
 export function seedLocalCatalogFixture(raw) {
   if(raw.prepare("SELECT 1 FROM gutenberg_source_cache LIMIT 1").get())return;
   const seed=JSON.parse(readFileSync(new URL("../src/features/fore/catalog-seed.json",import.meta.url),"utf8"));
@@ -404,6 +536,7 @@ export function seedLocalCatalogFixture(raw) {
       catalogInsert(facade,book,"https://www.gutenberg.org/ebooks/"+book.id+"/",at).run();
       for(const statement of commercialCatalogStatements(facade,String(book.id),at))
         statement.run();
+      syncEditionTaxonomy(facade,catalogIds(String(book.id)).editionId);
     }
     raw.exec("COMMIT");
   }catch(e){raw.exec("ROLLBACK");throw e;}
