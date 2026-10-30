@@ -1,3 +1,4 @@
+import { saveStageOwnerContractVersion } from "../../storefront-strangler/owner-contract-version.server";
 import {
   executeStageCanonicalAdminCommand,
   executeStageMarketEditorPause,
@@ -383,7 +384,6 @@ import {
   rebuildWorkIdentityKeys,
   revealPartnerWebhookSecret,
   revokePartnerCredential,
-  saveContractVersion,
   savePartnerChannel,
   savePartnerProfile,
   submitPartnerFeed,
@@ -4003,7 +4003,9 @@ async function handleCoveRequest(
       }
       if (request.method === "POST" && path === "/admin/publishing/distribution-contract-version") {
         const staff = await requireStaffPermission(db, who, "finance.contract.manage");
-        return json(await saveContractVersion(db, staff.userId, await body(request)));
+        return json(
+          await saveStageOwnerContractVersion(env, db, staff.userId, await body(request)),
+        );
       }
       if (request.method === "POST" && path === "/admin/publishing/contract-assignment") {
         const staff = await requireStaffPermission(db, who, "finance.contract.manage");

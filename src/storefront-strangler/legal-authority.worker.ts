@@ -7,6 +7,7 @@ import {executeOwnerRefundAccounting} from "./refund-accounting-owner-executor";
 import {executeOwnerRefundReservation} from "./refund-reservation-owner-executor";
 import {executeOwnerCheckoutPaymentBinding} from "./checkout-payment-binding-owner-executor";
 import {executeOwnerPaidSettlement} from "./paid-settlement-owner-executor";
+import {createContractVersionOwnerSchema,executeOwnerContractVersion} from "./owner-contract-version-executor";
 import {createMarketAuthoritySchema,denyMarket,marketIsWithdrawn} from "./market-authority-core";
 import { authorizeStorefrontPresentationIds, type CatalogDB } from "../features/fore/catalog-model.server";
 import { resolveProductRights } from "../features/fore/rights.server";
@@ -77,6 +78,7 @@ function qaOwnerLeaseLive(env:LegalAuthorityEnv) {
 
 export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
   private publicationExecutions=new Set<string>();
+  private contractExecutions=new Set<string>();
   private publicationRecoveryRunning=false;
   private settlementExecutions=new Set<string>();
   private settlementRecoveryRunning=false;
@@ -89,6 +91,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     createPaidEntitlementSchema(ctx.storage.sql as unknown as AuthoritySql);
     createMarketAuthoritySchema(ctx.storage.sql as unknown as AuthoritySql);
     createPublicationMaterializationSchema(ctx.storage.sql as unknown as AuthoritySql);
+    createContractVersionOwnerSchema(ctx.storage.sql as unknown as AuthoritySql);
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -143,6 +146,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/entitlement/deny-next","/commercial/entitlement/deny-batch",
       "/commercial/entitlement/publish-verified",
       "/commercial/entitlement/publish-order-verified",
+      "/publishing/contract/save-version",
       "/publication/materialize-submission",
       "/publication/activate-version",
       "/publication/open-preorder",
@@ -154,7 +158,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     let raw:unknown;
     try {
       const bytes=await request.text();
-      if(bytes.length>(["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
+      if(bytes.length>(route==="/publishing/contract/save-version"?32768:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
       raw=JSON.parse(bytes);
     }catch {return new Response(null,{status:400,headers:noStore});}
     const sql=this.ctx.storage.sql as unknown as AuthoritySql;
@@ -233,6 +237,12 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           return Response.json({schema:"cove.publication-recovery.v1",ownerFirst:true,
             operationId:input.operationId,...result},{headers:noStore});
         } finally {this.publicationRecoveryRunning=false;}
+      }
+      if(route==="/publishing/contract/save-version") {
+        const storage=this.ctx.storage as typeof this.ctx.storage & {transactionSync<T>(fn:()=>T):T};
+        const receipt=await executeOwnerContractVersion({primary:env.PRIMARY_DB,sql,
+          executing:this.contractExecutions,transactionSync:fn=>storage.transactionSync(fn)},raw);
+        return Response.json(receipt,{headers:noStore});
       }
       if(route==="/publication/materialize-submission") {
         const storage=this.ctx.storage as typeof this.ctx.storage & {transactionSync<T>(fn:()=>T):T};
