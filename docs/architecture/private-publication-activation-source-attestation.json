@@ -1,13 +1,13 @@
 {
   "schema": "cove.canonical-writer-source-attestation.v1",
   "releaseApproval": false,
-  "rationale": "Reviewed 17 SQL site removals from API-callable publication activation, commercial term activation, and preorder activation. The exact SQL has moved to nonexported private legal authority functions, with owner denial-first command and typed internal preorder callback; the shared API retains only fail-closed stubs. Unchanged SQL sites retain their exact literals and original classifications. Static closure is not proof of deployed production authorization.",
+  "rationale": "Reviewed 18 SQL site removals from API-callable publication activation, commercial term activation, and preorder activation. The exact SQL has moved to nonexported private legal authority functions, with owner denial-first command and typed internal preorder callback; the shared API retains only fail-closed stubs. Unchanged SQL sites retain their exact literals and original classifications. Static closure is not proof of deployed production authorization. The accessibility sync UPDATE of canonical editions is now also physically private rather than publicly exported.",
   "retirementEvidence": "docs/architecture/private-publication-activation-retirement-20261030.md",
   "files": [
     {
       "path": "src/features/fore/publishing.server.ts",
-      "sha256": "8139438649b0cc477c0c48ba7e1f1d60c1b8ef28e8bc8e54ab0940552824aaea",
-      "review": "Attested three former shared canonical write functions replaced with unowned 503 stubs; retained source SQL identity/function/table/operation and verified 17 physical removals into private owner source."
+      "sha256": "091215a1225894692afca69e39767ab3c54e682b55618b4588dd526ecdfcf2bd",
+      "review": "Attested three former shared canonical write functions replaced with unowned 503 stubs; retained source SQL identity/function/table/operation and verified 17 physical removals into private owner source. Verified the final one-site accessibility sync migration and exact source line remapping."
     }
   ]
 }
