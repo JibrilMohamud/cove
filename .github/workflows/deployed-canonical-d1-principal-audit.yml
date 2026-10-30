@@ -4,6 +4,9 @@ on:
     paths:
       - "scripts/audit-live-canonical-d1-principals.mjs"
       - "scripts/test-live-canonical-d1-principals.mjs"
+      - "scripts/check-exclusive-canonical-d1-write-fence.mjs"
+      - "src/storefront-strangler/canonical-d1-write-fence.ts"
+      - "src/persistence-backend.worker.ts"
       - "docs/architecture/deployed-canonical-d1-baseline.json"
       - "docs/architecture/historical-publication-capture-d1-isolation-20261029.json"
       - "wrangler.content-literary-handoff.prod-disabled.jsonc"
@@ -41,6 +44,10 @@ jobs:
         run: |
           node --check scripts/audit-live-canonical-d1-principals.mjs
           node --test scripts/test-live-canonical-d1-principals.mjs
+      - name: Verify canonical D1 owner-exclusive execution fence rejects direct mutations on API and cron
+        run: |
+          npm ci --no-audit --no-fund
+          node scripts/check-exclusive-canonical-d1-write-fence.mjs
 
   live:
     needs: regression
