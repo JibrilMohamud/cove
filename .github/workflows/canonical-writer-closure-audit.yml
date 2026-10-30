@@ -12,6 +12,7 @@ on:
       - "scripts/canonical-owner-workflow-inventory.mjs"
       - "scripts/test-canonical-owner-workflow-inventory.mjs"
       - "scripts/check-canonical-owner-command-gateway.mjs"
+      - "scripts/check-owner-checkout-quote-routing.mjs"
       - "scripts/check-owner-refund-accounting.mjs"
       - "scripts/check-private-refund-accounting-parity.mjs"
       - "scripts/check-owner-paid-settlement.mjs"
@@ -59,6 +60,7 @@ on:
       - "scripts/canonical-owner-workflow-inventory.mjs"
       - "scripts/test-canonical-owner-workflow-inventory.mjs"
       - "scripts/check-canonical-owner-command-gateway.mjs"
+      - "scripts/check-owner-checkout-quote-routing.mjs"
       - "scripts/check-owner-refund-accounting.mjs"
       - "scripts/check-private-refund-accounting-parity.mjs"
       - "scripts/check-owner-paid-settlement.mjs"
@@ -123,6 +125,7 @@ jobs:
           node scripts/test-canonical-writer-rebase.mjs
           node scripts/test-canonical-owner-workflow-inventory.mjs
           node scripts/check-canonical-owner-command-gateway.mjs
+          node scripts/check-owner-checkout-quote-routing.mjs
           node scripts/check-owner-refund-accounting.mjs
           node scripts/check-private-refund-accounting-parity.mjs
           node scripts/check-owner-paid-settlement.mjs

@@ -14,6 +14,21 @@ const source=z.string().regex(/^(?:[0-9]{1,10}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90
 const evidence=z.string().regex(/^gre_[a-z0-9_:-]{1,120}$/);
 const version=z.string().min(3).max(160).regex(/^[a-zA-Z0-9_-]+$/);
 const routes={
+  "commerce.create-quote":{path:"/commercial/checkout/create-quote",schema:z.object({
+    userId:ownerId,
+    request:z.object({
+      territory:z.string().regex(/^[A-Za-z]{2}$/).optional(),
+      billingAddress:z.object({
+        name:z.string().min(1).max(120),line1:z.string().min(1).max(180),
+        line2:z.string().max(180).optional(),city:z.string().min(1).max(120),
+        state:z.string().max(120).optional(),postalCode:z.string().min(1).max(30),
+        country:z.string().regex(/^[A-Za-z]{2}$/)
+      }).strict(),
+      promoCode:z.string().max(80).optional(),
+      giftCardCode:z.string().max(120).optional(),
+      useStoreCredit:z.boolean().optional()
+    }).strict()
+  }).strict()},
   "commerce.settle-order":{path:"/commercial/order/settle",schema:z.object({orderId:ownerId}).strict()},
   "commerce.recover-settlements":{path:"/commercial/order/recover-settlements",schema:z.object({limit:z.number().int().min(1).max(25)}).strict()},
   "commerce.revoke-order":{path:"/commercial/order/revoke",schema:z.object({orderId:ownerId,operationId:operation}).strict()},
@@ -168,6 +183,21 @@ export async function dispatchCanonicalOwnerCommand(
   try{ack=JSON.parse(bytes);}catch{throw Error("canonical_command_receipt_invalid");}
   if(!record(ack))throw Error("canonical_command_receipt_invalid");
   switch(kind){
+    case "commerce.create-quote": {
+      const numeric=["subtotalMinor","taxMinor","taxInclusiveMinor",
+        "giftCardMinor","storeCreditMinor","totalMinor","stripeDueMinor"];
+      if(ack.schema!=="cove.owner-checkout-quote.v1"||ack.userId!==body.userId||
+         ack.persisted!==true||!/^quote_[0-9a-f-]{36}$/.test(String(ack.id))||
+         !currency.safeParse(ack.currency).success||
+         !Array.isArray(ack.items)||ack.items.length<1||ack.items.length>25||
+         numeric.some(x=>!Number.isSafeInteger(ack[x])||Number(ack[x])<0)||
+         Number(ack.giftCardMinor)+Number(ack.storeCreditMinor)+
+           Number(ack.stripeDueMinor)!==Number(ack.totalMinor)||
+         Number(ack.subtotalMinor)-Number(record(ack.promo)?ack.promo.amountMinor||0:0)+
+           Number(ack.taxMinor)!==Number(ack.totalMinor))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    }
     case "commerce.recover-settlements":
       if(ack.schema!=="cove.owner-settlement-recovery.v1"||
          ![ack.checked,ack.recovered,ack.blocked].every(n=>Number.isSafeInteger(n)&&Number(n)>=0&&Number(n)<=Number(body.limit))||

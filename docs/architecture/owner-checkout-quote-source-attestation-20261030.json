@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Independent caller review: enrolled checkout quote creation now branches to a fixed authenticated QA owner before any caller quote or tax evidence write. The production non-enrolled checkout quote remains unchanged. Reviewed SQL literals and other API mutation routes are unchanged; no production ownership or release is claimed.",
+  "files": [
+    {
+      "path": "src/features/fore/api.server.ts",
+      "sha256": "8da9c204813ba298dbcb3bd2d513238a4b1bd191ed1a9ea5e6f2bf972a65a1f8",
+      "review": "The sole /checkout/quote POST caller routes owner-enrolled requests directly to the private owner RPC; the 33 existing API SQL literals retain their dispositions and operations."
+    }
+  ],
+  "retirementEvidence": "docs/architecture/owner-checkout-quote-qa-20261030.md"
+}

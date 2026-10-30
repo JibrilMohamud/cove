@@ -1,4 +1,6 @@
 /* eslint-disable prettier/prettier -- Private legal-authority boundary is security-sensitive. */
+import {checkoutQuote} from "../features/fore/commerce.server";
+import type {CoveEnv} from "../features/fore/api.server";
 import {ownerSettlementDiagnostic} from "./owner-settlement-diagnostic";
 import { DurableObject } from "cloudflare:workers";
 import {DISABLED_OWNER_ATTEST_ROUTE,PRODUCTION_OWNER_OBJECT,isDisabledProductionOwner,validOwnerChallenge,disabledOwnerReceipt} from "./production-disabled-owner-attestation";
@@ -67,6 +69,7 @@ type LegalAuthorityEnv = {
   STRIPE_SECRET_KEY?:string;
   STRIPE_LIVEMODE?:string;
   STRIPE_TAX_ENABLED?:string;
+  STRIPE_MINIMUM_CHARGE_MINOR?:string;
   LEGAL_AUTHORITY?: {getByName(name:string):{fetch(request:Request):Promise<Response>}};
 };
 // Never accept an unspecified primary binding. This is a newly provisioned,
@@ -2655,6 +2658,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/order/settle",
       "/commercial/order/recover-settlements",
       "/commercial/refund/reserve",
+      "/commercial/checkout/create-quote",
       "/commercial/checkout/materialize-draft",
       "/commercial/checkout/prepare-draft",
       "/commercial/checkout/cancel-unpaid",
@@ -2683,7 +2687,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     let raw:unknown;
     try {
       const bytes=await request.text();
-      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/materialize-draft"?2048:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
+      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/create-quote"?4096:route==="/commercial/checkout/materialize-draft"?2048:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
       raw=JSON.parse(bytes);
     }catch {return new Response(null,{status:400,headers:noStore});}
     const sql=this.ctx.storage.sql as unknown as AuthoritySql;
@@ -3197,6 +3201,36 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           ready:true,blocked:false,riskAction:risk.action,
           captureMethod:risk.action==="hold"?"manual":order.capture_method,
           tenderReserved:true,quoteConsumed:true,applied:true},{headers:noStore});
+      }
+      if(route==="/commercial/checkout/create-quote"){
+        // Only the isolated QA owner persists the quote, billing geography and
+        // Stripe Tax evidence. Recompute the cart and pricing against the
+        // canonical database: the caller supplies NO prices, SQL or rights proof.
+        const command=raw as {userId?:unknown;request?:unknown}|null;
+        if(!command||typeof command!=="object"||Array.isArray(command)||
+           Object.keys(command).sort().join(",")!=="request,userId"||
+           typeof command.userId!=="string"||
+           !/^[A-Za-z0-9_-]{8,160}$/.test(command.userId))
+          return new Response(null,{status:400,headers:noStore});
+        const ownerEnv={
+          DB:env.PRIMARY_DB,STRIPE_SECRET_KEY:env.STRIPE_SECRET_KEY,
+          STRIPE_LIVEMODE:env.STRIPE_LIVEMODE,
+          STRIPE_TAX_ENABLED:env.STRIPE_TAX_ENABLED,
+          STRIPE_MINIMUM_CHARGE_MINOR:env.STRIPE_MINIMUM_CHARGE_MINOR,
+        } as CoveEnv;
+        const quote=await checkoutQuote(ownerEnv,{id:command.userId},command.request);
+        // The quote, tax evidence and provider calculation were persisted
+        // by the canonical owner. It cannot ACK a caller-supplied amount.
+        const stored=await env.PRIMARY_DB.prepare(
+          "SELECT id, user_id, currency,total_minor,stripe_due_minor FROM commerce_checkout_quotes WHERE id=? AND user_id=?"
+        ).bind(quote.id,command.userId).first<{id:string;user_id:string;currency:string;
+          total_minor:number;stripe_due_minor:number}>();
+        if(!stored||stored.currency!==quote.currency||
+           Number(stored.total_minor)!==quote.totalMinor||
+           Number(stored.stripe_due_minor)!==quote.stripeDueMinor)
+          throw Error("owner_checkout_quote_commit_unconfirmed");
+        return Response.json({...quote,schema:"cove.owner-checkout-quote.v1",
+          userId:command.userId,persisted:true},{headers:noStore});
       }
       if(route==="/commercial/checkout/materialize-draft"){
         // A *pre-payment* isolated QA building block, NOT a completed
