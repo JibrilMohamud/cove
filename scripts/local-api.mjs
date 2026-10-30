@@ -8,6 +8,7 @@ import {
   seedLocalCatalogFixture,
   seedAdditionalLocalCatalogBooks,
   seedLocalPersonalImport,
+  normalizeExistingLocalCatalogSource,
 } from "./test-local-catalog-fixture.mjs";
 export function localBindings(root, options = {}) {
   const dir = path.join(root, ".sites-runtime");
@@ -79,6 +80,9 @@ export function localBindings(root, options = {}) {
     },
     seedLocalPersonalImport(input) {
       return seedLocalPersonalImport(db, input);
+    },
+    normalizeExistingLocalCatalogSource(sourceId, at) {
+      return normalizeExistingLocalCatalogSource(db, sourceId, at);
     },
     DB: {
       prepare: statement,

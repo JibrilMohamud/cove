@@ -682,3 +682,30 @@ export function seedLocalPersonalImport(raw,input) {
     raw.exec("COMMIT");
   }catch(e){raw.exec("ROLLBACK");throw e;}
 }
+
+/** Re-run canonical normalization only for synthetic regional evidence rows in
+ * a disposable Node SQLite database, never in the production Worker. */
+export function normalizeExistingLocalCatalogSource(raw, sourceId, at) {
+  if (!/^(?:[0-9]{1,10}|pg(?:au|ca|eu)_[a-z0-9_]{1,90})$/.test(sourceId))
+    throw new Error("invalid_local_source_id");
+  if (!raw.prepare("SELECT 1 FROM gutenberg_source_cache WHERE id=?").get(sourceId))
+    throw new Error("missing_local_catalog_source");
+  const facade = {
+    prepare(sql) {
+      return {
+        bind(...args) {
+          return { run() { return raw.prepare(sql).run(...args); } };
+        },
+      };
+    },
+  };
+  raw.exec("BEGIN");
+  try {
+    for (const statement of commercialCatalogStatements(facade, sourceId, at))
+      statement.run();
+    raw.exec("COMMIT");
+  } catch (error) {
+    raw.exec("ROLLBACK");
+    throw error;
+  }
+}

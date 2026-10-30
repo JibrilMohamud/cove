@@ -152,6 +152,9 @@ try {
     "overlapping crons have one lease owner",
   );
   assert.equal(calls, 32, "asset work exceeds the old cap, with a strict bound");
+  const assetState = await env.DB.prepare(
+    "SELECT id,epub_status,epub_last_error FROM gutenberg_source_cache WHERE id BETWEEN '990001' AND '990048' AND epub_status<>'completed' LIMIT 3",
+  ).all();
   assert.equal(
     (
       await env.DB.prepare(
@@ -159,6 +162,7 @@ try {
       ).first()
     ).count,
     32,
+    "EPUB ingestion failures: " + JSON.stringify(assetState.results),
   );
   assert.equal(
     (await runStoredAssetTick({ ...env, FORE_ASSETS_PER_MINUTE: "0" })).skipped,
