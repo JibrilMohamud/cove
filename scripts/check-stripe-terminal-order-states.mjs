@@ -92,8 +92,11 @@ try{
     for(const target of ["processing","authorized","payment_failed","canceled"]){
       assert.equal(transition(target),0,"Stale "+target+" event reopened "+terminal);
       assert.equal(state(),terminal);
-      assert.deepEqual(tender(),["reserved","reserved"],
-        "Stale event released reserved tender for "+terminal);
+      // An exact canceled-state replay repairs reservations left behind by
+      // an interrupted cancellation. Other terminal states may not release.
+      const expected=terminal==="canceled"&&target==="canceled"?"released":"reserved";
+      assert.deepEqual(tender(),[expected,expected],
+        "Owner cancellation replay must repair only canceled tender");
     }
   }
   insert("pending_payment");
