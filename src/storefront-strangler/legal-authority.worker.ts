@@ -4,6 +4,7 @@ import { DurableObject } from "cloudflare:workers";
 import {DISABLED_OWNER_ATTEST_ROUTE,PRODUCTION_OWNER_OBJECT,isDisabledProductionOwner,validOwnerChallenge,disabledOwnerReceipt} from "./production-disabled-owner-attestation";
 import {publishVerifiedPaidOrderAtomic,type VerifiedPaidOrderLine} from "./paid-order-atomic-publication";
 import {executeOwnerRefundAccounting} from "./refund-accounting-owner-executor";
+import {independentlyVerifyOwnerStripeRefund} from "./refund-provider-independent-verification";
 import {executeOwnerRefundReservation} from "./refund-reservation-owner-executor";
 import {executeOwnerCheckoutPaymentBinding} from "./checkout-payment-binding-owner-executor";
 import {checkoutDraftCommand,planOwnerCheckoutDraft,ownerCheckoutPreparationMatchesQuote} from "./checkout-draft-owner-plan";
@@ -3286,10 +3287,21 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           throw Error("owner_refund_provider_scope_mismatch");
         if(readPaidOrderPermission(sql,{orderId:q.orderId}).allowed!==false)
           throw Error("owner_refund_denial_required");
-        // Provider identity is immutable and succeeded cannot regress under
-        // out-of-order signed Stripe webhooks or caller retries.
+        // The private owner independently GETs Stripe's current refund
+        // using its own credential. An adapter may not forge financial proof.
+        const providerStatus=await independentlyVerifyOwnerStripeRefund(env,{
+          orderId:q.orderId as string,refundId:q.refundId as string,
+          providerRefundId:q.providerRefundId as string,
+          paymentIntentId:q.paymentIntentId as string,
+          amountMinor:q.amountMinor as number,currency:q.currency as string,
+          status:q.status as string
+        });
+        if((refund.succeeded_at||refund.status==="succeeded")&&
+           providerStatus!=="succeeded")
+          throw Error("owner_refund_provider_regressed_after_success");
+        // A late pending webhook cannot downgrade a Stripe-verified success.
         const state=refund.succeeded_at||refund.status==="succeeded"?
-          "succeeded":q.status;
+          "succeeded":providerStatus;
         if(refund.provider_refund_id!==q.providerRefundId||refund.status!==state){
           const write=await env.PRIMARY_DB.prepare(
             "UPDATE commerce_refunds SET provider_refund_id=?,status=CASE WHEN succeeded_at IS NOT NULL OR status='succeeded' THEN 'succeeded' ELSE ? END,updated_at=? WHERE id=? AND order_id=? AND (provider_refund_id IS NULL OR provider_refund_id=?)"
