@@ -1,0 +1,46 @@
+name: private-catalog-owner-retirement
+on:
+  pull_request:
+    paths:
+      - "src/features/fore/catalog-model.server.ts"
+      - "src/features/fore/api.server.ts"
+      - "src/storefront-strangler/legal-authority.worker.ts"
+      - "src/storefront-strangler/canonical-owner-command-gateway.ts"
+      - "src/storefront-strangler/publication-owner-routing.server.ts"
+      - "docs/architecture/canonical-writer-review.json"
+      - "scripts/check-retired-catalog-owner.mjs"
+      - ".github/workflows/owner-private-catalog-retirement.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/features/fore/catalog-model.server.ts"
+      - "src/features/fore/api.server.ts"
+      - "src/storefront-strangler/legal-authority.worker.ts"
+      - "src/storefront-strangler/canonical-owner-command-gateway.ts"
+      - "src/storefront-strangler/publication-owner-routing.server.ts"
+      - "docs/architecture/canonical-writer-review.json"
+      - "scripts/check-retired-catalog-owner.mjs"
+      - ".github/workflows/owner-private-catalog-retirement.yml"
+permissions: {contents: read}
+jobs:
+  certify-private-retirement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with: {node-version: "22", cache: npm}
+      - run: npm ci --no-audit --no-fund
+      - name: Exact SQL review and no unreviewed writers
+        run: |
+          node scripts/check-canonical-writer-closure.mjs --no-new-writers
+          node scripts/reconcile-canonical-writers.mjs
+          node scripts/test-canonical-writer-review.mjs
+      - name: Byte exact owner-only catalog relocation
+        run: |
+          node scripts/check-retired-catalog-owner.mjs
+          node scripts/check-retired-partner-feed-owner.mjs
+          node scripts/check-retired-legacy-commerce-write-family.mjs
+          node scripts/check-retired-checkout-money-writers.mjs
+      - name: Strict TypeScript
+        run: npm run typecheck
