@@ -31,7 +31,7 @@ assert.ok(workflow.includes("github.ref == 'refs/heads/main'"));
 assert.ok(workflow.includes("cancel-in-progress: false"));
 assert.ok(workflow.includes("persist-credentials: false"));
 assert.ok(!workflow.includes("wrangler deploy --config wrangler.content-literary-infer.prod-draining.jsonc"), "Retired Worker must never be redeployed by legacy QA canary");
-assert.ok(workflow.includes("node scripts/staging/stop-literary-draining-infer.mjs"));
+assert.ok(workflow.includes("node --check scripts/staging/stop-literary-draining-infer.mjs"));
 assert.ok(!workflow.includes("node scripts/staging/activate-literary-draining-inference-budget.mjs"), "Retired canary must not reactivate work");
 assert.ok(activate.includes("legacyLeases"));
 assert.ok(activate.includes("original_reserved_units"));
