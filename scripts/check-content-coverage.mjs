@@ -91,7 +91,21 @@ try {
       count: 48,
       next: null,
     });
-  await api.runCatalogIngestion({ ...env, BUCKET: undefined }, 0, { includeRegional: false });
+  const attemptedImport = await api.runCatalogIngestion(
+    { ...env, BUCKET: undefined },
+    0,
+    { includeRegional: false },
+  );
+  assert.equal(attemptedImport.failed, true, "source import cannot authorize catalog rows without owner");
+  assert.match(attemptedImport.error, /Catalog normalization requires private authority/);
+  env.seedAdditionalLocalCatalogBooks(
+    Array.from({ length: 48 }, (_, i) => ({
+      ...seed,
+      id: 990001 + i,
+      title: `Coverage ${i}`,
+      copyright: false,
+    })),
+  );
   await env.DB.prepare(
     "UPDATE gutenberg_source_cache SET epub_status='unavailable' WHERE id NOT BETWEEN '990001' AND '990048'",
   ).run();
