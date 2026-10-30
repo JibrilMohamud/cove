@@ -1,0 +1,25 @@
+/* eslint-disable prettier/prettier -- The rebase cannot auto-approve SQL, callers, or release. */
+import assert from 'node:assert/strict';
+import {rebaseReview} from './rebase-canonical-writer-review.mjs';
+const base={file:'src/features/fore/commerce.server.ts',line:21,functionName:'checkout',table:'commerce_orders',operation:'INSERT INTO',sqlSha256:'a'.repeat(64),literal:true};
+const required={...base,siteId:'old-site',disposition:'owner-command-required',commandFamily:'commerce.checkout',productionOwnerGuarded:false,reason:'This protected payment writer still requires the verified owner path.'};
+const exception={...base,line:31,table:'catalog_search_documents',siteId:'exception-site',sqlSha256:'b'.repeat(64),disposition:'non-authorizing-write',productionOwnerGuarded:false,reason:'Only a presentation-only write previously inspected and approved.'};
+const review={schema:'cove.canonical-writer-review.v1',releaseApproval:false,sites:[required,exception]};
+const current=[{...base,siteId:'changed-site',line:22},{...exception,siteId:'exception-site',line:31,literal:true}];
+assert.throws(()=>rebaseReview(review,current),/independent file attestation/);
+let output=rebaseReview(review,current,{approvedSourceFiles:[base.file]});
+assert.equal(output.review.sites.length,2);
+assert.equal(output.review.sites.find(s=>s.table==='commerce_orders').siteId,'changed-site');
+assert.equal(output.review.sites.find(s=>s.table==='commerce_orders').commandFamily,'commerce.checkout');
+assert.equal(output.review.releaseApproval,false);
+assert.equal(output.after['owner-command-required'],1);
+assert.throws(()=>rebaseReview(review,[...current,{...base,table:'entitlements',siteId:'forged',sqlSha256:'c'.repeat(64)}],{approvedSourceFiles:[base.file]}),/New or changed/);
+assert.throws(()=>rebaseReview(review,current.slice(1),{approvedSourceFiles:[base.file]}),/retirement-evidence/);
+output=rebaseReview(review,current.slice(1),{approvedSourceFiles:[base.file],retirementEvidence:'docs/architecture/verified-family-retirement.md'});
+assert.equal(output.after['owner-command-required'] || 0,0);
+assert.equal(output.removed.length,1);
+assert.equal(output.review.sites[0].disposition,'non-authorizing-write');
+assert.throws(()=>rebaseReview({...review,releaseApproval:true},current,{approvedSourceFiles:[base.file]}),/true !== false/);
+const conflicting={...required,line:22,siteId:'duplicate-different-class',disposition:'non-authorizing-write',reason:'Different approved reason',commandFamily:undefined};
+assert.throws(()=>rebaseReview({...review,sites:[required,conflicting]},[{...base,siteId:'changed-site',line:25}],{approvedSourceFiles:[base.file],retirementEvidence:'docs/x.md'}),/Ambiguous duplicate/);
+console.log('PASS: protected SQL review rebase retains dispositions, refuses new SQL, requires independent changed-source review and explicit retirement evidence');
