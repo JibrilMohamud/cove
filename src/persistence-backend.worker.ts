@@ -1,6 +1,7 @@
 import { seedMusicProfiles } from "./features/fore/music-profiles.server";
 import { scopePublicationOwnerEnv } from "./storefront-strangler/publication-owner-routing.server";
 import { scopeExclusiveCanonicalD1 } from "./storefront-strangler/canonical-d1-write-fence";
+import { scopeCommerceProductionD1 } from "./storefront-strangler/commerce-d1-write-fence";
 import {
   attestDisabledOwnerFromBackend,
   DISABLED_OWNER_ATTEST_ROUTE,
@@ -51,6 +52,7 @@ import {
 type BackendEnv = CoveEnv &
   AudioComputeEnv & {
     COVE_OWNER_EXCLUSIVE_WRITER_FENCE?: string;
+    COVE_COMMERCE_OWNER_D1_FENCE?: string;
     FORE_BACKEND_TOKEN?: string;
     FORE_BACKEND_TOKEN_SHA256?: string;
     FORE_PUBLIC_URL?: string;
@@ -874,7 +876,7 @@ async function hostedBiosyncTranscript(
 
 export default {
   async scheduled(controller: { cron: string }, env: BackendEnv, ctx: ExecutionContextLike) {
-    env = scopeExclusiveCanonicalD1(scopePublicationOwnerEnv(env));
+    env = scopeCommerceProductionD1(scopeExclusiveCanonicalD1(scopePublicationOwnerEnv(env)));
     if (
       controller.cron === "*/10 * * * *" ||
       controller.cron === "23 * * * *" ||
@@ -904,7 +906,7 @@ export default {
     if (!(await authorized(request, env))) {
       return json({ error: "Persistence gateway authorization required." }, 401);
     }
-    env = scopeExclusiveCanonicalD1(scopePublicationOwnerEnv(env));
+    env = scopeCommerceProductionD1(scopeExclusiveCanonicalD1(scopePublicationOwnerEnv(env)));
 
     const path = new URL(request.url).pathname;
     // This endpoint runs only AFTER persistence gateway authentication.
