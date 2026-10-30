@@ -25,6 +25,7 @@ try {
       .concat(["src/storefront-strangler/publication-owner-routing.server.ts"]),
     bundle: true,
     splitting: true,
+    entryNames: "[name]",
     platform: "node",
     format: "esm",
     outdir: root,
