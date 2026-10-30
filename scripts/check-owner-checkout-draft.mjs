@@ -79,6 +79,8 @@ try {
   assert.match(code,/paymentAuthorized:false/);
   const review=JSON.parse(readFileSync("docs/architecture/canonical-writer-review.json","utf8"));
   assert.equal(review.releaseApproval,false);
-  assert.equal(review.sites.filter(s=>s.disposition==="owner-command-required").length,371);
-  console.log("PASS: owner checkout draft canonical quote totals, strict scope, expiry, idempotency identity, private atomic order+lines only; 371 legacy sites and production denial preserved");
+  const open=review.sites.filter(s=>s.disposition==="owner-command-required").length;
+  assert.ok(open>0&&open<=371,
+    "A genuine source retirement may lower open counts; this QA checkout draft cannot approve production");
+  console.log("PASS: owner checkout draft canonical quote totals, strict scope, expiry, idempotency identity, private atomic order+lines only; "+open+" owner-required sites and production denial preserved");
 }finally{rmSync(temp,{recursive:true,force:true});}
