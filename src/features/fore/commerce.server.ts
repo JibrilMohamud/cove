@@ -3396,8 +3396,7 @@ export async function commerceAdminSnapshot(db: CatalogDB) {
 }
 
 export async function reconcileStripe(env: CoveEnv, limit = 100) {
-  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1")
-    return reconcileStageOwnerStripe(env, limit);
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1") return reconcileStageOwnerStripe(env, limit);
   // Includes internal-only tender and failures after effects completed but
   // before the owner's publication ACK. No Stripe-only scan can find all
   // of these interrupted transactions.
@@ -3578,14 +3577,23 @@ export async function reconcileStripe(env: CoveEnv, limit = 100) {
  * Its only writes are fixed, verified owner RPCs; all other legacy
  * reconciliation statements below remain production compatibility only. */
 async function reconcileStageOwnerStripe(env: CoveEnv, limit: number) {
-  const id = `recon_${crypto.randomUUID()}`, started = now(),
+  const id = `recon_${crypto.randomUUID()}`,
+    started = now(),
     bound = Math.max(1, Math.min(500, limit)),
     details: Array<Record<string, string>> = [];
   await recoverStageOwnerPaidSettlements(env, Math.min(25, bound));
-  const rows = await env.DB
-    .prepare("SELECT * FROM commerce_orders WHERE stripe_payment_intent_id IS NOT NULL ORDER BY updated_at DESC LIMIT ?")
+  const rows = await env.DB.prepare(
+    "SELECT id,user_id,status,stripe_payment_intent_id,updated_at,created_at FROM commerce_orders WHERE stripe_payment_intent_id IS NOT NULL ORDER BY updated_at DESC LIMIT ?",
+  )
     .bind(bound)
-    .all<any>();
+    .all<{
+      id: string;
+      user_id: string;
+      status: string;
+      stripe_payment_intent_id: string;
+      updated_at: string;
+      created_at: string;
+    }>();
   let mismatches = 0, repaired = 0;
   for (const o of rows.results) {
     try {
@@ -3596,7 +3604,9 @@ async function reconcileStageOwnerStripe(env: CoveEnv, limit: number) {
       );
       // A settled order's fee/receipt/royalty reconciliation belongs to the
       // owner settlement outbox; NEVER to the scheduled caller's D1.
-      if (["paid", "partially_refunded", "refunded", "disputed", "chargeback_lost"].includes(o.status)) {
+      if (
+        ["paid", "partially_refunded", "refunded", "disputed", "chargeback_lost"].includes(o.status)
+      ) {
         if (o.status === "paid") {
           await settleStageOwnerPaidOrder(env, String(o.id));
           repaired++;
@@ -3623,15 +3633,21 @@ async function reconcileStageOwnerStripe(env: CoveEnv, limit: number) {
         staleRecoverable =
           ["pending_payment", "payment_failed"].includes(o.status) &&
           ageMs > 24 * 60 * 60_000 &&
-          ["requires_payment_method", "requires_confirmation", "requires_action", "canceled"]
-            .includes(String(pi.status));
+          [
+            "requires_payment_method",
+            "requires_confirmation",
+            "requires_action",
+            "canceled",
+          ].includes(String(pi.status));
       if (staleRecoverable) {
         if (pi.status !== "canceled")
           await stripeRequest(
             env,
             `payment_intents/${encodeURIComponent(o.stripe_payment_intent_id)}/cancel`,
-            { idempotencyKey: `fore-expire-${o.id}`,
-              params: { cancellation_reason: "abandoned" } },
+            {
+              idempotencyKey: `fore-expire-${o.id}`,
+              params: { cancellation_reason: "abandoned" },
+            },
           );
         await cancelStageOwnerUnpaidCheckout(env, {
           orderId: String(o.id),
@@ -3651,8 +3667,13 @@ async function reconcileStageOwnerStripe(env: CoveEnv, limit: number) {
   const finished = now();
   const reportDetails = details.slice(0, 100);
   await recordStageOwnerReconciliation(env, {
-    runId: id, startedAt: started, finishedAt: finished,
-    checked: rows.results.length, mismatches, repaired, details: reportDetails,
+    runId: id,
+    startedAt: started,
+    finishedAt: finished,
+    checked: rows.results.length,
+    mismatches,
+    repaired,
+    details: reportDetails,
   });
   return { id, checked: rows.results.length, mismatches, repaired, details: reportDetails };
 }
