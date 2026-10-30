@@ -448,8 +448,257 @@ async function storeCreditAvailable(db: CatalogDB, userId: string, currency: str
   return Math.max(0, ledger - reserved);
 }
 
-export async function checkoutQuote(_env: CoveEnv, _user: User, _raw: unknown) {
-  throw new ApiError(503, "Checkout quotes require the private commerce owner.");
+export async function checkoutQuote(env: CoveEnv, user: User, raw: unknown) {
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")
+    throw new ApiError(503, "Checkout quotes require the private commerce owner.");
+  const input = z
+    .object({
+      territory: z
+        .string()
+        .regex(/^[A-Za-z]{2}$/)
+        .default("US"),
+      billingAddress: addressSchema,
+      promoCode: z.string().max(80).default(""),
+      giftCardCode: z.string().max(120).default(""),
+      useStoreCredit: z.boolean().default(true),
+    })
+    .parse(raw);
+  const territory = input.billingAddress.country.toUpperCase();
+  if (input.territory.toUpperCase() !== territory)
+    throw new ApiError(
+      400,
+      "Checkout territory must match the billing country used for tax and payment.",
+    );
+  const db = env.DB,
+    cart = await cartPricing(db, user.id, territory, env);
+  const promo = await promoFor(db, user.id, input.promoCode, cart.subtotalMinor, cart.currency);
+  const eligibleSet = new Set<string>((promo?.eligibleProducts || []).map(String));
+  const eligibleWeights = cart.items.map((x) =>
+    !promo || eligibleSet.size === 0 || eligibleSet.has(String(x.productId))
+      ? Number(x.amountMinor)
+      : 0,
+  );
+  const eligibleSubtotal = eligibleWeights.reduce((a, b) => a + b, 0);
+  if (promo && eligibleSubtotal <= 0)
+    throw new ApiError(400, "That promotional code does not apply to any item in this cart.");
+  const discount = promo
+    ? promo.kind === "percent"
+      ? Math.floor((eligibleSubtotal * Math.min(100, Number(promo.value))) / 100)
+      : Math.min(eligibleSubtotal, Number(promo.value))
+    : 0;
+  if (promo && !promo.stackable && cart.items.some((x) => !!x.pricingPromotion))
+    throw new ApiError(
+      409,
+      "This promotional code cannot be combined with an existing sale price.",
+    );
+  const discountShares = moneySplit(discount, eligibleWeights);
+  const discounted = cart.items.map((x, i) => {
+    const lineDiscount = discountShares[i] || 0,
+      publisherBps = promo
+        ? Math.max(0, Math.min(10000, Number(promo.publisherFundingBps || 0)))
+        : 0,
+      publisherFunding = Math.floor((lineDiscount * publisherBps) / 10000);
+    return {
+      ...x,
+      discountMinor: lineDiscount,
+      taxableMinor: Math.max(0, x.amountMinor - lineDiscount),
+      taxMinor: 0,
+      publisherDiscountFundingMinor: publisherFunding,
+      foreDiscountFundingMinor: lineDiscount - publisherFunding,
+      checkoutPromotionCampaignId: promo?.campaignId || null,
+    };
+  });
+  if (promo) {
+    for (const item of discounted) {
+      if (!item.discountMinor) continue;
+      const check = promotionPermitted(item.rightsSnapshot?.promotionRestrictions || {}, {
+        type: "promo-code",
+        baseAmountMinor: Number(item.amountMinor),
+        proposedAmountMinor: Number(item.taxableMinor),
+        rightsholderApproved: promo.fundingSource === "publisher",
+      });
+      if (!check.allowed)
+        throw new ApiError(
+          409,
+          `The promotion cannot be applied to ${item.title} because of its distribution agreement (${check.reasonCode}).`,
+        );
+    }
+  }
+  let taxMinor = 0,
+    taxInclusiveMinor = 0,
+    taxId: string | null = null,
+    taxBreakdown: any[] = [],
+    taxProviderPayload: any = null,
+    taxLineSnapshot: any[] = [];
+  if (String(env.STRIPE_TAX_ENABLED || "true").toLowerCase() !== "false") {
+    const tax = await stripeRequest(env, "tax/calculations", {
+      params: {
+        currency: cart.currency.toLowerCase(),
+        customer_details: {
+          address: {
+            line1: input.billingAddress.line1,
+            line2: input.billingAddress.line2 || undefined,
+            city: input.billingAddress.city,
+            state: input.billingAddress.state || undefined,
+            postal_code: input.billingAddress.postalCode,
+            country: input.billingAddress.country,
+          },
+          address_source: "billing",
+        },
+        line_items: discounted.map((x, i) => ({
+          amount: x.taxableMinor,
+          reference: `${x.productId}:${i}`,
+          tax_code: x.taxCode || EBOOK_TAX_CODE,
+          tax_behavior: x.taxBehavior || "exclusive",
+        })),
+        expand: ["line_items"],
+      },
+    });
+    taxId = String(tax.id);
+    taxMinor = Number(tax.tax_amount_exclusive || 0);
+    taxInclusiveMinor = Number(tax.tax_amount_inclusive || 0);
+    taxBreakdown = Array.isArray(tax.tax_breakdown) ? tax.tax_breakdown : [];
+    taxProviderPayload = {
+      id: tax.id,
+      tax_amount_exclusive: tax.tax_amount_exclusive,
+      tax_amount_inclusive: tax.tax_amount_inclusive,
+      tax_breakdown: taxBreakdown,
+    };
+    const taxLines = Array.isArray(tax.line_items?.data) ? tax.line_items.data : [];
+    taxLineSnapshot = taxLines.map((line: any) => ({
+      reference: line.reference || "",
+      amount: Number(line.amount || 0),
+      amountTax: Number(line.amount_tax || line.tax_amount || 0),
+      taxBehavior: line.tax_behavior || "",
+    }));
+    if (taxLines.length === discounted.length) {
+      const taxByRef = new Map<string, number>();
+      for (const line of taxLines) {
+        taxByRef.set(String(line.reference || ""), Number(line.amount_tax || line.tax_amount || 0));
+      }
+      discounted.forEach((item, i) => {
+        item.taxMinor = taxByRef.get(`${item.productId}:${i}`) || 0;
+      });
+    } else {
+      const exclusiveIdx = discounted
+          .map((x, i) => ({ x, i }))
+          .filter((v) => v.x.taxBehavior !== "inclusive"),
+        inclusiveIdx = discounted
+          .map((x, i) => ({ x, i }))
+          .filter((v) => v.x.taxBehavior === "inclusive"),
+        exclusiveShares = moneySplit(
+          taxMinor,
+          exclusiveIdx.map((v) => v.x.taxableMinor),
+        ),
+        inclusiveShares = moneySplit(
+          taxInclusiveMinor,
+          inclusiveIdx.map((v) => v.x.taxableMinor),
+        );
+      exclusiveIdx.forEach((v, j) => {
+        discounted[v.i].taxMinor = exclusiveShares[j] || 0;
+      });
+      inclusiveIdx.forEach((v, j) => {
+        discounted[v.i].taxMinor = inclusiveShares[j] || 0;
+      });
+    }
+  }
+  const total = cart.subtotalMinor - discount + taxMinor;
+  const gift = await giftAvailability(db, input.giftCardCode, cart.currency),
+    storeAvailable = input.useStoreCredit
+      ? await storeCreditAvailable(db, user.id, cart.currency)
+      : 0;
+  let giftUse = Math.min(total, gift?.available || 0),
+    storeUse = Math.min(Math.max(0, total - giftUse), storeAvailable),
+    stripeDue = Math.max(0, total - giftUse - storeUse),
+    minimum = Math.max(0, Number(env.STRIPE_MINIMUM_CHARGE_MINOR || 50));
+  if (stripeDue > 0 && stripeDue < minimum) {
+    let needed = minimum - stripeDue,
+      reduceStore = Math.min(needed, storeUse);
+    storeUse -= reduceStore;
+    stripeDue += reduceStore;
+    needed -= reduceStore;
+    const reduceGift = Math.min(needed, giftUse);
+    giftUse -= reduceGift;
+    stripeDue += reduceGift;
+    if (stripeDue < minimum)
+      throw new ApiError(
+        409,
+        "The remaining card charge is below Stripe's minimum. Remove credit/gift tender or add another item.",
+      );
+  }
+  const cartRow = await db
+    .prepare("SELECT id FROM shopping_carts WHERE user_id=?")
+    .bind(user.id)
+    .first<any>();
+  if (!cartRow) throw new ApiError(409, "Your cart expired.");
+  const id = `quote_${crypto.randomUUID()}`,
+    at = now(),
+    expires = new Date(Date.now() + 30 * 60_000).toISOString(),
+    items = discounted.map((x) => ({ ...x }));
+  await db
+    .prepare(
+      `INSERT INTO commerce_checkout_quotes(id,user_id,cart_id,cart_fingerprint,territory_code,currency,items_json,billing_address_json,subtotal_minor,promo_discount_minor,tax_minor,tax_inclusive_minor,gift_card_minor,store_credit_minor,total_minor,stripe_due_minor,promo_code_hash,gift_card_hash,stripe_tax_calculation_id,tax_breakdown_json,expires_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    )
+    .bind(
+      id,
+      user.id,
+      cartRow.id,
+      cart.fingerprint,
+      territory,
+      cart.currency,
+      JSON.stringify(items),
+      JSON.stringify(input.billingAddress),
+      cart.subtotalMinor,
+      discount,
+      taxMinor,
+      taxInclusiveMinor,
+      giftUse,
+      storeUse,
+      total,
+      stripeDue,
+      promo?.hash || null,
+      gift?.hash || null,
+      taxId,
+      JSON.stringify(taxBreakdown),
+      expires,
+      at,
+    )
+    .run();
+  await recordCheckoutTaxEvidence(db, {
+    quoteId: id,
+    userId: user.id,
+    billingAddress: input.billingAddress,
+    storefrontCountry: territory,
+  });
+  if (taxId)
+    await recordCustomerTaxCalculation(db, {
+      quoteId: id,
+      provider: "stripe_tax",
+      providerCalculationId: taxId,
+      currency: cart.currency,
+      taxableMinor: discounted.reduce((n, x) => n + Number(x.taxableMinor || 0), 0),
+      taxExclusiveMinor: taxMinor,
+      taxInclusiveMinor,
+      breakdown: taxBreakdown,
+      lineItems: taxLineSnapshot,
+      providerPayload: taxProviderPayload,
+    });
+  return {
+    id,
+    expiresAt: expires,
+    currency: cart.currency,
+    items,
+    subtotalMinor: cart.subtotalMinor,
+    promo: promo ? { label: promo.label, amountMinor: discount } : null,
+    taxMinor,
+    taxInclusiveMinor,
+    taxBreakdown,
+    giftCardMinor: giftUse,
+    storeCreditMinor: storeUse,
+    totalMinor: total,
+    stripeDueMinor: stripeDue,
+    priceChanged: cart.stalePrice,
+  };
 }
 
 async function ensureStripeCustomer(env: CoveEnv, user: User) {
