@@ -8,6 +8,7 @@ import {executeOwnerRefundReservation} from "./refund-reservation-owner-executor
 import {executeOwnerCheckoutPaymentBinding} from "./checkout-payment-binding-owner-executor";
 import {checkoutDraftCommand,planOwnerCheckoutDraft} from "./checkout-draft-owner-plan";
 import {assessBuyerOrderRisk} from "../features/fore/risk-tax.server";
+import {stationBySlug} from "../features/fore/cove-sounds-stations";
 import {executeOwnerPaidSettlement} from "./paid-settlement-owner-executor";
 import {channelSchema,scopeRuleSchema,restrictionsSchema,grantScopeFromInput,drmSatisfiesRequirement,normalizeTerritoryCode} from "../features/fore/rights.server";
 import {z} from "zod/v3";
@@ -3841,6 +3842,11 @@ export default {
             line.salesChannel,line.promotionCampaignId,line.publisherFunding,
             line.foreFunding,at))
         ];
+        if(command.soundsStation&&stationBySlug(command.soundsStation)){
+          statements.push(db.prepare(
+            "INSERT OR IGNORE INTO commerce_sounds_purchase_attribution(order_id,station_slug,recording_id,captured_at) VALUES(?,?,?,?)"
+          ).bind(plan.orderId,command.soundsStation,command.soundsRecording||null,at));
+        }
         await db.batch(statements);
         const confirmed=await db.prepare(
           "SELECT COUNT(*) n FROM commerce_order_items WHERE order_id=?"
