@@ -5,7 +5,7 @@
   "files": [
     {
       "path": "src/features/fore/publishing-trust.server.ts",
-      "sha256": "648106c6f4121254fab749584b31705485c1725ec49819d575dd20a0823293fd",
+      "sha256": "c9261b74aa1e2a39baaf598ccebf332676bbe0f1aed54ce943c7c3d4860b3c0b",
       "review": "Source-level owner-required retirement audited against the exact original site IDs and SQL digests; no shared trust restoration, finance release or deadline mutation remains, and the two caller branches reject positive authority before side effects."
     }
   ],

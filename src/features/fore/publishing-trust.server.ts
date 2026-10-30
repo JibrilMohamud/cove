@@ -1922,7 +1922,10 @@ export async function resolveRightsDispute(db: PublishingDB, staff: StaffContext
   // No staff/public D1 path may reactivate withdrawn rights or free held funds.
   // Deny before the infringement/finance/dispute side effects below.
   if (x.restoreContent || royaltyDisposition === "release")
-    throw new ApiError(503, "Copyright restoration and royalty release require the independently authorized legal owner.");
+    throw new ApiError(
+      503,
+      "Copyright restoration and royalty release require the independently authorized legal owner.",
+    );
   if (
     d.publishing_account_id &&
     ["infringement_confirmed", "court_order"].includes(x.resolutionCode)
@@ -2132,7 +2135,10 @@ export async function advanceRightsDisputeDeadlines(db: PublishingDB) {
   // while the production owner is unavailable. Leave disputes pending and
   // explicitly fail the job so operators can resolve the legal deadline.
   if (due.length)
-    throw new ApiError(503, "Copyright restoration deadline reached; independent legal-owner certification is required.");
+    throw new ApiError(
+      503,
+      "Copyright restoration deadline reached; independent legal-owner certification is required.",
+    );
   return { checked: 0, restored: 0 };
 }
 
