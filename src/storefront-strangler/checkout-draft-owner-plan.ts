@@ -111,3 +111,29 @@ export function planOwnerCheckoutDraft(raw:unknown,stored:unknown,at:string,make
     String(d.getUTCMonth()+1).padStart(2,"0")+"-"+makeId().replaceAll("-","").slice(0,10).toUpperCase();
   return {command,quote,lines:rows,orderId,invoice,at};
 }
+
+/**
+ * The private owner must compare the transaction-current quote with the
+ * already materialized order BEFORE reserving any tender or contacting Stripe.
+ * A quote changed between atomic draft creation and preparation must not
+ * silently change who pays, the market, or the payment allocation.
+ *
+ * This is deliberately independent of caller-provided prices/fingerprints.
+ * It does not replace the upstream live-cart reprice or later rights checks.
+ */
+export function ownerCheckoutPreparationMatchesQuote(
+  order:Record<string,unknown>,quote:Record<string,unknown>
+){
+  if(order.user_id!==quote.user_id||order.quote_id!==quote.id||
+     order.currency!==quote.currency||order.territory_code!==quote.territory_code)
+    return false;
+  const moneyColumns=[
+    "subtotal_minor","promo_discount_minor","tax_minor","tax_inclusive_minor",
+    "gift_card_minor","store_credit_minor","total_minor","stripe_due_minor"
+  ] as const;
+  return moneyColumns.every(column=>{
+    const a=order[column],b=quote[column];
+    return typeof a==="number"&&typeof b==="number"&&
+      Number.isSafeInteger(a)&&Number.isSafeInteger(b)&&a>=0&&a===b;
+  });
+}
