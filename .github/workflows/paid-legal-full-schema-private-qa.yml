@@ -106,7 +106,7 @@ jobs:
       - run: node scripts/check-paid-stage-initial-identity.mjs
       - run: node scripts/check-qa-synthetic-audio.mjs
       - run: node scripts/check-owner-checkout-draft.mjs
-      - run: COVE_CHECKOUT_EMIT_FORMAT=1 node scripts/check-owner-checkout-preparation.mjs
+      - run: node scripts/check-owner-checkout-preparation.mjs
       - run: node scripts/check-owner-paid-settlement.mjs
       - run: node scripts/check-offline-epub-issuer-expiry.mjs
       - run: node scripts/check-offline-audio-issuer-authorization.mjs
