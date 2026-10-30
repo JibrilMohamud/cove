@@ -88,14 +88,14 @@ async function writeContractVersionPrimary(db: CatalogDB, actorUserId: string, r
   const contract = await db
     .prepare("SELECT * FROM rights_contracts WHERE id=?")
     .bind(x.contractId)
-    .first<any>();
+    .first<{id:string}>();
   if (!contract) throw new ApiError(404, "Rights contract not found.");
   if (x.effectiveTo && x.effectiveTo <= x.effectiveFrom)
     throw new ApiError(400, "Contract version end date must follow its effective date.");
   const existing = await db
     .prepare("SELECT * FROM rights_contract_versions WHERE contract_id=? AND version_number=?")
     .bind(x.contractId, x.versionNumber)
-    .first<any>();
+    .first<{id:string;status:string;created_at:string}>();
   if (existing && existing.status !== "draft")
     throw new ApiError(
       409,
@@ -113,7 +113,7 @@ async function writeContractVersionPrimary(db: CatalogDB, actorUserId: string, r
         x.effectiveTo || null,
         x.effectiveTo || "9999",
       )
-      .first<any>();
+      .first<{id:string}>();
     if (futureConflict)
       throw new ApiError(
         409,
@@ -123,7 +123,7 @@ async function writeContractVersionPrimary(db: CatalogDB, actorUserId: string, r
   const versionId = existing?.id || contractIdFor("rcontractv"),
     at = nowContract(),
     approvedAt = x.status === "active" ? at : null;
-  const statements: any[] = [
+  const statements:Parameters<CatalogDB["batch"]>[0] = [
     db
       .prepare(
         `INSERT INTO rights_contract_versions(id,contract_id,version_number,status,effective_from,effective_to,retailer_commission_bps,payment_schedule_json,returns_policy_json,subscription_terms_json,marketing_permissions_json,drm_requirements_json,delivery_rules_json,termination_policy_json,post_termination_access_policy,document_sha256,source_document_object_key,approved_by_user_id,approved_at,created_at)
