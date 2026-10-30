@@ -114,7 +114,7 @@ try {
     const create=()=>call("/commercial/checkout/materialize-draft",draft);
     const prepare=orderId=>call("/commercial/checkout/prepare-draft",{userId:user,orderId,quoteId});
     const count=table=>Number(db.prepare("SELECT COUNT(*) n FROM "+table).get().n);
-    return {db,durable,env,draft,call,create,prepare,count,loseAck(){loseAck=true;}};
+    return {db,durable,owner,env,draft,call,create,prepare,count,loseAck(){loseAck=true;}};
   }
   const ok=fixture();
   let result=await ok.create();
@@ -288,6 +288,130 @@ try {
   assert.equal(attempted.count("commerce_ledger_entries"),4,
     "Lost-ACK retry must not double-post financial entries");
   globalThis.fetch=priorFetch;
+
+  // Complete checkout cancellation and scheduled reconciliation replacement.
+  // The owner checks Stripe using its own key, then atomically releases
+  // all tender AND promo reservations. A lost D1 ACK is replay-repairable.
+  const canceled=fixture(),createCancel=await canceled.create();
+  assert.equal(createCancel.status,200);
+  const cancelId=(await createCancel.json()).orderId;
+  assert.equal((await canceled.prepare(cancelId)).status,200);
+  assert.equal(canceled.count("commerce_balance_reservations"),2);
+  const cancelCommand={orderId:cancelId,userId:user,source:"customer"};
+  const cancelRoute="/commercial/checkout/cancel-unpaid";
+  canceled.loseAck();
+  assert.equal((await canceled.call(cancelRoute,cancelCommand)).status,503);
+  assert.equal(canceled.db.prepare("SELECT status FROM commerce_orders WHERE id=?")
+    .get(cancelId).status,"canceled","A lost transport ACK is not a rolled-back commit");
+  assert.equal(canceled.db.prepare("SELECT COUNT(*) n FROM commerce_balance_reservations WHERE status='reserved'")
+    .get().n,0);
+  assert.equal((await canceled.call(cancelRoute,cancelCommand)).status,200,
+    "Owner must replay canceled checkout, preserving released tender");
+  assert.equal(canceled.db.prepare("SELECT COUNT(*) n FROM commerce_promo_redemptions WHERE status='reserved'")
+    .get().n,0);
+  const denial=fixture(),draftDenial=await denial.create();
+  assert.equal(draftDenial.status,200);
+  const deniedCancelId=(await draftDenial.json()).orderId;
+  denial.db.prepare("UPDATE commerce_orders SET status='paid' WHERE id=?").run(deniedCancelId);
+  assert.equal((await denial.call(cancelRoute,{
+    orderId:deniedCancelId,userId:user,source:"customer"
+  })).status,503,"Owner may never cancel a paid order or release its tender");
+  const protectedCustomer=fixture(),draftProtected=await protectedCustomer.create();
+  assert.equal(draftProtected.status,200);
+  const protectedId=(await draftProtected.json()).orderId;
+  const piId="pi_owner_cancel_fullschema_123";
+  protectedCustomer.db.prepare("UPDATE commerce_orders SET stripe_payment_intent_id=? WHERE id=?")
+    .run(piId,protectedId);
+  const stripeFetch=globalThis.fetch;
+  let stripeStatus="processing",stripeAmount=690,stripeLive=false;
+  globalThis.fetch=async(url,init)=>{
+    assert.equal(String(url),"https://api.stripe.com/v1/payment_intents/"+piId);
+    assert.equal(init.headers.authorization,"Bearer sk_test_fixture_only");
+    assert.equal(init.redirect,"manual");
+    return Response.json({object:"payment_intent",id:piId,status:stripeStatus,
+      livemode:stripeLive,amount:stripeAmount,currency:"usd",
+      metadata:{fore_order_id:protectedId},customer:null});
+  };
+  const ownerCancel={orderId:protectedId,userId:user,source:"reconciliation"};
+  assert.equal((await protectedCustomer.call(cancelRoute,ownerCancel)).status,503,
+    "Processing Stripe payment must not be canceled despite caller's claim");
+  assert.equal(protectedCustomer.db.prepare("SELECT status FROM commerce_orders WHERE id=?")
+    .get(protectedId).status,"pending_payment");
+  stripeStatus="canceled";stripeAmount=691;
+  assert.equal((await protectedCustomer.call(cancelRoute,ownerCancel)).status,503,
+    "Stripe amount mismatch must deny before any D1 write");
+  stripeAmount=690;stripeLive=true;
+  assert.equal((await protectedCustomer.call(cancelRoute,ownerCancel)).status,503,
+    "Stripe livemode mismatch must deny before any D1 write");
+  stripeLive=false;
+  assert.equal((await protectedCustomer.call(cancelRoute,ownerCancel)).status,200,
+    "Owner independently verified Stripe cancellation must reconcile");
+  assert.equal((await protectedCustomer.call(cancelRoute,ownerCancel)).status,200);
+  globalThis.fetch=stripeFetch;
+  // The reconciliation report has an immutable diagnostic replay identity,
+  // cannot be used as financial authorization or arbitrary SQL.
+  const journal=fixture(),recordId="recon_22222222-3333-4444-8888-aaaaaaaaaaaa";
+  const report={runId:recordId,startedAt:start,finishedAt:start,
+    checked:2,mismatches:1,repaired:1,
+    details:[{orderId:"ord_test_123",action:"owner_stale_checkout_canceled"}]};
+  assert.equal((await journal.call("/commercial/reconciliation/record",report)).status,200,
+    "Owner must persist complete replacement run report");
+  assert.equal(journal.count("commerce_reconciliation_runs"),1);
+  assert.equal((await journal.call("/commercial/reconciliation/record",report)).status,200);
+  assert.equal(journal.count("commerce_reconciliation_runs"),1);
+  assert.equal((await journal.call("/commercial/reconciliation/record",
+    {...report,repaired:2})).status,503,
+    "Replaying same run ID with different financial diagnostics must fail");
+  assert.equal(journal.count("commerce_reconciliation_runs"),1);
+  assert.equal((await journal.call("/commercial/reconciliation/record",
+    {...report,sql:"DELETE FROM commerce_orders"})).status,503);
+  const isolated=fixture(),isolatedDraft=await isolated.create();
+  assert.equal(isolatedDraft.status,200);
+  isolated.env.COVE_RIGHTS_OWNER_PRIMARY_ID="4bd657ac-8789-403e-a28c-93aba8d0a989";
+  assert.equal((await isolated.call(cancelRoute,{
+    orderId:(await isolatedDraft.json()).orderId,userId:user,source:"customer"
+  })).status,503,"Production DB is not an eligible private QA cancellation owner");
+  // Exercise the ACTUAL customer API and scheduled cron entrypoints, not
+  // only the private Durable Object. The enrolled callers have zero legal
+  // writer fallback after the owner RPC fails.
+  const commercePath=join(root,"commerce-caller.mjs");
+  await build({entryPoints:["src/features/fore/commerce.server.ts"],
+    outfile:commercePath,bundle:true,platform:"node",target:"node22",
+    format:"esm",logLevel:"silent"});
+  const {cancelCheckoutOrder,reconcileStripe}=await import(pathToFileURL(commercePath).href);
+  const caller=fixture(),callerDraft=await caller.create();
+  assert.equal(callerDraft.status,200);
+  const callerOrder=(await callerDraft.json()).orderId;
+  assert.equal((await caller.prepare(callerOrder)).status,200);
+  const stageEnv={...caller.env,DB:caller.env.PRIMARY_DB,
+    COVE_LEGAL_CONSUMER_STAGE_ENABLED:"1",COVE_SSR_STAGING:"1",
+    COVE_CANONICAL_LEGAL_WRITE_LOCK:"1",
+    COVE_LEGAL_WRITER_PRIMARY_ID:caller.env.COVE_RIGHTS_OWNER_PRIMARY_ID,
+    LEGAL_AUTHORITY:{getByName(name){
+      assert.equal(name,"cove-staged-legal-global-v1");return caller.owner;
+    }}};
+  assert.deepEqual(await cancelCheckoutOrder(stageEnv,user,callerOrder),
+    {orderId:callerOrder,status:"canceled"},"Enrolled customer API must use owner-only cancellation");
+  assert.equal(caller.db.prepare("SELECT status FROM commerce_orders WHERE id=?").get(callerOrder).status,
+    "canceled");
+  assert.equal(caller.db.prepare("SELECT COUNT(*) n FROM commerce_balance_reservations WHERE status='reserved'")
+    .get().n,0);
+  const cron=await reconcileStripe(stageEnv,5);
+  assert.equal(cron.checked,0,"The stage cron must reconcile only attached PI orders");
+  assert.equal(caller.count("commerce_reconciliation_runs"),1,
+    "Scheduled run must be recorded by the private owner");
+  const closed=fixture(),closedDraft=await closed.create();
+  assert.equal(closedDraft.status,200);
+  const closedOrder=(await closedDraft.json()).orderId;
+  assert.equal((await closed.prepare(closedOrder)).status,200);
+  const deniedEnv={...stageEnv,DB:closed.env.PRIMARY_DB,
+    COVE_RIGHTS_OWNER_SECRET:"bad-secret",LEGAL_AUTHORITY:{getByName:()=>closed.owner}};
+  await assert.rejects(()=>cancelCheckoutOrder(deniedEnv,user,closedOrder),
+    /owner|certified/i,"A broken owner must not fall back to API-side D1");
+  assert.equal(closed.db.prepare("SELECT status FROM commerce_orders WHERE id=?")
+    .get(closedOrder).status,"pending_payment");
+  assert.equal(closed.db.prepare("SELECT COUNT(*) n FROM commerce_balance_reservations WHERE status='reserved'")
+    .get().n,2,"The failed owner must not release tender from the caller plane");
   console.log("PASS: real private DO checkout order + risk + gift/card/credit + promo + quote; replay and failures against all migrations, production denied");
 }finally{
   for(const db of databases)db.close();
