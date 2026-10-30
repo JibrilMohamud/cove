@@ -4,6 +4,8 @@ on:
     paths:
       - "src/storefront-strangler/paid-settlement-stage-qa.worker.ts"
       - "src/storefront-strangler/legal-authority.worker.ts"
+      - "src/storefront-strangler/checkout-draft-owner-plan.ts"
+      - "src/storefront-strangler/canonical-owner-command-gateway.ts"
       - "src/storefront-strangler/legal-quarantine-qa.writer.ts"
       - "src/storefront-strangler/paid-settlement-publication.server.ts"
       - "src/storefront-strangler/legal-consumer-fence.server.ts"
@@ -14,6 +16,7 @@ on:
       - "src/storefront-strangler/owner-paid-settlement.server.ts"
       - "drizzle/0089_atomic_paid_settlement.sql"
       - "scripts/check-owner-paid-settlement.mjs"
+      - "scripts/check-owner-checkout-draft.mjs"
       - "src/features/fore/delivery.server.ts"
       - "src/features/fore/commercial-audio.server.ts"
       - "src/features/fore/offline-audio.server.ts"
@@ -44,6 +47,8 @@ on:
     paths:
       - "src/storefront-strangler/paid-settlement-stage-qa.worker.ts"
       - "src/storefront-strangler/legal-authority.worker.ts"
+      - "src/storefront-strangler/checkout-draft-owner-plan.ts"
+      - "src/storefront-strangler/canonical-owner-command-gateway.ts"
       - "src/storefront-strangler/legal-quarantine-qa.writer.ts"
       - "src/storefront-strangler/paid-settlement-publication.server.ts"
       - "src/storefront-strangler/legal-consumer-fence.server.ts"
@@ -54,6 +59,7 @@ on:
       - "src/storefront-strangler/owner-paid-settlement.server.ts"
       - "drizzle/0089_atomic_paid_settlement.sql"
       - "scripts/check-owner-paid-settlement.mjs"
+      - "scripts/check-owner-checkout-draft.mjs"
       - "src/features/fore/delivery.server.ts"
       - "src/features/fore/commercial-audio.server.ts"
       - "src/features/fore/offline-audio.server.ts"
@@ -95,6 +101,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: node scripts/check-paid-stage-initial-identity.mjs
       - run: node scripts/check-qa-synthetic-audio.mjs
+      - run: node scripts/check-owner-checkout-draft.mjs
       - run: node scripts/check-owner-paid-settlement.mjs
       - run: node scripts/check-offline-epub-issuer-expiry.mjs
       - run: node scripts/check-offline-audio-issuer-authorization.mjs
@@ -127,6 +134,7 @@ jobs:
           node scripts/check-customer-media-owner-order.mjs
           node scripts/check-commercial-legal-authority.mjs
           node scripts/check-staged-paid-settlement.mjs
+          node scripts/check-owner-checkout-draft.mjs
           node scripts/check-paid-stage-initial-identity.mjs
           node scripts/check-legal-consumer-fence.mjs
           node scripts/check-legal-quarantine-writer.mjs

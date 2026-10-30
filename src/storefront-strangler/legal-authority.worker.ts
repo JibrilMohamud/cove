@@ -6,6 +6,7 @@ import {publishVerifiedPaidOrderAtomic,type VerifiedPaidOrderLine} from "./paid-
 import {executeOwnerRefundAccounting} from "./refund-accounting-owner-executor";
 import {executeOwnerRefundReservation} from "./refund-reservation-owner-executor";
 import {executeOwnerCheckoutPaymentBinding} from "./checkout-payment-binding-owner-executor";
+import {checkoutDraftCommand,planOwnerCheckoutDraft} from "./checkout-draft-owner-plan";
 import {executeOwnerPaidSettlement} from "./paid-settlement-owner-executor";
 import {channelSchema,scopeRuleSchema,restrictionsSchema,grantScopeFromInput,drmSatisfiesRequirement,normalizeTerritoryCode} from "../features/fore/rights.server";
 import {z} from "zod/v3";
@@ -2424,6 +2425,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/order/settle",
       "/commercial/order/recover-settlements",
       "/commercial/refund/reserve",
+      "/commercial/checkout/materialize-draft",
       "/commercial/checkout/register-stripe-customer",
       "/commercial/checkout/attach-payment-intent",
       "/commercial/payment/update-state",
@@ -2446,7 +2448,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     let raw:unknown;
     try {
       const bytes=await request.text();
-      if(bytes.length>(route==="/publishing/contract/save-version"?32768:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
+      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/materialize-draft"?2048:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
       raw=JSON.parse(bytes);
     }catch {return new Response(null,{status:400,headers:noStore});}
     const sql=this.ctx.storage.sql as unknown as AuthoritySql;
@@ -2827,6 +2829,73 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         return Response.json({schema:"cove.paid-order-revocation.v1",
           orderDenied:true,reconciled:true,orderId:input.orderId,
           operationId:input.operationId},{status:200,headers:noStore});
+      }
+      if(route==="/commercial/checkout/materialize-draft"){
+        // A *pre-payment* isolated QA building block, NOT a completed
+        // checkout: no risk verdict, tender reservation, quote consumption,
+        // Stripe intent or entitlement is created by this command.
+        // Production owner enablement remains hard disabled by the QA lease.
+        const command=checkoutDraftCommand.parse(raw),db=env.PRIMARY_DB;
+        const old=await db.prepare(
+          "SELECT * FROM commerce_orders WHERE user_id=? AND (idempotency_key=? OR quote_id=?) LIMIT 2"
+        ).bind(command.userId,command.idempotencyKey,command.quoteId)
+          .all<{id:string;quote_id:string;idempotency_key:string;currency:string;stripe_due_minor:number}>();
+        if(old.results.length){
+          const existing=old.results[0];
+          if(old.results.length!==1||existing.quote_id!==command.quoteId||
+             existing.idempotency_key!==command.idempotencyKey)
+            return new Response(null,{status:409,headers:noStore});
+          const lines=await db.prepare(
+            "SELECT COUNT(*) n FROM commerce_order_items WHERE order_id=?"
+          ).bind(existing.id).first<{n:number}>();
+          if(!lines||Number(lines.n)<1||Number(lines.n)>25)
+            return new Response(null,{status:409,headers:noStore});
+          return Response.json({schema:"cove.owner-checkout-draft.v1",
+            userId:command.userId,quoteId:command.quoteId,
+            idempotencyKey:command.idempotencyKey,orderId:existing.id,
+            currency:existing.currency,stripeDueMinor:Number(existing.stripe_due_minor),
+            lineCount:Number(lines.n),created:false,riskAssessed:false,
+            tenderReserved:false,quoteConsumed:false,paymentAuthorized:false},
+            {headers:noStore});
+        }
+        const quote=await db.prepare(
+          "SELECT * FROM commerce_checkout_quotes WHERE id=? AND user_id=?"
+        ).bind(command.quoteId,command.userId).first<Record<string,unknown>>();
+        if(!quote)return new Response(null,{status:409,headers:noStore});
+        const plan=planOwnerCheckoutDraft(command,quote,new Date().toISOString(),
+          ()=>crypto.randomUUID());
+        const q=plan.quote,at=plan.at;
+        const statements=[
+          db.prepare(
+            "INSERT INTO commerce_orders(id,user_id,quote_id,invoice_number,status,currency,territory_code,subtotal_minor,promo_discount_minor,tax_minor,tax_inclusive_minor,gift_card_minor,store_credit_minor,total_minor,stripe_due_minor,billing_address_json,stripe_tax_calculation_id,capture_method,idempotency_key,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+          ).bind(plan.orderId,command.userId,command.quoteId,plan.invoice,
+            "pending_payment",q.currency,q.territory_code,q.subtotal_minor,
+            q.promo_discount_minor,q.tax_minor,q.tax_inclusive_minor,
+            q.gift_card_minor,q.store_credit_minor,q.total_minor,
+            q.stripe_due_minor,q.billing_address_json,q.stripe_tax_calculation_id||null,
+            command.captureMethod,command.idempotencyKey,at,at),
+          ...plan.lines.map(line=>db.prepare(
+            "INSERT INTO commerce_order_items(id,order_id,product_id,offer_id,title_snapshot,sku_snapshot,unit_amount_minor,discount_minor,tax_minor,total_minor,source_surface,source_request_id,pricing_decision_id,rights_decision_id,rights_grant_id,rights_snapshot_json,sales_channel,fulfillment_type,fulfillment_status,promotion_campaign_id,publisher_discount_funding_minor,fore_discount_funding_minor,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'immediate','pending',?,?,?,?)"
+          ).bind(line.id,plan.orderId,line.productId,line.offerId,line.title,
+            line.sku,line.amountMinor,line.discountMinor,line.taxMinor,line.totalMinor,
+            line.sourceSurface,line.sourceRequestId,line.pricingDecisionId,
+            line.rightsDecisionId,line.rightsGrantId,line.rightsSnapshotJson,
+            line.salesChannel,line.promotionCampaignId,line.publisherFunding,
+            line.foreFunding,at))
+        ];
+        await db.batch(statements);
+        const confirmed=await db.prepare(
+          "SELECT COUNT(*) n FROM commerce_order_items WHERE order_id=?"
+        ).bind(plan.orderId).first<{n:number}>();
+        if(Number(confirmed?.n)!==plan.lines.length)
+          throw Error("owner_checkout_draft_line_commit_unconfirmed");
+        return Response.json({schema:"cove.owner-checkout-draft.v1",
+          userId:command.userId,quoteId:command.quoteId,
+          idempotencyKey:command.idempotencyKey,orderId:plan.orderId,
+          currency:q.currency,stripeDueMinor:q.stripe_due_minor,
+          lineCount:plan.lines.length,created:true,riskAssessed:false,
+          tenderReserved:false,quoteConsumed:false,paymentAuthorized:false},
+          {headers:noStore});
       }
       if(route==="/commercial/checkout/register-stripe-customer"){
         if(!raw||typeof raw!=="object"||Array.isArray(raw))

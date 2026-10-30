@@ -20,6 +20,12 @@ const routes={
   "commerce.register-stripe-customer":{path:"/commercial/checkout/register-stripe-customer",schema:z.object({
     userId:ownerId,customerId:z.string().regex(/^cus_[a-zA-Z0-9_-]{4,150}$/)
   }).strict()},
+  "commerce.materialize-checkout-draft":{path:"/commercial/checkout/materialize-draft",schema:z.object({
+    userId:ownerId,quoteId:ownerId,
+    idempotencyKey:z.string().min(16).max(200),
+    cartFingerprint:z.string().min(16).max(1024),
+    captureMethod:z.enum(["manual","automatic","automatic_async"])
+  }).strict()},
   "commerce.attach-payment-intent":{path:"/commercial/checkout/attach-payment-intent",schema:z.object({
     orderId:ownerId,userId:ownerId,
     paymentIntentId:z.string().regex(/^pi_[a-zA-Z0-9_-]{4,150}$/),
@@ -154,6 +160,19 @@ export async function dispatchCanonicalOwnerCommand(
       if(ack.schema!=="cove.owner-stripe-customer.v1"||ack.userId!==body.userId||
          ack.customerId!==body.customerId||ack.bound!==true||
          typeof ack.applied!=="boolean")
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "commerce.materialize-checkout-draft":
+      if(ack.schema!=="cove.owner-checkout-draft.v1"||
+         ack.userId!==body.userId||ack.quoteId!==body.quoteId||
+         ack.idempotencyKey!==body.idempotencyKey||
+         typeof ack.orderId!=="string"||!/^ord_[a-f0-9-]{36}$/.test(ack.orderId)||
+         ack.currency===undefined||!currency.safeParse(ack.currency).success||
+         !Number.isSafeInteger(ack.stripeDueMinor)||Number(ack.stripeDueMinor)<0||
+         !Number.isSafeInteger(ack.lineCount)||Number(ack.lineCount)<1||
+         Number(ack.lineCount)>25||typeof ack.created!=="boolean"||
+         ack.riskAssessed!==false||ack.tenderReserved!==false||
+         ack.quoteConsumed!==false||ack.paymentAuthorized!==false)
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "commerce.attach-payment-intent":
