@@ -3262,7 +3262,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
            typeof input.disputeId!=="string"||
            !/^dp_[A-Za-z0-9_-]{4,150}$/.test(input.disputeId)||
            !["charge.dispute.created","charge.dispute.updated",
-             "charge.dispute.closed"].includes(String(input.eventType)))
+             "charge.dispute.closed","charge.dispute.funds_withdrawn","charge.dispute.funds_reinstated"].includes(String(input.eventType)))
           throw Error("owner_dispute_command_invalid");
         const dispute=await verifyOwnerStripeDispute(env,input.disputeId);
         const db=env.PRIMARY_DB;
