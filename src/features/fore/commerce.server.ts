@@ -2188,6 +2188,11 @@ type RefundOrder = {
 };
 
 export async function refundOrder(env: CoveEnv, raw: unknown) {
+  // Owner-disabled production MUST stop before any Stripe API call or refund
+  // intent mutation. Zero production refunds does not authorize a split
+  // provider/ledger transaction; an owner outage must never be best-effort.
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")
+    throw new ApiError(503, "Refunds require the private financial owner.");
   const input = z
       .object({
         orderId: z.string().min(8).max(120),
