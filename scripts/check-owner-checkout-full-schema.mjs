@@ -71,7 +71,7 @@ try {
     const sql={exec(query,...args){
       // Cloudflare's storage.sql.exec accepts multi-statement DDL;
       // node:sqlite prepare() accepts only one statement at a time.
-      if(!args.length&&/^(?:CREATE|ALTER|DROP|PRAGMA)\\b/i.test(query.trim())){
+      if(!args.length&&["CREATE","ALTER","DROP","PRAGMA"].some(verb=>query.trimStart().toUpperCase().startsWith(verb+" "))){
         durable.exec(query);return {toArray:()=>[]};
       }
       const st=durable.prepare(query);
