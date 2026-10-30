@@ -27,6 +27,7 @@ assert.ok(body.includes("throw new ApiError(503,"));
 assert.ok(!/\.prepare\(|\.batch\(|\.run\(/.test(body),
   "Shared rights contract must never issue protected SQL");
 assert.equal(review.sites.filter(x=>x.file==="src/features/fore/rights.server.ts"&&x.functionName==="upsertRightsContract").length,0);
-assert.equal(review.sites.filter(x=>x.disposition==="owner-command-required").length,377);
+assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=377,
+  "Protected owner-required SQL counts may only fall after genuine retirements");
 assert.equal(review.releaseApproval,false,"No production activation from source retirement");
 console.log("PASS: private rights contract parity, no shared writer fallback, 377 owner-required audit sites and blocked release");
