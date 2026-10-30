@@ -63,9 +63,11 @@ try {
     insert(db,"commerce_promo_codes",{code_hash:"promo_checkout_full_qa",code_label:"QA",
       kind:"amount",value:100,currency:"USD",max_redemptions:100,max_per_user:1,active:promoEnabled?1:0,
       created_at:start,updated_at:start});
-    insert(db,"risk_policy_versions",{id:"risk_policy_checkout_full_qa",domain:"buyer",version:1,
-      status:"active",policy_json:JSON.stringify(policy),policy_hash:"policy_checkout_full_qa",
-      effective_from:"2020-01-01T00:00:00.000Z",created_at:start});
+    // Real migrations seed an active buyer policy. Preserve its immutable
+    // version identity and override only policy_json inside this disposable DB.
+    const active=db.prepare("UPDATE risk_policy_versions SET policy_json=? WHERE domain='buyer' AND status='active'")
+      .run(JSON.stringify(policy));
+    assert.ok(active.changes>=1,"Canonical full schema must seed a buyer policy");
     const sql={exec(query,...args){const st=durable.prepare(query);
       return {toArray:()=>st.columns().length?st.all(...args):(st.run(...args),[])};}};
     let loseAck=false;
