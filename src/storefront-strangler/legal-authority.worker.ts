@@ -2605,6 +2605,7 @@ async function executeOwnerMonetaryAdmin(env:LegalAuthorityEnv,raw:unknown){
 // The following physically retired 25 authorizing partner-feed SQL literals live
 // only in this lease-gated Durable Object. The executable queue is strictly
 // sandbox preview; no production feed may activate products, grants or offers.
+/* eslint-disable @typescript-eslint/no-explicit-any -- Byte-exact historical partner feed executor, isolated behind strict private QA sandbox owner guards. */
 const processPartnerFeedQueuePrivate = (() => {
   const now = () => new Date().toISOString();
   const id = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
@@ -3508,6 +3509,7 @@ async function processPartnerFeedQueue(db: CatalogDB, limit = 25) {
 
   return processPartnerFeedQueue;
 })();
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
   private publicationExecutions=new Set<string>();
