@@ -1,4 +1,5 @@
 import { saveStageOwnerContractVersion } from "../../storefront-strangler/owner-contract-version.server";
+import { executeStageOwnerMonetaryAdmin } from "../../storefront-strangler/owner-commerce-admin.server";
 import {
   executeStageCanonicalAdminCommand,
   executeStageMarketEditorPause,
@@ -4721,12 +4722,60 @@ async function handleCoveRequest(
         return json(await upsertFxRate(database(env), await body(request)));
       if (request.method === "POST" && path === "/admin/commerce/price-schedule")
         return json(await savePriceSchedule(database(env), await body(request)));
-      if (request.method === "POST" && path === "/admin/commerce/promo")
-        return json(await createPromoCode(database(env), await body(request)));
-      if (request.method === "POST" && path === "/admin/commerce/gift-card")
-        return json(await issueGiftCard(database(env), await body(request)));
-      if (request.method === "POST" && path === "/admin/commerce/store-credit")
-        return json(await adjustStoreCredit(database(env), await body(request)));
+      if (
+        request.method === "POST" &&
+        [
+          "/admin/commerce/promo",
+          "/admin/commerce/gift-card",
+          "/admin/commerce/store-credit",
+        ].includes(path)
+      ) {
+        const input = await body(request);
+        if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1") {
+          // Caller is already validated by requireCommerceAdmin above. The
+          // PRIVATE owner separately loads staff principal/role/MFA from D1.
+          // Money commands need an idempotency key across HTTP retries.
+          const operationId = request.headers.get("Idempotency-Key") || "";
+          if (!/^[A-Za-z0-9_.:-]{16,150}$/.test(operationId))
+            throw new ApiError(400, "Monetary administration requires an Idempotency-Key header.");
+          const who = identity(request);
+          if (!who) throw new ApiError(401, "Staff authentication is required.");
+          const action = path.endsWith("/promo")
+            ? "promo"
+            : path.endsWith("/gift-card")
+              ? "gift-card"
+              : "store-credit";
+          if (!input || typeof input !== "object" || Array.isArray(input))
+            throw new ApiError(400, "A structured monetary operation is required.");
+          const ack = await executeStageOwnerMonetaryAdmin(env, {
+            action,
+            operationId,
+            actor: {
+              userId: String(who.id),
+              authProvider: String(who.authProvider || ""),
+              authSubject: String(who.authSubject || ""),
+              aal: who.aal === "aal2" ? "aal2" : "aal1",
+            },
+            payload: input as Record<string, unknown>,
+          });
+          if (action === "promo") return json({ codeLabel: ack.codeLabel, active: ack.active });
+          if (action === "gift-card")
+            return json({
+              code: ack.code,
+              currency: ack.currency,
+              balanceMinor: ack.amountMinor,
+              expiresAt: ack.expiresAt,
+            });
+          return json({
+            userId: ack.userId,
+            currency: ack.currency,
+            balanceMinor: ack.balanceMinor,
+          });
+        }
+        if (path.endsWith("/promo")) return json(await createPromoCode(database(env), input));
+        if (path.endsWith("/gift-card")) return json(await issueGiftCard(database(env), input));
+        return json(await adjustStoreCredit(database(env), input));
+      }
       if (request.method === "POST" && path === "/admin/commerce/refund")
         return json(await refundOrder(env, await body(request)));
       if (request.method === "POST" && path === "/admin/commerce/capture") {

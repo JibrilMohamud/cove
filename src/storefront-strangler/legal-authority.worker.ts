@@ -2477,6 +2477,124 @@ export async function recordOwnerReconciliationRun(db:CatalogDB,raw:unknown){
     recorded:true,checked:q.checked,mismatches:q.mismatches,repaired:q.repaired};
 }
 
+
+/** These monetary staff writers are executable ONLY within the private DO.
+ * The caller's commerce.manage result is NOT accepted as owner authority:
+ * independently check canonical active staff principal, SSO and MFA. */
+const ownerMonetaryAdminCommand=z.object({
+  action:z.enum(["promo","gift-card","store-credit"]),
+  operationId:z.string().min(16).max(150).regex(/^[A-Za-z0-9_.:-]+$/),
+  actor:z.object({userId:z.string().min(3).max(180),
+    authProvider:z.string().max(120),authSubject:z.string().max(240),
+    aal:z.enum(["aal1","aal2"])}).strict(),
+  payload:z.record(z.string(),z.unknown())
+}).strict();
+const ownerPromo=z.object({
+  code:z.string().min(3).max(80),
+  kind:z.enum(["percent","amount"]),value:z.number().int().positive(),
+  currency:z.string().regex(/^[A-Za-z]{3}$/).nullable().optional(),
+  minimumSubtotalMinor:z.number().int().min(0).default(0),
+  maxRedemptions:z.number().int().positive().nullable().optional(),
+  maxPerUser:z.number().int().positive().default(1),
+  startsAt:z.string().datetime().nullable().optional(),
+  endsAt:z.string().datetime().nullable().optional(),
+  active:z.boolean().default(true)
+});
+const ownerGift=z.object({currency:z.string().regex(/^[A-Za-z]{3}$/).default("USD"),
+  amountMinor:z.number().int().positive().max(1_000_000_000_000),
+  expiresAt:z.string().datetime().nullable().optional()});
+const ownerCredit=z.object({userId:z.string().min(1).max(180),
+  currency:z.string().regex(/^[A-Za-z]{3}$/).default("USD"),
+  amountMinor:z.number().int().refine(v=>v!==0&&Math.abs(v)<=1_000_000_000_000),
+  reference:z.string().max(300).default("operator adjustment")});
+const ownerHex=(b:ArrayBuffer)=>[...new Uint8Array(b)]
+  .map(x=>x.toString(16).padStart(2,"0")).join("");
+async function ownerMonetarySha256(s:string){
+  return ownerHex(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s)));
+}
+async function executeOwnerMonetaryAdmin(env:LegalAuthorityEnv,raw:unknown){
+  const q=ownerMonetaryAdminCommand.parse(raw),db=env.PRIMARY_DB,actor=q.actor;
+  const p=await db.prepare("SELECT status,mfa_required,sso_provider,sso_subject FROM staff_principals WHERE user_id=?")
+    .bind(actor.userId).first<{status:string;mfa_required:number;sso_provider:string|null;sso_subject:string|null}>();
+  if(!p||p.status!=="active"||(Number(p.mfa_required)===1&&actor.aal!=="aal2")||
+     (p.sso_provider&&p.sso_provider!==actor.authProvider)||
+     (p.sso_subject&&p.sso_subject!==actor.authSubject))
+    throw Error("owner_admin_staff_identity_denied");
+  const permission=await db.prepare(
+    "SELECT 1 ok FROM staff_principal_roles pr JOIN staff_role_permissions perm ON perm.role_id=pr.role_id WHERE pr.user_id=? AND perm.permission IN ('commerce.manage','staff.manage') LIMIT 1"
+  ).bind(actor.userId).first<{ok:number}>();
+  if(permission?.ok!==1)throw Error("owner_admin_commerce_permission_denied");
+  const at=new Date().toISOString();
+  if(q.action==="promo"){
+    const x=ownerPromo.parse(q.payload),code=x.code.trim().replace(/\s+/g,"").toUpperCase();
+    if(x.kind==="percent"&&x.value>100)throw Error("owner_admin_invalid_percent");
+    const hash=await ownerMonetarySha256(code);
+    await db.prepare(
+      "INSERT INTO commerce_promo_codes(code_hash,code_label,kind,value,currency,minimum_subtotal_minor,max_redemptions,max_per_user,active,starts_at,ends_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(code_hash) DO UPDATE SET kind=excluded.kind,value=excluded.value,currency=excluded.currency,minimum_subtotal_minor=excluded.minimum_subtotal_minor,max_redemptions=excluded.max_redemptions,max_per_user=excluded.max_per_user,active=excluded.active,starts_at=excluded.starts_at,ends_at=excluded.ends_at,updated_at=excluded.updated_at"
+    ).bind(hash,code,x.kind,x.value,x.currency?.toUpperCase()||null,
+      x.minimumSubtotalMinor,x.maxRedemptions||null,x.maxPerUser,
+      x.active?1:0,x.startsAt||null,x.endsAt||null,at,at).run();
+    const saved=await db.prepare(
+      "SELECT code_label,kind,value,currency,minimum_subtotal_minor,max_redemptions,max_per_user,active,starts_at,ends_at FROM commerce_promo_codes WHERE code_hash=?"
+    ).bind(hash).first<Record<string,unknown>>();
+    if(!saved||saved.code_label!==code||saved.kind!==x.kind||saved.value!==x.value||
+       saved.currency!==(x.currency?.toUpperCase()||null)||saved.minimum_subtotal_minor!==x.minimumSubtotalMinor||
+       saved.max_redemptions!==(x.maxRedemptions||null)||saved.max_per_user!==x.maxPerUser||
+       saved.active!==(x.active?1:0)||saved.starts_at!==(x.startsAt||null)||
+       saved.ends_at!==(x.endsAt||null))
+      throw Error("owner_admin_promo_commit_unconfirmed");
+    return {schema:"cove.owner-monetary-admin.v1",action:q.action,operationId:q.operationId,
+      applied:true,codeLabel:code,active:x.active};
+  }
+  if(q.action==="gift-card"){
+    const x=ownerGift.parse(q.payload),currency=x.currency.toUpperCase();
+    // HMAC with the private owner-only credential makes gift issuance
+    // deterministic across a lost ACK without revealing the secret.
+    const key=await crypto.subtle.importKey("raw",
+      new TextEncoder().encode(env.COVE_RIGHTS_OWNER_SECRET||""),
+      {name:"HMAC",hash:"SHA-256"},false,["sign"]);
+    const signed=ownerHex(await crypto.subtle.sign("HMAC",key,
+      new TextEncoder().encode("cove-gift-card-v1:"+q.operationId)));
+    const code="FORE-"+signed.slice(0,16).toUpperCase(),
+      hash=await ownerMonetarySha256(code);
+    await db.prepare(
+      "INSERT INTO commerce_gift_cards(code_hash,last4,currency,original_balance_minor,balance_minor,status,expires_at,created_at,updated_at) VALUES(?,?,?,?,?,'active',?,?,?) ON CONFLICT(code_hash) DO NOTHING"
+    ).bind(hash,code.slice(-4),currency,x.amountMinor,x.amountMinor,
+      x.expiresAt||null,at,at).run();
+    const saved=await db.prepare(
+      "SELECT last4,currency,original_balance_minor,expires_at FROM commerce_gift_cards WHERE code_hash=?"
+    ).bind(hash).first<{last4:string;currency:string;original_balance_minor:number;expires_at:string|null}>();
+    if(!saved||saved.last4!==code.slice(-4)||saved.currency!==currency||
+       saved.original_balance_minor!==x.amountMinor||saved.expires_at!==(x.expiresAt||null))
+      throw Error("owner_admin_gift_replay_collision");
+    return {schema:"cove.owner-monetary-admin.v1",action:q.action,operationId:q.operationId,
+      applied:true,code,currency,amountMinor:x.amountMinor,expiresAt:x.expiresAt||null};
+  }
+  const x=ownerCredit.parse(q.payload),currency=x.currency.toUpperCase();
+  const keyHash=await ownerMonetarySha256("cove-credit-v1:"+q.operationId),
+    id="cred_"+keyHash.slice(0,32);
+  // Only a single atomic D1 SQL statement can apply a negative adjustment;
+  // a separate available-balance read allows concurrent overdrafts.
+  await db.prepare(
+    "INSERT INTO commerce_store_credit_ledger(id,user_id,entry_type,amount_minor,currency,reference,created_at) SELECT ?,?,'adjustment',?,?,?,? WHERE ? > 0 OR (COALESCE((SELECT SUM(amount_minor) FROM commerce_store_credit_ledger WHERE user_id=? AND currency=?),0)-COALESCE((SELECT SUM(amount_minor) FROM commerce_balance_reservations WHERE source_type='store_credit' AND source_key=? AND currency=? AND status='reserved'),0)) >= ? ON CONFLICT(id) DO NOTHING"
+  ).bind(id,x.userId,x.amountMinor,currency,x.reference,at,x.amountMinor,
+    x.userId,currency,x.userId,currency,Math.abs(x.amountMinor)).run();
+  const saved=await db.prepare(
+    "SELECT user_id,entry_type,amount_minor,currency,reference FROM commerce_store_credit_ledger WHERE id=?"
+  ).bind(id).first<{user_id:string;entry_type:string;amount_minor:number;currency:string;reference:string}>();
+  if(!saved||saved.user_id!==x.userId||saved.entry_type!=="adjustment"||
+     saved.amount_minor!==x.amountMinor||saved.currency!==currency||saved.reference!==x.reference)
+    throw Error("owner_admin_credit_overspend_or_replay_collision");
+  const [ledger,reserved]=await Promise.all([
+    db.prepare("SELECT COALESCE(SUM(amount_minor),0) n FROM commerce_store_credit_ledger WHERE user_id=? AND currency=?")
+      .bind(x.userId,currency).first<{n:number}>(),
+    db.prepare("SELECT COALESCE(SUM(amount_minor),0) n FROM commerce_balance_reservations WHERE source_type='store_credit' AND source_key=? AND currency=? AND status='reserved'")
+      .bind(x.userId,currency).first<{n:number}>()
+  ]);
+  return {schema:"cove.owner-monetary-admin.v1",action:q.action,operationId:q.operationId,
+    applied:true,userId:x.userId,currency,balanceMinor:Math.max(0,Number(ledger?.n||0)-Number(reserved?.n||0))};
+}
+
 export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
   private publicationExecutions=new Set<string>();
   private contractExecutions=new Set<string>();
@@ -2541,6 +2659,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/checkout/prepare-draft",
       "/commercial/checkout/cancel-unpaid",
       "/commercial/reconciliation/record",
+      "/commercial/admin/monetary",
       "/commercial/checkout/register-stripe-customer",
       "/commercial/checkout/attach-payment-intent",
       "/commercial/payment/update-state",
@@ -3364,6 +3483,10 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       }
       if(route==="/commercial/checkout/cancel-unpaid"){
         const receipt=await executeOwnerUnpaidCancellation(env,raw);
+        return Response.json(receipt,{status:200,headers:noStore});
+      }
+      if(route==="/commercial/admin/monetary"){
+        const receipt=await executeOwnerMonetaryAdmin(env,raw);
         return Response.json(receipt,{status:200,headers:noStore});
       }
       if(route==="/commercial/reconciliation/record"){

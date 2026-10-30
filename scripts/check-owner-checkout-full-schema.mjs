@@ -412,6 +412,71 @@ try {
     .get(closedOrder).status,"pending_payment");
   assert.equal(closed.db.prepare("SELECT COUNT(*) n FROM commerce_balance_reservations WHERE status='reserved'")
     .get().n,2,"The failed owner must not release tender from the caller plane");
+  // Enrolled staff operations cross the same owner-only RPC as monetary
+  // checkout. Validate actual complete-schema principal/role/SSO/MFA,
+  // gift/code idempotence and atomic negative credit availability.
+  const admin=fixture(),actor={userId:user,authProvider:"supabase",
+    authSubject:"subject_owner_admin_fullschema",aal:"aal2"};
+  insert(admin.db,"staff_principals",{user_id:user,sso_provider:"supabase",
+    sso_subject:actor.authSubject,status:"active",mfa_required:1,
+    created_at:start,updated_at:start});
+  insert(admin.db,"staff_roles",{id:"role_monetary_full_qa",name:"monetary_qa"});
+  insert(admin.db,"staff_role_permissions",{role_id:"role_monetary_full_qa",permission:"commerce.manage"});
+  insert(admin.db,"staff_principal_roles",{user_id:user,role_id:"role_monetary_full_qa",granted_at:start});
+  const adminRoute="/commercial/admin/monetary";
+  const adminCommand=(action,operationId,payload)=>({action,operationId,actor,payload});
+  let operation=adminCommand("gift-card","monetary-gift-issued-once-001",
+    {currency:"USD",amountMinor:2500});
+  let m=await admin.call(adminRoute,operation);
+  assert.equal(m.status,200,"Gift card must issue through complete-schema owner: "+await m.clone().text());
+  const gift=await m.json();
+  assert.match(gift.code,/^FORE-[0-9A-F]{16}$/);
+  assert.equal(gift.amountMinor,2500);
+  assert.equal(admin.count("commerce_gift_cards"),2);
+  m=await admin.call(adminRoute,operation);
+  assert.equal(m.status,200,"Idempotent gift replay must return original code");
+  assert.equal((await m.json()).code,gift.code);
+  assert.equal(admin.count("commerce_gift_cards"),2);
+  assert.notEqual((await admin.call(adminRoute,
+    {...operation,payload:{currency:"CAD",amountMinor:3000}})).status,200,
+    "Reusing a gift idempotency key with new amount/currency is denied");
+  assert.equal(admin.count("commerce_gift_cards"),2);
+  operation=adminCommand("store-credit","monetary-store-credit-original-001",
+    {userId:user,currency:"USD",amountMinor:-200,reference:"QA authorized debit"});
+  m=await admin.call(adminRoute,operation);
+  assert.equal(m.status,200,"Owner must reconcile negative credit: "+await m.clone().text());
+  assert.equal((await m.json()).balanceMinor,800);
+  assert.equal(admin.count("commerce_store_credit_ledger"),2);
+  assert.equal((await admin.call(adminRoute,operation)).status,200,"Credit retry must not double debit");
+  assert.equal(admin.count("commerce_store_credit_ledger"),2);
+  assert.notEqual((await admin.call(adminRoute,
+    {...operation,payload:{...operation.payload,amountMinor:-201}})).status,200,
+    "Same credit operation must not change monetary amount");
+  assert.equal(admin.count("commerce_store_credit_ledger"),2);
+  assert.notEqual((await admin.call(adminRoute,adminCommand("store-credit",
+    "monetary-negative-overdraft-001",
+    {userId:user,currency:"USD",amountMinor:-2000,reference:"Overdraft"}))).status,200,
+    "Owner must reject insufficient unreserved store credit atomically");
+  assert.equal(admin.count("commerce_store_credit_ledger"),2);
+  operation=adminCommand("promo","monetary-promo-activation-001",
+    {code:" owner QA ",kind:"percent",value:12,active:true});
+  m=await admin.call(adminRoute,operation);
+  assert.equal(m.status,200,"Owner must write and independently read back promo");
+  assert.equal((await m.json()).codeLabel,"OWNERQA");
+  assert.equal(admin.count("commerce_promo_codes"),2);
+  assert.notEqual((await admin.call(adminRoute,{...operation,
+    actor:{...actor,aal:"aal1"}})).status,200,"MFA downgrade denied");
+  assert.notEqual((await admin.call(adminRoute,{...operation,
+    actor:{...actor,authSubject:"forged"}})).status,200,"SSO mismatch denied");
+  admin.db.prepare("DELETE FROM staff_role_permissions WHERE role_id='role_monetary_full_qa' AND permission='commerce.manage'").run();
+  assert.notEqual((await admin.call(adminRoute,adminCommand("gift-card",
+    "monetary-role-revoked-001",{currency:"USD",amountMinor:100}))).status,200,
+    "Role withdrawal must take effect in the owner before money issues");
+  assert.equal(admin.count("commerce_gift_cards"),2);
+  // Positive QA lease may NEVER act as production authorization.
+  admin.env.COVE_RIGHTS_OWNER_PRIMARY_ID="4bd657ac-8789-403e-a28c-93aba8d0a989";
+  assert.equal((await admin.call(adminRoute,adminCommand("promo",
+    "monetary-prod-locked-001",{code:"BLOCKED",kind:"amount",value:1}))).status,503);
   console.log("PASS: real private DO checkout order + risk + gift/card/credit + promo + quote; replay and failures against all migrations, production denied");
 }finally{
   for(const db of databases)db.close();
