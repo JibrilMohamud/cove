@@ -1,7 +1,7 @@
 {
   "schema": "cove.retired-unowned-trust-restoration.v1",
   "originalSourceSha256": "f87f805849dd48767c5c249ecabb38a5a1ee1ae6bdd6036297f67a4e6d3719b2",
-  "updatedSourceSha256": "a67853c1f7d61bdfb08d3478b348eb272f0d8e5cbdf22395d3bbafdd1a0e254c",
+  "updatedSourceSha256": "648106c6f4121254fab749584b31705485c1725ec49819d575dd20a0823293fd",
   "retiredCount": 11,
   "retired": [
     {
