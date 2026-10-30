@@ -1,4 +1,4 @@
-import {createStageOwnerCheckoutQuote} from "../../storefront-strangler/owner-checkout-quote.server";
+import { createStageOwnerCheckoutQuote } from "../../storefront-strangler/owner-checkout-quote.server";
 import { saveStageOwnerContractVersion } from "../../storefront-strangler/owner-contract-version.server";
 import { executeStageOwnerMonetaryAdmin } from "../../storefront-strangler/owner-commerce-admin.server";
 import {
@@ -5660,10 +5660,12 @@ async function handleCoveRequest(
     }
     if (request.method === "POST" && path === "/checkout/quote") {
       await rateLimit(env, `checkout:quote:${user.id}`, 30);
-      const quoteInput=await body(request);
-      return json(env.COVE_LEGAL_CONSUMER_STAGE_ENABLED==="1"
-        ? await createStageOwnerCheckoutQuote(env,{id:user.id},quoteInput)
-        : await checkoutQuote(env,user,quoteInput));
+      const quoteInput = await body(request);
+      return json(
+        env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1"
+          ? await createStageOwnerCheckoutQuote(env, { id: user.id }, quoteInput)
+          : await checkoutQuote(env, user, quoteInput),
+      );
     }
     if (request.method === "POST" && path === "/checkout/payment") {
       await rateLimit(env, `checkout:payment:${user.id}`, 12);
