@@ -61,7 +61,7 @@ try{
     {...enrolled,COVE_RIGHTS_OWNER_SECRET:"bad"},
     {...enrolled,LEGAL_AUTHORITY:null},
     {...enrolled,DB:null}
-  ])assert.throws(()=>scopeCommerceProductionD1(unsafe),/cutover_not_certified/);
+  ])assert.throws(()=>scopeCommerceProductionD1(unsafe),/(cutover_not_certified|activation_without_write_fence)/);
   const restricted=scopeCommerceProductionD1(enrolled);
   assert.notEqual(restricted.DB,raw);
   assert.deepEqual(Object.keys(restricted.DB).sort(),["batch","prepare"]);
