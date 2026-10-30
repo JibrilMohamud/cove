@@ -7,18 +7,18 @@ const review=JSON.parse(readFileSync("docs/architecture/canonical-writer-review.
 function section(start,end){const i=source.indexOf(start),j=source.indexOf(end,i+start.length);assert.ok(i>=0&&j>i,start);return source.slice(i,j);}
 for(const name of ["reserveTender","reservePromo"])assert.doesNotMatch(source,new RegExp("function\\s+"+name+"\\s*\\("));
 const checkout=section("export async function createCheckoutPayment(","async function releaseOrderReservations(");
-assert.match(checkout,/COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1"[^]*?throw new ApiError\\(503/);
+assert.match(checkout,/COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1"[^]*?throw new ApiError\(503/);
 assert.ok(checkout.indexOf('COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1"')<checkout.indexOf("env.DB"),"Deny unenrolled production before any payment read");
-assert.match(checkout,/return createStageOwnerCheckoutPayment\\(/);
-assert.doesNotMatch(checkout,/\\b(?:INSERT|UPDATE|DELETE)\\s+(?:OR\\s+\\w+\\s+)?(?:INTO|FROM)?\\s*commerce_/i);
+assert.match(checkout,/return createStageOwnerCheckoutPayment\(/);
+assert.doesNotMatch(checkout,/\b(?:INSERT|UPDATE|DELETE)\s+(?:OR\s+\w+\s+)?(?:INTO|FROM)?\s*commerce_/i);
 const customer=section("async function ensureStripeCustomer(","function invoiceNumber(");
 assert.match(customer,/registerStageOwnerStripeCustomer/);
 assert.doesNotMatch(customer,/INSERT INTO commerce_customers/);
 assert.ok(customer.indexOf('COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1"')<customer.indexOf("stripeRequest("));
 for(const [name,next] of [["createPromoCode","issueGiftCard"],["issueGiftCard","adjustStoreCredit"],["adjustStoreCredit","commerceAdminSnapshot"]]){
  const method=section("export async function "+name+"(","export async function "+next+"(");
- assert.match(method,/throw new ApiError\\(503/);
- assert.doesNotMatch(method,/\\.(?:prepare|batch)\\(/);
+ assert.match(method,/throw new ApiError\(503/);
+ assert.doesNotMatch(method,/\.(?:prepare|batch)\(/);
 }
 assert.match(api,/executeStageOwnerMonetaryAdmin/);
 assert.match(api,/createStageOwnerCheckoutQuote/);
