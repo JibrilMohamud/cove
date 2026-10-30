@@ -27,9 +27,12 @@ export function localBindings(root, options = {}) {
   // This is a Node-only local DB fixture, never an edge/production Worker.
   // Keep development and existing local QA fixtures populated without invoking
   // the now-retired public source-authorizing catalog mutation path.
-  if (options.seedCatalogFixture !== false &&
-     db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='gutenberg_source_cache'").get())
+  const localCatalogTablePresent = db
+    .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='gutenberg_source_cache'")
+    .get();
+  if (options.seedCatalogFixture !== false && localCatalogTablePresent) {
     seedLocalCatalogFixture(db);
+  }
   function statement(sql, values = []) {
     const s = db.prepare(sql);
     return {
