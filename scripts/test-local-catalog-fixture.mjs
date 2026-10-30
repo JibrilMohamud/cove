@@ -573,3 +573,112 @@ export function seedAdditionalLocalCatalogBooks(raw, books) {
     throw error;
   }
 }
+
+/* Production personal imports are private-owner-only; these exact historical
+ * SQL literals exist exclusively for disposable account-erasure test fixtures. */
+function personalImportStatements(db, input) {
+  const { workId, editionId, productId } = catalogIds(input.id);
+  const contributorId = `con_upload_${input.id}`;
+  const assetId = `asset_epub_${input.id}`;
+  const versionId = `assetver_epub_${input.id}`;
+  return [
+    db
+      .prepare(
+        "INSERT INTO works(id,title,description,created_at,updated_at) VALUES(?,?,'Personal import',?,?)",
+      )
+      .bind(workId, input.title, input.createdAt, input.createdAt),
+    db
+      .prepare(
+        "INSERT INTO editions(id,work_id,title,description,language,drm_status,downloadable,release_status,created_at,updated_at) VALUES(?,?,?,'Personal import',?,'none',1,'private',?,?)",
+      )
+      .bind(editionId, workId, input.title, input.language, input.createdAt, input.createdAt),
+    db
+      .prepare(
+        "INSERT INTO products(id,edition_id,sku,format,storefront_status,source_name,source_external_id,created_at,updated_at) VALUES(?,?,?,'ebook','private','upload',?,?,?)",
+      )
+      .bind(productId, editionId, `UPLOAD-${input.id}`, input.id, input.createdAt, input.createdAt),
+    db
+      .prepare(
+        "INSERT INTO external_identifiers(entity_type,entity_id,scheme,value) VALUES('product',?,'upload',?)",
+      )
+      .bind(productId, input.id),
+    db
+      .prepare(
+        "INSERT INTO contributors(id,name,sort_name,created_at,updated_at) VALUES(?,?,?,?,?)",
+      )
+      .bind(contributorId, input.author, input.author, input.createdAt, input.createdAt),
+    db
+      .prepare(
+        "INSERT INTO edition_contributors(edition_id,contributor_id,role,position) VALUES(?,?,'author',0)",
+      )
+      .bind(editionId, contributorId),
+    db
+      .prepare("INSERT INTO edition_languages(edition_id,language_code,kind) VALUES(?,?,'content')")
+      .bind(editionId, input.language),
+    db
+      .prepare(
+        "INSERT INTO digital_assets(id,edition_id,kind,current_version_id,drm_status,downloadable,created_at,updated_at) VALUES(?,?,'epub',?,'none',1,?,?)",
+      )
+      .bind(assetId, editionId, versionId, input.createdAt, input.createdAt),
+    db
+      .prepare(
+        "INSERT INTO asset_versions(id,asset_id,version_number,object_key,mime_type,created_at) VALUES(?,?,1,?,'application/epub+zip',?)",
+      )
+      .bind(versionId, assetId, input.objectKey, input.createdAt),
+    db
+      .prepare(
+        "INSERT INTO personal_imports(id,user_id,product_id,object_key,created_at) VALUES(?,?,?,?,?)",
+      )
+      .bind(input.id, input.userId, productId, input.objectKey, input.createdAt),
+    db
+      .prepare(
+        "INSERT INTO catalog_search_documents(product_id,external_book_id,title,contributors_text,subjects_text,categories_text,languages_text,description,download_count,first_ingested_at,updated_at) VALUES(?,?,?,?,'Personal import','Personal import',?,'Personal import',0,?,?)",
+      )
+      .bind(
+        productId,
+        input.id,
+        input.title,
+        input.author,
+        input.language,
+        input.createdAt,
+        input.createdAt,
+      ),
+    db
+      .prepare(
+        "UPDATE catalog_search_documents SET format='ebook',availability='private',suppressed=1,product_created_at=?,product_updated_at=? WHERE product_id=?",
+      )
+      .bind(input.createdAt, input.createdAt, productId),
+    db
+      .prepare(
+        "INSERT INTO entitlements(id,user_id,product_id,entitlement_type,status,source,granted_at,updated_at) VALUES(?,?,?,'personal-import','active','upload',?,?)",
+      )
+      .bind(
+        `ent_${crypto.randomUUID()}`,
+        input.userId,
+        productId,
+        input.createdAt,
+        input.createdAt,
+      ),
+    db
+      .prepare(
+        "INSERT INTO reading_states(user_id,product_id,external_book_id,in_library,status,updated_at) VALUES(?,?,?,1,'want-to-read',?)",
+      )
+      .bind(input.userId, productId, input.id, input.createdAt),
+  ];
+}
+
+
+export function seedLocalPersonalImport(raw,input) {
+  if(!input||typeof input.id!=="string"||!input.id.startsWith("upload_")||
+     typeof input.userId!=="string"||typeof input.objectKey!=="string"||
+     !input.objectKey.startsWith("uploads/"+input.userId+"/"))
+    throw new Error("invalid_synthetic_personal_import");
+  const facade={prepare(sql){return {bind(...args){return {run(){
+    return raw.prepare(sql).run(...args);
+  }}}}}};
+  raw.exec("BEGIN");
+  try{
+    for(const statement of personalImportStatements(facade,input))statement.run();
+    raw.exec("COMMIT");
+  }catch(e){raw.exec("ROLLBACK");throw e;}
+}

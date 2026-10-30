@@ -7,6 +7,7 @@ import path from "node:path";
 import {
   seedLocalCatalogFixture,
   seedAdditionalLocalCatalogBooks,
+  seedLocalPersonalImport,
 } from "./test-local-catalog-fixture.mjs";
 export function localBindings(root, options = {}) {
   const dir = path.join(root, ".sites-runtime");
@@ -75,6 +76,9 @@ export function localBindings(root, options = {}) {
   return {
     seedAdditionalLocalCatalogBooks(books) {
       return seedAdditionalLocalCatalogBooks(db, books);
+    },
+    seedLocalPersonalImport(input) {
+      return seedLocalPersonalImport(db, input);
     },
     DB: {
       prepare: statement,
