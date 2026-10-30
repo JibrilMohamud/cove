@@ -388,15 +388,15 @@ async function materializePublishingSubmissionOwned(
     lifecycle.current_publication_version_id,
   );
   const at = publishingNow(),
-    releaseAt = edition.release_date ? new Date(edition.release_date).getTime() : Date.publishingNow(),
-    futureRelease = Number.isFinite(releaseAt) && releaseAt > Date.publishingNow(),
+    releaseAt = edition.release_date ? new Date(edition.release_date).getTime() : Date.now(),
+    futureRelease = Number.isFinite(releaseAt) && releaseAt > Date.now(),
     preorderAt = edition.preorder_date ? new Date(edition.preorder_date).getTime() : NaN;
   const desiredState = priorVersion
       ? futureRelease
         ? "scheduled"
         : "updated"
       : futureRelease
-        ? Number.isFinite(preorderAt) && preorderAt <= Date.publishingNow()
+        ? Number.isFinite(preorderAt) && preorderAt <= Date.now()
           ? "preorder"
           : "scheduled"
         : "live",
