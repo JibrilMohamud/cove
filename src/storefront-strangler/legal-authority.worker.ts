@@ -5,6 +5,8 @@ import {DISABLED_OWNER_ATTEST_ROUTE,PRODUCTION_OWNER_OBJECT,isDisabledProduction
 import {publishVerifiedPaidOrderAtomic,type VerifiedPaidOrderLine} from "./paid-order-atomic-publication";
 import {executeOwnerRefundAccounting} from "./refund-accounting-owner-executor";
 import {independentlyVerifyOwnerStripeRefund} from "./refund-provider-independent-verification";
+import {verifyOwnerStripeDispute} from "./stripe-dispute-owner-proof";
+import {reverseRoyaltiesForChargeback} from "../features/fore/finance.server";
 import {executeOwnerRefundReservation} from "./refund-reservation-owner-executor";
 import {executeOwnerCheckoutPaymentBinding} from "./checkout-payment-binding-owner-executor";
 import {checkoutDraftCommand,planOwnerCheckoutDraft,ownerCheckoutPreparationMatchesQuote} from "./checkout-draft-owner-plan";
@@ -2437,6 +2439,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/webhook/finish",
       "/commercial/refund/post-accounting",
       "/commercial/refund/record-provider",
+      "/commercial/dispute/sync-verified",
       "/commercial/entitlement/deny-next","/commercial/entitlement/deny-batch",
       "/commercial/entitlement/publish-verified",
       "/commercial/entitlement/publish-order-verified",
@@ -3249,6 +3252,123 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           return write;
         });
         return Response.json(receipt,{status:200,headers:noStore});
+      }
+      if(route==="/commercial/dispute/sync-verified"){
+        // Private legal owner independently fetches live Stripe evidence.
+        // The signed webhook supplies only a dispute ID and event kind.
+        const input=raw as {disputeId?:unknown;eventType?:unknown}|null;
+        if(!input||Array.isArray(input)||
+           Object.keys(input).sort().join(",")!=="disputeId,eventType"||
+           typeof input.disputeId!=="string"||
+           !/^dp_[A-Za-z0-9_-]{4,150}$/.test(input.disputeId)||
+           !["charge.dispute.created","charge.dispute.updated",
+             "charge.dispute.closed","charge.dispute.funds_withdrawn","charge.dispute.funds_reinstated"].includes(String(input.eventType)))
+          throw Error("owner_dispute_command_invalid");
+        const dispute=await verifyOwnerStripeDispute(env,input.disputeId);
+        const db=env.PRIMARY_DB;
+        const order=await db.prepare(
+          "SELECT id,user_id,currency,stripe_due_minor,stripe_charge_id,status FROM commerce_orders WHERE stripe_charge_id=?"
+        ).bind(dispute.chargeId).first<{id:string;user_id:string;currency:string;
+          stripe_due_minor:number;stripe_charge_id:string;status:string}>();
+        if(order&&(order.stripe_charge_id!==dispute.chargeId||
+           order.currency!==dispute.currency||
+           !Number.isSafeInteger(Number(order.stripe_due_minor))||
+           Number(order.stripe_due_minor)<dispute.amountMinor||
+           !["paid","partially_refunded","refunded","disputed","chargeback_lost"].includes(order.status)))
+          throw Error("owner_dispute_original_order_mismatch");
+        if(order){
+          // Durable whole-order veto FIRST. No bank win auto-restores grants.
+          const storage=this.ctx.storage as typeof this.ctx.storage&{
+            transactionSync<T>(fn:()=>T):T
+          };
+          storage.transactionSync(()=>denyPaidOrder(sql,{
+            orderId:order.id,operationId:"dispute:"+dispute.id
+          }));
+          if(readPaidOrderPermission(sql,{orderId:order.id}).allowed!==false)
+            throw Error("owner_dispute_denial_uncommitted");
+        }
+        const at=new Date().toISOString(),lost=dispute.status==="lost",
+          won=dispute.status==="won",closed=lost||won||dispute.status==="warning_closed";
+        const statements:Parameters<CatalogDB["batch"]>[0]=[];
+        // Explicit rollback assertion: a repeat ID cannot change original
+        // order, charge, currency or disputed amount.
+        statements.push(db.prepare(
+          "SELECT CASE WHEN EXISTS(SELECT 1 FROM commerce_disputes WHERE provider_dispute_id=? AND (COALESCE(order_id,'')<>? OR charge_id<>? OR amount_minor<>? OR currency<>?)) THEN json_extract('immutable_dispute_scope_conflict','$.deny') ELSE 1 END ok"
+        ).bind(dispute.id,order?.id||"",dispute.chargeId,dispute.amountMinor,dispute.currency));
+        statements.push(db.prepare(
+          "INSERT INTO commerce_disputes(provider_dispute_id,order_id,charge_id,amount_minor,currency,reason,status,evidence_due_at,created_at,updated_at,closed_at) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(provider_dispute_id) DO UPDATE SET reason=excluded.reason,status=excluded.status,evidence_due_at=excluded.evidence_due_at,updated_at=excluded.updated_at,closed_at=COALESCE(commerce_disputes.closed_at,excluded.closed_at)"
+        ).bind(dispute.id,order?.id||null,dispute.chargeId,dispute.amountMinor,
+          dispute.currency,dispute.reason,dispute.status,dispute.evidenceDueAt,
+          at,at,closed?at:null));
+        if(order){
+          statements.push(db.prepare(lost?
+            "UPDATE commerce_orders SET status='chargeback_lost',updated_at=? WHERE id=? AND stripe_charge_id=? AND status IN ('paid','partially_refunded','refunded','disputed','chargeback_lost')":
+            "UPDATE commerce_orders SET status='disputed',updated_at=? WHERE id=? AND stripe_charge_id=? AND status IN ('paid','partially_refunded','refunded','disputed')"
+          ).bind(at,order.id,dispute.chargeId));
+          statements.push(db.prepare(
+            "UPDATE entitlements SET status='revoked' WHERE user_id=? AND entitlement_type='purchase' AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND status='active'"
+          ).bind(order.user_id,order.id));
+          statements.push(db.prepare(
+            "UPDATE audio_offline_licenses SET status='revoked',revoked_at=COALESCE(revoked_at,?),revocation_reason='order_disputed' WHERE status='active' AND entitlement_id IN (SELECT id FROM entitlements WHERE user_id=? AND entitlement_type='purchase' AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?))"
+          ).bind(at,order.user_id,order.id));
+          statements.push(db.prepare(
+            "UPDATE commercial_delivery_grants SET status='revoked' WHERE status='active' AND user_id=? AND entitlement_id IN (SELECT id FROM entitlements WHERE user_id=? AND entitlement_type='purchase' AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?))"
+          ).bind(order.user_id,order.user_id,order.id));
+          const postings:Array<[string,string,number]>=[
+            ["dispute_open","dispute_receivable",dispute.amountMinor],
+            ["dispute_open","stripe_receivable",-dispute.amountMinor]
+          ];
+          if(lost)postings.push(["dispute_lost","chargeback_loss",dispute.amountMinor],
+            ["dispute_lost","dispute_receivable",-dispute.amountMinor]);
+          if(won)postings.push(["dispute_won","stripe_receivable",dispute.amountMinor],
+            ["dispute_won","dispute_receivable",-dispute.amountMinor]);
+          for(const [type,account,amount] of postings){
+            const marker="led_dispute:"+dispute.id+":"+type+":"+account;
+            statements.push(db.prepare(
+              "INSERT INTO commerce_ledger_entries(id,order_id,refund_id,user_id,entry_type,account_code,amount_minor,currency,external_reference,metadata_json,created_at) SELECT ?,?,NULL,?,?,?,?,?,?,?,? WHERE NOT EXISTS (SELECT 1 FROM commerce_ledger_entries WHERE id=?)"
+            ).bind(marker,order.id,order.user_id,type,account,amount,dispute.currency,
+              dispute.id,JSON.stringify({disputeId:dispute.id}),at,marker));
+          }
+        }
+        await db.batch(statements);
+        const recorded=await db.prepare(
+          "SELECT provider_dispute_id,order_id,charge_id,amount_minor,currency,status FROM commerce_disputes WHERE provider_dispute_id=?"
+        ).bind(dispute.id).first<{provider_dispute_id:string;order_id:string|null;
+          charge_id:string;amount_minor:number;currency:string;status:string}>();
+        if(!recorded||recorded.provider_dispute_id!==dispute.id||
+           (recorded.order_id||"")!==(order?.id||"")||
+           recorded.charge_id!==dispute.chargeId||
+           recorded.amount_minor!==dispute.amountMinor||
+           recorded.currency!==dispute.currency||
+           recorded.status!==dispute.status)
+          throw Error("owner_dispute_canonical_commit_unconfirmed");
+        if(order){
+          const expected:Array<[string,string,number]>=[
+            ["dispute_open","dispute_receivable",dispute.amountMinor],
+            ["dispute_open","stripe_receivable",-dispute.amountMinor]
+          ];
+          if(lost)expected.push(["dispute_lost","chargeback_loss",dispute.amountMinor],
+            ["dispute_lost","dispute_receivable",-dispute.amountMinor]);
+          if(won)expected.push(["dispute_won","stripe_receivable",dispute.amountMinor],
+            ["dispute_won","dispute_receivable",-dispute.amountMinor]);
+          for(const [type,account,amount] of expected){
+            const marker="led_dispute:"+dispute.id+":"+type+":"+account;
+            const entry=await db.prepare(
+              "SELECT order_id,entry_type,account_code,amount_minor,currency,external_reference FROM commerce_ledger_entries WHERE id=?"
+            ).bind(marker).first<{order_id:string;entry_type:string;account_code:string;
+              amount_minor:number;currency:string;external_reference:string}>();
+            if(!entry||entry.order_id!==order.id||entry.entry_type!==type||
+               entry.account_code!==account||entry.amount_minor!==amount||
+               entry.currency!==dispute.currency||entry.external_reference!==dispute.id)
+              throw Error("owner_dispute_ledger_unreconciled");
+          }
+          if(lost)await reverseRoyaltiesForChargeback(db,order.id,dispute.id);
+          if(readPaidOrderPermission(sql,{orderId:order.id}).allowed!==false)
+            throw Error("owner_dispute_denial_lost");
+        }
+        return Response.json({schema:"cove.owner-dispute-sync.v1",
+          disputeId:dispute.id,synced:true,linked:!!order,ownerDenied:!!order,
+          accountingReconciled:true},{status:200,headers:noStore});
       }
       if(route==="/commercial/refund/record-provider"){
         // Synthetic QA owner lease + private DO bearer are enforced above.

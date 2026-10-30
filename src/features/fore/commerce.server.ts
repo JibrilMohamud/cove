@@ -21,6 +21,7 @@ import {
   finishStageOwnerStripeWebhook,
 } from "../../storefront-strangler/owner-stripe-webhook.server";
 import { updateStageOwnerPaymentState } from "../../storefront-strangler/owner-stripe-payment-status.server";
+import { syncStageOwnerStripeDispute } from "../../storefront-strangler/owner-stripe-dispute.server";
 import { attachStageOwnerCheckoutPayment } from "../../storefront-strangler/owner-checkout-payment.server";
 import {
   materializeStageCheckoutDraft,
@@ -3051,6 +3052,18 @@ async function processStripeEvent(env: CoveEnv, event: any) {
   }
 }
 async function syncDispute(db: CatalogDB, d: any, eventType: string, env: CoveEnv) {
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1") {
+    // The owner independently reloads the Stripe dispute and controls every
+    // journal, order, entitlement, ledger and royalty write. No enrolled
+    // webhook or scheduled recovery may fall through to caller-owned D1.
+    if (!d || typeof d.id !== "string" || !/^dp_[a-zA-Z0-9_-]{4,150}$/.test(d.id))
+      throw new ApiError(409, "Stripe dispute identity is invalid.");
+    await syncStageOwnerStripeDispute(env, {
+      disputeId: d.id,
+      eventType: eventType as Parameters<typeof syncStageOwnerStripeDispute>[1]["eventType"],
+    });
+    return;
+  }
   const charge = String(typeof d.charge === "string" ? d.charge : d.charge?.id || ""),
     order = charge
       ? await db

@@ -111,7 +111,8 @@ try {
     const ownerEnv={PRIMARY_DB:DB,COVE_RIGHTS_OWNER_ENABLED:"1",
       COVE_RIGHTS_OWNER_PRIMARY_ID:"7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
       COVE_RIGHTS_OWNER_TEST_EXPIRES_AT:String(Date.now()+600_000),
-      COVE_RIGHTS_OWNER_SECRET:secret};
+      COVE_RIGHTS_OWNER_SECRET:secret,STRIPE_SECRET_KEY:"sk_test_private_owner_fixture",
+      STRIPE_LIVEMODE:"false"};
     const owner=new CoveLegalAuthority({storage:{sql,transactionSync(fn){
       owned.exec("BEGIN");try{const r=fn();owned.exec("COMMIT");return r;}
       catch(e){owned.exec("ROLLBACK");throw e;}
@@ -194,10 +195,26 @@ try {
   assert.equal(disabled.writes(),0,"Legacy production behavior is unchanged before enrollment");
   // Original refund API: intent survives owner outage, then resumes its
   // exact provider request instead of returning a permanently pending row.
+  // The private owner now independently GETs Stripe with a distinct secret.
+  // Keep this read separate from the public adapter's POST/retry counters.
+  function privateOwnerRefundRead(fixture,url,options){
+    if(options?.headers?.authorization!=="Bearer sk_test_private_owner_fixture")
+      return null;
+    assert.equal(options.method,"GET");
+    const id=String(url).split("/").at(-1);
+    const row=fixture.primary.prepare("SELECT id FROM commerce_refunds WHERE order_id=? ORDER BY created_at DESC LIMIT 1")
+      .get(orderId);
+    assert.ok(row,"Private owner's independently checked refund must have a canonical intent");
+    return Response.json({object:"refund",id,livemode:false,
+      payment_intent:"pi_test_order_01",amount:1000,currency:"usd",
+      status:"pending",metadata:{fore_order_id:orderId,fore_refund_id:row.id}});
+  }
   const recovery=fixture(),requestKey="refund-recovery-original-01";
   const refundInput={orderId,idempotencyKey:requestKey};
   const calls=[];
   globalThis.fetch=async(url,options)=>{
+    const owner=privateOwnerRefundRead(recovery,url,options);
+    if(owner)return owner;
     assert.equal(recovery.owned.prepare("SELECT count(*) n FROM cove_paid_refunded_orders WHERE order_id=?").get(orderId).n,1,
       "Original refund must revoke before contacting Stripe");
     calls.push({url:String(url),options});
@@ -237,6 +254,8 @@ try {
   const lost=fixture(),lostKey="refund-lost-provider-response-01";
   let providerAttempts=0;
   globalThis.fetch=async(url,options)=>{
+    const owner=privateOwnerRefundRead(lost,url,options);
+    if(owner)return owner;
     assert.equal(options.headers["Idempotency-Key"],lostKey);
     providerAttempts++;
     if(providerAttempts===1)throw Error("Provider accepted request but response was lost");
@@ -250,7 +269,10 @@ try {
   assert.equal((await refundOrder(lost.clientEnv,{orderId,idempotencyKey:lostKey})).providerRefundId,"re_original_recovered_01");
   assert.equal(providerAttempts,2);
   const competing=fixture();let competingProviderCalls=0;
-  globalThis.fetch=async()=>{competingProviderCalls++;
+  globalThis.fetch=async(url,options)=>{
+    const owner=privateOwnerRefundRead(competing,url,options);
+    if(owner)return owner;
+    competingProviderCalls++;
     return Response.json({id:"re_competing_budget_01",status:"pending",amount:1000,currency:"usd",payment_intent:"pi_test_order_01"});};
   const outcomes=await Promise.allSettled([
     refundOrder(competing.clientEnv,{orderId,idempotencyKey:"competing-refund-key-01"}),

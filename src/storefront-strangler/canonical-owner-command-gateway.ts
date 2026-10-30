@@ -41,6 +41,10 @@ const routes={
     state:z.enum(["processing","authorized","payment_failed","canceled"]),
     failureCode:z.string().max(100).regex(/^[a-zA-Z0-9_]*$/).nullable()
   }).strict()},
+  "commerce.sync-dispute":{path:"/commercial/dispute/sync-verified",schema:z.object({
+    disputeId:z.string().regex(/^dp_[a-zA-Z0-9_-]{4,150}$/),
+    eventType:z.enum(["charge.dispute.created","charge.dispute.updated","charge.dispute.closed","charge.dispute.funds_withdrawn","charge.dispute.funds_reinstated"])
+  }).strict()},
   "commerce.claim-webhook":{path:"/commercial/webhook/claim",schema:z.object({
     eventId:z.string().regex(/^evt_[a-zA-Z0-9_-]{4,150}$/),
     eventType:z.string().regex(/^[a-z0-9_.]{3,120}$/),
@@ -206,6 +210,15 @@ export async function dispatchCanonicalOwnerCommand(
       if(ack.schema!=="cove.owner-payment-state.v1"||ack.orderId!==body.orderId||
          ack.paymentIntentId!==body.paymentIntentId||ack.state!==body.state||
          typeof ack.applied!=="boolean"||ack.ownerRecorded!==true)
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "commerce.sync-dispute":
+      if(ack.schema!=="cove.owner-dispute-sync.v1"||
+         ack.disputeId!==body.disputeId||ack.synced!==true||
+         typeof ack.linked!=="boolean"||typeof ack.ownerDenied!=="boolean"||
+         (ack.linked&&ack.ownerDenied!==true)||
+         typeof ack.accountingReconciled!=="boolean"||
+         ack.accountingReconciled!==true)
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "commerce.claim-webhook":

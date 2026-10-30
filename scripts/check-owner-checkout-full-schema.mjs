@@ -209,6 +209,85 @@ try {
     "c".repeat(64))).status,401);
   denied.env.COVE_RIGHTS_OWNER_PRIMARY_ID="4bd657ac-8789-403e-a28c-93aba8d0a989";
   assert.equal((await denied.create()).status,503,"Production DB must never use the isolated owner");
+  // A full-schema Stripe dispute now executes ALL financial postings and
+  // buyer revocation inside the private owner. Enrolled webhook D1 never does.
+  const disputed=fixture(),disputeOrder=await disputed.create();
+  assert.equal(disputeOrder.status,200);
+  const paidOrderId=(await disputeOrder.json()).orderId;
+  const chargeId="ch_owner_dispute_fullschema_123";
+  const disputeId="dp_owner_dispute_fullschema_123";
+  disputed.db.prepare("UPDATE commerce_orders SET status='paid',stripe_charge_id=? WHERE id=?")
+    .run(chargeId,paidOrderId);
+  const priorFetch=globalThis.fetch;
+  let providerStatus="needs_response",providerOverride={},providerFail=false;
+  globalThis.fetch=async (url,init)=>{
+    assert.equal(String(url),"https://api.stripe.com/v1/disputes/"+disputeId);
+    assert.equal(init.method,"GET");
+    assert.equal(init.redirect,"manual");
+    assert.equal(init.headers.authorization,"Bearer sk_test_fixture_only");
+    if(providerFail)throw Error("stripe_owner_unavailable");
+    return new Response(JSON.stringify({
+      object:"dispute",id:disputeId,charge:chargeId,amount:300,
+      currency:"usd",livemode:false,status:providerStatus,reason:"fraudulent",
+      evidence_details:{due_by:1900000000},...providerOverride
+    }),{status:200});
+  };
+  const disputeCommand={disputeId,eventType:"charge.dispute.created"};
+  const sendDispute=()=>disputed.call("/commercial/dispute/sync-verified",disputeCommand);
+  result=await sendDispute();
+  assert.equal(result.status,200,"Owner must atomically post real-schema dispute: "+await result.clone().text());
+  const proof=await result.json();
+  assert.equal(proof.ownerDenied,true);
+  assert.equal(proof.accountingReconciled,true);
+  assert.equal(disputed.count("commerce_disputes"),1);
+  assert.equal(disputed.count("commerce_ledger_entries"),2);
+  assert.equal(disputed.db.prepare("SELECT SUM(amount_minor) net FROM commerce_ledger_entries").get().net,0);
+  assert.equal(disputed.db.prepare("SELECT status FROM commerce_orders WHERE id=?")
+    .get(paidOrderId).status,"disputed");
+  assert.equal(disputed.durable.prepare("SELECT COUNT(*) n FROM cove_paid_refunded_orders WHERE order_id=?")
+    .get(paidOrderId).n,1,"Strong owner must deny purchases before any ledger entry");
+  assert.equal((await sendDispute()).status,200,"Exact dispute replay must be idempotent");
+  assert.equal(disputed.count("commerce_ledger_entries"),2);
+  providerStatus="lost";
+  result=await disputed.call("/commercial/dispute/sync-verified",{
+    disputeId,eventType:"charge.dispute.closed"
+  });
+  assert.equal(result.status,200,"Loss must post two more balanced entries");
+  assert.equal(disputed.count("commerce_ledger_entries"),4);
+  assert.equal(disputed.db.prepare("SELECT status FROM commerce_orders WHERE id=?")
+    .get(paidOrderId).status,"chargeback_lost");
+  assert.equal(disputed.db.prepare("SELECT SUM(amount_minor) net FROM commerce_ledger_entries").get().net,0);
+  assert.equal((await sendDispute()).status,200,"Replayed disputed loss must not duplicate ledger");
+  assert.equal(disputed.count("commerce_ledger_entries"),4);
+  // Provider fraud is not a durable denial or SQL authorization source.
+  const originalLedger=disputed.count("commerce_ledger_entries");
+  for(const mutation of [
+    {id:"dp_forged_other"}, {amount:400},{currency:"cad"},{livemode:true},
+    {charge:"ch_forged_other"}, {object:"charge"}
+  ]){
+    providerOverride=mutation;
+    assert.notEqual((await sendDispute()).status,200,"Wrong provider identity must fail closed");
+    assert.equal(disputed.count("commerce_ledger_entries"),originalLedger);
+  }
+  providerOverride={};providerFail=true;
+  assert.notEqual((await sendDispute()).status,200,"Provider outage may not mutate canonical dispute");
+  providerFail=false;
+  assert.equal(disputed.count("commerce_ledger_entries"),originalLedger);
+  const attempted=fixture(),draftDispute=await attempted.create();
+  assert.equal(draftDispute.status,200);
+  const attemptedId=(await draftDispute.json()).orderId;
+  attempted.db.prepare("UPDATE commerce_orders SET status='paid',stripe_charge_id=? WHERE id=?")
+    .run(chargeId,attemptedId);
+  attempted.loseAck();
+  assert.notEqual((await attempted.call("/commercial/dispute/sync-verified",disputeCommand)).status,200,
+    "Lost D1 acknowledgement cannot produce owner success receipt");
+  assert.equal(attempted.count("commerce_ledger_entries"),4,
+    "Atomic D1 was committed despite missing transport receipt");
+  assert.equal((await attempted.call("/commercial/dispute/sync-verified",disputeCommand)).status,200,
+    "Retry after lost acknowledgement reconciles the existing journal/ledger");
+  assert.equal(attempted.count("commerce_ledger_entries"),4,
+    "Lost-ACK retry must not double-post financial entries");
+  globalThis.fetch=priorFetch;
   console.log("PASS: real private DO checkout order + risk + gift/card/credit + promo + quote; replay and failures against all migrations, production denied");
 }finally{
   for(const db of databases)db.close();
