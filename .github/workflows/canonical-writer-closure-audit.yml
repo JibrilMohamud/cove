@@ -137,6 +137,7 @@ jobs:
           node scripts/check-owner-checkout-quote-routing.mjs
           node scripts/check-owner-refund-accounting.mjs
           node scripts/check-private-refund-accounting-parity.mjs
+          node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/retired-shared-refund-accounting-attestation-20261030.json
           node scripts/check-owner-paid-settlement.mjs
           node scripts/check-owner-refund-provider.mjs
           node scripts/check-owner-contract-version.mjs
