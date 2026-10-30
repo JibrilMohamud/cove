@@ -111,7 +111,7 @@ try {
     const create=()=>call("/commercial/checkout/materialize-draft",draft);
     const prepare=orderId=>call("/commercial/checkout/prepare-draft",{userId:user,orderId,quoteId});
     const count=table=>Number(db.prepare("SELECT COUNT(*) n FROM "+table).get().n);
-    return {db,env,draft,call,create,prepare,count,loseAck(){loseAck=true;}};
+    return {db,durable,env,draft,call,create,prepare,count,loseAck(){loseAck=true;}};
   }
   const ok=fixture();
   let result=await ok.create();
@@ -162,6 +162,13 @@ try {
   const deniedOrder=await revoked.call("/commercial/order/deny-next",{
     orderId:revokedOrderId,operationId:"qa:checkout:owner-deny"});
   assert.equal(deniedOrder.status,200,"Private owner must persist the negative order decision");
+  const deniedReceipt=await deniedOrder.json();
+  assert.equal(deniedReceipt.applied,true,"Order denial command must be applied");
+  assert.equal(Number(revoked.durable.prepare("SELECT COUNT(*) n FROM cove_paid_refunded_orders WHERE order_id=?").get(revokedOrderId).n),1,
+    "Owner must durably persist denied order ID");
+  const ownerPermission=await revoked.call("/commercial/order/verify",{orderId:revokedOrderId});
+  assert.equal((await ownerPermission.json()).allowed,false,
+    "Owner must deny the same order to every consumer");
   assert.equal((await revoked.prepare(revokedOrderId)).status,409,
     "Durable revocation must veto checkout monetary preparation");
   assert.equal(revoked.count("commerce_balance_reservations"),0);
