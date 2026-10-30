@@ -24,7 +24,12 @@ export function localBindings(root,options={}) {
       }
     }
   // Synthetic local/test DB only. Production Cloudflare Workers never import this module.
-  if(options.seedCatalogFixture)seedLocalCatalogFixture(db);
+  // This is a Node-only local DB fixture, never an edge/production Worker.
+  // Keep development and existing local QA fixtures populated without invoking
+  // the now-retired public source-authorizing catalog mutation path.
+  if(options.seedCatalogFixture!==false &&
+     db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='gutenberg_source_cache'").get())
+    seedLocalCatalogFixture(db);
   function statement(sql, values = []) {
     const s = db.prepare(sql);
     return {
