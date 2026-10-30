@@ -6,7 +6,7 @@ import {publishVerifiedPaidOrderAtomic,type VerifiedPaidOrderLine} from "./paid-
 import {executeOwnerRefundAccounting} from "./refund-accounting-owner-executor";
 import {executeOwnerRefundReservation} from "./refund-reservation-owner-executor";
 import {executeOwnerCheckoutPaymentBinding} from "./checkout-payment-binding-owner-executor";
-import {checkoutDraftCommand,planOwnerCheckoutDraft} from "./checkout-draft-owner-plan";
+import {checkoutDraftCommand,planOwnerCheckoutDraft,ownerCheckoutPreparationMatchesQuote} from "./checkout-draft-owner-plan";
 import {assessBuyerOrderRisk} from "../features/fore/risk-tax.server";
 import {stationBySlug} from "../features/fore/cove-sounds-stations";
 import {executeOwnerPaidSettlement} from "./paid-settlement-owner-executor";
@@ -2848,7 +2848,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           return new Response(null,{status:400,headers:noStore});
         const db=env.PRIMARY_DB,at=new Date().toISOString();
         const order=await db.prepare(
-          "SELECT id,user_id,quote_id,status,capture_method,risk_assessment_id,risk_action,gift_card_minor,store_credit_minor,promo_discount_minor,stripe_due_minor,currency,total_minor,stripe_payment_intent_id FROM commerce_orders WHERE id=? AND user_id=? AND quote_id=?"
+          "SELECT * FROM commerce_orders WHERE id=? AND user_id=? AND quote_id=?"
         ).bind(input.orderId,input.userId,input.quoteId)
           .first<{id:string;user_id:string;quote_id:string;status:string;capture_method:string;
             risk_assessment_id:string|null;risk_action:string|null;
@@ -2856,13 +2856,14 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
             stripe_due_minor:number;currency:string;
             total_minor:number;stripe_payment_intent_id:string|null}>();
         const quote=await db.prepare(
-          "SELECT id,user_id,gift_card_hash,promo_code_hash,consumed_at,expires_at FROM commerce_checkout_quotes WHERE id=? AND user_id=?"
+          "SELECT * FROM commerce_checkout_quotes WHERE id=? AND user_id=?"
         ).bind(input.quoteId,input.userId)
           .first<{id:string;user_id:string;gift_card_hash:string|null;promo_code_hash:string|null;
             consumed_at:string|null;expires_at:string}>();
         if(!order||!quote||order.status!=="pending_payment"||
            order.stripe_payment_intent_id!==null||
-           !Number.isSafeInteger(Number(order.stripe_due_minor)))
+           !Number.isSafeInteger(Number(order.stripe_due_minor))||
+           !ownerCheckoutPreparationMatchesQuote(order,quote))
           return new Response(null,{status:409,headers:noStore});
         // A durable fraud/refund/withdrawal denial wins over every retry.
         // The private owner must check its own tombstone rather than relying
