@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Independent source-level review: the historical partner-feed application functions were physically moved into the lease-fenced owner Worker. The public entry has no SQL and owner execution is sandbox-preview-only. No disposition was reclassified and production certification remains blocked.",
+  "retirementEvidence": "docs/architecture/retired-partner-feed-owner-20261030.md",
+  "files": [
+    {
+      "path": "src/features/fore/traditional-publishing.server.ts",
+      "sha256": "00376f774af730cd7f9d910f81a3fe81790abbda05a2504ff259a2a24e4dc2d3",
+      "review": "Verified exact source function retirement and preserved the asset upload expectation mutation as a still owner-required site; checked the typed fail-closed dispatcher and all remaining caller guards."
+    }
+  ]
+}

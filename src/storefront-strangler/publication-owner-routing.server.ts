@@ -118,3 +118,18 @@ export async function dispatchPublicationMaterialization(db:object,command:{subm
       releaseState:receipt.releaseState,ownerUpdatePolicy:receipt.ownerUpdatePolicy};
   } catch {throw new ApiError(503,"Publication materialization owner did not acknowledge completion.");}
 }
+
+/** Owner-bound job only; callers cannot provide SQL, a feed ID or a positive grant. */
+export async function dispatchPartnerFeedProcessing(db:object,limit=25) {
+  const context=owners.get(db);
+  if(!context)throw new ApiError(503,"Partner feed application requires its private owner.");
+  if(!Number.isSafeInteger(limit)||limit<1||limit>25)
+    throw new ApiError(400,"Invalid partner feed batch limit.");
+  const operationId="partner-preview:"+crypto.randomUUID();
+  try {
+    const receipt=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+      "partner.process-feed",{limit,operationId});
+    return {leased:Number(receipt.leased),applied:Number(receipt.applied),
+      failed:Number(receipt.failed),sandbox:Number(receipt.sandbox)};
+  }catch {throw new ApiError(503,"Partner feed owner did not acknowledge completion.");}
+}

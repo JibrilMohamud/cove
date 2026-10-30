@@ -1,0 +1,268 @@
+{
+  "schema": "cove.retired-owner-writer-source-lineage.v1",
+  "sourceBaselineCommit": "2bbdec3cbe85b1b7a93c267045220439f797dbb8",
+  "productionReleaseEligible": false,
+  "reason": "Exact old caller sites physically transplanted into the private staged owner, with sandbox-only preview and no production positive grant authority.",
+  "rows": [
+    {
+      "siteId": "565a6082975a8c5514764ac62d12bea965b7c2c38dc8ec20a8d5afc43fd6857e",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 1600,
+      "functionName": "applyMetadataItem",
+      "table": "publisher_catalog_mappings",
+      "operation": "UPDATE",
+      "sqlSha256": "1ae7bf7e31d9dfc9139099a10d2d4a99f716192415b7eba516639faf8d57489c",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "15a9af875f082557f44cf4219e43ed1a876e9d2651c59cef4fbc43afb90ff71b",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 1608,
+      "functionName": "applyMetadataItem",
+      "table": "publishing_edition_drafts",
+      "operation": "UPDATE",
+      "sqlSha256": "8459289a61b9a720ce40ddbd471037853fa265bfcc358f16fd7f4ece33d0913a",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "7ae4f3174eb5b659ff6a62d46276021e12cac2d5be73bd296e2115167c6f0eaf",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 1615,
+      "functionName": "applyMetadataItem",
+      "table": "products",
+      "operation": "UPDATE",
+      "sqlSha256": "a33b582b6704ab465135b6a2f6f702ac330ad2859b8b8ac3816c0f3b8a27dc8e",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "aba4d187f01648d8b4701d9fe8a06d8e0d032f23678c21bbd578de133c41a27a",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 1663,
+      "functionName": "applyMetadataItem",
+      "table": "publishing_titles",
+      "operation": "INSERT INTO",
+      "sqlSha256": "c372cc6ab3f9cad45fafa1497c7cde5c4cb1f7c00c44f568f2f318a391c2df06",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "113926ec0dd273144ee8676b124ba754aa6ddfdeb844c695c5b29df0244324aa",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 1683,
+      "functionName": "applyMetadataItem",
+      "table": "publishing_titles",
+      "operation": "UPDATE",
+      "sqlSha256": "a9a96f47bba5231e2f26e646a7eb895d8e02ec5f9a0e76f6ce8d04c9ec19a491",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "c0dbb8bea3bc3d50f957da57e711bf0a5252107e10019caa1fe4665689d6d8e2",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 1717,
+      "functionName": "applyMetadataItem",
+      "table": "publishing_edition_drafts",
+      "operation": "INSERT INTO",
+      "sqlSha256": "f11ceedee48d96cc468c9f548793b7a13ab6338222ea7ce852138b285487e942",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "bf689f607067ad75d78145cafaba1a72d489518eadb2a523c7bafa617552f46e",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 1766,
+      "functionName": "applyMetadataItem",
+      "table": "publisher_catalog_mappings",
+      "operation": "INSERT INTO",
+      "sqlSha256": "7660950f633188c143de8641d7e47e0a06a963ca430a6ea51ec1243c4e3e0338",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "e78941a2f0a0956b03a776546396cfa99c73a661e887232062a3c8e0557c1dcf",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 1926,
+      "functionName": "applyAssetManifestItem",
+      "table": "publisher_feed_assets",
+      "operation": "UPDATE",
+      "sqlSha256": "4ee291a19c661c46573d1a342799b3dec8995d7648315924b476b41a8e3fbe16",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "925c6fd20969f2b75fabd915595d3e2b43c76e14a73c511b8ffa831c4729a454",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 1993,
+      "functionName": "applyDeltaItem",
+      "table": "publishing_edition_drafts",
+      "operation": "UPDATE",
+      "sqlSha256": "e8cd1e801e59127a6dd7b65e8bfda83c6b847a6dc741ecde7284e9bb2ef3d2f9",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "64cfbc100954b5fe91853b78519536520d4b52c4fc567c59312a6980a32ba36f",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 2010,
+      "functionName": "applyDeltaItem",
+      "table": "offers",
+      "operation": "UPDATE",
+      "sqlSha256": "0c4c20b8957efd201963355c0c8b6516da20dea4d26d3d98ec237529f5a538a6",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "ea78c4d56457cdfb2a4694a9fd0e1d83380ef3616860f6769a1fc9780c492e38",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 2017,
+      "functionName": "applyDeltaItem",
+      "table": "offers",
+      "operation": "INSERT INTO",
+      "sqlSha256": "81a4fd9161db30c2c90c63bbeb6efef6cb3217dcf9a138d912f335eb9a65a59b",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "3ad58c0a3a5269c13340e1b29af3c1b376de87fe456f0b7adc7b84edea0e048c",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 2061,
+      "functionName": "applyDeltaItem",
+      "table": "publishing_edition_drafts",
+      "operation": "UPDATE",
+      "sqlSha256": "ef3f20157771c60c238eb3e07052b3cd470ad441f01a220e2345ddb2b3b4b73d",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "3ce290ff8b357c09d22a7f8894b76786440b9d0993864d7fa6c61e5473973631",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 2112,
+      "functionName": "applyDeltaItem",
+      "table": "publishing_edition_drafts",
+      "operation": "UPDATE",
+      "sqlSha256": "019d630fc8d31cd1dbf3192523e3f886986e337dd7da00c1ee2b0d6475ada006",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "8d3e118fc17ea7a6d021cb74f9e0acf7a26d6cdcb0899e83a8df9cb4bd1f199f",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 2119,
+      "functionName": "applyDeltaItem",
+      "table": "products",
+      "operation": "UPDATE",
+      "sqlSha256": "7afa591b41b01a8dfe658ab7a56764c263aefbb5f88f564fe0b65fb8a0edc870",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "4f4790c11aad441442389b435a5f8545cc464fc9edc6bfb912238c3f37455492",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 2125,
+      "functionName": "applyDeltaItem",
+      "table": "offers",
+      "operation": "UPDATE",
+      "sqlSha256": "e183fab21f53eeedafdf2fc6aa854a63dd6feaf58a6f618c95e0da3e09dce97d",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "064b45b4f4d48f61ff2b7524213c1b097fbcd38d9e022a801c39430bc190e0be",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 2132,
+      "functionName": "applyDeltaItem",
+      "table": "offers",
+      "operation": "UPDATE",
+      "sqlSha256": "fe5d7135f2bd05ced9528f67eaa9f5489d5070a8e1b62af652db9c85d4429e89",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "c38c11e2a6eb9b107af6d967041ef83963225bd89304b55c9e71a31756b405fb",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 2139,
+      "functionName": "applyDeltaItem",
+      "table": "publisher_catalog_mappings",
+      "operation": "UPDATE",
+      "sqlSha256": "ba409e748bdb70f464c37bf2e7983cbf861b542edb2c56ab9f25fe5d2f6290ce",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "b572a97bdaeb753f31f4abf671aefbe4adaf49761423a454e58584b221d00df4",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 2174,
+      "functionName": "reconcileFullPartnerSnapshot",
+      "table": "publisher_catalog_mappings",
+      "operation": "UPDATE",
+      "sqlSha256": "1ae7bf7e31d9dfc9139099a10d2d4a99f716192415b7eba516639faf8d57489c",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "c7267a7fc153aacc7f2f5b1a041a0ec254f2bdd1a2384986785892507c91c304",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 2181,
+      "functionName": "reconcileFullPartnerSnapshot",
+      "table": "products",
+      "operation": "UPDATE",
+      "sqlSha256": "a33b582b6704ab465135b6a2f6f702ac330ad2859b8b8ac3816c0f3b8a27dc8e",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "097519bad70f4bedf1fad2df570e763614381998e29c510d144643ab1a6188e5",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 2187,
+      "functionName": "reconcileFullPartnerSnapshot",
+      "table": "offers",
+      "operation": "UPDATE",
+      "sqlSha256": "e183fab21f53eeedafdf2fc6aa854a63dd6feaf58a6f618c95e0da3e09dce97d",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "396ec00f3a49361693e435ee2ea67bb3d12f5cf03c88454d6ddb4e76fcdc461b",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 2212,
+      "functionName": "processPartnerFeedQueue",
+      "table": "publisher_feed_submissions",
+      "operation": "UPDATE",
+      "sqlSha256": "0181f75f4163d2df962c095503e24e57ba65421f66f5661a56716f55eb5e5baf",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "b8836d779afda3ed770aeca8f3b4c739094b0799e6e5fc38f7613acc61a19b61",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 2230,
+      "functionName": "processPartnerFeedQueue",
+      "table": "publisher_feed_items",
+      "operation": "UPDATE",
+      "sqlSha256": "ab4f7362e41a638acdd5a425f0851ece51da949310035a2823104675f8796dee",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "71361237ea817b140f390c92e7e1e4b74bc81e007ac69f533b71661e29d18b09",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 2251,
+      "functionName": "processPartnerFeedQueue",
+      "table": "publisher_feed_items",
+      "operation": "UPDATE",
+      "sqlSha256": "520fb9bc696392ae1193611638a3a05ea73eefc2e42c11f3d5352c882e4df90d",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "5c0e01b62f85a60591ac0c1757524a852343c29101ba311fe33d4cd9c8c5bac3",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 2266,
+      "functionName": "processPartnerFeedQueue",
+      "table": "publisher_feed_items",
+      "operation": "UPDATE",
+      "sqlSha256": "b914e13085ebc8f075fe1ad46ebb2392c5639234bef0b13b2393b19ace1c37ff",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "c5293f4a972591f6e3b6af6a289a252c02371b5fad270c6af7e01264892785cd",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 2288,
+      "functionName": "processPartnerFeedQueue",
+      "table": "publisher_feed_submissions",
+      "operation": "UPDATE",
+      "sqlSha256": "6e8e70ba14cde1b9d6a13991c30306da3037a9bc0d741c6d92490fced997a9f9",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "5ec5517319eb929ec1a2f4e26f7e0602816a1d15e61f7b14eae988494c220ead",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 2301,
+      "functionName": "processPartnerFeedQueue",
+      "table": "publisher_validation_responses",
+      "operation": "INSERT INTO",
+      "sqlSha256": "9b62e7340a1298d0887944f2665b5247fca14e5e887776a0b155b7ecb44b9a68",
+      "disposition": "non-authorizing-write"
+    }
+  ]
+}

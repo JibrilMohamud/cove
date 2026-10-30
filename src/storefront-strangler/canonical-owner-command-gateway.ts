@@ -107,6 +107,9 @@ const routes={
     orderId:ownerId,userId:ownerId,territory,channel:z.literal("retail")}).strict()},
   "commerce.publish-entitlement":{path:"/commercial/entitlement/publish-verified",schema:z.object({
     entitlementId:ownerId,userId:ownerId,productId:product,territory,channel:z.literal("retail")}).strict()},
+  "partner.process-feed":{path:"/publishing/partner/process-feed",schema:z.object({
+    limit:z.number().int().min(1).max(25),operationId:shortOperation
+  }).strict()},
   "publishing.save-contract-version":{path:"/publishing/contract/save-version",schema:z.object({
     actorUserId:ownerId,operationId:shortOperation,
     contract:z.record(z.string(),z.unknown())
@@ -346,6 +349,15 @@ export async function dispatchCanonicalOwnerCommand(
       break;
     case "commerce.publish-entitlement":
       if(ack.applied!==true||!positiveEpoch(ack.epoch))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "partner.process-feed":
+      if(ack.schema!=="cove.owner-partner-feed-sandbox.v1"||ack.ownerFirst!==true||
+         ack.operationId!==body.operationId||
+         ![ack.leased,ack.applied,ack.failed,ack.sandbox].every(n=>
+           Number.isSafeInteger(n)&&Number(n)>=0&&Number(n)<=Number(body.limit))||
+         Number(ack.applied)+Number(ack.failed)!==Number(ack.leased)||
+         Number(ack.sandbox)!==Number(ack.leased))
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "publishing.save-contract-version":
