@@ -42,5 +42,7 @@ jobs:
           node scripts/check-retired-partner-feed-owner.mjs
           node scripts/check-retired-legacy-commerce-write-family.mjs
           node scripts/check-retired-checkout-money-writers.mjs
+      - name: Isolated local fixture and anonymous rights-checked bootstrap
+        run: node scripts/check-storefront-bootstrap.mjs
       - name: Strict TypeScript
         run: npm run typecheck
