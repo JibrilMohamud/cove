@@ -4,7 +4,10 @@ import { DatabaseSync } from "node:sqlite";
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { seedLocalCatalogFixture, seedAdditionalLocalCatalogBooks } from "./test-local-catalog-fixture.mjs";
+import {
+  seedLocalCatalogFixture,
+  seedAdditionalLocalCatalogBooks,
+} from "./test-local-catalog-fixture.mjs";
 export function localBindings(root, options = {}) {
   const dir = path.join(root, ".sites-runtime");
   fs.mkdirSync(dir, { recursive: true });

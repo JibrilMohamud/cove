@@ -91,12 +91,14 @@ try {
     "SELECT id FROM products WHERE id='prd_gutenberg_900001'",
   ).first();
   assert.equal(unowned, null, "failed owner normalization cannot publish a product");
-  env.seedAdditionalLocalCatalogBooks(Array.from({ length: 28 }, (_, i) => ({
-    ...seed,
-    id: 900001 + i,
-    title: `Adventure volume ${900001 + i}`,
-    copyright: false,
-  })));
+  env.seedAdditionalLocalCatalogBooks(
+    Array.from({ length: 28 }, (_, i) => ({
+      ...seed,
+      id: 900001 + i,
+      title: `Adventure volume ${900001 + i}`,
+      copyright: false,
+    })),
+  );
   const fixtureCount = await env.DB.prepare(
     "SELECT COUNT(*) n FROM products WHERE id LIKE 'prd_gutenberg_9000%'",
   ).first();
