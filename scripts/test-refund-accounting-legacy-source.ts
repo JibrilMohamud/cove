@@ -1,6 +1,6 @@
 /* eslint-disable prettier/prettier -- One D1 transaction owns the refund's financial and fulfillment effects. */
-import {ApiError} from "./service";
-import type {CatalogDB} from "./catalog-model.server";
+import {ApiError} from "../src/features/fore/service";
+import type {CatalogDB} from "../src/features/fore/catalog-model.server";
 
 /** Every posting is conditional on the SAME unsucceeded refund marker.
  * D1 batch is atomic: a crash cannot expose restored tender or a completion
