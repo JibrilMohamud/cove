@@ -133,9 +133,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "b5af5f9a3c20ae258ba955d89fd8978985a503e06eccbca3e13e352c2507c9e6",
+      "siteId": "14ff9c278a19ab8ffcf23b52fe8f1f96713fed3d14e83838bcf241cc0cdbbcf8",
       "file": "src/features/fore/api.server.ts",
-      "line": 824,
+      "line": 825,
       "functionName": "catalogInsert",
       "table": "gutenberg_source_cache",
       "operation": "INSERT INTO",
@@ -146,9 +146,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "fb4ee0420e261e0821f0a0b66dd100f3191b24ef3391efcb60c85414a1a02617",
+      "siteId": "25c9579c97dbca4b62d364d222e17ed9ef56af848cd12ccdd30a3294457d61a2",
       "file": "src/features/fore/api.server.ts",
-      "line": 1334,
+      "line": 1335,
       "functionName": "insertRegionalEvidence",
       "table": "gutenberg_rights_evidence",
       "operation": "INSERT OR IGNORE INTO",
@@ -159,9 +159,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "4bd62f6cb57f7092c394206784ac84f703c5b6190bcb3d18bb28727027cd43d2",
+      "siteId": "e6050b7dcccb1fa9bad207dabcff88d889de1d9726eb853f4b62325bd4587f88",
       "file": "src/features/fore/api.server.ts",
-      "line": 1355,
+      "line": 1356,
       "functionName": "insertRegionalEvidence",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -172,9 +172,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "66951aa765263573909dd383b414b0070f98470979d469c3f4c4c25b908fb80d",
+      "siteId": "838b895468f0e541a459255bfa691129c042d4f5248691db123553c0c8850b79",
       "file": "src/features/fore/api.server.ts",
-      "line": 1367,
+      "line": 1368,
       "functionName": "insertRegionalEvidence",
       "table": "rights_grants",
       "operation": "UPDATE",
@@ -185,9 +185,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "68897a13d302a6021c6072efd9fcfbadf2e83206e9f97b3f96bb4cda694ebe7b",
+      "siteId": "a958975f7f7147e4c4d7aad4649f365bebc27995f7c0604dc9ac90f95ff29b3b",
       "file": "src/features/fore/api.server.ts",
-      "line": 1374,
+      "line": 1375,
       "functionName": "insertRegionalEvidence",
       "table": "rights_grants",
       "operation": "UPDATE",
@@ -198,9 +198,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "cc2b4fb04bdd7b785783a26e878610c037d2bfe2392ae5ca4f1d37cf94a488a4",
+      "siteId": "af72c3c96e14570ee8a3ad79e1d2a19a13196d0e1386d5acde281e4e5c339bf1",
       "file": "src/features/fore/api.server.ts",
-      "line": 1396,
+      "line": 1397,
       "functionName": "quarantineRegionalItem",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -211,9 +211,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "45a1318e9ca83d22e6bf3a5be913733eeb90b239d4c8a9469dd537997be88ae6",
+      "siteId": "20fa577a7c2045eaad4f1969029472de82c5f315eba23aa5888ce4e0409140d1",
       "file": "src/features/fore/api.server.ts",
-      "line": 1416,
+      "line": 1417,
       "functionName": "cachePendingEpubs",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -224,9 +224,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "e7c0086d03f83bc4beb35adfdffd5d990889e75eab77ed8db65b8b413bbe7a36",
+      "siteId": "1a69b7d1c817a7ecad687b436d9ca329b8eb049c7af79ae098cb9d8ba3f5b1c0",
       "file": "src/features/fore/api.server.ts",
-      "line": 1490,
+      "line": 1491,
       "functionName": "cachePendingEpubs",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -237,9 +237,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "54ff8c2c966af2de652adb1712c3c61d8f676b69c6d4a8359c45dee3ce2fd759",
+      "siteId": "9645b13f4875654ca3cfe0a8ef61ad47d0fd4b7ff73bb6ad23cbc449c5687abb",
       "file": "src/features/fore/api.server.ts",
-      "line": 1498,
+      "line": 1499,
       "functionName": "cachePendingEpubs",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -250,9 +250,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "c46c5e97518f0c45f389fe7e3c92509deb1b77263f5bfc9166ae01c84ee37632",
+      "siteId": "d956b3cae82fc6a5a4f58bf5a4bff052ea3bac2f7d64ab95ac026e981b019c80",
       "file": "src/features/fore/api.server.ts",
-      "line": 1506,
+      "line": 1507,
       "functionName": "cachePendingEpubs",
       "table": "gutenberg_source_states",
       "operation": "UPDATE",
@@ -263,9 +263,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "c967b971a6fdac4bc0e034f97e4a0663bf95067602d9ffd451628db93a648cbf",
+      "siteId": "e8112532acf851f0d12579fc08507fb0fd5e68d21135e8ac9bbbdf76c8bd5a10",
       "file": "src/features/fore/api.server.ts",
-      "line": 1539,
+      "line": 1540,
       "functionName": "cachePendingEpubs",
       "table": "gutenberg_source_states",
       "operation": "UPDATE",
@@ -276,9 +276,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "16006fca0a720ba7b8dedf4e48897e77eea18ea912441b55c37766a2a998f404",
+      "siteId": "28aa36fc6472643bf11879ad9d0f9146a630ea0a67d49b9bbd84899d788f1061",
       "file": "src/features/fore/api.server.ts",
-      "line": 1605,
+      "line": 1606,
       "functionName": "cachePendingEpubs",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -289,9 +289,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "0cbc43826b06dae9fc69814fcc94a2b8e6cf00b50e21950a27968e721e8e8b1e",
+      "siteId": "d5e464947e4c3ffec99bb09b87c72bac66a739b54febc25aa0cde10b9db66238",
       "file": "src/features/fore/api.server.ts",
-      "line": 1616,
+      "line": 1617,
       "functionName": "cachePendingEpubs",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -302,9 +302,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "8f52ced62fe41b2260891d60f5b391d03a89feb75693ed2d133a7963d7ff1c39",
+      "siteId": "f9ffa323b2a52ea8d00f7a8edf4f42a695a790e0e34989c95a22ede674a08a21",
       "file": "src/features/fore/api.server.ts",
-      "line": 1639,
+      "line": 1640,
       "functionName": "cachePendingEpubs",
       "table": "asset_versions",
       "operation": "UPDATE",
@@ -315,9 +315,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "43444838797c8d01424757b12a7db84399fc57a85c6793aef17419c330fefdd0",
+      "siteId": "37b40b2973d1dbafb950fe6f2409773fa3b80b2a8a70dc70ae12aac44900eb71",
       "file": "src/features/fore/api.server.ts",
-      "line": 1654,
+      "line": 1655,
       "functionName": "cachePendingEpubs",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -328,9 +328,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "e3a72bacceda8d856c1269072ebe9c6cb7d1a02752c026c3ffeef55b842d1a24",
+      "siteId": "d35d7ccd9dae0a004fe6e575c1dd5c47f3d042a9d4e8f31e6bfd20fc8131bc60",
       "file": "src/features/fore/api.server.ts",
-      "line": 1725,
+      "line": 1726,
       "functionName": "runRegionalCatalogIngestion",
       "table": "gutenberg_source_states",
       "operation": "UPDATE",
@@ -341,9 +341,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "71be1e67b159d7f6534a45a2fcf66e693d9182c5371e4ae862a767cd18ec50f5",
+      "siteId": "13265402b8fcffe52a6615911b9cb6d423390ff85d07d5a832bc3aef2e5ad034",
       "file": "src/features/fore/api.server.ts",
-      "line": 1747,
+      "line": 1748,
       "functionName": "runRegionalCatalogIngestion",
       "table": "gutenberg_source_states",
       "operation": "UPDATE",
@@ -354,9 +354,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "5f305278168755d93718fea6b6f35ad1d94c1b9e67b5bcd8eaa66e96e637e6b4",
+      "siteId": "ea31b4ef428d99d16fe610f0c582285fbad729ba37e3b5bb88625e8b8e29e601",
       "file": "src/features/fore/api.server.ts",
-      "line": 1768,
+      "line": 1769,
       "functionName": "runRegionalCatalogIngestion",
       "table": "gutenberg_source_states",
       "operation": "UPDATE",
@@ -367,9 +367,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "fd9d9dd45a5ff60fb3d4d3ed3b92cc7725906b6276de85c940d379ffa74aac57",
+      "siteId": "3e9550d786fb0e801da30e4822de586a14e7c8205d97d9b1e1fef0b084411be2",
       "file": "src/features/fore/api.server.ts",
-      "line": 1798,
+      "line": 1799,
       "functionName": "runRegionalCatalogIngestion",
       "table": "gutenberg_source_states",
       "operation": "UPDATE",
@@ -380,9 +380,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "8afb45a6cfbe41dfea05bb23fe6913271b08c616fe9b4a8689a5b59a524c2ed0",
+      "siteId": "59933b5ac7ec8f96187b831f0d4beaa32932df65d9c23100a97f4ba9fbd12d9f",
       "file": "src/features/fore/api.server.ts",
-      "line": 1901,
+      "line": 1902,
       "functionName": "runRegionalCatalogIngestion",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -393,9 +393,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "c5b5a411d7ecc18b70727ee029cea56eb7fbe02e853d8ab0496f873c2007e5d6",
+      "siteId": "71c87fa0ffa0881e2c4bbc7766b22a40082ef20fa1fe602aab7bf96db20ab377",
       "file": "src/features/fore/api.server.ts",
-      "line": 1909,
+      "line": 1910,
       "functionName": "runRegionalCatalogIngestion",
       "table": "products",
       "operation": "UPDATE",
@@ -406,9 +406,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "987750af553e19e276cac46e8e474290c2dce42cdcd8257a1948f98e48c01573",
+      "siteId": "5830d3289474105767f1bd7504f918e0556bb83fa52f6320199d51f468af7b4a",
       "file": "src/features/fore/api.server.ts",
-      "line": 1916,
+      "line": 1917,
       "functionName": "runRegionalCatalogIngestion",
       "table": "offers",
       "operation": "UPDATE",
@@ -419,9 +419,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "b91188096869b661037d625893edb941e276f0600f49f24567d43b24344997dd",
+      "siteId": "ba007278d4aba7725c04d881ecef2291ad9728cc2e9863003c3527a6dd78ad34",
       "file": "src/features/fore/api.server.ts",
-      "line": 1923,
+      "line": 1924,
       "functionName": "runRegionalCatalogIngestion",
       "table": "editions",
       "operation": "UPDATE",
@@ -432,9 +432,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "10210df65f7c5b41682e40bf800e2859f35cf6bc0096d01f678c56be5080a4e3",
+      "siteId": "8cd9ad0ca218b12f6da3e73281785d211ca306c098371e2936c93eb76c22465a",
       "file": "src/features/fore/api.server.ts",
-      "line": 1930,
+      "line": 1931,
       "functionName": "runRegionalCatalogIngestion",
       "table": "rights_grants",
       "operation": "UPDATE",
@@ -445,9 +445,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "88f737823ac424aaddcbd8853854b1cf301673d2d32d690c05813f19de4f121c",
+      "siteId": "30fd67f470a26929f11aa4ea0188327cf1dca6bec1aa63e8f991c37dd546a38c",
       "file": "src/features/fore/api.server.ts",
-      "line": 1940,
+      "line": 1941,
       "functionName": "runRegionalCatalogIngestion",
       "table": "gutenberg_source_states",
       "operation": "UPDATE",
@@ -458,9 +458,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "784c4a50b7a8da3a81253beaf2c96aa4435a4cd62409ef25cd81942da07998a5",
+      "siteId": "f34db2ce82bdf9e3bcc902b2260a02ddcf51422921e83d6661d97bb893663c03",
       "file": "src/features/fore/api.server.ts",
-      "line": 2010,
+      "line": 2011,
       "functionName": "runRegionalCatalogIngestion",
       "table": "gutenberg_source_states",
       "operation": "UPDATE",
@@ -471,9 +471,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "f009ea32cc19eafc108b20b2ce2b188416a360af7556ced30e2fcf3b59c585b4",
+      "siteId": "342eb5dc442ad3c32b508df6238ee5425624035ca0c0aeeb820d7905d14917d0",
       "file": "src/features/fore/api.server.ts",
-      "line": 2171,
+      "line": 2172,
       "functionName": "runCatalogIngestion",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -484,9 +484,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "7d50b78674297a77faebe918c5c97ef345b47016081fb4bb9d29d8986f00572c",
+      "siteId": "37ce7429efff660efdb1b5fc7580ef610733bd1278e867590b431615a22d5b7e",
       "file": "src/features/fore/api.server.ts",
-      "line": 2190,
+      "line": 2191,
       "functionName": "runCatalogIngestion",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -497,9 +497,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "6535cf4bac63481e7e7f9f16434f802b9b3b830b07716262144fd2a8f483e3f3",
+      "siteId": "99547f7012659dbccdb4bb29fcef09fb792a293e33487e53c9470b517efb845f",
       "file": "src/features/fore/api.server.ts",
-      "line": 2200,
+      "line": 2201,
       "functionName": "runCatalogIngestion",
       "table": "catalog_search_documents",
       "operation": "UPDATE",
@@ -510,9 +510,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "6b658f837d5a113fe86c77302e44322f7977b53ee4f02b8629570ca65279d921",
+      "siteId": "8c1c4dd52c5e6b09bd80e4ce057735d80f560c1e28b3f0a3496509d793980cb0",
       "file": "src/features/fore/api.server.ts",
-      "line": 2367,
+      "line": 2368,
       "functionName": "sourceEpubBytes",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -523,9 +523,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "b9b75b50f8ff5e816c056b9d15af9f20e032f887013360ceee9c9d800113098e",
+      "siteId": "593e7bcf87435f1caba58a15c74b9581a0530b9a4c798fb8cb39e297b5cb4633",
       "file": "src/features/fore/api.server.ts",
-      "line": 2402,
+      "line": 2403,
       "functionName": "sourceEpubBytes",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -536,9 +536,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "0faa9b2974710868018f265cf40730f0431971e8c437762102bb004a50e42e8b",
+      "siteId": "0f0d26cae94f36f4072153be421089f93df9116cd8d322f00fa98eecdc4ef3d1",
       "file": "src/features/fore/api.server.ts",
-      "line": 2406,
+      "line": 2407,
       "functionName": "sourceEpubBytes",
       "table": "asset_versions",
       "operation": "UPDATE",
@@ -549,9 +549,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "70de5840df14535324dc361f1841d035e16a0c13683e66725cc830c850bed647",
+      "siteId": "f0164e0bd5225b45fc9028eb32be5db42ec142523ca12dcc152a5b14fbd76f07",
       "file": "src/features/fore/api.server.ts",
-      "line": 5786,
+      "line": 5815,
       "functionName": "handleCoveRequest",
       "table": "entitlements",
       "operation": "INSERT INTO",
