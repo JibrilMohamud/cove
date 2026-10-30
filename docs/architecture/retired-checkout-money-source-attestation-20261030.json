@@ -1,12 +1,12 @@
 {
   "schema": "cove.canonical-writer-source-attestation.v1",
   "releaseApproval": false,
-  "rationale": "Independently traced all 16 removed checkout, tender, Stripe-customer and monetary-admin SQL sites from the former production shared-D1 branch to the existing private-owner QA paths. Non-enrolled checkout now denies before external effects; shared admin functions cannot mutate money records. Frozen dispositions and all 40 remaining commerce writer fingerprints were preserved. No live owner or payment certification is claimed.",
+  "rationale": "Independently traced all 16 removed checkout, tender, Stripe-customer and monetary-admin SQL sites from the former production shared-D1 branch to the existing private-owner QA paths. Non-enrolled checkout now denies before external effects; shared admin functions cannot mutate money records. Frozen dispositions and all 40 remaining commerce writer fingerprints were preserved. No live owner or payment certification is claimed. This source was subsequently changed by a separate independently reviewed 38-site legacy commerce writer retirement; the historical accounting and checkout sites stay removed, and no production enablement is asserted.",
   "files": [
     {
       "path": "src/features/fore/commerce.server.ts",
-      "sha256": "8c347ee0a5ccda82e2d6ec1db0c31eb0edbb9377728fa3e0bd1cb6c9b0843a23",
-      "review": "Checkout requires stage enrollment at entry; remaining checkout reads lead only to a typed private-owner command. Customer registration has no shared-D1 fallback. All three admin money writer exports deny non-owner execution; 40 other SQL writer sites remain owner-required."
+      "sha256": "116f24a42a463947939e120919db25ebcbc5ac09a3ef8fb3d8a2b769031e70d8",
+      "review": "Historical earlier retirement remains intact; current commerce server additionally retires 38 legacy payment writer statements, independently attested at docs/architecture/retired-legacy-commerce-source-attestation-20261030.json. Two tax SQL sites remain owner-required. Source-only formatting and explicit fail-safe refund error logging are now included; exact surviving SQL remained unchanged. Independent review restored the owner-only checkout quote persistence and blocks public unenrolled callers; the quote SQL is still classified owner-required."
     }
   ],
   "retirementEvidence": "docs/architecture/retired-checkout-money-writers-20261030.md"

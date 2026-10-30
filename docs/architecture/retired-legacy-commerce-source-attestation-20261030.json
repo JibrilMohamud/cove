@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Independently identified all 40 original exact-source commerce mutations and physically retired 37 shared production fallback SQL writers. The original quote calculator must remain callable by the authenticated QA private owner, so its one canonical quote INSERT is still owner-command-required; both direct tax writes also remain owner-required. Public checkout quote requests are denied before the original helper unless the independent private owner has enrolled them. No live Stripe or production owner certification is asserted.",
+  "files": [
+    {
+      "path": "src/features/fore/commerce.server.ts",
+      "sha256": "116f24a42a463947939e120919db25ebcbc5ac09a3ef8fb3d8a2b769031e70d8",
+      "review": "Legacy checkout settlement, tender, refund, webhook, disputes and reconciliation SQL removed from shared code. Owner-only quote persistence remains physically present and is not reclassified; two tax mutations also remain directly in this module. The three surviving SQL literals preserve their reviewed authorizing dispositions with source-bound checksums."
+    }
+  ],
+  "retirementEvidence": "docs/architecture/retired-legacy-commerce-write-family-20261030.md"
+}

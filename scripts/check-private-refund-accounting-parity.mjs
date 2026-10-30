@@ -30,9 +30,11 @@ assert.doesNotMatch(retired,/INSERT INTO|UPDATE commerce_|UPDATE entitlements|UP
 assert.match(commerce,/if \(env\.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1"\)\s*throw new ApiError\(503, "Refunds require the private financial owner\."\)/,
  "Legacy refund route must reject owner-disabled calls BEFORE contacting Stripe");
 const guard=commerce.indexOf('export async function refundOrder(');
-const firstProvider=commerce.indexOf('const existing = await db',guard);
+const firstOwnerClaim=commerce.indexOf('reserveStageOwnerRefundIntent(env, input)',guard);
 const denial=commerce.indexOf('throw new ApiError(503, "Refunds require the private financial owner.");',guard);
-assert.ok(denial>guard&&denial<firstProvider,
- "Owner-disabled refund rejection must precede all legacy invoice/provider operations");
+assert.ok(denial>guard&&firstOwnerClaim>denial,
+ "Owner-disabled refund rejection must precede every refund claim and provider operation");
+assert.doesNotMatch(commerce.slice(guard,commerce.indexOf("function refundResponse(",guard)),/INSERT INTO commerce_refunds/,
+ "No surviving direct refund reservation SQL is allowed in the caller");
 assert.match(commerce,/await postStageOwnerRefundAccounting\(env, String\(o\.id\), refundId\)/);
 console.log("PASS: 11 shared-D1 refund posting statements retired; exact frozen legacy finance batch remains private-owner parity tested; owner-disabled refund rejects before provider writes.");

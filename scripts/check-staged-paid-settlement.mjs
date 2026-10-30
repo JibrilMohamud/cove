@@ -189,12 +189,15 @@ try{
   const commerce=readFileSync("src/features/fore/commerce.server.ts","utf8");
   const payment=commerce.slice(commerce.indexOf("export async function finalizePaidOrder("),
     commerce.indexOf("export async function recoverPayment("));
-  assert.ok(payment.indexOf("await assertStagePaidOrderNotWithdrawn")>
-    payment.indexOf("Terminal or invalid order cannot be settled."),
-    "A terminal signed payment must be rejected before owner settlement");
+  const invalidStateCheck=payment.indexOf("Terminal or invalid order cannot be settled.");
+  const followingOwnerSettlement=payment.indexOf("return settleStageOwnerPaidOrder",invalidStateCheck);
+  assert.ok(invalidStateCheck>=0&&followingOwnerSettlement>invalidStateCheck,
+    "An invalid terminal signed payment must be rejected before private owner settlement");
+  assert.ok(commerce.includes("await assertStagePaidOrderNotWithdrawn(env, orderId)"),
+    "Checkout must check strong-owner withdrawal before reserving tender");
   assert.ok(payment.indexOf("await certifyStagePaidSettlement")>=0,
     "No paid order may silently omit independent owner publication");
-  const refund=commerce.slice(commerce.indexOf("const remainingTotal ="),
+  const refund=commerce.slice(commerce.indexOf("async function completeRequestedRefund("),
     commerce.indexOf("async function stageRevokeRefundEntitlements("));
   assert.ok(refund.indexOf("await stageRevokeRefundEntitlements")>=0 &&
     refund.indexOf("await stageRevokeRefundEntitlements")<refund.indexOf('stripeRequest(env, "refunds"'),

@@ -9,7 +9,10 @@ import {currentWriterSites,REVIEW_PATH} from "./reconcile-canonical-writers.mjs"
 const history="publishing_owner_version_events";
 const review=JSON.parse(readFileSync(REVIEW_PATH,"utf8"));
 const all=currentWriterSites().filter(x=>x.table===history);
-assert.equal(all.length,5,"The whole owner-version audit inventory needs fresh review if history writers change");
+assert.equal(all.length,4,"The whole owner-version audit inventory needs fresh review if history writers change");
+// The formerly shared commerce grant_pin writer was physically retired;
+// only the atomic private QA settlement grant pin remains with two non-authorizing
+// policy history actions and one outstanding preorder grant-pin writer.
 const privatePins=all.filter(x=>x.file==="src/features/fore/paid-settlement-transaction.server.ts");
 assert.equal(privatePins.length,1,"Only the new atomic settlement executor adds a QA grant-pin history writer");
 assert.equal(privatePins[0].functionName,"postPaidSettlementTransaction");

@@ -23,13 +23,14 @@ try {
   const {postRefundAccounting}=await import(pathToFileURL(writerOut).href);
   const execute=(db,sql,input,at)=>executePrivate(db,sql,input,postRefundAccounting,at);
   const commerce=readFileSync("src/features/fore/commerce.server.ts","utf8");
-  const legacyRoyaltyGuard='if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")';
-  const royaltyLine="await reverseRoyaltiesForRefund(db, r.id);";
-  const royaltyPosition=commerce.indexOf(royaltyLine);
-  const guardPosition=commerce.lastIndexOf(legacyRoyaltyGuard,royaltyPosition);
-  assert.ok(royaltyPosition>=0&&guardPosition>=0&&
-    royaltyPosition-guardPosition<130,
-    "Enrolled stage owner must own all refund royalty reversals, with no parallel legacy D1 posting");
+  const refundStart=commerce.indexOf("async function applyRefundSuccess(");
+  const refundEnd=commerce.indexOf("function hexToBytes(",refundStart);
+  assert.ok(refundStart>=0&&refundEnd>refundStart,"Refund success handler must remain available");
+  const refundBody=commerce.slice(refundStart,refundEnd);
+  assert.ok(refundBody.includes("await postStageOwnerRefundAccounting(env, String(o.id), refundId)") &&
+    !refundBody.includes("await reverseRoyaltiesForRefund") &&
+    !refundBody.includes("await postRefundAccounting("),
+    "Only the private owner may post the refund and reverse royalties; no caller D1 fallback");
   const orderId="order_accounting_01",refundId="ref_accounting_01";
   function fixture({denied=true,stripeAmount=100,status="succeeded",provider="re_owner_refund_01",royaltyRows=false,failRoyaltyOnce=false}={}){
     let batchCount=0,posted=false,firstCount=0,royaltyBatches=0,royaltyPostedId=null,royaltyFailures=0;
