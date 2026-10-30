@@ -1,0 +1,35 @@
+{
+  "schema": "cove.dormant-literary-infer-d1-retirement-evidence.v1",
+  "verifiedDate": "2026-10-30",
+  "repository": "JibrilMohamud/cove",
+  "mergedConfigPr": 483,
+  "mergedConfigSha": "a760dbc74e15e4058dfd4a1936cba4bca36c4db4",
+  "worker": "cove-literary-infer-draining-20261025",
+  "method": "Cloudflare account API: GET Worker settings/cron/subdomain, PATCH settings multipart to remove DB and deactivate flags, independent GET readback; then independently GET settings for all 450 account Workers",
+  "reason": "No cron, public Workers.dev, preview or custom network ingress; no incoming service bindings according to independently passed full-fleet audit. Other active literary processing workers were not modified.",
+  "before": {
+    "allDeployedCanonicalD1Bindings": 10,
+    "nonOwnerBindings": 9,
+    "workerBindings": 12,
+    "productionD1Binding": "DB"
+  },
+  "after": {
+    "allDeployedCanonicalD1Bindings": 9,
+    "nonOwnerBindings": 8,
+    "workerBindings": 11,
+    "productionD1Binding": null,
+    "isolatedContentDbBinding": "CONTENT_DB",
+    "cronCount": 0,
+    "publicWorkersDev": false,
+    "processorEnabled": "0",
+    "prepareEnabled": "0",
+    "inferenceEnabled": "0"
+  },
+  "productionOwnerEnabled": false,
+  "sourceAudit": {
+    "ownerCommandRequired": 371,
+    "commerce": 56
+  },
+  "releaseCertified": false,
+  "productionPaidAccessActivated": false
+}
