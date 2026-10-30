@@ -3293,7 +3293,44 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         // Explicit rollback assertion: a repeat ID cannot change original
         // order, charge, currency or disputed amount.
         statements.push(db.prepare(
-          "SELECT CASE WHEN EXISTS(SELECT 1 FROM commerce_disputes WHERE provider_dispute_id=? AND (COALESCE(order_id,'')<>? OR charge_id<>? OR amount_minor<>? OR currency<>?)) THEN json_extract('immutable_dispute_scope_conflict','
+          "SELECT CASE WHEN EXISTS(SELECT 1 FROM commerce_disputes WHERE provider_dispute_id=? AND (COALESCE(order_id,'')<>? OR charge_id<>? OR amount_minor<>? OR currency<>?)) THEN json_extract('immutable_dispute_scope_conflict','$.deny') ELSE 1 END ok"
+        ).bind(dispute.id,order?.id||"",dispute.chargeId,dispute.amountMinor,dispute.currency));
+        statements.push(db.prepare(
+          "INSERT INTO commerce_disputes(provider_dispute_id,order_id,charge_id,amount_minor,currency,reason,status,evidence_due_at,created_at,updated_at,closed_at) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(provider_dispute_id) DO UPDATE SET reason=excluded.reason,status=excluded.status,evidence_due_at=excluded.evidence_due_at,updated_at=excluded.updated_at,closed_at=COALESCE(commerce_disputes.closed_at,excluded.closed_at)"
+        ).bind(dispute.id,order?.id||null,dispute.chargeId,dispute.amountMinor,
+          dispute.currency,dispute.reason,dispute.status,dispute.evidenceDueAt,
+          at,at,closed?at:null));
+        if(order){
+          statements.push(db.prepare(lost?
+            "UPDATE commerce_orders SET status='chargeback_lost',updated_at=? WHERE id=? AND stripe_charge_id=? AND status IN ('paid','partially_refunded','refunded','disputed','chargeback_lost')":
+            "UPDATE commerce_orders SET status='disputed',updated_at=? WHERE id=? AND stripe_charge_id=? AND status IN ('paid','partially_refunded','refunded','disputed')"
+          ).bind(at,order.id,dispute.chargeId));
+          statements.push(db.prepare(
+            "UPDATE entitlements SET status='revoked' WHERE user_id=? AND entitlement_type='purchase' AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND status='active'"
+          ).bind(order.user_id,order.id));
+          statements.push(db.prepare(
+            "UPDATE audio_offline_licenses SET status='revoked',revoked_at=COALESCE(revoked_at,?),revocation_reason='order_disputed' WHERE status='active' AND entitlement_id IN (SELECT id FROM entitlements WHERE user_id=? AND entitlement_type='purchase' AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?))"
+          ).bind(at,order.user_id,order.id));
+          statements.push(db.prepare(
+            "UPDATE commercial_delivery_grants SET status='revoked' WHERE status='active' AND user_id=? AND entitlement_id IN (SELECT id FROM entitlements WHERE user_id=? AND entitlement_type='purchase' AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?))"
+          ).bind(order.user_id,order.user_id,order.id));
+          const postings:Array<[string,string,number]>=[
+            ["dispute_open","dispute_receivable",dispute.amountMinor],
+            ["dispute_open","stripe_receivable",-dispute.amountMinor]
+          ];
+          if(lost)postings.push(["dispute_lost","chargeback_loss",dispute.amountMinor],
+            ["dispute_lost","dispute_receivable",-dispute.amountMinor]);
+          if(won)postings.push(["dispute_won","stripe_receivable",dispute.amountMinor],
+            ["dispute_won","dispute_receivable",-dispute.amountMinor]);
+          for(const [type,account,amount] of postings){
+            const marker="led_dispute:"+dispute.id+":"+type+":"+account;
+            statements.push(db.prepare(
+              "INSERT INTO commerce_ledger_entries(id,order_id,refund_id,user_id,entry_type,account_code,amount_minor,currency,external_reference,metadata_json,created_at) SELECT ?,?,NULL,?,?,?,?,?,?,?,? WHERE NOT EXISTS (SELECT 1 FROM commerce_ledger_entries WHERE id=?)"
+            ).bind(marker,order.id,order.user_id,type,account,amount,dispute.currency,
+              dispute.id,JSON.stringify({disputeId:dispute.id}),at,marker));
+          }
+        }
+        /*__DISPUTE_INSERT_CONTINUE__*/
         // Synthetic QA owner lease + private DO bearer are enforced above.
         // Production must separately certify provider evidence provenance.
         if(!raw||typeof raw!=="object"||Array.isArray(raw))
