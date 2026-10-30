@@ -30,6 +30,8 @@ on:
       - "src/storefront-strangler/legal-primary-write-lock.ts"
       - "docs/architecture/canonical-writer-workflow-migration-v2.md"
       - "scripts/test-canonical-writer-review.mjs"
+      - "scripts/rebase-canonical-writer-review.mjs"
+      - "scripts/test-canonical-writer-rebase.mjs"
       - "scripts/check-audio-progress-nonauthorizing.mjs"
       - "scripts/check-nonauthorizing-legal-history.mjs"
       - "scripts/check-audio-playback-remaining-nonauthorizing.mjs"
@@ -68,6 +70,8 @@ on:
       - "src/storefront-strangler/legal-primary-write-lock.ts"
       - "docs/architecture/canonical-writer-workflow-migration-v2.md"
       - "scripts/test-canonical-writer-review.mjs"
+      - "scripts/rebase-canonical-writer-review.mjs"
+      - "scripts/test-canonical-writer-rebase.mjs"
       - "scripts/check-audio-progress-nonauthorizing.mjs"
       - "scripts/check-nonauthorizing-legal-history.mjs"
       - "scripts/check-audio-playback-remaining-nonauthorizing.mjs"
@@ -102,6 +106,7 @@ jobs:
         run: |
           node scripts/reconcile-canonical-writers.mjs
           node scripts/test-canonical-writer-review.mjs
+          node scripts/test-canonical-writer-rebase.mjs
           node scripts/test-canonical-owner-workflow-inventory.mjs
           node scripts/check-canonical-owner-command-gateway.mjs
           node scripts/check-owner-refund-accounting.mjs
