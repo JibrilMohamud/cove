@@ -126,7 +126,7 @@ function intersection<T>(a: Set<T>, b: Set<T>) {
 }
 
 /** `none` means DRM is optional; `none-only` explicitly requires DRM-free delivery. */
-export export function drmSatisfiesRequirement(requirement: string, actual: string) {
+export function drmSatisfiesRequirement(requirement: string, actual: string) {
   const required = normalizeDrm(requirement),
     delivered = normalizeDrm(actual);
   if (["", "none", "optional", "any"].includes(required)) return true;

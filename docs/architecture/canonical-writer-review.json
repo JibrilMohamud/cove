@@ -4359,7 +4359,7 @@
       "reason": "This exact projection UPDATE changes ratings, ranking scores or taxonomy text only. It does not change rights, offers, suppression or permission; candidate delivery still needs current legal authorization."
     },
     {
-      "siteId": "b357dc043260f89b71aaabf77c2c8fa82f4601630ee79a2649b1c44406b7de3a",
+      "siteId": "748e5b15fdba9db803153bbf2f10609d36266c58f7acfa632b6b55490080c829",
       "file": "src/features/fore/rights.server.ts",
       "line": 845,
       "functionName": "resolveRightsDecision",
@@ -4371,7 +4371,7 @@
       "reason": "Evaluation history is written after resolving rights. Authorization re-evaluates grants; the recorded decision is not a reusable positive grant."
     },
     {
-      "siteId": "2558148a04a6e0de6bd4eccb7985e6a5d3498d21a02b58778a1389881e777245",
+      "siteId": "d35b4bfdffc87457898a5435962e4bd108d40e2b7f358229e1edb055f982ce7f",
       "file": "src/features/fore/rights.server.ts",
       "line": 953,
       "functionName": "upsertRightsParty",
@@ -4384,7 +4384,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "0d1162d64e9e72514d9e04cb89e66a1fead4879116f10ea31839d83a0cd9e099",
+      "siteId": "e6a7391e9c302a5c960237abdd1f8689af139fc9d941799bd891bc1cd869adda",
       "file": "src/features/fore/rights.server.ts",
       "line": 1040,
       "functionName": "rebuildAllTerritorySets",
@@ -4397,7 +4397,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "a20ffd8ddd9bf0f7cad82bb78cc11a488c58b7a723742ca1c8b14c089ad443da",
+      "siteId": "7c21839ea5e39d9cef58b30e69e879b16cb9729dd0f16465ac13ee7b60613b3e",
       "file": "src/features/fore/rights.server.ts",
       "line": 1049,
       "functionName": "rebuildAllTerritorySets",
@@ -4410,7 +4410,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "a1aa14f88c695e1efc991ff50a89d5fc15e10cfed145ef5c4f5e4956680bc6b0",
+      "siteId": "d2935e5b6ef01d2273d2f53bfcacfcd79ed0b1c307c442b12d6ed57263f1cc71",
       "file": "src/features/fore/rights.server.ts",
       "line": 1095,
       "functionName": "upsertTerritorySet",
@@ -4423,7 +4423,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "64a4971a36bb6abfc43d93935b61acf4cb00d197a0a00d847a2ee5ecd2679b8a",
+      "siteId": "747212f136dbd1b7544813dddc1a505292d336658ab5fc0e8c51dc521628105c",
       "file": "src/features/fore/rights.server.ts",
       "line": 1098,
       "functionName": "upsertTerritorySet",
@@ -4436,7 +4436,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "4f8341a803bfb3166da36b856e1f87744cfc7b230aa73649dd53a65efc27615c",
+      "siteId": "ba9b788d97d1003824fda028b45a4304059e0aec687fb6aa9e48e2d402defc29",
       "file": "src/features/fore/rights.server.ts",
       "line": 1104,
       "functionName": "upsertTerritorySet",
@@ -4449,7 +4449,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "0a76ebeecf6d2ad8ba1e5e2ac346768d99bdd6880bd0acfa031bae250ef2df8e",
+      "siteId": "0cf81e7fc27ae88b1d6c8893e2adbdd59f8669c30ba41725f5834de6a5096e54",
       "file": "src/features/fore/rights.server.ts",
       "line": 1124,
       "functionName": "upsertTerritorySet",

@@ -5,7 +5,7 @@
   "files": [
     {
       "path": "src/features/fore/rights.server.ts",
-      "sha256": "5930871c3b89b86504babd534efc9e04d250bfa3034298965ec26ed34a5c7cb2",
+      "sha256": "add9ba718f5b65de5d6ae17e18b4851c5f2ca27a3e8c6857155d7621efc83a00",
       "review": "Verified the shared rights contract and grant editors both reject unowned D1 writes; pure read/validation helpers are explicitly exported, and all remaining protected SQL fingerprints remain unchanged."
     },
     {
