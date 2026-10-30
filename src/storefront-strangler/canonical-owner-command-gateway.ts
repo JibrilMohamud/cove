@@ -356,7 +356,8 @@ export async function dispatchCanonicalOwnerCommand(
          ack.operationId!==body.operationId||
          ![ack.leased,ack.applied,ack.failed,ack.sandbox].every(n=>
            Number.isSafeInteger(n)&&Number(n)>=0&&Number(n)<=Number(body.limit))||
-         ack.applied+ack.failed!==ack.leased||ack.sandbox!==ack.leased)
+         Number(ack.applied)+Number(ack.failed)!==Number(ack.leased)||
+         Number(ack.sandbox)!==Number(ack.leased))
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "publishing.save-contract-version":
