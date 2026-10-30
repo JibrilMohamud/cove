@@ -814,7 +814,7 @@ export async function localizationAdminSnapshot(db: StorefrontDB) {
 }
 
 // Keep the exact canonical implementation and its live staff/territory checks;
- // the optimized presentation plane must not own a second mutation executor.
+// the optimized presentation plane must not own a second mutation executor.
 export { upsertMarket } from "../features/fore/localization.server";
 
 export async function upsertTaxonomyLocalization(
