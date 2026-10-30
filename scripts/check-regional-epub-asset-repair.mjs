@@ -25,8 +25,11 @@ try {
     path.join(root, "regional-epub-asset-repair.server.mjs")
   );
   const model = await import(path.join(root, "catalog-model.server.mjs"));
-  assert.equal(model.commercialCatalogStatements, undefined,
-    "Production catalog model must never re-expose direct canonical writer");
+  assert.equal(
+    model.commercialCatalogStatements,
+    undefined,
+    "Production catalog model must never re-expose direct canonical writer",
+  );
   const env = localBindings(root);
   const at = "2026-10-20T00:00:00.000Z";
   const actualEpub = Buffer.from("Test EPUB bytes retained after completed source conversion");
