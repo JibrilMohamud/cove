@@ -52,7 +52,13 @@ for(const patch of [
 ]) assert.equal(same({...book,...patch},row,sourceUrl),false,JSON.stringify(patch));
 assert.match(api,/const unchangedIds = new Set\(unchanged\.map/);
 assert.match(api,/const changed = accepted\.filter/);
-assert.match(api,/for \(const book of changed\)\s*await db\.batch\(commercialCatalogStatements/);
+assert.match(api,/for \\(const book of changed\\)\\s*await dispatchCatalogFreeNormalization\\(db,/,
+  "Every changed book must use the independently authenticated private owner");
+assert.doesNotMatch(api,/db\\.batch\\(commercialCatalogStatements/,
+  "No legacy public catalog normalization SQL fallback may survive");
+const owner=fs.readFileSync("src/storefront-strangler/legal-authority.worker.ts","utf8");
+assert.match(owner,/if\\(route==="\\/catalog\\/normalize-gutenberg"\\)/);
+assert.match(owner,/source\\.commercial_use_status!=="approved"/);
 assert.match(api,/for \(const book of accepted\)\s*await syncEditionTaxonomy/,
   "Even an unchanged book MUST recheck taxonomy and incomplete prior publication");
 assert.match(api,/last_seen_at=\?,source_updated_at=\?/);
