@@ -44,5 +44,12 @@ jobs:
           node scripts/check-retired-checkout-money-writers.mjs
       - name: Isolated local fixture and anonymous rights-checked bootstrap
         run: node scripts/check-storefront-bootstrap.mjs
+      - name: Canonical ingestion, asset capacity, erasure and regional EPUB
+        run: |
+          node scripts/check-catalog-ingestion-idempotency.mjs
+          node scripts/check-gutendex-popularity-only.mjs
+          node scripts/check-content-coverage.mjs
+          node scripts/check-sharing-erasure.mjs
+          node scripts/check-regional-epub-asset-repair.mjs
       - name: Strict TypeScript
         run: npm run typecheck
