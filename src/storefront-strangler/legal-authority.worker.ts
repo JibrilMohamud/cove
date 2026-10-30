@@ -7,7 +7,7 @@ import {executeOwnerRefundAccounting} from "./refund-accounting-owner-executor";
 import {executeOwnerRefundReservation} from "./refund-reservation-owner-executor";
 import {executeOwnerCheckoutPaymentBinding} from "./checkout-payment-binding-owner-executor";
 import {executeOwnerPaidSettlement} from "./paid-settlement-owner-executor";
-import {upsertRightsGrant} from "../features/fore/rights.server";
+import {channelSchema,scopeRuleSchema,restrictionsSchema,grantScopeFromInput,drmSatisfiesRequirement,normalizeTerritoryCode,detectRightsConflicts} from "../features/fore/rights.server";
 import {z} from "zod/v3";
 import {createRoyaltyContractVersion} from "../features/fore/royalty-engine.server";
 import {ensurePreorderReleasePlan} from "../features/fore/preorder.server";
@@ -198,6 +198,300 @@ async function upsertRightsContractPrivate(db: CatalogDB, raw: unknown) {
   );
   await db.batch(statements);
   return { id, conflicts: await detectRightsConflicts(db) };
+}
+
+/* eslint-enable @typescript-eslint/no-explicit-any */
+// Owner-private rights grant mutation. No API, scheduled worker or direct D1
+// caller can import this implementation. Publishing materialization calls it
+// under its existing checked owner command/hold/replay boundary.
+/* eslint-disable @typescript-eslint/no-explicit-any -- Byte-exact historical rights-grant implementation, source-parity verified. */
+async function upsertRightsGrantPrivate(db: CatalogDB, raw: unknown) {
+  const now=()=>new Date().toISOString();
+  const hist = z.object({ code: z.string().max(2), asOfDate: z.string().nullable().optional() });
+  const x = z
+    .object({
+      id: z.string().max(180).optional(),
+      editionId: z.string().min(1).max(180),
+      rightsholderPartyId: z.string().max(180).nullable().optional(),
+      rightsholderId: z.string().max(180).nullable().optional(),
+      territory: z.string().max(2).default("US"),
+      territoryName: z.string().max(120).optional(),
+      scopeMode: z.enum(["single", "set", "worldwide", "expression"]).default("single"),
+      territorySetId: z.string().max(180).nullable().optional(),
+      scopeRules: z.array(scopeRuleSchema).max(500).optional(),
+      includeTerritories: z.array(z.string().max(2)).max(300).default([]),
+      excludeTerritories: z.array(z.string().max(2)).max(300).default([]),
+      includeSetIds: z.array(z.string().max(180)).max(100).default([]),
+      excludeSetIds: z.array(z.string().max(180)).max(100).default([]),
+      includeHistorical: z.array(hist).max(50).default([]),
+      excludeHistorical: z.array(hist).max(50).default([]),
+      format: z.string().trim().min(1).max(40),
+      salesChannel: channelSchema.default("retail"),
+      startsAt: z.string().datetime().nullable().optional(),
+      endsAt: z.string().datetime().nullable().optional(),
+      licenseType: z.string().trim().min(1).max(80),
+      contractId: z.string().max(180).nullable().optional(),
+      contractVersionId: z.string().max(180).nullable().optional(),
+      exclusivity: z.enum(["nonexclusive", "exclusive", "sole"]).default("nonexclusive"),
+      drmRequirement: z.string().trim().min(1).max(80).default("none"),
+      subscriptionPermitted: z.boolean().default(false),
+      libraryPermitted: z.boolean().default(false),
+      decision: z.enum(["allow", "deny"]).default("allow"),
+      status: z.enum(["draft", "active", "suspended", "revoked", "expired"]).default("active"),
+      promotionRestrictions: restrictionsSchema.default({}),
+      contractReference: z.string().max(200).default(""),
+      source: z.string().max(120).default("operator"),
+      notes: z.string().max(2000).default(""),
+    })
+    .parse(raw);
+  if (x.startsAt && x.endsAt && x.endsAt <= x.startsAt)
+    throw new ApiError(400, "Rights end date must be after the start date.");
+  if (
+    !x.rightsholderPartyId &&
+    !x.rightsholderId &&
+    x.licenseType.trim().toLowerCase() !== "public-domain"
+  )
+    throw new ApiError(
+      400,
+      "A rightsholder is required for licensed distribution rights. Public-domain determinations are the only rightsholder-free exception.",
+    );
+  const edition = await db
+    .prepare("SELECT id,title FROM editions WHERE id=?")
+    .bind(x.editionId)
+    .first<any>();
+  if (!edition) throw new ApiError(400, "Unknown edition.");
+  let holderName = "";
+  if (x.rightsholderPartyId) {
+    const party = await db
+      .prepare("SELECT id,display_name FROM rights_parties WHERE id=? AND status='active'")
+      .bind(x.rightsholderPartyId)
+      .first<any>();
+    if (!party) throw new ApiError(400, "Unknown or inactive rights party.");
+    holderName = String(party.display_name || "");
+  }
+  let contractVersionId = x.contractVersionId || null;
+  if (x.contractId) {
+    const contract = await db
+      .prepare(
+        "SELECT id,rightsholder_party_id,reference_code FROM rights_contracts WHERE id=? AND status IN ('draft','active')",
+      )
+      .bind(x.contractId)
+      .first<any>();
+    if (!contract) throw new ApiError(400, "Unknown or inactive rights contract.");
+    if (
+      contract.rightsholder_party_id &&
+      x.rightsholderPartyId &&
+      String(contract.rightsholder_party_id) !== x.rightsholderPartyId
+    )
+      throw new ApiError(400, "Grant rightsholder does not match the selected contract.");
+    if (!x.contractReference) x.contractReference = String(contract.reference_code || "");
+    if (contractVersionId) {
+      const v = await db
+        .prepare(
+          "SELECT id,status,effective_from,effective_to FROM rights_contract_versions WHERE id=? AND contract_id=?",
+        )
+        .bind(contractVersionId, x.contractId)
+        .first<any>();
+      if (!v)
+        throw new ApiError(400, "The selected contract version does not belong to this contract.");
+      if (x.status === "active" && String(v.status) !== "active")
+        throw new ApiError(409, "Active rights grants must reference an active contract version.");
+    } else {
+      const v = await db
+        .prepare(
+          "SELECT id FROM rights_contract_versions WHERE contract_id=? AND status='active' AND effective_from<=? AND (effective_to IS NULL OR effective_to>?) ORDER BY version_number DESC LIMIT 1",
+        )
+        .bind(x.contractId, now(), now())
+        .first<any>();
+      if (v) contractVersionId = String(v.id);
+      else {
+        const versions = await db
+          .prepare("SELECT count(*) n FROM rights_contract_versions WHERE contract_id=?")
+          .bind(x.contractId)
+          .first<any>();
+        if (x.status === "active" && Number(versions?.n || 0) > 0)
+          throw new ApiError(
+            409,
+            "This contract has versioned policy but no active effective version. Activate a contract version before the grant.",
+          );
+      }
+    }
+  } else if (contractVersionId) throw new ApiError(400, "contractVersionId requires contractId.");
+  const id = x.id || `right_${crypto.randomUUID()}`,
+    at = now(),
+    scope = await grantScopeFromInput(db, x),
+    before = x.id
+      ? await db.prepare("SELECT created_at FROM rights_grants WHERE id=?").bind(id).first<any>()
+      : null;
+  if (contractVersionId && ["draft", "active"].includes(x.status)) {
+    const [tv, fv, cv] = await Promise.all([
+      db
+        .prepare(
+          `SELECT territory_code,decision FROM rights_contract_version_territories WHERE contract_version_id=?`,
+        )
+        .bind(contractVersionId)
+        .all<any>(),
+      db
+        .prepare(
+          "SELECT decision,drm_requirement FROM rights_contract_version_formats WHERE contract_version_id=? AND lower(format)=lower(?)",
+        )
+        .bind(contractVersionId, x.format)
+        .first<any>(),
+      db
+        .prepare(
+          "SELECT permitted FROM rights_contract_version_channels WHERE contract_version_id=? AND sales_channel=?",
+        )
+        .bind(contractVersionId, x.salesChannel)
+        .first<any>(),
+    ]);
+    const allowed = new Set(
+      tv.results
+        .filter((r: any) => r.decision === "allow")
+        .map((r: any) => String(r.territory_code)),
+    );
+    const denied = new Set(
+      tv.results
+        .filter((r: any) => r.decision === "deny")
+        .map((r: any) => String(r.territory_code)),
+    );
+    if (
+      tv.results.length &&
+      scope.territories.some((t: string) => denied.has(t) || !allowed.has(t))
+    )
+      throw new ApiError(409, "The grant territory scope exceeds the selected contract version.");
+    if (!fv || String(fv.decision) !== "allow")
+      throw new ApiError(
+        409,
+        "The grant format is not permitted by the selected contract version.",
+      );
+    if (!cv || !Number(cv.permitted))
+      throw new ApiError(
+        409,
+        "The grant sales channel is not permitted by the selected contract version.",
+      );
+    if (!drmSatisfiesRequirement(String(fv.drm_requirement || "none"), x.drmRequirement))
+      throw new ApiError(
+        409,
+        "The grant DRM policy is weaker than the selected contract version requires.",
+      );
+  }
+
+  const candidate: any = {
+    id,
+    edition_id: x.editionId,
+    edition_title: String(edition.title || x.editionId),
+    rightsholder_id: x.rightsholderId || null,
+    rightsholder_party_id: x.rightsholderPartyId || null,
+    rightsholder_name: holderName,
+    format: x.format,
+    sales_channel: x.salesChannel,
+    starts_at: x.startsAt || null,
+    ends_at: x.endsAt || null,
+    contract_id: x.contractId || null,
+    contract_version_id: contractVersionId,
+    exclusivity: x.exclusivity,
+    subscription_permitted: x.subscriptionPermitted ? 1 : 0,
+    library_permitted: x.libraryPermitted ? 1 : 0,
+    decision: x.decision,
+    status: x.status,
+    territories: scope.territories,
+  };
+  const preflight = await detectRightsConflicts(db, candidate),
+    blocking = preflight.filter(
+      (c) => c.severity === "error" && (c.grantAId === id || c.grantBId === id),
+    );
+  if (x.status === "active" && blocking.length)
+    throw new ApiError(
+      409,
+      `Rights conflict: ${blocking[0].message} Conflicting grant ${blocking[0].grantAId === id ? blocking[0].grantBId : blocking[0].grantAId}.`,
+    );
+  const statements: any[] = [
+    db
+      .prepare(
+        `INSERT INTO rights_grants(id,edition_id,rightsholder_id,rightsholder_party_id,territory_code,format,sales_channel,starts_at,ends_at,license_type,drm_requirement,subscription_permitted,library_permitted,decision,status,promotion_restrictions_json,contract_reference,source,notes,created_at,updated_at,contract_id,contract_version_id,exclusivity,scope_summary)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET edition_id=excluded.edition_id,rightsholder_id=excluded.rightsholder_id,rightsholder_party_id=excluded.rightsholder_party_id,territory_code=excluded.territory_code,format=excluded.format,sales_channel=excluded.sales_channel,starts_at=excluded.starts_at,ends_at=excluded.ends_at,license_type=excluded.license_type,drm_requirement=excluded.drm_requirement,subscription_permitted=excluded.subscription_permitted,library_permitted=excluded.library_permitted,decision=excluded.decision,status=excluded.status,promotion_restrictions_json=excluded.promotion_restrictions_json,contract_reference=excluded.contract_reference,source=excluded.source,notes=excluded.notes,updated_at=excluded.updated_at,contract_id=excluded.contract_id,contract_version_id=excluded.contract_version_id,exclusivity=excluded.exclusivity,scope_summary=excluded.scope_summary`,
+      )
+      .bind(
+        id,
+        x.editionId,
+        x.rightsholderId || null,
+        x.rightsholderPartyId || null,
+        scope.legacyCode,
+        x.format,
+        x.salesChannel,
+        x.startsAt || null,
+        x.endsAt || null,
+        x.licenseType,
+        x.drmRequirement,
+        x.subscriptionPermitted ? 1 : 0,
+        x.libraryPermitted ? 1 : 0,
+        x.decision,
+        x.status,
+        JSON.stringify(x.promotionRestrictions),
+        x.contractReference,
+        x.source,
+        x.notes,
+        before?.created_at || at,
+        at,
+        x.contractId || null,
+        contractVersionId,
+        x.exclusivity,
+        scope.summary,
+      ),
+    db.prepare("DELETE FROM rights_grant_territory_scopes WHERE grant_id=?").bind(id),
+    db.prepare("DELETE FROM rights_grant_territories WHERE grant_id=?").bind(id),
+  ];
+  scope.rules.forEach((r, i) =>
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO rights_grant_territory_scopes(id,grant_id,effect,target_type,territory_code,territory_set_id,historical_code,as_of_date,position,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)`,
+        )
+        .bind(
+          `rgscope_${crypto.randomUUID()}`,
+          id,
+          r.effect,
+          r.targetType,
+          r.territoryCode ? normalizeTerritoryCode(r.territoryCode) : null,
+          r.territorySetId || null,
+          r.historicalCode ? String(r.historicalCode).toUpperCase() : null,
+          r.asOfDate || null,
+          i,
+          at,
+        ),
+    ),
+  );
+  for (let i = 0; i < scope.territories.length; i += 80) {
+    const chunk = scope.territories.slice(i, i + 80),
+      values = chunk.map(() => "(?,?,?,?)").join(","),
+      st = db.prepare(
+        `INSERT INTO rights_grant_territories(grant_id,territory_code,resolved_from,snapshotted_at) VALUES ${values}`,
+      ),
+      binds: any[] = [];
+    for (const code of chunk) binds.push(id, code, scope.summary, at);
+    statements.push(st.bind(...binds));
+  }
+  statements.push(
+    db
+      .prepare(
+        "INSERT INTO rights_grant_scope_snapshots(id,grant_id,scope_json,territories_json,recorded_at) VALUES(?,?,?,?,?)",
+      )
+      .bind(
+        `rgss_${crypto.randomUUID()}`,
+        id,
+        JSON.stringify({ mode: x.scopeMode, rules: scope.rules, summary: scope.summary }),
+        JSON.stringify(scope.territories),
+        at,
+      ),
+  );
+  await db.batch(statements);
+  return {
+    id,
+    territoryCount: scope.territories.length,
+    territories: scope.territories,
+    scopeSummary: scope.summary,
+    conflicts: preflight.filter((c) => c.grantAId === id || c.grantBId === id),
+  };
 }
 
 /* eslint-enable @typescript-eslint/no-explicit-any */
@@ -986,7 +1280,7 @@ async function materializePublishingSubmissionOwned(
     channels = safeJson<string[]>(edition.sales_channels_json, ["retail"]),
     rightsGrantIds: string[] = [];
   for (const channel of channels) {
-    const grant = await upsertRightsGrant(db as any, {
+    const grant = await upsertRightsGrantPrivate(db, {
       editionId: catalogEditionId,
       rightsholderPartyId: rightsPartyId,
       format: edition.format,

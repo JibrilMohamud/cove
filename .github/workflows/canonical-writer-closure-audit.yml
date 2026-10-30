@@ -21,6 +21,7 @@ on:
       - "scripts/check-owner-contract-version.mjs"
       - "scripts/check-owner-contract-version-source-boundary.mjs"
       - "scripts/check-private-rights-contract-source-boundary.mjs"
+      - "scripts/check-private-rights-grant-source-boundary.mjs"
       - "scripts/check-private-materialization-source-boundary.mjs"
       - "scripts/check-private-publication-activation-boundary.mjs"
       - "scripts/check-production-writer-topology.mjs"
@@ -67,6 +68,7 @@ on:
       - "scripts/check-owner-contract-version.mjs"
       - "scripts/check-owner-contract-version-source-boundary.mjs"
       - "scripts/check-private-rights-contract-source-boundary.mjs"
+      - "scripts/check-private-rights-grant-source-boundary.mjs"
       - "scripts/check-private-materialization-source-boundary.mjs"
       - "scripts/check-private-publication-activation-boundary.mjs"
       - "scripts/check-production-writer-topology.mjs"
@@ -128,6 +130,7 @@ jobs:
           node scripts/check-owner-contract-version.mjs
           node scripts/check-owner-contract-version-source-boundary.mjs
           node scripts/check-private-rights-contract-source-boundary.mjs
+          node scripts/check-private-rights-grant-source-boundary.mjs
           node scripts/check-private-materialization-source-boundary.mjs
           node scripts/check-private-publication-activation-boundary.mjs
           node scripts/test-production-writer-topology.mjs
