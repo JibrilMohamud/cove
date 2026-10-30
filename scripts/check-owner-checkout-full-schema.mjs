@@ -114,7 +114,7 @@ try {
     const create=()=>call("/commercial/checkout/materialize-draft",draft);
     const prepare=orderId=>call("/commercial/checkout/prepare-draft",{userId:user,orderId,quoteId});
     const count=table=>Number(db.prepare("SELECT COUNT(*) n FROM "+table).get().n);
-    return {db,durable,env,draft,call,create,prepare,count,loseAck(){loseAck=true;}};
+    return {db,durable,owner,env,draft,call,create,prepare,count,loseAck(){loseAck=true;}};
   }
   const ok=fixture();
   let result=await ok.create();
@@ -371,6 +371,47 @@ try {
   assert.equal((await isolated.call(cancelRoute,{
     orderId:(await isolatedDraft.json()).orderId,userId:user,source:"customer"
   })).status,503,"Production DB is not an eligible private QA cancellation owner");
+  // Exercise the ACTUAL customer API and scheduled cron entrypoints, not
+  // only the private Durable Object. The enrolled callers have zero legal
+  // writer fallback after the owner RPC fails.
+  const commercePath=join(root,"commerce-caller.mjs");
+  await build({entryPoints:["src/features/fore/commerce.server.ts"],
+    outfile:commercePath,bundle:true,platform:"node",target:"node22",
+    format:"esm",logLevel:"silent"});
+  const {cancelCheckoutOrder,reconcileStripe}=await import(pathToFileURL(commercePath).href);
+  const caller=fixture(),callerDraft=await caller.create();
+  assert.equal(callerDraft.status,200);
+  const callerOrder=(await callerDraft.json()).orderId;
+  assert.equal((await caller.prepare(callerOrder)).status,200);
+  const stageEnv={...caller.env,DB:caller.env.PRIMARY_DB,
+    COVE_LEGAL_CONSUMER_STAGE_ENABLED:"1",COVE_SSR_STAGING:"1",
+    COVE_CANONICAL_LEGAL_WRITE_LOCK:"1",
+    COVE_LEGAL_WRITER_PRIMARY_ID:caller.env.COVE_RIGHTS_OWNER_PRIMARY_ID,
+    LEGAL_AUTHORITY:{getByName(name){
+      assert.equal(name,"cove-staged-legal-global-v1");return caller.owner;
+    }}};
+  assert.deepEqual(await cancelCheckoutOrder(stageEnv,{id:user},callerOrder),
+    {orderId:callerOrder,status:"canceled"},"Enrolled customer API must use owner-only cancellation");
+  assert.equal(caller.db.prepare("SELECT status FROM commerce_orders WHERE id=?").get(callerOrder).status,
+    "canceled");
+  assert.equal(caller.db.prepare("SELECT COUNT(*) n FROM commerce_balance_reservations WHERE status='reserved'")
+    .get().n,0);
+  const cron=await reconcileStripe(stageEnv,5);
+  assert.equal(cron.checked,0,"The stage cron must reconcile only attached PI orders");
+  assert.equal(caller.count("commerce_reconciliation_runs"),1,
+    "Scheduled run must be recorded by the private owner");
+  const closed=fixture(),closedDraft=await closed.create();
+  assert.equal(closedDraft.status,200);
+  const closedOrder=(await closedDraft.json()).orderId;
+  assert.equal((await closed.prepare(closedOrder)).status,200);
+  const deniedEnv={...stageEnv,DB:closed.env.PRIMARY_DB,
+    COVE_RIGHTS_OWNER_SECRET:"bad-secret",LEGAL_AUTHORITY:{getByName:()=>closed.owner}};
+  await assert.rejects(()=>cancelCheckoutOrder(deniedEnv,{id:user},closedOrder),
+    /owner|certified/i,"A broken owner must not fall back to API-side D1");
+  assert.equal(closed.db.prepare("SELECT status FROM commerce_orders WHERE id=?")
+    .get(closedOrder).status,"pending_payment");
+  assert.equal(closed.db.prepare("SELECT COUNT(*) n FROM commerce_balance_reservations WHERE status='reserved'")
+    .get().n,2,"The failed owner must not release tender from the caller plane");
   console.log("PASS: real private DO checkout order + risk + gift/card/credit + promo + quote; replay and failures against all migrations, production denied");
 }finally{
   for(const db of databases)db.close();
