@@ -1,0 +1,12 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "The exact catalog_search_documents presentation projection SQL has not changed. Its enclosing executePublicationMaterialization private QA command now invokes a private injected writer rather than importing any shared legacy D1 materializer. The reviewed SQL literal digest, disposition, and source containment remain unchanged; only the whole-file SHA and line address change.",
+  "files": [
+    {
+      "path": "src/storefront-strangler/publication-materialization-command.ts",
+      "sha256": "de68cc2dde6b2838d80a261c9b1bb230c6d2d714248bc4f622ffc69f39217f9d",
+      "review": "Verified the private owner executable call graph and unchanged catalog_search_documents SQL statement; no external route or extra canonical write is introduced."
+    }
+  ]
+}
