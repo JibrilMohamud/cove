@@ -1503,7 +1503,10 @@ async function completeRequestedRefund(env: CoveEnv, o: RefundOrder, intent: Ref
     // The enrolled owner is the only writer of provider state. Its
     // interrupted request must never fall back to caller-owned D1 SQL.
     // Owner retains pending reservation on loss of provider receipt.
-    console.error("Private refund provider reconciliation failed; retry retains its reserved intent", e);
+    console.error(
+      "Private refund provider reconciliation failed; retry retains its reserved intent",
+      e,
+    );
     throw e;
   }
 }
