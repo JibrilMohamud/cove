@@ -89,6 +89,7 @@ function qaOwnerLeaseLive(env:LegalAuthorityEnv) {
 // This implementation is not exported to an API, scheduler, or external D1 caller.
 // The publication materialization command independently checks the immutable
 // submission, reviewer, legal proof and durable owner hold before invoking it.
+/* eslint-disable @typescript-eslint/no-explicit-any -- Byte-exact transplanted historical rights-contract SQL, independently source-parity tested. */
 async function upsertRightsContractPrivate(db: CatalogDB, raw: unknown) {
   const channelSchema=z.enum(["retail","subscription","library"]);
   const now=()=>new Date().toISOString();
@@ -199,6 +200,7 @@ async function upsertRightsContractPrivate(db: CatalogDB, raw: unknown) {
   return { id, conflicts: await detectRightsConflicts(db) };
 }
 
+/* eslint-enable @typescript-eslint/no-explicit-any */
 // The only physical executor of distribution-contract D1 mutations is compiled
 // into this private service-binding-only Durable Object. Never import or export
 // this function to an API, scheduled worker, or a second D1 binding.
