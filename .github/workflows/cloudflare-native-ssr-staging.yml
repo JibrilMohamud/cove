@@ -174,7 +174,7 @@ jobs:
       COVE_CLOUDFLARE_SSR_PILOT: "1"
       VERCEL: "0"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: actions/setup-node@v6
@@ -238,7 +238,7 @@ jobs:
       CLOUDFLARE_SEND_METRICS: "false"
       COVE_SSR_STAGING_ORIGIN: "https://cove-storefront-ssr-staging.cove-jibrilmohamud.workers.dev"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: actions/setup-node@v6

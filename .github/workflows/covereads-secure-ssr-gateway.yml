@@ -53,7 +53,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: actions/setup-node@v6
@@ -85,7 +85,7 @@ jobs:
       CLOUDFLARE_SEND_METRICS: "false"
       COVE_SSR_PROTECTED_TEST_ORIGIN: "https://cove-asset-auth-gateway.cove-jibrilmohamud.workers.dev"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: actions/setup-node@v6
