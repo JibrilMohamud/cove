@@ -2848,12 +2848,12 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           return new Response(null,{status:400,headers:noStore});
         const db=env.PRIMARY_DB,at=new Date().toISOString();
         const order=await db.prepare(
-          "SELECT id,user_id,quote_id,status,capture_method,risk_assessment_id,risk_action,gift_card_minor,store_credit_minor,promo_discount_minor,stripe_due_minor,promo_code_hash,currency,total_minor,stripe_payment_intent_id FROM commerce_orders WHERE id=? AND user_id=? AND quote_id=?"
+          "SELECT id,user_id,quote_id,status,capture_method,risk_assessment_id,risk_action,gift_card_minor,store_credit_minor,promo_discount_minor,stripe_due_minor,currency,total_minor,stripe_payment_intent_id FROM commerce_orders WHERE id=? AND user_id=? AND quote_id=?"
         ).bind(input.orderId,input.userId,input.quoteId)
           .first<{id:string;user_id:string;quote_id:string;status:string;capture_method:string;
             risk_assessment_id:string|null;risk_action:string|null;
             gift_card_minor:number;store_credit_minor:number;promo_discount_minor:number;
-            stripe_due_minor:number;promo_code_hash:string|null;currency:string;
+            stripe_due_minor:number;currency:string;
             total_minor:number;stripe_payment_intent_id:string|null}>();
         const quote=await db.prepare(
           "SELECT id,user_id,gift_card_hash,promo_code_hash,consumed_at,expires_at FROM commerce_checkout_quotes WHERE id=? AND user_id=?"
@@ -2862,7 +2862,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
             consumed_at:string|null;expires_at:string}>();
         if(!order||!quote||order.status!=="pending_payment"||
            order.stripe_payment_intent_id!==null||
-           order.promo_code_hash!==quote.promo_code_hash)
+           !Number.isSafeInteger(Number(order.stripe_due_minor)))
           return new Response(null,{status:409,headers:noStore});
         const verified=async()=>{
           const counts=await db.prepare(
