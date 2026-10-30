@@ -59,7 +59,7 @@ try {
   deny(command,{...quote,gift_card_hash:null},/money_mismatch/);
   deny(command,{...quote,items_json:JSON.stringify([...items,items[0]])},/duplicate_product/);
   deny(command,{...quote,items_json:JSON.stringify(items.map(x=>({...x,
-    rightsSnapshot:{salesChannel:"subscription"}}))},/nonretail_scope/);
+    rightsSnapshot:{salesChannel:"subscription"}})))},/nonretail_scope/);
   deny({...command,orderId:"ord_forged"},quote,/unrecognized_key|Unrecognized key/i);
   assert.equal(checkoutDraftCommand.safeParse({...command,sql:"DROP TABLE x"}).success,false);
   deny(command,{...quote,items_json:JSON.stringify(items.map(x=>({...x,
