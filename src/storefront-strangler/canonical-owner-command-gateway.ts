@@ -27,7 +27,9 @@ const routes={
     userId:ownerId,quoteId:ownerId,
     idempotencyKey:z.string().min(16).max(200),
     cartFingerprint:z.string().min(16).max(1024),
-    captureMethod:z.enum(["manual","automatic","automatic_async"])
+    captureMethod:z.enum(["manual","automatic","automatic_async"]),
+    soundsStation:z.string().regex(/^[a-z0-9-]{1,80}$/).optional(),
+    soundsRecording:z.string().regex(/^(?:cm_[0-9]{1,15}|ex_[0-9a-f-]{36})$/).optional()
   }).strict()},
   "commerce.attach-payment-intent":{path:"/commercial/checkout/attach-payment-intent",schema:z.object({
     orderId:ownerId,userId:ownerId,
