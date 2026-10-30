@@ -2972,8 +2972,10 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           .all<{id:string;quote_id:string;idempotency_key:string;currency:string;stripe_due_minor:number}>();
         if(old.results.length){
           const existing=old.results[0];
-          if(old.results.length!==1||existing.quote_id!==command.quoteId||
-             existing.idempotency_key!==command.idempotencyKey)
+          // A second client idempotency key for the SAME canonical quote may
+          // resume that already-created order; a key linked to another quote
+          // is always rejected by this exact owner-and-quote check.
+          if(old.results.length!==1||existing.quote_id!==command.quoteId)
             return new Response(null,{status:409,headers:noStore});
           const lines=await db.prepare(
             "SELECT COUNT(*) n FROM commerce_order_items WHERE order_id=?"
