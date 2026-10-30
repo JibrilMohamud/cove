@@ -8,7 +8,7 @@ const proxy=readFileSync("src/storefront-strangler/publication-owner-routing.ser
 const review=JSON.parse(readFileSync("docs/architecture/canonical-writer-review.json","utf8"));
 const rows=review.sites.filter(x=>x.file==="src/features/fore/traditional-publishing.server.ts");
 assert.equal(rows.filter(x=>x.disposition==="owner-command-required").length,13);
-assert.equal(review.sites.filter(x=>x.disposition==="owner-command-required").length,281);
+assert.equal(review.sites.filter(x=>x.disposition==="owner-command-required").length,260);
 assert.equal(review.releaseApproval,false);
 assert.match(source,/export async function processPartnerFeedQueue\(db: CatalogDB, limit = 25\) \{\s*return dispatchPartnerFeedProcessing\(db, limit\);/);
 for(const name of ["applyMetadataItem","applyAssetManifestItem","applyDeltaItem","reconcileFullPartnerSnapshot"])
@@ -54,4 +54,4 @@ visit(sourceFile);
 for(const row of lineage.rows)
   assert.ok(privateLiterals.has(row.sqlSha256),
     "Retired SQL literal has no byte-exact private-owner counterpart: "+row.functionName+" "+row.table);
-console.log("PASS: 25 private owner-only partner SQL writers retired, 281 unresolved; production positive feed activation denied.");
+console.log("PASS: 25 private owner-only partner SQL writers retired, 260 unresolved; production positive feed activation denied.");

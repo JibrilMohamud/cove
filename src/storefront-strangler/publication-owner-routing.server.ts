@@ -133,3 +133,32 @@ export async function dispatchPartnerFeedProcessing(db:object,limit=25) {
       failed:Number(receipt.failed),sandbox:Number(receipt.sandbox)};
   }catch {throw new ApiError(503,"Partner feed owner did not acknowledge completion.");}
 }
+
+/** No D1 SQL, grant or product can be selected by a public catalog caller.
+ * The owner independently verifies original source rows on isolated QA D1. */
+export async function dispatchCatalogFreeNormalization(db:object,sourceId:string,_at:string) {
+  const context=owners.get(db);
+  if(!context)throw new ApiError(503,"Catalog normalization requires private authority.");
+  if(!/^(?:[0-9]{1,10}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90})$/.test(sourceId))
+    throw new ApiError(400,"Invalid Gutenberg source identifier.");
+  const operationId="catalog-free:"+crypto.randomUUID();
+  try {
+    return await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+      "catalog.normalize-gutenberg",{sourceId,operationId});
+  }catch{throw new ApiError(503,"Private catalog owner did not accept verified source proof.");}
+}
+
+/** Private user imports stay strictly scoped to the staged owner.
+ * Owner independently checks the exact R2 object and import ownership. */
+export async function dispatchCatalogPersonalImport(db:object,input:{
+  id:string;userId:string;title:string;author:string;language:string;
+  objectKey:string;createdAt:string;
+}) {
+  const context=owners.get(db);
+  if(!context)throw new ApiError(503,"Personal imports require private catalog authority.");
+  const operationId="catalog-personal:"+crypto.randomUUID();
+  try {
+    return await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+      "catalog.personal-import",{...input,operationId});
+  }catch{throw new ApiError(503,"Private catalog owner did not accept personal import.");}
+}

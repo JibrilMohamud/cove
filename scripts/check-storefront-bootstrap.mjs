@@ -79,7 +79,7 @@ try {
     () => projectedAnonymousHomePage(Array(65).fill(homeRows[0]), "US", "en"),
     /Unbounded/,
   );
-  const env = localBindings(root);
+  const env = localBindings(root,{seedCatalogFixture:true});
   await build({
     entryPoints: ["src/features/fore/localization.server.ts"], bundle: true,
     platform: "node", format: "esm", outfile: path.join(root, "localization.mjs"),

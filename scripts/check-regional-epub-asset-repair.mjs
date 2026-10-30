@@ -24,7 +24,12 @@ try {
   const { repairRegionalEpubAssets } = await import(
     path.join(root, "regional-epub-asset-repair.server.mjs")
   );
-  const { commercialCatalogStatements } = await import(path.join(root, "catalog-model.server.mjs"));
+  const model = await import(path.join(root, "catalog-model.server.mjs"));
+  assert.equal(
+    model.commercialCatalogStatements,
+    undefined,
+    "Production catalog model must never re-expose direct canonical writer",
+  );
   const env = localBindings(root);
   const at = "2026-10-20T00:00:00.000Z";
   const actualEpub = Buffer.from("Test EPUB bytes retained after completed source conversion");
@@ -195,7 +200,7 @@ try {
   // New completions from a canonicalized HTML source must normalize a reader
   // asset immediately, even without an upstream application/epub+zip format.
   const fresh = await seed("pgau_9100005");
-  await env.DB.batch(commercialCatalogStatements(env.DB, "pgau_9100005", at));
+  env.normalizeExistingLocalCatalogSource("pgau_9100005", at);
   const current = await env.DB.prepare(
     "SELECT v.object_key,v.source_url FROM digital_assets d JOIN asset_versions v" +
       " ON v.id=d.current_version_id WHERE d.edition_id=? AND d.kind='epub'",

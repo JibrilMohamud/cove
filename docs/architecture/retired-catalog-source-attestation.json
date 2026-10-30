@@ -1,0 +1,18 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "productionReleaseEligible": false,
+  "releaseApproval": false,
+  "evidence": "docs/architecture/retired-catalog-owner-20261030.md",
+  "files": [
+    {
+      "path": "src/features/fore/catalog-model.server.ts",
+      "sha256": "3a073b67b6b5ea87728219308bf750c11abc6fcccbfcd5fe223906fbc91ac963",
+      "review": "Removed both complete former direct statement builders; maintained unchanged catalog read/query and catalogIds."
+    },
+    {
+      "path": "src/features/fore/api.server.ts",
+      "sha256": "58ca7bed1a9ef7e112973f222361b6ac70be191da5df3c7022e42a36c5ed4d07",
+      "review": "Replaced all 7 free and 1 personal-import caller path with typed private owner RPC and retained all 33 SQL source lines; no alternate direct calls."
+    }
+  ]
+}

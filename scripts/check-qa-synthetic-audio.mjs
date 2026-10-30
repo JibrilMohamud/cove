@@ -75,7 +75,7 @@ try {
   });
   const audio = await import(moduleFile);
   const api = await import(path.join(root, "api.mjs"));
-  const env = localBindings(root);
+  const env = localBindings(root, { seedCatalogFixture: true });
   await api.handleCoveApi(new Request("https://cove.qa/api/fore/catalog"), env);
   const product = await env.DB.prepare(
     "SELECT id FROM products WHERE source_external_id='1342'",

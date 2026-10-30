@@ -20,8 +20,12 @@ try {
       "stored-epub.server",
       "epub-retry-policy",
       "public-status.server",
-    ].map((f) => `src/features/fore/${f}.ts`),
+    ]
+      .map((f) => `src/features/fore/${f}.ts`)
+      .concat(["src/storefront-strangler/publication-owner-routing.server.ts"]),
     bundle: true,
+    splitting: true,
+    entryNames: "[name]",
     platform: "node",
     format: "esm",
     outdir: root,
@@ -55,7 +59,7 @@ try {
   );
   const { runStoredAssetTick } = await import(path.join(root, "catalog-assets.server.mjs"));
   const { audioCoverage } = await import(path.join(root, "audio-coverage.mjs"));
-  const env = localBindings(root);
+  let env = localBindings(root);
   await api.handleCoveApi(new Request("https://cove.test/api/fore/catalog"), env);
   // Fail the release if a future migration forces a large transient sort on
   // the per-minute US queue; the backend uses these exact bound predicates.
@@ -91,7 +95,80 @@ try {
       count: 48,
       next: null,
     });
-  await api.runCatalogIngestion({ ...env, BUCKET: undefined }, 0, { includeRegional: false });
+  const attemptedImport = await api.runCatalogIngestion({ ...env, BUCKET: undefined }, 0, {
+    includeRegional: false,
+  });
+  assert.equal(
+    attemptedImport.failed,
+    true,
+    "source import cannot authorize catalog rows without owner",
+  );
+  assert.match(attemptedImport.error, /Catalog normalization requires private authority/);
+  env.seedAdditionalLocalCatalogBooks(
+    Array.from({ length: 48 }, (_, i) => ({
+      ...seed,
+      id: 990001 + i,
+      title: `Coverage ${i}`,
+      copyright: false,
+    })),
+  );
+  // The positive branch here is a synthetic, in-memory owner transport,
+  // NEVER a production right to grant. The real owner is QA-only and stays
+  // disabled on the public route. This test exercises the actual typed RPC
+  // boundary while retaining 32 valid EPUB downloads in isolated SQLite.
+  const { bindPublicationOwner } = await import(
+    path.join(root, "publication-owner-routing.server.mjs")
+  );
+  const rawEnv = env;
+  const secret = "a".repeat(64);
+  const owner = {
+    async fetch(request) {
+      assert.equal(request.method, "POST");
+      assert.equal(new URL(request.url).pathname, "/catalog/normalize-gutenberg");
+      assert.equal(request.headers.get("authorization"), "Bearer " + secret);
+      const { sourceId, operationId } = await request.json();
+      assert.match(sourceId, /^9900[0-9]{2}$/);
+      const approved = await rawEnv.DB.prepare(
+        "SELECT copyright,rights_status,commercial_use_status,epub_status FROM gutenberg_source_cache WHERE id=?",
+      )
+        .bind(sourceId)
+        .first();
+      const evidence = await rawEnv.DB.prepare(
+        "SELECT id FROM gutenberg_rights_evidence WHERE cache_id=? AND status='approved' AND determination='public-domain' LIMIT 1",
+      )
+        .bind(sourceId)
+        .first();
+      if (
+        !approved ||
+        approved.copyright !== 0 ||
+        approved.rights_status !== "public-domain" ||
+        approved.commercial_use_status !== "approved" ||
+        approved.epub_status !== "completed" ||
+        !evidence ||
+        !(await rawEnv.BUCKET.head(`epubs/${sourceId}.epub`))
+      ) {
+        return new Response(null, { status: 409 });
+      }
+      rawEnv.normalizeExistingLocalCatalogSource(sourceId, new Date().toISOString());
+      return Response.json({
+        schema: "cove.owner-catalog-free.v1",
+        ownerFirst: true,
+        sourceId,
+        productId: "prd_gutenberg_" + sourceId,
+        operationId,
+        applied: true,
+      });
+    },
+  };
+  env = {
+    ...rawEnv,
+    DB: bindPublicationOwner(rawEnv.DB, {
+      owner,
+      secret,
+      territory: "US",
+      currency: "USD",
+    }),
+  };
   await env.DB.prepare(
     "UPDATE gutenberg_source_cache SET epub_status='unavailable' WHERE id NOT BETWEEN '990001' AND '990048'",
   ).run();
@@ -136,6 +213,9 @@ try {
     "overlapping crons have one lease owner",
   );
   assert.equal(calls, 32, "asset work exceeds the old cap, with a strict bound");
+  const assetState = await env.DB.prepare(
+    "SELECT id,epub_status,epub_last_error FROM gutenberg_source_cache WHERE id BETWEEN '990001' AND '990048' AND epub_status<>'completed' LIMIT 3",
+  ).all();
   assert.equal(
     (
       await env.DB.prepare(
@@ -143,6 +223,7 @@ try {
       ).first()
     ).count,
     32,
+    "EPUB ingestion failures: " + JSON.stringify(assetState.results),
   );
   assert.equal(
     (await runStoredAssetTick({ ...env, FORE_ASSETS_PER_MINUTE: "0" })).skipped,

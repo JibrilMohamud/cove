@@ -110,6 +110,16 @@ const routes={
   "partner.process-feed":{path:"/publishing/partner/process-feed",schema:z.object({
     limit:z.number().int().min(1).max(25),operationId:shortOperation
   }).strict()},
+  "catalog.normalize-gutenberg":{path:"/catalog/normalize-gutenberg",schema:z.object({
+    sourceId:source,operationId:shortOperation
+  }).strict()},
+  "catalog.personal-import":{path:"/catalog/personal-import",schema:z.object({
+    id:z.string().regex(/^upload_[0-9a-f-]{36}$/),
+    userId:ownerId,title:z.string().max(240),author:z.string().max(240),
+    language:z.string().regex(/^[a-zA-Z-]{2,20}$/),
+    objectKey:z.string().max(500),createdAt:z.string().datetime(),
+    operationId:shortOperation
+  }).strict()},
   "publishing.save-contract-version":{path:"/publishing/contract/save-version",schema:z.object({
     actorUserId:ownerId,operationId:shortOperation,
     contract:z.record(z.string(),z.unknown())
@@ -358,6 +368,19 @@ export async function dispatchCanonicalOwnerCommand(
            Number.isSafeInteger(n)&&Number(n)>=0&&Number(n)<=Number(body.limit))||
          Number(ack.applied)+Number(ack.failed)!==Number(ack.leased)||
          Number(ack.sandbox)!==Number(ack.leased))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "catalog.normalize-gutenberg":
+      if(ack.schema!=="cove.owner-catalog-free.v1"||ack.ownerFirst!==true||
+         ack.operationId!==body.operationId||ack.sourceId!==body.sourceId||
+         ack.productId!=="prd_gutenberg_"+body.sourceId||ack.applied!==true)
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "catalog.personal-import":
+      if(ack.schema!=="cove.owner-personal-import.v1"||ack.ownerFirst!==true||
+         ack.operationId!==body.operationId||ack.userId!==body.userId||
+         ack.importId!==body.id||ack.productId!=="prd_"+body.id||
+         typeof ack.applied!=="boolean")
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "publishing.save-contract-version":

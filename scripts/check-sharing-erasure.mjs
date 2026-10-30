@@ -597,17 +597,20 @@ try {
     .bind(job, user, at, at, at)
     .run();
   const uploadId = `upload_${crypto.randomUUID()}`;
-  await db.batch(
-    catalog.personalImportStatements(db, {
-      id: uploadId,
-      userId: user,
-      title: "Private imported title",
-      author: "Private author",
-      language: "en",
-      objectKey: `uploads/${user}/true-private.epub`,
-      createdAt: at,
-    }),
+  assert.equal(
+    catalog.personalImportStatements,
+    undefined,
+    "Private imports must never expose a shared D1 writer",
   );
+  env.seedLocalPersonalImport({
+    id: uploadId,
+    userId: user,
+    title: "Private imported title",
+    author: "Private author",
+    language: "en",
+    objectKey: `uploads/${user}/true-private.epub`,
+    createdAt: at,
+  });
   const imported = await db
     .prepare("SELECT id,edition_id FROM products WHERE source_external_id=?")
     .bind(uploadId)

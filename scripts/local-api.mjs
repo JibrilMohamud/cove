@@ -4,7 +4,13 @@ import { DatabaseSync } from "node:sqlite";
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-export function localBindings(root) {
+import {
+  seedLocalCatalogFixture,
+  seedAdditionalLocalCatalogBooks,
+  seedLocalPersonalImport,
+  normalizeExistingLocalCatalogSource,
+} from "./test-local-catalog-fixture.mjs";
+export function localBindings(root, options = {}) {
   const dir = path.join(root, ".sites-runtime");
   fs.mkdirSync(dir, { recursive: true });
   const db = new DatabaseSync(path.join(dir, "fore.sqlite"));
@@ -22,6 +28,16 @@ export function localBindings(root) {
         db.prepare("INSERT INTO __local_migrations(name) VALUES(?)").run(name);
       }
     }
+  // Synthetic local/test DB only. Production Cloudflare Workers never import this module.
+  // This is a Node-only local DB fixture, never an edge/production Worker.
+  // Keep development and existing local QA fixtures populated without invoking
+  // the now-retired public source-authorizing catalog mutation path.
+  const localCatalogTablePresent = db
+    .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='gutenberg_source_cache'")
+    .get();
+  if (options.seedCatalogFixture !== false && localCatalogTablePresent) {
+    seedLocalCatalogFixture(db);
+  }
   function statement(sql, values = []) {
     const s = db.prepare(sql);
     return {
@@ -59,6 +75,15 @@ export function localBindings(root) {
     return dest;
   };
   return {
+    seedAdditionalLocalCatalogBooks(books) {
+      return seedAdditionalLocalCatalogBooks(db, books);
+    },
+    seedLocalPersonalImport(input) {
+      return seedLocalPersonalImport(db, input);
+    },
+    normalizeExistingLocalCatalogSource(sourceId, at) {
+      return normalizeExistingLocalCatalogSource(db, sourceId, at);
+    },
     DB: {
       prepare: statement,
       async batch(statements) {
@@ -135,7 +160,7 @@ export function foreApiDevPlugin() {
     name: "fore-local-api",
     configureServer(server) {
       env = {
-        ...localBindings(server.config.root),
+        ...localBindings(server.config.root, { seedCatalogFixture: true }),
         FORE_AUTH_MODE: process.env.FORE_AUTH_MODE || "supabase",
         SUPABASE_URL: process.env.SUPABASE_URL,
         SUPABASE_PUBLISHABLE_KEY: process.env.SUPABASE_PUBLISHABLE_KEY,

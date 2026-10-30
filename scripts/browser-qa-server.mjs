@@ -26,6 +26,10 @@ fs.copyFileSync(
   path.join(checkout, "scripts/local-api.mjs"),
   path.join(scratch, "scripts/local-api.mjs"),
 );
+fs.copyFileSync(
+  path.join(checkout, "scripts/test-local-catalog-fixture.mjs"),
+  path.join(scratch, "scripts/test-local-catalog-fixture.mjs"),
+);
 fs.symlinkSync(path.join(checkout, "node_modules"), path.join(scratch, "node_modules"), "dir");
 const env = { ...localBindings(scratch), FORE_AUTH_MODE: "browser-qa-managed" };
 const users = new Map();

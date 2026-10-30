@@ -129,11 +129,13 @@ import {
   unchangedNormalizedGutendexBook,
 } from "@/lib/catalog-ingestion-idempotency";
 import {
+  dispatchCatalogFreeNormalization,
+  dispatchCatalogPersonalImport,
+} from "../../storefront-strangler/publication-owner-routing.server";
+import {
   catalogIds,
-  commercialCatalogStatements,
   getCanonicalBook,
   canonicalLibraryBooks,
-  personalImportStatements,
   resolveProduct,
 } from "./catalog-model.server";
 import {
@@ -922,7 +924,7 @@ async function seedCatalog(env: CoveEnv) {
   );
   if (statements.length) await db.batch(statements);
   for (const book of books) {
-    await db.batch(commercialCatalogStatements(db, String(book.id), at));
+    await dispatchCatalogFreeNormalization(db, String(book.id), at);
     await syncEditionTaxonomy(db, catalogIds(String(book.id)).editionId);
   }
   await syncSearchIndex(env, Math.min(100, books.length || 1)).catch((error) =>
@@ -945,7 +947,7 @@ async function getBook(env: CoveEnv, id: string, userId?: string): Promise<Catal
   if (stored) {
     if (stored.copyright !== 0)
       throw new ApiError(404, "This edition is not confirmed public domain.");
-    await db.batch(commercialCatalogStatements(db, id, now()));
+    await dispatchCatalogFreeNormalization(db, id, now());
     await syncEditionTaxonomy(db, catalogIds(id).editionId);
     const migrated = await getCanonicalBook(db, id, userId);
     if (migrated) return migrated;
@@ -960,7 +962,7 @@ async function getBook(env: CoveEnv, id: string, userId?: string): Promise<Catal
     await db.batch([
       catalogInsert(db, seeded, "https://www.gutenberg.org/ebooks/" + seeded.id + "/", at),
     ]);
-    await db.batch(commercialCatalogStatements(db, String(seeded.id), at));
+    await dispatchCatalogFreeNormalization(db, String(seeded.id), at);
     await syncEditionTaxonomy(db, catalogIds(String(seeded.id)).editionId);
     const migrated = await getCanonicalBook(db, id, userId);
     if (migrated) return migrated;
@@ -983,7 +985,7 @@ async function getBook(env: CoveEnv, id: string, userId?: string): Promise<Catal
       at,
     ),
   ]);
-  await db.batch(commercialCatalogStatements(db, id, at));
+  await dispatchCatalogFreeNormalization(db, id, at);
   await syncEditionTaxonomy(db, catalogIds(id).editionId);
   const normalized = await getCanonicalBook(db, id, userId);
   if (!normalized) throw new ApiError(503, "This edition could not be normalized.");
@@ -1370,7 +1372,7 @@ async function insertRegionalEvidence(
     )
     .bind(checkedAt, editionId, grantSource)
     .run();
-  await db.batch(commercialCatalogStatements(db, String(row.id), checkedAt));
+  await dispatchCatalogFreeNormalization(db, String(row.id), checkedAt);
   await db
     .prepare(
       `UPDATE rights_grants SET status='active',updated_at=?,source_evidence_id=(
@@ -1608,7 +1610,7 @@ async function cachePendingEpubs(
           )
           .bind(now(), contentHash, canonicalizationVersion, id)
           .run();
-        await db.batch(commercialCatalogStatements(db, id, now()));
+        await dispatchCatalogFreeNormalization(db, id, now());
       } else {
         if (canonicalMetadata) {
           const authorsJson = JSON.stringify(canonicalMetadata.authors);
@@ -2223,7 +2225,7 @@ export async function runCatalogIngestion(
     );
     if (statements.length) await db.batch(statements);
     for (const book of changed)
-      await db.batch(commercialCatalogStatements(db, String(book.id), at));
+      await dispatchCatalogFreeNormalization(db, String(book.id), at);
     // This must run even when the source and canonical rows were unchanged:
     // a previous run may have failed *after* canonical normalization but
     // before taxonomy/outbox publication, and mapping rules may have changed.
@@ -6276,17 +6278,15 @@ async function handleCoveRequest(
         createdAt = now();
       await env.BUCKET.put(key, bytes, { httpMetadata: { contentType: "application/epub+zip" } });
       try {
-        await db.batch(
-          personalImportStatements(db, {
-            id,
-            userId: user.id,
-            title,
-            author,
-            language,
-            objectKey: key,
-            createdAt,
-          }),
-        );
+        await dispatchCatalogPersonalImport(db, {
+          id,
+          userId: user.id,
+          title,
+          author,
+          language,
+          objectKey: key,
+          createdAt,
+        });
       } catch (e) {
         await env.BUCKET.delete(key);
         throw e;
