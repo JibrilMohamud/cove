@@ -6,8 +6,8 @@
   "files": [
     {
       "path": "src/features/fore/publishing.server.ts",
-      "sha256": "091215a1225894692afca69e39767ab3c54e682b55618b4588dd526ecdfcf2bd",
-      "review": "Attested three former shared canonical write functions replaced with unowned 503 stubs; retained source SQL identity/function/table/operation and verified 17 physical removals into private owner source. Verified the final one-site accessibility sync migration and exact source line remapping."
+      "sha256": "24e9ff5840c8957f26e14c21eab0d10ea978428a021d23d08fade8ed8d8e8436",
+      "review": "Attested three former shared canonical write functions replaced with unowned 503 stubs; retained source SQL identity/function/table/operation and verified 17 physical removals into private owner source. Verified the final one-site accessibility sync migration and exact source line remapping. One blank-line formatting edit after the helper retirement was source-rebased with no additional SQL or privilege changes."
     }
   ]
 }
