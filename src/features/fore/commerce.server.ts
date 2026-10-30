@@ -22,6 +22,10 @@ import {
 } from "../../storefront-strangler/owner-stripe-webhook.server";
 import { updateStageOwnerPaymentState } from "../../storefront-strangler/owner-stripe-payment-status.server";
 import { syncStageOwnerStripeDispute } from "../../storefront-strangler/owner-stripe-dispute.server";
+import {
+  cancelStageOwnerUnpaidCheckout,
+  recordStageOwnerReconciliation,
+} from "../../storefront-strangler/owner-checkout-reconciliation.server";
 import { attachStageOwnerCheckoutPayment } from "../../storefront-strangler/owner-checkout-payment.server";
 import {
   materializeStageCheckoutDraft,
@@ -2015,6 +2019,17 @@ export async function cancelCheckoutOrder(env: CoveEnv, userId: string, orderId:
         },
       );
   }
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1") {
+    // Only the private owner independently verifies Stripe's CANCELED state
+    // and atomically releases the checkout's tender/promo reservations.
+    // A failed owner acknowledgment has no legacy D1 fallback.
+    await cancelStageOwnerUnpaidCheckout(env, {
+      orderId: String(o.id),
+      userId: String(o.user_id),
+      source: "customer",
+    });
+    return { orderId: o.id, status: "canceled" };
+  }
   await releaseOrderReservations(db, o.id);
   const at = now();
   await db
@@ -3381,6 +3396,8 @@ export async function commerceAdminSnapshot(db: CatalogDB) {
 }
 
 export async function reconcileStripe(env: CoveEnv, limit = 100) {
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1")
+    return reconcileStageOwnerStripe(env, limit);
   // Includes internal-only tender and failures after effects completed but
   // before the owner's publication ACK. No Stripe-only scan can find all
   // of these interrupted transactions.
@@ -3557,6 +3574,89 @@ export async function reconcileStripe(env: CoveEnv, limit = 100) {
     .run();
   return { id, checked: rows.results.length, mismatches, repaired, details };
 }
+/** An enrolled cron never writes any commerce or royalty row itself.
+ * Its only writes are fixed, verified owner RPCs; all other legacy
+ * reconciliation statements below remain production compatibility only. */
+async function reconcileStageOwnerStripe(env: CoveEnv, limit: number) {
+  const id = `recon_${crypto.randomUUID()}`, started = now(),
+    bound = Math.max(1, Math.min(500, limit)),
+    details: Array<Record<string, string>> = [];
+  await recoverStageOwnerPaidSettlements(env, Math.min(25, bound));
+  const rows = await env.DB
+    .prepare("SELECT * FROM commerce_orders WHERE stripe_payment_intent_id IS NOT NULL ORDER BY updated_at DESC LIMIT ?")
+    .bind(bound)
+    .all<any>();
+  let mismatches = 0, repaired = 0;
+  for (const o of rows.results) {
+    try {
+      const pi = await stripeRequest(
+        env,
+        `payment_intents/${encodeURIComponent(o.stripe_payment_intent_id)}`,
+        { method: "GET", params: { expand: ["latest_charge.balance_transaction"] } },
+      );
+      // A settled order's fee/receipt/royalty reconciliation belongs to the
+      // owner settlement outbox; NEVER to the scheduled caller's D1.
+      if (["paid", "partially_refunded", "refunded", "disputed", "chargeback_lost"].includes(o.status)) {
+        if (o.status === "paid") {
+          await settleStageOwnerPaidOrder(env, String(o.id));
+          repaired++;
+          details.push({ orderId: String(o.id), action: "owner_settlement_reconciled" });
+        }
+        continue;
+      }
+      const stripePaid = pi.status === "succeeded";
+      if (stripePaid) {
+        mismatches++;
+        // Owner independently verifies Stripe, each line's rights snapshot,
+        // tender consumption and settlement publication.
+        await finalizePaidOrder(env, String(o.id), {
+          provider: "stripe",
+          paymentIntentId: String(pi.id),
+          chargeId: null,
+          receiptUrl: null,
+        });
+        repaired++;
+        details.push({ orderId: String(o.id), action: "owner_settlement_repaired" });
+        continue;
+      }
+      const ageMs = Date.now() - Date.parse(String(o.updated_at || o.created_at || 0)),
+        staleRecoverable =
+          ["pending_payment", "payment_failed"].includes(o.status) &&
+          ageMs > 24 * 60 * 60_000 &&
+          ["requires_payment_method", "requires_confirmation", "requires_action", "canceled"]
+            .includes(String(pi.status));
+      if (staleRecoverable) {
+        if (pi.status !== "canceled")
+          await stripeRequest(
+            env,
+            `payment_intents/${encodeURIComponent(o.stripe_payment_intent_id)}/cancel`,
+            { idempotencyKey: `fore-expire-${o.id}`,
+              params: { cancellation_reason: "abandoned" } },
+          );
+        await cancelStageOwnerUnpaidCheckout(env, {
+          orderId: String(o.id),
+          userId: String(o.user_id),
+          source: "reconciliation",
+        });
+        repaired++;
+        details.push({ orderId: String(o.id), action: "owner_stale_checkout_canceled" });
+      }
+    } catch (error) {
+      details.push({
+        orderId: String(o.id).slice(0, 160),
+        error: String((error as Error).message || error).slice(0, 200),
+      });
+    }
+  }
+  const finished = now();
+  const reportDetails = details.slice(0, 100);
+  await recordStageOwnerReconciliation(env, {
+    runId: id, startedAt: started, finishedAt: finished,
+    checked: rows.results.length, mismatches, repaired, details: reportDetails,
+  });
+  return { id, checked: rows.results.length, mismatches, repaired, details: reportDetails };
+}
+
 export async function accountingCsv(db: CatalogDB, from: string, to: string) {
   const rows = await db
       .prepare(
