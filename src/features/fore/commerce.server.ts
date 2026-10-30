@@ -1254,6 +1254,7 @@ async function completeRequestedRefund(env: CoveEnv, o: RefundOrder, intent: Ref
     // The enrolled owner is the only writer of provider state. Its
     // interrupted request must never fall back to caller-owned D1 SQL.
     // Owner retains pending reservation on loss of provider receipt.
+    console.error("Private refund provider reconciliation failed; retry retains its reserved intent", e);
     throw e;
   }
 }
@@ -1639,10 +1640,17 @@ async function processStripeEvent(env: CoveEnv, event: any) {
     // Only the owner may settle a captured charge after Stripe verification.
     const pi = typeof obj.payment_intent === "string" ? obj.payment_intent : obj.payment_intent?.id;
     if (pi) {
-      const order = await db.prepare("SELECT id FROM commerce_orders WHERE stripe_payment_intent_id=?").bind(pi).first<any>();
-      if (order) await finalizePaidOrder(env, String(order.id), {
-        provider: "stripe", paymentIntentId: String(pi), chargeId: String(obj.id), receiptUrl: obj.receipt_url || null,
-      });
+      const order = await db
+        .prepare("SELECT id FROM commerce_orders WHERE stripe_payment_intent_id=?")
+        .bind(pi)
+        .first<any>();
+      if (order)
+        await finalizePaidOrder(env, String(order.id), {
+          provider: "stripe",
+          paymentIntentId: String(pi),
+          chargeId: String(obj.id),
+          receiptUrl: obj.receipt_url || null,
+        });
     }
   } else if (type === "invoice.paid" || type === "invoice.payment_succeeded") {
     const customer = typeof obj.customer === "string" ? obj.customer : obj.customer?.id,
