@@ -91,12 +91,14 @@ try {
       count: 48,
       next: null,
     });
-  const attemptedImport = await api.runCatalogIngestion(
-    { ...env, BUCKET: undefined },
-    0,
-    { includeRegional: false },
+  const attemptedImport = await api.runCatalogIngestion({ ...env, BUCKET: undefined }, 0, {
+    includeRegional: false,
+  });
+  assert.equal(
+    attemptedImport.failed,
+    true,
+    "source import cannot authorize catalog rows without owner",
   );
-  assert.equal(attemptedImport.failed, true, "source import cannot authorize catalog rows without owner");
   assert.match(attemptedImport.error, /Catalog normalization requires private authority/);
   env.seedAdditionalLocalCatalogBooks(
     Array.from({ length: 48 }, (_, i) => ({
