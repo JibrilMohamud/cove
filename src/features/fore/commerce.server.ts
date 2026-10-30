@@ -448,255 +448,8 @@ async function storeCreditAvailable(db: CatalogDB, userId: string, currency: str
   return Math.max(0, ledger - reserved);
 }
 
-export async function checkoutQuote(env: CoveEnv, user: User, raw: unknown) {
-  const input = z
-    .object({
-      territory: z
-        .string()
-        .regex(/^[A-Za-z]{2}$/)
-        .default("US"),
-      billingAddress: addressSchema,
-      promoCode: z.string().max(80).default(""),
-      giftCardCode: z.string().max(120).default(""),
-      useStoreCredit: z.boolean().default(true),
-    })
-    .parse(raw);
-  const territory = input.billingAddress.country.toUpperCase();
-  if (input.territory.toUpperCase() !== territory)
-    throw new ApiError(
-      400,
-      "Checkout territory must match the billing country used for tax and payment.",
-    );
-  const db = env.DB,
-    cart = await cartPricing(db, user.id, territory, env);
-  const promo = await promoFor(db, user.id, input.promoCode, cart.subtotalMinor, cart.currency);
-  const eligibleSet = new Set<string>((promo?.eligibleProducts || []).map(String));
-  const eligibleWeights = cart.items.map((x) =>
-    !promo || eligibleSet.size === 0 || eligibleSet.has(String(x.productId))
-      ? Number(x.amountMinor)
-      : 0,
-  );
-  const eligibleSubtotal = eligibleWeights.reduce((a, b) => a + b, 0);
-  if (promo && eligibleSubtotal <= 0)
-    throw new ApiError(400, "That promotional code does not apply to any item in this cart.");
-  const discount = promo
-    ? promo.kind === "percent"
-      ? Math.floor((eligibleSubtotal * Math.min(100, Number(promo.value))) / 100)
-      : Math.min(eligibleSubtotal, Number(promo.value))
-    : 0;
-  if (promo && !promo.stackable && cart.items.some((x) => !!x.pricingPromotion))
-    throw new ApiError(
-      409,
-      "This promotional code cannot be combined with an existing sale price.",
-    );
-  const discountShares = moneySplit(discount, eligibleWeights);
-  const discounted = cart.items.map((x, i) => {
-    const lineDiscount = discountShares[i] || 0,
-      publisherBps = promo
-        ? Math.max(0, Math.min(10000, Number(promo.publisherFundingBps || 0)))
-        : 0,
-      publisherFunding = Math.floor((lineDiscount * publisherBps) / 10000);
-    return {
-      ...x,
-      discountMinor: lineDiscount,
-      taxableMinor: Math.max(0, x.amountMinor - lineDiscount),
-      taxMinor: 0,
-      publisherDiscountFundingMinor: publisherFunding,
-      foreDiscountFundingMinor: lineDiscount - publisherFunding,
-      checkoutPromotionCampaignId: promo?.campaignId || null,
-    };
-  });
-  if (promo) {
-    for (const item of discounted) {
-      if (!item.discountMinor) continue;
-      const check = promotionPermitted(item.rightsSnapshot?.promotionRestrictions || {}, {
-        type: "promo-code",
-        baseAmountMinor: Number(item.amountMinor),
-        proposedAmountMinor: Number(item.taxableMinor),
-        rightsholderApproved: promo.fundingSource === "publisher",
-      });
-      if (!check.allowed)
-        throw new ApiError(
-          409,
-          `The promotion cannot be applied to ${item.title} because of its distribution agreement (${check.reasonCode}).`,
-        );
-    }
-  }
-  let taxMinor = 0,
-    taxInclusiveMinor = 0,
-    taxId: string | null = null,
-    taxBreakdown: any[] = [],
-    taxProviderPayload: any = null,
-    taxLineSnapshot: any[] = [];
-  if (String(env.STRIPE_TAX_ENABLED || "true").toLowerCase() !== "false") {
-    const tax = await stripeRequest(env, "tax/calculations", {
-      params: {
-        currency: cart.currency.toLowerCase(),
-        customer_details: {
-          address: {
-            line1: input.billingAddress.line1,
-            line2: input.billingAddress.line2 || undefined,
-            city: input.billingAddress.city,
-            state: input.billingAddress.state || undefined,
-            postal_code: input.billingAddress.postalCode,
-            country: input.billingAddress.country,
-          },
-          address_source: "billing",
-        },
-        line_items: discounted.map((x, i) => ({
-          amount: x.taxableMinor,
-          reference: `${x.productId}:${i}`,
-          tax_code: x.taxCode || EBOOK_TAX_CODE,
-          tax_behavior: x.taxBehavior || "exclusive",
-        })),
-        expand: ["line_items"],
-      },
-    });
-    taxId = String(tax.id);
-    taxMinor = Number(tax.tax_amount_exclusive || 0);
-    taxInclusiveMinor = Number(tax.tax_amount_inclusive || 0);
-    taxBreakdown = Array.isArray(tax.tax_breakdown) ? tax.tax_breakdown : [];
-    taxProviderPayload = {
-      id: tax.id,
-      tax_amount_exclusive: tax.tax_amount_exclusive,
-      tax_amount_inclusive: tax.tax_amount_inclusive,
-      tax_breakdown: taxBreakdown,
-    };
-    const taxLines = Array.isArray(tax.line_items?.data) ? tax.line_items.data : [];
-    taxLineSnapshot = taxLines.map((line: any) => ({
-      reference: line.reference || "",
-      amount: Number(line.amount || 0),
-      amountTax: Number(line.amount_tax || line.tax_amount || 0),
-      taxBehavior: line.tax_behavior || "",
-    }));
-    if (taxLines.length === discounted.length) {
-      const taxByRef = new Map<string, number>();
-      for (const line of taxLines) {
-        taxByRef.set(String(line.reference || ""), Number(line.amount_tax || line.tax_amount || 0));
-      }
-      discounted.forEach((item, i) => {
-        item.taxMinor = taxByRef.get(`${item.productId}:${i}`) || 0;
-      });
-    } else {
-      const exclusiveIdx = discounted
-          .map((x, i) => ({ x, i }))
-          .filter((v) => v.x.taxBehavior !== "inclusive"),
-        inclusiveIdx = discounted
-          .map((x, i) => ({ x, i }))
-          .filter((v) => v.x.taxBehavior === "inclusive"),
-        exclusiveShares = moneySplit(
-          taxMinor,
-          exclusiveIdx.map((v) => v.x.taxableMinor),
-        ),
-        inclusiveShares = moneySplit(
-          taxInclusiveMinor,
-          inclusiveIdx.map((v) => v.x.taxableMinor),
-        );
-      exclusiveIdx.forEach((v, j) => {
-        discounted[v.i].taxMinor = exclusiveShares[j] || 0;
-      });
-      inclusiveIdx.forEach((v, j) => {
-        discounted[v.i].taxMinor = inclusiveShares[j] || 0;
-      });
-    }
-  }
-  const total = cart.subtotalMinor - discount + taxMinor;
-  const gift = await giftAvailability(db, input.giftCardCode, cart.currency),
-    storeAvailable = input.useStoreCredit
-      ? await storeCreditAvailable(db, user.id, cart.currency)
-      : 0;
-  let giftUse = Math.min(total, gift?.available || 0),
-    storeUse = Math.min(Math.max(0, total - giftUse), storeAvailable),
-    stripeDue = Math.max(0, total - giftUse - storeUse),
-    minimum = Math.max(0, Number(env.STRIPE_MINIMUM_CHARGE_MINOR || 50));
-  if (stripeDue > 0 && stripeDue < minimum) {
-    let needed = minimum - stripeDue,
-      reduceStore = Math.min(needed, storeUse);
-    storeUse -= reduceStore;
-    stripeDue += reduceStore;
-    needed -= reduceStore;
-    const reduceGift = Math.min(needed, giftUse);
-    giftUse -= reduceGift;
-    stripeDue += reduceGift;
-    if (stripeDue < minimum)
-      throw new ApiError(
-        409,
-        "The remaining card charge is below Stripe's minimum. Remove credit/gift tender or add another item.",
-      );
-  }
-  const cartRow = await db
-    .prepare("SELECT id FROM shopping_carts WHERE user_id=?")
-    .bind(user.id)
-    .first<any>();
-  if (!cartRow) throw new ApiError(409, "Your cart expired.");
-  const id = `quote_${crypto.randomUUID()}`,
-    at = now(),
-    expires = new Date(Date.now() + 30 * 60_000).toISOString(),
-    items = discounted.map((x) => ({ ...x }));
-  await db
-    .prepare(
-      `INSERT INTO commerce_checkout_quotes(id,user_id,cart_id,cart_fingerprint,territory_code,currency,items_json,billing_address_json,subtotal_minor,promo_discount_minor,tax_minor,tax_inclusive_minor,gift_card_minor,store_credit_minor,total_minor,stripe_due_minor,promo_code_hash,gift_card_hash,stripe_tax_calculation_id,tax_breakdown_json,expires_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    )
-    .bind(
-      id,
-      user.id,
-      cartRow.id,
-      cart.fingerprint,
-      territory,
-      cart.currency,
-      JSON.stringify(items),
-      JSON.stringify(input.billingAddress),
-      cart.subtotalMinor,
-      discount,
-      taxMinor,
-      taxInclusiveMinor,
-      giftUse,
-      storeUse,
-      total,
-      stripeDue,
-      promo?.hash || null,
-      gift?.hash || null,
-      taxId,
-      JSON.stringify(taxBreakdown),
-      expires,
-      at,
-    )
-    .run();
-  await recordCheckoutTaxEvidence(db, {
-    quoteId: id,
-    userId: user.id,
-    billingAddress: input.billingAddress,
-    storefrontCountry: territory,
-  });
-  if (taxId)
-    await recordCustomerTaxCalculation(db, {
-      quoteId: id,
-      provider: "stripe_tax",
-      providerCalculationId: taxId,
-      currency: cart.currency,
-      taxableMinor: discounted.reduce((n, x) => n + Number(x.taxableMinor || 0), 0),
-      taxExclusiveMinor: taxMinor,
-      taxInclusiveMinor,
-      breakdown: taxBreakdown,
-      lineItems: taxLineSnapshot,
-      providerPayload: taxProviderPayload,
-    });
-  return {
-    id,
-    expiresAt: expires,
-    currency: cart.currency,
-    items,
-    subtotalMinor: cart.subtotalMinor,
-    promo: promo ? { label: promo.label, amountMinor: discount } : null,
-    taxMinor,
-    taxInclusiveMinor,
-    taxBreakdown,
-    giftCardMinor: giftUse,
-    storeCreditMinor: storeUse,
-    totalMinor: total,
-    stripeDueMinor: stripeDue,
-    priceChanged: cart.stalePrice,
-  };
+export async function checkoutQuote(_env: CoveEnv, _user: User, _raw: unknown) {
+  throw new ApiError(503, "Checkout quotes require the private commerce owner.");
 }
 
 async function ensureStripeCustomer(env: CoveEnv, user: User) {
@@ -965,116 +718,6 @@ export async function createCheckoutPayment(env: CoveEnv, user: User, raw: unkno
   throw new ApiError(503, "Checkout requires the private commerce owner.");
 }
 
-async function releaseOrderReservations(db: CatalogDB, orderId: string) {
-  await db
-    .prepare(
-      "UPDATE commerce_balance_reservations SET status='released',updated_at=? WHERE order_id=? AND status='reserved'",
-    )
-    .bind(now(), orderId)
-    .run();
-  await db
-    .prepare(
-      "UPDATE commerce_promo_redemptions SET status='released',updated_at=? WHERE order_id=? AND status='reserved'",
-    )
-    .bind(now(), orderId)
-    .run();
-}
-async function ledger(
-  db: CatalogDB,
-  orderId: string,
-  userId: string | null,
-  type: string,
-  account: string,
-  amount: number,
-  currency: string,
-  external = "",
-  metadata: any = {},
-) {
-  const refundId = metadata?.refundId ? String(metadata.refundId) : null;
-  const exists = await db
-    .prepare(
-      "SELECT 1 ok FROM commerce_ledger_entries WHERE order_id=? AND entry_type=? AND account_code=? AND external_reference=? LIMIT 1",
-    )
-    .bind(orderId, type, account, external)
-    .first<any>();
-  if (exists) return;
-  try {
-    await db
-      .prepare(
-        "INSERT INTO commerce_ledger_entries(id,order_id,refund_id,user_id,entry_type,account_code,amount_minor,currency,external_reference,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-      )
-      .bind(
-        `led_${crypto.randomUUID()}`,
-        orderId,
-        refundId,
-        userId,
-        type,
-        account,
-        amount,
-        currency,
-        external,
-        JSON.stringify(metadata),
-        now(),
-      )
-      .run();
-  } catch (e) {
-    const duplicate = await db
-      .prepare(
-        "SELECT 1 ok FROM commerce_ledger_entries WHERE order_id=? AND entry_type=? AND account_code=? AND external_reference=? LIMIT 1",
-      )
-      .bind(orderId, type, account, external)
-      .first<any>();
-    if (!duplicate) throw e;
-  }
-}
-async function consumeTender(db: CatalogDB, order: AnyRow) {
-  const reservations = await db
-    .prepare("SELECT * FROM commerce_balance_reservations WHERE order_id=? AND status='reserved'")
-    .bind(order.id)
-    .all<any>();
-  for (const r of reservations.results) {
-    if (r.source_type === "gift_card") {
-      const card = await db
-        .prepare("SELECT balance_minor FROM commerce_gift_cards WHERE code_hash=?")
-        .bind(r.source_key)
-        .first<any>();
-      if (!card || Number(card.balance_minor) < Number(r.amount_minor))
-        throw new ApiError(500, "Reserved gift-card balance is inconsistent.");
-      const after = Number(card.balance_minor) - Number(r.amount_minor);
-      await db
-        .prepare(
-          "UPDATE commerce_gift_cards SET balance_minor=?,status=CASE WHEN ?=0 THEN 'exhausted' ELSE status END,updated_at=? WHERE code_hash=?",
-        )
-        .bind(after, after, now(), r.source_key)
-        .run();
-      await db
-        .prepare(
-          "INSERT INTO commerce_gift_card_ledger(id,code_hash,order_id,entry_type,amount_minor,balance_after_minor,created_at) VALUES(?,?,?,'purchase',?,?,?)",
-        )
-        .bind(crypto.randomUUID(), r.source_key, order.id, -Number(r.amount_minor), after, now())
-        .run();
-    } else {
-      await db
-        .prepare(
-          "INSERT INTO commerce_store_credit_ledger(id,user_id,order_id,entry_type,amount_minor,currency,reference,created_at) VALUES(?,?,?,'purchase',?,?,?,?)",
-        )
-        .bind(
-          crypto.randomUUID(),
-          order.user_id,
-          order.id,
-          -Number(r.amount_minor),
-          order.currency,
-          order.invoice_number,
-          now(),
-        )
-        .run();
-    }
-    await db
-      .prepare("UPDATE commerce_balance_reservations SET status='consumed',updated_at=? WHERE id=?")
-      .bind(now(), r.id)
-      .run();
-  }
-}
 async function recordTaxTransaction(env: CoveEnv, order: AnyRow) {
   if (
     !order.stripe_tax_calculation_id ||
@@ -1098,113 +741,6 @@ async function recordTaxTransaction(env: CoveEnv, order: AnyRow) {
   await commitCustomerTaxRecord(env.DB, order.id, String(tx.id));
   return tx.id;
 }
-async function pinPurchasedPublishingVersion(db: CatalogDB, userId: string, productId: string) {
-  const row = await db
-    .prepare(
-      `SELECT e.id entitlement_id,l.id lifecycle_id,l.owner_update_policy,l.current_publication_version_id FROM entitlements e JOIN publishing_publication_versions pv ON pv.id=(SELECT l2.current_publication_version_id FROM publishing_release_lifecycles l2 JOIN publishing_publication_versions pv2 ON pv2.id=l2.current_publication_version_id JOIN publishing_publications p2 ON p2.id=pv2.publication_id WHERE p2.product_id=e.product_id LIMIT 1) JOIN publishing_release_lifecycles l ON l.id=pv.lifecycle_id WHERE e.user_id=? AND e.product_id=? AND e.entitlement_type='purchase' AND e.status='active' LIMIT 1`,
-    )
-    .bind(userId, productId)
-    .first<any>();
-  if (!row || row.owner_update_policy === "auto_update" || !row.current_publication_version_id)
-    return;
-  const at = now(),
-    existing = await db
-      .prepare(
-        "SELECT publication_version_id FROM publishing_entitlement_version_pins WHERE entitlement_id=?",
-      )
-      .bind(row.entitlement_id)
-      .first<any>();
-  if (existing) return;
-  await db
-    .prepare(
-      "INSERT INTO publishing_entitlement_version_pins(entitlement_id,lifecycle_id,publication_version_id,policy_at_grant,pinned_at,updated_at) VALUES(?,?,?,?,?,?)",
-    )
-    .bind(
-      row.entitlement_id,
-      row.lifecycle_id,
-      row.current_publication_version_id,
-      row.owner_update_policy,
-      at,
-      at,
-    )
-    .run();
-  await db
-    .prepare(
-      "INSERT INTO publishing_owner_version_events(id,entitlement_id,lifecycle_id,from_publication_version_id,to_publication_version_id,action,actor_user_id,created_at) VALUES(?,?,?,?,?,'grant_pin',?,?)",
-    )
-    .bind(
-      `ownevt_${crypto.randomUUID()}`,
-      row.entitlement_id,
-      row.lifecycle_id,
-      null,
-      row.current_publication_version_id,
-      userId,
-      at,
-    )
-    .run();
-}
-async function hydrateProcessorFees(
-  env: CoveEnv,
-  order: any,
-  payment: { provider: string; paymentIntentId: string | null; chargeId: string | null },
-) {
-  if (payment.provider !== "stripe" || !payment.paymentIntentId) return null;
-  try {
-    const pi = await stripeRequest(
-      env,
-      `payment_intents/${encodeURIComponent(payment.paymentIntentId)}`,
-      { method: "GET", params: { expand: ["latest_charge.balance_transaction"] } },
-    );
-    const charge = typeof pi.latest_charge === "object" ? pi.latest_charge : null,
-      bt = charge?.balance_transaction;
-    if (!bt || !Number.isSafeInteger(bt.fee) || bt.fee < 0) return null;
-    const fee = Number(bt.fee),
-      items = (
-        await env.DB.prepare(
-          "SELECT id,total_minor FROM commerce_order_items WHERE order_id=? ORDER BY created_at,id",
-        )
-          .bind(order.id)
-          .all<any>()
-      ).results,
-      shares = moneySplit(
-        fee,
-        items.map((i: any) => Math.max(0, Number(i.total_minor || 0))),
-      );
-    for (let i = 0; i < items.length; i++)
-      await env.DB.prepare("UPDATE commerce_order_items SET processor_fee_minor=? WHERE id=?")
-        .bind(shares[i] || 0, items[i].id)
-        .run();
-    const currency = String(bt.currency || order.currency).toUpperCase(),
-      ref = String(bt.id);
-    await ledger(
-      env.DB,
-      order.id,
-      order.user_id,
-      "processor_fee",
-      "stripe_fee_expense",
-      fee,
-      currency,
-      ref,
-      { net: bt.net },
-    );
-    await ledger(
-      env.DB,
-      order.id,
-      order.user_id,
-      "processor_fee",
-      "stripe_receivable",
-      -fee,
-      currency,
-      ref,
-      { net: bt.net },
-    );
-    return { feeMinor: fee, balanceTransactionId: ref };
-  } catch (e) {
-    console.error("Unable to hydrate Stripe processor fee before royalty accrual", e);
-    return null;
-  }
-}
-
 export async function finalizePaidOrder(
   env: CoveEnv,
   orderId: string,
@@ -1216,6 +752,8 @@ export async function finalizePaidOrder(
     paymentMethod?: string;
   },
 ) {
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")
+    throw new ApiError(503, "Paid settlement requires the private commerce owner.");
   const db = env.DB,
     order = await db.prepare("SELECT * FROM commerce_orders WHERE id=?").bind(orderId).first<any>();
   if (!order) throw new ApiError(404, "Order not found.");
@@ -1243,276 +781,7 @@ export async function finalizePaidOrder(
     throw new ApiError(409, "Terminal or invalid order cannot be settled.");
   // Enrolled new settlements have NO caller-side mutation or fallback.
   if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1") return settleStageOwnerPaidOrder(env, orderId);
-  // No late Stripe success can resurrect a buyer refunded in the owner.
-  await assertStagePaidOrderNotWithdrawn(env, String(order.id));
-  const at = now();
-  await consumeTender(db, order);
-  await db
-    .prepare(
-      "UPDATE commerce_promo_redemptions SET status='applied',updated_at=? WHERE order_id=? AND status='reserved'",
-    )
-    .bind(at, orderId)
-    .run();
-  if (order.promo_discount_minor > 0 && order.quote_id) {
-    const q = await db
-      .prepare("SELECT promo_code_hash FROM commerce_checkout_quotes WHERE id=?")
-      .bind(order.quote_id)
-      .first<any>();
-    if (q?.promo_code_hash)
-      await db
-        .prepare(
-          "UPDATE commerce_promo_codes SET redemptions=redemptions+1,updated_at=? WHERE code_hash=?",
-        )
-        .bind(at, q.promo_code_hash)
-        .run();
-  }
-  const processorFee = await hydrateProcessorFees(env, order, payment);
-  const purchaseEvents: any[] = [];
-  const items = await db
-    .prepare("SELECT * FROM commerce_order_items WHERE order_id=?")
-    .bind(orderId)
-    .all<any>();
-  for (const item of items.results) {
-    const preorder = await registerPaidPreorder(db, {
-      orderId: order.id,
-      orderItemId: item.id,
-      userId: order.user_id,
-      productId: item.product_id,
-      currency: order.currency,
-      chargedMinor: Number(item.total_minor || 0),
-    });
-    if (!preorder) {
-      await db
-        .prepare(
-          `INSERT INTO entitlements(id,user_id,product_id,entitlement_type,status,source,order_item_id,granted_at,updated_at) VALUES(?,?,?,'purchase','active','commerce',?,?,?) ON CONFLICT(user_id,product_id,entitlement_type) WHERE status='active' DO UPDATE SET status='active',order_item_id=excluded.order_item_id,updated_at=excluded.updated_at`,
-        )
-        .bind(crypto.randomUUID(), order.user_id, item.product_id, item.id, at, at)
-        .run();
-      const product = await db
-        .prepare("SELECT source_external_id FROM products WHERE id=?")
-        .bind(item.product_id)
-        .first<any>();
-      if (product)
-        await db
-          .prepare(
-            `INSERT INTO reading_states(user_id,product_id,external_book_id,in_library,status,progress,cfi,updated_at) VALUES(?,?,?,1,'want-to-read',0,COALESCE((SELECT cfi FROM preview_states WHERE user_id=? AND product_id=?),''),?) ON CONFLICT(user_id,product_id) DO UPDATE SET in_library=1,cfi=CASE WHEN reading_states.cfi='' THEN excluded.cfi ELSE reading_states.cfi END,updated_at=excluded.updated_at`,
-          )
-          .bind(
-            order.user_id,
-            item.product_id,
-            product.source_external_id,
-            order.user_id,
-            item.product_id,
-            at,
-          )
-          .run();
-      await pinPurchasedPublishingVersion(db, order.user_id, item.product_id);
-      await ensureOwnershipSnapshot(db, String(order.user_id), String(item.product_id));
-      await db
-        .prepare(
-          "UPDATE commerce_order_items SET entitlement_status='granted',fulfillment_status='fulfilled' WHERE id=?",
-        )
-        .bind(item.id)
-        .run();
-    }
-    await db
-      .prepare(
-        "UPDATE preview_states SET converted_at=? WHERE user_id=? AND product_id=? AND converted_at IS NULL",
-      )
-      .bind(at, order.user_id, item.product_id)
-      .run();
-    await db
-      .prepare(
-        "UPDATE wishlist_items SET converted_at=?,updated_at=? WHERE user_id=? AND product_id=?",
-      )
-      .bind(at, at, order.user_id, item.product_id)
-      .run();
-    const pricingCampaign = await db
-      .prepare(
-        `SELECT pr.campaign_id,pd.promotion_amount_minor FROM pricing_decisions pd JOIN promotions pr ON pr.id=pd.promotion_id WHERE pd.id=?`,
-      )
-      .bind(item.pricing_decision_id || "")
-      .first<any>();
-    const campaignFunding = new Map<string, number>();
-    if (item.promotion_campaign_id)
-      campaignFunding.set(
-        String(item.promotion_campaign_id),
-        Number(item.publisher_discount_funding_minor || 0) +
-          Number(item.fore_discount_funding_minor || 0),
-      );
-    if (pricingCampaign?.campaign_id)
-      campaignFunding.set(
-        String(pricingCampaign.campaign_id),
-        (campaignFunding.get(String(pricingCampaign.campaign_id)) || 0) +
-          Number(pricingCampaign.promotion_amount_minor || 0),
-      );
-    for (const [campaignId, fundingMinor] of campaignFunding)
-      await recordPromotionAttribution(db, {
-        campaignId,
-        productId: item.product_id,
-        userId: order.user_id,
-        eventType: "order",
-        orderId: order.id,
-        orderItemId: item.id,
-        amountMinor: Number(item.total_minor || 0),
-        fundingMinor,
-        currency: order.currency,
-        sourceSurface: item.source_surface || "checkout",
-        dedupeKey: `order:${order.id}:${item.id}:${campaignId}`,
-      });
-    purchaseEvents.push({
-      eventType: "purchase_completed",
-      productId: String(item.product_id),
-      sourceSurface: String(item.source_surface || "checkout"),
-      sourceRequestId: item.source_request_id || null,
-      territory: String(order.territory_code || "US"),
-      currency: String(order.currency),
-      amountMinor: Number(item.total_minor || 0),
-      properties: {
-        orderId: order.id,
-        orderItemId: item.id,
-        preorder: !!item.preorder_id,
-        promotionCampaignId: item.promotion_campaign_id || null,
-      },
-      dedupeKey: `purchase:${order.id}:${item.id}`,
-    });
-  }
-  await db
-    .prepare(
-      "DELETE FROM shopping_cart_items WHERE cart_id=(SELECT id FROM shopping_carts WHERE user_id=?)",
-    )
-    .bind(order.user_id)
-    .run();
-  await db
-    .prepare(
-      "UPDATE commerce_orders SET status='paid',stripe_payment_intent_id=COALESCE(?,stripe_payment_intent_id),stripe_charge_id=COALESCE(?,stripe_charge_id),receipt_url=COALESCE(?,receipt_url),payment_method_summary=COALESCE(?,payment_method_summary),paid_at=COALESCE(paid_at,?),updated_at=? WHERE id=?",
-    )
-    .bind(
-      payment.paymentIntentId,
-      payment.chargeId,
-      payment.receiptUrl,
-      payment.paymentMethod || null,
-      at,
-      at,
-      orderId,
-    )
-    .run();
-  for (const event of purchaseEvents) await recordRetailEvent(db, order.user_id, event);
-  // Double-entry convention: debits are positive, credits are negative. Every commercial event balances to zero.
-  const grossAfterPromo = Number(order.subtotal_minor) - Number(order.promo_discount_minor),
-    taxInclusive = Number(order.tax_inclusive_minor || 0),
-    taxExclusive = Number(order.tax_minor || 0),
-    salesRevenue = Math.max(0, grossAfterPromo - taxInclusive),
-    taxTotal = taxInclusive + taxExclusive,
-    postingRef = payment.paymentIntentId || `internal:${orderId}`;
-  if (Number(order.stripe_due_minor || 0))
-    await ledger(
-      db,
-      orderId,
-      order.user_id,
-      "sale_tender",
-      "stripe_receivable",
-      Number(order.stripe_due_minor),
-      order.currency,
-      postingRef,
-    );
-  if (Number(order.gift_card_minor || 0))
-    await ledger(
-      db,
-      orderId,
-      order.user_id,
-      "sale_tender",
-      "gift_card_liability",
-      Number(order.gift_card_minor),
-      order.currency,
-      postingRef,
-    );
-  if (Number(order.store_credit_minor || 0))
-    await ledger(
-      db,
-      orderId,
-      order.user_id,
-      "sale_tender",
-      "store_credit_liability",
-      Number(order.store_credit_minor),
-      order.currency,
-      postingRef,
-    );
-  if (salesRevenue)
-    await ledger(
-      db,
-      orderId,
-      order.user_id,
-      "sale",
-      "ebook_sales",
-      -salesRevenue,
-      order.currency,
-      postingRef,
-    );
-  if (taxTotal)
-    await ledger(
-      db,
-      orderId,
-      order.user_id,
-      "tax",
-      "tax_payable",
-      -taxTotal,
-      order.currency,
-      postingRef,
-    );
-  if (payment.provider !== "stripe" || processorFee) {
-    try {
-      await accrueRoyaltiesForOrder(db, orderId);
-    } catch (e) {
-      console.error("Royalty accrual failed", e);
-    }
-  } else {
-    try {
-      await db
-        .prepare(
-          "INSERT INTO publishing_outbox(id,event_type,aggregate_type,aggregate_id,payload_json,status,attempts,available_at,created_at) VALUES(?, 'finance.royalty_fee_reconciliation_required','order',?,?,'pending',0,?,?)",
-        )
-        .bind(
-          `out_${crypto.randomUUID()}`,
-          orderId,
-          JSON.stringify({ orderId, paymentIntentId: payment.paymentIntentId }),
-          at,
-          at,
-        )
-        .run();
-    } catch (e) {
-      console.error("Unable to queue royalty reconciliation", e);
-    }
-  }
-  try {
-    await recordTaxTransaction(env, { ...order, stripe_tax_transaction_id: null });
-  } catch (e) {
-    console.error("Stripe Tax transaction creation failed", e);
-  }
-  try {
-    await emitNotification(db, {
-      userId: String(order.user_id),
-      eventType: "purchase_receipt",
-      dedupeKey: `purchase-receipt:${orderId}`,
-      title: `Receipt ${order.invoice_number}`,
-      body: `Your Cove order is complete. Total ${formatMinorCurrency(Number(order.total_minor || 0), String(order.currency || "USD"))}.`,
-      subjectType: "order",
-      subjectId: orderId,
-      actionUrl: `/orders/${encodeURIComponent(orderId)}`,
-      payload: {
-        orderId,
-        invoiceNumber: order.invoice_number,
-        currency: order.currency,
-        totalMinor: Number(order.total_minor || 0),
-      },
-    });
-  } catch (e) {
-    console.error("Purchase receipt notification enqueue failed", e);
-  }
-  // The paid D1 row is NOT a delivery license. A replay of the same signed
-  // Stripe event can finish owner publication after a temporary owner outage.
-  await certifyStagePaidSettlement(env, String(order.id), String(order.user_id));
-  return db.prepare("SELECT * FROM commerce_orders WHERE id=?").bind(orderId).first<any>();
+  throw new ApiError(503, "Paid settlement requires the private commerce owner.");
 }
 
 /** Retryable owner-side obligations. The atomic receipt is the outbox: a
@@ -1633,6 +902,8 @@ export async function recoverPayment(env: CoveEnv, userId: string, orderId: stri
   };
 }
 export async function cancelCheckoutOrder(env: CoveEnv, userId: string, orderId: string) {
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")
+    throw new ApiError(503, "Order cancellation requires the private commerce owner.");
   const db = env.DB,
     o = await db
       .prepare("SELECT * FROM commerce_orders WHERE id=? AND user_id=?")
@@ -1674,13 +945,7 @@ export async function cancelCheckoutOrder(env: CoveEnv, userId: string, orderId:
     });
     return { orderId: o.id, status: "canceled" };
   }
-  await releaseOrderReservations(db, o.id);
-  const at = now();
-  await db
-    .prepare("UPDATE commerce_orders SET status='canceled',canceled_at=?,updated_at=? WHERE id=?")
-    .bind(at, at, o.id)
-    .run();
-  return { orderId: o.id, status: "canceled" };
+  throw new ApiError(503, "Order cancellation requires the private commerce owner.");
 }
 
 export async function orderHistory(db: CatalogDB, userId: string) {
@@ -1879,116 +1144,7 @@ export async function refundOrder(env: CoveEnv, raw: unknown) {
     if (!["pending", "succeeded"].includes(intent.status)) return refundResponse(intent);
     return completeRequestedRefund(env, order, intent);
   }
-  const existing = await db
-    .prepare("SELECT * FROM commerce_refunds WHERE idempotency_key=?")
-    .bind(input.idempotencyKey)
-    .first<RefundIntent>();
-  if (existing) {
-    if (
-      String(existing.order_id) !== input.orderId ||
-      String(existing.reason) !== input.reason ||
-      (input.amountMinor !== undefined && Number(existing.amount_minor) !== input.amountMinor)
-    )
-      throw new ApiError(409, "This refund key belongs to a different request.");
-    if (existing.succeeded_at) {
-      await applyRefundSuccess(env, String(existing.id), null);
-      return refundResponse(existing);
-    }
-    if (!["pending", "succeeded"].includes(existing.status)) return refundResponse(existing);
-    // An owner outage can leave the immutable pending intent committed
-    // before Stripe was contacted. Retrying must finish that SAME intent,
-    // not return a misleading pending result forever or reserve tender again.
-    const order = await db
-      .prepare("SELECT * FROM commerce_orders WHERE id=?")
-      .bind(existing.order_id)
-      .first<RefundOrder>();
-    if (!order) throw new ApiError(404, "Refund order not found.");
-    return completeRequestedRefund(env, order, existing);
-  }
-  const o = await db
-    .prepare("SELECT * FROM commerce_orders WHERE id=?")
-    .bind(input.orderId)
-    .first<any>();
-  if (!o || !["paid", "partially_refunded", "disputed"].includes(o.status))
-    throw new ApiError(409, "This order is not refundable.");
-  const committed = await db
-    .prepare(
-      `SELECT COALESCE(SUM(amount_minor),0) amount,COALESCE(SUM(stripe_amount_minor),0) stripe,COALESCE(SUM(gift_card_amount_minor),0) gift,COALESCE(SUM(store_credit_amount_minor),0) store FROM commerce_refunds WHERE order_id=? AND status IN ('pending','succeeded')`,
-    )
-    .bind(o.id)
-    .first<any>();
-  const remainingTotal = Math.max(0, Number(o.total_minor) - Number(committed?.amount || 0));
-  if (input.amountMinor !== undefined && input.amountMinor > remainingTotal)
-    throw new ApiError(409, "The requested refund exceeds the unreserved order balance.");
-  const amount = input.amountMinor || remainingTotal;
-  if (amount <= 0)
-    throw new ApiError(
-      409,
-      "This order has already been fully refunded or has a refund in progress.",
-    );
-  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1" && amount < remainingTotal)
-    throw new ApiError(409, "Partial refunds require an item-scoped legal owner.");
-  let left = amount;
-  const stripeAvailable = Math.max(0, Number(o.stripe_due_minor) - Number(committed?.stripe || 0)),
-    stripeAmount = Math.min(left, stripeAvailable);
-  left -= stripeAmount;
-  const storeAvailable = Math.max(0, Number(o.store_credit_minor) - Number(committed?.store || 0)),
-    storeAmount = Math.min(left, storeAvailable);
-  left -= storeAmount;
-  const giftAvailable = Math.max(0, Number(o.gift_card_minor) - Number(committed?.gift || 0)),
-    giftAmount = Math.min(left, giftAvailable);
-  left -= giftAmount;
-  if (left > 0)
-    throw new ApiError(409, "The original payment tenders cannot cover that refund amount.");
-  if (stripeAmount > 0 && !o.stripe_payment_intent_id)
-    throw new ApiError(409, "Stripe payment information is missing for this order.");
-  const id = `ref_${crypto.randomUUID()}`,
-    at = now();
-  try {
-    // Reserve the complete immutable intent atomically against transaction-
-    // current refunds. Different request keys cannot both spend the same
-    // remaining order/tender balance after racing the preflight reads.
-    const reserved = await db
-      .prepare(
-        "INSERT INTO commerce_refunds(id,order_id,amount_minor,stripe_amount_minor,gift_card_amount_minor,store_credit_amount_minor,currency,reason,status,idempotency_key,created_at,updated_at) SELECT ?,?,?,?,?,?,?,?,'pending',?,?,? FROM commerce_orders o WHERE o.id=? AND o.status IN ('paid','partially_refunded','disputed') AND ?<=o.total_minor-COALESCE((SELECT SUM(amount_minor) FROM commerce_refunds WHERE order_id=o.id AND status IN ('pending','succeeded')),0) AND ?<=o.stripe_due_minor-COALESCE((SELECT SUM(stripe_amount_minor) FROM commerce_refunds WHERE order_id=o.id AND status IN ('pending','succeeded')),0) AND ?<=o.gift_card_minor-COALESCE((SELECT SUM(gift_card_amount_minor) FROM commerce_refunds WHERE order_id=o.id AND status IN ('pending','succeeded')),0) AND ?<=o.store_credit_minor-COALESCE((SELECT SUM(store_credit_amount_minor) FROM commerce_refunds WHERE order_id=o.id AND status IN ('pending','succeeded')),0)",
-      )
-      .bind(
-        id,
-        o.id,
-        amount,
-        stripeAmount,
-        giftAmount,
-        storeAmount,
-        o.currency,
-        input.reason,
-        input.idempotencyKey,
-        at,
-        at,
-        o.id,
-        amount,
-        stripeAmount,
-        giftAmount,
-        storeAmount,
-      )
-      .run();
-    if (Number((reserved as { meta?: { changes?: number } })?.meta?.changes) !== 1)
-      throw new ApiError(409, "The refund balance was reserved by another request.");
-  } catch (error) {
-    // A concurrent identical request may have won the unique key. Resume
-    // that exact persisted intent through the normal scope validation.
-    const winner = await db
-      .prepare("SELECT id FROM commerce_refunds WHERE idempotency_key=?")
-      .bind(input.idempotencyKey)
-      .first<{ id: string }>();
-    if (winner) return refundOrder(env, input);
-    throw error;
-  }
-  const intent = await db
-    .prepare("SELECT * FROM commerce_refunds WHERE id=?")
-    .bind(id)
-    .first<RefundIntent>();
-  if (!intent) throw new ApiError(503, "Refund intent is unavailable.");
-  return completeRequestedRefund(env, o, intent);
+  throw new ApiError(503, "Refunds require the private financial owner.");
 }
 
 function refundResponse(refund: RefundIntent) {
@@ -2028,6 +1184,8 @@ async function recordOwnerStripeRefundReceipt(
 }
 
 async function completeRequestedRefund(env: CoveEnv, o: RefundOrder, intent: RefundIntent) {
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")
+    throw new ApiError(503, "Refund completion requires the private commerce owner.");
   const db = env.DB,
     id = String(intent.id),
     amount = Number(intent.amount_minor),
@@ -2078,16 +1236,7 @@ async function completeRequestedRefund(env: CoveEnv, o: RefundOrder, intent: Ref
             metadata: { fore_order_id: o.id, fore_refund_id: id, fore_total_refund_minor: amount },
           },
         });
-    if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1") {
-      await recordOwnerStripeRefundReceipt(env, String(o.id), id, refund);
-    } else {
-      await db
-        .prepare(
-          "UPDATE commerce_refunds SET provider_refund_id=?,status=?,updated_at=? WHERE id=?",
-        )
-        .bind(refund.id, refund.status || "pending", now(), id)
-        .run();
-    }
+    await recordOwnerStripeRefundReceipt(env, String(o.id), id, refund);
     if (refund.status === "succeeded") await applyRefundSuccess(env, id, refund);
     return {
       id,
@@ -2104,14 +1253,7 @@ async function completeRequestedRefund(env: CoveEnv, o: RefundOrder, intent: Ref
     // reconcile the same key; a second request cannot spend that budget.
     // The enrolled owner is the only writer of provider state. Its
     // interrupted request must never fall back to caller-owned D1 SQL.
-    if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1") {
-      await db
-        .prepare(
-          "UPDATE commerce_refunds SET status=CASE WHEN succeeded_at IS NOT NULL THEN 'succeeded' ELSE 'pending' END,updated_at=? WHERE id=?",
-        )
-        .bind(now(), id)
-        .run();
-    }
+    // Owner retains pending reservation on loss of provider receipt.
     throw e;
   }
 }
@@ -2121,6 +1263,8 @@ async function stageRevokeRefundEntitlements(env: CoveEnv, orderId: string, refu
 }
 
 async function applyRefundSuccess(env: CoveEnv, refundId: string, refundPayload: any) {
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")
+    throw new ApiError(503, "Refund accounting requires the private commerce owner.");
   const db = env.DB,
     r = await db.prepare("SELECT * FROM commerce_refunds WHERE id=?").bind(refundId).first<any>();
   if (!r) return;
@@ -2142,14 +1286,7 @@ async function applyRefundSuccess(env: CoveEnv, refundId: string, refundPayload:
   // owner revocation is implemented.
   if (full || env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1")
     await stageRevokeRefundEntitlements(env, String(o.id), refundId);
-  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1") {
-    await postStageOwnerRefundAccounting(env, String(o.id), refundId);
-  } else {
-    await postRefundAccounting(db, refundId, at, false);
-  }
-  // An enrolled owner has already reversed royalties before acknowledging.
-  // Legacy callers retain this direct projection until migrated to the owner.
-  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1") await reverseRoyaltiesForRefund(db, r.id);
+  await postStageOwnerRefundAccounting(env, String(o.id), refundId);
   const refundItems = await db
     .prepare(
       "SELECT id,product_id,total_minor,source_surface,source_request_id FROM commerce_order_items WHERE order_id=? ORDER BY id",
@@ -2313,6 +1450,8 @@ async function boundedStripeWebhookText(request: Request): Promise<string> {
 }
 
 export async function stripeWebhook(env: CoveEnv, request: Request) {
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")
+    throw new ApiError(503, "Stripe webhook requires the private commerce owner.");
   const secret = String(env.STRIPE_WEBHOOK_SECRET || "");
   if (!secret || PLACEHOLDER_RE.test(secret))
     throw new ApiError(503, "Stripe webhook signing secret is not configured.");
@@ -2364,46 +1503,7 @@ export async function stripeWebhook(env: CoveEnv, request: Request) {
       throw error;
     }
   }
-  const claimed = await db
-    .prepare(
-      `INSERT INTO commerce_webhook_events(provider_event_id,event_type,livemode,payload_sha256,status,received_at,processing_token,processing_lease_until)
-     VALUES(?,?,?,?,'received',?,?,?) ON CONFLICT(provider_event_id) DO UPDATE SET
-       status='received',error='',processing_token=excluded.processing_token,processing_lease_until=excluded.processing_lease_until
-     WHERE commerce_webhook_events.payload_sha256=excluded.payload_sha256 AND commerce_webhook_events.status<>'processed'
-       AND (commerce_webhook_events.status='failed' OR commerce_webhook_events.processing_lease_until<=?) RETURNING provider_event_id`,
-    )
-    .bind(id, event.type, event.livemode ? 1 : 0, hash, at, token, leaseUntil, at)
-    .first<{ provider_event_id: string }>();
-  if (!claimed) {
-    const existing = await db
-      .prepare(
-        "SELECT status,payload_sha256 FROM commerce_webhook_events WHERE provider_event_id=?",
-      )
-      .bind(id)
-      .first<{ status: string; payload_sha256: string }>();
-    if (existing?.payload_sha256 !== hash)
-      throw new ApiError(400, "Stripe event ID was reused with a different payload.");
-    if (existing.status === "processed") return { received: true, duplicate: true };
-    throw new ApiError(409, "Stripe event is still being processed. Retry delivery.");
-  }
-  try {
-    await processStripeEvent(env, event);
-    await db
-      .prepare(
-        "UPDATE commerce_webhook_events SET status='processed',processed_at=?,processing_lease_until='' WHERE provider_event_id=? AND processing_token=?",
-      )
-      .bind(now(), id, token)
-      .run();
-    return { received: true };
-  } catch (e) {
-    await db
-      .prepare(
-        "UPDATE commerce_webhook_events SET status='failed',error=?,processed_at=?,processing_lease_until='' WHERE provider_event_id=? AND processing_token=?",
-      )
-      .bind(String((e as Error).message || e).slice(0, 1000), now(), id, token)
-      .run();
-    throw e;
-  }
+  throw new ApiError(503, "Stripe webhook requires the private commerce owner.");
 }
 async function orderFromPI(db: CatalogDB, pi: any) {
   const id = pi?.metadata?.fore_order_id;
@@ -2535,97 +1635,15 @@ async function processStripeEvent(env: CoveEnv, event: any) {
         paymentMethod: charge?.payment_method_details?.type || "Stripe",
       });
     }
-  } else if (type === "payment_intent.amount_capturable_updated") {
-    const o = await orderFromPI(db, obj);
-    if (o)
-      await db
-        .prepare(
-          "UPDATE commerce_orders SET status='authorized',authorized_at=?,updated_at=? WHERE id=? AND status IN ('pending_payment','processing','authorized')",
-        )
-        .bind(now(), now(), o.id)
-        .run();
-  } else if (type === "payment_intent.processing") {
-    const o = await orderFromPI(db, obj);
-    if (o)
-      await db
-        .prepare(
-          "UPDATE commerce_orders SET status='processing',updated_at=? WHERE id=? AND status='pending_payment'",
-        )
-        .bind(now(), o.id)
-        .run();
-  } else if (type === "payment_intent.payment_failed") {
-    const o = await orderFromPI(db, obj);
-    if (o && PAYMENT_FAILURE_MUTABLE_STATES.has(String(o.status))) {
-      await db
-        .prepare(
-          "UPDATE commerce_orders SET status='payment_failed',failure_code=?,failure_message=?,updated_at=? WHERE id=? AND status IN ('pending_payment','processing','authorized','payment_failed')",
-        )
-        .bind(
-          obj.last_payment_error?.code || null,
-          obj.last_payment_error?.message || "Payment failed",
-          now(),
-          o.id,
-        )
-        .run();
-      try {
-        await emitNotification(db, {
-          userId: String(o.user_id),
-          eventType: "payment_failed",
-          dedupeKey: `payment-failed:${o.id}:${obj.id}`,
-          title: "Payment failed",
-          body: String(
-            obj.last_payment_error?.message ||
-              "Your payment method was declined or could not be charged.",
-          ),
-          urgency: "high",
-          subjectType: "order",
-          subjectId: o.id,
-          actionUrl: `/checkout?order=${encodeURIComponent(o.id)}`,
-          payload: {
-            orderId: o.id,
-            paymentIntentId: obj.id,
-            errorCode: obj.last_payment_error?.code || null,
-          },
-        });
-      } catch {}
-    }
-  } else if (type === "payment_intent.canceled") {
-    const o = await orderFromPI(db, obj);
-    if (o && PAYMENT_CANCEL_MUTABLE_STATES.has(String(o.status))) {
-      // The signed event may race with settlement. Only the winner of the
-      // canonical conditional state transition can release held tender.
-      // A stale cancellation must not release reservations of a paid order.
-      const at = now();
-      const transition: any = await db
-        .prepare(
-          "UPDATE commerce_orders SET status='canceled',canceled_at=?,updated_at=? WHERE id=? AND status IN ('pending_payment','processing','authorized','payment_failed')",
-        )
-        .bind(at, at, o.id)
-        .run();
-      if (Number(transition?.meta?.changes ?? transition?.changes ?? 0) === 1)
-        await releaseOrderReservations(db, o.id);
-    }
   } else if (type === "charge.succeeded") {
-    const o = obj.payment_intent
-      ? await db
-          .prepare("SELECT * FROM commerce_orders WHERE stripe_payment_intent_id=?")
-          .bind(typeof obj.payment_intent === "string" ? obj.payment_intent : obj.payment_intent.id)
-          .first<any>()
-      : null;
-    if (o)
-      await db
-        .prepare(
-          "UPDATE commerce_orders SET stripe_charge_id=?,receipt_url=COALESCE(?,receipt_url),risk_level=COALESCE(?,risk_level),risk_score=COALESCE(?,risk_score),updated_at=? WHERE id=?",
-        )
-        .bind(
-          obj.id,
-          obj.receipt_url || null,
-          obj.outcome?.risk_level || null,
-          obj.outcome?.risk_score ?? null,
-          now(),
-          o.id,
-        )
-        .run();
+    // Only the owner may settle a captured charge after Stripe verification.
+    const pi = typeof obj.payment_intent === "string" ? obj.payment_intent : obj.payment_intent?.id;
+    if (pi) {
+      const order = await db.prepare("SELECT id FROM commerce_orders WHERE stripe_payment_intent_id=?").bind(pi).first<any>();
+      if (order) await finalizePaidOrder(env, String(order.id), {
+        provider: "stripe", paymentIntentId: String(pi), chargeId: String(obj.id), receiptUrl: obj.receipt_url || null,
+      });
+    }
   } else if (type === "invoice.paid" || type === "invoice.payment_succeeded") {
     const customer = typeof obj.customer === "string" ? obj.customer : obj.customer?.id,
       user = customer
@@ -2699,185 +1717,22 @@ async function processStripeEvent(env: CoveEnv, event: any) {
       .bind(obj.id)
       .first<any>();
     if (r) {
-      if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1") {
-        await recordOwnerStripeRefundReceipt(env, String(r.order_id), String(r.id), obj);
-      } else {
-        await db
-          .prepare(
-            "UPDATE commerce_refunds SET status=CASE WHEN succeeded_at IS NOT NULL OR status='succeeded' THEN 'succeeded' ELSE ? END,updated_at=? WHERE id=?",
-          )
-          .bind(obj.status || r.status, now(), r.id)
-          .run();
-      }
+      await recordOwnerStripeRefundReceipt(env, String(r.order_id), String(r.id), obj);
       if (obj.status === "succeeded") await applyRefundSuccess(env, r.id, obj);
     }
   } else if (type.startsWith("charge.dispute.")) {
     await syncDispute(db, obj, type, env);
   }
 }
-async function syncDispute(db: CatalogDB, d: any, eventType: string, env: CoveEnv) {
-  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1") {
-    // The owner independently reloads the Stripe dispute and controls every
-    // journal, order, entitlement, ledger and royalty write. No enrolled
-    // webhook or scheduled recovery may fall through to caller-owned D1.
-    if (!d || typeof d.id !== "string" || !/^dp_[a-zA-Z0-9_-]{4,150}$/.test(d.id))
-      throw new ApiError(409, "Stripe dispute identity is invalid.");
-    await syncStageOwnerStripeDispute(env, {
-      disputeId: d.id,
-      eventType: eventType as Parameters<typeof syncStageOwnerStripeDispute>[1]["eventType"],
-    });
-    return;
-  }
-  const charge = String(typeof d.charge === "string" ? d.charge : d.charge?.id || ""),
-    order = charge
-      ? await db
-          .prepare("SELECT * FROM commerce_orders WHERE stripe_charge_id=?")
-          .bind(charge)
-          .first<any>()
-      : null,
-    at = now();
-  // For the fenced stage owner, freeze the purchase at the FIRST Stripe
-  // dispute rather than waiting until the bank confirms a loss. A later
-  // dispute-win event must not silently resurrect a withdrawn grant; fresh
-  // canonical verification and a new purchase identity are required.
-  // Legacy/non-cutover checkout retains its existing dispute policy.
-  const stageDisputeOpened =
-    env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1" && eventType === "charge.dispute.created";
-  const confirmedLoss = eventType === "charge.dispute.closed" && d.status === "lost";
-  if (order && (stageDisputeOpened || confirmedLoss)) {
-    if (typeof d.id !== "string" || !/^[a-zA-Z0-9_-]{8,120}$/.test(d.id))
-      throw new ApiError(409, "Chargeback identity is invalid.");
-    // The strong owner records a terminal whole-order denial BEFORE any
-    // canonical dispute/order mutation. Replay is keyed by Stripe dispute.
-    await stageRevokeRefundEntitlements(
-      env,
-      String(order.id),
-      (stageDisputeOpened ? "dispute-open:" : "dispute-loss:") + d.id,
-    );
-  }
-  await db
-    .prepare(
-      `INSERT INTO commerce_disputes(provider_dispute_id,order_id,charge_id,amount_minor,currency,reason,status,evidence_due_at,created_at,updated_at,closed_at) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(provider_dispute_id) DO UPDATE SET status=excluded.status,reason=excluded.reason,evidence_due_at=excluded.evidence_due_at,updated_at=excluded.updated_at,closed_at=excluded.closed_at`,
-    )
-    .bind(
-      d.id,
-      order?.id || null,
-      charge,
-      Number(d.amount || 0),
-      String(d.currency || "").toUpperCase(),
-      d.reason || "",
-      d.status || "unknown",
-      d.evidence_details?.due_by
-        ? new Date(Number(d.evidence_details.due_by) * 1000).toISOString()
-        : null,
-      at,
-      at,
-      eventType === "charge.dispute.closed" ? at : null,
-    )
-    .run();
-  if (order) {
-    const amount = Number(d.amount || 0),
-      currency = String(d.currency || order.currency || "").toUpperCase(),
-      ref = String(d.id || charge);
-    if (eventType === "charge.dispute.created") {
-      await db
-        .prepare("UPDATE commerce_orders SET status='disputed',updated_at=? WHERE id=?")
-        .bind(at, order.id)
-        .run();
-      if (amount) {
-        await ledger(
-          db,
-          order.id,
-          order.user_id,
-          "dispute_open",
-          "dispute_receivable",
-          amount,
-          currency,
-          ref,
-        );
-        await ledger(
-          db,
-          order.id,
-          order.user_id,
-          "dispute_open",
-          "stripe_receivable",
-          -amount,
-          currency,
-          ref,
-        );
-      }
-    }
-    if (eventType === "charge.dispute.closed" && d.status === "lost") {
-      await db
-        .prepare("UPDATE commerce_orders SET status='chargeback_lost',updated_at=? WHERE id=?")
-        .bind(at, order.id)
-        .run();
-      if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")
-        await db
-          .prepare(
-            "UPDATE entitlements SET status='revoked',updated_at=? WHERE user_id=? AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND entitlement_type='purchase'",
-          )
-          .bind(at, order.user_id, order.id)
-          .run();
-      if (amount) {
-        await ledger(
-          db,
-          order.id,
-          order.user_id,
-          "dispute_lost",
-          "chargeback_loss",
-          amount,
-          currency,
-          ref,
-        );
-        await ledger(
-          db,
-          order.id,
-          order.user_id,
-          "dispute_lost",
-          "dispute_receivable",
-          -amount,
-          currency,
-          ref,
-        );
-        try {
-          await reverseRoyaltiesForChargeback(db, order.id, ref);
-        } catch (e) {
-          console.error("Royalty chargeback reversal failed", e);
-        }
-      }
-    }
-    if (eventType === "charge.dispute.closed" && d.status === "won") {
-      await db
-        .prepare(
-          "UPDATE commerce_orders SET status=CASE WHEN refunded_minor>=total_minor THEN 'refunded' WHEN refunded_minor>0 THEN 'partially_refunded' ELSE 'paid' END,updated_at=? WHERE id=?",
-        )
-        .bind(at, order.id)
-        .run();
-      if (amount) {
-        await ledger(
-          db,
-          order.id,
-          order.user_id,
-          "dispute_won",
-          "stripe_receivable",
-          amount,
-          currency,
-          ref,
-        );
-        await ledger(
-          db,
-          order.id,
-          order.user_id,
-          "dispute_won",
-          "dispute_receivable",
-          -amount,
-          currency,
-          ref,
-        );
-      }
-    }
-  }
+async function syncDispute(_db: CatalogDB, d: any, eventType: string, env: CoveEnv) {
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")
+    throw new ApiError(503, "Dispute resolution requires the private commerce owner.");
+  if (!d || typeof d.id !== "string" || !/^dp_[a-zA-Z0-9_-]{4,150}$/.test(d.id))
+    throw new ApiError(409, "Stripe dispute identity is invalid.");
+  await syncStageOwnerStripeDispute(env, {
+    disputeId: d.id,
+    eventType: eventType as Parameters<typeof syncStageOwnerStripeDispute>[1]["eventType"],
+  });
 }
 
 export async function createPromoCode(_db: CatalogDB, _raw: unknown) {
@@ -2939,182 +1794,9 @@ export async function commerceAdminSnapshot(db: CatalogDB) {
 }
 
 export async function reconcileStripe(env: CoveEnv, limit = 100) {
-  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1") return reconcileStageOwnerStripe(env, limit);
-  // Includes internal-only tender and failures after effects completed but
-  // before the owner's publication ACK. No Stripe-only scan can find all
-  // of these interrupted transactions.
-  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1")
-    await recoverStageOwnerPaidSettlements(env, Math.max(1, Math.min(25, limit)));
-  const db = env.DB,
-    id = `recon_${crypto.randomUUID()}`,
-    started = now();
-  await db
-    .prepare("INSERT INTO commerce_reconciliation_runs(id,started_at,status) VALUES(?,?,'running')")
-    .bind(id, started)
-    .run();
-  const rows = await db
-    .prepare(
-      "SELECT * FROM commerce_orders WHERE stripe_payment_intent_id IS NOT NULL ORDER BY updated_at DESC LIMIT ?",
-    )
-    .bind(Math.max(1, Math.min(500, limit)))
-    .all<any>();
-  let mismatches = 0,
-    repaired = 0;
-  const details: any[] = [];
-  for (const o of rows.results) {
-    try {
-      const pi = await stripeRequest(
-        env,
-        `payment_intents/${encodeURIComponent(o.stripe_payment_intent_id)}`,
-        { method: "GET", params: { expand: ["latest_charge.balance_transaction"] } },
-      );
-      // Enrolled scheduled reconciliation uses the same complete owner
-      // transaction and durable obligations as signed webhook settlement.
-      // No fee/receipt/royalty write below can run outside that executor.
-      if (
-        env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1" &&
-        ["paid", "partially_refunded", "refunded", "disputed", "chargeback_lost"].includes(o.status)
-      ) {
-        if (o.status === "paid") {
-          await finalizePaidOrder(env, String(o.id), {
-            provider: "stripe",
-            paymentIntentId: pi.id,
-            chargeId: null,
-            receiptUrl: null,
-          });
-          repaired++;
-          details.push({ orderId: o.id, action: "owner_settlement_reconciled" });
-        }
-        continue;
-      }
-      const ageMs = Date.now() - Date.parse(String(o.updated_at || o.created_at || 0)),
-        staleRecoverable =
-          ["pending_payment", "payment_failed"].includes(o.status) &&
-          ageMs > 24 * 60 * 60_000 &&
-          [
-            "requires_payment_method",
-            "requires_confirmation",
-            "requires_action",
-            "canceled",
-          ].includes(String(pi.status));
-      if (staleRecoverable) {
-        if (pi.status !== "canceled")
-          await stripeRequest(
-            env,
-            `payment_intents/${encodeURIComponent(o.stripe_payment_intent_id)}/cancel`,
-            { idempotencyKey: `fore-expire-${o.id}`, params: { cancellation_reason: "abandoned" } },
-          );
-        await releaseOrderReservations(db, o.id);
-        await db
-          .prepare(
-            "UPDATE commerce_orders SET status='canceled',canceled_at=COALESCE(canceled_at,?),updated_at=? WHERE id=?",
-          )
-          .bind(now(), now(), o.id)
-          .run();
-        repaired++;
-        details.push({ orderId: o.id, action: "expired_stale_checkout", stripeStatus: pi.status });
-        continue;
-      }
-      const expectedPaid = [
-          "paid",
-          "partially_refunded",
-          "refunded",
-          "disputed",
-          "chargeback_lost",
-        ].includes(o.status),
-        stripePaid = pi.status === "succeeded";
-      if (expectedPaid !== stripePaid && o.status !== "authorized") {
-        mismatches++;
-        details.push({ orderId: o.id, foreStatus: o.status, stripeStatus: pi.status });
-        if (stripePaid) {
-          const ch = typeof pi.latest_charge === "object" ? pi.latest_charge : null;
-          await finalizePaidOrder(env, o.id, {
-            provider: "stripe",
-            paymentIntentId: pi.id,
-            chargeId: ch?.id || null,
-            receiptUrl: ch?.receipt_url || null,
-            paymentMethod: ch?.payment_method_details?.type,
-          });
-          repaired++;
-        }
-      }
-      const ch = typeof pi.latest_charge === "object" ? pi.latest_charge : null,
-        bt = ch?.balance_transaction;
-      if (bt && Number(bt.fee || 0) > 0) {
-        const fee = Number(bt.fee),
-          currency = String(bt.currency || o.currency).toUpperCase(),
-          ref = String(bt.id),
-          items = (
-            await db
-              .prepare(
-                "SELECT id,total_minor FROM commerce_order_items WHERE order_id=? ORDER BY created_at,id",
-              )
-              .bind(o.id)
-              .all<any>()
-          ).results,
-          shares = moneySplit(
-            fee,
-            items.map((i: any) => Math.max(0, Number(i.total_minor || 0))),
-          );
-        for (let i = 0; i < items.length; i++)
-          await db
-            .prepare("UPDATE commerce_order_items SET processor_fee_minor=? WHERE id=?")
-            .bind(shares[i] || 0, items[i].id)
-            .run();
-        await ledger(
-          db,
-          o.id,
-          o.user_id,
-          "processor_fee",
-          "stripe_fee_expense",
-          fee,
-          currency,
-          ref,
-          { net: bt.net },
-        );
-        await ledger(
-          db,
-          o.id,
-          o.user_id,
-          "processor_fee",
-          "stripe_receivable",
-          -fee,
-          currency,
-          ref,
-          { net: bt.net },
-        );
-        try {
-          await accrueRoyaltiesForOrder(db, o.id);
-        } catch (e) {
-          details.push({ orderId: o.id, royaltyReconciliationError: (e as Error).message });
-        }
-      }
-      if (ch?.receipt_url && !o.receipt_url)
-        await db
-          .prepare(
-            "UPDATE commerce_orders SET receipt_url=?,stripe_charge_id=COALESCE(stripe_charge_id,?),updated_at=? WHERE id=?",
-          )
-          .bind(ch.receipt_url, ch.id, now(), o.id)
-          .run();
-    } catch (e) {
-      details.push({ orderId: o.id, error: (e as Error).message });
-    }
-  }
-  const finished = now();
-  await db
-    .prepare(
-      "UPDATE commerce_reconciliation_runs SET finished_at=?,status='complete',checked_orders=?,mismatches=?,repaired=?,details_json=? WHERE id=?",
-    )
-    .bind(
-      finished,
-      rows.results.length,
-      mismatches,
-      repaired,
-      JSON.stringify(details.slice(0, 100)),
-      id,
-    )
-    .run();
-  return { id, checked: rows.results.length, mismatches, repaired, details };
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")
+    throw new ApiError(503, "Stripe reconciliation requires the private commerce owner.");
+  return reconcileStageOwnerStripe(env, limit);
 }
 /** An enrolled cron never writes any commerce or royalty row itself.
  * Its only writes are fixed, verified owner RPCs; all other legacy
