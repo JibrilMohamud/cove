@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Reviewed original 40 exact source-bound commerce SQL mutations and removed the 38 historical production fallback SQL statements only where private-owner QA commands already exist. The remaining tax write statements in recordTaxTransaction and applyRefundSuccess stay classified owner-command-required; production remains explicitly disabled. Fail-closed entry guards prevent Stripe or D1 side effects for non-enrolled production.",
+  "files": [
+    {
+      "path": "src/features/fore/commerce.server.ts",
+      "sha256": "f949f3d4f529d961e1dca386fe23b7d44cd8130f16bbf186c5754020e124d262",
+      "review": "Commerce legacy SQL removed from quote, tender, settlement, refund, webhook, dispute and reconciliation paths. Each live-money API denies unenrolled access prior to mutation. The two surviving tax SQL writes remain owner-required with unchanged SQL and verified new fingerprints."
+    }
+  ],
+  "retirementEvidence": "docs/architecture/retired-legacy-commerce-write-family-20261030.md"
+}
