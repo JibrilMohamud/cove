@@ -10,7 +10,9 @@ import { qaAudioPublicationVersion } from "./staging/provision-original-audio-qa
 // Regress the paid-QA failure caused by old modulo-versioning when
 // the GitHub run ID crossed its decimal rollover. The frozen previous
 // chapter has a different ID, so source selection MUST remain monotonic.
-assert.ok(qaAudioPublicationVersion("40999999999-999") < qaAudioPublicationVersion("41000000000-1"));
+assert.ok(
+  qaAudioPublicationVersion("40999999999-999") < qaAudioPublicationVersion("41000000000-1"),
+);
 assert.ok(qaAudioPublicationVersion("41003083776-1") < qaAudioPublicationVersion("41003419937-1"));
 assert.ok(qaAudioPublicationVersion("41003419937-1") < qaAudioPublicationVersion("41003419937-2"));
 assert.throws(() => qaAudioPublicationVersion("41003419937-1000"));
