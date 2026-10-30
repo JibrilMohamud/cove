@@ -52,6 +52,14 @@ const routes={
     repaired:z.number().int().min(0).max(500),
     details:z.array(z.record(z.string(),z.string().max(200))).max(100)
   }).strict()},
+  "commerce.admin-monetary":{path:"/commercial/admin/monetary",schema:z.object({
+    action:z.enum(["promo","gift-card","store-credit"]),
+    operationId:z.string().min(16).max(150).regex(/^[A-Za-z0-9_.:-]+$/),
+    actor:z.object({userId:z.string().min(3).max(180),
+      authProvider:z.string().max(120),authSubject:z.string().max(240),
+      aal:z.enum(["aal1","aal2"])}).strict(),
+    payload:z.record(z.string(),z.unknown())
+  }).strict()},
   "commerce.sync-dispute":{path:"/commercial/dispute/sync-verified",schema:z.object({
     disputeId:z.string().regex(/^dp_[a-zA-Z0-9_-]{4,150}$/),
     eventType:z.enum(["charge.dispute.created","charge.dispute.updated","charge.dispute.closed","charge.dispute.funds_withdrawn","charge.dispute.funds_reinstated"])
@@ -235,6 +243,19 @@ export async function dispatchCanonicalOwnerCommand(
          ack.runId!==body.runId||ack.recorded!==true||
          ack.checked!==body.checked||ack.mismatches!==body.mismatches||
          ack.repaired!==body.repaired)
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "commerce.admin-monetary":
+      if(ack.schema!=="cove.owner-monetary-admin.v1"||
+         ack.action!==body.action||ack.operationId!==body.operationId||
+         ack.applied!==true||
+         (body.action==="promo"&&(typeof ack.codeLabel!=="string"||typeof ack.active!=="boolean"))||
+         (body.action==="gift-card"&&(!/^FORE-[0-9A-F]{16}$/.test(String(ack.code))||
+             !currency.safeParse(ack.currency).success||
+             !Number.isSafeInteger(ack.amountMinor)))||
+         (body.action==="store-credit"&&(ack.userId!==body.payload.userId||
+             !currency.safeParse(ack.currency).success||
+             !Number.isSafeInteger(ack.balanceMinor)||Number(ack.balanceMinor)<0)))
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "commerce.sync-dispute":
