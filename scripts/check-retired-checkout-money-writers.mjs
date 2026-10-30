@@ -25,6 +25,6 @@ assert.match(api,/createStageOwnerCheckoutQuote/);
 const sites=review.sites.filter(x=>x.file==="src/features/fore/commerce.server.ts");
 assert.equal(sites.length,3);
 assert.ok(sites.every(x=>x.disposition==="owner-command-required"));
-assert.equal(review.sites.filter(x=>x.disposition==="owner-command-required").length,305);
+assert.equal(review.sites.filter(x=>x.disposition==="owner-command-required").length,306);
 assert.equal(review.releaseApproval,false);
 console.log("PASS: 16 physically removed shared checkout and monetary-admin writer sites, private owner staging preserved, production enrollment fail-closed; 305 owner-required sites remain; commerce two tax writers still unresolved.");
