@@ -10,7 +10,9 @@ export const checkoutDraftCommand=z.object({
   // A trusted caller must independently reprice the current cart. The owner
   // checks equality with the canonical quote; it cannot compute cartPricing.
   cartFingerprint:z.string().min(16).max(1024),
-  captureMethod:z.enum(["manual","automatic","automatic_async"])
+  captureMethod:z.enum(["manual","automatic","automatic_async"]),
+  soundsStation:z.string().regex(/^[a-z0-9-]{1,80}$/).optional(),
+  soundsRecording:z.string().regex(/^(?:cm_[0-9]{1,15}|ex_[0-9a-f-]{36})$/).optional()
 }).strict();
 
 const storedQuote=z.object({
