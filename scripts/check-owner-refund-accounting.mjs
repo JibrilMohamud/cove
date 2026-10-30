@@ -14,7 +14,12 @@ try {
   const outfile=join(folder,"executor.mjs");
   await build({entryPoints:["src/storefront-strangler/refund-accounting-owner-executor.ts"],
     outfile,bundle:true,platform:"node",format:"esm",target:"node22",logLevel:"silent"});
-  const {executeOwnerRefundAccounting:execute}=await import(pathToFileURL(outfile).href);
+  const {executeOwnerRefundAccounting:executePrivate}=await import(pathToFileURL(outfile).href);
+  const writerOut=join(folder,"writer.mjs");
+  await build({entryPoints:["src/features/fore/refund-accounting.server.ts"],
+    outfile:writerOut,bundle:true,platform:"node",format:"esm",target:"node22",logLevel:"silent"});
+  const {postRefundAccounting}=await import(pathToFileURL(writerOut).href);
+  const execute=(db,sql,input,at)=>executePrivate(db,sql,input,postRefundAccounting,at);
   const commerce=readFileSync("src/features/fore/commerce.server.ts","utf8");
   const legacyRoyaltyGuard='if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")';
   const royaltyLine="await reverseRoyaltiesForRefund(db, r.id);";
