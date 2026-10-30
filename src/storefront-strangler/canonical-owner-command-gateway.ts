@@ -41,6 +41,17 @@ const routes={
     state:z.enum(["processing","authorized","payment_failed","canceled"]),
     failureCode:z.string().max(100).regex(/^[a-zA-Z0-9_]*$/).nullable()
   }).strict()},
+  "commerce.cancel-unpaid":{path:"/commercial/checkout/cancel-unpaid",schema:z.object({
+    orderId:ownerId,userId:ownerId,source:z.enum(["customer","reconciliation"])
+  }).strict()},
+  "commerce.record-reconciliation":{path:"/commercial/reconciliation/record",schema:z.object({
+    runId:z.string().regex(/^recon_[0-9a-f-]{36}$/),
+    startedAt:z.string().datetime(),finishedAt:z.string().datetime(),
+    checked:z.number().int().min(0).max(500),
+    mismatches:z.number().int().min(0).max(500),
+    repaired:z.number().int().min(0).max(500),
+    details:z.array(z.record(z.string(),z.string().max(200))).max(100)
+  }).strict()},
   "commerce.sync-dispute":{path:"/commercial/dispute/sync-verified",schema:z.object({
     disputeId:z.string().regex(/^dp_[a-zA-Z0-9_-]{4,150}$/),
     eventType:z.enum(["charge.dispute.created","charge.dispute.updated","charge.dispute.closed","charge.dispute.funds_withdrawn","charge.dispute.funds_reinstated"])
@@ -210,6 +221,20 @@ export async function dispatchCanonicalOwnerCommand(
       if(ack.schema!=="cove.owner-payment-state.v1"||ack.orderId!==body.orderId||
          ack.paymentIntentId!==body.paymentIntentId||ack.state!==body.state||
          typeof ack.applied!=="boolean"||ack.ownerRecorded!==true)
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "commerce.cancel-unpaid":
+      if(ack.schema!=="cove.owner-unpaid-cancellation.v1"||
+         ack.orderId!==body.orderId||ack.userId!==body.userId||
+         ack.canceled!==true||ack.tenderReleased!==true||
+         typeof ack.providerVerified!=="boolean")
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "commerce.record-reconciliation":
+      if(ack.schema!=="cove.owner-reconciliation-report.v1"||
+         ack.runId!==body.runId||ack.recorded!==true||
+         ack.checked!==body.checked||ack.mismatches!==body.mismatches||
+         ack.repaired!==body.repaired)
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "commerce.sync-dispute":
