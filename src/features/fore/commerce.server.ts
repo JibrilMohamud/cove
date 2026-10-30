@@ -3594,7 +3594,8 @@ async function reconcileStageOwnerStripe(env: CoveEnv, limit: number) {
       updated_at: string;
       created_at: string;
     }>();
-  let mismatches = 0, repaired = 0;
+  let mismatches = 0,
+    repaired = 0;
   for (const o of rows.results) {
     try {
       const pi = await stripeRequest(
