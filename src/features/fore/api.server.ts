@@ -128,7 +128,10 @@ import {
   popularityOnlyGutendexBook,
   unchangedNormalizedGutendexBook,
 } from "@/lib/catalog-ingestion-idempotency";
-import {dispatchCatalogFreeNormalization,dispatchCatalogPersonalImport} from "../../storefront-strangler/publication-owner-routing.server";
+import {
+  dispatchCatalogFreeNormalization,
+  dispatchCatalogPersonalImport,
+} from "../../storefront-strangler/publication-owner-routing.server";
 import {
   catalogIds,
   getCanonicalBook,
@@ -6276,14 +6279,14 @@ async function handleCoveRequest(
       await env.BUCKET.put(key, bytes, { httpMetadata: { contentType: "application/epub+zip" } });
       try {
         await dispatchCatalogPersonalImport(db, {
-            id,
-            userId: user.id,
-            title,
-            author,
-            language,
-            objectKey: key,
-            createdAt,
-          });
+          id,
+          userId: user.id,
+          title,
+          author,
+          language,
+          objectKey: key,
+          createdAt,
+        });
       } catch (e) {
         await env.BUCKET.delete(key);
         throw e;
