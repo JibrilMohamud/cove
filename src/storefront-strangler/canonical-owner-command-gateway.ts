@@ -58,6 +58,10 @@ const routes={
     orderId:ownerId,userId:ownerId,territory,channel:z.literal("retail")}).strict()},
   "commerce.publish-entitlement":{path:"/commercial/entitlement/publish-verified",schema:z.object({
     entitlementId:ownerId,userId:ownerId,productId:product,territory,channel:z.literal("retail")}).strict()},
+  "publishing.save-contract-version":{path:"/publishing/contract/save-version",schema:z.object({
+    actorUserId:ownerId,operationId:shortOperation,
+    contract:z.record(z.string(),z.unknown())
+  }).strict()},
   "publication.materialize":{path:"/publication/materialize-submission",schema:z.object({
     submissionId:version,reviewerUserId:z.string().regex(/^(?:[a-zA-Z0-9_-]{3,160}|system:automated-review)$/),
     operationId:shortOperation,territory,currency}).strict()},
@@ -114,7 +118,7 @@ export async function dispatchCanonicalOwnerCommand(
     throw Error("canonical_command_binding_invalid");
   const body=definition.schema.parse(raw) as Record<string,unknown>;
   const encoded=JSON.stringify(body);
-  if(encoded.length>8192)throw Error("canonical_command_too_large");
+  if(encoded.length>(kind==="publishing.save-contract-version"?32768:8192))throw Error("canonical_command_too_large");
   const root=isQuarantine(kind)?"https://legal-quarantine.internal":"https://legal-authority.internal";
   const response=await port.fetch(new Request(root+definition.path,{
     method:"POST",headers:{
@@ -215,6 +219,16 @@ export async function dispatchCanonicalOwnerCommand(
       break;
     case "commerce.publish-entitlement":
       if(ack.applied!==true||!positiveEpoch(ack.epoch))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "publishing.save-contract-version":
+      if(ack.schema!=="cove.owner-contract-version.v1"||ack.ownerFirst!==true||
+         ack.operationId!==body.operationId||
+         ack.contractId!==(body.contract as Record<string,unknown>).contractId||
+         ack.versionNumber!==(body.contract as Record<string,unknown>).versionNumber||
+         ack.status!==((body.contract as Record<string,unknown>).status||"draft")||
+         !version.safeParse(ack.id).success||
+         ack.ownerDenied!==(ack.status!=="draft")||ack.stored!==true)
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "publication.materialize":
