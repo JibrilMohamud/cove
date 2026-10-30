@@ -218,15 +218,47 @@ export async function collectCanonicalD1Fleet({fetcher=fetch,token,account,zone}
   assert.match(account||"",idPattern);
   assert.match(zone||"",idPattern);
   const root="/accounts/"+account;
-  const scripts=await apiGet(fetcher,token,root+"/workers/scripts");
-  assert.ok(Array.isArray(scripts)&&scripts.length>0&&scripts.length<1000,
-    "Ambiguous Cloudflare Worker listing; fail closed rather than truncate");
-  // The scripts collection endpoint returns the complete account-level list
-  // (no page cursor in the Cloudflare API response). Fail if approaching its
-  // safe limit; do not infer a clean topology from a truncated list.
-  const sorted=[...scripts].sort((a,b)=>a.id.localeCompare(b.id));
-  const settingsList=await mapBounded(sorted,12,async w=>
-    apiGet(fetcher,token,root+"/workers/scripts/"+safeWorker(w.id)+"/settings"));
+  // Worker handshakes are short-lived, self-deleting probes. A worker may
+  // legitimately vanish between the complete account listing and its
+  // settings read. This is NOT permission to ignore a missing deployed
+  // principal: allow only the exact known ephemeral name pattern, prove its
+  // deletion with a fresh account-wide listing, then restart the WHOLE scan.
+  // A permanent missing worker, arbitrary name, 403, or churn past three
+  // attempts still blocks the audit. No partial inventory is accepted.
+  let sorted,settingsList;
+  for(let attempt=0;attempt<3;attempt++){
+    const scripts=await apiGet(fetcher,token,root+"/workers/scripts");
+    assert.ok(Array.isArray(scripts)&&scripts.length>0&&scripts.length<1000,
+      "Ambiguous Cloudflare Worker listing; fail closed rather than truncate");
+    assert.equal(new Set(scripts.map(w=>w.id)).size,scripts.length,
+      "Ambiguous duplicate Worker listing");
+    // The collection returns the full account-level list (not a page cursor).
+    sorted=[...scripts].sort((a,b)=>a.id.localeCompare(b.id));
+    settingsList=await mapBounded(sorted,12,async w=>
+      apiGet(fetcher,token,root+"/workers/scripts/"+safeWorker(w.id)+"/settings",
+        {optional:true}));
+    const missing=sorted.filter((w,i)=>settingsList[i]===null).map(w=>w.id);
+    if(!missing.length)break;
+    if(!missing.every(name=>/^cove-owner-handshake-[0-9a-f]{16}$/.test(name)))
+      throw Error("Missing deployed Worker settings, not a known ephemeral handshake: "+
+        missing.slice(0,5).join(","));
+    // Independently verify disappearance. A listed but inaccessible
+    // handshake may have live DB access, so it MUST fail closed too.
+    const current=await apiGet(fetcher,token,root+"/workers/scripts");
+    assert.ok(Array.isArray(current)&&current.length>0&&current.length<1000,
+      "Cannot independently verify expired handshake deletion");
+    const present=new Set(current.map(w=>w.id));
+    if(missing.some(name=>present.has(name)))
+      throw Error("Ephemeral handshake is still listed but settings are inaccessible");
+    if(attempt===2)
+      throw Error("Cloudflare Worker fleet did not settle after three full scans");
+    // Retry from the current complete listing, including any new scripts;
+    // never preserve a prior scan's binding conclusions across a race.
+    sorted=undefined;settingsList=undefined;
+  }
+  assert.ok(sorted&&settingsList&&sorted.length===settingsList.length&&
+    settingsList.every(x=>x&&Array.isArray(x.bindings)),
+    "Incomplete deployed Worker settings after bounded fleet rescan");
   const settingsByName=Object.fromEntries(sorted.map((w,i)=>[w.id,settingsList[i]]));
   const targets=sorted.filter(w=>
     /^cove-pub-\d+-driver$/.test(w.id)||

@@ -80,3 +80,28 @@ The exact deployment evidence and rollback boundary are preserved in `docs/archi
 ## Scope
 
 This work does not claim that all 426 reviewed owner-required mutation candidates are certified; it does not modify live schedules, rights, the production legal owner, Vercel routing, or permissions. The 57 production-D1-bound Worker scripts remain an independently observed release blocker.
+
+## October 30: transient live-fleet inventory failure and strict repair
+
+The `main` push after commerce PR #481 successfully executed the independently
+signed Stripe TEST paid-owner workflow, but the *separate deployed canonical D1
+fleet audit* failed when the Cloudflare Worker script list still contained a
+short-lived `cove-owner-handshake-<16 hex>` verifier that its own cleanup had
+just deleted. Its subsequent settings endpoint correctly returned HTTP 404.
+This is an inventory snapshot race, not evidence that the production owner
+is enabled or that any SQL write has been migrated.
+
+The account-wide scanner now recognizes **only** that exact ephemeral handshake
+name as a potential deletion race. Before accepting its absence it obtains a
+fresh independent account-wide script list. If the script is still listed, an
+unexpected worker is unavailable, the API returns 403/5xx, or the inventory
+keeps changing beyond three complete scans, the release audit **fails closed**.
+If the handshake is independently absent, the scanner restarts the **entire**
+Worker settings inventory from scratch, including Worker scripts added during
+the race. It never skips currently deployed SQL-capable scripts or reduces the
+canonical source review count. Adversarial mocked Cloudflare tests exercise
+both the rescan/new-writer and fail-closed cases.
+
+This change is audit reliability and evidence availability only. It does not
+remove canonical DB privileges, authorize production payments, change release
+approval, or reduce the 371 outstanding owner-command-required SQL sites.
