@@ -3253,6 +3253,690 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         });
         return Response.json(receipt,{status:200,headers:noStore});
       }
+      if(route==="/commercial/dispute/sync-verified"){
+        // Private legal owner independently fetches live Stripe evidence.
+        // The signed webhook supplies only a dispute ID and event kind.
+        const input=raw as {disputeId?:unknown;eventType?:unknown}|null;
+        if(!input||Array.isArray(input)||
+           Object.keys(input).sort().join(",")!=="disputeId,eventType"||
+           typeof input.disputeId!=="string"||
+           !/^dp_[A-Za-z0-9_-]{4,150}$/.test(input.disputeId)||
+           !["charge.dispute.created","charge.dispute.updated",
+             "charge.dispute.closed"].includes(String(input.eventType)))
+          throw Error("owner_dispute_command_invalid");
+        const dispute=await verifyOwnerStripeDispute(env,input.disputeId);
+        const db=env.PRIMARY_DB;
+        const order=await db.prepare(
+          "SELECT id,user_id,currency,stripe_due_minor,stripe_charge_id,status FROM commerce_orders WHERE stripe_charge_id=?"
+        ).bind(dispute.chargeId).first<{id:string;user_id:string;currency:string;
+          stripe_due_minor:number;stripe_charge_id:string;status:string}>();
+        if(order&&(order.stripe_charge_id!==dispute.chargeId||
+           order.currency!==dispute.currency||
+           !Number.isSafeInteger(Number(order.stripe_due_minor))||
+           Number(order.stripe_due_minor)<dispute.amountMinor||
+           !["paid","partially_refunded","refunded","disputed","chargeback_lost"].includes(order.status)))
+          throw Error("owner_dispute_original_order_mismatch");
+        if(order){
+          // Durable whole-order veto FIRST. No bank win auto-restores grants.
+          const storage=this.ctx.storage as typeof this.ctx.storage&{
+            transactionSync<T>(fn:()=>T):T
+          };
+          storage.transactionSync(()=>denyPaidOrder(sql,{
+            orderId:order.id,operationId:"dispute:"+dispute.id
+          }));
+          if(readPaidOrderPermission(sql,{orderId:order.id}).allowed!==false)
+            throw Error("owner_dispute_denial_uncommitted");
+        }
+        const at=new Date().toISOString(),lost=dispute.status==="lost",
+          won=dispute.status==="won",closed=lost||won||dispute.status==="warning_closed";
+        const statements:Parameters<CatalogDB["batch"]>[0]=[];
+        // Explicit rollback assertion: a repeat ID cannot change original
+        // order, charge, currency or disputed amount.
+        statements.push(db.prepare(
+          "SELECT CASE WHEN EXISTS(SELECT 1 FROM commerce_disputes WHERE provider_dispute_id=? AND (COALESCE(order_id,'')<>? OR charge_id<>? OR amount_minor<>? OR currency<>?)) THEN json_extract('immutable_dispute_scope_conflict','
+        // Synthetic QA owner lease + private DO bearer are enforced above.
+        // Production must separately certify provider evidence provenance.
+        if(!raw||typeof raw!=="object"||Array.isArray(raw))
+          throw Error("invalid_refund_provider_command");
+        const q=raw as Record<string,unknown>;
+        const validId=/^[a-zA-Z0-9_-]{8,160}$/;
+        const provider=/^re_[a-zA-Z0-9_-]{4,200}$/;
+        const payment=/^pi_[a-zA-Z0-9_-]{4,200}$/;
+        const accepted=new Set(["pending","requires_action","succeeded","failed","canceled"]);
+        if(Object.keys(q).sort().join(",")!==
+             "amountMinor,currency,orderId,paymentIntentId,providerRefundId,refundId,status"||
+           typeof q.orderId!=="string"||!validId.test(q.orderId)||
+           typeof q.refundId!=="string"||!validId.test(q.refundId)||
+           typeof q.providerRefundId!=="string"||!provider.test(q.providerRefundId)||
+           typeof q.paymentIntentId!=="string"||!payment.test(q.paymentIntentId)||
+           typeof q.currency!=="string"||!/^[A-Z]{3}$/.test(q.currency)||
+           typeof q.status!=="string"||!accepted.has(q.status)||
+           !Number.isSafeInteger(q.amountMinor)||Number(q.amountMinor)<=0||
+           Number(q.amountMinor)>1_000_000_000_000)
+          throw Error("invalid_refund_provider_command");
+        const refund=await env.PRIMARY_DB.prepare(
+          "SELECT id,order_id,provider_refund_id,stripe_amount_minor,currency,status,succeeded_at FROM commerce_refunds WHERE id=?"
+        ).bind(q.refundId).first<{id:string;order_id:string;provider_refund_id:string|null;
+          stripe_amount_minor:number;currency:string;status:string;succeeded_at:string|null}>();
+        const order=await env.PRIMARY_DB.prepare(
+          "SELECT id,stripe_payment_intent_id,currency FROM commerce_orders WHERE id=?"
+        ).bind(q.orderId).first<{id:string;stripe_payment_intent_id:string|null;currency:string}>();
+        if(!refund||refund.id!==q.refundId||refund.order_id!==q.orderId||
+           !order||order.id!==q.orderId||
+           order.stripe_payment_intent_id!==q.paymentIntentId||
+           order.currency!==q.currency||refund.currency!==q.currency||
+           Number(refund.stripe_amount_minor)!==q.amountMinor||
+           (refund.provider_refund_id&&refund.provider_refund_id!==q.providerRefundId))
+          throw Error("owner_refund_provider_scope_mismatch");
+        if(readPaidOrderPermission(sql,{orderId:q.orderId}).allowed!==false)
+          throw Error("owner_refund_denial_required");
+        // The private owner independently GETs Stripe's current refund
+        // using its own credential. An adapter may not forge financial proof.
+        const providerStatus=await independentlyVerifyOwnerStripeRefund(env,{
+          orderId:q.orderId as string,refundId:q.refundId as string,
+          providerRefundId:q.providerRefundId as string,
+          paymentIntentId:q.paymentIntentId as string,
+          amountMinor:q.amountMinor as number,currency:q.currency as string,
+          status:q.status as string
+        });
+        if((refund.succeeded_at||refund.status==="succeeded")&&
+           providerStatus!=="succeeded")
+          throw Error("owner_refund_provider_regressed_after_success");
+        // A late pending webhook cannot downgrade a Stripe-verified success.
+        const state=refund.succeeded_at||refund.status==="succeeded"?
+          "succeeded":providerStatus;
+        if(refund.provider_refund_id!==q.providerRefundId||refund.status!==state){
+          const write=await env.PRIMARY_DB.prepare(
+            "UPDATE commerce_refunds SET provider_refund_id=?,status=CASE WHEN succeeded_at IS NOT NULL OR status='succeeded' THEN 'succeeded' ELSE ? END,updated_at=? WHERE id=? AND order_id=? AND (provider_refund_id IS NULL OR provider_refund_id=?)"
+          ).bind(q.providerRefundId,state,new Date().toISOString(),
+            q.refundId,q.orderId,q.providerRefundId).run() as {meta?:{changes?:number}};
+          if((write.meta?.changes??0)===0)
+            throw Error("owner_refund_provider_write_conflict");
+        }
+        const confirmed=await env.PRIMARY_DB.prepare(
+          "SELECT id,order_id,provider_refund_id,status FROM commerce_refunds WHERE id=?"
+        ).bind(q.refundId).first<{
+          id:string;order_id:string;provider_refund_id:string|null;status:string}>();
+        if(!confirmed||confirmed.id!==q.refundId||
+           confirmed.order_id!==q.orderId||
+           confirmed.provider_refund_id!==q.providerRefundId||
+           confirmed.status!==state)
+          throw Error("owner_refund_provider_confirmation_failed");
+        return Response.json({schema:"cove.owner-refund-provider.v1",
+          orderId:q.orderId,refundId:q.refundId,
+          providerRefundId:q.providerRefundId,status:confirmed.status,
+          ownerDenied:true,providerRecorded:true},
+          {status:200,headers:noStore});
+      }
+      if(route==="/commercial/refund/post-accounting"){
+        // Canonical finance posting is never delegated to caller-supplied SQL.
+        // Only a persisted Stripe-success (or internal tender) refund under
+        // the already durable whole-order owner veto can post. No rollback of
+        // the owner denial occurs when D1 fails or a retry is interrupted.
+        const receipt=await executeOwnerRefundAccounting(env.PRIMARY_DB,sql,raw,postRefundAccountingPrivate);
+        return Response.json(receipt,{status:200,headers:noStore});
+      }
+      if(route==="/commercial/entitlement/deny-batch"){
+        const storage=this.ctx.storage as typeof this.ctx.storage & {
+          transactionSync<T>(fn:()=>T):T;
+        };
+        const receipt=storage.transactionSync(()=>
+          denyPaidEntitlementsBatch(sql,raw)
+        );
+        return Response.json(receipt,{status:200,headers:noStore});
+      }
+      if(route==="/commercial/entitlement/deny-next"){
+        const storage=this.ctx.storage as typeof this.ctx.storage & {
+          transactionSync<T>(fn:()=>T):T;
+        };
+        const verdict=storage.transactionSync(()=>denyPaidEntitlement(sql,raw));
+        return Response.json(verdict,{status:verdict.applied?200:409,headers:noStore});
+      }
+      if(route==="/commercial/entitlement/authorize"){
+        const row=readPaidAccess(sql,raw);
+        return Response.json({schema:"cove.paid-access.v1",allowed:!!row,proof:row},
+          {headers:noStore});
+      }
+      if(route==="/commercial/entitlement/publish-order-verified"){
+        // No caller-supplied entitlement list is trusted. The strong owner
+        // discovers ALL canonical lines for this exact paid order and
+        // verifies their immutable purchase scopes against its own legal
+        // grants. One DO transaction then publishes the entire cart or none.
+        const q=raw as {orderId?:unknown;userId?:unknown;
+          territory?:unknown;channel?:unknown}|null;
+        if(!q||typeof q.orderId!=="string"||
+           !/^[a-zA-Z0-9_-]{8,160}$/.test(q.orderId)||
+           typeof q.userId!=="string"||
+           !/^[a-zA-Z0-9_-]{8,160}$/.test(q.userId)||
+           typeof q.territory!=="string"||!/^[A-Z]{2}$/.test(q.territory)||
+           q.channel!=="retail")
+          return new Response(null,{status:400,headers:noStore});
+        const order=await env.PRIMARY_DB.prepare(
+          "SELECT id,user_id,territory_code,status FROM commerce_orders WHERE id=? AND user_id=?"
+        ).bind(q.orderId,q.userId).first<{
+          id:string;user_id:string;territory_code:string;status:string
+        }>();
+        if(!order||order.status!=="paid"||order.territory_code!==q.territory)
+          return new Response(null,{status:409,headers:noStore});
+        const items=(await env.PRIMARY_DB.prepare(
+          `SELECT oi.id,oi.product_id,oi.sales_channel,oi.preorder_id,
+                  oi.entitlement_status,oi.rights_grant_id,oi.rights_snapshot_json,
+                  e.id entitlement_id,e.status entitlement_state,e.source entitlement_source,
+                  e.starts_at entitlement_starts_at,e.ends_at entitlement_ends_at
+             FROM commerce_order_items oi LEFT JOIN entitlements e
+               ON e.order_item_id=oi.id AND e.user_id=? AND
+                  e.product_id=oi.product_id AND e.entitlement_type='purchase'
+            WHERE oi.order_id=? ORDER BY oi.id LIMIT 26`
+        ).bind(q.userId,q.orderId).all<{
+          id:string;product_id:string;sales_channel:string;
+          preorder_id:string|null;entitlement_status:string;
+          rights_grant_id:string|null;rights_snapshot_json:string|null;
+          entitlement_id:string|null;entitlement_state:string|null;
+          entitlement_source:string|null;entitlement_starts_at:string|null;
+          entitlement_ends_at:string|null;
+        }>()).results;
+        if(!items.length||items.length>25||
+           new Set(items.map(x=>x.product_id)).size!==items.length)
+          return new Response(null,{status:409,headers:noStore});
+        // Preorders never mint a downloadable entitlement in this path.
+        const delivered=items.filter(x=>!x.preorder_id);
+        if(!delivered.length)
+          return new Response(null,{status:409,headers:noStore});
+        if(delivered.some(x=>x.entitlement_status!=="granted"||
+           x.entitlement_state!=="active"||x.entitlement_source!=="commerce"||
+           x.sales_channel!=="retail"||!x.entitlement_id))
+          return new Response(null,{status:409,headers:noStore});
+        // Read-only canonical buyer risk gate. Each denied/held line
+        // invalidates the full cart, not just an individual ebook.
+        const hold=await env.PRIMARY_DB.prepare(
+          "SELECT 1 ok FROM risk_holds WHERE domain='buyer' AND subject_type='order' AND subject_id=? AND status='active' AND hold_scope IN ('checkout','entitlement') LIMIT 1"
+        ).bind(q.orderId).first<{ok:number}>();
+        if(hold)return new Response(null,{status:409,headers:noStore});
+        const lines:VerifiedPaidOrderLine[]=[];
+        const now=Date.now();
+        for(const item of delivered){
+          // A multi-book cart obeys the same time window as a single
+          // purchase. Invalid canonical timestamps fail closed rather than
+          // issuing a fresh five-minute owner lease for an expired line.
+          const starts=item.entitlement_starts_at===null?null:
+            Date.parse(item.entitlement_starts_at);
+          const ends=item.entitlement_ends_at===null?null:
+            Date.parse(item.entitlement_ends_at);
+          if((starts!==null&&(!Number.isFinite(starts)||starts>now))||
+             (ends!==null&&(!Number.isFinite(ends)||ends<=now)))
+            return new Response(null,{status:409,headers:noStore});
+          const rows=readCommercialProofs(sql,[item.product_id],
+            q.territory,"retail");
+          if(rows.length!==1)return new Response(null,{status:409,headers:noStore});
+          const rights=rows[0]!;
+          let purchased:unknown;
+          try{purchased=JSON.parse(item.rights_snapshot_json||"null");}
+          catch{return new Response(null,{status:409,headers:noStore});}
+          const acquired=purchased as {
+            grantId?:unknown;editionId?:unknown;territory?:unknown;
+            salesChannel?:unknown;contractId?:unknown;contractVersionId?:unknown
+          }|null;
+          if(!acquired||acquired.grantId!==item.rights_grant_id||
+             acquired.grantId!==rights.grant_id||
+             acquired.editionId!==rights.edition_id||
+             acquired.contractId!==rights.contract_id||
+             acquired.contractVersionId!==rights.contract_version_id||
+             acquired.territory!==q.territory||acquired.salesChannel!=="retail")
+            return new Response(null,{status:409,headers:noStore});
+          const expiry=Math.min(now+5*60_000,Date.parse(rights.valid_until),
+            ends??Number.POSITIVE_INFINITY);
+          if(!Number.isFinite(expiry)||expiry<=now)
+            return new Response(null,{status:409,headers:noStore});
+          const scope={
+            entitlementId:item.entitlement_id!,userId:q.userId,
+            productId:item.product_id
+          };
+          lines.push({...scope,territory:q.territory,channel:"retail",
+            orderId:q.orderId,productEpoch:rights.epoch,
+            validUntil:new Date(expiry).toISOString(),
+            expectedEpoch:captureEntitlementEpoch(sql,scope)});
+        }
+        const storage=this.ctx.storage as typeof this.ctx.storage&{
+          transactionSync<T>(fn:()=>T):T;
+        };
+        const receipt=storage.transactionSync(()=>
+          publishVerifiedPaidOrderAtomic(sql,lines,Date.now())
+        );
+        return Response.json(receipt,{status:200,headers:noStore});
+      }
+      if(route==="/commercial/entitlement/publish-verified"){
+        const scope=validatePaidEntitlementScope(raw);
+        const input=raw as {territory?:unknown;channel?:unknown};
+        if(typeof input.territory!=="string" ||
+           !/^[A-Z]{2}$/.test(input.territory)||
+           !["retail","subscription","library"].includes(String(input.channel)))
+          return new Response(null,{status:400,headers:noStore});
+        // Product permission must already be published. Entitlement alone
+        // NEVER overrides a global paid-contract withdrawal.
+        const rights=readCommercialProofs(sql,[scope.productId],
+          input.territory,input.channel as CommercialChannel);
+        if(rights.length!==1)return new Response(null,{status:409,headers:noStore});
+        const expected=captureEntitlementEpoch(sql,scope);
+        const ent=await env.PRIMARY_DB.prepare(
+          "SELECT id,user_id,product_id,status,entitlement_type,source,starts_at,ends_at,order_item_id FROM entitlements WHERE id=? AND user_id=? AND product_id=?"
+        ).bind(scope.entitlementId,scope.userId,scope.productId)
+          .first<{id:string;user_id:string;product_id:string;status:string;
+            entitlement_type:string;source:string;starts_at:string|null;
+            ends_at:string|null;order_item_id:string|null}>();
+        if(!ent||ent.status!=="active"||ent.entitlement_type!=="purchase"||
+           ent.source!=="commerce"||!ent.order_item_id)
+          return new Response(null,{status:409,headers:noStore});
+        const now=Date.now();
+        const starts=ent.starts_at===null?null:Date.parse(ent.starts_at);
+        const ends=ent.ends_at===null?null:Date.parse(ent.ends_at);
+        if((starts!==null&&(!Number.isFinite(starts)||starts>now))||
+           (ends!==null&&(!Number.isFinite(ends)||ends<=now)))
+          return new Response(null,{status:409,headers:noStore});
+        const order=await env.PRIMARY_DB.prepare(
+          "SELECT co.id order_id,co.territory_code,coi.sales_channel,coi.preorder_id,coi.entitlement_status,co.status order_status,coi.rights_grant_id,coi.rights_snapshot_json FROM commerce_order_items coi JOIN commerce_orders co ON co.id=coi.order_id WHERE coi.id=? AND coi.product_id=? AND co.user_id=?"
+        ).bind(ent.order_item_id,scope.productId,scope.userId)
+          .first<{order_id:string;territory_code:string;sales_channel:string;preorder_id:string|null;
+          entitlement_status:string;order_status:string;
+          rights_grant_id:string|null;rights_snapshot_json:string|null}>();
+        if(!order||order.entitlement_status!=="granted"||
+           order.order_status!=="paid" ||order.preorder_id!==null||
+           order.territory_code!==input.territory||
+           order.sales_channel!==input.channel||
+           order.rights_grant_id!==rights[0].grant_id)
+          return new Response(null,{status:409,headers:noStore});
+        // This compatibility endpoint may only publish a genuinely
+        // single-delivery order. Otherwise a caller could expose the first
+        // valid line of a cart whose second line fails atomic certification.
+        // Preorders are financial reservations and do not deliver here.
+        const inventory=await env.PRIMARY_DB.prepare(
+          "SELECT COUNT(*) delivery_count FROM commerce_order_items WHERE order_id=? AND preorder_id IS NULL"
+        ).bind(order.order_id).first<{delivery_count:number}>();
+        if(!inventory||inventory.delivery_count!==1)
+          return new Response(null,{status:409,headers:noStore});
+        let purchased:unknown=null;
+        try{purchased=JSON.parse(order.rights_snapshot_json||"");}
+        catch{return new Response(null,{status:409,headers:noStore});}
+        // The paid order's original acquisition identity must match ALL
+        // dimensions of the fresh legal proof, not only a contract version.
+        // An unrelated grant, edition, contract or market cannot launder
+        // a settled buyer entitlement into a new legal scope.
+        const acquired=purchased as {
+          grantId?:unknown;editionId?:unknown;territory?:unknown;
+          salesChannel?:unknown;contractId?:unknown;contractVersionId?:unknown
+        }|null;
+        if(!acquired ||
+           acquired.grantId!==rights[0].grant_id ||
+           acquired.editionId!==rights[0].edition_id ||
+           acquired.territory!==input.territory ||
+           acquired.salesChannel!==input.channel ||
+           acquired.contractId!==rights[0].contract_id ||
+           acquired.contractVersionId!==rights[0].contract_version_id)
+          return new Response(null,{status:409,headers:noStore});
+        const hold=await env.PRIMARY_DB.prepare(
+          "SELECT 1 ok FROM risk_holds rh JOIN commerce_order_items oi ON oi.order_id=rh.subject_id WHERE rh.domain='buyer' AND rh.subject_type='order' AND rh.status='active' AND rh.hold_scope IN ('checkout','entitlement') AND oi.id=? LIMIT 1"
+        ).bind(ent.order_item_id).first<{ok:number}>();
+        if(hold)return new Response(null,{status:409,headers:noStore});
+        const expiry=Math.min(Date.now()+5*60000,
+          ends??Number.POSITIVE_INFINITY,
+          Date.parse(rights[0].valid_until));
+        if(!Number.isFinite(expiry)||expiry<=Date.now())
+          return new Response(null,{status:409,headers:noStore});
+        const storage=this.ctx.storage as typeof this.ctx.storage & {
+          transactionSync<T>(fn:()=>T):T;
+        };
+        const receipt=storage.transactionSync(()=>{
+          if(marketIsWithdrawn(sql,input.territory))
+            throw Error("market_withdrawn_during_paid_entitlement_verification");
+          return publishFreshEntitlement(sql,{...scope,
+            // The owner core must receive the exact acquisition market.
+            // Omitting either field rejects all positive buyer publication.
+            territory:input.territory,channel:input.channel as CommercialChannel,
+            orderId:order.order_id,productEpoch:rights[0].epoch,
+            validUntil:new Date(expiry).toISOString()
+          },expected);
+        });
+        return Response.json(receipt,{status:receipt.applied?200:409,headers:noStore});
+      }
+      if(route==="/commercial/subject/deny-next"){
+        const storage=this.ctx.storage as typeof this.ctx.storage & {
+          transactionSync<T>(fn:()=>T):T;
+        };
+        const receipt=storage.transactionSync(()=>denyCommercialSubject(sql,raw));
+        return Response.json(receipt,{status:200,headers:noStore});
+      }
+      if(route==="/commercial/deny-batch"){
+        const storage=this.ctx.storage as typeof this.ctx.storage & {
+          transactionSync<T>(fn:()=>T):T;
+        };
+        const receipt=storage.transactionSync(()=>
+          denyCommercialProductsBatch(sql,raw)
+        );
+        return Response.json(receipt,{status:200,headers:noStore});
+      }
+      if(route==="/commercial/deny-next"){
+        const storage=this.ctx.storage as typeof this.ctx.storage & {
+          transactionSync<T>(fn:()=>T):T;
+        };
+        const verdict=storage.transactionSync(()=>
+          denyCommercialProduct(sql,raw)
+        );
+        return Response.json(verdict,{status:verdict.applied?200:409,headers:noStore});
+      }
+      // Mixed free and contract-backed paid shelf. The entire authorization
+      // happens under one strongly consistent SQLite owner, never primary D1.
+      // Missing/unpublished rows are absent, not inferred from KV/R2.
+      if(route==="/storefront/authorize-batch"){
+        const input=raw as {ids?:unknown;territory?:unknown;currency?:unknown};
+        if(!input||!Array.isArray(input.ids)||input.ids.length>128||
+           new Set(input.ids).size!==input.ids.length||
+           input.ids.some(id=>typeof id!=="string"||
+             !/^prd_[a-zA-Z0-9_-]{3,120}$/.test(id))||
+           typeof input.territory!=="string"||!/^[A-Z]{2}$/.test(input.territory)||
+           typeof input.currency!=="string"||!/^[A-Z]{3}$/.test(input.currency))
+          return new Response(null,{status:400,headers:noStore});
+        const free=input.ids.filter((id):id is string=>
+          typeof id==="string"&&id.startsWith("prd_gutenberg_"));
+        const paid=input.ids.filter((id):id is string=>
+          typeof id==="string"&&!id.startsWith("prd_gutenberg_"));
+        const rows=[
+          ...readAuthorizedPresentations(sql,free,input.territory,input.currency),
+          ...readCommercialStorefront(sql,paid,input.territory,input.currency)
+        ];
+        const position=new Map(input.ids.map((id,i)=>[id,i]));
+        rows.sort((a,b)=>(position.get(a.product_id)??129)-(position.get(b.product_id)??129));
+        return Response.json({schema:"cove.storefront-owner.v1",rows:rows.slice(0,25)},
+          {headers:noStore});
+      }
+      if(route==="/storefront/publish-commercial"){
+        const input=raw as {productId?:unknown;territory?:unknown;currency?:unknown};
+        if(!input||typeof input.productId!=="string"||
+           !commercialProductId.test(input.productId)||
+           input.productId.startsWith("prd_gutenberg_")||
+           typeof input.territory!=="string"||!/^[A-Z]{2}$/.test(input.territory)||
+           typeof input.currency!=="string"||!/^[A-Z]{3}$/.test(input.currency))
+          return new Response(null,{status:400,headers:noStore});
+        const rights=readCommercialProofs(sql,[input.productId],
+          input.territory,"retail");
+        if(rights.length!==1)return new Response(null,{status:409,headers:noStore});
+        const row=(await authorizeStorefrontPresentationIds(
+          env.PRIMARY_DB,[input.productId],input.territory,input.currency
+        ))[0];
+        if(!row||row.product_id!==input.productId||
+           row.edition_id!==rights[0].edition_id||
+           !row.offer_json)
+          return new Response(null,{status:409,headers:noStore});
+        const now=Date.now();
+        const expires=Math.min(now+5*60_000,Date.parse(rights[0].valid_until));
+        const storage=this.ctx.storage as typeof this.ctx.storage&{
+          transactionSync<T>(fn:()=>T):T;
+        };
+        const receipt=storage.transactionSync(()=>{
+          if(marketIsWithdrawn(sql,input.territory))
+            throw Error("market_withdrawn_during_offer_verification");
+          return publishCommercialStorefront(sql,{
+            product_id:row.product_id,edition_id:row.edition_id,
+            product_public_id:row.product_public_id,
+            edition_public_id:row.edition_public_id,
+            territory:input.territory as string,currency:input.currency as string,
+            rights_epoch:rights[0].epoch,
+            grant_id:rights[0].grant_id,contract_id:rights[0].contract_id!,
+            contract_version_id:rights[0].contract_version_id!,
+            offer_json:row.offer_json!,
+            valid_until:new Date(expires).toISOString()
+          });
+        });
+        return Response.json(receipt,{headers:noStore});
+      }
+      if(route==="/commercial/authorize-batch"){
+        const input=raw as {ids?:unknown;territory?:unknown;channel?:unknown};
+        if(!input||!Array.isArray(input.ids)||
+           typeof input.territory!=="string"||typeof input.channel!=="string")
+          return new Response(null,{status:400,headers:noStore});
+        const rows=readCommercialProofs(
+          sql,input.ids,input.territory,input.channel as CommercialChannel
+        );
+        return Response.json({schema:"cove.commercial-legal.v1",rows},
+          {headers:noStore});
+      }
+      if(route==="/commercial/publish-verified"){
+        const input=raw as {productId?:unknown;territory?:unknown;channel?:unknown};
+        if(!input||typeof input.productId!=="string"||
+           !commercialProductId.test(input.productId) ||
+           input.productId.startsWith("prd_gutenberg_")||
+           typeof input.territory!=="string"||
+           !/^[A-Z]{2}$/.test(input.territory)||
+           !["retail","subscription","library"].includes(String(input.channel)))
+          return new Response(null,{status:400,headers:noStore});
+        if(sql.exec("SELECT 1 pending FROM cove_publication_commands WHERE product_id=? AND state='pending' LIMIT 1",
+          input.productId).toArray().length)
+          return new Response(null,{status:409,headers:noStore});
+        const startEpoch=captureCommercialEpoch(sql,input);
+        const product=await env.PRIMARY_DB.prepare(
+          "SELECT id,source_name,edition_id FROM products WHERE id=?"
+        ).bind(input.productId).first<{
+          id:string;source_name:string;edition_id:string
+        }>();
+        if(!product || ["gutenberg","upload"].includes(product.source_name))
+          return new Response(null,{status:409,headers:noStore});
+        // The canonical evaluator checks territorial grant priority, contract
+        // version scope, license language, DRM, channel and current status.
+        // Persist=false: owner publication does NOT add primary D1 writes.
+        const decision=await resolveProductRights(
+          env.PRIMARY_DB,input.productId,input.territory,{
+            salesChannel:input.channel as CommercialChannel,persist:false
+          }
+        );
+        if(!decision.allowed || !decision.grantId ||
+           decision.editionId!==product.edition_id ||
+           decision.productId!==product.id)
+          return new Response(null,{status:409,headers:noStore});
+        const now=Date.now();
+        const upperBound=now+30*60*1000;
+        const ends=[decision.endsAt,
+          (decision.contractPolicy as {effectiveTo?:unknown}|null)?.effectiveTo]
+          .filter((v):v is string=>typeof v==="string"&&v.length>0)
+          .map(v=>Date.parse(v));
+        if(ends.some(t=>!Number.isFinite(t) || t<=now))
+          return new Response(null,{status:409,headers:noStore});
+        const expiresAt=Math.min(upperBound,...ends);
+        const storage=this.ctx.storage as typeof this.ctx.storage & {
+          transactionSync<T>(fn:()=>T):T;
+        };
+        const verdict=storage.transactionSync(()=>{
+          if(marketIsWithdrawn(sql,input.territory))
+            throw Error("market_withdrawn_during_commercial_verification");
+          return publishFreshCommercialProof(sql,{
+            productId:product.id,editionId:product.edition_id,
+            territory:input.territory as string,channel:input.channel as CommercialChannel,
+            grantId:decision.grantId!,contractId:decision.contractId,
+            contractVersionId:decision.contractVersionId,
+            validUntil:new Date(expiresAt).toISOString(),
+          },startEpoch);
+        });
+        return Response.json(verdict,{status:verdict.applied?200:409,headers:noStore});
+      }
+      if(route==="/verify") {
+        const input=raw as {sourceId?:unknown;territory?:unknown};
+        if(!input||typeof input.sourceId!=="string"||typeof input.territory!=="string")
+          return new Response(null,{status:400,headers:noStore});
+        return Response.json(readAuthority(sql,input.sourceId,input.territory),
+          {headers:noStore});
+      }
+      if(route==="/authorize-batch") {
+        const input=raw as {ids?:unknown;territory?:unknown;currency?:unknown};
+        if(!input||!Array.isArray(input.ids)||
+           typeof input.territory!=="string"||typeof input.currency!=="string")
+          return new Response(null,{status:400,headers:noStore});
+        const rows=readAuthorizedPresentations(sql,input.ids,input.territory,input.currency);
+        return Response.json({schema:"cove.legal-authorized.v1",rows},
+          {headers:noStore});
+      }
+      if(route==="/deny-next-batch") {
+        // Transaction boundary is mandatory even when an unexpected receipt
+        // throws mid-batch: all owner fences persist or none persist.
+        const storage=this.ctx.storage as typeof this.ctx.storage & {
+          transactionSync<T>(fn:()=>T):T;
+        };
+        const verdict=storage.transactionSync(()=>
+          persistSourceWithdrawalsBatch(sql,raw)
+        );
+        return Response.json(verdict,{status:verdict.applied?200:409,headers:noStore});
+      }
+      if(route==="/deny-next") {
+        const verdict=persistSourceWithdrawal(sql,raw);
+        return Response.json(verdict,{status:verdict.applied?200:409,headers:noStore});
+      }
+      const command=validateAuthorityCommand(raw);
+      if(route==="/deny") {
+        if(command.action!=="deny") return new Response(null,{status:400,headers:noStore});
+        const verdict=applyAuthorityCommand(sql,command);
+        // A stale/failed deny is NOT acknowledged as successful.
+        return Response.json(verdict,{status:verdict.applied?200:409,headers:noStore});
+      }
+      if(command.action!=="allow"||command.territory==="*")
+        return new Response(null,{status:400,headers:noStore});
+      const input=raw as {currency?:unknown};
+      if(typeof input.currency!=="string"||!/^[A-Z]{3}$/.test(input.currency))
+        return new Response(null,{status:400,headers:noStore});
+      // Positive transitions alone contact canonical primary D1. This
+      // verifies a current retail grant, exact source/evidence/territory and
+      // active market offer; the hot /verify path never consults D1.
+      // It is NOT sufficient to enable production until ALL canonical legal
+      // mutation writers have been enclosed in deny-first owner fencing.
+      const proofStartRevision=capturePositiveVerificationFence(sql,command);
+      const authorized=await authorizeStorefrontPresentationIds(
+        env.PRIMARY_DB,["prd_gutenberg_"+command.sourceId],
+        command.territory,input.currency
+      );
+      if(authorized.length!==1 ||
+          authorized[0].product_id!=="prd_gutenberg_"+command.sourceId ||
+          !authorized[0].offer_json)
+        return new Response(null,{status:409,headers:noStore});
+      const storage=this.ctx.storage as typeof this.ctx.storage&{
+        transactionSync<T>(fn:()=>T):T;
+      };
+      const verdict=storage.transactionSync(()=>{
+        if(marketIsWithdrawn(sql,command.territory))
+          throw Error("market_withdrawn_during_source_verification");
+        return commitFreshPositiveVerification(
+        sql,command,proofStartRevision,input.currency as string,{
+          productId:authorized[0].product_id,
+          editionId:authorized[0].edition_id,
+          productPublicId:authorized[0].product_public_id || null,
+          editionPublicId:authorized[0].edition_public_id || null,
+          offerJson:authorized[0].offer_json!,
+        });
+      });
+      if(!verdict.applied)
+        return Response.json(verdict,{status:409,headers:noStore});
+      return Response.json(verdict,{status:200,headers:noStore});
+    } catch(error) {
+      console.error("cove_legal_authority_closed",error instanceof Error?error.name:"unknown");
+      return new Response(null,{status:503,headers:route==="/commercial/order/settle"?
+        {...noStore,"x-cove-owner-settlement-failure":ownerSettlementDiagnostic(error)}:noStore});
+    }
+  }
+}
+// Service-binding-only entrypoint for the separately authenticated QA caller.
+// workers_dev=false, routes=[], no preview URLs; even this private entrypoint
+// is disabled unless the dedicated QA primary ID and secret match exactly.
+// The Durable Object remains the single legal serialization point.
+export default {
+  async fetch(request:Request,env:LegalAuthorityEnv):Promise<Response> {
+    // Private service-binding proof only. The production owner stays
+    // disabled for every existing rights, publication and payment route.
+    if(new URL(request.url).pathname===DISABLED_OWNER_ATTEST_ROUTE){
+      if(!isDisabledProductionOwner(env)||!env.LEGAL_AUTHORITY?.getByName)
+        return new Response(null,{status:503,headers:{"cache-control":"no-store"}});
+      if(request.headers.get("authorization")!=="Bearer "+env.COVE_RIGHTS_OWNER_SECRET)
+        return new Response(null,{status:401,headers:{"cache-control":"no-store"}});
+      return env.LEGAL_AUTHORITY.getByName(PRODUCTION_OWNER_OBJECT).fetch(request);
+    }
+    if(!qaOwnerLeaseLive(env) || !env.LEGAL_AUTHORITY?.getByName)
+      return new Response(null,{status:503,headers:{"cache-control":"no-store"}});
+    if(request.headers.get("authorization")!=="Bearer "+env.COVE_RIGHTS_OWNER_SECRET)
+      return new Response(null,{status:401,headers:{"cache-control":"no-store"}});
+    return env.LEGAL_AUTHORITY.getByName("cove-staged-legal-global-v1").fetch(request);
+  }
+};
+) ELSE 1 END ok"
+        ).bind(dispute.id,order?.id||"",dispute.chargeId,dispute.amountMinor,dispute.currency));
+        statements.push(db.prepare(
+          "INSERT INTO commerce_disputes(provider_dispute_id,order_id,charge_id,amount_minor,currency,reason,status,evidence_due_at,created_at,updated_at,closed_at) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(provider_dispute_id) DO UPDATE SET reason=excluded.reason,status=excluded.status,evidence_due_at=excluded.evidence_due_at,updated_at=excluded.updated_at,closed_at=COALESCE(commerce_disputes.closed_at,excluded.closed_at)"
+        ).bind(dispute.id,order?.id||null,dispute.chargeId,dispute.amountMinor,
+          dispute.currency,dispute.reason,dispute.status,dispute.evidenceDueAt,
+          at,at,closed?at:null));
+        if(order){
+          // Terminal loss is immutable. Won keeps the order disputed under
+          // the durable veto until separately certified repurchase.
+          statements.push(db.prepare(lost?
+            "UPDATE commerce_orders SET status='chargeback_lost',updated_at=? WHERE id=? AND stripe_charge_id=? AND status IN ('paid','partially_refunded','refunded','disputed','chargeback_lost')":
+            "UPDATE commerce_orders SET status='disputed',updated_at=? WHERE id=? AND stripe_charge_id=? AND status IN ('paid','partially_refunded','refunded','disputed')"
+          ).bind(at,order.id,dispute.chargeId));
+          statements.push(db.prepare(
+            "UPDATE entitlements SET status='revoked' WHERE user_id=? AND entitlement_type='purchase' AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND status='active'"
+          ).bind(order.user_id,order.id));
+          statements.push(db.prepare(
+            "UPDATE audio_offline_licenses SET status='revoked',revoked_at=COALESCE(revoked_at,?),revocation_reason='order_disputed' WHERE status='active' AND entitlement_id IN (SELECT id FROM entitlements WHERE user_id=? AND entitlement_type='purchase' AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?))"
+          ).bind(at,order.user_id,order.id));
+          statements.push(db.prepare(
+            "UPDATE commercial_delivery_grants SET status='revoked' WHERE status='active' AND user_id=? AND entitlement_id IN (SELECT id FROM entitlements WHERE user_id=? AND entitlement_type='purchase' AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?))"
+          ).bind(order.user_id,order.user_id,order.id));
+          const postings:Array<[string,string,number]>=[
+            ["dispute_open","dispute_receivable",dispute.amountMinor],
+            ["dispute_open","stripe_receivable",-dispute.amountMinor]
+          ];
+          if(lost)postings.push(["dispute_lost","chargeback_loss",dispute.amountMinor],
+            ["dispute_lost","dispute_receivable",-dispute.amountMinor]);
+          if(won)postings.push(["dispute_won","stripe_receivable",dispute.amountMinor],
+            ["dispute_won","dispute_receivable",-dispute.amountMinor]);
+          for(const [type,account,amount] of postings){
+            const marker="led_dispute:"+dispute.id+":"+type+":"+account;
+            statements.push(db.prepare(
+              "INSERT INTO commerce_ledger_entries(id,order_id,refund_id,user_id,entry_type,account_code,amount_minor,currency,external_reference,metadata_json,created_at) SELECT ?,?,NULL,?,?,?,?,?,?,?,? WHERE NOT EXISTS (SELECT 1 FROM commerce_ledger_entries WHERE id=?)"
+            ).bind(marker,order.id,order.user_id,type,account,amount,dispute.currency,
+              dispute.id,JSON.stringify({disputeId:dispute.id}),at,marker));
+          }
+        }
+        await db.batch(statements);
+        const record=await db.prepare(
+          "SELECT provider_dispute_id,order_id,charge_id,amount_minor,currency,status FROM commerce_disputes WHERE provider_dispute_id=?"
+        ).bind(dispute.id).first<{provider_dispute_id:string;order_id:string|null;
+          charge_id:string;amount_minor:number;currency:string;status:string}>();
+        if(!record||record.provider_dispute_id!==dispute.id||
+           (record.order_id||"")!==(order?.id||"")||
+           record.charge_id!==dispute.chargeId||
+           record.amount_minor!==dispute.amountMinor||
+           record.currency!==dispute.currency||record.status!==dispute.status)
+          throw Error("owner_dispute_canonical_record_unconfirmed");
+        if(order){
+          const expected:Array<[string,string,number]>=[
+            ["dispute_open","dispute_receivable",dispute.amountMinor],
+            ["dispute_open","stripe_receivable",-dispute.amountMinor]
+          ];
+          if(lost)expected.push(["dispute_lost","chargeback_loss",dispute.amountMinor],
+            ["dispute_lost","dispute_receivable",-dispute.amountMinor]);
+          if(won)expected.push(["dispute_won","stripe_receivable",dispute.amountMinor],
+            ["dispute_won","dispute_receivable",-dispute.amountMinor]);
+          for(const [type,account,amount] of expected){
+            const marker="led_dispute:"+dispute.id+":"+type+":"+account;
+            const line=await db.prepare(
+              "SELECT order_id,entry_type,account_code,amount_minor,currency,external_reference FROM commerce_ledger_entries WHERE id=?"
+            ).bind(marker).first<{order_id:string;entry_type:string;account_code:string;
+              amount_minor:number;currency:string;external_reference:string}>();
+            if(!line||line.order_id!==order.id||line.entry_type!==type||
+               line.account_code!==account||line.amount_minor!==amount||
+               line.currency!==dispute.currency||line.external_reference!==dispute.id)
+              throw Error("owner_dispute_ledger_unreconciled");
+          }
+          if(lost)await reverseRoyaltiesForChargeback(db,order.id,dispute.id);
+          if(readPaidOrderPermission(sql,{orderId:order.id}).allowed!==false)
+            throw Error("owner_dispute_denial_lost");
+        }
+        return Response.json({schema:"cove.owner-dispute-sync.v1",
+          disputeId:dispute.id,synced:true,linked:!!order,ownerDenied:!!order,
+          accountingReconciled:true},{status:200,headers:noStore});
+      }
       if(route==="/commercial/refund/record-provider"){
         // Synthetic QA owner lease + private DO bearer are enforced above.
         // Production must separately certify provider evidence provenance.
