@@ -4,8 +4,8 @@ import { DatabaseSync } from "node:sqlite";
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import {seedLocalCatalogFixture} from "./test-local-catalog-fixture.mjs";
-export function localBindings(root,options={}) {
+import { seedLocalCatalogFixture } from "./test-local-catalog-fixture.mjs";
+export function localBindings(root, options = {}) {
   const dir = path.join(root, ".sites-runtime");
   fs.mkdirSync(dir, { recursive: true });
   const db = new DatabaseSync(path.join(dir, "fore.sqlite"));
@@ -27,7 +27,7 @@ export function localBindings(root,options={}) {
   // This is a Node-only local DB fixture, never an edge/production Worker.
   // Keep development and existing local QA fixtures populated without invoking
   // the now-retired public source-authorizing catalog mutation path.
-  if(options.seedCatalogFixture!==false &&
+  if (options.seedCatalogFixture !== false &&
      db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='gutenberg_source_cache'").get())
     seedLocalCatalogFixture(db);
   function statement(sql, values = []) {
@@ -143,7 +143,7 @@ export function foreApiDevPlugin() {
     name: "fore-local-api",
     configureServer(server) {
       env = {
-        ...localBindings(server.config.root,{seedCatalogFixture:true}),
+        ...localBindings(server.config.root, { seedCatalogFixture: true }),
         FORE_AUTH_MODE: process.env.FORE_AUTH_MODE || "supabase",
         SUPABASE_URL: process.env.SUPABASE_URL,
         SUPABASE_PUBLISHABLE_KEY: process.env.SUPABASE_PUBLISHABLE_KEY,
