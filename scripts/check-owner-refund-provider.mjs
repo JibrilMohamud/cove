@@ -166,8 +166,10 @@ try{
   const commerce=readFileSync("src/features/fore/commerce.server.ts","utf8");
   assert.match(commerce,/recordOwnerStripeRefundReceipt\(env, String\(o.id\), id, refund\)/);
   assert.match(commerce,/recordOwnerStripeRefundReceipt\(env, String\(r.order_id\), String\(r.id\), obj\)/);
-  assert.ok(commerce.includes('if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1") {'),
-    "An enrolled owner must not fall back to primary D1 during refund recovery");
+  assert.doesNotMatch(commerce,/UPDATE commerce_refunds SET provider_refund_id=/,
+    "The caller may not write provider refund status directly into shared D1");
+  assert.match(commerce,/Refund completion requires the private commerce owner/,
+    "Refund provider calls require the enrolled private owner");
   globalThis.fetch=originalFetch;
   console.log("PASS: owner independently verifies Stripe refund metadata, status, amount, currency, mode, replay and outages");
 }finally{rmSync(dir,{recursive:true,force:true});}
