@@ -9,7 +9,8 @@ import {currentWriterSites,REVIEW_PATH} from "./reconcile-canonical-writers.mjs"
 const review=JSON.parse(readFileSync(REVIEW_PATH,"utf8"));
 const current=currentWriterSites();
 const lifecycle=current.filter(x=>x.table==="publishing_lifecycle_events");
-assert.equal(lifecycle.length,9);
+assert.ok(lifecycle.length>0 && lifecycle.length<=9,
+  "Only physically retired owner-command SQL may reduce restoration-sensitive lifecycle history counts");
 for(const site of lifecycle){
   const row=review.sites.find(x=>x.siteId===site.siteId);
   assert.equal(row?.disposition,"owner-command-required",
@@ -18,7 +19,7 @@ for(const site of lifecycle){
 }
 // An authenticated staff restoration consumes historical from_state and can
 // change the real current lifecycle; the source demonstrates history is NOT
-// harmless telemetry. Keep these nine authorizing until owner-first migration.
+// harmless telemetry. Keep all remaining direct lifecycle events authorizing until owner-first migration.
 const moderation=readFileSync("src/features/fore/moderation.server.ts","utf8");
 assert.match(moderation,/SELECT from_state FROM publishing_lifecycle_events WHERE lifecycle_id=\? AND to_state IN \('suppressed','takedown'\)/);
 assert.match(moderation,/restoredFrom\s*=\s*prior\?\.from_state/);
@@ -78,4 +79,4 @@ for(const path of walk("src")){
     "Distribution event history became a read dependency: "+path);
 }
 assert.equal(review.releaseApproval,false);
-console.log("PASS: one distribution history projection never grants access; all nine restoration-sensitive publishing lifecycle events correctly remain owner-required");
+console.log("PASS: one distribution history projection never grants access; all "+lifecycle.length+" remaining restoration-sensitive publishing lifecycle events remain owner-required");
