@@ -835,7 +835,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "65aa3794a53d0a90072301baf67131f02e7fa47480524854763d5eab14f48fe3",
+      "siteId": "126ef1f8feae9c3b47d03eec99b2bba1fe137b1e6174c4dc3443752d6bb7ac15",
       "file": "src/features/fore/commerce.server.ts",
       "line": 640,
       "functionName": "checkoutQuote",
@@ -848,7 +848,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "f9e99926c885c5d90c9b9a424f438c5c30deae63cfbe3e981b83d6845c243b4a",
+      "siteId": "14a7ed80c9a3b4c0999da30fcac66087e1db3653231d9b7b7e2b2afeca9ce355",
       "file": "src/features/fore/commerce.server.ts",
       "line": 986,
       "functionName": "recordTaxTransaction",
@@ -861,9 +861,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "430c5b837b45a35464f8abd023f58aa7bf32cbe275cc912e279d445fb027ce1d",
+      "siteId": "cbddbf6471968ac2f4cf9de76bc07507bc25fa47a15c8efec1a6cd97c1b3cdc3",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 1625,
+      "line": 1628,
       "functionName": "applyRefundSuccess",
       "table": "commerce_refunds",
       "operation": "UPDATE",
