@@ -40,7 +40,15 @@ try {
   assert.equal(attribution.soundsCheckoutReferral(), null, "Expired referral must not attribute purchases");
 } finally { Date.now = originalNow; }
 const backend = readFileSync("src/features/fore/commerce.server.ts", "utf8");
-assert.ok(backend.includes("commerce_sounds_purchase_attribution(order_id,station_slug,recording_id,captured_at)"));
+const privateOwner = readFileSync("src/storefront-strangler/legal-authority.worker.ts", "utf8");
+assert.ok(privateOwner.includes("INSERT OR IGNORE INTO commerce_sounds_purchase_attribution(order_id,station_slug,recording_id,captured_at)"),
+  "Referrals must persist only in the private, idempotent canonical owner transaction");
+assert.ok(privateOwner.includes("if(command.soundsStation&&stationBySlug(command.soundsStation))"),
+  "Owner independently checks the station allowlist");
+assert.ok(privateOwner.includes("await db.batch(statements)"),
+  "Referral write participates in the private atomic checkout draft transaction");
+assert.ok(!backend.includes("INSERT OR IGNORE INTO commerce_sounds_purchase_attribution("),
+  "Shared production checkout must not write attribution beside the private owner");
 assert.ok(backend.includes("stationBySlug(input.soundsStation)"), "Checkout station allowlist required");
 assert.ok(backend.includes("input.soundsRecording"), "Recording is optional but bounded");
 const api = readFileSync("src/features/fore/api.server.ts", "utf8");
@@ -49,4 +57,4 @@ assert.ok(api.includes('handleSoundsAnalytics(request, env, "/sounds/events", "Z
 const analytics = readFileSync("src/features/fore/cove-sounds-analytics.server.ts", "utf8");
 assert.ok(analytics.includes('request.headers.get("sec-gpc")'), "Server GPC enforced");
 assert.ok(analytics.includes('request.headers.get("dnt")'), "Server DNT enforced");
-console.log("PASS: referral TTL, station validation, GPC/DNT opt-out, canonical checkout persistence and edge country");
+console.log("PASS: referral TTL, station validation, GPC/DNT opt-out, private owner checkout attribution and edge country");
