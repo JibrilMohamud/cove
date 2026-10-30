@@ -1,0 +1,176 @@
+{
+  "schema": "cove.retired-catalog-writer-lineage.v1",
+  "baselineCommit": "0d66c7bd2480e09adee45a752638af8cf19907b1",
+  "ownerBinding": "CoveLegalAuthority lease-gated, QA-only",
+  "productionReleaseEligible": false,
+  "retired": [
+    {
+      "siteId": "4e04328370d8f0994fc61d8621484453159b30f340dbbc5f115fc8702fb6ffe4",
+      "line": 39,
+      "functionName": "commercialCatalogStatements",
+      "operation": "INSERT OR IGNORE INTO",
+      "table": "gutenberg_rights_evidence",
+      "sqlSha256": "3c24dc85ca150eafe6e770b63a568e1a8590a99234f0d7e91fc84f5febc42396"
+    },
+    {
+      "siteId": "5a5bcd023b7c6096df2a3595ec02c3a8d373807b6f0e3c4721ef9129de1896b0",
+      "line": 46,
+      "functionName": "commercialCatalogStatements",
+      "operation": "UPDATE",
+      "table": "gutenberg_source_cache",
+      "sqlSha256": "9f980f47f865c2df6007ed054ff7d8a030429ad77db67447348d9677595c25d4"
+    },
+    {
+      "siteId": "79e040d1e5c92088b9f8c723213f4c533731ba8af2ef1cd708ef0093f618e44a",
+      "line": 59,
+      "functionName": "commercialCatalogStatements",
+      "operation": "INSERT INTO",
+      "table": "editions",
+      "sqlSha256": "174485c29b98e8f76a6d51a4bbd0057255de8ce35600ddeccaac5c131ecaef2a"
+    },
+    {
+      "siteId": "f6ee7fde45e711a7d05d761eb5fe34ba6f6bf28a3967d2e2cb19beab252c9b34",
+      "line": 69,
+      "functionName": "commercialCatalogStatements",
+      "operation": "INSERT INTO",
+      "table": "products",
+      "sqlSha256": "3a462f7ee873856385575432e241579b477fc47d5f814ac8beeba5b14f8e8417"
+    },
+    {
+      "siteId": "562c1d04185763b5dbd799035d89276cde33bf787d0d1d81876def9e30d1d61b",
+      "line": 106,
+      "functionName": "commercialCatalogStatements",
+      "operation": "INSERT INTO",
+      "table": "offers",
+      "sqlSha256": "6ac5c3f5a966079e4a883990c790b580121b2572587a121512421004274dae8c"
+    },
+    {
+      "siteId": "3cb8ea55aae367d40bb50e73be04ee7543d1bc8c84498db6159be1161484ec96",
+      "line": 115,
+      "functionName": "commercialCatalogStatements",
+      "operation": "INSERT INTO",
+      "table": "rights_grants",
+      "sqlSha256": "edfecb5faae524326c48547f8b95f7ec829d46dba2e6b4fd6997ea312d05229f"
+    },
+    {
+      "siteId": "d0a73628a9f57bb6b5a69bc124b774b70d6cea4493737ccd2d263cfa05f05b39",
+      "line": 197,
+      "functionName": "commercialCatalogStatements",
+      "operation": "INSERT INTO",
+      "table": "digital_assets",
+      "sqlSha256": "45980ce111fe980f6a2e4965508522b1d44c01a86773ccceaec28438a4c61f24"
+    },
+    {
+      "siteId": "0ab7567eff356a320d67366bed84531260003c099c99e2f369488136e39dc140",
+      "line": 208,
+      "functionName": "commercialCatalogStatements",
+      "operation": "INSERT INTO",
+      "table": "asset_versions",
+      "sqlSha256": "352e2562168fade1bbf4abe9a620e6f88643336abed29dcc873f49266d0eff9c"
+    },
+    {
+      "siteId": "c7429ce2f39d460d4ea83018f8574f84b315f15fec314d594a71b4a581541b3e",
+      "line": 224,
+      "functionName": "commercialCatalogStatements",
+      "operation": "UPDATE",
+      "table": "digital_assets",
+      "sqlSha256": "ad05432de97f16a5bc4fd9acc64cd477337806ac449c17f564579f951d51e929"
+    },
+    {
+      "siteId": "34665b8c49e4cfeec8680c6283723cae3fe6cafee8b7c0b371ef848a4bab7d0f",
+      "line": 235,
+      "functionName": "commercialCatalogStatements",
+      "operation": "INSERT INTO",
+      "table": "digital_assets",
+      "sqlSha256": "aedfbbbe695c2912fc4e5555ea6127987789e7a4627242b15f8e5ad721815c2a"
+    },
+    {
+      "siteId": "2e70a4f7af6111fdf622035aedbd7e92561224318219db4199ab385f97da5c23",
+      "line": 242,
+      "functionName": "commercialCatalogStatements",
+      "operation": "INSERT INTO",
+      "table": "asset_versions",
+      "sqlSha256": "a697b7ccd1d4edadec80b689690d373d60ebbdd5f5f1c6e22316bcfd3a44d93e"
+    },
+    {
+      "siteId": "c0def1d626dc2bf5f22905d22e77ba2faec4a4f1f8764fc8479a8f6c2648fb04",
+      "line": 253,
+      "functionName": "commercialCatalogStatements",
+      "operation": "UPDATE",
+      "table": "digital_assets",
+      "sqlSha256": "ad05432de97f16a5bc4fd9acc64cd477337806ac449c17f564579f951d51e929"
+    },
+    {
+      "siteId": "730a8605d212def6dc4c818a4e73b5755f643cef80b6ab803c5123cb25620385",
+      "line": 257,
+      "functionName": "commercialCatalogStatements",
+      "operation": "INSERT INTO",
+      "table": "catalog_search_documents",
+      "sqlSha256": "f3d0bdd49408c719f48e6517fa5a46c387da6123b6bb48142a4a2bfb1160667e"
+    },
+    {
+      "siteId": "bfc24edfc1465550a69a972dbe0fb6b44bd55d55f6fb05f8d1f0dd43a2752852",
+      "line": 271,
+      "functionName": "commercialCatalogStatements",
+      "operation": "UPDATE",
+      "table": "catalog_search_documents",
+      "sqlSha256": "6065a11ec4700a88058cefb553ddd2c7c4de632eaa905fe82bdae2cdfc70f2ff"
+    },
+    {
+      "siteId": "714b55d3a0693b45bfc0d405e4361256f5fecedbdfdfe30171c99f35db30f2b9",
+      "line": 334,
+      "functionName": "personalImportStatements",
+      "operation": "INSERT INTO",
+      "table": "editions",
+      "sqlSha256": "d33f76d61db13fd806587e0c5f472d2a931c820809211c07480f8497bb7ed53e"
+    },
+    {
+      "siteId": "af410459e04d811ee03c287dbf665c4c0b52f64f9afea7779c573b0bcb924542",
+      "line": 339,
+      "functionName": "personalImportStatements",
+      "operation": "INSERT INTO",
+      "table": "products",
+      "sqlSha256": "d7dfdf88c832f4724b9c618fda85939a1fabd7497373b96a89bf796de6648012"
+    },
+    {
+      "siteId": "b3bbb214112a0aa02447ff2ba25fedaec1804ec215bccea4fc23addfe3b915d4",
+      "line": 362,
+      "functionName": "personalImportStatements",
+      "operation": "INSERT INTO",
+      "table": "digital_assets",
+      "sqlSha256": "70fa2060c35aee7c6c7b1ef914eb8ee898db8cd2fdf853d55b06ecbaa21941e1"
+    },
+    {
+      "siteId": "e2a47be4014241195b204558146c33fca7abd1f1583bcead4ac13a889821b731",
+      "line": 367,
+      "functionName": "personalImportStatements",
+      "operation": "INSERT INTO",
+      "table": "asset_versions",
+      "sqlSha256": "29fa8f80c04bac54a553a0f7b3fce75ac8bab85ab28a54f262b0c2b0e220c79f"
+    },
+    {
+      "siteId": "75c6188404f2bf4eb19e6c4c031466847bf16308fac6316b097c2e648c2ee0f6",
+      "line": 377,
+      "functionName": "personalImportStatements",
+      "operation": "INSERT INTO",
+      "table": "catalog_search_documents",
+      "sqlSha256": "7dfd4fd819c490fd7818ab2bd5c9e456eadf34f074ac0c877fbd9c7f63b2a9c7"
+    },
+    {
+      "siteId": "99c4a1a7f14eec0b2a3007816ee5614770fbe1d1192184689be3c2faf2e41f2e",
+      "line": 390,
+      "functionName": "personalImportStatements",
+      "operation": "UPDATE",
+      "table": "catalog_search_documents",
+      "sqlSha256": "56c61fdff21ef07ff19cfb0d1af99355b229a25a1a1b2efe083f87aede0bbe4a"
+    },
+    {
+      "siteId": "3180f52b3276f3d73530803c6b40c0e879d1c979521d3207da6aae295cdee7c5",
+      "line": 395,
+      "functionName": "personalImportStatements",
+      "operation": "INSERT INTO",
+      "table": "entitlements",
+      "sqlSha256": "0f423453509dee3bdd72c007988cfba1da995b40b1e7d60c75128dc33b1232af"
+    }
+  ]
+}
