@@ -5,6 +5,16 @@
  */
 import assert from "node:assert/strict";
 import {createHash} from "node:crypto";
+/** Preserve synthetic snapshot ordering across GitHub Actions run-ID rollover. */
+export function qaAudioPublicationVersion(runId) {
+  assert.match(runId,/^[0-9]{8,15}-[0-9]{1,5}$/);
+  const [workflow,attempt]=runId.split("-").map(Number);
+  assert.ok(Number.isSafeInteger(workflow)&&workflow>0);
+  assert.ok(Number.isSafeInteger(attempt)&&attempt>0&&attempt<1000);
+  const version=workflow*1000+attempt;
+  assert.ok(Number.isSafeInteger(version));
+  return version;
+}
 export async function provisionPublishedQaAudio(qaSql,{runId,productId,
   buyerId,objectKey,sha,sizeBytes,evidenceSha,evidenceSize}){
   assert.match(runId,/^[0-9]{8,15}-[0-9]{1,5}$/);
@@ -84,7 +94,7 @@ export async function provisionPublishedQaAudio(qaSql,{runId,productId,
   await qaSql("INSERT INTO publishing_release_lifecycles(id,publishing_edition_id,state,created_at,updated_at) VALUES(?,?,'live',?,?)",
     [lifecycle,edition,time,time]);
   await qaSql("INSERT INTO publishing_publication_versions(id,lifecycle_id,publication_id,submission_id,version_number,snapshot_sha256,manifest_json,release_state,created_by_user_id,created_at,activated_at) VALUES(?,?,?,?,?,?,?,'live',?,?,?)",
-    [version,lifecycle,publication,submission,(Number(runId.split("-")[0])%1000000000)*1000+Number(runId.split("-")[1]),sum,manifest,buyerId,time,time]);
+    [version,lifecycle,publication,submission,qaAudioPublicationVersion(runId),sum,manifest,buyerId,time,time]);
   await qaSql("UPDATE publishing_release_lifecycles SET current_publication_version_id=? WHERE id=?",
     [version,lifecycle]);
   console.log("QA original dual-format synthetic publisher/narrator/audio manifest provisioned");
