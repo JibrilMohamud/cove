@@ -6,6 +6,7 @@ import {publishVerifiedPaidOrderAtomic,type VerifiedPaidOrderLine} from "./paid-
 import {executeOwnerRefundAccounting} from "./refund-accounting-owner-executor";
 import {independentlyVerifyOwnerStripeRefund} from "./refund-provider-independent-verification";
 import {verifyOwnerStripeDispute} from "./stripe-dispute-owner-proof";
+import {executeOwnerUnpaidCancellation,recordOwnerReconciliationRun} from "./checkout-cancellation-owner-executor";
 import {reverseRoyaltiesForChargeback} from "../features/fore/finance.server";
 import {executeOwnerRefundReservation} from "./refund-reservation-owner-executor";
 import {executeOwnerCheckoutPaymentBinding} from "./checkout-payment-binding-owner-executor";
@@ -2432,6 +2433,8 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/refund/reserve",
       "/commercial/checkout/materialize-draft",
       "/commercial/checkout/prepare-draft",
+      "/commercial/checkout/cancel-unpaid",
+      "/commercial/reconciliation/record",
       "/commercial/checkout/register-stripe-customer",
       "/commercial/checkout/attach-payment-intent",
       "/commercial/payment/update-state",
@@ -3251,6 +3254,14 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
             row.amount,row.stripe,row.gift,row.store).run() as {meta?:{changes?:number}};
           return write;
         });
+        return Response.json(receipt,{status:200,headers:noStore});
+      }
+      if(route==="/commercial/checkout/cancel-unpaid"){
+        const receipt=await executeOwnerUnpaidCancellation(env,raw);
+        return Response.json(receipt,{status:200,headers:noStore});
+      }
+      if(route==="/commercial/reconciliation/record"){
+        const receipt=await recordOwnerReconciliationRun(env.PRIMARY_DB,raw);
         return Response.json(receipt,{status:200,headers:noStore});
       }
       if(route==="/commercial/dispute/sync-verified"){
