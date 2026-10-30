@@ -2526,7 +2526,7 @@ async function executeOwnerMonetaryAdmin(env:LegalAuthorityEnv,raw:unknown){
   if(permission?.ok!==1)throw Error("owner_admin_commerce_permission_denied");
   const at=new Date().toISOString();
   if(q.action==="promo"){
-    const x=ownerPromo.parse(q.payload),code=x.code.trim().toUpperCase();
+    const x=ownerPromo.parse(q.payload),code=x.code.trim().replace(/\\s+/g,"").toUpperCase();
     if(x.kind==="percent"&&x.value>100)throw Error("owner_admin_invalid_percent");
     const hash=await ownerMonetarySha256(code);
     await db.prepare(
