@@ -963,7 +963,6 @@ export async function createCheckoutPayment(env: CoveEnv, user: User, raw: unkno
   if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1")
     return createStageOwnerCheckoutPayment(env, user, input, quote, false);
   throw new ApiError(503, "Checkout requires the private commerce owner.");
-
 }
 
 async function releaseOrderReservations(db: CatalogDB, orderId: string) {
