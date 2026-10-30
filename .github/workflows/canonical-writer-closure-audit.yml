@@ -13,6 +13,7 @@ on:
       - "scripts/test-canonical-owner-workflow-inventory.mjs"
       - "scripts/check-canonical-owner-command-gateway.mjs"
       - "scripts/check-owner-refund-accounting.mjs"
+      - "scripts/check-private-refund-accounting-parity.mjs"
       - "scripts/check-owner-paid-settlement.mjs"
       - "scripts/owner-settlement-source-boundary.mjs"
       - "drizzle/0089_atomic_paid_settlement.sql"
@@ -57,6 +58,7 @@ on:
       - "scripts/test-canonical-owner-workflow-inventory.mjs"
       - "scripts/check-canonical-owner-command-gateway.mjs"
       - "scripts/check-owner-refund-accounting.mjs"
+      - "scripts/check-private-refund-accounting-parity.mjs"
       - "scripts/check-owner-paid-settlement.mjs"
       - "scripts/owner-settlement-source-boundary.mjs"
       - "drizzle/0089_atomic_paid_settlement.sql"
@@ -118,6 +120,7 @@ jobs:
           node scripts/test-canonical-owner-workflow-inventory.mjs
           node scripts/check-canonical-owner-command-gateway.mjs
           node scripts/check-owner-refund-accounting.mjs
+          node scripts/check-private-refund-accounting-parity.mjs
           node scripts/check-owner-paid-settlement.mjs
           node scripts/check-owner-refund-provider.mjs
           node scripts/check-owner-contract-version.mjs
