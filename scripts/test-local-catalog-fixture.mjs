@@ -541,3 +541,35 @@ export function seedLocalCatalogFixture(raw) {
     raw.exec("COMMIT");
   }catch(e){raw.exec("ROLLBACK");throw e;}
 }
+
+/** Explicit isolated QA catalog pages only; no deployed Worker imports this file.
+ * Preserves breadth, release filters and taxonomy for legacy browse tests. */
+export function seedAdditionalLocalCatalogBooks(raw, books) {
+  if (!Array.isArray(books) || books.length < 1 || books.length > 100)
+    throw new Error("isolated_catalog_seed_out_of_bounds");
+  const at = new Date().toISOString();
+  const facade = {
+    prepare(sql) {
+      return {
+        bind(...args) {
+          return { run() { return raw.prepare(sql).run(...args); } };
+        },
+      };
+    },
+  };
+  raw.exec("BEGIN");
+  try {
+    for (const book of books) {
+      if (!Number.isSafeInteger(book.id) || book.id < 1 || book.copyright !== false)
+        throw new Error("invalid_synthetic_catalog_source");
+      catalogInsert(facade, book, "https://www.gutenberg.org/ebooks/" + book.id + "/", at).run();
+      for (const statement of commercialCatalogStatements(facade, String(book.id), at))
+        statement.run();
+      syncEditionTaxonomy(facade, catalogIds(String(book.id)).editionId);
+    }
+    raw.exec("COMMIT");
+  } catch (error) {
+    raw.exec("ROLLBACK");
+    throw error;
+  }
+}

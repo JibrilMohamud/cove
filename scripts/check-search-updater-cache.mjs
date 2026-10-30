@@ -84,7 +84,23 @@ try {
       count: 28,
     });
   const imported = await api.runCatalogIngestion({ ...env, BUCKET: undefined });
-  assert.equal(imported.inserted, 28);
+  // Production canonical normalization without an owner lease is denied.
+  assert.equal(imported.failed, true, "owner-less catalog ingestion must fail closed");
+  assert.match(imported.error, /Catalog normalization requires private authority/);
+  const unowned = await env.DB.prepare(
+    "SELECT id FROM products WHERE id='prd_gutenberg_900001'",
+  ).first();
+  assert.equal(unowned, null, "failed owner normalization cannot publish a product");
+  env.seedAdditionalLocalCatalogBooks(Array.from({ length: 28 }, (_, i) => ({
+    ...seed,
+    id: 900001 + i,
+    title: `Adventure volume ${900001 + i}`,
+    copyright: false,
+  })));
+  const fixtureCount = await env.DB.prepare(
+    "SELECT COUNT(*) n FROM products WHERE id LIKE 'prd_gutenberg_9000%'",
+  ).first();
+  assert.equal(fixtureCount.n, 28, "only the local fixture adds 28 synthetic catalog rows");
   // Exercise real parsed aliases and real rights-filtered queries, not only
   // cache-key helpers. Newest is normalized to released (a FILTER, not just order).
   assert.equal(input("sort=newest").sort, "released");
