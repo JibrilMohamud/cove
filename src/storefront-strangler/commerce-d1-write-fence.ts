@@ -133,7 +133,7 @@ export function scopeCommerceProductionD1<T extends Env>(env:T):T {
   if(setting!=="1"||
      activation!=="1"||
      env.COVE_RIGHTS_OWNER_ENABLED!=="1"||
-     env.STRIPE_LIVEMODE!=="1"||
+     // The private settlement/refund owner uses strict "true" for Stripe\n     // livemode; accepting "1" here would admit a mode disagreement.\n     env.STRIPE_LIVEMODE!=="true"||
      env.COVE_CANONICAL_LEGAL_WRITE_LOCK!=="1"||
      env.COVE_LEGAL_WRITER_PRIMARY_ID!==PROD_D1||
      env.COVE_LEGAL_CONSUMER_STAGE_ENABLED==="1"||
