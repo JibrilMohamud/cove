@@ -5460,7 +5460,7 @@
       "reason": "This exact projection UPDATE changes ratings, ranking scores or taxonomy text only. It does not change rights, offers, suppression or permission; candidate delivery still needs current legal authorization."
     },
     {
-      "siteId": "802ad3d4e1f354f1ee76a909ae31b9ace7b05e2df91a2138b22ad0a19e2d0754",
+      "siteId": "28d3c867f11fd7eb3f59b6c9b259b378596444b288443b3ebb60940ac89b3549",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 304,
       "functionName": "savePartnerProfile",
@@ -5472,7 +5472,7 @@
       "reason": "Partner acknowledgement/retry metadata does not activate a publication, rights grant, offer or buyer entitlement."
     },
     {
-      "siteId": "62cc020f4ef3642280c78126ff07e678358662edc6d44e714e11846eea1875b6",
+      "siteId": "e362a083ba345952c57acff7532ba13b89f7bb00085e4c1abf3de80fceddb10b",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 380,
       "functionName": "certifyPartnerProfile",
@@ -5485,7 +5485,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "34bde87ea048b56229cead0049f0e1f0aacf1f5adcecdf61aaafe615b10864ce",
+      "siteId": "5b8e4d745e8d2cf7d40d7a8abf9dd1ceb0af0d6f81ca5440fb2b69cf6818add2",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 497,
       "functionName": "issuePartnerCredential",
@@ -5498,7 +5498,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "2132f318428f13fee60bfc4a7a183813ae13d7a2e31596407d396be617c60b0e",
+      "siteId": "492097afb8895acf7f31aa9c558008c355e996183e98a8d8e6b6ee394fc68086",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 545,
       "functionName": "revokePartnerCredential",
@@ -5511,7 +5511,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "3e546023b22ce5c008c137082956892e1440ac695c1a7e46e40614be072bc8f7",
+      "siteId": "511322cc37f464855644a74cd67642fc135363f585adbf71a4c4c9fdeccc6e63",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 623,
       "functionName": "authenticatePartnerRequest",
@@ -5523,7 +5523,7 @@
       "reason": "This exact UPDATE changes only publisher_partner_credentials.last_used_at after credential verification. Credential status, scopes, expiry and identity are not modified."
     },
     {
-      "siteId": "4e397a751b30f772d9c1701cc5e3daf1f2b27d289f92c2bdc9582580b038faa0",
+      "siteId": "9f2202322927541bfb86523ff7da4cd7382409a6fa8e91eb3cef285d80be6fe9",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 1289,
       "functionName": "submitPartnerFeed",
@@ -5536,7 +5536,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "003686ca3ab3a467ca595fc68e53df894b95595aff84d38dee65dc9556151d89",
+      "siteId": "1694f17930c233f0db20ad5230c47e0c9dc901591143578abc9650a53a3e93cf",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 1321,
       "functionName": "submitPartnerFeed",
@@ -5549,7 +5549,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "2f7c8dde7ecf86b47f40e057fd75ecaca6c3f97563b78d09524f7d2462adc6ff",
+      "siteId": "9936f232e92cefe5c958af0b22fc6f3cadbb3a87d89d413df7be7468c393bd6b",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 1345,
       "functionName": "submitPartnerFeed",
@@ -5561,7 +5561,7 @@
       "reason": "Partner acknowledgement/retry metadata does not activate a publication, rights grant, offer or buyer entitlement."
     },
     {
-      "siteId": "4f9031e17f245d72aa5eaa98fb2b9542f10cebf701c25c34a44f0273a4072b31",
+      "siteId": "8f3543fc72231e3346969779f27aa4a9f1a20317fd4a34444d7beedd9484a70b",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 1369,
       "functionName": "submitPartnerFeed",
@@ -5573,7 +5573,7 @@
       "reason": "Partner acknowledgement/retry metadata does not activate a publication, rights grant, offer or buyer entitlement."
     },
     {
-      "siteId": "1b9a1c6a8acf3f8d9bb94276fcba8df07e00408090b9dfc59fba99ccbde7da68",
+      "siteId": "565a6082975a8c5514764ac62d12bea965b7c2c38dc8ec20a8d5afc43fd6857e",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 1600,
       "functionName": "applyMetadataItem",
@@ -5586,7 +5586,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "e1a11c7e690c9581c59574490829a634963c4fbc3afe6254d06ab3e2df47f434",
+      "siteId": "15a9af875f082557f44cf4219e43ed1a876e9d2651c59cef4fbc43afb90ff71b",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 1608,
       "functionName": "applyMetadataItem",
@@ -5599,7 +5599,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "5205dd7d47aa7fbaef798ba2b85b35ba970f5ab20f22626c5bbe3fec464c8bb1",
+      "siteId": "7ae4f3174eb5b659ff6a62d46276021e12cac2d5be73bd296e2115167c6f0eaf",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 1615,
       "functionName": "applyMetadataItem",
@@ -5612,7 +5612,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "34fce4c0c1cde6c60515bc40af6c8a3d66a8ac8b95d60148da3b3fa93bfbb024",
+      "siteId": "aba4d187f01648d8b4701d9fe8a06d8e0d032f23678c21bbd578de133c41a27a",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 1663,
       "functionName": "applyMetadataItem",
@@ -5625,7 +5625,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "30befffcee170ad7b831ee8f7f5e6a6f046d42c458d64f4bb3db6411efd99ec2",
+      "siteId": "113926ec0dd273144ee8676b124ba754aa6ddfdeb844c695c5b29df0244324aa",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 1683,
       "functionName": "applyMetadataItem",
@@ -5638,7 +5638,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "0868ceaa48af2630368e2dcb22b0f292db7272939979dadebf6d68c91e080005",
+      "siteId": "c0dbb8bea3bc3d50f957da57e711bf0a5252107e10019caa1fe4665689d6d8e2",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 1717,
       "functionName": "applyMetadataItem",
@@ -5651,7 +5651,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "cf97765705a470ec670b6a2d4089fc3473e4fb387b5fa9855010ddefffa081f3",
+      "siteId": "bf689f607067ad75d78145cafaba1a72d489518eadb2a523c7bafa617552f46e",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 1766,
       "functionName": "applyMetadataItem",
@@ -5664,7 +5664,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "a55357c67837fbae0fa998c75ed1d5deeabd86282b3043e1f3254db3bc68f7aa",
+      "siteId": "180690432c325d2cb12b51d36053f9316d7cdf9c2d73cf31a424d659b54ed52c",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 1873,
       "functionName": "matchAssetExpectations",
@@ -5677,7 +5677,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "2a753b162eeff36b5945141d7a5a863c85a6cfa7641a1891dc99e831e05de163",
+      "siteId": "e78941a2f0a0956b03a776546396cfa99c73a661e887232062a3c8e0557c1dcf",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 1926,
       "functionName": "applyAssetManifestItem",
@@ -5690,7 +5690,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "2da250683fcca0d050a93a439547daf928327bee486a02a602eaba289ee15a8d",
+      "siteId": "925c6fd20969f2b75fabd915595d3e2b43c76e14a73c511b8ffa831c4729a454",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 1993,
       "functionName": "applyDeltaItem",
@@ -5703,7 +5703,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "077d4161ca5038e4dfd18029e278fb7330e2cec0f8cd8ef6266a92b1c7f48e4c",
+      "siteId": "64cfbc100954b5fe91853b78519536520d4b52c4fc567c59312a6980a32ba36f",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 2010,
       "functionName": "applyDeltaItem",
@@ -5716,7 +5716,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "08dd28e017352a98f9dba8be34db3c8ab4b41f935396eda2dec7bb3a2899ac1d",
+      "siteId": "ea78c4d56457cdfb2a4694a9fd0e1d83380ef3616860f6769a1fc9780c492e38",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 2017,
       "functionName": "applyDeltaItem",
@@ -5729,7 +5729,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "7d01a20b9a8cd42eceeead7c50dec45f8943edcf8c1237b5c4d6d62fe3fa8b84",
+      "siteId": "3ad58c0a3a5269c13340e1b29af3c1b376de87fe456f0b7adc7b84edea0e048c",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 2061,
       "functionName": "applyDeltaItem",
@@ -5742,7 +5742,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "f9a38a4474506efbb6545a5630127d498427777967134ec35be068aaad24b55b",
+      "siteId": "3ce290ff8b357c09d22a7f8894b76786440b9d0993864d7fa6c61e5473973631",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 2112,
       "functionName": "applyDeltaItem",
@@ -5755,7 +5755,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "93397839d35551c9ce7e928a56eb6139311b32a20165818c8822635d5cd30456",
+      "siteId": "8d3e118fc17ea7a6d021cb74f9e0acf7a26d6cdcb0899e83a8df9cb4bd1f199f",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 2119,
       "functionName": "applyDeltaItem",
@@ -5768,7 +5768,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "0fb0c3b1b777ca510c0dca14572f0db1fb041df3ff87968faa96e5246990c674",
+      "siteId": "4f4790c11aad441442389b435a5f8545cc464fc9edc6bfb912238c3f37455492",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 2125,
       "functionName": "applyDeltaItem",
@@ -5781,7 +5781,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "c1fec00308c1787106b387c0760f06d933ceead8aab0831fb7abcd25f39f9591",
+      "siteId": "064b45b4f4d48f61ff2b7524213c1b097fbcd38d9e022a801c39430bc190e0be",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 2132,
       "functionName": "applyDeltaItem",
@@ -5794,7 +5794,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "7fd8661b722aa977afbe8f316bdb51e08fa3281422e0f2a5a67d431a2401ae77",
+      "siteId": "c38c11e2a6eb9b107af6d967041ef83963225bd89304b55c9e71a31756b405fb",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 2139,
       "functionName": "applyDeltaItem",
@@ -5807,7 +5807,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "57d8b4dabdaf97b8d8e406a9d8b3f1543e6bf6d661e07c0d123839b3c253ebca",
+      "siteId": "b572a97bdaeb753f31f4abf671aefbe4adaf49761423a454e58584b221d00df4",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 2174,
       "functionName": "reconcileFullPartnerSnapshot",
@@ -5820,7 +5820,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "32a3c9ac42c438166df3241867efac3c51b5b238e12f27c40963fdf6418a9f6a",
+      "siteId": "c7267a7fc153aacc7f2f5b1a041a0ec254f2bdd1a2384986785892507c91c304",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 2181,
       "functionName": "reconcileFullPartnerSnapshot",
@@ -5833,7 +5833,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "7508c51dc734329768224b463bf1496d781747801618511fa4a1ce1559e39c2c",
+      "siteId": "097519bad70f4bedf1fad2df570e763614381998e29c510d144643ab1a6188e5",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 2187,
       "functionName": "reconcileFullPartnerSnapshot",
@@ -5846,7 +5846,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "c07574bde834bd00e32003dd27a38061fa16ccee3135d993bfd94e6e74ad21b9",
+      "siteId": "396ec00f3a49361693e435ee2ea67bb3d12f5cf03c88454d6ddb4e76fcdc461b",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 2212,
       "functionName": "processPartnerFeedQueue",
@@ -5859,7 +5859,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "d47b22aff3bd4ddd771abaa099d71bb4ca15046545d00229edf1fe5025521de4",
+      "siteId": "b8836d779afda3ed770aeca8f3b4c739094b0799e6e5fc38f7613acc61a19b61",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 2230,
       "functionName": "processPartnerFeedQueue",
@@ -5872,7 +5872,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "12d9956774d186978ea46fb1ce2b9031c90a92d34a07c8c7ba25914eaba1b613",
+      "siteId": "71361237ea817b140f390c92e7e1e4b74bc81e007ac69f533b71661e29d18b09",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 2251,
       "functionName": "processPartnerFeedQueue",
@@ -5885,7 +5885,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "bfd3ff746bad6664ddf8d06d6ac72f168edf3bd4cc9808ab94e0df80a5cf36ac",
+      "siteId": "5c0e01b62f85a60591ac0c1757524a852343c29101ba311fe33d4cd9c8c5bac3",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 2266,
       "functionName": "processPartnerFeedQueue",
@@ -5898,7 +5898,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "1614bc1cd13eb830d6ff3a596895476618733139079d4276a574ac3667685c90",
+      "siteId": "c5293f4a972591f6e3b6af6a289a252c02371b5fad270c6af7e01264892785cd",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 2288,
       "functionName": "processPartnerFeedQueue",
@@ -5911,7 +5911,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "cd7b98461b68df3e585fe9d4ac1c8042401ca162c6fb10be00b458138fe49d85",
+      "siteId": "5ec5517319eb929ec1a2f4e26f7e0602816a1d15e61f7b14eae988494c220ead",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 2301,
       "functionName": "processPartnerFeedQueue",
@@ -5923,7 +5923,7 @@
       "reason": "Partner acknowledgement/retry metadata does not activate a publication, rights grant, offer or buyer entitlement."
     },
     {
-      "siteId": "850477766f72e4a7aee12ab21994a25f637e28136bd088e2e6e202132d18e331",
+      "siteId": "d019bf88fcdfede1c121cb08412ee59ab23236232ccb74fb5b041b258c51f56e",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 2434,
       "functionName": "deliverPartnerValidationResponses",
@@ -5935,7 +5935,7 @@
       "reason": "Partner acknowledgement/retry metadata does not activate a publication, rights grant, offer or buyer entitlement."
     },
     {
-      "siteId": "b14f9b876c4832aa9ab91f58ff3779544da35f74c83a93af3f129ff85b9aa36e",
+      "siteId": "7416121510f84efe61ef55de503d983ecae9c96d47fab473ee779aa4b0b06627",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 2477,
       "functionName": "deliverPartnerValidationResponses",
@@ -5947,7 +5947,7 @@
       "reason": "Partner acknowledgement/retry metadata does not activate a publication, rights grant, offer or buyer entitlement."
     },
     {
-      "siteId": "852e29d4456a46b4e49b965009cad3d89b4c7331bc7f2e2bf1bf3ce6e580fd0e",
+      "siteId": "2b042b0b1f2e97a371587605e19fdd8df7ceb194d092da650f4b5f388bdce229",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 2488,
       "functionName": "deliverPartnerValidationResponses",
@@ -5959,7 +5959,7 @@
       "reason": "Partner acknowledgement/retry metadata does not activate a publication, rights grant, offer or buyer entitlement."
     },
     {
-      "siteId": "ae66d5b1bea9d0f9d979f974ab179bcb951cffbb5f01573e001a4c06f642a2e8",
+      "siteId": "b3c32a62d9c9fc8230a70904c78038830188bace8027daf68d154933258af258",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 2510,
       "functionName": "deliverPartnerValidationResponses",
@@ -5971,7 +5971,7 @@
       "reason": "Partner acknowledgement/retry metadata does not activate a publication, rights grant, offer or buyer entitlement."
     },
     {
-      "siteId": "c1caa13c2b426ab385c767a8ffbfbb7790b6a23914f9666a6438b84698eadb9f",
+      "siteId": "feaecb6731abd40f454b7da955f46e4c4c850d08ed369aed181183374c5ffe12",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 2608,
       "functionName": "uploadPartnerAsset",
@@ -5984,7 +5984,7 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "5084ad20892e4467fa161262c70a6b09321903b9ec6f39e53a4d07bbd3cbed75",
+      "siteId": "ecf2ddf7cd6cb6f2266ce3f969faf2bae3ded4af16b9585c5cdb143be39b2076",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 2689,
       "functionName": "uploadPartnerAsset",
@@ -5997,9 +5997,9 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "2374b42d9b5e297340f77c54408ac1c33ccdc9e95408de8a41f08c46c4bd694d",
+      "siteId": "36a060e1991c15388dd81fa298d079c915c16e8b1d45bfa2d9a3329b7174404e",
       "file": "src/features/fore/traditional-publishing.server.ts",
-      "line": 2991,
+      "line": 2995,
       "functionName": "assignPublisherContract",
       "table": "publisher_contract_assignments",
       "operation": "INSERT INTO",
@@ -6010,9 +6010,9 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "9cded770684fd262fe0d8e2867e1ee7f63c5dea4da0370b3fcf9ed22129b4a44",
+      "siteId": "84dea9418bb7e9edf798a2c148fb8e449997128d3a484dee913cd27db6a407fa",
       "file": "src/features/fore/traditional-publishing.server.ts",
-      "line": 3004,
+      "line": 3008,
       "functionName": "assignPublisherContract",
       "table": "rights_contract_audit",
       "operation": "INSERT INTO",
@@ -6022,9 +6022,9 @@
       "reason": "Append-only contract-version audit trail is read by operations dashboards; current contract/version rows govern access."
     },
     {
-      "siteId": "9cca4578aa2d2087f3643227cfce0f206fb3c84ed5e4567b3b3dd8b05366708c",
+      "siteId": "7bec78ea32903d7b0d28afd8be9364ef76f0cba8ef31439d47f9d7340a1ae7bd",
       "file": "src/features/fore/traditional-publishing.server.ts",
-      "line": 3161,
+      "line": 3165,
       "functionName": "reconcilePublicDomainWorks",
       "table": "editions",
       "operation": "UPDATE",
@@ -6035,9 +6035,9 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "99f5e2f266cfb698c22bae94efaaa412ec333a526713054bbb1a16d0713e49fe",
+      "siteId": "26d57fa1ce2493dd0810c9fc06b33eb7931242f625f5bd929d9a2d084ebd674a",
       "file": "src/features/fore/traditional-publishing.server.ts",
-      "line": 3163,
+      "line": 3167,
       "functionName": "reconcilePublicDomainWorks",
       "table": "publishing_titles",
       "operation": "UPDATE",
@@ -6048,9 +6048,9 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "e17638174806c1c84d9da740a7fd213f76820dd0e34a5af16d984b1c176afcc6",
+      "siteId": "dcc92f5272c7acd98ab6a046a605316f10ce82007788175fe2dc6edbe2b38948",
       "file": "src/features/fore/traditional-publishing.server.ts",
-      "line": 3167,
+      "line": 3171,
       "functionName": "reconcilePublicDomainWorks",
       "table": "publisher_catalog_mappings",
       "operation": "UPDATE",
@@ -6061,9 +6061,9 @@
       "reason": "Partner credential, ingestion, contract, asset or reconciliation write can affect commercial authority. Feed queues, delta removals and administrator edits must share the owner command boundary."
     },
     {
-      "siteId": "68976e2a37627c8466a2808290c17d4d795b9a5ca16e01e31e8b8b55a569276a",
+      "siteId": "be6474fbae9f7b2b0d4f8f68aae12685d2c3673d24f504f25fd13652db2d498f",
       "file": "src/features/fore/traditional-publishing.server.ts",
-      "line": 3202,
+      "line": 3206,
       "functionName": "reconcilePublicDomainWorks",
       "table": "editions",
       "operation": "UPDATE",
