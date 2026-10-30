@@ -189,9 +189,9 @@ try{
   const commerce=readFileSync("src/features/fore/commerce.server.ts","utf8");
   const payment=commerce.slice(commerce.indexOf("export async function finalizePaidOrder("),
     commerce.indexOf("export async function recoverPayment("));
-  assert.ok(payment.indexOf("Terminal or invalid order cannot be settled.")>=0 &&
-    payment.indexOf("Terminal or invalid order cannot be settled.") <
-    payment.indexOf("return settleStageOwnerPaidOrder"),
+  const invalidStateCheck=payment.indexOf("Terminal or invalid order cannot be settled.");
+  const followingOwnerSettlement=payment.indexOf("return settleStageOwnerPaidOrder",invalidStateCheck);
+  assert.ok(invalidStateCheck>=0&&followingOwnerSettlement>invalidStateCheck,
     "An invalid terminal signed payment must be rejected before private owner settlement");
   assert.ok(commerce.includes("await assertStagePaidOrderNotWithdrawn(env, orderId)"),
     "Checkout must check strong-owner withdrawal before reserving tender");
