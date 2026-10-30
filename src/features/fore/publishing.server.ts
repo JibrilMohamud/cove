@@ -3031,7 +3031,6 @@ export async function publicationVersionManifest(
   return row ? { id: String(row.id), manifest: safeJson<any>(row.manifest_json, {}) } : null;
 }
 
-
 /** Retired: never activate commercial rights directly through the shared application DB. */
 export async function activatePublicationCommercialTerms(
   _db: PublishingDB,
