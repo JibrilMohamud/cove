@@ -3056,11 +3056,7 @@ async function syncDispute(db: CatalogDB, d: any, eventType: string, env: CoveEn
     // The owner independently reloads the Stripe dispute and controls every
     // journal, order, entitlement, ledger and royalty write. No enrolled
     // webhook or scheduled recovery may fall through to caller-owned D1.
-    if (
-      !d ||
-      typeof d.id !== "string" ||
-      !/^dp_[a-zA-Z0-9_-]{4,150}$/.test(d.id)
-    )
+    if (!d || typeof d.id !== "string" || !/^dp_[a-zA-Z0-9_-]{4,150}$/.test(d.id))
       throw new ApiError(409, "Stripe dispute identity is invalid.");
     await syncStageOwnerStripeDispute(env, {
       disputeId: d.id,
