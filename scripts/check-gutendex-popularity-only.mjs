@@ -46,6 +46,9 @@ for(const patch of [
   {formats:{"text/html":"another url"}},{copyright:true}
 ]) assert.equal(popularity({...book,...patch},row,url),false,JSON.stringify(patch));
 assert.match(api,/const popularityIds = new Set/);
-assert.match(api,/for \(const book of changed\)\s+await db\.batch\(commercialCatalogStatements/);
+assert.match(api,/for \(const book of changed\)\s+await dispatchCatalogFreeNormalization\(db,/,
+  "Changed rights-scoped catalog rows can be normalized only by the private owner");
+assert.doesNotMatch(api,/db\.batch\(commercialCatalogStatements/,
+  "Never restore a direct public D1 catalog writer");
 assert.match(api,/for \(const book of accepted\)\s+await syncEditionTaxonomy/);
 console.log("PASS: popularity-only classification; all legal, source and canonical mismatches fail closed");
