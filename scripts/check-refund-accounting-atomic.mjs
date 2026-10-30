@@ -9,7 +9,7 @@ import {build} from "esbuild";
 const directory=mkdtempSync(join(tmpdir(),"cove-refund-atomic-")),stores=[];
 try{
   const file=join(directory,"refund.mjs");
-  await build({entryPoints:["src/features/fore/refund-accounting.server.ts"],outfile:file,
+  await build({entryPoints:["scripts/test-refund-accounting-legacy-source.ts"],outfile:file,
     bundle:true,platform:"node",format:"esm",target:"node22",logLevel:"silent"});
   const {postRefundAccounting}=await import(pathToFileURL(file).href);
   const at="2026-10-28T20:00:00.000Z",refundId="refund_atomic_01",orderId="order_atomic_01";
