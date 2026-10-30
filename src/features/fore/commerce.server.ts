@@ -700,6 +700,8 @@ export async function checkoutQuote(env: CoveEnv, user: User, raw: unknown) {
 }
 
 async function ensureStripeCustomer(env: CoveEnv, user: User) {
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")
+    throw new ApiError(503, "Stripe customer registration requires the private commerce owner.");
   const db = env.DB;
   const row = await db
     .prepare("SELECT stripe_customer_id FROM commerce_customers WHERE user_id=?")
@@ -714,20 +716,10 @@ async function ensureStripeCustomer(env: CoveEnv, user: User) {
     },
     idempotencyKey: `fore-customer-${user.id}`,
   });
-  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1") {
-    await registerStageOwnerStripeCustomer(env, {
-      userId: user.id,
-      customerId: String(customer.id),
-    });
-  } else {
-    const at = now();
-    await db
-      .prepare(
-        `INSERT INTO commerce_customers(user_id,stripe_customer_id,email,created_at,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET stripe_customer_id=excluded.stripe_customer_id,email=excluded.email,updated_at=excluded.updated_at`,
-      )
-      .bind(user.id, customer.id, user.email || "", at, at)
-      .run();
-  }
+  await registerStageOwnerStripeCustomer(env, {
+    userId: user.id,
+    customerId: String(customer.id),
+  });
   return String(customer.id);
 }
 function invoiceNumber() {
@@ -764,88 +756,7 @@ async function existingOrderSetup(env: CoveEnv, existing: any) {
     "This checkout is already being initialized. Open Orders in a moment instead of submitting it again.",
   );
 }
-async function reserveTender(db: CatalogDB, order: AnyRow) {
-  const at = now(),
-    expires = new Date(Date.now() + 24 * 60 * 60_000).toISOString();
-  if (Number(order.gift_card_minor) > 0) {
-    const r: any = await db
-      .prepare(
-        `INSERT INTO commerce_balance_reservations(id,user_id,order_id,source_type,source_key,amount_minor,currency,status,expires_at,created_at,updated_at) SELECT ?,?,?,'gift_card',?,?,?,'reserved',?,?,? WHERE ? <= (SELECT balance_minor-COALESCE((SELECT SUM(amount_minor) FROM commerce_balance_reservations WHERE source_type='gift_card' AND source_key=? AND status='reserved'),0) FROM commerce_gift_cards WHERE code_hash=? AND status='active')`,
-      )
-      .bind(
-        crypto.randomUUID(),
-        order.user_id,
-        order.id,
-        order.gift_card_hash,
-        order.gift_card_minor,
-        order.currency,
-        expires,
-        at,
-        at,
-        order.gift_card_minor,
-        order.gift_card_hash,
-        order.gift_card_hash,
-      )
-      .run();
-    if (Number(r?.meta?.changes ?? r?.changes ?? 0) !== 1)
-      throw new ApiError(409, "Your gift card balance changed. Recalculate checkout.");
-  }
-  if (Number(order.store_credit_minor) > 0) {
-    const r: any = await db
-      .prepare(
-        `INSERT INTO commerce_balance_reservations(id,user_id,order_id,source_type,source_key,amount_minor,currency,status,expires_at,created_at,updated_at) SELECT ?,?,?,'store_credit',?,?,?,'reserved',?,?,? WHERE ? <= ((SELECT COALESCE(SUM(amount_minor),0) FROM commerce_store_credit_ledger WHERE user_id=? AND currency=?)-COALESCE((SELECT SUM(amount_minor) FROM commerce_balance_reservations WHERE source_type='store_credit' AND source_key=? AND currency=? AND status='reserved'),0))`,
-      )
-      .bind(
-        crypto.randomUUID(),
-        order.user_id,
-        order.id,
-        order.user_id,
-        order.store_credit_minor,
-        order.currency,
-        expires,
-        at,
-        at,
-        order.store_credit_minor,
-        order.user_id,
-        order.currency,
-        order.user_id,
-        order.currency,
-      )
-      .run();
-    if (Number(r?.meta?.changes ?? r?.changes ?? 0) !== 1)
-      throw new ApiError(409, "Your store-credit balance changed. Recalculate checkout.");
-  }
-}
-
-async function reservePromo(db: CatalogDB, order: AnyRow) {
-  if (!order.promo_code_hash || Number(order.promo_discount_minor) <= 0) return;
-  const at = now(),
-    id = crypto.randomUUID();
-  const r: any = await db
-    .prepare(
-      `INSERT INTO commerce_promo_redemptions(id,code_hash,user_id,order_id,quote_id,amount_minor,status,created_at,updated_at)
-    SELECT ?,p.code_hash,?,?,?,?, 'reserved',?,? FROM commerce_promo_codes p
-    WHERE p.code_hash=? AND p.active=1 AND (p.starts_at IS NULL OR p.starts_at<=?) AND (p.ends_at IS NULL OR p.ends_at>?)
-      AND (p.max_redemptions IS NULL OR (SELECT COUNT(*) FROM commerce_promo_redemptions r WHERE r.code_hash=p.code_hash AND r.status IN ('reserved','applied'))<p.max_redemptions)
-      AND (SELECT COUNT(*) FROM commerce_promo_redemptions r WHERE r.code_hash=p.code_hash AND r.user_id=? AND r.status IN ('reserved','applied'))<p.max_per_user`,
-    )
-    .bind(
-      id,
-      order.user_id,
-      order.id,
-      order.quote_id,
-      order.promo_discount_minor,
-      at,
-      at,
-      order.promo_code_hash,
-      at,
-      at,
-      order.user_id,
-    )
-    .run();
-  if (Number(r?.meta?.changes ?? r?.changes ?? 0) !== 1)
-    throw new ApiError(409, "Your promotion is no longer available.");
-}
+// Tender and promotion reservations are executed solely by the private owner.
 
 // Synthetic staging checkout is exclusively enrolled behind the private legal
 // owner. There is NO fallback to direct commercial D1 writes on owner refusal.
@@ -986,6 +897,8 @@ async function createStageOwnerCheckoutPayment(
 }
 
 export async function createCheckoutPayment(env: CoveEnv, user: User, raw: unknown) {
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")
+    throw new ApiError(503, "Checkout requires the private commerce owner.");
   const input = z
       .object({
         quoteId: z.string().min(8).max(120),
@@ -1049,276 +962,8 @@ export async function createCheckoutPayment(env: CoveEnv, user: User, raw: unkno
     throw new ApiError(409, "Your cart changed. Recalculate checkout before paying.");
   if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1")
     return createStageOwnerCheckoutPayment(env, user, input, quote, false);
-  const items = JSON.parse(String(quote.items_json || "[]"));
-  const orderId = `ord_${crypto.randomUUID()}`,
-    at = now();
-  let captureMethod = ["manual", "automatic", "automatic_async"].includes(
-    String(env.STRIPE_CAPTURE_METHOD),
-  )
-    ? String(env.STRIPE_CAPTURE_METHOD)
-    : "automatic_async";
-  const order = {
-    id: orderId,
-    user_id: user.id,
-    quote_id: quote.id,
-    invoice_number: invoiceNumber(),
-    status: "pending_payment",
-    currency: quote.currency,
-    territory_code: quote.territory_code,
-    subtotal_minor: Number(quote.subtotal_minor),
-    promo_discount_minor: Number(quote.promo_discount_minor),
-    tax_minor: Number(quote.tax_minor),
-    tax_inclusive_minor: Number(quote.tax_inclusive_minor),
-    gift_card_minor: Number(quote.gift_card_minor),
-    store_credit_minor: Number(quote.store_credit_minor),
-    total_minor: Number(quote.total_minor),
-    stripe_due_minor: Number(quote.stripe_due_minor),
-    billing_address_json: quote.billing_address_json,
-    stripe_tax_calculation_id: quote.stripe_tax_calculation_id,
-    promo_code_hash: quote.promo_code_hash,
-    gift_card_hash: quote.gift_card_hash,
-  };
-  try {
-    await db
-      .prepare(
-        `INSERT INTO commerce_orders(id,user_id,quote_id,invoice_number,status,currency,territory_code,subtotal_minor,promo_discount_minor,tax_minor,tax_inclusive_minor,gift_card_minor,store_credit_minor,total_minor,stripe_due_minor,billing_address_json,stripe_tax_calculation_id,capture_method,idempotency_key,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      )
-      .bind(
-        orderId,
-        user.id,
-        quote.id,
-        order.invoice_number,
-        order.status,
-        order.currency,
-        order.territory_code,
-        order.subtotal_minor,
-        order.promo_discount_minor,
-        order.tax_minor,
-        order.tax_inclusive_minor,
-        order.gift_card_minor,
-        order.store_credit_minor,
-        order.total_minor,
-        order.stripe_due_minor,
-        order.billing_address_json,
-        order.stripe_tax_calculation_id,
-        captureMethod,
-        input.idempotencyKey,
-        at,
-        at,
-      )
-      .run();
-  } catch (e) {
-    const raced = await db
-      .prepare("SELECT * FROM commerce_orders WHERE quote_id=? AND user_id=?")
-      .bind(quote.id, user.id)
-      .first<any>();
-    if (raced) return existingOrderSetup(env, raced);
-    throw e;
-  }
-  // One optional, bounded checkout-time referral. It is never payment authority.
-  // The foreign-keyed order makes later aggregation independently verifiable
-  // against the paid/refunded state; no click analytics are written to D1.
-  if (input.soundsStation && stationBySlug(input.soundsStation)) {
-    await db
-      .prepare(
-        "INSERT OR IGNORE INTO commerce_sounds_purchase_attribution(order_id,station_slug,recording_id,captured_at) VALUES(?,?,?,?)",
-      )
-      .bind(orderId, input.soundsStation, input.soundsRecording || null, at)
-      .run();
-  }
-  for (const item of items) {
-    const lineTax = Number(item.taxMinor || 0),
-      exclusiveTax = String(item.taxBehavior || "exclusive") === "exclusive" ? lineTax : 0,
-      lineTotal = Math.max(
-        0,
-        Number(item.amountMinor) - Number(item.discountMinor || 0) + exclusiveTax,
-      );
-    await db
-      .prepare(
-        `INSERT INTO commerce_order_items(id,order_id,product_id,offer_id,title_snapshot,sku_snapshot,unit_amount_minor,discount_minor,tax_minor,total_minor,source_surface,source_request_id,pricing_decision_id,rights_decision_id,rights_grant_id,rights_snapshot_json,sales_channel,fulfillment_type,fulfillment_status,promotion_campaign_id,publisher_discount_funding_minor,fore_discount_funding_minor,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'immediate','pending',?,?,?,?)`,
-      )
-      .bind(
-        `oi_${crypto.randomUUID()}`,
-        orderId,
-        item.productId,
-        item.offerId,
-        item.title,
-        item.sku || item.productId,
-        item.amountMinor,
-        item.discountMinor || 0,
-        lineTax,
-        lineTotal,
-        item.sourceSurface || "cart",
-        item.sourceRequestId || null,
-        item.pricingDecisionId || null,
-        item.rightsDecisionId || null,
-        item.rightsGrantId || null,
-        JSON.stringify(item.rightsSnapshot || {}),
-        item.rightsSnapshot?.salesChannel || "retail",
-        item.checkoutPromotionCampaignId || item.promotionCampaignId || null,
-        item.publisherDiscountFundingMinor || 0,
-        item.foreDiscountFundingMinor || 0,
-        at,
-      )
-      .run();
-  }
-  for (const item of items) {
-    await recordRetailEvent(db, user.id, {
-      eventType: "checkout_started",
-      productId: String(item.productId),
-      externalBookId: String(item.externalId || ""),
-      sourceSurface: String(item.sourceSurface || "checkout"),
-      sourceRequestId: item.sourceRequestId || null,
-      territory: String(order.territory_code || "US"),
-      currency: String(order.currency),
-      amountMinor: Number(item.amountMinor || 0) - Number(item.discountMinor || 0),
-      properties: { orderId, quoteId: quote.id },
-      dedupeKey: `checkout:${orderId}:${item.productId}`,
-    });
-  }
-  const risk = await assessBuyerOrderRisk(db, orderId);
-  if (risk.action === "block" || (risk.action === "hold" && order.stripe_due_minor === 0)) {
-    await db
-      .prepare(
-        "UPDATE commerce_orders SET status='canceled',canceled_at=?,failure_code='RISK_BLOCK',failure_message='Checkout requires fraud review.',updated_at=? WHERE id=?",
-      )
-      .bind(now(), now(), orderId)
-      .run();
-    throw new ApiError(
-      403,
-      "This checkout requires manual verification before it can be completed.",
-    );
-  }
-  if (risk.action === "hold") {
-    captureMethod = "manual";
-    await db
-      .prepare("UPDATE commerce_orders SET capture_method='manual',updated_at=? WHERE id=?")
-      .bind(now(), orderId)
-      .run();
-  }
-  try {
-    // Reject previously withdrawn buyer authority before tender reservation.
-    await assertStagePaidOrderNotWithdrawn(env, orderId);
-    await reserveTender(db, { ...order, gift_card_hash: quote.gift_card_hash });
-    await reservePromo(db, { ...order, promo_code_hash: quote.promo_code_hash });
-  } catch (e) {
-    await db
-      .prepare("UPDATE commerce_orders SET status='canceled',canceled_at=?,updated_at=? WHERE id=?")
-      .bind(now(), now(), orderId)
-      .run();
-    throw e;
-  }
-  await db
-    .prepare("UPDATE commerce_checkout_quotes SET consumed_at=? WHERE id=?")
-    .bind(at, quote.id)
-    .run();
-  if (order.stripe_due_minor === 0) {
-    await finalizePaidOrder(env, orderId, {
-      provider: "internal",
-      paymentIntentId: null,
-      chargeId: null,
-      receiptUrl: null,
-      paymentMethod: "Cove balance",
-    });
-    return {
-      orderId,
-      status: "paid",
-      clientSecret: null,
-      stripeDueMinor: 0,
-      currency: order.currency,
-    };
-  }
-  const customer = await ensureStripeCustomer(env, user);
-  try {
-    const pi = await stripeRequest(env, "payment_intents", {
-      idempotencyKey: `fore-pi-${orderId}`,
-      params: {
-        amount: order.stripe_due_minor,
-        currency: String(order.currency).toLowerCase(),
-        customer,
-        receipt_email: user.email || undefined,
-        automatic_payment_methods: { enabled: true },
-        capture_method: captureMethod,
-        description: `Cove order ${order.invoice_number}`,
-        metadata: {
-          fore_order_id: orderId,
-          fore_user_id: user.id,
-          fore_invoice: order.invoice_number,
-        },
-        ...(risk.action === "challenge"
-          ? { payment_method_options: { card: { request_three_d_secure: "any" } } }
-          : {}),
-      },
-    });
-    if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1") {
-      await attachStageOwnerCheckoutPayment(env, {
-        orderId,
-        userId: user.id,
-        paymentIntentId: String(pi.id),
-        customerId: String(customer),
-      });
-    } else {
-      await db
-        .prepare(
-          "UPDATE commerce_orders SET stripe_customer_id=?,stripe_payment_intent_id=?,updated_at=? WHERE id=?",
-        )
-        .bind(customer, pi.id, now(), orderId)
-        .run();
-      await db
-        .prepare(
-          "INSERT INTO commerce_payment_attempts(id,order_id,provider,provider_payment_id,status,amount_minor,currency,provider_payload_json,created_at,updated_at) VALUES(?,?,'stripe',?,?,?,?,?,?,?)",
-        )
-        .bind(
-          `pay_${crypto.randomUUID()}`,
-          orderId,
-          pi.id,
-          pi.status,
-          order.stripe_due_minor,
-          order.currency,
-          JSON.stringify({
-            payment_method_types: pi.payment_method_types || [],
-            capture_method: pi.capture_method,
-          }),
-          at,
-          at,
-        )
-        .run();
-    }
-    return {
-      orderId,
-      status: "pending_payment",
-      clientSecret: pi.client_secret,
-      paymentIntentId: pi.id,
-      stripeDueMinor: order.stripe_due_minor,
-      currency: order.currency,
-    };
-  } catch (e) {
-    // After the external Stripe call an unacknowledged owner identity must
-    // remain retryable, never be mutated by the caller's untrusted D1 path.
-    if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1") throw e;
-    await releaseOrderReservations(db, orderId);
-    await db
-      .prepare(
-        "UPDATE commerce_orders SET status='payment_failed',failure_message=?,updated_at=? WHERE id=?",
-      )
-      .bind((e as Error).message, now(), orderId)
-      .run();
-    try {
-      await emitNotification(db, {
-        userId: user.id,
-        eventType: "payment_failed",
-        dedupeKey: `payment-failed:${orderId}:setup`,
-        title: "Payment failed",
-        body: "We could not start payment for your Cove order. Your library was not charged.",
-        urgency: "high",
-        subjectType: "order",
-        subjectId: orderId,
-        actionUrl: `/checkout?order=${encodeURIComponent(orderId)}`,
-        payload: { orderId },
-      });
-    } catch {}
-    throw e;
-  }
+  throw new ApiError(503, "Checkout requires the private commerce owner.");
+
 }
 
 async function releaseOrderReservations(db: CatalogDB, orderId: string) {
@@ -3236,120 +2881,14 @@ async function syncDispute(db: CatalogDB, d: any, eventType: string, env: CoveEn
   }
 }
 
-export async function createPromoCode(db: CatalogDB, raw: unknown) {
-  const x = z
-      .object({
-        code: z.string().min(3).max(80),
-        kind: z.enum(["percent", "amount"]),
-        value: z.number().int().positive(),
-        currency: z
-          .string()
-          .regex(/^[A-Za-z]{3}$/)
-          .nullable()
-          .optional(),
-        minimumSubtotalMinor: z.number().int().min(0).default(0),
-        maxRedemptions: z.number().int().positive().nullable().optional(),
-        maxPerUser: z.number().int().positive().default(1),
-        startsAt: z.string().datetime().nullable().optional(),
-        endsAt: z.string().datetime().nullable().optional(),
-        active: z.boolean().default(true),
-      })
-      .parse(raw),
-    code = normalizeCode(x.code),
-    hash = await sha256(code),
-    at = now();
-  if (x.kind === "percent" && x.value > 100)
-    throw new ApiError(400, "Percentage discounts cannot exceed 100%.");
-  await db
-    .prepare(
-      `INSERT INTO commerce_promo_codes(code_hash,code_label,kind,value,currency,minimum_subtotal_minor,max_redemptions,max_per_user,active,starts_at,ends_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(code_hash) DO UPDATE SET kind=excluded.kind,value=excluded.value,currency=excluded.currency,minimum_subtotal_minor=excluded.minimum_subtotal_minor,max_redemptions=excluded.max_redemptions,max_per_user=excluded.max_per_user,active=excluded.active,starts_at=excluded.starts_at,ends_at=excluded.ends_at,updated_at=excluded.updated_at`,
-    )
-    .bind(
-      hash,
-      code,
-      x.kind,
-      x.value,
-      x.currency?.toUpperCase() || null,
-      x.minimumSubtotalMinor,
-      x.maxRedemptions || null,
-      x.maxPerUser,
-      x.active ? 1 : 0,
-      x.startsAt || null,
-      x.endsAt || null,
-      at,
-      at,
-    )
-    .run();
-  return { codeLabel: code, active: x.active };
+export async function createPromoCode(_db: CatalogDB, _raw: unknown) {
+  throw new ApiError(503, "Promotion creation requires the private commerce owner.");
 }
-export async function issueGiftCard(db: CatalogDB, raw: unknown) {
-  const x = z
-      .object({
-        currency: z
-          .string()
-          .regex(/^[A-Za-z]{3}$/)
-          .default("USD"),
-        amountMinor: z.number().int().positive(),
-        expiresAt: z.string().datetime().nullable().optional(),
-      })
-      .parse(raw),
-    code = `FORE-${crypto.randomUUID().replace(/-/g, "").slice(0, 16).toUpperCase()}`,
-    hash = await sha256(code),
-    at = now();
-  await db
-    .prepare(
-      "INSERT INTO commerce_gift_cards(code_hash,last4,currency,original_balance_minor,balance_minor,status,expires_at,created_at,updated_at) VALUES(?,?,?,?,?,'active',?,?,?)",
-    )
-    .bind(
-      hash,
-      code.slice(-4),
-      x.currency.toUpperCase(),
-      x.amountMinor,
-      x.amountMinor,
-      x.expiresAt || null,
-      at,
-      at,
-    )
-    .run();
-  return {
-    code,
-    currency: x.currency.toUpperCase(),
-    balanceMinor: x.amountMinor,
-    expiresAt: x.expiresAt || null,
-  };
+export async function issueGiftCard(_db: CatalogDB, _raw: unknown) {
+  throw new ApiError(503, "Gift-card issuance requires the private commerce owner.");
 }
-export async function adjustStoreCredit(db: CatalogDB, raw: unknown) {
-  const x = z
-      .object({
-        userId: z.string().min(1).max(180),
-        currency: z
-          .string()
-          .regex(/^[A-Za-z]{3}$/)
-          .default("USD"),
-        amountMinor: z
-          .number()
-          .int()
-          .refine((v) => v !== 0),
-        reference: z.string().max(300).default("operator adjustment"),
-      })
-      .parse(raw),
-    currency = x.currency.toUpperCase();
-  if (x.amountMinor < 0) {
-    const available = await storeCreditAvailable(db, x.userId, currency);
-    if (available < Math.abs(x.amountMinor))
-      throw new ApiError(409, "Store-credit adjustment would make the balance negative.");
-  }
-  await db
-    .prepare(
-      "INSERT INTO commerce_store_credit_ledger(id,user_id,entry_type,amount_minor,currency,reference,created_at) VALUES(?,?,'adjustment',?,?,?,?)",
-    )
-    .bind(crypto.randomUUID(), x.userId, x.amountMinor, currency, x.reference, now())
-    .run();
-  return {
-    userId: x.userId,
-    currency,
-    balanceMinor: await storeCreditAvailable(db, x.userId, currency),
-  };
+export async function adjustStoreCredit(_db: CatalogDB, _raw: unknown) {
+  throw new ApiError(503, "Store-credit adjustment requires the private commerce owner.");
 }
 
 export async function commerceAdminSnapshot(db: CatalogDB) {
