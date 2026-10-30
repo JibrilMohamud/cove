@@ -8,7 +8,7 @@ const QA_DB_IDS=new Set([
   "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e"
 ]);
 export async function syncStageOwnerStripeDispute(env:CoveEnv,command:{
-  disputeId:string;eventType:"charge.dispute.created"|"charge.dispute.updated"|"charge.dispute.closed"
+  disputeId:string;eventType:"charge.dispute.created"|"charge.dispute.updated"|"charge.dispute.closed"|"charge.dispute.funds_withdrawn"|"charge.dispute.funds_reinstated"
 }){
   if(env.COVE_LEGAL_CONSUMER_STAGE_ENABLED!=="1"||
      env.COVE_SSR_STAGING!=="1"||
