@@ -115,8 +115,11 @@ assert.throws(
 
 const commerce = fs.readFileSync("src/features/fore/commerce.server.ts", "utf8");
 const owner = fs.readFileSync("src/storefront-strangler/legal-authority.worker.ts", "utf8");
-const settlement = fs.readFileSync("src/features/fore/paid-settlement-transaction.server.ts","utf8");
-const apiOwner = fs.readFileSync("src/features/fore/api.server.ts","utf8");
+const settlement = fs.readFileSync(
+  "src/features/fore/paid-settlement-transaction.server.ts",
+  "utf8",
+);
+const apiOwner = fs.readFileSync("src/features/fore/api.server.ts", "utf8");
 const api = fs.readFileSync("src/features/fore/api.server.ts", "utf8");
 const ui = fs.readFileSync("src/features/fore/Commerce.tsx", "utf8");
 const book = fs.readFileSync("src/features/fore/Book.tsx", "utf8");
@@ -133,8 +136,8 @@ assert.match(commerce, /placeholder secret key/);
 assert.match(commerce, /payment_intents/);
 assert.match(commerce, /automatic_payment_methods/);
 assert.match(commerce, /Idempotency-Key/);
-assert.match(apiOwner,/createStageOwnerCheckoutQuote/);
-assert.match(owner,/\/commercial\/checkout\/create-quote/);
+assert.match(apiOwner, /createStageOwnerCheckoutQuote/);
+assert.match(owner, /\/commercial\/checkout\/create-quote/);
 assert.match(commerce, /txcd_10302000/);
 assert.match(commerce, /tax\/transactions\/create_from_calculation/);
 assert.match(commerce, /tax\/transactions\/create_reversal/);
