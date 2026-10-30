@@ -5,6 +5,8 @@ import {DISABLED_OWNER_ATTEST_ROUTE,PRODUCTION_OWNER_OBJECT,isDisabledProduction
 import {publishVerifiedPaidOrderAtomic,type VerifiedPaidOrderLine} from "./paid-order-atomic-publication";
 import {executeOwnerRefundAccounting} from "./refund-accounting-owner-executor";
 import {independentlyVerifyOwnerStripeRefund} from "./refund-provider-independent-verification";
+import {verifyOwnerStripeDispute} from "./stripe-dispute-owner-proof";
+import {reverseRoyaltiesForChargeback} from "../features/fore/finance.server";
 import {executeOwnerRefundReservation} from "./refund-reservation-owner-executor";
 import {executeOwnerCheckoutPaymentBinding} from "./checkout-payment-binding-owner-executor";
 import {checkoutDraftCommand,planOwnerCheckoutDraft,ownerCheckoutPreparationMatchesQuote} from "./checkout-draft-owner-plan";
@@ -2437,6 +2439,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/webhook/finish",
       "/commercial/refund/post-accounting",
       "/commercial/refund/record-provider",
+      "/commercial/dispute/sync-verified",
       "/commercial/entitlement/deny-next","/commercial/entitlement/deny-batch",
       "/commercial/entitlement/publish-verified",
       "/commercial/entitlement/publish-order-verified",
