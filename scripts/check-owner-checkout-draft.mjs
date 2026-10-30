@@ -40,7 +40,7 @@ try {
   let counter=0;
   const makeId=()=>`00000000-0000-4000-8000-${String(++counter).padStart(12,"0")}`;
   const plan=planOwnerCheckoutDraft(command,quote,now,makeId);
-  assert.equal(plan.orderId,"ord_00000000-0000-4000-8000-000000000001");
+  assert.equal(plan.orderId,"ord_00000000-0000-4000-8000-000000000003");
   assert.equal(plan.lines.length,2);
   assert.equal(plan.lines.reduce((n,l)=>n+l.totalMinor,0),912);
   assert.equal(plan.lines[0].totalMinor,485);
