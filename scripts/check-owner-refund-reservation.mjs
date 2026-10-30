@@ -107,11 +107,14 @@ try{
   const commerce=readFileSync("src/features/fore/commerce.server.ts","utf8");
   const entry=commerce.indexOf("export async function refundOrder(");
   const ownerBranch=commerce.indexOf('if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1") {',entry);
-  const rawInsert=commerce.indexOf("INSERT INTO commerce_refunds(",entry);
-  assert.ok(entry>=0&&ownerBranch>entry&&rawInsert>ownerBranch,
-    "An enrolled caller must route through the owner BEFORE legacy D1 reservation");
-  assert.match(commerce.slice(ownerBranch,rawInsert),/reserveStageOwnerRefundIntent/);
-  assert.match(commerce.slice(ownerBranch,rawInsert),/return completeRequestedRefund/);
+  const nextFunction=commerce.indexOf("function refundResponse(",entry);
+  const refundHandler=commerce.slice(entry,nextFunction);
+  assert.ok(entry>=0&&ownerBranch>entry&&nextFunction>ownerBranch,
+    "Only the private owner may reserve the canonical refund intent");
+  assert.doesNotMatch(refundHandler,/INSERT INTO commerce_refunds\(/,
+    "A replay or outage must never fall back to shared D1 refund reservation");
+  assert.match(refundHandler,/reserveStageOwnerRefundIntent/);
+  assert.match(refundHandler,/return completeRequestedRefund/);
   const worker=readFileSync("src/storefront-strangler/legal-authority.worker.ts","utf8");
   assert.match(worker,/route==="\/commercial\/refund\/reserve"/);
   assert.match(worker,/INSERT INTO commerce_refunds\(id,order_id,amount_minor/);
