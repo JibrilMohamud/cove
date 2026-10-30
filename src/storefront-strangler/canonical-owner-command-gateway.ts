@@ -253,7 +253,7 @@ export async function dispatchCanonicalOwnerCommand(
          (body.action==="gift-card"&&(!/^FORE-[0-9A-F]{16}$/.test(String(ack.code))||
              !currency.safeParse(ack.currency).success||
              !Number.isSafeInteger(ack.amountMinor)))||
-         (body.action==="store-credit"&&(ack.userId!==body.payload.userId||
+         (body.action==="store-credit"&&(ack.userId!==(body.payload as Record<string,unknown>).userId||
              !currency.safeParse(ack.currency).success||
              !Number.isSafeInteger(ack.balanceMinor)||Number(ack.balanceMinor)<0)))
         throw Error("canonical_command_receipt_mismatch");
