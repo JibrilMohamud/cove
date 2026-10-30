@@ -60,18 +60,21 @@ test("no synthetic or source-only configuration can self-certify deployment",()=
   assert.equal(clean.productionAuthorized,false);
   assert.equal(clean.independentDeploymentAuthorizationRequired,true);
 });
-test("47 retired direct D1 capabilities cannot return and the 10-binding unsafe baseline stays pinned",()=>{
+test("48 retired direct D1 capabilities cannot return and the nine-binding unsafe baseline stays pinned",()=>{
   const retired=JSON.parse(readFileSync("docs/architecture/historical-publication-capture-d1-isolation-20261029.json","utf8"));
   const baseline=JSON.parse(readFileSync("docs/architecture/deployed-canonical-d1-baseline.json","utf8"));
   assert.equal(retired.scripts.length,43);
-  assert.equal(baseline.knownDirectBindings.length,10);
-  assert.equal(baseline.retirementEvidence.totalBindingsRemoved,47);
-  assert.equal(baseline.retirementEvidence.remainingNonOwnerBindings,9);
+  assert.equal(baseline.knownDirectBindings.length,9);
+  assert.equal(baseline.retirementEvidence.totalBindingsRemoved,48);
+  assert.equal(baseline.retirementEvidence.remainingNonOwnerBindings,8);
   for(const n of ["cove-fast-architecture-qa","cove-fast-customer-gateway"])
     assert.ok(!baseline.knownDirectBindings.some(x=>x.script===n),
       "Retired fast gateway cannot be an unsafe legacy binding: "+n);
   assert.equal(baseline.certified,false);
   assert.equal(baseline.retirementEvidence.historicalCaptureBindingsRemoved,43);
+  assert.equal(baseline.retirementEvidence.dormantInferenceBindingsRemoved,1);
+  assert.ok(!baseline.knownDirectBindings.some(x=>x.script==="cove-literary-infer-draining-20261025"),
+    "Retired dormant inference Worker may never regain the canonical D1 principal");
   for(const name of retired.scripts)assert.ok(
     !baseline.knownDirectBindings.some(x=>x.script===name),
     "retired capture cannot survive in remaining unsafe D1 allowlist: "+name);
@@ -130,6 +133,24 @@ test("two retired literary Workers cannot regain D1 or be re-enabled by redeploy
     ]}}
   });
   assert.deepEqual(reenabled.retiredDisabledLiteraryReactivations,[name]);
+});
+test("restoring the retired dormant inference binding fails the strict production drift gate",()=>{
+  const baseline=JSON.parse(readFileSync("docs/architecture/deployed-canonical-d1-baseline.json","utf8"));
+  const retiredName="cove-literary-infer-draining-20261025";
+  const clean={...assessDeployedCanonicalD1Principals(params),
+    ownerEnabled:false,principals:[
+      {script:OWNER_SCRIPT,binding:"PRIMARY_DB",owner:true,crons:[]},
+    ],directCanonicalBindings:1,nonOwnerBindings:0,
+    unsafeFastArchitectureQAIngress:0,retiredCaptureReactivations:[],
+    retiredDisabledLiteraryReactivations:[],retiredFastWorkerViolations:[],
+    unsafeLegacyDriverIngress:0};
+  assert.equal(compareKnownUnsafeFleet(clean,baseline).strictDriftPass,true);
+  const rebound={...clean,principals:[
+    ...clean.principals,{script:retiredName,binding:"DB",owner:false,crons:[]}
+  ],directCanonicalBindings:2,nonOwnerBindings:1};
+  const drift=compareKnownUnsafeFleet(rebound,baseline);
+  assert.deepEqual(drift.newBindings,[{script:retiredName,binding:"DB"}]);
+  assert.equal(drift.strictDriftPass,false);
 });
 test("a forged expanded baseline cannot increase 12 deployed canonical D1 principals",()=>{
   const baseline={schema:"cove.canonical-d1-unsafe-principal-baseline.v1",certified:false,

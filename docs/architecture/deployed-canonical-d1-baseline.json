@@ -1,12 +1,11 @@
 {
   "schema": "cove.canonical-d1-unsafe-principal-baseline.v1",
-  "observedOn": "2026-10-29 (post-47 non-owner capability retirements)",
-  "reason": "10 historically unsafe production D1 bindings remain: 9 non-owner, 1 disabled legal authority. No legacy/QA binding is an approved writer. 47 non-owner canonical D1 capabilities were removed and any restoration is denied.",
+  "observedOn": "2026-10-30 (live 450-Worker independent readback after dormant infer retirement)",
+  "reason": "9 historically unsafe production D1 bindings remain: 8 non-owner, 1 disabled legal authority. The historical dormant inference Worker no longer has a production D1 binding; restoration is denied. 48 non-owner canonical D1 capabilities were removed in total; none of the remaining non-owner bindings is an approved production writer.",
   "canonicalD1": "4bd657ac-8789-403e-a28c-93aba8d0a989",
   "knownDirectBindingScripts": [
     "cove-legal-authority-production",
     "cove-literary-handoff-draining-20261025",
-    "cove-literary-infer-draining-20261025",
     "cove-literary-infer-isolated-disabled",
     "cove-literary-prepare-draining-20261025",
     "cove-literary-publisher-isolated-disabled",
@@ -51,10 +50,6 @@
       "binding": "DB"
     },
     {
-      "script": "cove-literary-infer-draining-20261025",
-      "binding": "DB"
-    },
-    {
       "script": "cove-literary-infer-isolated-disabled",
       "binding": "DB"
     },
@@ -86,14 +81,14 @@
   "retirementEvidence": {
     "historicalCaptureBindingsRemoved": 43,
     "previousDirectBindings": 57,
-    "remainingDirectBindings": 10,
+    "remainingDirectBindings": 9,
     "previousNonOwnerBindings": 56,
-    "remainingNonOwnerBindings": 9,
+    "remainingNonOwnerBindings": 8,
     "liveCloudflareReadback": true,
     "ownerStillDisabled": true,
     "snapshot": "docs/architecture/historical-publication-capture-d1-isolation-20261029.json",
     "disabledLiteraryBindingsRemoved": 2,
-    "totalBindingsRemoved": 47,
+    "totalBindingsRemoved": 48,
     "disabledLiteraryWorkerNames": [
       "cove-literary-handoff-isolated-disabled",
       "cove-literary-prepare-isolated-disabled"
@@ -102,6 +97,9 @@
       "cove-fast-architecture-qa",
       "cove-fast-customer-gateway"
     ],
-    "fastRetirementEvidence": "docs/architecture/fast-qa-customer-gateway-d1-retirement-20261029.json"
+    "fastRetirementEvidence": "docs/architecture/fast-qa-customer-gateway-d1-retirement-20261029.json",
+    "dormantInferenceBindingsRemoved": 1,
+    "dormantInferenceWorkerName": "cove-literary-infer-draining-20261025",
+    "latestReadback": "docs/architecture/dormant-literary-infer-d1-retirement-20261030.json"
   }
 }

@@ -208,7 +208,7 @@ export function compareKnownUnsafeFleet(report,baseline){
     unsafeHistoricalBindingsStillPresent:report.directCanonicalBindings,
     // Even zero drift is not approval of legacy credentials.
     productionAuthorized:false,
-    strictDriftPass:newBindings.length===0&&newSchedules.length===0&&report.ownerEnabled===false&&report.unsafeLegacyDriverIngress===0&&(report.retiredCaptureReactivations||[]).length===0&&report.unsafeFastArchitectureQAIngress===0&&(report.retiredDisabledLiteraryReactivations||[]).length===0&&(report.retiredFastWorkerViolations||[]).length===0&&report.directCanonicalBindings<=10&&report.nonOwnerBindings<=9};
+    strictDriftPass:newBindings.length===0&&newSchedules.length===0&&report.ownerEnabled===false&&report.unsafeLegacyDriverIngress===0&&(report.retiredCaptureReactivations||[]).length===0&&report.unsafeFastArchitectureQAIngress===0&&(report.retiredDisabledLiteraryReactivations||[]).length===0&&(report.retiredFastWorkerViolations||[]).length===0&&report.directCanonicalBindings<=9&&report.nonOwnerBindings<=8};
 }
 
 /** Read-only. Abort the entire audit if even one Worker settings or owner
