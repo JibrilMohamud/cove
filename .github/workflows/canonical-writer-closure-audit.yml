@@ -14,6 +14,7 @@ on:
       - "scripts/check-canonical-owner-command-gateway.mjs"
       - "src/storefront-strangler/commerce-d1-write-fence.ts"
       - "scripts/check-commerce-d1-write-fence.mjs"
+      - "scripts/check-duplicate-market-writer-retirement.mjs"
       - "scripts/check-owner-checkout-quote-routing.mjs"
       - "scripts/check-owner-refund-accounting.mjs"
       - "scripts/check-private-refund-accounting-parity.mjs"
@@ -64,6 +65,7 @@ on:
       - "scripts/check-canonical-owner-command-gateway.mjs"
       - "src/storefront-strangler/commerce-d1-write-fence.ts"
       - "scripts/check-commerce-d1-write-fence.mjs"
+      - "scripts/check-duplicate-market-writer-retirement.mjs"
       - "scripts/check-owner-checkout-quote-routing.mjs"
       - "scripts/check-owner-refund-accounting.mjs"
       - "scripts/check-private-refund-accounting-parity.mjs"
@@ -130,6 +132,8 @@ jobs:
           node scripts/test-canonical-owner-workflow-inventory.mjs
           node scripts/check-canonical-owner-command-gateway.mjs
           node scripts/check-commerce-d1-write-fence.mjs
+          node scripts/check-duplicate-market-writer-retirement.mjs
+          node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/duplicate-market-writer-source-attestation-20261030.json
           node scripts/check-owner-checkout-quote-routing.mjs
           node scripts/check-owner-refund-accounting.mjs
           node scripts/check-private-refund-accounting-parity.mjs
