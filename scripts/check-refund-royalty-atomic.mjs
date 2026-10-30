@@ -81,27 +81,21 @@ try{
   const ambiguous=fixture();ambiguous.loseResponse(true);
   await reverseRoyaltiesForRefund(ambiguous.DB,"refund_royalty_01");posted(ambiguous);
   await reverseRoyaltiesForRefund(ambiguous.DB,"refund_royalty_01");posted(ambiguous);
-  // Invoke the ORIGINAL customer refund API across the core/royalty crash
-  // boundary. The retry must repair the royalty projection from persisted
-  // success without making another refund provider request.
+  // The original production refund API MUST now fail closed BEFORE
+  // contacting the payment provider, because the direct shared financial
+  // ledger executor is physically retired. The identical historical ledger
+  // crash and replay boundary remains covered by the private-owner parity
+  // fixture in check-refund-accounting-atomic.mjs.
   const integration=fixture({pending:true});
   let providerCalls=0;
-  globalThis.fetch=async()=>{providerCalls++;return Response.json({id:"re_repaired_original_01",status:"succeeded"});};
+  globalThis.fetch=async()=>{providerCalls++;return Response.json({id:"re_unexpected",status:"succeeded"});};
   const env={DB:integration.DB,STRIPE_SECRET_KEY:"sk_test_atomic_refund_01",STRIPE_LIVEMODE:"false"};
   const input={orderId:"order_royalty_01",idempotencyKey:"royalty-test-refund"};
-  integration.failNextRoyaltyRead();
-  await assert.rejects(()=>refundOrder(env,input));
-  assert.equal(integration.sql.prepare("SELECT status FROM commerce_orders").get().status,"refunded");
-  assert.ok(integration.sql.prepare("SELECT succeeded_at FROM commerce_refunds").get().succeeded_at);
+  await assert.rejects(()=>refundOrder(env,input),error=>error?.status===503);
+  assert.equal(providerCalls,0,"No provider refund may precede private owner accounting");
+  assert.equal(integration.sql.prepare("SELECT status FROM commerce_orders").get().status,"paid");
+  assert.equal(integration.sql.prepare("SELECT succeeded_at FROM commerce_refunds").get().succeeded_at,null);
   assert.equal(integration.sql.prepare("SELECT count(*) n FROM finance_royalty_calculations WHERE source_type='refund'").get().n,0);
-  assert.equal(providerCalls,1);
-  assert.equal((await refundOrder(env,input)).status,"succeeded");
-  assert.equal(providerCalls,1,"Persisted verified success repairs royalties without repeating provider refund");
-  assert.equal(integration.sql.prepare("SELECT count(*) n FROM finance_royalty_calculations WHERE source_type='refund'").get().n,1);
-  assert.equal(integration.sql.prepare("SELECT count(*) n FROM commerce_ledger_entries").get().n,10);
-  assert.equal(integration.sql.prepare("SELECT sum(amount_minor) n FROM commerce_ledger_entries").get().n,0);
-  await refundOrder(env,input);
-  assert.equal(providerCalls,1);
-  assert.equal(integration.sql.prepare("SELECT count(*) n FROM commerce_ledger_entries").get().n,10);
+  assert.equal(integration.sql.prepare("SELECT count(*) n FROM commerce_ledger_entries").get().n,0);
   console.log(`PASS: royalties commit complete calculation, allocations and balanced ledger atomically across ${boundaries} mutation boundaries; deterministic identity, duplicate concurrency and lost-response recovery`);
 }finally{globalThis.fetch=originalFetch;for(const db of stores)db.close();rmSync(directory,{recursive:true,force:true});}
