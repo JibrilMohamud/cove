@@ -4,7 +4,8 @@ import { DatabaseSync } from "node:sqlite";
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-export function localBindings(root) {
+import {seedLocalCatalogFixture} from "./test-local-catalog-fixture.mjs";
+export function localBindings(root,options={}) {
   const dir = path.join(root, ".sites-runtime");
   fs.mkdirSync(dir, { recursive: true });
   const db = new DatabaseSync(path.join(dir, "fore.sqlite"));
@@ -22,6 +23,8 @@ export function localBindings(root) {
         db.prepare("INSERT INTO __local_migrations(name) VALUES(?)").run(name);
       }
     }
+  // Synthetic local/test DB only. Production Cloudflare Workers never import this module.
+  if(options.seedCatalogFixture)seedLocalCatalogFixture(db);
   function statement(sql, values = []) {
     const s = db.prepare(sql);
     return {
@@ -135,7 +138,7 @@ export function foreApiDevPlugin() {
     name: "fore-local-api",
     configureServer(server) {
       env = {
-        ...localBindings(server.config.root),
+        ...localBindings(server.config.root,{seedCatalogFixture:true}),
         FORE_AUTH_MODE: process.env.FORE_AUTH_MODE || "supabase",
         SUPABASE_URL: process.env.SUPABASE_URL,
         SUPABASE_PUBLISHABLE_KEY: process.env.SUPABASE_PUBLISHABLE_KEY,
