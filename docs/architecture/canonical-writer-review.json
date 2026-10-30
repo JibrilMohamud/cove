@@ -2,7 +2,7 @@
   "schema": "cove.canonical-writer-review.v1",
   "reviewedSourceCommit": "028ef18375b946389c7d243f312be5dfc39ec7b1",
   "releaseApproval": false,
-  "scope": "2026-10-30: transplanted 21 source-exact private catalog construction SQL literals (14 commercial free Gutenberg normalization, 7 private personal imports) into the authentication- and 15-minute QA-lease-gated legal-owner Durable Object; removed all shared catalog-model writer functions and switched eight API callers to typed private receipts. The owner enforces QA-only R2/evidence checks; production remains disabled and public read-side direct writes fail closed, not certified. 281→260 owner-required. Prior review: 2026-10-30: physically moved 25 traditional partner-feed authorizing SQL sites and one nonauthorizing acknowledgement write into the lease-gated private legal-owner Durable Object. Caller processPartnerFeedQueue is now a typed fail-closed command, not a shared SQL writer. Owner processes ONLY sandbox non-asset-manifest previews; production feed publication remains unavailable pending independently verified positive authority. 306→281 owner-required. No production cutover, grant authority or release approval. Prior review: 2026-10-30: physically retired 37 additional commerce SQL authorizing writers; 343→306 owner required. Stage-only owner checkout, settlement, refund reservation/posting, dispute, journal and reconciliation retained. Three commerce SQL sites, including the owner-only checkout quote writer and two direct tax writes, still tracked as owner-required and no production payment, owner enablement or revocation certification is claimed. Prior review: 2026-10-30: physically retired 16 checkout/tender/Stripe-customer/monetary-admin shared-D1 writers, preserving the private-owner QA calls and closing the legacy production money paths until independently live-certified. Owner-required 359 to 343; zero production approval. Prior history: Current exact-source review: 426 candidates, 371 production owner-command-required. Six rights grant authorizing SQL sites removed from shared API and preserved as a byte-exact private owner writer with owner-gated publication materialization. Previous 3 rights-contract authorizing sites and its one nonauthorizing audit site remain retired. No production approval; original frozen exception classification and denial are unchanged. Current source review: 432 exact candidates, 377 owner-required SQL mutations. Four shared rights-contract SQL sites (three authorizing and one append-only audit) were removed together; their unchanged business implementation is now private and service-bound. The historical 426-site baseline remains frozen. Production owner authorization, external principal cutover and paid routing remain blocked. Exact current review: 482 SQL literals. All 460 historical sites retain their dispositions (426 production owner-command-required, 33 nonauthorizing, one fixture). Two royalty INSERT OR IGNORE statements became strict INSERT statements in atomic calculation/allocation/journal batches; none was waived. The 22 new transaction/executor sites are private-owner-qa-executor, separately inventoried with exact source/SQL identity and enforced runtime import containment. They are not deployed production ownership, nonauthorizing classifications, or a reduction of the historical 426 findings. Source and isolated QA evidence never authorize production cutover. This change routes enrolled QA refund-intent reservations through a private typed command, while preserving the unowned production fallback. Private SQL remains in the already-excluded owner Durable Object, not a newly exempted scanner source; 426 legacy owner-required findings remain. No production authorization is asserted. Enrolled QA Stripe webhook journal claims and completion now use only typed private owner commands. Legacy production SQL is unchanged and remains owner-required; production owner activation is still blocked. Signed Stripe payment-intent processing, authorization, failure and cancellation now dispatch strict typed owner state transitions in isolated QA. Cancellation and held tender release are one owner-controlled D1 batch. Production fallback and all 426 owner-required findings remain explicitly unresolved. Enrolled isolated-QA checkout now has the owner independently verify the canonical order and provider PaymentIntent before atomically attaching the Stripe identity and payment attempt. Mutable SQL lives exclusively inside the private legal-owner Worker. Production checkout remains on its unowned legacy D1 branch and all 426 owner-required findings remain unresolved pending cutover. Isolated QA now registers Stripe customer identities through the owner after independent provider verification. The direct D1 customer upsert remains reachable in legacy production and is still owner-command-required; 426 production findings remain, with no release permission granted.",
+  "scope": "2026-10-30: physically retire 11 unowned legacy restoration and royalty-release SQL sites (publishing-trust 53→42, total 260→249). Explicit fail-closed 503 before staff dispute resolution effects and scheduled restoration; copyright withdrawal, dispute intake and takedown remain unchanged. Positive reinstatement and release of held funds now require independently authorized owner-first replacement and legal deadline review; no production release approval. Prior review: 2026-10-30: transplanted 21 source-exact private catalog construction SQL literals (14 commercial free Gutenberg normalization, 7 private personal imports) into the authentication- and 15-minute QA-lease-gated legal-owner Durable Object; removed all shared catalog-model writer functions and switched eight API callers to typed private receipts. The owner enforces QA-only R2/evidence checks; production remains disabled and public read-side direct writes fail closed, not certified. 281→260 owner-required. Prior review: 2026-10-30: physically moved 25 traditional partner-feed authorizing SQL sites and one nonauthorizing acknowledgement write into the lease-gated private legal-owner Durable Object. Caller processPartnerFeedQueue is now a typed fail-closed command, not a shared SQL writer. Owner processes ONLY sandbox non-asset-manifest previews; production feed publication remains unavailable pending independently verified positive authority. 306→281 owner-required. No production cutover, grant authority or release approval. Prior review: 2026-10-30: physically retired 37 additional commerce SQL authorizing writers; 343→306 owner required. Stage-only owner checkout, settlement, refund reservation/posting, dispute, journal and reconciliation retained. Three commerce SQL sites, including the owner-only checkout quote writer and two direct tax writes, still tracked as owner-required and no production payment, owner enablement or revocation certification is claimed. Prior review: 2026-10-30: physically retired 16 checkout/tender/Stripe-customer/monetary-admin shared-D1 writers, preserving the private-owner QA calls and closing the legacy production money paths until independently live-certified. Owner-required 359 to 343; zero production approval. Prior history: Current exact-source review: 426 candidates, 371 production owner-command-required. Six rights grant authorizing SQL sites removed from shared API and preserved as a byte-exact private owner writer with owner-gated publication materialization. Previous 3 rights-contract authorizing sites and its one nonauthorizing audit site remain retired. No production approval; original frozen exception classification and denial are unchanged. Current source review: 432 exact candidates, 377 owner-required SQL mutations. Four shared rights-contract SQL sites (three authorizing and one append-only audit) were removed together; their unchanged business implementation is now private and service-bound. The historical 426-site baseline remains frozen. Production owner authorization, external principal cutover and paid routing remain blocked. Exact current review: 482 SQL literals. All 460 historical sites retain their dispositions (426 production owner-command-required, 33 nonauthorizing, one fixture). Two royalty INSERT OR IGNORE statements became strict INSERT statements in atomic calculation/allocation/journal batches; none was waived. The 22 new transaction/executor sites are private-owner-qa-executor, separately inventoried with exact source/SQL identity and enforced runtime import containment. They are not deployed production ownership, nonauthorizing classifications, or a reduction of the historical 426 findings. Source and isolated QA evidence never authorize production cutover. This change routes enrolled QA refund-intent reservations through a private typed command, while preserving the unowned production fallback. Private SQL remains in the already-excluded owner Durable Object, not a newly exempted scanner source; 426 legacy owner-required findings remain. No production authorization is asserted. Enrolled QA Stripe webhook journal claims and completion now use only typed private owner commands. Legacy production SQL is unchanged and remains owner-required; production owner activation is still blocked. Signed Stripe payment-intent processing, authorization, failure and cancellation now dispatch strict typed owner state transitions in isolated QA. Cancellation and held tender release are one owner-controlled D1 batch. Production fallback and all 426 owner-required findings remain explicitly unresolved. Enrolled isolated-QA checkout now has the owner independently verify the canonical order and provider PaymentIntent before atomically attaching the Stripe identity and payment attempt. Mutable SQL lives exclusively inside the private legal-owner Worker. Production checkout remains on its unowned legacy D1 branch and all 426 owner-required findings remain unresolved pending cutover. Isolated QA now registers Stripe customer identities through the owner after independent provider verification. The direct D1 customer upsert remains reachable in legacy production and is still owner-command-required; 426 production findings remain, with no release permission granted.",
   "sites": [
     {
       "siteId": "49f37e5484e485db938d0ac3fc3efaacb649329c6ea517c04b384dc0075bbe34",
@@ -1780,7 +1780,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "1219c8cc7dcae3b2b912c183e2c0785d83d2d543322ddd92073cb4ea5fe8d942",
+      "siteId": "1e61c9e16fbf91ff7cd83c0a7e02f5aaba239275893f72f9d88d519df9cd59c8",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 161,
       "functionName": "signPublishingRightsDeclaration",
@@ -1793,7 +1793,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "6cf61878588cbeba26616e680d548aa5b37323d639d0c27d373f803992d9c840",
+      "siteId": "feb38e2c5011564a5d6ee2d02637d953af48ee10966afab3db6ba41955a37206",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 350,
       "functionName": "uploadRightsEvidence",
@@ -1806,7 +1806,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "86029c59d630c50e2642d08712c32edf20739e07125b74a647df2e87be70f004",
+      "siteId": "def7651b30552d3902644736d31e2e5833f955afa4ad55a658e0f1959b987ce8",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 369,
       "functionName": "uploadRightsEvidence",
@@ -1819,7 +1819,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "5b02a72c48d85318f045ebff3d46053b0acb098cdbd76c9653c416cf39b38c6e",
+      "siteId": "5c54e2b4adb2aad257caa41da5f433aa9bc5dbeca298664d5243a1faa0127dc3",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 947,
       "functionName": "assessSubmissionContentPolicy",
@@ -1832,7 +1832,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "314d199e6e980e11a52df544673edef058d79c84650338681f75962349dc1f7b",
+      "siteId": "39ae8f5c8b0c577a3a33c493476462d1ca1ea77b0478b8a5589f623a3732b49a",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1036,
       "functionName": "disputeEvent",
@@ -1844,7 +1844,7 @@
       "reason": "Dispute timeline event records do not change the dispute, product, contract, or entitlement state."
     },
     {
-      "siteId": "dc012566747dd683175bbdefc9c7a0107963727a3932c987f0bcac7d843bd1fe",
+      "siteId": "b6a77d2c0805454af1ab4445af6894978e105a7fb6ad3a925486e99423fd4e13",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1059,
       "functionName": "notify",
@@ -1856,7 +1856,7 @@
       "reason": "Legal notification delivery queue changes notification status only; dispute and publication transitions remain separate owner-required writes."
     },
     {
-      "siteId": "4a2eab3161ef457e32bd220c17229905d088edb21c7b7ec1361a57e5f43bbecb",
+      "siteId": "b1d86ae60336330480eec75d8c6a9288c7d1398a5d5826df95bd9c5ec3b83cec",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1254,
       "functionName": "submitCopyrightNotice",
@@ -1869,7 +1869,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "7775d4bfd9b4070de93c5509ed3b85916df3def50c863a3c8f4bf50fef039591",
+      "siteId": "044179b5559f41d356985be2b20e0d75eb0e4af1e5801a487a73efc87bd0d639",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1269,
       "functionName": "submitCopyrightNotice",
@@ -1882,7 +1882,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "af6d386b2ad6624778e0b10dd17204257da7e1f833dddc279ba17ca6bd285ae5",
+      "siteId": "dbb6a72b2d146f4997552d1252c155a71484a2844db39dfdb185ea6b97b20631",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1323,
       "functionName": "takeDown",
@@ -1895,7 +1895,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "3266a174ca0b69054f4cd05ed9fbf9e88a5c1b432c8441bac84e0155ee90fdbe",
+      "siteId": "4169b59c92c77dbade83ab8571c38831cb26305152238358d7078261b443bd65",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1328,
       "functionName": "takeDown",
@@ -1908,7 +1908,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "0d9d8c6a54fc460d19faa1cc11420a530558af27e15779711d0486a369366cbd",
+      "siteId": "95784663e6d60e81380e4cb49afee24f2532c692b2c54e3346cf9012f689a135",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1365,
       "functionName": "takeDown",
@@ -1921,7 +1921,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "eb0aa5314c7d56795fe294de08275102216270729c1e95be66e2c487bed72811",
+      "siteId": "6281fbe5b3dfc40355207b08d990da42798c104268a5d72e6814633da99d49eb",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1382,
       "functionName": "applyRoyaltyHold",
@@ -1934,7 +1934,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "363d7e8b7b520a28625919f30cf9811453da06d093a825715663120d5aac3b7f",
+      "siteId": "083338d7599100f5196cd84ee4001190b35dc97e8bf8153ac7516613e9fb387e",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1398,
       "functionName": "applyRoyaltyHold",
@@ -1947,7 +1947,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "e82d7c72ac4507cf8e3f4ea535bab425ded39dbae776652868f6148240afc795",
+      "siteId": "afbca7e7011a7005284f8a578068877fce2f88cc692d71b9f047cf9608a98d4b",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1404,
       "functionName": "applyRoyaltyHold",
@@ -1960,139 +1960,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "7652345abd9833abd41763eec24c8bb8023a2ba52f4dc8bd80e0a41ffb112a44",
+      "siteId": "92a211b2e3ffd9d06387e12b1a13bcf8b79eb7b2dbd04ce6ba849448893cf9e5",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1431,
-      "functionName": "releaseHolds",
-      "table": "royalty_holds",
-      "operation": "UPDATE",
-      "sqlSha256": "ee248962935053b1e1e387050d7d44956f814e71d179dc4dd0b08604bf6c0924",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "publishing-trust.releaseHolds",
-      "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
-    },
-    {
-      "siteId": "7554d1f79b1267d963fa9964c3523a0c40e876a8034609d75350ddbdb2f40a0e",
-      "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1438,
-      "functionName": "releaseHolds",
-      "table": "finance_royalty_events",
-      "operation": "UPDATE",
-      "sqlSha256": "bab7da9149869a3f6dd894f164ea385ad1b2a453099225a7bc231f7e4f662621",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "publishing-trust.releaseHolds",
-      "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
-    },
-    {
-      "siteId": "372241bbaaebb01c6eaf5cdd7cc0875e9d4373751f14e75c91de8ec572cc42b8",
-      "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1444,
-      "functionName": "releaseHolds",
-      "table": "finance_royalty_allocations",
-      "operation": "UPDATE",
-      "sqlSha256": "6764cadf9370036b25d1f5f903409a8a23855d37dc74f53025b308a8a1c29e64",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "publishing-trust.releaseHolds",
-      "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
-    },
-    {
-      "siteId": "a5eea52918e5366acf9bb33afa50229afb8fd0ed16ab1c2e3924764501e71619",
-      "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1478,
-      "functionName": "restore",
-      "table": "publishing_release_lifecycles",
-      "operation": "UPDATE",
-      "sqlSha256": "f72f05305baff9ec5959b61e5fa53a08d76e8e3c6f5826d96ab9796db962b351",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "publishing-trust.restore",
-      "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
-    },
-    {
-      "siteId": "8674cbe5b264cc6cd7cdd7011316a1eefbf4b93765cd591bcbdd003d0adf4a26",
-      "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1483,
-      "functionName": "restore",
-      "table": "publishing_lifecycle_events",
-      "operation": "INSERT INTO",
-      "sqlSha256": "e4a9a33c52bbc926e76a906f366bcf44ab1d823a6eac0e0c006f58e9a6abbfd9",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "publishing-trust.restore",
-      "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
-    },
-    {
-      "siteId": "9968ba7f6fc18b782f7c21ccb23b41fe5e08879f8a895c020be4a6b3254f9a63",
-      "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1503,
-      "functionName": "restore",
-      "table": "products",
-      "operation": "UPDATE",
-      "sqlSha256": "fbd8433da4954b51b2be594d30fe5786004801f8fb37a173b850a41d9c7c9464",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "publishing-trust.restore",
-      "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
-    },
-    {
-      "siteId": "4f6b65b73548c3525b0116209496e0fa588c2f5eaa3bb510b35d4b23fadee025",
-      "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1531,
-      "functionName": "restore",
-      "table": "products",
-      "operation": "UPDATE",
-      "sqlSha256": "fbd8433da4954b51b2be594d30fe5786004801f8fb37a173b850a41d9c7c9464",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "publishing-trust.restore",
-      "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
-    },
-    {
-      "siteId": "2813ebbc1841e109bc56008d35cd095894972d02e879ce09584aee23b9cc4d45",
-      "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1536,
-      "functionName": "restore",
-      "table": "rights_disputes",
-      "operation": "UPDATE",
-      "sqlSha256": "f1b4a963a2cdb62fbdbe26d2e1b6c3f0a52f4dcd8d83426f554f9af4aed2d1b6",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "publishing-trust.restore",
-      "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
-    },
-    {
-      "siteId": "65b2e313952a1c0d89dfd6d505751a4ef7284a9dd27393122fc9f69072550339",
-      "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1540,
-      "functionName": "restore",
-      "table": "copyright_notices",
-      "operation": "UPDATE",
-      "sqlSha256": "adb27668d4fd51e477f283bac1314e318e701d281f3a4a121c16170a64baa6df",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "publishing-trust.restore",
-      "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
-    },
-    {
-      "siteId": "69f6d07013906bb5c5fde8a6e8f18b697d71b5f8e277d4ee5fec3a46805db75b",
-      "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1545,
-      "functionName": "restore",
-      "table": "copyright_counter_notices",
-      "operation": "UPDATE",
-      "sqlSha256": "7ec497966d548fe3fd5bf7ffb38e2550ae8b605214c60a5757187d8bacb6ce5d",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "publishing-trust.restore",
-      "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
-    },
-    {
-      "siteId": "f82d5cf363895fd82324c0300e4c6438a678a475872db56ff15ff237de910d78",
-      "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1574,
+      "line": 1442,
       "functionName": "validateCopyrightNotice",
       "table": "copyright_notices",
       "operation": "UPDATE",
@@ -2103,9 +1973,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "c0747cdaea1b17c65c3d8bc1b3e833307a8fbeed731836969dc095b01e1ce183",
+      "siteId": "85fc6d60d75a357e5b2aaacdc98fb94bc82c9c0479c5dd85a5558aec93c26cc1",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1578,
+      "line": 1446,
       "functionName": "validateCopyrightNotice",
       "table": "rights_disputes",
       "operation": "UPDATE",
@@ -2116,9 +1986,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "8e01b4baea5f850667d58864c9cd5c44ee7e78cb01b96e64a543e310e55bcf93",
+      "siteId": "7cd8cf5fce36977d0b521c8864dac6975aa42fe1de4bf42b116601bdd087d36b",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1589,
+      "line": 1457,
       "functionName": "validateCopyrightNotice",
       "table": "copyright_notices",
       "operation": "UPDATE",
@@ -2129,9 +1999,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "768b4bc29ebd7b63857c183ecd92a22c609bdac341eb1a13584d9cb01b73397b",
+      "siteId": "b5c62dc30723f5e189d93bf45260354ffa6a26163ba874e411b34453cc88a23b",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1594,
+      "line": 1462,
       "functionName": "validateCopyrightNotice",
       "table": "rights_disputes",
       "operation": "UPDATE",
@@ -2142,9 +2012,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "470e85df540bc84d3eadc2ed4be26669eae2a7860fb4cea0980d56113e960886",
+      "siteId": "e067d57031c59d8e36eea47654572e849f56f5b186a429c8fa392b770e165e82",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1613,
+      "line": 1481,
       "functionName": "validateCopyrightNotice",
       "table": "copyright_notices",
       "operation": "UPDATE",
@@ -2155,9 +2025,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "646479dd4bb502aefc5c7eff82c8be8931c43e8c014d0cf87b8aa6de702bd5d5",
+      "siteId": "802e56f8d18c1f16cf366dd62f7198d5f0437a5d3fa182e7a340234de53380f9",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1618,
+      "line": 1486,
       "functionName": "validateCopyrightNotice",
       "table": "rights_disputes",
       "operation": "UPDATE",
@@ -2168,9 +2038,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "f3ec962fd80df8563664bffa9369ca05562470f2fffa4dc751ad8a428cfd049b",
+      "siteId": "b615a4c207736ce0222cc196bbc6edfce528c83a95a922e4b59dbc7fb58811c7",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1696,
+      "line": 1564,
       "functionName": "submitCopyrightCounterNotice",
       "table": "copyright_counter_notices",
       "operation": "UPDATE",
@@ -2181,9 +2051,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "a12272bc5ffbfd8f77bb1f61f04564803d222d9b69ce173b57cb881640f71e7f",
+      "siteId": "645a9857b5b8607538e948859c37affa6341a3d0f410d643d42a3de552dad236",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1710,
+      "line": 1578,
       "functionName": "submitCopyrightCounterNotice",
       "table": "copyright_counter_notices",
       "operation": "INSERT INTO",
@@ -2194,9 +2064,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "42761b815711914dc78a4944ab989643620942b21a13a6f6e20f8cd60c0894f0",
+      "siteId": "d50750e6266519042d7adc9defc8ff8b4a2c6e6e5ed18d96a017bdfd925c94d8",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1731,
+      "line": 1599,
       "functionName": "submitCopyrightCounterNotice",
       "table": "rights_disputes",
       "operation": "UPDATE",
@@ -2207,9 +2077,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "8051de7b84556d3b92450ac32a9892b7838d9168b17e4bfd1cb6e470b2e0bc58",
+      "siteId": "ad1e8441fe7c4c5f914cf71fecfbce987ca266a41edce4ba277596f5e2b3cef6",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1737,
+      "line": 1605,
       "functionName": "submitCopyrightCounterNotice",
       "table": "copyright_notices",
       "operation": "UPDATE",
@@ -2220,9 +2090,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "cac7c85af7013cbd09ed0d054e7be50169ed92db9c376ebeb6750ada72fa1bdc",
+      "siteId": "73260900c483d11ef3fa771bea3f5c6f33c773d78f2dbdbc234c45955e9873ca",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1831,
+      "line": 1699,
       "functionName": "validateCopyrightCounterNotice",
       "table": "copyright_counter_notices",
       "operation": "UPDATE",
@@ -2233,9 +2103,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "fff2569989253c15be9a4bc4ec135ce60a6012114cedd20677a89c997dd30fbe",
+      "siteId": "14bb0a116618d22f54c5ea69a77206a3d803317050c3628f1f4b47fd13570fcc",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1848,
+      "line": 1716,
       "functionName": "validateCopyrightCounterNotice",
       "table": "copyright_counter_notices",
       "operation": "UPDATE",
@@ -2246,9 +2116,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "79ccec5faf4168a93bbe7c152e919766d4af40d07b9c6a5a92a0857ea83547ea",
+      "siteId": "5129314ba286f969ae3e30fcc1e411c1db8946fa5fe36a42cddd1e5a6ab0190a",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1853,
+      "line": 1721,
       "functionName": "validateCopyrightCounterNotice",
       "table": "rights_disputes",
       "operation": "UPDATE",
@@ -2259,9 +2129,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "2d3e02060af68b733a91631f479e2951446750201104eb3ed70a44f25e99a1d8",
+      "siteId": "0c758c765dd35494e4d6860193c30963171c6027bf956f72065e634b165689d3",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1873,
+      "line": 1741,
       "functionName": "validateCopyrightCounterNotice",
       "table": "copyright_counter_notices",
       "operation": "UPDATE",
@@ -2272,9 +2142,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "5c4fb37b25e198e9b058030c650cd680bac6e69e3b1fee1e89272fba8c01db26",
+      "siteId": "54b0d166a60e9984c3b36e113e04544038f4522d4aeb26435af177eb2b57a97c",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1878,
+      "line": 1746,
       "functionName": "validateCopyrightCounterNotice",
       "table": "rights_disputes",
       "operation": "UPDATE",
@@ -2285,9 +2155,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "b297d5c194bcc48a0bfb5a25b7c09f05c70d319a347da3a6897f84f823060ad5",
+      "siteId": "431f2aeb947cf3099a033d0c174cda9bed040e5370a7f50475b1f73cab4a395a",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1937,
+      "line": 1805,
       "functionName": "recordCopyrightCourtAction",
       "table": "copyright_court_actions",
       "operation": "INSERT INTO",
@@ -2298,9 +2168,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "30aeda6f0e41b5f007bed0b9cb1fbbb5c55c67673124c63420a1342813bd6ee7",
+      "siteId": "d24a1c9023a7e4aed342d2f949db9b005e3a56195c1cc263d876736da90c6259",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1952,
+      "line": 1820,
       "functionName": "recordCopyrightCourtAction",
       "table": "rights_disputes",
       "operation": "UPDATE",
@@ -2311,9 +2181,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "645f6d3413ba8ccd59f11df45bebb1b22669c42acb9c50769707d12ff296ea56",
+      "siteId": "9aa29e8cec0066aadd4cc1928fe5df7ea4859d318a6693e5615d8b6fd192083b",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1957,
+      "line": 1825,
       "functionName": "recordCopyrightCourtAction",
       "table": "copyright_notices",
       "operation": "UPDATE",
@@ -2324,9 +2194,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "2de94c3ff53f3bd6de6fefc6d1cd359dc6c9f627520ef9ad14d102cba231cc0e",
+      "siteId": "5eeda2f7b04b6b15762aa9f83da45db9713f0baba76ceae2340fcbd00ef355e7",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1962,
+      "line": 1830,
       "functionName": "recordCopyrightCourtAction",
       "table": "copyright_counter_notices",
       "operation": "UPDATE",
@@ -2337,9 +2207,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "96636d3745bc3ff06e1b9b581573e4348125c258fe7b6e33b639a64dc3133575",
+      "siteId": "4708e8119866b02f342892dde85bcfd9de0c2cabbd9c5a3a0f7a37a559fed990",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 2004,
+      "line": 1872,
       "functionName": "recalcRepeatPolicy",
       "table": "publishing_accounts",
       "operation": "UPDATE",
@@ -2350,9 +2220,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "e08e445aa19f7a2668da98c92a39d04c49816ec925b8ca51844753d380a63623",
+      "siteId": "d92ea3962a8c6bb44a83823cc801bffa19b2020d3461e3fd5f443c35517c3390",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 2085,
+      "line": 1953,
       "functionName": "resolveRightsDispute",
       "table": "rights_disputes",
       "operation": "UPDATE",
@@ -2363,9 +2233,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "6636fdc65d2e440c838af54e4768cf1257644ba26ac00cb71398a7b3620c1e56",
+      "siteId": "7d7f8f48cedd5766ac2ef5bfd01f10fd5e24554f89ce197a70a23e3af013a036",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 2206,
+      "line": 2074,
       "functionName": "manageRepeatInfringerPolicy",
       "table": "publishing_accounts",
       "operation": "UPDATE",
@@ -2376,9 +2246,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "f088aafffc3e07fa984e5b8a0a2322ffa30629e8e810ff8cfcfa0e2811528973",
+      "siteId": "0a49a3935ba76bb1bcb20b4e24b20d4b93e4cb6e5d22f39f5d7cd6cbbf1c47f2",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 2214,
+      "line": 2082,
       "functionName": "manageRepeatInfringerPolicy",
       "table": "publishing_release_lifecycles",
       "operation": "UPDATE",
@@ -2389,9 +2259,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "aac3c611deff8f6d34fbd8ffe9f33e5592192ed3343d95a9242c02b15a6315ad",
+      "siteId": "8f07fe0ae065c628bdbf8a9b5ab89863e4a7335a0fa73dba9f8c72952eb8f6ca",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 2221,
+      "line": 2089,
       "functionName": "manageRepeatInfringerPolicy",
       "table": "publishing_lifecycle_events",
       "operation": "INSERT INTO",
@@ -2402,9 +2272,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "d96eb3e076e4e15d1b06edc7eeb4d06c7ddabe0cbd710c9f2e30df641b77a631",
+      "siteId": "f498d53745f69d5523377bb1adc0916a0e0c9f9275e1401fb3444cd2208d6e95",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 2236,
+      "line": 2104,
       "functionName": "manageRepeatInfringerPolicy",
       "table": "products",
       "operation": "UPDATE",
@@ -2415,22 +2285,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "41dd00609f32309d7637680bb6188d4fabe78da3b8a66624cf0aa84eb25b6447",
+      "siteId": "04abae5856097676b3563684d3f8aa6dafb69cf5148a4209986c375866e4866e",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 2266,
-      "functionName": "advanceRightsDisputeDeadlines",
-      "table": "rights_disputes",
-      "operation": "UPDATE",
-      "sqlSha256": "57483b14f92643d30be58434a5c8d099ec0ce6856951a560352e6ff5881118bf",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "publishing-trust.advanceRightsDisputeDeadlines",
-      "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
-    },
-    {
-      "siteId": "029c838266909e6773019fca9cd03268846b8f5fb7cc9e3146f15897ce4e1fd8",
-      "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 2309,
+      "line": 2151,
       "functionName": "leaseRightsNotificationJobs",
       "table": "rights_notification_jobs",
       "operation": "UPDATE",
@@ -2440,9 +2297,9 @@
       "reason": "Legal notification delivery queue changes notification status only; dispute and publication transitions remain separate owner-required writes."
     },
     {
-      "siteId": "ef203d49d89487b40d2ef873d938009f9b984e818e3687954313e38357335597",
+      "siteId": "dc470d3c2da4d55ab78d96f8e04e5618944302fed6713878fe1561cc90674334",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 2325,
+      "line": 2167,
       "functionName": "leaseRightsNotificationJobs",
       "table": "rights_notification_jobs",
       "operation": "UPDATE",
@@ -2452,9 +2309,9 @@
       "reason": "Legal notification delivery queue changes notification status only; dispute and publication transitions remain separate owner-required writes."
     },
     {
-      "siteId": "42e6424b23f96dd19ea1da9ca6c7fb8090611aad24557aff7dfdf969ff36cec7",
+      "siteId": "f85dc63f49bb8e5d1b2a6da66c8740cb5ba4055b4129c4dd551c6dc3317573c6",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 2368,
+      "line": 2210,
       "functionName": "completeRightsNotificationJob",
       "table": "rights_notification_jobs",
       "operation": "UPDATE",
@@ -2464,9 +2321,9 @@
       "reason": "Legal notification delivery queue changes notification status only; dispute and publication transitions remain separate owner-required writes."
     },
     {
-      "siteId": "15abbb6aa241b074c814cb902145a1fe95548b0081367f8f417d1addfd9907d8",
+      "siteId": "7f592033d0b6e851d6c8f95cb0636145a3bedb49e4c5af1d0df2f4f538a29f70",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 2387,
+      "line": 2229,
       "functionName": "leaseRightsEvidenceScanJobs",
       "table": "publishing_rights_evidence_scan_jobs",
       "operation": "UPDATE",
@@ -2477,9 +2334,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "bf4fd0b8825f6f26c72568ac3841208c7165a456306ce951e95ec51fbab4532c",
+      "siteId": "5654544fa7b21c6d7be0a89a442dd9349323cce45529e2d3c79ad9c8a67ac04f",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 2402,
+      "line": 2244,
       "functionName": "leaseRightsEvidenceScanJobs",
       "table": "publishing_rights_evidence_scan_jobs",
       "operation": "UPDATE",
@@ -2490,9 +2347,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "3902424ee4152e9a63d2bb3a95e727cd4fbecbe6f7b1cbf6cc28b125e75ec3bd",
+      "siteId": "49656ce19ac334ff0251817bf1cd2f5d877a7d0067a6f81b58ca29fadb88c351",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 2430,
+      "line": 2272,
       "functionName": "completeRightsEvidenceScanJob",
       "table": "publishing_rights_evidence_scan_jobs",
       "operation": "UPDATE",
@@ -2503,9 +2360,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "ac1a7abe2e01be97f03fd4defc7a915dbfa917ad328b3893524cbcb86671b923",
+      "siteId": "56a7b1eea8057a0c19e00cd4c533ab975ae5d61942d052647c60995169bad42b",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 2434,
+      "line": 2276,
       "functionName": "completeRightsEvidenceScanJob",
       "table": "publishing_rights_evidence",
       "operation": "UPDATE",
@@ -2516,9 +2373,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "4126a95740106c2226ee6b0ac3dabac82636ce0fc909c52dd421db6a55d7e7ce",
+      "siteId": "d3e0ce75253e969337c91d77e7cbd0ba7327f3a80ffb6f965e68b015768e85b6",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 2458,
+      "line": 2300,
       "functionName": "reviewRightsEvidence",
       "table": "publishing_rights_evidence",
       "operation": "UPDATE",
