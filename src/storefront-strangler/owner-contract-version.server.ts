@@ -1,7 +1,6 @@
 /* eslint-disable prettier/prettier -- QA-only owner-first contract versions, no direct-D1 fallback. */
 import type {CoveEnv} from "../features/fore/api.server";
 import type {CatalogDB} from "../features/fore/catalog-model.server";
-import {saveContractVersion} from "../features/fore/traditional-publishing.server";
 import {ApiError} from "../features/fore/service";
 import {dispatchCanonicalOwnerCommand} from "./canonical-owner-command-gateway";
 import {ownerContractVersionSchema} from "./owner-contract-version-schema";
@@ -11,7 +10,7 @@ const QA_PRIMARIES=new Set([
 ]);
 export async function saveStageOwnerContractVersion(env:CoveEnv,db:CatalogDB,actorUserId:string,raw:unknown){
   if(env.COVE_LEGAL_CONSUMER_STAGE_ENABLED!=="1")
-    return saveContractVersion(db,actorUserId,raw);
+    throw new ApiError(503,"Distribution contract version writes require a certified canonical owner.");
   if(env.COVE_SSR_STAGING!=="1"||
      env.COVE_CANONICAL_LEGAL_WRITE_LOCK!=="1"||
      !QA_PRIMARIES.has(env.COVE_LEGAL_WRITER_PRIMARY_ID||"")||

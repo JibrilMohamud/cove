@@ -7,6 +7,8 @@ import {executeOwnerRefundAccounting} from "./refund-accounting-owner-executor";
 import {executeOwnerRefundReservation} from "./refund-reservation-owner-executor";
 import {executeOwnerCheckoutPaymentBinding} from "./checkout-payment-binding-owner-executor";
 import {executeOwnerPaidSettlement} from "./paid-settlement-owner-executor";
+import {ownerContractVersionSchema} from "./owner-contract-version-schema";
+import {ApiError} from "../features/fore/service";
 import {createContractVersionOwnerSchema,executeOwnerContractVersion} from "./owner-contract-version-executor";
 import {createMarketAuthoritySchema,denyMarket,marketIsWithdrawn} from "./market-authority-core";
 import { authorizeStorefrontPresentationIds, type CatalogDB } from "../features/fore/catalog-model.server";
@@ -74,6 +76,166 @@ function qaOwnerLeaseLive(env:LegalAuthorityEnv) {
     expires<=now+15*60*1000 &&
     !!env.COVE_RIGHTS_OWNER_SECRET &&
     /^[a-f0-9]{64}$/.test(env.COVE_RIGHTS_OWNER_SECRET);
+}
+
+// The only physical executor of distribution-contract D1 mutations is compiled
+// into this private service-binding-only Durable Object. Never import or export
+// this function to an API, scheduled worker, or a second D1 binding.
+const nowContract=()=>new Date().toISOString();
+const contractIdFor=(prefix:string)=>prefix+"_"+crypto.randomUUID();
+async function writeContractVersionPrimary(db: CatalogDB, actorUserId: string, raw: unknown) {
+  const x = ownerContractVersionSchema.parse(raw);
+  const contract = await db
+    .prepare("SELECT * FROM rights_contracts WHERE id=?")
+    .bind(x.contractId)
+    .first<{id:string}>();
+  if (!contract) throw new ApiError(404, "Rights contract not found.");
+  if (x.effectiveTo && x.effectiveTo <= x.effectiveFrom)
+    throw new ApiError(400, "Contract version end date must follow its effective date.");
+  const existing = await db
+    .prepare("SELECT * FROM rights_contract_versions WHERE contract_id=? AND version_number=?")
+    .bind(x.contractId, x.versionNumber)
+    .first<{id:string;status:string;created_at:string}>();
+  if (existing && existing.status !== "draft")
+    throw new ApiError(
+      409,
+      "Activated contract versions are immutable. Create a new version instead.",
+    );
+  if (x.status === "active") {
+    const futureConflict = await db
+      .prepare(
+        "SELECT id FROM rights_contract_versions WHERE contract_id=? AND status='active' AND id<>COALESCE(?, '') AND effective_from>=? AND (? IS NULL OR effective_from<?) LIMIT 1",
+      )
+      .bind(
+        x.contractId,
+        existing?.id || null,
+        x.effectiveFrom,
+        x.effectiveTo || null,
+        x.effectiveTo || "9999",
+      )
+      .first<{id:string}>();
+    if (futureConflict)
+      throw new ApiError(
+        409,
+        "This contract already has an active version beginning inside the proposed effective window.",
+      );
+  }
+  const versionId = existing?.id || contractIdFor("rcontractv"),
+    at = nowContract(),
+    approvedAt = x.status === "active" ? at : null;
+  const statements:Parameters<CatalogDB["batch"]>[0] = [
+    db
+      .prepare(
+        `INSERT INTO rights_contract_versions(id,contract_id,version_number,status,effective_from,effective_to,retailer_commission_bps,payment_schedule_json,returns_policy_json,subscription_terms_json,marketing_permissions_json,drm_requirements_json,delivery_rules_json,termination_policy_json,post_termination_access_policy,document_sha256,source_document_object_key,approved_by_user_id,approved_at,created_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,effective_from=excluded.effective_from,effective_to=excluded.effective_to,retailer_commission_bps=excluded.retailer_commission_bps,payment_schedule_json=excluded.payment_schedule_json,returns_policy_json=excluded.returns_policy_json,subscription_terms_json=excluded.subscription_terms_json,marketing_permissions_json=excluded.marketing_permissions_json,drm_requirements_json=excluded.drm_requirements_json,delivery_rules_json=excluded.delivery_rules_json,termination_policy_json=excluded.termination_policy_json,post_termination_access_policy=excluded.post_termination_access_policy,document_sha256=excluded.document_sha256,source_document_object_key=excluded.source_document_object_key,approved_by_user_id=excluded.approved_by_user_id,approved_at=excluded.approved_at`,
+      )
+      .bind(
+        versionId,
+        x.contractId,
+        x.versionNumber,
+        "draft",
+        x.effectiveFrom,
+        x.effectiveTo || null,
+        x.retailerCommissionBps,
+        JSON.stringify(x.paymentSchedule),
+        JSON.stringify(x.returnsPolicy),
+        JSON.stringify(x.subscriptionTerms),
+        JSON.stringify(x.marketingPermissions),
+        JSON.stringify(x.drmRequirements),
+        JSON.stringify(x.deliveryRules),
+        JSON.stringify(x.terminationPolicy),
+        x.postTerminationAccessPolicy,
+        x.documentSha256,
+        x.sourceDocumentObjectKey || null,
+        null,
+        null,
+        existing?.created_at || at,
+      ),
+    db
+      .prepare("DELETE FROM rights_contract_version_territories WHERE contract_version_id=?")
+      .bind(versionId),
+    db
+      .prepare("DELETE FROM rights_contract_version_formats WHERE contract_version_id=?")
+      .bind(versionId),
+    db
+      .prepare("DELETE FROM rights_contract_version_channels WHERE contract_version_id=?")
+      .bind(versionId),
+  ];
+  for (const t of x.territories)
+    statements.push(
+      db
+        .prepare(
+          "INSERT INTO rights_contract_version_territories(contract_version_id,territory_code,decision) VALUES(?,?,?)",
+        )
+        .bind(versionId, t.territoryCode, t.decision),
+    );
+  for (const f of x.formats)
+    statements.push(
+      db
+        .prepare(
+          "INSERT INTO rights_contract_version_formats(contract_version_id,format,decision,drm_requirement,download_limit,device_limit,offline_permitted) VALUES(?,?,?,?,?,?,?)",
+        )
+        .bind(
+          versionId,
+          f.format,
+          f.decision,
+          f.drmRequirement,
+          f.downloadLimit ?? null,
+          f.deviceLimit ?? null,
+          f.offlinePermitted ? 1 : 0,
+        ),
+    );
+  for (const c of x.channels)
+    statements.push(
+      db
+        .prepare(
+          "INSERT INTO rights_contract_version_channels(contract_version_id,sales_channel,permitted,terms_json) VALUES(?,?,?,?)",
+        )
+        .bind(versionId, c.salesChannel, c.permitted ? 1 : 0, JSON.stringify(c.terms)),
+    );
+  if (x.status === "active")
+    statements.push(
+      db
+        .prepare(
+          "UPDATE rights_contract_versions SET status='superseded',effective_to=CASE WHEN effective_to IS NULL OR effective_to>? THEN ? ELSE effective_to END WHERE contract_id=? AND id<>? AND status='active' AND effective_from<?",
+        )
+        .bind(x.effectiveFrom, x.effectiveFrom, x.contractId, versionId, x.effectiveFrom),
+    );
+  if (x.status !== "draft")
+    statements.push(
+      db
+        .prepare(
+          "UPDATE rights_contract_versions SET status=?,approved_by_user_id=?,approved_at=? WHERE id=? AND status='draft'",
+        )
+        .bind(
+          x.status,
+          x.status === "active" ? actorUserId : null,
+          x.status === "active" ? approvedAt : null,
+          versionId,
+        ),
+    );
+  statements.push(
+    db
+      .prepare(
+        "INSERT INTO rights_contract_audit(id,contract_id,contract_version_id,action,actor_user_id,snapshot_json,created_at) VALUES(?,?,?,?,?,?,?)",
+      )
+      .bind(
+        contractIdFor("rcaudit"),
+        x.contractId,
+        versionId,
+        existing ? "version_updated" : "version_created",
+        actorUserId,
+        JSON.stringify(x),
+        at,
+      ),
+  );
+  await db.batch(statements);
+  return {
+    id: versionId,
+    contractId: x.contractId,
+    versionNumber: x.versionNumber,
+    status: x.status,
+  };
 }
 
 export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
@@ -241,7 +403,8 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       if(route==="/publishing/contract/save-version") {
         const storage=this.ctx.storage as typeof this.ctx.storage & {transactionSync<T>(fn:()=>T):T};
         const receipt=await executeOwnerContractVersion({primary:env.PRIMARY_DB,sql,
-          executing:this.contractExecutions,transactionSync:fn=>storage.transactionSync(fn)},raw);
+          executing:this.contractExecutions,transactionSync:fn=>storage.transactionSync(fn),
+          saveVersion:writeContractVersionPrimary},raw);
         return Response.json(receipt,{headers:noStore});
       }
       if(route==="/publication/materialize-submission") {

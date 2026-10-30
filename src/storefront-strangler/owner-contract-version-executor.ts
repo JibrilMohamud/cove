@@ -1,5 +1,4 @@
 /* eslint-disable prettier/prettier -- Owner-only, journaled distribution contract version mutation. */
-import {saveContractVersion} from "../features/fore/traditional-publishing.server";
 import {ownerContractVersionSchema} from "./owner-contract-version-schema";
 import type {CatalogDB} from "../features/fore/catalog-model.server";
 import type {AuthoritySql} from "./legal-authority-core";
@@ -23,6 +22,7 @@ export function createContractVersionOwnerSchema(sql:AuthoritySql){
 export async function executeOwnerContractVersion(ctx:{
   primary:CatalogDB;sql:AuthoritySql;executing:Set<string>;
   transactionSync<T>(fn:()=>T):T;
+  saveVersion(db:CatalogDB,actorUserId:string,raw:unknown):Promise<{id:string;contractId:string;versionNumber:number;status:string}>;
 },raw:unknown):Promise<Receipt>{
   if(!isRecord(raw)||Object.keys(raw).sort().join(",")!=="actorUserId,contract,operationId"||
     typeof raw.actorUserId!=="string"||!identity.test(raw.actorUserId)||
@@ -85,7 +85,7 @@ export async function executeOwnerContractVersion(ctx:{
       if(deny)denyCommercialSubject(ctx.sql,{subjectKind:"contract",subjectId:contractId,
         operationId:"contract:"+input.operationId});
     });
-    const result=await saveContractVersion(ctx.primary,input.actorUserId,checked);
+    const result=await ctx.saveVersion(ctx.primary,input.actorUserId,checked);
     if(result.contractId!==contractId||result.versionNumber!==checked.versionNumber||
       result.status!==status||typeof result.id!=="string"||!identity.test(result.id))
       return fail("owner_contract_primary_receipt_mismatch");

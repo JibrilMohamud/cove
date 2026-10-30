@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Independently verified by unchanged SQL literal identity and complete before/after SHA-256: nine formerly API-accessible authorizing contract-version SQL statements and their append-only audit SQL were physically moved into the private, DO-lease-protected legal authority implementation; they were removed from traditional-publishing instead of being reclassified.",
+  "retirementEvidence": "docs/architecture/retired-contract-version-direct-d1-20261030.md",
+  "files": [
+    {
+      "path": "src/features/fore/traditional-publishing.server.ts",
+      "sha256": "6c1254aec785e5c94ea1f58152752cf4fe200d84dd5ea65a53a0beafdb0d6a8e",
+      "review": "Complete source diff checked: nine protected sites and the matching append-only audit write are deleted, a fail-closed API symbol remains, and every other SQL literal retains its disposition and exact text."
+    }
+  ]
+}
