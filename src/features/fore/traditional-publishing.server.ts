@@ -2962,8 +2962,12 @@ export async function partnerDashboard(db: CatalogDB, userId: string, accountId:
  * this symbol, it cannot bypass the private serialized owner. All production
  * staff writes remain unavailable until the writer-only cutover is certified.
  */
-export async function saveContractVersion(_db:CatalogDB,_actorUserId:string,_raw:unknown):Promise<never> {
-  throw new ApiError(503,"Distribution contract version changes require the canonical owner.");
+export async function saveContractVersion(
+  _db: CatalogDB,
+  _actorUserId: string,
+  _raw: unknown,
+): Promise<never> {
+  throw new ApiError(503, "Distribution contract changes require their canonical owner.");
 }
 
 export async function assignPublisherContract(db: CatalogDB, actorUserId: string, raw: unknown) {
