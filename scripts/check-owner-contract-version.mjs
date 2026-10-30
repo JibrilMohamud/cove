@@ -87,6 +87,7 @@ try{
   ])await assert.rejects(()=>save(stage,db,actor,bad));
   assert.equal(auditCount(),2);
   for(const overrides of [
+    {COVE_LEGAL_CONSUMER_STAGE_ENABLED:"0"},
     {COVE_CANONICAL_LEGAL_WRITE_LOCK:"0"},{COVE_SSR_STAGING:"0"},
     {COVE_LEGAL_WRITER_PRIMARY_ID:"4bd657ac-8789-403e-a28c-93aba8d0a989"},
     {COVE_RIGHTS_OWNER_SECRET:"not-a-secret"},{LEGAL_AUTHORITY:null}
