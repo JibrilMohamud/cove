@@ -5,7 +5,7 @@
   "files": [
     {
       "path": "src/features/fore/commerce.server.ts",
-      "sha256": "db47da345366eb9fffb1920d6e4da541d7023c8675b1c035e16a8643639a59d3",
+      "sha256": "8c347ee0a5ccda82e2d6ec1db0c31eb0edbb9377728fa3e0bd1cb6c9b0843a23",
       "review": "Checkout requires stage enrollment at entry; remaining checkout reads lead only to a typed private-owner command. Customer registration has no shared-D1 fallback. All three admin money writer exports deny non-owner execution; 40 other SQL writer sites remain owner-required."
     }
   ],
