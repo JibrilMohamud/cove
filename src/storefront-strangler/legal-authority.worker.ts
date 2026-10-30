@@ -1,5 +1,8 @@
 /* eslint-disable prettier/prettier -- Private legal-authority boundary is security-sensitive. */
 import {checkoutQuote} from "../features/fore/commerce.server";
+import {sha256 as partnerFeedSha256,partnerAudit as partnerFeedAudit,
+  normalizedCountryList as partnerNormalizedCountryList} from "../features/fore/traditional-publishing.server";
+import type {PartnerProduct} from "../features/fore/traditional-publishing.server";
 import type {CoveEnv} from "../features/fore/api.server";
 import {ownerSettlementDiagnostic} from "./owner-settlement-diagnostic";
 import { DurableObject } from "cloudflare:workers";
@@ -16,7 +19,7 @@ import {checkoutDraftCommand,planOwnerCheckoutDraft,ownerCheckoutPreparationMatc
 import {assessBuyerOrderRisk} from "../features/fore/risk-tax.server";
 import {stationBySlug} from "../features/fore/cove-sounds-stations";
 import {executeOwnerPaidSettlement} from "./paid-settlement-owner-executor";
-import {channelSchema,scopeRuleSchema,restrictionsSchema,grantScopeFromInput,drmSatisfiesRequirement,normalizeTerritoryCode} from "../features/fore/rights.server";
+import {channelSchema,scopeRuleSchema,restrictionsSchema,grantScopeFromInput,drmSatisfiesRequirement,normalizeTerritoryCode,upsertRightsGrant} from "../features/fore/rights.server";
 import {z} from "zod/v3";
 import {createRoyaltyContractVersion} from "../features/fore/royalty-engine.server";
 import {ensurePreorderReleasePlan} from "../features/fore/preorder.server";
@@ -2598,10 +2601,919 @@ async function executeOwnerMonetaryAdmin(env:LegalAuthorityEnv,raw:unknown){
     applied:true,userId:x.userId,currency,balanceMinor:Math.max(0,Number(ledger?.n||0)-Number(reserved?.n||0))};
 }
 
+
+// The following physically retired 25 authorizing partner-feed SQL literals live
+// only in this lease-gated Durable Object. The executable queue is strictly
+// sandbox preview; no production feed may activate products, grants or offers.
+const processPartnerFeedQueuePrivate = (() => {
+  const now = () => new Date().toISOString();
+  const id = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
+  const clean = (v: unknown, max = 1000) => String(v ?? "").trim().slice(0,max);
+  const sha256 = partnerFeedSha256;
+  const partnerAudit = partnerFeedAudit;
+  const normalizedCountryList = partnerNormalizedCountryList;
+  const parseJson = <T,>(v:unknown,fallback:T):T => {
+    try { return (typeof v==="string"?JSON.parse(v):v)??fallback; }
+    catch { return fallback; }
+  };
+async function candidateWorkIdentityKeys(p: PartnerProduct) {
+  const norm = (v: string) =>
+      clean(v)
+        .toLocaleLowerCase()
+        .normalize("NFKD")
+        .replace(/[^\p{L}\p{N}]+/gu, " ")
+        .trim(),
+    author = norm(p.contributors?.find((c) => c.role === "author")?.name || "");
+  const keys: { key: string; scheme: string }[] = [];
+  if (p.workReference)
+    keys.push({
+      key: `wref_${await sha256(clean(p.workReference, 500).toLowerCase())}`,
+      scheme: "external_work_reference",
+    });
+  const sourceTitle = norm(p.originalWorkTitle || p.title || "");
+  if (sourceTitle && author)
+    keys.push({
+      key: `wkeyta_${await sha256(`${sourceTitle}|${author}`)}`,
+      scheme: "title_author",
+    });
+  if (sourceTitle)
+    keys.push({
+      key: `wkey_${await sha256(`${sourceTitle}|${author}|${clean(p.language || "en").toLowerCase()}`)}`,
+      scheme: "title_author_language",
+    });
+  return keys;
+}
+
+async function activeContractVersion(db: CatalogDB, accountId: string, contractReference?: string) {
+  let contract: any = null;
+  const at = now();
+  if (contractReference)
+    contract = await db
+      .prepare(
+        `SELECT rc.* FROM rights_contracts rc JOIN publisher_contract_assignments a ON a.contract_id=rc.id WHERE a.account_id=? AND a.status='active' AND (a.starts_at IS NULL OR a.starts_at<=?) AND (a.ends_at IS NULL OR a.ends_at>?) AND (rc.reference_code=? OR rc.id=?) AND rc.status='active' LIMIT 1`,
+      )
+      .bind(accountId, at, at, contractReference, contractReference)
+      .first<any>();
+  if (!contract)
+    contract = await db
+      .prepare(
+        `SELECT rc.* FROM publisher_partner_profiles p JOIN rights_contracts rc ON rc.id=p.default_contract_id JOIN publisher_contract_assignments a ON a.contract_id=rc.id AND a.account_id=p.account_id WHERE p.account_id=? AND a.status='active' AND (a.starts_at IS NULL OR a.starts_at<=?) AND (a.ends_at IS NULL OR a.ends_at>?) AND rc.status='active' LIMIT 1`,
+      )
+      .bind(accountId, at, at)
+      .first<any>();
+  if (!contract) return null;
+  const version = await db
+    .prepare(
+      "SELECT * FROM rights_contract_versions WHERE contract_id=? AND status='active' AND effective_from<=? AND (effective_to IS NULL OR effective_to>?) ORDER BY version_number DESC LIMIT 1",
+    )
+    .bind(contract.id, now(), now())
+    .first<any>();
+  return version ? { contract, version } : null;
+}
+
+async function assertPartnerProductWithinContract(
+  db: CatalogDB,
+  contractVersionId: string,
+  p: PartnerProduct,
+) {
+  const [territoryRows, formatRow, channelRows, allTerritories] = await Promise.all([
+    db
+      .prepare(
+        "SELECT territory_code,decision FROM rights_contract_version_territories WHERE contract_version_id=?",
+      )
+      .bind(contractVersionId)
+      .all<any>(),
+    db
+      .prepare(
+        "SELECT decision,drm_requirement FROM rights_contract_version_formats WHERE contract_version_id=? AND lower(format)=lower(?)",
+      )
+      .bind(contractVersionId, p.format || "ebook")
+      .first<any>(),
+    db
+      .prepare(
+        "SELECT sales_channel,permitted FROM rights_contract_version_channels WHERE contract_version_id=?",
+      )
+      .bind(contractVersionId)
+      .all<any>(),
+    db.prepare("SELECT code FROM territories WHERE is_sellable=1").all<any>(),
+  ]);
+  if (!formatRow || String(formatRow.decision) !== "allow")
+    throw new ApiError(409, `Contract does not permit ${p.format || "ebook"} distribution.`);
+  if (
+    !drmSatisfiesRequirement(
+      String(formatRow.drm_requirement || "none"),
+      String(p.drmRequirement || "none"),
+    )
+  )
+    throw new ApiError(409, "Feed DRM policy is weaker than the assigned contract requires.");
+  const requestedChannels = [
+    "retail",
+    ...(p.subscriptionPermitted ? ["subscription"] : []),
+    ...(p.libraryPermitted ? ["library"] : []),
+  ];
+  if (channelRows.results.length) {
+    const permitted = new Set(
+      channelRows.results
+        .filter((r: any) => Number(r.permitted))
+        .map((r: any) => String(r.sales_channel)),
+    );
+    for (const channel of requestedChannels)
+      if (!permitted.has(channel))
+        throw new ApiError(409, `Contract does not permit ${channel} distribution.`);
+  }
+  if (territoryRows.results.length && p.territories) {
+    const allow = new Set(
+        territoryRows.results
+          .filter((r: any) => r.decision === "allow")
+          .map((r: any) => String(r.territory_code)),
+      ),
+      deny = new Set(
+        territoryRows.results
+          .filter((r: any) => r.decision === "deny")
+          .map((r: any) => String(r.territory_code)),
+      );
+    let requested: string[];
+    if (p.territories.mode === "worldwide") {
+      const excluded = new Set(normalizedCountryList(p.territories.exclude || []));
+      requested = allTerritories.results
+        .map((r: any) => String(r.code))
+        .filter((c: string) => !excluded.has(c));
+    } else
+      requested = normalizedCountryList(p.territories.include || []).filter(
+        (c) => !new Set(normalizedCountryList(p.territories?.exclude || [])).has(c),
+      );
+    if (requested.some((c: string) => deny.has(c) || !allow.has(c)))
+      throw new ApiError(409, "Feed territory scope exceeds the assigned contract version.");
+  }
+}
+
+async function applyMetadataItem(db: CatalogDB, submission: any, item: any, p: PartnerProduct) {
+  const at = now(),
+    mapping = await db
+      .prepare(
+        "SELECT * FROM publisher_catalog_mappings WHERE account_id=? AND environment='production' AND partner_product_key=?",
+      )
+      .bind(submission.account_id, p.productKey)
+      .first<any>();
+  if (p.notificationType === "delete") {
+    if (!mapping)
+      return {
+        type: "mapping",
+        id: "",
+        skipped: true,
+        message: "No mapped title existed for delete notice.",
+      };
+    const statements: any[] = [
+      db
+        .prepare(
+          "UPDATE publisher_catalog_mappings SET status='withdrawn',updated_at=? WHERE account_id=? AND environment='production' AND partner_product_key=?",
+        )
+        .bind(at, submission.account_id, p.productKey),
+    ];
+    if (mapping.publishing_edition_id)
+      statements.push(
+        db
+          .prepare(
+            "UPDATE publishing_edition_drafts SET status='withdrawn',updated_at=? WHERE id=? AND status NOT IN ('published')",
+          )
+          .bind(at, mapping.publishing_edition_id),
+      );
+    if (mapping.catalog_product_id)
+      statements.push(
+        db
+          .prepare("UPDATE products SET storefront_status='inactive',updated_at=? WHERE id=?")
+          .bind(at, mapping.catalog_product_id),
+      );
+    await db.batch(statements);
+    return {
+      type: "mapping",
+      id: String(mapping.publishing_edition_id || mapping.catalog_product_id || ""),
+      message: "Partner product withdrawn.",
+    };
+  }
+  const contract = await activeContractVersion(
+    db,
+    String(submission.account_id),
+    p.contractReference,
+  );
+  if (!contract)
+    throw new ApiError(
+      409,
+      `No active versioned retailer contract covers partner product ${p.productKey}.`,
+    );
+  await assertPartnerProductWithinContract(db, String(contract.version.id), p);
+  const titleId = mapping?.publishing_title_id
+      ? String(mapping.publishing_title_id)
+      : id("pubtitle"),
+    editionId = mapping?.publishing_edition_id
+      ? String(mapping.publishing_edition_id)
+      : id("pubed");
+  const identityKeys = await candidateWorkIdentityKeys(p);
+  let existingIdentity: any = null;
+  for (const candidate of identityKeys) {
+    existingIdentity = await db
+      .prepare("SELECT work_id FROM work_identity_keys WHERE identity_key=?")
+      .bind(candidate.key)
+      .first<any>();
+    if (existingIdentity) break;
+  }
+  const catalogWorkId = existingIdentity?.work_id || mapping?.catalog_work_id || null;
+  const profile = await db
+    .prepare("SELECT * FROM publisher_partner_profiles WHERE account_id=?")
+    .bind(submission.account_id)
+    .first<any>();
+  const existingTitle = await db
+    .prepare("SELECT id FROM publishing_titles WHERE id=?")
+    .bind(titleId)
+    .first<any>();
+  if (!existingTitle)
+    await db
+      .prepare(
+        "INSERT INTO publishing_titles(id,account_id,title,subtitle,description,language,audience,publisher_name,imprint_name,series_name,series_relationship,categories_json,keywords_json,status,catalog_work_id,created_at,updated_at) VALUES(?,?,?,?,?,?,'general',?,?,?,'main','[]','[]','draft',?,?,?)",
+      )
+      .bind(
+        titleId,
+        submission.account_id,
+        p.title || "Untitled",
+        p.subtitle || "",
+        p.description || "",
+        p.language || "en",
+        p.publisherName || profile?.partner_code || "",
+        p.imprintName || "",
+        "",
+        catalogWorkId,
+        at,
+        at,
+      )
+      .run();
+  else
+    await db
+      .prepare(
+        "UPDATE publishing_titles SET title=?,subtitle=?,description=?,language=?,publisher_name=?,imprint_name=?,catalog_work_id=COALESCE(catalog_work_id,?),updated_at=? WHERE id=?",
+      )
+      .bind(
+        p.title || "Untitled",
+        p.subtitle || "",
+        p.description || "",
+        p.language || "en",
+        p.publisherName || "",
+        p.imprintName || "",
+        catalogWorkId,
+        at,
+        titleId,
+      )
+      .run();
+  const territoryScope = {
+    mode: p.territories?.mode || "worldwide",
+    include: normalizedCountryList(p.territories?.include || []),
+    exclude: normalizedCountryList(p.territories?.exclude || []),
+    includeSetIds: [],
+    excludeSetIds: [],
+  };
+  const existingEdition = await db
+    .prepare("SELECT id,status,revision FROM publishing_edition_drafts WHERE id=?")
+    .bind(editionId)
+    .first<any>();
+  const editableStatus =
+    existingEdition &&
+    ["submitted", "approved", "published"].includes(String(existingEdition.status))
+      ? "changes_requested"
+      : existingEdition?.status || "draft";
+  const revision =
+    Number(existingEdition?.revision || 1) + (editableStatus === "changes_requested" ? 1 : 0);
+  await db
+    .prepare(
+      `INSERT INTO publishing_edition_drafts(id,title_id,format,edition_label,language,isbn13,publisher_identifier,rights_basis,territory_scope_json,release_date,preorder_date,list_currency,list_price_minor,drm_requirement,downloadable,subscription_permitted,library_permitted,sales_channels_json,status,revision,edition_type,differentiation_summary,contract_id,contract_version_id,created_at,updated_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET format=excluded.format,edition_label=excluded.edition_label,language=excluded.language,isbn13=excluded.isbn13,publisher_identifier=excluded.publisher_identifier,rights_basis=excluded.rights_basis,territory_scope_json=excluded.territory_scope_json,release_date=excluded.release_date,preorder_date=excluded.preorder_date,list_currency=excluded.list_currency,list_price_minor=excluded.list_price_minor,drm_requirement=excluded.drm_requirement,downloadable=excluded.downloadable,subscription_permitted=excluded.subscription_permitted,library_permitted=excluded.library_permitted,sales_channels_json=excluded.sales_channels_json,status=excluded.status,revision=excluded.revision,edition_type=excluded.edition_type,differentiation_summary=excluded.differentiation_summary,contract_id=excluded.contract_id,contract_version_id=excluded.contract_version_id,updated_at=excluded.updated_at`,
+    )
+    .bind(
+      editionId,
+      titleId,
+      p.format || "ebook",
+      p.editionLabel || "",
+      p.language || "en",
+      p.isbn13 || null,
+      p.publisherIdentifier || p.productKey,
+      p.rightsBasis || "licensed",
+      JSON.stringify(territoryScope),
+      p.releaseDate || null,
+      p.preorderDate || null,
+      p.currency || "USD",
+      p.priceMinor || 0,
+      p.drmRequirement || "none",
+      p.downloadable === false ? 0 : 1,
+      p.subscriptionPermitted ? 1 : 0,
+      p.libraryPermitted ? 1 : 0,
+      JSON.stringify([
+        "retail",
+        ...(p.subscriptionPermitted ? ["subscription"] : []),
+        ...(p.libraryPermitted ? ["library"] : []),
+      ]),
+      editableStatus,
+      revision,
+      p.editionType || "original",
+      p.differentiationSummary || "",
+      contract?.contract.id || null,
+      contract?.version.id || null,
+      at,
+      at,
+    )
+    .run();
+  await db
+    .prepare("DELETE FROM publishing_edition_contributors WHERE edition_id=?")
+    .bind(editionId)
+    .run();
+  for (const c of p.contributors || [])
+    await db
+      .prepare(
+        "INSERT INTO publishing_edition_contributors(edition_id,display_name,role,position) VALUES(?,?,?,?)",
+      )
+      .bind(editionId, c.name, c.role, c.position)
+      .run();
+  await db
+    .prepare(
+      `INSERT INTO publisher_catalog_mappings(account_id,environment,partner_product_key,publishing_title_id,publishing_edition_id,catalog_work_id,partner_record_reference,work_reference,original_work_title,status,source_revision,updated_at) VALUES(?,'production',?,?,?,?,?,?,?,'active',?,?)
+    ON CONFLICT(account_id,environment,partner_product_key) DO UPDATE SET publishing_title_id=excluded.publishing_title_id,publishing_edition_id=excluded.publishing_edition_id,catalog_work_id=COALESCE(excluded.catalog_work_id,publisher_catalog_mappings.catalog_work_id),partner_record_reference=excluded.partner_record_reference,work_reference=excluded.work_reference,original_work_title=excluded.original_work_title,status='active',source_revision=excluded.source_revision,updated_at=excluded.updated_at`,
+    )
+    .bind(
+      submission.account_id,
+      p.productKey,
+      titleId,
+      editionId,
+      catalogWorkId,
+      p.recordReference || "",
+      p.workReference || "",
+      p.originalWorkTitle || "",
+      p.sourceRevision || "",
+      at,
+    )
+    .run();
+  if (catalogWorkId)
+    for (const candidate of identityKeys)
+      await db
+        .prepare(
+          "INSERT OR IGNORE INTO work_identity_keys(identity_key,work_id,scheme,confidence,source,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
+        )
+        .bind(
+          candidate.key,
+          catalogWorkId,
+          candidate.scheme,
+          candidate.scheme === "external_work_reference" ? 1 : 0.82,
+          `partner:${submission.account_id}`,
+          at,
+          at,
+        )
+        .run();
+  return {
+    type: "publishing_edition",
+    id: editionId,
+    titleId,
+    catalogWorkId,
+    contractId: contract?.contract.id || null,
+    contractVersionId: contract?.version.id || null,
+  };
+}
+
+async function matchAssetExpectations(
+  db: CatalogDB,
+  input: {
+    accountId: string;
+    environment: string;
+    productKey: string;
+    assetKind: string;
+    filename: string;
+    sha256: string;
+    sizeBytes: number;
+    mimeType: string;
+    assetId: string;
+  },
+) {
+  const rows = (
+    await db
+      .prepare(
+        "SELECT * FROM publisher_asset_expectations WHERE account_id=? AND environment=? AND partner_product_key=? AND asset_kind=? AND status IN ('waiting','mismatch') ORDER BY created_at",
+      )
+      .bind(input.accountId, input.environment, input.productKey, input.assetKind)
+      .all<any>()
+  ).results;
+  let matched = 0,
+    mismatched = 0;
+  const at = now();
+  for (const row of rows) {
+    const checksum = String(row.expected_sha256).toLowerCase() === input.sha256.toLowerCase(),
+      size = row.expected_size_bytes == null || Number(row.expected_size_bytes) === input.sizeBytes,
+      mime =
+        !row.expected_mime_type ||
+        String(row.expected_mime_type).toLowerCase() === input.mimeType.toLowerCase();
+    if (checksum && size && mime) {
+      await db
+        .prepare(
+          "UPDATE publisher_asset_expectations SET status='matched',matched_asset_id=?,validation_json='[]',matched_at=? WHERE id=?",
+        )
+        .bind(input.assetId, at, row.id)
+        .run();
+      matched++;
+    } else if (String(row.source_filename) === input.filename || checksum) {
+      await db
+        .prepare(
+          "UPDATE publisher_asset_expectations SET status='mismatch',matched_asset_id=?,validation_json=? WHERE id=?",
+        )
+        .bind(
+          input.assetId,
+          JSON.stringify([
+            {
+              severity: "error",
+              code: "ASSET_BINARY_MISMATCH",
+              message: !checksum
+                ? "Uploaded asset checksum does not match the manifest."
+                : !size
+                  ? "Uploaded asset size does not match the manifest."
+                  : "Uploaded asset MIME type does not match the manifest.",
+            },
+          ]),
+          row.id,
+        )
+        .run();
+      mismatched++;
+    }
+  }
+  if (matched)
+    await db
+      .prepare("UPDATE publisher_feed_assets SET status='accepted',updated_at=? WHERE id=?")
+      .bind(at, input.assetId)
+      .run();
+  return { matched, mismatched };
+}
+
+async function applyAssetManifestItem(db: CatalogDB, submission: any, p: PartnerProduct) {
+  if (!p.assetKind || !p.filename || !p.sha256 || p.sizeBytes == null)
+    throw new ApiError(400, "Asset manifest item is incomplete.");
+  if (submission.environment === "production") {
+    const mapping = await db
+      .prepare(
+        "SELECT publishing_edition_id FROM publisher_catalog_mappings WHERE account_id=? AND environment='production' AND partner_product_key=? AND status='active'",
+      )
+      .bind(submission.account_id, p.productKey)
+      .first<any>();
+    if (!mapping?.publishing_edition_id)
+      throw new ApiError(
+        409,
+        `No production catalog mapping exists for ${p.productKey}. Submit metadata before the asset manifest.`,
+      );
+  }
+  const at = now();
+  const existing = await db
+    .prepare(
+      `SELECT * FROM publisher_feed_assets WHERE account_id=? AND environment=? AND partner_product_key=? AND asset_kind=? AND (lower(sha256)=lower(?) OR source_filename=?) ORDER BY CASE WHEN lower(sha256)=lower(?) THEN 0 ELSE 1 END, created_at DESC LIMIT 1`,
+    )
+    .bind(
+      submission.account_id,
+      submission.environment,
+      p.productKey,
+      p.assetKind,
+      p.sha256,
+      p.filename,
+      p.sha256,
+    )
+    .first<any>();
+  let status = "waiting",
+    matchedAssetId: string | null = null,
+    matchedAt: string | null = null,
+    validation: any[] = [];
+  if (existing) {
+    const checksum = String(existing.sha256 || "").toLowerCase() === p.sha256.toLowerCase();
+    const size = Number(existing.size_bytes) === Number(p.sizeBytes);
+    const mime =
+      !p.mimeType ||
+      !existing.mime_type ||
+      String(existing.mime_type).toLowerCase() === String(p.mimeType).toLowerCase();
+    matchedAssetId = String(existing.id);
+    if (checksum && size && mime) {
+      status = "matched";
+      matchedAt = at;
+      await db
+        .prepare("UPDATE publisher_feed_assets SET status='accepted',updated_at=? WHERE id=?")
+        .bind(at, existing.id)
+        .run();
+    } else {
+      status = "mismatch";
+      validation = [
+        {
+          severity: "error",
+          code: "ASSET_BINARY_MISMATCH",
+          message: !checksum
+            ? "Existing asset checksum does not match the manifest."
+            : !size
+              ? "Existing asset size does not match the manifest."
+              : "Existing asset MIME type does not match the manifest.",
+        },
+      ];
+    }
+  }
+  const expectationId = id("pasexp");
+  await db
+    .prepare(
+      `INSERT INTO publisher_asset_expectations(id,submission_id,account_id,environment,partner_product_key,asset_kind,source_filename,expected_mime_type,expected_size_bytes,expected_sha256,status,matched_asset_id,validation_json,created_at,matched_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    )
+    .bind(
+      expectationId,
+      submission.id,
+      submission.account_id,
+      submission.environment,
+      p.productKey,
+      p.assetKind,
+      p.filename,
+      p.mimeType || "",
+      p.sizeBytes,
+      p.sha256,
+      status,
+      matchedAssetId,
+      JSON.stringify(validation),
+      at,
+      matchedAt,
+    )
+    .run();
+  return { type: "asset_expectation", id: expectationId, status, matchedAssetId };
+}
+
+async function applyDeltaItem(db: CatalogDB, submission: any, p: PartnerProduct) {
+  const mapping = await db
+    .prepare(
+      "SELECT * FROM publisher_catalog_mappings WHERE account_id=? AND environment='production' AND partner_product_key=?",
+    )
+    .bind(submission.account_id, p.productKey)
+    .first<any>();
+  if (!mapping?.publishing_edition_id)
+    throw new ApiError(
+      409,
+      `No production catalog mapping exists for ${p.productKey}. Submit metadata before ${submission.feed_type} deltas.`,
+    );
+  const editionId = String(mapping.publishing_edition_id),
+    at = now(),
+    draft = await db
+      .prepare("SELECT * FROM publishing_edition_drafts WHERE id=?")
+      .bind(editionId)
+      .first<any>();
+  if (!draft) throw new ApiError(409, "Mapped publishing edition no longer exists.");
+  if (submission.feed_type === "price") {
+    if (p.priceMinor == null) throw new ApiError(400, "Price delta is missing priceMinor.");
+    await db
+      .prepare(
+        "UPDATE publishing_edition_drafts SET list_currency=?,list_price_minor=?,updated_at=? WHERE id=?",
+      )
+      .bind(p.currency || draft.list_currency || "USD", p.priceMinor, at, editionId)
+      .run();
+    if (mapping.catalog_product_id) {
+      const prior = await db
+        .prepare(
+          "SELECT id FROM offers WHERE product_id=? AND offer_type='purchase' AND active=1 ORDER BY created_at DESC LIMIT 1",
+        )
+        .bind(mapping.catalog_product_id)
+        .first<any>();
+      const offerId = id("offer");
+      const statements: any[] = [];
+      if (prior)
+        statements.push(
+          db
+            .prepare(
+              "UPDATE offers SET active=0,ends_at=COALESCE(ends_at,?),updated_at=? WHERE id=?",
+            )
+            .bind(at, at, prior.id),
+        );
+      statements.push(
+        db
+          .prepare(
+            "INSERT INTO offers(id,product_id,offer_type,currency,amount_minor,active,starts_at,ends_at,created_at,updated_at) VALUES(?,?,'purchase',?,?,1,?,NULL,?,?)",
+          )
+          .bind(
+            offerId,
+            mapping.catalog_product_id,
+            p.currency || draft.list_currency || "USD",
+            p.priceMinor,
+            at,
+            at,
+            at,
+          ),
+      );
+      await db.batch(statements);
+      return { type: "price_offer", id: offerId };
+    }
+  } else if (submission.feed_type === "territory") {
+    if (!p.territories) throw new ApiError(400, "Territory delta is missing territory scope.");
+    const contract = await activeContractVersion(
+      db,
+      String(submission.account_id),
+      p.contractReference || draft.contract_id || "",
+    );
+    if (draft.rights_basis !== "public_domain" && !contract)
+      throw new ApiError(
+        409,
+        "No effective assigned contract version is available for this territory update.",
+      );
+    if (contract)
+      await assertPartnerProductWithinContract(db, String(contract.version.id), {
+        ...p,
+        format: draft.format,
+        drmRequirement: draft.drm_requirement,
+        subscriptionPermitted: !!draft.subscription_permitted,
+        libraryPermitted: !!draft.library_permitted,
+      });
+    const scope = {
+      mode: p.territories.mode || "worldwide",
+      include: normalizedCountryList(p.territories.include || []),
+      exclude: normalizedCountryList(p.territories.exclude || []),
+      includeSetIds: [],
+      excludeSetIds: [],
+    };
+    await db
+      .prepare(
+        "UPDATE publishing_edition_drafts SET territory_scope_json=?,contract_id=COALESCE(?,contract_id),contract_version_id=COALESCE(?,contract_version_id),updated_at=? WHERE id=?",
+      )
+      .bind(
+        JSON.stringify(scope),
+        contract?.contract.id || null,
+        contract?.version.id || null,
+        at,
+        editionId,
+      )
+      .run();
+    if (mapping.catalog_edition_id) {
+      const grants = (
+        await db
+          .prepare("SELECT * FROM rights_grants WHERE edition_id=? AND status='active'")
+          .bind(mapping.catalog_edition_id)
+          .all<any>()
+      ).results;
+      for (const grant of grants) {
+        await upsertRightsGrant(db as any, {
+          id: String(grant.id),
+          editionId: String(mapping.catalog_edition_id),
+          rightsholderId: grant.rightsholder_id || null,
+          rightsholderPartyId: grant.rightsholder_party_id || null,
+          scopeMode: scope.mode === "worldwide" ? "worldwide" : "expression",
+          includeTerritories: scope.include,
+          excludeTerritories: scope.exclude,
+          format: String(grant.format),
+          salesChannel: String(grant.sales_channel) as any,
+          startsAt: grant.starts_at || null,
+          endsAt: grant.ends_at || null,
+          licenseType: String(grant.license_type),
+          contractId: contract?.contract.id || grant.contract_id || null,
+          contractVersionId: contract?.version.id || grant.contract_version_id || null,
+          exclusivity: (grant.exclusivity || "nonexclusive") as any,
+          drmRequirement: String(grant.drm_requirement || "none"),
+          subscriptionPermitted: !!grant.subscription_permitted,
+          libraryPermitted: !!grant.library_permitted,
+          decision: "allow",
+          status: "active",
+          promotionRestrictions: parseJson(grant.promotion_restrictions_json, {}),
+          contractReference: String(grant.contract_reference || ""),
+          source: "publisher-territory-feed",
+          notes: `Updated by partner feed ${submission.id}`,
+        });
+      }
+    }
+    return { type: "territory_rights", id: editionId };
+  } else if (submission.feed_type === "availability") {
+    if (!p.availability) throw new ApiError(400, "Availability delta is missing availability.");
+    if (p.availability === "withdrawn")
+      await db
+        .prepare("UPDATE publishing_edition_drafts SET status='withdrawn',updated_at=? WHERE id=?")
+        .bind(at, editionId)
+        .run();
+    if (mapping.catalog_product_id) {
+      const storefront =
+        p.availability === "available" || p.availability === "preorder" ? "active" : "inactive";
+      await db
+        .prepare("UPDATE products SET storefront_status=?,updated_at=? WHERE id=?")
+        .bind(storefront, at, mapping.catalog_product_id)
+        .run();
+      if (p.availability === "withdrawn")
+        await db
+          .prepare(
+            "UPDATE offers SET active=0,ends_at=COALESCE(ends_at,?),updated_at=? WHERE product_id=? AND active=1",
+          )
+          .bind(at, at, mapping.catalog_product_id)
+          .run();
+      else if (storefront === "active")
+        await db
+          .prepare(
+            "UPDATE offers SET active=1,updated_at=? WHERE id=(SELECT id FROM offers WHERE product_id=? AND offer_type='purchase' ORDER BY created_at DESC LIMIT 1)",
+          )
+          .bind(at, mapping.catalog_product_id)
+          .run();
+    }
+    await db
+      .prepare(
+        "UPDATE publisher_catalog_mappings SET status=?,updated_at=? WHERE account_id=? AND environment='production' AND partner_product_key=?",
+      )
+      .bind(
+        p.availability === "withdrawn" ? "withdrawn" : "active",
+        at,
+        submission.account_id,
+        p.productKey,
+      )
+      .run();
+    return { type: "availability", id: editionId };
+  }
+  throw new ApiError(400, `Unsupported delta feed type ${submission.feed_type}.`);
+}
+
+async function reconcileFullPartnerSnapshot(db: CatalogDB, submission: any) {
+  if (
+    submission.environment !== "production" ||
+    submission.feed_type !== "metadata" ||
+    submission.mode !== "full" ||
+    !Number(submission.replace_missing)
+  )
+    return 0;
+  const missing = (
+    await db
+      .prepare(
+        `SELECT m.partner_product_key,m.catalog_product_id FROM publisher_catalog_mappings m WHERE m.account_id=? AND m.environment='production' AND m.status='active' AND NOT EXISTS(SELECT 1 FROM publisher_feed_items i WHERE i.submission_id=? AND i.partner_product_key=m.partner_product_key AND i.status IN ('applied','warning','valid'))`,
+      )
+      .bind(submission.account_id, submission.id)
+      .all<any>()
+  ).results;
+  const at = now();
+  for (const row of missing) {
+    const statements: any[] = [
+      db
+        .prepare(
+          "UPDATE publisher_catalog_mappings SET status='withdrawn',updated_at=? WHERE account_id=? AND environment='production' AND partner_product_key=?",
+        )
+        .bind(at, submission.account_id, row.partner_product_key),
+    ];
+    if (row.catalog_product_id) {
+      statements.push(
+        db
+          .prepare("UPDATE products SET storefront_status='inactive',updated_at=? WHERE id=?")
+          .bind(at, row.catalog_product_id),
+      );
+      statements.push(
+        db
+          .prepare(
+            "UPDATE offers SET active=0,ends_at=COALESCE(ends_at,?),updated_at=? WHERE product_id=? AND active=1",
+          )
+          .bind(at, at, row.catalog_product_id),
+      );
+    }
+    await db.batch(statements);
+  }
+  return missing.length;
+}
+
+async function processPartnerFeedQueue(db: CatalogDB, limit = 25) {
+  const rows = (
+    await db
+      .prepare(
+        "SELECT * FROM publisher_feed_submissions WHERE status IN ('accepted','accepted_with_warnings') AND environment='sandbox' AND feed_type<>'assets_manifest' ORDER BY received_at LIMIT ?",
+      )
+      .bind(Math.max(1, Math.min(100, limit)))
+      .all<any>()
+  ).results;
+  let applied = 0,
+    failed = 0,
+    sandbox = 0;
+  for (const submission of rows) {
+    if (submission.environment !== "sandbox" || submission.feed_type === "assets_manifest")
+      throw new ApiError(503, "Partner publication requires a separately certified positive owner command.");
+    await db
+      .prepare(
+        "UPDATE publisher_feed_submissions SET status='applying' WHERE id=? AND status IN ('accepted','accepted_with_warnings')",
+      )
+      .bind(submission.id)
+      .run();
+    const items = (
+      await db
+        .prepare(
+          "SELECT * FROM publisher_feed_items WHERE submission_id=? AND status IN ('valid','warning') ORDER BY ordinal",
+        )
+        .bind(submission.id)
+        .all<any>()
+    ).results;
+    let ok = 0,
+      bad = 0;
+    if (submission.environment === "sandbox" && submission.feed_type !== "assets_manifest") {
+      for (const item of items)
+        await db
+          .prepare(
+            "UPDATE publisher_feed_items SET status='applied',applied_entity_type='sandbox_preview',applied_entity_id=?,updated_at=? WHERE id=?",
+          )
+          .bind(item.partner_product_key, now(), item.id)
+          .run();
+      ok = items.length;
+      sandbox++;
+    } else {
+      for (const item of items) {
+        const p = parseJson<PartnerProduct>(item.normalized_json, {
+          productKey: item.partner_product_key,
+          notificationType: "update",
+        });
+        try {
+          const result =
+            submission.feed_type === "metadata"
+              ? await applyMetadataItem(db, submission, item, p)
+              : submission.feed_type === "assets_manifest"
+                ? await applyAssetManifestItem(db, submission, p)
+                : await applyDeltaItem(db, submission, p);
+          await db
+            .prepare(
+              "UPDATE publisher_feed_items SET status=?,applied_entity_type=?,applied_entity_id=?,updated_at=? WHERE id=?",
+            )
+            .bind(
+              "skipped" in result && result.skipped ? "skipped" : "applied",
+              result.type,
+              result.id || "",
+              now(),
+              item.id,
+            )
+            .run();
+          ok++;
+        } catch (e) {
+          bad++;
+          await db
+            .prepare(
+              "UPDATE publisher_feed_items SET status='rejected',validation_json=?,updated_at=? WHERE id=?",
+            )
+            .bind(
+              JSON.stringify([
+                {
+                  severity: "error",
+                  code: "APPLICATION_FAILED",
+                  message: e instanceof Error ? e.message : "Application failed.",
+                },
+              ]),
+              now(),
+              item.id,
+            )
+            .run();
+        }
+      }
+    }
+    const withdrawnMissing = bad === 0 ? await reconcileFullPartnerSnapshot(db, submission) : 0;
+    const finalStatus = bad === 0 ? "applied" : ok > 0 ? "partially_applied" : "failed",
+      at = now();
+    await db
+      .prepare(
+        "UPDATE publisher_feed_submissions SET status=?,applied_count=?,rejected_count=rejected_count+?,error_summary=?,applied_at=? WHERE id=?",
+      )
+      .bind(
+        finalStatus,
+        ok,
+        bad,
+        bad ? `${bad} item(s) failed during application.` : "",
+        at,
+        submission.id,
+      )
+      .run();
+    await db
+      .prepare(
+        "INSERT INTO publisher_validation_responses(id,submission_id,response_type,status,machine_code,message,payload_json,delivery_status,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+      )
+      .bind(
+        id("pack"),
+        submission.id,
+        "application",
+        finalStatus,
+        finalStatus === "applied" ? "FEED_APPLIED" : "FEED_PARTIAL_OR_FAILED",
+        finalStatus === "applied"
+          ? "Feed applied successfully."
+          : "Feed application completed with item failures.",
+        JSON.stringify({
+          appliedCount: ok,
+          failedCount: bad,
+          withdrawnMissing,
+          environment: submission.environment,
+        }),
+        "pending",
+        at,
+      )
+      .run();
+    await partnerAudit(db, {
+      accountId: submission.account_id,
+      environment: submission.environment,
+      actorType: "worker",
+      actorId: "partner-ingest",
+      eventType: "partner.feed.applied",
+      subjectType: "feed",
+      subjectId: submission.id,
+      event: { status: finalStatus, appliedCount: ok, failedCount: bad, withdrawnMissing },
+    });
+    if (bad) failed++;
+    else applied++;
+  }
+  return { leased: rows.length, applied, failed, sandbox };
+}
+
+  return processPartnerFeedQueue;
+})();
+
 export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
   private publicationExecutions=new Set<string>();
   private contractExecutions=new Set<string>();
   private publicationRecoveryRunning=false;
+  private partnerFeedRunning=false;
   private settlementExecutions=new Set<string>();
   private settlementRecoveryRunning=false;
   constructor(ctx: { storage: { sql: unknown } }, env: LegalAuthorityEnv) {
@@ -2675,6 +3587,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/entitlement/deny-next","/commercial/entitlement/deny-batch",
       "/commercial/entitlement/publish-verified",
       "/commercial/entitlement/publish-order-verified",
+      "/publishing/partner/process-feed",
       "/publishing/contract/save-version",
       "/publication/materialize-submission",
       "/publication/activate-version",
@@ -2766,6 +3679,22 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           return Response.json({schema:"cove.publication-recovery.v1",ownerFirst:true,
             operationId:input.operationId,...result},{headers:noStore});
         } finally {this.publicationRecoveryRunning=false;}
+      }
+      if(route==="/publishing/partner/process-feed") {
+        const q=raw as {limit?:unknown;operationId?:unknown}|null;
+        if(!q||typeof q!=="object"||Array.isArray(q)||
+          Object.keys(q).sort().join(",")!=="limit,operationId"||
+          !Number.isSafeInteger(q.limit)||Number(q.limit)<1||Number(q.limit)>25||
+          typeof q.operationId!=="string"||
+          !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,95}$/.test(q.operationId))
+          return new Response(null,{status:400,headers:noStore});
+        if(this.partnerFeedRunning)return new Response(null,{status:409,headers:noStore});
+        this.partnerFeedRunning=true;
+        try {
+          const outcome=await processPartnerFeedQueuePrivate(env.PRIMARY_DB,Number(q.limit));
+          return Response.json({schema:"cove.owner-partner-feed-sandbox.v1",
+            ownerFirst:true,operationId:q.operationId,...outcome},{headers:noStore});
+        }finally{this.partnerFeedRunning=false;}
       }
       if(route==="/publishing/contract/save-version") {
         const storage=this.ctx.storage as typeof this.ctx.storage & {transactionSync<T>(fn:()=>T):T};
