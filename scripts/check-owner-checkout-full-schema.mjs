@@ -390,7 +390,7 @@ try {
     LEGAL_AUTHORITY:{getByName(name){
       assert.equal(name,"cove-staged-legal-global-v1");return caller.owner;
     }}};
-  assert.deepEqual(await cancelCheckoutOrder(stageEnv,{id:user},callerOrder),
+  assert.deepEqual(await cancelCheckoutOrder(stageEnv,user,callerOrder),
     {orderId:callerOrder,status:"canceled"},"Enrolled customer API must use owner-only cancellation");
   assert.equal(caller.db.prepare("SELECT status FROM commerce_orders WHERE id=?").get(callerOrder).status,
     "canceled");
@@ -406,7 +406,7 @@ try {
   assert.equal((await closed.prepare(closedOrder)).status,200);
   const deniedEnv={...stageEnv,DB:closed.env.PRIMARY_DB,
     COVE_RIGHTS_OWNER_SECRET:"bad-secret",LEGAL_AUTHORITY:{getByName:()=>closed.owner}};
-  await assert.rejects(()=>cancelCheckoutOrder(deniedEnv,{id:user},closedOrder),
+  await assert.rejects(()=>cancelCheckoutOrder(deniedEnv,user,closedOrder),
     /owner|certified/i,"A broken owner must not fall back to API-side D1");
   assert.equal(closed.db.prepare("SELECT status FROM commerce_orders WHERE id=?")
     .get(closedOrder).status,"pending_payment");
