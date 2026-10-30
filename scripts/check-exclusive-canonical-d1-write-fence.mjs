@@ -1,6 +1,6 @@
 /* eslint-disable prettier/prettier -- Security tests enumerate mutation bypass attempts. */
 import assert from "node:assert/strict";
-import {mkdtempSync,rmSync} from "node:fs";
+import {mkdtempSync,rmSync,readFileSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {pathToFileURL} from "node:url";
@@ -13,6 +13,13 @@ try{
     outfile:output,bundle:true,platform:"node",format:"esm",target:"node22",
     logLevel:"silent"});
   const {scopeExclusiveCanonicalD1,readOnlyCanonicalD1}=await import(pathToFileURL(output).href);
+  const backend=readFileSync("src/persistence-backend.worker.ts","utf8");
+  assert.equal(
+    backend.split("scopeExclusiveCanonicalD1(scopePublicationOwnerEnv(env))").length-1,
+    2,"EVERY persistence backend HTTP+scheduled entrypoint must use the same write fence"
+  );
+  assert.ok(backend.includes('async scheduled(')&&backend.includes('async fetch('));
+
   let created=0,writes=0,batches=0,reads=0;
   const raw={
     prepare(sql){
