@@ -62,7 +62,7 @@ jobs:
         with: { python-version: "3.12" }
       - name: Test live Commons API as unprivileged original source
         run: python scripts/soundtracks/discover-openverse-commons.py --queries 1 --commons-categories 1 --max-verifications 8 --output commons-source-smoke.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: music-open-commons-source-smoke
@@ -109,7 +109,7 @@ jobs:
           fi
       - name: Archive non-publishable source evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cove-discovered-open-license-candidates
           path: openverse-commons-candidates.json
@@ -134,7 +134,7 @@ jobs:
         run: python scripts/soundtracks/report-isolated-supply.py --output isolated-music-daily-report.json
       - name: Retain counts and unknown-cost declarations
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cove-isolated-music-daily-supply
           path: isolated-music-daily-report.json

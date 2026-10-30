@@ -54,7 +54,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Signed webhook, two genuine accounts, EPUB/audio, refund and revocation
         run: node scripts/staging/run-protected-deployed-commerce-qa.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: deployed-commerce-browser-${{ github.sha }}

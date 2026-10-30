@@ -58,7 +58,7 @@ jobs:
           COVE_SANDBOX_SECRET_KEY: ${{ secrets.COVE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_TEST_SECRET_KEY || secrets.STRIPE_SANDBOX_SECRET_KEY || secrets.STRIPE_TEST_SECRET_KEY || secrets.STRIPE_SECRET_KEY }}
           COVE_SANDBOX_PUBLISHABLE_KEY: ${{ secrets.COVE_SANDBOX_PUBLISHABLE_KEY || secrets.COVE_STRIPE_SANDBOX_PUBLISHABLE_KEY || secrets.COVE_STRIPE_TEST_PUBLISHABLE_KEY || secrets.STRIPE_SANDBOX_PUBLISHABLE_KEY || secrets.STRIPE_TEST_PUBLISHABLE_KEY || secrets.STRIPE_PUBLISHABLE_KEY }}
         run: node scripts/check-stripe-sandbox-fulfillment.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: cove-sandbox-commerce-${{ github.sha }}

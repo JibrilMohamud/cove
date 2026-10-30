@@ -146,13 +146,13 @@ jobs:
         env:
           COVE_WRITER_AUDIT_OUTPUT: ${{ runner.temp }}/cove-canonical-writer-inventory.json
         run: node scripts/check-canonical-writer-closure.mjs --audit
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: canonical-writer-inventory
           path: ${{ runner.temp }}/cove-canonical-writer-inventory.json
           retention-days: 30
           if-no-files-found: error
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: canonical-workflow-inventory
           path: ${{ runner.temp }}/cove-canonical-workflow-inventory.json
