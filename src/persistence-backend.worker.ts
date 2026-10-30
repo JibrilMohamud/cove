@@ -1,6 +1,6 @@
 import { seedMusicProfiles } from "./features/fore/music-profiles.server";
 import { scopePublicationOwnerEnv } from "./storefront-strangler/publication-owner-routing.server";
-import {scopeExclusiveCanonicalD1} from "./storefront-strangler/canonical-d1-write-fence";
+import { scopeExclusiveCanonicalD1 } from "./storefront-strangler/canonical-d1-write-fence";
 import {
   attestDisabledOwnerFromBackend,
   DISABLED_OWNER_ATTEST_ROUTE,
