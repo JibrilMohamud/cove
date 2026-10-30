@@ -25,6 +25,23 @@ try{
   const {CoveLegalAuthority}=await import(pathToFileURL(output).href);
   const secret="f".repeat(64),orderId="order_provider_123",refundId="ref_provider_123";
   const paymentIntentId="pi_provider_123",providerRefundId="re_provider_123";
+
+  const originalFetch=globalThis.fetch;
+  let stripeStatus="pending",stripeFailure=false,providerOverride={};
+  globalThis.fetch=async (url,options)=>{
+    assert.equal(url,"https://api.stripe.com/v1/refunds/"+providerRefundId);
+    assert.equal(options.method,"GET");
+    assert.equal(options.redirect,"manual");
+    assert.equal(options.headers.authorization,"Bearer sk_test_private_owner_fixture");
+    if(stripeFailure)throw Error("stripe_temporarily_unavailable");
+    return new Response(JSON.stringify({
+      object:"refund",id:providerRefundId,livemode:false,
+      payment_intent:paymentIntentId,amount:100,currency:"usd",
+      metadata:{fore_order_id:orderId,fore_refund_id:refundId},
+      status:stripeStatus,...providerOverride
+    }),{status:200});
+  };
+
   const state={status:"pending",succeeded_at:null,provider_refund_id:null,denied:true,
     writes:0,failWrite:false};
   const refund=()=>({id:refundId,order_id:orderId,
@@ -70,7 +87,8 @@ try{
     PRIMARY_DB:db,COVE_RIGHTS_OWNER_ENABLED:"1",
     COVE_RIGHTS_OWNER_PRIMARY_ID:"7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
     COVE_RIGHTS_OWNER_TEST_EXPIRES_AT:String(Date.now()+2*60*1000),
-    COVE_RIGHTS_OWNER_SECRET:secret
+    COVE_RIGHTS_OWNER_SECRET:secret,
+    STRIPE_SECRET_KEY:"sk_test_private_owner_fixture",STRIPE_LIVEMODE:"false"
   };
   const create=custom=>new CoveLegalAuthority({storage:{sql}},custom);
   const owner=create(env);
@@ -91,6 +109,7 @@ try{
   assert.equal(state.writes,1);
   assert.equal((await call()).status,200);
   assert.equal(state.writes,1,"Exact replay must not write a new D1 provider state");
+  stripeStatus="succeeded";
   assert.equal((await call({...input,status:"succeeded"})).status,200);
   assert.equal(state.status,"succeeded");
   assert.equal(state.writes,2);
@@ -108,6 +127,28 @@ try{
     assert.notEqual((await call(bad)).status,200);
     assert.equal(state.writes,previous,"Forged provider scope cannot update canonical refund");
   }
+  // A private adapter cannot forge success when Stripe still says pending.
+  stripeStatus="pending";
+  const beforeUnproven=state.writes;
+  assert.notEqual((await call({...input,status:"succeeded"})).status,200);
+  assert.equal(state.writes,beforeUnproven);
+  stripeStatus="succeeded";
+  for(const altered of [
+    {id:"re_unrelated_refund"},{amount:101},{currency:"cad"},
+    {livemode:true},{payment_intent:"pi_other_payment"},
+    {metadata:{fore_order_id:"order_wrong",fore_refund_id:refundId}},
+    {metadata:{fore_order_id:orderId,fore_refund_id:"ref_wrong"}}
+  ]){
+    providerOverride=altered;
+    assert.notEqual((await call()).status,200,"Private owner must verify independent Stripe scope");
+    assert.equal(state.writes,beforeUnproven,"Forged provider may not mutate D1");
+  }
+  providerOverride={};
+  stripeFailure=true;
+  assert.notEqual((await call()).status,200,"Provider outage must deny write");
+  stripeFailure=false;
+  assert.notEqual((await call(input,create({...env,STRIPE_SECRET_KEY:""}))).status,200,
+    "Absent private owner Stripe credential must fail closed");
   state.denied=false;
   assert.notEqual((await call(input)).status,200,
     "Provider state may not mutate before the durable whole-order denial");
@@ -127,5 +168,6 @@ try{
   assert.match(commerce,/recordOwnerStripeRefundReceipt\(env, String\(r.order_id\), String\(r.id\), obj\)/);
   assert.ok(commerce.includes('if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1") {'),
     "An enrolled owner must not fall back to primary D1 during refund recovery");
-  console.log("PASS: real private leased owner rejects forged provider data, wrong scope, absent denial, production primary, replay, stale webhook and DB outage");
+  globalThis.fetch=originalFetch;
+  console.log("PASS: owner independently verifies Stripe refund metadata, status, amount, currency, mode, replay and outages");
 }finally{rmSync(dir,{recursive:true,force:true});}
