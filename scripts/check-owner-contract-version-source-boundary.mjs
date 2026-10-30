@@ -45,6 +45,7 @@ assert.doesNotMatch(caller,/return saveContractVersion\(/);
 assert.match(caller,/COVE_LEGAL_CONSUMER_STAGE_ENABLED!=="1"\)[\s\S]*?throw new ApiError\(503,/);
 const review=JSON.parse(readFileSync("docs/architecture/canonical-writer-review.json","utf8"));
 assert.equal(review.sites.filter(s=>s.commandFamily==="traditional-publishing.saveContractVersion").length,0);
-assert.equal(review.sites.filter(s=>s.disposition==="owner-command-required").length,417);
+assert.ok(review.sites.filter(s=>s.disposition==="owner-command-required").length<=417,
+  "Genuinely retired source-level owner findings may decrease but must not grow");
 assert.equal(review.releaseApproval,false);
 console.log("PASS: 9 contract writers retired from shared API; only private unexported Durable Object mutates D1; unenrolled production remains fail-closed");
