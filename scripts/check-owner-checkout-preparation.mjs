@@ -6,17 +6,6 @@ import {DatabaseSync} from "node:sqlite";
 const owner=readFileSync("src/storefront-strangler/legal-authority.worker.ts","utf8");
 const gateway=readFileSync("src/storefront-strangler/canonical-owner-command-gateway.ts","utf8");
 const commerce=readFileSync("src/features/fore/commerce.server.ts","utf8");
-if(process.env.COVE_CHECKOUT_EMIT_FORMAT==="1"){
-  const prettier=await import("prettier");
-  const target="src/features/fore/commerce.server.ts";
-  const config=await prettier.resolveConfig(target);
-  const formatted=await prettier.format(commerce,{...config,filepath:target});
-  const chunks=Buffer.from(formatted,"utf8").toString("base64");
-  const count=Math.ceil(chunks.length/3500);
-  for(let i=0;i<count;i++)
-    console.log("COVE_CHECKOUT_FORMAT_CHUNK "+i+"/"+count+" "+chunks.slice(i*3500,(i+1)*3500));
-}
-
 const start=owner.indexOf('if(route==="/commercial/checkout/prepare-draft")');
 const end=owner.indexOf('if(route==="/commercial/checkout/materialize-draft")',start);
 assert.ok(start>0&&end>start,"Only a private, fenced owner prepare route is allowed");
