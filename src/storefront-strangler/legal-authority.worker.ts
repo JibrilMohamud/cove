@@ -13,7 +13,6 @@ import {ensurePreorderReleasePlan} from "../features/fore/preorder.server";
 import {
   recordPublicationActivation,stableJson,safeJson,audit,ensurePublishingLifecycle,
   scopeToGrant,bucketBytes,ensureCatalogParties,publicationVersionManifest,
-  syncCatalogAccessibility
 } from "../features/fore/publishing.server";
 import {ownerContractVersionSchema} from "./owner-contract-version-schema";
 import {ApiError} from "../features/fore/service";
@@ -1281,6 +1280,106 @@ async function materializePublishingSubmissionOwned(
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- Private owner-only publication activation preserves legacy record shapes. */
+async function syncCatalogAccessibility(db: PublishingDB, manifest: any, at: string) {
+  if (!manifest?.catalogEditionId) return;
+  const a = manifest.accessibilityProfile || null,
+    f = manifest.formatProfile || null;
+  if (a) {
+    await db
+      .prepare(
+        `INSERT INTO accessibility_metadata(edition_id,screen_reader_compatible,alt_text_complete,semantic_structure,accessibility_summary,certifier,updated_at)
+      VALUES(?,?,?,?,?,?,?) ON CONFLICT(edition_id) DO UPDATE SET screen_reader_compatible=excluded.screen_reader_compatible,alt_text_complete=excluded.alt_text_complete,semantic_structure=excluded.semantic_structure,accessibility_summary=excluded.accessibility_summary,certifier=excluded.certifier,updated_at=excluded.updated_at`,
+      )
+      .bind(
+        manifest.catalogEditionId,
+        a.nonvisualReading === "supported" ? 1 : a.nonvisualReading === "not_supported" ? 0 : null,
+        a.altTextComplete ? 1 : 0,
+        a.semanticStructure ? 1 : 0,
+        a.summary || "",
+        a.certification?.certifier || "",
+        at,
+      )
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO edition_accessibility_profiles(edition_id,source_asset_version_id,visual_adjustments,nonvisual_reading,primary_language_declared,reading_order_verified,table_semantics_complete,mathml_present,mathml_accessible,page_navigation,accessibility_navigation,access_modes_json,access_mode_sufficient_json,features_json,hazards_json,conforms_to_json,certification_json,accessibility_summary,validation_policy_version,validation_status,validation_report_json,publisher_declaration_json,updated_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(edition_id) DO UPDATE SET source_asset_version_id=excluded.source_asset_version_id,visual_adjustments=excluded.visual_adjustments,nonvisual_reading=excluded.nonvisual_reading,primary_language_declared=excluded.primary_language_declared,reading_order_verified=excluded.reading_order_verified,table_semantics_complete=excluded.table_semantics_complete,mathml_present=excluded.mathml_present,mathml_accessible=excluded.mathml_accessible,page_navigation=excluded.page_navigation,accessibility_navigation=excluded.accessibility_navigation,access_modes_json=excluded.access_modes_json,access_mode_sufficient_json=excluded.access_mode_sufficient_json,features_json=excluded.features_json,hazards_json=excluded.hazards_json,conforms_to_json=excluded.conforms_to_json,certification_json=excluded.certification_json,accessibility_summary=excluded.accessibility_summary,validation_policy_version=excluded.validation_policy_version,validation_status=excluded.validation_status,validation_report_json=excluded.validation_report_json,publisher_declaration_json=excluded.publisher_declaration_json,updated_at=excluded.updated_at`,
+      )
+      .bind(
+        manifest.catalogEditionId,
+        manifest.manuscriptCatalogAssetVersionId || null,
+        a.visualAdjustments || "unknown",
+        a.nonvisualReading || "unknown",
+        a.primaryLanguageDeclared ? 1 : 0,
+        a.readingOrderVerified ? 1 : 0,
+        a.tableSemanticsComplete ? 1 : 0,
+        a.mathmlPresent ? 1 : 0,
+        a.mathmlAccessible ? 1 : 0,
+        a.pageNavigation ? 1 : 0,
+        a.accessibilityNavigation ? 1 : 0,
+        JSON.stringify(a.accessModes || []),
+        JSON.stringify(a.accessModeSufficient || []),
+        JSON.stringify(a.features || []),
+        JSON.stringify(a.hazards || []),
+        JSON.stringify(a.conformsTo || []),
+        JSON.stringify(a.certification || {}),
+        a.summary || "",
+        a.validationPolicyVersion || "fore-epub-accessibility-v1",
+        a.validationStatus || "unknown",
+        JSON.stringify(a.validationReport || {}),
+        JSON.stringify(a.publisherDeclaration || {}),
+        at,
+      )
+      .run();
+  }
+  if (f) {
+    await db
+      .prepare(
+        `INSERT INTO edition_format_profiles(edition_id,source_asset_version_id,epub_version,package_version,navigation_type,rendition_layout,page_progression_direction,writing_mode,rtl,vertical_writing,complex_css,embedded_fonts,svg,mathml,complex_tables,footnotes,endnotes,dictionary_content,media_overlays,oversized_images,accessibility_navigation,compatibility_class,reader_support,features_json,warnings_json,updated_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(edition_id) DO UPDATE SET source_asset_version_id=excluded.source_asset_version_id,epub_version=excluded.epub_version,package_version=excluded.package_version,navigation_type=excluded.navigation_type,rendition_layout=excluded.rendition_layout,page_progression_direction=excluded.page_progression_direction,writing_mode=excluded.writing_mode,rtl=excluded.rtl,vertical_writing=excluded.vertical_writing,complex_css=excluded.complex_css,embedded_fonts=excluded.embedded_fonts,svg=excluded.svg,mathml=excluded.mathml,complex_tables=excluded.complex_tables,footnotes=excluded.footnotes,endnotes=excluded.endnotes,dictionary_content=excluded.dictionary_content,media_overlays=excluded.media_overlays,oversized_images=excluded.oversized_images,accessibility_navigation=excluded.accessibility_navigation,compatibility_class=excluded.compatibility_class,reader_support=excluded.reader_support,features_json=excluded.features_json,warnings_json=excluded.warnings_json,updated_at=excluded.updated_at`,
+      )
+      .bind(
+        manifest.catalogEditionId,
+        manifest.manuscriptCatalogAssetVersionId || null,
+        f.epubVersion || "",
+        f.packageVersion || "",
+        f.navigationType || "unknown",
+        f.renditionLayout || "reflowable",
+        f.pageProgressionDirection || "default",
+        f.writingMode || "horizontal-tb",
+        f.rtl ? 1 : 0,
+        f.verticalWriting ? 1 : 0,
+        f.complexCss ? 1 : 0,
+        f.embeddedFonts ? 1 : 0,
+        f.svg ? 1 : 0,
+        f.mathml ? 1 : 0,
+        f.complexTables ? 1 : 0,
+        f.footnotes ? 1 : 0,
+        f.endnotes ? 1 : 0,
+        f.dictionaryContent ? 1 : 0,
+        f.mediaOverlays ? 1 : 0,
+        f.oversizedImages ? 1 : 0,
+        f.accessibilityNavigation ? 1 : 0,
+        f.compatibilityClass || "unknown",
+        f.readerSupport || "supported_with_limits",
+        JSON.stringify(f.features || {}),
+        JSON.stringify(f.warnings || []),
+        at,
+      )
+      .run();
+    await db
+      .prepare("UPDATE editions SET layout=?,epub_version=?,updated_at=? WHERE id=?")
+      .bind(
+        f.renditionLayout === "pre-paginated" ? "fixed" : "reflowable",
+        f.epubVersion || null,
+        at,
+        manifest.catalogEditionId,
+      )
+      .run();
+  }
+}
+
+
 async function activatePublicationCommercialTerms(
   db: PublishingDB,
   currentManifest: any,
