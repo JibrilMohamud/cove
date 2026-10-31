@@ -150,6 +150,7 @@ jobs:
           node scripts/check-retired-ingestion-state-owner.mjs
           node scripts/check-retired-delivery-expiry-owner.mjs
           node scripts/check-retired-entitlement-devices-owner.mjs
+          node scripts/check-retired-private-risk-hold-owner.mjs
           node scripts/check-retired-negative-delivery-owner.mjs
           node scripts/check-retired-catalog-negative-owner.mjs
           node scripts/check-retired-rights-config-owner.mjs

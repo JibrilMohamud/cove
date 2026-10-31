@@ -514,3 +514,18 @@ export async function dispatchPrivateEntitlementDevice(db:object,input:{
   if(ack.saved!==true)throw Error("device_owner_receipt_invalid");
  }catch{throw new ApiError(503,"Private owner refused entitlement-device registration.");}
 }
+
+/** Deny-first, fixed QA risk hold owner. Owner re-reads newest persisted
+ * assessment, validates its domain/scope and keeps existing active holds. */
+export async function dispatchPrivateRiskHold(db:object,assessmentId:string,
+ scope:string,reasonCode:string):Promise<string>{
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Risk hold requires private legal authority.");
+ try{
+  const receipt=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+   "risk.create-hold",{assessmentId,scope,reasonCode});
+  if(receipt.saved!==true||typeof receipt.holdId!=="string")
+    throw Error("risk_hold_owner_receipt_invalid");
+  return receipt.holdId;
+ }catch{throw new ApiError(503,"Private owner refused this risk hold.");}
+}
