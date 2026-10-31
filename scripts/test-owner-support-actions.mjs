@@ -74,7 +74,7 @@ try{
  assert.equal((await send(base,alien)).status,403);
  assert.equal((await send(base,staff,"f".repeat(64))).status,401);
  assert.equal(count("publishing_outbox"),0);
- let response=await send();assert.equal(response.status,200,await response.text());
+ let response=await send();if(response.status!==200)throw Error("Receipt owner status "+response.status+": "+await response.text());
  let ack=await response.json();assert.equal(ack.ownerFirst,true);
  assert.equal(count("commerce_notifications"),1);assert.equal(count("publishing_outbox"),1);
  assert.equal(count("support_actions"),1);
@@ -90,7 +90,7 @@ try{
    idempotencyKey:"restore-support-qa-4444444444"})).status,503);
  assert.equal(primary.prepare("SELECT status FROM entitlements WHERE id='ent_support_qa'").get().status,"active");
  const revoke={...base,actionType:"revoke_entitlement",targetId:"ent_support_qa",idempotencyKey:"revoke-support-qa-5555555555"};
- response=await send(revoke);assert.equal(response.status,200,await response.text());
+ response=await send(revoke);if(response.status!==200)throw Error("Revocation owner status "+response.status+": "+await response.text());
  assert.equal(primary.prepare("SELECT status FROM entitlements WHERE id='ent_support_qa'").get().status,"revoked");
  assert.equal(primary.prepare("SELECT status FROM audio_offline_licenses WHERE id='lic_qa'").get().status,"revoked");
  assert.equal(durable.prepare("SELECT verdict FROM cove_paid_entitlement_authority WHERE entitlement_id='ent_support_qa'").get().verdict,"deny");
