@@ -1,4 +1,5 @@
 /* eslint-disable prettier/prettier -- Isolated synthetic paid-settlement QA is a narrow trust boundary. */
+import {bindPublicationOwner} from "./publication-owner-routing.server";
 import {certifyStagePaidSettlement,assertStagePaidOrderNotWithdrawn} from "./paid-settlement-publication.server";
 import type {CoveEnv} from "../features/fore/api.server";
 import {requireStagePaidEntitlementAccess} from "./legal-consumer-fence.server";
@@ -41,7 +42,8 @@ const isInitial=(env:Env,orderId:unknown,userId:unknown)=>
   /^order_initial_qa_\d{8,15}-\d{1,5}$/.test(env.COVE_PAID_INITIAL_ORDER) &&
   typeof env.COVE_PAID_INITIAL_BUYER==="string" &&
   /^user_initial_qa_\d{8,15}-\d{1,5}$/.test(env.COVE_PAID_INITIAL_BUYER) &&
-  orderId===env.COVE_PAID_INITIAL_ORDER &&
+  (orderId===env.COVE_PAID_INITIAL_ORDER ||
+   orderId==="order_audio_qa_"+env.COVE_PAID_INITIAL_ORDER.slice("order_initial_qa_".length)) &&
   userId===env.COVE_PAID_INITIAL_BUYER;
 function available(env:Env):boolean{
   const exp=Number(env.COVE_PAID_STAGE_QA_EXPIRES_AT);
@@ -104,6 +106,12 @@ export default {
         }
       }
     } as unknown as CoveEnv;
+    // The original handlers now dispatch ownership, device and bearer writes
+    // through the exact same independently checking private owner as settlement.
+    facade.DB=bindPublicationOwner(facade.DB,{
+      owner:facade.LEGAL_AUTHORITY!.getByName("cove-staged-legal-global-v1"),
+      secret:env.COVE_RIGHTS_OWNER_SECRET!,territory:"US",currency:"USD"
+    });
     if(signedStripe){
       // Exercise the ACTUAL signed Cove webhook handler, not a fabricated
       // "Stripe succeeded" owner call. Only the one synthetic paid-order
@@ -125,7 +133,8 @@ export default {
          intent?.status!=="succeeded" || intent?.amount_received!==399 ||
          String(intent.currency).toLowerCase()!=="usd" ||
          !(intent?.metadata?.fore_order_id===ORDER ||
-           intent?.metadata?.fore_order_id===env.COVE_PAID_INITIAL_ORDER) ||
+           intent?.metadata?.fore_order_id===env.COVE_PAID_INITIAL_ORDER ||
+           intent?.metadata?.fore_order_id==="order_audio_qa_"+env.COVE_PAID_INITIAL_ORDER!.slice("order_initial_qa_".length)) ||
          typeof intent?.id!=="string" || !/^pi_[a-zA-Z0-9]{8,100}$/.test(intent.id))
         return new Response(null,{status:400,headers});
       try{
@@ -156,6 +165,10 @@ export default {
       const run=env.COVE_PAID_INITIAL_ORDER!.slice("order_initial_qa_".length),
         deviceId="device_paid_qa_"+run,
         deviceKey="device-qa-"+run+"-registered";
+      const audioRoute=url.pathname.startsWith("/original/audio-");
+      const audioOrder="order_audio_qa_"+run, audioProduct="prd_audio_qa_"+run;
+      if(raw.orderId!==(audioRoute?audioOrder:env.COVE_PAID_INITIAL_ORDER))
+        return new Response(null,{status:400,headers});
       const realRequest=new Request("https://qa.cove.invalid/api/fore/delivery/epub",{
         method:"GET",headers:{"x-fore-device-id":deviceId}
       });
@@ -188,7 +201,7 @@ export default {
           return Response.json(license,{headers});
         }
         if(url.pathname==="/original/audio-preflight"){
-          const legal=await resolveProductRights(facade.DB,PRODUCT,"US",{
+          const legal=await resolveProductRights(facade.DB,audioProduct,"US",{
             salesChannel:"retail"
           });
           const source=await facade.DB.prepare(
@@ -198,7 +211,7 @@ export default {
              JOIN publishing_publication_versions pv
                ON pv.id=l.current_publication_version_id
              WHERE pp.product_id=? ORDER BY pv.version_number DESC LIMIT 1`
-          ).bind(PRODUCT).first<{manifest_json:string}>();
+          ).bind(audioProduct).first<{manifest_json:string}>();
           let frozen:Record<string,unknown>|null=null;
           try{frozen=JSON.parse(source?.manifest_json||"{}")?.sourceSnapshot?.commercialAudio||null;}
           catch{frozen=null;}
@@ -278,15 +291,18 @@ export default {
     try{
       const first=isInitial(env,(body as Record<string,unknown>).orderId,
         (body as Record<string,unknown>).userId);
+      const scopedOrder=(body as {orderId:string}).orderId;
+      const scopedProduct=scopedOrder.startsWith("order_audio_qa_")?
+        "prd_audio_qa_"+scopedOrder.slice("order_audio_qa_".length):PRODUCT;
       if(url.pathname==="/certify-initial" ||
          (url.pathname==="/certify-paid"&&first))
         await certifyStagePaidSettlement(facade,
-          env.COVE_PAID_INITIAL_ORDER!,env.COVE_PAID_INITIAL_BUYER!);
+          scopedOrder,env.COVE_PAID_INITIAL_BUYER!);
       else if(url.pathname==="/certify-paid")
         await certifyStagePaidSettlement(facade,ORDER,BUYER);
       else if(url.pathname==="/preflight-paid")
         await assertStagePaidOrderNotWithdrawn(facade,
-          first?env.COVE_PAID_INITIAL_ORDER!:ORDER);
+          first?scopedOrder:ORDER);
       else if(url.pathname==="/authorize-initial" ||
         url.pathname==="/qa/epub-bytes" ||
         url.pathname==="/qa/audio-bytes" ||
@@ -300,12 +316,12 @@ export default {
               ON oi.id=e.order_item_id WHERE oi.order_id=?
               AND e.user_id=? AND e.product_id=? AND e.status='active'
               AND e.entitlement_type='purchase' AND e.source='commerce' LIMIT 2`
-        ).bind(env.COVE_PAID_INITIAL_ORDER!,env.COVE_PAID_INITIAL_BUYER!,PRODUCT)
+        ).bind(scopedOrder,env.COVE_PAID_INITIAL_BUYER!,scopedProduct)
           .all<{id:string}>();
         if(entitlement.results.length!==1)return new Response(null,{status:451,headers});
         await requireStagePaidEntitlementAccess(facade,{
           entitlementId:entitlement.results[0]!.id,
-          userId:env.COVE_PAID_INITIAL_BUYER!,productId:PRODUCT,
+          userId:env.COVE_PAID_INITIAL_BUYER!,productId:scopedProduct,
           territory:"US",channel:"retail"
         });
         // The next three paths are gated, expiring, bearer-authenticated

@@ -1,5 +1,9 @@
 /* eslint-disable prettier/prettier -- Exact isolated paid QA identity boundary regression. */
 import assert from "node:assert/strict";
+import {isPaidOwnerQaSchemaTable} from "./staging/paid-owner-schema-policy.mjs";
+assert.equal(isPaidOwnerQaSchemaTable("auth_accounts"),true);
+assert.equal(isPaidOwnerQaSchemaTable("auth_sessions"),false);
+assert.equal(isPaidOwnerQaSchemaTable("auth_tokens"),false);
 import {build} from "esbuild";
 import {mkdtempSync,rmSync} from "node:fs";
 import os from "node:os";
@@ -31,7 +35,9 @@ try{
     PRIMARY_DB:{prepare(sql){
       assert.match(sql,/SELECT e.id FROM entitlements e/);
       return {bind(...params){
-        assert.deepEqual(params.slice(0,2),[initialOrder,initialBuyer]);
+        assert.ok([initialOrder,"order_audio_qa_"+run].includes(params[0]));
+        assert.equal(params[1],initialBuyer);
+        assert.equal(params[2],params[0]===initialOrder?"prd_paid_qa_20261027":"prd_audio_qa_"+run);
         return {async all(){dbReads++;return {results:[]};}};
       }};
     }}
@@ -56,6 +62,9 @@ try{
   assert.equal(await probe(initialOrder,initialBuyer,{...env,COVE_PAID_INITIAL_BUYER:"user_initial_qa_40764579032-3"}),400,
     "A mixed deployment config must reject the buyer");
   assert.equal(dbReads,1,"Only the exact scoped unpaid buyer may reach D1");
+  assert.equal(await probe("order_audio_qa_"+run,initialBuyer),451,
+    "Independent audio order remains unpaid despite a valid ebook buyer scope");
+  assert.equal(dbReads,2);
   assert.equal(ownerCalls,0,"No unpaid or malformed buyer should reach the owner");
   console.log("PASS: real paid QA Worker rejects cross-run/buyer identities and denies attempt-scoped unpaid delivery");
 }finally{rmSync(dir,{recursive:true,force:true});}
