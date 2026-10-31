@@ -5,9 +5,8 @@ import {
 import { produceHomepagePresentation } from "./homepage-presentation.server";
 import type { StorefrontDB } from "./localization-optimized.server";
 
-// Capture is the only worker permitted to bind the authoritative catalog and
-// the independent presentation-source D1 at the same time. The publication
-// exporter below has no canonical DB binding.
+// Production capture has only the independent snapshot D1 and a bounded
+// private advisory reader. The direct source binding is for legacy QA.
 type CanonicalDB = StorefrontDB & {
   withSession(constraint: "first-unconstrained"): StorefrontDB;
 };

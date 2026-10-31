@@ -131,6 +131,9 @@ try {
   };
   const runId = "41206657552-9",
     buyerId = "user_initial_qa_" + runId;
+  // Match the hosted schema-only fixture too: territorial evidence cannot
+  // depend on an implicit trigger being installed on a legacy QA primary.
+  db.exec("DROP TRIGGER rights_grants_scope_legacy_insert");
   const audio = await provisionPaidAudioOrder(qaSql, {
     runId,
     buyerId,

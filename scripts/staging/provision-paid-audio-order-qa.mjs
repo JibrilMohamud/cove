@@ -103,6 +103,17 @@ export async function provisionPaidAudioOrder(qaSql, { runId, buyerId, evidenceS
     created_at: at,
     updated_at: at,
   });
+  // The remote schema-only QA bootstrap does not install legacy INSERT
+  // triggers. Materialize the exact approved US scope explicitly; never
+  // infer worldwide membership from the grant's legacy territory column.
+  await qaSql(
+    "INSERT OR IGNORE INTO rights_grant_territory_scopes(id,grant_id,effect,target_type,territory_code,position,created_at) VALUES(?,?,'include','territory','US',0,?)",
+    [id("territory_scope"), grantId, at],
+  );
+  await qaSql(
+    "INSERT OR IGNORE INTO rights_grant_territories(grant_id,territory_code,resolved_from,snapshotted_at) VALUES(?,'US','qa-original-audio',?)",
+    [grantId, at],
+  );
   const offer = (
     await qaSql("SELECT id FROM offers WHERE product_id=? AND active=1 LIMIT 1", [
       "prd_paid_qa_20261027",
