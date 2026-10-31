@@ -1466,7 +1466,7 @@
       "reason": "This exact action-qualified history INSERT (policy_pin or owner_opt_in) follows a separate canonical publishing_entitlement_version_pins write. Its static SQL cannot grant a version, reinstate an entitlement, alter legal authority or satisfy the preorder grant_pin-only idempotency predicate. scripts/check-nonauthorizing-owner-version-history.mjs executes both exact statements against revoked entitlement and pinned-version fixtures, scans all production history reads and protects the grant_pin authorizing writers. The separate version-pin mutations remain owner-command-required."
     },
     {
-      "siteId": "95c03485ebd066497d1eaa1ca687c3b4a0441c90dc65a12a62d8e7451cb83c4",
+      "siteId": "95c03485ebd066497d1eaa1ca687c3b4a0441c90dc65a12a62d8e7451cb83c4a",
       "file": "src/features/fore/publishing.server.ts",
       "line": 2869,
       "functionName": "ensureCatalogParties",
