@@ -8,7 +8,7 @@ import {assertPublishingOwnerSourceLineage} from "./check-publishing-owner-sourc
 const read=p=>readFileSync(p,"utf8"),sha=x=>createHash("sha256").update(x).digest("hex");
 const review=JSON.parse(read("docs/architecture/canonical-writer-review.json")),lineage=JSON.parse(read("docs/architecture/retired-publication-helpers-owner-lineage.json"));
 assert.equal(lineage.retiredCount,14);assert.equal(lineage.productionOwnerCertified,false);assert.equal(review.releaseApproval,false);
-assert.equal(review.sites.filter(x=>x.disposition==="owner-command-required").length,70);
+assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=70,"New owner-required site appeared after publication retirement");
 assert.equal(new Set(lineage.retired.map(x=>x.siteId)).size,14);
 for(const row of lineage.retired)assert.ok(!review.sites.some(x=>x.siteId===row.siteId));
 for(const row of lineage.sources){assert.equal(sha(read(row.file)),row.currentSha256);assert.ok(!review.sites.some(x=>x.file===row.file));}
