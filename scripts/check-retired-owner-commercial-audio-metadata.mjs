@@ -17,8 +17,9 @@ for(const row of lineage.rows)assert.ok(!review.sites.some(x=>x.siteId===row.sit
 for(const method of ["saveCommercialAudioProfile","replaceCommercialAudioNarrators","addNarrationAgreement","endNarrationAgreement"]){
   const start=src.indexOf("export async function "+method+"(");
   assert.ok(start>=0);
-  const next=src.indexOf("export async function ",start+20);
-  const body=src.slice(start,next<0?undefined:next);
+  const end=src.indexOf("\n}\n",start);
+  assert.ok(end>start);
+  const body=src.slice(start,end+3);
   assert.match(body,/dispatchCommercialAudioMetadata\(db,/);
   assert.doesNotMatch(body,/\b(?:INSERT INTO|UPDATE|DELETE FROM)\s+(commercial_audio|narration_agreement)/i);
 }
