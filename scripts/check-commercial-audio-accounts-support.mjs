@@ -66,7 +66,13 @@ for (const token of [
   "timing manifest checksum",
   "commercial_audio_qc_jobs",
 ])
-  assert.ok((["malwareClean","content checksum does not match"].includes(token) ? read("src/storefront-strangler/legal-authority.worker.ts") : audio).includes(token), `audio owner invariant missing ${token}`);
+  assert.ok(
+    (["malwareClean", "content checksum does not match"].includes(token)
+      ? read("src/storefront-strangler/legal-authority.worker.ts")
+      : audio
+    ).includes(token),
+    `audio owner invariant missing ${token}`,
+  );
 assert.match(audio, /quarantined/);
 assert.match(read("src/storefront-strangler/legal-authority.worker.ts"), /errors\.length\s*\?\s*[\"\']rejected[\"\']\s*:\s*[\"\']clean[\"\']/);
 const ownerAudio = read("src/storefront-strangler/legal-authority.worker.ts");
