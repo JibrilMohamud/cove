@@ -17639,6 +17639,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/publishing/editor-action",
       "/publishing/partner/private-action",
       "/rights/private-configuration",
+      "/delivery/private-negative",
       "/catalog/withdraw-stale",
       "/catalog/negative-source",
       "/moderation/private-action",
@@ -18342,6 +18343,101 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
             action:input.action,actorUserId:input.actorUserId,
             operationId:input.operationId,result},{headers:noStore});
         }finally{this.rightsConfigExecution=false;}
+      }
+      if(route==="/delivery/private-negative") {
+        const request=z.object({
+          action:z.enum(["revoke-grant","withdraw-version","restrict-policy"]),
+          payload:z.record(z.string(),z.unknown())
+        }).strict().parse(raw);
+        const db=env.PRIMARY_DB;
+        const payload=request.payload;
+        let result:unknown;
+        if(request.action==="revoke-grant"){
+          const x=z.object({userId:z.string().min(3).max(180),
+            grantId:z.string().min(3).max(180)}).strict().parse(payload);
+          const grant=await db.prepare(
+            "SELECT id,user_id,status FROM commercial_delivery_grants WHERE id=? AND user_id=?"
+          ).bind(x.grantId,x.userId).first<{id:string;user_id:string;status:string}>();
+          if(!grant)return new Response(null,{status:404,headers:noStore});
+          if(grant.status==="active")await db.prepare(
+            "UPDATE commercial_delivery_grants SET status='revoked',revoked_at=?,revocation_reason='customer_revoked' WHERE id=? AND user_id=? AND status='active'"
+          ).bind(now(),x.grantId,x.userId).run();
+          result={revoked:true};
+        }else{
+          const actor=z.object({actorUserId:z.string().min(3).max(180)});
+          const actorId=actor.parse(payload).actorUserId;
+          const staff=await db.prepare(
+            "SELECT user_id FROM staff_principals WHERE user_id=? AND status='active'"
+          ).bind(actorId).first<{user_id:string}>();
+          if(!staff)return new Response(null,{status:403,headers:noStore});
+          const perms=(await db.prepare(
+            "SELECT p.permission FROM staff_principal_roles pr JOIN staff_role_permissions p ON p.role_id=pr.role_id WHERE pr.user_id=?"
+          ).bind(actorId).all<{permission:string}>()).results.map(p=>p.permission);
+          if(!perms.includes("commerce.manage")&&!perms.includes("staff.manage"))
+            return new Response(null,{status:403,headers:noStore});
+          const at=now();
+          if(request.action==="withdraw-version"){
+            const x=z.object({actorUserId:z.string().min(3).max(180),
+              distribution:z.object({publicationVersionId:z.string().min(3).max(180),
+                status:z.enum(["blocked","recalled"]),allowExistingOwners:z.literal(false),
+                reasonCode:z.string().min(1).max(120),reasonDetail:z.string().max(2000)}).strict()
+            }).strict().parse(payload);
+            const d=x.distribution;
+            const pv=await db.prepare("SELECT id FROM publishing_publication_versions WHERE id=?")
+              .bind(d.publicationVersionId).first<{id:string}>();
+            if(!pv)return new Response(null,{status:404,headers:noStore});
+            const previous=await db.prepare(
+              "SELECT distribution_status FROM publication_version_distribution_controls WHERE publication_version_id=?"
+            ).bind(d.publicationVersionId).first<{distribution_status:string}>();
+            if(previous?.distribution_status==="recalled"&&d.status!=="recalled")
+              return new Response(null,{status:409,headers:noStore});
+            const eventBytes=new Uint8Array(await crypto.subtle.digest("SHA-256",
+              new TextEncoder().encode(JSON.stringify([actorId,d.publicationVersionId,d.status,d.reasonCode,d.reasonDetail]))));
+            const eventId="dist_"+Array.from(eventBytes,b=>b.toString(16).padStart(2,"0")).join("").slice(0,32);
+            await db.batch([
+              db.prepare("INSERT INTO publication_version_distribution_controls(publication_version_id,distribution_status,allow_existing_owners,reason_code,reason_detail,effective_at,updated_by,updated_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(publication_version_id) DO UPDATE SET distribution_status=excluded.distribution_status,allow_existing_owners=excluded.allow_existing_owners,reason_code=excluded.reason_code,reason_detail=excluded.reason_detail,effective_at=excluded.effective_at,updated_by=excluded.updated_by,updated_at=excluded.updated_at")
+                .bind(d.publicationVersionId,d.status,0,d.reasonCode,d.reasonDetail,at,actorId,at),
+              db.prepare("INSERT OR IGNORE INTO publication_version_distribution_events(id,publication_version_id,from_status,to_status,allow_existing_owners,reason_code,reason_detail,actor_user_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)")
+                .bind(eventId,d.publicationVersionId,previous?.distribution_status||null,d.status,0,d.reasonCode,d.reasonDetail,actorId,at),
+              db.prepare("UPDATE commercial_delivery_grants SET status='revoked',revoked_at=?,revocation_reason=? WHERE publication_version_id=? AND status='active'")
+                .bind(at,`distribution_${d.status}`,d.publicationVersionId)
+            ]);
+            result={saved:true};
+          }else{
+            const x=z.object({actorUserId:z.string().min(3).max(180),
+              policy:z.object({productId:z.string().min(3).max(180),
+                requireDeviceRegistration:z.boolean(),maxActiveDevices:z.number().int().min(1).max(100),
+                maxDownloadsPerEntitlement:z.number().int().min(1).max(100000),
+                tokenTtlSeconds:z.number().int().min(30).max(3600),
+                tokenMaxUses:z.number().int().min(1).max(20),
+                watermarkMode:z.enum(["none","license_marker"]),
+                encryptionMode:z.enum(["none","external_wrapped_key"]),
+                allowBrowserRead:z.boolean(),allowFileDownload:z.boolean()}).strict()
+            }).strict().parse(payload);
+            const p=x.policy;
+            const exists=await db.prepare("SELECT id FROM products WHERE id=?")
+              .bind(p.productId).first<{id:string}>();
+            if(!exists)return new Response(null,{status:404,headers:noStore});
+            const old=await db.prepare("SELECT * FROM commercial_delivery_policies WHERE product_id=?")
+              .bind(p.productId).first<Record<string,unknown>>();
+            // Positive relaxation and turning on public delivery need a fresh,
+            // independently established paid-rights grant. Never derive it
+            // from the staff request or an older policy snapshot.
+            if(p.allowBrowserRead||p.allowFileDownload||!p.requireDeviceRegistration||
+              p.maxActiveDevices>Number(old?.max_active_devices??6)||
+              p.maxDownloadsPerEntitlement>Number(old?.max_downloads_per_entitlement??50)||
+              p.tokenTtlSeconds>Number(old?.token_ttl_seconds??300)||
+              p.tokenMaxUses>Number(old?.token_max_uses??2)||
+              (old?.watermark_mode==="license_marker"&&p.watermarkMode!=="license_marker")||
+              (old?.encryption_mode==="external_wrapped_key"&&p.encryptionMode!=="external_wrapped_key"))
+              return new Response(null,{status:409,headers:noStore});
+            await db.prepare("INSERT INTO commercial_delivery_policies(product_id,require_device_registration,max_active_devices,max_downloads_per_entitlement,token_ttl_seconds,token_max_uses,watermark_mode,encryption_mode,allow_browser_read,allow_file_download,updated_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(product_id) DO UPDATE SET require_device_registration=excluded.require_device_registration,max_active_devices=excluded.max_active_devices,max_downloads_per_entitlement=excluded.max_downloads_per_entitlement,token_ttl_seconds=excluded.token_ttl_seconds,token_max_uses=excluded.token_max_uses,watermark_mode=excluded.watermark_mode,encryption_mode=excluded.encryption_mode,allow_browser_read=excluded.allow_browser_read,allow_file_download=excluded.allow_file_download,updated_by=excluded.updated_by,updated_at=excluded.updated_at")
+              .bind(p.productId,1,p.maxActiveDevices,p.maxDownloadsPerEntitlement,p.tokenTtlSeconds,p.tokenMaxUses,p.watermarkMode,p.encryptionMode,0,0,actorId,at,at).run();
+            result={saved:true,productId:p.productId,policy:p};
+          }
+        }
+        return Response.json({schema:"cove.owner-negative-delivery-qa.v1",ownerFirst:true,
+          action:request.action,result},{headers:noStore});
       }
       if(route==="/catalog/withdraw-stale") {
         const x=z.object({
