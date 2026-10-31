@@ -3,6 +3,7 @@ import { scopePublicationOwnerEnv } from "./storefront-strangler/publication-own
 import { scopeExclusiveCanonicalD1 } from "./storefront-strangler/canonical-d1-write-fence";
 import { scopeCommerceProductionD1 } from "./storefront-strangler/commerce-d1-write-fence";
 import { backendScheduledPrimaryReadDb } from "./storefront-strangler/backend-scheduled-primary-reads";
+import { verifyIndependentBackendCredential } from "./storefront-strangler/backend-independent-credential";
 import {
   backendReadonlyCandidateRouteAllowed,
   scopeBackendReadonlyCandidate,
@@ -64,6 +65,7 @@ type BackendEnv = CoveEnv &
     COVE_COMMERCE_OWNER_D1_FENCE?: string;
     FORE_BACKEND_TOKEN?: string;
     FORE_BACKEND_TOKEN_SHA256?: string;
+    COVE_BACKEND_TOKEN_HASH_ONLY?: string;
     FORE_PUBLIC_URL?: string;
     FORE_CATALOG_PAGES_PER_TICK?: string;
     FORE_CATALOG_EPUBS_PER_TICK?: string;
@@ -127,6 +129,11 @@ async function backendTokenHash(env: BackendEnv) {
 }
 
 async function authorized(request: Request, env: BackendEnv) {
+  // A deliberate no-D1 cutover must be independent of the legacy gateway
+  // token stored in cove_runtime_config. Never attempt fallback on failure.
+  if (env.COVE_BACKEND_TOKEN_HASH_ONLY !== undefined)
+    return verifyIndependentBackendCredential(request, env);
+
   const supplied = request.headers.get("x-cove-backend-token") || "";
   if (supplied.length < 24) return false;
 
