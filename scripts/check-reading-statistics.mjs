@@ -26,7 +26,12 @@ export {bindPublicationOwner,hasPublicationOwner,dispatchVerifiedFreeLibraryEnti
     outfile: path.join(root, "api.mjs"),
     logLevel: "silent",
   });
-  const { handleCoveApi, bindPublicationOwner, hasPublicationOwner, dispatchVerifiedFreeLibraryEntitlement } = await import(path.join(root, "api.mjs"));
+  const {
+    handleCoveApi,
+    bindPublicationOwner,
+    hasPublicationOwner,
+    dispatchVerifiedFreeLibraryEntitlement,
+  } = await import(path.join(root, "api.mjs"));
   let env = localBindings(root);
   const db = env.DB,
     alice = "statistics-alice",
@@ -82,28 +87,43 @@ export {bindPublicationOwner,hasPublicationOwner,dispatchVerifiedFreeLibraryEnti
         claim.userId !== alice ||
         claim.productId !== String(product.id) ||
         claim.territory !== "US"
-      ) return new Response(null, { status: 409 });
-      const persisted = await db.prepare(
-        "SELECT id FROM products WHERE id=? AND source_name='gutenberg' AND source_external_id='1342'"
-      ).bind(claim.productId).first();
+      )
+        return new Response(null, { status: 409 });
+      const persisted = await db
+        .prepare(
+          "SELECT id FROM products WHERE id=? AND source_name='gutenberg' AND source_external_id='1342'",
+        )
+        .bind(claim.productId)
+        .first();
       if (!persisted) return new Response(null, { status: 409 });
       return Response.json({
         schema: "cove.owner-free-library-entitlement.v1",
-        ownerFirst: true, saved: true,
-        userId: claim.userId, productId: claim.productId,
+        ownerFirst: true,
+        saved: true,
+        userId: claim.userId,
+        productId: claim.productId,
       });
     },
   };
   env = {
     ...env,
     DB: bindPublicationOwner(db, {
-      owner, secret: ownerSecret, territory: "US", currency: "USD",
+      owner,
+      secret: ownerSecret,
+      territory: "US",
+      currency: "USD",
     }),
   };
 
-  assert.equal(hasPublicationOwner(env.DB),true,"Synthetic private legal owner must be bound to exactly this D1 facade");
-  await dispatchVerifiedFreeLibraryEntitlement(env.DB,{
-    userId:alice,productId:String(product.id),territory:"US"
+  assert.equal(
+    hasPublicationOwner(env.DB),
+    true,
+    "Synthetic private legal owner must be bound to exactly this D1 facade",
+  );
+  await dispatchVerifiedFreeLibraryEntitlement(env.DB, {
+    userId: alice,
+    productId: String(product.id),
+    territory: "US",
   });
   const metrics = await request(alice, "/metrics", "PUT", {
     bookId: product.public_id,
