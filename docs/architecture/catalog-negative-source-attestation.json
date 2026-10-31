@@ -2,12 +2,12 @@
   "schema": "cove.canonical-writer-source-attestation.v1",
   "releaseApproval": false,
   "retirementEvidence": "docs/architecture/retired-catalog-negative-owner-lineage.json",
-  "rationale": "Independently reviewed the complete catalog API diff against the predecessor commit df1a54da5b18dc8b3ea442691d3694fa2fb67833. The only removed canonical SQL literals are seven negative-only source quarantine, stale-catalog withdrawal and bad-US-EPUB retry operations, now implemented as exact fixed commands in the private legal owner. All twenty-six surviving original SQL sites in the API file retain their exact table, operation, SQL string, function and disposition, and have been re-fingerprinted to this newly reviewed source SHA. The owner verifies independent active regional ingestion leases and run identities before atomic deny-first source, product, offer, edition and rights-grant withdrawal; production owner and positive rights remain locked.",
+  "rationale": "Independently reviewed the complete catalog API diff against the predecessor commit df1a54da5b18dc8b3ea442691d3694fa2fb67833. The only removed canonical SQL literals are seven negative-only source quarantine, stale-catalog withdrawal and bad-US-EPUB retry operations, now implemented as exact fixed commands in the private legal owner. All twenty-six surviving original SQL sites in the API file retain their exact table, operation, SQL string, function and disposition, and have been re-fingerprinted to this newly reviewed source SHA. The owner verifies independent active regional ingestion leases and run identities before atomic deny-first source, product, offer, edition and rights-grant withdrawal; production owner and positive rights remain locked. Final security-lint corrections only format the catalog API import and owner call; no SQL or business-logic changes.",
   "files": [
     {
       "path": "src/features/fore/api.server.ts",
-      "sha256": "9a1b1e85893e51ccaa1a630e4e75f1e30ace67eff2334beb04b36c3238a80dec",
-      "review": "Compared every remaining API site to the predecessor SQL literal, validated identical SQL and containing function and recomputed all twenty-six site identities against the new full source SHA; seven removed sites have explicit immutable lineage."
+      "sha256": "f412a0a8255986ed45749405c097fd69a7dcb318e3605f459d2775668bafefa3",
+      "review": "Compared every remaining API site to the predecessor SQL literal, validated identical SQL and containing function and recomputed all twenty-six site identities against the new full source SHA; seven removed sites have explicit immutable lineage. Final formatting-only revision preserves every remaining SQL literal, function and disposition; SHA-256 and all site IDs rechecked."
     }
   ]
 }
