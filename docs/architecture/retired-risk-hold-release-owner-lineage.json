@@ -1,0 +1,35 @@
+{
+  "schema": "cove.retired-risk-hold-release-owner-lineage.v1",
+  "releaseApproval": false,
+  "productionCertified": false,
+  "sourceBefore": 14,
+  "sourceAfter": 13,
+  "sourceFile": "src/features/fore/risk-tax.server.ts",
+  "previousSha256": "0dde93b70179c00fecfdbe64a17351023ea9735b2579f39fb1f5ea50255bb981",
+  "currentSha256": "9c37e66c2c23a5f9adcc2b455a3bebafba89304184319637348b86353698eb0b",
+  "apiSha256": "ee6fa312b61027b1de0c21618da2989f02dd3cf5cbbb1a7402b504657e109bfe",
+  "retired": [
+    {
+      "siteId": "ab7c6572ef188556fe2334c7c58d07eb5b9932d8633445a84d16afede2b60229",
+      "file": "src/features/fore/risk-tax.server.ts",
+      "line": 819,
+      "functionName": "releaseRiskHold",
+      "table": "risk_holds",
+      "operation": "UPDATE",
+      "sqlSha256": "fc4b8c2124d91e919e058790fe0b0412639e36b9a40409921f7072d0302e0f47",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "risk-tax.releaseRiskHold",
+      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
+    }
+  ],
+  "privateCommand": "risk.release-hold",
+  "privateRoute": "/risk/private-release-hold",
+  "proofs": [
+    "Requires private owner and fresh independent active staff principal, permission, SSO identity and MFA check",
+    "Private owner re-evaluates payout risk from canonical policy and financial inputs; cannot release held or blocked payout",
+    "Payout reactivation repeats royalty-allocation holds, verified tax/payout status and risk-score restrictions",
+    "Nonpayout release checks the latest persisted assessment is not hold/block",
+    "Primary conditional hold release, safe idempotent retry and risk-case event; no production binding enabled"
+  ]
+}

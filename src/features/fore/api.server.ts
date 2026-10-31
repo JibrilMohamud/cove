@@ -3559,7 +3559,7 @@ async function handleCoveRequest(
       }
       if (request.method === "POST" && path === "/admin/risk/hold/release") {
         const staff = await requireStaffPermission(db, who, "risk.hold.manage");
-        return json(await releaseRiskHold(db, staff.userId, await body(request)));
+        return json(await releaseRiskHold(db, staff.userId, await body(request), who));
       }
       if (request.method === "POST" && path === "/admin/risk/link") {
         await requireStaffPermission(db, who, "risk.link.manage");

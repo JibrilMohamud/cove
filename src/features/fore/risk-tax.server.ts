@@ -1,6 +1,7 @@
 import {
   dispatchPrivateRiskHold,
   dispatchPrivateRiskAssessmentUpdate,
+  dispatchPrivateRiskHoldRelease,
 } from "../../storefront-strangler/publication-owner-routing.server";
 import { z } from "zod/v3";
 import { ApiError } from "./service";
@@ -798,50 +799,22 @@ export async function assessPayoutRisk(db: CatalogDB, payoutItemId: string) {
   return a;
 }
 
-export async function releaseRiskHold(db: CatalogDB, staffUserId: string, raw: unknown) {
-  const x = z
-      .object({ holdId: z.string().min(1), note: z.string().trim().min(3).max(4000) })
-      .parse(raw),
-    h = await db.prepare("SELECT * FROM risk_holds WHERE id=?").bind(x.holdId).first<any>();
-  if (!h) throw new ApiError(404, "Risk hold not found.");
-  if (h.status !== "active") return { id: h.id, status: h.status };
-  if (h.hold_scope === "payout" && h.subject_type === "payout_item") {
-    const reassessment = await assessPayoutRisk(db, String(h.subject_id));
-    if (["hold", "block"].includes(reassessment.action))
-      throw new ApiError(
-        409,
-        "This payout still fails fraud, tax, payout-verification, or rights controls and cannot be released.",
-      );
-  }
-  const at = now();
-  await db
-    .prepare(
-      "UPDATE risk_holds SET status='released',released_at=?,released_by_user_id=?,release_note=? WHERE id=?",
-    )
-    .bind(at, staffUserId, x.note, h.id)
-    .run();
-  if (h.hold_scope === "payout" && h.subject_type === "payout_item")
-    await db
-      .prepare(
-        "UPDATE payout_items SET status='pending',hold_reason_code='' WHERE id=? AND status='held'",
-      )
-      .bind(h.subject_id)
-      .run();
-  await db
-    .prepare(
-      "INSERT INTO risk_case_events(id,case_id,event_type,actor_type,actor_user_id,payload_json,created_at) SELECT ?,id,'hold_released','staff',?,?,? FROM risk_cases WHERE domain=? AND subject_type=? AND subject_id=? AND status NOT IN ('resolved','closed') ORDER BY opened_at DESC LIMIT 1",
-    )
-    .bind(
-      uid("risk_ce"),
-      staffUserId,
-      JSON.stringify({ holdId: h.id, note: x.note }),
-      at,
-      h.domain,
-      h.subject_type,
-      h.subject_id,
-    )
-    .run();
-  return { id: h.id, status: "released" };
+/** Risk holds are never released from shared D1. A private, independently
+ * authenticated owner must re-evaluate risk and atomically commit the release. */
+export async function releaseRiskHold(
+  db:CatalogDB,staffUserId:string,raw:unknown,
+  identity?:{id:string;authProvider?:string;authSubject?:string;aal?:"aal1"|"aal2"|null}|null,
+){
+  const x=z.object({holdId:z.string().min(3).max(180),
+    note:z.string().trim().min(3).max(4000)}).strict().parse(raw);
+  if(!identity||identity.id!==staffUserId||!identity.authProvider||
+     !identity.authSubject||!["aal1","aal2"].includes(identity.aal||""))
+    throw new ApiError(503,"Risk hold release requires verified staff authority.");
+  return dispatchPrivateRiskHoldRelease(db,{
+    holdId:x.holdId,note:x.note,
+    actor:{userId:staffUserId,authProvider:identity.authProvider,
+      authSubject:identity.authSubject,aal:identity.aal as "aal1"|"aal2"}
+  });
 }
 
 export async function manageRiskCase(db: CatalogDB, staffUserId: string, raw: unknown) {
