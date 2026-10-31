@@ -30,7 +30,6 @@ import {
 import {ownerContractVersionSchema} from "./owner-contract-version-schema";
 import {ApiError,now} from "../features/fore/service";
 import {recordAction,assertScope,sha256} from "../features/fore/support.server";
-import {refundOrder} from "../features/fore/commerce.server";
 import type {StaffContext} from "../features/fore/moderation.server";
 import {mirrorPublishingMalwareResult} from "../features/fore/security.server";
 import {createContractVersionOwnerSchema,executeOwnerContractVersion} from "./owner-contract-version-executor";
@@ -4280,6 +4279,7 @@ async function executeSupportActionOwned(
   permission: (p: string) => boolean,
   raw: unknown,
   ownerSql:AuthoritySql,
+  ownerTransaction:(fn:()=>ReturnType<typeof denyPaidEntitlement>)=>ReturnType<typeof denyPaidEntitlement>,
 ) {
   const x = z
       .object({
@@ -4324,30 +4324,7 @@ async function executeSupportActionOwned(
   if (x.actionType === "resend_receipt" && !permission("support.receipt.resend"))
     throw new ApiError(403, "Staff permission required: support.receipt.resend.");
   if (x.actionType === "refund") {
-    throw new ApiError(503,"Owner-backed support refunds await independently verified live settlement and provider proof.");
-    const before = await db
-      .prepare(
-        "SELECT id,status,total_minor,refunded_minor,currency,user_id FROM commerce_orders WHERE id=?",
-      )
-      .bind(x.targetId)
-      .first<any>();
-    if (!before) throw new ApiError(404, "Order not found.");
-    assertScope(c, before.id, "order");
-    assertScope(c, before.user_id, "user");
-    const result = await refundOrder(env, {
-      orderId: x.targetId,
-      amountMinor: x.amountMinor,
-      reason: x.reasonCode,
-      idempotencyKey: `support:${x.idempotencyKey}`,
-    });
-    return recordAction(
-      db,
-      staff,
-      { ...x, targetType: "order" },
-      before,
-      result,
-      result.providerRefundId || "",
-    );
+    throw new ApiError(503,"Provider-backed support refunds are not independently certified.");
   }
   if (x.actionType === "resend_receipt") {
     const order = await db
@@ -4412,10 +4389,10 @@ async function executeSupportActionOwned(
     if (!/^prd_(?!gutenberg_)[a-zA-Z0-9_-]{3,120}$/.test(String(before.product_id)))
       throw new ApiError(503,"No strong owner authority for this entitlement class.");
     const operationId = "support-entitlement:"+(await sha256(x.idempotencyKey));
-    const outcome=denyPaidEntitlement(ownerSql,{
+    const outcome=ownerTransaction(()=>denyPaidEntitlement(ownerSql,{
       entitlementId:String(before.id),userId:String(before.user_id),
       productId:String(before.product_id),operationId
-    });
+    }));
     if (!outcome.applied) throw new ApiError(409,"An owner revocation superseded this action.");
     await db.batch([
       db.prepare("UPDATE entitlements SET status='revoked',updated_at=? WHERE id=? AND status<>'revoked'")
@@ -5610,7 +5587,10 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         const result=previous||await executeSupportActionOwned(
           {DB:env.PRIMARY_DB,COVE_SSR_STAGING:"1"} as unknown as CoveEnv,
           {userId:input.staffUserId} as StaffContext,
-          p=>perms.includes(p),input.action,sql
+          p=>perms.includes(p),input.action,sql,
+          fn=>(this.ctx.storage as typeof this.ctx.storage & {
+            transactionSync<T>(fn:()=>T):T
+          }).transactionSync(fn)
         );
         return Response.json({
           schema:"cove.owner-support-action.v1",ownerFirst:true,
