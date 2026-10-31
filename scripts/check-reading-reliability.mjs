@@ -10,7 +10,10 @@ const fetchBefore = globalThis.fetch;
 try {
   fs.cpSync("drizzle", path.join(root, "drizzle"), { recursive: true });
   await build({
-    entryPoints: ["api.server", "stored-epub.server"].map((n) => `src/features/fore/${n}.ts`),
+    entryPoints: ["api.server", "stored-epub.server"].map((n) => `src/features/fore/${n}.ts`)
+      .concat(["src/storefront-strangler/publication-owner-routing.server.ts"]),
+    splitting: true,
+    entryNames: "[name]",
     bundle: true,
     platform: "node",
     format: "esm",
@@ -20,8 +23,8 @@ try {
   });
   const { handleCoveApi } = await import(path.join(root, "api.server.mjs"));
   const { validateStoredEpub } = await import(path.join(root, "stored-epub.server.mjs"));
-  const env = localBindings(root),
-    db = env.DB;
+  let env = localBindings(root);
+  const db = env.DB;
   const request = (route) => handleCoveApi(new Request("https://cove.test/api/fore" + route), env);
   await request("/catalog");
   const zip = new JSZip();
@@ -41,6 +44,45 @@ try {
   const bytes = await zip.generateAsync({ type: "uint8array" });
   await validateStoredEpub(bytes);
   zip.file("chapter.xhtml", "<html><body><p>broken</body></html>");
+  // Ownerless production code must deny cache mutations. This separate,
+  // test-only private transport exercises the full bounded R2 verification
+  // and guarded write contract against isolated SQLite.
+  const { bindPublicationOwner } = await import(
+    path.join(root, "publication-owner-routing.server.mjs")
+  );
+  const secret = "a".repeat(64);
+  const owner = {async fetch(request) {
+    assert.equal(request.method,"POST");
+    assert.equal(new URL(request.url).pathname,"/catalog/verified-us-epub-cache");
+    assert.equal(request.headers.get("authorization"),"Bearer "+secret);
+    const {cacheId,assetVersionId,sha256} = await request.json();
+    assert.equal(cacheId,"1342");
+    const source = await db.prepare(
+      "SELECT c.id FROM gutenberg_source_cache c JOIN products p ON p.source_external_id=c.id AND p.source_name='gutenberg' JOIN digital_assets da ON da.edition_id=p.edition_id AND da.kind='epub' JOIN asset_versions av ON av.asset_id=da.id WHERE c.id=? AND av.id=? AND c.source_id='pg_us' AND c.copyright=0 AND c.rights_status='public-domain' AND c.commercial_use_status='approved' AND c.ingest_status='active'"
+    ).bind(cacheId,assetVersionId).first();
+    if(!source)return new Response(null,{status:409});
+    const obj=await env.BUCKET.get("epubs/"+cacheId+".epub");
+    if(!obj||obj.size>25*1024*1024)return new Response(null,{status:409});
+    const stored=new Uint8Array(await obj.arrayBuffer());
+    await validateStoredEpub(stored);
+    const digest=await crypto.subtle.digest("SHA-256",stored);
+    const actual=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,"0")).join("");
+    if(actual!==sha256)return new Response(null,{status:409});
+    const at=new Date().toISOString();
+    await db.batch([
+      db.prepare(
+        "UPDATE gutenberg_source_cache SET epub_status='completed',epub_cached_at=?,epub_last_error='',epub_next_attempt_at='',content_hash=?,canonicalization_version='pgus-upstream-v1' WHERE id=? AND source_id='pg_us' AND copyright=0 AND rights_status='public-domain' AND commercial_use_status='approved' AND ingest_status='active'"
+      ).bind(at,sha256,cacheId),
+      db.prepare(
+        "UPDATE asset_versions SET object_key=?,sha256=? WHERE id=? AND EXISTS(SELECT 1 FROM digital_assets da JOIN products p ON p.edition_id=da.edition_id JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE da.id=asset_versions.asset_id AND da.kind='epub' AND p.source_name='gutenberg' AND c.id=? AND c.source_id='pg_us' AND c.copyright=0 AND c.rights_status='public-domain' AND c.commercial_use_status='approved' AND c.ingest_status='active')"
+      ).bind("epubs/"+cacheId+".epub",sha256,assetVersionId,cacheId)
+    ]);
+    return Response.json({schema:"cove.owner-us-epub-cache.v1",ownerFirst:true,
+      cacheId,assetVersionId,sha256,saved:true});
+  }};
+  env = {...env,DB:bindPublicationOwner(db,{
+    owner,secret,territory:"US",currency:"USD"
+  })};
   const bad = await zip.generateAsync({ type: "uint8array" });
   await assert.rejects(() => validateStoredEpub(bad), /Invalid EPUB XML/);
   let upstream = bytes,
