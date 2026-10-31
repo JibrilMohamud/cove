@@ -1,3 +1,4 @@
+import { syntheticCatalogIngestOwner } from "./test-synthetic-catalog-ingest-owner.mjs";
 import JSZip from "jszip";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -5,7 +6,6 @@ import os from "node:os";
 import path from "node:path";
 import { build } from "esbuild";
 import { localBindings } from "./local-api.mjs";
-import {respondQaPrivateIngestState} from "./staging/qa-private-ingest-state-fixture.mjs";
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "cove-coverage-"));
 const fetchBefore = globalThis.fetch;
 try {
@@ -122,12 +122,9 @@ try {
   );
   const rawEnv = env;
   const secret = "a".repeat(64);
-  const owner = {
-    async fetch(request) {
+  const normalizeOwner = async (request) => {
       assert.equal(request.method, "POST");
-      const pathname=new URL(request.url).pathname;
-      if(pathname==="/catalog/private-ingest-state")return respondQaPrivateIngestState(rawEnv.DB,request);
-      assert.equal(pathname, "/catalog/normalize-gutenberg");
+      assert.equal(new URL(request.url).pathname, "/catalog/normalize-gutenberg");
       assert.equal(request.headers.get("authorization"), "Bearer " + secret);
       const { sourceId, operationId } = await request.json();
       assert.match(sourceId, /^9900[0-9]{2}$/);
@@ -161,8 +158,8 @@ try {
         operationId,
         applied: true,
       });
-    },
   };
+  const owner = syntheticCatalogIngestOwner(rawEnv.DB, secret, normalizeOwner);
   env = {
     ...rawEnv,
     DB: bindPublicationOwner(rawEnv.DB, {

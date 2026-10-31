@@ -1,4 +1,5 @@
 /* eslint-disable prettier/prettier -- Private legal-authority boundary is security-sensitive. */
+import {validateStoredEpub} from "../features/fore/stored-epub.server";
 import JSZip from "jszip";
 import {recordAccountSecurityEvent} from "../features/fore/account-management.server";
 import {eraseProviderIdentity} from "../features/fore/account-erasure.server";
@@ -17641,6 +17642,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/rights/private-configuration",
       "/catalog/observe-us",
       "/catalog/regional-state",
+      "/catalog/verified-us-epub-cache",
       "/catalog/private-ingest-state",
       "/delivery/private-negative",
       "/catalog/withdraw-stale",
@@ -18517,6 +18519,47 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         }
         return Response.json({schema:"cove.owner-regional-state.v1",ownerFirst:true,
           sourceId:input.sourceId,runId:input.runId,action:input.action,acquired:true},{headers:noStore});
+      }
+      if(route==="/catalog/verified-us-epub-cache"){
+        const input=z.object({
+          cacheId:z.string().regex(/^[0-9]{1,10}$/),
+          assetVersionId:z.string().min(3).max(180),
+          sha256:z.string().regex(/^[a-f0-9]{64}$/)
+        }).strict().parse(raw);
+        const db=env.PRIMARY_DB;
+        if(!env.BUCKET)return new Response(null,{status:503,headers:noStore});
+        const checked=await db.prepare(
+          "SELECT av.object_key FROM gutenberg_source_cache c JOIN products p ON p.source_name='gutenberg' AND p.source_external_id=c.id JOIN digital_assets da ON da.edition_id=p.edition_id AND da.kind='epub' JOIN asset_versions av ON av.asset_id=da.id WHERE c.id=? AND av.id=? AND c.source_id='pg_us' AND c.copyright=0 AND c.rights_status='public-domain' AND c.commercial_use_status='approved' AND c.ingest_status='active' LIMIT 1"
+        ).bind(input.cacheId,input.assetVersionId).first<{object_key:string|null}>();
+        if(!checked)return new Response(null,{status:409,headers:noStore});
+        const objectKey=checked.object_key||("epubs/"+input.cacheId+".epub");
+        if(!/^epubs\/[a-zA-Z0-9_./-]{1,220}\.epub$/.test(objectKey)||
+           objectKey.includes("..")||!objectKey.startsWith("epubs/"))
+          return new Response(null,{status:409,headers:noStore});
+        const object=await env.BUCKET.get(objectKey);
+        if(!object||!Number.isSafeInteger(object.size)||object.size<100||
+           object.size>25*1024*1024)return new Response(null,{status:409,headers:noStore});
+        const bytes=new Uint8Array(await object.arrayBuffer());
+        if(bytes.byteLength!==object.size)return new Response(null,{status:409,headers:noStore});
+        await validateStoredEpub(bytes);
+        const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",bytes));
+        const actual=Array.from(digest,x=>x.toString(16).padStart(2,"0")).join("");
+        if(actual!==input.sha256)return new Response(null,{status:409,headers:noStore});
+        const at=now();
+        // A primary-D1 batch; both statements independently preserve source
+        // rights and exact asset linkage after any intervening withdrawal.
+        const result=await db.batch([
+          db.prepare("UPDATE gutenberg_source_cache SET epub_status='completed',epub_cached_at=?,epub_last_error='',epub_next_attempt_at='',content_hash=?,canonicalization_version='pgus-upstream-v1' WHERE id=? AND source_id='pg_us' AND copyright=0 AND rights_status='public-domain' AND commercial_use_status='approved' AND ingest_status='active'")
+            .bind(at,input.sha256,input.cacheId),
+          db.prepare("UPDATE asset_versions SET object_key=?,sha256=? WHERE id=? AND EXISTS(SELECT 1 FROM digital_assets da JOIN products p ON p.edition_id=da.edition_id JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE da.id=asset_versions.asset_id AND da.kind='epub' AND p.source_name='gutenberg' AND c.id=? AND c.source_id='pg_us' AND c.copyright=0 AND c.rights_status='public-domain' AND c.commercial_use_status='approved' AND c.ingest_status='active')")
+            .bind(objectKey,input.sha256,input.assetVersionId,input.cacheId)
+        ]);
+        const outcomes=result as Array<{meta?:{changes?:number}}>;
+        if(outcomes.some(x=>Number(x.meta?.changes||0)!==1))
+          return new Response(null,{status:409,headers:noStore});
+        return Response.json({schema:"cove.owner-us-epub-cache.v1",ownerFirst:true,
+          cacheId:input.cacheId,assetVersionId:input.assetVersionId,
+          sha256:input.sha256,saved:true},{headers:noStore});
       }
       if(route==="/catalog/private-ingest-state") {
         const input=z.object({

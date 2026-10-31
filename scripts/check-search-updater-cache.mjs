@@ -1,10 +1,10 @@
+import { syntheticCatalogIngestOwner } from "./test-synthetic-catalog-ingest-owner.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { build } from "esbuild";
 import { localBindings } from "./local-api.mjs";
-import {respondQaPrivateIngestState,respondQaRegionalCheckpoint} from "./staging/qa-private-ingest-state-fixture.mjs";
 
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "cove-search-"));
 const originalFetch = globalThis.fetch;
@@ -22,7 +22,6 @@ try {
     ],
     entryNames: "[name]",
     bundle: true,
-    splitting: true,
     platform: "node",
     format: "esm",
     outdir: scratch,
@@ -106,6 +105,17 @@ try {
     "SELECT COUNT(*) n FROM products WHERE id LIKE 'prd_gutenberg_9000%'",
   ).first();
   assert.equal(fixtureCount.n, 28, "only the local fixture adds 28 synthetic catalog rows");
+  // A synthetic, strictly local owner exercises the ingestion state machine.
+  // Missing production owner bindings still fail closed in the earlier test.
+  const { bindPublicationOwner } = await import(
+    path.join(scratch, "publication-owner-routing.server.mjs")
+  );
+  const rawEnv = env;
+  const secret = "a".repeat(64);
+  env = {...rawEnv,DB:bindPublicationOwner(rawEnv.DB,{
+    owner:syntheticCatalogIngestOwner(rawEnv.DB,secret),
+    secret,territory:"US",currency:"USD"
+  })};
   // Exercise real parsed aliases and real rights-filtered queries, not only
   // cache-key helpers. Newest is normalized to released (a FILTER, not just order).
   assert.equal(input("sort=newest").sort, "released");
@@ -614,24 +624,6 @@ try {
     (error) => error.retryAfterMs === 3600000,
   );
   assert.equal(retryCalls, 1, "long upstream retry windows must yield to the durable scheduler");
-  // The browsing/normalization tests above deliberately ran without an owner.
-  // These isolated asset-throughput cases need the typed owner transport; never
-  // bypass fail-closed ingestion in production to satisfy a local fixture.
-  const rawAssetEnv=env;
-  const {bindPublicationOwner}=await import(path.join(scratch,"publication-owner-routing.server.mjs"));
-  const assetSecret="b".repeat(64);
-  const assetOwner={async fetch(request){
-    assert.equal(request.headers.get("authorization"),"Bearer "+assetSecret);
-    const pathname=new URL(request.url).pathname;
-    if(pathname==="/catalog/private-ingest-state")
-      return respondQaPrivateIngestState(rawAssetEnv.DB,request);
-    if(pathname==="/catalog/regional-state")
-      return respondQaRegionalCheckpoint(rawAssetEnv.DB,request);
-    return new Response(null,{status:409});
-  }};
-  env={...rawAssetEnv,DB:bindPublicationOwner(rawAssetEnv.DB,{
-    owner:assetOwner,secret:assetSecret,territory:"US",currency:"USD"
-  })};
   // Strict two-download ticks must rotate fairly across three enabled backlogged sources.
   await env.DB.prepare(
     "UPDATE gutenberg_sources SET enabled=1 WHERE id IN ('pg_us','pg_ca','pg_au')",
@@ -723,20 +715,20 @@ try {
   // A failed asset stage must leave successful metadata/cursor state intact.
   const assetFailureEnv = {
     ...env,
-    DB: bindPublicationOwner(rawAssetEnv.DB,{
-      owner:{async fetch(request){
-        if(new URL(request.url).pathname==="/catalog/private-ingest-state")
-          return new Response(null,{status:503});
-        return assetOwner.fetch(request);
-      }},
-      secret:assetSecret,territory:"US",currency:"USD"
-    }),
+    DB: {
+      ...env.DB,
+      prepare(sql) {
+        if (sql.includes("Recovered after an interrupted EPUB download"))
+          throw new Error("fixture asset storage outage");
+        return env.DB.prepare(sql);
+      },
+    },
   };
   globalThis.fetch = async () => Response.json({ results: [], next: null, count: 0 });
   const committed = await api.runCatalogIngestion(assetFailureEnv, 2, { includeRegional: false });
   assert.equal(committed.failed, undefined);
   assert.equal(committed.complete, true);
-  assert.match(committed.epubs.error, /Private ingestion owner refused the state transition/);
+  assert.match(committed.epubs.error, /fixture asset storage outage/);
   const committedState = await env.DB.prepare(
     "SELECT status,last_error,next_url FROM catalog_state WHERE id=1",
   ).first();

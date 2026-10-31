@@ -33,23 +33,26 @@ try{
   assert.ok(result.scannedFiles>50);
   assert.ok(!result.findings.some(row=>row.file.startsWith("scripts/test-")),
     "Unit-test SQL must never masquerade as production canonical writer evidence");
-  // The physical SQL count is expected to decline as independently attested
-  // owner commands replace legacy writers. An arbitrary historical floor must
-  // not reject valid migrations or encourage retaining unsafe SQL. Instead
-  // require exact reconciliation with the separately reviewed source inventory.
-  const reviewedCount=JSON.parse(readFileSync(
-    "docs/architecture/canonical-writer-review.json","utf8"
-  )).sites.length;
-  assert.ok(reviewedCount>0,
-    "A zero-source owner audit requires independent production certification");
-  assert.equal(result.unresolvedDirectWrites,reviewedCount,
-    "Scanned canonical SQL must exactly match the separately reviewed source inventory");
+  const reviewed=JSON.parse(readFileSync("docs/architecture/canonical-writer-review.json","utf8"));
+  assert.equal(reviewed.releaseApproval,false);
+  assert.equal(result.unresolvedDirectWrites,reviewed.sites.length,
+    "The executable canonical SQL inventory must match every independently source-attested review site");
+  assert.ok(result.unresolvedDirectWrites>0,
+    "An unexpectedly empty audit needs explicit independent production-writer closure evidence");
+  assert.ok(reviewed.sites.some(x=>x.disposition==="owner-command-required"),
+    "This migration must retain and report every incomplete owner command");
   for(const path of [
     "src/features/fore/rights.server.ts",
     "src/features/fore/commerce.server.ts",
     "src/features/fore/delivery.server.ts",
     "src/features/fore/commercial-audio.server.ts"
-  ])assert.ok(result.byFile[path]>0,"Missing high-risk canonical writer inventory: "+path);
+  ]){
+    const exact=reviewed.sites.filter(x=>x.file===path).length;
+    assert.equal(result.byFile[path]||0,exact,
+      "High-risk canonical writer inventory diverged from exact source review: "+path);
+  }
+  assert.equal(result.byFile["src/features/fore/rights.server.ts"]||0,0,
+    "Retired shared rights configuration SQL must not be reintroduced");
   // This family now has zero shared writers. Require exact retirement
   // evidence and the private replacement rather than retaining legacy SQL
   // merely to satisfy a historical inventory-presence assertion.
@@ -57,7 +60,6 @@ try{
   const publishingPath="src/features/fore/publishing.server.ts";
   assert.equal(result.byFile[publishingPath]||0,0);
   const lineage=JSON.parse(readFileSync("docs/architecture/retired-publication-helpers-owner-lineage.json","utf8"));
-  const reviewed=JSON.parse(readFileSync("docs/architecture/canonical-writer-review.json","utf8"));
   assert.equal(lineage.retired.filter(x=>x.file===publishingPath).length,10);
   assert.ok(lineage.retired.every(x=>!reviewed.sites.some(r=>r.siteId===x.siteId)));
   assert.equal(reviewed.releaseApproval,false);
