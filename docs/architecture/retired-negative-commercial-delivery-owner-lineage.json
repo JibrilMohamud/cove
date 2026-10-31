@@ -1,0 +1,67 @@
+{
+  "schema": "cove.retired-negative-commercial-delivery-owner-lineage.v1",
+  "sourceBefore": 52,
+  "sourceAfter": 48,
+  "releaseApproval": false,
+  "productionCertified": false,
+  "sourceFile": "src/features/fore/delivery.server.ts",
+  "sourceShaBefore": "0416f17eede51b1fb14800b3705bd23ee5b25a9dfa37e7d08938b832cbc5e7dd",
+  "sourceShaAfter": "84499e9820465c4b565bcbb42fde6dab8234e3e7fadec82b9674c27652d8cec1",
+  "retired": [
+    {
+      "file": "src/features/fore/delivery.server.ts",
+      "line": 979,
+      "functionName": "revokeDeliveryGrant",
+      "disposition": "owner-command-required",
+      "table": "commercial_delivery_grants",
+      "operation": "UPDATE",
+      "sqlSha256": "64578d0c259d82e7491b18a19b8ca746800c1da44666c6cf117241a059e8db71",
+      "siteId": "5ef78ae4e7f1e39a3549d3b86edf67d3be6cd93aa79192bce19a81459794a34c",
+      "ownerRoute": "/delivery/private-negative"
+    },
+    {
+      "file": "src/features/fore/delivery.server.ts",
+      "line": 1063,
+      "functionName": "setCommercialDeliveryPolicy",
+      "disposition": "owner-command-required",
+      "table": "commercial_delivery_policies",
+      "operation": "INSERT INTO",
+      "sqlSha256": "e4eb00e28a19034cccbe29958486a59e56afafa3ec5837f499fac360c9624353",
+      "siteId": "f26401c3c6866b4079099d0beb07d017718b11b3f53c2be20fb84fff20b8d8a4",
+      "ownerRoute": "/delivery/private-negative"
+    },
+    {
+      "file": "src/features/fore/delivery.server.ts",
+      "line": 1104,
+      "functionName": "setDistributionControl",
+      "disposition": "owner-command-required",
+      "table": "publication_version_distribution_controls",
+      "operation": "INSERT INTO",
+      "sqlSha256": "67c48d20e5b00fff7ca58fe05b8751943826e2d82a038d8cb92602d4db68a38b",
+      "siteId": "71f57abd4c3e6c0673b0aa5ec4c2c1661ebd9cbca1755eac6ceae978c8dbda82",
+      "ownerRoute": "/delivery/private-negative"
+    },
+    {
+      "file": "src/features/fore/delivery.server.ts",
+      "line": 1119,
+      "functionName": "setDistributionControl",
+      "disposition": "non-authorizing-write",
+      "table": "publication_version_distribution_events",
+      "operation": "INSERT INTO",
+      "sqlSha256": "0cb96f48fae764400b4b0239b067cdec22050a118ba890a7ebe896f78b08158f",
+      "siteId": "84a735bdc0660f784374f5f53de0de1eb9757ec76bc4d61080e1970000efcea3",
+      "ownerRoute": "/delivery/private-negative"
+    },
+    {
+      "file": "src/features/fore/delivery.server.ts",
+      "line": 1136,
+      "functionName": "setDistributionControl",
+      "disposition": "owner-command-required",
+      "table": "commercial_delivery_grants",
+      "operation": "UPDATE",
+      "sqlSha256": "6e2e67da0c4cc0c08a8a0acfc95c6cf284c2de072bb207d38f3708e1b2447fe3",
+      "siteId": "6afa201a5e007b84d0fed764b11d41729b4d4d317c4c9342f059e3c72714ece9",
+      "ownerRoute": "/delivery/private-negative"
+    }
+  ]
+}

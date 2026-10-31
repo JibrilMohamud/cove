@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "retirementEvidence": "docs/architecture/retired-negative-commercial-delivery-owner-lineage.json",
+  "rationale": "Exactly four authorizing delivery mutations (customer grant revocation, restrictive policy upsert, distribution withdrawal and active grant revocation) and one non-authorizing distribution event write moved from the shared delivery module to private legal authority. The owner independently reads the current grant, product, version, staff principal, permissions and prior distribution status; only negative withdrawal and tightening are accepted. No paid-access grant issuance, redemption or positive relaxation is authorized. All nine other delivery sites retain their exact SQL literal/function/disposition and full-file fingerprint-based site identity. No production routing, release gate or direct D1 privilege changes.",
+  "files": [
+    {
+      "path": "src/features/fore/delivery.server.ts",
+      "sha256": "84499e9820465c4b565bcbb42fde6dab8234e3e7fadec82b9674c27652d8cec1",
+      "review": "Verified each retained SQL statement text byte-for-byte against predecessor. Original five retired SQL fingerprints recorded in immutable audit lineage."
+    }
+  ]
+}

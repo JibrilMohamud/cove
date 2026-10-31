@@ -457,9 +457,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "b900aec834633ae60185800f3df4986d4ab2681aadd2ea14907670eaee5c322c",
+      "siteId": "62758e7b80bb7259ed0f850c55d13df7adc90101712b7813d9181d07cd9f92d6",
       "file": "src/features/fore/delivery.server.ts",
-      "line": 220,
+      "line": 221,
       "functionName": "ownershipRecord",
       "table": "entitlement_ownership_records",
       "operation": "INSERT INTO",
@@ -470,9 +470,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "11a17fad7ebb770bb289841dca2f293a648ffff9bdfbbe4f33dd6475534fe476",
+      "siteId": "9ed19da829fb597a331028b011e0aa32c4bbb21546f5538f4b5b8354cabd255f",
       "file": "src/features/fore/delivery.server.ts",
-      "line": 315,
+      "line": 316,
       "functionName": "assertDevice",
       "table": "commercial_entitlement_devices",
       "operation": "UPDATE",
@@ -483,9 +483,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "b30d98f3da5d0a01720104f95fe48c91e933cbe21b36b3fb9e4578a7987a0c64",
+      "siteId": "d9be3c47faf659af76b77be19c50e2ab83fddc508e8574456a430dabcc322abd",
       "file": "src/features/fore/delivery.server.ts",
-      "line": 338,
+      "line": 339,
       "functionName": "assertDevice",
       "table": "commercial_entitlement_devices",
       "operation": "INSERT INTO",
@@ -496,9 +496,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "67898da9353b7e0779db6a97270e6f1f53b492bf39e4fe9401fafa7da5d6b735",
+      "siteId": "3086ad56b4666ca0ac743440ad716b5b615b59bf708f2ce871cd49535304f5e1",
       "file": "src/features/fore/delivery.server.ts",
-      "line": 364,
+      "line": 365,
       "functionName": "audit",
       "table": "commercial_download_audit",
       "operation": "INSERT INTO",
@@ -508,9 +508,9 @@
       "reason": "Delivery telemetry records the outcome after authorization; this table never grants delivery permission."
     },
     {
-      "siteId": "d3198a3dfc1c32349f6a37e67e2a8e8263f8ebb683df94ff0dd48b958ae3481c",
+      "siteId": "5b9749605c0d7b1235279d301e9ab1e088d05b509cdce604a001bb56fcb04228",
       "file": "src/features/fore/delivery.server.ts",
-      "line": 675,
+      "line": 676,
       "functionName": "issueCommercialEpubGrant",
       "table": "commercial_delivery_grants",
       "operation": "INSERT INTO",
@@ -521,9 +521,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "3db576f96ac2d4c8fa272b50f6f1b537ef530059283e63791c5515cb97b73993",
+      "siteId": "04792aec2d9adbc6cf5480cd7b49ed92ab03a409a6a48aa67125be866c215384",
       "file": "src/features/fore/delivery.server.ts",
-      "line": 775,
+      "line": 776,
       "functionName": "serveCommercialEpubGrant",
       "table": "commercial_delivery_grants",
       "operation": "UPDATE",
@@ -534,9 +534,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "cd207239eb98eb1086dbc4059d6f3ba6777a725843e753784bb96f405c413bd3",
+      "siteId": "2bb123fe6bf678c2e5188595ad49e80e4f6bf9bb6e3380f8d20c3f6dabd2b939",
       "file": "src/features/fore/delivery.server.ts",
-      "line": 784,
+      "line": 785,
       "functionName": "serveCommercialEpubGrant",
       "table": "commercial_delivery_grants",
       "operation": "UPDATE",
@@ -547,9 +547,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "da3631b5fc4a9c4bee1773c767b3e372b44be63fbe59af7f54f2eab45ef0fc78",
+      "siteId": "9ab3df7ebd4b3b9cc705f1862f4595c61877e1ae8f3e13f51253ee68fdabdf7a",
       "file": "src/features/fore/delivery.server.ts",
-      "line": 903,
+      "line": 904,
       "functionName": "serveCommercialEpubGrant",
       "table": "commercial_entitlement_delivery_usage",
       "operation": "INSERT INTO",
@@ -560,9 +560,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "c488c0a59508de53c6c7f635213320447a2195736fbb663532c955865f151f68",
+      "siteId": "f741bbc2bfebf98b2904812aa99c757bbc92d665b39df79b6c99cfd79e89a530",
       "file": "src/features/fore/delivery.server.ts",
-      "line": 927,
+      "line": 928,
       "functionName": "serveCommercialEpubGrant",
       "table": "commercial_delivery_grants",
       "operation": "UPDATE",
@@ -570,70 +570,6 @@
       "disposition": "owner-command-required",
       "productionOwnerGuarded": false,
       "commandFamily": "delivery.serveCommercialEpubGrant",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "5ef78ae4e7f1e39a3549d3b86edf67d3be6cd93aa79192bce19a81459794a34c",
-      "file": "src/features/fore/delivery.server.ts",
-      "line": 979,
-      "functionName": "revokeDeliveryGrant",
-      "table": "commercial_delivery_grants",
-      "operation": "UPDATE",
-      "sqlSha256": "64578d0c259d82e7491b18a19b8ca746800c1da44666c6cf117241a059e8db71",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "delivery.revokeDeliveryGrant",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "f26401c3c6866b4079099d0beb07d017718b11b3f53c2be20fb84fff20b8d8a4",
-      "file": "src/features/fore/delivery.server.ts",
-      "line": 1063,
-      "functionName": "setCommercialDeliveryPolicy",
-      "table": "commercial_delivery_policies",
-      "operation": "INSERT INTO",
-      "sqlSha256": "e4eb00e28a19034cccbe29958486a59e56afafa3ec5837f499fac360c9624353",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "delivery.setCommercialDeliveryPolicy",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "71f57abd4c3e6c0673b0aa5ec4c2c1661ebd9cbca1755eac6ceae978c8dbda82",
-      "file": "src/features/fore/delivery.server.ts",
-      "line": 1104,
-      "functionName": "setDistributionControl",
-      "table": "publication_version_distribution_controls",
-      "operation": "INSERT INTO",
-      "sqlSha256": "67c48d20e5b00fff7ca58fe05b8751943826e2d82a038d8cb92602d4db68a38b",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "delivery.setDistributionControl",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "84a735bdc0660f784374f5f53de0de1eb9757ec76bc4d61080e1970000efcea3",
-      "file": "src/features/fore/delivery.server.ts",
-      "line": 1119,
-      "functionName": "setDistributionControl",
-      "table": "publication_version_distribution_events",
-      "operation": "INSERT INTO",
-      "sqlSha256": "0cb96f48fae764400b4b0239b067cdec22050a118ba890a7ebe896f78b08158f",
-      "disposition": "non-authorizing-write",
-      "productionOwnerGuarded": false,
-      "reason": "This exact append-only event-history INSERT records an already attempted lifecycle or distribution transition for accountability; it does not change publication state, market offers, buyer permissions, grants, delivery controls or protected media. scripts/check-nonauthorizing-legal-history.mjs extracts and executes every source SQL statement, proves canonical state unchanged, and fails on any future event-history query used as a read dependency. The actual state transition remains an owner-required command."
-    },
-    {
-      "siteId": "6afa201a5e007b84d0fed764b11d41729b4d4d317c4c9342f059e3c72714ece9",
-      "file": "src/features/fore/delivery.server.ts",
-      "line": 1136,
-      "functionName": "setDistributionControl",
-      "table": "commercial_delivery_grants",
-      "operation": "UPDATE",
-      "sqlSha256": "6e2e67da0c4cc0c08a8a0acfc95c6cf284c2de072bb207d38f3708e1b2447fe3",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "delivery.setDistributionControl",
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
