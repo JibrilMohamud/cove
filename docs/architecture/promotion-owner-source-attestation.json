@@ -6,7 +6,7 @@
   "files": [
     {
       "path": "src/features/fore/promotions.server.ts",
-      "sha256": "333362f7c330abb59bc780b8fe774c1d3a2d8ea19e7b1022b062fa1f7c6acd7d",
+      "sha256": "05c37488918235a18839605db9873bc9f645b465e238ffcf9680bbd4b0618047",
       "review": "Two protected SQL statements physically retired from the public module and bound to the private owner; zero surviving protected promotions statements."
     }
   ]
