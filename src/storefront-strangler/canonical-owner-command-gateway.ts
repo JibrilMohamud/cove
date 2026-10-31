@@ -142,6 +142,11 @@ const routes={
     assetVersionId:z.string().min(3).max(180),
     sha256:z.string().regex(/^[a-f0-9]{64}$/)
   }).strict()},
+  "risk.apply-assessment":{path:"/risk/private-apply-assessment",schema:z.object({
+    domain:z.enum(["buyer","publisher"]),
+    subjectId:z.string().min(3).max(180),
+    assessmentId:z.string().min(3).max(180)
+  }).strict()},
   "risk.create-hold":{path:"/risk/private-create-hold",schema:z.object({
     assessmentId:z.string().min(3).max(180),
     scope:z.enum(["checkout","account","publishing","usage_credit","payout","review_ranking"]),
@@ -387,6 +392,12 @@ export async function dispatchCanonicalOwnerCommand(
       if(ack.schema!=="cove.owner-us-epub-cache.v1"||ack.ownerFirst!==true||
          ack.cacheId!==body.cacheId||ack.assetVersionId!==body.assetVersionId||
          ack.sha256!==body.sha256||ack.saved!==true)
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "risk.apply-assessment":
+      if(ack.schema!=="cove.owner-risk-assessment.v1"||ack.ownerFirst!==true||
+         ack.domain!==body.domain||ack.subjectId!==body.subjectId||
+         ack.assessmentId!==body.assessmentId||ack.applied!==true)
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "risk.create-hold":
