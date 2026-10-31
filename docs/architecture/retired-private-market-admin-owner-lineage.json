@@ -1,0 +1,35 @@
+{
+  "schema": "cove.private-market-admin-owner-retirement.v1",
+  "productionCertified": false,
+  "releaseApproval": false,
+  "sourceBefore": 16,
+  "sourceAfter": 15,
+  "originalSource": "src/features/fore/localization.server.ts",
+  "sourceSha256": "aca61806a8f06dbffc286048ea88558bc865b05cb7e7e154cf24c8a8c7ad69d9",
+  "apiSha256": "3c11509e11029c8fe3317be733d4ad253acf56bbe91d34d2d2f9eb82a1b0f20f",
+  "command": "market.admin-upsert",
+  "privateRoute": "/market/private-admin-upsert",
+  "retired": [
+    {
+      "siteId": "24d4dd184d5855d0eda532cd26eb0f22d07cd978645d240c8ee182b08aa4951e",
+      "file": "src/features/fore/localization.server.ts",
+      "line": 662,
+      "functionName": "upsertMarket",
+      "table": "storefront_markets",
+      "operation": "INSERT INTO",
+      "sqlSha256": "aeb2380b1736b3c1d2a3d691cb512ccbece0e4b896d4f4c28e83c72cda6ee03c",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "localization.upsertMarket",
+      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
+    }
+  ],
+  "ownerProofs": [
+    "Authenticated owner-only command with independent live staff-principal, role/permission, SSO subject and MFA verification",
+    "Current sellable territory and active storefront locale checked inside primary owner",
+    "An active market cannot be created or reactivated, checkout cannot be re-enabled, locale/currency cannot change on active records, and tax-inclusive safeguards cannot be relaxed",
+    "Strongly consistent market withdrawal veto and deny-first market tombstone for paused/retired status",
+    "Primary owner writes canonical market, locale/currency projection and privilege audit via one database batch",
+    "Public caller without a staged owner fails closed; no production release entitlement"
+  ]
+}

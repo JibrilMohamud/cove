@@ -486,6 +486,25 @@ export async function dispatchCatalogCompletedUsEpub(db:object,input:{
  }catch{throw new ApiError(503,"Private owner refused US EPUB ingestion completion.");}
 }
 
+/** A catalog-bound, independently authorized market command. */
+export async function dispatchPrivateMarketUpsert(db:object,input:{
+ actor:{userId:string;authProvider:string;authSubject:string;aal:"aal1"|"aal2"};
+ market:{countryCode:string;displayName:string;defaultLocale:string;defaultCurrency:string;
+ taxInclusive:boolean;status:"draft"|"active"|"paused"|"retired";
+ recommendationRegion:string;merchandisingRegion:string;checkoutEnabled:boolean};
+}):Promise<{saved:true;countryCode:string}> {
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Market update requires private legal authority.");
+ const operationId="market-admin:"+crypto.randomUUID();
+ try{
+   const ack=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+     "market.admin-upsert",{...input,operationId});
+   if(ack.saved!==true||ack.countryCode!==input.market.countryCode)
+     throw Error("invalid_market_receipt");
+   return {saved:true,countryCode:input.market.countryCode};
+ }catch{throw new ApiError(503,"Private market owner refused this change.");}
+}
+
 export async function dispatchCatalogVerifiedUsEpub(db:object,input:{
  cacheId:string;assetVersionId:string;sha256:string
 }):Promise<void>{

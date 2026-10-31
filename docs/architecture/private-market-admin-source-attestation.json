@@ -1,0 +1,18 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "retirementEvidence": "docs/architecture/retired-private-market-admin-owner-lineage.json",
+  "rationale": "Reviewed the exact removed storefront_markets SQL site and all remaining original localization and API SQL identities against the parent branch. The shared mutation and accompanying locale, currency and audit writes are replaced by one typed staging-only private owner command. The owner rechecks active staff principal, SSO subject/provider, MFA, staff permissions, sellable territory, active locale, and a strongly consistent market withdrawal tombstone, and forbids creating or reactivating a positive active market or re-enabling checkout. Pause/retirement deny first and commit primary-D1 market, locale, currency and audit statements together. A missing owner returns 503. All original API SQL literals and functions retain their exact reviewed identities. No production activation or positive reinstatement is authorized.",
+  "files": [
+    {
+      "path": "src/features/fore/api.server.ts",
+      "sha256": "3c11509e11029c8fe3317be733d4ad253acf56bbe91d34d2d2f9eb82a1b0f20f",
+      "review": "Only removes obsolete staging market-write refusal so an independently authorized QA private command can execute; all seven surviving API protected SQL literals, functions and dispositions remain byte-identical; site IDs re-fingerprinted."
+    },
+    {
+      "path": "src/features/fore/localization.server.ts",
+      "sha256": "aca61806a8f06dbffc286048ea88558bc865b05cb7e7e154cf24c8a8c7ad69d9",
+      "review": "Original protected market upsert removed; all fixed locale/currency/audit SQL moves to excluded private owner; no alternate direct market authorizer remains in localization server."
+    }
+  ]
+}

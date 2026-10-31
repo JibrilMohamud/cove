@@ -17644,6 +17644,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/rights/private-configuration",
       "/catalog/observe-us",
       "/catalog/regional-state",
+      "/market/private-admin-upsert",
       "/catalog/complete-us-epub-ingest",
       "/catalog/verified-us-epub-cache",
       "/risk/private-apply-assessment",
@@ -18526,6 +18527,74 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         }
         return Response.json({schema:"cove.owner-regional-state.v1",ownerFirst:true,
           sourceId:input.sourceId,runId:input.runId,action:input.action,acquired:true},{headers:noStore});
+      }
+      if(route==="/market/private-admin-upsert") {
+        const input=z.object({
+          operationId:z.string().regex(/^market-admin:[0-9a-f-]{36}$/),
+          actor:z.object({userId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
+            authProvider:z.string().min(1).max(120),
+            authSubject:z.string().min(1).max(240),
+            aal:z.enum(["aal1","aal2"])}).strict(),
+          market:z.object({
+            countryCode:z.string().regex(/^[A-Z]{2}$/),
+            displayName:z.string().min(1).max(120),
+            defaultLocale:z.string().regex(/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8}){0,2}$/),
+            defaultCurrency:z.string().regex(/^[A-Z]{3}$/),taxInclusive:z.boolean(),
+            status:z.enum(["draft","active","paused","retired"]),
+            recommendationRegion:z.string().min(1).max(80),
+            merchandisingRegion:z.string().min(1).max(80),
+            checkoutEnabled:z.boolean()
+          }).strict()
+        }).strict().parse(raw);
+        const db=env.PRIMARY_DB,m=input.market,actor=input.actor;
+        const [principal,allowed,territory,locale,prior]=await Promise.all([
+          db.prepare("SELECT sso_provider,sso_subject,mfa_required FROM staff_principals WHERE user_id=? AND status='active'")
+            .bind(actor.userId).first<{sso_provider:string;sso_subject:string;mfa_required:number}>(),
+          db.prepare("SELECT 1 ok FROM staff_principal_roles pr JOIN staff_role_permissions p ON p.role_id=pr.role_id WHERE pr.user_id=? AND p.permission IN ('localization.manage','staff.manage') LIMIT 1")
+            .bind(actor.userId).first<{ok:number}>(),
+          db.prepare("SELECT 1 ok FROM territories WHERE code=? AND is_sellable=1")
+            .bind(m.countryCode).first<{ok:number}>(),
+          db.prepare("SELECT 1 ok FROM storefront_locales WHERE locale=? AND status='active'")
+            .bind(m.defaultLocale).first<{ok:number}>(),
+          db.prepare("SELECT market_status,checkout_enabled,default_currency,default_locale,tax_inclusive_default FROM storefront_markets WHERE country_code=?")
+            .bind(m.countryCode).first<{market_status:string;checkout_enabled:number;default_currency:string;default_locale:string;tax_inclusive_default:number}>()
+        ]);
+        if(!principal||!allowed||!territory||!locale||
+           (principal.sso_provider&&principal.sso_provider!==actor.authProvider)||
+           (principal.sso_subject&&principal.sso_subject!==actor.authSubject)||
+           (Number(principal.mfa_required)===1&&actor.aal!=="aal2"))
+          return new Response(null,{status:403,headers:noStore});
+        // A D1 market row is never proof of restored legal authority.
+        // Only previously-active markets may stay active; a withdrawn market
+        // remains blocked by the separate strongly-consistent tombstone.
+        if(m.status==="active"&&
+           (!prior||prior.market_status!=="active"||
+            marketIsWithdrawn(sql,m.countryCode)||
+            (m.checkoutEnabled&&Number(prior.checkout_enabled)!==1)||
+            (Number(prior.tax_inclusive_default)===1&&!m.taxInclusive)||
+            prior.default_currency!==m.defaultCurrency||
+            prior.default_locale!==m.defaultLocale))
+          return new Response(null,{status:409,headers:noStore});
+        if(m.status!=="active"&&m.checkoutEnabled)
+          return new Response(null,{status:409,headers:noStore});
+        if(["paused","retired"].includes(m.status))
+          denyMarket(sql,{territory:m.countryCode,operationId:input.operationId},now());
+        const at=now();
+        await db.batch([
+          db.prepare("INSERT INTO storefront_markets(country_code,display_name,default_locale,default_currency,tax_inclusive_default,market_status,recommendation_region,merchandising_region,payment_provider,checkout_enabled,launched_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?, 'stripe',?,?,?,?) ON CONFLICT(country_code) DO UPDATE SET display_name=excluded.display_name,default_locale=excluded.default_locale,default_currency=excluded.default_currency,tax_inclusive_default=excluded.tax_inclusive_default,market_status=excluded.market_status,recommendation_region=excluded.recommendation_region,merchandising_region=excluded.merchandising_region,checkout_enabled=excluded.checkout_enabled,updated_at=excluded.updated_at")
+            .bind(m.countryCode,m.displayName,m.defaultLocale,m.defaultCurrency,m.taxInclusive?1:0,
+              m.status,m.recommendationRegion,m.merchandisingRegion,m.checkoutEnabled?1:0,
+              m.status==="active"?at:null,at,at),
+          db.prepare("INSERT OR IGNORE INTO storefront_market_locales(country_code,locale,priority,active) VALUES(?,?,1,1)")
+            .bind(m.countryCode,m.defaultLocale),
+          db.prepare("INSERT OR IGNORE INTO storefront_currency_options(country_code,currency,priority,active) VALUES(?,?,1,1)")
+            .bind(m.countryCode,m.defaultCurrency),
+          db.prepare("INSERT INTO privileged_access_audit(id,request_id,actor_type,actor_id,permission_or_scope,method,path,outcome,response_status,metadata_json,created_at) VALUES(?,?,?,?,?,'INTERNAL','localization.market','completed',200,?,?)")
+            .bind("pa_"+crypto.randomUUID(),"internal_"+crypto.randomUUID(),"staff",actor.userId,
+              "localization.manage",JSON.stringify({country:m.countryCode,operationId:input.operationId}),at)
+        ]);
+        return Response.json({schema:"cove.owner-private-market-admin.v1",ownerFirst:true,
+          countryCode:m.countryCode,operationId:input.operationId,saved:true},{headers:noStore});
       }
       if(route==="/catalog/complete-us-epub-ingest"){
         const input=z.object({
