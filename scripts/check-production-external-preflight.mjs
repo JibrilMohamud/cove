@@ -100,16 +100,15 @@ export async function readLiveEvidence({cloudflareToken,accountId,stripeRestrict
   if(!cloudflareToken||!accountId||!stripeRestrictedKey)
     throw Error("Cloudflare token/account and Stripe LIVE restricted read-only key are all mandatory.");
   const base="https://api.cloudflare.com/client/v4/accounts/"+encodeURIComponent(accountId)+"/workers/scripts";
-  const pages=[];for(let page=1;page<=20;page++){
-    const result=await cf(base+"?per_page=100&page="+page,cloudflareToken);
-    const rows=result.result||[];
-    if(!Array.isArray(rows))throw Error("Invalid complete Cloudflare Worker inventory");
-    pages.push(...rows);
-    if(result.result_info?.total_pages&&page>=result.result_info.total_pages)break;
-    if(!result.result_info?.total_pages&&rows.length<100)break;
-    if(page===20)throw Error("Worker inventory too large to certify");
-  }
-  const names=[...new Set(pages.map(x=>x.id).filter(x=>typeof x==="string"))];
+  // List Worker Scripts is an unpaginated endpoint. Adding unsupported page
+  // arguments repeats the entire account and falsely fails at >100 scripts.
+  // Account-token listing below IS paginated and must retain its own loop.
+  const listed=await cf(base,cloudflareToken);
+  if(!Array.isArray(listed.result)||listed.result.some(x=>typeof x?.id!=="string"||!x.id)||
+     (listed.result_info?.total_pages&&listed.result_info.total_pages!==1))
+    throw Error("Invalid complete Cloudflare Worker inventory");
+  const names=listed.result.map(x=>x.id);
+  if(new Set(names).size!==names.length)throw Error("Duplicate Worker inventory entry");
   if(!names.includes(PRODUCTION_OWNER))throw Error("Production legal owner not listed by Cloudflare");
   const workers=[];
   for(let start=0;start<names.length;start+=8){

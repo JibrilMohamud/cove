@@ -71,7 +71,11 @@ globalThis.fetch=async (input,options={})=>{
     if(failTokenPage&&page===2)return new Response("denied",{status:403});
     result={success:true,errors:[],result:page===1?Array.from({length:50},(_,i)=>({id:"reader-"+i,status:"active",policies:[]})):
       [{id:"page-two-writer",status:"active",policies:[{effect:"allow",permission_groups:[{name:"D1 Write"}]}]}],result_info:{total_pages:2}};
-  }else if(url.pathname.endsWith("/workers/scripts"))result={success:true,errors:[],result:[{id:PRODUCTION_OWNER},{id:"read-only-canary"}],result_info:{total_pages:1}};
+  }else if(url.pathname.endsWith("/workers/scripts")){
+    assert.equal(url.search,"","Worker list endpoint has no pagination parameters");
+    result={success:true,errors:[],result:[{id:PRODUCTION_OWNER},{id:"read-only-canary"},
+      ...Array.from({length:150},(_,i)=>({id:"unrelated-worker-"+i}))]};
+  }
   else if(url.pathname.endsWith("/deployments"))result={success:true,errors:[],result:{deployments:[{versions:
     activeHiddenWriter&&url.pathname.includes("read-only-canary")?
       [{version_id:readVersion,percentage:50},{version_id:writeVersion,percentage:50}]:
@@ -89,6 +93,7 @@ try{
   const evidence=await readLiveEvidence({cloudflareToken:"synthetic-reader",accountId:"test-account",stripeRestrictedKey:"synthetic-stripe-reader"});
   assert.deepEqual(tokenPages,[1,2]);
   assert.equal(evidence.accountTokens.length,51);
+  assert.equal(evidence.workerSettings.length,152,"Unpaginated >100 Worker account must be fully inspected");
   assert.equal(evidence.accountTokenInventoryComplete,true);
   refuse(evidence,/page-two-writer/);
   activeHiddenWriter=true;
