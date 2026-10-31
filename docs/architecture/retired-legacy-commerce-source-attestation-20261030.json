@@ -5,7 +5,7 @@
   "files": [
     {
       "path": "src/features/fore/commerce.server.ts",
-      "sha256": "7d9cf94252eb2758d3861d8ab2a347bc249f3ba8840ec117b119c2ba166cd146",
+      "sha256": "52ba9bb4feec5b2b7c5586687d72cd3498751a0601061823b95a5adbc6ac955f",
       "review": "Legacy checkout settlement, tender, refund, webhook, disputes and reconciliation SQL removed from shared code. Owner-only quote persistence remains physically present and is not reclassified; two tax mutations also remain directly in this module. The three surviving SQL literals preserve their reviewed authorizing dispositions with source-bound checksums. New private-owner checkout-quote relocation removes one shared SQL site. The other two commerce SQL literals and dispositions remain unchanged with fresh full-source identifiers. Release locked. Final remaining two Stripe Tax transaction/reversal canonical SQL statements were retired to separately authenticated private QA owner commands. Current commerce module contains zero protected mutation sites. Production is not certified."
     }
   ],
