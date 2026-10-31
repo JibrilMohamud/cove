@@ -399,7 +399,15 @@ export async function dispatchCatalogStaleWithdrawal(db:object,input:{
 export async function dispatchCatalogNegativeSource(db:object,
  action:"quarantine-regional"|"mark-us-retry",cacheId:string,reason="") {
  const context=owners.get(db);
- if(!context)throw new ApiError(503,"Catalog quarantine requires private owner.");
+ if(!context){
+  // A corrupt but already authorized public-US EPUB may still be repaired
+  // from the independently validated Gutenberg mirror in legacy local QA.
+  // Skipping this retry *marker* performs no D1 write or positive grant;
+  // regional rights quarantine must never be skipped.
+  if(action==="mark-us-retry"&&/^[0-9]{1,10}$/.test(cacheId))
+   return {changed:false};
+  throw new ApiError(503,"Regional catalog quarantine requires private owner.");
+ }
  try{
   const result=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
    "catalog.negative-source",{action,cacheId,reason:reason.slice(0,500)});
