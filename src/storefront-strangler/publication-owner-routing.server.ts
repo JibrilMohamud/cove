@@ -325,3 +325,13 @@ export async function dispatchFinanceOwnerAction(db:object,action:import("./fina
    {action,args,actorUserId:actor.userId,operationId});
  return receipt.result;
 }
+
+export async function dispatchAccountOwnerAction(db:object,command:
+ {action:"register-device";userId:string;device:unknown}|
+ {action:"revoke-device";userId:string;deviceId:string}|
+ {action:"erasure-tick";limit:number}){
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Account permission mutations require the private account owner.");
+ const receipt=await dispatchCanonicalOwnerCommand(context.owner,context.secret,"account.owner-action",command);
+ return receipt.result;
+}

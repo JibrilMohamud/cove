@@ -18,6 +18,7 @@ export function validatePaidEntitlementScope(raw:unknown):EntitlementScope {
   return {entitlementId:r.entitlementId,userId:r.userId,productId:r.productId};
 }
 export function createPaidEntitlementSchema(sql:AuthoritySql) {
+  sql.exec("CREATE TABLE IF NOT EXISTS cove_account_access_denials(user_id TEXT PRIMARY KEY,request_id TEXT NOT NULL,denied_at TEXT NOT NULL)");
   sql.exec(`CREATE TABLE IF NOT EXISTS cove_paid_settlement_recovery_cursors(
     scope TEXT PRIMARY KEY,after_id TEXT NOT NULL,after_time TEXT NOT NULL
   ) WITHOUT ROWID`);
@@ -68,6 +69,12 @@ const current=(sql:AuthoritySql,id:string)=>
     "SELECT entitlement_id,user_id,product_id,epoch,verdict,product_epoch,valid_until FROM cove_paid_entitlement_authority WHERE entitlement_id=?",
     id
   ).toArray()[0];
+/** Terminal user veto once an eligible account-erasure job begins. */
+export function denyAccountAccess(sql:AuthoritySql,userId:string,requestId:string){
+ if(!/^[a-zA-Z0-9:_-]{3,160}$/.test(userId)||!/^[a-zA-Z0-9_-]{3,160}$/.test(requestId))
+  throw Error("invalid_account_erasure_scope");
+ sql.exec("INSERT INTO cove_account_access_denials(user_id,request_id,denied_at) VALUES(?,?,?) ON CONFLICT(user_id) DO NOTHING",userId,requestId,new Date().toISOString());
+}
 /**
  * A whole paid order is revoked with ONE durable SQLite owner write,
  * regardless of its line-item count. A failed D1 entitlement reconciliation
@@ -175,6 +182,7 @@ export function publishFreshEntitlement(
   sql:AuthoritySql,raw:unknown,expectedEpoch:number,now=Date.now()
 ){
   const scope=validatePaidEntitlementScope(raw);
+  if(sql.exec("SELECT 1 ok FROM cove_account_access_denials WHERE user_id=?",scope.userId).toArray().length)throw Error("paid_account_erasure_denied");
   const {validUntil,productEpoch,orderId}=raw as {
     validUntil?:unknown;productEpoch?:unknown;orderId?:unknown
   };
@@ -277,6 +285,7 @@ export function publishFreshEntitlement(
 export function readPaidAccess(sql:AuthoritySql,raw:unknown,now=new Date().toISOString()){
   const input=raw as {territory?:unknown;channel?:unknown};
   const scope=validatePaidEntitlementScope(raw);
+  if(sql.exec("SELECT 1 ok FROM cove_account_access_denials WHERE user_id=?",scope.userId).toArray().length)return null;
   if(!input||typeof input.territory!=="string"||
      !/^[A-Z]{2}$/.test(input.territory)||
      !["retail","subscription","library"].includes(String(input.channel))||

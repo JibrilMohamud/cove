@@ -5,6 +5,7 @@ import path from "node:path";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { localBindings } from "./local-api.mjs";
+import { loadAccountOwnerTestClient } from "./test-private-account-client.mjs";
 
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "cove-commercial-"));
 fs.cpSync("drizzle", path.join(scratch, "drizzle"), { recursive: true });
@@ -28,9 +29,8 @@ await build({
 const { handleCoveApi } = await import(path.join(scratch, "api.server.mjs"));
 const support = await import(path.join(scratch, "customer-support.server.mjs"));
 const status = await import(path.join(scratch, "public-status.server.mjs"));
-const { processAccountDeletionQueue } = await import(
-  path.join(scratch, "account-management.server.mjs")
-);
+const accountOwnerClient = await loadAccountOwnerTestClient(scratch);
+const { processAccountDeletionQueue } = accountOwnerClient;
 const { requestCove, CoveRequestError } = await import(path.join(scratch, "api-transport.mjs"));
 const env = localBindings(scratch);
 const { default: worker } = await import(path.join(scratch, "persistence-backend.worker.mjs"));
@@ -416,4 +416,5 @@ try {
 console.log(
   "PASS: support ownership, role gates, idempotent creation/replies, version conflicts, unread races, limits, pagination, export/erasure, truthful public status, notice audit and request recovery.",
 );
+accountOwnerClient.close();
 fs.rmSync(scratch, { recursive: true, force: true });

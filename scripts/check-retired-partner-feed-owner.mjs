@@ -7,7 +7,11 @@ const gateway=readFileSync("src/storefront-strangler/canonical-owner-command-gat
 const proxy=readFileSync("src/storefront-strangler/publication-owner-routing.server.ts","utf8");
 const review=JSON.parse(readFileSync("docs/architecture/canonical-writer-review.json","utf8"));
 const rows=review.sites.filter(x=>x.file==="src/features/fore/traditional-publishing.server.ts");
-assert.equal(rows.filter(x=>x.disposition==="owner-command-required").length,13);
+assert.equal(rows.filter(x=>x.disposition==="owner-command-required").length,0);
+const partnerLineage=JSON.parse(readFileSync("docs/architecture/retired-traditional-partner-owner-lineage.json","utf8"));
+assert.equal(partnerLineage.retiredCount,13);
+assert.equal(partnerLineage.siteReview.length,13);
+assert.ok(partnerLineage.siteReview.every(x=>!review.sites.some(r=>r.siteId===x.siteId)));
 assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=260,
   "A later audited retirement may reduce, but never increase, this previously certified source count");
 assert.equal(review.releaseApproval,false);
@@ -15,7 +19,7 @@ assert.match(source,/export async function processPartnerFeedQueue\(db: CatalogD
 for(const name of ["applyMetadataItem","applyAssetManifestItem","applyDeltaItem","reconcileFullPartnerSnapshot"])
   assert.doesNotMatch(source,new RegExp("async function "+name+"\\("));
 assert.match(source,/async function matchAssetExpectations\(/);
-assert.equal(rows.filter(x=>x.functionName==="matchAssetExpectations"&&x.disposition==="owner-command-required").length,1);
+assert.equal(partnerLineage.siteReview.filter(x=>x.functionName==="matchAssetExpectations").length,1);
 assert.match(owner,/const processPartnerFeedQueuePrivate = \(\(\) => \{/);
 assert.match(owner,/environment='sandbox' AND feed_type<>'assets_manifest'/);
 assert.match(owner,/submission.environment !== "sandbox" \|\| submission.feed_type === "assets_manifest"/);

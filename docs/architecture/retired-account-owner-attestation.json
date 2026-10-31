@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Retire device registration/revocation and the complete leased account-erasure queue into the existing private legal owner. Preserve the public API/cron signatures, original SQL identities, durable checkpoints and unchanged scanner and exception baseline. Add terminal owner access veto and verify actual isolated SQLite failures and retry recovery; no production certification is asserted.",
+  "retirementEvidence": "docs/architecture/retired-account-owner.md",
+  "files": [
+    {
+      "path": "src/features/fore/account-management.server.ts",
+      "sha256": "b3796e67e5ced8bf57c7c6acf12d2a3fd42edb9019ccf4e85061a2ac80709fec",
+      "review": "Reviewed authenticated API and scheduler callers. Canonical account permission mutations now forward fixed owner commands; SQL has no local fallback. Other account/session/preferences/export APIs retain their original nonauthorizing behavior."
+    }
+  ]
+}

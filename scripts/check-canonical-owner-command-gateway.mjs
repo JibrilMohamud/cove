@@ -92,6 +92,10 @@ try{
     schema:"cove.private-finance-qa.v1",ownerFirst:true,action:"createFinanceParty",actorUserId:userId,
     operationId:"finance:"+"a".repeat(64),result:{id:"party_qa"}
   }]);
+  tests.push(["account.owner-action",{action:"erasure-tick",limit:5},"/account/private-action",{
+    schema:"cove.private-account-qa.v1",ownerFirst:true,action:"erasure-tick",userId:null,
+    result:{processed:2,completed:1,blocked:1,retrying:0}
+  }]);
   let calls=0;
   for(const [kind,body,path,receipt] of tests){
     const writer=kind.startsWith("rights.");

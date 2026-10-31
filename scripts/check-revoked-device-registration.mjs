@@ -4,7 +4,8 @@ import { DatabaseSync } from "node:sqlite";
 
 // Exercise the exact production device UPSERT, not a rewritten mock query.
 // A revoked key is a permanent negative identity; a fresh key is required.
-const source = readFileSync("src/features/fore/account-management.server.ts", "utf8");
+const owner = readFileSync("src/storefront-strangler/legal-authority.worker.ts", "utf8");
+const source = owner.slice(owner.indexOf("const privateAccount="));
 const start = source.indexOf("INSERT INTO devices(");
 assert.ok(start > 0, "Production device registration SQL must exist");
 const end = source.indexOf("`", start);
@@ -15,8 +16,8 @@ assert.match(sql, /WHERE devices\.revoked_at IS NULL/);
 assert.doesNotMatch(sql, /revoked_at\s*=\s*NULL/);
 
 const handler = source.slice(
-  source.indexOf("export async function registerDevice("),
-  source.indexOf("export async function revokeDevice("),
+  source.indexOf("async function registerDevice("),
+  source.indexOf("async function revokeDevice("),
 );
 assert.match(handler, /if \(!row\)\s*throw new ApiError\(409/);
 

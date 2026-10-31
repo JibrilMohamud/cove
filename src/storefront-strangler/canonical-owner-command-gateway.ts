@@ -158,6 +158,12 @@ const routes={
     action:z.enum(["account-save","member-invite","identity-start","tax-submit","payout-submit","title-save","edition-save","asset-upload","accessibility-sign","edition-submit","revision-open","update-policy","owner-optin","review-submission"]),
     operationId:z.string().regex(/^editor:[a-f0-9-]{36}$/),
     payload:z.record(z.string(),z.unknown())}).strict()},
+  "account.owner-action":{path:"/account/private-action",schema:z.discriminatedUnion("action",[
+    z.object({action:z.literal("register-device"),userId:z.string().regex(/^[a-zA-Z0-9:_-]{3,160}$/),
+      device:z.object({deviceKey:z.string().min(16).max(200),name:z.string().trim().min(1).max(120),platform:z.string().trim().min(1).max(80)}).strict()}).strict(),
+    z.object({action:z.literal("revoke-device"),userId:z.string().regex(/^[a-zA-Z0-9:_-]{3,160}$/),deviceId:z.string().regex(/^[a-zA-Z0-9_-]{3,160}$/)}).strict(),
+    z.object({action:z.literal("erasure-tick"),limit:z.number().int().min(1).max(25)}).strict()
+  ])},
   "finance.owner-action":{path:"/finance/private-action",schema:z.object({
     action:z.enum(["createFinanceParty","createRoyaltyContract","createRoyaltyContractVersion",
       "createPayoutBatch","approvePayoutBatch","settlePayoutBatch","recordUsageEvent",
@@ -512,6 +518,17 @@ export async function dispatchCanonicalOwnerCommand(
          !Object.prototype.hasOwnProperty.call(ack,"result"))
         throw Error("canonical_command_receipt_mismatch");
       break;
+    case "account.owner-action":{
+      const accountResult=ack.result as Record<string,unknown>;
+      if(ack.schema!=="cove.private-account-qa.v1"||ack.ownerFirst!==true||ack.action!==body.action||
+         ack.userId!==(body.action==="erasure-tick"?null:body.userId)||!record(accountResult)||
+         (body.action==="register-device"&&(typeof accountResult.id!=="string"||typeof accountResult.name!=="string"||typeof accountResult.platform!=="string"))||
+         (body.action==="revoke-device"&&accountResult.revoked!==true)||
+         (body.action==="erasure-tick"&&(["processed","completed","blocked","retrying"].some(k=>!Number.isSafeInteger(accountResult[k])||Number(accountResult[k])<0||Number(accountResult[k])>Number(body.limit))||
+          Number(accountResult.completed)+Number(accountResult.blocked)+Number(accountResult.retrying)>Number(accountResult.processed))))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    }
     case "finance.owner-action":
       if(ack.schema!=="cove.private-finance-qa.v1"||ack.ownerFirst!==true||
          ack.action!==body.action||ack.actorUserId!==body.actorUserId||
