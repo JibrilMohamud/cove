@@ -18389,11 +18389,16 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
             const previous=await db.prepare(
               "SELECT distribution_status FROM publication_version_distribution_controls WHERE publication_version_id=?"
             ).bind(d.publicationVersionId).first<{distribution_status:string}>();
+            if(previous?.distribution_status==="recalled"&&d.status!=="recalled")
+              return new Response(null,{status:409,headers:noStore});
+            const eventBytes=new Uint8Array(await crypto.subtle.digest("SHA-256",
+              new TextEncoder().encode(JSON.stringify([actorId,d.publicationVersionId,d.status,d.reasonCode,d.reasonDetail]))));
+            const eventId="dist_"+Array.from(eventBytes,b=>b.toString(16).padStart(2,"0")).join("").slice(0,32);
             await db.batch([
               db.prepare("INSERT INTO publication_version_distribution_controls(publication_version_id,distribution_status,allow_existing_owners,reason_code,reason_detail,effective_at,updated_by,updated_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(publication_version_id) DO UPDATE SET distribution_status=excluded.distribution_status,allow_existing_owners=excluded.allow_existing_owners,reason_code=excluded.reason_code,reason_detail=excluded.reason_detail,effective_at=excluded.effective_at,updated_by=excluded.updated_by,updated_at=excluded.updated_at")
                 .bind(d.publicationVersionId,d.status,0,d.reasonCode,d.reasonDetail,at,actorId,at),
-              db.prepare("INSERT INTO publication_version_distribution_events(id,publication_version_id,from_status,to_status,allow_existing_owners,reason_code,reason_detail,actor_user_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)")
-                .bind(`dist_${crypto.randomUUID()}`,d.publicationVersionId,previous?.distribution_status||null,d.status,0,d.reasonCode,d.reasonDetail,actorId,at),
+              db.prepare("INSERT OR IGNORE INTO publication_version_distribution_events(id,publication_version_id,from_status,to_status,allow_existing_owners,reason_code,reason_detail,actor_user_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)")
+                .bind(eventId,d.publicationVersionId,previous?.distribution_status||null,d.status,0,d.reasonCode,d.reasonDetail,actorId,at),
               db.prepare("UPDATE commercial_delivery_grants SET status='revoked',revoked_at=?,revocation_reason=? WHERE publication_version_id=? AND status='active'")
                 .bind(at,`distribution_${d.status}`,d.publicationVersionId)
             ]);
