@@ -17700,6 +17700,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/catalog/private-grant-free-library",
       "/delivery/private-issue-epub-grant",
       "/delivery/private-consume-epub-grant",
+      "/audio/private-offline-license",
       "/delivery/private-record-ownership",
       "/delivery/register-entitlement-device",
       "/delivery/private-negative",
@@ -19284,6 +19285,120 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           return new Response(null,{status:409,headers:noStore});
         return Response.json({schema:"cove.owner-epub-grant.v1",ownerFirst:true,
           grantId:x.grantId,saved:true},{headers:noStore});
+      }
+      if(route==="/audio/private-offline-license"){
+        const x=z.object({
+          licenseId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
+          userId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
+          productId:z.string().regex(/^prd_(?!gutenberg_)[A-Za-z0-9_-]{3,120}$/),
+          entitlementId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
+          editionId:z.string().min(3).max(160),
+          deviceId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
+          deviceKeyHash:z.string().regex(/^[a-f0-9]{64}$/),
+          tokenHash:z.string().regex(/^[a-f0-9]{64}$/),
+          manifestHash:z.string().regex(/^[a-f0-9]{64}$/),
+          issuedAt:z.string().datetime(),expiresAt:z.string().datetime(),
+          territory:z.string().regex(/^[A-Z]{2}$/)
+        }).strict().parse(raw);
+        const db=env.PRIMARY_DB,at=now(),start=Date.parse(x.issuedAt),
+          end=Date.parse(x.expiresAt);
+        if(!Number.isFinite(start)||!Number.isFinite(end)||
+           start>Date.now()+60_000||start<Date.now()-300_000||
+           end<=Date.now()||end-start>30*86400000||
+           marketIsWithdrawn(sql,x.territory)||
+           !readPaidAccess(sql,{entitlementId:x.entitlementId,userId:x.userId,
+             productId:x.productId,territory:x.territory,channel:"retail"}))
+          return new Response(null,{status:409,headers:noStore});
+        const existing=await db.prepare(
+          "SELECT user_id,product_id,entitlement_id,device_id,token_hash,manifest_hash,expires_at,status FROM audio_offline_licenses WHERE id=?"
+        ).bind(x.licenseId).first<{
+          user_id:string;product_id:string;entitlement_id:string;device_id:string;
+          token_hash:string;manifest_hash:string;expires_at:string;status:string
+        }>();
+        if(existing){
+          if(existing.user_id!==x.userId||existing.product_id!==x.productId||
+             existing.entitlement_id!==x.entitlementId||existing.device_id!==x.deviceId||
+             existing.token_hash!==x.tokenHash||existing.manifest_hash!==x.manifestHash||
+             existing.expires_at!==x.expiresAt||existing.status!=="active")
+            return new Response(null,{status:409,headers:noStore});
+          return Response.json({schema:"cove.owner-offline-audio.v1",ownerFirst:true,
+            licenseId:x.licenseId,saved:true,expiresAt:x.expiresAt,replayed:true},
+            {headers:noStore});
+        }
+        const [ent,device,policy,manifestRow,market,riskAccount,riskOrder]=await Promise.all([
+          db.prepare("SELECT e.id,e.ends_at,p.format FROM entitlements e JOIN products p ON p.id=e.product_id WHERE e.id=? AND e.user_id=? AND e.product_id=? AND e.entitlement_type='purchase' AND e.status='active' AND p.format='audiobook' AND p.source_name NOT IN ('gutenberg','upload') AND (e.starts_at IS NULL OR e.starts_at<=?) AND (e.ends_at IS NULL OR e.ends_at>?)")
+            .bind(x.entitlementId,x.userId,x.productId,at,at).first<{id:string;ends_at:string|null;format:string}>(),
+          db.prepare("SELECT id,device_key FROM devices WHERE id=? AND user_id=? AND revoked_at IS NULL")
+            .bind(x.deviceId,x.userId).first<{id:string;device_key:string}>(),
+          db.prepare("SELECT max_devices FROM licenses WHERE entitlement_id=?")
+            .bind(x.entitlementId).first<{max_devices:number}>(),
+          db.prepare("SELECT pv.manifest_json,s.edition_id FROM publishing_publications pp JOIN publishing_submission_snapshots s ON s.id=pp.submission_id JOIN publishing_release_lifecycles l ON l.publishing_edition_id=s.edition_id JOIN publishing_publication_versions pv ON pv.id=l.current_publication_version_id WHERE pp.product_id=? ORDER BY pv.version_number DESC LIMIT 1")
+            .bind(x.productId).first<{manifest_json:string;edition_id:string}>(),
+          db.prepare("SELECT 1 ok FROM storefront_markets WHERE country_code=? AND market_status='active'")
+            .bind(x.territory).first<{ok:number}>(),
+          db.prepare("SELECT 1 ok FROM risk_holds WHERE domain='buyer' AND subject_type='user' AND subject_id=? AND hold_scope='account' AND status='active' LIMIT 1")
+            .bind(x.userId).first<{ok:number}>(),
+          db.prepare("SELECT 1 ok FROM entitlements e JOIN commerce_order_items oi ON oi.id=e.order_item_id JOIN risk_holds h ON h.subject_type='order' AND h.subject_id=oi.order_id AND h.hold_scope IN ('checkout','entitlement') AND h.status='active' WHERE e.id=? LIMIT 1")
+            .bind(x.entitlementId).first<{ok:number}>()
+        ]);
+        if(!ent||!device||!manifestRow||!market||riskAccount||riskOrder||
+           (ent.ends_at&&Date.parse(ent.ends_at)<end)||
+           (await sha256Hex(String(device.device_key)))!==x.deviceKeyHash||
+           x.editionId!=="ca_"+manifestRow.edition_id.replace(/[^A-Za-z0-9_-]/g,"_"))
+          return new Response(null,{status:409,headers:noStore});
+        let frozen:{chapters?:unknown;profile?:unknown;narrators?:unknown;agreements?:unknown};
+        try{frozen=JSON.parse(manifestRow.manifest_json).sourceSnapshot.commercialAudio;}
+        catch{return new Response(null,{status:409,headers:noStore});}
+        const profile=(frozen?.profile||{}) as Record<string,unknown>,
+          chapters=Array.isArray(frozen?.chapters)?frozen.chapters as Array<Record<string,unknown>>:[],
+          narrators=Array.isArray(frozen?.narrators)?frozen.narrators as Array<Record<string,unknown>>:[],
+          agreements=Array.isArray(frozen?.agreements)?frozen.agreements as Array<Record<string,unknown>>:[];
+        if(profile.offlineEligible!==true||!chapters.length||!narrators.length||!agreements.length||
+           chapters.some(c=>typeof c.id!=="string"||! /^[a-f0-9]{64}$/.test(String(c.sha256||"")))||
+           (await sha256Hex(JSON.stringify(chapters.map(c=>[c.id,c.sha256]))))!==x.manifestHash)
+          return new Response(null,{status:409,headers:noStore});
+        const terminated=(await db.prepare(
+          "SELECT nt.agreement_id FROM narration_agreement_terminations nt JOIN narration_agreements na ON na.id=nt.agreement_id WHERE na.edition_id=? AND nt.effective_at<=?"
+        ).bind(manifestRow.edition_id,at).all<{agreement_id:string}>()).results;
+        const ended=new Set(terminated.map(t=>String(t.agreement_id)));
+        const live=agreements.filter(a=>{
+          const uses=Array.isArray(a.permittedUses)?a.permittedUses:
+            (()=>{try{return JSON.parse(String(a.permitted_uses_json||"[]"));}catch{return [];}})();
+          const territories=Array.isArray(a.territories)?a.territories:
+            (()=>{try{return JSON.parse(String(a.territories_json||"[]"));}catch{return [];}})();
+          return a.status==="active"&&(!a.expires_at||String(a.expires_at)>at)&&
+            !ended.has(String(a.id))&&Array.isArray(uses)&&uses.includes("offline")&&
+            uses.includes("retail")&&Array.isArray(territories)&&
+            (territories.includes("WORLD")||territories.includes(x.territory));
+        });
+        if(narrators.some(n=>!live.some(a=>String(a.narrator_id)===String(n.id))))
+          return new Response(null,{status:409,headers:noStore});
+        const max=Number(policy?.max_devices||0);
+        if(max>0){
+          const used=await db.prepare(
+            "SELECT COUNT(DISTINCT device_id) n FROM audio_offline_licenses WHERE entitlement_id=? AND status='active' AND expires_at>? AND device_id<>?"
+          ).bind(x.entitlementId,at,x.deviceId).first<{n:number}>();
+          if(Number(used?.n||0)>=max)
+            return new Response(null,{status:409,headers:noStore});
+        }
+        if(marketIsWithdrawn(sql,x.territory)||!readPaidAccess(sql,{
+          entitlementId:x.entitlementId,userId:x.userId,productId:x.productId,
+          territory:x.territory,channel:"retail"
+        }))return new Response(null,{status:409,headers:noStore});
+        const results=await db.batch([
+          db.prepare("UPDATE audio_offline_licenses SET status='revoked',revoked_at=?,revocation_reason='license_refreshed' WHERE entitlement_id=? AND device_id=? AND status='active'")
+            .bind(at,x.entitlementId,x.deviceId),
+          db.prepare("INSERT INTO audio_offline_licenses(id,user_id,product_id,entitlement_id,device_id,token_hash,manifest_hash,status,issued_at,expires_at,last_refreshed_at) SELECT ?,?,?,?,?,?,?,'active',?,?,? WHERE EXISTS(SELECT 1 FROM entitlements e WHERE e.id=? AND e.user_id=? AND e.product_id=? AND e.entitlement_type='purchase' AND e.status='active' AND (e.starts_at IS NULL OR e.starts_at<=?) AND (e.ends_at IS NULL OR e.ends_at>=?)) AND EXISTS(SELECT 1 FROM devices d WHERE d.id=? AND d.user_id=? AND d.revoked_at IS NULL) AND NOT EXISTS(SELECT 1 FROM risk_holds h WHERE h.domain='buyer' AND h.subject_type='user' AND h.subject_id=? AND h.hold_scope='account' AND h.status='active') AND (?<=0 OR (SELECT COUNT(DISTINCT device_id) FROM audio_offline_licenses WHERE entitlement_id=? AND status='active' AND expires_at>? AND device_id<>?)<?)")
+            .bind(x.licenseId,x.userId,x.productId,x.entitlementId,x.deviceId,
+              x.tokenHash,x.manifestHash,x.issuedAt,x.expiresAt,at,
+              x.entitlementId,x.userId,x.productId,at,x.expiresAt,
+              x.deviceId,x.userId,x.userId,max,x.entitlementId,at,x.deviceId,max)
+        ]);
+        if(results.length!==2||
+           Number((results[1] as {meta?:{changes?:number}})?.meta?.changes||0)!==1)
+          return new Response(null,{status:409,headers:noStore});
+        return Response.json({schema:"cove.owner-offline-audio.v1",ownerFirst:true,
+          licenseId:x.licenseId,saved:true,expiresAt:x.expiresAt},{headers:noStore});
       }
       if(route==="/delivery/private-consume-epub-grant"){
         // Private bearer use accounting. A token hash is not sufficient:
