@@ -150,11 +150,23 @@ type LegalAuthorityEnv = Partial<Omit<LiteraryOwnerServiceEnv,"PRIMARY_DB">> & P
 // Only these two physically separate, synthetic QA databases can issue a
 // short-lived owner lease. The second has canonical paid-commerce schema;
 // neither is the capacity fixture or a customer production database.
+// The independently built production binary is permanently incapable of
+// entering a synthetic QA lease, even if an operator copies QA variable
+// values (including a spoofed COVE_RIGHTS_OWNER_PRIMARY_ID) onto a Worker
+// actually bound to the production primary D1. Never trust that plaintext
+// variable as evidence of the physical database identity.
+// Normal tests and disposable QA bundles leave this compile-time symbol false.
+declare const __COVE_PRODUCTION_OWNER_BINARY_LOCK__: boolean | undefined;
+
 const QA_PRIMARIES = new Set([
   "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87",
   "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
 ]);
 function qaOwnerLeaseLive(env:LegalAuthorityEnv) {
+  // This check is compiled to a literal true in the production-locked
+  // artifact; no runtime flag, secret, D1 row or service binding can lift it.
+  if(typeof __COVE_PRODUCTION_OWNER_BINARY_LOCK__!=="undefined" &&
+     __COVE_PRODUCTION_OWNER_BINARY_LOCK__===true)return false;
   const expires=Number(env.COVE_RIGHTS_OWNER_TEST_EXPIRES_AT);
   const now=Date.now();
   // An interrupted GitHub job cannot accidentally leave the QA legal owner
