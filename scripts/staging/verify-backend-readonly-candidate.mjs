@@ -7,7 +7,8 @@ const apiToken = process.env.CLOUDFLARE_API_TOKEN;
 assert.ok(apiToken, "Read-only Cloudflare inspector credential required");
 const root = "https://api.cloudflare.com/client/v4/accounts/" + account + "/";
 async function read(path) {
-  const response = await fetch(root + path, {
+  const url = path.startsWith("https://") ? path : root + path;
+  const response = await fetch(url, {
     headers: { authorization: "Bearer " + apiToken },
     signal: AbortSignal.timeout(30_000),
     redirect: "error",
@@ -51,4 +52,7 @@ const schedules = await read(script + "/schedules");
 assert.deepEqual(schedules.schedules, []);
 const domains = await read("workers/domains");
 assert.ok(!domains.some((d) => d.service === name), "Candidate has public custom domain");
+const routes = await read("https://api.cloudflare.com/client/v4/zones/07e218b2e74bc522122e0994b8e37576/workers/routes");
+assert.ok(Array.isArray(routes), "Owned zone route inventory incomplete");
+assert.ok(!routes.some((r) => r.script === name), "Candidate has public zone route");
 console.log("PASS: deployed candidate is private, health-only, provider-read-only and has no cron, native D1 or public ingress.");
