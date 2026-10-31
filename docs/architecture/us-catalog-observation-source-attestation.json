@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "retirementEvidence": "docs/architecture/retired-us-catalog-observation-owner-lineage.json",
+  "rationale": "Compared the full API file at 83d73d79988b01d178bc7f371f6f01b28d3a0fdc to the observation owner retirement. Three SQL mutations that only change source heartbeat and popularity metadata are physically moved behind an independently checked private QA owner, preserving all original SQL text. The private owner re-verifies source is public US and legally approved, and protects both popularity tables with timestamp compare-and-swap. All 17 surviving API SQL identities were independently re-fingerprinted with unchanged function, table, SQL literal and disposition. Production release remains denied.",
+  "files": [
+    {
+      "path": "src/features/fore/api.server.ts",
+      "sha256": "d0a2b730abefabb038af5d5cd345b7d2adb0da2b802f9186d1e79472907a7f12",
+      "review": "Three owner-required observation SQL sites physically retired; seventeen surviving SQL candidates source-identical and reattested."
+    }
+  ]
+}

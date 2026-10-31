@@ -431,3 +431,18 @@ export async function dispatchCatalogRegionalState(db:object,input:{
     return {acquired:ack.acquired===true};
   }catch{throw new ApiError(503,"Private owner refused regional ingestion transition.");}
 }
+
+/** Only US Gutenberg observation metadata. Rights and catalog exposure cannot
+ * be asserted by the caller, and CAS is executed in one private owner batch. */
+export async function dispatchCatalogObservation(db:object,input:{
+ action:"heartbeat"|"popularity";
+ books:Array<{id:string;count?:number;expectedUpdatedAt?:string;expectedProjectionUpdatedAt?:string}>
+}):Promise<{checked:number}>{
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Catalog observations require the private authority.");
+ try{
+  const ack=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+   "catalog.observe-us",input);
+  return {checked:Number(ack.checked)};
+ }catch{throw new ApiError(503,"Private owner refused the catalog observation.");}
+}
