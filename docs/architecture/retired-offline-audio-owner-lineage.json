@@ -1,0 +1,47 @@
+{
+  "schema": "cove.retired-offline-audio-owner-lineage.v1",
+  "releaseApproval": false,
+  "productionCertified": false,
+  "sourceBefore": 8,
+  "sourceAfter": 6,
+  "sourceFile": "src/features/fore/commercial-audio.server.ts",
+  "previousSha256": "dfb1388150c34061d6f4c7707279f45283a6d62cab9ea547d6c6910b7f324452",
+  "currentSha256": "cada840c8cb7d760a6f7f48a3372a359b0ee37f3f8bc3c5a6250a4bf97e1c9f7",
+  "retired": [
+    {
+      "siteId": "6deb000c6caf1d71213f35b1414a499ccbb82b58b882cd0af7c4c28c7f37335e",
+      "file": "src/features/fore/commercial-audio.server.ts",
+      "line": 1304,
+      "functionName": "handleCommercialAudio",
+      "table": "audio_offline_licenses",
+      "operation": "UPDATE",
+      "sqlSha256": "cdeb331323bee00ff7e7c91670febf7783d47073c2741b3d6c058c699624f154",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "commercial-audio.handleCommercialAudio",
+      "reason": "Physically removed from shared audio endpoint; owner independently validates source/manifests, paid rights, purchase, device and risk before revocation and new license."
+    },
+    {
+      "siteId": "bc40c69bbc91cf83136ef5939b6cb64774d76f00ddf4620a05c31fe830f183de",
+      "file": "src/features/fore/commercial-audio.server.ts",
+      "line": 1309,
+      "functionName": "handleCommercialAudio",
+      "table": "audio_offline_licenses",
+      "operation": "INSERT INTO",
+      "sqlSha256": "357c65d016ec7880f1753e95b6e86555e2bdbd45b2daee02d23bb93b378b0a15",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "commercial-audio.handleCommercialAudio",
+      "reason": "Physically removed from shared audio endpoint; owner independently validates source/manifests, paid rights, purchase, device and risk before revocation and new license."
+    }
+  ],
+  "ownerCommand": "audio.issue-offline-license",
+  "privateRoute": "/audio/private-offline-license",
+  "proofs": [
+    "Private QA owner requires exact strongly consistent paid retail entitlement and active D1 purchase/device, while respecting market withdrawal and buyer risk holds.",
+    "Owner verifies current publication manifest from independent primary D1 and SHA-256 of ordered audio chapter content hashes; license hash, device key hash and lease expiry are independently bounded.",
+    "Owner checks offline-eligible publication profile and active narration agreements, including offline/retail permissions, territory and termination history.",
+    "Owner conditionally revokes replaced active offline licenses and creates the signed device lease through one D1 batch, refusing missing or noncommitted writes.",
+    "No shared production D1 positive license fallback. Production still blocked pending live paid certification, exclusive writer privileges and protected rollback."
+  ]
+}

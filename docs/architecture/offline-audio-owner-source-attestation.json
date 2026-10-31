@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "retirementEvidence": "docs/architecture/retired-offline-audio-owner-lineage.json",
+  "rationale": "Two direct shared-D1 commercial audio offline-license UPDATE and INSERT SQL sites are physically removed from the original audio endpoint and replaced by typed, fail-closed private-owner-issued licenses. Owner independently rechecks exact legal scope, canonical purchase, device, risk hold, narration rights and source-derived manifest; only then grants the signed offline token lease.",
+  "files": [
+    {
+      "path": "src/features/fore/commercial-audio.server.ts",
+      "sha256": "cada840c8cb7d760a6f7f48a3372a359b0ee37f3f8bc3c5a6250a4bf97e1c9f7",
+      "review": "The shared endpoint retains only purchase/device reads and cryptographic signature creation; its status revocation and license row insert are owner-only. Two nonauthorizing buyer playback writes retain unchanged SQL identities with source SHA re-fingerprinted."
+    }
+  ]
+}

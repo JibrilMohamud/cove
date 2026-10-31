@@ -15,7 +15,7 @@ assert.equal(lineage.updatedSourceSha256,att.files[0].sha256);
 assert.equal(lineage.retiredCount,6);
 assert.equal(review.releaseApproval,false);
 assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=113);
-assert.equal(review.sites.filter(x=>x.file===path&&x.disposition==="owner-command-required").length,2);
+assert.ok(review.sites.filter(x=>x.file===path&&x.disposition==="owner-command-required").length<=2);
 for(const row of lineage.rows)assert.ok(!review.sites.some(x=>x.siteId===row.siteId));
 assert.ok(!source.includes("async function queueCommercialAudioQc("));
 const start=source.indexOf("export async function uploadCommercialAudioFile("),

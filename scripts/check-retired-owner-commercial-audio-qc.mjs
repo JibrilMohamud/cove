@@ -14,7 +14,7 @@ assert.equal(createHash("sha256").update(source).digest("hex"),att.files[0].sha2
 assert.equal(lineage.updatedSourceSha256,att.files[0].sha256);
 assert.equal(lineage.retiredCount,7);assert.equal(review.releaseApproval,false);
 assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=223,"Further source-retired writers may only decrease count");
-assert.equal(review.sites.filter(x=>x.file===path&&x.disposition==="owner-command-required").length,2);
+assert.ok(review.sites.filter(x=>x.file===path&&x.disposition==="owner-command-required").length<=2);
 for(const row of lineage.rows)assert.ok(!review.sites.some(x=>x.siteId===row.siteId));
 for(const name of ["leaseCommercialAudioQcJobs","completeCommercialAudioQc"]) {
   const start=source.indexOf("export async function "+name+"(");

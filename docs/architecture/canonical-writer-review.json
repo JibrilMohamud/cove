@@ -82,9 +82,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "d1c4c9b61bd142fba93c0e7a267c281a5009d2f9ade6297d170b3c5caf4cb9e2",
+      "siteId": "9b45c25dd8e3624cbbce862489ab030f835d75233ea82960124a81c15fae9b10",
       "file": "src/features/fore/commercial-audio.server.ts",
-      "line": 1052,
+      "line": 1053,
       "functionName": "handleCommercialAudio",
       "table": "commercial_audio_playback",
       "operation": "INSERT INTO",
@@ -94,9 +94,9 @@
       "reason": "This exact SQLite statement mutates only buyer-scoped audiobook listening position (chapter, seconds, speed, version, timestamp) or deletes a deleting account's position. It never grants rights, access, delivery tokens, asset availability or entitlements. The production audio endpoint separately requires authentication, current entitlements, risk check and private owner permission before writes; source-bound SQL, optimistic concurrency, unrelated buyer and revoked-entitlement behavior are exercised in scripts/check-audio-playback-remaining-nonauthorizing.mjs. The enclosing account deletion transaction remains owner-required for its other protected mutations."
     },
     {
-      "siteId": "1a896a0ce4bb75c0de49119853dba34e3c45a2116498b4192d693de81414273d",
+      "siteId": "e91d6087b836a53a0855aa2d81518920b3984cb6f82d69fd61b21fae207a5ebb",
       "file": "src/features/fore/commercial-audio.server.ts",
-      "line": 1059,
+      "line": 1060,
       "functionName": "handleCommercialAudio",
       "table": "commercial_audio_playback",
       "operation": "UPDATE",
@@ -104,32 +104,6 @@
       "disposition": "non-authorizing-write",
       "productionOwnerGuarded": false,
       "reason": "This exact SQLite statement mutates only buyer-scoped audiobook listening position (chapter, seconds, speed, version, timestamp) or deletes a deleting account's position. It never grants rights, access, delivery tokens, asset availability or entitlements. The production audio endpoint separately requires authentication, current entitlements, risk check and private owner permission before writes; source-bound SQL, optimistic concurrency, unrelated buyer and revoked-entitlement behavior are exercised in scripts/check-audio-playback-remaining-nonauthorizing.mjs. The enclosing account deletion transaction remains owner-required for its other protected mutations."
-    },
-    {
-      "siteId": "6deb000c6caf1d71213f35b1414a499ccbb82b58b882cd0af7c4c28c7f37335e",
-      "file": "src/features/fore/commercial-audio.server.ts",
-      "line": 1304,
-      "functionName": "handleCommercialAudio",
-      "table": "audio_offline_licenses",
-      "operation": "UPDATE",
-      "sqlSha256": "cdeb331323bee00ff7e7c91670febf7783d47073c2741b3d6c058c699624f154",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "commercial-audio.handleCommercialAudio",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "bc40c69bbc91cf83136ef5939b6cb64774d76f00ddf4620a05c31fe830f183de",
-      "file": "src/features/fore/commercial-audio.server.ts",
-      "line": 1309,
-      "functionName": "handleCommercialAudio",
-      "table": "audio_offline_licenses",
-      "operation": "INSERT INTO",
-      "sqlSha256": "357c65d016ec7880f1753e95b6e86555e2bdbd45b2daee02d23bb93b378b0a15",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "commercial-audio.handleCommercialAudio",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
       "siteId": "8b8c7c1ab518512151737327149ce54d9e96b4d7198a0c90e8518b64ecf3a67e",
