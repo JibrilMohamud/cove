@@ -41,6 +41,8 @@ on:
       - "src/storefront-strangler/legal-primary-write-lock.ts"
       - "docs/architecture/canonical-writer-workflow-migration-v2.md"
       - "scripts/test-canonical-writer-review.mjs"
+      - "scripts/check-retired-epub-consumption.mjs"
+      - "docs/architecture/epub-consumption-source-attestation.json"
       - "scripts/rebase-canonical-writer-review.mjs"
       - "scripts/test-canonical-writer-rebase.mjs"
       - "scripts/check-audio-progress-nonauthorizing.mjs"
@@ -92,6 +94,8 @@ on:
       - "src/storefront-strangler/legal-primary-write-lock.ts"
       - "docs/architecture/canonical-writer-workflow-migration-v2.md"
       - "scripts/test-canonical-writer-review.mjs"
+      - "scripts/check-retired-epub-consumption.mjs"
+      - "docs/architecture/epub-consumption-source-attestation.json"
       - "scripts/rebase-canonical-writer-review.mjs"
       - "scripts/test-canonical-writer-rebase.mjs"
       - "scripts/check-audio-progress-nonauthorizing.mjs"
@@ -153,6 +157,8 @@ jobs:
           node scripts/check-retired-commercial-ownership-snapshot.mjs
           node scripts/check-retired-free-library-entitlement.mjs
           node scripts/check-retired-commercial-epub-grant.mjs
+          node scripts/check-retired-epub-consumption.mjs
+          node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/epub-consumption-source-attestation.json
           node scripts/check-retired-ingestion-state-owner.mjs
           node scripts/check-retired-delivery-expiry-owner.mjs
           node scripts/check-retired-entitlement-devices-owner.mjs

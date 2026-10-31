@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "retirementEvidence": "docs/architecture/retired-epub-consumption-owner-lineage.json",
+  "rationale": "Exactly two live shared-D1 commercial EPUB consumption SQL statements are physically removed from the endpoint, not reclassified. A fixed authenticated QA-private owner command independently rechecks strong paid legal and canonical entitlements, and conditionally consumes the grant and download allowance before the handler can return private R2 bytes. Production release remains blocked.",
+  "files": [
+    {
+      "path": "src/features/fore/delivery.server.ts",
+      "sha256": "24bc4c5b0aa66a02f2d94fd27743edc8fd80922b9a037c6ac16aaa58f1af5968",
+      "review": "The endpoint now only reads grant/asset/entitlement, fetches bytes, and requires a validated private-owner consumption receipt before a response. No shared writer fallback; the unchanged audit write remains nonauthorizing with updated source identity."
+    }
+  ]
+}

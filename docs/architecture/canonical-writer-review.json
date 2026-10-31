@@ -132,7 +132,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "42da7df8c157d3728378bbcd8e4f090f56b62ed4e07fe9d8572112dd2c53f77c",
+      "siteId": "8b8c7c1ab518512151737327149ce54d9e96b4d7198a0c90e8518b64ecf3a67e",
       "file": "src/features/fore/delivery.server.ts",
       "line": 309,
       "functionName": "audit",
@@ -142,32 +142,6 @@
       "disposition": "non-authorizing-write",
       "productionOwnerGuarded": false,
       "reason": "Delivery telemetry records the outcome after authorization; this table never grants delivery permission."
-    },
-    {
-      "siteId": "6609e4d030be30af5d9becec104af37ed350bbe8575fbfeab876944efe799038",
-      "file": "src/features/fore/delivery.server.ts",
-      "line": 832,
-      "functionName": "serveCommercialEpubGrant",
-      "table": "commercial_entitlement_delivery_usage",
-      "operation": "INSERT INTO",
-      "sqlSha256": "7e45969347bf5eec177dff0ac98748371e6534c5bf0cf0544b2e8812d3dd7036",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "delivery.serveCommercialEpubGrant",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "d462297a6e0538fb21c9587bce2bf8e7c640ae7b8dc9827a94b15b86516da0a8",
-      "file": "src/features/fore/delivery.server.ts",
-      "line": 856,
-      "functionName": "serveCommercialEpubGrant",
-      "table": "commercial_delivery_grants",
-      "operation": "UPDATE",
-      "sqlSha256": "5fc9864b32dc3c204b4b7b65fbd74197915109c58b75c89057868a361892fdae",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "delivery.serveCommercialEpubGrant",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
       "file": "src/features/fore/paid-settlement-transaction.server.ts",
