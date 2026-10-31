@@ -1,0 +1,248 @@
+{
+  "schema": "cove.private-trust-retired.v1",
+  "fromFindings": 194,
+  "toFindings": 156,
+  "retiredCount": 38,
+  "productionReleaseApproved": false,
+  "ownerRoute": "/trust/private-action",
+  "retired": [
+    {
+      "siteId": "00a922694951fe569cdbcc223be803fb2d03499130de388caf4c3902836ab52e",
+      "operation": "INSERT INTO",
+      "table": "publishing_rights_declarations",
+      "sqlSha256": "dd1cf402e9c0c12051fcbe1157a9adb55cb1640244310e907359ee3d9508082c"
+    },
+    {
+      "siteId": "2f484739393affe6b8d512563ca451bf63cbd51f62626544f50fe86a57be304e",
+      "operation": "INSERT INTO",
+      "table": "publishing_rights_evidence",
+      "sqlSha256": "98e3ced6bbec392317d499e5f8e6b452a78b894f529d4360387f9830db4dd4aa"
+    },
+    {
+      "siteId": "af285e0be4f8af604947eb5a4060c5f011f424e55a1b0a7d2d2b6a318441048d",
+      "operation": "INSERT INTO",
+      "table": "publishing_rights_evidence_scan_jobs",
+      "sqlSha256": "e8a4ed32333b34dc6d4fdf5b6c15b96b30fc0f8216f6c2801eac0ac2a3bc0a71"
+    },
+    {
+      "siteId": "2209e3e2b059022ba50dd28de48356cfaf637e99be4c86a2972f7ec81f67e8d7",
+      "operation": "INSERT INTO",
+      "table": "publishing_content_policy_assessments",
+      "sqlSha256": "f56c13a6a62fb6e677afbb36b39a94b28ca4c190fbd4ee01868c177b90ae0fad"
+    },
+    {
+      "siteId": "600ae35fd7d10dcc57d2ceb2218f6f5940a720a0ffbf54d55967fe59d415a47f",
+      "operation": "INSERT INTO",
+      "table": "rights_disputes",
+      "sqlSha256": "3c97e2f50cd78dd5a7881caa921128c6afcb7934f8305d481572f1f027c28af9"
+    },
+    {
+      "siteId": "9db15f70c41ee41c2e38901cd4702ba9d44b57e7b055fdaee792f4322f4ebaad",
+      "operation": "INSERT INTO",
+      "table": "copyright_notices",
+      "sqlSha256": "e9e51e31f7d2430cb508cc7545571fd5b3ecad50a2dd8dfe07c12ded82cbb879"
+    },
+    {
+      "siteId": "e9776300b6e910d4038dd1f765715fd614ac0c0282ef09003223e7c23e758d52",
+      "operation": "UPDATE",
+      "table": "publishing_release_lifecycles",
+      "sqlSha256": "e10b9f7058dc05989d25d54cebdee487203e8c327f7de20ed7abb216a59585b5"
+    },
+    {
+      "siteId": "1c209155fd7acd174dc43705e8538ede826ad2e978f2114ec71da77820b1b0a4",
+      "operation": "INSERT INTO",
+      "table": "publishing_lifecycle_events",
+      "sqlSha256": "679d8a80e83d98113242629462067126b8dd894188cd5a67cdb6a9553f8a6852"
+    },
+    {
+      "siteId": "3972cc517691ca3bec5d6744d74d1ed6f1054ddbb55a753ca29a719e7f8f3c75",
+      "operation": "UPDATE",
+      "table": "products",
+      "sqlSha256": "a33b582b6704ab465135b6a2f6f702ac330ad2859b8b8ac3816c0f3b8a27dc8e"
+    },
+    {
+      "siteId": "c7b8948dfab4b50978838d0acaca2229976d543a39b6fc59d8db7b0853854759",
+      "operation": "INSERT OR IGNORE INTO",
+      "table": "royalty_holds",
+      "sqlSha256": "ec0412bdcac791a5583da0e2771318dcf2713701e1aad89f0157a20c06739957"
+    },
+    {
+      "siteId": "e96b40ce25f770c527873bf7a24675ce904e39277c2a471b26980865918f024b",
+      "operation": "UPDATE",
+      "table": "finance_royalty_events",
+      "sqlSha256": "440b4223cebb0cd4c42d0be38fc8046010e3ad73a61fcd00153538e9bbada638"
+    },
+    {
+      "siteId": "16c4621659c66af864d316c628d7bf8121d259971da1a5ba2cfcfe47cf9aa2cf",
+      "operation": "UPDATE",
+      "table": "finance_royalty_allocations",
+      "sqlSha256": "69c66dfca91418419bdeab7072bd23b1cede2fed6444e6aa2f799662d141a4d2"
+    },
+    {
+      "siteId": "e638d96efef8b185593c24f72c4cfd2ede176f19073130d979e538196fd0b70c",
+      "operation": "UPDATE",
+      "table": "copyright_notices",
+      "sqlSha256": "605adcaabd8e67a4d4a63cbb5b376071d80ee70c2b937fd45d4e0704d213a10c"
+    },
+    {
+      "siteId": "28ae26b3021fb58812936eb792649d546fc53dd9dca7f2728d00077b761b6077",
+      "operation": "UPDATE",
+      "table": "rights_disputes",
+      "sqlSha256": "4eb8cc884b78a6b4064314f6fa91a6ae003c8b13c4efb0ccf9fb00e457015076"
+    },
+    {
+      "siteId": "395bec47d54decd4c963c312452c55d4498427c9d1565fc1dc480e223bba22c9",
+      "operation": "UPDATE",
+      "table": "copyright_notices",
+      "sqlSha256": "fc42c71fa61c7a9dfef35589cb1b719de650e85fb531b36e3fc41d8775a22385"
+    },
+    {
+      "siteId": "aae03984bf35d60965ad6fd5eb4e22eb6cf43470803742889f1eeda2a3431a07",
+      "operation": "UPDATE",
+      "table": "rights_disputes",
+      "sqlSha256": "5d140d04296ce361c8b1bd7df2ac965b899d96d31a14a31b48b6939a940abd87"
+    },
+    {
+      "siteId": "14239301b369ca806a44faa4cc919b732bc601b5fbf4997daf00483f672cff50",
+      "operation": "UPDATE",
+      "table": "copyright_notices",
+      "sqlSha256": "8e675435f5fc9f380bf970297d481e1fe06a1d615e8859cb645e9ad72164ff90"
+    },
+    {
+      "siteId": "5740d5f03085084199835e7b834a02f8e11e6f851fdd9ddd8b82acbfaf7f276b",
+      "operation": "UPDATE",
+      "table": "rights_disputes",
+      "sqlSha256": "a9df9ce891aae8b3af8c455f55791bd0073e22076e72323a93abeb7551fd9c1b"
+    },
+    {
+      "siteId": "b87f6525f24ef49b9120e471239b0ed4b02473be21fb3b04062f416c96c7a2e0",
+      "operation": "UPDATE",
+      "table": "copyright_counter_notices",
+      "sqlSha256": "dd7d0743f26d9fbb8533e69af2adc595d43fc76ae9591a35c2a5bdf9f3888d6a"
+    },
+    {
+      "siteId": "96e224df181b5b2b8b50a45d83ad98c613a24ef8a9fa3754879de24103ad5f27",
+      "operation": "INSERT INTO",
+      "table": "copyright_counter_notices",
+      "sqlSha256": "c1e1becc4946ed09600138c7dc1bd45e676d1e129e5c4ea29242a34beb392d11"
+    },
+    {
+      "siteId": "350b89f0f3c2aa16a5110ccf75f4cb17349adfd2b5a372382824146cbacf23d1",
+      "operation": "UPDATE",
+      "table": "rights_disputes",
+      "sqlSha256": "102c5da4005787f0f5d6ef0489f57a33d0b6dda6b973e94a8e33098e5660d18d"
+    },
+    {
+      "siteId": "ee6ee42747e59a1de468a9c5ec6ebb535b82bafbdef90597dfdbcdc51f5bc4e5",
+      "operation": "UPDATE",
+      "table": "copyright_notices",
+      "sqlSha256": "03a22b905dff6242ed996fa83d010726e5d5835761387210dc74177233222697"
+    },
+    {
+      "siteId": "080574220022743e33c66fc0e5be480a360317f8c5a717a11837bed471239c68",
+      "operation": "UPDATE",
+      "table": "copyright_counter_notices",
+      "sqlSha256": "51587975ca41f016fec62336babc7444d3268676cfec4286cc46804f62842e83"
+    },
+    {
+      "siteId": "68142ea0bfef0d41af8989759d112494a58922368d9b7f83ed3d5cce056df47e",
+      "operation": "UPDATE",
+      "table": "copyright_counter_notices",
+      "sqlSha256": "30fa7d647426c2e660b5427230a928ec48fc5cbd7374c94058f074255d2561a6"
+    },
+    {
+      "siteId": "29a6c08852b9c1dab51f573dc3dcd6342eebd809714a21a249b6cb4d4537fba3",
+      "operation": "UPDATE",
+      "table": "rights_disputes",
+      "sqlSha256": "22c6eb7750616d08919785c67eb88077f4e1ebc0389c87f2683c38152224df12"
+    },
+    {
+      "siteId": "d299c9911dcc6f95a6567868df33550c5639e096b414f94d5c80b582c3929b5e",
+      "operation": "UPDATE",
+      "table": "copyright_counter_notices",
+      "sqlSha256": "3987e9b68e575bd2f543dd1de93b9ec9b07d0180d785617565f49541a7f3598e"
+    },
+    {
+      "siteId": "f6b48648dd762051cfed440a2a72a287ff191f195d56898ab6c4ff1496da4e2b",
+      "operation": "UPDATE",
+      "table": "rights_disputes",
+      "sqlSha256": "269d25503c940687a159d2d256a6f0cd2ecc20f8b94031f2dc2a63d1461684b6"
+    },
+    {
+      "siteId": "7611eeee88dd203625e5ad314ac1fefde28c6b6a535ac84eb82f8173caed37c6",
+      "operation": "INSERT INTO",
+      "table": "copyright_court_actions",
+      "sqlSha256": "b7e5fb51536b62c77eef7c5a547853e4a57f146304334b32dce17a9b0fd3642e"
+    },
+    {
+      "siteId": "d40d6ea4e3d312b6022d57d1b41852f8e99d4a17a1cdd2aa46f8912e73c41fcb",
+      "operation": "UPDATE",
+      "table": "rights_disputes",
+      "sqlSha256": "1d8784cd65cbc98cd2e34ca16b4a60fe1b9b9bd8e12622d2879439a39042bc2f"
+    },
+    {
+      "siteId": "cbebd4a80817a9da16562ad395725fc50496348eb2799c09d4979f750e1b4565",
+      "operation": "UPDATE",
+      "table": "copyright_notices",
+      "sqlSha256": "81bc6c24458189092def714b136cd3aa2f36132d917df337c0771559f1b35380"
+    },
+    {
+      "siteId": "8abb06ee323da6d286b10569e10152637c138a73eb21bdf8c30418352fced7d4",
+      "operation": "UPDATE",
+      "table": "copyright_counter_notices",
+      "sqlSha256": "30baaffaabc15346f9291be231540c8e8a917ac10624e768847c680d518f6be7"
+    },
+    {
+      "siteId": "06a6334a90a73de950078f992165b2d1d974106ffa656a96d679192f69a55933",
+      "operation": "UPDATE",
+      "table": "publishing_accounts",
+      "sqlSha256": "9ba0f5bb143f33cd532b49a373a75f119cacf6f8e79d0f7ed41198caa5679068"
+    },
+    {
+      "siteId": "e804ad5dca47c75fcda3544a2c22c7ef8c122110e7e42fe0c0ed157ea2e9b463",
+      "operation": "UPDATE",
+      "table": "rights_disputes",
+      "sqlSha256": "43837f26feb0a32c91059e2941a37a6dbe8d1526bd42b9dca5ab757b4aef93ee"
+    },
+    {
+      "siteId": "fc1c3282d971e48b9ff39a5c729a004d513cfbcddd6914a72c03b287553a4dd8",
+      "operation": "UPDATE",
+      "table": "publishing_accounts",
+      "sqlSha256": "18617f3f1f5d5759a46cc33c7349061bf03039efe6ecd7bab38dee43ea0822f0"
+    },
+    {
+      "siteId": "2a879b35c38d84620c363a961abce87670ec9f6f0c65be2ba766dc2056d5796e",
+      "operation": "UPDATE",
+      "table": "publishing_release_lifecycles",
+      "sqlSha256": "4972554645a172784f4c991d5e60cdbaa4661c727aeeb58abc46946ba4cc21a0"
+    },
+    {
+      "siteId": "c6e5ddb7bd7ddab841f6b3fda3f9124c3c8086df95ea9f7476e1df99100834f8",
+      "operation": "INSERT INTO",
+      "table": "publishing_lifecycle_events",
+      "sqlSha256": "72847793697dd5f1747b262ab5ca6b2091f4e7999270ccd76f4fba0091f60d50"
+    },
+    {
+      "siteId": "8b1e8560352afa004578eb9b89c415b815da1ab3e05781395005d4bb4ad6f364",
+      "operation": "UPDATE",
+      "table": "products",
+      "sqlSha256": "a33b582b6704ab465135b6a2f6f702ac330ad2859b8b8ac3816c0f3b8a27dc8e"
+    },
+    {
+      "siteId": "dae6ce8cf8a0d97592175940d85b178c06ce9bede21f2896c8a29d0324c47204",
+      "operation": "UPDATE",
+      "table": "publishing_rights_evidence",
+      "sqlSha256": "527108a21c8806f1c6fcacf4580ae981a897590a5abf34acea41b647e8fc3ba2"
+    }
+  ],
+  "blocked": [
+    "All legal reinstatement and royalty release",
+    "Validated takedown pending simultaneous owner denial",
+    "Positive publisher rights proof without independent evidence",
+    "Counter-notice forwarding pending independent restoration safety",
+    "Repeat-infringer publication retirement pending owner denial",
+    "Court action pending independent filing proof"
+  ],
+  "historicRestorationAttestation": "docs/architecture/retired-unowned-restoration-source-attestation-20261030.json",
+  "currentSourceSha256": "7b712809bd58a2d0456ad38da3b0ecb75621688dedd070a2f8687ebef6765590"
+}

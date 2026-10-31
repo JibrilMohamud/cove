@@ -163,6 +163,22 @@ export async function dispatchCatalogPersonalImport(db:object,input:{
   }catch{throw new ApiError(503,"Private catalog owner did not accept personal import.");}
 }
 
+/** QA-only copyright/trust command. No delegated SQL and no public fallback. */
+export async function dispatchPrivateTrustAction(db:object,
+ action:"sign-rights"|"upload-evidence"|"assess-content"|"submit-notice"|
+ "validate-notice"|"submit-counter"|"validate-counter"|"court-action"|
+ "resolve-dispute"|"repeat-policy"|"review-evidence",
+ payload:Record<string,unknown>):Promise<unknown>{
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"A private legal-trust owner is required.");
+ try{
+   const operationId="trust:"+crypto.randomUUID();
+   const receipt=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+     "trust.owner-action",{action,operationId,payload});
+   return receipt.result;
+ }catch{throw new ApiError(503,"Private legal-trust owner denied the command.");}
+}
+
 /** Fixed, non-SQL private preorder command. Both server and owner reject
  * nonleased production. Positive payment and release claims are forbidden. */
 export async function dispatchPrivatePreorderAction(
