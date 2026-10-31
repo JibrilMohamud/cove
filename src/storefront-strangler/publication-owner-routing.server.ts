@@ -427,3 +427,17 @@ export async function dispatchNegativeDeliveryOwner(db:object,
   return receipt.result;
  }catch{throw new ApiError(503,"Private owner rejected commercial delivery change.");}
 }
+
+/** QA-only immutable ingestion-state commands. No rights activation or paid grants. */
+export async function dispatchCatalogIngestState(db:object,
+ action:"recover-interrupted"|"mark-unavailable"|"claim-download"|"touch-attempt"|
+  "set-backoff"|"mark-failure"|"acquire-regional"|"mark-degraded"|"mark-regional-failed",
+ payload:Record<string,unknown>):Promise<{saved?:boolean;claimed?:boolean}> {
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Regional ingestion requires a private owner.");
+ try{
+  const receipt=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+   "catalog.ingestion-state",{action,payload});
+  return receipt.result as {saved?:boolean;claimed?:boolean};
+ }catch{throw new ApiError(503,"Private ingestion owner refused the state transition.");}
+}
