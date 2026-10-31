@@ -163,6 +163,23 @@ export async function dispatchCatalogPersonalImport(db:object,input:{
   }catch{throw new ApiError(503,"Private catalog owner did not accept personal import.");}
 }
 
+/** An owner-only support action; every staff permission and case scope is
+ * independently rechecked at the primary owner. Production remains locked. */
+export async function dispatchSupportOwnerAction(db:object,staffUserId:string,action:{
+  caseId:string;actionType:string;targetId:string;reasonCode:string;
+  rationale:string;idempotencyKey:string;amountMinor?:number
+}) {
+  const context=owners.get(db);
+  if(!context)throw new ApiError(503,"Support operations require a private canonical owner.");
+  const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(action.idempotencyKey));
+  const operationId="support:"+Array.from(new Uint8Array(digest),x=>x.toString(16).padStart(2,"0")).join("");
+  try {
+    const ack=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+      "support.execute-action",{staffUserId,operationId,action});
+    return ack.result;
+  }catch{throw new ApiError(503,"Private support owner did not acknowledge this operation.");}
+}
+
 /** This operation is intentionally NEGATIVE-only until external provider
  * evidence and an owner-controlled positive verification path are certified. */
 export async function dispatchPublishingOnboardingReview(db:object,command:{
