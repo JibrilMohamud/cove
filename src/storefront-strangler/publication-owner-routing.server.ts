@@ -346,3 +346,19 @@ export async function dispatchRegionalEpubRepair(db:object,input:{after:string;l
  const receipt=await dispatchCanonicalOwnerCommand(context.owner,context.secret,"catalog.repair-regional-assets",input);
  return receipt.result as RegionalEpubRepairResult;
 }
+
+/** A QA-only owner command; the original shared moderation writer is retired. */
+export async function dispatchPrivateModerationAction(db:object,staffUserId:string,
+  action:{caseId:string;actionType:string;reasonCode:string;rationale:string}) {
+  const context=owners.get(db);
+  if(!context)throw new ApiError(503,"Moderation actions require a private owner.");
+  const input=JSON.stringify({staffUserId,action});
+  const hash=new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(input)));
+  const operationId="moderation:"+Array.from(hash,x=>x.toString(16).padStart(2,"0")).join("");
+  try {
+    const receipt=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+      "moderation.execute-action",{staffUserId,operationId,action});
+    return receipt.result as {id:string;actionType:string};
+  }catch{throw new ApiError(503,"Private moderation owner refused or did not acknowledge this action.");}
+}
+

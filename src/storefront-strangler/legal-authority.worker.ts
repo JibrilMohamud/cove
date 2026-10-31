@@ -45,7 +45,7 @@ import {
 import {ownerContractVersionSchema} from "./owner-contract-version-schema";
 import {ApiError,now} from "../features/fore/service";
 import {recordAction,assertScope,sha256} from "../features/fore/support.server";
-import {createModerationCase,type StaffContext} from "../features/fore/moderation.server";
+import {createModerationCase,type StaffContext,type ModerationDB} from "../features/fore/moderation.server";
 import {mirrorPublishingMalwareResult} from "../features/fore/security.server";
 import {createContractVersionOwnerSchema,executeOwnerContractVersion} from "./owner-contract-version-executor";
 import {createMarketAuthoritySchema,denyMarket,marketIsWithdrawn} from "./market-authority-core";
@@ -16963,7 +16963,363 @@ async function repairRegionalEpubAssetsPrivate(
   };
 }
 
+
+/* QA-only moderation algorithm: transplant of the exact former shared action family.
+ * The private Worker exclusively holds its D1 binding; public DB wrappers cannot
+ * call this helper. Restoration deliberately requires future independently
+ * certified positive evidence and is rejected before entering this code. */
+/* eslint-disable @typescript-eslint/no-explicit-any -- Audited historical D1 moderation statements */
+const privateModeration=(()=>{
+  const now=()=>new Date().toISOString();
+  const id=(prefix:string)=>`${prefix}_${crypto.randomUUID()}`;
+const caseEvent = (
+  db: ModerationDB,
+  caseId: string,
+  eventType: string,
+  actorType: "staff" | "publisher" | "reporter" | "system",
+  actorUserId: string | null,
+  payload: unknown = {},
+) =>
+  db
+    .prepare(
+      "INSERT INTO moderation_case_events(id,case_id,event_type,actor_type,actor_user_id,event_json,created_at) VALUES(?,?,?,?,?,?,?)",
+    )
+    .bind(
+      id("modevt"),
+      caseId,
+      eventType,
+      actorType,
+      actorUserId,
+      JSON.stringify(payload || {}),
+      now(),
+    );
+async function lifecycleForCase(db: ModerationDB, c: any) {
+  if (c.subject_type === "edition")
+    return db
+      .prepare(
+        "SELECT l.*,e.catalog_product_id,e.catalog_edition_id,t.account_id FROM publishing_release_lifecycles l JOIN publishing_edition_drafts e ON e.id=l.publishing_edition_id JOIN publishing_titles t ON t.id=e.title_id WHERE e.id=?",
+      )
+      .bind(c.subject_id)
+      .first<any>();
+  if (c.subject_type === "title")
+    return db
+      .prepare(
+        "SELECT l.*,e.catalog_product_id,e.catalog_edition_id,t.account_id FROM publishing_release_lifecycles l JOIN publishing_edition_drafts e ON e.id=l.publishing_edition_id JOIN publishing_titles t ON t.id=e.title_id WHERE t.id=? ORDER BY e.updated_at DESC LIMIT 1",
+      )
+      .bind(c.subject_id)
+      .first<any>();
+  if (c.subject_type === "publication")
+    return db
+      .prepare(
+        "SELECT l.*,e.catalog_product_id,e.catalog_edition_id,t.account_id FROM publishing_release_lifecycles l JOIN publishing_edition_drafts e ON e.id=l.publishing_edition_id JOIN publishing_titles t ON t.id=e.title_id JOIN publishing_publications p ON p.edition_id=e.catalog_edition_id WHERE p.id=?",
+      )
+      .bind(c.subject_id)
+      .first<any>();
+  return null;
+}
+
+
+async function executeModerationAction(db: ModerationDB, staff: StaffContext, raw: unknown, operationId: string) {
+  const x = z
+    .object({
+      caseId: z.string().min(1),
+      actionType: z.enum([
+        "no_action",
+        "hide_review",
+        "show_review",
+        "warn_publisher",
+        "restrict_publisher",
+        "suspend_publisher",
+        "suppress_title",
+        "restore_title",
+        "takedown_title",
+        "retire_title",
+        "reject_submission",
+        "approve_submission",
+        "escalate",
+        "copyright_takedown",
+        "copyright_restore",
+        "impersonation_remove",
+      ]),
+      reasonCode: z.string().max(120).default(""),
+      rationale: z.string().max(8000).default(""),
+    })
+    .parse(raw);
+  const c = await db
+    .prepare("SELECT * FROM moderation_cases WHERE id=?")
+    .bind(x.caseId)
+    .first<any>();
+  if (!c) throw new ApiError(404, "Moderation case not found.");
+  if (["approve_submission", "reject_submission"].includes(x.actionType))
+    throw new ApiError(
+      409,
+      "Publishing submission decisions must use the publishing review workflow so immutable review evidence and release materialization remain consistent.",
+    );
+  const perm =
+    x.actionType === "hide_review" || x.actionType === "show_review"
+      ? "moderation.review.manage"
+      : x.actionType.includes("copyright")
+        ? "moderation.copyright.manage"
+        : x.actionType === "impersonation_remove"
+          ? "moderation.impersonation.manage"
+          : x.actionType === "suppress_title"
+            ? "moderation.emergency_suppress"
+            : x.actionType.includes("takedown")
+              ? "moderation.takedown"
+              : x.actionType.includes("publisher")
+                ? "moderation.sanction.manage"
+                : x.actionType === "restore_title" || x.actionType === "retire_title"
+                  ? "moderation.title.manage"
+                  : "moderation.case.manage";
+  if (!staff.permissions.has(perm) && !staff.permissions.has("staff.manage"))
+    throw new ApiError(403, `Staff permission required: ${perm}.`);
+  const at = now(),
+    actionId = `modaction_${operationId.slice("moderation:".length)}`,
+    stmts: any[] = [];
+  const previous=await db.prepare("SELECT id,action_type,staff_user_id,case_id FROM moderation_actions WHERE id=?")
+    .bind(actionId).first<any>();
+  if(previous){
+    if(previous.case_id!==x.caseId||previous.staff_user_id!==staff.userId||previous.action_type!==x.actionType)
+      throw new ApiError(409,"Moderation command replay conflicts with an existing action.");
+    return {id:actionId,actionType:x.actionType};
+  }
+  if (x.actionType === "hide_review" || x.actionType === "show_review") {
+    if (c.subject_type !== "review")
+      throw new ApiError(409, "This action requires a review subject.");
+    stmts.push(
+      db
+        .prepare("UPDATE reviews SET moderation=? WHERE id=?")
+        .bind(x.actionType === "hide_review" ? "hidden" : "visible", c.subject_id),
+    );
+  }
+  if (["warn_publisher", "restrict_publisher", "suspend_publisher"].includes(x.actionType)) {
+    const accountId = String(c.publishing_account_id || c.subject_id);
+    const acct = await db
+      .prepare("SELECT id FROM publishing_accounts WHERE id=?")
+      .bind(accountId)
+      .first<any>();
+    if (!acct) throw new ApiError(409, "This case is not linked to a publishing account.");
+    const sanctionType =
+        x.actionType === "warn_publisher"
+          ? "warning"
+          : x.actionType === "restrict_publisher"
+            ? "publishing_restriction"
+            : "temporary_suspension",
+      strike =
+        x.actionType === "warn_publisher" ? 1 : x.actionType === "restrict_publisher" ? 3 : 5;
+    if (x.actionType !== "warn_publisher")
+      stmts.push(
+        db
+          .prepare("UPDATE publishing_accounts SET status=?,updated_at=? WHERE id=?")
+          .bind(x.actionType === "suspend_publisher" ? "suspended" : "restricted", at, accountId),
+      );
+    stmts.push(
+      db
+        .prepare(
+          "INSERT INTO moderation_sanctions(id,publishing_account_id,case_id,action_id,sanction_type,strike_points,status,starts_at,created_at) VALUES(?,?,?,?,?,?,'active',?,?)",
+        )
+        .bind(id("sanction"), accountId, x.caseId, actionId, sanctionType, strike, at, at),
+    );
+  }
+  if (
+    [
+      "suppress_title",
+      "restore_title",
+      "takedown_title",
+      "retire_title",
+      "copyright_takedown",
+      "copyright_restore",
+      "impersonation_remove",
+    ].includes(x.actionType)
+  ) {
+    const l = await lifecycleForCase(db, c);
+    if (!l) throw new ApiError(409, "This case is not linked to a Cove Publishing release.");
+    const restoring = x.actionType === "restore_title" || x.actionType === "copyright_restore";
+    let restoredFrom: string | null = null;
+    if (restoring) {
+      const prior = await db
+        .prepare(
+          "SELECT from_state FROM publishing_lifecycle_events WHERE lifecycle_id=? AND to_state IN ('suppressed','takedown') ORDER BY created_at DESC LIMIT 1",
+        )
+        .bind(l.id)
+        .first<any>();
+      restoredFrom = prior?.from_state ? String(prior.from_state) : null;
+    }
+    const target =
+      restoring && restoredFrom && !["suppressed", "takedown", "retired"].includes(restoredFrom)
+        ? restoredFrom
+        : restoring
+          ? l.current_publication_version_id
+            ? "live"
+            : "approved"
+          : x.actionType === "retire_title"
+            ? "retired"
+            : x.actionType === "takedown_title" ||
+                x.actionType === "copyright_takedown" ||
+                x.actionType === "impersonation_remove"
+              ? "takedown"
+              : "suppressed";
+    const tsColumn =
+      target === "suppressed"
+        ? "suppressed_at"
+        : target === "takedown"
+          ? "takedown_at"
+          : target === "retired"
+            ? "retired_at"
+            : null;
+    stmts.push(
+      db
+        .prepare(
+          `UPDATE publishing_release_lifecycles SET state=?,state_reason=?,${tsColumn ? `${tsColumn}=?,` : ""}updated_at=? WHERE id=?`,
+        )
+        .bind(
+          ...(tsColumn
+            ? [target, x.reasonCode || x.actionType, at, at, l.id]
+            : [target, x.reasonCode || x.actionType, at, l.id]),
+        ),
+    );
+    const hasServingVersion = !!l.current_publication_version_id,
+      storefrontActive =
+        ["preorder", "live", "updated"].includes(target) ||
+        (hasServingVersion && !["suppressed", "takedown", "retired"].includes(target));
+    if (l.catalog_product_id)
+      stmts.push(
+        db
+          .prepare("UPDATE products SET storefront_status=?,updated_at=? WHERE id=?")
+          .bind(storefrontActive ? "active" : "inactive", at, l.catalog_product_id),
+      );
+    if (l.catalog_edition_id) {
+      const releaseStatus =
+        target === "preorder" ? "preorder" : storefrontActive ? "available" : target;
+      stmts.push(
+        db
+          .prepare("UPDATE editions SET release_status=?,updated_at=? WHERE id=?")
+          .bind(releaseStatus, at, l.catalog_edition_id),
+      );
+    }
+    stmts.push(
+      db
+        .prepare(
+          "INSERT INTO publishing_lifecycle_events(id,lifecycle_id,from_state,to_state,trigger_type,actor_user_id,reason_code,metadata_json,created_at) VALUES(?,?,?,?, 'moderation',?,?,?,?)",
+        )
+        .bind(
+          id("lifeevt"),
+          l.id,
+          l.state,
+          target,
+          staff.userId,
+          x.reasonCode,
+          JSON.stringify({ caseId: x.caseId, actionType: x.actionType, restoredFrom }),
+          at,
+        ),
+    );
+  }
+  if (x.actionType === "copyright_takedown")
+    stmts.push(
+      db
+        .prepare(
+          "UPDATE copyright_complaints SET notice_status='actioned',updated_at=? WHERE case_id=?",
+        )
+        .bind(at, x.caseId),
+    );
+  if (x.actionType === "copyright_restore")
+    stmts.push(
+      db
+        .prepare(
+          "UPDATE copyright_complaints SET notice_status='restored',updated_at=? WHERE case_id=?",
+        )
+        .bind(at, x.caseId),
+    );
+  if (x.actionType === "escalate")
+    stmts.push(
+      db
+        .prepare(
+          "UPDATE moderation_cases SET priority='urgent',status='in_review',updated_at=? WHERE id=?",
+        )
+        .bind(at, x.caseId),
+    );
+  stmts.push(
+    db
+      .prepare(
+        "INSERT INTO moderation_actions(id,case_id,staff_user_id,action_type,reason_code,rationale,reversible,created_at) VALUES(?,?,?,?,?,?,?,?)",
+      )
+      .bind(
+        actionId,
+        x.caseId,
+        staff.userId,
+        x.actionType,
+        x.reasonCode,
+        x.rationale,
+        ["no_action", "retire_title", "escalate"].includes(x.actionType) ? 0 : 1,
+        at,
+      ),
+  );
+  if (x.actionType !== "escalate")
+    stmts.push(
+      db
+        .prepare(
+          `UPDATE moderation_cases SET status=?,resolved_at=CASE WHEN ?='resolved' THEN ? ELSE resolved_at END,updated_at=? WHERE id=?`,
+        )
+        .bind(
+          x.actionType === "no_action" ? "resolved" : "actioned",
+          x.actionType === "no_action" ? "resolved" : "actioned",
+          at,
+          at,
+          x.caseId,
+        ),
+    );
+  stmts.push(
+    caseEvent(db, x.caseId, "action_applied", "staff", staff.userId, {
+      actionId,
+      actionType: x.actionType,
+      reasonCode: x.reasonCode,
+      rationale: x.rationale,
+    }),
+  );
+  await db.batch(stmts);
+  if (x.actionType === "hide_review" || x.actionType === "show_review")
+    try {
+      const review = await db
+        .prepare("SELECT user_id,book_id FROM reviews WHERE id=?")
+        .bind(c.subject_id)
+        .first<any>();
+      if (review?.user_id)
+        await emitNotification(db, {
+          userId: String(review.user_id),
+          eventType: "review_moderated",
+          dedupeKey: `review-moderated:${actionId}:${review.user_id}`,
+          title:
+            x.actionType === "hide_review"
+              ? "Your review was moderated"
+              : "Your review was restored",
+          body:
+            x.actionType === "hide_review"
+              ? x.rationale || "A Cove moderator hid your review under the review guidelines."
+              : x.rationale || "A Cove moderator restored your review.",
+          urgency: x.actionType === "hide_review" ? "high" : "normal",
+          subjectType: "review",
+          subjectId: String(c.subject_id),
+          actionUrl: review.book_id
+            ? `/book/${encodeURIComponent(String(review.book_id))}`
+            : "/library",
+          payload: {
+            caseId: x.caseId,
+            actionId,
+            actionType: x.actionType,
+            reasonCode: x.reasonCode,
+          },
+        });
+    } catch (e) {
+      console.error("Review moderation notification enqueue failed", e);
+    }
+  return { id: actionId, actionType: x.actionType };
+}
+return {executeModerationAction};
+})();
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
+  private moderationExecution=false;
   private regionalRepairExecution=false;
   private accountExecution=false;
   private financeExecution=false;
@@ -17063,6 +17419,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/catalog/repair-regional-assets",
       "/publishing/editor-action",
       "/publishing/partner/private-action",
+      "/moderation/private-action",
       "/support/private-action",
       "/publishing/contract/save-version",
       "/publication/materialize-submission",
@@ -17076,7 +17433,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     let raw:unknown;
     try {
       const bytes=await request.text();
-      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/create-quote"?4096:route==="/publishing/audio/register-upload"?8192:route==="/publishing/audio/qc-jobs"?262144:route==="/publishing/worker/jobs"?262144:route==="/publishing/audio/metadata"?8192:route==="/publishing/onboarding/review"?8192:route==="/support/private-action"?8192:route==="/preorder/private-action"?8192:route==="/trust/private-action"?262144:route==="/finance/private-action"?65536:route==="/account/private-action"?2048:route==="/publishing/editor-action"?262144:route==="/publishing/partner/private-action"?16384:route==="/commercial/checkout/materialize-draft"?2048:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
+      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/create-quote"?4096:route==="/publishing/audio/register-upload"?8192:route==="/publishing/audio/qc-jobs"?262144:route==="/publishing/worker/jobs"?262144:route==="/publishing/audio/metadata"?8192:route==="/publishing/onboarding/review"?8192:route==="/moderation/private-action"?12288:route==="/support/private-action"?8192:route==="/preorder/private-action"?8192:route==="/trust/private-action"?262144:route==="/finance/private-action"?65536:route==="/account/private-action"?2048:route==="/publishing/editor-action"?262144:route==="/publishing/partner/private-action"?16384:route==="/commercial/checkout/materialize-draft"?2048:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
       raw=JSON.parse(bytes);
     }catch {return new Response(null,{status:400,headers:noStore});}
     bindPrivateFinanceExecutors(env.PRIMARY_DB,{...privateRoyalty,...privateFinance});
@@ -17703,6 +18060,50 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         return Response.json({schema:"cove.owner-preorder-qa.v1",ownerFirst:true,
           operationId:input.operationId,action:input.action,
           result:result??null},{headers:noStore});
+      }
+      if(route==="/moderation/private-action") {
+        const actionSchema=z.object({
+          caseId:z.string().min(1).max(160),
+          actionType:z.enum(["no_action","hide_review","show_review","warn_publisher",
+            "restrict_publisher","suspend_publisher","suppress_title","restore_title",
+            "takedown_title","retire_title","reject_submission","approve_submission",
+            "escalate","copyright_takedown","copyright_restore","impersonation_remove"]),
+          reasonCode:z.string().max(120).default(""),
+          rationale:z.string().max(8000).default("")
+        }).strict();
+        const input=z.object({
+          staffUserId:z.string().regex(/^[A-Za-z0-9_-]{3,160}$/),
+          operationId:z.string().regex(/^moderation:[a-f0-9]{64}$/),
+          action:actionSchema
+        }).strict().parse(raw);
+        const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",
+          new TextEncoder().encode(JSON.stringify({staffUserId:input.staffUserId,action:input.action}))));
+        const expected="moderation:"+Array.from(digest,x=>x.toString(16).padStart(2,"0")).join("");
+        if(expected!==input.operationId)return new Response(null,{status:409,headers:noStore});
+        // Positive restoration cannot be inferred from a previous moderation event:
+        // it requires a separately verified fresh contract/territory/legal proof.
+        if(["restore_title","copyright_restore","approve_submission"].includes(input.action.actionType))
+          return new Response(null,{status:409,headers:noStore});
+        if(this.moderationExecution)return new Response(null,{status:409,headers:noStore});
+        this.moderationExecution=true;
+        try {
+          const staff=await env.PRIMARY_DB.prepare(
+            "SELECT user_id FROM staff_principals WHERE user_id=? AND status='active'"
+          ).bind(input.staffUserId).first<{user_id:string}>();
+          if(!staff)return new Response(null,{status:403,headers:noStore});
+          const rows=(await env.PRIMARY_DB.prepare(
+            "SELECT p.permission FROM staff_principal_roles pr JOIN staff_role_permissions p ON p.role_id=pr.role_id WHERE pr.user_id=?"
+          ).bind(input.staffUserId).all<{permission:string}>()).results;
+          const permissions=new Set(rows.map(x=>String(x.permission)));
+          const context:StaffContext={userId:input.staffUserId,email:"",displayName:"",
+            permissions,roles:[],mfaRequired:false};
+          const result=await privateModeration.executeModerationAction(
+            env.PRIMARY_DB as ModerationDB,context,input.action,input.operationId);
+          return Response.json({schema:"cove.owner-moderation-qa.v1",ownerFirst:true,
+            operationId:input.operationId,staffUserId:input.staffUserId,
+            caseId:input.action.caseId,actionType:input.action.actionType,result},
+            {headers:noStore});
+        } finally {this.moderationExecution=false;}
       }
       if(route==="/support/private-action") {
         const input=z.object({
