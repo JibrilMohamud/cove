@@ -1,3 +1,4 @@
+import { dispatchStageOwnerVerifiedBiosync } from "../../storefront-strangler/owner-biosync-verification.server";
 import { z } from "zod/v3";
 import {
   dispatchCommercialAudioMetadata,
@@ -1349,7 +1350,15 @@ const commercialBiosyncManifestSchema = z.object({
   cues: z.array(commercialBiosyncCueSchema).min(1).max(500000),
 });
 
-export async function saveCommercialBiosyncLink(env: CoveEnv, staffUserId: string, raw: unknown) {
+type BiosyncVerifiedOwnerRow={
+ ebookProductId:string; audiobookProductId:string; ebookAssetVersionId:string;
+ audioManifestHash:string; timingManifestObjectKey:string; timingManifestSha256:string;
+ precision:"sentence"|"word"; coverageBps:number; verifiedBy:string; verifiedAt:string
+};
+export async function saveCommercialBiosyncLink(env:CoveEnv,staffUserId:string,raw:unknown,
+ persistVerified?: (row:BiosyncVerifiedOwnerRow)=>Promise<string>) {
+ if(!persistVerified)return dispatchStageOwnerVerifiedBiosync(env,staffUserId,raw);
+
   const db = env.DB,
     x = z
       .object({
@@ -1481,27 +1490,13 @@ export async function saveCommercialBiosyncLink(env: CoveEnv, staffUserId: strin
       409,
       "The supplied Biosync coverage does not match the verified timing manifest.",
     );
-  const linkId = id("biosync"),
-    at = now();
-  await db
-    .prepare(
-      "INSERT INTO commercial_biosync_links(id,ebook_product_id,audiobook_product_id,ebook_asset_version_id,audio_manifest_hash,timing_manifest_object_key,timing_manifest_sha256,precision,coverage_bps,verification_status,verified_by,verified_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,'verified',?,?,?)",
-    )
-    .bind(
-      linkId,
-      x.ebookProductId,
-      x.audiobookProductId,
-      x.ebookAssetVersionId,
-      x.audioManifestHash,
-      x.timingManifestObjectKey,
-      actualSha,
-      manifest.precision,
-      coverageBps,
-      `${x.verifiedBy}:${staffUserId}`,
-      at,
-      at,
-    )
-    .run();
+  const linkId=await persistVerified({
+    ebookProductId:x.ebookProductId,audiobookProductId:x.audiobookProductId,
+    ebookAssetVersionId:x.ebookAssetVersionId,audioManifestHash:x.audioManifestHash,
+    timingManifestObjectKey:x.timingManifestObjectKey,timingManifestSha256:actualSha,
+    precision:manifest.precision,coverageBps,
+    verifiedBy:`${x.verifiedBy}:${staffUserId}`,verifiedAt:now()
+  });
   return {
     id: linkId,
     status: "verified",
