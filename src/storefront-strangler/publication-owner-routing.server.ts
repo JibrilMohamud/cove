@@ -432,6 +432,25 @@ export async function dispatchVerifiedFreeLibraryEntitlement(db:object,input:{
  }catch{throw new ApiError(503,"Private owner refused free library entitlement.");}
 }
 
+/** A commercial EPUB token can only be published by the paid legal owner
+ * after fresh full-scope authorization and primary contract/policy checks. */
+export async function dispatchPrivateCommercialEpubGrant(db:object,input:{
+ grantId:string;tokenHash:string;userId:string;productId:string;
+ entitlementId:string;publicationVersionId:string|null;assetVersionId:string;
+ deviceId:string|null;purpose:"read"|"download"|"offline_package";
+ watermarkId:string|null;policySnapshotJson:string;issuedAt:string;expiresAt:string;
+ maxUses:number;territory:string;channel:"retail"|"subscription"|"library";
+}):Promise<void>{
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Commercial EPUB grant requires private legal authority.");
+ try{
+  const receipt=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+    "delivery.issue-epub-grant",input);
+  if(receipt.saved!==true||receipt.grantId!==input.grantId)
+    throw Error("commercial_delivery_grant_receipt_invalid");
+ }catch{throw new ApiError(503,"Private legal owner refused commercial EPUB grant.");}
+}
+
 export async function dispatchPrivateOwnershipSnapshot(db:object,input:{
  entitlementId:string;userId:string;productId:string
 }):Promise<void>{

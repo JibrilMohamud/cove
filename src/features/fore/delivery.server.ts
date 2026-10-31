@@ -1,5 +1,5 @@
 /* eslint-disable prettier/prettier -- Audited private delivery-owner facades retain source lineage. */
-import { dispatchPrivateEntitlementDevice,dispatchPrivateOwnershipSnapshot } from "../../storefront-strangler/publication-owner-routing.server";
+import { dispatchPrivateEntitlementDevice,dispatchPrivateOwnershipSnapshot,dispatchPrivateCommercialEpubGrant } from "../../storefront-strangler/publication-owner-routing.server";
 import { dispatchNegativeDeliveryOwner } from "../../storefront-strangler/publication-owner-routing.server";
 import JSZip from "jszip";
 import { z } from "zod/v3";
@@ -615,29 +615,15 @@ export async function issueCommercialEpubGrant(
       removalPolicy: ownership.removal_policy,
       contractPolicy,
     };
-  await db
-    .prepare(
-      "INSERT INTO commercial_delivery_grants(id,token_hash,user_id,product_id,entitlement_id,ownership_record_id,publication_version_id,asset_version_id,device_id,purpose,watermark_id,wrapped_key,policy_snapshot_json,issued_at,expires_at,max_uses,uses,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,'active')",
-    )
-    .bind(
-      grantId,
-      hash,
-      userId,
-      product.id,
-      ent.id,
-      ent.id,
-      pvId,
-      asset.asset_version_id,
-      x.deviceId || null,
-      x.purpose,
-      watermarkId,
-      null,
-      JSON.stringify(policySnapshot),
-      issued,
-      expires,
-      Number(policy.token_max_uses || 2),
-    )
-    .run();
+  await dispatchPrivateCommercialEpubGrant(db,{
+    grantId,tokenHash:hash,userId,productId:String(product.id),
+    entitlementId:String(ent.id),publicationVersionId:pvId,
+    assetVersionId:String(asset.asset_version_id),deviceId:x.deviceId||null,
+    purpose:x.purpose,watermarkId,policySnapshotJson:JSON.stringify(policySnapshot),
+    issuedAt:issued,expiresAt:expires,maxUses:Number(policy.token_max_uses||2),
+    territory:(requestMeta(request).country||env.FORE_DEFAULT_TERRITORY||"US").toUpperCase(),
+    channel:entitlementSalesChannel(ent.entitlement_type)
+  });
   await audit(db, {
     grantId,
     userId,

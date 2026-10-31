@@ -1,0 +1,34 @@
+{
+  "schema": "cove.retired-epub-delivery-grant-owner-lineage.v1",
+  "releaseApproval": false,
+  "productionCertified": false,
+  "sourceBefore": 11,
+  "sourceAfter": 10,
+  "sourceFile": "src/features/fore/delivery.server.ts",
+  "previousSha256": "400d1373a77029a377794fea142159663be601048ada2efc4cc5f64e57091d1d",
+  "currentSha256": "e3505acf284c6f626c986cba0526b4f1b09c60669b2c8de80991568fe75460fd",
+  "retired": [
+    {
+      "siteId": "8c3cebb0c723d04955561896ad9ac083d30ca5924f144060b00769cfaa8595e0",
+      "file": "src/features/fore/delivery.server.ts",
+      "line": 620,
+      "functionName": "issueCommercialEpubGrant",
+      "table": "commercial_delivery_grants",
+      "operation": "INSERT INTO",
+      "sqlSha256": "d02933b1f3ddef4c605499766d412a0a3efa9a907779f0d9cee4c51aa7426bc4",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "delivery.issueCommercialEpubGrant",
+      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
+    }
+  ],
+  "ownerCommand": "delivery.issue-epub-grant",
+  "privateRoute": "/delivery/private-issue-epub-grant",
+  "proofs": [
+    "Owner rechecks strongly consistent paid entitlement grant and exact territory/channel/contract scope",
+    "Independent primary D1 entitlement, market, asset-version/edition, staff-independent device and buyer risk-hold checks",
+    "Token expiry and max use constrained to primary delivery policy; no caller-selected bypass",
+    "D1 guarded positive grant insert only when entitlement, asset and device remain live; no public fallback",
+    "Production owner is disabled, paid QA and exclusive D1 privileges not certified"
+  ]
+}

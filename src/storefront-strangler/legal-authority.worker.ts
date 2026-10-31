@@ -17698,6 +17698,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/promotion/private-action",
       "/catalog/private-ingest-state",
       "/catalog/private-grant-free-library",
+      "/delivery/private-issue-epub-grant",
       "/delivery/private-record-ownership",
       "/delivery/register-entitlement-device",
       "/delivery/private-negative",
@@ -17717,7 +17718,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     let raw:unknown;
     try {
       const bytes=await request.text();
-      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/create-quote"?4096:route==="/publishing/audio/register-upload"?8192:route==="/publishing/audio/qc-jobs"?262144:route==="/publishing/worker/jobs"?262144:route==="/publishing/audio/metadata"?8192:route==="/publishing/onboarding/review"?8192:route==="/rights/private-configuration"?12288:route==="/moderation/private-action"?12288:route==="/support/private-action"?8192:route==="/preorder/private-action"?8192:route==="/trust/private-action"?262144:route==="/finance/private-action"?65536:route==="/account/private-action"?2048:route==="/publishing/editor-action"?262144:route==="/publishing/partner/private-action"?16384:route==="/risk/private-release-hold"?8192:route==="/commercial/checkout/materialize-draft"?2048:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
+      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/create-quote"?4096:route==="/publishing/audio/register-upload"?8192:route==="/publishing/audio/qc-jobs"?262144:route==="/publishing/worker/jobs"?262144:route==="/publishing/audio/metadata"?8192:route==="/publishing/onboarding/review"?8192:route==="/rights/private-configuration"?12288:route==="/moderation/private-action"?12288:route==="/support/private-action"?8192:route==="/preorder/private-action"?8192:route==="/trust/private-action"?262144:route==="/finance/private-action"?65536:route==="/account/private-action"?2048:route==="/publishing/editor-action"?262144:route==="/publishing/partner/private-action"?16384:route==="/risk/private-release-hold"?8192:route==="/delivery/private-issue-epub-grant"?12288:route==="/commercial/checkout/materialize-draft"?2048:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
       raw=JSON.parse(bytes);
     }catch {return new Response(null,{status:400,headers:noStore});}
     bindPrivateFinanceExecutors(env.PRIMARY_DB,{...privateRoyalty,...privateFinance});
@@ -19193,6 +19194,95 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           ownerFirst:true,userId:input.userId,productId:input.productId,
           saved:true,applied:Number((result as {meta?:{changes?:number}})?.meta?.changes||0)===1},
           {headers:noStore});
+      }
+      if(route==="/delivery/private-issue-epub-grant"){
+        const x=z.object({
+          grantId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
+          tokenHash:z.string().regex(/^[a-f0-9]{64}$/),
+          userId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
+          productId:z.string().regex(/^prd_(?!gutenberg_)[A-Za-z0-9_-]{3,120}$/),
+          entitlementId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
+          publicationVersionId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/).nullable(),
+          assetVersionId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
+          deviceId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/).nullable(),
+          purpose:z.enum(["read","download","offline_package"]),
+          watermarkId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/).nullable(),
+          policySnapshotJson:z.string().min(2).max(8192),
+          issuedAt:z.string().datetime(),expiresAt:z.string().datetime(),
+          maxUses:z.number().int().min(1).max(100),
+          territory:z.string().regex(/^[A-Z]{2}$/),
+          channel:z.enum(["retail","subscription","library"])
+        }).strict().parse(raw);
+        const db=env.PRIMARY_DB,at=now(),issued=Date.parse(x.issuedAt),
+          expiry=Date.parse(x.expiresAt);
+        if(!Number.isFinite(issued)||!Number.isFinite(expiry)||
+           issued>Date.now()+30_000||issued<Date.now()-300_000||
+           expiry<=Date.now()||expiry-issued>3600_000||
+           marketIsWithdrawn(sql,x.territory))
+          return new Response(null,{status:409,headers:noStore});
+        const positive=readPaidAccess(sql,{
+          entitlementId:x.entitlementId,userId:x.userId,productId:x.productId,
+          territory:x.territory,channel:x.channel
+        });
+        if(!positive)return new Response(null,{status:409,headers:noStore});
+        let snapshot:Record<string,unknown>;
+        try{const parsed=JSON.parse(x.policySnapshotJson);
+          if(!parsed||Array.isArray(parsed)||typeof parsed!=="object")
+            throw Error("invalid_policy");
+          snapshot=parsed as Record<string,unknown>;
+        }catch{return new Response(null,{status:400,headers:noStore});}
+        const [ent,asset,policy,device,market]=await Promise.all([
+          db.prepare("SELECT e.id,e.entitlement_type,e.order_item_id FROM entitlements e JOIN products p ON p.id=e.product_id WHERE e.id=? AND e.user_id=? AND e.product_id=? AND e.status='active' AND p.source_name NOT IN ('gutenberg','upload') AND (e.starts_at IS NULL OR e.starts_at<=?) AND (e.ends_at IS NULL OR e.ends_at>?)")
+            .bind(x.entitlementId,x.userId,x.productId,at,at)
+            .first<{id:string;entitlement_type:string;order_item_id:string|null}>(),
+          db.prepare("SELECT av.id,av.object_key,da.downloadable,da.drm_status FROM asset_versions av JOIN digital_assets da ON da.id=av.asset_id JOIN products p ON p.edition_id=da.edition_id WHERE av.id=? AND p.id=? AND da.kind='epub'")
+            .bind(x.assetVersionId,x.productId)
+            .first<{id:string;object_key:string;downloadable:number;drm_status:string}>(),
+          db.prepare("SELECT * FROM commercial_delivery_policies WHERE product_id=?")
+            .bind(x.productId).first<Record<string,unknown>>(),
+          x.deviceId?db.prepare("SELECT id FROM devices WHERE id=? AND user_id=? AND revoked_at IS NULL")
+            .bind(x.deviceId,x.userId).first<{id:string}>():Promise.resolve({id:"no-device"}),
+          db.prepare("SELECT 1 ok FROM storefront_markets WHERE country_code=? AND market_status='active'")
+            .bind(x.territory).first<{ok:number}>()
+        ]);
+        if(!ent||!asset?.object_key||!device||!market||
+           (x.purpose!=="read"&&Number(asset.downloadable)!==1)||
+           (x.purpose==="read"&&Number(policy?.allow_browser_read??1)!==1)||
+           (x.purpose!=="read"&&Number(policy?.allow_file_download??1)!==1)||
+           (Number(policy?.require_device_registration||0)===1&&!x.deviceId)||
+           x.maxUses>Number(policy?.token_max_uses||2)||
+           expiry-issued>Number(policy?.token_ttl_seconds||300)*1000||
+           Number(snapshot.maxUses)!==x.maxUses||
+           Number(snapshot.ttlSeconds)<Math.ceil((expiry-issued)/1000)||
+           (x.purpose==="offline_package"&&
+            (snapshot.contractPolicy==null||snapshot.encryptionMode!=="none")))
+          return new Response(null,{status:409,headers:noStore});
+        const channel=ent.entitlement_type==="subscription"?"subscription":
+          ent.entitlement_type.includes("library")||ent.entitlement_type.includes("loan")?"library":"retail";
+        if(channel!==x.channel)return new Response(null,{status:409,headers:noStore});
+        if(ent.order_item_id){
+          const hold=await db.prepare("SELECT 1 ok FROM risk_holds h JOIN commerce_order_items oi ON oi.order_id=h.subject_id WHERE h.status='active' AND h.domain='buyer' AND h.subject_type='order' AND h.hold_scope IN ('checkout','entitlement') AND oi.id=? LIMIT 1")
+            .bind(ent.order_item_id).first<{ok:number}>();
+          if(hold)return new Response(null,{status:409,headers:noStore});
+        }
+        if(x.publicationVersionId){
+          const version=await db.prepare("SELECT pv.id FROM publishing_publication_versions pv JOIN publishing_publications pp ON pp.id=pv.publication_id WHERE pv.id=? AND pp.product_id=?")
+            .bind(x.publicationVersionId,x.productId).first<{id:string}>();
+          if(!version)return new Response(null,{status:409,headers:noStore});
+        }
+        // D1 checks are repeated inside the INSERT, so no caller can
+        // materialize a bearer grant after entitlement/device withdrawal.
+        const done=await db.prepare(
+          "INSERT INTO commercial_delivery_grants(id,token_hash,user_id,product_id,entitlement_id,ownership_record_id,publication_version_id,asset_version_id,device_id,purpose,watermark_id,wrapped_key,policy_snapshot_json,issued_at,expires_at,max_uses,uses,status) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,'active' WHERE EXISTS(SELECT 1 FROM entitlements e WHERE e.id=? AND e.user_id=? AND e.product_id=? AND e.status='active' AND (e.starts_at IS NULL OR e.starts_at<=?) AND (e.ends_at IS NULL OR e.ends_at>?)) AND EXISTS(SELECT 1 FROM asset_versions av JOIN digital_assets da ON da.id=av.asset_id JOIN products p ON p.edition_id=da.edition_id WHERE av.id=? AND p.id=? AND da.kind='epub' AND av.object_key IS NOT NULL) AND (? IS NULL OR EXISTS(SELECT 1 FROM devices d WHERE d.id=? AND d.user_id=? AND d.revoked_at IS NULL))"
+        ).bind(x.grantId,x.tokenHash,x.userId,x.productId,x.entitlementId,x.entitlementId,
+          x.publicationVersionId,x.assetVersionId,x.deviceId,x.purpose,x.watermarkId,
+          null,x.policySnapshotJson,x.issuedAt,x.expiresAt,x.maxUses,
+          x.entitlementId,x.userId,x.productId,at,at,
+          x.assetVersionId,x.productId,x.deviceId,x.deviceId,x.userId).run();
+        if(Number((done as {meta?:{changes?:number}})?.meta?.changes||0)!==1)
+          return new Response(null,{status:409,headers:noStore});
+        return Response.json({schema:"cove.owner-epub-grant.v1",ownerFirst:true,
+          grantId:x.grantId,saved:true},{headers:noStore});
       }
       if(route==="/delivery/private-record-ownership"){
         const x=z.object({entitlementId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),

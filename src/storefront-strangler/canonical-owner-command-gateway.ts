@@ -168,6 +168,16 @@ const routes={
     productId:z.string().regex(/^prd_gutenberg_(?:[0-9]{1,10}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90})$/),
     territory
   }).strict()},
+  "delivery.issue-epub-grant":{path:"/delivery/private-issue-epub-grant",schema:z.object({
+    grantId:ownerId,tokenHash:z.string().regex(/^[a-f0-9]{64}$/),
+    userId:ownerId,productId:product,entitlementId:ownerId,
+    publicationVersionId:ownerId.nullable(),assetVersionId:ownerId,
+    deviceId:ownerId.nullable(),purpose:z.enum(["read","download","offline_package"]),
+    watermarkId:ownerId.nullable(),policySnapshotJson:z.string().min(2).max(8192),
+    issuedAt:z.string().datetime(),expiresAt:z.string().datetime(),
+    maxUses:z.number().int().min(1).max(100),
+    territory,channel:z.enum(["retail","subscription","library"])
+  }).strict()},
   "delivery.record-ownership":{path:"/delivery/private-record-ownership",schema:z.object({
     entitlementId:ownerId,userId:ownerId,
     productId:product
@@ -461,6 +471,11 @@ export async function dispatchCanonicalOwnerCommand(
     case "catalog.grant-verified-free-library":
       if(ack.schema!=="cove.owner-free-library-entitlement.v1"||ack.ownerFirst!==true||
          ack.userId!==body.userId||ack.productId!==body.productId||ack.saved!==true)
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "delivery.issue-epub-grant":
+      if(ack.schema!=="cove.owner-epub-grant.v1"||ack.ownerFirst!==true||
+         ack.grantId!==body.grantId||ack.saved!==true)
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "delivery.record-ownership":

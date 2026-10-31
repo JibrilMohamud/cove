@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "retirementEvidence": "docs/architecture/retired-epub-delivery-grant-owner-lineage.json",
+  "rationale": "Removed the direct shared SQL issuance of commercial EPUB bearer grants. The private legal owner independently checks exact strongly consistent paid contract/entitlement/territory/channel proof, current canonical product, asset, market, device, risk holds and delivery policy. TTL and use limits are bounded by primary owner policy. Two remaining protected consumption SQL mutations retain owner-required classification; this is not production paid certification.",
+  "files": [
+    {
+      "path": "src/features/fore/delivery.server.ts",
+      "sha256": "e3505acf284c6f626c986cba0526b4f1b09c60669b2c8de80991568fe75460fd",
+      "review": "The positive commercial delivery grant INSERT is physically removed. Two canonical consumption mutations and one nonauthorizing audit retain exact SQL and classification."
+    }
+  ]
+}

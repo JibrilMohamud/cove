@@ -132,7 +132,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "0ee57a0e8d0daacb8d28a2ddcfd06f8d3fa72137780a5ab4ee20745a6e125059",
+      "siteId": "42da7df8c157d3728378bbcd8e4f090f56b62ed4e07fe9d8572112dd2c53f77c",
       "file": "src/features/fore/delivery.server.ts",
       "line": 309,
       "functionName": "audit",
@@ -144,22 +144,9 @@
       "reason": "Delivery telemetry records the outcome after authorization; this table never grants delivery permission."
     },
     {
-      "siteId": "8c3cebb0c723d04955561896ad9ac083d30ca5924f144060b00769cfaa8595e0",
+      "siteId": "6609e4d030be30af5d9becec104af37ed350bbe8575fbfeab876944efe799038",
       "file": "src/features/fore/delivery.server.ts",
-      "line": 620,
-      "functionName": "issueCommercialEpubGrant",
-      "table": "commercial_delivery_grants",
-      "operation": "INSERT INTO",
-      "sqlSha256": "d02933b1f3ddef4c605499766d412a0a3efa9a907779f0d9cee4c51aa7426bc4",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "delivery.issueCommercialEpubGrant",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "6b72c80a311c69ddbb36456c091674cb3ce1e6919e0ec8675cbd52201b6fa0d7",
-      "file": "src/features/fore/delivery.server.ts",
-      "line": 846,
+      "line": 832,
       "functionName": "serveCommercialEpubGrant",
       "table": "commercial_entitlement_delivery_usage",
       "operation": "INSERT INTO",
@@ -170,9 +157,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "68e56e470da1fe5a6bffa68e9cada73d102a5e19cf9d63a7e33fc1e03fc848c4",
+      "siteId": "d462297a6e0538fb21c9587bce2bf8e7c640ae7b8dc9827a94b15b86516da0a8",
       "file": "src/features/fore/delivery.server.ts",
-      "line": 870,
+      "line": 856,
       "functionName": "serveCommercialEpubGrant",
       "table": "commercial_delivery_grants",
       "operation": "UPDATE",
