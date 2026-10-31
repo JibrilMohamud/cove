@@ -2,6 +2,7 @@ import { seedMusicProfiles } from "./features/fore/music-profiles.server";
 import { scopePublicationOwnerEnv } from "./storefront-strangler/publication-owner-routing.server";
 import { scopeExclusiveCanonicalD1 } from "./storefront-strangler/canonical-d1-write-fence";
 import { scopeCommerceProductionD1 } from "./storefront-strangler/commerce-d1-write-fence";
+import { backendScheduledPrimaryReadDb } from "./storefront-strangler/backend-scheduled-primary-reads";
 import {
   backendReadonlyCandidateRouteAllowed,
   scopeBackendReadonlyCandidate,
@@ -58,6 +59,7 @@ type BackendEnv = CoveEnv &
     COVE_OWNER_EXCLUSIVE_WRITER_FENCE?: string;
     COVE_BACKEND_READONLY_CANDIDATE?: string;
     COVE_CANONICAL_READONLY_RPC?: string;
+    COVE_BACKEND_SCHEDULED_READONLY_RPC?: string;
     COVE_CANONICAL_READONLY?: import("./lib/canonical-readonly-d1.server").CanonicalReadService;
     COVE_COMMERCE_OWNER_D1_FENCE?: string;
     FORE_BACKEND_TOKEN?: string;
@@ -503,7 +505,7 @@ async function markD1QuotaBlocked() {
 
 async function audioTrackTriggerSlots(env: BackendEnv) {
   const at = new Date().toISOString();
-  const row = await env.DB.prepare(
+  const row = await backendScheduledPrimaryReadDb(env).prepare(
     `SELECT
       SUM(CASE WHEN status='queued' AND next_attempt_at<=? THEN 1 ELSE 0 END) queued,
       SUM(CASE WHEN status='running' AND lease_until>? THEN 1 ELSE 0 END) running
@@ -524,7 +526,7 @@ async function audioTrackTriggerSlots(env: BackendEnv) {
 
 async function audioAlignmentTriggerSlots(env: BackendEnv) {
   const at = new Date().toISOString();
-  const row = await env.DB.prepare(
+  const row = await backendScheduledPrimaryReadDb(env).prepare(
     `SELECT
       SUM(CASE WHEN kind='align' AND status='queued' AND next_attempt_at<=? AND attempts<6 THEN 1 ELSE 0 END) queued,
       SUM(CASE WHEN kind='align' AND status='running' AND lease_until>? THEN 1 ELSE 0 END) running,
@@ -550,7 +552,7 @@ async function warmOneShortBiosyncTranscript(env: BackendEnv) {
   // Warm one independent ASR transcript per hour; the existing Vercel/GitHub
   // verifier still has to match the exact EPUB before publishing any map.
   if (!env.AI || !env.BUCKET) return;
-  const rows = await env.DB.prepare(
+  const rows = await backendScheduledPrimaryReadDb(env).prepare(
     "SELECT e.id edition_id,json_extract(t.value,'$.id') track_id,json_extract(t.value,'$.sha256') audio_sha " +
       "FROM audio_jobs j JOIN audio_editions e ON e.id=json_extract(j.payload_json,'$.editionId') " +
       "JOIN json_each(e.tracks_json) t ON json_extract(t.value,'$.id')=json_extract(j.payload_json,'$.trackId') " +
@@ -644,10 +646,12 @@ async function runScheduled(cron: string, env: BackendEnv) {
       // Bootstrap one short real timing map before returning to alternating
       // acquisition windows. Keeps early BioSync health failures visible without
       // starving the long-running track backlog indefinitely.
-      const firstMapPending = await env.DB.prepare("SELECT 1 FROM audio_timing LIMIT 1").first();
+      const firstMapPending = await backendScheduledPrimaryReadDb(env)
+        .prepare("SELECT 1 FROM audio_timing LIMIT 1")
+        .first();
       const shortBootstrap = firstMapPending
         ? null
-        : await env.DB.prepare(
+        : await backendScheduledPrimaryReadDb(env).prepare(
             "SELECT j.id FROM audio_jobs j JOIN audio_editions e ON e.id=json_extract(j.payload_json,'$.editionId') JOIN json_each(e.tracks_json) t ON json_extract(t.value,'$.id')=json_extract(j.payload_json,'$.trackId') WHERE j.kind='align' AND j.status='queued' AND j.attempts<3 AND j.next_attempt_at<=? AND CAST(json_extract(t.value,'$.duration') AS REAL)<=120 LIMIT 1",
           )
             .bind(new Date().toISOString())
@@ -731,7 +735,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
           break;
         }
       }
-      const backlog = await env.DB.prepare(
+      const backlog = await backendScheduledPrimaryReadDb(env).prepare(
         "SELECT COUNT(*) count FROM audio_jobs WHERE kind='track' AND status IN ('queued','running')",
       ).first<{ count?: number }>();
       const pendingTracks = Number(backlog?.count || 0);
