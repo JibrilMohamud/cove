@@ -113,7 +113,7 @@ export function assessExternalPrerequisites({ownerSettings,workerSettings,accoun
     problems.push("Stripe LIVE webhook destination is missing critical payment/refund event types.");
   return {schema:"cove.external-production-preflight.v1",scope:"external-prerequisites-only",
     checkedScripts:workerSettings?.length??null,accountTokensChecked:accountTokens?.length??null,
-    userTokensChecked:userTokens?.length??null,userOwnedTokenPrivilegesCertified:Array.isArray(userTokens)&&userTokenInventoryComplete===true,webhookEndpoints:webhooks?.length??null,
+    userTokensChecked:userTokens?.length??null,userOwnedTokenPrivilegesCertified:Array.isArray(userTokens)&&userTokenInventoryComplete===true&&!problems.some(p=>/user API token/i.test(p)),webhookEndpoints:webhooks?.length??null,
     readyForExternalPrerequisites:problems.length===0,productionCertified:false,problems};
 }
 async function getJson(url,headers){
