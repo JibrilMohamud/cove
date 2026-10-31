@@ -18850,7 +18850,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           "INSERT INTO risk_case_events(id,case_id,event_type,actor_type,actor_user_id,payload_json,created_at) SELECT ?,id,'hold_released','staff',?,?,? FROM risk_cases WHERE domain=? AND subject_type=? AND subject_id=? AND status NOT IN ('resolved','closed') AND EXISTS(SELECT 1 FROM risk_holds WHERE id=? AND status='released' AND released_at=?) ORDER BY opened_at DESC LIMIT 1"
         ).bind("risk_ce_"+crypto.randomUUID(),actor.userId,
           JSON.stringify({holdId:x.holdId,note:x.note}),at,hold.domain,hold.subject_type,hold.subject_id,x.holdId,at));
-        const outcomes=await db.batch(statements);
+        const outcomes=await db.batch(statements) as Array<{meta?:{changes?:number}}>;
         if(Number((outcomes[0] as {meta?:{changes?:number}})?.meta?.changes||0)!==1)
           return new Response(null,{status:409,headers:noStore});
         return Response.json({schema:"cove.owner-risk-hold-release.v1",ownerFirst:true,
