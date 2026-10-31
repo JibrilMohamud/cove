@@ -59,7 +59,10 @@ rollback. Stop isolated callers/leases and resume a corrected owner.
 
 Validation on this branch: 118 exact source sites reconcile as 70
 owner-required, 24 unchanged non-authorizing, 23 private QA and one fixture.
-All 53 local commands from the owner-audit workflow pass. The actual private
+All 57 node commands from the owner-audit workflow pass, including inline
+run steps. The initial runner omitted those inline steps; the committed
+runner includes them. The retired publishing-presence assertion verifies
+exact retirement lineage and its private replacement. The actual private
 publishing helper test covers every lifecycle/party batch interruption, lost
 responses, repeated calls, concurrent state/compliance changes, terminal
 state denial, other-account isolation and activation-history deduplication;
@@ -75,3 +78,11 @@ user and invokes the real HTTP device-registration handler through the real
 private owner, while retaining the original offline-license and restoration
 assertions. No production fallback or credential bypass is restored. Hosted
 CI and complete production release certification remain separate gates.
+
+Hosted CI exposed two legacy source-presence assertions: the inventory
+still demanded a shared publishing writer, and commercial-media checks
+looked for erasure legal holds in the former shared module. The inventory now verifies
+immutable retirement evidence and the private replacement; the commercial
+check verifies legal holds in the private account owner and passes locally. The local
+workflow runner is committed as check-owner-workflow-locally.mjs so inline
+run steps cannot be omitted in subsequent validation.
