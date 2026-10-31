@@ -3,6 +3,10 @@ import { scopePublicationOwnerEnv } from "./storefront-strangler/publication-own
 import { scopeExclusiveCanonicalD1 } from "./storefront-strangler/canonical-d1-write-fence";
 import { scopeCommerceProductionD1 } from "./storefront-strangler/commerce-d1-write-fence";
 import {
+  backendReadonlyCandidateRouteAllowed,
+  scopeBackendReadonlyCandidate,
+} from "./storefront-strangler/backend-readonly-candidate";
+import {
   attestDisabledOwnerFromBackend,
   DISABLED_OWNER_ATTEST_ROUTE,
 } from "./storefront-strangler/production-disabled-owner-attestation";
@@ -52,6 +56,9 @@ import {
 type BackendEnv = CoveEnv &
   AudioComputeEnv & {
     COVE_OWNER_EXCLUSIVE_WRITER_FENCE?: string;
+    COVE_BACKEND_READONLY_CANDIDATE?: string;
+    COVE_CANONICAL_READONLY_RPC?: string;
+    COVE_CANONICAL_READONLY?: import("./lib/canonical-readonly-d1.server").CanonicalReadService;
     COVE_COMMERCE_OWNER_D1_FENCE?: string;
     FORE_BACKEND_TOKEN?: string;
     FORE_BACKEND_TOKEN_SHA256?: string;
@@ -876,6 +883,10 @@ async function hostedBiosyncTranscript(
 
 export default {
   async scheduled(controller: { cron: string }, env: BackendEnv, ctx: ExecutionContextLike) {
+    // Never execute background jobs on a read-only candidate. A migration
+    // must explicitly rehome every job with private owner authorization.
+    if (env.COVE_BACKEND_READONLY_CANDIDATE !== undefined)
+      throw new Error("private_backend_readonly_candidate_cron_denied");
     env = scopeCommerceProductionD1(scopeExclusiveCanonicalD1(scopePublicationOwnerEnv(env)));
     if (
       controller.cron === "*/10 * * * *" ||
@@ -903,10 +914,26 @@ export default {
   },
 
   async fetch(request: Request, env: BackendEnv, ctx: ExecutionContextLike) {
+    // The isolated candidate exposes two health reads only. Protected
+    // customer routes, payment mutations, and background writer paths are
+    // intentionally absent until production owner parity is certified.
+    if (
+      env.COVE_BACKEND_READONLY_CANDIDATE !== undefined &&
+      !backendReadonlyCandidateRouteAllowed(request)
+    )
+      return json({ error: "Not found." }, 404);
     if (!(await authorized(request, env))) {
       return json({ error: "Persistence gateway authorization required." }, 401);
     }
-    env = scopeCommerceProductionD1(scopeExclusiveCanonicalD1(scopePublicationOwnerEnv(env)));
+    if (env.COVE_BACKEND_READONLY_CANDIDATE !== undefined) {
+      try {
+        env = scopeBackendReadonlyCandidate(env);
+      } catch {
+        return json({ error: "Canonical read unavailable." }, 503);
+      }
+    } else {
+      env = scopeCommerceProductionD1(scopeExclusiveCanonicalD1(scopePublicationOwnerEnv(env)));
+    }
 
     const path = new URL(request.url).pathname;
     // This endpoint runs only AFTER persistence gateway authentication.
