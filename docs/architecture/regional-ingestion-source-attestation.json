@@ -2,12 +2,12 @@
   "schema": "cove.canonical-writer-source-attestation.v1",
   "releaseApproval": false,
   "retirementEvidence": "docs/architecture/retired-regional-ingestion-owner-lineage.json",
-  "rationale": "Independently reviewed the regional API source against b333b17f. Six exact original source-state UPDATE literals were relocated into the QA-only private legal owner with active regional source lease, active ingest run, bounded checkpoint inputs, and no positive rights grant. The 20 surviving API SQL sites retain exact SQL/function/table/operation/disposition, and were re-fingerprinted to the full new source SHA. No production owner activation. Formatting-only follow-up, 20 unchanged site identities recomputed; owner-required count stays 46.",
+  "rationale": "Independently reviewed the regional API source against b333b17f. Six exact original source-state UPDATE literals were relocated into the QA-only private legal owner with active regional source lease, active ingest run, bounded checkpoint inputs, and no positive rights grant. The 20 surviving API SQL sites retain exact SQL/function/table/operation/disposition, and were re-fingerprinted to the full new source SHA. No production owner activation. Formatting-only follow-up, 20 unchanged site identities recomputed; owner-required count stays 46. A later US Gutenberg observation migration independently retired exactly three source-only heartbeat/popularity SQL sites behind a private owner with active public-domain US eligibility and compare-and-swap; 17 retained API SQL sites remain byte-for-byte unchanged and independently re-fingerprinted to the complete updated source SHA. No production approval.",
   "files": [
     {
       "path": "src/features/fore/api.server.ts",
-      "sha256": "632f895215957af9dba88942146439880986dc7fe60cb513e05036086227e33e",
-      "review": "Six protected regional source-state mutations physically removed from shared API and transplanted with intact SQL literals into private owner; independently re-attested 20 unchanged SQL sites. The six command invocations were formatted for strict lint with no SQL or operation change. All 20 unchanged API sites were reattested to the formatted source SHA."
+      "sha256": "d0a2b730abefabb038af5d5cd345b7d2adb0da2b802f9186d1e79472907a7f12",
+      "review": "Six protected regional source-state mutations physically removed from shared API and transplanted with intact SQL literals into private owner; independently re-attested 20 unchanged SQL sites. The six command invocations were formatted for strict lint with no SQL or operation change. All 20 unchanged API sites were reattested to the formatted source SHA. A later US Gutenberg observation migration independently retired exactly three source-only heartbeat/popularity SQL sites behind a private owner with active public-domain US eligibility and compare-and-swap; 17 retained API SQL sites remain byte-for-byte unchanged and independently re-fingerprinted to the complete updated source SHA. No production approval."
     }
   ]
 }
