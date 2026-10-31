@@ -17607,6 +17607,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/order/settle",
       "/commercial/order/recover-settlements",
       "/commercial/refund/reserve",
+      "/commercial/tax/confirm",
       "/commercial/checkout/create-quote",
       "/commercial/checkout/materialize-draft",
       "/commercial/checkout/prepare-draft",
@@ -19652,6 +19653,81 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           ready:true,blocked:false,riskAction:risk.action,
           captureMethod:risk.action==="hold"?"manual":order.capture_method,
           tenderReserved:true,quoteConsumed:true,applied:true},{headers:noStore});
+      }
+      if(route==="/commercial/tax/confirm"){
+        const input=z.object({
+          kind:z.enum(["transaction","reversal"]),
+          orderId:z.string().min(8).max(160),
+          refundId:z.string().min(8).max(160).optional(),
+          taxTransactionId:z.string().regex(/^tax_[a-zA-Z0-9_]{4,180}$/)
+        }).strict().parse(raw);
+        if((input.kind==="transaction"&&input.refundId)||
+           (input.kind==="reversal"&&!input.refundId))
+          return new Response(null,{status:409,headers:noStore});
+        // QA-only independent provider retrieval. Never use a LIVE secret
+        // for a migration staging owner or authorize a caller-provided ID.
+        const key=String(env.STRIPE_SECRET_KEY||"").trim();
+        if(!/^(?:sk|rk|rkcs)_test_/.test(key))
+          return new Response(null,{status:503,headers:noStore});
+        const db=env.PRIMARY_DB;
+        const order=await db.prepare(
+          "SELECT id,currency,status,stripe_tax_calculation_id,stripe_tax_transaction_id FROM commerce_orders WHERE id=?"
+        ).bind(input.orderId).first<{
+          id:string;currency:string;status:string;
+          stripe_tax_calculation_id:string|null;stripe_tax_transaction_id:string|null
+        }>();
+        if(!order||!["paid","partially_refunded","refunded"].includes(order.status))
+          return new Response(null,{status:409,headers:noStore});
+        let refund:{id:string;order_id:string;status:string;succeeded_at:string|null;tax_reversal_id:string|null}|null=null;
+        if(input.kind==="transaction"){
+          if(!order.stripe_tax_calculation_id||
+             (order.stripe_tax_transaction_id&&order.stripe_tax_transaction_id!==input.taxTransactionId))
+            return new Response(null,{status:409,headers:noStore});
+        }else{
+          refund=await db.prepare(
+            "SELECT id,order_id,status,succeeded_at,tax_reversal_id FROM commerce_refunds WHERE id=? AND order_id=?"
+          ).bind(input.refundId,input.orderId).first<typeof refund extends null?never:NonNullable<typeof refund>>();
+          if(!refund||!refund.succeeded_at||!order.stripe_tax_transaction_id||
+             (refund.tax_reversal_id&&refund.tax_reversal_id!==input.taxTransactionId))
+            return new Response(null,{status:409,headers:noStore});
+        }
+        const provider=await fetch(
+          "https://api.stripe.com/v1/tax/transactions/"+encodeURIComponent(input.taxTransactionId),
+          {method:"GET",headers:{Authorization:"Bearer "+key},
+           signal:AbortSignal.timeout(12000)}
+        );
+        if(!provider.ok)return new Response(null,{status:503,headers:noStore});
+        const tx=await provider.json() as {
+          id?:string;object?:string;type?:string;livemode?:boolean;reference?:string;
+          currency?:string;metadata?:Record<string,string>|null;
+          reversal?:{original_transaction?:string|null}|null
+        };
+        const expectedRef=input.kind==="transaction"
+          ?input.orderId:input.orderId+"-"+input.refundId;
+        if(tx.id!==input.taxTransactionId||tx.object!=="tax.transaction"||
+           tx.type!==input.kind||tx.livemode!==false||
+           tx.reference!==expectedRef||tx.currency!==order.currency.toLowerCase()||
+           tx.metadata?.fore_order_id!==input.orderId||
+           (input.kind==="reversal"&&(
+             tx.metadata?.fore_refund_id!==input.refundId||
+             tx.reversal?.original_transaction!==order.stripe_tax_transaction_id)))
+          return new Response(null,{status:409,headers:noStore});
+        const at=now();
+        const result=input.kind==="transaction"
+          ?await db.prepare(
+            "UPDATE commerce_orders SET stripe_tax_transaction_id=?,updated_at=? WHERE id=? AND stripe_tax_calculation_id IS NOT NULL AND (stripe_tax_transaction_id IS NULL OR stripe_tax_transaction_id=?) AND NOT EXISTS(SELECT 1 FROM commerce_orders other WHERE other.stripe_tax_transaction_id=? AND other.id<>?)"
+          ).bind(input.taxTransactionId,at,input.orderId,input.taxTransactionId,
+            input.taxTransactionId,input.orderId).run()
+          :await db.prepare(
+            "UPDATE commerce_refunds SET tax_reversal_id=?,updated_at=? WHERE id=? AND order_id=? AND succeeded_at IS NOT NULL AND (tax_reversal_id IS NULL OR tax_reversal_id=?) AND NOT EXISTS(SELECT 1 FROM commerce_refunds other WHERE other.tax_reversal_id=? AND other.id<>?)"
+          ).bind(input.taxTransactionId,at,input.refundId,input.orderId,input.taxTransactionId,
+            input.taxTransactionId,input.refundId).run();
+        if(Number((result as {meta?:{changes?:number}}).meta?.changes||0)!==1)
+          return new Response(null,{status:409,headers:noStore});
+        return Response.json({schema:"cove.owner-stripe-tax-confirmation-qa.v1",
+          ownerFirst:true,kind:input.kind,orderId:input.orderId,
+          refundId:input.refundId||null,taxTransactionId:input.taxTransactionId,
+          saved:true},{headers:noStore});
       }
       if(route==="/commercial/checkout/create-quote"){
         // Only the isolated QA owner persists the quote, billing geography and

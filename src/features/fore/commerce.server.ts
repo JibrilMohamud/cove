@@ -1,3 +1,4 @@
+import { confirmStageOwnerStripeTax } from "../../storefront-strangler/owner-stripe-tax-confirmation.server";
 import { z } from "zod/v3";
 import { formatMinorCurrency } from "./currency";
 import { postRefundAccounting } from "./refund-accounting.server";
@@ -974,11 +975,9 @@ async function recordTaxTransaction(env: CoveEnv, order: AnyRow) {
       metadata: { fore_order_id: order.id },
     },
   });
-  await env.DB.prepare(
-    "UPDATE commerce_orders SET stripe_tax_transaction_id=?,updated_at=? WHERE id=?",
-  )
-    .bind(tx.id, now(), order.id)
-    .run();
+  await confirmStageOwnerStripeTax(env,{
+    kind:"transaction",orderId:String(order.id),taxTransactionId:String(tx.id)
+  });
   await commitCustomerTaxRecord(env.DB, order.id, String(tx.id));
   return tx.id;
 }
@@ -1616,10 +1615,10 @@ async function applyRefundSuccess(env: CoveEnv, refundId: string, refundPayload:
           metadata: { fore_order_id: o.id, fore_refund_id: r.id },
         },
       });
-      await db
-        .prepare("UPDATE commerce_refunds SET tax_reversal_id=?,updated_at=? WHERE id=?")
-        .bind(rev.id, now(), r.id)
-        .run();
+      await confirmStageOwnerStripeTax(env,{
+        kind:"reversal",orderId:String(o.id),refundId:String(r.id),
+        taxTransactionId:String(rev.id)
+      });
       await recordCustomerTaxReversal(db, r.id, String(rev.id), refundAmount, {
         mode: full ? "full" : "partial",
       });

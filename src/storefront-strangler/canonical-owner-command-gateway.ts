@@ -14,6 +14,10 @@ const source=z.string().regex(/^(?:[0-9]{1,10}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90
 const evidence=z.string().regex(/^gre_[a-z0-9_:-]{1,120}$/);
 const version=z.string().min(3).max(160).regex(/^[a-zA-Z0-9_-]+$/);
 const routes={
+  "commerce.confirm-tax":{path:"/commercial/tax/confirm",schema:z.object({
+    kind:z.enum(["transaction","reversal"]),orderId:ownerId,
+    refundId:ownerId.optional(),taxTransactionId:z.string().regex(/^tax_[a-zA-Z0-9_]{4,180}$/)
+  }).strict()},
   "commerce.create-quote":{path:"/commercial/checkout/create-quote",schema:z.object({
     userId:ownerId,
     request:z.object({
@@ -413,6 +417,14 @@ export async function dispatchCanonicalOwnerCommand(
       if(ack.schema!=="cove.owner-catalog-negative-source.v1"||ack.ownerFirst!==true||
          ack.cacheId!==body.cacheId||ack.action!==body.action||ack.denied!==true||
          typeof ack.changed!=="boolean")throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "commerce.confirm-tax":
+      if(ack.schema!=="cove.owner-stripe-tax-confirmation-qa.v1"||
+         ack.ownerFirst!==true||ack.kind!==body.kind||
+         ack.orderId!==body.orderId||ack.taxTransactionId!==body.taxTransactionId||
+         (body.kind==="reversal"&&ack.refundId!==body.refundId)||
+         ack.saved!==true)
+        throw Error("canonical_command_receipt_mismatch");
       break;
     case "commerce.create-quote": {
       const numeric=["subtotalMinor","taxMinor","taxInclusiveMinor",
