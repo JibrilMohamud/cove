@@ -417,6 +417,21 @@ export async function dispatchCatalogNegativeSource(db:object,
 }
 
 /** Fixed negative-only commercial delivery commands; no shared SQL fallback. */
+/** A free Gutenberg library grant requires current strongly consistent
+ * positive legal-owner proof; a storefront rights read is not permission. */
+export async function dispatchVerifiedFreeLibraryEntitlement(db:object,input:{
+ userId:string;productId:string;territory:string;
+}):Promise<void>{
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Free library entitlement requires private authority.");
+ try{
+  const ack=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+    "catalog.grant-verified-free-library",input);
+  if(ack.saved!==true||ack.userId!==input.userId||ack.productId!==input.productId)
+    throw Error("verified_free_entitlement_receipt_invalid");
+ }catch{throw new ApiError(503,"Private owner refused free library entitlement.");}
+}
+
 export async function dispatchPrivateOwnershipSnapshot(db:object,input:{
  entitlementId:string;userId:string;productId:string
 }):Promise<void>{

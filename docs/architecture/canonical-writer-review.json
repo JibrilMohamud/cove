@@ -17,9 +17,9 @@
       "reason": "Browser QA seeds an isolated temporary database through localBindings; this development server is not a deployed production writer."
     },
     {
-      "siteId": "91dc96e3a4df6b64518e37c57edb580d7f78dd87dcce8aa2f084fcda7ce9caeb",
+      "siteId": "ab8183ca952769452dbef72c1ab61d02b62d7ea3e383da74f719fbec60474a95",
       "file": "src/features/fore/api.server.ts",
-      "line": 836,
+      "line": 837,
       "functionName": "catalogInsert",
       "table": "gutenberg_source_cache",
       "operation": "INSERT INTO",
@@ -30,9 +30,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "df9b9e2528f98d0c9940fc83c4998505d69576e4d63f3d4c7915e62582de596e",
+      "siteId": "94dbff8cb682fa9ccaf9cd7986b7e701826667f2e55ec933bbf2448ec4acefb5",
       "file": "src/features/fore/api.server.ts",
-      "line": 1346,
+      "line": 1347,
       "functionName": "insertRegionalEvidence",
       "table": "gutenberg_rights_evidence",
       "operation": "INSERT OR IGNORE INTO",
@@ -43,9 +43,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "18a270eab5fc457e65a8bd37350768f8113b7d197a1be33734ada1b8fe1ee5cf",
+      "siteId": "92b230f1dbd2a298192485cedc85dd34ff0779b3e5e5238ba978354d00242247",
       "file": "src/features/fore/api.server.ts",
-      "line": 1367,
+      "line": 1368,
       "functionName": "insertRegionalEvidence",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -56,9 +56,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "927caf853a15b417a1347a37e42c915ee763390246eb1f09ddef6a6ac7c2f1ff",
+      "siteId": "82abd7bd56f8bc84db3c78a060a3bcd472e762cb2a1a29da698dcb0ad0a00252",
       "file": "src/features/fore/api.server.ts",
-      "line": 1379,
+      "line": 1380,
       "functionName": "insertRegionalEvidence",
       "table": "rights_grants",
       "operation": "UPDATE",
@@ -69,9 +69,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "9e632951ec0e960fc4ba459f38df43260b8eb732b58abce24c18e241f769df83",
+      "siteId": "392af755f71e8f3d6597ba348d2239742c6aaf502f8cdfd107b5c01535a7b168",
       "file": "src/features/fore/api.server.ts",
-      "line": 1386,
+      "line": 1387,
       "functionName": "insertRegionalEvidence",
       "table": "rights_grants",
       "operation": "UPDATE",
@@ -79,19 +79,6 @@
       "disposition": "owner-command-required",
       "productionOwnerGuarded": false,
       "commandFamily": "api.insertRegionalEvidence",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "f37ae91706c92041ca62c912f8c7929f458561581a57e033cb42ba36b731588a",
-      "file": "src/features/fore/api.server.ts",
-      "line": 5727,
-      "functionName": "handleCoveRequest",
-      "table": "entitlements",
-      "operation": "INSERT INTO",
-      "sqlSha256": "f2673b7ad379e0ff872358764a7baf11b12dcb21762de92eeb00ca762431a1af",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "api.handleCoveRequest",
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {

@@ -5,7 +5,7 @@
   "files": [
     {
       "path": "src/features/fore/api.server.ts",
-      "sha256": "ee6fa312b61027b1de0c21618da2989f02dd3cf5cbbb1a7402b504657e109bfe",
+      "sha256": "bf665afee032c0c2618b76b655821fe588e8b109d383413927c07a73439bdd52",
       "review": "Full source diff inspected: two commerce staff identity arguments passed to rights-party and territory-set fixed private owner commands; all 33 original protected SQL literals and their functions are byte-for-byte unchanged. This follow-up applies only formatting changes; no original SQL literals or authorizing operation semantics change. Subsequent negative-only catalog withdrawal migration relocated exactly seven reviewed SQL sites into the lease-verified QA owner; all remaining API literals are identical and retain their classifications. Final formatting-only revision preserves every remaining SQL literal, function and disposition; SHA-256 and all site IDs rechecked. Subsequent nine-site ingestion-state retirement preserves all existing source SQL literals; source SHA independently re-attested. Three independently verified US catalog observation writes were retired; the fourteen remaining API canonical SQL candidates retain identical SQL and disposition. Three further regional source-state SQL checkpoints privately retired; unchanged eleven API SQL identities were independently re-fingerprinted to the exact new source SHA. Two US EPUB hydration mutations retired into byte-verified private owner; nine surviving API SQL sites retain unchanged identities."
     },
     {

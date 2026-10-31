@@ -1,3 +1,4 @@
+import { dispatchVerifiedFreeLibraryEntitlement } from "../../storefront-strangler/publication-owner-routing.server";
 import { dispatchCatalogObservation } from "../../storefront-strangler/publication-owner-routing.server";
 import { dispatchCatalogRegionalState } from "../../storefront-strangler/publication-owner-routing.server";
 import { dispatchCatalogVerifiedUsEpub, dispatchCatalogCompletedUsEpub, dispatchVerifiedRegionalEpubMetadata } from "../../storefront-strangler/publication-owner-routing.server";
@@ -5722,14 +5723,11 @@ async function handleCoveRequest(
         });
         if (!rights.allowed)
           throw new ApiError(404, "This edition is not available in your storefront.");
-        await db
-          .prepare(
-            `INSERT INTO entitlements(id,user_id,product_id,entitlement_type,status,source,granted_at,updated_at)
-            VALUES(?,?,?,'public-domain','active','gutenberg',?,?)
-            ON CONFLICT(user_id,product_id,entitlement_type) WHERE status='active' DO UPDATE SET status='active',updated_at=excluded.updated_at`,
-          )
-          .bind(crypto.randomUUID(), user.id, product.id, at, at)
-          .run();
+        // The private legal owner checks the current positive jurisdictional
+        // proof and live canonical item before granting free library access.
+        await dispatchVerifiedFreeLibraryEntitlement(db,{
+          userId:String(user.id),productId:String(product.id),territory:storefrontTerritory,
+        });
       } else {
         const entitlement = await db
           .prepare(

@@ -1,0 +1,34 @@
+{
+  "schema": "cove.retired-free-library-entitlement-owner-lineage.v1",
+  "sourceBefore": 12,
+  "sourceAfter": 11,
+  "releaseApproval": false,
+  "productionCertified": false,
+  "sourceFile": "src/features/fore/api.server.ts",
+  "previousSha256": "ee6fa312b61027b1de0c21618da2989f02dd3cf5cbbb1a7402b504657e109bfe",
+  "currentSha256": "bf665afee032c0c2618b76b655821fe588e8b109d383413927c07a73439bdd52",
+  "retired": [
+    {
+      "siteId": "f37ae91706c92041ca62c912f8c7929f458561581a57e033cb42ba36b731588a",
+      "file": "src/features/fore/api.server.ts",
+      "line": 5727,
+      "functionName": "handleCoveRequest",
+      "table": "entitlements",
+      "operation": "INSERT INTO",
+      "sqlSha256": "f2673b7ad379e0ff872358764a7baf11b12dcb21762de92eeb00ca762431a1af",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "api.handleCoveRequest",
+      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
+    }
+  ],
+  "command": "catalog.grant-verified-free-library",
+  "route": "/catalog/private-grant-free-library",
+  "proofs": [
+    "Private strongly consistent owner checks exact legal allow revision, approved Gutenberg zero-price storefront offer, live market status and monotonic market withdrawal",
+    "Private owner checks current primary source rights as public-domain approved, unquarantined, allowed territory and country-specific evidence",
+    "Conditional source-bound and user-bound INSERT never reactivates revoked public-domain entitlements; exact active retry is idempotent",
+    "No positive authority is inferred from public caller, metadata, historical grant or stale D1 rights alone",
+    "Production owner disabled and source audit closure is not certification"
+  ]
+}
