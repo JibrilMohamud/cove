@@ -3,35 +3,39 @@
   "name": "cove-sounds-publication",
   "main": ".output/strangler/sounds-publication.mjs",
   "compatibility_date": "2026-10-25",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "workers_dev": false,
   "preview_urls": false,
   "observability": {
-    "enabled": true,
+    "enabled": true
   },
   "r2_buckets": [
     {
       "binding": "SOUNDS_PRESENTATION",
-      "bucket_name": "cove-sounds-private-presentation",
-    },
+      "bucket_name": "cove-sounds-private-presentation"
+    }
   ],
   "kv_namespaces": [
     {
       "binding": "SOUNDS_PRESENTATION_KV",
-      "id": "544267f3cf604c1d8976f1b06d258e24",
-    },
+      "id": "544267f3cf604c1d8976f1b06d258e24"
+    }
   ],
   "vars": {
     "COVE_SOUNDS_PUBLICATION_ENABLED": "1",
-    "COVE_SOUNDS_MARKETS": "US",
+    "COVE_SOUNDS_MARKETS": "US"
   },
   "triggers": {
-    "crons": ["11 * * * *"],
+    "crons": [
+      "11 * * * *"
+    ]
   },
   "services": [
     {
       "binding": "SOUNDS_SOURCE_READER",
-      "service": "cove-legal-authority-production",
-    },
-  ],
+      "service": "cove-legal-authority-production"
+    }
+  ]
 }

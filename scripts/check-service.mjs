@@ -4,18 +4,36 @@ import fs from "node:fs";
 import path from "node:path";
 import assert from "node:assert/strict";
 import { localBindings } from "./local-api.mjs";
+import { createSyntheticFreeLibraryOwner } from "./test-browser-qa-owner.mjs";
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "fore-service-"));
 fs.cpSync("drizzle", path.join(scratch, "drizzle"), { recursive: true });
 await build({
-  entryPoints: ["src/features/fore/api.server.ts"],
+  stdin: {
+    contents: `export {handleCoveApi} from "./src/features/fore/api.server.ts";
+export {bindPublicationOwner} from "./src/storefront-strangler/publication-owner-routing.server.ts";`,
+    resolveDir: process.cwd(),
+    loader: "ts",
+  },
   bundle: true,
   platform: "node",
   format: "esm",
   outfile: path.join(scratch, "api.mjs"),
   logLevel: "silent",
 });
-const { handleCoveApi } = await import(path.join(scratch, "api.mjs"));
+const { handleCoveApi, bindPublicationOwner } = await import(path.join(scratch, "api.mjs"));
 const env = localBindings(scratch);
+const raw = env.DB,
+  ownerSecret = "a".repeat(64);
+env.DB = bindPublicationOwner(raw, {
+  owner: createSyntheticFreeLibraryOwner(
+    raw,
+    new Set(["test-reader-a", "test-reader-b"]),
+    ownerSecret,
+  ),
+  secret: ownerSecret,
+  territory: "US",
+  currency: "USD",
+});
 async function req(path, method = "GET", body, user = "test-reader-a") {
   const headers = { "Content-Type": "application/json", Origin: "https://fore.test" };
   if (user) {
