@@ -69,9 +69,11 @@ for (const token of [
   assert.ok(audio.includes(token), `commercial audio missing ${token}`);
 assert.match(audio, /quarantined/);
 assert.match(audio, /errors\.length\s*\?\s*[\"\']rejected[\"\']\s*:\s*[\"\']clean[\"\']/);
-assert.match(audio, /performance-rights territory must match/i);
-assert.match(audio, /ISBN-13 is invalid/);
-assert.match(audio, /subscription distribution/);
+const ownerAudio=read("src/storefront-strangler/legal-authority.worker.ts");
+for(const invariant of [/performance-rights territory must match/i,/ISBN-13 is invalid/,/subscription distribution/])
+  assert.match(ownerAudio,invariant,"Private QA owner must retain the formerly shared verified-rights validators");
+assert.match(audio,/dispatchCommercialAudioMetadata/);
+assert.doesNotMatch(audio,/async function refreshAgreementStatus\(/);
 const account = read("src/features/fore/account-management.server.ts");
 for (const token of [
   "accountDataExport",
