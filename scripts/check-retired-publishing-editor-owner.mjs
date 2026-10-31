@@ -1,6 +1,7 @@
 /* eslint-disable prettier/prettier -- Exact 30-site source owner retirement, production stays denied. */
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
+import {createHash} from "node:crypto";
 const read=p=>readFileSync(p,"utf8");
 const source=read("src/features/fore/publishing.server.ts"),
  owner=read("src/storefront-strangler/legal-authority.worker.ts"),
@@ -9,6 +10,8 @@ const source=read("src/features/fore/publishing.server.ts"),
 const review=JSON.parse(read("docs/architecture/canonical-writer-review.json"));
 const lineage=JSON.parse(read("docs/architecture/retired-publishing-editor-owner-lineage.json"));
 assert.equal(lineage.retiredCount,30);
+assert.equal(createHash("sha256").update(source).digest("hex"),lineage.currentSourceSha256,
+ "Exact publisher source changed without audited SQL site attestation");
 assert.equal(new Set(lineage.retired.map(x=>x.siteId)).size,30);
 assert.equal(review.releaseApproval,false);
 assert.equal(review.sites.filter(x=>x.disposition==="owner-command-required").length,126);

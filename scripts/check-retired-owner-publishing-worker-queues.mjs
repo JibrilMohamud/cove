@@ -8,7 +8,11 @@ const lineage=JSON.parse(read("docs/architecture/retired-owner-publishing-worker
 const review=JSON.parse(read("docs/architecture/canonical-writer-review.json"));
 for(const row of evidence.files){
   const actual=createHash("sha256").update(read(row.path)).digest("hex");
-  if(row.path==="src/features/fore/publishing-trust.server.ts"){
+  if(row.path==="src/features/fore/publishing.server.ts"){
+    const editor=JSON.parse(read("docs/architecture/retired-publishing-editor-owner-lineage.json"));
+    assert.notEqual(actual,row.sha256,"Earlier publishing-queue SHA is immutable historical evidence");
+    assert.equal(actual,editor.currentSourceSha256,"New 30-site publisher source attestation is required");
+  }else if(row.path==="src/features/fore/publishing-trust.server.ts"){
     // This worker-queue retirement attests the preceding historical version.
     // The newer 38-site legal owner branch has a separately pinned exact SHA.
     const trust=JSON.parse(read("docs/architecture/retired-private-trust-owner-lineage.json"));
