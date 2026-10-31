@@ -166,6 +166,18 @@
     "revisionPinnedEvidence": true,
     "geographyCertified": false
   },
+  "accountTokenAudit": {
+    "observedAt": "2026-10-31T14:24:38.117Z",
+    "accountTokensChecked": 4,
+    "activeAccountWideD1Writer": {
+      "id": "1c79fb61dbad11f320c96f6a03413e84",
+      "name": "Cove GitHub Deployments",
+      "permission": "D1 Write",
+      "retired": false
+    },
+    "userOwnedTokensCertified": false,
+    "preflightRejectsUnretiredD1ApiWriters": true
+  },
   "capacityClosure": {
     "closed": true,
     "version": "ad9b2937-112f-47ca-bcdf-00454c694c74",
