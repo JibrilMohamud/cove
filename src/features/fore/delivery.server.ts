@@ -1,5 +1,5 @@
 /* eslint-disable prettier/prettier -- Audited private delivery-owner facades retain source lineage. */
-import { dispatchPrivateEntitlementDevice,dispatchPrivateOwnershipSnapshot,dispatchPrivateCommercialEpubGrant } from "../../storefront-strangler/publication-owner-routing.server";
+import { dispatchPrivateEntitlementDevice,dispatchPrivateOwnershipSnapshot,dispatchPrivateCommercialEpubGrant,dispatchPrivateCommercialEpubConsumption } from "../../storefront-strangler/publication-owner-routing.server";
 import { dispatchNegativeDeliveryOwner } from "../../storefront-strangler/publication-owner-routing.server";
 import JSZip from "jszip";
 import { z } from "zod/v3";
@@ -824,22 +824,6 @@ export async function serveCommercialEpubGrant(env: CoveEnv, rawToken: string, r
   if (!obj)
     return fail(503, "The licensed asset is unavailable from secure storage.", "object_missing");
   const snap = parseJson(grant.policy_snapshot_json, {});
-  if (grant.purpose !== "read") {
-    const maxDownloads = Math.max(1, Number(snap.maxDownloads || 50)),
-      usageAt = now(),
-      claim = await db
-        .prepare(
-          `INSERT INTO commercial_entitlement_delivery_usage(entitlement_id,download_count,last_download_at,updated_at) VALUES(?,1,?,?) ON CONFLICT(entitlement_id) DO UPDATE SET download_count=download_count+1,last_download_at=excluded.last_download_at,updated_at=excluded.updated_at WHERE commercial_entitlement_delivery_usage.download_count<?`,
-        )
-        .bind(ent.id, usageAt, usageAt, maxDownloads)
-        .run();
-    if (Number((claim as any)?.meta?.changes ?? 0) !== 1)
-      return fail(
-        403,
-        "This entitlement has reached its licensed download limit.",
-        "download_limit_reached",
-      );
-  }
   const watermark = snap.watermarkMode === "license_marker" && !!grant.watermark_id;
   let body: any = (obj as any).body,
     contentLength = Number((obj as any).size || asset.size_bytes || 0);
@@ -849,20 +833,14 @@ export async function serveCommercialEpubGrant(env: CoveEnv, rawToken: string, r
     body = bytes;
     contentLength = bytes.byteLength;
   }
-  // The use claim is conditional and atomic. Concurrent requests sharing the same bearer token cannot both exceed max_uses.
-  const at = now(),
-    consume = await db
-      .prepare(
-        "UPDATE commercial_delivery_grants SET uses=uses+1,status=CASE WHEN uses+1>=max_uses THEN 'exhausted' ELSE 'active' END,last_used_at=? WHERE id=? AND status='active' AND uses<max_uses",
-      )
-      .bind(at, grant.id)
-      .run();
-  if (Number((consume as any)?.meta?.changes ?? 0) !== 1)
-    return fail(
-      410,
-      "This delivery grant has already been used. Request a new one.",
-      "grant_race_exhausted",
-    );
+  // The private owner independently rechecks current paid legal authority,
+  // primary entitlement, asset, market, risk, policy and use/download limits.
+  // Missing or rejected owner acknowledgement cannot return licensed bytes.
+  await dispatchPrivateCommercialEpubConsumption(db,{
+    grantId:String(grant.id),tokenHash:hash,
+    territory:(requestMeta(request).country||env.FORE_DEFAULT_TERRITORY||"US").toUpperCase(),
+    channel:entitlementSalesChannel(ent.entitlement_type),
+  });
   const eventType = grant.purpose === "read" ? "stream_started" : "download_started";
   await audit(db, {
     grantId: grant.id,
