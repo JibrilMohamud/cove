@@ -529,3 +529,17 @@ export async function dispatchPrivateRiskHold(db:object,assessmentId:string,
   return receipt.holdId;
  }catch{throw new ApiError(503,"Private owner refused this risk hold.");}
 }
+
+/** Staging-only materialization of immutable risk assessments. The private
+ * owner confirms the current effective policy and latest matching assessment. */
+export async function dispatchPrivateRiskAssessmentUpdate(
+ db:object,domain:"buyer"|"publisher",subjectId:string,assessmentId:string
+):Promise<void>{
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"A private owner is required for canonical risk assessment updates.");
+ try{
+  const ack=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+   "risk.apply-assessment",{domain,subjectId,assessmentId});
+  if(ack.applied!==true)throw Error("owner_assessment_uncommitted");
+ }catch{throw new ApiError(503,"Private risk authority rejected this assessment.");}
+}

@@ -1,4 +1,4 @@
-import { dispatchPrivateRiskHold } from "../../storefront-strangler/publication-owner-routing.server";
+import { dispatchPrivateRiskHold, dispatchPrivateRiskAssessmentUpdate } from "../../storefront-strangler/publication-owner-routing.server";
 import { z } from "zod/v3";
 import { ApiError } from "./service";
 import type { CatalogDB } from "./catalog-model.server";
@@ -379,12 +379,7 @@ export async function assessBuyerOrderRisk(
     },
     { stripe: provider || {} },
   );
-  await db
-    .prepare(
-      "UPDATE commerce_orders SET risk_assessment_id=?,risk_action=?,risk_score=?,risk_level=?,updated_at=? WHERE id=?",
-    )
-    .bind(a.id, a.action, a.score, a.level, now(), orderId)
-    .run();
+  await dispatchPrivateRiskAssessmentUpdate(db, "buyer", orderId, a.id);
   await recordRiskEvent(db, {
     domain: "buyer",
     eventType: provider ? "processor_risk_update" : "checkout_assessed",
@@ -617,10 +612,7 @@ export async function assessPublisherRisk(db: CatalogDB, accountId: string, reas
     status: arow.status,
     reason,
   });
-  await db
-    .prepare("UPDATE publishing_accounts SET risk_score=?,risk_level=?,updated_at=? WHERE id=?")
-    .bind(asmt.score, asmt.level, now(), accountId)
-    .run();
+  await dispatchPrivateRiskAssessmentUpdate(db, "publisher", accountId, asmt.id);
   await recordRiskEvent(db, {
     domain: "publisher",
     eventType: "account_assessed",

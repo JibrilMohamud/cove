@@ -1,0 +1,32 @@
+{
+  "schema": "cove.retired-risk-assessment-projection-lineage.v1",
+  "releaseApproval": false,
+  "productionCertified": false,
+  "sourceBefore": 21,
+  "sourceAfter": 19,
+  "sourceFile": "src/features/fore/risk-tax.server.ts",
+  "previousSha256": "85d03e377016eaa6ae78dea55af79d84e8b5473e060bea129fc246c9b102c16f",
+  "currentSha256": "f910c1ff78fac62d50066ba9147aedd3937068a04413b47955ccfc3c17a7552c",
+  "retired": [
+    {
+      "file": "src/features/fore/risk-tax.server.ts",
+      "line": 384,
+      "siteId": "bfe5ecdb54afca1ca52602e43907e4dd344c8c860a89982dd8a143b7d6858ac4",
+      "functionName": "assessBuyerOrderRisk",
+      "table": "commerce_orders",
+      "operation": "UPDATE",
+      "sqlSha256": "8d98d28373f6edbcd2f3a57802a5666b47dbcd629ab18c842d37b23ebd078f7d",
+      "ownerRoute": "/risk/private-apply-assessment"
+    },
+    {
+      "file": "src/features/fore/risk-tax.server.ts",
+      "line": 621,
+      "siteId": "fdb0ae09e8f9b41a90fe7d1cc062bf8225e138bc25e4b2d65ae38fbc35e070fc",
+      "functionName": "assessPublisherRisk",
+      "table": "publishing_accounts",
+      "operation": "UPDATE",
+      "sqlSha256": "8ea20dfaf8929e20819ef238999cd38e252e70e24611acd772966ef7147e4bfb",
+      "ownerRoute": "/risk/private-apply-assessment"
+    }
+  ]
+}

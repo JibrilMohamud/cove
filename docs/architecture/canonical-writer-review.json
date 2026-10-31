@@ -618,35 +618,9 @@
       "reason": "Evaluation history is written after resolving rights. Authorization re-evaluates grants; the recorded decision is not a reusable positive grant."
     },
     {
-      "siteId": "bfe5ecdb54afca1ca52602e43907e4dd344c8c860a89982dd8a143b7d6858ac4",
+      "siteId": "aab7a502d1040417dfb2142f89e08668abef23a0b556b1858ecabe65b299b699",
       "file": "src/features/fore/risk-tax.server.ts",
-      "line": 384,
-      "functionName": "assessBuyerOrderRisk",
-      "table": "commerce_orders",
-      "operation": "UPDATE",
-      "sqlSha256": "8d98d28373f6edbcd2f3a57802a5666b47dbcd629ab18c842d37b23ebd078f7d",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "risk-tax.assessBuyerOrderRisk",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "fdb0ae09e8f9b41a90fe7d1cc062bf8225e138bc25e4b2d65ae38fbc35e070fc",
-      "file": "src/features/fore/risk-tax.server.ts",
-      "line": 621,
-      "functionName": "assessPublisherRisk",
-      "table": "publishing_accounts",
-      "operation": "UPDATE",
-      "sqlSha256": "8ea20dfaf8929e20819ef238999cd38e252e70e24611acd772966ef7147e4bfb",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "risk-tax.assessPublisherRisk",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "8f17677e2c42581ad3884f0ef68892014806c71fea29f5f2adca8786a9f5f5b3",
-      "file": "src/features/fore/risk-tax.server.ts",
-      "line": 824,
+      "line": 816,
       "functionName": "releaseRiskHold",
       "table": "risk_holds",
       "operation": "UPDATE",
@@ -657,9 +631,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "db01d10cbcb6fbfcf9fb5d782dc13403a03cc33c068f307de2199f393ddc115c",
+      "siteId": "19e9913986eb6edeccd561cfeaa059b0a51928c6e0f0bf5a6112fefced78a22c",
       "file": "src/features/fore/risk-tax.server.ts",
-      "line": 1266,
+      "line": 1258,
       "functionName": "registerPublisherTaxVerification",
       "table": "publishing_accounts",
       "operation": "UPDATE",

@@ -17644,6 +17644,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/catalog/observe-us",
       "/catalog/regional-state",
       "/catalog/verified-us-epub-cache",
+      "/risk/private-apply-assessment",
       "/risk/private-create-hold",
       "/promotion/private-action",
       "/catalog/private-ingest-state",
@@ -18564,6 +18565,81 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         return Response.json({schema:"cove.owner-us-epub-cache.v1",ownerFirst:true,
           cacheId:input.cacheId,assetVersionId:input.assetVersionId,
           sha256:input.sha256,saved:true},{headers:noStore});
+      }
+      if(route==="/risk/private-apply-assessment"){
+        const x=z.object({domain:z.enum(["buyer","publisher"]),
+          subjectId:z.string().min(3).max(180),
+          assessmentId:z.string().min(3).max(180)}).strict().parse(raw);
+        const db=env.PRIMARY_DB,at=now();
+        const subjectType=x.domain==="buyer"?"order":"publishing_account";
+        const scope=x.domain==="buyer"?"checkout":"publishing";
+        const a=await db.prepare(
+          "SELECT score,level,action,policy_version_id FROM risk_assessments WHERE id=? AND domain=? AND subject_type=? AND subject_id=?"
+        ).bind(x.assessmentId,x.domain,subjectType,x.subjectId).first<{
+          score:number;level:string;action:string;policy_version_id:string
+        }>();
+        if(!a||!Number.isInteger(a.score)||a.score<0||a.score>100||
+           typeof a.level!=="string"||a.level.length<2||a.level.length>32||
+           !["allow","monitor","challenge","hold","block"].includes(a.action))
+          return new Response(null,{status:409,headers:noStore});
+        const currentPolicy=await db.prepare(
+          "SELECT id,policy_json FROM risk_policy_versions WHERE domain=? AND status='active' AND effective_from<=? AND (effective_to IS NULL OR effective_to>?) ORDER BY version DESC LIMIT 1"
+        ).bind(x.domain,at,at).first<{id:string;policy_json:string}>();
+        const latest=await db.prepare(
+          "SELECT id FROM risk_assessments WHERE domain=? AND subject_type=? AND subject_id=? ORDER BY created_at DESC,id DESC LIMIT 1"
+        ).bind(x.domain,subjectType,x.subjectId).first<{id:string}>();
+        if(!currentPolicy||currentPolicy.id!==a.policy_version_id||
+           latest?.id!==x.assessmentId)
+          return new Response(null,{status:409,headers:noStore});
+        // Recompute the outcome from the independently configured policy.
+        // A caller-provided or inconsistent lower-risk assessment never
+        // materializes into commerce or a publisher account.
+        let policy:unknown;
+        try{policy=JSON.parse(currentPolicy.policy_json);}catch{}
+        if(!policy||typeof policy!=="object"||Array.isArray(policy))
+          return new Response(null,{status:409,headers:noStore});
+        const thresholds=(policy as {thresholds?:Record<string,unknown>}).thresholds||{};
+        const t={
+          block:Number(thresholds.block??90),hold:Number(thresholds.hold??70),
+          challenge:Number(thresholds.challenge??50),monitor:Number(thresholds.monitor??25)
+        };
+        if(Object.values(t).some(n=>!Number.isFinite(n)||n<0||n>100)||
+           !(t.block>=t.hold&&t.hold>=t.challenge&&t.challenge>=t.monitor))
+          return new Response(null,{status:409,headers:noStore});
+        const expected=a.score>=t.block?{level:"critical",action:"block"}:
+          a.score>=t.hold?{level:"high",action:"hold"}:
+          a.score>=t.challenge?{level:"elevated",action:"challenge"}:
+          a.score>=t.monitor?{level:"elevated",action:"monitor"}:
+          {level:"low",action:"allow"};
+        if(expected.level!==a.level||expected.action!==a.action)
+          return new Response(null,{status:409,headers:noStore});
+        // Never allow an optimistic score to clear an active held financial
+        // or publishing subject. A hold must pass the separate release gate.
+        if(!["hold","block"].includes(a.action)){
+          const hold=await db.prepare(
+            "SELECT id FROM risk_holds WHERE subject_type=? AND subject_id=? AND hold_scope=? AND status='active' LIMIT 1"
+          ).bind(subjectType,x.subjectId,scope).first<{id:string}>();
+          if(hold)return new Response(null,{status:409,headers:noStore});
+        }
+        const latestGuard=
+          " AND EXISTS(SELECT 1 FROM risk_assessments a WHERE a.id=? AND a.domain=? AND a.subject_type=? AND a.subject_id=? AND a.policy_version_id=(SELECT id FROM risk_policy_versions p WHERE p.domain=a.domain AND p.status='active' AND p.effective_from<=? AND (p.effective_to IS NULL OR p.effective_to>?) ORDER BY p.version DESC LIMIT 1) AND NOT EXISTS(SELECT 1 FROM risk_assessments newer WHERE newer.domain=a.domain AND newer.subject_type=a.subject_type AND newer.subject_id=a.subject_id AND (newer.created_at>a.created_at OR (newer.created_at=a.created_at AND newer.id>a.id))))";
+        const holdGuard=
+          " AND (? IN ('hold','block') OR NOT EXISTS(SELECT 1 FROM risk_holds h WHERE h.subject_type=? AND h.subject_id=? AND h.hold_scope=? AND h.status='active'))";
+        const statement=x.domain==="buyer"?
+          db.prepare("UPDATE commerce_orders SET risk_assessment_id=?,risk_action=?,risk_score=?,risk_level=?,updated_at=? WHERE id=?"+latestGuard+holdGuard)
+            .bind(x.assessmentId,a.action,a.score,a.level,at,x.subjectId,
+              x.assessmentId,x.domain,subjectType,x.subjectId,at,at,
+              a.action,subjectType,x.subjectId,scope):
+          db.prepare("UPDATE publishing_accounts SET risk_score=?,risk_level=?,updated_at=? WHERE id=?"+latestGuard+holdGuard)
+            .bind(a.score,a.level,at,x.subjectId,
+              x.assessmentId,x.domain,subjectType,x.subjectId,at,at,
+              a.action,subjectType,x.subjectId,scope);
+        const result=await statement.run();
+        if(Number((result as {meta?:{changes?:number}}).meta?.changes||0)!==1)
+          return new Response(null,{status:409,headers:noStore});
+        return Response.json({schema:"cove.owner-risk-assessment.v1",ownerFirst:true,
+          domain:x.domain,subjectId:x.subjectId,assessmentId:x.assessmentId,
+          applied:true},{headers:noStore});
       }
       if(route==="/risk/private-create-hold"){
         const input=z.object({
