@@ -32,7 +32,6 @@ assert.equal(
 );
 assert.match(backend, /const firstMapPending = await readDb\.prepare\(/);
 
-
 const folder = mkdtempSync(path.join(tmpdir(), "cove-backend-readonly-"));
 try {
   const outfile = path.join(folder, "candidate.mjs");
