@@ -129,6 +129,7 @@ try {
   const restricted = backendScheduledPrimaryReadDb({
     DB: privileged,
     COVE_BACKEND_SCHEDULED_READONLY_RPC: "1",
+    COVE_CANONICAL_READONLY_RPC: "1",
     COVE_CANONICAL_READONLY: service,
   });
   outage = false;
@@ -144,6 +145,7 @@ try {
   assert.equal(privilegedReadCalls, 0);
   for (const bad of [
     { COVE_BACKEND_SCHEDULED_READONLY_RPC: "0" },
+    { COVE_BACKEND_SCHEDULED_READONLY_RPC: "1", COVE_CANONICAL_READONLY_RPC: "0" },
     { COVE_BACKEND_SCHEDULED_READONLY_RPC: "1", COVE_CANONICAL_READONLY: undefined },
     { COVE_BACKEND_SCHEDULED_READONLY_RPC: "garbage" },
   ])
