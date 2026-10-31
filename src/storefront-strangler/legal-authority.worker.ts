@@ -4258,7 +4258,13 @@ async function refreshAgreementStatus(db: CoveEnv["DB"], editionId: string) {
 }
 
 
-  return {saveCommercialAudioProfile,replaceCommercialAudioNarrators,addNarrationAgreement,endNarrationAgreement};
+  async function requireAudioUploadEdition(db:CoveEnv["DB"],userId:string,editionId:string){
+    const edition=requireAudioEditable(await publishingEdition(db,userId,editionId,true));
+    await requireAudioProfile(db,edition.id);
+    return edition;
+  }
+  return {saveCommercialAudioProfile,replaceCommercialAudioNarrators,addNarrationAgreement,
+    endNarrationAgreement,requireAudioUploadEdition};
 })();
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -4802,6 +4808,86 @@ async function completeCommercialAudioQc(db: CoveEnv["DB"], raw: unknown) {
 
   return {leaseCommercialAudioQcJobs,completeCommercialAudioQc};
 })();
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+/* eslint-disable @typescript-eslint/no-explicit-any -- QA-only R2 upload receipt and D1 media row types. */
+async function registerPrivateCommercialAudioUpload(env:LegalAuthorityEnv,input:any) {
+  const db=env.PRIMARY_DB as unknown as CoveEnv["DB"];
+  await privateAudioMetadata.requireAudioUploadEdition(db,input.userId,input.editionId);
+  const expected="publishing/audio/"+String(input.editionId).replace(/[^A-Za-z0-9_-]/g,"_")+
+    "/"+input.fileId+"-"+input.sha.slice(0,16)+"."+(input.mime==="audio/mpeg"?"mp3":"m4a");
+  if(input.key!==expected)throw new ApiError(409,"Audio object identity is invalid.");
+  const bucket=env.BUCKET as unknown as {head?:(key:string)=>Promise<{
+    size:number;customMetadata?:Record<string,string>
+  }|null>}|undefined;
+  if(!bucket?.head)throw new ApiError(503,"Private audio object verification unavailable.");
+  const object=await bucket.head(input.key);
+  if(!object||Number(object.size)!==input.length||
+     object.customMetadata?.editionId!==input.editionId||
+     object.customMetadata?.sha256!==input.sha)
+    throw new ApiError(409,"Audio upload receipt does not match the stored object.");
+  const found=await db.prepare(
+    "SELECT id,object_key,sha256,edition_id,kind FROM commercial_audio_files WHERE id=?"
+  ).bind(input.fileId).first<any>();
+  if(found){
+    if(found.object_key!==input.key||found.sha256!==input.sha||
+       found.edition_id!==input.editionId||found.kind!==input.kind)
+      throw new ApiError(409,"Audio upload identity was already used.");
+    if(input.kind==="preview"){
+      const profile=await db.prepare("SELECT preview_file_id FROM commercial_audio_profiles WHERE edition_id=?")
+        .bind(input.editionId).first<any>();
+      if(profile?.preview_file_id!==input.fileId)
+        throw new ApiError(503,"Interrupted preview registration requires owner recovery.");
+      return {id:input.fileId,sha256:input.sha};
+    }
+    const chapter=await db.prepare(
+      "SELECT id FROM commercial_audio_chapters WHERE edition_id=? AND file_id=?"
+    ).bind(input.editionId,input.fileId).first<any>();
+    if(!chapter)throw new ApiError(503,"Interrupted chapter registration requires owner recovery.");
+    return {id:chapter.id,fileId:input.fileId,sha256:input.sha,replaced:true};
+  }
+  const at=new Date().toISOString();
+  const statements:any[]=[
+    db.prepare(
+      "INSERT INTO commercial_audio_files(id,edition_id,kind,object_key,original_filename,mime_type,size_bytes,sha256,duration_ms,sample_rate_hz,bitrate_kbps,bitrate_mode,channels,loudness_rms_db,true_peak_db,noise_floor_db,qc_status,quarantine_status,created_by_user_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'pending','quarantined',?,?)"
+    ).bind(input.fileId,input.editionId,input.kind,input.key,input.filename,input.mime,
+      input.length,input.sha,input.durationMs,input.sampleRateHz,input.bitrateKbps,
+      input.bitrateMode,input.channels,input.rms,input.peak,input.noise,input.userId,at)
+  ];
+  let chapterId:string|null=null,existingChapter=false;
+  if(input.kind==="preview"){
+    statements.push(db.prepare(
+      "UPDATE commercial_audio_profiles SET preview_file_id=?,qc_status='pending',updated_at=? WHERE edition_id=?"
+    ).bind(input.fileId,at,input.editionId));
+  }else {
+    const existing=await db.prepare(
+      "SELECT id FROM commercial_audio_chapters WHERE edition_id=? AND position=?"
+    ).bind(input.editionId,input.position).first<any>();
+    chapterId=existing?.id||"chapter_"+crypto.randomUUID();
+    existingChapter=!!existing;
+    if(existing)
+      statements.push(db.prepare(
+        "UPDATE commercial_audio_chapters SET title=?,file_id=?,duration_ms=?,mime_type=?,sample_rate_hz=?,bitrate_kbps=?,bitrate_mode=?,channels=?,loudness_rms_db=?,true_peak_db=?,noise_floor_db=?,sha256=?,qc_status='pending' WHERE id=?"
+      ).bind(input.title,input.fileId,input.durationMs,input.mime,input.sampleRateHz,
+        input.bitrateKbps,input.bitrateMode,input.channels,input.rms,input.peak,input.noise,
+        input.sha,chapterId));
+    else
+      statements.push(db.prepare(
+        "INSERT INTO commercial_audio_chapters(id,edition_id,position,title,file_id,duration_ms,mime_type,sample_rate_hz,bitrate_kbps,bitrate_mode,channels,loudness_rms_db,true_peak_db,noise_floor_db,sha256,qc_status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending',?)"
+      ).bind(chapterId,input.editionId,input.position,input.title,input.fileId,
+        input.durationMs,input.mime,input.sampleRateHz,input.bitrateKbps,input.bitrateMode,
+        input.channels,input.rms,input.peak,input.noise,input.sha,at));
+    statements.push(db.prepare(
+      "UPDATE commercial_audio_profiles SET qc_status='pending',updated_at=? WHERE edition_id=?"
+    ).bind(at,input.editionId));
+  }
+  statements.push(db.prepare(
+    "INSERT INTO commercial_audio_qc_jobs(edition_id,status,attempts,max_attempts,lease_owner,lease_expires_at,available_at,last_run_id,last_error,created_at,updated_at) VALUES(?,'queued',0,5,NULL,NULL,?,NULL,'',?,?) ON CONFLICT(edition_id) DO UPDATE SET status='queued',attempts=0,lease_owner=NULL,lease_expires_at=NULL,available_at=excluded.available_at,last_error='',updated_at=excluded.updated_at"
+  ).bind(input.editionId,at,at,at));
+  await db.batch(statements);
+  return input.kind==="preview"?{id:input.fileId,sha256:input.sha}:
+    {id:chapterId,fileId:input.fileId,sha256:input.sha,replaced:existingChapter};
+}
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
