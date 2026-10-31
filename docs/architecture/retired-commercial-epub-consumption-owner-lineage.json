@@ -1,0 +1,47 @@
+{
+  "schema": "cove.retired-commercial-epub-consumption-owner-lineage.v1",
+  "sourceBefore": 10,
+  "sourceAfter": 8,
+  "releaseApproval": false,
+  "productionCertified": false,
+  "sourceFile": "src/features/fore/delivery.server.ts",
+  "previousSha256": "e3505acf284c6f626c986cba0526b4f1b09c60669b2c8de80991568fe75460fd",
+  "currentSha256": "b922f5b654a1f6bea41b03fc4d64c3f4cbe1e9df458f586dda5fb8c406b49b6a",
+  "retired": [
+    {
+      "siteId": "6609e4d030be30af5d9becec104af37ed350bbe8575fbfeab876944efe799038",
+      "file": "src/features/fore/delivery.server.ts",
+      "line": 832,
+      "functionName": "serveCommercialEpubGrant",
+      "table": "commercial_entitlement_delivery_usage",
+      "operation": "INSERT INTO",
+      "sqlSha256": "7e45969347bf5eec177dff0ac98748371e6534c5bf0cf0544b2e8812d3dd7036",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "delivery.serveCommercialEpubGrant",
+      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
+    },
+    {
+      "siteId": "d462297a6e0538fb21c9587bce2bf8e7c640ae7b8dc9827a94b15b86516da0a8",
+      "file": "src/features/fore/delivery.server.ts",
+      "line": 856,
+      "functionName": "serveCommercialEpubGrant",
+      "table": "commercial_delivery_grants",
+      "operation": "UPDATE",
+      "sqlSha256": "5fc9864b32dc3c204b4b7b65fbd74197915109c58b75c89057868a361892fdae",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "delivery.serveCommercialEpubGrant",
+      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
+    }
+  ],
+  "ownerCommand": "delivery.consume-epub-grant",
+  "privateRoute": "/delivery/private-consume-epub-grant",
+  "proofs": [
+    "Private owner verifies exact bearer-token hash and grant ID plus strongly consistent paid entitlement in a live territory/channel",
+    "Owner rereads primary entitlement, market, device, buyer fraud holds and current licensed grant status/expiry",
+    "Use and download claims are combined into one D1 batch transaction with guarded per-grant uses and quota checks",
+    "No shared D1 fallback; protected SQL is absent from the consumer",
+    "Production disabled, tests and exact concurrency certification still incomplete"
+  ]
+}
