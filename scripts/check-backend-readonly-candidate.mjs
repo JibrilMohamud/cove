@@ -27,8 +27,8 @@ assert.match(backend, /backendScheduledPrimaryReadDb\(env\)/);
 assert.match(backend, /COVE_BACKEND_SCHEDULED_READONLY_RPC\?: string/);
 assert.equal(
   (backend.match(/backendScheduledPrimaryReadDb\(env\)\.prepare\(/g) || []).length,
-  4,
-  "Four scheduled selects must be routed through the independent primary reader",
+  5,
+  "Five scheduled selects must be routed through the independent primary reader",
 );
 assert.match(backend, /const firstMapPending = await backendScheduledPrimaryReadDb\(env\)/);
 
