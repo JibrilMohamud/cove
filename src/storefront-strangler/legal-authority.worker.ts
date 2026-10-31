@@ -17643,6 +17643,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/catalog/observe-us",
       "/catalog/regional-state",
       "/catalog/verified-us-epub-cache",
+      "/promotion/private-action",
       "/catalog/private-ingest-state",
       "/delivery/register-entitlement-device",
       "/delivery/private-negative",
@@ -18561,6 +18562,96 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         return Response.json({schema:"cove.owner-us-epub-cache.v1",ownerFirst:true,
           cacheId:input.cacheId,assetVersionId:input.assetVersionId,
           sha256:input.sha256,saved:true},{headers:noStore});
+      }
+      if(route==="/promotion/private-action"){
+        const input=z.object({
+          action:z.enum(["price-event","issue-coupon"]),
+          payload:z.record(z.string(),z.unknown())
+        }).strict().parse(raw);
+        const db=env.PRIMARY_DB;
+        if(input.action==="price-event"){
+          const x=z.object({campaignId:z.string().min(1).max(180),
+            productId:z.string().min(1).max(180)}).strict().parse(input.payload);
+          // No price, permission or event body is accepted from the shared caller.
+          const row=await db.prepare(
+            "SELECT c.id,c.starts_at,c.ends_at,pp.product_id,pr.amount_minor FROM promotion_campaigns c JOIN promotion_campaign_products pp ON pp.campaign_id=c.id JOIN promotions pr ON pr.campaign_id=c.id AND pr.id=('promo_campaign_'||c.id||'_'||pp.product_id) JOIN publishing_publications pub ON pub.product_id=pp.product_id AND pub.publishing_account_id=c.publishing_account_id WHERE c.id=? AND pp.product_id=? AND c.status IN ('approved','scheduled','live') AND pr.active=1 LIMIT 1"
+          ).bind(x.campaignId,x.productId).first<{
+            id:string;starts_at:string;ends_at:string;product_id:string;amount_minor:number
+          }>();
+          if(!row)return new Response(null,{status:409,headers:noStore});
+          const payload=JSON.stringify({campaignId:row.id,productId:row.product_id,
+            startsAt:row.starts_at,endsAt:row.ends_at,promotionalPriceMinor:row.amount_minor});
+          const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",
+            new TextEncoder().encode(JSON.stringify([row.id,row.product_id,payload]))));
+          const eventId="out_"+Array.from(digest,b=>b.toString(16).padStart(2,"0")).join("").slice(0,32);
+          const at=now();
+          await db.prepare(
+            "INSERT OR IGNORE INTO publishing_outbox(id,event_type,aggregate_type,aggregate_id,payload_json,status,attempts,available_at,created_at) VALUES(?,'promotion.price_changed','promotion_campaign',?,?,'pending',0,?,?)"
+          ).bind(eventId,row.id,payload,at,at).run();
+        }else{
+          const x=z.object({
+            userId:z.string().min(3).max(180),
+            accountId:z.string().min(1).max(180),
+            campaignId:z.string().min(1).max(180),
+            code:z.string().min(3).max(80),
+            kind:z.enum(["percent","amount"]),
+            value:z.number().int().min(1).max(1_000_000_000),
+            minimumSubtotalMinor:z.number().int().min(0).max(1_000_000_000),
+            maxPerUser:z.number().int().min(1).max(100)
+          }).strict().parse(input.payload);
+          if(x.code!==x.code.trim().toUpperCase().replace(/\s+/g,"")||
+             (x.kind==="percent"&&x.value>100))
+            return new Response(null,{status:409,headers:noStore});
+          // Ownership, campaign approval, and product scope must come from the
+          // private primary—not the caller's already checked read.
+          const member=await db.prepare(
+            "SELECT role FROM publishing_account_members WHERE user_id=? AND account_id=? AND status='active'"
+          ).bind(x.userId,x.accountId).first<{role:string}>();
+          const campaign=await db.prepare(
+            "SELECT currency,max_redemptions,starts_at,ends_at,funding_source,publisher_funding_bps,stackable FROM promotion_campaigns WHERE id=? AND publishing_account_id=? AND campaign_type='coupon' AND status IN ('scheduled','live')"
+          ).bind(x.campaignId,x.accountId).first<{
+            currency:string|null;max_redemptions:number|null;starts_at:string;ends_at:string;
+            funding_source:string;publisher_funding_bps:number;stackable:number
+          }>();
+          if(!member||!campaign)return new Response(null,{status:403,headers:noStore});
+          const products=(await db.prepare(
+            "SELECT pp.product_id FROM promotion_campaign_products pp JOIN publishing_publications pub ON pub.product_id=pp.product_id AND pub.publishing_account_id=? WHERE pp.campaign_id=? ORDER BY pp.product_id"
+          ).bind(x.accountId,x.campaignId).all<{product_id:string}>()).results.map(r=>r.product_id);
+          const expected=await db.prepare(
+            "SELECT COUNT(*) n FROM promotion_campaign_products WHERE campaign_id=?"
+          ).bind(x.campaignId).first<{n:number}>();
+          if(!products.length||products.length!==Number(expected?.n||0))
+            return new Response(null,{status:409,headers:noStore});
+          const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",
+            new TextEncoder().encode(x.code)));
+          const hash=Array.from(digest,b=>b.toString(16).padStart(2,"0")).join("");
+          const existing=await db.prepare(
+            "SELECT campaign_id FROM commerce_promo_codes WHERE code_hash=?"
+          ).bind(hash).first<{campaign_id:string|null}>();
+          if(existing&&existing.campaign_id!==x.campaignId)
+            return new Response(null,{status:409,headers:noStore});
+          const at=now();
+          const eventBytes=new Uint8Array(await crypto.subtle.digest("SHA-256",
+            new TextEncoder().encode(JSON.stringify([x.campaignId,hash,x.kind,x.value,
+              x.minimumSubtotalMinor,x.maxPerUser]))));
+          const eventId="promoevt_"+Array.from(eventBytes,b=>b.toString(16).padStart(2,"0")).join("").slice(0,32);
+          const results=await db.batch([
+            db.prepare(
+              "INSERT INTO commerce_promo_codes(code_hash,code_label,kind,value,currency,minimum_subtotal_minor,max_redemptions,max_per_user,redemptions,active,starts_at,ends_at,created_at,updated_at,campaign_id,funding_source,publisher_funding_bps,eligible_products_json,stackable) VALUES(?,?,?,?,?,?,?,?,0,1,?,?,?,?,?,?,?,?,?) ON CONFLICT(code_hash) DO UPDATE SET campaign_id=excluded.campaign_id,kind=excluded.kind,value=excluded.value,currency=excluded.currency,minimum_subtotal_minor=excluded.minimum_subtotal_minor,max_redemptions=excluded.max_redemptions,max_per_user=excluded.max_per_user,active=excluded.active,starts_at=excluded.starts_at,ends_at=excluded.ends_at,updated_at=excluded.updated_at,funding_source=excluded.funding_source,publisher_funding_bps=excluded.publisher_funding_bps,eligible_products_json=excluded.eligible_products_json,stackable=excluded.stackable WHERE commerce_promo_codes.campaign_id=excluded.campaign_id"
+            ).bind(hash,x.code,x.kind,x.value,campaign.currency||null,x.minimumSubtotalMinor,
+              campaign.max_redemptions||null,x.maxPerUser,campaign.starts_at,campaign.ends_at,at,at,
+              x.campaignId,campaign.funding_source,campaign.publisher_funding_bps,JSON.stringify(products),campaign.stackable),
+            db.prepare(
+              "INSERT OR IGNORE INTO promotion_campaign_events(id,campaign_id,event_type,actor_type,actor_id,event_json,created_at) SELECT ?,?,'coupon_issued','publisher',?,?,? WHERE EXISTS(SELECT 1 FROM commerce_promo_codes WHERE code_hash=? AND campaign_id=?)"
+            ).bind(eventId,x.campaignId,x.userId,JSON.stringify({
+              codeLabel:x.code,maxPerUser:x.maxPerUser}),at,hash,x.campaignId)
+          ]);
+          const receipt=results as Array<{meta?:{changes?:number}}>;
+          if(Number(receipt[0]?.meta?.changes||0)!==1)
+            return new Response(null,{status:409,headers:noStore});
+        }
+        return Response.json({schema:"cove.owner-promotion-private.v1",
+          ownerFirst:true,action:input.action,saved:true},{headers:noStore});
       }
       if(route==="/catalog/private-ingest-state") {
         const input=z.object({

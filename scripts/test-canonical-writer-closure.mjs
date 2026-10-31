@@ -51,8 +51,12 @@ try{
     assert.equal(result.byFile[path]||0,exact,
       "High-risk canonical writer inventory diverged from exact source review: "+path);
   }
-  assert.equal(result.byFile["src/features/fore/rights.server.ts"]||0,0,
-    "Retired shared rights configuration SQL must not be reintroduced");
+  assert.equal(reviewed.sites.filter(x=>
+    x.file==="src/features/fore/rights.server.ts"&&x.disposition==="owner-command-required").length,0,
+    "Retired authorizing rights configuration SQL must not be reintroduced");
+  assert.ok(reviewed.sites.filter(x=>x.file==="src/features/fore/rights.server.ts")
+    .every(x=>x.disposition==="non-authorizing-write"),
+    "Rights decision history must not masquerade as positive authorization");
   // This family now has zero shared writers. Require exact retirement
   // evidence and the private replacement rather than retaining legacy SQL
   // merely to satisfy a historical inventory-presence assertion.

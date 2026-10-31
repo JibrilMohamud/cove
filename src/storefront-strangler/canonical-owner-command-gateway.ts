@@ -138,6 +138,10 @@ const routes={
     assetVersionId:z.string().min(3).max(180),
     sha256:z.string().regex(/^[a-f0-9]{64}$/)
   }).strict()},
+  "promotion.private-action":{path:"/promotion/private-action",schema:z.object({
+    action:z.enum(["price-event","issue-coupon"]),
+    payload:z.record(z.string(),z.unknown())
+  }).strict()},
   "catalog.ingestion-state":{path:"/catalog/private-ingest-state",schema:z.object({
     action:z.enum(["recover-interrupted","mark-unavailable","claim-download",
       "touch-attempt","set-backoff","mark-failure","acquire-regional",
@@ -372,6 +376,11 @@ export async function dispatchCanonicalOwnerCommand(
       if(ack.schema!=="cove.owner-us-epub-cache.v1"||ack.ownerFirst!==true||
          ack.cacheId!==body.cacheId||ack.assetVersionId!==body.assetVersionId||
          ack.sha256!==body.sha256||ack.saved!==true)
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "promotion.private-action":
+      if(ack.schema!=="cove.owner-promotion-private.v1"||ack.ownerFirst!==true||
+         ack.action!==body.action||ack.saved!==true)
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "catalog.ingestion-state":
