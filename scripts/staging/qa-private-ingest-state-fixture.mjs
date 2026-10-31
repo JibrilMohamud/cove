@@ -2,6 +2,7 @@
  * Runs only in synthetic localBindings SQLite. Not a production API or legal grant.
  * Positive publication remains separately verified by the caller's owner stub.
  */
+import {createHash} from "node:crypto";
 const now=()=>new Date().toISOString();
 const bad=()=>new Response(null,{status:409});
 const exact=(p,names)=>Object.keys(p).length===names.length&&names.every(k=>Object.hasOwn(p,k));
@@ -106,4 +107,37 @@ export async function respondQaRegionalCheckpoint(db,request){
  await db.prepare("UPDATE gutenberg_source_states SET status='idle',cursor=NULL,cycle_started_at=NULL,last_success_at=?,attempts=0,next_run_at=?,lease_token=NULL,lease_until=NULL,etag=COALESCE(NULLIF(?,''),etag),last_modified=COALESCE(NULLIF(?,''),last_modified),updated_at=? WHERE source_id=? AND lease_token=?")
     .bind(at,input.data.next,input.data.etag||"",input.data.lastModified||"",at,input.sourceId,input.leaseToken).run();
  return Response.json({schema:"cove.owner-regional-state.v1",ownerFirst:true,sourceId:input.sourceId,runId:input.runId,action:input.action,acquired:true});
+}
+
+
+/** Test-only stand-in for the private verified US EPUB completion command.
+ * Independently checks local SQLite evidence and actual stored object bytes.
+ * Never imported by the deployed legal owner or public API. */
+export async function respondQaUsEpubCompletion(db,bucket,request,secret,validateEpub){
+ if(new URL(request.url).pathname!=="/catalog/complete-us-epub-ingest"||
+    request.method!=="POST"||
+    request.headers.get("authorization")!=="Bearer "+secret)return bad();
+ const input=await request.json();
+ if(!input||typeof input!=="object"||Array.isArray(input)||
+    !exact(input,["cacheId","sha256"])||
+    !/^[0-9]{1,10}$/.test(input.cacheId)||
+    !/^[a-f0-9]{64}$/.test(input.sha256))return bad();
+ const active=await db.prepare(
+   "SELECT c.id FROM gutenberg_source_cache c JOIN gutenberg_sources s ON s.id=c.source_id AND s.enabled=1 WHERE c.id=? AND c.source_id='pg_us' AND c.copyright=0 AND c.rights_status='public-domain' AND c.commercial_use_status='approved' AND c.ingest_status='active' AND c.epub_status='downloading' AND c.rights_territories_json='[\"US\"]' AND EXISTS(SELECT 1 FROM gutenberg_rights_evidence e WHERE e.cache_id=c.id AND e.status='approved' AND e.determination='public-domain' AND e.territory_code='US')"
+ ).bind(input.cacheId).first();
+ if(!active)return bad();
+ const object=await bucket.get("epubs/"+input.cacheId+".epub");
+ if(!object||!Number.isSafeInteger(object.size)||object.size<100||
+    object.size>25*1024*1024)return bad();
+ const bytes=new Uint8Array(await object.arrayBuffer());
+ if(bytes.byteLength!==object.size)return bad();
+ try{await validateEpub(bytes);}catch{return bad();}
+ const actual=createHash("sha256").update(bytes).digest("hex");
+ if(actual!==input.sha256)return bad();
+ const result=await db.prepare(
+   "UPDATE gutenberg_source_cache SET epub_status='completed',epub_cached_at=?,epub_last_error='',epub_next_attempt_at='',content_hash=?,canonicalization_version='pgus-upstream-v1' WHERE id=? AND source_id='pg_us' AND copyright=0 AND rights_status='public-domain' AND commercial_use_status='approved' AND ingest_status='active' AND epub_status='downloading' AND rights_territories_json='[\"US\"]' AND EXISTS(SELECT 1 FROM gutenberg_rights_evidence e WHERE e.cache_id=gutenberg_source_cache.id AND e.status='approved' AND e.determination='public-domain' AND e.territory_code='US')"
+ ).bind(now(),actual,input.cacheId).run();
+ if(Number(result.meta?.changes||0)!==1)return bad();
+ return Response.json({schema:"cove.owner-us-epub-ingest.v1",ownerFirst:true,
+  cacheId:input.cacheId,sha256:actual,saved:true});
 }

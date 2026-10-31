@@ -137,6 +137,10 @@ const routes={
     runId:z.string().regex(/^gir_[a-f0-9-]{36}$/),
     data:z.record(z.string(),z.unknown())
   }).strict()},
+  "catalog.complete-us-epub-ingest":{path:"/catalog/complete-us-epub-ingest",schema:z.object({
+    cacheId:z.string().regex(/^[0-9]{1,10}$/),
+    sha256:z.string().regex(/^[a-f0-9]{64}$/)
+  }).strict()},
   "catalog.cache-us-epub":{path:"/catalog/verified-us-epub-cache",schema:z.object({
     cacheId:z.string().regex(/^[0-9]{1,10}$/),
     assetVersionId:z.string().min(3).max(180),
@@ -399,6 +403,11 @@ export async function dispatchCanonicalOwnerCommand(
          ack.sourceId!==body.sourceId||ack.runId!==body.runId||
          ack.action!==body.action||typeof ack.acquired!=="boolean")
          throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "catalog.complete-us-epub-ingest":
+      if(ack.schema!=="cove.owner-us-epub-ingest.v1"||ack.ownerFirst!==true||
+         ack.cacheId!==body.cacheId||ack.sha256!==body.sha256||
+         ack.saved!==true)throw Error("canonical_command_receipt_mismatch");
       break;
     case "catalog.cache-us-epub":
       if(ack.schema!=="cove.owner-us-epub-cache.v1"||ack.ownerFirst!==true||

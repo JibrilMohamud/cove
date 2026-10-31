@@ -1,0 +1,31 @@
+{
+  "schema": "cove.retired-us-epub-ingest-completion.v1",
+  "sourceBefore": 18,
+  "sourceAfter": 17,
+  "productionCertified": false,
+  "releaseApproval": false,
+  "sourceFile": "src/features/fore/api.server.ts",
+  "previousSha256": "b194f3280070907d36ad9a50a441a849f8a12d4aaaa42ce7c9aa727df797e877",
+  "currentSha256": "19280ea21b48bce3cff909f9ffc7d9ea5dee291b1527201d25dd520b3f57d779",
+  "privateCommand": "catalog.complete-us-epub-ingest",
+  "privateRoute": "/catalog/complete-us-epub-ingest",
+  "independentProofs": [
+    "Primary US Gutenberg source is active, copyright-free, public-domain and commercial-approved",
+    "Current approved US public-domain rights evidence exists",
+    "Private owner loads deterministic R2 epubs/{cacheId}.epub, bounds and validates EPUB archive, verifies bytes SHA-256",
+    "Conditional primary-D1 update repeats source and evidence predicates; no caller-defined SQL, object key or authorization",
+    "Missing private owner, invalid rights, missing or corrupt R2 bytes, or SHA-256 mismatch fail closed"
+  ],
+  "retired": [
+    {
+      "siteId": "b6f84d135bf8bee66b82dedb6b4279222b5f95acf042029a42e8dd73624cbb7f",
+      "sqlSha256": "6a5eebd3fb42465e213f89bd0fc835db5cc3a50bfd2625a552425c6dc57dfa96",
+      "file": "src/features/fore/api.server.ts",
+      "line": 1587,
+      "functionName": "cachePendingEpubs",
+      "table": "gutenberg_source_cache",
+      "operation": "UPDATE"
+    }
+  ],
+  "notes": "Source-only QA retirement. Stripe LIVE, paid rights, owner production binding, exclusive D1 permissions, customer-access certification and protected rollback remain blocked. Regional EPUB status, regional rights, and asset-version SQL remain reviewed and outstanding."
+}

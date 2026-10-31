@@ -1,0 +1,31 @@
+{
+  "schema": "cove.retired-epub-asset-version-owner-lineage.v1",
+  "sourceBefore": 17,
+  "sourceAfter": 16,
+  "productionCertified": false,
+  "releaseApproval": false,
+  "sourceFile": "src/features/fore/api.server.ts",
+  "previousSha256": "5e6cbf3647a74e34ebb14fe268d3aa1ae5f18e0c1a7a5bea1b97edf7b1e4a054",
+  "currentSha256": "19280ea21b48bce3cff909f9ffc7d9ea5dee291b1527201d25dd520b3f57d779",
+  "privateCommand": "catalog.normalize-gutenberg",
+  "privateRoute": "/catalog/normalize-gutenberg",
+  "proofs": [
+    "Both source paths complete fixed private normalization before the former best-effort shared asset repair",
+    "The owner derives edition/asset IDs from exact registered Gutenberg cache ID, not caller-supplied asset IDs",
+    "Owner normalization creates or upserts the canonical EPUB asset version and its deterministic epubs/{sourceId}.epub object_key with cache content_hash",
+    "Owner checks active public-domain source/copyright and approved rights evidence before applying normalization; regional positive evidence origination remains unretired and production disabled",
+    "For US sources, EPUB completion also independently verifies R2 bytes and SHA-256 before private normalization"
+  ],
+  "retired": [
+    {
+      "siteId": "59c335b18b2fd82801fc5b76852018b7f9fafe10f614027306aee05cea2032ae",
+      "sqlSha256": "8e24773c32daba31892f0bc7a7d005bf7f8937acf73548ea82143ae732f33473",
+      "file": "src/features/fore/api.server.ts",
+      "line": 1618,
+      "functionName": "cachePendingEpubs",
+      "table": "asset_versions",
+      "operation": "UPDATE"
+    }
+  ],
+  "notes": "No additional owner command required: original shared best-effort asset repair was provably redundant because the existing private owner normalizer upserts the same asset in the preceding awaited step. This does not certify regional positive rights, live customer access, or production cutover."
+}
