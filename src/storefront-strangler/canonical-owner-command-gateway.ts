@@ -149,6 +149,18 @@ const routes={
       "PUBLISHER_RISK_REVIEW","PUBLISHER_RISK_BLOCK","SUSPICIOUS_USAGE",
       "PAYOUT_RISK_REVIEW","COMMUNITY_MANIPULATION_REVIEW"])
   }).strict()},
+  "audio.verify-biosync":{path:"/publishing/audio/biosync-verify",schema:z.object({
+    actorUserId:ownerId,
+    request:z.object({
+      ebookProductId:z.string().min(1).max(180),audiobookProductId:z.string().min(1).max(180),
+      ebookAssetVersionId:z.string().min(1).max(180),audioManifestHash:z.string().regex(/^[a-f0-9]{64}$/),
+      timingManifestObjectKey:z.string().min(1).max(1000),
+      timingManifestSha256:z.string().regex(/^[a-f0-9]{64}$/),
+      precision:z.enum(["sentence","word"]).optional(),
+      coverageBps:z.number().int().min(0).max(10000).optional(),
+      verifiedBy:z.string().min(1).max(120).optional()
+    }).strict()
+  }).strict()},
   "promotion.private-action":{path:"/promotion/private-action",schema:z.object({
     action:z.enum(["price-event","issue-coupon"]),
     payload:z.record(z.string(),z.unknown())
@@ -393,6 +405,15 @@ export async function dispatchCanonicalOwnerCommand(
       if(ack.schema!=="cove.owner-risk-hold-qa.v1"||ack.ownerFirst!==true||
          ack.assessmentId!==body.assessmentId||typeof ack.holdId!=="string"||
          ack.holdId.length<3||ack.saved!==true)throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "audio.verify-biosync":
+      if(ack.schema!=="cove.owner-biosync-verified.v1"||ack.ownerFirst!==true||
+         ack.actorUserId!==body.actorUserId||
+         ack.status!=="verified"||ack.verified!==true||
+         typeof ack.id!=="string"||ack.id.length<16||
+         ack.timingManifestSha256!==body.request.timingManifestSha256||
+         !Number.isSafeInteger(ack.cueCount)||ack.cueCount<1)
+        throw Error("canonical_command_receipt_mismatch");
       break;
     case "promotion.private-action":
       if(ack.schema!=="cove.owner-promotion-private.v1"||ack.ownerFirst!==true||

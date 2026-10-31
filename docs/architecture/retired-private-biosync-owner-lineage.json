@@ -1,0 +1,22 @@
+{
+  "schema": "cove.retired-private-biosync-owner-lineage.v1",
+  "sourceBefore": 21,
+  "sourceAfter": 20,
+  "releaseApproval": false,
+  "productionCertified": false,
+  "sourceFile": "src/features/fore/commercial-audio.server.ts",
+  "previousSha256": "fdc81ae026d2159b0fd2cec92f500b16e52f7bb250927c8e766065bf49e9ceba",
+  "currentSha256": "dfb1388150c34061d6f4c7707279f45283a6d62cab9ea547d6c6910b7f324452",
+  "retired": [
+    {
+      "file": "src/features/fore/commercial-audio.server.ts",
+      "line": 1488,
+      "functionName": "saveCommercialBiosyncLink",
+      "table": "commercial_biosync_links",
+      "operation": "INSERT INTO",
+      "siteId": "b856bd2b9101daabb9e473e3530ff92660a6f87bf80e524b8391c559867c80de",
+      "sqlSha256": "f926df4bd506f7e81d86bb3223bc2566c099c047468c896cab9b3d6059bc2d3b",
+      "ownerRoute": "/publishing/audio/biosync-verify"
+    }
+  ]
+}

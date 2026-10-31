@@ -54,14 +54,17 @@ try {
       "UPDATE asset_versions SET object_key=NULL,sha256=NULL WHERE asset_id='asset_epub_gutenberg_1342'",
     )
     .run();
+  const beforeUnboundHydration = await db
+    .prepare("SELECT epub_status,content_hash FROM gutenberg_source_cache WHERE id='1342'")
+    .first();
   const first = await request("/books/1342/epub");
   assert.equal(first.status, 200, await first.clone().text());
   assert.equal((await first.arrayBuffer()).byteLength, bytes.length);
   const stored = await db
     .prepare("SELECT epub_status,content_hash FROM gutenberg_source_cache WHERE id='1342'")
     .first();
-  assert.equal(stored.epub_status, "completed");
-  assert.match(stored.content_hash, /^[a-f0-9]{64}$/);
+  assert.deepEqual(stored,beforeUnboundHydration,
+    "Ownerless public-US EPUB reading must not persist canonical cache or asset authority");
   const total = fetches;
   assert.equal((await request("/books/1342/epub")).status, 200);
   assert.equal(fetches, total, "verified R2 file avoids upstream I/O");
