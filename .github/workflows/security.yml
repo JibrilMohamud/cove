@@ -39,6 +39,8 @@ jobs:
         run: npm run test:persistence-backend
       - name: Non-owner D1 retirement candidate is strictly read-only
         run: node scripts/check-backend-readonly-candidate.mjs
+      - name: Audio scheduler diagnostics must not write primary D1
+        run: node scripts/check-backend-audio-diagnostics.mjs
       - name: Production legal owner cannot enter synthetic QA lease
         run: node scripts/check-production-owner-binary-lock.mjs
       - name: Reading statistics and audiobook regressions
