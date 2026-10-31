@@ -122,6 +122,12 @@ try {
   assert.equal(primary.prepare("SELECT COUNT(*) n FROM commercial_audio_chapters").get().n,1,
     "replayed upload must not duplicate the chapter");
   assert.equal(primary.prepare("SELECT COUNT(*) n FROM commercial_audio_files").get().n,1);
+  assert.equal((await register({...upload,title:"Altered chapter replay"})).status,503,
+    "The owner must reject a reused file ID with changed chapter metadata");
+  assert.equal((await register({...upload,filename:"altered.mp3"})).status,503,
+    "The owner must reject a reused file ID with changed file metadata");
+  assert.equal(primary.prepare("SELECT COUNT(*) n FROM commercial_audio_chapters").get().n,1);
+  assert.equal(primary.prepare("SELECT COUNT(*) n FROM commercial_audio_files").get().n,1);
   const narrators={editionId,narrators:[{displayName:"QA Narrator",narrationType:"human",syntheticVoiceLabel:""}]};
   response=await request("narrators",ownerId,narrators,"audio:narrators");
   assert.equal(response.status,200);
