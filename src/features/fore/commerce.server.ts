@@ -448,9 +448,20 @@ async function storeCreditAvailable(db: CatalogDB, userId: string, currency: str
   return Math.max(0, ledger - reserved);
 }
 
-export async function checkoutQuote(env: CoveEnv, user: User, raw: unknown) {
+type OwnerCheckoutQuoteRow = {
+  id:string; userId:string; cartId:string; cartFingerprint:string;
+  territoryCode:string; currency:string; itemsJson:string; billingAddressJson:string;
+  subtotalMinor:number; promoDiscountMinor:number; taxMinor:number; taxInclusiveMinor:number;
+  giftCardMinor:number; storeCreditMinor:number; totalMinor:number; stripeDueMinor:number;
+  promoCodeHash:string|null; giftCardHash:string|null; stripeTaxCalculationId:string|null;
+  taxBreakdownJson:string; expiresAt:string; createdAt:string;
+};
+export async function checkoutQuote(env: CoveEnv, user: User, raw: unknown,
+ persistOwnerQuote?: (row:OwnerCheckoutQuoteRow)=>Promise<void>) {
+
   if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")
     throw new ApiError(503, "Checkout quotes require the private commerce owner.");
+  if(!persistOwnerQuote)throw new ApiError(503, "Only the private owner may persist checkout quotes.");
   const input = z
     .object({
       territory: z
@@ -635,35 +646,16 @@ export async function checkoutQuote(env: CoveEnv, user: User, raw: unknown) {
     at = now(),
     expires = new Date(Date.now() + 30 * 60_000).toISOString(),
     items = discounted.map((x) => ({ ...x }));
-  await db
-    .prepare(
-      `INSERT INTO commerce_checkout_quotes(id,user_id,cart_id,cart_fingerprint,territory_code,currency,items_json,billing_address_json,subtotal_minor,promo_discount_minor,tax_minor,tax_inclusive_minor,gift_card_minor,store_credit_minor,total_minor,stripe_due_minor,promo_code_hash,gift_card_hash,stripe_tax_calculation_id,tax_breakdown_json,expires_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    )
-    .bind(
-      id,
-      user.id,
-      cartRow.id,
-      cart.fingerprint,
-      territory,
-      cart.currency,
-      JSON.stringify(items),
-      JSON.stringify(input.billingAddress),
-      cart.subtotalMinor,
-      discount,
-      taxMinor,
-      taxInclusiveMinor,
-      giftUse,
-      storeUse,
-      total,
-      stripeDue,
-      promo?.hash || null,
-      gift?.hash || null,
-      taxId,
-      JSON.stringify(taxBreakdown),
-      expires,
-      at,
-    )
-    .run();
+  await persistOwnerQuote({
+    id, userId:user.id, cartId:cartRow.id, cartFingerprint:cart.fingerprint,
+    territoryCode:territory, currency:cart.currency,
+    itemsJson:JSON.stringify(items), billingAddressJson:JSON.stringify(input.billingAddress),
+    subtotalMinor:cart.subtotalMinor, promoDiscountMinor:discount,
+    taxMinor, taxInclusiveMinor, giftCardMinor:giftUse, storeCreditMinor:storeUse,
+    totalMinor:total, stripeDueMinor:stripeDue, promoCodeHash:promo?.hash || null,
+    giftCardHash:gift?.hash || null, stripeTaxCalculationId:taxId,
+    taxBreakdownJson:JSON.stringify(taxBreakdown), expiresAt:expires, createdAt:at
+  });
   await recordCheckoutTaxEvidence(db, {
     quoteId: id,
     userId: user.id,

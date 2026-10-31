@@ -19672,7 +19672,20 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           // never by a public backend request or its D1 capability.
           COVE_LEGAL_CONSUMER_STAGE_ENABLED:"1",
         } as CoveEnv;
-        const quote=await checkoutQuote(ownerEnv,{id:command.userId},command.request);
+        const quote=await checkoutQuote(ownerEnv,{id:command.userId},command.request,async row=>{
+          // Only this private owner writes canonical quotes after it has
+          // recomputed prices, tax and available payment balances.
+          const saved=await env.PRIMARY_DB.prepare(
+            "INSERT INTO commerce_checkout_quotes(id,user_id,cart_id,cart_fingerprint,territory_code,currency,items_json,billing_address_json,subtotal_minor,promo_discount_minor,tax_minor,tax_inclusive_minor,gift_card_minor,store_credit_minor,total_minor,stripe_due_minor,promo_code_hash,gift_card_hash,stripe_tax_calculation_id,tax_breakdown_json,expires_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+          ).bind(row.id,row.userId,row.cartId,row.cartFingerprint,row.territoryCode,
+            row.currency,row.itemsJson,row.billingAddressJson,row.subtotalMinor,
+            row.promoDiscountMinor,row.taxMinor,row.taxInclusiveMinor,row.giftCardMinor,
+            row.storeCreditMinor,row.totalMinor,row.stripeDueMinor,row.promoCodeHash,
+            row.giftCardHash,row.stripeTaxCalculationId,row.taxBreakdownJson,
+            row.expiresAt,row.createdAt).run();
+          if(Number((saved as {meta?:{changes?:number}}).meta?.changes||0)!==1)
+            throw Error("private_checkout_quote_insert_unconfirmed");
+        });
         // The quote, tax evidence and provider calculation were persisted
         // by the canonical owner. It cannot ACK a caller-supplied amount.
         const stored=await env.PRIMARY_DB.prepare(
