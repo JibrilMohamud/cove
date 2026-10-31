@@ -487,3 +487,17 @@ export async function dispatchCatalogVerifiedUsEpub(db:object,input:{
   if(ack.saved!==true)throw Error("owner_did_not_commit");
  }catch{throw new ApiError(503,"Private owner refused this US EPUB cache update.");}
 }
+
+/** Exact entitlement/device binding; private owner independently rechecks
+ * the active entitlement and revoked-device state against canonical D1. */
+export async function dispatchPrivateEntitlementDevice(db:object,input:{
+ userId:string;entitlementId:string;productId:string;deviceId:string;maxActiveDevices:number
+}):Promise<void>{
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Device-entitlement registration requires a private owner.");
+ try{
+  const ack=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+   "delivery.register-entitlement-device",input);
+  if(ack.saved!==true)throw Error("device_owner_receipt_invalid");
+ }catch{throw new ApiError(503,"Private owner refused entitlement-device registration.");}
+}

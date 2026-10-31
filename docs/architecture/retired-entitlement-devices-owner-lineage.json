@@ -1,0 +1,30 @@
+{
+  "schema": "cove.retired-entitlement-devices-owner-lineage.v1",
+  "sourceBefore": 31,
+  "sourceAfter": 29,
+  "releaseApproval": false,
+  "productionCertified": false,
+  "sourceFile": "src/features/fore/delivery.server.ts",
+  "previousSha256": "b5c2943b4d6d5b233f0c40e9d30081a72c2ffd82e38fa86752555b408426a5b7",
+  "currentSha256": "8a48bd2bacf3cc4ed41b04416de8f076e7b341ac2b0214e5e4f0069e9a672e04",
+  "retired": [
+    {
+      "siteId": "48854b234c34356e8ff8189cacb601fb627fc292b67025c093d5eecfe31c5762",
+      "sqlSha256": "4ab7cb99747edf29c3c32b11ef8f7ba977798df15737450b6132523baf25767c",
+      "line": 317,
+      "table": "commercial_entitlement_devices",
+      "operation": "UPDATE",
+      "functionName": "assertDevice",
+      "ownerRoute": "/delivery/register-entitlement-device"
+    },
+    {
+      "siteId": "96e9d1017ac7f2b4f162419c5b43c42e5519e73a600682e656f76acfe1b353cd",
+      "sqlSha256": "391880c29e2b9bfbbf1c6c8b199236e932f7d6cd12c7a703771faddaffb8c445",
+      "line": 340,
+      "table": "commercial_entitlement_devices",
+      "operation": "INSERT INTO",
+      "functionName": "assertDevice",
+      "ownerRoute": "/delivery/register-entitlement-device"
+    }
+  ]
+}

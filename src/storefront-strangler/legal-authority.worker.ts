@@ -17644,6 +17644,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/catalog/regional-state",
       "/catalog/verified-us-epub-cache",
       "/catalog/private-ingest-state",
+      "/delivery/register-entitlement-device",
       "/delivery/private-negative",
       "/catalog/withdraw-stale",
       "/catalog/negative-source",
@@ -18656,6 +18657,49 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         }
         return Response.json({schema:"cove.owner-ingestion-state-qa.v1",ownerFirst:true,
           action:input.action,result},{headers:noStore});
+      }
+      if(route==="/delivery/register-entitlement-device"){
+        const x=z.object({
+          userId:z.string().min(3).max(180),
+          entitlementId:z.string().min(3).max(180),
+          productId:z.string().min(3).max(180),
+          deviceId:z.string().min(3).max(180),
+          maxActiveDevices:z.number().int().min(1).max(100)
+        }).strict().parse(raw);
+        const db=env.PRIMARY_DB,at=now();
+        const [ent,device,policy]=await Promise.all([
+          db.prepare("SELECT id FROM entitlements WHERE id=? AND user_id=? AND product_id=? AND status='active' AND (starts_at IS NULL OR starts_at<=?) AND (ends_at IS NULL OR ends_at>?)")
+            .bind(x.entitlementId,x.userId,x.productId,at,at).first<{id:string}>(),
+          db.prepare("SELECT id FROM devices WHERE id=? AND user_id=? AND revoked_at IS NULL")
+            .bind(x.deviceId,x.userId).first<{id:string}>(),
+          db.prepare("SELECT max_active_devices FROM commercial_delivery_policies WHERE product_id=?")
+            .bind(x.productId).first<{max_active_devices:number}>()
+        ]);
+        if(!ent||!device)return new Response(null,{status:409,headers:noStore});
+        const dbMax=Math.max(1,Math.min(100,Number(policy?.max_active_devices||6))),
+          max=Math.min(dbMax,x.maxActiveDevices);
+        const current=await db.prepare(
+          "SELECT 1 ok FROM commercial_entitlement_devices WHERE entitlement_id=? AND device_id=?"
+        ).bind(x.entitlementId,x.deviceId).first<{ok:number}>();
+        let changed=0;
+        if(current){
+          const done=await db.prepare(
+            "UPDATE commercial_entitlement_devices SET last_used_at=? WHERE entitlement_id=? AND device_id=? AND EXISTS(SELECT 1 FROM entitlements e WHERE e.id=? AND e.user_id=? AND e.product_id=? AND e.status='active' AND (e.starts_at IS NULL OR e.starts_at<=?) AND (e.ends_at IS NULL OR e.ends_at>?))"
+          ).bind(at,x.entitlementId,x.deviceId,x.entitlementId,x.userId,x.productId,at,at).run();
+          changed=Number((done as {meta?:{changes?:number}})?.meta?.changes||0);
+        }else{
+          const used=await db.prepare(
+            "SELECT COUNT(*) c FROM commercial_entitlement_devices ced JOIN devices d ON d.id=ced.device_id WHERE ced.entitlement_id=? AND d.user_id=? AND d.revoked_at IS NULL"
+          ).bind(x.entitlementId,x.userId).first<{c:number}>();
+          if(Number(used?.c||0)>=max)return new Response(null,{status:409,headers:noStore});
+          const done=await db.prepare(
+            "INSERT INTO commercial_entitlement_devices(entitlement_id,product_id,device_id,activated_at,last_used_at) SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM entitlements e WHERE e.id=? AND e.user_id=? AND e.product_id=? AND e.status='active' AND (e.starts_at IS NULL OR e.starts_at<=?) AND (e.ends_at IS NULL OR e.ends_at>?)) AND EXISTS(SELECT 1 FROM devices d WHERE d.id=? AND d.user_id=? AND d.revoked_at IS NULL) AND (SELECT COUNT(*) FROM commercial_entitlement_devices ced JOIN devices d ON d.id=ced.device_id WHERE ced.entitlement_id=? AND d.user_id=? AND d.revoked_at IS NULL)<?"
+          ).bind(x.entitlementId,x.productId,x.deviceId,at,at,x.entitlementId,x.userId,x.productId,at,at,x.deviceId,x.userId,x.entitlementId,x.userId,max).run();
+          changed=Number((done as {meta?:{changes?:number}})?.meta?.changes||0);
+        }
+        if(changed!==1)return new Response(null,{status:409,headers:noStore});
+        return Response.json({schema:"cove.owner-entitlement-device.v1",ownerFirst:true,
+          entitlementId:x.entitlementId,deviceId:x.deviceId,saved:true},{headers:noStore});
       }
       if(route==="/delivery/private-negative") {
         const request=z.object({
