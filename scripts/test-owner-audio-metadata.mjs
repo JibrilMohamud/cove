@@ -26,10 +26,13 @@ try {
     "CREATE TABLE commercial_audio_policy_versions(id TEXT PRIMARY KEY,status TEXT)",
     "CREATE TABLE publishing_rights_declarations(id TEXT PRIMARY KEY,edition_id TEXT)",
     "CREATE TABLE publishing_rights_evidence(id TEXT PRIMARY KEY,declaration_id TEXT,verification_status TEXT)",
-    "CREATE TABLE commercial_audio_profiles(edition_id TEXT PRIMARY KEY,publishing_account_id TEXT,audio_publisher TEXT,copyright_notice TEXT,performance_rights_basis TEXT,performance_rights_evidence_id TEXT,identifier_type TEXT,identifier_value TEXT,credits_json TEXT,territory_scope_json TEXT,subscription_eligible INTEGER,offline_eligible INTEGER,cover_asset_version_id TEXT,active_policy_id TEXT,qc_status TEXT,rights_status TEXT,agreements_status TEXT,updated_at TEXT,created_at TEXT)",
+    "CREATE TABLE commercial_audio_profiles(edition_id TEXT PRIMARY KEY,publishing_account_id TEXT,audio_publisher TEXT,copyright_notice TEXT,performance_rights_basis TEXT,performance_rights_evidence_id TEXT,identifier_type TEXT,identifier_value TEXT,credits_json TEXT,territory_scope_json TEXT,subscription_eligible INTEGER,offline_eligible INTEGER,cover_asset_version_id TEXT,active_policy_id TEXT,preview_file_id TEXT,qc_status TEXT,rights_status TEXT,agreements_status TEXT,updated_at TEXT,created_at TEXT)",
     "CREATE TABLE commercial_audio_narrators(id TEXT PRIMARY KEY,edition_id TEXT,display_name TEXT,narration_type TEXT,synthetic_voice_label TEXT,billing_order INTEGER,created_at TEXT)",
     "CREATE TABLE narration_agreements(id TEXT PRIMARY KEY,edition_id TEXT,narrator_id TEXT,agreement_type TEXT,evidence_id TEXT,territories_json TEXT,permitted_uses_json TEXT,signed_at TEXT,expires_at TEXT,status TEXT,attested_by_user_id TEXT,created_at TEXT)",
     "CREATE TABLE narration_agreement_terminations(id TEXT PRIMARY KEY,agreement_id TEXT,disposition TEXT,effective_at TEXT,replacement_agreement_id TEXT,reason TEXT,actor_user_id TEXT,created_at TEXT)",
+    "CREATE TABLE commercial_audio_files(id TEXT PRIMARY KEY,edition_id TEXT,kind TEXT,object_key TEXT,original_filename TEXT,mime_type TEXT,size_bytes INTEGER,sha256 TEXT,duration_ms INTEGER,sample_rate_hz INTEGER,bitrate_kbps INTEGER,bitrate_mode TEXT,channels INTEGER,loudness_rms_db REAL,true_peak_db REAL,noise_floor_db REAL,qc_status TEXT,quarantine_status TEXT,created_by_user_id TEXT,created_at TEXT)",
+    "CREATE TABLE commercial_audio_chapters(id TEXT PRIMARY KEY,edition_id TEXT,position INTEGER,title TEXT,file_id TEXT,duration_ms INTEGER,mime_type TEXT,sample_rate_hz INTEGER,bitrate_kbps INTEGER,bitrate_mode TEXT,channels INTEGER,loudness_rms_db REAL,true_peak_db REAL,noise_floor_db REAL,sha256 TEXT,qc_status TEXT,created_at TEXT)",
+    "CREATE TABLE commercial_audio_qc_jobs(edition_id TEXT PRIMARY KEY,status TEXT,attempts INTEGER,max_attempts INTEGER,lease_owner TEXT,lease_expires_at TEXT,available_at TEXT,last_run_id TEXT,last_error TEXT,created_at TEXT,updated_at TEXT)",
     "CREATE TABLE publishing_submission_snapshots(id TEXT PRIMARY KEY,edition_id TEXT)",
     "CREATE TABLE publishing_publications(id TEXT PRIMARY KEY,submission_id TEXT,product_id TEXT)"
   ])primary.exec(sql);
@@ -61,6 +64,8 @@ try {
     COVE_RIGHTS_OWNER_PRIMARY_ID:"7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
     COVE_RIGHTS_OWNER_TEST_EXPIRES_AT:String(Date.now()+600000),
     COVE_RIGHTS_OWNER_SECRET:secret};
+  const objects=new Map();
+  env.BUCKET={head:async(key)=>objects.get(key)||null};
   const owner=new CoveLegalAuthority({storage:{sql:storageSql,transactionSync(fn){return fn();}}},env);
   const request=(action,userId,payload,operationId,token=secret)=>owner.fetch(new Request(
     "https://legal-authority.internal/publishing/audio/metadata",{
@@ -86,6 +91,37 @@ try {
   assert.equal((await response.json()).result.saved,true,"exact owner replay preserves receipt");
   assert.equal((await request("profile",ownerId,{...profile,audioPublisher:"collision"},"audio:profile")).status,409,
     "reusing an operationId with a different payload must deny");
+  const register=(payload,token=secret)=>owner.fetch(new Request(
+    "https://legal-authority.internal/publishing/audio/register-upload",{
+      method:"POST",headers:{"content-type":"application/json","authorization":"Bearer "+token},
+      body:JSON.stringify({...payload,operationId:"audio-upload:"+payload.fileId})
+    }));
+  const fileId="audiofile_"+crypto.randomUUID(),digest="f".repeat(64);
+  const key="publishing/audio/"+editionId+"/"+fileId+"-"+digest.slice(0,16)+".mp3";
+  const upload={userId:ownerId,editionId,kind:"chapter",title:"QA audio chapter",position:1,
+    durationMs:60000,sampleRateHz:44100,bitrateKbps:192,bitrateMode:"CBR",
+    channels:2,rms:-20,peak:-4,noise:-70,filename:"chapter.mp3",
+    mime:"audio/mpeg",length:1000,sha:digest,fileId,key};
+  objects.set(key,{size:1000,customMetadata:{editionId,sha256:digest}});
+  assert.equal((await register({...upload,userId:intruder})).status,503);
+  assert.equal(primary.prepare("SELECT COUNT(*) n FROM commercial_audio_files").get().n,0);
+  const wrongFile={...upload,fileId:"audiofile_"+crypto.randomUUID()};
+  wrongFile.key="publishing/audio/"+editionId+"/"+wrongFile.fileId+"-"+digest.slice(0,16)+".mp3";
+  assert.equal((await register(wrongFile)).status,503);
+  assert.equal(primary.prepare("SELECT COUNT(*) n FROM commercial_audio_files").get().n,0);
+  let uploadAck=await register(upload);
+  assert.equal(uploadAck.status,200);
+  const receipt=(await uploadAck.json()).result;
+  assert.equal(receipt.fileId,fileId);
+  assert.equal(primary.prepare("SELECT COUNT(*) n FROM commercial_audio_chapters").get().n,1);
+  assert.equal(primary.prepare("SELECT COUNT(*) n FROM commercial_audio_files").get().n,1);
+  assert.equal(primary.prepare("SELECT status FROM commercial_audio_qc_jobs WHERE edition_id=?").get(editionId).status,"queued");
+  uploadAck=await register(upload);
+  assert.equal(uploadAck.status,200);
+  assert.equal((await uploadAck.json()).result.id,receipt.id);
+  assert.equal(primary.prepare("SELECT COUNT(*) n FROM commercial_audio_chapters").get().n,1,
+    "replayed upload must not duplicate the chapter");
+  assert.equal(primary.prepare("SELECT COUNT(*) n FROM commercial_audio_files").get().n,1);
   const narrators={editionId,narrators:[{displayName:"QA Narrator",narrationType:"human",syntheticVoiceLabel:""}]};
   response=await request("narrators",ownerId,narrators,"audio:narrators");
   assert.equal(response.status,200);
