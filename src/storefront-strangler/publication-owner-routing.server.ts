@@ -451,6 +451,21 @@ export async function dispatchPrivateCommercialEpubGrant(db:object,input:{
  }catch{throw new ApiError(503,"Private legal owner refused commercial EPUB grant.");}
 }
 
+/** The private paid owner consumes a bearer token and its download allowance
+ * in one guarded D1 batch. The shared delivery server is read-only. */
+export async function dispatchPrivateCommercialEpubConsumption(db:object,input:{
+ grantId:string;tokenHash:string;territory:string;channel:"retail"|"subscription"|"library";
+}):Promise<void>{
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Commercial EPUB consumption requires private authority.");
+ try{
+  const ack=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+    "delivery.consume-epub-grant",input);
+  if(ack.consumed!==true||ack.grantId!==input.grantId)
+    throw Error("epub_consumption_receipt_invalid");
+ }catch{throw new ApiError(503,"Private legal owner rejected EPUB consumption.");}
+}
+
 export async function dispatchPrivateOwnershipSnapshot(db:object,input:{
  entitlementId:string;userId:string;productId:string
 }):Promise<void>{
