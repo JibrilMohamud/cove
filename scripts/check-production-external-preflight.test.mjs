@@ -58,6 +58,7 @@ refuse({webhookUrl:"http://www.covereads.com/api/fore/stripe/webhook"},/URL is m
 refuse({webhookUrl:"https://attacker.example/api/fore/stripe/webhook"},/URL is missing or invalid/);
 // Exercise the real paginated read path. The second token page must not be
 // silently omitted, and no provider request may mutate or retrieve a secret.
+await assert.rejects(()=>readLiveEvidence({cloudflareToken:"synthetic-reader",accountId:"test-account",stripeRestrictedKey:"synthetic-stripe-reader"}),/user-token audit key/);
 const actualFetch=globalThis.fetch;
 const tokenPages=[];
 let failTokenPage=false;
@@ -72,6 +73,7 @@ globalThis.fetch=async (input,options={})=>{
   let result;
   if(url.hostname==="api.stripe.com")result={data:[webhook],has_more:false};
   else if(url.pathname==="/client/v4/user/tokens"||url.pathname==="/user/tokens"){
+    assert.equal(options.headers.Authorization,"Bearer synthetic-user-auditor");
     assert.equal(url.searchParams.get("per_page"),"50");
     if(failUserTokenPage)return new Response("denied",{status:403});
     result={success:true,errors:[],result:[{id:"read-only-user",status:"active",policies:[{effect:"allow",permission_groups:[{name:"D1 Read"}]}]}],result_info:{total_pages:1}};
@@ -101,7 +103,7 @@ globalThis.fetch=async (input,options={})=>{
   return Response.json(result);
 };
 try{
-  const evidence=await readLiveEvidence({cloudflareToken:"synthetic-reader",accountId:"test-account",stripeRestrictedKey:"synthetic-stripe-reader"});
+  const evidence=await readLiveEvidence({cloudflareToken:"synthetic-reader",cloudflareUserAuditToken:"synthetic-user-auditor",accountId:"test-account",stripeRestrictedKey:"synthetic-stripe-reader"});
   assert.deepEqual(tokenPages,[1,2]);
   assert.equal(evidence.accountTokens.length,51);
   assert.equal(evidence.workerSettings.length,152,"Unpaginated >100 Worker account must be fully inspected");
@@ -110,16 +112,16 @@ try{
   assert.equal(evidence.userTokens.length,1);
   refuse(evidence,/page-two-writer/);
   activeHiddenWriter=true;
-  const split=await readLiveEvidence({cloudflareToken:"synthetic-reader",accountId:"test-account",stripeRestrictedKey:"synthetic-stripe-reader"});
+  const split=await readLiveEvidence({cloudflareToken:"synthetic-reader",cloudflareUserAuditToken:"synthetic-user-auditor",accountId:"test-account",stripeRestrictedKey:"synthetic-stripe-reader"});
   assert.equal(split.workerSettings.find(w=>w.name==="read-only-canary").activeVersions.length,2);
   refuse(split,/read-only-canary/);
   denyVersion=true;
-  await assert.rejects(()=>readLiveEvidence({cloudflareToken:"synthetic-reader",accountId:"test-account",stripeRestrictedKey:"synthetic-stripe-reader"}),/HTTP 403/);
+  await assert.rejects(()=>readLiveEvidence({cloudflareToken:"synthetic-reader",cloudflareUserAuditToken:"synthetic-user-auditor",accountId:"test-account",stripeRestrictedKey:"synthetic-stripe-reader"}),/HTTP 403/);
   denyVersion=false;activeHiddenWriter=false;
   failTokenPage=true;
-  await assert.rejects(()=>readLiveEvidence({cloudflareToken:"synthetic-reader",accountId:"test-account",stripeRestrictedKey:"synthetic-stripe-reader"}),/HTTP 403/);
+  await assert.rejects(()=>readLiveEvidence({cloudflareToken:"synthetic-reader",cloudflareUserAuditToken:"synthetic-user-auditor",accountId:"test-account",stripeRestrictedKey:"synthetic-stripe-reader"}),/HTTP 403/);
   failTokenPage=false;
   failUserTokenPage=true;
-  await assert.rejects(()=>readLiveEvidence({cloudflareToken:"synthetic-reader",accountId:"test-account",stripeRestrictedKey:"synthetic-stripe-reader"}),/HTTP 403/);
+  await assert.rejects(()=>readLiveEvidence({cloudflareToken:"synthetic-reader",cloudflareUserAuditToken:"synthetic-user-auditor",accountId:"test-account",stripeRestrictedKey:"synthetic-stripe-reader"}),/HTTP 403/);
 }finally{globalThis.fetch=actualFetch;}
 console.log("PASS: read-only production preflight rejects missing owner/webhook/Worker/token evidence, active D1 API writers, incomplete pagination, user tokens and provider denial.");
