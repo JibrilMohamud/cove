@@ -4,8 +4,10 @@ import {readFileSync} from "node:fs";
 const source=readFileSync("src/features/fore/commerce.server.ts","utf8");
 const review=JSON.parse(readFileSync("docs/architecture/canonical-writer-review.json","utf8"));
 const sites=review.sites.filter(x=>x.file==="src/features/fore/commerce.server.ts");
-assert.equal(sites.length,3);
-assert.deepEqual(sites.map(x=>x.functionName).sort(),["applyRefundSuccess","checkoutQuote","recordTaxTransaction"]);
+assert.equal(sites.length,0);
+assert.ok(!source.includes("INSERT INTO commerce_checkout_quotes("));
+assert.ok(!source.includes("UPDATE commerce_orders SET stripe_tax_transaction_id="));
+assert.ok(!source.includes("UPDATE commerce_refunds SET tax_reversal_id="));
 assert.ok(sites.every(x=>x.disposition==="owner-command-required"&&x.productionOwnerGuarded===false));
 assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=260,
   "A later audited retirement may reduce, but never increase, this previously certified source count");
@@ -24,4 +26,4 @@ assert.match(source,/claimStageOwnerStripeWebhook/);
 assert.match(source,/syncStageOwnerStripeDispute/);
 assert.match(source,/reconcileStageOwnerStripe/);
 assert.match(source,/COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1"/);
-console.log("PASS: 37 shared commerce SQL writer sites physically removed, 1 owner-only quote and 2 tax mutations retained as owner-required, no owner-disabled production financial fallback; no more than 260 owner-required unresolved.");
+console.log("PASS: 37 shared commerce SQL writer sites physically removed, private owner now handles quote and provider-verified tax metadata; no shared commerce mutation sites remain, no owner-disabled production financial fallback; no more than 260 owner-required unresolved.");
