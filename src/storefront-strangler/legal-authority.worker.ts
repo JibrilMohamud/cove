@@ -39,8 +39,8 @@ import {resolvePricingDecision} from "../features/fore/pricing.server";
 import {emitNotification} from "../features/fore/notifications.server";
 import {ensureOwnershipSnapshot} from "../features/fore/delivery.server";
 import {
-  recordPublicationActivation,stableJson,safeJson,audit,ensurePublishingLifecycle,
-  scopeToGrant,bucketBytes,ensureCatalogParties,publicationVersionManifest,
+  stableJson,safeJson,audit,
+  scopeToGrant,bucketBytes,publicationVersionManifest,
 } from "../features/fore/publishing.server";
 import {ownerContractVersionSchema} from "./owner-contract-version-schema";
 import {ApiError,now} from "../features/fore/service";
@@ -8031,10 +8031,10 @@ async function recordPublicationActivation(
 ) {
   await db
     .prepare(
-      "INSERT INTO publishing_publication_activations(id,lifecycle_id,publication_version_id,from_publication_version_id,activation_type,actor_user_id,reason_code,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+      "INSERT OR IGNORE INTO publishing_publication_activations(id,lifecycle_id,publication_version_id,from_publication_version_id,activation_type,actor_user_id,reason_code,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
     )
     .bind(
-      `pva_${crypto.randomUUID()}`,
+      `pva_${await sha256Hex(stableJson({...event,actorUserId:event.actorUserId||null,metadata:event.metadata??null}))}`,
       event.lifecycleId,
       event.publicationVersionId,
       event.fromPublicationVersionId,
@@ -8138,55 +8138,20 @@ async function audit(
     .run();
 }
 
-async function ensurePublishingLifecycle(db: PublishingDB, publishingEditionId: string) {
-  let row = await db
-    .prepare("SELECT * FROM publishing_release_lifecycles WHERE publishing_edition_id=?")
-    .bind(publishingEditionId)
-    .first<any>();
-  if (row) return row;
-  const edition = await db
-    .prepare(
-      `SELECT e.id,e.status,e.created_at,e.updated_at FROM publishing_edition_drafts e WHERE e.id=?`,
-    )
-    .bind(publishingEditionId)
-    .first<any>();
-  if (!edition) throw new ApiError(404, "Publishing edition not found.");
-  const lifecycleId = id("lifecycle"),
-    state =
-      edition.status === "published"
-        ? "live"
-        : edition.status === "approved"
-          ? "approved"
-          : edition.status === "submitted"
-            ? "human_review"
-            : edition.status === "validating"
-              ? "validation"
-              : "draft",
-    at = now();
-  await db
-    .prepare(
-      "INSERT INTO publishing_release_lifecycles(id,publishing_edition_id,state,owner_update_policy,live_at,created_at,updated_at) VALUES(?,?,?,'auto_update',?,?,?)",
-    )
-    .bind(
-      lifecycleId,
-      publishingEditionId,
-      state,
-      state === "live" ? at : null,
-      edition.created_at || at,
-      at,
-    )
-    .run();
-  await db
-    .prepare(
-      "INSERT INTO publishing_lifecycle_events(id,lifecycle_id,from_state,to_state,trigger_type,reason_code,metadata_json,created_at) VALUES(?,?,?,?, 'migration','lifecycle_created','{}',?)",
-    )
-    .bind(id("lifeevt"), lifecycleId, null, state, at)
-    .run();
-  row = await db
-    .prepare("SELECT * FROM publishing_release_lifecycles WHERE id=?")
-    .bind(lifecycleId)
-    .first<any>();
-  return row;
+async function ensurePublishingLifecycle(db:PublishingDB,publishingEditionId:string){
+ const read=()=>db.prepare("SELECT * FROM publishing_release_lifecycles WHERE publishing_edition_id=?").bind(publishingEditionId).first<any>();
+ const prior=await read();if(prior)return prior;
+ const edition=await db.prepare("SELECT id,status,created_at FROM publishing_edition_drafts WHERE id=?").bind(publishingEditionId).first<any>();
+ if(!edition)throw new ApiError(404,"Publishing edition not found.");
+ const state=edition.status==="published"?"live":edition.status==="approved"?"approved":edition.status==="submitted"?"human_review":edition.status==="validating"?"validation":"draft";
+ const digest=await sha256Hex(publishingEditionId),lifecycleId="lifecycle_"+digest,at=now();
+ try{await db.batch([
+   db.prepare("INSERT INTO publishing_release_lifecycles(id,publishing_edition_id,state,owner_update_policy,live_at,created_at,updated_at) SELECT ?,?,?,'auto_update',?,?,? WHERE EXISTS(SELECT 1 FROM publishing_edition_drafts WHERE id=? AND status=?)")
+    .bind(lifecycleId,publishingEditionId,state,state==="live"?at:null,edition.created_at||at,at,publishingEditionId,edition.status),
+   db.prepare("INSERT INTO publishing_lifecycle_events(id,lifecycle_id,from_state,to_state,trigger_type,reason_code,metadata_json,created_at) SELECT ?,?,?,?, 'migration','lifecycle_created','{}',? WHERE EXISTS(SELECT 1 FROM publishing_release_lifecycles WHERE id=?)")
+    .bind("lifeevt_"+digest,lifecycleId,null,state,at,lifecycleId)
+ ]);}catch(error){const committed=await read();if(committed)return committed;throw error;}
+ const committed=await read();if(!committed)throw new ApiError(409,"Publishing edition changed before lifecycle creation.");return committed;
 }
 
 const normalLifecycleTransitions: Record<string, Set<string>> = {
@@ -8247,71 +8212,29 @@ const normalLifecycleTransitions: Record<string, Set<string>> = {
   retired: new Set(["retired"]),
 };
 
-async function transitionPublishingLifecycle(
-  db: PublishingDB,
-  publishingEditionId: string,
-  toState: string,
-  triggerType:
-    "publisher" | "automation" | "staff" | "schedule" | "moderation" | "rollback" | "migration",
-  actorUserId: string | null,
-  reasonCode = "",
-  metadata: Record<string, unknown> = {},
-) {
-  const lifecycle = await ensurePublishingLifecycle(db, publishingEditionId);
-  const allowed = normalLifecycleTransitions[String(lifecycle.state)];
-  if (
-    triggerType !== "moderation" &&
-    triggerType !== "migration" &&
-    (!allowed || !allowed.has(toState))
-  )
-    throw new ApiError(
-      409,
-      `Invalid publishing lifecycle transition: ${lifecycle.state} → ${toState}.`,
-    );
-  const at = now(),
-    timestampColumn =
-      toState === "scheduled"
-        ? "scheduled_at"
-        : toState === "preorder"
-          ? "preorder_at"
-          : toState === "live" || toState === "updated"
-            ? "live_at"
-            : toState === "suppressed"
-              ? "suppressed_at"
-              : toState === "takedown"
-                ? "takedown_at"
-                : toState === "retired"
-                  ? "retired_at"
-                  : null;
-  const sql = `UPDATE publishing_release_lifecycles SET state=?,state_reason=?,${timestampColumn ? `${timestampColumn}=COALESCE(${timestampColumn},?),` : ""}updated_at=? WHERE id=?`;
-  await db
-    .prepare(sql)
-    .bind(
-      ...(timestampColumn
-        ? [toState, reasonCode, at, at, lifecycle.id]
-        : [toState, reasonCode, at, lifecycle.id]),
-    )
-    .run();
-  await db
-    .prepare(
-      "INSERT INTO publishing_lifecycle_events(id,lifecycle_id,from_state,to_state,trigger_type,actor_user_id,reason_code,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
-    )
-    .bind(
-      id("lifeevt"),
-      lifecycle.id,
-      lifecycle.state,
-      toState,
-      triggerType,
-      actorUserId,
-      reasonCode,
-      JSON.stringify(metadata),
-      at,
-    )
-    .run();
-  return await db
-    .prepare("SELECT * FROM publishing_release_lifecycles WHERE id=?")
-    .bind(lifecycle.id)
-    .first<any>();
+async function transitionPublishingLifecycle(db:PublishingDB,publishingEditionId:string,toState:string,
+ triggerType:"publisher"|"automation"|"staff"|"schedule"|"moderation"|"rollback"|"migration",
+ actorUserId:string|null,reasonCode="",metadata:Record<string,unknown>={}){
+ const lifecycle=await ensurePublishingLifecycle(db,publishingEditionId);
+ if(lifecycle.state===toState&&lifecycle.state_reason===reasonCode)return lifecycle;
+ if(["suppressed","takedown","retired"].includes(String(lifecycle.state))&&lifecycle.state!==toState)
+  throw new ApiError(409,"Terminal publication state requires fresh independently verified reinstatement.");
+ const allowed=normalLifecycleTransitions[String(lifecycle.state)];
+ if(triggerType!=="moderation"&&triggerType!=="migration"&&(!allowed||!allowed.has(toState)))
+  throw new ApiError(409,`Invalid publishing lifecycle transition: ${lifecycle.state} → ${toState}.`);
+ const at=now(),column=toState==="scheduled"?"scheduled_at":toState==="preorder"?"preorder_at":
+   ["live","updated"].includes(toState)?"live_at":toState==="suppressed"?"suppressed_at":toState==="takedown"?"takedown_at":toState==="retired"?"retired_at":null;
+ const eventId="lifeevt_"+await sha256Hex(stableJson([lifecycle.id,lifecycle.state,lifecycle.updated_at,toState,triggerType,actorUserId,reasonCode,metadata]));
+ const event=()=>db.prepare("SELECT id FROM publishing_lifecycle_events WHERE id=?").bind(eventId).first<any>();
+ const statement=db.prepare(`UPDATE publishing_release_lifecycles SET state=?,state_reason=?,${column?`${column}=COALESCE(${column},?),`:""}updated_at=? WHERE id=? AND state=? AND updated_at=?`)
+  .bind(...(column?[toState,reasonCode,at,at,lifecycle.id,lifecycle.state,lifecycle.updated_at]:[toState,reasonCode,at,lifecycle.id,lifecycle.state,lifecycle.updated_at]));
+ try{await db.batch([
+  db.prepare("INSERT INTO publishing_lifecycle_events(id,lifecycle_id,from_state,to_state,trigger_type,actor_user_id,reason_code,metadata_json,created_at) SELECT ?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM publishing_release_lifecycles WHERE id=? AND state=? AND updated_at=?)")
+   .bind(eventId,lifecycle.id,lifecycle.state,toState,triggerType,actorUserId,reasonCode,JSON.stringify(metadata),at,lifecycle.id,lifecycle.state,lifecycle.updated_at),
+  statement
+ ]);}catch(error){if(!await event())throw error;}
+ if(!await event())throw new ApiError(409,"Publishing lifecycle changed before this transition committed.");
+ return db.prepare("SELECT * FROM publishing_release_lifecycles WHERE id=?").bind(lifecycle.id).first<any>();
 }
 
 const accountSchema = z.object({
@@ -10802,54 +10725,30 @@ async function bucketBytes(env: PublishingEnv, key: string) {
   return new Uint8Array(await new Response(obj.body).arrayBuffer());
 }
 
-async function ensureCatalogParties(db: PublishingDB, account: any, tax: any, payout: any) {
-  const at = now();
-  let publisherId = account.publisher_id,
-    financePartyId = account.finance_party_id,
-    rightsPartyId = account.rights_party_id;
-  if (!publisherId) {
-    publisherId = id("publisher");
-    await db
-      .prepare("INSERT INTO publishers(id,name,website,created_at,updated_at) VALUES(?,?,?,?,?)")
-      .bind(publisherId, account.display_name, account.website || "", at, at)
-      .run();
-  }
-  if (!rightsPartyId) {
-    const r = await upsertRightsParty(db as any, {
-      displayName: account.display_name,
-      partyType: "publisher",
-      publisherId,
-      contactEmail: account.contact_email || "",
-      referenceCode: `FORE-PUB-${account.id}`,
-      status: "active",
-    });
-    rightsPartyId = r.id;
-  }
-  if (!financePartyId) {
-    financePartyId = id("finparty");
-    await db
-      .prepare(
-        `INSERT INTO finance_parties(id,party_type,display_name,publisher_id,tax_country,withholding_bps,payout_currency,status,created_at,updated_at) VALUES(?,'publisher',?,?,?,?,?,'active',?,?)`,
-      )
-      .bind(
-        financePartyId,
-        account.display_name,
-        publisherId,
-        tax?.country_code || account.country_code,
-        Number(tax?.withholding_bps || 0),
-        payout?.payout_currency || "USD",
-        at,
-        at,
-      )
-      .run();
-  }
-  await db
-    .prepare(
-      "UPDATE publishing_accounts SET publisher_id=?,finance_party_id=?,rights_party_id=?,status='active',updated_at=? WHERE id=?",
-    )
-    .bind(publisherId, financePartyId, rightsPartyId, at, account.id)
-    .run();
-  return { publisherId, financePartyId, rightsPartyId };
+async function ensureCatalogParties(db:PublishingDB,account:any,tax:any,payout:any){
+ const current=await db.prepare("SELECT * FROM publishing_accounts WHERE id=?").bind(account.id).first<any>();
+ if(!current||current.status!=="active"||![current.identity_status,current.tax_status,current.payout_status].every(s=>s==="verified"))
+  throw new ApiError(409,"Canonical publisher compliance must be verified before party materialization.");
+ account=current;
+ const digest=await sha256Hex(account.id),at=now();
+ const publisherId=account.publisher_id||"publisher_"+digest,financePartyId=account.finance_party_id||"finparty_"+digest,rightsPartyId=account.rights_party_id||"rparty_"+digest;
+ const guard="EXISTS(SELECT 1 FROM publishing_accounts WHERE id=? AND status='active' AND identity_status='verified' AND tax_status='verified' AND payout_status='verified' AND COALESCE(publisher_id,'')=? AND COALESCE(finance_party_id,'')=? AND COALESCE(rights_party_id,'')=?)";
+ const guardArgs=[account.id,account.publisher_id||"",account.finance_party_id||"",account.rights_party_id||""];
+ const statements:Parameters<PublishingDB["batch"]>[0]=[];
+ if(!account.publisher_id)statements.push(db.prepare("INSERT OR IGNORE INTO publishers(id,name,website,created_at,updated_at) SELECT ?,?,?,?,? WHERE "+guard).bind(publisherId,account.display_name,account.website||"",at,at,...guardArgs));
+ if(!account.rights_party_id)statements.push(db.prepare("INSERT OR IGNORE INTO rights_parties(id,display_name,party_type,publisher_id,contributor_id,contact_email,reference_code,status,created_at,updated_at) SELECT ?,?,'publisher',?,NULL,?,?,'active',?,? WHERE "+guard)
+  .bind(rightsPartyId,account.display_name,publisherId,account.contact_email||"","FORE-PUB-"+account.id,at,at,...guardArgs));
+ if(!account.finance_party_id)statements.push(db.prepare("INSERT OR IGNORE INTO finance_parties(id,party_type,display_name,publisher_id,tax_country,withholding_bps,payout_currency,status,created_at,updated_at) SELECT ?,'publisher',?,?,?,?,?,'active',?,? WHERE "+guard)
+  .bind(financePartyId,account.display_name,publisherId,tax?.country_code||account.country_code,Number(tax?.withholding_bps||0),payout?.payout_currency||"USD",at,at,...guardArgs));
+ statements.push(db.prepare("UPDATE publishing_accounts SET publisher_id=?,finance_party_id=?,rights_party_id=?,status='active',updated_at=? WHERE id=? AND "+guard).bind(publisherId,financePartyId,rightsPartyId,at,account.id,...guardArgs));
+ try{await db.batch(statements);}catch(error){
+  const committed=await db.prepare("SELECT publisher_id,finance_party_id,rights_party_id FROM publishing_accounts WHERE id=?").bind(account.id).first<any>();
+  if(committed?.publisher_id!==publisherId||committed?.finance_party_id!==financePartyId||committed?.rights_party_id!==rightsPartyId)throw error;
+ }
+ const confirmed=await db.prepare("SELECT publisher_id,finance_party_id,rights_party_id,status,identity_status,tax_status,payout_status FROM publishing_accounts WHERE id=?").bind(account.id).first<any>();
+ if(!confirmed||confirmed.publisher_id!==publisherId||confirmed.finance_party_id!==financePartyId||confirmed.rights_party_id!==rightsPartyId||confirmed.status!=="active"||![confirmed.identity_status,confirmed.tax_status,confirmed.payout_status].every(s=>s==="verified"))
+  throw new ApiError(409,"Publisher compliance changed before parties committed.");
+ return {publisherId,financePartyId,rightsPartyId};
 }
 
 async function publicationVersionManifest(
@@ -11503,8 +11402,9 @@ async function catalogPublishingAsset(env: PublishingEnv, assetVersionId: string
   });
 }
 
-return {upsertPublishingAccount,invitePublishingMember,startIdentityVerification,submitTaxProfile,submitPayoutAccount,savePublishingTitle,savePublishingEdition,uploadPublishingAsset,signPublishingAccessibilityDeclaration,submitPublishingEdition,openPublishingRevision,setPublishingUpdatePolicy,optInOwnedPublicationUpdate,reviewPublishingSubmission};
+return {recordPublicationActivation,ensurePublishingLifecycle,ensureCatalogParties,transitionPublishingLifecycle,recordInlineResult,refreshAssetValidationSummary,upsertPublishingAccount,invitePublishingMember,startIdentityVerification,submitTaxProfile,submitPayoutAccount,savePublishingTitle,savePublishingEdition,uploadPublishingAsset,signPublishingAccessibilityDeclaration,submitPublishingEdition,openPublishingRevision,setPublishingUpdatePolicy,optInOwnedPublicationUpdate,reviewPublishingSubmission};
 })();
+const {recordPublicationActivation,ensurePublishingLifecycle,ensureCatalogParties}=privatePublishingEditor;
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- Historical partner SQL private to isolated QA-only owner. */
@@ -16832,7 +16732,239 @@ return {registerDevice,revokeDevice,processAccountDeletionQueue};
 })();
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+/**
+ * Bounded, operator-triggered reconciliation of completed regional EPUBs.
+ * Never grants rights, never re-ingests upstream assets, never runs on a customer
+ * request. Verify the exact canonical object in private R2 before adding a
+ * missing catalog pointer. Callers must supply the returned cursor to advance.
+ */
+async function repairRegionalEpubAssetsPrivate(
+  env: Pick<CoveEnv, "DB" | "BUCKET">,
+  options: { after?: string; limit?: number } = {},
+) {
+  if (!env.BUCKET?.head || !env.BUCKET?.get) return { skipped: "no_private_r2" };
+  const suppliedAfter = options.after ?? "";
+  if (!/^[a-z0-9_]{0,90}$/.test(suppliedAfter))
+    throw new Error("Invalid regional asset repair cursor");
+  // Only AU/CA/EU sources can be selected here. Start at the first regional
+  // ID prefix, otherwise an empty cursor scans unrelated US Gutenberg rows.
+  const after = suppliedAfter > "pga" ? suppliedAfter : "pga";
+  const limit = Math.max(1, Math.min(16, Math.floor(options.limit ?? 8) || 8));
+  // Source-level approval is insufficient: a separate operator could revoke
+  // every live territorial grant without modifying the Gutenberg source row.
+  // The candidate scan and EACH mutation require a currently valid grant.
+  const liveGrant =
+    " EXISTS(SELECT 1 FROM rights_grants g" +
+    " WHERE g.edition_id=p.edition_id AND g.format='ebook'" +
+    " AND g.sales_channel='retail' AND g.status='active' AND g.decision='allow'" +
+    " AND g.source='gutenberg-'||c.source_id||'-public-domain'" +
+    " AND g.territory_code IN (SELECT value FROM json_each(" +
+    " CASE WHEN json_valid(c.rights_territories_json)" +
+    " THEN c.rights_territories_json ELSE '[]' END))" +
+    " AND (g.starts_at IS NULL OR datetime(g.starts_at)<=datetime('now'))" +
+    " AND (g.ends_at IS NULL OR datetime(g.ends_at)>datetime('now'))" +
+    // Deny precedence is territory-specific: a revoked CA grant cannot
+    // invalidate an independent, still-permitted AU grant for the same EPUB.
+    " AND NOT EXISTS(SELECT 1 FROM rights_grants deny" +
+    " WHERE deny.edition_id=p.edition_id AND deny.format='ebook'" +
+    " AND deny.sales_channel='retail' AND deny.status='active'" +
+    " AND deny.decision='deny' AND deny.territory_code=g.territory_code" +
+    " AND (deny.starts_at IS NULL OR datetime(deny.starts_at)<=datetime('now'))" +
+    " AND (deny.ends_at IS NULL OR datetime(deny.ends_at)>datetime('now'))))";
+
+  const rows = (
+    await env.DB.prepare(
+      "SELECT c.id,c.content_hash,p.edition_id," +
+        " COALESCE(json_extract(c.formats_json,'$.\"application/epub+zip\"')," +
+        " json_extract(c.formats_json,'$.\"application/epub+zip;\"')," +
+        " json_extract(c.formats_json,'$.\"text/html\"'),'') source_url" +
+        " FROM gutenberg_source_cache c INDEXED BY sqlite_autoindex_gutenberg_source_cache_1" +
+        " CROSS JOIN products p ON p.source_external_id=c.id" +
+        " AND p.source_name='gutenberg' AND p.format='ebook'" +
+        " LEFT JOIN digital_assets d ON d.edition_id=p.edition_id AND d.kind='epub'" +
+        " LEFT JOIN asset_versions v ON v.id=d.current_version_id" +
+        " LEFT JOIN regional_epub_repair_receipts rr" +
+        " ON rr.source_id=c.id AND rr.content_hash=c.content_hash" +
+        " WHERE c.source_id IN ('pg_au','pg_ca','pg_eu')" +
+        " AND c.epub_status='completed' AND c.ingest_status='active'" +
+        " AND c.rights_status='public-domain' AND c.commercial_use_status='approved'" +
+        " AND" +
+        liveGrant +
+        " AND COALESCE(c.content_hash,'')<>'' AND c.id>?" +
+        " AND (d.id IS NULL OR v.id IS NULL OR COALESCE(v.object_key,'')=''" +
+        " OR rr.status='pending')" +
+        " ORDER BY c.id LIMIT ?",
+    )
+      .bind(after, limit)
+      .all<{
+        id: string;
+        content_hash: string;
+        edition_id: string;
+        source_url: string;
+      }>()
+  ).results;
+  let repaired = 0;
+  let missingOrMismatched = 0;
+  let conflicts = 0;
+  let nextAfter = after;
+  // The rights state is checked again by every write. Reader/checkout APIs
+  // remain independently authoritative for every actual delivery.
+  const eligible =
+    "EXISTS(SELECT 1 FROM gutenberg_source_cache c" +
+    " JOIN products p ON p.source_external_id=c.id" +
+    " WHERE c.id=? AND p.edition_id=? AND p.source_name='gutenberg'" +
+    " AND c.source_id IN ('pg_au','pg_ca','pg_eu')" +
+    " AND c.epub_status='completed' AND c.ingest_status='active'" +
+    " AND c.rights_status='public-domain' AND c.commercial_use_status='approved'" +
+    " AND" +
+    liveGrant +
+    " AND c.content_hash=?)";
+  for (const row of rows) {
+    nextAfter = row.id;
+    const key = "epubs/" + row.id + ".epub";
+    const stored = await env.BUCKET.head(key);
+    if (
+      !stored ||
+      stored.size <= 0 ||
+      stored.customMetadata?.sha256 !== row.content_hash ||
+      stored.httpMetadata?.contentType !== "application/epub+zip"
+    ) {
+      missingOrMismatched++;
+      continue;
+    }
+    // R2 HEAD verifies catalog metadata, not actual bytes. In this disabled-
+    // by-default operator-only lane, fully hash the original before *any*
+    // primary catalog write; never download or re-convert an upstream EPUB.
+    // The explicit bound prevents a corrupt object from exhausting Worker RAM.
+    if (stored.size > 25 * 1024 * 1024) {
+      missingOrMismatched++;
+      continue;
+    }
+    const body = await env.BUCKET.get(key);
+    if (!body || body.size !== stored.size) {
+      missingOrMismatched++;
+      continue;
+    }
+    const bytes = await body.arrayBuffer();
+    if (bytes.byteLength !== stored.size) {
+      missingOrMismatched++;
+      continue;
+    }
+    const sha256 = Array.from(
+      new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+      (byte) => byte.toString(16).padStart(2, "0"),
+    ).join("");
+    if (sha256 !== row.content_hash) {
+      missingOrMismatched++;
+      continue;
+    }
+    const now = new Date().toISOString();
+    // The verified R2 object is recorded before catalog mutations. If a tick
+    // crashes at any later point, the pending receipt re-enters the candidate
+    // frontier even when a prior attempt linked the final asset pointer.
+    await env.DB.prepare(
+      "INSERT OR IGNORE INTO regional_epub_repair_receipts" +
+        "(source_id,content_hash,edition_id,status,verified_at)" +
+        " SELECT ?,?,?,'pending',? WHERE " +
+        eligible,
+    )
+      .bind(row.id, row.content_hash, row.edition_id, now, row.id, row.edition_id, row.content_hash)
+      .run();
+    // Statements must remain rights-guarded individually. A D1 batch is a
+    // single atomic transaction: no intermediate asset pointer is published.
+    const insertAsset = env.DB.prepare(
+      "INSERT OR IGNORE INTO digital_assets(id,edition_id,kind,drm_status,downloadable,created_at,updated_at)" +
+        " SELECT ?,?,'epub','none',1,?,? WHERE " +
+        eligible,
+    ).bind(
+      "asset_epub_gutenberg_" + row.id,
+      row.edition_id,
+      now,
+      now,
+      row.id,
+      row.edition_id,
+      row.content_hash,
+    );
+    const insertVersion = env.DB.prepare(
+      "INSERT OR IGNORE INTO asset_versions(id,asset_id,version_number,source_url,object_key,mime_type,sha256,created_at)" +
+        " SELECT ?,d.id,1,?,?,'application/epub+zip',?,?" +
+        " FROM digital_assets d WHERE d.edition_id=? AND d.kind='epub' AND " +
+        eligible,
+    ).bind(
+      "assetver_epub_gutenberg_" + row.id,
+      row.source_url,
+      key,
+      row.content_hash,
+      now,
+      row.edition_id,
+      row.id,
+      row.edition_id,
+      row.content_hash,
+    );
+    const updateVersion = env.DB.prepare(
+      "UPDATE asset_versions SET object_key=?,sha256=?" +
+        " WHERE asset_id=(SELECT id FROM digital_assets WHERE edition_id=? AND kind='epub')" +
+        " AND version_number=1 AND COALESCE(object_key,'')='' AND " +
+        eligible,
+    ).bind(key, row.content_hash, row.edition_id, row.id, row.edition_id, row.content_hash);
+    const promoteAsset = env.DB.prepare(
+      "UPDATE digital_assets AS d SET current_version_id=(" +
+        " SELECT v.id FROM asset_versions v WHERE v.asset_id=d.id" +
+        " AND v.version_number=1 AND v.object_key=? AND v.sha256=?)" +
+        " WHERE d.edition_id=? AND d.kind='epub'" +
+        " AND (d.current_version_id IS NULL OR NOT EXISTS(" +
+        " SELECT 1 FROM asset_versions prev WHERE prev.id=d.current_version_id" +
+        " AND COALESCE(prev.object_key,'')<>'')) AND " +
+        eligible,
+    ).bind(key, row.content_hash, row.edition_id, row.id, row.edition_id, row.content_hash);
+    try {
+      await env.DB.batch([insertAsset, insertVersion, updateVersion, promoteAsset]);
+    } catch (error) {
+      console.warn("regional_epub_repair_batch_retry", row.id, String(error).slice(0, 140));
+      conflicts++;
+      continue;
+    }
+    // Only mark the receipt complete when the *actual* current version and
+    // source SHA match AND the canonical live-rights predicate still holds.
+    // If this final ACK fails or is interrupted, a subsequent tick replays
+    // the same idempotent batch and then retries the receipt ACK.
+    const completed = await env.DB.prepare(
+      "UPDATE regional_epub_repair_receipts SET status='completed',completed_at=?" +
+        " WHERE source_id=? AND content_hash=? AND status='pending'" +
+        " AND EXISTS(SELECT 1 FROM digital_assets d" +
+        " JOIN asset_versions v ON v.id=d.current_version_id" +
+        " WHERE d.edition_id=? AND d.kind='epub' AND v.object_key=? AND v.sha256=?)" +
+        " AND " +
+        eligible +
+        " RETURNING source_id",
+    )
+      .bind(
+        now,
+        row.id,
+        row.content_hash,
+        row.edition_id,
+        key,
+        row.content_hash,
+        row.id,
+        row.edition_id,
+        row.content_hash,
+      )
+      .first();
+    if (completed) repaired++;
+    else conflicts++;
+  }
+  return {
+    scanned: rows.length,
+    repaired,
+    missingOrMismatched,
+    conflicts,
+    nextAfter,
+    maybeMore: rows.length === limit,
+  };
+}
+
 export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
+  private regionalRepairExecution=false;
   private accountExecution=false;
   private financeExecution=false;
   private publicationExecutions=new Set<string>();
@@ -16928,6 +17060,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/trust/private-action",
       "/finance/private-action",
       "/account/private-action",
+      "/catalog/repair-regional-assets",
       "/publishing/editor-action",
       "/publishing/partner/private-action",
       "/support/private-action",
@@ -17229,6 +17362,16 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         sql.exec("INSERT INTO cove_audio_metadata_command_receipts(operation_id,request_digest,receipt_json) VALUES(?,?,?)",
           input.operationId,requestDigest,JSON.stringify(ack));
         return Response.json(ack,{headers:noStore});
+      }
+      if(route==="/catalog/repair-regional-assets"){
+        const input=z.object({after:z.string().regex(/^[a-z0-9_]{0,90}$/).default(""),limit:z.number().int().min(1).max(16).default(8)}).strict().parse(raw);
+        if(this.regionalRepairExecution)return new Response(null,{status:409,headers:noStore});
+        this.regionalRepairExecution=true;
+        try{
+          const result=await repairRegionalEpubAssetsPrivate({DB:env.PRIMARY_DB,BUCKET:env.BUCKET} as Pick<CoveEnv,"DB"|"BUCKET">,input);
+          return Response.json({schema:"cove.private-regional-epub-repair.v1",ownerFirst:true,
+            after:input.after,limit:input.limit,result},{headers:noStore});
+        }finally{this.regionalRepairExecution=false;}
       }
       if(route==="/account/private-action"){
         const input=z.discriminatedUnion("action",[

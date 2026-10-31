@@ -96,6 +96,10 @@ try{
     schema:"cove.private-account-qa.v1",ownerFirst:true,action:"erasure-tick",userId:null,
     result:{processed:2,completed:1,blocked:1,retrying:0}
   }]);
+  tests.push(["catalog.repair-regional-assets",{after:"",limit:2},"/catalog/repair-regional-assets",{
+    schema:"cove.private-regional-epub-repair.v1",ownerFirst:true,after:"",limit:2,
+    result:{scanned:1,repaired:1,missingOrMismatched:0,conflicts:0,nextAfter:"pgau_123",maybeMore:false}
+  }]);
   let calls=0;
   for(const [kind,body,path,receipt] of tests){
     const writer=kind.startsWith("rights.");

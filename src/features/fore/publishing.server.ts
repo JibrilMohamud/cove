@@ -5,7 +5,6 @@ import {
   detectRightsConflicts,
   upsertRightsContract,
   upsertRightsGrant,
-  upsertRightsParty,
 } from "./rights.server";
 import { runAutomatedPublishingReview } from "./moderation.server";
 import {
@@ -55,36 +54,7 @@ export type PublishingEnv = {
   FORE_PUBLISHING_AUTO_APPROVE_LOW_RISK?: string;
 };
 
-export async function recordPublicationActivation(
-  db: PublishingDB,
-  event: {
-    lifecycleId: string;
-    publicationVersionId: string;
-    fromPublicationVersionId: string | null;
-    activationType: "initial" | "update" | "schedule" | "rollback" | "staff";
-    actorUserId?: string | null;
-    reasonCode: string;
-    metadata: unknown;
-    at: string;
-  },
-) {
-  await db
-    .prepare(
-      "INSERT INTO publishing_publication_activations(id,lifecycle_id,publication_version_id,from_publication_version_id,activation_type,actor_user_id,reason_code,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
-    )
-    .bind(
-      `pva_${crypto.randomUUID()}`,
-      event.lifecycleId,
-      event.publicationVersionId,
-      event.fromPublicationVersionId,
-      event.activationType,
-      event.actorUserId || null,
-      event.reasonCode,
-      JSON.stringify(event.metadata),
-      event.at,
-    )
-    .run();
-}
+
 const now = () => new Date().toISOString();
 const id = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
 const isoOrNull = z.string().datetime().nullable().optional();
@@ -177,180 +147,11 @@ export async function audit(
     .run();
 }
 
-export async function ensurePublishingLifecycle(db: PublishingDB, publishingEditionId: string) {
-  let row = await db
-    .prepare("SELECT * FROM publishing_release_lifecycles WHERE publishing_edition_id=?")
-    .bind(publishingEditionId)
-    .first<any>();
-  if (row) return row;
-  const edition = await db
-    .prepare(
-      `SELECT e.id,e.status,e.created_at,e.updated_at FROM publishing_edition_drafts e WHERE e.id=?`,
-    )
-    .bind(publishingEditionId)
-    .first<any>();
-  if (!edition) throw new ApiError(404, "Publishing edition not found.");
-  const lifecycleId = id("lifecycle"),
-    state =
-      edition.status === "published"
-        ? "live"
-        : edition.status === "approved"
-          ? "approved"
-          : edition.status === "submitted"
-            ? "human_review"
-            : edition.status === "validating"
-              ? "validation"
-              : "draft",
-    at = now();
-  await db
-    .prepare(
-      "INSERT INTO publishing_release_lifecycles(id,publishing_edition_id,state,owner_update_policy,live_at,created_at,updated_at) VALUES(?,?,?,'auto_update',?,?,?)",
-    )
-    .bind(
-      lifecycleId,
-      publishingEditionId,
-      state,
-      state === "live" ? at : null,
-      edition.created_at || at,
-      at,
-    )
-    .run();
-  await db
-    .prepare(
-      "INSERT INTO publishing_lifecycle_events(id,lifecycle_id,from_state,to_state,trigger_type,reason_code,metadata_json,created_at) VALUES(?,?,?,?, 'migration','lifecycle_created','{}',?)",
-    )
-    .bind(id("lifeevt"), lifecycleId, null, state, at)
-    .run();
-  row = await db
-    .prepare("SELECT * FROM publishing_release_lifecycles WHERE id=?")
-    .bind(lifecycleId)
-    .first<any>();
+export async function ensurePublishingLifecycle(db: PublishingDB,publishingEditionId:string){
+  const row=await db.prepare("SELECT * FROM publishing_release_lifecycles WHERE publishing_edition_id=?")
+    .bind(publishingEditionId).first<any>();
+  if(!row)throw new ApiError(503,"Publishing lifecycle creation requires its private owner.");
   return row;
-}
-
-const normalLifecycleTransitions: Record<string, Set<string>> = {
-  draft: new Set(["draft", "validation", "submitted", "suppressed", "takedown", "retired"]),
-  validation: new Set(["validation", "draft", "submitted", "suppressed", "takedown", "retired"]),
-  submitted: new Set([
-    "automated_review",
-    "human_review",
-    "draft",
-    "suppressed",
-    "takedown",
-    "retired",
-  ]),
-  automated_review: new Set([
-    "human_review",
-    "approved",
-    "draft",
-    "suppressed",
-    "takedown",
-    "retired",
-  ]),
-  human_review: new Set([
-    "human_review",
-    "approved",
-    "draft",
-    "live",
-    "updated",
-    "retired",
-    "suppressed",
-    "takedown",
-  ]),
-  approved: new Set([
-    "approved",
-    "scheduled",
-    "preorder",
-    "live",
-    "updated",
-    "draft",
-    "suppressed",
-    "takedown",
-    "retired",
-  ]),
-  scheduled: new Set([
-    "scheduled",
-    "preorder",
-    "live",
-    "updated",
-    "draft",
-    "suppressed",
-    "takedown",
-    "retired",
-  ]),
-  preorder: new Set(["preorder", "live", "updated", "draft", "suppressed", "takedown", "retired"]),
-  live: new Set(["live", "updated", "draft", "suppressed", "takedown", "retired"]),
-  updated: new Set(["updated", "draft", "suppressed", "takedown", "retired"]),
-  suppressed: new Set(["suppressed"]),
-  takedown: new Set(["takedown"]),
-  retired: new Set(["retired"]),
-};
-
-async function transitionPublishingLifecycle(
-  db: PublishingDB,
-  publishingEditionId: string,
-  toState: string,
-  triggerType:
-    "publisher" | "automation" | "staff" | "schedule" | "moderation" | "rollback" | "migration",
-  actorUserId: string | null,
-  reasonCode = "",
-  metadata: Record<string, unknown> = {},
-) {
-  const lifecycle = await ensurePublishingLifecycle(db, publishingEditionId);
-  const allowed = normalLifecycleTransitions[String(lifecycle.state)];
-  if (
-    triggerType !== "moderation" &&
-    triggerType !== "migration" &&
-    (!allowed || !allowed.has(toState))
-  )
-    throw new ApiError(
-      409,
-      `Invalid publishing lifecycle transition: ${lifecycle.state} → ${toState}.`,
-    );
-  const at = now(),
-    timestampColumn =
-      toState === "scheduled"
-        ? "scheduled_at"
-        : toState === "preorder"
-          ? "preorder_at"
-          : toState === "live" || toState === "updated"
-            ? "live_at"
-            : toState === "suppressed"
-              ? "suppressed_at"
-              : toState === "takedown"
-                ? "takedown_at"
-                : toState === "retired"
-                  ? "retired_at"
-                  : null;
-  const sql = `UPDATE publishing_release_lifecycles SET state=?,state_reason=?,${timestampColumn ? `${timestampColumn}=COALESCE(${timestampColumn},?),` : ""}updated_at=? WHERE id=?`;
-  await db
-    .prepare(sql)
-    .bind(
-      ...(timestampColumn
-        ? [toState, reasonCode, at, at, lifecycle.id]
-        : [toState, reasonCode, at, lifecycle.id]),
-    )
-    .run();
-  await db
-    .prepare(
-      "INSERT INTO publishing_lifecycle_events(id,lifecycle_id,from_state,to_state,trigger_type,actor_user_id,reason_code,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
-    )
-    .bind(
-      id("lifeevt"),
-      lifecycle.id,
-      lifecycle.state,
-      toState,
-      triggerType,
-      actorUserId,
-      reasonCode,
-      JSON.stringify(metadata),
-      at,
-    )
-    .run();
-  return await db
-    .prepare("SELECT * FROM publishing_release_lifecycles WHERE id=?")
-    .bind(lifecycle.id)
-    .first<any>();
 }
 
 const accountSchema = z.object({
@@ -1567,76 +1368,9 @@ export function publishingUploadLimit(kind: string) {
         : 100 * 1024 * 1024;
 }
 
-async function recordInlineResult(
-  db: PublishingDB,
-  jobId: string,
-  versionId: string,
-  check: string,
-  status: "passed" | "warning" | "failed" | "blocked",
-  issues: any[] = [],
-  validator = "fore-inline",
-  version = "1",
-) {
-  const at = now();
-  await db.batch([
-    db
-      .prepare(
-        "UPDATE publishing_validation_jobs SET status=?,attempts=attempts+1,last_error=?,updated_at=? WHERE id=?",
-      )
-      .bind(
-        status,
-        status === "failed" || status === "blocked"
-          ? cleanText(issues[0]?.message || "Validation failed", 1000)
-          : "",
-        at,
-        jobId,
-      ),
-    db
-      .prepare(
-        "INSERT INTO publishing_validation_results(id,job_id,asset_version_id,check_type,validator_name,validator_version,status,issue_count,issues_json,completed_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
-      )
-      .bind(
-        id("pubval"),
-        jobId,
-        versionId,
-        check,
-        validator,
-        version,
-        status,
-        issues.length,
-        JSON.stringify(issues),
-        at,
-      ),
-  ]);
-}
 
-async function refreshAssetValidationSummary(db: PublishingDB, assetVersionId: string) {
-  const jobs = (
-    await db
-      .prepare("SELECT status,required FROM publishing_validation_jobs WHERE asset_version_id=?")
-      .bind(assetVersionId)
-      .all<any>()
-  ).results;
-  const required = jobs.filter((j) => Number(j.required) === 1);
-  let summary = "pending",
-    quarantine = "quarantined";
-  if (required.some((j) => ["failed", "blocked"].includes(String(j.status))))
-    ((summary = "blocked"), (quarantine = "rejected"));
-  else if (required.some((j) => ["queued", "leased"].includes(String(j.status))))
-    ((summary = required.some((j) => String(j.status) === "leased") ? "running" : "pending"),
-      (quarantine = "scanning"));
-  else if (required.every((j) => String(j.status) === "passed")) {
-    summary = jobs.some((j) => String(j.status) === "warning") ? "warning" : "passed";
-    quarantine = "clean";
-  } else summary = "blocked";
-  await db
-    .prepare(
-      "UPDATE publishing_asset_versions SET validation_summary=?,quarantine_status=? WHERE id=?",
-    )
-    .bind(summary, quarantine, assetVersionId)
-    .run();
-  return { summary, quarantine };
-}
+
+
 
 export async function uploadPublishingAsset(env:PublishingEnv,userId:string,input:{editionId:string;kind:string;filename:string;mimeType:string;bytes:Uint8Array}){
 if(!(input.bytes instanceof Uint8Array)||input.bytes.byteLength>65536)throw new ApiError(503,"Publishing asset upload requires private storage attestation.");
@@ -2839,55 +2573,7 @@ export async function bucketBytes(env: PublishingEnv, key: string) {
   return new Uint8Array(await new Response(obj.body).arrayBuffer());
 }
 
-export async function ensureCatalogParties(db: PublishingDB, account: any, tax: any, payout: any) {
-  const at = now();
-  let publisherId = account.publisher_id,
-    financePartyId = account.finance_party_id,
-    rightsPartyId = account.rights_party_id;
-  if (!publisherId) {
-    publisherId = id("publisher");
-    await db
-      .prepare("INSERT INTO publishers(id,name,website,created_at,updated_at) VALUES(?,?,?,?,?)")
-      .bind(publisherId, account.display_name, account.website || "", at, at)
-      .run();
-  }
-  if (!rightsPartyId) {
-    const r = await upsertRightsParty(db as any, {
-      displayName: account.display_name,
-      partyType: "publisher",
-      publisherId,
-      contactEmail: account.contact_email || "",
-      referenceCode: `FORE-PUB-${account.id}`,
-      status: "active",
-    });
-    rightsPartyId = r.id;
-  }
-  if (!financePartyId) {
-    financePartyId = id("finparty");
-    await db
-      .prepare(
-        `INSERT INTO finance_parties(id,party_type,display_name,publisher_id,tax_country,withholding_bps,payout_currency,status,created_at,updated_at) VALUES(?,'publisher',?,?,?,?,?,'active',?,?)`,
-      )
-      .bind(
-        financePartyId,
-        account.display_name,
-        publisherId,
-        tax?.country_code || account.country_code,
-        Number(tax?.withholding_bps || 0),
-        payout?.payout_currency || "USD",
-        at,
-        at,
-      )
-      .run();
-  }
-  await db
-    .prepare(
-      "UPDATE publishing_accounts SET publisher_id=?,finance_party_id=?,rights_party_id=?,status='active',updated_at=? WHERE id=?",
-    )
-    .bind(publisherId, financePartyId, rightsPartyId, at, account.id)
-    .run();
-  return { publisherId, financePartyId, rightsPartyId };
-}
+
 
 export async function publicationVersionManifest(
   db: PublishingDB,

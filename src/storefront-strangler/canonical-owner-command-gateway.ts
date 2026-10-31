@@ -158,6 +158,9 @@ const routes={
     action:z.enum(["account-save","member-invite","identity-start","tax-submit","payout-submit","title-save","edition-save","asset-upload","accessibility-sign","edition-submit","revision-open","update-policy","owner-optin","review-submission"]),
     operationId:z.string().regex(/^editor:[a-f0-9-]{36}$/),
     payload:z.record(z.string(),z.unknown())}).strict()},
+  "catalog.repair-regional-assets":{path:"/catalog/repair-regional-assets",schema:z.object({
+    after:z.string().regex(/^[a-z0-9_]{0,90}$/),limit:z.number().int().min(1).max(16)
+  }).strict()},
   "account.owner-action":{path:"/account/private-action",schema:z.discriminatedUnion("action",[
     z.object({action:z.literal("register-device"),userId:z.string().regex(/^[a-zA-Z0-9:_-]{3,160}$/),
       device:z.object({deviceKey:z.string().min(16).max(200),name:z.string().trim().min(1).max(120),platform:z.string().trim().min(1).max(80)}).strict()}).strict(),
@@ -518,6 +521,18 @@ export async function dispatchCanonicalOwnerCommand(
          !Object.prototype.hasOwnProperty.call(ack,"result"))
         throw Error("canonical_command_receipt_mismatch");
       break;
+    case "catalog.repair-regional-assets":{
+      const result=ack.result as Record<string,unknown>;
+      if(ack.schema!=="cove.private-regional-epub-repair.v1"||ack.ownerFirst!==true||
+         ack.after!==body.after||ack.limit!==body.limit||!record(result)||
+         (result.skipped!=="no_private_r2"&&(
+           ["scanned","repaired","missingOrMismatched","conflicts"].some(k=>!Number.isSafeInteger(result[k])||Number(result[k])<0||Number(result[k])>Number(body.limit))||
+           Number(result.repaired)+Number(result.missingOrMismatched)+Number(result.conflicts)>Number(result.scanned)||
+           typeof result.nextAfter!=="string"||!/^[a-z0-9_]{0,90}$/.test(result.nextAfter)||
+           result.nextAfter<String(body.after)||typeof result.maybeMore!=="boolean")))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    }
     case "account.owner-action":{
       const accountResult=ack.result as Record<string,unknown>;
       if(ack.schema!=="cove.private-account-qa.v1"||ack.ownerFirst!==true||ack.action!==body.action||

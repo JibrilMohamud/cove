@@ -5,8 +5,10 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { build } from "esbuild";
 import { localBindings } from "./local-api.mjs";
+import { loadAccountOwnerTestClient } from "./test-private-account-client.mjs";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "cove-restore-test-"));
+let accountOwner;
 try {
   fs.cpSync("drizzle", path.join(root, "drizzle"), { recursive: true });
   await build({
@@ -22,8 +24,17 @@ try {
   const notifications = await import(path.join(root, "notifications.server.mjs"));
   const env = localBindings(root);
   const user = "restore-alice";
+  accountOwner = await loadAccountOwnerTestClient(root);
+  await env.DB.prepare(
+    "INSERT INTO auth_accounts(provider_id,app_id,email,created_at) VALUES(?,?,?,?)",
+  )
+    .bind(user, user, user + "@example.test", new Date().toISOString())
+    .run();
   async function request(route, method = "GET", payload) {
-    const response = await api.handleCoveApi(
+    const handler = route.startsWith("/account/device/")
+      ? accountOwner.handleCoveApi
+      : api.handleCoveApi;
+    const response = await handler(
       new Request("https://fore.test/api/fore" + route, {
         method,
         headers: {
@@ -311,5 +322,6 @@ try {
     "PASS: dry-run restoration, idempotent imports, reader silencing, DST, and paginated long-book annotations.",
   );
 } finally {
+  accountOwner?.close();
   fs.rmSync(root, { recursive: true, force: true });
 }
