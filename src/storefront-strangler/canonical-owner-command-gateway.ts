@@ -110,6 +110,12 @@ const routes={
   "partner.process-feed":{path:"/publishing/partner/process-feed",schema:z.object({
     limit:z.number().int().min(1).max(25),operationId:shortOperation
   }).strict()},
+  "catalog.regional-state":{path:"/catalog/regional-state",schema:z.object({
+    action:z.enum(["acquire","degraded","unchanged","same-snapshot","complete","failed"]),
+    sourceId:z.enum(["pg_ca","pg_au","pg_eu"]),leaseToken:z.string().uuid(),
+    runId:z.string().regex(/^gir_[a-f0-9-]{36}$/),
+    data:z.record(z.string(),z.unknown())
+  }).strict()},
   "catalog.withdraw-stale":{path:"/catalog/withdraw-stale",schema:z.object({
     sourceId:z.enum(["pg_ca","pg_au","pg_eu"]),
     cycleStartedAt:z.string().datetime(),leaseToken:z.string().uuid(),
@@ -311,6 +317,12 @@ export async function dispatchCanonicalOwnerCommand(
   try{ack=JSON.parse(bytes);}catch{throw Error("canonical_command_receipt_invalid");}
   if(!record(ack))throw Error("canonical_command_receipt_invalid");
   switch(kind){
+    case "catalog.regional-state":
+      if(ack.schema!=="cove.owner-regional-state.v1"||ack.ownerFirst!==true||
+         ack.sourceId!==body.sourceId||ack.runId!==body.runId||
+         ack.action!==body.action||typeof ack.acquired!=="boolean")
+         throw Error("canonical_command_receipt_mismatch");
+      break;
     case "catalog.withdraw-stale":
       if(ack.schema!=="cove.owner-catalog-stale-denial.v1"||ack.ownerFirst!==true||
          ack.sourceId!==body.sourceId||ack.runId!==body.runId||ack.denied!==true||
