@@ -120,6 +120,10 @@ const routes={
     objectKey:z.string().max(500),createdAt:z.string().datetime(),
     operationId:shortOperation
   }).strict()},
+  "publishing.audio-metadata":{path:"/publishing/audio/metadata",schema:z.object({
+    action:z.enum(["profile","narrators","agreement-add","agreement-end"]),
+    userId:subject,payload:z.record(z.string(),z.unknown()),operationId:shortOperation
+  }).strict()},
   "publishing.review-onboarding":{path:"/publishing/onboarding/review",schema:z.object({
     reviewerUserId:subject,accountId:subject,recordId:subject,
     kind:z.enum(["identity","tax","payout"]),
@@ -390,6 +394,15 @@ export async function dispatchCanonicalOwnerCommand(
          ack.operationId!==body.operationId||ack.userId!==body.userId||
          ack.importId!==body.id||ack.productId!=="prd_"+body.id||
          typeof ack.applied!=="boolean")
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "publishing.audio-metadata":
+      if(ack.schema!=="cove.owner-audio-metadata.v1"||ack.ownerFirst!==true||
+         ack.operationId!==body.operationId||ack.action!==body.action||
+         ack.userId!==body.userId||!record(ack.result)||
+         (["profile","narrators"].includes(String(ack.action))&&ack.result.saved!==true)||
+         (["agreement-add","agreement-end"].includes(String(ack.action))&&
+          (typeof ack.result.id!=="string"||ack.result.id.length<3)))
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "publishing.review-onboarding":

@@ -179,3 +179,17 @@ export async function dispatchPublishingOnboardingReview(db:object,command:{
     return {saved:true,applied:ack.applied===true};
   }catch {throw new ApiError(503,"Publishing onboarding owner refused unverified decision.");}
 }
+
+/** Publisher actor is derived from authenticated API identity and rechecked
+ * against the current owner-side publishing membership, edition, and evidence. */
+export async function dispatchCommercialAudioMetadata(db:object,
+  action:"profile"|"narrators"|"agreement-add"|"agreement-end",userId:string,payload:unknown){
+  const context=owners.get(db);
+  if(!context)throw new ApiError(503,"Commercial audiobook edits require a private publisher owner.");
+  const operationId="audiometa:"+crypto.randomUUID();
+  try{
+    const ack=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+      "publishing.audio-metadata",{action,userId,payload,operationId});
+    return ack.result as Record<string,unknown>;
+  }catch {throw new ApiError(503,"The private owner did not certify this audiobook metadata change.");}
+}
