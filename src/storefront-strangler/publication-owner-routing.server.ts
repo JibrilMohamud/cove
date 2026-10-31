@@ -163,6 +163,26 @@ export async function dispatchCatalogPersonalImport(db:object,input:{
   }catch{throw new ApiError(503,"Private catalog owner did not accept personal import.");}
 }
 
+/** Fixed, non-SQL private preorder command. Both server and owner reject
+ * nonleased production. Positive payment and release claims are forbidden. */
+export async function dispatchPrivatePreorderAction(
+ db:object,action:"ensure-plan"|"register-paid"|"update-lowest"|"customer-cancel"|
+  "publisher-cancel"|"lease-refunds"|"complete-refund"|"advance",
+ payload:Record<string,unknown>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Typed private command family has heterogeneous validated receipts.
+):Promise<any> {
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Preorder primary writer is not privately owned.");
+ const operationId="preorder:"+crypto.randomUUID();
+ try {
+   const receipt=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+     "preorder.owner-action",{action,payload,operationId});
+   return receipt.result;
+ }catch{
+   throw new ApiError(503,"Private preorder owner refused this operation.");
+ }
+}
+
 /** An owner-only support action; every staff permission and case scope is
  * independently rechecked at the primary owner. Production remains locked. */
 export async function dispatchSupportOwnerAction(db:object,staffUserId:string,action:{

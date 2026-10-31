@@ -9,10 +9,10 @@ import {currentWriterSites,REVIEW_PATH} from "./reconcile-canonical-writers.mjs"
 const history="publishing_owner_version_events";
 const review=JSON.parse(readFileSync(REVIEW_PATH,"utf8"));
 const all=currentWriterSites().filter(x=>x.table===history);
-assert.equal(all.length,4,"The whole owner-version audit inventory needs fresh review if history writers change");
+assert.equal(all.length,3,"The whole owner-version audit inventory needs fresh review if history writers change");
 // The formerly shared commerce grant_pin writer was physically retired;
 // only the atomic private QA settlement grant pin remains with two non-authorizing
-// policy history actions and one outstanding preorder grant-pin writer.
+// policy history actions. The preorder grant-pin writer is private to the leased QA owner.
 const privatePins=all.filter(x=>x.file==="src/features/fore/paid-settlement-transaction.server.ts");
 assert.equal(privatePins.length,1,"Only the new atomic settlement executor adds a QA grant-pin history writer");
 assert.equal(privatePins[0].functionName,"postPaidSettlementTransaction");
@@ -92,13 +92,13 @@ for(const path of walk("src")){
   const source=readFileSync(path,"utf8");
   const found=[...source.matchAll(/\b(?:FROM|JOIN)\s+publishing_owner_version_events\b/gi)];
   if(!found.length)continue;
-  assert.equal(path.replaceAll("\\","/"),"src/features/fore/preorder.server.ts",
+  assert.equal(path.replaceAll("\\","/"),"src/storefront-strangler/legal-authority.worker.ts",
     "Version history became a new read dependency: "+path);
   assert.equal(found.length,1,"Preorder grant-pin read predicate changed");
   const query=source.slice(Math.max(0,found[0].index-150),found[0].index+160);
   assert.match(query,/action='grant_pin'/);
   reads+=found.length;
 }
-assert.equal(reads,1,"Only the preorder-specific grant_pin history predicate may be read");
+assert.equal(reads,1,"Only the private preorder owner grant_pin history predicate may be read");
 assert.equal(review.releaseApproval,false);
-console.log("PASS: two exact policy/opt-in history rows cannot grant versions, revive revoked entitlements or counterfeit grant_pin; preorder history remains owner-required");
+console.log("PASS: two exact policy/opt-in history rows cannot grant versions, revive revoked entitlements or counterfeit grant_pin; the former shared preorder grant-pin writer is now private QA-only");

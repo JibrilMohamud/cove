@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Stage-only support owner facade and preserved support event helpers. */
 import { z } from "zod/v3";
 import type { CoveEnv } from "./api.server";
 import { ApiError, now } from "./service";

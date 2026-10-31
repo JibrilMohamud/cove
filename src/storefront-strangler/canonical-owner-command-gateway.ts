@@ -149,6 +149,12 @@ const routes={
     action:z.enum(["profile","narrators","agreement-add","agreement-end"]),
     userId:subject,payload:z.record(z.string(),z.unknown()),operationId:shortOperation
   }).strict()},
+  "preorder.owner-action":{path:"/preorder/private-action",schema:z.object({
+    action:z.enum(["ensure-plan","register-paid","update-lowest","customer-cancel",
+      "publisher-cancel","lease-refunds","complete-refund","advance"]),
+    operationId:z.string().regex(/^preorder:[a-f0-9-]{36}$/),
+    payload:z.record(z.string(),z.unknown())
+  }).strict()},
   "support.execute-action":{path:"/support/private-action",schema:z.object({
     staffUserId:subject,operationId:z.string().regex(/^support:[a-f0-9]{64}$/),
     action:z.object({
@@ -469,6 +475,12 @@ export async function dispatchCanonicalOwnerCommand(
          (["profile","narrators"].includes(String(ack.action))&&ack.result.saved!==true)||
          (["agreement-add","agreement-end"].includes(String(ack.action))&&
           (typeof ack.result.id!=="string"||ack.result.id.length<3)))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "preorder.owner-action":
+      if(ack.schema!=="cove.owner-preorder-qa.v1"||ack.ownerFirst!==true||
+         ack.action!==body.action||ack.operationId!==body.operationId||
+         !Object.prototype.hasOwnProperty.call(ack,"result"))
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "support.execute-action":
