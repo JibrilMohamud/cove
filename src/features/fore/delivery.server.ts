@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Audited private delivery-owner facades retain source lineage. */
 import { dispatchNegativeDeliveryOwner } from "../../storefront-strangler/publication-owner-routing.server";
 import JSZip from "jszip";
 import { z } from "zod/v3";
