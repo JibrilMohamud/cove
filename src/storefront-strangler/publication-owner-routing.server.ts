@@ -455,6 +455,24 @@ export async function dispatchPrivateCommercialEpubGrant(db:object,input:{
  * in one guarded D1 batch. The shared delivery server is read-only. */
 /** The offline audio signer is not a D1 writer. An independently verified
  * private owner commits both license refresh and any revocation. */
+/** Financial permissions may only change after independently verified
+ * private legal-owner assessment; never fall back to shared D1. */
+export async function dispatchPrivatePublisherTaxVerification(db:object,request:unknown):
+ Promise<{profileId:string;status:string;effectiveWithholdingBps:number}>{
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Publisher tax verification requires private authority.");
+ if(!request||typeof request!=="object"||Array.isArray(request))
+   throw new ApiError(400,"Invalid publisher tax verification.");
+ try{
+  const ack=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+    "risk.publisher-tax-verification",{request});
+  if(ack.saved!==true||typeof ack.profileId!=="string"||
+     typeof ack.status!=="string"||typeof ack.effectiveWithholdingBps!=="number")
+    throw Error("tax_verification_receipt_mismatch");
+  return {profileId:ack.profileId,status:ack.status,effectiveWithholdingBps:ack.effectiveWithholdingBps};
+ }catch{throw new ApiError(503,"Private legal owner refused publisher tax verification.");}
+}
+
 export async function dispatchPrivateOfflineAudioLicense(db:object,input:{
  licenseId:string;userId:string;productId:string;entitlementId:string;
  editionId:string;deviceId:string;deviceKeyHash:string;tokenHash:string;
