@@ -18596,7 +18596,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         // A caller-provided or inconsistent lower-risk assessment never
         // materializes into commerce or a publisher account.
         let policy:unknown;
-        try{policy=JSON.parse(currentPolicy.policy_json);}catch{}
+        try{policy=JSON.parse(currentPolicy.policy_json);}catch{ /* Malformed policy must fail closed. */ }
         if(!policy||typeof policy!=="object"||Array.isArray(policy))
           return new Response(null,{status:409,headers:noStore});
         const thresholds=(policy as {thresholds?:Record<string,unknown>}).thresholds||{};
