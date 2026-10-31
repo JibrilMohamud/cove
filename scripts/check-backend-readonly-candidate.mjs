@@ -1,0 +1,99 @@
+import assert from "node:assert/strict";
+import { build } from "esbuild";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+
+const config = readFileSync("wrangler.backend.readonly-candidate.toml", "utf8");
+const backend = readFileSync("src/persistence-backend.worker.ts", "utf8");
+
+assert.match(config, /name = "cove-persistence-backend-readonly-candidate"/);
+assert.match(config, /workers_dev = false/);
+assert.match(config, /preview_urls = false/);
+assert.match(config, /routes = \[\]/);
+assert.match(config, /binding = "COVE_CANONICAL_READONLY"/);
+assert.match(config, /service = "cove-canonical-d1-readonly"/);
+assert.match(config, /COVE_BACKEND_READONLY_CANDIDATE = "1"/);
+assert.match(config, /COVE_CANONICAL_READONLY_RPC = "1"/);
+assert.doesNotMatch(config, /\[\[d1_databases\]\]|\[triggers\]|\bcrons\s*=|\bFORE_BACKEND_TOKEN_SHA256\s*=/);
+assert.match(backend, /scopeBackendReadonlyCandidate\(env\)/);
+assert.match(backend, /backendReadonlyCandidateRouteAllowed\(request\)/);
+assert.match(backend, /private_backend_readonly_candidate_cron_denied/);
+
+const folder = mkdtempSync(path.join(tmpdir(), "cove-backend-readonly-"));
+try {
+  const outfile = path.join(folder, "candidate.mjs");
+  await build({
+    entryPoints: ["src/storefront-strangler/backend-readonly-candidate.ts"],
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    outfile,
+  });
+  const { scopeBackendReadonlyCandidate, backendReadonlyCandidateRouteAllowed } =
+    await import(pathToFileURL(outfile).href);
+  const queries = [];
+  let outage = false;
+  const service = {
+    async query(statements) {
+      queries.push(statements);
+      if (outage) throw Error("provider_unavailable");
+      assert.ok(statements.every((s) => /^SELECT\b/i.test(s.sql)));
+      return statements.map(() => ({
+        success: true,
+        results: [{ ok: 1 }],
+        meta: { served_by_primary: true },
+      }));
+    },
+  };
+  const fixture = {
+    COVE_BACKEND_READONLY_CANDIDATE: "1",
+    COVE_CANONICAL_READONLY_RPC: "1",
+    COVE_CANONICAL_READONLY: service,
+    FORE_ENVIRONMENT: "staging",
+    FORE_BACKEND_TOKEN_SHA256: "a".repeat(64),
+  };
+  const candidate = scopeBackendReadonlyCandidate(fixture);
+  assert.equal(typeof candidate.DB.prepare, "function");
+  assert.equal((await candidate.DB.prepare("SELECT 1 ok").first()).ok, 1);
+  await assert.rejects(() => candidate.DB.prepare("UPDATE entitlements SET status='active'").run(), /read-only/);
+  await assert.rejects(() => candidate.DB.prepare("DELETE FROM entitlements").all());
+  assert.equal(queries.length, 2);
+  outage = true;
+  await assert.rejects(() => candidate.DB.prepare("SELECT 1 ok").all(), /provider_unavailable/);
+  const readable = [
+    "https://private.invalid/__cove/health",
+    "https://private.invalid/api/fore/health/ready",
+  ];
+  for (const url of readable)
+    assert.equal(backendReadonlyCandidateRouteAllowed(new Request(url)), true);
+  for (const url of [
+    "https://private.invalid/api/fore/stripe/webhook",
+    "https://private.invalid/api/fore/entitlements",
+    "https://private.invalid/api/fore/health/ready?inspect=1",
+    "https://private.invalid/__cove/ingestion/catalog",
+    "https://private.invalid/api/fore/health/live",
+  ])
+    assert.equal(backendReadonlyCandidateRouteAllowed(new Request(url)), false);
+  assert.equal(
+    backendReadonlyCandidateRouteAllowed(
+      new Request("https://private.invalid/__cove/health", { method: "POST" }),
+    ),
+    false,
+  );
+  for (const mutation of [
+    { DB: { prepare() {} } },
+    { COVE_CANONICAL_READONLY_RPC: "0" },
+    { COVE_CANONICAL_READONLY: undefined },
+    { FORE_ENVIRONMENT: "production" },
+    { FORE_BACKEND_TOKEN_SHA256: "" },
+    { COVE_BACKEND_READONLY_CANDIDATE: "0" },
+  ])
+    assert.throws(() => scopeBackendReadonlyCandidate({ ...fixture, ...mutation }), /not_certified/);
+  const unchanged = { DB: { prepare() {} } };
+  assert.equal(scopeBackendReadonlyCandidate(unchanged), unchanged);
+  console.log("PASS: private health-only backend canary cannot access native D1, serve writes or use a replica/failed read.");
+} finally {
+  rmSync(folder, { recursive: true, force: true });
+}
