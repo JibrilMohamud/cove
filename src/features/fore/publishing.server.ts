@@ -1640,7 +1640,7 @@ async function refreshAssetValidationSummary(db: PublishingDB, assetVersionId: s
 
 export async function uploadPublishingAsset(env:PublishingEnv,userId:string,input:{editionId:string;kind:string;filename:string;mimeType:string;bytes:Uint8Array}){
 if(!(input.bytes instanceof Uint8Array)||input.bytes.byteLength>65536)throw new ApiError(503,"Publishing asset upload requires private storage attestation.");
-return dispatchPrivatePublishingEditor(env.DB,"asset-upload",{userId,raw:{...input,bytes:Array.from(input.bytes)}});
+return (await dispatchPrivatePublishingEditor(env.DB,"asset-upload",{userId,raw:{...input,bytes:Array.from(input.bytes)}})) as {versionId:string;sha256:string;[key:string]:unknown};
 }
 
 

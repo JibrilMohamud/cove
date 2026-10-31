@@ -10858,7 +10858,7 @@ async function publicationVersionManifest(
 }
 
 /** Retired: never activate commercial rights directly through the shared application DB. */
-async function activatePublicationCommercialTerms(
+async function privateEditorLegacyactivatePublicationCommercialTerms(
   _db: PublishingDB,
   _currentManifest: any,
   _previousManifest: any | null,
@@ -10895,7 +10895,7 @@ async function activatePublicationVersion(
 /** The private legal owner executes this implementation against its own
  * PRIMARY_DB after durably acquiring the product's publication hold. */
 /** Retired: the owner verifies the frozen version and executes the physical activation. */
-async function activatePublicationVersionOwned(
+async function privateEditorLegacyactivatePublicationVersionOwned(
   _db: PublishingDB,
   _publicationVersionId: string,
   _actorUserId: string | null,
@@ -10907,7 +10907,7 @@ async function activatePublicationVersionOwned(
 /** Only the owner invokes this implementation on enrolled databases; the
  * scheduler always dispatches the typed command through its bound facade. */
 /** Retired: scheduled preorder activation cannot bypass canonical owner denial. */
-async function openPublicationPreorderOwned(
+async function privateEditorLegacyopenPublicationPreorderOwned(
   _db: PublishingDB,
   _publicationVersionId: string,
 ): Promise<never> {
