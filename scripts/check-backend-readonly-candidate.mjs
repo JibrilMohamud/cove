@@ -26,11 +26,11 @@ assert.match(backend, /private_backend_readonly_candidate_cron_denied/);
 assert.match(backend, /backendScheduledPrimaryReadDb\(env\)/);
 assert.match(backend, /COVE_BACKEND_SCHEDULED_READONLY_RPC\?: string/);
 assert.equal(
-  (backend.match(/const readDb = backendScheduledPrimaryReadDb\(env\);/g) || []).length,
+  (backend.match(/const db = backendScheduledPrimaryReadDb\(env\);/g) || []).length,
   5,
   "All five scheduled query scopes must use the independent primary reader",
 );
-assert.match(backend, /const firstMapPending = await readDb\.prepare\(/);
+assert.match(backend, /const firstMapPending = await db\.prepare\(/);
 
 const folder = mkdtempSync(path.join(tmpdir(), "cove-backend-readonly-"));
 try {
