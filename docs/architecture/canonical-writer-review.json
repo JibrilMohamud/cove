@@ -17,7 +17,7 @@
       "reason": "Browser QA seeds an isolated temporary database through localBindings; this development server is not a deployed production writer."
     },
     {
-      "siteId": "5718904c002de401673ca0d7d77338629db6028eba3650ef979a04f4bccb786e",
+      "siteId": "91dc96e3a4df6b64518e37c57edb580d7f78dd87dcce8aa2f084fcda7ce9caeb",
       "file": "src/features/fore/api.server.ts",
       "line": 836,
       "functionName": "catalogInsert",
@@ -30,7 +30,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "ccbc9ef2722a1d54e4a9c662089e0999aea80c1b80c743512bf8401b1e6b841b",
+      "siteId": "df9b9e2528f98d0c9940fc83c4998505d69576e4d63f3d4c7915e62582de596e",
       "file": "src/features/fore/api.server.ts",
       "line": 1346,
       "functionName": "insertRegionalEvidence",
@@ -43,7 +43,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "3f532f7a4e3941117a0aa29e81c0c0b7821881d38cc9d9cd7c38834f755f624b",
+      "siteId": "18a270eab5fc457e65a8bd37350768f8113b7d197a1be33734ada1b8fe1ee5cf",
       "file": "src/features/fore/api.server.ts",
       "line": 1367,
       "functionName": "insertRegionalEvidence",
@@ -56,7 +56,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "12febaefe35526c8de4d8aa0d99c683e57af26fc55623679a58a05a27246e797",
+      "siteId": "927caf853a15b417a1347a37e42c915ee763390246eb1f09ddef6a6ac7c2f1ff",
       "file": "src/features/fore/api.server.ts",
       "line": 1379,
       "functionName": "insertRegionalEvidence",
@@ -69,7 +69,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "1a78498b9085241f99f9536ab2ea0533bf619d0762abe7f6afc3c07181c44e21",
+      "siteId": "9e632951ec0e960fc4ba459f38df43260b8eb732b58abce24c18e241f769df83",
       "file": "src/features/fore/api.server.ts",
       "line": 1386,
       "functionName": "insertRegionalEvidence",
@@ -82,7 +82,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "5b873fc5acbd967a7e20a6ef185064b87bacc3a171116d8a9279d371e98ab43a",
+      "siteId": "f37ae91706c92041ca62c912f8c7929f458561581a57e033cb42ba36b731588a",
       "file": "src/features/fore/api.server.ts",
       "line": 5727,
       "functionName": "handleCoveRequest",
@@ -553,22 +553,9 @@
       "reason": "Evaluation history is written after resolving rights. Authorization re-evaluates grants; the recorded decision is not a reusable positive grant."
     },
     {
-      "siteId": "ab7c6572ef188556fe2334c7c58d07eb5b9932d8633445a84d16afede2b60229",
+      "siteId": "4d98928a38772e07d19d0b828f350d10c2b895755b9cf3c1e605e16986850a5c",
       "file": "src/features/fore/risk-tax.server.ts",
-      "line": 819,
-      "functionName": "releaseRiskHold",
-      "table": "risk_holds",
-      "operation": "UPDATE",
-      "sqlSha256": "fc4b8c2124d91e919e058790fe0b0412639e36b9a40409921f7072d0302e0f47",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "risk-tax.releaseRiskHold",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "f57a540197fba24dd9794a3e172d86097f49f51dae03cf00db3eed61daf83e02",
-      "file": "src/features/fore/risk-tax.server.ts",
-      "line": 1261,
+      "line": 1234,
       "functionName": "registerPublisherTaxVerification",
       "table": "publishing_accounts",
       "operation": "UPDATE",
