@@ -10,8 +10,8 @@
     },
     {
       "path": "src/features/fore/commerce.server.ts",
-      "sha256": "116f24a42a463947939e120919db25ebcbc5ac09a3ef8fb3d8a2b769031e70d8",
-      "review": "Historical earlier retirement remains intact; current commerce server additionally retires 38 legacy payment writer statements, independently attested at docs/architecture/retired-legacy-commerce-source-attestation-20261030.json. Two tax SQL sites remain owner-required. Source-only formatting and explicit fail-safe refund error logging are now included; exact surviving SQL remained unchanged. Independent review restored the owner-only checkout quote persistence and blocks public unenrolled callers; the quote SQL is still classified owner-required."
+      "sha256": "65f167c2bdf252936372106347084a1523fed98d507717c746d4c31b8db2c81c",
+      "review": "Historical earlier retirement remains intact; current commerce server additionally retires 38 legacy payment writer statements, independently attested at docs/architecture/retired-legacy-commerce-source-attestation-20261030.json. Two tax SQL sites remain owner-required. Source-only formatting and explicit fail-safe refund error logging are now included; exact surviving SQL remained unchanged. Independent review restored the owner-only checkout quote persistence and blocks public unenrolled callers; the quote SQL is still classified owner-required. New private-owner checkout-quote relocation removes one shared SQL site. The other two commerce SQL literals and dispositions remain unchanged with fresh full-source identifiers. Release locked."
     }
   ],
   "retirementEvidence": "docs/architecture/retired-shared-refund-accounting-evidence-20261030.md"

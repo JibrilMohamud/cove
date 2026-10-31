@@ -10,7 +10,12 @@ const fetchBefore = globalThis.fetch;
 try {
   fs.cpSync("drizzle", path.join(root, "drizzle"), { recursive: true });
   await build({
-    entryPoints: ["api.server", "stored-epub.server"].map((n) => `src/features/fore/${n}.ts`),
+    entryPoints: [
+      ...["api.server", "stored-epub.server"].map((n) => `src/features/fore/${n}.ts`),
+      "src/storefront-strangler/publication-owner-routing.server.ts",
+    ],
+    splitting: true,
+    entryNames: "[name]",
     bundle: true,
     platform: "node",
     format: "esm",
@@ -20,8 +25,8 @@ try {
   });
   const { handleCoveApi } = await import(path.join(root, "api.server.mjs"));
   const { validateStoredEpub } = await import(path.join(root, "stored-epub.server.mjs"));
-  const env = localBindings(root),
-    db = env.DB;
+  let env = localBindings(root);
+  const db = env.DB;
   const request = (route) => handleCoveApi(new Request("https://cove.test/api/fore" + route), env);
   await request("/catalog");
   const zip = new JSZip();
@@ -41,6 +46,85 @@ try {
   const bytes = await zip.generateAsync({ type: "uint8array" });
   await validateStoredEpub(bytes);
   zip.file("chapter.xhtml", "<html><body><p>broken</body></html>");
+  // The synthetic transport is deliberately isolated to this QA process.
+  // It cannot supply production legal authority or customer purchase rights.
+  const { bindPublicationOwner } = await import(
+    path.join(root, "publication-owner-routing.server.mjs"),
+  );
+  const secret = "a".repeat(64);
+  const owner = {
+    async fetch(request) {
+      assert.equal(request.method, "POST");
+      assert.equal(request.headers.get("authorization"), "Bearer " + secret);
+      const pathname = new URL(request.url).pathname;
+      const payload = await request.json();
+      if (pathname === "/catalog/negative-source") {
+        assert.equal(payload.action, "mark-us-retry");
+        assert.equal(payload.cacheId, "1342");
+        const row = await db
+          .prepare("SELECT source_id FROM gutenberg_source_cache WHERE id=?")
+          .bind(payload.cacheId)
+          .first();
+        if (!row || row.source_id !== "pg_us")
+          return new Response(null, { status: 409 });
+        const outcome = await db
+          .prepare(
+            "UPDATE gutenberg_source_cache SET epub_status='retry',epub_next_attempt_at='',epub_last_error='Stored EPUB failed validation; repair required.' WHERE id=? AND source_id='pg_us' AND ingest_status<>'quarantined'",
+          )
+          .bind(payload.cacheId)
+          .run();
+        return Response.json({
+          schema: "cove.owner-catalog-negative-source.v1",
+          ownerFirst: true,
+          cacheId: payload.cacheId,
+          action: payload.action,
+          denied: true,
+          changed: Number(outcome.meta?.changes || 0) > 0,
+        });
+      }
+      assert.equal(pathname, "/catalog/verified-us-epub-cache");
+      const { cacheId, assetVersionId, sha256 } = payload;
+      assert.equal(cacheId, "1342");
+      const source = await db
+        .prepare(
+          "SELECT c.id FROM gutenberg_source_cache c JOIN products p ON p.source_external_id=c.id AND p.source_name='gutenberg' JOIN digital_assets da ON da.edition_id=p.edition_id AND da.kind='epub' JOIN asset_versions av ON av.asset_id=da.id WHERE c.id=? AND av.id=? AND c.source_id='pg_us' AND c.copyright=0 AND c.rights_status='public-domain' AND c.commercial_use_status='approved' AND c.ingest_status='active'",
+        )
+        .bind(cacheId, assetVersionId)
+        .first();
+      if (!source) return new Response(null, { status: 409 });
+      const obj = await env.BUCKET.get("epubs/" + cacheId + ".epub");
+      if (!obj || obj.size > 25 * 1024 * 1024)
+        return new Response(null, { status: 409 });
+      const storedBytes = new Uint8Array(await obj.arrayBuffer());
+      await validateStoredEpub(storedBytes);
+      const digest = await crypto.subtle.digest("SHA-256", storedBytes);
+      const actual = Array.from(new Uint8Array(digest), (b) =>
+        b.toString(16).padStart(2, "0"),
+      ).join("");
+      if (actual !== sha256) return new Response(null, { status: 409 });
+      const at = new Date().toISOString();
+      await db.batch([
+        db
+          .prepare(
+            "UPDATE gutenberg_source_cache SET epub_status='completed',epub_cached_at=?,epub_last_error='',epub_next_attempt_at='',content_hash=?,canonicalization_version='pgus-upstream-v1' WHERE id=? AND source_id='pg_us' AND copyright=0 AND rights_status='public-domain' AND commercial_use_status='approved' AND ingest_status='active'",
+          )
+          .bind(at, sha256, cacheId),
+        db
+          .prepare(
+            "UPDATE asset_versions SET object_key=?,sha256=? WHERE id=? AND EXISTS(SELECT 1 FROM digital_assets da JOIN products p ON p.edition_id=da.edition_id JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE da.id=asset_versions.asset_id AND da.kind='epub' AND p.source_name='gutenberg' AND c.id=? AND c.source_id='pg_us' AND c.copyright=0 AND c.rights_status='public-domain' AND c.commercial_use_status='approved' AND c.ingest_status='active')",
+          )
+          .bind("epubs/" + cacheId + ".epub", sha256, assetVersionId, cacheId),
+      ]);
+      return Response.json({
+        schema: "cove.owner-us-epub-cache.v1",
+        ownerFirst: true,
+        cacheId,
+        assetVersionId,
+        sha256,
+        saved: true,
+      });
+    },
+  };
   const bad = await zip.generateAsync({ type: "uint8array" });
   await assert.rejects(() => validateStoredEpub(bad), /Invalid EPUB XML/);
   let upstream = bytes,
@@ -54,6 +138,23 @@ try {
       "UPDATE asset_versions SET object_key=NULL,sha256=NULL WHERE asset_id='asset_epub_gutenberg_1342'",
     )
     .run();
+  await env.BUCKET.delete("epubs/1342.epub");
+  const ownerless = await request("/books/1342/epub");
+  assert.equal(ownerless.status, 503, "ownerless canonical hydration must fail closed");
+  const unpersisted = await db
+    .prepare("SELECT epub_status FROM gutenberg_source_cache WHERE id='1342'")
+    .first();
+  assert.notEqual(unpersisted.epub_status, "completed");
+  await env.BUCKET.delete("epubs/1342.epub");
+  env = {
+    ...env,
+    DB: bindPublicationOwner(db, {
+      owner,
+      secret,
+      territory: "US",
+      currency: "USD",
+    }),
+  };
   const first = await request("/books/1342/epub");
   assert.equal(first.status, 200, await first.clone().text());
   assert.equal((await first.arrayBuffer()).byteLength, bytes.length);
