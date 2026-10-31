@@ -106,6 +106,20 @@
       "maxMs": 2954,
       "passed": false,
       "scope": "Protected ORD runner test after rollback, not geographic capacity certification"
+    },
+    "fourRegionReadonlyDiagnostic": {
+      "observedAt": "2026-10-31T22:27:36.635Z",
+      "colos": ["ORD", "LAX", "IAD", "DFW"],
+      "requests": 8,
+      "valid24BookResponses": 8,
+      "slowAt800ms": 5,
+      "maximumMs": 1117,
+      "minimumMs": 732,
+      "allBelow800ms": false,
+      "measurementIncludesRelayHopAndCompleteSsrBody": true,
+      "noColdOrConcurrencyCertification": true,
+      "relayDeleted": true,
+      "productionCertified": false
     }
   },
   "protectedRollbackRehearsed": false,

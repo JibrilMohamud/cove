@@ -1,0 +1,357 @@
+{
+  "schema": "cove.readonly-ssr-geographic-diagnostic.v1",
+  "observedAt": "2026-10-31T22:26:51.221Z",
+  "measurementId": "27PwOzgTSkuCuZUII00021Q7m",
+  "status": "finished",
+  "ssrVersion": "f2b79a9d-bf65-4bd7-b0f8-8c97f5b9533f",
+  "relay": "cove-readonly-geo-20261031-2228",
+  "scope": "One complete 24-book SSR rendered per US city through a temporary content-free service-binding relay; no bearer sent to probe provider",
+  "coldWorkerCertified": false,
+  "capacityCertified": false,
+  "productionCandidateCertified": false,
+  "observations": [
+    {
+      "probeCity": "Chicago",
+      "probeCountry": "US",
+      "status": "finished",
+      "httpStatus": 200,
+      "timings": {
+        "total": 864,
+        "dns": 10,
+        "tcp": 4,
+        "tls": 12,
+        "firstByte": 836,
+        "download": 2
+      },
+      "body": {
+        "schema": "cove.readonly-ssr-geo-diagnostic.v1",
+        "relayColo": "ORD",
+        "country": "US",
+        "upstreamStatus": 200,
+        "cards": 24,
+        "serviceElapsedMs": 738,
+        "serverTimingMs": {
+          "cove_ssr_bootstrap": 142,
+          "cove_ssr_local_rights": 0,
+          "cove_ssr_readonly_rpc": 0,
+          "cove_backend_limit": 0,
+          "cove_backend_catalog": 141,
+          "cove_backend_context": 142,
+          "cove_backend_page": 0,
+          "cove_backend_catalog_sql": 22.4,
+          "cove_backend_bootstrap": 142,
+          "cove_backend_lean": 0,
+          "cove_entry": 0,
+          "cove_render": 142,
+          "cove_total": 142
+        },
+        "bodyComplete": true
+      },
+      "truncated": false,
+      "clientToHeadersMs": 862
+    },
+    {
+      "probeCity": "Los Angeles",
+      "probeCountry": "US",
+      "status": "finished",
+      "httpStatus": 200,
+      "timings": {
+        "total": 1118,
+        "dns": 27,
+        "tcp": 1,
+        "tls": 18,
+        "firstByte": 1071,
+        "download": 1
+      },
+      "body": {
+        "schema": "cove.readonly-ssr-geo-diagnostic.v1",
+        "relayColo": "LAX",
+        "country": "US",
+        "upstreamStatus": 200,
+        "cards": 24,
+        "serviceElapsedMs": 890,
+        "serverTimingMs": {
+          "cove_ssr_bootstrap": 380,
+          "cove_ssr_local_rights": 0,
+          "cove_ssr_readonly_rpc": 0,
+          "cove_backend_limit": 0,
+          "cove_backend_context": 321,
+          "cove_backend_page": 0,
+          "cove_backend_catalog": 380,
+          "cove_backend_catalog_sql": 26.5,
+          "cove_backend_bootstrap": 380,
+          "cove_backend_lean": 0,
+          "cove_entry": 0,
+          "cove_render": 380,
+          "cove_total": 380
+        },
+        "bodyComplete": true
+      },
+      "truncated": false,
+      "clientToHeadersMs": 1117
+    },
+    {
+      "probeCity": "Ashburn",
+      "probeCountry": "US",
+      "status": "finished",
+      "httpStatus": 200,
+      "timings": {
+        "total": 750,
+        "dns": 11,
+        "tcp": 1,
+        "tls": 13,
+        "firstByte": 724,
+        "download": 1
+      },
+      "body": {
+        "schema": "cove.readonly-ssr-geo-diagnostic.v1",
+        "relayColo": "IAD",
+        "country": "US",
+        "upstreamStatus": 200,
+        "cards": 24,
+        "serviceElapsedMs": 636,
+        "serverTimingMs": {
+          "cove_ssr_bootstrap": 282,
+          "cove_ssr_local_rights": 0,
+          "cove_ssr_readonly_rpc": 0,
+          "cove_backend_limit": 0,
+          "cove_backend_context": 274,
+          "cove_backend_page": 0,
+          "cove_backend_catalog": 282,
+          "cove_backend_catalog_sql": 46,
+          "cove_backend_bootstrap": 282,
+          "cove_backend_lean": 0,
+          "cove_entry": 0,
+          "cove_render": 282,
+          "cove_total": 282
+        },
+        "bodyComplete": true
+      },
+      "truncated": false,
+      "clientToHeadersMs": 749
+    },
+    {
+      "probeCity": "Dallas",
+      "probeCountry": "US",
+      "status": "finished",
+      "httpStatus": 200,
+      "timings": {
+        "total": 802,
+        "dns": 16,
+        "tcp": 2,
+        "tls": 19,
+        "firstByte": 760,
+        "download": 5
+      },
+      "body": {
+        "schema": "cove.readonly-ssr-geo-diagnostic.v1",
+        "relayColo": "DFW",
+        "country": "US",
+        "upstreamStatus": 200,
+        "cards": 24,
+        "serviceElapsedMs": 677,
+        "serverTimingMs": {
+          "cove_ssr_bootstrap": 366,
+          "cove_ssr_local_rights": 0,
+          "cove_ssr_readonly_rpc": 0,
+          "cove_backend_limit": 0,
+          "cove_backend_context": 358,
+          "cove_backend_page": 0,
+          "cove_backend_catalog": 366,
+          "cove_backend_catalog_sql": 25,
+          "cove_backend_bootstrap": 366,
+          "cove_backend_lean": 0,
+          "cove_entry": 0,
+          "cove_render": 366,
+          "cove_total": 366
+        },
+        "bodyComplete": true
+      },
+      "truncated": false,
+      "clientToHeadersMs": 797
+    }
+  ],
+  "relaySource": "export default {async fetch(request,env){\n const headers={'content-type':'application/json','cache-control':'no-store','x-robots-tag':'noindex, nofollow'};\n const reply=(value,status=200)=>new Response(JSON.stringify(value),{status,headers});\n if(request.method!=='GET'||new URL(request.url).pathname!=='/'||Date.now()>=Number(env.EXPIRES_AT)||request.cf?.country!=='US')return reply({available:false},404);\n try{\n  const forwarded=new Request('https://cove-storefront-ssr-staging.cove-jibrilmohamud.workers.dev/',request);\n  forwarded.headers.set('authorization','Bearer '+env.STAGING_GATE);\n  forwarded.headers.delete('cookie');\n  const start=performance.now(); const response=await env.SSR.fetch(forwarded);\n  const html=await response.text();\n  if(html.length>4000000)return reply({available:false},503);\n  const cards=(html.match(/class=[\"']book-card[\"']/g)||[]).length;\n  const phases={};for(const m of (response.headers.get('server-timing')||'').matchAll(/\\b(cove_[a-z_]+);dur=([0-9]+(?:\\.[0-9]+)?)/g))phases[m[1]]=Number(m[2]);\n  return reply({schema:'cove.readonly-ssr-geo-diagnostic.v1',relayColo:request.cf.colo,country:request.cf.country,upstreamStatus:response.status,cards,serviceElapsedMs:Math.round(performance.now()-start),serverTimingMs:phases,bodyComplete:true},response.status===200&&cards===24?200:503);\n }catch{return reply({schema:'cove.readonly-ssr-geo-diagnostic.v1',available:false},503);}\n}};",
+  "relayHasD1": false,
+  "relayDeleted": true,
+  "repeat": {
+    "measurementId": "2Oq9KdME610DU5O9W00021Q7n",
+    "status": "finished",
+    "observedAt": "2026-10-31T22:27:36.635Z",
+    "coldWorkerCertified": false,
+    "observations": [
+      {
+        "probeCity": "Chicago",
+        "probeCountry": "US",
+        "status": "finished",
+        "httpStatus": 200,
+        "timings": {
+          "total": 852,
+          "dns": 29,
+          "tcp": 2,
+          "tls": 13,
+          "firstByte": 807,
+          "download": 1
+        },
+        "body": {
+          "schema": "cove.readonly-ssr-geo-diagnostic.v1",
+          "relayColo": "ORD",
+          "country": "US",
+          "upstreamStatus": 200,
+          "cards": 24,
+          "serviceElapsedMs": 689,
+          "serverTimingMs": {
+            "cove_ssr_bootstrap": 105,
+            "cove_ssr_local_rights": 0,
+            "cove_ssr_readonly_rpc": 0,
+            "cove_backend_limit": 0,
+            "cove_backend_catalog": 104,
+            "cove_backend_context": 105,
+            "cove_backend_page": 0,
+            "cove_backend_catalog_sql": 18.5,
+            "cove_backend_bootstrap": 105,
+            "cove_backend_lean": 0,
+            "cove_entry": 0,
+            "cove_render": 105,
+            "cove_total": 105
+          },
+          "bodyComplete": true
+        },
+        "truncated": false,
+        "clientToHeadersMs": 851
+      },
+      {
+        "probeCity": "Los Angeles",
+        "probeCountry": "US",
+        "status": "finished",
+        "httpStatus": 200,
+        "timings": {
+          "total": 846,
+          "dns": 18,
+          "tcp": 1,
+          "tls": 15,
+          "firstByte": 806,
+          "download": 6
+        },
+        "body": {
+          "schema": "cove.readonly-ssr-geo-diagnostic.v1",
+          "relayColo": "LAX",
+          "country": "US",
+          "upstreamStatus": 200,
+          "cards": 24,
+          "serviceElapsedMs": 710,
+          "serverTimingMs": {
+            "cove_ssr_bootstrap": 328,
+            "cove_ssr_local_rights": 0,
+            "cove_ssr_readonly_rpc": 0,
+            "cove_backend_limit": 0,
+            "cove_backend_catalog": 235,
+            "cove_backend_context": 328,
+            "cove_backend_page": 0,
+            "cove_backend_catalog_sql": 31.1,
+            "cove_backend_bootstrap": 328,
+            "cove_backend_lean": 0,
+            "cove_entry": 0,
+            "cove_render": 328,
+            "cove_total": 328
+          },
+          "bodyComplete": true
+        },
+        "truncated": false,
+        "clientToHeadersMs": 840
+      },
+      {
+        "probeCity": "Ashburn",
+        "probeCountry": "US",
+        "status": "finished",
+        "httpStatus": 200,
+        "timings": {
+          "total": 733,
+          "dns": 7,
+          "tcp": 2,
+          "tls": 10,
+          "firstByte": 713,
+          "download": 1
+        },
+        "body": {
+          "schema": "cove.readonly-ssr-geo-diagnostic.v1",
+          "relayColo": "IAD",
+          "country": "US",
+          "upstreamStatus": 200,
+          "cards": 24,
+          "serviceElapsedMs": 625,
+          "serverTimingMs": {
+            "cove_ssr_bootstrap": 227,
+            "cove_ssr_local_rights": 0,
+            "cove_ssr_readonly_rpc": 0,
+            "cove_backend_limit": 0,
+            "cove_backend_context": 136,
+            "cove_backend_page": 0,
+            "cove_backend_catalog": 227,
+            "cove_backend_catalog_sql": 30.5,
+            "cove_backend_bootstrap": 227,
+            "cove_backend_lean": 0,
+            "cove_entry": 0,
+            "cove_render": 227,
+            "cove_total": 227
+          },
+          "bodyComplete": true
+        },
+        "truncated": false,
+        "clientToHeadersMs": 732
+      },
+      {
+        "probeCity": "Dallas",
+        "probeCountry": "US",
+        "status": "finished",
+        "httpStatus": 200,
+        "timings": {
+          "total": 948,
+          "dns": 15,
+          "tcp": 2,
+          "tls": 41,
+          "firstByte": 887,
+          "download": 3
+        },
+        "body": {
+          "schema": "cove.readonly-ssr-geo-diagnostic.v1",
+          "relayColo": "DFW",
+          "country": "US",
+          "upstreamStatus": 200,
+          "cards": 24,
+          "serviceElapsedMs": 750,
+          "serverTimingMs": {
+            "cove_ssr_bootstrap": 220,
+            "cove_ssr_local_rights": 0,
+            "cove_ssr_readonly_rpc": 0,
+            "cove_backend_limit": 0,
+            "cove_backend_catalog": 220,
+            "cove_backend_context": 220,
+            "cove_backend_page": 0,
+            "cove_backend_catalog_sql": 31.1,
+            "cove_backend_bootstrap": 220,
+            "cove_backend_lean": 0,
+            "cove_entry": 0,
+            "cove_render": 220,
+            "cove_total": 220
+          },
+          "bodyComplete": true
+        },
+        "truncated": false,
+        "clientToHeadersMs": 945
+      }
+    ]
+  },
+  "deletionVerifiedAt": "2026-10-31T22:27:58.890Z",
+  "relayAbsentFromFreshWorkerInventory": true,
+  "diagnosticSummary": {
+    "requests": 8,
+    "valid24BookResponses": 8,
+    "slowAt800ms": 5,
+    "maximumMs": 1117,
+    "minimumMs": 732,
+    "allBelow800ms": false,
+    "measurementIncludesRelayHopAndCompleteSsrBody": true,
+    "noColdOrConcurrencyCertification": true
+  }
+}

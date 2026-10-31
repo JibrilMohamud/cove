@@ -1,0 +1,117 @@
+{
+  "schema": "cove.public-geographic-diagnostic.v1",
+  "observedAt": "2026-10-31T22:21:37.295Z",
+  "measurementId": "2UAGIMUWaXxoJuV5U00021Q7h",
+  "status": "finished",
+  "origin": "https://www.covereads.com",
+  "capacityCertified": false,
+  "productionCandidateCertified": false,
+  "scope": "One public homepage request per US city through the existing customer route; no staging secret sent",
+  "observations": [
+    {
+      "probeCity": "Chicago",
+      "probeCountry": "US",
+      "status": "finished",
+      "httpStatus": 200,
+      "timings": {
+        "total": 1339,
+        "dns": 15,
+        "tcp": 1,
+        "tls": 27,
+        "firstByte": 1292,
+        "download": 4
+      },
+      "serverRenderedCards": null,
+      "bodyTruncated": true,
+      "completeBodyValidated": false,
+      "server": "Vercel",
+      "cache": "MISS",
+      "serverTimingMs": {
+        "cove_ssr_bootstrap": 416.8,
+        "cove_entry": 58.8,
+        "cove_render": 717.2,
+        "cove_total": 778.1
+      },
+      "clientToHeadersMs": 1335
+    },
+    {
+      "probeCity": "Los Angeles",
+      "probeCountry": "US",
+      "status": "finished",
+      "httpStatus": 200,
+      "timings": {
+        "total": 1540,
+        "dns": 43,
+        "tcp": 2,
+        "tls": 37,
+        "firstByte": 1454,
+        "download": 4
+      },
+      "serverRenderedCards": null,
+      "bodyTruncated": true,
+      "completeBodyValidated": false,
+      "server": "Vercel",
+      "cache": "MISS",
+      "serverTimingMs": {
+        "cove_ssr_bootstrap": 585.2,
+        "cove_entry": 58.3,
+        "cove_render": 855.8,
+        "cove_total": 916.9
+      },
+      "clientToHeadersMs": 1536
+    },
+    {
+      "probeCity": "Ashburn",
+      "probeCountry": "US",
+      "status": "finished",
+      "httpStatus": 200,
+      "timings": {
+        "total": 1320,
+        "dns": 79,
+        "tcp": 1,
+        "tls": 11,
+        "firstByte": 1228,
+        "download": 1
+      },
+      "serverRenderedCards": null,
+      "bodyTruncated": true,
+      "completeBodyValidated": false,
+      "server": "Vercel",
+      "cache": "MISS",
+      "serverTimingMs": {
+        "cove_ssr_bootstrap": 420.7,
+        "cove_entry": 60.4,
+        "cove_render": 724.1,
+        "cove_total": 786.8
+      },
+      "clientToHeadersMs": 1319
+    },
+    {
+      "probeCity": "Dallas",
+      "probeCountry": "US",
+      "status": "finished",
+      "httpStatus": 200,
+      "timings": {
+        "total": 1375,
+        "dns": 50,
+        "tcp": 2,
+        "tls": 124,
+        "firstByte": 1182,
+        "download": 17
+      },
+      "serverRenderedCards": null,
+      "bodyTruncated": true,
+      "completeBodyValidated": false,
+      "server": "Vercel",
+      "cache": "MISS",
+      "serverTimingMs": {
+        "cove_ssr_bootstrap": 418.9,
+        "cove_entry": 51.0,
+        "cove_render": 687.9,
+        "cove_total": 740.8
+      },
+      "clientToHeadersMs": 1358
+    }
+  ],
+  "diagnosticAllBelow800ms": false
+}
