@@ -12,7 +12,7 @@ assert.equal(createHash("sha256").update(source).digest("hex"),evidence.files[0]
 assert.equal(lineage.updatedSourceSha256,evidence.files[0].sha256);
 assert.equal(lineage.retiredCount,4);assert.equal(review.releaseApproval,false);
 assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=245,"Subsequent independently certified retirements may only reduce owner-required count");
-assert.equal(review.sites.filter(x=>x.file==="src/features/fore/publishing.server.ts"&&x.disposition==="owner-command-required").length,45);
+assert.equal(review.sites.filter(x=>x.file==="src/features/fore/publishing.server.ts"&&x.disposition==="owner-command-required").length,40);
 for(const r of lineage.rows)assert.ok(!review.sites.some(x=>x.siteId===r.siteId));
 const method=source.slice(source.indexOf("export async function reviewPublishingOnboarding("),source.indexOf("export async function publishingSnapshot("));
 assert.match(method,/if \(!hasPublicationOwner\(db\)\)/);

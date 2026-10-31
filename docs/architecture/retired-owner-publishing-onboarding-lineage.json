@@ -2,7 +2,7 @@
   "schema": "cove.owner-publishing-onboarding-lineage.v1",
   "productionReleaseEligible": false,
   "originalSourceSha256": "24e9ff5840c8957f26e14c21eab0d10ea978428a021d23d08fade8ed8d8e8436",
-  "updatedSourceSha256": "618ea3b00299e924d68e06cc07ff25fdcf0a08ad923dcdab9e1a2e1270b75a25",
+  "updatedSourceSha256": "8687d2c1cd579bd23242cdf60e7de9a7a8467d1b99a11f0cbdb7b177a067495a",
   "retiredCount": 4,
   "rows": [
     {

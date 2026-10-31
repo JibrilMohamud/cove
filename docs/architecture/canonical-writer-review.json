@@ -2,7 +2,7 @@
   "schema": "cove.canonical-writer-review.v1",
   "reviewedSourceCommit": "028ef18375b946389c7d243f312be5dfc39ec7b1",
   "releaseApproval": false,
-  "scope": "2026-10-30: six commercial-audio publisher profile/narration agreement writer sites moved out of shared DB and into independent QA owner command. Existing source SQL fingerprints retain disposition, owner remains production-disabled, positive rights certification unaffected. Branch owner-required 245→239; no live approval. Prior: 2026-10-30: four protected staff onboarding negative-decision SQL sites retired from shared publishing API to independently checked private QA owner. Positive verified approval, withholding edit and production still deny. 249→245; releaseApproval=false. Prior: 2026-10-30: physically retire 11 unowned legacy restoration and royalty-release SQL sites (publishing-trust 53→42, total 260→249). Explicit fail-closed 503 before staff dispute resolution effects and scheduled restoration; copyright withdrawal, dispute intake and takedown remain unchanged. Positive reinstatement and release of held funds now require independently authorized owner-first replacement and legal deadline review; no production release approval. Prior review: 2026-10-30: transplanted 21 source-exact private catalog construction SQL literals (14 commercial free Gutenberg normalization, 7 private personal imports) into the authentication- and 15-minute QA-lease-gated legal-owner Durable Object; removed all shared catalog-model writer functions and switched eight API callers to typed private receipts. The owner enforces QA-only R2/evidence checks; production remains disabled and public read-side direct writes fail closed, not certified. 281→260 owner-required. Prior review: 2026-10-30: physically moved 25 traditional partner-feed authorizing SQL sites and one nonauthorizing acknowledgement write into the lease-gated private legal-owner Durable Object. Caller processPartnerFeedQueue is now a typed fail-closed command, not a shared SQL writer. Owner processes ONLY sandbox non-asset-manifest previews; production feed publication remains unavailable pending independently verified positive authority. 306→281 owner-required. No production cutover, grant authority or release approval. Prior review: 2026-10-30: physically retired 37 additional commerce SQL authorizing writers; 343→306 owner required. Stage-only owner checkout, settlement, refund reservation/posting, dispute, journal and reconciliation retained. Three commerce SQL sites, including the owner-only checkout quote writer and two direct tax writes, still tracked as owner-required and no production payment, owner enablement or revocation certification is claimed. Prior review: 2026-10-30: physically retired 16 checkout/tender/Stripe-customer/monetary-admin shared-D1 writers, preserving the private-owner QA calls and closing the legacy production money paths until independently live-certified. Owner-required 359 to 343; zero production approval. Prior history: Current exact-source review: 426 candidates, 371 production owner-command-required. Six rights grant authorizing SQL sites removed from shared API and preserved as a byte-exact private owner writer with owner-gated publication materialization. Previous 3 rights-contract authorizing sites and its one nonauthorizing audit site remain retired. No production approval; original frozen exception classification and denial are unchanged. Current source review: 432 exact candidates, 377 owner-required SQL mutations. Four shared rights-contract SQL sites (three authorizing and one append-only audit) were removed together; their unchanged business implementation is now private and service-bound. The historical 426-site baseline remains frozen. Production owner authorization, external principal cutover and paid routing remain blocked. Exact current review: 482 SQL literals. All 460 historical sites retain their dispositions (426 production owner-command-required, 33 nonauthorizing, one fixture). Two royalty INSERT OR IGNORE statements became strict INSERT statements in atomic calculation/allocation/journal batches; none was waived. The 22 new transaction/executor sites are private-owner-qa-executor, separately inventoried with exact source/SQL identity and enforced runtime import containment. They are not deployed production ownership, nonauthorizing classifications, or a reduction of the historical 426 findings. Source and isolated QA evidence never authorize production cutover. This change routes enrolled QA refund-intent reservations through a private typed command, while preserving the unowned production fallback. Private SQL remains in the already-excluded owner Durable Object, not a newly exempted scanner source; 426 legacy owner-required findings remain. No production authorization is asserted. Enrolled QA Stripe webhook journal claims and completion now use only typed private owner commands. Legacy production SQL is unchanged and remains owner-required; production owner activation is still blocked. Signed Stripe payment-intent processing, authorization, failure and cancellation now dispatch strict typed owner state transitions in isolated QA. Cancellation and held tender release are one owner-controlled D1 batch. Production fallback and all 426 owner-required findings remain explicitly unresolved. Enrolled isolated-QA checkout now has the owner independently verify the canonical order and provider PaymentIntent before atomically attaching the Stripe identity and payment attempt. Mutable SQL lives exclusively inside the private legal-owner Worker. Production checkout remains on its unowned legacy D1 branch and all 426 owner-required findings remain unresolved pending cutover. Isolated QA now registers Stripe customer identities through the owner after independent provider verification. The direct D1 customer upsert remains reachable in legacy production and is still owner-command-required; 426 production findings remain, with no release permission granted.",
+  "scope": "2026-10-30: nine validation/rights scan job mutations source-retired to isolated QA owner. No positive worker provider identity certified. Release false; 239 to 230. Prior: 2026-10-30: six commercial-audio publisher profile/narration agreement writer sites moved out of shared DB and into independent QA owner command. Existing source SQL fingerprints retain disposition, owner remains production-disabled, positive rights certification unaffected. Branch owner-required 245→239; no live approval. Prior: 2026-10-30: four protected staff onboarding negative-decision SQL sites retired from shared publishing API to independently checked private QA owner. Positive verified approval, withholding edit and production still deny. 249→245; releaseApproval=false. Prior: 2026-10-30: physically retire 11 unowned legacy restoration and royalty-release SQL sites (publishing-trust 53→42, total 260→249). Explicit fail-closed 503 before staff dispute resolution effects and scheduled restoration; copyright withdrawal, dispute intake and takedown remain unchanged. Positive reinstatement and release of held funds now require independently authorized owner-first replacement and legal deadline review; no production release approval. Prior review: 2026-10-30: transplanted 21 source-exact private catalog construction SQL literals (14 commercial free Gutenberg normalization, 7 private personal imports) into the authentication- and 15-minute QA-lease-gated legal-owner Durable Object; removed all shared catalog-model writer functions and switched eight API callers to typed private receipts. The owner enforces QA-only R2/evidence checks; production remains disabled and public read-side direct writes fail closed, not certified. 281→260 owner-required. Prior review: 2026-10-30: physically moved 25 traditional partner-feed authorizing SQL sites and one nonauthorizing acknowledgement write into the lease-gated private legal-owner Durable Object. Caller processPartnerFeedQueue is now a typed fail-closed command, not a shared SQL writer. Owner processes ONLY sandbox non-asset-manifest previews; production feed publication remains unavailable pending independently verified positive authority. 306→281 owner-required. No production cutover, grant authority or release approval. Prior review: 2026-10-30: physically retired 37 additional commerce SQL authorizing writers; 343→306 owner required. Stage-only owner checkout, settlement, refund reservation/posting, dispute, journal and reconciliation retained. Three commerce SQL sites, including the owner-only checkout quote writer and two direct tax writes, still tracked as owner-required and no production payment, owner enablement or revocation certification is claimed. Prior review: 2026-10-30: physically retired 16 checkout/tender/Stripe-customer/monetary-admin shared-D1 writers, preserving the private-owner QA calls and closing the legacy production money paths until independently live-certified. Owner-required 359 to 343; zero production approval. Prior history: Current exact-source review: 426 candidates, 371 production owner-command-required. Six rights grant authorizing SQL sites removed from shared API and preserved as a byte-exact private owner writer with owner-gated publication materialization. Previous 3 rights-contract authorizing sites and its one nonauthorizing audit site remain retired. No production approval; original frozen exception classification and denial are unchanged. Current source review: 432 exact candidates, 377 owner-required SQL mutations. Four shared rights-contract SQL sites (three authorizing and one append-only audit) were removed together; their unchanged business implementation is now private and service-bound. The historical 426-site baseline remains frozen. Production owner authorization, external principal cutover and paid routing remain blocked. Exact current review: 482 SQL literals. All 460 historical sites retain their dispositions (426 production owner-command-required, 33 nonauthorizing, one fixture). Two royalty INSERT OR IGNORE statements became strict INSERT statements in atomic calculation/allocation/journal batches; none was waived. The 22 new transaction/executor sites are private-owner-qa-executor, separately inventoried with exact source/SQL identity and enforced runtime import containment. They are not deployed production ownership, nonauthorizing classifications, or a reduction of the historical 426 findings. Source and isolated QA evidence never authorize production cutover. This change routes enrolled QA refund-intent reservations through a private typed command, while preserving the unowned production fallback. Private SQL remains in the already-excluded owner Durable Object, not a newly exempted scanner source; 426 legacy owner-required findings remain. No production authorization is asserted. Enrolled QA Stripe webhook journal claims and completion now use only typed private owner commands. Legacy production SQL is unchanged and remains owner-required; production owner activation is still blocked. Signed Stripe payment-intent processing, authorization, failure and cancellation now dispatch strict typed owner state transitions in isolated QA. Cancellation and held tender release are one owner-controlled D1 batch. Production fallback and all 426 owner-required findings remain explicitly unresolved. Enrolled isolated-QA checkout now has the owner independently verify the canonical order and provider PaymentIntent before atomically attaching the Stripe identity and payment attempt. Mutable SQL lives exclusively inside the private legal-owner Worker. Production checkout remains on its unowned legacy D1 branch and all 426 owner-required findings remain unresolved pending cutover. Isolated QA now registers Stripe customer identities through the owner after independent provider verification. The direct D1 customer upsert remains reachable in legacy production and is still owner-command-required; 426 production findings remain, with no release permission granted.",
   "sites": [
     {
       "siteId": "49f37e5484e485db938d0ac3fc3efaacb649329c6ea517c04b384dc0075bbe34",
@@ -1702,7 +1702,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "0d216443ce68f81746eee6d8d4e6270c99119a3d8c7f3bb54e5505035e0c8e90",
+      "siteId": "00a922694951fe569cdbcc223be803fb2d03499130de388caf4c3902836ab52e",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 161,
       "functionName": "signPublishingRightsDeclaration",
@@ -1715,7 +1715,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "fb0fa80ac7e02026b530203a9e4f520c8a12c9fd74419849a406bde8b895dfa2",
+      "siteId": "2f484739393affe6b8d512563ca451bf63cbd51f62626544f50fe86a57be304e",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 350,
       "functionName": "uploadRightsEvidence",
@@ -1728,7 +1728,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "26e8f37154a971d0165558c957e641e629d03e35eae0472b0e4b5c47ad2645b3",
+      "siteId": "af285e0be4f8af604947eb5a4060c5f011f424e55a1b0a7d2d2b6a318441048d",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 369,
       "functionName": "uploadRightsEvidence",
@@ -1741,7 +1741,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "d660940923cf9b17fe93947efa5056406513aaca4bea8b00442a2e8c7247383d",
+      "siteId": "2209e3e2b059022ba50dd28de48356cfaf637e99be4c86a2972f7ec81f67e8d7",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 947,
       "functionName": "assessSubmissionContentPolicy",
@@ -1754,7 +1754,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "4fe7f47f3332d6f06ad8cc56a9784a14db560b8e34131ea82dc60b0af3fb5fbb",
+      "siteId": "86bb13c189acfd66ac5d03b4b969694b91cd2befab46197ee6b04e75b3406dc2",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1036,
       "functionName": "disputeEvent",
@@ -1766,7 +1766,7 @@
       "reason": "Dispute timeline event records do not change the dispute, product, contract, or entitlement state."
     },
     {
-      "siteId": "03eec2309314aa7e40e8437cf085e20a8e8d612b380d57a13edffcd06d48d2a4",
+      "siteId": "519751b01d36767bf7fe489022d63fd057aa4470ee4118b8422fb753a5870955",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1059,
       "functionName": "notify",
@@ -1778,7 +1778,7 @@
       "reason": "Legal notification delivery queue changes notification status only; dispute and publication transitions remain separate owner-required writes."
     },
     {
-      "siteId": "faba32bf14055263b47e76794741b1af675f14e593a72e9b5dfc5c1920ee8db8",
+      "siteId": "600ae35fd7d10dcc57d2ceb2218f6f5940a720a0ffbf54d55967fe59d415a47f",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1254,
       "functionName": "submitCopyrightNotice",
@@ -1791,7 +1791,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "b42060364f01d5b4ab5711fe571fb257f75d2034c7290e94c7987eafa4b1459a",
+      "siteId": "9db15f70c41ee41c2e38901cd4702ba9d44b57e7b055fdaee792f4322f4ebaad",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1269,
       "functionName": "submitCopyrightNotice",
@@ -1804,7 +1804,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "6af3c51061d3e45041202f78e5ce6d7b86809df715494d88279b66e87d604256",
+      "siteId": "e9776300b6e910d4038dd1f765715fd614ac0c0282ef09003223e7c23e758d52",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1323,
       "functionName": "takeDown",
@@ -1817,7 +1817,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "8e4711f2f56bdbd808bbf7f1ddf7dfbad51a2a8da5137bbd18d905c097bcffcf",
+      "siteId": "1c209155fd7acd174dc43705e8538ede826ad2e978f2114ec71da77820b1b0a4",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1328,
       "functionName": "takeDown",
@@ -1830,7 +1830,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "a6d9d0af4932ae4d0b0fc83191ec3abe4c07afcdbfba94753e7ab85a96476f55",
+      "siteId": "3972cc517691ca3bec5d6744d74d1ed6f1054ddbb55a753ca29a719e7f8f3c75",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1365,
       "functionName": "takeDown",
@@ -1843,7 +1843,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "21d37d8f6ddffbec18f970cce13a90e167e727c7d3ff3ab634605914ebfb6a21",
+      "siteId": "c7b8948dfab4b50978838d0acaca2229976d543a39b6fc59d8db7b0853854759",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1382,
       "functionName": "applyRoyaltyHold",
@@ -1856,7 +1856,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "78ed80ad8aa2ea73105266a34f6da35b51b7f3d39a6786a763654153e1c21576",
+      "siteId": "e96b40ce25f770c527873bf7a24675ce904e39277c2a471b26980865918f024b",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1398,
       "functionName": "applyRoyaltyHold",
@@ -1869,7 +1869,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "9c4c44ec92dbaa8beac83418ef2ba59a328df5de1526e46f687a5a1d3bae0c84",
+      "siteId": "16c4621659c66af864d316c628d7bf8121d259971da1a5ba2cfcfe47cf9aa2cf",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1404,
       "functionName": "applyRoyaltyHold",
@@ -1882,7 +1882,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "67c7d908bf154825da83e01d0ed6f8c60a77598680fa6ef5e7382f07494fcd86",
+      "siteId": "e638d96efef8b185593c24f72c4cfd2ede176f19073130d979e538196fd0b70c",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1442,
       "functionName": "validateCopyrightNotice",
@@ -1895,7 +1895,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "db9033f10841c39af2744e566a678da01d04d508e8233a7e44f0a71bd5e96910",
+      "siteId": "28ae26b3021fb58812936eb792649d546fc53dd9dca7f2728d00077b761b6077",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1446,
       "functionName": "validateCopyrightNotice",
@@ -1908,7 +1908,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "ab7e388765a709244985f0e435fcc7c0d75d45753bc734d3e046967cb83b8841",
+      "siteId": "395bec47d54decd4c963c312452c55d4498427c9d1565fc1dc480e223bba22c9",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1457,
       "functionName": "validateCopyrightNotice",
@@ -1921,7 +1921,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "a993530e148075aaf039b0b0311206b8384f1bd764742434b48295627b6c7deb",
+      "siteId": "aae03984bf35d60965ad6fd5eb4e22eb6cf43470803742889f1eeda2a3431a07",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1462,
       "functionName": "validateCopyrightNotice",
@@ -1934,7 +1934,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "90de8a81da33916388f78e2adaba6931b151bbb95325d1e8897c39288cea0e22",
+      "siteId": "14239301b369ca806a44faa4cc919b732bc601b5fbf4997daf00483f672cff50",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1481,
       "functionName": "validateCopyrightNotice",
@@ -1947,7 +1947,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "7d82aa24212bbfbcf4e1da99d2f2c38fff4b502e4879520ae6bb4b6918374d60",
+      "siteId": "5740d5f03085084199835e7b834a02f8e11e6f851fdd9ddd8b82acbfaf7f276b",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1486,
       "functionName": "validateCopyrightNotice",
@@ -1960,7 +1960,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "563ad015fa039273409e6b0356c11b60413f3378a1c0f46e85ad33d0ef8c1f80",
+      "siteId": "b87f6525f24ef49b9120e471239b0ed4b02473be21fb3b04062f416c96c7a2e0",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1564,
       "functionName": "submitCopyrightCounterNotice",
@@ -1973,7 +1973,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "432c5a3333bb41509761673b81d6790d5d0024dfed15051eb2f0d7c82d339051",
+      "siteId": "96e224df181b5b2b8b50a45d83ad98c613a24ef8a9fa3754879de24103ad5f27",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1578,
       "functionName": "submitCopyrightCounterNotice",
@@ -1986,7 +1986,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "f65f866d719609a516e2d97c4e575c3dd0be32a3bd32da80cea5f3353b819b05",
+      "siteId": "350b89f0f3c2aa16a5110ccf75f4cb17349adfd2b5a372382824146cbacf23d1",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1599,
       "functionName": "submitCopyrightCounterNotice",
@@ -1999,7 +1999,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "42ad1c60092bee210337d57e1acb4b1ae55199e9a903ed817bddeb136f6cff70",
+      "siteId": "ee6ee42747e59a1de468a9c5ec6ebb535b82bafbdef90597dfdbcdc51f5bc4e5",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1605,
       "functionName": "submitCopyrightCounterNotice",
@@ -2012,7 +2012,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "2ced025dbae58f9de36e2bc5a3e3651d891490ee1498025cad41ceec8e1385f0",
+      "siteId": "080574220022743e33c66fc0e5be480a360317f8c5a717a11837bed471239c68",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1699,
       "functionName": "validateCopyrightCounterNotice",
@@ -2025,7 +2025,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "15bb81dcd6aa9ab15d683acef74b428b8a188bf5e8ca3f7620ef2bdc680c9d89",
+      "siteId": "68142ea0bfef0d41af8989759d112494a58922368d9b7f83ed3d5cce056df47e",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1716,
       "functionName": "validateCopyrightCounterNotice",
@@ -2038,7 +2038,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "adf50ee51efd2b0ad2514236c64a9348cae26223277d73dd9f45f906a06c188b",
+      "siteId": "29a6c08852b9c1dab51f573dc3dcd6342eebd809714a21a249b6cb4d4537fba3",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1721,
       "functionName": "validateCopyrightCounterNotice",
@@ -2051,7 +2051,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "abfbb4e5ee8a6b2e16ce09413f193ecaf04f2318d16479558385345b00d9abcb",
+      "siteId": "d299c9911dcc6f95a6567868df33550c5639e096b414f94d5c80b582c3929b5e",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1741,
       "functionName": "validateCopyrightCounterNotice",
@@ -2064,7 +2064,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "f6ab355b0a94c9f26006fb5d0a5c0c7f326e99d8b7f8f8e848d7ec8b25eadc25",
+      "siteId": "f6b48648dd762051cfed440a2a72a287ff191f195d56898ab6c4ff1496da4e2b",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1746,
       "functionName": "validateCopyrightCounterNotice",
@@ -2077,7 +2077,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "c2f66b44d5d2dcb8bf3347141f4389de73a9f6ff5e960aa0274252feac85f928",
+      "siteId": "7611eeee88dd203625e5ad314ac1fefde28c6b6a535ac84eb82f8173caed37c6",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1805,
       "functionName": "recordCopyrightCourtAction",
@@ -2090,7 +2090,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "f298f6cddc05c874e166db9525804c50b63d62c9f2c21373ead7c4a4649b0775",
+      "siteId": "d40d6ea4e3d312b6022d57d1b41852f8e99d4a17a1cdd2aa46f8912e73c41fcb",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1820,
       "functionName": "recordCopyrightCourtAction",
@@ -2103,7 +2103,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "8457e2ca34a4914968dea6ecd56ac040cbab6d636c0cf55a69c9fbc9d603a8d5",
+      "siteId": "cbebd4a80817a9da16562ad395725fc50496348eb2799c09d4979f750e1b4565",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1825,
       "functionName": "recordCopyrightCourtAction",
@@ -2116,7 +2116,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "1cd5f6d2722a773a692c28a6003b5b89b36ab1384b2f512e659614643605c15c",
+      "siteId": "8abb06ee323da6d286b10569e10152637c138a73eb21bdf8c30418352fced7d4",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1830,
       "functionName": "recordCopyrightCourtAction",
@@ -2129,7 +2129,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "34593647bf12b0aded0a06b26a67dde11f551849e3ea43fb74463078cf87906f",
+      "siteId": "06a6334a90a73de950078f992165b2d1d974106ffa656a96d679192f69a55933",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1872,
       "functionName": "recalcRepeatPolicy",
@@ -2142,7 +2142,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "c10d5325cca516378230bc5831c94c22858c8d809c68c03da1b3c5c50e13e272",
+      "siteId": "e804ad5dca47c75fcda3544a2c22c7ef8c122110e7e42fe0c0ed157ea2e9b463",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 1956,
       "functionName": "resolveRightsDispute",
@@ -2155,7 +2155,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "1c6a9da7ff79d067814a4a9fe518717992add7b5763ae5017075acafb7252381",
+      "siteId": "fc1c3282d971e48b9ff39a5c729a004d513cfbcddd6914a72c03b287553a4dd8",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 2077,
       "functionName": "manageRepeatInfringerPolicy",
@@ -2168,7 +2168,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "675f09f22c701b056b3a4f85b6c1817963f08fa52a74ab3099d71c89220ea6ab",
+      "siteId": "2a879b35c38d84620c363a961abce87670ec9f6f0c65be2ba766dc2056d5796e",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 2085,
       "functionName": "manageRepeatInfringerPolicy",
@@ -2181,7 +2181,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "8c8b3738efb88b3727ed1ba2cd1039589095e7a8f60c2b354426e81cf8b00365",
+      "siteId": "c6e5ddb7bd7ddab841f6b3fda3f9124c3c8086df95ea9f7476e1df99100834f8",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 2092,
       "functionName": "manageRepeatInfringerPolicy",
@@ -2194,7 +2194,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "d285e8e4e4a5f93500f588e641223a0b30cbf96a898c6af7d903b6848779e1e4",
+      "siteId": "8b1e8560352afa004578eb9b89c415b815da1ab3e05781395005d4bb4ad6f364",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 2107,
       "functionName": "manageRepeatInfringerPolicy",
@@ -2207,7 +2207,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "ff0fb0137713961c07d8ce2ab2e4a62dcf8428cdfa467df1d21083ac8b124eda",
+      "siteId": "583b10adac22acea1fb5bc805aff26b0c846d556a068fd3b679193fc8dcac965",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 2157,
       "functionName": "leaseRightsNotificationJobs",
@@ -2219,7 +2219,7 @@
       "reason": "Legal notification delivery queue changes notification status only; dispute and publication transitions remain separate owner-required writes."
     },
     {
-      "siteId": "65ce79dd76dbdec1a25f1ffd3691231918de81f0ba15a08bdfd58ed36559e55c",
+      "siteId": "abbb1cb6a5dc720f81d7f10c95f57177265458c4370eac53bb97739133e18432",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 2173,
       "functionName": "leaseRightsNotificationJobs",
@@ -2231,7 +2231,7 @@
       "reason": "Legal notification delivery queue changes notification status only; dispute and publication transitions remain separate owner-required writes."
     },
     {
-      "siteId": "6c1ba7c1b5285823d23cf1c96fe4029d4479b002e36e43f91d8efed3e5db02c3",
+      "siteId": "673e1aa043eea2cc6016bd1bc360fdb2686f6873f2f311a51540e3b503bf95d3",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 2216,
       "functionName": "completeRightsNotificationJob",
@@ -2243,59 +2243,7 @@
       "reason": "Legal notification delivery queue changes notification status only; dispute and publication transitions remain separate owner-required writes."
     },
     {
-      "siteId": "223043b7182ee67ee074edb9ef28a095dc65f38a4848a5d7617bac645b24d879",
-      "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 2235,
-      "functionName": "leaseRightsEvidenceScanJobs",
-      "table": "publishing_rights_evidence_scan_jobs",
-      "operation": "UPDATE",
-      "sqlSha256": "21630d8b9e8f57ced16f6b44dc78a41ace04efad280c7352d7d46cffb9d1b34e",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "publishing-trust.leaseRightsEvidenceScanJobs",
-      "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
-    },
-    {
-      "siteId": "72d4c84d90f927640c1f8f1778e9632d112338a45d6de23ec58ad1998e40e073",
-      "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 2250,
-      "functionName": "leaseRightsEvidenceScanJobs",
-      "table": "publishing_rights_evidence_scan_jobs",
-      "operation": "UPDATE",
-      "sqlSha256": "41bb5b3ee5b7654455bcdf1e152f847c9cd038ecee91d93bff175426de2981e7",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "publishing-trust.leaseRightsEvidenceScanJobs",
-      "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
-    },
-    {
-      "siteId": "d8defd347981e66ef47502a152bfc85402c9fbd92b37af018937e34a1655811a",
-      "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 2278,
-      "functionName": "completeRightsEvidenceScanJob",
-      "table": "publishing_rights_evidence_scan_jobs",
-      "operation": "UPDATE",
-      "sqlSha256": "f22c63ebea0910df70bfcadf6d20d6d00c983870d6ee9eed61cd1be3b2fe34dd",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "publishing-trust.completeRightsEvidenceScanJob",
-      "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
-    },
-    {
-      "siteId": "0f106d194e11b7f71cc5cfd627f3b1a1f5b5bfd880c33bf3c778d3d28aa064f0",
-      "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 2282,
-      "functionName": "completeRightsEvidenceScanJob",
-      "table": "publishing_rights_evidence",
-      "operation": "UPDATE",
-      "sqlSha256": "c977d0173d497f63db972a7f65d02ab26034188e4bf5c766d7a76e018dad6a36",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "publishing-trust.completeRightsEvidenceScanJob",
-      "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
-    },
-    {
-      "siteId": "28a9853b8f810d8f709478a71a7c062ffa9861049d7c16462c3ec21f07364b1c",
+      "siteId": "dae6ce8cf8a0d97592175940d85b178c06ce9bede21f2896c8a29d0324c47204",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 2306,
       "functionName": "reviewRightsEvidence",
@@ -2308,7 +2256,7 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "471565ea1805faf087f3ced6d3f05c71c10c31ee528e65f1259ae7ea779ce814",
+      "siteId": "0683df72cd1f0c4bfe9b25e7f52d13702b81556e0456f736eb4e98a6c2dfdf76",
       "file": "src/features/fore/publishing.server.ts",
       "line": 72,
       "functionName": "recordPublicationActivation",
@@ -2321,7 +2269,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "a53082800949dd5f49de674fcb7a61a8e93eaf5297ec637b1630363bed1eb918",
+      "siteId": "edde75ec5a5386204277fa10cf8c5c65e654232b24c0e97b40d0be0522ab6350",
       "file": "src/features/fore/publishing.server.ts",
       "line": 206,
       "functionName": "ensurePublishingLifecycle",
@@ -2334,7 +2282,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "6f33fddea844a51fcd1003148ade31c713945c36312ef692163979e3dc6127b5",
+      "siteId": "ac7911adb038e0da4e379cbc682f3a8a5d153fc136f9daf1fae96539df0d669c",
       "file": "src/features/fore/publishing.server.ts",
       "line": 219,
       "functionName": "ensurePublishingLifecycle",
@@ -2347,7 +2295,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "b0203e21bafd02271101d9bee1f1a410171517fbdf548cf4ad754df9c73692a8",
+      "siteId": "ea4d2fd8be835c03a3b25cbbfd0701a5fcb45b5e62a4e8067e03c4110f3e008c",
       "file": "src/features/fore/publishing.server.ts",
       "line": 324,
       "functionName": "transitionPublishingLifecycle",
@@ -2360,7 +2308,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "a4cc9d8f0cbcc5abc6d7a4b98186d91307c3be2fb26d387b029ba6a63bd6e9a7",
+      "siteId": "6e91dafe2d032f5d67d437c188fa0d7b1d5ec5d47feb219a4c2ad7a3d321023b",
       "file": "src/features/fore/publishing.server.ts",
       "line": 335,
       "functionName": "transitionPublishingLifecycle",
@@ -2373,7 +2321,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "1461cd463f954034de4a18d2dd7d8c8fe27656f08b35c7a0476ada8343df3dce",
+      "siteId": "905b55da08f01e6d073a4cefa3f6ecc5083990f68533aaacf20c04be06c42919",
       "file": "src/features/fore/publishing.server.ts",
       "line": 377,
       "functionName": "upsertPublishingAccount",
@@ -2386,7 +2334,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "ff4c98ef834a2059665cd2b8514ce4b10fc432a93ab35a08ece98cd3d51a4ebd",
+      "siteId": "37d8c3e24f0a25473061c3af863fd63cb805c16af640e77cf64457463adac9f6",
       "file": "src/features/fore/publishing.server.ts",
       "line": 414,
       "functionName": "upsertPublishingAccount",
@@ -2399,7 +2347,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "3e07e8dae70f84245ce80114d3a97039b16949f6c158cba1d23a17767afd98e1",
+      "siteId": "53d9bf73b438132669808d7a4363e0aeebb68292e613f1c2783163dbf66f877d",
       "file": "src/features/fore/publishing.server.ts",
       "line": 431,
       "functionName": "upsertPublishingAccount",
@@ -2412,7 +2360,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "fdfbb2540a8b2a9579d256a827552aa2fca5831a85a31e27f75f380685df2c11",
+      "siteId": "63b8f35eca93f1a976d6fc31b2a8e80b7f2b78cab64529204bc78ff1400c4ca3",
       "file": "src/features/fore/publishing.server.ts",
       "line": 544,
       "functionName": "invitePublishingMember",
@@ -2425,7 +2373,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "76afd403b3423ff32bf08d104cb4a836edf7fd2bed58dadf929dec5ae99d3b12",
+      "siteId": "73df7a2f6b322c1fd157047084c786a7e967cca47c6a891ba9ae8eaa630987ca",
       "file": "src/features/fore/publishing.server.ts",
       "line": 575,
       "functionName": "startIdentityVerification",
@@ -2438,7 +2386,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "ccb84aa4119d302111fa15dcf5f3e9264c64f09fd9d9024f92287ad21d3b05c0",
+      "siteId": "fde040c651640e1e63395a547eedba2c53d2c40b1f19808267e7813c5dc366ed",
       "file": "src/features/fore/publishing.server.ts",
       "line": 588,
       "functionName": "startIdentityVerification",
@@ -2451,7 +2399,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "10e839b02b3671df2a2ca938b2baecdd4227fac1b6582b2b752cee1075992a81",
+      "siteId": "e04d25b626fc53ad0bfa5a211ba346ce3e396a58d1854587f041181397f0c26d",
       "file": "src/features/fore/publishing.server.ts",
       "line": 658,
       "functionName": "submitTaxProfile",
@@ -2464,7 +2412,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "f135ae0a9b60b62c41dec3ebe9cc21a9290de2ebee6c78e90e6998c502a8b0d6",
+      "siteId": "65ac51fbf8b6adaef0133b2c2213279171cceddf3a473afad45b026e56106bf1",
       "file": "src/features/fore/publishing.server.ts",
       "line": 717,
       "functionName": "submitPayoutAccount",
@@ -2477,7 +2425,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "6f4448377506b4509e27bc506bd303beaa54bb00a81997cb04680a6002bb4a68",
+      "siteId": "6561eff078e64084a752929e871739718ee3511525a605ac6ddf95d6c2f7b7fd",
       "file": "src/features/fore/publishing.server.ts",
       "line": 764,
       "functionName": "savePublishingTitle",
@@ -2490,7 +2438,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "e445c13e83d9cc94ff0f634e57a173e57f0b929562f1f4a96dee560e3050286f",
+      "siteId": "86186aefea48ef6eb31a4e863d3c51963ef4bdf227309038337e959f97701063",
       "file": "src/features/fore/publishing.server.ts",
       "line": 935,
       "functionName": "savePublishingEdition",
@@ -2503,7 +2451,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "3e443d61c5787941acd158dbb83af432b87f5cb28e6a07f4f1f5b40202f1f63d",
+      "siteId": "de121cab731bdc958241d0ef8d114b91f0b2dfd0b32bbb51b2329b13755167d3",
       "file": "src/features/fore/publishing.server.ts",
       "line": 1583,
       "functionName": "recordInlineResult",
@@ -2516,7 +2464,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "c430e4cee05055d3ec4945e7c4aeb3b94f79328add53625c8019620dd62aad85",
+      "siteId": "535add4d87cf3e8e8036780a74dc7a1f1fe9525b3e03850e621a2ae1943a6cc3",
       "file": "src/features/fore/publishing.server.ts",
       "line": 1595,
       "functionName": "recordInlineResult",
@@ -2529,7 +2477,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "cacd116668f2782c95d21d2388e1a09a399ee754645a6480236733e225bd807b",
+      "siteId": "e0e8c5abc148d69abb37c90cf486573bd00b64f0bad2d8e5445565b4e1c3b0dc",
       "file": "src/features/fore/publishing.server.ts",
       "line": 1633,
       "functionName": "refreshAssetValidationSummary",
@@ -2542,7 +2490,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "1f2a629e80f0bed8d9ce4d2201fc849746907446d283731f5f973f6597491cfc",
+      "siteId": "e2f59a5fb722a197be1a4b50171606b6ca01f28b77461a56e7c69ef70cc8f3e9",
       "file": "src/features/fore/publishing.server.ts",
       "line": 1729,
       "functionName": "uploadPublishingAsset",
@@ -2555,7 +2503,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "c5353295cba63da4128ed9a7c51d648bbee963d63eda0432511d3e7f8a9ef11f",
+      "siteId": "213e26f44fd5ed87c15af70ad33f122c96f8306a73cf26f8b7ada0eacd362e80",
       "file": "src/features/fore/publishing.server.ts",
       "line": 1741,
       "functionName": "uploadPublishingAsset",
@@ -2568,7 +2516,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "fd3821a92dd28017784301a1a2fa2e48317ea4aea2061296a83194bc9e75e32e",
+      "siteId": "69e93291d9cfd8840d27d6ddca0298e504b149e65181fe3e508411cd9a21ec3d",
       "file": "src/features/fore/publishing.server.ts",
       "line": 1758,
       "functionName": "uploadPublishingAsset",
@@ -2581,7 +2529,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "26107aa7ad7bd490a5c7f4295b47e73774f2bea0b44514680374b1e6fa95b1a9",
+      "siteId": "e9f1d21ad0f40e42d4b59cea99e30323217833744be61a14f5c7d41760fbdf9d",
       "file": "src/features/fore/publishing.server.ts",
       "line": 1764,
       "functionName": "uploadPublishingAsset",
@@ -2594,7 +2542,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "b97a4759cfa61c90c9826f56fc47501c1434cad6d53c167f1189a4490d191947",
+      "siteId": "968137e1039ac4a61598a1063d6e34653e8613879ae4bcbc79372508575aa2ae",
       "file": "src/features/fore/publishing.server.ts",
       "line": 2005,
       "functionName": "signPublishingAccessibilityDeclaration",
@@ -2607,72 +2555,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "7240e7a301d6c5c9de21b7f0c0b9e6d2300770125a75bfb6a51bffa603834377",
-      "file": "src/features/fore/publishing.server.ts",
-      "line": 2046,
-      "functionName": "leasePublishingValidationJobs",
-      "table": "publishing_validation_jobs",
-      "operation": "UPDATE",
-      "sqlSha256": "4bb8a561aa3f2bd2f6ec3f4ecbdf3948a1025f0128d606e3002c66d7d1b0749a",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "publishing.leasePublishingValidationJobs",
-      "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
-    },
-    {
-      "siteId": "a864de735632426ee4b89264e40c20e4b725836d79e1894089987182fb8d48da",
-      "file": "src/features/fore/publishing.server.ts",
-      "line": 2051,
-      "functionName": "leasePublishingValidationJobs",
-      "table": "publishing_validation_jobs",
-      "operation": "UPDATE",
-      "sqlSha256": "ad000604359104660b04c3e47a5d016c5e1914a694a6db7eff3107cb304ffef5",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "publishing.leasePublishingValidationJobs",
-      "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
-    },
-    {
-      "siteId": "dc5aa6a7587bfbdeed9dcb408f6cbc17c6c5ab59b52de0193081e0c9a26b5741",
-      "file": "src/features/fore/publishing.server.ts",
-      "line": 2066,
-      "functionName": "leasePublishingValidationJobs",
-      "table": "publishing_validation_jobs",
-      "operation": "UPDATE",
-      "sqlSha256": "8291b442cceeacf9ad2ab7938a0fbc9240a9d9e70af037a6e2ecccec4d256a4b",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "publishing.leasePublishingValidationJobs",
-      "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
-    },
-    {
-      "siteId": "91e33225832a9f7e4e0e7e41f7f5d3560ab371fd281b19a6ce874e3c136aca7e",
-      "file": "src/features/fore/publishing.server.ts",
-      "line": 2123,
-      "functionName": "completePublishingValidationJob",
-      "table": "publishing_validation_jobs",
-      "operation": "UPDATE",
-      "sqlSha256": "a890724a8671e182406fd24024198cad421bb82c800053f538d74cb8fa8c0dd3",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "publishing.completePublishingValidationJob",
-      "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
-    },
-    {
-      "siteId": "3b88d614462646035b6c5342b482060a74357e737681fe119cf84b73389de52c",
-      "file": "src/features/fore/publishing.server.ts",
-      "line": 2135,
-      "functionName": "completePublishingValidationJob",
-      "table": "publishing_validation_results",
-      "operation": "INSERT INTO",
-      "sqlSha256": "132b689c141ffbcfb767ff861835a527b15b8b70079874e885a268bf5797917f",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "publishing.completePublishingValidationJob",
-      "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
-    },
-    {
-      "siteId": "6dd505cc428fd010f20a88fed551f4c676aec693ea2d0fbd3deae39b009cb4a7",
+      "siteId": "b6dd1264528464d5a4ebcea056c623c175a8535d67545df6d28b114d8d9fcc72",
       "file": "src/features/fore/publishing.server.ts",
       "line": 2565,
       "functionName": "submitPublishingEdition",
@@ -2685,7 +2568,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "6880fb5b067f05b93494236907843ed9cb0cbf61a32879b134f51b83b70669b1",
+      "siteId": "53dd0b8472d1e0c058c8688994129785853daa3164f766248fa8129ff28e2b7f",
       "file": "src/features/fore/publishing.server.ts",
       "line": 2569,
       "functionName": "submitPublishingEdition",
@@ -2698,7 +2581,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "bd82d3bfe7fa0a63149c1e1607e8580d1d89ba0ebd1b9a2c3ff1482ab51d5eb6",
+      "siteId": "71162be7351eff573db28f769c44ac08cb84e74547e237fd39545b8c769fb530",
       "file": "src/features/fore/publishing.server.ts",
       "line": 2572,
       "functionName": "submitPublishingEdition",
@@ -2711,7 +2594,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "fd3ca15be24d55c5ff2a1fe55d2386f17cd9c880714c89e07579491511455a08",
+      "siteId": "05f78d9ebe00c893e84496eb077e5acda9aa6566d4566e0ec694d91c8f4b5fb5",
       "file": "src/features/fore/publishing.server.ts",
       "line": 2576,
       "functionName": "submitPublishingEdition",
@@ -2724,7 +2607,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "3639c0c24b106892947d3df09f7e512516c5c89b6848ea2512f9603955647972",
+      "siteId": "745425e5028cfc0f6cd9716746b73c477f5677d94744b0ffbfe21ce3f83e5f20",
       "file": "src/features/fore/publishing.server.ts",
       "line": 2595,
       "functionName": "submitPublishingEdition",
@@ -2737,7 +2620,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "f7962b4eaa17b34a75e68afa095d43dea808d07516386d2287efd2c56a16d00c",
+      "siteId": "2aad27809d1d3516c74a60c67ebec61d8a09462e7b1356387d945776424c77f6",
       "file": "src/features/fore/publishing.server.ts",
       "line": 2641,
       "functionName": "submitPublishingEdition",
@@ -2750,7 +2633,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "247a26c41b99d45425d4d9afe5426f7cd0d4648a3f627082b0ce592f055f8439",
+      "siteId": "72d025bb5fc03c22e3d262978efd6d57fdd5e330a68bab5d391e3f59d562bda6",
       "file": "src/features/fore/publishing.server.ts",
       "line": 2645,
       "functionName": "submitPublishingEdition",
@@ -2763,7 +2646,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "e7a871bf5d7d4769395f70b424ac6f6340d2f23d78e6126f2c7969077e829fed",
+      "siteId": "5a708a3677c860517a1a24b1578265eac5a785ace0156f3e48d811543d605fcc",
       "file": "src/features/fore/publishing.server.ts",
       "line": 2723,
       "functionName": "submitPublishingEdition",
@@ -2776,7 +2659,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "fdc907b9660601ca48c1298463b43324c3333f111bf9f92b60092e0b13b12836",
+      "siteId": "837e7d5bd5b5a85d9dadce837ed3fa527f941f88130cdc011010bb16eb1e7bcd",
       "file": "src/features/fore/publishing.server.ts",
       "line": 2787,
       "functionName": "openPublishingRevision",
@@ -2789,7 +2672,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "8612a81212ffcf7c59b60590f83468299f38632f50e1b18edccd64cdbc06a2cb",
+      "siteId": "976a6a24365ef88f6a223401a13c3cc93790fb67cdd65af9d942886700b41634",
       "file": "src/features/fore/publishing.server.ts",
       "line": 2792,
       "functionName": "openPublishingRevision",
@@ -2802,7 +2685,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "8afe65d0f040e5c24cfc0065568d1bce7522be01499c3bbc93f34aa29403ca49",
+      "siteId": "d0ff70bf09e7469b843c21d66fb279e5c6de5878328dc35ec1bc79a380158306",
       "file": "src/features/fore/publishing.server.ts",
       "line": 2829,
       "functionName": "setPublishingUpdatePolicy",
@@ -2815,7 +2698,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "d29956d1d7edb42d6885e1e2e22a0bb41ad2905161e6beaf16769a2dd5f649a7",
+      "siteId": "b541c35ad72a13be3df73c8904eb0563e4a510584ab0936ba0260f25453d5397",
       "file": "src/features/fore/publishing.server.ts",
       "line": 2860,
       "functionName": "setPublishingUpdatePolicy",
@@ -2828,7 +2711,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "ebb255adf2472d81e705359378894fd68168ec1e476ea00d2636a9e533dc6fc8",
+      "siteId": "791b3761f74d3f6dd6c3d263281d8f83c2265e19d022f63fd6e33ccf39194e0e",
       "file": "src/features/fore/publishing.server.ts",
       "line": 2866,
       "functionName": "setPublishingUpdatePolicy",
@@ -2840,7 +2723,7 @@
       "reason": "This exact action-qualified history INSERT (policy_pin or owner_opt_in) follows a separate canonical publishing_entitlement_version_pins write. Its static SQL cannot grant a version, reinstate an entitlement, alter legal authority or satisfy the preorder grant_pin-only idempotency predicate. scripts/check-nonauthorizing-owner-version-history.mjs executes both exact statements against revoked entitlement and pinned-version fixtures, scans all production history reads and protects the grant_pin authorizing writers. The separate version-pin mutations remain owner-command-required."
     },
     {
-      "siteId": "2b419ad889c8c758b394a155dfe47d65446426b0a2ba253b35862a4cff7d5a29",
+      "siteId": "6eeb2a2612c5c95236a6ab21bc8b4a014e7412cbe2559be4c7d08d85c90ff036",
       "file": "src/features/fore/publishing.server.ts",
       "line": 2924,
       "functionName": "optInOwnedPublicationUpdate",
@@ -2853,7 +2736,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "025fc20f5273087bcedaaa0139e2813e59760eb81638e8539bfb993988495cf7",
+      "siteId": "ec12b41770d79b883df1b625961a24d02b62c56552a217063d884860a62695b1",
       "file": "src/features/fore/publishing.server.ts",
       "line": 2930,
       "functionName": "optInOwnedPublicationUpdate",
@@ -2865,7 +2748,7 @@
       "reason": "This exact action-qualified history INSERT (policy_pin or owner_opt_in) follows a separate canonical publishing_entitlement_version_pins write. Its static SQL cannot grant a version, reinstate an entitlement, alter legal authority or satisfy the preorder grant_pin-only idempotency predicate. scripts/check-nonauthorizing-owner-version-history.mjs executes both exact statements against revoked entitlement and pinned-version fixtures, scans all production history reads and protects the grant_pin authorizing writers. The separate version-pin mutations remain owner-command-required."
     },
     {
-      "siteId": "46f1904073e17fac0bff198794b534ac371aa2cdab2dd9cbfef639c33e96644a",
+      "siteId": "db05ee42287c38c664ab5ace3c7e0b6126bf04036268f63541003d3c7accdd35",
       "file": "src/features/fore/publishing.server.ts",
       "line": 3000,
       "functionName": "ensureCatalogParties",
@@ -2878,7 +2761,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "7bc39a7e8c90f9bf1cda9effafe71a6614dae99763796f3ab1f91fa402f982a5",
+      "siteId": "f89ad4aea482cc97496a1870df3e91ee1e0200a7b35e46930fc8cfe3958027a6",
       "file": "src/features/fore/publishing.server.ts",
       "line": 3016,
       "functionName": "ensureCatalogParties",
@@ -2891,7 +2774,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "93ea1f3c2f920256ca3869019601b1c0a94bf5b278d43dcd2f3183e0c5d29a83",
+      "siteId": "07afa155332a60583c4149d813961cc925598b061ec98009568804b10e024e3f",
       "file": "src/features/fore/publishing.server.ts",
       "line": 3227,
       "functionName": "reviewPublishingSubmission",
@@ -2904,7 +2787,7 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "adba3514f88bdc57e5a392acc8ac9c4647e86d9f2bd3d975d2891f912bea3ced",
+      "siteId": "51cb9d1f6aefb21a53508528ef11e8e5ddbffabfb676850491af364ae932ef46",
       "file": "src/features/fore/publishing.server.ts",
       "line": 3230,
       "functionName": "reviewPublishingSubmission",
