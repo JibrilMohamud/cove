@@ -19389,7 +19389,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           entitlementId:x.entitlementId,userId:x.userId,productId:x.productId,
           territory:x.territory,channel:"retail"
         }))return new Response(null,{status:409,headers:noStore});
-        const results=await db.batch([
+        const results=(await db.batch([
           db.prepare("UPDATE audio_offline_licenses SET status='revoked',revoked_at=?,revocation_reason='license_refreshed' WHERE entitlement_id=? AND device_id=? AND status='active'")
             .bind(at,x.entitlementId,x.deviceId),
           db.prepare("INSERT INTO audio_offline_licenses(id,user_id,product_id,entitlement_id,device_id,token_hash,manifest_hash,status,issued_at,expires_at,last_refreshed_at) SELECT ?,?,?,?,?,?,?,'active',?,?,? WHERE EXISTS(SELECT 1 FROM entitlements e WHERE e.id=? AND e.user_id=? AND e.product_id=? AND e.entitlement_type='purchase' AND e.status='active' AND (e.starts_at IS NULL OR e.starts_at<=?) AND (e.ends_at IS NULL OR e.ends_at>=?)) AND EXISTS(SELECT 1 FROM devices d WHERE d.id=? AND d.user_id=? AND d.revoked_at IS NULL) AND NOT EXISTS(SELECT 1 FROM risk_holds h WHERE h.domain='buyer' AND h.subject_type='user' AND h.subject_id=? AND h.hold_scope='account' AND h.status='active') AND (?<=0 OR (SELECT COUNT(DISTINCT device_id) FROM audio_offline_licenses WHERE entitlement_id=? AND status='active' AND expires_at>? AND device_id<>?)<?)")
