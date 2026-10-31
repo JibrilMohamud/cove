@@ -13,8 +13,8 @@ const review=JSON.parse(read("docs/architecture/canonical-writer-review.json")),
 assert.equal(createHash("sha256").update(source).digest("hex"),att.files[0].sha256);
 assert.equal(lineage.updatedSourceSha256,att.files[0].sha256);
 assert.equal(lineage.retiredCount,7);assert.equal(review.releaseApproval,false);
-assert.equal(review.sites.filter(x=>x.disposition==="owner-command-required").length,223);
-assert.equal(review.sites.filter(x=>x.file===path&&x.disposition==="owner-command-required").length,9);
+assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=223,"Further source-retired writers may only decrease count");
+assert.equal(review.sites.filter(x=>x.file===path&&x.disposition==="owner-command-required").length,3);
 for(const row of lineage.rows)assert.ok(!review.sites.some(x=>x.siteId===row.siteId));
 for(const name of ["leaseCommercialAudioQcJobs","completeCommercialAudioQc"]) {
   const start=source.indexOf("export async function "+name+"(");

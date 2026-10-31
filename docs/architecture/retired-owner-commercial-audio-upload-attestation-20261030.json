@@ -1,0 +1,12 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Six shared D1 audiobook file, preview, chapter and QC queue writers physically removed. Fixed isolated QA owner verifies current publisher role, draft status and R2 object metadata/size before atomically inserting file, chapter and queue entries, with file-ID replay refusal.",
+  "files": [
+    {
+      "path": "src/features/fore/commercial-audio.server.ts",
+      "sha256": "2d258d1de1ed1994277910c3c8c02c809362d0186aa609df5dc3f6788bfd6805",
+      "review": "Three protected SQL authorizations remain for offline audio licenses and Biosync. Two unrelated playback metrics retain non-authorizing classification."
+    }
+  ]
+}

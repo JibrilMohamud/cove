@@ -5,8 +5,8 @@
   "files": [
     {
       "path": "src/features/fore/commercial-audio.server.ts",
-      "sha256": "f8e758fd8c2f6fc083eae65f7ed817469a3f8e853ec271a09f1470b4a4f15859",
-      "review": "Eleven commercial-audio SQL sites survive: nine owner-required, two previously non-authorizing playback writes."
+      "sha256": "2d258d1de1ed1994277910c3c8c02c809362d0186aa609df5dc3f6788bfd6805",
+      "review": "Five audio SQL candidate sites survive: three owner-required and two previously non-authorizing playback writes."
     }
   ],
   "retirementEvidence": "docs/architecture/retired-owner-commercial-audio-metadata-20261030.md"

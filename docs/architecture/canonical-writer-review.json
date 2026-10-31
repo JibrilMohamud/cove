@@ -2,7 +2,7 @@
   "schema": "cove.canonical-writer-review.v1",
   "reviewedSourceCommit": "028ef18375b946389c7d243f312be5dfc39ec7b1",
   "releaseApproval": false,
-  "scope": "2026-10-30: seven audiobook QC lease and measurement writer sites retired into QA-only private owner. Remaining writers remain owner-required. 230 to 223; release gate closed. Prior: 2026-10-30: nine validation/rights scan job mutations source-retired to isolated QA owner. No positive worker provider identity certified. Release false; 239 to 230. Prior: 2026-10-30: six commercial-audio publisher profile/narration agreement writer sites moved out of shared DB and into independent QA owner command. Existing source SQL fingerprints retain disposition, owner remains production-disabled, positive rights certification unaffected. Branch owner-required 245→239; no live approval. Prior: 2026-10-30: four protected staff onboarding negative-decision SQL sites retired from shared publishing API to independently checked private QA owner. Positive verified approval, withholding edit and production still deny. 249→245; releaseApproval=false. Prior: 2026-10-30: physically retire 11 unowned legacy restoration and royalty-release SQL sites (publishing-trust 53→42, total 260→249). Explicit fail-closed 503 before staff dispute resolution effects and scheduled restoration; copyright withdrawal, dispute intake and takedown remain unchanged. Positive reinstatement and release of held funds now require independently authorized owner-first replacement and legal deadline review; no production release approval. Prior review: 2026-10-30: transplanted 21 source-exact private catalog construction SQL literals (14 commercial free Gutenberg normalization, 7 private personal imports) into the authentication- and 15-minute QA-lease-gated legal-owner Durable Object; removed all shared catalog-model writer functions and switched eight API callers to typed private receipts. The owner enforces QA-only R2/evidence checks; production remains disabled and public read-side direct writes fail closed, not certified. 281→260 owner-required. Prior review: 2026-10-30: physically moved 25 traditional partner-feed authorizing SQL sites and one nonauthorizing acknowledgement write into the lease-gated private legal-owner Durable Object. Caller processPartnerFeedQueue is now a typed fail-closed command, not a shared SQL writer. Owner processes ONLY sandbox non-asset-manifest previews; production feed publication remains unavailable pending independently verified positive authority. 306→281 owner-required. No production cutover, grant authority or release approval. Prior review: 2026-10-30: physically retired 37 additional commerce SQL authorizing writers; 343→306 owner required. Stage-only owner checkout, settlement, refund reservation/posting, dispute, journal and reconciliation retained. Three commerce SQL sites, including the owner-only checkout quote writer and two direct tax writes, still tracked as owner-required and no production payment, owner enablement or revocation certification is claimed. Prior review: 2026-10-30: physically retired 16 checkout/tender/Stripe-customer/monetary-admin shared-D1 writers, preserving the private-owner QA calls and closing the legacy production money paths until independently live-certified. Owner-required 359 to 343; zero production approval. Prior history: Current exact-source review: 426 candidates, 371 production owner-command-required. Six rights grant authorizing SQL sites removed from shared API and preserved as a byte-exact private owner writer with owner-gated publication materialization. Previous 3 rights-contract authorizing sites and its one nonauthorizing audit site remain retired. No production approval; original frozen exception classification and denial are unchanged. Current source review: 432 exact candidates, 377 owner-required SQL mutations. Four shared rights-contract SQL sites (three authorizing and one append-only audit) were removed together; their unchanged business implementation is now private and service-bound. The historical 426-site baseline remains frozen. Production owner authorization, external principal cutover and paid routing remain blocked. Exact current review: 482 SQL literals. All 460 historical sites retain their dispositions (426 production owner-command-required, 33 nonauthorizing, one fixture). Two royalty INSERT OR IGNORE statements became strict INSERT statements in atomic calculation/allocation/journal batches; none was waived. The 22 new transaction/executor sites are private-owner-qa-executor, separately inventoried with exact source/SQL identity and enforced runtime import containment. They are not deployed production ownership, nonauthorizing classifications, or a reduction of the historical 426 findings. Source and isolated QA evidence never authorize production cutover. This change routes enrolled QA refund-intent reservations through a private typed command, while preserving the unowned production fallback. Private SQL remains in the already-excluded owner Durable Object, not a newly exempted scanner source; 426 legacy owner-required findings remain. No production authorization is asserted. Enrolled QA Stripe webhook journal claims and completion now use only typed private owner commands. Legacy production SQL is unchanged and remains owner-required; production owner activation is still blocked. Signed Stripe payment-intent processing, authorization, failure and cancellation now dispatch strict typed owner state transitions in isolated QA. Cancellation and held tender release are one owner-controlled D1 batch. Production fallback and all 426 owner-required findings remain explicitly unresolved. Enrolled isolated-QA checkout now has the owner independently verify the canonical order and provider PaymentIntent before atomically attaching the Stripe identity and payment attempt. Mutable SQL lives exclusively inside the private legal-owner Worker. Production checkout remains on its unowned legacy D1 branch and all 426 owner-required findings remain unresolved pending cutover. Isolated QA now registers Stripe customer identities through the owner after independent provider verification. The direct D1 customer upsert remains reachable in legacy production and is still owner-command-required; 426 production findings remain, with no release permission granted.",
+  "scope": "2026-10-30: six audiobook R2 metadata/queue SQL sites now owner-only with object HEAD integrity and atomic D1 batch, QA lease only. Branch 223 to 217, production unchanged. Prior: 2026-10-30: seven audiobook QC lease and measurement writer sites retired into QA-only private owner. Remaining writers remain owner-required. 230 to 223; release gate closed. Prior: 2026-10-30: nine validation/rights scan job mutations source-retired to isolated QA owner. No positive worker provider identity certified. Release false; 239 to 230. Prior: 2026-10-30: six commercial-audio publisher profile/narration agreement writer sites moved out of shared DB and into independent QA owner command. Existing source SQL fingerprints retain disposition, owner remains production-disabled, positive rights certification unaffected. Branch owner-required 245→239; no live approval. Prior: 2026-10-30: four protected staff onboarding negative-decision SQL sites retired from shared publishing API to independently checked private QA owner. Positive verified approval, withholding edit and production still deny. 249→245; releaseApproval=false. Prior: 2026-10-30: physically retire 11 unowned legacy restoration and royalty-release SQL sites (publishing-trust 53→42, total 260→249). Explicit fail-closed 503 before staff dispute resolution effects and scheduled restoration; copyright withdrawal, dispute intake and takedown remain unchanged. Positive reinstatement and release of held funds now require independently authorized owner-first replacement and legal deadline review; no production release approval. Prior review: 2026-10-30: transplanted 21 source-exact private catalog construction SQL literals (14 commercial free Gutenberg normalization, 7 private personal imports) into the authentication- and 15-minute QA-lease-gated legal-owner Durable Object; removed all shared catalog-model writer functions and switched eight API callers to typed private receipts. The owner enforces QA-only R2/evidence checks; production remains disabled and public read-side direct writes fail closed, not certified. 281→260 owner-required. Prior review: 2026-10-30: physically moved 25 traditional partner-feed authorizing SQL sites and one nonauthorizing acknowledgement write into the lease-gated private legal-owner Durable Object. Caller processPartnerFeedQueue is now a typed fail-closed command, not a shared SQL writer. Owner processes ONLY sandbox non-asset-manifest previews; production feed publication remains unavailable pending independently verified positive authority. 306→281 owner-required. No production cutover, grant authority or release approval. Prior review: 2026-10-30: physically retired 37 additional commerce SQL authorizing writers; 343→306 owner required. Stage-only owner checkout, settlement, refund reservation/posting, dispute, journal and reconciliation retained. Three commerce SQL sites, including the owner-only checkout quote writer and two direct tax writes, still tracked as owner-required and no production payment, owner enablement or revocation certification is claimed. Prior review: 2026-10-30: physically retired 16 checkout/tender/Stripe-customer/monetary-admin shared-D1 writers, preserving the private-owner QA calls and closing the legacy production money paths until independently live-certified. Owner-required 359 to 343; zero production approval. Prior history: Current exact-source review: 426 candidates, 371 production owner-command-required. Six rights grant authorizing SQL sites removed from shared API and preserved as a byte-exact private owner writer with owner-gated publication materialization. Previous 3 rights-contract authorizing sites and its one nonauthorizing audit site remain retired. No production approval; original frozen exception classification and denial are unchanged. Current source review: 432 exact candidates, 377 owner-required SQL mutations. Four shared rights-contract SQL sites (three authorizing and one append-only audit) were removed together; their unchanged business implementation is now private and service-bound. The historical 426-site baseline remains frozen. Production owner authorization, external principal cutover and paid routing remain blocked. Exact current review: 482 SQL literals. All 460 historical sites retain their dispositions (426 production owner-command-required, 33 nonauthorizing, one fixture). Two royalty INSERT OR IGNORE statements became strict INSERT statements in atomic calculation/allocation/journal batches; none was waived. The 22 new transaction/executor sites are private-owner-qa-executor, separately inventoried with exact source/SQL identity and enforced runtime import containment. They are not deployed production ownership, nonauthorizing classifications, or a reduction of the historical 426 findings. Source and isolated QA evidence never authorize production cutover. This change routes enrolled QA refund-intent reservations through a private typed command, while preserving the unowned production fallback. Private SQL remains in the already-excluded owner Durable Object, not a newly exempted scanner source; 426 legacy owner-required findings remain. No production authorization is asserted. Enrolled QA Stripe webhook journal claims and completion now use only typed private owner commands. Legacy production SQL is unchanged and remains owner-required; production owner activation is still blocked. Signed Stripe payment-intent processing, authorization, failure and cancellation now dispatch strict typed owner state transitions in isolated QA. Cancellation and held tender release are one owner-controlled D1 batch. Production fallback and all 426 owner-required findings remain explicitly unresolved. Enrolled isolated-QA checkout now has the owner independently verify the canonical order and provider PaymentIntent before atomically attaching the Stripe identity and payment attempt. Mutable SQL lives exclusively inside the private legal-owner Worker. Production checkout remains on its unowned legacy D1 branch and all 426 owner-required findings remain unresolved pending cutover. Isolated QA now registers Stripe customer identities through the owner after independent provider verification. The direct D1 customer upsert remains reachable in legacy production and is still owner-command-required; 426 production findings remain, with no release permission granted.",
   "sites": [
     {
       "siteId": "49f37e5484e485db938d0ac3fc3efaacb649329c6ea517c04b384dc0075bbe34",
@@ -601,85 +601,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "73b14faa8d20c9676312be047cbc18dc856c38257ef48f48210e0891b3b4ec83",
-      "file": "src/features/fore/commercial-audio.server.ts",
-      "line": 459,
-      "functionName": "queueCommercialAudioQc",
-      "table": "commercial_audio_qc_jobs",
-      "operation": "INSERT INTO",
-      "sqlSha256": "e28a03ced0569d0370f7e9705503e027a9d165efef683e995e389839687929ba",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "commercial-audio.queueCommercialAudioQc",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "f12e2c985acdcb7c47e24a6bbce59f5670fe0d517cc82911ec0854c8b1a458c5",
-      "file": "src/features/fore/commercial-audio.server.ts",
-      "line": 607,
-      "functionName": "uploadCommercialAudioFile",
-      "table": "commercial_audio_files",
-      "operation": "INSERT INTO",
-      "sqlSha256": "f9bae316480ff86083442b392cdb012498e8771adb43c35d7d0dd32ec8853762",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "commercial-audio.uploadCommercialAudioFile",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "16555923e07547cfd1593a8eb2750a0f04d63c0f823981a40fa5afb423909c27",
-      "file": "src/features/fore/commercial-audio.server.ts",
-      "line": 632,
-      "functionName": "uploadCommercialAudioFile",
-      "table": "commercial_audio_profiles",
-      "operation": "UPDATE",
-      "sqlSha256": "cb82a462894efbce586aa53761149ef7aa91b996fc8154dfa344b7db97f58f32",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "commercial-audio.uploadCommercialAudioFile",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "db4fa38d37898cc80620fa523c252ecdeb487f37d0f20fe862adfddd0d449f0d",
-      "file": "src/features/fore/commercial-audio.server.ts",
-      "line": 647,
-      "functionName": "uploadCommercialAudioFile",
-      "table": "commercial_audio_chapters",
-      "operation": "UPDATE",
-      "sqlSha256": "f1f2c847d031dbf8bc8c882b4a21b8cfc4b15a6219515750e6d13d740299e653",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "commercial-audio.uploadCommercialAudioFile",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "a90639115ca5fddf883a0f10553feb41b56d705262fca35a0c98a34a89a77352",
-      "file": "src/features/fore/commercial-audio.server.ts",
-      "line": 667,
-      "functionName": "uploadCommercialAudioFile",
-      "table": "commercial_audio_chapters",
-      "operation": "INSERT INTO",
-      "sqlSha256": "d77e12d3e84934759777b3535eb730c4c2d1685f3231af091c1f7acb446a1ac2",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "commercial-audio.uploadCommercialAudioFile",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "334d67aac165db0a37dc203c9e294a12a8d42fa449938540e45a6f340ffd3ca3",
-      "file": "src/features/fore/commercial-audio.server.ts",
-      "line": 689,
-      "functionName": "uploadCommercialAudioFile",
-      "table": "commercial_audio_profiles",
-      "operation": "UPDATE",
-      "sqlSha256": "21e3d3accaf3f3dd8866c55090a13f4ff9507c1051f3b0c00c7e0e6e2e41d61f",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "commercial-audio.uploadCommercialAudioFile",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "fc25238620faf213e2b7fe02a911e6bcdcd1bc233fd4a4958fd71817b2ff092f",
+      "siteId": "aae79f8d5b7bad06c551f7a2cafb4ac9155b8bab59cbef4a907372fd30311b35",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 1651,
       "functionName": "handleCommercialAudio",
@@ -691,7 +613,7 @@
       "reason": "This exact SQLite statement mutates only buyer-scoped audiobook listening position (chapter, seconds, speed, version, timestamp) or deletes a deleting account's position. It never grants rights, access, delivery tokens, asset availability or entitlements. The production audio endpoint separately requires authentication, current entitlements, risk check and private owner permission before writes; source-bound SQL, optimistic concurrency, unrelated buyer and revoked-entitlement behavior are exercised in scripts/check-audio-playback-remaining-nonauthorizing.mjs. The enclosing account deletion transaction remains owner-required for its other protected mutations."
     },
     {
-      "siteId": "a67809ce9b09392d96fe1a199314d403cf3ac9073b2569d1b34212bc5e162a40",
+      "siteId": "cc8d5d27151c450eb26147997609a22d94f94820cde68e66bb6d76d56a192787",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 1658,
       "functionName": "handleCommercialAudio",
@@ -703,7 +625,7 @@
       "reason": "This exact SQLite statement mutates only buyer-scoped audiobook listening position (chapter, seconds, speed, version, timestamp) or deletes a deleting account's position. It never grants rights, access, delivery tokens, asset availability or entitlements. The production audio endpoint separately requires authentication, current entitlements, risk check and private owner permission before writes; source-bound SQL, optimistic concurrency, unrelated buyer and revoked-entitlement behavior are exercised in scripts/check-audio-playback-remaining-nonauthorizing.mjs. The enclosing account deletion transaction remains owner-required for its other protected mutations."
     },
     {
-      "siteId": "601bd700271ac94064c40591872ffce69d9e8ee59832f9e8358e3d7fa856c4f6",
+      "siteId": "3adbf592a40848c8dc0c1db1f452bdc7b869462c580913f174ff8bc76d98de24",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 1903,
       "functionName": "handleCommercialAudio",
@@ -716,7 +638,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "8aab3c6432b24955d7d78642b65e58d0db9467c59b00e8a5570ea6adf7c6e368",
+      "siteId": "b5668ab22d412e78c95c61b37d219e8702baf6f42308a7a366f9eceb139fe7a9",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 1908,
       "functionName": "handleCommercialAudio",
@@ -729,7 +651,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "0f3f01624a9c2e589d74ea8bc91d8773d179697695b78ef8097e5585badaa19f",
+      "siteId": "03b33c2777df6c9cfe547b8dba9aa3c0b7562449ce17c5087a87506634098c0d",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 2088,
       "functionName": "saveCommercialBiosyncLink",
