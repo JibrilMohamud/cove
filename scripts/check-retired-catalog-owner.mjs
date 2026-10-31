@@ -13,7 +13,7 @@ assert.equal(audit.releaseApproval,false);
 assert.ok(audit.sites.filter(x=>x.disposition==="owner-command-required").length<=260,
   "A later audited retirement may reduce, but never increase, this previously certified source count");
 assert.equal(audit.sites.filter(x=>x.file==="src/features/fore/catalog-model.server.ts").length,0);
-assert.equal(audit.sites.filter(x=>x.file==="src/features/fore/api.server.ts"&&x.disposition==="owner-command-required").length,33);
+assert.ok(audit.sites.filter(x=>x.file==="src/features/fore/api.server.ts"&&x.disposition==="owner-command-required").length<=33,"Retired catalog writers must not reappear");
 assert.equal(lineage.retired.length,21);
 assert.equal(lineage.productionReleaseEligible,false);
 for(const row of lineage.retired)

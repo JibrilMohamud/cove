@@ -17639,6 +17639,8 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/publishing/editor-action",
       "/publishing/partner/private-action",
       "/rights/private-configuration",
+      "/catalog/withdraw-stale",
+      "/catalog/negative-source",
       "/moderation/private-action",
       "/support/private-action",
       "/publishing/contract/save-version",
@@ -18340,6 +18342,69 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
             action:input.action,actorUserId:input.actorUserId,
             operationId:input.operationId,result},{headers:noStore});
         }finally{this.rightsConfigExecution=false;}
+      }
+      if(route==="/catalog/withdraw-stale") {
+        const x=z.object({
+          sourceId:z.enum(["pg_ca","pg_au","pg_eu"]),
+          cycleStartedAt:z.string().datetime(),
+          leaseToken:z.string().uuid(),
+          runId:z.string().regex(/^gir_[0-9a-f-]{36}$/)
+        }).strict().parse(raw);
+        const db=env.PRIMARY_DB;
+        const [lease,run]=await Promise.all([
+          db.prepare("SELECT source_id,lease_token,lease_until,status FROM gutenberg_source_states WHERE source_id=? AND status='running' AND lease_token=? AND lease_until>?")
+            .bind(x.sourceId,x.leaseToken,now()).first<{source_id:string;lease_token:string;lease_until:string;status:string}>(),
+          db.prepare("SELECT source_id,status,started_at FROM gutenberg_ingest_runs WHERE id=? AND source_id=? AND status='running'")
+            .bind(x.runId,x.sourceId).first<{source_id:string;status:string;started_at:string}>()
+        ]);
+        if(!lease||!run||x.cycleStartedAt>now()||x.cycleStartedAt>String(run.started_at))
+          return new Response(null,{status:409,headers:noStore});
+        // Independently count before mutating; the owner derives which catalog
+        // rows must be denied, never trusts caller-provided product IDs.
+        const candidate=await db.prepare(
+          "SELECT COUNT(*) n FROM gutenberg_source_cache WHERE source_id=? AND last_seen_at<? AND ingest_status NOT IN ('stale','quarantined')"
+        ).bind(x.sourceId,x.cycleStartedAt).first<{n:number}>();
+        const staleCount=Number(candidate?.n||0);
+        if(staleCount){
+          // Batch is a single primary D1 transaction. Every effect is
+          // subtractive, including source-derived grant suspension.
+          await db.batch([
+            db.prepare("UPDATE gutenberg_source_cache SET ingest_status='stale',rights_status='quarantined',commercial_use_status='quarantined',epub_status='pending',epub_next_attempt_at='',last_error='Source item was absent from the latest complete catalog snapshot.',updated_at=? WHERE source_id=? AND last_seen_at<? AND ingest_status NOT IN ('stale','quarantined')")
+              .bind(now(),x.sourceId,x.cycleStartedAt),
+            db.prepare("UPDATE products SET storefront_status='inactive',updated_at=? WHERE source_name='gutenberg' AND source_external_id IN (SELECT id FROM gutenberg_source_cache WHERE source_id=? AND ingest_status='stale')")
+              .bind(now(),x.sourceId),
+            db.prepare("UPDATE offers SET active=0,updated_at=? WHERE product_id IN (SELECT p.id FROM products p JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE p.source_name='gutenberg' AND c.source_id=? AND c.ingest_status='stale')")
+              .bind(now(),x.sourceId),
+            db.prepare("UPDATE editions SET release_status='unavailable',updated_at=? WHERE id IN (SELECT p.edition_id FROM products p JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE p.source_name='gutenberg' AND c.source_id=? AND c.ingest_status='stale')")
+              .bind(now(),x.sourceId),
+            db.prepare("UPDATE rights_grants SET status='suspended',updated_at=? WHERE source=? AND edition_id IN (SELECT p.edition_id FROM products p JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE p.source_name='gutenberg' AND c.source_id=? AND c.ingest_status='stale')")
+              .bind(now(),`gutenberg-${x.sourceId}-public-domain`,x.sourceId)
+          ]);
+        }
+        return Response.json({schema:"cove.owner-catalog-stale-denial.v1",ownerFirst:true,
+          sourceId:x.sourceId,runId:x.runId,denied:true,staleCount},{headers:noStore});
+      }
+      if(route==="/catalog/negative-source") {
+        const x=z.object({
+          action:z.enum(["quarantine-regional","mark-us-retry"]),
+          cacheId:z.string().regex(/^(?:[0-9]{1,10}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90})$/),
+          reason:z.string().max(500)
+        }).strict().parse(raw);
+        const db=env.PRIMARY_DB;
+        const row=await db.prepare("SELECT source_id FROM gutenberg_source_cache WHERE id=?")
+          .bind(x.cacheId).first<{source_id:string}>();
+        if(!row|| (x.action==="quarantine-regional"
+          ? !["pg_ca","pg_au","pg_eu"].includes(row.source_id)
+          : row.source_id!=="pg_us"||!/^[0-9]{1,10}$/.test(x.cacheId)))
+          return new Response(null,{status:409,headers:noStore});
+        const result=x.action==="quarantine-regional"
+          ?await db.prepare("UPDATE gutenberg_source_cache SET rights_status='quarantined',commercial_use_status='quarantined',ingest_status='quarantined',epub_status='failed',epub_last_error=?,last_error=?,updated_at=? WHERE id=? AND source_id IN ('pg_ca','pg_au','pg_eu')")
+            .bind(x.reason,x.reason,now(),x.cacheId).run()
+          :await db.prepare("UPDATE gutenberg_source_cache SET epub_status='retry',epub_next_attempt_at='',epub_last_error='Stored EPUB failed validation; repair required.' WHERE id=? AND source_id='pg_us' AND ingest_status<>'quarantined'")
+            .bind(x.cacheId).run();
+        return Response.json({schema:"cove.owner-catalog-negative-source.v1",ownerFirst:true,
+          cacheId:x.cacheId,action:x.action,denied:true,
+          changed:Number((result as {meta?:{changes?:number}})?.meta?.changes||0)>0},{headers:noStore});
       }
       if(route==="/moderation/private-action") {
         const actionSchema=z.object({

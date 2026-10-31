@@ -1,0 +1,103 @@
+{
+  "schema": "cove.retired-catalog-negative-owner-lineage.v1",
+  "sourceBefore": 59,
+  "sourceAfter": 52,
+  "productionCertified": false,
+  "releaseApproval": false,
+  "sourceFile": "src/features/fore/api.server.ts",
+  "previousSha256": "a7343cab1ecf7643ce84ca88ca3532683ce7b3a983a416192a6de9856e8a2321",
+  "currentSha256": "f412a0a8255986ed45749405c097fd69a7dcb318e3605f459d2775668bafefa3",
+  "retired": [
+    {
+      "file": "src/features/fore/api.server.ts",
+      "line": 1400,
+      "functionName": "quarantineRegionalItem",
+      "table": "gutenberg_source_cache",
+      "operation": "UPDATE",
+      "sqlSha256": "3c2dfccc86b5aa9ae143fcb364d21d0f9a4462657d6f48d04154a7966d2a6b5b",
+      "siteId": "ddcc6c5235e5aebae0e4672b6dfedf06ac580c16e98ab88f5af97dd7745da25c",
+      "ownerRoutes": [
+        "/catalog/withdraw-stale",
+        "/catalog/negative-source"
+      ]
+    },
+    {
+      "file": "src/features/fore/api.server.ts",
+      "line": 1905,
+      "functionName": "runRegionalCatalogIngestion",
+      "table": "gutenberg_source_cache",
+      "operation": "UPDATE",
+      "sqlSha256": "c6d5c4d7e0dd67c1c53afbc76f52f2280bc7b27963ee80db48db0471cf4a6a7d",
+      "siteId": "79fec8353facd04b8ef6b69870281ce2236cee64166f0620d416a2d690dfb45c",
+      "ownerRoutes": [
+        "/catalog/withdraw-stale",
+        "/catalog/negative-source"
+      ]
+    },
+    {
+      "file": "src/features/fore/api.server.ts",
+      "line": 1913,
+      "functionName": "runRegionalCatalogIngestion",
+      "table": "products",
+      "operation": "UPDATE",
+      "sqlSha256": "afb13f1481304766d8fb29392b5d01280ed62d3d19f0b36e459cfb5f3fcdee2b",
+      "siteId": "867589c04903cd2bd06bfd165c1aa0a42bb8fa2b6ba6f771d1d65ce6a47ffd0c",
+      "ownerRoutes": [
+        "/catalog/withdraw-stale",
+        "/catalog/negative-source"
+      ]
+    },
+    {
+      "file": "src/features/fore/api.server.ts",
+      "line": 1920,
+      "functionName": "runRegionalCatalogIngestion",
+      "table": "offers",
+      "operation": "UPDATE",
+      "sqlSha256": "3d59bdd3bc53b45327c493b05b01413c659d08dc613639d5ede8e2007ae14458",
+      "siteId": "357cb7e3534b73e43117ef3f2aca0fdc90da3b18c306bace33133ea4df311063",
+      "ownerRoutes": [
+        "/catalog/withdraw-stale",
+        "/catalog/negative-source"
+      ]
+    },
+    {
+      "file": "src/features/fore/api.server.ts",
+      "line": 1927,
+      "functionName": "runRegionalCatalogIngestion",
+      "table": "editions",
+      "operation": "UPDATE",
+      "sqlSha256": "4608d80bfd1f888a4393e3604f6885f4a4890646b3184c1e07b05c1c22db94e7",
+      "siteId": "d85f34f92fb84491701d17ca77d063c93d5128cb353f49c46e2afffa1e60b43d",
+      "ownerRoutes": [
+        "/catalog/withdraw-stale",
+        "/catalog/negative-source"
+      ]
+    },
+    {
+      "file": "src/features/fore/api.server.ts",
+      "line": 1934,
+      "functionName": "runRegionalCatalogIngestion",
+      "table": "rights_grants",
+      "operation": "UPDATE",
+      "sqlSha256": "92e879961b7c9e9d5d459d7157583c1dbf09f262a17029311ba033a9a036c2ca",
+      "siteId": "5cca8946e2b1040ea6d3a24654e8f354e56accd4d5ad6f3dec363971273f4757",
+      "ownerRoutes": [
+        "/catalog/withdraw-stale",
+        "/catalog/negative-source"
+      ]
+    },
+    {
+      "file": "src/features/fore/api.server.ts",
+      "line": 2370,
+      "functionName": "sourceEpubBytes",
+      "table": "gutenberg_source_cache",
+      "operation": "UPDATE",
+      "sqlSha256": "65f42c26b9de5aa39180c7e3094cff010fdafe58fc396e8577349bbf046ff1cb",
+      "siteId": "ae9248ab66274e27023304215a6b63a32e5512447cb95258b7eaaf37ac45880c",
+      "ownerRoutes": [
+        "/catalog/withdraw-stale",
+        "/catalog/negative-source"
+      ]
+    }
+  ]
+}

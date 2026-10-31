@@ -1,3 +1,7 @@
+import {
+  dispatchCatalogNegativeSource,
+  dispatchCatalogStaleWithdrawal,
+} from "../../storefront-strangler/publication-owner-routing.server";
 import { createStageOwnerCheckoutQuote } from "../../storefront-strangler/owner-checkout-quote.server";
 import { saveStageOwnerContractVersion } from "../../storefront-strangler/owner-contract-version.server";
 import { executeStageOwnerMonetaryAdmin } from "../../storefront-strangler/owner-commerce-admin.server";
@@ -1395,13 +1399,7 @@ async function insertRegionalEvidence(
 }
 
 async function quarantineRegionalItem(env: CoveEnv, id: string, message: string) {
-  await database(env)
-    .prepare(
-      `UPDATE gutenberg_source_cache SET rights_status='quarantined',commercial_use_status='quarantined',ingest_status='quarantined',
-    epub_status='failed',epub_last_error=?,last_error=?,updated_at=? WHERE id=?`,
-    )
-    .bind(message.slice(0, 500), message.slice(0, 500), now(), id)
-    .run();
+  await dispatchCatalogNegativeSource(database(env), "quarantine-regional", id, message);
 }
 
 async function cachePendingEpubs(
@@ -1887,57 +1885,19 @@ export async function runRegionalCatalogIngestion(
       ? new Date(Date.now() + Number(due.refresh_seconds || 86400) * 1000).toISOString()
       : new Date(Date.now() + 60 * 1000).toISOString();
 
-    let staleCount = 0;
-    if (complete) {
-      const stale = await db
-        .prepare(
-          `SELECT COUNT(*) count FROM gutenberg_source_cache
-        WHERE source_id=? AND last_seen_at<? AND ingest_status NOT IN ('stale','quarantined')`,
-        )
-        .bind(sourceId, cycleStartedAt)
-        .first<any>();
-      staleCount = Number(stale?.count || 0);
-      if (staleCount) {
-        // Source retractions/corrections fail closed. Keep the canonical object for audit, but
-        // remove storefront eligibility until the item is observed and re-verified again.
-        await db
-          .prepare(
-            `UPDATE gutenberg_source_cache SET ingest_status='stale',rights_status='quarantined',commercial_use_status='quarantined',
-          epub_status='pending',epub_next_attempt_at='',last_error='Source item was absent from the latest complete catalog snapshot.',updated_at=?
-          WHERE source_id=? AND last_seen_at<? AND ingest_status NOT IN ('stale','quarantined')`,
-          )
-          .bind(completed, sourceId, cycleStartedAt)
-          .run();
-        await db
-          .prepare(
-            `UPDATE products SET storefront_status='inactive',updated_at=? WHERE source_name='gutenberg' AND source_external_id IN
-          (SELECT id FROM gutenberg_source_cache WHERE source_id=? AND ingest_status='stale')`,
-          )
-          .bind(completed, sourceId)
-          .run();
-        await db
-          .prepare(
-            `UPDATE offers SET active=0,updated_at=? WHERE product_id IN
-          (SELECT p.id FROM products p JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE p.source_name='gutenberg' AND c.source_id=? AND c.ingest_status='stale')`,
-          )
-          .bind(completed, sourceId)
-          .run();
-        await db
-          .prepare(
-            `UPDATE editions SET release_status='unavailable',updated_at=? WHERE id IN
-          (SELECT p.edition_id FROM products p JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE p.source_name='gutenberg' AND c.source_id=? AND c.ingest_status='stale')`,
-          )
-          .bind(completed, sourceId)
-          .run();
-        await db
-          .prepare(
-            `UPDATE rights_grants SET status='suspended',updated_at=? WHERE source=? AND edition_id IN
-          (SELECT p.edition_id FROM products p JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE p.source_name='gutenberg' AND c.source_id=? AND c.ingest_status='stale')`,
-          )
-          .bind(completed, `gutenberg-${sourceId}-public-domain`, sourceId)
-          .run();
-      }
-    }
+    // Source-lease verification and all five deny-first table mutations occur
+    // together at the private legal owner. A public catalog caller cannot
+    // declare stale books or activate rights by writing the shared primary.
+    const staleCount = complete
+      ? (
+          await dispatchCatalogStaleWithdrawal(db, {
+            sourceId,
+            cycleStartedAt,
+            leaseToken: lease,
+            runId,
+          })
+        ).staleCount
+      : 0;
 
     await db
       .prepare(
@@ -2365,12 +2325,7 @@ async function sourceEpubBytes(env: CoveEnv, product: any, asset: any, externalI
       // different publisher/import/regional edition or bypass its rights gate.
       if (product.source_name !== "gutenberg" || /^(?:pgca|pgau|pgeu)_/.test(externalId))
         throw new ApiError(503, "This stored EPUB failed validation. Please contact support.");
-      await database(env)
-        .prepare(
-          "UPDATE gutenberg_source_cache SET epub_status='retry',epub_next_attempt_at='',epub_last_error='Stored EPUB failed validation; repair required.' WHERE id=? AND ingest_status<>'quarantined'",
-        )
-        .bind(externalId)
-        .run();
+      await dispatchCatalogNegativeSource(database(env), "mark-us-retry", externalId);
     }
   }
   if (product.source_name === "upload")

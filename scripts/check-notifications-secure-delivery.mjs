@@ -123,7 +123,11 @@ assert.ok(finance.includes("payout_sent"));
 const reporting = read("src/features/fore/creator-reporting.server.ts");
 assert.ok(reporting.includes("royalty_statement_ready"));
 const moderation = read("src/features/fore/moderation.server.ts");
-assert.ok(moderation.includes("review_moderated"));
+// Protected moderation actions and their notifications now originate from the
+// independently authorized private owner, never the shared API writer.
+assert.ok(!moderation.includes("review_moderated"));
+assert.ok(publishingOwner.includes("const privateModeration="));
+assert.ok(publishingOwner.includes("review_moderated"));
 const account = read("src/features/fore/account-management.server.ts");
 assert.ok(account.includes("account_security_alert"));
 const auth = read("src/features/fore/auth.server.ts");

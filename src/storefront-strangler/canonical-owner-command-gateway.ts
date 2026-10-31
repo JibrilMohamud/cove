@@ -110,6 +110,15 @@ const routes={
   "partner.process-feed":{path:"/publishing/partner/process-feed",schema:z.object({
     limit:z.number().int().min(1).max(25),operationId:shortOperation
   }).strict()},
+  "catalog.withdraw-stale":{path:"/catalog/withdraw-stale",schema:z.object({
+    sourceId:z.enum(["pg_ca","pg_au","pg_eu"]),
+    cycleStartedAt:z.string().datetime(),leaseToken:z.string().uuid(),
+    runId:z.string().regex(/^gir_[0-9a-f-]{36}$/)
+  }).strict()},
+  "catalog.negative-source":{path:"/catalog/negative-source",schema:z.object({
+    action:z.enum(["quarantine-regional","mark-us-retry"]),
+    cacheId:source,reason:z.string().max(500)
+  }).strict()},
   "catalog.normalize-gutenberg":{path:"/catalog/normalize-gutenberg",schema:z.object({
     sourceId:source,operationId:shortOperation
   }).strict()},
@@ -302,6 +311,17 @@ export async function dispatchCanonicalOwnerCommand(
   try{ack=JSON.parse(bytes);}catch{throw Error("canonical_command_receipt_invalid");}
   if(!record(ack))throw Error("canonical_command_receipt_invalid");
   switch(kind){
+    case "catalog.withdraw-stale":
+      if(ack.schema!=="cove.owner-catalog-stale-denial.v1"||ack.ownerFirst!==true||
+         ack.sourceId!==body.sourceId||ack.runId!==body.runId||ack.denied!==true||
+         !Number.isSafeInteger(ack.staleCount)||Number(ack.staleCount)<0)
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "catalog.negative-source":
+      if(ack.schema!=="cove.owner-catalog-negative-source.v1"||ack.ownerFirst!==true||
+         ack.cacheId!==body.cacheId||ack.action!==body.action||ack.denied!==true||
+         typeof ack.changed!=="boolean")throw Error("canonical_command_receipt_mismatch");
+      break;
     case "commerce.create-quote": {
       const numeric=["subtotalMinor","taxMinor","taxInclusiveMinor",
         "giftCardMinor","storeCreditMinor","totalMinor","stripeDueMinor"];
