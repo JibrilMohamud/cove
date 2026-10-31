@@ -1,0 +1,172 @@
+{
+  "schema": "cove.production-release-checkpoint.v1",
+  "observedAt": "2026-10-31T13:46:00Z",
+  "productionReady": false,
+  "source": {
+    "releasePR": 546,
+    "releaseHead": "e556c76f06953a6dc13989a5095b1c9b3d63e565",
+    "soundsPR": 547,
+    "soundsHead": "940d0a4c5007a597218ea3d8cb9e124aff06cbe0"
+  },
+  "stripe": {
+    "account": "acct_1UWEozIfG1q45dEc",
+    "livemode": true,
+    "endpoint": "we_1UWcKRIfG1q45dEc1mXVj3dp",
+    "url": "https://www.covereads.com/api/fore/stripe/webhook",
+    "enabled": true,
+    "events": 15,
+    "secretProvisionedOn": "cove-persistence-backend",
+    "processingStatus": 503,
+    "liveCustomerFlowCertified": false
+  },
+  "owner": {
+    "enabled": false,
+    "implementationQaOnly": true,
+    "rightsVerifierProvisioned": false,
+    "taxVerifierProvisioned": false,
+    "readerDeployment": "918993d8d244453992032dce54fb7704"
+  },
+  "sounds": {
+    "publisherDeployment": "f0e110ecd08f49ed929ecbd833bf4a01",
+    "publisherHasD1": false,
+    "privateReaderProbe": {
+      "httpStatus": 200,
+      "stations": 6,
+      "recordings": 48,
+      "candidates": 23,
+      "temporaryVerifierDeleted": true
+    },
+    "publicRecordingsProbe": {
+      "httpStatus": 200,
+      "recordings": 8
+    },
+    "cron": "11 * * * *"
+  },
+  "workerInventory": {
+    "checked": 450,
+    "productionD1Bindings": [
+      {
+        "name": "cove-legal-authority-production",
+        "bindings": [
+          "PRIMARY_DB"
+        ]
+      },
+      {
+        "name": "cove-literary-handoff-draining-20261025",
+        "bindings": [
+          "DB"
+        ]
+      },
+      {
+        "name": "cove-literary-infer-isolated-disabled",
+        "bindings": [
+          "DB"
+        ]
+      },
+      {
+        "name": "cove-literary-prepare-draining-20261025",
+        "bindings": [
+          "DB"
+        ]
+      },
+      {
+        "name": "cove-literary-publisher-isolated-disabled",
+        "bindings": [
+          "DB"
+        ]
+      },
+      {
+        "name": "cove-persistence-backend",
+        "bindings": [
+          "DB"
+        ]
+      },
+      {
+        "name": "cove-pub-qa-continuous-capture",
+        "bindings": [
+          "SOURCE_DB"
+        ]
+      },
+      {
+        "name": "cove-storefront-ssr-staging",
+        "bindings": [
+          "DB"
+        ]
+      }
+    ],
+    "failed": [],
+    "ownerOnly": false
+  },
+  "remainingNonownerWorkerPrincipals": [
+    {
+      "name": "cove-literary-handoff-draining-20261025",
+      "bindings": [
+        "DB"
+      ]
+    },
+    {
+      "name": "cove-literary-infer-isolated-disabled",
+      "bindings": [
+        "DB"
+      ]
+    },
+    {
+      "name": "cove-literary-prepare-draining-20261025",
+      "bindings": [
+        "DB"
+      ]
+    },
+    {
+      "name": "cove-literary-publisher-isolated-disabled",
+      "bindings": [
+        "DB"
+      ]
+    },
+    {
+      "name": "cove-persistence-backend",
+      "bindings": [
+        "DB"
+      ]
+    },
+    {
+      "name": "cove-pub-qa-continuous-capture",
+      "bindings": [
+        "SOURCE_DB"
+      ]
+    },
+    {
+      "name": "cove-storefront-ssr-staging",
+      "bindings": [
+        "DB"
+      ]
+    }
+  ],
+  "inventoryScope": "All 450 deployed Worker scripts. External API principals and tokens are not certified.",
+  "paidQa": {
+    "realStripeTestPaymentRefundAndSignedWebhookReplayPassed": true,
+    "originalEpubGrantBytesAndOfflinePassed": true,
+    "originalAudioOfflinePassed": false,
+    "blocker": "Historical dual-format fixture is canonically format=ebook. Owner correctly rejects audio offline licensing. Requires a separate correctly classified, independently paid audiobook fixture."
+  },
+  "validation": {
+    "localOwnerWorkflowSteps": 91,
+    "typecheck": "pass",
+    "lint": "pass",
+    "productionBuild": "pass",
+    "fullSecurityRunPassed": 41205809033,
+    "latestHeadCi": "pending; deployed paid audio journey failing"
+  },
+  "performance": {
+    "origin": "https://www.covereads.com",
+    "samples": 20,
+    "errors": 0,
+    "p95Ms": 794,
+    "maxMs": 3443,
+    "limitMs": 800,
+    "slowSamples": 1,
+    "passed": false,
+    "geographicAcceptanceCertified": false
+  },
+  "protectedRollbackRehearsed": false,
+  "migrationStackMerged": false
+}
