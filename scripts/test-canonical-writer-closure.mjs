@@ -33,8 +33,17 @@ try{
   assert.ok(result.scannedFiles>50);
   assert.ok(!result.findings.some(row=>row.file.startsWith("scripts/test-")),
     "Unit-test SQL must never masquerade as production canonical writer evidence");
-  assert.ok(result.unresolvedDirectWrites>80,
-    "Unexpectedly empty writer audit: do not certify production from a broken scanner");
+  // The physical SQL count is expected to decline as independently attested
+  // owner commands replace legacy writers. An arbitrary historical floor must
+  // not reject valid migrations or encourage retaining unsafe SQL. Instead
+  // require exact reconciliation with the separately reviewed source inventory.
+  const reviewedCount=JSON.parse(readFileSync(
+    "docs/architecture/canonical-writer-review.json","utf8"
+  )).sites.length;
+  assert.ok(reviewedCount>0,
+    "A zero-source owner audit requires independent production certification");
+  assert.equal(result.unresolvedDirectWrites,reviewedCount,
+    "Scanned canonical SQL must exactly match the separately reviewed source inventory");
   for(const path of [
     "src/features/fore/rights.server.ts",
     "src/features/fore/commerce.server.ts",
