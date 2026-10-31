@@ -111,7 +111,7 @@ const routes={
     limit:z.number().int().min(1).max(25),operationId:shortOperation
   }).strict()},
   "delivery.private-negative":{path:"/delivery/private-negative",schema:z.object({
-    action:z.enum(["revoke-grant","withdraw-version","restrict-policy"]),
+    action:z.enum(["revoke-grant","withdraw-version","restrict-policy","expire-grant","exhaust-grant"]),
     payload:z.record(z.string(),z.unknown())
   }).strict()},
   "catalog.observe-us":{path:"/catalog/observe-us",schema:z.object({

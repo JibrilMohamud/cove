@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "retirementEvidence": "docs/architecture/retired-delivery-expiry-owner-lineage.json",
+  "rationale": "Two canonical delivery SQL status updates were physically moved into fixed, authenticated private QA owner commands. Owner independently verifies the expiry timestamp or grant use limit and applies only a deny-first conditional update. Caller still denies already-expired or exhausted bearer tokens if private status maintenance cannot be contacted. Seven remaining delivery SQL identities are source-identical and re-fingerprinted. No new positive entitlement or delivery token is issued; production legal authority remains locked.",
+  "files": [
+    {
+      "path": "src/features/fore/delivery.server.ts",
+      "sha256": "261c1a41beceaa6cc1ec8358058a76eb1d6c7110cc391fa379055b6423feacdf",
+      "review": "Two negative grant-status SQL sites retired; seven protected or nonauthorizing source SQL candidates remain byte-for-byte unchanged."
+    }
+  ]
+}

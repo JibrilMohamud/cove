@@ -418,7 +418,7 @@ export async function dispatchCatalogNegativeSource(db:object,
 
 /** Fixed negative-only commercial delivery commands; no shared SQL fallback. */
 export async function dispatchNegativeDeliveryOwner(db:object,
- action:"revoke-grant"|"withdraw-version"|"restrict-policy",payload:object){
+ action:"revoke-grant"|"withdraw-version"|"restrict-policy"|"expire-grant"|"exhaust-grant",payload:object){
  const context=owners.get(db);
  if(!context)throw new ApiError(503,"Commercial delivery requires private owner.");
  try{
