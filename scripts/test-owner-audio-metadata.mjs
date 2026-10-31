@@ -75,6 +75,11 @@ try {
   let response=await request("profile",ownerId,profile,"audio:profile");
   assert.equal(response.status,200);assert.equal((await response.json()).result.saved,true);
   assert.equal(primary.prepare("SELECT rights_status FROM commercial_audio_profiles WHERE edition_id=?").get(editionId).rights_status,"verified");
+  response=await request("profile",ownerId,profile,"audio:profile");
+  assert.equal(response.status,200);
+  assert.equal((await response.json()).result.saved,true,"exact owner replay preserves receipt");
+  assert.equal((await request("profile",ownerId,{...profile,audioPublisher:"collision"},"audio:profile")).status,409,
+    "reusing an operationId with a different payload must deny");
   const narrators={editionId,narrators:[{displayName:"QA Narrator",narrationType:"human",syntheticVoiceLabel:""}]};
   response=await request("narrators",ownerId,narrators,"audio:narrators");
   assert.equal(response.status,200);
@@ -91,6 +96,11 @@ try {
   response=await request("agreement-add",ownerId,agreement,"audio:agreement");
   assert.equal(response.status,200);
   const agreementId=(await response.json()).result.id;
+  response=await request("agreement-add",ownerId,agreement,"audio:agreement");
+  assert.equal(response.status,200);
+  assert.equal((await response.json()).result.id,agreementId);
+  assert.equal(primary.prepare("SELECT COUNT(*) n FROM narration_agreements").get().n,1,
+    "exact signed owner replay must not duplicate narrator agreements");
   assert.equal(primary.prepare("SELECT agreements_status FROM commercial_audio_profiles WHERE edition_id=?").get(editionId).agreements_status,"verified");
   const termination={agreementId,disposition:"terminated",reason:"QA owner independently revoked this contract",
     effectiveAt:new Date(Date.now()-1000).toISOString()};
