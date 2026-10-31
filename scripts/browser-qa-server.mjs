@@ -6,6 +6,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { createServer } from "vite";
 import JSZip from "jszip";
 import { localBindings } from "./local-api.mjs";
+import { createSyntheticFreeLibraryOwner } from "./test-browser-qa-owner.mjs";
 
 // Never use production credentials or data. This server is not shipped in the app.
 for (const key of Object.keys(process.env))
@@ -284,6 +285,22 @@ const server = await createServer({
 await server.listen();
 api = await server.ssrLoadModule("/src/features/fore/api.server.ts");
 await invoke("/catalog?q=pride");
+// Both the API and fixture owner must share Vite's exact SSR module identity:
+// a different WeakMap would silently turn a supposedly authorized QA grant
+// into 503. The owner stub uses only scratch D1 and synthetic QA users.
+const ownerRouting = await server.ssrLoadModule(
+  "/src/storefront-strangler/publication-owner-routing.server.ts",
+);
+const ownerSecret = "c".repeat(64);
+const privateQaDb = env.DB;
+env.DB = ownerRouting.bindPublicationOwner(privateQaDb, {
+  owner: createSyntheticFreeLibraryOwner(privateQaDb, users, ownerSecret),
+  secret: ownerSecret,
+  territory: "US",
+  currency: "USD",
+});
+if (!ownerRouting.hasPublicationOwner(env.DB))
+  throw Error("Synthetic browser-QA owner facade is not registered");
 const zip = new JSZip();
 zip.file("mimetype", "application/epub+zip", { compression: "STORE" });
 zip.file(
