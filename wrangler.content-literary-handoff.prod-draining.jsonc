@@ -8,35 +8,35 @@
   "limits": {
     "cpu_ms": 300000
   },
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "cove-production",
-      "database_id": "4bd657ac-8789-403e-a28c-93aba8d0a989"
-    },
-    {
-      "binding": "CONTENT_DB",
-      "database_name": "cove-literary-content-isolated-20261024",
-      "database_id": "400c3af3-5d40-41fd-83cc-98228e40ddac"
-    }
-  ],
-  "r2_buckets": [
-    {
-      "binding": "BUCKET",
-      "bucket_name": "cove-literary-originals-isolated-20261024"
-    }
-  ],
+  "d1_databases": [],
+  "r2_buckets": [],
   "vars": {
     "FORE_CONTENT_PROCESSOR_ROLE": "literary-handoff",
     "FORE_CONTENT_PROCESSOR_ENABLED": "1",
     "FORE_CONTENT_PREPARE_ENABLED": "1",
     "FORE_CONTENT_HANDOFF_ENABLED": "1",
     "FORE_LITERARY_DRAIN_RECONCILE_ENABLED": "1",
-    "FORE_CONTENT_D1_ADMISSION_MAX_MS": "100"
+    "FORE_CONTENT_D1_ADMISSION_MAX_MS": "100",
+    "COVE_LITERARY_PRIVATE_HANDOFF_ENABLED": "1"
   },
   "triggers": {
     "crons": [
       "* * * * *"
     ]
+  },
+  "services": [
+    {
+      "binding": "LITERARY_CANONICAL_OWNER",
+      "service": "cove-legal-authority-production"
+    }
+  ],
+  "secrets": {
+    "required": [
+      "COVE_LITERARY_HANDOFF_SECRET"
+    ]
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
   }
 }

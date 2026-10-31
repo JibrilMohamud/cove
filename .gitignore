@@ -46,3 +46,5 @@ __pycache__/
 artifacts/browser-qa/
 
 .offline-dist/
+
+/literary-publisher-dist/

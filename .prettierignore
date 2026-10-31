@@ -1,6 +1,7 @@
 node_modules
 dist
 content-dist
+literary-publisher-dist
 .output
 .vinxi
 pnpm-lock.yaml

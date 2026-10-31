@@ -54,6 +54,20 @@ try {
   const { enqueueIsolatedLiteraryPreparation, runIsolatedLiteraryPreparationTick } = await import(
     path.join(dir, "prep.mjs")
   );
+  await build({
+    stdin: {
+      contents:
+        'export * from "./src/storefront-strangler/literary-owner-protocol"; export * from "./src/storefront-strangler/literary-owner-service"; export {runContentProcessingTick} from "./src/content-processing.worker";',
+      resolveDir: process.cwd(),
+    },
+    outfile: path.join(dir, "owner.mjs"),
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    logLevel: "silent",
+  });
+  const { scopeLiteraryPrimaryReadEnv, handleLiteraryOwnerService, runContentProcessingTick } =
+    await import(path.join(dir, "owner.mjs"));
   const zip = new JSZip();
   zip.file("mimetype", "application/epub+zip");
   zip.file(
@@ -159,7 +173,7 @@ try {
       stored.set(key, new TextEncoder().encode(body));
     },
   };
-  const env = {
+  const rawEnv = {
     DB: dbHandle(primary),
     CONTENT_DB: dbHandle(secondary),
     BUCKET,
@@ -168,6 +182,18 @@ try {
     FORE_CONTENT_PREPARE_ENABLED: "1",
     FORE_CONTENT_PROCESSOR_ROLE: "literary-prepare",
   };
+  const ownerEnv = {
+    PRIMARY_DB: rawEnv.DB,
+    COVE_RIGHTS_OWNER_PRIMARY_ID: "4bd657ac-8789-403e-a28c-93aba8d0a989",
+    COVE_LITERARY_READ_SECRET: "a".repeat(64),
+  };
+  const env = scopeLiteraryPrimaryReadEnv({
+    ...rawEnv,
+    DB: undefined,
+    COVE_LITERARY_PRIVATE_READ_ENABLED: "1",
+    COVE_LITERARY_READ_SECRET: ownerEnv.COVE_LITERARY_READ_SECRET,
+    LITERARY_PRIMARY_READER: { fetch: (request) => handleLiteraryOwnerService(request, ownerEnv) },
+  });
   await assert.rejects(
     enqueueIsolatedLiteraryPreparation(
       { ...env, FORE_CONTENT_PREPARE_ENABLED: "0" },
@@ -241,12 +267,104 @@ try {
     "Lease attempts must not remain stuck as running",
   );
   secondary.prepare("DELETE FROM literary_prepare_jobs WHERE id='expired_test'").run();
+
+  // Exercise the real bounded owner handoff with no D1 or R2 on its caller.
+  primary.exec(
+    "CREATE TABLE cove_runtime_config(key TEXT PRIMARY KEY,value TEXT); INSERT INTO cove_runtime_config VALUES('literary_processing_owner','isolated');" +
+      readFileSync("infra/content-budget/0004_literary_handoff_outbox_primary.sql", "utf8"),
+  );
+  secondary.exec(readFileSync("infra/content-budget/0008_legacy_reconcile_frontier.sql", "utf8"));
+  insertProduct.run("prod_c", "edition_c", "gutenberg", "pgau_c", "ebook", "active");
+  insertSource.run(
+    "pgau_c",
+    "pg_au",
+    "active",
+    "completed",
+    "public-domain",
+    "approved",
+    sha,
+    '["AU"]',
+  );
+  insertGrant.run(
+    "grant_c",
+    "edition_c",
+    "ebook",
+    "retail",
+    "active",
+    "allow",
+    "gutenberg-pg_au-public-domain",
+    "AU",
+    null,
+    null,
+  );
+  const stamp = new Date().toISOString();
+  for (const [product, edition, source] of [
+    ["prod_c", "edition_c", "pgau_c"],
+    ["prod_a", "edition_a", "pgau_a"],
+  ]) {
+    const id = createHash("sha256").update([product, edition, source, sha].join(":")).digest("hex");
+    primary
+      .prepare(
+        "INSERT INTO literary_prepare_outbox(id,product_id,edition_id,source_id,source_sha256,available_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",
+      )
+      .run(id, product, edition, source, sha, stamp, stamp, stamp);
+  }
+  const handoffOwner = {
+    ...ownerEnv,
+    LITERARY_CONTENT_DB: rawEnv.CONTENT_DB,
+    LITERARY_BUCKET: BUCKET,
+    COVE_LITERARY_HANDOFF_SECRET: "b".repeat(64),
+  };
+  let loseAck = true;
+  const handoffEnv = {
+    FORE_CONTENT_PROCESSOR_ENABLED: "1",
+    FORE_CONTENT_PROCESSOR_ROLE: "literary-handoff",
+    FORE_CONTENT_PREPARE_ENABLED: "1",
+    FORE_CONTENT_HANDOFF_ENABLED: "1",
+    COVE_LITERARY_PRIVATE_HANDOFF_ENABLED: "1",
+    FORE_LITERARY_DRAIN_RECONCILE_ENABLED: "1",
+    COVE_LITERARY_HANDOFF_SECRET: handoffOwner.COVE_LITERARY_HANDOFF_SECRET,
+    LITERARY_CANONICAL_OWNER: {
+      async fetch(request) {
+        const response = await handleLiteraryOwnerService(request, handoffOwner);
+        assert.equal(response.status, 200);
+        if (loseAck) {
+          loseAck = false;
+          throw Error("simulated_lost_owner_ack");
+        }
+        return response;
+      },
+    },
+  };
+  await assert.rejects(runContentProcessingTick(handoffEnv), /simulated_lost_owner_ack/);
+  assert.equal(
+    primary.prepare("SELECT COUNT(*) n FROM literary_prepare_outbox WHERE status='delivered'").get()
+      .n,
+    1,
+  );
+  assert.equal(
+    primary.prepare("SELECT COUNT(*) n FROM literary_prepare_outbox WHERE status='cancelled'").get()
+      .n,
+    1,
+    "A live explicit deny must cancel source handoff",
+  );
+  await runContentProcessingTick(handoffEnv);
+  assert.equal(
+    secondary
+      .prepare("SELECT COUNT(*) n FROM literary_prepare_jobs WHERE product_id='prod_c'")
+      .get().n,
+    1,
+    "Lost owner ACK cannot enqueue twice",
+  );
+  primary.prepare("UPDATE cove_runtime_config SET value='legacy'").run();
+  const stopped = await runContentProcessingTick(handoffEnv);
+  assert.equal(stopped.result.handoffs[0].skipped, "canonical_owner_not_handoff");
   secondary.exec("CREATE TABLE rights_grants(id TEXT PRIMARY KEY)");
   await assert.rejects(
     enqueueIsolatedLiteraryPreparation(env, "prod_a", "edition_a"),
     /binding_not_isolated/,
   );
-  assert.equal(secondary.prepare("SELECT COUNT(*) AS n FROM literary_prepare_jobs").get().n, 2);
+  assert.equal(secondary.prepare("SELECT COUNT(*) AS n FROM literary_prepare_jobs").get().n, 3);
   console.log(
     "Independent preparation claims, idempotent enqueue, valid EPUB evidence, authoritative grant revocation, no primary writes, and binding identity PASS",
   );

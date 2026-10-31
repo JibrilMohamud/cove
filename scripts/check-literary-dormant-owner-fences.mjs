@@ -54,9 +54,20 @@ for (const [path, switches] of [
   }
   if (path === "wrangler.content-literary-infer.prod-disabled.jsonc") {
     assert.equal(config.vars.FORE_LITERARY_AUTOPUBLISH_ENABLED, "0");
-    assert.deepEqual(config.services, [
-      { binding: "LITERARY_PUBLISHER", service: "cove-literary-publisher-isolated-disabled" },
-    ]);
+    assert.ok(
+      config.services.some(
+        (x) =>
+          x.binding === "LITERARY_PRIMARY_READER" &&
+          x.service === "cove-legal-authority-production",
+      ),
+    );
+    assert.ok(
+      config.services.some(
+        (x) =>
+          x.binding === "LITERARY_PUBLISHER" &&
+          x.service === "cove-literary-publisher-isolated-disabled",
+      ),
+    );
   }
 }
 console.log(

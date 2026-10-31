@@ -1,4 +1,11 @@
 import {
+  scopeLiteraryPrimaryReadEnv,
+  literaryOwnerCall,
+  LITERARY_PUBLICATION_ROUTE,
+  type LiteraryReadEnv,
+  type LiteraryPort,
+} from "./storefront-strangler/literary-owner-protocol";
+import {
   publishIsolatedLiteraryInference,
   type IsolatedInferenceEnv,
 } from "./lib/literary-isolated-inference.server";
@@ -8,10 +15,14 @@ import { admitCatalogBatch } from "./lib/catalog-ingestion-backpressure";
  * Dedicated private operator Worker. NEVER share its service tokens with
  * a public storefront or bind it to customer ingress. It has no cron.
  */
-type PublisherEnv = IsolatedInferenceEnv & {
-  FORE_LITERARY_INFERENCE_PUBLISH_TOKEN_SHA256?: string;
-  FORE_LITERARY_INFERENCE_BACKEND_TOKEN_SHA256?: string;
-};
+type PublisherEnv = IsolatedInferenceEnv &
+  LiteraryReadEnv & {
+    LITERARY_CANONICAL_OWNER?: LiteraryPort;
+    COVE_LITERARY_PUBLICATION_SECRET?: string;
+    COVE_LITERARY_PRIVATE_PUBLICATION_ENABLED?: string;
+    FORE_LITERARY_INFERENCE_PUBLISH_TOKEN_SHA256?: string;
+    FORE_LITERARY_INFERENCE_BACKEND_TOKEN_SHA256?: string;
+  };
 const sha = async (value: string) => {
   const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return [...new Uint8Array(d)].map((x) => x.toString(16).padStart(2, "0")).join("");
@@ -73,6 +84,7 @@ export async function handleLiteraryPublication(
   } catch {
     return Response.json({ error: "invalid_literary_job_id" }, { status: 400 });
   }
+  env = scopeLiteraryPrimaryReadEnv(env);
   const gate = await admit(env.DB, 150);
   if (!gate.allowed)
     return Response.json(
@@ -80,7 +92,19 @@ export async function handleLiteraryPublication(
       { status: 503, headers: { "cache-control": "no-store" } },
     );
   try {
-    const result = await publish(env, jobId);
+    const result =
+      env.COVE_LITERARY_PRIVATE_PUBLICATION_ENABLED === "1"
+        ? await literaryOwnerCall(
+            env.LITERARY_CANONICAL_OWNER || {
+              fetch: async () => {
+                throw Error("literary_owner_missing");
+              },
+            },
+            env.COVE_LITERARY_PUBLICATION_SECRET || "",
+            LITERARY_PUBLICATION_ROUTE,
+            { jobId },
+          )
+        : await publish(env, jobId);
     return Response.json(result, { headers: { "cache-control": "no-store" } });
   } catch (err) {
     console.warn("literary_publication_failed", String(err).slice(0, 120));

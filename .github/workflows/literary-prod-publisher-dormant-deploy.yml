@@ -9,13 +9,6 @@ on:
       - "scripts/check-literary-dormant-publisher-config.mjs"
       - "scripts/staging/verify-literary-publisher-disabled.mjs"
       - ".github/workflows/literary-prod-publisher-dormant-deploy.yml"
-  push:
-    branches: [main]
-    paths:
-      - "wrangler.literary-publisher.prod-disabled.jsonc"
-      - "src/literary-inference-publisher.worker.ts"
-      - "scripts/check-literary-dormant-publisher-config.mjs"
-      - ".github/workflows/literary-prod-publisher-dormant-deploy.yml"
   workflow_dispatch:
 permissions:
   contents: read
@@ -53,6 +46,8 @@ jobs:
       - run: node scripts/check-literary-publisher-gateway.mjs
       - name: Reject cutover-in-progress before dormant publisher deployment
         run: node scripts/staging/verify-literary-publisher-disabled.mjs pre
+      - run: node scripts/build-storefront-strangler.mjs
+      - run: node scripts/staging/provision-literary-owner-capabilities.mjs
       - run: node scripts/build-literary-inference-publisher.mjs
       - name: Deploy private disabled literary publisher
         run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.literary-publisher.prod-disabled.jsonc

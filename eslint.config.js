@@ -14,6 +14,7 @@ export default tseslint.config(
       ".vinxi",
       "backend-dist",
       "content-dist",
+      "literary-publisher-dist",
       "artifacts/browser-qa",
     ],
   },

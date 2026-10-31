@@ -73,6 +73,16 @@ assert.deepEqual(
     .filter((x) => x.type === "d1")
     .map((x) => x.database_id)
     .sort(),
-  [primary, isolated].sort(),
+  [isolated],
 );
+assert.ok(!pub.bindings.some((x) => x.type === "d1"));
+for (const item of [pub, next])
+  assert.ok(
+    item.bindings.some(
+      (x) =>
+        x.type === "service" &&
+        x.name === "LITERARY_PRIMARY_READER" &&
+        x.service === "cove-legal-authority-production",
+    ),
+  );
 console.log("LITERARY_PRIVATE_PUBLICATION_TOPOLOGY_PASS credentials preserved, no ingress");

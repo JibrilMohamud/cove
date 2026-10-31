@@ -1,3 +1,9 @@
+import {
+  scopeLiteraryPrimaryReadEnv,
+  literaryOwnerCall,
+  LITERARY_HANDOFF_ROUTE,
+  type LiteraryPort,
+} from "./storefront-strangler/literary-owner-protocol";
 import { runStoredAssetTick } from "./features/fore/catalog-assets.server";
 import { contentPipelineOwner } from "./lib/content-processing-owner.server";
 import { contentBudgetLimits, meterContentAssetEnv } from "./lib/content-worker-budget.server";
@@ -29,6 +35,12 @@ import type { CoveEnv } from "./features/fore/api.server";
  * and is deliberately not represented as completed here.
  */
 export type ContentProcessorEnv = CoveEnv & {
+  LITERARY_PRIMARY_READER?: LiteraryPort;
+  LITERARY_CANONICAL_OWNER?: LiteraryPort;
+  COVE_LITERARY_READ_SECRET?: string;
+  COVE_LITERARY_HANDOFF_SECRET?: string;
+  COVE_LITERARY_PRIVATE_READ_ENABLED?: string;
+  COVE_LITERARY_PRIVATE_HANDOFF_ENABLED?: string;
   FORE_CONTENT_PROCESSOR_ENABLED?: string;
   FORE_CONTENT_PROCESSOR_ROLE?:
     "assets" | "literary" | "literary-prepare" | "literary-handoff" | "literary-infer";
@@ -152,6 +164,19 @@ export async function runContentProcessingTick(
       env.FORE_CONTENT_BUDGET_MODE !== "isolated")
   )
     return { skipped: "isolated_inference_disabled" };
+  if (role === "literary-handoff" && env.COVE_LITERARY_PRIVATE_HANDOFF_ENABLED === "1") {
+    if (env.DB || !env.LITERARY_CANONICAL_OWNER) throw Error("literary_handoff_capability_invalid");
+    return {
+      role,
+      result: await literaryOwnerCall(
+        env.LITERARY_CANONICAL_OWNER,
+        env.COVE_LITERARY_HANDOFF_SECRET || "",
+        LITERARY_HANDOFF_ROUTE,
+        { reconcile: env.FORE_LITERARY_DRAIN_RECONCILE_ENABLED === "1" },
+      ),
+    };
+  }
+  env = scopeLiteraryPrimaryReadEnv(env);
   if (!env.BUCKET) return { skipped: "missing_private_r2", role };
   if (role === "literary-infer" && !env.AI) return { skipped: "missing_ai", role };
   // The live legacy cron is authoritative until the canonical D1 owner is
@@ -209,7 +234,7 @@ export async function runContentProcessingTick(
 
 export default {
   async queue(batch: PreparationBatch, env: ContentProcessorEnv) {
-    await consumePreparationQueue(batch, env);
+    await consumePreparationQueue(batch, scopeLiteraryPrimaryReadEnv(env));
   },
   async scheduled(
     _controller: { cron: string },

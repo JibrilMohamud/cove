@@ -50,9 +50,7 @@ for (const [file, role] of [
   assert.equal(cfg.vars.FORE_CONTENT_PREPARE_ENABLED, "0");
   assert.deepEqual(
     cfg.d1_databases.map((x) => x.database_id),
-    role === "literary-prepare"
-      ? ["400c3af3-5d40-41fd-83cc-98228e40ddac"]
-      : ["4bd657ac-8789-403e-a28c-93aba8d0a989", "400c3af3-5d40-41fd-83cc-98228e40ddac"],
+    ["400c3af3-5d40-41fd-83cc-98228e40ddac"],
   );
   assert.deepEqual(
     cfg.r2_buckets.map((x) => x.bucket_name),
@@ -68,9 +66,20 @@ for (const [file, role] of [
   if (role === "literary-infer") {
     assert.equal(cfg.vars.FORE_CONTENT_INFERENCE_ENABLED, "0");
     assert.equal(cfg.ai.binding, "AI");
-    assert.deepEqual(cfg.services, [
-      { binding: "LITERARY_PUBLISHER", service: "cove-literary-publisher-isolated-disabled" },
-    ]);
+    assert.ok(
+      cfg.services.some(
+        (x) =>
+          x.binding === "LITERARY_PRIMARY_READER" &&
+          x.service === "cove-legal-authority-production",
+      ),
+    );
+    assert.ok(
+      cfg.services.some(
+        (x) =>
+          x.binding === "LITERARY_PUBLISHER" &&
+          x.service === "cove-literary-publisher-isolated-disabled",
+      ),
+    );
   }
 }
 console.log(

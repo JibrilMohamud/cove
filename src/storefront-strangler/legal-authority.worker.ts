@@ -1,4 +1,6 @@
 /* eslint-disable prettier/prettier -- Private legal-authority boundary is security-sensitive. */
+import { handleLiteraryOwnerService, type LiteraryOwnerServiceEnv } from "./literary-owner-service";
+import { LITERARY_READ_ROUTE, LITERARY_HANDOFF_ROUTE, LITERARY_PUBLICATION_ROUTE } from "./literary-owner-protocol";
 import {readPublicationSource} from "./publication-source-reader";
 import {PUBLICATION_SOURCE_ROUTE} from "./publication-source-protocol";
 import {readSoundsPublicationSource} from "./sounds-source-reader";
@@ -127,7 +129,7 @@ async function materializeOwnerOwnershipRecord(db:LegalAuthorityEnv["PRIMARY_DB"
  ).bind(ent.id,ent.user_id,ent.product_id).first<{entitlement_id:string}>();
  return {saved:!!existing,reason:existing?"":"not_committed"};
 }
-type LegalAuthorityEnv = Pick<CoveEnv,"FORE_AUTH_MODE"|"SUPABASE_URL"|"SUPABASE_SECRET_KEY"|"FORE_INGESTION_SIGNING_KEY"> & {
+type LegalAuthorityEnv = Partial<Omit<LiteraryOwnerServiceEnv,"PRIMARY_DB">> & Pick<CoveEnv,"FORE_AUTH_MODE"|"SUPABASE_URL"|"SUPABASE_SECRET_KEY"|"FORE_INGESTION_SIGNING_KEY"> & {
   PRIMARY_DB: CatalogDB;
   BUCKET?:PublishingEnv["BUCKET"];
   FORE_PUBLISHING_AUTO_APPROVE_LOW_RISK?:string;
@@ -21940,6 +21942,8 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
 // The Durable Object remains the single legal serialization point.
 export default {
   async fetch(request:Request,env:LegalAuthorityEnv):Promise<Response> {
+    if([LITERARY_READ_ROUTE,LITERARY_HANDOFF_ROUTE,LITERARY_PUBLICATION_ROUTE].includes(new URL(request.url).pathname))
+      return handleLiteraryOwnerService(request,env);
     if(new URL(request.url).pathname===PUBLICATION_SOURCE_ROUTE)
       return readPublicationSource(request,env as unknown as Parameters<typeof readPublicationSource>[1]);
     // Advisory fixed reads are privately authenticated independently of legal commands.

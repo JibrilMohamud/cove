@@ -13,10 +13,6 @@ on:
       - "scripts/staging/verify-literary-real-publication.mjs"
       - "scripts/staging/rollback-literary-isolated-publication.mjs"
       - "scripts/check-literary-progressive-publication.mjs"
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/literary-progressive-canonical-publication.yml"
   workflow_dispatch:
 permissions:
   contents: read
@@ -66,6 +62,8 @@ jobs:
         run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.literary-publisher.prod-isolated.jsonc
       - name: Fence previous active AI schedule before replacing it
         run: node scripts/staging/fence-prior-literary-infer.mjs
+      - run: node scripts/build-storefront-strangler.mjs
+      - run: node scripts/staging/provision-literary-owner-capabilities.mjs
       - run: npm run build:content-processing
       - name: Deploy one owner-fenced inference and publication caller
         run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.content-literary-infer.prod-isolated.jsonc

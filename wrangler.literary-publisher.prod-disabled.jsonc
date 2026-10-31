@@ -8,25 +8,31 @@
   "limits": {
     "cpu_ms": 300000
   },
-  "d1_databases": [
+  "d1_databases": [],
+  "r2_buckets": [],
+  "vars": {
+    "FORE_LITERARY_INFERENCE_PUBLISH_ENABLED": "0",
+    "COVE_LITERARY_PRIVATE_READ_ENABLED": "1",
+    "COVE_LITERARY_PRIVATE_PUBLICATION_ENABLED": "1"
+  },
+  "services": [
     {
-      "binding": "DB",
-      "database_name": "cove-production",
-      "database_id": "4bd657ac-8789-403e-a28c-93aba8d0a989"
+      "binding": "LITERARY_PRIMARY_READER",
+      "service": "cove-legal-authority-production"
     },
     {
-      "binding": "CONTENT_DB",
-      "database_name": "cove-literary-content-isolated-20261024",
-      "database_id": "400c3af3-5d40-41fd-83cc-98228e40ddac"
+      "binding": "LITERARY_CANONICAL_OWNER",
+      "service": "cove-legal-authority-production"
     }
   ],
-  "r2_buckets": [
-    {
-      "binding": "BUCKET",
-      "bucket_name": "cove-literary-originals-isolated-20261024"
-    }
-  ],
-  "vars": {
-    "FORE_LITERARY_INFERENCE_PUBLISH_ENABLED": "0"
+  "secrets": {
+    "required": [
+      "COVE_LITERARY_READ_SECRET",
+      "COVE_LITERARY_PUBLICATION_SECRET"
+    ]
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
   }
 }
