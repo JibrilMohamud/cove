@@ -36,7 +36,7 @@ assert.ok(scope>=0&&product>scope&&denial>product&&reconciled>denial,
  "Owner must validate support scope, commit paid-entitlement denial, then reconcile primary D1");
 assert.match(privateHandler,/status='revoked'.*entitlement_revoked/);
 assert.match(privateHandler,/Fresh independent positive rights proof is required/);
-assert.match(privateHandler,/reconciled/);
+assert.match(privateHandler,/Owner denial applied but canonical reconciliation is incomplete/);
 assert.doesNotMatch(privateHandler,/UPDATE entitlements SET status='active'/);
 assert.match(ownerRoute,/transactionSync\(fn\)/);
 console.log("PASS: private support actor/RBAC and case-scope rechecked by QA legal owner; paid denial committed before D1 and offline reconciliation, positive restoration refused");
