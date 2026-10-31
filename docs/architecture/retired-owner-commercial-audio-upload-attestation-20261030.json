@@ -5,7 +5,7 @@
   "files": [
     {
       "path": "src/features/fore/commercial-audio.server.ts",
-      "sha256": "cada840c8cb7d760a6f7f48a3372a359b0ee37f3f8bc3c5a6250a4bf97e1c9f7",
+      "sha256": "35457594a6c3140650a5c4eeb01f21018fb03c605e20baa7989cd94c43b13d35",
       "review": "Three protected SQL authorizations remain for offline audio licenses and Biosync. Two unrelated playback metrics retain non-authorizing classification. Verified Biosync link canonical insert subsequently retired to private QA owner; two remaining offline licensing SQL sites and playback telemetry unchanged."
     }
   ]
