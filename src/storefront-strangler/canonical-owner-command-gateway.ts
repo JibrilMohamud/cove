@@ -578,7 +578,7 @@ export async function dispatchCanonicalOwnerCommand(
     case "catalog.observe-source-ingest":
       if(ack.schema!=="cove.owner-catalog-source-ingest.v1"||
          ack.ownerFirst!==true||ack.saved!==true||
-         !Number.isSafeInteger(ack.count)||ack.count!==body.records.length)
+         !Number.isSafeInteger(ack.count)||!Array.isArray(body.records)||ack.count!==body.records.length)
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "catalog.verify-regional-rights-evidence":
