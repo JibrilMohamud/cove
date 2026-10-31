@@ -41,6 +41,8 @@ on:
       - "src/storefront-strangler/legal-primary-write-lock.ts"
       - "docs/architecture/canonical-writer-workflow-migration-v2.md"
       - "scripts/test-canonical-writer-review.mjs"
+      - "scripts/check-retired-regional-rights-evidence-owner.mjs"
+      - "docs/architecture/regional-rights-evidence-owner-source-attestation.json"
       - "scripts/check-retired-publisher-tax-status-owner.mjs"
       - "docs/architecture/publisher-tax-owner-source-attestation.json"
       - "scripts/check-retired-offline-audio-license.mjs"
@@ -98,6 +100,8 @@ on:
       - "src/storefront-strangler/legal-primary-write-lock.ts"
       - "docs/architecture/canonical-writer-workflow-migration-v2.md"
       - "scripts/test-canonical-writer-review.mjs"
+      - "scripts/check-retired-regional-rights-evidence-owner.mjs"
+      - "docs/architecture/regional-rights-evidence-owner-source-attestation.json"
       - "scripts/check-retired-publisher-tax-status-owner.mjs"
       - "docs/architecture/publisher-tax-owner-source-attestation.json"
       - "scripts/check-retired-offline-audio-license.mjs"
@@ -168,6 +172,8 @@ jobs:
           node scripts/check-retired-epub-consumption.mjs
           node scripts/check-retired-offline-audio-license.mjs
           node scripts/check-retired-publisher-tax-status-owner.mjs
+          node scripts/check-retired-regional-rights-evidence-owner.mjs
+          node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/regional-rights-evidence-owner-source-attestation.json
           node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/publisher-tax-owner-source-attestation.json
           node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/offline-audio-owner-source-attestation.json
           node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/epub-consumption-source-attestation.json
