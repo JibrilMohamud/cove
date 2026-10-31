@@ -5,7 +5,7 @@ import {eraseProviderIdentity} from "../features/fore/account-erasure.server";
 import {formatMinorCurrency} from "../features/fore/currency";
 import {bindPrivateFinanceExecutors} from "./finance-owner-routing.server";
 import {runAutomatedPublishingReview} from "../features/fore/moderation.server";
-import {upsertRightsContract,upsertRightsParty} from "../features/fore/rights.server";
+import {upsertRightsContract} from "../features/fore/rights.server";
 import {FORE_AI_POLICY_VERSION,FORE_RIGHTS_POLICY_VERSION,assessSubmissionContentPolicy,publisherRightsSnapshot,recordAssetFingerprint,scanAccountRiskLinks,scanIdentitySimilarity} from "../features/fore/publishing-trust.server";
 import {commercialAudioReadiness,commercialAudioSubmissionEvidence} from "../features/fore/commercial-audio.server";
 import {assessUsageRisk,effectivePublisherWithholding,assessPayoutRisk,assessPublisherRisk} from "../features/fore/risk-tax.server";
@@ -17318,7 +17318,226 @@ return {executeModerationAction};
 })();
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+
+/* Independently leased QA-only rights configuration writers.
+ * Negative territory changes only; fresh legal proof required for positive rights. */
+/* eslint-disable @typescript-eslint/no-explicit-any -- Original reviewed rights SQL */
+const privateRightsConfiguration=(()=>{
+ const now=()=>new Date().toISOString();
+ const STATIC_TERRITORY_ALIASES:Record<string,string>={UK:"GB",EL:"GR"};
+async function upsertRightsParty(db: CatalogDB, raw: unknown, operationId: string) {
+  const x = z
+      .object({
+        id: z.string().max(160).optional(),
+        displayName: z.string().trim().min(1).max(200),
+        partyType: z
+          .enum(["publisher", "author", "agent", "distributor", "estate", "licensor", "other"])
+          .default("publisher"),
+        publisherId: z.string().max(160).nullable().optional(),
+        contributorId: z.string().max(160).nullable().optional(),
+        contactEmail: z.string().email().or(z.literal("")).default(""),
+        referenceCode: z.string().max(160).default(""),
+        status: z.enum(["active", "inactive"]).default("active"),
+      })
+      .parse(raw),
+    id = x.id || `rparty_${operationId.slice("rights:".length, "rights:".length+36)}`,
+    at = now();
+  await db
+    .prepare(
+      `INSERT INTO rights_parties(id,display_name,party_type,publisher_id,contributor_id,contact_email,reference_code,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)
+    ON CONFLICT(id) DO UPDATE SET display_name=excluded.display_name,party_type=excluded.party_type,publisher_id=excluded.publisher_id,contributor_id=excluded.contributor_id,contact_email=excluded.contact_email,reference_code=excluded.reference_code,status=excluded.status,updated_at=excluded.updated_at`,
+    )
+    .bind(
+      id,
+      x.displayName,
+      x.partyType,
+      x.publisherId || null,
+      x.contributorId || null,
+      x.contactEmail,
+      x.referenceCode,
+      x.status,
+      at,
+      at,
+    )
+    .run();
+  return { id };
+}
+
+
+async function rebuildAllTerritorySets(db: CatalogDB) {
+  const [setsResult, rulesResult, territoriesResult, histResult, succResult] = await Promise.all([
+    db.prepare("SELECT * FROM territory_sets WHERE status='active'").all<any>(),
+    db.prepare("SELECT * FROM territory_set_rules ORDER BY position,id").all<any>(),
+    db.prepare("SELECT code FROM territories WHERE is_sellable=1 ORDER BY code").all<any>(),
+    db.prepare("SELECT * FROM territory_historical_entities").all<any>(),
+    db.prepare("SELECT * FROM territory_historical_successors").all<any>(),
+  ]);
+  const sets = new Map(setsResult.results.map((r) => [String(r.id), r] as const)),
+    rules = rulesResult.results;
+  const allTerritories = new Set(territoriesResult.results.map((r) => String(r.code)));
+  const successors = new Map<string, string[]>();
+  for (const r of succResult.results) {
+    const a = successors.get(String(r.historical_entity_id)) || [];
+    a.push(String(r.territory_code));
+    successors.set(String(r.historical_entity_id), a);
+  }
+  const memo = new Map<string, Set<string>>(),
+    visiting = new Set<string>();
+  const histExpand = (code: string, asOf: string | null) => {
+    let entities = histResult.results.filter((r: any) => String(r.historical_code) === code);
+    if (asOf)
+      entities = entities.filter(
+        (r: any) =>
+          (!r.valid_from || String(r.valid_from) <= asOf) &&
+          (!r.valid_to || String(r.valid_to) >= asOf),
+      );
+    if (entities.length !== 1)
+      throw new ApiError(
+        400,
+        entities.length
+          ? `Historical code ${code} is ambiguous; set an as-of date.`
+          : `No historical mapping for ${code}.`,
+      );
+    return new Set(successors.get(String(entities[0].id)) || []);
+  };
+  const compute = (id: string): Set<string> => {
+    if (memo.has(id)) return new Set(memo.get(id)!);
+    if (visiting.has(id)) throw new ApiError(400, "Territory sets contain a circular reference.");
+    const set = sets.get(id);
+    if (!set) throw new ApiError(400, `Unknown territory set ${id}.`);
+    visiting.add(id);
+    if (set.set_type === "worldwide") {
+      const out = new Set(allTerritories);
+      memo.set(id, out);
+      visiting.delete(id);
+      return new Set(out);
+    }
+    const own = rules.filter((r: any) => String(r.set_id) === id),
+      inc = new Set<string>(),
+      exc = new Set<string>();
+    const expand = (r: any) =>
+      r.target_type === "territory"
+        ? new Set([STATIC_TERRITORY_ALIASES[String(r.territory_code)] || String(r.territory_code)])
+        : r.target_type === "set"
+          ? compute(String(r.target_set_id))
+          : histExpand(String(r.historical_code), set.as_of_date ? String(set.as_of_date) : null);
+    for (const r of own.filter((r: any) => r.effect === "include"))
+      for (const c of expand(r)) inc.add(c);
+    for (const r of own.filter((r: any) => r.effect === "exclude"))
+      for (const c of expand(r)) exc.add(c);
+    for (const c of exc) inc.delete(c);
+    for (const c of [...inc]) if (!allTerritories.has(c)) inc.delete(c);
+    memo.set(id, inc);
+    visiting.delete(id);
+    return new Set(inc);
+  };
+  for (const id of sets.keys()) compute(id);
+  const statements: any[] = [db.prepare("DELETE FROM territory_set_members")],
+    at = now();
+  for (const [setId, members] of memo) {
+    const codes = [...members].sort();
+    for (let i = 0; i < codes.length; i += 80) {
+      const chunk = codes.slice(i, i + 80);
+      if (!chunk.length) continue;
+      const values = chunk.map(() => "(?,?,?,?)").join(",");
+      const st = db.prepare(
+        `INSERT INTO territory_set_members(set_id,territory_code,resolution_source,resolved_at) VALUES ${values}`,
+      );
+      const binds: any[] = [];
+      for (const code of chunk) binds.push(setId, code, `resolved:${setId}`, at);
+      statements.push(st.bind(...binds));
+    }
+  }
+  await db.batch(statements);
+  return memo;
+}
+
+
+async function upsertTerritorySet(db: CatalogDB, raw: unknown, operationId: string) {
+  const x = z
+    .object({
+      id: z.string().max(180).optional(),
+      code: z
+        .string()
+        .trim()
+        .min(2)
+        .max(40)
+        .regex(/^[A-Za-z0-9_]+$/)
+        .transform((v) => v.toUpperCase()),
+      name: z.string().trim().min(1).max(200),
+      setType: z.enum(["custom", "region", "market"]).default("custom"),
+      description: z.string().max(2000).default(""),
+      status: z.enum(["active", "inactive", "archived"]).default("active"),
+      asOfDate: z.string().nullable().optional(),
+      rules: z.array(scopeRuleSchema).max(600).default([]),
+    })
+    .parse(raw);
+  const id = x.id || `rset_${crypto.randomUUID()}`,
+    at = now();
+  if (x.id) {
+    const existing = await db
+      .prepare("SELECT is_system FROM territory_sets WHERE id=?")
+      .bind(id)
+      .first<any>();
+    if (existing && Number(existing.is_system))
+      throw new ApiError(
+        400,
+        "System territory sets are versioned fixtures and cannot be edited. Create a custom set instead.",
+      );
+  }
+  const statements: any[] = [
+    db
+      .prepare(
+        `INSERT INTO territory_sets(id,code,name,set_type,description,status,is_system,as_of_date,created_at,updated_at) VALUES(?,?,?,?,?,?,0,?,?,?) ON CONFLICT(id) DO UPDATE SET code=excluded.code,name=excluded.name,set_type=excluded.set_type,description=excluded.description,status=excluded.status,as_of_date=excluded.as_of_date,updated_at=excluded.updated_at`,
+      )
+      .bind(id, x.code, x.name, x.setType, x.description, x.status, x.asOfDate || null, at, at),
+    db.prepare("DELETE FROM territory_set_rules WHERE set_id=?").bind(id),
+  ];
+  x.rules.forEach((r, i) =>
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO territory_set_rules(id,set_id,effect,target_type,territory_code,target_set_id,historical_code,position,created_at) VALUES(?,?,?,?,?,?,?,?,?)`,
+        )
+        .bind(
+          `tsr_${crypto.randomUUID()}`,
+          id,
+          r.effect,
+          r.targetType,
+          r.territoryCode ? normalizeTerritoryCode(r.territoryCode) : null,
+          r.territorySetId || null,
+          r.historicalCode ? String(r.historicalCode).toUpperCase() : null,
+          i,
+          at,
+        ),
+    ),
+  );
+  await db.batch(statements);
+  const memo = await rebuildAllTerritorySets(db),
+    members = [...(memo.get(id) || new Set<string>())].sort();
+  await db
+    .prepare(
+      "INSERT OR IGNORE INTO rights_configuration_audit(id,entity_type,entity_id,action,snapshot_json,recorded_at) VALUES(?,?,?,?,?,?)",
+    )
+    .bind(
+      `rca_${operationId.slice("rights:".length)}`,
+      "territory-set",
+      id,
+      x.id ? "update" : "insert",
+      JSON.stringify({ ...x, resolvedTerritories: members }),
+      at,
+    )
+    .run();
+  return { id, code: x.code, memberCount: members.length, members };
+}
+
+
+ return {upsertRightsParty,upsertTerritorySet};
+})();
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
+  private rightsConfigExecution=false;
   private moderationExecution=false;
   private regionalRepairExecution=false;
   private accountExecution=false;
@@ -17419,6 +17638,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/catalog/repair-regional-assets",
       "/publishing/editor-action",
       "/publishing/partner/private-action",
+      "/rights/private-configuration",
       "/moderation/private-action",
       "/support/private-action",
       "/publishing/contract/save-version",
@@ -17433,7 +17653,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     let raw:unknown;
     try {
       const bytes=await request.text();
-      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/create-quote"?4096:route==="/publishing/audio/register-upload"?8192:route==="/publishing/audio/qc-jobs"?262144:route==="/publishing/worker/jobs"?262144:route==="/publishing/audio/metadata"?8192:route==="/publishing/onboarding/review"?8192:route==="/moderation/private-action"?12288:route==="/support/private-action"?8192:route==="/preorder/private-action"?8192:route==="/trust/private-action"?262144:route==="/finance/private-action"?65536:route==="/account/private-action"?2048:route==="/publishing/editor-action"?262144:route==="/publishing/partner/private-action"?16384:route==="/commercial/checkout/materialize-draft"?2048:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
+      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/create-quote"?4096:route==="/publishing/audio/register-upload"?8192:route==="/publishing/audio/qc-jobs"?262144:route==="/publishing/worker/jobs"?262144:route==="/publishing/audio/metadata"?8192:route==="/publishing/onboarding/review"?8192:route==="/rights/private-configuration"?12288:route==="/moderation/private-action"?12288:route==="/support/private-action"?8192:route==="/preorder/private-action"?8192:route==="/trust/private-action"?262144:route==="/finance/private-action"?65536:route==="/account/private-action"?2048:route==="/publishing/editor-action"?262144:route==="/publishing/partner/private-action"?16384:route==="/commercial/checkout/materialize-draft"?2048:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
       raw=JSON.parse(bytes);
     }catch {return new Response(null,{status:400,headers:noStore});}
     bindPrivateFinanceExecutors(env.PRIMARY_DB,{...privateRoyalty,...privateFinance});
@@ -18060,6 +18280,66 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         return Response.json({schema:"cove.owner-preorder-qa.v1",ownerFirst:true,
           operationId:input.operationId,action:input.action,
           result:result??null},{headers:noStore});
+      }
+      if(route==="/rights/private-configuration") {
+        const input=z.object({
+          action:z.enum(["upsert-party","upsert-territory-set"]),
+          actorUserId:z.string().regex(/^[A-Za-z0-9_-]{3,160}$/),
+          operationId:z.string().regex(/^rights:[a-f0-9]{64}$/),
+          payload:z.record(z.string(),z.unknown())
+        }).strict().parse(raw);
+        const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",
+          new TextEncoder().encode(JSON.stringify({action:input.action,
+            actorUserId:input.actorUserId,payload:input.payload}))));
+        const expected="rights:"+Array.from(digest,x=>x.toString(16).padStart(2,"0")).join("");
+        if(expected!==input.operationId)return new Response(null,{status:409,headers:noStore});
+        if(this.rightsConfigExecution)return new Response(null,{status:409,headers:noStore});
+        this.rightsConfigExecution=true;
+        try{
+          const staff=await env.PRIMARY_DB.prepare(
+            "SELECT user_id FROM staff_principals WHERE user_id=? AND status='active'"
+          ).bind(input.actorUserId).first<{user_id:string}>();
+          if(!staff)return new Response(null,{status:403,headers:noStore});
+          const permissions=(await env.PRIMARY_DB.prepare(
+            "SELECT p.permission FROM staff_principal_roles pr JOIN staff_role_permissions p ON p.role_id=pr.role_id WHERE pr.user_id=?"
+          ).bind(input.actorUserId).all<{permission:string}>()).results.map(r=>r.permission);
+          if(!permissions.includes("commerce.manage")&&!permissions.includes("staff.manage"))
+            return new Response(null,{status:403,headers:noStore});
+          let result:unknown;
+          if(input.action==="upsert-party"){
+            const request=z.object({id:z.string().max(160).optional(),
+              publisherId:z.string().nullable().optional(),
+              contributorId:z.string().nullable().optional(),
+              status:z.enum(["active","inactive"]).default("active")}).passthrough().parse(input.payload);
+            const existing=request.id?await env.PRIMARY_DB.prepare(
+              "SELECT status,publisher_id,contributor_id FROM rights_parties WHERE id=?"
+            ).bind(request.id).first<{status:string;publisher_id:string|null;contributor_id:string|null}>():null;
+            // Positive creation/reactivation and ownership rebinding require
+            // separately verified legal evidence, not a staff-provided claim.
+            if(request.status==="active"&&(!existing||existing.status!=="active"||
+              String(existing.publisher_id||"")!==String(request.publisherId||"")||
+              String(existing.contributor_id||"")!==String(request.contributorId||"")))
+              return new Response(null,{status:409,headers:noStore});
+            result=await privateRightsConfiguration.upsertRightsParty(
+              env.PRIMARY_DB,input.payload,input.operationId);
+          }else{
+            const request=z.object({id:z.string().min(1).max(180),
+              status:z.enum(["inactive","archived"]),
+              rules:z.array(z.unknown()).length(0)}).passthrough().parse(input.payload);
+            const existing=await env.PRIMARY_DB.prepare(
+              "SELECT id,is_system FROM territory_sets WHERE id=?"
+            ).bind(request.id).first<{id:string;is_system:number}>();
+            if(!existing||Number(existing.is_system)!==0)
+              return new Response(null,{status:409,headers:noStore});
+            // Negative-only membership removal. No region, nested set, market
+            // or positive grant may be introduced through this route.
+            result=await privateRightsConfiguration.upsertTerritorySet(
+              env.PRIMARY_DB,input.payload,input.operationId);
+          }
+          return Response.json({schema:"cove.owner-rights-config-qa.v1",ownerFirst:true,
+            action:input.action,actorUserId:input.actorUserId,
+            operationId:input.operationId,result},{headers:noStore});
+        }finally{this.rightsConfigExecution=false;}
       }
       if(route==="/moderation/private-action") {
         const actionSchema=z.object({

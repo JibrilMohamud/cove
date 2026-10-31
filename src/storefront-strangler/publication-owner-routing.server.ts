@@ -362,3 +362,21 @@ export async function dispatchPrivateModerationAction(db:object,staffUserId:stri
   }catch{throw new ApiError(503,"Private moderation owner refused or did not acknowledge this action.");}
 }
 
+
+/** QA-only privately scoped rights-party metadata and negative territory rules. */
+export async function dispatchPrivateRightsConfiguration(db:object,
+ action:"upsert-party"|"upsert-territory-set",actorUserId:string,payload:unknown){
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Rights configuration requires private authority.");
+ if(!payload||typeof payload!=="object"||Array.isArray(payload))
+   throw new ApiError(400,"Invalid rights configuration payload.");
+ const request={action,actorUserId,payload:payload as Record<string,unknown>};
+ const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",
+   new TextEncoder().encode(JSON.stringify(request))));
+ const operationId="rights:"+Array.from(digest,b=>b.toString(16).padStart(2,"0")).join("");
+ try {
+  const receipt=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+    "rights.private-configuration",{...request,operationId});
+  return receipt.result;
+ }catch{throw new ApiError(503,"Private rights configuration owner refused the request.");}
+}

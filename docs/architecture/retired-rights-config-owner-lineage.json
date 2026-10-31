@@ -1,0 +1,69 @@
+{
+  "schema": "cove.retired-rights-config-owner-lineage.v1",
+  "sourceBefore": 65,
+  "sourceAfter": 59,
+  "productionCertified": false,
+  "releaseApproval": false,
+  "retired": [
+    {
+      "file": "src/features/fore/rights.server.ts",
+      "siteId": "d35b4bfdffc87457898a5435962e4bd108d40e2b7f358229e1edb055f982ce7f",
+      "line": 953,
+      "table": "rights_parties",
+      "operation": "INSERT INTO",
+      "functionName": "upsertRightsParty",
+      "sqlSha256": "b4176ce0b717d34e5c0ab9e7688c20ce3aaa0c9ec47e3e584e62063f8d3d36ca",
+      "ownerExecutor": "privateRightsConfiguration"
+    },
+    {
+      "file": "src/features/fore/rights.server.ts",
+      "siteId": "e6a7391e9c302a5c960237abdd1f8689af139fc9d941799bd891bc1cd869adda",
+      "line": 1040,
+      "table": "territory_set_members",
+      "operation": "DELETE FROM",
+      "functionName": "rebuildAllTerritorySets",
+      "sqlSha256": "1e05439d0de4602334c0059227a4b9183d089a93eb2f065222f9733053185611",
+      "ownerExecutor": "privateRightsConfiguration"
+    },
+    {
+      "file": "src/features/fore/rights.server.ts",
+      "siteId": "7c21839ea5e39d9cef58b30e69e879b16cb9729dd0f16465ac13ee7b60613b3e",
+      "line": 1049,
+      "table": "territory_set_members",
+      "operation": "INSERT INTO",
+      "functionName": "rebuildAllTerritorySets",
+      "sqlSha256": "9fad48ad1c54510e0e22148cea247b4a1f99e842c44fcf509fda9c5268c5d9ca",
+      "ownerExecutor": "privateRightsConfiguration"
+    },
+    {
+      "file": "src/features/fore/rights.server.ts",
+      "siteId": "d2935e5b6ef01d2273d2f53bfcacfcd79ed0b1c307c442b12d6ed57263f1cc71",
+      "line": 1095,
+      "table": "territory_sets",
+      "operation": "INSERT INTO",
+      "functionName": "upsertTerritorySet",
+      "sqlSha256": "e6fa293af34f8eb10da475f3c413a0a9055926e1b52d332e4b4b455a2dd7fea3",
+      "ownerExecutor": "privateRightsConfiguration"
+    },
+    {
+      "file": "src/features/fore/rights.server.ts",
+      "siteId": "747212f136dbd1b7544813dddc1a505292d336658ab5fc0e8c51dc521628105c",
+      "line": 1098,
+      "table": "territory_set_rules",
+      "operation": "DELETE FROM",
+      "functionName": "upsertTerritorySet",
+      "sqlSha256": "7c1d7e8ff53f5c2abded8824a975a99f0d513e66d216507e68c0265d709a6812",
+      "ownerExecutor": "privateRightsConfiguration"
+    },
+    {
+      "file": "src/features/fore/rights.server.ts",
+      "siteId": "ba9b788d97d1003824fda028b45a4304059e0aec687fb6aa9e48e2d402defc29",
+      "line": 1104,
+      "table": "territory_set_rules",
+      "operation": "INSERT INTO",
+      "functionName": "upsertTerritorySet",
+      "sqlSha256": "be6435c0367a45cd028ba0fa92a61daeb6d77ff7d46de326d060f0b64f8cd473",
+      "ownerExecutor": "privateRightsConfiguration"
+    }
+  ]
+}
