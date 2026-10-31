@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "retirementEvidence": "docs/architecture/retired-us-catalog-observation-owner-lineage.json",
+  "rationale": "Compared the exact latest 39-finding API source to the previously reviewed private US catalog observation implementation. Three Gutenberg last-seen/popularity SQL sites were relocated unchanged into fixed private legal-owner commands. The owner independently verifies active, public-domain approved US source records, rejects duplicates, and performs cross-table compare-and-swap for popularity. Fourteen remaining API canonical SQL identities preserve their function, table, SQL hash and disposition, and were re-fingerprinted to this full-source SHA. This is QA only; production release remains denied.",
+  "files": [
+    {
+      "path": "src/features/fore/api.server.ts",
+      "sha256": "29d6e1b715d9ce543ae31dec265a80d9d4fad4ee0d24a7dec07dcc2bd76d0106",
+      "review": "Three exact US catalog observation writes retired behind the private owner. All fourteen surviving API canonical candidates preserve SQL literals, function names and dispositions; complete source SHA and exact site identities re-attested."
+    }
+  ]
+}

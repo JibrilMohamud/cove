@@ -17639,6 +17639,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/publishing/editor-action",
       "/publishing/partner/private-action",
       "/rights/private-configuration",
+      "/catalog/observe-us",
       "/catalog/private-ingest-state",
       "/delivery/private-negative",
       "/catalog/withdraw-stale",
@@ -18344,6 +18345,71 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
             action:input.action,actorUserId:input.actorUserId,
             operationId:input.operationId,result},{headers:noStore});
         }finally{this.rightsConfigExecution=false;}
+      }
+      if(route==="/catalog/observe-us"){
+        const bookSchema=z.object({
+          id:z.string().regex(/^[0-9]{1,10}$/),
+          count:z.number().int().min(0).max(1_000_000_000).optional(),
+          expectedUpdatedAt:z.string().max(60).optional(),
+          expectedProjectionUpdatedAt:z.string().max(60).optional()
+        }).strict();
+        const input=z.object({
+          action:z.enum(["heartbeat","popularity"]),
+          books:z.array(bookSchema).min(1).max(100)
+        }).strict().parse(raw);
+        const db=env.PRIMARY_DB;
+        const ids=input.books.map(x=>x.id);
+        if(new Set(ids).size!==ids.length||
+           input.books.some(x=>input.action==="heartbeat"
+             ?x.count!==undefined||x.expectedUpdatedAt!==undefined||x.expectedProjectionUpdatedAt!==undefined
+             :x.count===undefined||!x.expectedUpdatedAt||!x.expectedProjectionUpdatedAt))
+          return new Response(null,{status:409,headers:noStore});
+        const observed=(await db.prepare(
+          `SELECT c.id FROM gutenberg_source_cache c
+            JOIN products p ON p.source_name='gutenberg' AND p.source_external_id=c.id
+            WHERE c.id IN (${ids.map(()=>"?").join(",")})
+              AND c.source_id='pg_us' AND c.copyright=0
+              AND c.ingest_status='active' AND c.rights_status='public-domain'
+              AND c.commercial_use_status='approved' AND c.rights_territories_json='["US"]'`
+        ).bind(...ids).all<{id:string}>()).results;
+        if(observed.length!==ids.length||new Set(observed.map(x=>x.id)).size!==ids.length)
+          return new Response(null,{status:409,headers:noStore});
+        const at=now();
+        if(input.action==="heartbeat"){
+          const unchanged=ids;
+          await db.prepare(
+            `UPDATE gutenberg_source_cache SET last_seen_at=?,source_updated_at=?
+         WHERE id IN (${unchanged.map(() => "?").join(",")})`
+          ).bind(at,at,...unchanged).run();
+        }else{
+          const statements:Parameters<typeof db.batch>[0]=[];
+          for(const book of input.books){
+            const id=book.id;
+            const count=book.count!;
+            statements.push(db.prepare(
+              `UPDATE gutenberg_source_cache
+            SET download_count=?,source_updated_at=?,last_seen_at=?,updated_at=?
+            WHERE id=? AND updated_at=? AND ingest_status='active'
+              AND rights_status='public-domain'
+              AND commercial_use_status='approved'
+              AND rights_territories_json='["US"]'`
+            ).bind(count,at,at,at,id,book.expectedUpdatedAt));
+            statements.push(db.prepare(
+              `UPDATE catalog_search_documents
+            SET download_count=?,updated_at=?
+            WHERE product_id=? AND updated_at=?
+              AND EXISTS(SELECT 1 FROM gutenberg_source_cache c
+                WHERE c.id=? AND c.updated_at=? AND c.download_count=?
+                  AND c.rights_status='public-domain'
+                  AND c.commercial_use_status='approved'
+                  AND c.rights_territories_json='["US"]')`
+            ).bind(count,at,`prd_gutenberg_${id}`,book.expectedProjectionUpdatedAt,id,at,count));
+          }
+          await db.batch(statements);
+        }
+        return Response.json({schema:"cove.owner-us-catalog-observation.v1",
+          ownerFirst:true,action:input.action,checked:ids.length,legalStatePreserved:true},
+          {headers:noStore});
       }
       if(route==="/catalog/private-ingest-state") {
         const input=z.object({

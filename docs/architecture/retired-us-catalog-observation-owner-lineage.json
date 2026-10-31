@@ -1,0 +1,42 @@
+{
+  "schema": "cove.retired-us-catalog-observation-owner-lineage.v1",
+  "sourceBefore": 39,
+  "sourceAfter": 36,
+  "productionCertified": false,
+  "releaseApproval": false,
+  "sourceFile": "src/features/fore/api.server.ts",
+  "previousSha256": "3eb3fbf20c150f7f21fd59e125e6867a7805c1774c04c21828d65e0a0ea0f518",
+  "currentSha256": "29d6e1b715d9ce543ae31dec265a80d9d4fad4ee0d24a7dec07dcc2bd76d0106",
+  "retired": [
+    {
+      "siteId": "af4f174c15c26c2c7c05e727980524dde14fcd0ecae747cb8fbe03d0483610d1",
+      "sqlSha256": "f132489bb142c8943d36eaaa9dd77093db1b3c4e9842201a959f4ec963c440f9",
+      "file": "src/features/fore/api.server.ts",
+      "line": 2095,
+      "table": "gutenberg_source_cache",
+      "operation": "UPDATE",
+      "functionName": "runCatalogIngestion",
+      "privateRoute": "/catalog/observe-us"
+    },
+    {
+      "siteId": "b0fcec4e851d975967d572cda53b4e3e072d1fa90db12c4424affb35a957dc5d",
+      "sqlSha256": "9226af01f443aa7e89e42622350abdef4e47348d2d189f7fa05a7f3edce98c88",
+      "file": "src/features/fore/api.server.ts",
+      "line": 2114,
+      "table": "gutenberg_source_cache",
+      "operation": "UPDATE",
+      "functionName": "runCatalogIngestion",
+      "privateRoute": "/catalog/observe-us"
+    },
+    {
+      "siteId": "aba2866a4399d9a03a54413143f4ceb3dd11d757d5b016ccae8315a7eccc310f",
+      "sqlSha256": "a95a9b5300693cb3365c2faca81369ae36a6708189b092855afca5d6103cdf01",
+      "file": "src/features/fore/api.server.ts",
+      "line": 2124,
+      "table": "catalog_search_documents",
+      "operation": "UPDATE",
+      "functionName": "runCatalogIngestion",
+      "privateRoute": "/catalog/observe-us"
+    }
+  ]
+}

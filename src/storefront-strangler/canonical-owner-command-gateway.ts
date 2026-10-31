@@ -114,6 +114,15 @@ const routes={
     action:z.enum(["revoke-grant","withdraw-version","restrict-policy"]),
     payload:z.record(z.string(),z.unknown())
   }).strict()},
+  "catalog.observe-us":{path:"/catalog/observe-us",schema:z.object({
+    action:z.enum(["heartbeat","popularity"]),
+    books:z.array(z.object({
+      id:z.string().regex(/^[0-9]{1,10}$/),
+      count:z.number().int().min(0).max(1_000_000_000).optional(),
+      expectedUpdatedAt:z.string().max(60).optional(),
+      expectedProjectionUpdatedAt:z.string().max(60).optional()
+    }).strict()).min(1).max(100)
+  }).strict()},
   "catalog.ingestion-state":{path:"/catalog/private-ingest-state",schema:z.object({
     action:z.enum(["recover-interrupted","mark-unavailable","claim-download",
       "touch-attempt","set-backoff","mark-failure","acquire-regional",
@@ -327,6 +336,11 @@ export async function dispatchCanonicalOwnerCommand(
         (body.action==="revoke-grant"&&ack.result.revoked!==true)||
         (body.action!=="revoke-grant"&&ack.result.saved!==true))
         throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "catalog.observe-us":
+      if(ack.schema!=="cove.owner-us-catalog-observation.v1"||ack.ownerFirst!==true||
+         ack.action!==body.action||ack.checked!==(body.books as unknown[]).length||
+         ack.legalStatePreserved!==true)throw Error("canonical_command_receipt_mismatch");
       break;
     case "catalog.ingestion-state":
       if(ack.schema!=="cove.owner-ingestion-state-qa.v1"||ack.ownerFirst!==true||
