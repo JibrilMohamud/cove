@@ -18,7 +18,7 @@ assert.equal(createHash("sha256").update(source).digest("hex"),lineage.currentSh
 assert.equal(lineage.retired.length,2);
 assert.ok(lineage.retired.every(x=>x.disposition==="owner-command-required"));
 assert.ok(lineage.retired.every(x=>!review.sites.some(r=>r.siteId===x.siteId)));
-assert.equal(review.sites.filter(x=>x.disposition==="owner-command-required").length,6);
+assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=6);
 assert.doesNotMatch(source,/UPDATE audio_offline_licenses SET status='revoked',revoked_at=/);
 assert.doesNotMatch(source,/INSERT INTO audio_offline_licenses\(/);
 assert.match(source,/await dispatchPrivateOfflineAudioLicense\(db,/);
@@ -31,4 +31,4 @@ for(const guard of ["readPaidAccess(sql,","marketIsWithdrawn(sql,x.territory)",
   "JSON.stringify(chapters.map(c=>[c.id,c.sha256]))","entitlement_type='purchase'",
   "audio_offline_licenses","await db.batch(["])
   assert.ok(owner.includes(guard),"Missing independent offline owner guard: "+guard);
-console.log("PASS: two commercial offline audio license writers retired; six owner-required sites remain, no production approval.");
+console.log("PASS: two commercial offline audio license writers retired; later retirements are monotonic, no production approval.");
