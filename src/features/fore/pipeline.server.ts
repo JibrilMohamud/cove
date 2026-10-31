@@ -1,6 +1,6 @@
 import { z } from "zod/v3";
 import { catalogInsert, type CoveEnv } from "./api.server";
-import { dispatchCatalogFreeNormalization } from "../../storefront-strangler/publication-owner-routing.server";
+import { dispatchCatalogFreeNormalization,dispatchPrivateCatalogSourceBatch } from "../../storefront-strangler/publication-owner-routing.server";
 import { syncSearchIndex } from "./search.server";
 import { ApiError, json, now, readBody, requireIdentity, rateLimit } from "./service";
 import { requireServiceScope } from "./privileged-access.server";
@@ -359,7 +359,7 @@ export async function handlePipeline(
       })
       .parse(await readBody(r, 100000));
     const at = now();
-    await catalogInsert(db, b, "https://www.gutenberg.org/ebooks/" + b.id, at).run();
+    await dispatchPrivateCatalogSourceBatch(db,[catalogInsert(db, b, "https://www.gutenberg.org/ebooks/" + b.id, at)]);
     await dispatchCatalogFreeNormalization(db, b.id, at);
     await syncSearchIndex(env, 20).catch(() => {});
     return json({ saved: true });
