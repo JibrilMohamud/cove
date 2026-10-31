@@ -110,6 +110,10 @@ const routes={
   "partner.process-feed":{path:"/publishing/partner/process-feed",schema:z.object({
     limit:z.number().int().min(1).max(25),operationId:shortOperation
   }).strict()},
+  "delivery.register-entitlement-device":{path:"/delivery/register-entitlement-device",schema:z.object({
+    userId:ownerId,entitlementId:ownerId,productId:product,deviceId:ownerId,
+    maxActiveDevices:z.number().int().min(1).max(100)
+  }).strict()},
   "delivery.private-negative":{path:"/delivery/private-negative",schema:z.object({
     action:z.enum(["revoke-grant","withdraw-version","restrict-policy","expire-grant","exhaust-grant"]),
     payload:z.record(z.string(),z.unknown())
@@ -345,6 +349,11 @@ export async function dispatchCanonicalOwnerCommand(
   try{ack=JSON.parse(bytes);}catch{throw Error("canonical_command_receipt_invalid");}
   if(!record(ack))throw Error("canonical_command_receipt_invalid");
   switch(kind){
+    case "delivery.register-entitlement-device":
+      if(ack.schema!=="cove.owner-entitlement-device.v1"||ack.ownerFirst!==true||
+         ack.entitlementId!==body.entitlementId||ack.deviceId!==body.deviceId||
+         ack.saved!==true)throw Error("canonical_command_receipt_mismatch");
+      break;
     case "delivery.private-negative":
       if(ack.schema!=="cove.owner-negative-delivery-qa.v1"||ack.ownerFirst!==true||
         ack.action!==body.action||!record(ack.result)||
