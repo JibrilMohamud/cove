@@ -197,7 +197,7 @@ export async function dispatchCanonicalOwnerCommand(
     throw Error("canonical_command_binding_invalid");
   const body=definition.schema.parse(raw) as Record<string,unknown>;
   const encoded=JSON.stringify(body);
-  if(encoded.length>(kind==="publishing.save-contract-version"?32768:8192))throw Error("canonical_command_too_large");
+  if(encoded.length>(kind==="publishing.worker-jobs"?262144:kind==="publishing.save-contract-version"?32768:8192))throw Error("canonical_command_too_large");
   const root=isQuarantine(kind)?"https://legal-quarantine.internal":"https://legal-authority.internal";
   const response=await port.fetch(new Request(root+definition.path,{
     method:"POST",headers:{
@@ -208,7 +208,7 @@ export async function dispatchCanonicalOwnerCommand(
   }));
   if(response.status!==200)throw Error("canonical_command_owner_refused");
   const bytes=await response.text();
-  if(bytes.length>131072)throw Error("canonical_command_receipt_too_large");
+  if(bytes.length>(kind==="publishing.worker-jobs"?524288:131072))throw Error("canonical_command_receipt_too_large");
   let ack:unknown;
   try{ack=JSON.parse(bytes);}catch{throw Error("canonical_command_receipt_invalid");}
   if(!record(ack))throw Error("canonical_command_receipt_invalid");
