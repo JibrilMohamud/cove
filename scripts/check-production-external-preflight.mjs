@@ -7,7 +7,11 @@ export const PRODUCTION_OWNER="cove-legal-authority-production";
 export const REQUIRED_EVENTS=[
   "payment_intent.succeeded","payment_intent.payment_failed",
   "payment_intent.processing","payment_intent.canceled",
-  "charge.succeeded","refund.created","refund.updated"
+  "payment_intent.amount_capturable_updated","charge.succeeded",
+  "invoice.paid","invoice.payment_failed",
+  "refund.created","refund.updated",
+  "charge.dispute.created","charge.dispute.updated","charge.dispute.closed",
+  "charge.dispute.funds_withdrawn","charge.dispute.funds_reinstated"
 ];
 export function assessExternalPrerequisites({ownerSettings,workerSettings,webhooks,webhookUrl,ownerSource}){
   const problems=[];
