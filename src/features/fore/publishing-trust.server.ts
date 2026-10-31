@@ -2,6 +2,7 @@ import { z } from "zod/v3";
 import { ApiError } from "./service";
 import { createModerationCase, type StaffContext } from "./moderation.server";
 import type { PublishingDB, PublishingEnv } from "./publishing.server";
+import { dispatchPublishingOwnerValidationJob } from "../../storefront-strangler/publication-owner-routing.server";
 
 const now = () => new Date().toISOString();
 const id = (p: string) => `${p}_${crypto.randomUUID()}`;
@@ -2221,68 +2222,11 @@ export async function completeRightsNotificationJob(db: PublishingDB, raw: unkno
 }
 
 export async function leaseRightsEvidenceScanJobs(db: PublishingDB, raw: unknown) {
-  const x = z
-      .object({
-        workerId: z.string().min(1).max(160),
-        limit: z.number().int().min(1).max(50).default(10),
-        leaseSeconds: z.number().int().min(30).max(1800).default(300),
-      })
-      .parse(raw),
-    at = now(),
-    until = new Date(Date.now() + x.leaseSeconds * 1000).toISOString();
-  await db
-    .prepare(
-      "UPDATE publishing_rights_evidence_scan_jobs SET status='queued',lease_owner=NULL,lease_expires_at=NULL,available_at=?,updated_at=? WHERE status='leased' AND lease_expires_at<? AND attempts<max_attempts",
-    )
-    .bind(at, at, at)
-    .run();
-  const rows = (
-    await db
-      .prepare(
-        "SELECT j.*,e.object_key,e.mime_type,e.sha256,e.size_bytes FROM publishing_rights_evidence_scan_jobs j JOIN publishing_rights_evidence e ON e.id=j.evidence_id WHERE j.status='queued' AND j.available_at<=? AND j.attempts<j.max_attempts ORDER BY j.created_at LIMIT ?",
-      )
-      .bind(at, x.limit)
-      .all<any>()
-  ).results;
-  for (const r of rows)
-    await db
-      .prepare(
-        "UPDATE publishing_rights_evidence_scan_jobs SET status='leased',lease_owner=?,lease_expires_at=?,attempts=attempts+1,updated_at=? WHERE id=? AND status='queued'",
-      )
-      .bind(x.workerId, until, at, r.id)
-      .run();
-  return { jobs: rows };
+  return dispatchPublishingOwnerValidationJob(db, "lease-rights-scan", raw);
 }
+
 export async function completeRightsEvidenceScanJob(db: PublishingDB, raw: unknown) {
-  const x = z
-      .object({
-        jobId: z.string().min(1),
-        workerId: z.string().min(1),
-        status: z.enum(["passed", "failed", "blocked"]),
-        error: z.string().max(2000).default(""),
-      })
-      .parse(raw),
-    j = await db
-      .prepare(
-        "SELECT * FROM publishing_rights_evidence_scan_jobs WHERE id=? AND status='leased' AND lease_owner=?",
-      )
-      .bind(x.jobId, x.workerId)
-      .first<any>();
-  if (!j)
-    throw new ApiError(409, "Evidence scan lease is missing or no longer owned by this worker.");
-  const at = now(),
-    scanStatus = x.status === "passed" ? "clean" : x.status === "blocked" ? "rejected" : "failed";
-  await db.batch([
-    db
-      .prepare(
-        "UPDATE publishing_rights_evidence_scan_jobs SET status=?,lease_owner=NULL,lease_expires_at=NULL,last_error=?,updated_at=? WHERE id=?",
-      )
-      .bind(x.status, x.error, at, j.id),
-    db
-      .prepare("UPDATE publishing_rights_evidence SET scan_status=? WHERE id=?")
-      .bind(scanStatus, j.evidence_id),
-  ]);
-  return { id: j.id, status: x.status };
+  return dispatchPublishingOwnerValidationJob(db, "complete-rights-scan", raw);
 }
 
 export async function reviewRightsEvidence(db: PublishingDB, staff: StaffContext, raw: unknown) {

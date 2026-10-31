@@ -193,3 +193,15 @@ export async function dispatchCommercialAudioMetadata(db:object,
     return ack.result as Record<string,unknown>;
   }catch {throw new ApiError(503,"The private owner did not certify this audiobook metadata change.");}
 }
+
+export async function dispatchPublishingOwnerValidationJob(
+  db:object,action:"lease-validation"|"complete-validation"|"lease-rights-scan"|"complete-rights-scan",
+  payload:unknown) {
+  const context=owners.get(db);
+  if(!context)throw new ApiError(503,"Publishing validation requires its private owner.");
+  try {
+    const receipt=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+      "publishing.worker-jobs",{action,payload,operationId:"publishing-jobs:"+crypto.randomUUID()});
+    return receipt.result as Record<string,unknown>;
+  }catch{throw new ApiError(503,"Private publishing worker did not certify this job.");}
+}

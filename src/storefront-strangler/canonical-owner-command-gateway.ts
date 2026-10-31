@@ -120,6 +120,10 @@ const routes={
     objectKey:z.string().max(500),createdAt:z.string().datetime(),
     operationId:shortOperation
   }).strict()},
+  "publishing.worker-jobs":{path:"/publishing/worker/jobs",schema:z.object({
+    action:z.enum(["lease-validation","complete-validation","lease-rights-scan","complete-rights-scan"]),
+    payload:z.record(z.string(),z.unknown()),operationId:shortOperation
+  }).strict()},
   "publishing.audio-metadata":{path:"/publishing/audio/metadata",schema:z.object({
     action:z.enum(["profile","narrators","agreement-add","agreement-end"]),
     userId:subject,payload:z.record(z.string(),z.unknown()),operationId:shortOperation
@@ -394,6 +398,16 @@ export async function dispatchCanonicalOwnerCommand(
          ack.operationId!==body.operationId||ack.userId!==body.userId||
          ack.importId!==body.id||ack.productId!=="prd_"+body.id||
          typeof ack.applied!=="boolean")
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "publishing.worker-jobs":
+      if(ack.schema!=="cove.owner-publishing-worker-jobs.v1"||
+         ack.ownerFirst!==true||ack.operationId!==body.operationId||
+         ack.action!==body.action||!record(ack.result)||
+         (String(body.action).startsWith("lease-")&&!Array.isArray(ack.result.jobs))||
+         (body.action==="complete-rights-scan"&&
+           (typeof ack.result.id!=="string"||!["passed","failed","blocked"].includes(String(ack.result.status))))||
+         (body.action==="complete-validation"&&typeof ack.result.assetVersionId!=="string"))
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "publishing.audio-metadata":

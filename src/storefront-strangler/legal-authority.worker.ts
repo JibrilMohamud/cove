@@ -29,6 +29,7 @@ import {
 } from "../features/fore/publishing.server";
 import {ownerContractVersionSchema} from "./owner-contract-version-schema";
 import {ApiError} from "../features/fore/service";
+import {mirrorPublishingMalwareResult} from "../features/fore/security.server";
 import {createContractVersionOwnerSchema,executeOwnerContractVersion} from "./owner-contract-version-executor";
 import {createMarketAuthoritySchema,denyMarket,marketIsWithdrawn} from "./market-authority-core";
 import { authorizeStorefrontPresentationIds,catalogIds, type CatalogDB } from "../features/fore/catalog-model.server";
@@ -4261,6 +4262,255 @@ async function refreshAgreementStatus(db: CoveEnv["DB"], editionId: string) {
 })();
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+
+// QA-leased worker queues. All job ownership and retry transitions are
+// validated at the independently bound primary DB, not on the storefront D1 facade.
+const privatePublishingWorkQueues=(()=>{
+  const now=()=>new Date().toISOString();
+  const id=(prefix:string)=>prefix+"_"+crypto.randomUUID();
+  const cleanText=(value:unknown,max=500)=>String(value??"").trim().slice(0,max);
+  async function refreshAssetValidationSummary(db: PublishingDB, assetVersionId: string) {
+  const jobs = (
+    await db
+      .prepare("SELECT status,required FROM publishing_validation_jobs WHERE asset_version_id=?")
+      .bind(assetVersionId)
+      .all<any>()
+  ).results;
+  const required = jobs.filter((j) => Number(j.required) === 1);
+  let summary = "pending",
+    quarantine = "quarantined";
+  if (required.some((j) => ["failed", "blocked"].includes(String(j.status))))
+    ((summary = "blocked"), (quarantine = "rejected"));
+  else if (required.some((j) => ["queued", "leased"].includes(String(j.status))))
+    ((summary = required.some((j) => String(j.status) === "leased") ? "running" : "pending"),
+      (quarantine = "scanning"));
+  else if (required.every((j) => String(j.status) === "passed")) {
+    summary = jobs.some((j) => String(j.status) === "warning") ? "warning" : "passed";
+    quarantine = "clean";
+  } else summary = "blocked";
+  await db
+    .prepare(
+      "UPDATE publishing_asset_versions SET validation_summary=?,quarantine_status=? WHERE id=?",
+    )
+    .bind(summary, quarantine, assetVersionId)
+    .run();
+  return { summary, quarantine };
+}
+
+
+  async function leasePublishingValidationJobs(db: PublishingDB, raw: unknown) {
+  const x = z
+      .object({
+        workerId: z.string().trim().min(3).max(120),
+        limit: z.number().int().min(1).max(50).default(10),
+        leaseSeconds: z.number().int().min(30).max(900).default(300),
+        executionClasses: z
+          .array(z.enum(["worker", "external"]))
+          .min(1)
+          .max(2)
+          .default(["worker", "external"]),
+      })
+      .parse(raw),
+    at = now(),
+    expires = new Date(Date.now() + x.leaseSeconds * 1000).toISOString();
+  // Recover abandoned leases before taking new work. Jobs retry up to max_attempts and then
+  // fail closed as blocked instead of circulating forever or silently passing.
+  await db.batch([
+    db
+      .prepare(
+        "UPDATE publishing_validation_jobs SET status='queued',lease_owner=NULL,lease_expires_at=NULL,available_at=?,last_error='Previous worker lease expired; retrying.',updated_at=? WHERE status='leased' AND lease_expires_at<? AND attempts<max_attempts",
+      )
+      .bind(at, at, at),
+    db
+      .prepare(
+        "UPDATE publishing_validation_jobs SET status='blocked',lease_owner=NULL,lease_expires_at=NULL,last_error='Validation exhausted its retry budget.',updated_at=? WHERE status='leased' AND lease_expires_at<? AND attempts>=max_attempts",
+      )
+      .bind(at, at),
+  ]);
+  const candidates = (
+    await db
+      .prepare(
+        `SELECT id FROM publishing_validation_jobs WHERE status='queued' AND attempts<max_attempts AND available_at<=? AND execution_class IN (${x.executionClasses.map(() => "?").join(",")}) ORDER BY priority ASC,created_at ASC LIMIT ?`,
+      )
+      .bind(at, ...x.executionClasses, x.limit)
+      .all<any>()
+  ).results;
+  for (const row of candidates)
+    await db
+      .prepare(
+        "UPDATE publishing_validation_jobs SET status='leased',lease_owner=?,lease_expires_at=?,attempts=attempts+1,updated_at=? WHERE id=? AND status='queued'",
+      )
+      .bind(x.workerId, expires, at, row.id)
+      .run();
+  const jobs = (
+    await db
+      .prepare(
+        `SELECT j.*,v.object_key,v.mime_type,v.size_bytes,v.sha256,v.original_filename,a.kind,a.edition_id FROM publishing_validation_jobs j JOIN publishing_asset_versions v ON v.id=j.asset_version_id JOIN publishing_assets a ON a.id=v.asset_id WHERE j.status='leased' AND j.lease_owner=? AND j.lease_expires_at=? ORDER BY j.priority,j.created_at`,
+      )
+      .bind(x.workerId, expires)
+      .all<any>()
+  ).results;
+  return { jobs, leaseExpiresAt: expires };
+}
+
+
+  async function completePublishingValidationJob(db: PublishingDB, raw: unknown) {
+  const x = z
+    .object({
+      jobId: z.string().min(1),
+      workerId: z.string().min(3).max(120),
+      status: z.enum(["passed", "warning", "failed", "blocked"]),
+      validatorName: z.string().min(1).max(120),
+      validatorVersion: z.string().max(80).default(""),
+      issues: z
+        .array(
+          z.object({
+            code: z.string().max(120),
+            severity: z.enum(["info", "warning", "error"]).default("error"),
+            message: z.string().max(2000),
+            location: z.string().max(500).optional(),
+          }),
+        )
+        .max(2000)
+        .default([]),
+      reportObjectKey: z.string().max(500).nullable().optional(),
+      reportSha256: z
+        .string()
+        .regex(/^[a-fA-F0-9]{64}$/)
+        .nullable()
+        .optional(),
+    })
+    .parse(raw);
+  const job = await db
+    .prepare("SELECT * FROM publishing_validation_jobs WHERE id=?")
+    .bind(x.jobId)
+    .first<any>();
+  if (!job) throw new ApiError(404, "Validation job not found.");
+  if (
+    job.status !== "leased" ||
+    job.lease_owner !== x.workerId ||
+    (job.lease_expires_at && job.lease_expires_at < now())
+  )
+    throw new ApiError(409, "This validation lease is no longer active.");
+  const at = now();
+  await db.batch([
+    db
+      .prepare(
+        "UPDATE publishing_validation_jobs SET status=?,lease_owner=NULL,lease_expires_at=NULL,last_error=?,updated_at=? WHERE id=?",
+      )
+      .bind(
+        x.status,
+        ["failed", "blocked"].includes(x.status)
+          ? cleanText(x.issues[0]?.message || "Validation failed", 1000)
+          : "",
+        at,
+        x.jobId,
+      ),
+    db
+      .prepare(
+        "INSERT INTO publishing_validation_results(id,job_id,asset_version_id,check_type,validator_name,validator_version,status,issue_count,issues_json,report_object_key,report_sha256,completed_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+      )
+      .bind(
+        id("pubval"),
+        x.jobId,
+        job.asset_version_id,
+        job.check_type,
+        x.validatorName,
+        x.validatorVersion,
+        x.status,
+        x.issues.length,
+        JSON.stringify(x.issues),
+        x.reportObjectKey || null,
+        x.reportSha256 || null,
+        at,
+      ),
+  ]);
+  if (String(job.check_type) === "malware")
+    await mirrorPublishingMalwareResult(db, {
+      assetVersionId: String(job.asset_version_id),
+      status: x.status,
+      validatorName: x.validatorName,
+      validatorVersion: x.validatorVersion,
+      issues: x.issues,
+      reportObjectKey: x.reportObjectKey || null,
+      reportSha256: x.reportSha256 || null,
+    });
+  const asset = await refreshAssetValidationSummary(db, String(job.asset_version_id));
+  return { jobId: x.jobId, assetVersionId: job.asset_version_id, ...asset };
+}
+
+
+  async function leaseRightsEvidenceScanJobs(db: PublishingDB, raw: unknown) {
+  const x = z
+      .object({
+        workerId: z.string().min(1).max(160),
+        limit: z.number().int().min(1).max(50).default(10),
+        leaseSeconds: z.number().int().min(30).max(1800).default(300),
+      })
+      .parse(raw),
+    at = now(),
+    until = new Date(Date.now() + x.leaseSeconds * 1000).toISOString();
+  await db
+    .prepare(
+      "UPDATE publishing_rights_evidence_scan_jobs SET status='queued',lease_owner=NULL,lease_expires_at=NULL,available_at=?,updated_at=? WHERE status='leased' AND lease_expires_at<? AND attempts<max_attempts",
+    )
+    .bind(at, at, at)
+    .run();
+  const rows = (
+    await db
+      .prepare(
+        "SELECT j.*,e.object_key,e.mime_type,e.sha256,e.size_bytes FROM publishing_rights_evidence_scan_jobs j JOIN publishing_rights_evidence e ON e.id=j.evidence_id WHERE j.status='queued' AND j.available_at<=? AND j.attempts<j.max_attempts ORDER BY j.created_at LIMIT ?",
+      )
+      .bind(at, x.limit)
+      .all<any>()
+  ).results;
+  for (const r of rows)
+    await db
+      .prepare(
+        "UPDATE publishing_rights_evidence_scan_jobs SET status='leased',lease_owner=?,lease_expires_at=?,attempts=attempts+1,updated_at=? WHERE id=? AND status='queued'",
+      )
+      .bind(x.workerId, until, at, r.id)
+      .run();
+  return { jobs: rows };
+}
+
+  async function completeRightsEvidenceScanJob(db: PublishingDB, raw: unknown) {
+  const x = z
+      .object({
+        jobId: z.string().min(1),
+        workerId: z.string().min(1),
+        status: z.enum(["passed", "failed", "blocked"]),
+        error: z.string().max(2000).default(""),
+      })
+      .parse(raw),
+    j = await db
+      .prepare(
+        "SELECT * FROM publishing_rights_evidence_scan_jobs WHERE id=? AND status='leased' AND lease_owner=?",
+      )
+      .bind(x.jobId, x.workerId)
+      .first<any>();
+  if (!j)
+    throw new ApiError(409, "Evidence scan lease is missing or no longer owned by this worker.");
+  const at = now(),
+    scanStatus = x.status === "passed" ? "clean" : x.status === "blocked" ? "rejected" : "failed";
+  await db.batch([
+    db
+      .prepare(
+        "UPDATE publishing_rights_evidence_scan_jobs SET status=?,lease_owner=NULL,lease_expires_at=NULL,last_error=?,updated_at=? WHERE id=?",
+      )
+      .bind(x.status, x.error, at, j.id),
+    db
+      .prepare("UPDATE publishing_rights_evidence SET scan_status=? WHERE id=?")
+      .bind(scanStatus, j.evidence_id),
+  ]);
+  return { id: j.id, status: x.status };
+}
+
+
+  return {leasePublishingValidationJobs,completePublishingValidationJob,
+    leaseRightsEvidenceScanJobs,completeRightsEvidenceScanJob};
+})();
+
 export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
   private publicationExecutions=new Set<string>();
   private contractExecutions=new Set<string>();
@@ -4345,6 +4595,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/publishing/partner/process-feed",
       "/catalog/normalize-gutenberg",
       "/catalog/personal-import",
+      "/publishing/worker/jobs",
       "/publishing/audio/metadata",
       "/publishing/onboarding/review",
       "/publishing/contract/save-version",
@@ -4511,6 +4762,25 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         return Response.json({schema:"cove.owner-personal-import.v1",ownerFirst:true,
           userId:q.userId,importId:q.id,productId:catalogIds(q.id).productId,
           operationId:q.operationId,applied:!existing},{headers:noStore});
+      }
+      if(route==="/publishing/worker/jobs"){
+        const input=z.object({
+          action:z.enum(["lease-validation","complete-validation","lease-rights-scan","complete-rights-scan"]),
+          payload:z.record(z.string(),z.unknown()),
+          operationId:z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,95}$/)
+        }).strict().parse(raw);
+        // A QA service binding is NOT a verified worker principal. Positive scan
+        // results cannot be deployed until the worker proof is independently signed.
+        const db=env.PRIMARY_DB as unknown as PublishingDB;
+        const result=input.action==="lease-validation"?
+          await privatePublishingWorkQueues.leasePublishingValidationJobs(db,input.payload):
+          input.action==="complete-validation"?
+            await privatePublishingWorkQueues.completePublishingValidationJob(db,input.payload):
+            input.action==="lease-rights-scan"?
+              await privatePublishingWorkQueues.leaseRightsEvidenceScanJobs(db,input.payload):
+              await privatePublishingWorkQueues.completeRightsEvidenceScanJob(db,input.payload);
+        return Response.json({schema:"cove.owner-publishing-worker-jobs.v1",
+          ownerFirst:true,operationId:input.operationId,action:input.action,result},{headers:noStore});
       }
       if(route==="/publishing/audio/metadata") {
         const input=z.object({
