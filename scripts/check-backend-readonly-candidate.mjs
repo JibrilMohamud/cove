@@ -23,6 +23,15 @@ assert.doesNotMatch(
 assert.match(backend, /scopeBackendReadonlyCandidate\(env\)/);
 assert.match(backend, /backendReadonlyCandidateRouteAllowed\(request\)/);
 assert.match(backend, /private_backend_readonly_candidate_cron_denied/);
+assert.match(backend, /backendScheduledPrimaryReadDb\(env\)/);
+assert.match(backend, /COVE_BACKEND_SCHEDULED_READONLY_RPC\?: string/);
+assert.equal(
+  (backend.match(/backendScheduledPrimaryReadDb\(env\)\.prepare\(/g) || []).length,
+  4,
+  "Four scheduled selects must be routed through the independent primary reader",
+);
+assert.match(backend, /const firstMapPending = await backendScheduledPrimaryReadDb\(env\)/);
+
 
 const folder = mkdtempSync(path.join(tmpdir(), "cove-backend-readonly-"));
 try {
@@ -101,6 +110,48 @@ try {
       () => scopeBackendReadonlyCandidate({ ...fixture, ...mutation }),
       /not_certified/,
     );
+  const readonlyFile = path.join(folder, "scheduled.mjs");
+  await build({
+    entryPoints: ["src/storefront-strangler/backend-scheduled-primary-reads.ts"],
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    outfile: readonlyFile,
+  });
+  const { backendScheduledPrimaryReadDb } = await import(pathToFileURL(readonlyFile).href);
+  let privilegedReadCalls = 0;
+  const privileged = {
+    prepare() {
+      privilegedReadCalls++;
+      throw Error("privileged_D1_must_not_be_used");
+    },
+  };
+  const restricted = backendScheduledPrimaryReadDb({
+    DB: privileged,
+    COVE_BACKEND_SCHEDULED_READONLY_RPC: "1",
+    COVE_CANONICAL_READONLY: service,
+  });
+  outage = false;
+  assert.equal((await restricted.prepare("SELECT ? as ok").bind(10).first()).ok, 1);
+  await assert.rejects(() => restricted.prepare("DELETE FROM audio_jobs").run(), /read-only/);
+  assert.equal(privilegedReadCalls, 0);
+  outage = true;
+  await assert.rejects(
+    () => restricted.prepare("SELECT 1").all(),
+    /provider_unavailable/,
+    "A failed provider must not retry through native D1",
+  );
+  assert.equal(privilegedReadCalls, 0);
+  for (const bad of [
+    { COVE_BACKEND_SCHEDULED_READONLY_RPC: "0" },
+    { COVE_BACKEND_SCHEDULED_READONLY_RPC: "1", COVE_CANONICAL_READONLY: undefined },
+    { COVE_BACKEND_SCHEDULED_READONLY_RPC: "garbage" },
+  ])
+    assert.throws(
+      () => backendScheduledPrimaryReadDb({ DB: privileged, ...bad }),
+      /scheduled_primary_read_owner_unavailable/,
+    );
+  assert.equal(backendScheduledPrimaryReadDb({ DB: privileged }), privileged);
   const unchanged = { DB: { prepare() {} } };
   assert.equal(scopeBackendReadonlyCandidate(unchanged), unchanged);
   console.log(
