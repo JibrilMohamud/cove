@@ -1,4 +1,5 @@
 import { dispatchCatalogObservation } from "../../storefront-strangler/publication-owner-routing.server";
+import { dispatchCatalogRegionalState } from "../../storefront-strangler/publication-owner-routing.server";
 import { dispatchCatalogIngestState } from "../../storefront-strangler/publication-owner-routing.server";
 import {
   dispatchCatalogNegativeSource,
@@ -1729,13 +1730,13 @@ export async function runRegionalCatalogIngestion(
     }
     if (result.status === "not-modified") {
       const next = new Date(Date.now() + Number(due.refresh_seconds || 86400) * 1000).toISOString();
-      await db
-        .prepare(
-          `UPDATE gutenberg_source_states SET status='idle',cursor=NULL,cycle_started_at=NULL,last_success_at=?,attempts=0,next_run_at=?,lease_token=NULL,lease_until=NULL,
-        etag=COALESCE(NULLIF(?,''),etag),last_modified=COALESCE(NULLIF(?,''),last_modified),updated_at=? WHERE source_id=? AND lease_token=?`,
-        )
-        .bind(now(), next, result.etag, result.lastModified, now(), sourceId, lease)
-        .run();
+      await dispatchCatalogRegionalState(db, {
+        action: "unchanged",
+        sourceId,
+        leaseToken: lease,
+        runId,
+        data: { next, etag: result.etag, lastModified: result.lastModified },
+      });
       await db
         .prepare(
           `UPDATE gutenberg_ingest_runs SET completed_at=?,status='not-modified',cursor_after=NULL,response_etag=?,response_last_modified=? WHERE id=?`,
@@ -1759,22 +1760,18 @@ export async function runRegionalCatalogIngestion(
     ) {
       const completed = now();
       const next = new Date(Date.now() + Number(due.refresh_seconds || 86400) * 1000).toISOString();
-      await db
-        .prepare(
-          `UPDATE gutenberg_source_states SET status='idle',cursor=NULL,cycle_started_at=NULL,last_success_at=?,last_error='',attempts=0,next_run_at=?,lease_token=NULL,lease_until=NULL,
-        etag=?,last_modified=?,content_hash=?,updated_at=? WHERE source_id=? AND lease_token=?`,
-        )
-        .bind(
-          completed,
+      await dispatchCatalogRegionalState(db, {
+        action: "same-snapshot",
+        sourceId,
+        leaseToken: lease,
+        runId,
+        data: {
           next,
-          result.etag,
-          result.lastModified,
-          result.bodyHash,
-          completed,
-          sourceId,
-          lease,
-        )
-        .run();
+          etag: result.etag,
+          lastModified: result.lastModified,
+          bodyHash: result.bodyHash,
+        },
+      });
       await db
         .prepare(
           `UPDATE gutenberg_ingest_runs SET completed_at=?,status='not-modified',cursor_after=NULL,fetched_count=?,response_etag=?,response_last_modified=?,response_hash=? WHERE id=?`,
@@ -1863,29 +1860,27 @@ export async function runRegionalCatalogIngestion(
         ).staleCount
       : 0;
 
-    await db
-      .prepare(
-        `UPDATE gutenberg_source_states SET status='idle',cursor=?,cycle_started_at=?,last_success_at=?,last_error='',attempts=0,total_catalog_count=?,
-      seen_count=seen_count+?,accepted_count=accepted_count+?,quarantined_count=quarantined_count+?,next_run_at=?,lease_token=NULL,lease_until=NULL,
-      etag=?,last_modified=?,content_hash=?,updated_at=? WHERE source_id=? AND lease_token=?`,
-      )
-      .bind(
+    await dispatchCatalogRegionalState(db, {
+      action: "complete",
+      sourceId,
+      leaseToken: lease,
+      runId,
+      data: {
         cursorAfter,
-        complete ? null : cycleStartedAt,
-        complete ? completed : due.last_success_at || null,
-        result.items.length,
-        items.length,
-        accepted,
-        staleCount,
+        cycleStartedAt: complete ? null : cycleStartedAt,
+        snapshotStart: cycleStartedAt,
+        lastSuccessAt: complete ? completed : due.last_success_at || null,
+        complete,
+        totalCatalogCount: result.items.length,
+        seenCount: items.length,
+        acceptedCount: accepted,
+        quarantinedCount: staleCount,
         next,
-        result.etag,
-        result.lastModified,
-        result.bodyHash,
-        completed,
-        sourceId,
-        lease,
-      )
-      .run();
+        etag: result.etag,
+        lastModified: result.lastModified,
+        bodyHash: result.bodyHash,
+      },
+    });
     await db
       .prepare(
         `UPDATE gutenberg_ingest_runs SET completed_at=?,status=?,cursor_before=?,cursor_after=?,fetched_count=?,accepted_count=?,quarantined_count=?,

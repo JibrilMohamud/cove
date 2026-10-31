@@ -456,3 +456,17 @@ export async function dispatchCatalogObservation(db:object,input:{
   return {checked:Number(ack.checked)};
  }catch{throw new ApiError(503,"Private owner refused the catalog observation.");}
 }
+
+/** A bounded regional checkpoint; only the private owner can update a current lease. */
+export async function dispatchCatalogRegionalState(db:object,input:{
+ action:"unchanged"|"same-snapshot"|"complete";
+ sourceId:"pg_ca"|"pg_au"|"pg_eu";leaseToken:string;runId:string;
+ data:Record<string,unknown>
+}):Promise<{acquired:boolean}>{
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Regional ingestion requires a private owner.");
+ try{
+  const ack=await dispatchCanonicalOwnerCommand(context.owner,context.secret,"catalog.regional-state",input);
+  return {acquired:ack.acquired===true};
+ }catch{throw new ApiError(503,"Private owner refused regional source checkpoint.");}
+}

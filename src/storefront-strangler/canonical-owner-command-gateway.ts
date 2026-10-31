@@ -123,6 +123,12 @@ const routes={
       expectedProjectionUpdatedAt:z.string().max(60).optional()
     }).strict()).min(1).max(100)
   }).strict()},
+  "catalog.regional-state":{path:"/catalog/regional-state",schema:z.object({
+    action:z.enum(["unchanged","same-snapshot","complete"]),
+    sourceId:z.enum(["pg_ca","pg_au","pg_eu"]),leaseToken:z.string().uuid(),
+    runId:z.string().regex(/^gir_[a-f0-9-]{36}$/),
+    data:z.record(z.string(),z.unknown())
+  }).strict()},
   "catalog.ingestion-state":{path:"/catalog/private-ingest-state",schema:z.object({
     action:z.enum(["recover-interrupted","mark-unavailable","claim-download",
       "touch-attempt","set-backoff","mark-failure","acquire-regional",
@@ -341,6 +347,12 @@ export async function dispatchCanonicalOwnerCommand(
       if(ack.schema!=="cove.owner-us-catalog-observation.v1"||ack.ownerFirst!==true||
          ack.action!==body.action||ack.checked!==(body.books as unknown[]).length||
          ack.legalStatePreserved!==true)throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "catalog.regional-state":
+      if(ack.schema!=="cove.owner-regional-state.v1"||ack.ownerFirst!==true||
+         ack.sourceId!==body.sourceId||ack.runId!==body.runId||
+         ack.action!==body.action||typeof ack.acquired!=="boolean")
+         throw Error("canonical_command_receipt_mismatch");
       break;
     case "catalog.ingestion-state":
       if(ack.schema!=="cove.owner-ingestion-state-qa.v1"||ack.ownerFirst!==true||

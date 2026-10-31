@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "retirementEvidence": "docs/architecture/retired-regional-checkpoints-owner-lineage.json",
+  "rationale": "Independently compared three surviving regional Gutenberg source-state SQL statements against the prior reviewed owner from PR #508. Not-modified, same-snapshot, and completion checkpoints are routed into QA-only private owner transactions with current primary lease, current ingest run, snapshot consistency and deny-first stale-source checks. All eleven surviving original API canonical SQL sites preserve their SQL literals, functions, tables, operations and dispositions, and are re-fingerprinted to the current full-source SHA. No positive rights grant or production approval.",
+  "files": [
+    {
+      "path": "src/features/fore/api.server.ts",
+      "sha256": "5dc9499bd0b2b4a96aa10402568b2b9fee3571b9db37defa27a180c3f4065a73",
+      "review": "Three exact regional checkpoint source SQL literals relocated into private QA owner. Eleven surviving canonical API SQL literals, functions and dispositions unchanged and source-attested."
+    }
+  ]
+}

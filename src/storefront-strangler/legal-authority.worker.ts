@@ -17640,6 +17640,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/publishing/partner/private-action",
       "/rights/private-configuration",
       "/catalog/observe-us",
+      "/catalog/regional-state",
       "/catalog/private-ingest-state",
       "/delivery/private-negative",
       "/catalog/withdraw-stale",
@@ -18410,6 +18411,112 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         return Response.json({schema:"cove.owner-us-catalog-observation.v1",
           ownerFirst:true,action:input.action,checked:ids.length,legalStatePreserved:true},
           {headers:noStore});
+      }
+      if(route==="/catalog/regional-state") {
+        const input=z.object({
+          action:z.enum(["acquire","degraded","unchanged","same-snapshot","complete","failed"]),
+          sourceId:z.enum(["pg_ca","pg_au","pg_eu"]),leaseToken:z.string().uuid(),
+          runId:z.string().regex(/^gir_[a-f0-9-]{36}$/),
+          data:z.record(z.string(),z.unknown())
+        }).strict().parse(raw);
+        const db=env.PRIMARY_DB;
+        const at=now();
+        const nextSchema=z.string().datetime();
+        const meta=z.object({
+          next:nextSchema,etag:z.string().max(500).nullable().optional(),
+          lastModified:z.string().max(500).nullable().optional()
+        }).strict();
+        const boundedNext=(value:string)=>{
+          const distance=Date.parse(value)-Date.now();
+          if(!Number.isFinite(distance)||distance<0||distance>8*86400000)
+            throw new ApiError(409,"Regional source next-run window is invalid.");
+          return value;
+        };
+        if(input.action==="acquire"){
+          z.object({}).strict().parse(input.data);
+          const selected=await db.prepare(
+            "SELECT s.enabled FROM gutenberg_sources s JOIN gutenberg_source_states st ON st.source_id=s.id WHERE s.id=? AND s.enabled=1 AND (st.next_run_at IS NULL OR st.next_run_at='' OR st.next_run_at<=?) AND (st.lease_until IS NULL OR st.lease_until='' OR st.lease_until<?)"
+          ).bind(input.sourceId,at,at).first<{enabled:number}>();
+          if(!selected)return Response.json({schema:"cove.owner-regional-state.v1",ownerFirst:true,
+            sourceId:input.sourceId,runId:input.runId,action:input.action,acquired:false},{headers:noStore});
+          const leaseUntil=new Date(Date.now()+5*60*1000).toISOString();
+          const acquired=await db.prepare(
+            `UPDATE gutenberg_source_states SET status='running',lease_token=?,lease_until=?,last_run_at=?,last_error='',updated_at=? WHERE source_id=? AND (lease_until IS NULL OR lease_until='' OR lease_until<?) AND (next_run_at IS NULL OR next_run_at='' OR next_run_at<=?) RETURNING source_id`
+          ).bind(input.leaseToken,leaseUntil,at,at,input.sourceId,at,at).first<{source_id:string}>();
+          return Response.json({schema:"cove.owner-regional-state.v1",ownerFirst:true,
+            sourceId:input.sourceId,runId:input.runId,action:input.action,acquired:!!acquired},{headers:noStore});
+        }
+        // Every completion is bound to the active primary-D1 lease and to the
+        // privately checked run record. An unbound caller cannot unlock a source.
+        const lease=await db.prepare(
+          "SELECT st.source_id,st.content_hash,st.last_success_at FROM gutenberg_source_states st WHERE st.source_id=? AND st.status='running' AND st.lease_token=? AND st.lease_until>?"
+        ).bind(input.sourceId,input.leaseToken,at)
+         .first<{source_id:string;content_hash:string|null;last_success_at:string|null}>();
+        const run=await db.prepare(
+          "SELECT id FROM gutenberg_ingest_runs WHERE id=? AND source_id=? AND status='running'"
+        ).bind(input.runId,input.sourceId).first<{id:string}>();
+        if(!lease||!run)return new Response(null,{status:409,headers:noStore});
+        const d=input.data;
+        if(input.action==="degraded"){
+          const x=z.object({warning:z.string().max(1500),next:nextSchema}).strict().parse(d);
+          await db.prepare(
+            `UPDATE gutenberg_source_states SET status='degraded',last_error=?,next_run_at=?,lease_token=NULL,lease_until=NULL,updated_at=? WHERE source_id=? AND lease_token=?`
+          ).bind(x.warning,boundedNext(x.next),at,input.sourceId,input.leaseToken).run();
+        }else if(input.action==="unchanged"){
+          const x=meta.parse(d);
+          await db.prepare(
+            `UPDATE gutenberg_source_states SET status='idle',cursor=NULL,cycle_started_at=NULL,last_success_at=?,attempts=0,next_run_at=?,lease_token=NULL,lease_until=NULL,
+        etag=COALESCE(NULLIF(?,''),etag),last_modified=COALESCE(NULLIF(?,''),last_modified),updated_at=? WHERE source_id=? AND lease_token=?`
+          ).bind(at,boundedNext(x.next),x.etag||"",x.lastModified||"",at,input.sourceId,input.leaseToken).run();
+        }else if(input.action==="same-snapshot"){
+          const x=meta.extend({bodyHash:z.string().regex(/^[a-f0-9]{64}$/)}).strict().parse(d);
+          if(lease.content_hash!==x.bodyHash||!lease.last_success_at)
+            return new Response(null,{status:409,headers:noStore});
+          await db.prepare(
+            `UPDATE gutenberg_source_states SET status='idle',cursor=NULL,cycle_started_at=NULL,last_success_at=?,last_error='',attempts=0,next_run_at=?,lease_token=NULL,lease_until=NULL,
+        etag=?,last_modified=?,content_hash=?,updated_at=? WHERE source_id=? AND lease_token=?`
+          ).bind(at,boundedNext(x.next),x.etag||"",x.lastModified||"",x.bodyHash,at,
+              input.sourceId,input.leaseToken).run();
+        }else if(input.action==="complete"){
+          const x=meta.extend({
+            cursorAfter:z.string().regex(/^\d+$/).nullable(),
+            cycleStartedAt:z.string().datetime().nullable(),
+            snapshotStart:z.string().datetime(),
+            lastSuccessAt:z.string().datetime().nullable(),
+            complete:z.boolean(),totalCatalogCount:z.number().int().min(0).max(100000000),
+            seenCount:z.number().int().min(0).max(5000),
+            acceptedCount:z.number().int().min(0).max(5000),
+            quarantinedCount:z.number().int().min(0).max(100000000),
+            bodyHash:z.string().regex(/^[a-f0-9]{64}$/)
+          }).strict().parse(d);
+          if(x.complete!==(x.cursorAfter===null)||
+             (x.complete&&x.cycleStartedAt!==null)||
+             (!x.complete&&!x.cycleStartedAt)||
+             x.acceptedCount>x.seenCount||x.seenCount>x.totalCatalogCount||
+             Date.parse(x.snapshotStart)>Date.now()+60000)
+            return new Response(null,{status:409,headers:noStore});
+          if(x.complete){
+            const pending=await db.prepare(
+              "SELECT COUNT(*) n FROM gutenberg_source_cache WHERE source_id=? AND last_seen_at<? AND ingest_status NOT IN ('stale','quarantined')"
+            ).bind(input.sourceId,x.snapshotStart).first<{n:number}>();
+            if(Number(pending?.n||0)>0)return new Response(null,{status:409,headers:noStore});
+          }
+          await db.prepare(
+            `UPDATE gutenberg_source_states SET status='idle',cursor=?,cycle_started_at=?,last_success_at=?,last_error='',attempts=0,total_catalog_count=?,
+      seen_count=seen_count+?,accepted_count=accepted_count+?,quarantined_count=quarantined_count+?,next_run_at=?,lease_token=NULL,lease_until=NULL,
+      etag=?,last_modified=?,content_hash=?,updated_at=? WHERE source_id=? AND lease_token=?`
+          ).bind(x.cursorAfter,x.cycleStartedAt,x.lastSuccessAt,x.totalCatalogCount,
+            x.seenCount,x.acceptedCount,x.quarantinedCount,boundedNext(x.next),
+            x.etag||"",x.lastModified||"",x.bodyHash,at,input.sourceId,input.leaseToken).run();
+        }else if(input.action==="failed"){
+          const x=z.object({message:z.string().max(1000),attempts:z.number().int().min(1).max(1000),
+            retryAt:nextSchema}).strict().parse(d);
+          await db.prepare(
+            `UPDATE gutenberg_source_states SET status='failed',last_error=?,attempts=?,next_run_at=?,lease_token=NULL,lease_until=NULL,updated_at=? WHERE source_id=? AND lease_token=?`
+          ).bind(x.message,x.attempts,boundedNext(x.retryAt),at,input.sourceId,input.leaseToken).run();
+        }
+        return Response.json({schema:"cove.owner-regional-state.v1",ownerFirst:true,
+          sourceId:input.sourceId,runId:input.runId,action:input.action,acquired:true},{headers:noStore});
       }
       if(route==="/catalog/private-ingest-state") {
         const input=z.object({

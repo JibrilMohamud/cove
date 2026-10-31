@@ -1,0 +1,43 @@
+{
+  "schema": "cove.retired-regional-checkpoints-owner-lineage.v1",
+  "sourceBefore": 36,
+  "sourceAfter": 33,
+  "productionCertified": false,
+  "releaseApproval": false,
+  "sourceFile": "src/features/fore/api.server.ts",
+  "previousSha256": "29d6e1b715d9ce543ae31dec265a80d9d4fad4ee0d24a7dec07dcc2bd76d0106",
+  "currentSha256": "5dc9499bd0b2b4a96aa10402568b2b9fee3571b9db37defa27a180c3f4065a73",
+  "retired": [
+    {
+      "siteId": "3c2a888349f9516ce80eaa8c27ef770108c12406a9f3f6e7faf189c90aa051a7",
+      "sqlSha256": "e04f7645e65a9a0686e9f56e54085b1b2350701d6e731c0e1d1e67b776187b26",
+      "file": "src/features/fore/api.server.ts",
+      "line": 1734,
+      "table": "gutenberg_source_states",
+      "operation": "UPDATE",
+      "functionName": "runRegionalCatalogIngestion",
+      "privateRoute": "/catalog/regional-state"
+    },
+    {
+      "siteId": "21a759dbd4ede2109c289044532cc0caa12dd28c2c65c95daea41a737a99d102",
+      "sqlSha256": "c32c2d5aabac0eac74464fd3b637bd247a6777990c3e645224d4c5ef594db8c7",
+      "file": "src/features/fore/api.server.ts",
+      "line": 1764,
+      "table": "gutenberg_source_states",
+      "operation": "UPDATE",
+      "functionName": "runRegionalCatalogIngestion",
+      "privateRoute": "/catalog/regional-state"
+    },
+    {
+      "siteId": "21d20eb3e7a273e7a70120678f8a3c242b46a2a7450f88b9219d210ee9d395f3",
+      "sqlSha256": "f81b3f0ea38ab6b9dc8c4ffca19749e214af5a83d5f5538dc6915166d0d68870",
+      "file": "src/features/fore/api.server.ts",
+      "line": 1868,
+      "table": "gutenberg_source_states",
+      "operation": "UPDATE",
+      "functionName": "runRegionalCatalogIngestion",
+      "privateRoute": "/catalog/regional-state"
+    }
+  ],
+  "rollback": "Draft private QA-only. No production writer cutover. Rollback of source commits requires independent security, rights and privileges certification."
+}
