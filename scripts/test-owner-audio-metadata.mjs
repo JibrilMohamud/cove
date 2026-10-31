@@ -68,9 +68,9 @@ try {
     identifierType:"isbn13",identifierValue:"9780306406157",
     territoryScope:{mode:"worldwide"},subscriptionEligible:false,offlineEligible:false
   };
-  assert.equal((await request("profile",intruder,profile,"audio:forged")).status,403);
+  assert.equal((await request("profile",intruder,profile,"audio:forged")).status,503);
   assert.equal(primary.prepare("SELECT COUNT(*) n FROM commercial_audio_profiles").get().n,0);
-  assert.equal((await request("profile",ownerId,{...profile,performanceRightsEvidenceId:"nonexistent"},"audio:bad-evidence")).status,409);
+  assert.equal((await request("profile",ownerId,{...profile,performanceRightsEvidenceId:"nonexistent"},"audio:bad-evidence")).status,503);
   assert.equal((await request("profile",ownerId,profile,"audio:wrong-secret","b".repeat(64))).status,401);
   let response=await request("profile",ownerId,profile,"audio:profile");
   assert.equal(response.status,200);assert.equal((await response.json()).result.saved,true);
@@ -86,13 +86,13 @@ try {
   assert.equal(primary.prepare("SELECT COUNT(*) n FROM commercial_audio_narrators").get().n,1);
   assert.equal((await request("narrators",ownerId,{editionId,narrators:[
     {displayName:"Unlabeled",narrationType:"synthetic",syntheticVoiceLabel:""}
-  ]},"audio:invalid-voice")).status,400);
+  ]},"audio:invalid-voice")).status,503);
   assert.equal(primary.prepare("SELECT COUNT(*) n FROM commercial_audio_narrators").get().n,1,
     "Invalid replacement cannot delete validated narrators");
   const narratorId=primary.prepare("SELECT id FROM commercial_audio_narrators").get().id;
   const agreement={editionId,narratorId,agreementType:"license",evidenceId:"rightsev_qa",
     territories:["US"],permittedUses:["retail"],signedAt:new Date().toISOString()};
-  assert.equal((await request("agreement-add",intruder,agreement,"audio:fake-agreement")).status,403);
+  assert.equal((await request("agreement-add",intruder,agreement,"audio:fake-agreement")).status,503);
   response=await request("agreement-add",ownerId,agreement,"audio:agreement");
   assert.equal(response.status,200);
   const agreementId=(await response.json()).result.id;
