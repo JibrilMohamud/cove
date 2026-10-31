@@ -4280,11 +4280,13 @@ const privatePublishingWorkQueues=(()=>{
   const required = jobs.filter((j) => Number(j.required) === 1);
   let summary = "pending",
     quarantine = "quarantined";
-  if (required.some((j) => ["failed", "blocked"].includes(String(j.status))))
-    ((summary = "blocked"), (quarantine = "rejected"));
-  else if (required.some((j) => ["queued", "leased"].includes(String(j.status))))
-    ((summary = required.some((j) => String(j.status) === "leased") ? "running" : "pending"),
-      (quarantine = "scanning"));
+  if (required.some((j) => ["failed", "blocked"].includes(String(j.status)))) {
+    summary = "blocked";
+    quarantine = "rejected";
+  } else if (required.some((j) => ["queued", "leased"].includes(String(j.status)))) {
+    summary = required.some((j) => String(j.status) === "leased") ? "running" : "pending";
+    quarantine = "scanning";
+  }
   else if (required.every((j) => String(j.status) === "passed")) {
     summary = jobs.some((j) => String(j.status) === "warning") ? "warning" : "passed";
     quarantine = "clean";
