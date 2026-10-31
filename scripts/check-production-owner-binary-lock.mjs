@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { build } from "esbuild";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -43,6 +43,22 @@ for (const file of [
   );
   assert.ok(!source.includes('readFileSync(".output/strangler/legal-authority.mjs"'));
 }
+
+// A newly added private capability installer must not reintroduce the
+// QA-capable Worker artifact on the production legal authority.
+const productionUploaders = readdirSync("scripts/staging")
+  .filter((file) => file.endsWith(".mjs"))
+  .filter((file) =>
+    readFileSync("scripts/staging/" + file, "utf8").includes(
+      'await api("PUT", "cove-legal-authority-production"',
+    ),
+  )
+  .sort();
+assert.deepEqual(productionUploaders, [
+  "provision-literary-owner-capabilities.mjs",
+  "provision-publication-source-reader.mjs",
+  "provision-sounds-source-reader.mjs",
+]);
 
 const dir = mkdtempSync(path.join(tmpdir(), "cove-legal-binary-lock-"));
 try {
