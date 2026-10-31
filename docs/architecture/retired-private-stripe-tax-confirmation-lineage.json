@@ -6,7 +6,7 @@
   "sourceAfter": 21,
   "sourceFile": "src/features/fore/commerce.server.ts",
   "previousSha256": "65f167c2bdf252936372106347084a1523fed98d507717c746d4c31b8db2c81c",
-  "currentSha256": "7d9cf94252eb2758d3861d8ab2a347bc249f3ba8840ec117b119c2ba166cd146",
+  "currentSha256": "52ba9bb4feec5b2b7c5586687d72cd3498751a0601061823b95a5adbc6ac955f",
   "retired": [
     {
       "file": "src/features/fore/commerce.server.ts",
