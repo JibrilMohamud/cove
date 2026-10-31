@@ -23,9 +23,11 @@ for(const [name,next] of [["createPromoCode","issueGiftCard"],["issueGiftCard","
 assert.match(api,/executeStageOwnerMonetaryAdmin/);
 assert.match(api,/createStageOwnerCheckoutQuote/);
 const sites=review.sites.filter(x=>x.file==="src/features/fore/commerce.server.ts");
-assert.equal(sites.length,3);
+assert.equal(sites.length,2,"Only tax transaction and refund status mutations may remain in shared commerce");
+assert.deepEqual(sites.map(x=>x.functionName).sort(),["applyRefundSuccess","recordTaxTransaction"]);
+assert.doesNotMatch(source,/INSERT INTO commerce_checkout_quotes/);
 assert.ok(sites.every(x=>x.disposition==="owner-command-required"));
 assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=260,
   "A later audited retirement may reduce, but never increase, this previously certified source count");
 assert.equal(review.releaseApproval,false);
-console.log("PASS: 16 physically removed shared checkout and monetary-admin writer sites, private owner staging preserved, production enrollment fail-closed; no more than 260 owner-required sites remain; the owner-only quote and two tax writers still require closure.");
+console.log("PASS: 16 physically removed shared checkout and monetary-admin writer sites, private owner staging preserved, production enrollment fail-closed; no more than 260 owner-required sites remain; the refund and tax writers still require closure.");
