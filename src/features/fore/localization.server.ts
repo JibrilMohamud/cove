@@ -636,7 +636,7 @@ export async function localizationAdminSnapshot(db: StorefrontDB) {
  * fallback, including on Vercel or when the owner has not been enrolled. */
 export async function upsertMarket(
   db: StorefrontDB, actorUserId: string, raw: unknown,
-  identity?: {id:string;authProvider?:string;authSubject?:string;aal?:string}|null,
+  identity?: {id:string;authProvider?:string;authSubject?:string;aal?:string|null}|null,
 ) {
   const market = z.object({
     countryCode: countrySchema,
