@@ -1,6 +1,7 @@
 /* eslint-disable prettier/prettier -- Fail-closed production owner provisioning invariant. */
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
+import {readActiveWorkerVersions} from "./read-active-worker-versions.mjs";
 
 export const PROD_D1="4bd657ac-8789-403e-a28c-93aba8d0a989";
 const QA_D1=["5e3a6b69-6f3d-4b19-b837-01f7aa56ce87","7c7ab994-f6b3-419d-a72d-71eb9ea22e7e"];
@@ -70,5 +71,26 @@ if(process.argv.includes("--live")){
   assert.equal(binding("COVE_RIGHTS_OWNER_ENABLED")?.text,"0");
   assert.equal(binding("COVE_RIGHTS_OWNER_PRIMARY_ID")?.text,PROD_D1);
   assert.ok(!bindings.some(b=>b.type==="service"),"No external service binding in locked owner");
+  // Latest settings alone may describe an upload that is not serving. The
+  // deployed production owner's immutable active version MUST be singular,
+  // wholly served, exact-primary bound and still positively disabled.
+  const base="https://api.cloudflare.com/client/v4/accounts/"+
+    encodeURIComponent(account)+"/workers/scripts/cove-legal-authority-production";
+  const active=await readActiveWorkerVersions(async(url)=>{
+    const response=await fetch(url,{headers:{authorization:"Bearer "+token},
+      signal:AbortSignal.timeout(30000)});
+    assert.equal(response.status,200,"Production active version metadata unavailable");
+    const payload=await response.json();
+    assert.equal(payload.success,true,"Production active version inventory denied");
+    return payload.result;
+  },base);
+  assert.equal(active.length,1,"Owner rollout cannot have mixed serving versions");
+  assert.equal(active[0].percentage,100,"Active owner must serve all traffic");
+  const versionBinding=(name)=>active[0].bindings.find(b=>b.name===name);
+  assert.equal(versionBinding("PRIMARY_DB")?.type,"d1");
+  assert.equal(versionBinding("PRIMARY_DB")?.database_id||versionBinding("PRIMARY_DB")?.id,PROD_D1);
+  assert.equal(versionBinding("COVE_RIGHTS_OWNER_ENABLED")?.text,"0");
+  assert.equal(versionBinding("COVE_RIGHTS_OWNER_PRIMARY_ID")?.text,PROD_D1);
+  assert.equal(versionBinding("LEGAL_AUTHORITY")?.type,"durable_object_namespace");
   console.log("PASS: Cloudflare has the isolated production D1 and DO bindings; rights owner is DISABLED.");
 }
