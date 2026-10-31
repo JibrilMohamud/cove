@@ -1,5 +1,7 @@
 /* eslint-disable prettier/prettier -- Private legal-authority boundary is security-sensitive. */
 import JSZip from "jszip";
+import {recordAccountSecurityEvent} from "../features/fore/account-management.server";
+import {eraseProviderIdentity} from "../features/fore/account-erasure.server";
 import {formatMinorCurrency} from "../features/fore/currency";
 import {bindPrivateFinanceExecutors} from "./finance-owner-routing.server";
 import {runAutomatedPublishingReview} from "../features/fore/moderation.server";
@@ -55,7 +57,7 @@ import {executePublicationPreorder} from "./publication-preorder-command";
 import {beginPublicationCommand,commitPublicationCommand,readPublicationCommand,markPublicationPublished,recordPublicationRecovery} from "./publication-command-core";
 import {recoverPublicationCommands} from "./publication-command-recovery";
 import {
-  captureEntitlementEpoch,createPaidEntitlementSchema,
+  captureEntitlementEpoch,createPaidEntitlementSchema,denyAccountAccess,
   denyPaidOrder,denyPaidEntitlement,denyPaidEntitlementsBatch,
   publishFreshEntitlement,readPaidAccess,readPaidOrderPermission,
   validatePaidEntitlementScope,
@@ -77,7 +79,7 @@ import {
   validateAuthorityCommand, type AuthoritySql,
 } from "./legal-authority-core";
 
-type LegalAuthorityEnv = {
+type LegalAuthorityEnv = Pick<CoveEnv,"FORE_AUTH_MODE"|"SUPABASE_URL"|"SUPABASE_SECRET_KEY"|"FORE_INGESTION_SIGNING_KEY"> & {
   PRIMARY_DB: CatalogDB;
   BUCKET?:PublishingEnv["BUCKET"];
   FORE_PUBLISHING_AUTO_APPROVE_LOW_RISK?:string;
@@ -16380,7 +16382,458 @@ return {accrueRoyaltiesForOrder,reverseRoyaltiesForRefund,createRoyaltyContract,
 const privateFinance=createPrivateFinance();
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+
+/* eslint-disable @typescript-eslint/no-explicit-any -- Private device and checkpointed erasure implementation; no public D1 fallback. */
+const privateAccount=(()=>{
+ type AccountDB=CoveEnv["DB"];
+ const id=(p:string)=>`${p}_${crypto.randomUUID()}`;
+async function registerDevice(
+  db: AccountDB,
+  userId: string,
+  request: Request,
+  raw: unknown,
+) {
+  const x = z
+      .object({
+        deviceKey: z.string().min(16).max(200),
+        name: z.string().trim().min(1).max(120),
+        platform: z.string().trim().min(1).max(80),
+      })
+      .parse(raw),
+    at = now();
+  const row = await db
+    .prepare(
+      `INSERT INTO devices(id,user_id,device_key,name,platform,last_seen_at,revoked_at,created_at) VALUES(?,?,?,?,?,?,NULL,?) ON CONFLICT(user_id,device_key) DO UPDATE SET name=excluded.name,platform=excluded.platform,last_seen_at=excluded.last_seen_at WHERE devices.revoked_at IS NULL RETURNING id,name,platform,last_seen_at,created_at`,
+    )
+    .bind(id("device"), userId, x.deviceKey, x.name, x.platform, at, at)
+    .first<any>();
+  // A removed device key must never restore itself merely by registering
+  // again. Rotate the key and explicitly enroll a new device instead.
+  if (!row) throw new ApiError(409, "This device was revoked. Register with a new device key.");
+  await recordAccountSecurityEvent(db, userId, "device_registered", request, {
+    deviceId: row?.id,
+    platform: x.platform,
+  });
+  return row;
+}
+
+async function revokeDevice(db:AccountDB,userId:string,deviceId:string,request:Request){
+ const device=await db.prepare("SELECT id FROM devices WHERE id=? AND user_id=?").bind(deviceId,userId).first<any>();
+ if(!device)throw new ApiError(404,"Device not found.");
+ const at=now();
+ await db.batch([
+  db.prepare("UPDATE devices SET revoked_at=COALESCE(revoked_at,?) WHERE id=? AND user_id=?").bind(at,deviceId,userId),
+  db.prepare("UPDATE audio_offline_licenses SET status='revoked',revoked_at=COALESCE(revoked_at,?),revocation_reason='device_revoked' WHERE user_id=? AND device_id=? AND status='active'").bind(at,userId,deviceId),
+  db.prepare("UPDATE commercial_delivery_grants SET status='revoked',revoked_at=COALESCE(revoked_at,?),revocation_reason='device_revoked' WHERE user_id=? AND device_id=? AND status='active'").bind(at,userId,deviceId),
+  db.prepare("UPDATE account_sessions SET revoked_at=COALESCE(revoked_at,?),revoked_reason='device_revoked' WHERE user_id=? AND device_id=?").bind(at,userId,deviceId)
+ ]);
+ try{await recordAccountSecurityEvent(db,userId,"device_revoked",request,{deviceId});}
+ catch{console.error("Private device revocation audit enqueue failed");}
+ return {revoked:true};
+}
+
+type ErasureJob = {
+  id: string;
+  user_id: string;
+  attempts: number;
+  object_keys_json: string;
+  storage_erased_at: string | null;
+  database_erased_at: string | null;
+  identity_erased_at: string | null;
+};
+async function maintainErasureLease(db: AccountDB, requestId: string, token: string) {
+  const renewed = await db
+    .prepare(
+      "UPDATE account_deletion_requests SET lease_expires_at=? WHERE id=? AND lease_token=? AND status='executing' AND lease_expires_at>? RETURNING id",
+    )
+    .bind(new Date(Date.now() + 600000).toISOString(), requestId, token, now())
+    .first<{ id: string }>();
+  if (!renewed) throw new ApiError(409, "erasure_lease_lost");
+}
+async function processAccountDeletionQueue(env: CoveEnv, ownerSql:AuthoritySql, limit = 25) {
+  const db = env.DB,
+    current = now();
+  const rows = (
+    await db
+      .prepare(
+        "SELECT id FROM account_deletion_requests WHERE status IN ('cooling_off','queued','executing','blocked_legal_hold') AND execute_after<=? AND (next_retry_at IS NULL OR next_retry_at<=?) AND (lease_expires_at IS NULL OR lease_expires_at<=?) ORDER BY execute_after LIMIT ?",
+      )
+      .bind(current, current, current, Math.max(1, Math.min(25, limit)))
+      .all<{ id: string }>()
+  ).results;
+  let completed = 0,
+    blocked = 0,
+    retrying = 0;
+  for (const candidate of rows) {
+    const lease = crypto.randomUUID(),
+      leaseUntil = new Date(Date.now() + 600000).toISOString();
+    const r = await db
+      .prepare(
+        "UPDATE account_deletion_requests SET status='executing',lease_expires_at=?,lease_token=?,attempts=attempts+1,updated_at=? WHERE id=? AND status IN ('cooling_off','queued','executing','blocked_legal_hold') AND execute_after<=? AND (next_retry_at IS NULL OR next_retry_at<=?) AND (lease_expires_at IS NULL OR lease_expires_at<=?) RETURNING *",
+      )
+      .bind(leaseUntil, lease, now(), candidate.id, current, current, current)
+      .first<ErasureJob>();
+    if (!r) continue;
+    try {
+      const chargeback = await db
+        .prepare(
+          "SELECT 1 ok FROM commerce_orders WHERE user_id=? AND status IN ('disputed','chargeback_lost') LIMIT 1",
+        )
+        .bind(r.user_id)
+        .first<any>();
+      const activeSubscription = await db
+        .prepare(
+          "SELECT 1 ok FROM subscriptions WHERE user_id=? AND status IN ('active','trialing','past_due') LIMIT 1",
+        )
+        .bind(r.user_id)
+        .first<any>();
+      const activeStaff = await db
+        .prepare("SELECT 1 ok FROM staff_principals WHERE user_id=? AND status='active' LIMIT 1")
+        .bind(r.user_id)
+        .first<any>();
+      const publisherAuthority = await db
+        .prepare(
+          "SELECT 1 ok FROM publishing_account_members WHERE user_id=? AND status='active' AND role IN ('owner','admin') LIMIT 1",
+        )
+        .bind(r.user_id)
+        .first<any>();
+      const socialGroupOwner = await db
+        .prepare(
+          "SELECT 1 ok FROM reading_groups g WHERE g.owner_user_id=? AND g.deleted_at IS NULL AND g.status='active' AND (SELECT COUNT(*) FROM reading_group_members m WHERE m.group_id=g.id AND m.status='active')>1 LIMIT 1",
+        )
+        .bind(r.user_id)
+        .first<any>();
+      const legalReason = chargeback
+        ? "Open payment dispute/chargeback record"
+        : activeSubscription
+          ? "Active subscription must be canceled before erasure"
+          : activeStaff
+            ? "Active staff identity must be deprovisioned before erasure"
+            : publisherAuthority
+              ? "Publisher ownership/admin authority must be transferred or removed before erasure"
+              : socialGroupOwner
+                ? "Reading-group ownership must be transferred before erasure"
+                : "";
+      if (legalReason) {
+        await db
+          .prepare(
+            "UPDATE account_deletion_requests SET status='blocked_legal_hold',legal_hold_reason=?,updated_at=?,lease_expires_at=NULL,lease_token=NULL,next_retry_at=? WHERE id=?",
+          )
+          .bind(legalReason, now(), new Date(Date.now() + 86400000).toISOString(), r.id)
+          .run();
+        blocked++;
+        continue;
+      }
+
+      const authRow = await db
+        .prepare("SELECT provider_id FROM auth_accounts WHERE app_id=?")
+        .bind(r.user_id)
+        .first<{ provider_id: string }>();
+      if (
+        env.FORE_AUTH_MODE === "supabase" &&
+        (!authRow?.provider_id ||
+          !env.SUPABASE_URL ||
+          (!env.FORE_INGESTION_SIGNING_KEY && !env.SUPABASE_SECRET_KEY))
+      )
+        throw new ApiError(503, "identity_configuration_missing");
+      denyAccountAccess(ownerSql,r.user_id,r.id);
+      const at = now();
+      await db
+        .prepare("UPDATE auth_accounts SET disabled_at=COALESCE(disabled_at,?) WHERE app_id=?")
+        .bind(at, r.user_id)
+        .run();
+      if (!r.storage_erased_at) {
+        await maintainErasureLease(db, r.id, lease);
+        const recorded = JSON.parse(r.object_keys_json) as string[];
+        const imports = (
+          await db
+            .prepare("SELECT object_key FROM personal_imports WHERE user_id=?")
+            .bind(r.user_id)
+            .all<{ object_key: string }>()
+        ).results
+          .map((x) => x.object_key)
+          .filter(Boolean);
+        const orphaned: string[] = [];
+        if (env.BUCKET?.list) {
+          let cursor: string | undefined;
+          do {
+            await maintainErasureLease(db, r.id, lease);
+            const page = await env.BUCKET.list({ prefix: `uploads/${r.user_id}/`, cursor });
+            orphaned.push(...page.objects.map((object) => object.key));
+            cursor = page.truncated ? page.cursor : undefined;
+            if (page.truncated && !cursor) throw new ApiError(503, "storage_listing_incomplete");
+          } while (cursor);
+        }
+        const keys = [...new Set([...recorded, ...imports, ...orphaned])];
+        if (keys.length && !env.BUCKET) throw new ApiError(503, "storage_configuration_missing");
+        await db
+          .prepare(
+            "UPDATE account_deletion_requests SET object_keys_json=?,cleanup_phase='storage',updated_at=? WHERE id=? AND lease_token=?",
+          )
+          .bind(JSON.stringify(keys), now(), r.id, lease)
+          .run();
+        for (const [index, key] of keys.entries()) {
+          if (index % 25 === 0) await maintainErasureLease(db, r.id, lease);
+          await env.BUCKET!.delete(key);
+        }
+        await db
+          .prepare(
+            "UPDATE account_deletion_requests SET storage_erased_at=?,updated_at=? WHERE id=? AND lease_token=?",
+          )
+          .bind(now(), now(), r.id, lease)
+          .run();
+      }
+      if (!r.database_erased_at) {
+        await maintainErasureLease(db, r.id, lease);
+        const privateProducts = (
+          await db
+            .prepare(
+              "SELECT p.id,p.edition_id,e.work_id,p.source_external_id FROM products p JOIN editions e ON e.id=p.edition_id AND e.release_status='private' WHERE p.source_name='upload' AND (EXISTS(SELECT 1 FROM personal_imports i WHERE i.product_id=p.id AND i.user_id=?) OR EXISTS(SELECT 1 FROM digital_assets a JOIN asset_versions v ON v.asset_id=a.id WHERE a.edition_id=e.id AND substr(v.object_key,1,length(?))=?)) AND NOT EXISTS(SELECT 1 FROM personal_imports other WHERE other.product_id=p.id AND other.user_id<>?)",
+            )
+            .bind(r.user_id, `uploads/${r.user_id}/`, `uploads/${r.user_id}/`, r.user_id)
+            .all<{ id: string; edition_id: string; work_id: string; source_external_id: string }>()
+        ).results;
+        const ownedLists = (
+          await db.prepare("SELECT id FROM social_lists WHERE user_id=?").bind(r.user_id).all<any>()
+        ).results.map((x: any) => String(x.id));
+        const ownedGroups = (
+          await db
+            .prepare("SELECT id FROM reading_groups WHERE owner_user_id=?")
+            .bind(r.user_id)
+            .all<any>()
+        ).results.map((x: any) => String(x.id));
+        for (const id of ownedLists)
+          await db
+            .prepare(
+              "UPDATE social_posts SET deleted_at=COALESCE(deleted_at,?),body='[list removed]',updated_at=? WHERE context_type='list' AND context_id=?",
+            )
+            .bind(at, at, id)
+            .run();
+        for (const id of ownedGroups)
+          await db
+            .prepare(
+              "UPDATE social_posts SET deleted_at=COALESCE(deleted_at,?),body='[group removed]',updated_at=? WHERE context_type='group' AND context_id=?",
+            )
+            .bind(at, at, id)
+            .run();
+        await db.batch([
+          db.prepare("DELETE FROM notification_inbox WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM notification_delivery_jobs WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM storefront_user_preferences WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM notification_events WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM notification_push_endpoints WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM notification_preferences WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM text_bookmarks WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM sync_records WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM sync_mutations WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM sync_conflicts WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM reader_settings WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM sync_clients WHERE user_id=?").bind(r.user_id),
+          db
+            .prepare("DELETE FROM reading_journey_recipients WHERE recipient_user_id=?")
+            .bind(r.user_id),
+          db.prepare("DELETE FROM reading_journeys WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM reading_progress_events WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM account_legal_consents WHERE user_id=?").bind(r.user_id),
+          db
+            .prepare("DELETE FROM pending_account_legal_consents WHERE provider_id=?")
+            .bind(authRow?.provider_id || ""),
+          db
+            .prepare("DELETE FROM social_annotation_shares WHERE recipient_user_id=?")
+            .bind(r.user_id),
+          db
+            .prepare(
+              "UPDATE social_posts SET deleted_at=COALESCE(deleted_at,?),body='[withdrawn]',passage_text='',recipient_user_id=NULL,moderation_status='removed',updated_at=? WHERE recipient_user_id=? OR user_id=?",
+            )
+            .bind(at, at, r.user_id, r.user_id),
+          db.prepare("DELETE FROM customer_support_tickets WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM social_post_reactions WHERE user_id=?").bind(r.user_id),
+          db
+            .prepare("DELETE FROM social_follows WHERE follower_user_id=? OR followed_user_id=?")
+            .bind(r.user_id, r.user_id),
+          db
+            .prepare(
+              "DELETE FROM social_follow_requests WHERE requester_user_id=? OR target_user_id=?",
+            )
+            .bind(r.user_id, r.user_id),
+          db
+            .prepare("DELETE FROM social_blocks WHERE blocker_user_id=? OR blocked_user_id=?")
+            .bind(r.user_id, r.user_id),
+          db
+            .prepare("DELETE FROM social_mutes WHERE muter_user_id=? OR muted_user_id=?")
+            .bind(r.user_id, r.user_id),
+          db.prepare("DELETE FROM profile_top_books WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM social_annotation_shares WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM social_events WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM social_reader_preferences WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM social_list_likes WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM social_list_saves WHERE user_id=?").bind(r.user_id),
+          db
+            .prepare(
+              "UPDATE social_posts SET user_id='deleted:'||substr(id,1,24),body='[deleted account]',passage_text='',updated_at=? WHERE user_id=?",
+            )
+            .bind(at, r.user_id),
+          db
+            .prepare("UPDATE social_audit_events SET actor_user_id=NULL WHERE actor_user_id=?")
+            .bind(r.user_id),
+          db
+            .prepare(
+              "UPDATE author_social_posts SET created_by_user_id='deleted:'||substr(id,1,24) WHERE created_by_user_id=?",
+            )
+            .bind(r.user_id),
+          db.prepare("DELETE FROM social_lists WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM reading_groups WHERE owner_user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM reading_group_members WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM social_profiles WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM review_hearts WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM reviews WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM annotations WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM definitions WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM reading_sessions WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM reading_states WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM reading_goals WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM book_metrics WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM completion_events WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM playback WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM biosync_positions WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM commercial_audio_playback WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM commercial_biosync_positions WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM author_follow_preferences WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM author_follows WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM wishlist_events WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM wishlist_items WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM wishlist_profiles WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM preview_states WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM shopping_carts WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM shelves WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM matching_feedback WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM matching_preferences WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM recommendation_feedback WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM recommendation_requests WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM recommendation_events WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM recommendation_user_features WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM recommendation_taste_controls WHERE user_id=?").bind(r.user_id),
+          db
+            .prepare("DELETE FROM recommendation_learning_boundaries WHERE user_id=?")
+            .bind(r.user_id),
+          db.prepare("DELETE FROM recommendation_privacy WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM search_query_events WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM merch_events WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM personal_export_events WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM personal_imports WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM account_addresses WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM account_preferences WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM account_billing_methods WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM account_gift_card_wallet WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM profiles WHERE user_id=?").bind(r.user_id),
+          db
+            .prepare(
+              "UPDATE audio_offline_licenses SET status='revoked',revoked_at=COALESCE(revoked_at,?),revocation_reason=CASE WHEN revocation_reason='' THEN 'account_deleted' ELSE revocation_reason END WHERE user_id=? AND status='active'",
+            )
+            .bind(at, r.user_id),
+          db
+            .prepare("UPDATE commerce_customers SET email='',updated_at=? WHERE user_id=?")
+            .bind(at, r.user_id),
+          db
+            .prepare(
+              "UPDATE account_sessions SET revoked_at=COALESCE(revoked_at,?),revoked_reason='account_deleted' WHERE user_id=?",
+            )
+            .bind(at, r.user_id),
+          db
+            .prepare(
+              "UPDATE devices SET device_key='deleted:'||id,name='',platform='',revoked_at=COALESCE(revoked_at,?) WHERE user_id=?",
+            )
+            .bind(at, r.user_id),
+          ...privateProducts.flatMap((product) => [
+            db
+              .prepare(
+                "DELETE FROM external_identifiers WHERE entity_type='product' AND entity_id=?",
+              )
+              .bind(product.id),
+            db.prepare("DELETE FROM products WHERE id=? AND source_name='upload'").bind(product.id),
+            db
+              .prepare("DELETE FROM editions WHERE id=? AND release_status='private'")
+              .bind(product.edition_id),
+            db
+              .prepare(
+                "DELETE FROM works WHERE id=? AND NOT EXISTS(SELECT 1 FROM editions WHERE work_id=?)",
+              )
+              .bind(product.work_id, product.work_id),
+            db
+              .prepare(
+                "DELETE FROM contributors WHERE id=? AND NOT EXISTS(SELECT 1 FROM edition_contributors WHERE contributor_id=?)",
+              )
+              .bind(
+                `con_upload_${product.source_external_id}`,
+                `con_upload_${product.source_external_id}`,
+              ),
+          ]),
+          db
+            .prepare(
+              "UPDATE auth_accounts SET email=?,username=NULL,disabled_at=COALESCE(disabled_at,?) WHERE app_id=?",
+            )
+            .bind(`deleted+${r.user_id.replace(/[^a-zA-Z0-9]/g, "")}@invalid.fore`, at, r.user_id),
+        ]);
+
+        await db
+          .prepare(
+            "UPDATE account_deletion_requests SET database_erased_at=?,cleanup_phase='identity',updated_at=? WHERE id=? AND lease_token=?",
+          )
+          .bind(now(), now(), r.id, lease)
+          .run();
+      }
+      if (!r.identity_erased_at) {
+        await maintainErasureLease(db, r.id, lease);
+        if (env.FORE_AUTH_MODE === "supabase")
+          await eraseProviderIdentity(env, authRow!.provider_id, r.user_id, r.id);
+        await db
+          .prepare(
+            "UPDATE account_deletion_requests SET identity_erased_at=?,updated_at=? WHERE id=? AND lease_token=?",
+          )
+          .bind(now(), now(), r.id, lease)
+          .run();
+      }
+      const done = await db
+        .prepare(
+          "UPDATE account_deletion_requests SET status='completed',cleanup_phase='complete',completed_at=?,updated_at=?,lease_expires_at=NULL,lease_token=NULL,next_retry_at=NULL,last_error_code='',legal_hold_reason='',object_keys_json='[]' WHERE id=? AND lease_token=? AND storage_erased_at IS NOT NULL AND database_erased_at IS NOT NULL AND identity_erased_at IS NOT NULL RETURNING id",
+        )
+        .bind(now(), now(), r.id, lease)
+        .first<{ id: string }>();
+      if (done) completed++;
+    } catch (error) {
+      const code =
+        error instanceof ApiError && /^[a-z_]+$/.test(error.message)
+          ? error.message
+          : "cleanup_failed";
+      const retry = new Date(
+        Date.now() + Math.min(86400000, 60000 * Math.pow(2, Math.min(r.attempts, 10))),
+      ).toISOString();
+      await db
+        .prepare(
+          "UPDATE account_deletion_requests SET status='queued',lease_expires_at=NULL,lease_token=NULL,next_retry_at=?,last_error_code=?,updated_at=? WHERE id=? AND lease_token=?",
+        )
+        .bind(retry, code, now(), r.id, lease)
+        .run();
+      retrying++;
+      console.error(
+        JSON.stringify({
+          event: "account_erasure_retry",
+          requestId: r.id,
+          code,
+          attempt: r.attempts,
+        }),
+      );
+    }
+  }
+  return { processed: rows.length, completed, blocked, retrying };
+}
+
+return {registerDevice,revokeDevice,processAccountDeletionQueue};
+})();
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
+  private accountExecution=false;
   private financeExecution=false;
   private publicationExecutions=new Set<string>();
   private contractExecutions=new Set<string>();
@@ -16474,6 +16927,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/preorder/private-action",
       "/trust/private-action",
       "/finance/private-action",
+      "/account/private-action",
       "/publishing/editor-action",
       "/publishing/partner/private-action",
       "/support/private-action",
@@ -16489,7 +16943,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     let raw:unknown;
     try {
       const bytes=await request.text();
-      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/create-quote"?4096:route==="/publishing/audio/register-upload"?8192:route==="/publishing/audio/qc-jobs"?262144:route==="/publishing/worker/jobs"?262144:route==="/publishing/audio/metadata"?8192:route==="/publishing/onboarding/review"?8192:route==="/support/private-action"?8192:route==="/preorder/private-action"?8192:route==="/trust/private-action"?262144:route==="/finance/private-action"?65536:route==="/publishing/editor-action"?262144:route==="/publishing/partner/private-action"?16384:route==="/commercial/checkout/materialize-draft"?2048:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
+      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/create-quote"?4096:route==="/publishing/audio/register-upload"?8192:route==="/publishing/audio/qc-jobs"?262144:route==="/publishing/worker/jobs"?262144:route==="/publishing/audio/metadata"?8192:route==="/publishing/onboarding/review"?8192:route==="/support/private-action"?8192:route==="/preorder/private-action"?8192:route==="/trust/private-action"?262144:route==="/finance/private-action"?65536:route==="/account/private-action"?2048:route==="/publishing/editor-action"?262144:route==="/publishing/partner/private-action"?16384:route==="/commercial/checkout/materialize-draft"?2048:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
       raw=JSON.parse(bytes);
     }catch {return new Response(null,{status:400,headers:noStore});}
     bindPrivateFinanceExecutors(env.PRIMARY_DB,{...privateRoyalty,...privateFinance});
@@ -16775,6 +17229,40 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         sql.exec("INSERT INTO cove_audio_metadata_command_receipts(operation_id,request_digest,receipt_json) VALUES(?,?,?)",
           input.operationId,requestDigest,JSON.stringify(ack));
         return Response.json(ack,{headers:noStore});
+      }
+      if(route==="/account/private-action"){
+        const input=z.discriminatedUnion("action",[
+          z.object({action:z.literal("register-device"),userId:z.string().regex(/^[a-zA-Z0-9:_-]{3,160}$/),
+            device:z.object({deviceKey:z.string().min(16).max(200),name:z.string().trim().min(1).max(120),platform:z.string().trim().min(1).max(80)}).strict()}).strict(),
+          z.object({action:z.literal("revoke-device"),userId:z.string().regex(/^[a-zA-Z0-9:_-]{3,160}$/),deviceId:z.string().regex(/^[a-zA-Z0-9_-]{3,160}$/)}).strict(),
+          z.object({action:z.literal("erasure-tick"),limit:z.number().int().min(1).max(25)}).strict()
+        ]).parse(raw);
+        if(this.accountExecution){
+          if(input.action==="erasure-tick")return Response.json({schema:"cove.private-account-qa.v1",ownerFirst:true,action:input.action,userId:null,
+            result:{processed:0,completed:0,blocked:0,retrying:0}},{headers:noStore});
+          return new Response(null,{status:409,headers:noStore});
+        }
+        this.accountExecution=true;
+        try{
+          let result:unknown;
+          const db=env.PRIMARY_DB;
+          if(input.action==="erasure-tick"){
+            result=await privateAccount.processAccountDeletionQueue({...env,DB:db} as unknown as CoveEnv,sql,input.limit);
+          }else{
+            const user=await db.prepare("SELECT app_id,disabled_at FROM auth_accounts WHERE app_id=?")
+              .bind(input.userId).first<{app_id:string;disabled_at:string|null}>();
+            const denied=sql.exec("SELECT 1 ok FROM cove_account_access_denials WHERE user_id=?",input.userId).toArray().length;
+            if(!user||user.disabled_at||denied)return new Response(null,{status:403,headers:noStore});
+            // Cookies and caller-selected identity headers never cross this
+            // protocol. The authenticated API supplies its verified app ID.
+            const auditRequest=new Request("https://legal-authority.internal/account/device");
+            result=input.action==="register-device"?
+              await privateAccount.registerDevice(db,input.userId,auditRequest,input.device):
+              await privateAccount.revokeDevice(db,input.userId,input.deviceId,auditRequest);
+          }
+          return Response.json({schema:"cove.private-account-qa.v1",ownerFirst:true,action:input.action,
+            userId:input.action==="erasure-tick"?null:input.userId,result},{headers:noStore});
+        }finally{this.accountExecution=false;}
       }
       if(route==="/finance/private-action"){
         const input=z.object({
