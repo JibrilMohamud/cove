@@ -18353,9 +18353,9 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         const db=env.PRIMARY_DB;
         const [lease,run]=await Promise.all([
           db.prepare("SELECT source_id,lease_token,lease_until,status FROM gutenberg_source_states WHERE source_id=? AND status='running' AND lease_token=? AND lease_until>?")
-            .bind(x.sourceId,x.leaseToken,now()).first<any>(),
+            .bind(x.sourceId,x.leaseToken,now()).first<{source_id:string;lease_token:string;lease_until:string;status:string}>(),
           db.prepare("SELECT source_id,status,started_at FROM gutenberg_ingest_runs WHERE id=? AND source_id=? AND status='running'")
-            .bind(x.runId,x.sourceId).first<any>()
+            .bind(x.runId,x.sourceId).first<{source_id:string;status:string;started_at:string}>()
         ]);
         if(!lease||!run||x.cycleStartedAt>now()||x.cycleStartedAt>String(run.started_at))
           return new Response(null,{status:409,headers:noStore});

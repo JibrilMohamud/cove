@@ -1,4 +1,7 @@
-import { dispatchCatalogNegativeSource, dispatchCatalogStaleWithdrawal } from "../../storefront-strangler/publication-owner-routing.server";
+import {
+  dispatchCatalogNegativeSource,
+  dispatchCatalogStaleWithdrawal,
+} from "../../storefront-strangler/publication-owner-routing.server";
 import { createStageOwnerCheckoutQuote } from "../../storefront-strangler/owner-checkout-quote.server";
 import { saveStageOwnerContractVersion } from "../../storefront-strangler/owner-contract-version.server";
 import { executeStageOwnerMonetaryAdmin } from "../../storefront-strangler/owner-commerce-admin.server";
@@ -1886,12 +1889,14 @@ export async function runRegionalCatalogIngestion(
     // together at the private legal owner. A public catalog caller cannot
     // declare stale books or activate rights by writing the shared primary.
     const staleCount = complete
-      ? (await dispatchCatalogStaleWithdrawal(db, {
-          sourceId,
-          cycleStartedAt,
-          leaseToken: lease,
-          runId,
-        })).staleCount
+      ? (
+          await dispatchCatalogStaleWithdrawal(db, {
+            sourceId,
+            cycleStartedAt,
+            leaseToken: lease,
+            runId,
+          })
+        ).staleCount
       : 0;
 
     await db
