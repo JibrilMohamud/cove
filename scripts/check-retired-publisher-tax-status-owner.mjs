@@ -22,7 +22,7 @@ assert.ok(!review.sites.some(x=>x.siteId===ln.retired[0].siteId));
 const a=src.indexOf("export async function registerPublisherTaxVerification(");
 const b=src.indexOf("\n}",a);
 assert.ok(a>=0&&b>a);
-assert.match(src.slice(a,b),/return dispatchPrivatePublisherTaxVerification\(db,raw\);/);
+assert.match(src.slice(a,b),/return\s+dispatchPrivatePublisherTaxVerification\(db,\s*raw\);/);
 assert.doesNotMatch(src,/UPDATE publishing_accounts SET tax_status=/);
 assert.doesNotMatch(src,/UPDATE publishing_tax_profiles SET status=/);
 assert.doesNotMatch(src,/INSERT OR IGNORE INTO publisher_tax_verification_events/);
