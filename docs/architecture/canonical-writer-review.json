@@ -97,7 +97,7 @@
     {
       "siteId": "fc216b00baa65b0cc11a746a88d0d79d3829a1772931bd5a45461597599f225a",
       "file": "src/features/fore/api.server.ts",
-      "line": 5743,
+      "line": 5744,
       "functionName": "handleCoveRequest",
       "table": "entitlements",
       "operation": "INSERT INTO",
