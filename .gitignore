@@ -48,3 +48,7 @@ artifacts/browser-qa/
 .offline-dist/
 
 /literary-publisher-dist/
+
+/infra/canonical-readonly/worker-configuration.d.ts
+/artifacts/cloudflare-ssr-staging-performance.json
+/artifacts/protected-readonly-ssr-rollback.json

@@ -15,6 +15,7 @@ export default tseslint.config(
       "backend-dist",
       "content-dist",
       "literary-publisher-dist",
+      "infra/canonical-readonly/worker-configuration.d.ts",
       "artifacts/browser-qa",
     ],
   },

@@ -114,9 +114,12 @@ export async function readLiveEvidence({cloudflareToken,accountId,stripeRestrict
   const workers=[];
   for(let start=0;start<names.length;start+=8){
     const subset=await Promise.all(names.slice(start,start+8).map(async name=>{
-      const x=await cf(base+"/"+encodeURIComponent(name)+"/settings",cloudflareToken);
-      if(!Array.isArray(x.result?.bindings))throw Error("Worker settings incomplete: "+name);
-      return {name,bindings:x.result.bindings};
+      const {readActiveWorkerVersions}=await import("./read-active-worker-versions.mjs");
+      const versions=await readActiveWorkerVersions(async url=>(await cf(url,cloudflareToken)).result,
+        base+"/"+encodeURIComponent(name));
+      if(name===PRODUCTION_OWNER&&versions.length!==1)
+        throw Error("Production legal owner has multiple serving versions");
+      return {name,bindings:versions.flatMap(v=>v.bindings),activeVersions:versions.map(v=>({versionId:v.versionId,percentage:v.percentage}))};
     }));
     workers.push(...subset);
   }

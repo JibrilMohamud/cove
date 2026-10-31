@@ -1,6 +1,6 @@
 {
   "schema": "cove.production-release-checkpoint.v1",
-  "observedAt": "2026-10-31T14:19:35.670Z",
+  "observedAt": "2026-10-31T22:16:47.793Z",
   "productionReady": false,
   "source": {
     "releasePR": 546,
@@ -43,64 +43,28 @@
     "cron": "11 * * * *"
   },
   "workerInventory": {
-    "observedAt": "2026-10-31T14:18:45.562Z",
-    "checked": 450,
+    "observedAt": "2026-10-31T22:16:47.793Z",
+    "scope": "Every active version in the newest traffic deployment of every Worker; latest-upload settings are not used",
+    "checked": 452,
     "productionD1Bindings": [
       {
         "name": "cove-legal-authority-production",
-        "bindings": [
-          "PRIMARY_DB"
-        ]
-      },
-      {
-        "name": "cove-literary-handoff-draining-20261025",
-        "bindings": [
-          "DB"
-        ]
-      },
-      {
-        "name": "cove-literary-infer-isolated-disabled",
-        "bindings": [
-          "DB"
-        ]
-      },
-      {
-        "name": "cove-literary-prepare-draining-20261025",
-        "bindings": [
-          "DB"
-        ]
-      },
-      {
-        "name": "cove-literary-publisher-isolated-disabled",
-        "bindings": [
-          "DB"
-        ]
+        "versionId": "3463ff93-f077-40bf-a4d5-fb7bfc143cd5",
+        "percentage": 100,
+        "bindings": ["PRIMARY_DB"]
       },
       {
         "name": "cove-persistence-backend",
-        "bindings": [
-          "DB"
-        ]
-      },
-      {
-        "name": "cove-storefront-ssr-staging",
-        "bindings": [
-          "DB"
-        ]
+        "versionId": "86af709b-1f10-4441-9b73-7db34f9c2467",
+        "percentage": 100,
+        "bindings": ["DB"]
       }
     ],
     "failed": [],
     "ownerOnly": false
   },
-  "remainingNonownerWorkerPrincipals": [
-    "cove-literary-handoff-draining-20261025",
-    "cove-literary-infer-isolated-disabled",
-    "cove-literary-prepare-draining-20261025",
-    "cove-literary-publisher-isolated-disabled",
-    "cove-persistence-backend",
-    "cove-storefront-ssr-staging"
-  ],
-  "inventoryScope": "All 450 deployed Worker scripts. External API principals and tokens are not certified.",
+  "remainingNonownerWorkerPrincipals": ["cove-persistence-backend"],
+  "inventoryScope": "Every active version in the newest traffic deployment of every Worker; latest-upload settings are not used Account-token D1 Write remains active; user-owned tokens uncertified.",
   "paidQa": {
     "sha": "d4b74a4150db85af9ad32ee746fd7161ca72806b",
     "runId": 41208880271,
@@ -131,7 +95,18 @@
     "limitMs": 800,
     "slowSamples": 1,
     "passed": false,
-    "geographicAcceptanceCertified": false
+    "geographicAcceptanceCertified": false,
+    "readonlySsrRepeat": {
+      "origin": "https://cove-storefront-ssr-staging.cove-jibrilmohamud.workers.dev",
+      "coldWorkerCertified": false,
+      "clientConnectionIncluded": true,
+      "samples": 20,
+      "errors": 0,
+      "p95Ms": 326,
+      "maxMs": 2954,
+      "passed": false,
+      "scope": "Protected ORD runner test after rollback, not geographic capacity certification"
+    }
   },
   "protectedRollbackRehearsed": false,
   "migrationStackMerged": false,
@@ -143,10 +118,7 @@
     "cron": "* * * * *",
     "probe": {
       "status": 200,
-      "countries": [
-        "IE",
-        "IN"
-      ],
+      "countries": ["IE", "IN"],
       "complete": true,
       "expectedMarkets": 23,
       "canonicalBinding": false,
@@ -182,6 +154,16 @@
     "closed": true,
     "version": "ad9b2937-112f-47ca-bcdf-00454c694c74",
     "independentlyVerified": true,
+    "productionRollbackCertified": false
+  },
+  "ssrReadonly": {
+    "version": "f2b79a9d-bf65-4bd7-b0f8-8c97f5b9533f",
+    "readServiceVersion": "f252025f-04c4-4e71-a9e9-134ee3f4c6c3",
+    "nativeD1": false,
+    "providerPermission": "D1 Read",
+    "tokenId": "dc53c51b97e94d76349814c428a12f76",
+    "privateOnlyReadService": true,
+    "stagingOutageRollbackPassed": true,
     "productionRollbackCertified": false
   }
 }

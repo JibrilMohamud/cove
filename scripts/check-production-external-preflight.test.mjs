@@ -56,6 +56,10 @@ refuse({webhookUrl:"https://attacker.example/api/fore/stripe/webhook"},/URL is m
 const actualFetch=globalThis.fetch;
 const tokenPages=[];
 let failTokenPage=false;
+let activeHiddenWriter=false;
+let denyVersion=false;
+const readVersion="11111111-1111-4111-8111-111111111111";
+const writeVersion="22222222-2222-4222-8222-222222222222";
 globalThis.fetch=async (input,options={})=>{
   assert.equal(options.method||"GET","GET");
   const url=new URL(input);
@@ -68,8 +72,16 @@ globalThis.fetch=async (input,options={})=>{
     result={success:true,errors:[],result:page===1?Array.from({length:50},(_,i)=>({id:"reader-"+i,status:"active",policies:[]})):
       [{id:"page-two-writer",status:"active",policies:[{effect:"allow",permission_groups:[{name:"D1 Write"}]}]}],result_info:{total_pages:2}};
   }else if(url.pathname.endsWith("/workers/scripts"))result={success:true,errors:[],result:[{id:PRODUCTION_OWNER},{id:"read-only-canary"}],result_info:{total_pages:1}};
-  else if(url.pathname.endsWith("/"+PRODUCTION_OWNER+"/settings"))result={success:true,errors:[],result:ownerSettings};
-  else if(url.pathname.endsWith("/read-only-canary/settings"))result={success:true,errors:[],result:{bindings:[]}};
+  else if(url.pathname.endsWith("/deployments"))result={success:true,errors:[],result:{deployments:[{versions:
+    activeHiddenWriter&&url.pathname.includes("read-only-canary")?
+      [{version_id:readVersion,percentage:50},{version_id:writeVersion,percentage:50}]:
+      [{version_id:readVersion,percentage:100}]}]}};
+  else if(url.pathname.includes("/versions/")){
+    if(denyVersion)return new Response("denied",{status:403});
+    const id=url.pathname.split("/").at(-1);
+    result={success:true,errors:[],result:{id,resources:url.pathname.includes(PRODUCTION_OWNER)?ownerSettings:
+      {bindings:id===writeVersion?[{type:"d1",database_id:PRODUCTION_D1,name:"DB"}]:[]}}};
+  }
   else throw Error("Unexpected preflight provider path");
   return Response.json(result);
 };
@@ -79,6 +91,13 @@ try{
   assert.equal(evidence.accountTokens.length,51);
   assert.equal(evidence.accountTokenInventoryComplete,true);
   refuse(evidence,/page-two-writer/);
+  activeHiddenWriter=true;
+  const split=await readLiveEvidence({cloudflareToken:"synthetic-reader",accountId:"test-account",stripeRestrictedKey:"synthetic-stripe-reader"});
+  assert.equal(split.workerSettings.find(w=>w.name==="read-only-canary").activeVersions.length,2);
+  refuse(split,/read-only-canary/);
+  denyVersion=true;
+  await assert.rejects(()=>readLiveEvidence({cloudflareToken:"synthetic-reader",accountId:"test-account",stripeRestrictedKey:"synthetic-stripe-reader"}),/HTTP 403/);
+  denyVersion=false;activeHiddenWriter=false;
   failTokenPage=true;
   await assert.rejects(()=>readLiveEvidence({cloudflareToken:"synthetic-reader",accountId:"test-account",stripeRestrictedKey:"synthetic-stripe-reader"}),/HTTP 403/);
 }finally{globalThis.fetch=actualFetch;}

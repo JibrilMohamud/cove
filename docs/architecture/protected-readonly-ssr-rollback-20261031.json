@@ -1,0 +1,27 @@
+{
+  "schema": "cove.protected-readonly-ssr-rollback.v1",
+  "observedAt": "2026-10-31T22:14:11.131Z",
+  "worker": "cove-storefront-ssr-staging",
+  "productionRollbackCertified": false,
+  "paymentSessionContinuityCertified": false,
+  "baselineVersion": "f2b79a9d-bf65-4bd7-b0f8-8c97f5b9533f",
+  "before": {
+    "status": 200,
+    "cards": 24,
+    "noStore": true
+  },
+  "outage": {
+    "status": 200,
+    "cards": 0,
+    "noStore": true
+  },
+  "failureClosed": true,
+  "after": {
+    "status": 200,
+    "cards": 24,
+    "noStore": true
+  },
+  "restored": true,
+  "restorationVerifiedAt": "2026-10-31T22:15:39.141Z",
+  "passed": true
+}

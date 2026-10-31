@@ -1,0 +1,32 @@
+name: canonical-readonly-service
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cove-exclusive-real-primary-cold-acceptance
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      CLOUDFLARE_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      # The exact D1 Read credential is provisioned separately. This deploy
+      # preserves the installed secret and cannot mint a replacement token.
+      - run: node scripts/staging/verify-canonical-readonly-service.mjs
+      - run: npm exec --yes --package=wrangler@4.151.0 -- sh -c 'COVE_MINIFLARE_MODULE="$(dirname "$(command -v wrangler)")/../miniflare" node scripts/check-canonical-readonly-rpc.mjs'
+      - run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.canonical-readonly.jsonc
+      - run: node scripts/staging/verify-canonical-readonly-service.mjs
