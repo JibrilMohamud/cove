@@ -380,3 +380,30 @@ export async function dispatchPrivateRightsConfiguration(db:object,
   return receipt.result;
  }catch{throw new ApiError(503,"Private rights configuration owner refused the request.");}
 }
+
+/** Staging-only regional withdrawal. The owner verifies the active ingest
+ * lease and independently selects and denies stale catalog rows. */
+export async function dispatchCatalogStaleWithdrawal(db:object,input:{
+ sourceId:"pg_ca"|"pg_au"|"pg_eu";cycleStartedAt:string;leaseToken:string;runId:string
+}):Promise<{staleCount:number}> {
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Stale catalog denial requires private owner.");
+ try{
+  const result=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+   "catalog.withdraw-stale",input);
+  return {staleCount:Number(result.staleCount)};
+ }catch{throw new ApiError(503,"Private catalog owner refused the stale-source denial.");}
+}
+
+/** Fixed negative-only changes; never a caller-supplied SQL statement. */
+export async function dispatchCatalogNegativeSource(db:object,
+ action:"quarantine-regional"|"mark-us-retry",cacheId:string,reason="") {
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Catalog quarantine requires private owner.");
+ try{
+  const result=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+   "catalog.negative-source",{action,cacheId,reason:reason.slice(0,500)});
+  if(result.denied!==true)throw Error("catalog_negative_denial_missing");
+  return {changed:result.changed===true};
+ }catch{throw new ApiError(503,"Private catalog owner refused source quarantine.");}
+}
