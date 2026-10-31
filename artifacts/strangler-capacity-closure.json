@@ -1,0 +1,11 @@
+{
+  "schema": "cove.protected-capacity-closure.v1",
+  "observedAt": "2026-10-31T14:19:13.828Z",
+  "worker": "cove-strangler-m1-staging",
+  "version": "ad9b2937-112f-47ca-bcdf-00454c694c74",
+  "closed": true,
+  "canonicalD1Bound": false,
+  "temporaryLoadLimitRestored": true,
+  "productionRollbackCertified": false,
+  "scope": "Independent control-plane verification of isolated capacity-stage closure only"
+}

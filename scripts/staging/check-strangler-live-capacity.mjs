@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { performance } from "node:perf_hooks";
+import { isSustainedPhase } from "../performance/strangler-capacity-evidence.mjs";
 import { stageFetch, stageTransport, closeStageTransport } from "./strangler-http-transport.mjs";
 
 const origin = "https://cove-strangler-m1-staging.cove-jibrilmohamud.workers.dev";
@@ -12,13 +13,20 @@ const strictMaximumMs = 800;
 const p95MaximumMs = 600;
 const p99MaximumMs = 750;
 const results = {
+  schema: "cove.strangler-capacity.v2",
+  sha: process.env.GITHUB_SHA || null,
+  runId: process.env.GITHUB_RUN_ID || null,
+  startedAt: new Date().toISOString(),
+  geographyCertified: false,
+  rollbackCertified: false,
   transport: stageTransport,
   mode: process.env.COVE_STRANGLER_MODE || "bursts",
   phases: [],
 };
 
-async function requestOne(route = "/") {
-  const start = performance.now();
+async function requestOne(route = "/", scheduledAt = performance.now()) {
+  const start = scheduledAt;
+  const launchDelayMs = Math.max(0, performance.now() - scheduledAt);
   try {
     const resp = await stageFetch(origin + route, {
       headers: { authorization: "Bearer " + key },
@@ -51,6 +59,7 @@ async function requestOne(route = "/") {
     const edgeRay = /^[a-f0-9]{12,32}-[A-Z]{3}$/.test(ray) ? ray : null;
     return {
       ttfbMs: Math.round(headersAt - start),
+      launchDelayMs,
       valid: Boolean(valid),
       status: resp.status,
       edgeRay,
@@ -59,6 +68,7 @@ async function requestOne(route = "/") {
   } catch (error) {
     return {
       ttfbMs: Math.round(performance.now() - start),
+      launchDelayMs,
       valid: false,
       error: error instanceof Error ? error.name : "unknown",
     };
@@ -77,9 +87,11 @@ function report(name, offered, rows, dropped = 0) {
   const p99Ms = percentile(all, 0.99);
   // Bursts/cold rounds have an 800 ms hard maximum. The p95/p99 tail
   // requirements belong to the sustained 100-RPS, 2,000-arrival phase.
-  const sustained100Rps = name === "100-rps-20s";
+  const sustained100Rps = isSustainedPhase(name);
+  const lateArrivals = rows.filter((row) => row.launchDelayMs >= 100).length;
   const pass =
     dropped === 0 &&
+    lateArrivals === 0 &&
     rows.length === offered &&
     valid === offered &&
     maxMs < strictMaximumMs &&
@@ -113,6 +125,7 @@ function report(name, offered, rows, dropped = 0) {
     name,
     offered,
     delivered: rows.length,
+    lateArrivals,
     valid,
     dropped,
     p95Ms,
@@ -135,25 +148,31 @@ async function burst(n, name, route = "/") {
   const rows = await Promise.all(Array.from({ length: n }, () => requestOne(route)));
   report(name, n, rows);
 }
-async function scheduled(rate, seconds, route = "/") {
+async function scheduled(rate, seconds, route = "/", phase = null) {
   const offered = rate * seconds,
     rows = [];
   let dropped = 0;
   const pending = new Set();
   const started = performance.now();
   for (let i = 0; i < offered; i++) {
-    await sleep(started + (i * 1000) / rate - performance.now());
+    const scheduledAt = started + (i * 1000) / rate;
+    await sleep(scheduledAt - performance.now());
     if (pending.size >= maxInflight) {
       dropped++;
       continue;
     }
-    const task = requestOne(route);
+    const task = requestOne(route, scheduledAt);
     pending.add(task);
     task.then((result) => rows.push(result)).finally(() => pending.delete(task));
   }
   await Promise.allSettled([...pending]);
   report(
-    (route === "/" ? "" : "transport-") + rate + "-rps-" + seconds + "s",
+    (route === "/" ? "" : "transport-") +
+      rate +
+      "-rps-" +
+      seconds +
+      "s" +
+      (phase === null ? "" : "-phase-" + phase),
     offered,
     rows,
     dropped,
@@ -166,7 +185,8 @@ try {
     report("new-deployment-cold-20", 20, rows);
   } else {
     for (const size of [1, 4, 8, 16, 32]) await burst(size, size + "-concurrent");
-    for (const rate of [25, 50, 100]) await scheduled(rate, rate === 100 ? 20 : 10);
+    for (const rate of [25, 50]) await scheduled(rate, 10);
+    for (const phase of [1, 2]) await scheduled(100, 20, "/", phase);
     await burst(32, "transport-control-32", "/__cove_perf/transport");
     await scheduled(25, 10, "/__cove_perf/transport");
     // Additional protected authentic application path. This isn't a
@@ -175,6 +195,7 @@ try {
     report("real-core-delegation", 1, [core]);
   }
 } finally {
+  results.completedAt = new Date().toISOString();
   closeStageTransport();
   fs.mkdirSync("artifacts", { recursive: true });
   fs.writeFileSync(

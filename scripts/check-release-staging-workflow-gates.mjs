@@ -77,14 +77,11 @@ const capacity = readFileSync("scripts/staging/check-strangler-live-capacity.mjs
 const evidence = readFileSync("scripts/staging/assert-strangler-capacity-evidence.mjs", "utf8");
 assert.ok(capacity.includes("const p95MaximumMs = 600;"));
 assert.ok(capacity.includes("const p99MaximumMs = 750;"));
-assert.ok(capacity.includes("rate === 100 ? 20 : 10"));
+assert.ok(capacity.includes('for (const phase of [1, 2]) await scheduled(100, 20, "/", phase)'));
 assert.ok(capacity.includes("p99Ms < p99MaximumMs"));
-assert.ok(capacity.includes('name === "100-rps-20s"'));
-assert.ok(evidence.includes('"100-rps-20s"'));
-assert.ok(evidence.includes("item.p95Ms < 600"));
-assert.ok(evidence.includes("item.p99Ms < 750"));
-assert.ok(evidence.includes("item.maxMs < 800"));
-assert.ok(evidence.includes('item.name !== "100-rps-20s"'));
+assert.ok(capacity.includes("isSustainedPhase(name)"));
+assert.ok(evidence.includes("validateCapacityEvidence(data"));
+assert.ok(evidence.includes("sha: process.env.GITHUB_SHA"));
 const realCatalog = readFileSync(
   "scripts/performance/strangler-real-catalog-acceptance.mjs",
   "utf8",
