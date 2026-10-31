@@ -12,7 +12,7 @@ import {FORE_AI_POLICY_VERSION,FORE_RIGHTS_POLICY_VERSION,assessSubmissionConten
 import {commercialAudioReadiness,commercialAudioSubmissionEvidence,saveCommercialBiosyncLink} from "../features/fore/commercial-audio.server";
 import {assessUsageRisk,effectivePublisherWithholding,assessPayoutRisk,assessPublisherRisk} from "../features/fore/risk-tax.server";
 import {ensurePreorderReleasePlan} from "../features/fore/preorder.server";
-import {hasPublicationOwner,dispatchPublicationActivation,dispatchPublicationPreorder,dispatchPublicationRecovery,dispatchPublicationMaterialization,dispatchPublishingOnboardingReview,dispatchPublishingOwnerValidationJob} from "./publication-owner-routing.server";
+import {bindPublicationOwner,hasPublicationOwner,dispatchPublicationActivation,dispatchPublicationPreorder,dispatchPublicationRecovery,dispatchPublicationMaterialization,dispatchPublishingOnboardingReview,dispatchPublishingOwnerValidationJob} from "./publication-owner-routing.server";
 import {uploadPublishingAsset,publishingUploadLimit} from "../features/fore/publishing.server";
 import {checkoutQuote} from "../features/fore/commerce.server";
 import {sha256 as partnerFeedSha256,partnerAudit as partnerFeedAudit,
@@ -20727,7 +20727,24 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         // is owner-invoked, rather than a stale caller-supplied risk verdict.
         const risk=order.risk_assessment_id&&order.risk_action?
           {action:order.risk_action}:
-          await assessBuyerOrderRisk(db,order.id);
+          // The QA private owner must apply its own independently validated
+          // risk command. A raw PRIMARY_DB cannot resolve an external owner
+          // dispatch, and a shared D1 fallback would be an authorization bypass.
+          // This narrowly scoped facade permits only the two risk commands to
+          // re-enter this SAME authenticated Durable Object. No other caller
+          // receives the facade and every risk transition still passes the
+          // exact private owner policy/hold predicates.
+          const localRiskDb=bindPublicationOwner(db,{
+            owner:{fetch:async(req:Request)=>{
+              const route=new URL(req.url).pathname;
+              if(route!=="/risk/private-apply-assessment"&&
+                 route!=="/risk/private-create-hold")
+                return new Response(null,{status:403,headers:noStore});
+              return this.fetch(req);
+            }},
+            secret:String(env.COVE_RIGHTS_OWNER_SECRET),territory:"US",currency:"USD"
+          });
+          await assessBuyerOrderRisk(localRiskDb,order.id);
         if(!["allow","monitor","challenge","hold","block"].includes(risk.action))
           throw Error("owner_checkout_unknown_risk_action");
         if(risk.action==="block"||
