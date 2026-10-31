@@ -450,19 +450,39 @@ async function storeCreditAvailable(db: CatalogDB, userId: string, currency: str
 }
 
 type OwnerCheckoutQuoteRow = {
-  id:string; userId:string; cartId:string; cartFingerprint:string;
-  territoryCode:string; currency:string; itemsJson:string; billingAddressJson:string;
-  subtotalMinor:number; promoDiscountMinor:number; taxMinor:number; taxInclusiveMinor:number;
-  giftCardMinor:number; storeCreditMinor:number; totalMinor:number; stripeDueMinor:number;
-  promoCodeHash:string|null; giftCardHash:string|null; stripeTaxCalculationId:string|null;
-  taxBreakdownJson:string; expiresAt:string; createdAt:string;
+  id: string;
+  userId: string;
+  cartId: string;
+  cartFingerprint: string;
+  territoryCode: string;
+  currency: string;
+  itemsJson: string;
+  billingAddressJson: string;
+  subtotalMinor: number;
+  promoDiscountMinor: number;
+  taxMinor: number;
+  taxInclusiveMinor: number;
+  giftCardMinor: number;
+  storeCreditMinor: number;
+  totalMinor: number;
+  stripeDueMinor: number;
+  promoCodeHash: string | null;
+  giftCardHash: string | null;
+  stripeTaxCalculationId: string | null;
+  taxBreakdownJson: string;
+  expiresAt: string;
+  createdAt: string;
 };
-export async function checkoutQuote(env: CoveEnv, user: User, raw: unknown,
- persistOwnerQuote?: (row:OwnerCheckoutQuoteRow)=>Promise<void>) {
-
+export async function checkoutQuote(
+  env: CoveEnv,
+  user: User,
+  raw: unknown,
+  persistOwnerQuote?: (row: OwnerCheckoutQuoteRow) => Promise<void>,
+) {
   if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")
     throw new ApiError(503, "Checkout quotes require the private commerce owner.");
-  if(!persistOwnerQuote)throw new ApiError(503, "Only the private owner may persist checkout quotes.");
+  if (!persistOwnerQuote)
+    throw new ApiError(503, "Only the private owner may persist checkout quotes.");
   const input = z
     .object({
       territory: z
@@ -648,14 +668,28 @@ export async function checkoutQuote(env: CoveEnv, user: User, raw: unknown,
     expires = new Date(Date.now() + 30 * 60_000).toISOString(),
     items = discounted.map((x) => ({ ...x }));
   await persistOwnerQuote({
-    id, userId:user.id, cartId:cartRow.id, cartFingerprint:cart.fingerprint,
-    territoryCode:territory, currency:cart.currency,
-    itemsJson:JSON.stringify(items), billingAddressJson:JSON.stringify(input.billingAddress),
-    subtotalMinor:cart.subtotalMinor, promoDiscountMinor:discount,
-    taxMinor, taxInclusiveMinor, giftCardMinor:giftUse, storeCreditMinor:storeUse,
-    totalMinor:total, stripeDueMinor:stripeDue, promoCodeHash:promo?.hash || null,
-    giftCardHash:gift?.hash || null, stripeTaxCalculationId:taxId,
-    taxBreakdownJson:JSON.stringify(taxBreakdown), expiresAt:expires, createdAt:at
+    id,
+    userId: user.id,
+    cartId: cartRow.id,
+    cartFingerprint: cart.fingerprint,
+    territoryCode: territory,
+    currency: cart.currency,
+    itemsJson: JSON.stringify(items),
+    billingAddressJson: JSON.stringify(input.billingAddress),
+    subtotalMinor: cart.subtotalMinor,
+    promoDiscountMinor: discount,
+    taxMinor,
+    taxInclusiveMinor,
+    giftCardMinor: giftUse,
+    storeCreditMinor: storeUse,
+    totalMinor: total,
+    stripeDueMinor: stripeDue,
+    promoCodeHash: promo?.hash || null,
+    giftCardHash: gift?.hash || null,
+    stripeTaxCalculationId: taxId,
+    taxBreakdownJson: JSON.stringify(taxBreakdown),
+    expiresAt: expires,
+    createdAt: at,
   });
   await recordCheckoutTaxEvidence(db, {
     quoteId: id,
@@ -975,8 +1009,10 @@ async function recordTaxTransaction(env: CoveEnv, order: AnyRow) {
       metadata: { fore_order_id: order.id },
     },
   });
-  await confirmStageOwnerStripeTax(env,{
-    kind:"transaction",orderId:String(order.id),taxTransactionId:String(tx.id)
+  await confirmStageOwnerStripeTax(env, {
+    kind: "transaction",
+    orderId: String(order.id),
+    taxTransactionId: String(tx.id),
   });
   await commitCustomerTaxRecord(env.DB, order.id, String(tx.id));
   return tx.id;
@@ -1615,9 +1651,11 @@ async function applyRefundSuccess(env: CoveEnv, refundId: string, refundPayload:
           metadata: { fore_order_id: o.id, fore_refund_id: r.id },
         },
       });
-      await confirmStageOwnerStripeTax(env,{
-        kind:"reversal",orderId:String(o.id),refundId:String(r.id),
-        taxTransactionId:String(rev.id)
+      await confirmStageOwnerStripeTax(env, {
+        kind: "reversal",
+        orderId: String(o.id),
+        refundId: String(r.id),
+        taxTransactionId: String(rev.id),
       });
       await recordCustomerTaxReversal(db, r.id, String(rev.id), refundAmount, {
         mode: full ? "full" : "partial",

@@ -49,7 +49,7 @@ try {
   // The synthetic transport is deliberately isolated to this QA process.
   // It cannot supply production legal authority or customer purchase rights.
   const { bindPublicationOwner } = await import(
-    path.join(root, "publication-owner-routing.server.mjs"),
+    path.join(root, "publication-owner-routing.server.mjs")
   );
   const secret = "a".repeat(64);
   const owner = {
@@ -65,8 +65,7 @@ try {
           .prepare("SELECT source_id FROM gutenberg_source_cache WHERE id=?")
           .bind(payload.cacheId)
           .first();
-        if (!row || row.source_id !== "pg_us")
-          return new Response(null, { status: 409 });
+        if (!row || row.source_id !== "pg_us") return new Response(null, { status: 409 });
         const outcome = await db
           .prepare(
             "UPDATE gutenberg_source_cache SET epub_status='retry',epub_next_attempt_at='',epub_last_error='Stored EPUB failed validation; repair required.' WHERE id=? AND source_id='pg_us' AND ingest_status<>'quarantined'",
@@ -93,8 +92,7 @@ try {
         .first();
       if (!source) return new Response(null, { status: 409 });
       const obj = await env.BUCKET.get("epubs/" + cacheId + ".epub");
-      if (!obj || obj.size > 25 * 1024 * 1024)
-        return new Response(null, { status: 409 });
+      if (!obj || obj.size > 25 * 1024 * 1024) return new Response(null, { status: 409 });
       const storedBytes = new Uint8Array(await obj.arrayBuffer());
       await validateStoredEpub(storedBytes);
       const digest = await crypto.subtle.digest("SHA-256", storedBytes);
@@ -143,13 +141,20 @@ try {
     .prepare("SELECT epub_status,content_hash FROM gutenberg_source_cache WHERE id='1342'")
     .first();
   const ownerless = await request("/books/1342/epub");
-  assert.equal(ownerless.status, 200, "verified public-US EPUB bytes may be streamed without a canonical write");
+  assert.equal(
+    ownerless.status,
+    200,
+    "verified public-US EPUB bytes may be streamed without a canonical write",
+  );
   assert.equal((await ownerless.arrayBuffer()).byteLength, bytes.length);
   const unpersisted = await db
     .prepare("SELECT epub_status,content_hash FROM gutenberg_source_cache WHERE id='1342'")
     .first();
-  assert.deepEqual(unpersisted, beforeOwnerless,
-    "A public read without an owner must never mint or update canonical cache state");
+  assert.deepEqual(
+    unpersisted,
+    beforeOwnerless,
+    "A public read without an owner must never mint or update canonical cache state",
+  );
   await env.BUCKET.delete("epubs/1342.epub");
   env = {
     ...env,

@@ -1,7 +1,17 @@
 import { dispatchVerifiedFreeLibraryEntitlement } from "../../storefront-strangler/publication-owner-routing.server";
-import { dispatchCatalogObservation,dispatchPrivateCatalogSourceBatch } from "../../storefront-strangler/publication-owner-routing.server";
-import { dispatchCatalogRegionalState,dispatchPrivateRegionalRightsEvidence } from "../../storefront-strangler/publication-owner-routing.server";
-import { dispatchCatalogVerifiedUsEpub, dispatchCatalogCompletedUsEpub, dispatchVerifiedRegionalEpubMetadata } from "../../storefront-strangler/publication-owner-routing.server";
+import {
+  dispatchCatalogObservation,
+  dispatchPrivateCatalogSourceBatch,
+} from "../../storefront-strangler/publication-owner-routing.server";
+import {
+  dispatchCatalogRegionalState,
+  dispatchPrivateRegionalRightsEvidence,
+} from "../../storefront-strangler/publication-owner-routing.server";
+import {
+  dispatchCatalogVerifiedUsEpub,
+  dispatchCatalogCompletedUsEpub,
+  dispatchVerifiedRegionalEpubMetadata,
+} from "../../storefront-strangler/publication-owner-routing.server";
 import { dispatchCatalogIngestState } from "../../storefront-strangler/publication-owner-routing.server";
 import {
   dispatchCatalogNegativeSource,
@@ -812,26 +822,38 @@ type CatalogSourceOptions = {
 };
 /** A source observation is never itself proof of copyright or distribution.
  * The private legal owner owns the only UPSERT after independent checks. */
-export type CatalogSourceObservation={
-  cacheId:string;sourceId:"pg_us"|"pg_ca"|"pg_au"|"pg_eu";
-  fields:Array<string|number|null>;
+export type CatalogSourceObservation = {
+  cacheId: string;
+  sourceId: "pg_us" | "pg_ca" | "pg_au" | "pg_eu";
+  fields: Array<string | number | null>;
 };
 export function catalogInsert(
-  db:CoveEnv["DB"],book:any,sourceUrl:string,at:string,
-  options:CatalogSourceOptions={}
-):CatalogSourceObservation{
+  db: CoveEnv["DB"],
+  book: any,
+  sourceUrl: string,
+  at: string,
+  options: CatalogSourceOptions = {},
+): CatalogSourceObservation {
   void db;
-  const formats=book.formats||{};
-  const sourceId=options.sourceId||"pg_us";
-  const source=sourceId==="pg_us"?epubSource(formats):canonicalAssetSource(formats)?.url||"";
-  const sourceItemId=options.sourceItemId||String(book.id);
-  const sourceProject=options.sourceProject||"Project Gutenberg";
-  const sourceLicenseUrl=options.sourceLicenseUrl||"https://www.gutenberg.org/policy/license.html";
-  const rightsStatus=options.rightsStatus||(book.copyright===false?"public-domain":"pending");
-  const rightsTerritories=options.rightsTerritories||(sourceId==="pg_us"&&book.copyright===false?["US"]:[]);
-  const commercialUseStatus=options.commercialUseStatus||
-    (sourceId==="pg_us"&&book.copyright===false?"approved":"pending");
-  return {cacheId:String(book.id),sourceId,fields:[
+  const formats = book.formats || {};
+  const sourceId = options.sourceId || "pg_us";
+  const source =
+    sourceId === "pg_us" ? epubSource(formats) : canonicalAssetSource(formats)?.url || "";
+  const sourceItemId = options.sourceItemId || String(book.id);
+  const sourceProject = options.sourceProject || "Project Gutenberg";
+  const sourceLicenseUrl =
+    options.sourceLicenseUrl || "https://www.gutenberg.org/policy/license.html";
+  const rightsStatus =
+    options.rightsStatus || (book.copyright === false ? "public-domain" : "pending");
+  const rightsTerritories =
+    options.rightsTerritories || (sourceId === "pg_us" && book.copyright === false ? ["US"] : []);
+  const commercialUseStatus =
+    options.commercialUseStatus ||
+    (sourceId === "pg_us" && book.copyright === false ? "approved" : "pending");
+  return {
+    cacheId: String(book.id),
+    sourceId,
+    fields: [
       String(book.id),
       book.title,
       JSON.stringify(book.authors || []),
@@ -869,7 +891,8 @@ export function catalogInsert(
       options.canonicalizationVersion || "",
       JSON.stringify(options.sourceMetadata || {}),
       options.contentHash || "",
-  ]};
+    ],
+  };
 }
 
 async function ensureCatalogState(env: CoveEnv) {
@@ -890,7 +913,7 @@ async function seedCatalog(env: CoveEnv) {
   const statements = books.map((book) =>
     catalogInsert(db, book, "https://www.gutenberg.org/ebooks/" + book.id + "/", at),
   );
-  if (statements.length) await dispatchPrivateCatalogSourceBatch(db,statements);
+  if (statements.length) await dispatchPrivateCatalogSourceBatch(db, statements);
   for (const book of books) {
     await dispatchCatalogFreeNormalization(db, String(book.id), at);
     await syncEditionTaxonomy(db, catalogIds(String(book.id)).editionId);
@@ -927,7 +950,7 @@ async function getBook(env: CoveEnv, id: string, userId?: string): Promise<Catal
   const seeded = seedBook(id);
   if (seeded) {
     const at = now();
-    await dispatchPrivateCatalogSourceBatch(db,[
+    await dispatchPrivateCatalogSourceBatch(db, [
       catalogInsert(db, seeded, "https://www.gutenberg.org/ebooks/" + seeded.id + "/", at),
     ]);
     await dispatchCatalogFreeNormalization(db, String(seeded.id), at);
@@ -945,7 +968,7 @@ async function getBook(env: CoveEnv, id: string, userId?: string): Promise<Catal
   if (!book?.id || book.copyright !== false)
     throw new ApiError(404, "This edition is not confirmed public domain.");
   const at = now();
-  await dispatchPrivateCatalogSourceBatch(db,[
+  await dispatchPrivateCatalogSourceBatch(db, [
     catalogInsert(
       db,
       book,
@@ -1282,11 +1305,13 @@ async function insertRegionalEvidence(
   // country-level evidence from the configured legal verifier, and performs
   // the entire evidence/cache/suspend/normalize/reactivate sequence. No shared
   // D1 positive-rights SQL survives, and missing verifier proof fails closed.
-  const db=database(env);
-  const evidence=await dispatchPrivateRegionalRightsEvidence(db,{
-    cacheId:String(row.id),sha256:contentHash,canonicalizationVersion
+  const db = database(env);
+  const evidence = await dispatchPrivateRegionalRightsEvidence(db, {
+    cacheId: String(row.id),
+    sha256: contentHash,
+    canonicalizationVersion,
   });
-  await syncEditionTaxonomy(db,catalogIds(String(row.id)).editionId);
+  await syncEditionTaxonomy(db, catalogIds(String(row.id)).editionId);
   return evidence;
 }
 
@@ -1478,7 +1503,7 @@ async function cachePendingEpubs(
         if (canonicalMetadata) {
           // Source metadata is never accepted as owner evidence. The private
           // owner reopens and independently canonicalizes the stored EPUB.
-          await dispatchVerifiedRegionalEpubMetadata(db, {cacheId:id,sha256:contentHash});
+          await dispatchVerifiedRegionalEpubMetadata(db, { cacheId: id, sha256: contentHash });
         }
         await insertRegionalEvidence(env, row, contentHash, canonicalizationVersion);
       }
@@ -1492,7 +1517,11 @@ async function cachePendingEpubs(
         error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500);
       const { terminal, retryAt } = planEpubRetry(message, attempts);
       await dispatchCatalogIngestState(db, "mark-failure", {
-        cacheId: id, attempts, status: terminal ? "failed" : "retry", retryAt, message,
+        cacheId: id,
+        attempts,
+        status: terminal ? "failed" : "retry",
+        retryAt,
+        message,
       });
       failed++;
     }
@@ -1558,7 +1587,10 @@ export async function runRegionalCatalogIngestion(
   const lease = crypto.randomUUID();
   const runId = `gir_${crypto.randomUUID()}`;
   let cursorBefore = Math.max(0, Number.parseInt(String(due.cursor || "0"), 10) || 0);
-  const acquired = await dispatchCatalogIngestState(db, "acquire-regional", { sourceId, leaseToken: lease });
+  const acquired = await dispatchCatalogIngestState(db, "acquire-regional", {
+    sourceId,
+    leaseToken: lease,
+  });
   if (!acquired.claimed) return { skipped: "regional-source-running" };
   await db
     .prepare(
@@ -1575,7 +1607,11 @@ export async function runRegionalCatalogIngestion(
     const result = await fetchRegionalCatalog(sourceId, env, headers, deadlineMs);
     if (result.status === "degraded") {
       const next = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
-      await dispatchCatalogIngestState(db, "mark-degraded", { sourceId, leaseToken: lease, message: result.warning });
+      await dispatchCatalogIngestState(db, "mark-degraded", {
+        sourceId,
+        leaseToken: lease,
+        message: result.warning,
+      });
       await db
         .prepare(
           `UPDATE gutenberg_ingest_runs SET completed_at=?,status='partial',cursor_after=?,error=? WHERE id=?`,
@@ -1695,7 +1731,7 @@ export async function runRegionalCatalogIngestion(
           sourceMetadata: { ...(item.metadata || {}), catalogHash: result.bodyHash },
         }),
       );
-      if (statements.length) await dispatchPrivateCatalogSourceBatch(db,statements);
+      if (statements.length) await dispatchPrivateCatalogSourceBatch(db, statements);
       accepted += statements.length;
     }
 
@@ -1790,7 +1826,11 @@ export async function runRegionalCatalogIngestion(
         ),
     ).toISOString();
     await dispatchCatalogIngestState(db, "mark-regional-failed", {
-      sourceId, leaseToken: lease, attempts, retryAt, message,
+      sourceId,
+      leaseToken: lease,
+      attempts,
+      retryAt,
+      message,
     });
     await db
       .prepare(
@@ -1976,7 +2016,7 @@ export async function runCatalogIngestion(
         at,
       ),
     );
-    if (statements.length) await dispatchPrivateCatalogSourceBatch(db,statements);
+    if (statements.length) await dispatchPrivateCatalogSourceBatch(db, statements);
     for (const book of changed) await dispatchCatalogFreeNormalization(db, String(book.id), at);
     // This must run even when the source and canonical rows were unchanged:
     // a previous run may have failed *after* canonical normalization but
@@ -5612,8 +5652,10 @@ async function handleCoveRequest(
           throw new ApiError(404, "This edition is not available in your storefront.");
         // The private legal owner checks the current positive jurisdictional
         // proof and live canonical item before granting free library access.
-        await dispatchVerifiedFreeLibraryEntitlement(db,{
-          userId:String(user.id),productId:String(product.id),territory:storefrontTerritory,
+        await dispatchVerifiedFreeLibraryEntitlement(db, {
+          userId: String(user.id),
+          productId: String(product.id),
+          territory: storefrontTerritory,
         });
       } else {
         const entitlement = await db

@@ -1302,11 +1302,19 @@ export async function handleCommercialAudio(
     // The private legal owner independently verifies the paid grant, exact
     // source publication, active device, signature claims and manifest digest
     // against current primary rows before atomically replacing this lease.
-    await dispatchPrivateOfflineAudioLicense(db,{
-      licenseId,userId,productId:String(row.product_id),entitlementId:String(ent.id),
-      editionId:edition.id,deviceId:String(device.id),
-      deviceKeyHash:await hashText(String(device.device_key)),tokenHash,manifestHash,
-      issuedAt:issued,expiresAt:signedExpires,territory:territory.toUpperCase(),
+    await dispatchPrivateOfflineAudioLicense(db, {
+      licenseId,
+      userId,
+      productId: String(row.product_id),
+      entitlementId: String(ent.id),
+      editionId: edition.id,
+      deviceId: String(device.id),
+      deviceKeyHash: await hashText(String(device.device_key)),
+      tokenHash,
+      manifestHash,
+      issuedAt: issued,
+      expiresAt: signedExpires,
+      territory: territory.toUpperCase(),
     });
     return new Response(JSON.stringify({ licenseId, token: rawToken, manifestHash, ...signed }), {
       headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
@@ -1337,14 +1345,25 @@ const commercialBiosyncManifestSchema = z.object({
   cues: z.array(commercialBiosyncCueSchema).min(1).max(500000),
 });
 
-type BiosyncVerifiedOwnerRow={
- ebookProductId:string; audiobookProductId:string; ebookAssetVersionId:string;
- audioManifestHash:string; timingManifestObjectKey:string; timingManifestSha256:string;
- precision:"sentence"|"word"; coverageBps:number; verifiedBy:string; verifiedAt:string
+type BiosyncVerifiedOwnerRow = {
+  ebookProductId: string;
+  audiobookProductId: string;
+  ebookAssetVersionId: string;
+  audioManifestHash: string;
+  timingManifestObjectKey: string;
+  timingManifestSha256: string;
+  precision: "sentence" | "word";
+  coverageBps: number;
+  verifiedBy: string;
+  verifiedAt: string;
 };
-export async function saveCommercialBiosyncLink(env:CoveEnv,staffUserId:string,raw:unknown,
- persistVerified?: (row:BiosyncVerifiedOwnerRow)=>Promise<string>) {
- if(!persistVerified)return dispatchStageOwnerVerifiedBiosync(env,staffUserId,raw);
+export async function saveCommercialBiosyncLink(
+  env: CoveEnv,
+  staffUserId: string,
+  raw: unknown,
+  persistVerified?: (row: BiosyncVerifiedOwnerRow) => Promise<string>,
+) {
+  if (!persistVerified) return dispatchStageOwnerVerifiedBiosync(env, staffUserId, raw);
 
   const db = env.DB,
     x = z
@@ -1477,12 +1496,17 @@ export async function saveCommercialBiosyncLink(env:CoveEnv,staffUserId:string,r
       409,
       "The supplied Biosync coverage does not match the verified timing manifest.",
     );
-  const linkId=await persistVerified({
-    ebookProductId:x.ebookProductId,audiobookProductId:x.audiobookProductId,
-    ebookAssetVersionId:x.ebookAssetVersionId,audioManifestHash:x.audioManifestHash,
-    timingManifestObjectKey:x.timingManifestObjectKey,timingManifestSha256:actualSha,
-    precision:manifest.precision,coverageBps,
-    verifiedBy:`${x.verifiedBy}:${staffUserId}`,verifiedAt:now()
+  const linkId = await persistVerified({
+    ebookProductId: x.ebookProductId,
+    audiobookProductId: x.audiobookProductId,
+    ebookAssetVersionId: x.ebookAssetVersionId,
+    audioManifestHash: x.audioManifestHash,
+    timingManifestObjectKey: x.timingManifestObjectKey,
+    timingManifestSha256: actualSha,
+    precision: manifest.precision,
+    coverageBps,
+    verifiedBy: `${x.verifiedBy}:${staffUserId}`,
+    verifiedAt: now(),
   });
   return {
     id: linkId,
