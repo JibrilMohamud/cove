@@ -18580,16 +18580,38 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         }>();
         if(!a||!Number.isInteger(a.score)||a.score<0||a.score>100||
            typeof a.level!=="string"||a.level.length<2||a.level.length>32||
-           !["allow","monitor","hold","block"].includes(a.action))
+           !["allow","monitor","challenge","hold","block"].includes(a.action))
           return new Response(null,{status:409,headers:noStore});
         const currentPolicy=await db.prepare(
-          "SELECT id FROM risk_policy_versions WHERE domain=? AND status='active' AND effective_from<=? AND (effective_to IS NULL OR effective_to>?) ORDER BY version DESC LIMIT 1"
-        ).bind(x.domain,at,at).first<{id:string}>();
+          "SELECT id,policy_json FROM risk_policy_versions WHERE domain=? AND status='active' AND effective_from<=? AND (effective_to IS NULL OR effective_to>?) ORDER BY version DESC LIMIT 1"
+        ).bind(x.domain,at,at).first<{id:string;policy_json:string}>();
         const latest=await db.prepare(
           "SELECT id FROM risk_assessments WHERE domain=? AND subject_type=? AND subject_id=? ORDER BY created_at DESC,id DESC LIMIT 1"
         ).bind(x.domain,subjectType,x.subjectId).first<{id:string}>();
         if(!currentPolicy||currentPolicy.id!==a.policy_version_id||
            latest?.id!==x.assessmentId)
+          return new Response(null,{status:409,headers:noStore});
+        // Recompute the outcome from the independently configured policy.
+        // A caller-provided or inconsistent lower-risk assessment never
+        // materializes into commerce or a publisher account.
+        let policy:unknown;
+        try{policy=JSON.parse(currentPolicy.policy_json);}catch{}
+        if(!policy||typeof policy!=="object"||Array.isArray(policy))
+          return new Response(null,{status:409,headers:noStore});
+        const thresholds=(policy as {thresholds?:Record<string,unknown>}).thresholds||{};
+        const t={
+          block:Number(thresholds.block??90),hold:Number(thresholds.hold??70),
+          challenge:Number(thresholds.challenge??50),monitor:Number(thresholds.monitor??25)
+        };
+        if(Object.values(t).some(n=>!Number.isFinite(n)||n<0||n>100)||
+           !(t.block>=t.hold&&t.hold>=t.challenge&&t.challenge>=t.monitor))
+          return new Response(null,{status:409,headers:noStore});
+        const expected=a.score>=t.block?{level:"critical",action:"block"}:
+          a.score>=t.hold?{level:"high",action:"hold"}:
+          a.score>=t.challenge?{level:"elevated",action:"challenge"}:
+          a.score>=t.monitor?{level:"elevated",action:"monitor"}:
+          {level:"low",action:"allow"};
+        if(expected.level!==a.level||expected.action!==a.action)
           return new Response(null,{status:409,headers:noStore});
         // Never allow an optimistic score to clear an active held financial
         // or publishing subject. A hold must pass the separate release gate.
