@@ -33,6 +33,8 @@ refuse({workerSettings:null},/inventory is missing/);
 refuse({workerSettings:[...safe.workerSettings,
   {name:"unreviewed-cron",bindings:[{name:"SOURCE_DB",type:"d1",id:PRODUCTION_D1}]}]},/unreviewed-cron/);
 refuse({accountTokens:[{id:"missing-status"}]},/status is incomplete/);
+refuse({accountTokens:[{id:"missing-effect",status:"active",policies:[{}]}]},/policy effect is incomplete/);
+refuse({accountTokens:[{id:"missing-permission-metadata",status:"active",policies:[{effect:"allow",permission_groups:[{}]}]}]},/permission metadata is incomplete/);
 refuse({accountTokens:null},/token privilege inventory is missing/);
 refuse({accountTokenInventoryComplete:false},/token privilege inventory is missing/);
 refuse({accountTokens:[{id:"broad-deployment",status:"active",policies:[{effect:"allow",permission_groups:[{id:"09b2857d1c31407795e75e3fed8617a1"}]}]}]},/D1 Write/);

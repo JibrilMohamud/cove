@@ -51,12 +51,18 @@ export function assessExternalPrerequisites({ownerSettings,workerSettings,accoun
       continue;
     }
     for(const policy of token.policies){
-      if(policy.effect!=="allow")continue;
+      if(policy.effect==="deny")continue;
+      if(policy.effect!=="allow"){
+        problems.push("Active account API token policy effect is incomplete: "+token.id);
+        continue;
+      }
       if(!Array.isArray(policy.permission_groups)){
         problems.push("Active account API token permission inventory is incomplete: "+token.id);
         continue;
       }
-      if(policy.permission_groups.some(p=>p.id==="09b2857d1c31407795e75e3fed8617a1"||/^D1 (Write|Edit)$/i.test(p.name||"")))
+      if(policy.permission_groups.some(p=>!p||(!/^[a-f0-9]{32}$/.test(p.id||"")&&!(typeof p.name==="string"&&p.name.trim()))))
+        problems.push("Active account API token permission metadata is incomplete: "+token.id);
+      if(policy.permission_groups.some(p=>p&&(p.id==="09b2857d1c31407795e75e3fed8617a1"||/^D1 (Write|Edit)$/i.test(p.name||""))))
         problems.push("Active account API token retains D1 Write; database scope must be independently retired or certified: "+token.id);
     }
   }
