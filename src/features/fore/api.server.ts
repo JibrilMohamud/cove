@@ -4707,9 +4707,13 @@ async function handleCoveRequest(
         return json(await executeStageCanonicalAdminCommand(env, command));
       }
       if (request.method === "POST" && path === "/admin/commerce/rights-party")
-        return json(await upsertRightsParty(database(env), await body(request), financeStaff.userId));
+        return json(
+          await upsertRightsParty(database(env), await body(request), financeStaff.userId),
+        );
       if (request.method === "POST" && path === "/admin/commerce/territory-set")
-        return json(await upsertTerritorySet(database(env), await body(request), financeStaff.userId));
+        return json(
+          await upsertTerritorySet(database(env), await body(request), financeStaff.userId),
+        );
       if (request.method === "POST" && path === "/admin/commerce/territory-expand")
         return json(await territoryExpansionPreview(database(env), await body(request)));
       if (request.method === "POST" && path === "/admin/commerce/rights-contract") {

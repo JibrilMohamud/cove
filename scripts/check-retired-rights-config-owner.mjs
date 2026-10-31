@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Reviewed one-off source lineage assertions. */
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 const r=p=>readFileSync(p,"utf8");

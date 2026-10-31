@@ -1,4 +1,4 @@
-import {dispatchPrivateRightsConfiguration} from "../../storefront-strangler/publication-owner-routing.server";
+import { dispatchPrivateRightsConfiguration } from "../../storefront-strangler/publication-owner-routing.server";
 import { z } from "zod/v3";
 import type { CatalogDB } from "./catalog-model.server";
 import { ApiError } from "./service";
@@ -933,11 +933,11 @@ export const restrictionsSchema = z
   .strict();
 
 export async function upsertRightsParty(db: CatalogDB, raw: unknown, actorUserId = "") {
-  return dispatchPrivateRightsConfiguration(db,"upsert-party",actorUserId,raw);
+  return dispatchPrivateRightsConfiguration(db, "upsert-party", actorUserId, raw);
 }
 
 export async function upsertTerritorySet(db: CatalogDB, raw: unknown, actorUserId = "") {
-  return dispatchPrivateRightsConfiguration(db,"upsert-territory-set",actorUserId,raw);
+  return dispatchPrivateRightsConfiguration(db, "upsert-territory-set", actorUserId, raw);
 }
 
 export async function upsertRightsContract(_db: CatalogDB, _raw: unknown) {

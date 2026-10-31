@@ -891,7 +891,7 @@ export async function executeModerationAction(db: ModerationDB, staff: StaffCont
       rationale: z.string().max(8000).default(""),
     })
     .parse(raw);
-  return dispatchPrivateModerationAction(db,staff.userId,x);
+  return dispatchPrivateModerationAction(db, staff.userId, x);
 }
 
 export async function submitModerationAppeal(db: ModerationDB, userId: string, raw: unknown) {
