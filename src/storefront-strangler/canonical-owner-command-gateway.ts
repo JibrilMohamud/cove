@@ -137,6 +137,19 @@ const routes={
     runId:z.string().regex(/^gir_[a-f0-9-]{36}$/),
     data:z.record(z.string(),z.unknown())
   }).strict()},
+  "market.admin-upsert":{path:"/market/private-admin-upsert",schema:z.object({
+    operationId:operation,
+    actor:z.object({userId:ownerId,authProvider:z.string().min(1).max(120),
+      authSubject:z.string().min(1).max(240),aal:z.enum(["aal1","aal2"])}).strict(),
+    market:z.object({
+      countryCode:territory,displayName:z.string().min(1).max(120),
+      defaultLocale:z.string().regex(/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8}){0,2}$/),
+      defaultCurrency:currency,taxInclusive:z.boolean(),
+      status:z.enum(["draft","active","paused","retired"]),
+      recommendationRegion:z.string().min(1).max(80),
+      merchandisingRegion:z.string().min(1).max(80),checkoutEnabled:z.boolean()
+    }).strict()
+  }).strict()},
   "catalog.complete-us-epub-ingest":{path:"/catalog/complete-us-epub-ingest",schema:z.object({
     cacheId:z.string().regex(/^[0-9]{1,10}$/),
     sha256:z.string().regex(/^[a-f0-9]{64}$/)
@@ -403,6 +416,11 @@ export async function dispatchCanonicalOwnerCommand(
          ack.sourceId!==body.sourceId||ack.runId!==body.runId||
          ack.action!==body.action||typeof ack.acquired!=="boolean")
          throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "market.admin-upsert":
+      if(ack.schema!=="cove.owner-private-market-admin.v1"||ack.ownerFirst!==true||
+         ack.operationId!==body.operationId||ack.countryCode!==(body.market as Record<string,unknown>).countryCode||
+         ack.saved!==true)throw Error("canonical_command_receipt_mismatch");
       break;
     case "catalog.complete-us-epub-ingest":
       if(ack.schema!=="cove.owner-us-epub-ingest.v1"||ack.ownerFirst!==true||

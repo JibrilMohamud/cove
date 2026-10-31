@@ -2,6 +2,7 @@
 import { z } from "zod/v3";
 import { ApiError, now } from "./service";
 import { selectedUiCatalog } from "./ui-catalog.server";
+import { dispatchPrivateMarketUpsert } from "../../storefront-strangler/publication-owner-routing.server";
 
 export type StorefrontDB = {
   prepare(sql: string): {
@@ -631,76 +632,31 @@ export async function localizationAdminSnapshot(db: StorefrontDB) {
   };
 }
 
-export async function upsertMarket(db: StorefrontDB, actorUserId: string, raw: unknown) {
-  const x = z
-      .object({
-        countryCode: countrySchema,
-        displayName: z.string().min(1).max(120),
-        defaultLocale: localeSchema,
-        defaultCurrency: currencySchema,
-        taxInclusive: z.boolean().default(false),
-        status: z.enum(["draft", "active", "paused", "retired"]).default("active"),
-        recommendationRegion: z.string().min(1).max(80).default("global"),
-        merchandisingRegion: z.string().min(1).max(80).default("global"),
-        checkoutEnabled: z.boolean().default(true),
-      })
-      .parse(raw),
-    at = now();
-  const territory = await db
-    .prepare("SELECT 1 ok FROM territories WHERE code=? AND is_sellable=1")
-    .bind(x.countryCode)
-    .first<any>();
-  if (!territory) throw new ApiError(400, "Use a configured sellable territory.");
-  const locale = await db
-    .prepare("SELECT 1 ok FROM storefront_locales WHERE locale=? AND status='active'")
-    .bind(x.defaultLocale)
-    .first<any>();
-  if (!locale) throw new ApiError(400, "Default locale must be active.");
-  await db.batch([
-    db
-      .prepare(
-        `INSERT INTO storefront_markets(country_code,display_name,default_locale,default_currency,tax_inclusive_default,market_status,recommendation_region,merchandising_region,payment_provider,checkout_enabled,launched_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?, 'stripe',?,?,?,?)
-      ON CONFLICT(country_code) DO UPDATE SET display_name=excluded.display_name,default_locale=excluded.default_locale,default_currency=excluded.default_currency,tax_inclusive_default=excluded.tax_inclusive_default,market_status=excluded.market_status,recommendation_region=excluded.recommendation_region,merchandising_region=excluded.merchandising_region,checkout_enabled=excluded.checkout_enabled,updated_at=excluded.updated_at`,
-      )
-      .bind(
-        x.countryCode,
-        x.displayName,
-        x.defaultLocale,
-        x.defaultCurrency,
-        x.taxInclusive ? 1 : 0,
-        x.status,
-        x.recommendationRegion,
-        x.merchandisingRegion,
-        x.checkoutEnabled ? 1 : 0,
-        x.status === "active" ? at : null,
-        at,
-        at,
-      ),
-    db
-      .prepare(
-        "INSERT OR IGNORE INTO storefront_market_locales(country_code,locale,priority,active) VALUES(?,?,1,1)",
-      )
-      .bind(x.countryCode, x.defaultLocale),
-    db
-      .prepare(
-        "INSERT OR IGNORE INTO storefront_currency_options(country_code,currency,priority,active) VALUES(?,?,1,1)",
-      )
-      .bind(x.countryCode, x.defaultCurrency),
-    db
-      .prepare(
-        "INSERT INTO privileged_access_audit(id,request_id,actor_type,actor_id,permission_or_scope,method,path,outcome,response_status,metadata_json,created_at) VALUES(?,?,?,?,?,'INTERNAL','localization.market','completed',200,?,?)",
-      )
-      .bind(
-        `pa_${crypto.randomUUID()}`,
-        `internal_${crypto.randomUUID()}`,
-        "staff",
-        actorUserId,
-        "localization.manage",
-        JSON.stringify({ country: x.countryCode }),
-        at,
-      ),
-  ]);
-  return { saved: true, countryCode: x.countryCode };
+/** Canonical market management is private-owner-only. No shared D1
+ * fallback, including on Vercel or when the owner has not been enrolled. */
+export async function upsertMarket(
+  db: StorefrontDB, actorUserId: string, raw: unknown,
+  identity?: {id:string;authProvider?:string;authSubject?:string;aal?:string}|null,
+) {
+  const market = z.object({
+    countryCode: countrySchema,
+    displayName: z.string().min(1).max(120),
+    defaultLocale: localeSchema,
+    defaultCurrency: currencySchema,
+    taxInclusive: z.boolean().default(false),
+    status: z.enum(["draft","active","paused","retired"]).default("active"),
+    recommendationRegion: z.string().min(1).max(80).default("global"),
+    merchandisingRegion: z.string().min(1).max(80).default("global"),
+    checkoutEnabled: z.boolean().default(true),
+  }).strict().parse(raw);
+  if(!identity || identity.id !== actorUserId || !identity.authProvider ||
+     !identity.authSubject || !["aal1","aal2"].includes(identity.aal||""))
+    throw new ApiError(503,"Market authority requires a verified staff identity.");
+  return dispatchPrivateMarketUpsert(db,{
+    actor:{userId:actorUserId,authProvider:identity.authProvider,
+      authSubject:identity.authSubject,aal:identity.aal as "aal1"|"aal2"},
+    market,
+  });
 }
 
 export async function upsertTaxonomyLocalization(
