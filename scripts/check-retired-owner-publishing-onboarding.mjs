@@ -16,7 +16,7 @@ assert.notEqual(stagedSourceSha,evidence.files[0].sha256,
 assert.equal(lineage.updatedSourceSha256,evidence.files[0].sha256);
 assert.equal(lineage.retiredCount,4);assert.equal(review.releaseApproval,false);
 assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=245,"Subsequent independently certified retirements may only reduce owner-required count");
-assert.equal(review.sites.filter(x=>x.file==="src/features/fore/publishing.server.ts"&&x.disposition==="owner-command-required").length,40);
+assert.equal(review.sites.filter(x=>x.file==="src/features/fore/publishing.server.ts"&&x.disposition==="owner-command-required").length,10);
 for(const r of lineage.rows)assert.ok(!review.sites.some(x=>x.siteId===r.siteId));
 const method=source.slice(source.indexOf("export async function reviewPublishingOnboarding("),source.indexOf("export async function publishingSnapshot("));
 assert.match(method,/if \(!hasPublicationOwner\(db\)\)/);
@@ -31,4 +31,4 @@ assert.match(owner,/SELECT p.permission FROM staff_principal_roles pr JOIN staff
 assert.match(owner,/if\(input.status==="verified"\|\|input.withholdingBps!==undefined/);
 assert.match(owner,/await env.PRIMARY_DB.batch\(statements\)/);
 assert.match(owner,/if \(!qaOwnerLeaseLive\(env\)\)/);
-console.log("PASS: four publishing negative onboarding SQL writers private owner QA; 245 unresolved, production locked");
+console.log("PASS: four historical onboarding SQL writers private owner QA; 10 remaining publishing lifecycle/materialization writers stay reviewed, 126 total unresolved");
