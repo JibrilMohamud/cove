@@ -2642,6 +2642,66 @@
       "productionOwnerGuarded": false,
       "commandFamily": "publication.materialize",
       "reason": "New exact canonical presentation projection inside the private QA-only materialization executor; derived from canonical rows under the durable publication hold. Runtime import containment is checked. This does not close any historical production writer."
+    },
+    {
+      "siteId": "08a473016c7f35c60a567ac1abfa7fd324e2938703b9052887f28363ad53a13b",
+      "file": "src/features/fore/publishing-trust.server.ts",
+      "line": 762,
+      "functionName": "disputeEvent",
+      "table": "rights_dispute_events",
+      "operation": "INSERT INTO",
+      "sqlSha256": "3d68b397ccbbd17a152b906f7dda387c67e63244f11a72602346b5224e9befa0",
+      "disposition": "non-authorizing-write",
+      "productionOwnerGuarded": false,
+      "reason": "Dispute timeline event records do not change the dispute, product, contract, or entitlement state."
+    },
+    {
+      "siteId": "562eba2d0f538ede377c0b3c1f3cdcd14ada692db13c58724c78149c4a80bdec",
+      "file": "src/features/fore/publishing-trust.server.ts",
+      "line": 785,
+      "functionName": "notify",
+      "table": "rights_notification_jobs",
+      "operation": "INSERT INTO",
+      "sqlSha256": "4f7ed0f839ac5cd0341c72257036cd82d704b6acd34fbb5f6471fed1196ac393",
+      "disposition": "non-authorizing-write",
+      "productionOwnerGuarded": false,
+      "reason": "Legal notification delivery queue changes notification status only; dispute and publication transitions remain separate owner-required writes."
+    },
+    {
+      "siteId": "2251dd4dd371f317a8a75db8c47b0e246ebc134c5445220d9379ab30571397a9",
+      "file": "src/features/fore/publishing-trust.server.ts",
+      "line": 1025,
+      "functionName": "leaseRightsNotificationJobs",
+      "table": "rights_notification_jobs",
+      "operation": "UPDATE",
+      "sqlSha256": "7192f7c10645a7d1e89ec06d95ae04f83559f4af5b80a5fc1eb953a91af131d2",
+      "disposition": "non-authorizing-write",
+      "productionOwnerGuarded": false,
+      "reason": "Legal notification delivery queue changes notification status only; dispute and publication transitions remain separate owner-required writes."
+    },
+    {
+      "siteId": "afd148cf4cf94792434e8a42e95a8bff698e05c56bcba79a5ad588fab3cfdc61",
+      "file": "src/features/fore/publishing-trust.server.ts",
+      "line": 1041,
+      "functionName": "leaseRightsNotificationJobs",
+      "table": "rights_notification_jobs",
+      "operation": "UPDATE",
+      "sqlSha256": "6c71483871312d284c215a9f1b4a86ecd757ba628d51f0683b40123134acf91d",
+      "disposition": "non-authorizing-write",
+      "productionOwnerGuarded": false,
+      "reason": "Legal notification delivery queue changes notification status only; dispute and publication transitions remain separate owner-required writes."
+    },
+    {
+      "siteId": "19688020800ab17fac238b0583127fe2e2b5749e26a45b5d6c8b11dc3d775111",
+      "file": "src/features/fore/publishing-trust.server.ts",
+      "line": 1084,
+      "functionName": "completeRightsNotificationJob",
+      "table": "rights_notification_jobs",
+      "operation": "UPDATE",
+      "sqlSha256": "8099103432575b54e6a01122715e4f7f942003a1391f87d5a08b712d1d567323",
+      "disposition": "non-authorizing-write",
+      "productionOwnerGuarded": false,
+      "reason": "Legal notification delivery queue changes notification status only; dispute and publication transitions remain separate owner-required writes."
     }
   ]
 }
