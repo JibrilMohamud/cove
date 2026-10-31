@@ -14,7 +14,7 @@ assert.equal(createHash("sha256").update(source).digest("hex"),att.files[0].sha2
 assert.equal(lineage.updatedSourceSha256,att.files[0].sha256);
 assert.equal(lineage.retiredCount,6);
 assert.equal(review.releaseApproval,false);
-assert.equal(review.sites.filter(x=>x.disposition==="owner-command-required").length,209);
+assert.equal(review.sites.filter(x=>x.disposition==="owner-command-required").length,194);
 assert.equal(review.sites.filter(x=>x.file===path&&x.disposition==="owner-command-required").length,3);
 for(const row of lineage.rows)assert.ok(!review.sites.some(x=>x.siteId===row.siteId));
 assert.ok(!source.includes("async function queueCommercialAudioQc("));
@@ -33,4 +33,4 @@ assert.match(gateway,/"publishing\.audio-register-upload":\{path:"\/publishing\/
 assert.match(gateway,/case "publishing\.audio-register-upload":/);
 assert.match(router,/dispatchCommercialAudioUploadMetadata/);
 assert.match(owner,/if \(!qaOwnerLeaseLive\(env\)\)/);
-console.log("PASS: R2 upload and QC queue shared writers retired; after independently reviewed support retirement, 209 unresolved, independent production owner still locked");
+console.log("PASS: R2 upload and QC queue shared writers retired; after independently reviewed support retirement, 194 unresolved, independent production owner still locked");
