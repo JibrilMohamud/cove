@@ -1,3 +1,5 @@
+import { dispatchCatalogObservation } from "../../storefront-strangler/publication-owner-routing.server";
+import { dispatchCatalogRegionalState } from "../../storefront-strangler/publication-owner-routing.server";
 import { dispatchCatalogIngestState } from "../../storefront-strangler/publication-owner-routing.server";
 import {
   dispatchCatalogNegativeSource,
@@ -1728,13 +1730,13 @@ export async function runRegionalCatalogIngestion(
     }
     if (result.status === "not-modified") {
       const next = new Date(Date.now() + Number(due.refresh_seconds || 86400) * 1000).toISOString();
-      await db
-        .prepare(
-          `UPDATE gutenberg_source_states SET status='idle',cursor=NULL,cycle_started_at=NULL,last_success_at=?,attempts=0,next_run_at=?,lease_token=NULL,lease_until=NULL,
-        etag=COALESCE(NULLIF(?,''),etag),last_modified=COALESCE(NULLIF(?,''),last_modified),updated_at=? WHERE source_id=? AND lease_token=?`,
-        )
-        .bind(now(), next, result.etag, result.lastModified, now(), sourceId, lease)
-        .run();
+      await dispatchCatalogRegionalState(db, {
+        action: "unchanged",
+        sourceId,
+        leaseToken: lease,
+        runId,
+        data: { next, etag: result.etag, lastModified: result.lastModified },
+      });
       await db
         .prepare(
           `UPDATE gutenberg_ingest_runs SET completed_at=?,status='not-modified',cursor_after=NULL,response_etag=?,response_last_modified=? WHERE id=?`,
@@ -1758,22 +1760,18 @@ export async function runRegionalCatalogIngestion(
     ) {
       const completed = now();
       const next = new Date(Date.now() + Number(due.refresh_seconds || 86400) * 1000).toISOString();
-      await db
-        .prepare(
-          `UPDATE gutenberg_source_states SET status='idle',cursor=NULL,cycle_started_at=NULL,last_success_at=?,last_error='',attempts=0,next_run_at=?,lease_token=NULL,lease_until=NULL,
-        etag=?,last_modified=?,content_hash=?,updated_at=? WHERE source_id=? AND lease_token=?`,
-        )
-        .bind(
-          completed,
+      await dispatchCatalogRegionalState(db, {
+        action: "same-snapshot",
+        sourceId,
+        leaseToken: lease,
+        runId,
+        data: {
           next,
-          result.etag,
-          result.lastModified,
-          result.bodyHash,
-          completed,
-          sourceId,
-          lease,
-        )
-        .run();
+          etag: result.etag,
+          lastModified: result.lastModified,
+          bodyHash: result.bodyHash,
+        },
+      });
       await db
         .prepare(
           `UPDATE gutenberg_ingest_runs SET completed_at=?,status='not-modified',cursor_after=NULL,fetched_count=?,response_etag=?,response_last_modified=?,response_hash=? WHERE id=?`,
@@ -1862,29 +1860,27 @@ export async function runRegionalCatalogIngestion(
         ).staleCount
       : 0;
 
-    await db
-      .prepare(
-        `UPDATE gutenberg_source_states SET status='idle',cursor=?,cycle_started_at=?,last_success_at=?,last_error='',attempts=0,total_catalog_count=?,
-      seen_count=seen_count+?,accepted_count=accepted_count+?,quarantined_count=quarantined_count+?,next_run_at=?,lease_token=NULL,lease_until=NULL,
-      etag=?,last_modified=?,content_hash=?,updated_at=? WHERE source_id=? AND lease_token=?`,
-      )
-      .bind(
+    await dispatchCatalogRegionalState(db, {
+      action: "complete",
+      sourceId,
+      leaseToken: lease,
+      runId,
+      data: {
         cursorAfter,
-        complete ? null : cycleStartedAt,
-        complete ? completed : due.last_success_at || null,
-        result.items.length,
-        items.length,
-        accepted,
-        staleCount,
+        cycleStartedAt: complete ? null : cycleStartedAt,
+        snapshotStart: cycleStartedAt,
+        lastSuccessAt: complete ? completed : due.last_success_at || null,
+        complete,
+        totalCatalogCount: result.items.length,
+        seenCount: items.length,
+        acceptedCount: accepted,
+        quarantinedCount: staleCount,
         next,
-        result.etag,
-        result.lastModified,
-        result.bodyHash,
-        completed,
-        sourceId,
-        lease,
-      )
-      .run();
+        etag: result.etag,
+        lastModified: result.lastModified,
+        bodyHash: result.bodyHash,
+      },
+    });
     await db
       .prepare(
         `UPDATE gutenberg_ingest_runs SET completed_at=?,status=?,cursor_before=?,cursor_after=?,fetched_count=?,accepted_count=?,quarantined_count=?,
@@ -2090,50 +2086,26 @@ export async function runCatalogIngestion(
     // Preserve it even for unchanged rows, without triggering canonical FTS
     // rebuilds, changing normalized updated_at, or reissuing rights grants.
     if (unchanged.length) {
-      await db
-        .prepare(
-          `UPDATE gutenberg_source_cache SET last_seen_at=?,source_updated_at=?
-         WHERE id IN (${unchanged.map(() => "?").join(",")})`,
-        )
-        .bind(at, at, ...unchanged.map((book: CatalogBook) => String(book.id)))
-        .run();
-    }
-    // Gutenberg download counts change frequently without changing a book's
-    // description, rights, source files or existing canonical publication.
-    // Bypass heavy graph+FTS reconstruction in that single proven case.
-    // Compare-and-swap BOTH rows so an intervening rights withdrawal or new
-    // canonical version cannot be overwritten by a stale popularity heartbeat.
-    if (popularityOnly.length) {
-      const popularityWrites = popularityOnly.flatMap((book: CatalogBook) => {
-        const row = previous.get(String(book.id))!;
-        const id = String(book.id);
-        const count = Number(book.download_count);
-        return [
-          db
-            .prepare(
-              `UPDATE gutenberg_source_cache
-            SET download_count=?,source_updated_at=?,last_seen_at=?,updated_at=?
-            WHERE id=? AND updated_at=? AND ingest_status='active'
-              AND rights_status='public-domain'
-              AND commercial_use_status='approved'
-              AND rights_territories_json='["US"]'`,
-            )
-            .bind(count, at, at, at, id, row.updated_at),
-          db
-            .prepare(
-              `UPDATE catalog_search_documents
-            SET download_count=?,updated_at=?
-            WHERE product_id=? AND updated_at=?
-              AND EXISTS(SELECT 1 FROM gutenberg_source_cache c
-                WHERE c.id=? AND c.updated_at=? AND c.download_count=?
-                  AND c.rights_status='public-domain'
-                  AND c.commercial_use_status='approved'
-                  AND c.rights_territories_json='["US"]')`,
-            )
-            .bind(count, at, `prd_gutenberg_${id}`, row.projection_updated_at, id, at, count),
-        ];
+      await dispatchCatalogObservation(db, {
+        action: "heartbeat",
+        books: unchanged.map((book: CatalogBook) => ({ id: String(book.id) })),
       });
-      await db.batch(popularityWrites);
+    }
+    // A private compare-and-swap of BOTH rows prevents a stale popularity
+    // observation from reviving a withdrawn or superseded canonical edition.
+    if (popularityOnly.length) {
+      await dispatchCatalogObservation(db, {
+        action: "popularity",
+        books: popularityOnly.map((book: CatalogBook) => {
+          const row = previous.get(String(book.id))!;
+          return {
+            id: String(book.id),
+            count: Number(book.download_count),
+            expectedUpdatedAt: String(row.updated_at),
+            expectedProjectionUpdatedAt: String(row.projection_updated_at),
+          };
+        }),
+      });
     }
     const statements = changed.map((book: CatalogBook) =>
       catalogInsert(
