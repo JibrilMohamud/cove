@@ -99,8 +99,14 @@ for (const token of [
 ])
   assert.ok(commerce.includes(token), `commerce wiring missing ${token}`);
 const preorder = read("src/features/fore/preorder.server.ts");
-assert.ok(preorder.includes("preorder_released"));
-assert.ok(preorder.includes("ensureOwnershipSnapshot"));
+const preorderOwner = read("src/storefront-strangler/legal-authority.worker.ts");
+// Preorder notifications and ownership snapshots have moved with the writer
+// to the separately bound QA-only owner, never a public D1 fallback.
+assert.ok(preorder.includes("dispatchPrivatePreorderAction"));
+assert.ok(preorderOwner.includes("preorder_released"));
+assert.ok(preorderOwner.includes("ensureOwnershipSnapshot"));
+assert.ok(preorderOwner.includes("Preorder release requires independently verified paid owner authorization."));
+assert.ok(preorderOwner.includes("if(route===\"/preorder/private-action\")"));
 const publishing = read("src/features/fore/publishing.server.ts");
 assert.ok(publishing.includes("publisher_book_approved"));
 assert.ok(publishing.includes("publisher_book_rejected"));
