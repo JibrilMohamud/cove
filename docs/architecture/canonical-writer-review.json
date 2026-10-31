@@ -236,7 +236,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "5cf0b0e96aba6f8f48a9c8382eb6e5963900f8541a4ca064c6bd550448caa9f1",
+      "siteId": "aa25f0ac0531f2fb773a2a8a6e3fd78643f2b8ef132e9041bfa0e01bc8bef038",
       "file": "src/features/fore/delivery.server.ts",
       "line": 223,
       "functionName": "ownershipRecord",
@@ -249,7 +249,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "cf08636863e64d9531eec349898f9d0c93d4617644b74147ee0f08815b66385d",
+      "siteId": "c175784750695fe665c4b219af5055e1c880383b032478d6c281a83769740242",
       "file": "src/features/fore/delivery.server.ts",
       "line": 335,
       "functionName": "audit",
@@ -261,7 +261,7 @@
       "reason": "Delivery telemetry records the outcome after authorization; this table never grants delivery permission."
     },
     {
-      "siteId": "aecc32c87f6c238578b1787dc62b823b94a97f30e88362830c124bf303fa18af",
+      "siteId": "aea38dfb017a0ed7b342cd717fe1f064e6536a02aa61ba48722517d3bd773c11",
       "file": "src/features/fore/delivery.server.ts",
       "line": 646,
       "functionName": "issueCommercialEpubGrant",
@@ -274,35 +274,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "3b4a75071b09022a4e25ac99d32fff5cb5ba3c84bf29a92e6c9276c7b7ef078f",
+      "siteId": "8037d95745d85439cd09a216660c850634cc421f7f003a5fc8ebee7aa997cdef",
       "file": "src/features/fore/delivery.server.ts",
-      "line": 746,
-      "functionName": "serveCommercialEpubGrant",
-      "table": "commercial_delivery_grants",
-      "operation": "UPDATE",
-      "sqlSha256": "be41cc1022028bad7184f802e260580cff2c81ff6b6aa778d63688f507c941ae",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "delivery.serveCommercialEpubGrant",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "9a536fcb199d4079edbd49402777faaf0ba33748b9e3cce6c709cde85ec44403",
-      "file": "src/features/fore/delivery.server.ts",
-      "line": 755,
-      "functionName": "serveCommercialEpubGrant",
-      "table": "commercial_delivery_grants",
-      "operation": "UPDATE",
-      "sqlSha256": "c95abb957e88e89c3013419a3786108a6eb66a58fa7881958fb6bc06f2504b48",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "delivery.serveCommercialEpubGrant",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "8b2daf19271203efbaebda8943960ca7d90d0453487169c5dff93ce4ee27b8ce",
-      "file": "src/features/fore/delivery.server.ts",
-      "line": 874,
+      "line": 872,
       "functionName": "serveCommercialEpubGrant",
       "table": "commercial_entitlement_delivery_usage",
       "operation": "INSERT INTO",
@@ -313,9 +287,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "9a44360579116d93728c51bb6a7cdcbbc9ae75ea6ba79228c58f39a5ea3edbcf",
+      "siteId": "de2726e65df4d12317b835b1dd449d6011799ae852d96cf76a7edc9e27d0b5c7",
       "file": "src/features/fore/delivery.server.ts",
-      "line": 898,
+      "line": 896,
       "functionName": "serveCommercialEpubGrant",
       "table": "commercial_delivery_grants",
       "operation": "UPDATE",
