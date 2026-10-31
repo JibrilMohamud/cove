@@ -17,7 +17,7 @@
       "reason": "Browser QA seeds an isolated temporary database through localBindings; this development server is not a deployed production writer."
     },
     {
-      "siteId": "ab8183ca952769452dbef72c1ab61d02b62d7ea3e383da74f719fbec60474a95",
+      "siteId": "38c487557ee78cf0c0bd79125f1a4d5ce0ffa9ddb4989ab2bcce26f6caf45900",
       "file": "src/features/fore/api.server.ts",
       "line": 837,
       "functionName": "catalogInsert",
@@ -27,58 +27,6 @@
       "disposition": "owner-command-required",
       "productionOwnerGuarded": false,
       "commandFamily": "api.catalogInsert",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "94dbff8cb682fa9ccaf9cd7986b7e701826667f2e55ec933bbf2448ec4acefb5",
-      "file": "src/features/fore/api.server.ts",
-      "line": 1347,
-      "functionName": "insertRegionalEvidence",
-      "table": "gutenberg_rights_evidence",
-      "operation": "INSERT OR IGNORE INTO",
-      "sqlSha256": "915a34e71a863ba923d810bb3795367c94190a345f3462edbf317e39699daf82",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "api.insertRegionalEvidence",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "92b230f1dbd2a298192485cedc85dd34ff0779b3e5e5238ba978354d00242247",
-      "file": "src/features/fore/api.server.ts",
-      "line": 1368,
-      "functionName": "insertRegionalEvidence",
-      "table": "gutenberg_source_cache",
-      "operation": "UPDATE",
-      "sqlSha256": "faf3e55666dfa8d70590c9cf2f2a7950354c4a9d40d5b9c449e026f8036ccd2e",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "api.insertRegionalEvidence",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "82abd7bd56f8bc84db3c78a060a3bcd472e762cb2a1a29da698dcb0ad0a00252",
-      "file": "src/features/fore/api.server.ts",
-      "line": 1380,
-      "functionName": "insertRegionalEvidence",
-      "table": "rights_grants",
-      "operation": "UPDATE",
-      "sqlSha256": "36694eef8be1b05f27a8cc4ea58a47d74c971aeee4eeaa3d8f3e0c436844797a",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "api.insertRegionalEvidence",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "392af755f71e8f3d6597ba348d2239742c6aaf502f8cdfd107b5c01535a7b168",
-      "file": "src/features/fore/api.server.ts",
-      "line": 1387,
-      "functionName": "insertRegionalEvidence",
-      "table": "rights_grants",
-      "operation": "UPDATE",
-      "sqlSha256": "15e24d57785febbafe06ef3b19534a19354475d050d4fb06745a19132f91f831",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "api.insertRegionalEvidence",
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
