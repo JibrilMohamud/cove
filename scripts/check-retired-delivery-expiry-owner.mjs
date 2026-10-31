@@ -1,0 +1,28 @@
+/* eslint-disable prettier/prettier -- Exact delivery denial source retirement evidence. */
+import assert from "node:assert/strict";
+import {createHash} from "node:crypto";
+import {readFileSync} from "node:fs";
+const read=p=>readFileSync(p,"utf8");
+const api=read("src/features/fore/delivery.server.ts"),owner=read("src/storefront-strangler/legal-authority.worker.ts");
+const routing=read("src/storefront-strangler/publication-owner-routing.server.ts");
+const gate=read("src/storefront-strangler/canonical-owner-command-gateway.ts");
+const review=JSON.parse(read("docs/architecture/canonical-writer-review.json"));
+const lineage=JSON.parse(read("docs/architecture/retired-delivery-expiry-owner-lineage.json"));
+assert.equal(review.releaseApproval,false);
+assert.equal(lineage.sourceBefore,27);
+assert.equal(lineage.sourceAfter,25);
+assert.equal(lineage.retired.length,2);
+assert.equal(createHash("sha256").update(api).digest("hex"),lineage.currentSha256);
+assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=25);
+assert.ok(lineage.retired.every(x=>!review.sites.some(y=>y.siteId===x.siteId)));
+assert.ok(!api.includes("UPDATE commercial_delivery_grants SET status='expired' WHERE id=? AND status='active'"));
+assert.ok(!api.includes("UPDATE commercial_delivery_grants SET status='exhausted' WHERE id=? AND status='active'"));
+assert.ok(api.includes('dispatchNegativeDeliveryOwner(db, "expire-grant"'));
+assert.ok(api.includes('dispatchNegativeDeliveryOwner(db, "exhaust-grant"'));
+assert.ok(owner.includes('request.action==="expire-grant"||request.action==="exhaust-grant"'));
+assert.ok(owner.includes('Date.parse(current.expires_at)>Date.now()'));
+assert.ok(owner.includes('Number(current.uses)<Number(current.max_uses)'));
+assert.ok(owner.includes("AND expires_at<=?")&&owner.includes("AND uses>=max_uses"));
+assert.ok(routing.includes('"expire-grant"|"exhaust-grant"'));
+assert.ok(gate.includes('"restrict-policy","expire-grant","exhaust-grant"'));
+console.log("PASS: two negative-only delivery token markers private-owned; deny-first delivery maintained");

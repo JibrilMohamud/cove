@@ -1,0 +1,34 @@
+{
+  "schema": "cove.retired-delivery-expiry-owner-lineage.v1",
+  "releaseApproval": false,
+  "productionCertified": false,
+  "sourceBefore": 27,
+  "sourceAfter": 25,
+  "sourceFile": "src/features/fore/delivery.server.ts",
+  "previousSha256": "8a48bd2bacf3cc4ed41b04416de8f076e7b341ac2b0214e5e4f0069e9a672e04",
+  "currentSha256": "e27c55983983de574410cffb4587a11c1aaaf32ed1bea172a35d91daa84bf49e",
+  "retired": [
+    {
+      "line": 746,
+      "siteId": "3b4a75071b09022a4e25ac99d32fff5cb5ba3c84bf29a92e6c9276c7b7ef078f",
+      "sqlSha256": "be41cc1022028bad7184f802e260580cff2c81ff6b6aa778d63688f507c941ae",
+      "action": "expire-grant",
+      "file": "src/features/fore/delivery.server.ts",
+      "functionName": "serveCommercialEpubGrant",
+      "table": "commercial_delivery_grants",
+      "operation": "UPDATE",
+      "privateRoute": "/delivery/private-negative"
+    },
+    {
+      "line": 755,
+      "siteId": "9a536fcb199d4079edbd49402777faaf0ba33748b9e3cce6c709cde85ec44403",
+      "sqlSha256": "c95abb957e88e89c3013419a3786108a6eb66a58fa7881958fb6bc06f2504b48",
+      "action": "exhaust-grant",
+      "file": "src/features/fore/delivery.server.ts",
+      "functionName": "serveCommercialEpubGrant",
+      "table": "commercial_delivery_grants",
+      "operation": "UPDATE",
+      "privateRoute": "/delivery/private-negative"
+    }
+  ]
+}
