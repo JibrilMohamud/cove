@@ -9078,7 +9078,2432 @@ async function inspectEpub(bytes: Uint8Array) {
     Array.from(
       opf.matchAll(
         new RegExp(
-          `<meta[^>]+(?:property|name)=["']${property.replace(/[.*+?^${}()|[\]\\]/g, "\\/* eslint-disable @typescript-eslint/no-explicit-any -- Historical partner SQL private to isolated QA-only owner. */
+          `<meta[^>]+(?:property|name)=["']${property.replace(/[.*+?^${}()|[\]\\]/g, "\\// QA-leased worker queues. All job ownership and retry transitions")}["'][^>]*>([\\s\\S]*?)<\\/meta>|<meta[^>]+(?:property|name)=["']${property.replace(/[.*+?^${}()|[\]\\]/g, "\\// QA-leased worker queues. All job ownership and retry transitions")}["'][^>]+content=["']([^"']*)["'][^>]*\\/?\\s*>`,
+          "gi",
+        ),
+      ),
+    )
+      .map((m) => cleanText(m[1] || m[2] || ""))
+      .filter(Boolean);
+  const title = cleanText(opf.match(/<dc:title[^>]*>([\s\S]*?)<\/dc:title>/i)?.[1] || "");
+  const language = cleanText(opf.match(/<dc:language[^>]*>([\s\S]*?)<\/dc:language>/i)?.[1] || "");
+  const packageVersion = opf.match(/<package\b[^>]*\bversion=["']([^"']+)["']/i)?.[1] || "";
+  if (!title)
+    issues.push({
+      code: "METADATA_TITLE",
+      severity: "error",
+      message: "EPUB metadata has no title.",
+    });
+  if (!language)
+    issues.push({
+      code: "METADATA_LANGUAGE",
+      severity: "warning",
+      message: "EPUB metadata has no primary language.",
+    });
+  const hasNav = /properties\s*=\s*["'][^"']*\bnav\b/i.test(opf),
+    hasNcx = /media-type\s*=\s*["']application\/x-dtbncx\+xml/i.test(opf);
+  if (!hasNav && !hasNcx)
+    issues.push({
+      code: "NAV",
+      severity: "error",
+      message: "EPUB has no navigation document or NCX.",
+    });
+  const renditionLayout =
+      metaValues("rendition:layout")[0] ||
+      (/name=["']fixed-layout["'][^>]+content=["']true["']/i.test(opf)
+        ? "pre-paginated"
+        : "reflowable"),
+    fixed = renditionLayout === "pre-paginated";
+  const pageProgression = (
+    opf.match(/page-progression-direction=["'](ltr|rtl|default)["']/i)?.[1] ||
+    metaValues("page-progression-direction")[0] ||
+    "default"
+  ).toLowerCase();
+  const primaryWritingMode = (
+    metaValues("primary-writing-mode")[0] ||
+    metaValues("rendition:orientation")[0] ||
+    "horizontal-tb"
+  ).toLowerCase();
+  const accessModes = [
+    ...new Set(metaValues("schema:accessMode").concat(metaValues("accessMode"))),
+  ];
+  const accessibilityFeatures = [
+    ...new Set(
+      metaValues("schema:accessibilityFeature").concat(metaValues("accessibilityFeature")),
+    ),
+  ];
+  const accessibilityHazards = [
+    ...new Set(metaValues("schema:accessibilityHazard").concat(metaValues("accessibilityHazard"))),
+  ];
+  const accessModeSufficient = [
+    ...new Set(
+      metaValues("schema:accessModeSufficient").concat(metaValues("accessModeSufficient")),
+    ),
+  ];
+  const accessibilitySummary =
+    metaValues("schema:accessibilitySummary")[0] || metaValues("accessibilitySummary")[0] || "";
+  const conformsTo = [
+    ...new Set(metaValues("dcterms:conformsTo").concat(metaValues("schema:conformsTo"))),
+  ];
+  const certifier = metaValues("a11y:certifiedBy")[0] || metaValues("schema:certifiedBy")[0] || "";
+  const certifierCredential = metaValues("a11y:certifierCredential")[0] || "",
+    certifierReport = metaValues("a11y:certifierReport")[0] || "",
+    certificationDate = metaValues("dcterms:modified")[0] || "";
+  const fonts = entries.filter((f) => /\.(woff2?|ttf|otf)$/i.test(f.name)).map((f) => f.name);
+  const cssFiles = entries.filter((f) => /\.css$/i.test(f.name) && !f.dir).slice(0, 250);
+  let cssText = "";
+  for (const f of cssFiles) {
+    if (cssText.length > 750000) break;
+    cssText += (await f.async("string")).slice(0, 100000);
+  }
+  const htmlFiles = entries
+    .filter((f) => /\.(xhtml|html|htm)$/i.test(f.name) && !f.dir)
+    .slice(0, 1200);
+  let broken = 0,
+    images = 0,
+    missingAlt = 0,
+    emptyAlt = 0,
+    headings = 0,
+    headingJumps = 0,
+    tables = 0,
+    tablesWithoutHeaders = 0,
+    mathml = 0,
+    svg = 0,
+    svgMissingTextAlternative = 0,
+    footnotes = 0,
+    endnotes = 0,
+    pagebreaks = 0,
+    langNodes = 0,
+    remoteResources = 0,
+    scriptedContent = 0,
+    fingerprintTextSize = 0;
+  const fingerprintTextParts: string[] = [];
+  let previousHeading = 0,
+    oversizedImages = false;
+  const normalize = (base: string, ref: string) => {
+    if (/^(https?:|mailto:|tel:|data:|#)/i.test(ref)) return null;
+    const clean = ref.split("#")[0].split("?")[0];
+    if (!clean) return null;
+    const stack = base.split("/").slice(0, -1);
+    for (const part of clean.split("/")) {
+      if (!part || part === ".") continue;
+      if (part === "..") stack.pop();
+      else stack.push(decodeURIComponent(part));
+    }
+    return stack.join("/");
+  };
+  for (const file of htmlFiles) {
+    const text = await file.async("string");
+    if (fingerprintTextSize < 500000) {
+      const chunk = text.slice(0, Math.min(50000, 500000 - fingerprintTextSize));
+      fingerprintTextParts.push(chunk);
+      fingerprintTextSize += chunk.length;
+    }
+    for (const m of text.matchAll(/(?:href|src)\s*=\s*["']([^"']+)["']/gi)) {
+      const p = normalize(file.name, m[1]);
+      if (p && !zip.file(p)) broken++;
+    }
+    for (const m of text.matchAll(
+      /<(img|audio|video|source|link|iframe|object|embed|image)\b[^>]*(?:src|href|xlink:href)\s*=\s*["']([^"']+)["'][^>]*>/gi,
+    ))
+      if (/^(?:https?:)?\/\//i.test(m[2])) remoteResources++;
+    scriptedContent += (text.match(/<script\b/gi) || []).length;
+    for (const m of text.matchAll(/<img\b[^>]*>/gi)) {
+      images++;
+      const tag = m[0],
+        alt = tag.match(/\balt\s*=\s*["']([^"']*)["']/i);
+      if (!alt) missingAlt++;
+      else if (!alt[1].trim()) emptyAlt++;
+      const w = Number(tag.match(/\bwidth\s*=\s*["']?(\d+)/i)?.[1] || 0),
+        h = Number(tag.match(/\bheight\s*=\s*["']?(\d+)/i)?.[1] || 0);
+      if (w > 5000 || h > 5000) oversizedImages = true;
+    }
+    for (const m of text.matchAll(/<h([1-6])\b/gi)) {
+      const level = Number(m[1]);
+      headings++;
+      if (previousHeading && level > previousHeading + 1) headingJumps++;
+      previousHeading = level;
+    }
+    for (const m of text.matchAll(/<table\b[\s\S]*?<\/table>/gi)) {
+      tables++;
+      if (!/<th\b/i.test(m[0])) tablesWithoutHeaders++;
+    }
+    mathml += (text.match(/<math\b/gi) || []).length;
+    svg += (text.match(/<svg\b/gi) || []).length;
+    for (const m of text.matchAll(/<svg\b[\s\S]*?<\/svg>/gi)) {
+      const node = m[0];
+      if (
+        !/aria-hidden\s*=\s*["']true["']/i.test(node) &&
+        !/(?:aria-label|aria-labelledby)\s*=/i.test(node) &&
+        !/<(?:title|desc)\b/i.test(node)
+      )
+        svgMissingTextAlternative++;
+    }
+    footnotes += (text.match(/epub:type=["'][^"']*\bfootnote\b/gi) || []).length;
+    endnotes += (text.match(/epub:type=["'][^"']*\bendnote\b/gi) || []).length;
+    pagebreaks += (text.match(/epub:type=["'][^"']*\bpagebreak\b/gi) || []).length;
+    langNodes += (text.match(/(?:xml:lang|\blang)=["'][^"']+["']/gi) || []).length;
+  }
+  remoteResources +=
+    (cssText.match(/url\(\s*["']?(?:https?:)?\/\//gi) || []).length +
+    (cssText.match(/@import\s+(?:url\()?\s*["']?(?:https?:)?\/\//gi) || []).length;
+  const mediaOverlays = /media-overlay\s*=/i.test(opf),
+    dictionaryContent =
+      /<dc:type[^>]*>\s*dictionary\s*<\/dc:type>/i.test(opf) ||
+      /epub:type=["'][^"']*\bdictionary\b/i.test(fingerprintTextParts.join("\n"));
+  const verticalWriting =
+      /writing-mode\s*:\s*(vertical|tb-|sideways)/i.test(cssText) ||
+      /^vertical/.test(primaryWritingMode),
+    rtl = pageProgression === "rtl" || /direction\s*:\s*rtl/i.test(cssText);
+  const complexCss =
+    /(position\s*:\s*(absolute|fixed)|transform\s*:|columns?\s*:|float\s*:|writing-mode\s*:|shape-outside\s*:)/i.test(
+      cssText,
+    );
+  if (broken)
+    issues.push({
+      code: "BROKEN_LINKS",
+      severity: "error",
+      message: `${broken} internal EPUB references could not be resolved.`,
+    });
+  if (remoteResources)
+    issues.push({
+      code: "REMOTE_RESOURCES",
+      severity: "error",
+      message: `${remoteResources} remote resource reference${remoteResources === 1 ? "" : "s"} would require network access while reading. Package required assets inside the EPUB.`,
+    });
+  if (scriptedContent)
+    issues.push({
+      code: "SCRIPTED_CONTENT",
+      severity: "error",
+      message: `${scriptedContent} scripted content reference${scriptedContent === 1 ? "" : "s"} detected. Cove strips executable EPUB scripting for reader security; publish a non-scripted fallback edition.`,
+    });
+  if (missingAlt)
+    issues.push({
+      code: "MISSING_ALT",
+      severity: "warning",
+      message: `${missingAlt} images do not declare alt text.`,
+    });
+  if (svgMissingTextAlternative)
+    issues.push({
+      code: "SVG_TEXT_ALTERNATIVE",
+      severity: "warning",
+      message: `${svgMissingTextAlternative} inline SVG graphic${svgMissingTextAlternative === 1 ? "" : "s"} lack a title, description, ARIA label, or explicit decorative marker.`,
+    });
+  if (!headings && htmlFiles.length > 1)
+    issues.push({
+      code: "HEADING_STRUCTURE",
+      severity: "warning",
+      message: "No semantic heading elements were detected across the EPUB content documents.",
+    });
+  if (headingJumps)
+    issues.push({
+      code: "HEADING_STRUCTURE",
+      severity: "warning",
+      message: `${headingJumps} heading transitions skip a semantic level.`,
+    });
+  if (tablesWithoutHeaders)
+    issues.push({
+      code: "TABLE_SEMANTICS",
+      severity: "warning",
+      message: `${tablesWithoutHeaders} tables do not contain header cells.`,
+    });
+  const claimedConformance = conformsTo.some((v) => /EPUB Accessibility|wcag/i.test(v));
+  const requiredAccessibilityMetadata =
+    accessModes.length > 0 && accessibilityFeatures.length > 0 && accessibilityHazards.length > 0;
+  if (!requiredAccessibilityMetadata)
+    issues.push({
+      code: "ACCESSIBILITY_METADATA",
+      severity: claimedConformance ? "error" : "warning",
+      message:
+        "EPUB accessibility discoverability metadata is incomplete (accessMode, accessibilityFeature, accessibilityHazard).",
+    });
+  if (claimedConformance && (missingAlt || headingJumps || tablesWithoutHeaders || !language))
+    issues.push({
+      code: "ACCESSIBILITY_CONFORMANCE_MISMATCH",
+      severity: "error",
+      message:
+        "The EPUB claims accessibility conformance but Cove detected unresolved structural/accessibility issues.",
+    });
+  const altTextComplete = missingAlt === 0 && svgMissingTextAlternative === 0,
+    semanticStructure = headings > 0 && headingJumps === 0,
+    tableSemantics = tablesWithoutHeaders === 0;
+  const mathmlDeclaredAccessible =
+    mathml > 0 && accessibilityFeatures.some((v) => /^mathml$/i.test(v.trim()));
+  if (mathml > 0 && !mathmlDeclaredAccessible)
+    issues.push({
+      code: "MATHML_DISCLOSURE",
+      severity: "warning",
+      message:
+        "MathML is present, but the EPUB accessibility metadata does not declare the MathML accessibility feature.",
+    });
+  const nonvisualReading =
+    fixed && images > 0 && !altTextComplete
+      ? "not_supported"
+      : altTextComplete && semanticStructure && !!language
+        ? "supported"
+        : "partial";
+  const visualAdjustments = fixed ? "not_supported" : "supported";
+  const validationStatus = issues.some((i) => i.severity === "error")
+    ? "failed"
+    : issues.length
+      ? "warning"
+      : "passed";
+  const accessibility = {
+    visualAdjustments,
+    nonvisualReading,
+    primaryLanguageDeclared: !!language,
+    readingOrderVerified: (hasNav || hasNcx) && broken === 0,
+    altTextComplete,
+    semanticStructure,
+    tableSemanticsComplete: tableSemantics,
+    mathmlPresent: mathml > 0,
+    mathmlAccessible: mathmlDeclaredAccessible,
+    accessibilityNavigation: hasNav,
+    pageNavigation: pagebreaks > 0,
+    accessModes,
+    accessModeSufficient,
+    features: accessibilityFeatures,
+    hazards: accessibilityHazards,
+    conformsTo,
+    summary: accessibilitySummary,
+    certification: {
+      certifier,
+      credential: certifierCredential,
+      report: certifierReport,
+      date: certificationDate,
+    },
+    validationPolicyVersion: "fore-epub-accessibility-v1",
+    validationStatus,
+  };
+  const compatibilityClass:
+    | "reflowable_standard"
+    | "reflowable_complex"
+    | "fixed_layout"
+    | "comic_manga"
+    | "picture_book"
+    | "dictionary"
+    | "unknown" = dictionaryContent
+    ? "dictionary"
+    : fixed
+      ? images > Math.max(8, htmlFiles.length / 2)
+        ? "comic_manga"
+        : "fixed_layout"
+      : complexCss || verticalWriting
+        ? "reflowable_complex"
+        : "reflowable_standard";
+  const warnings: string[] = [];
+  if (fixed)
+    warnings.push(
+      "Fixed-layout content does not support Cove text-size or line-spacing overrides.",
+    );
+  if (verticalWriting)
+    warnings.push("Vertical writing relies on publisher CSS and may vary by browser engine.");
+  if (mediaOverlays)
+    warnings.push(
+      "Embedded EPUB media overlays are detected but Cove uses its separate audiobook/Biosync system for synchronized audio.",
+    );
+  if (oversizedImages) warnings.push("Oversized images are scaled in reflowable reading mode.");
+  if (dictionaryContent)
+    warnings.push(
+      "Dictionary semantics are preserved, but Cove does not yet provide a dedicated dictionary lookup/navigation mode.",
+    );
+  if (complexCss)
+    warnings.push(
+      "Complex publisher CSS is preserved where safe and may render differently across browser engines.",
+    );
+  if (remoteResources)
+    warnings.push(
+      "Remote resource dependencies are not supported for commercial publication or offline reading.",
+    );
+  if (scriptedContent)
+    warnings.push("Executable EPUB scripting is not supported and is stripped by the Cove reader.");
+  const readerSupport =
+    remoteResources || scriptedContent
+      ? "unsupported"
+      : mediaOverlays || fixed || verticalWriting || dictionaryContent || complexCss
+        ? "supported_with_limits"
+        : "full";
+  const formatProfile = {
+    epubVersion: packageVersion.startsWith("2")
+      ? "EPUB 2"
+      : packageVersion.startsWith("3")
+        ? "EPUB 3"
+        : "EPUB",
+    packageVersion,
+    navigationType: hasNav && hasNcx ? "both" : hasNav ? "epub3_nav" : hasNcx ? "ncx" : "unknown",
+    renditionLayout,
+    pageProgressionDirection: pageProgression,
+    writingMode: verticalWriting
+      ? primaryWritingMode.startsWith("vertical")
+        ? primaryWritingMode
+        : "vertical-rl"
+      : "horizontal-tb",
+    rtl,
+    verticalWriting,
+    complexCss,
+    embeddedFonts: fonts.length > 0,
+    svg: svg > 0,
+    mathml: mathml > 0,
+    complexTables: tables > 0,
+    footnotes: footnotes > 0,
+    endnotes: endnotes > 0,
+    dictionaryContent,
+    mediaOverlays,
+    oversizedImages,
+    accessibilityNavigation: hasNav,
+    compatibilityClass,
+    readerSupport,
+    features: {
+      fontCount: fonts.length,
+      imageCount: images,
+      htmlFileCount: htmlFiles.length,
+      tableCount: tables,
+      mathmlCount: mathml,
+      svgCount: svg,
+      svgMissingTextAlternativeCount: svgMissingTextAlternative,
+      footnoteCount: footnotes,
+      endnoteCount: endnotes,
+      pagebreakCount: pagebreaks,
+      langNodeCount: langNodes,
+      remoteResourceCount: remoteResources,
+      scriptedContentCount: scriptedContent,
+    },
+    warnings,
+  };
+  return {
+    zip,
+    expandedBytes: expanded,
+    metadata: {
+      title,
+      language,
+      packageVersion,
+      fixedLayout: fixed,
+      accessibilityMetadata: requiredAccessibilityMetadata,
+      fontCount: fonts.length,
+      imageCount: images,
+      brokenInternalReferences: broken,
+      missingAlt,
+      emptyAlt,
+      accessibility,
+      formatProfile,
+    },
+    fingerprintText: fingerprintTextParts.join("\n").slice(0, 500000),
+    issues,
+  };
+}
+
+async function readBoundedPublishingUpload(request: Request, limit: number) {
+  const length = Number(request.headers.get("content-length") || 0);
+  if (length > limit) throw new ApiError(413, "This publishing asset exceeds the upload limit.");
+  const reader = request.body?.getReader();
+  if (!reader) return new Uint8Array();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > limit) throw new ApiError(413, "This publishing asset exceeds the upload limit.");
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let p = 0;
+  for (const c of chunks) {
+    out.set(c, p);
+    p += c.byteLength;
+  }
+  return out;
+}
+function publishingUploadLimit(kind: string) {
+  return kind === "audio"
+    ? 750 * 1024 * 1024
+    : kind === "manuscript"
+      ? 150 * 1024 * 1024
+      : kind === "cover"
+        ? 25 * 1024 * 1024
+        : 100 * 1024 * 1024;
+}
+
+async function recordInlineResult(
+  db: PublishingDB,
+  jobId: string,
+  versionId: string,
+  check: string,
+  status: "passed" | "warning" | "failed" | "blocked",
+  issues: any[] = [],
+  validator = "fore-inline",
+  version = "1",
+) {
+  const at = now();
+  await db.batch([
+    db
+      .prepare(
+        "UPDATE publishing_validation_jobs SET status=?,attempts=attempts+1,last_error=?,updated_at=? WHERE id=?",
+      )
+      .bind(
+        status,
+        status === "failed" || status === "blocked"
+          ? cleanText(issues[0]?.message || "Validation failed", 1000)
+          : "",
+        at,
+        jobId,
+      ),
+    db
+      .prepare(
+        "INSERT INTO publishing_validation_results(id,job_id,asset_version_id,check_type,validator_name,validator_version,status,issue_count,issues_json,completed_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+      )
+      .bind(
+        id("pubval"),
+        jobId,
+        versionId,
+        check,
+        validator,
+        version,
+        status,
+        issues.length,
+        JSON.stringify(issues),
+        at,
+      ),
+  ]);
+}
+
+async function refreshAssetValidationSummary(db: PublishingDB, assetVersionId: string) {
+  const jobs = (
+    await db
+      .prepare("SELECT status,required FROM publishing_validation_jobs WHERE asset_version_id=?")
+      .bind(assetVersionId)
+      .all<any>()
+  ).results;
+  const required = jobs.filter((j) => Number(j.required) === 1);
+  let summary = "pending",
+    quarantine = "quarantined";
+  if (required.some((j) => ["failed", "blocked"].includes(String(j.status)))) {
+    summary = "blocked";
+    quarantine = "rejected";
+  } else if (required.some((j) => ["queued", "leased"].includes(String(j.status)))) {
+    summary = required.some((j) => String(j.status) === "leased") ? "running" : "pending";
+    quarantine = "scanning";
+  }
+  else if (required.every((j) => String(j.status) === "passed")) {
+    summary = jobs.some((j) => String(j.status) === "warning") ? "warning" : "passed";
+    quarantine = "clean";
+  } else summary = "blocked";
+  await db
+    .prepare(
+      "UPDATE publishing_asset_versions SET validation_summary=?,quarantine_status=? WHERE id=?",
+    )
+    .bind(summary, quarantine, assetVersionId)
+    .run();
+  return { summary, quarantine };
+}
+
+async function uploadPublishingAsset(
+  env: PublishingEnv,
+  userId: string,
+  input: { editionId: string; kind: string; filename: string; mimeType: string; bytes: Uint8Array },
+) {
+  if (!env.BUCKET) throw new ApiError(503, "Publishing asset storage is not configured.");
+  const edition = await editionAccess(env.DB, userId, input.editionId, "editor");
+  const kind = z.enum(["manuscript", "cover", "supplement", "audio"]).parse(input.kind);
+  if (!["draft", "changes_requested"].includes(String(edition.status)))
+    throw new ApiError(409, "Open a new publishing revision before replacing production assets.");
+  if (!input.bytes.byteLength) throw new ApiError(400, "The uploaded file is empty.");
+  if (input.bytes.byteLength > publishingUploadLimit(kind))
+    throw new ApiError(413, "This publishing asset exceeds the upload limit.");
+  const mime = cleanText(input.mimeType || "application/octet-stream", 120).toLowerCase();
+  if (
+    kind === "manuscript" &&
+    edition.format === "ebook" &&
+    !(mime === "application/epub+zip" || input.filename.toLowerCase().endsWith(".epub"))
+  )
+    throw new ApiError(
+      415,
+      "Cove Publishing currently accepts EPUB source manuscripts for eBooks.",
+    );
+  if (kind === "cover" && !["image/jpeg", "image/png"].includes(mime))
+    throw new ApiError(415, "Cover artwork must be JPEG or PNG.");
+  const digest = await sha256Hex(input.bytes),
+    at = now();
+  const asset = await env.DB.prepare(
+    "SELECT * FROM publishing_assets WHERE edition_id=? AND kind=?",
+  )
+    .bind(input.editionId, kind)
+    .first<any>();
+  const assetId = asset?.id || id("pubasset"),
+    previousCount = Number(
+      (
+        await env.DB.prepare(
+          "SELECT max(version_number) n FROM publishing_asset_versions WHERE asset_id=?",
+        )
+          .bind(assetId)
+          .first<any>()
+      )?.n || 0,
+    ),
+    versionNumber = previousCount + 1,
+    versionId = id("pubassetv");
+  const ext =
+    kind === "cover"
+      ? mime === "image/png"
+        ? "png"
+        : "jpg"
+      : kind === "manuscript"
+        ? "epub"
+        : input.filename
+            .split(".")
+            .pop()
+            ?.replace(/[^a-zA-Z0-9]/g, "")
+            .slice(0, 8) || "bin";
+  const objectKey = `publishing/quarantine/${edition.account_id}/${input.editionId}/${assetId}/${versionId}/source.${ext}`;
+  let metadata: Record<string, unknown> = {};
+  let fingerprintText = "";
+  if (kind === "manuscript" && edition.format === "ebook") {
+    const result = await inspectEpub(input.bytes);
+    metadata = result.metadata;
+    fingerprintText = result.fingerprintText;
+  }
+  if (kind === "cover") {
+    const dims = imageDimensions(input.bytes, mime);
+    if (!dims) throw new ApiError(400, "Cove could not read the cover image dimensions.");
+    metadata = dims;
+    if (dims.width < 1000 || dims.height < 1400)
+      metadata.coverWarning = "Cover is below Cove's recommended production dimensions.";
+    if (dims.height <= dims.width)
+      throw new ApiError(400, "Book cover artwork must be portrait-oriented.");
+  }
+  await env.BUCKET.put(objectKey, input.bytes, {
+    httpMetadata: { contentType: mime },
+    customMetadata: { sha256: digest, source: "fore-publishing-quarantine" },
+  });
+  const checks = publishingChecks(kind, String(edition.format));
+  const jobs = checks.map(([check, required, execution]) => ({
+    jobId: id("pubjob"),
+    check,
+    required,
+    execution,
+  }));
+  try {
+    const statements: any[] = [];
+    if (!asset)
+      statements.push(
+        env.DB.prepare(
+          "INSERT INTO publishing_assets(id,edition_id,kind,required,created_at,updated_at) VALUES(?,?,?,?,?,?)",
+        ).bind(
+          assetId,
+          input.editionId,
+          kind,
+          ["manuscript", "cover"].includes(kind) ? 1 : 0,
+          at,
+          at,
+        ),
+      );
+    statements.push(
+      env.DB.prepare(
+        "INSERT INTO publishing_asset_versions(id,asset_id,version_number,object_key,original_filename,mime_type,size_bytes,sha256,quarantine_status,extracted_metadata_json,validation_summary,created_by_user_id,created_at) VALUES(?,?,?,?,?,?,?,?, 'quarantined',?,'pending',?,?)",
+      ).bind(
+        versionId,
+        assetId,
+        versionNumber,
+        objectKey,
+        cleanText(input.filename, 240),
+        mime,
+        input.bytes.byteLength,
+        digest,
+        JSON.stringify(metadata),
+        userId,
+        at,
+      ),
+    );
+    statements.push(
+      env.DB.prepare(
+        "UPDATE publishing_assets SET current_version_id=?,updated_at=? WHERE id=?",
+      ).bind(versionId, at, assetId),
+    );
+    for (const j of jobs)
+      statements.push(
+        env.DB.prepare(
+          "INSERT INTO publishing_validation_jobs(id,asset_version_id,check_type,required,execution_class,status,priority,available_at,idempotency_key,created_at,updated_at) VALUES(?,?,?,?,?,'queued',100,?,?,?,?)",
+        ).bind(
+          j.jobId,
+          versionId,
+          j.check,
+          j.required ? 1 : 0,
+          j.execution,
+          at,
+          `${versionId}:${j.check}:v1`,
+          at,
+          at,
+        ),
+      );
+    await env.DB.batch(statements);
+  } catch (e) {
+    await env.BUCKET.delete(objectKey);
+    throw e;
+  }
+  // Run cheap deterministic checks immediately. Production-only services remain queued and fail closed.
+  let epubInspection: Awaited<ReturnType<typeof inspectEpub>> | null = null;
+  if (kind === "manuscript" && edition.format === "ebook") {
+    epubInspection = await inspectEpub(input.bytes);
+    await env.DB.prepare(
+      "INSERT INTO publishing_epub_inspections(asset_version_id,inspection_version,metadata_json,accessibility_json,format_profile_json,issue_summary_json,created_at) VALUES(?,?,?,?,?,?,?)",
+    )
+      .bind(
+        versionId,
+        "fore-epub-inspection-v1",
+        JSON.stringify(epubInspection.metadata),
+        JSON.stringify(epubInspection.metadata.accessibility),
+        JSON.stringify(epubInspection.metadata.formatProfile),
+        JSON.stringify(epubInspection.issues),
+        at,
+      )
+      .run();
+  }
+  for (const j of jobs.filter((j) => j.execution === "inline")) {
+    let status: "passed" | "warning" | "failed" = "passed",
+      issues: any[] = [];
+    if (j.check === "archive_safety") {
+      issues = epubInspection?.issues.filter((i) => i.code === "SCRIPTED_CONTENT") || [];
+      status = issues.some((i) => i.severity === "error") ? "failed" : "passed";
+    } else if (j.check === "metadata") {
+      issues =
+        epubInspection?.issues.filter(
+          (i) =>
+            i.code.startsWith("METADATA") ||
+            ["MIMETYPE", "CONTAINER", "OPF", "ENCRYPTED"].includes(i.code),
+        ) || [];
+      status = issues.some((i) => i.severity === "error")
+        ? "failed"
+        : issues.length
+          ? "warning"
+          : "passed";
+    } else if (j.check === "navigation") {
+      issues = epubInspection?.issues.filter((i) => i.code === "NAV") || [];
+      status = issues.length ? "failed" : "passed";
+    } else if (j.check === "links") {
+      issues =
+        epubInspection?.issues.filter((i) =>
+          ["BROKEN_LINKS", "REMOTE_RESOURCES"].includes(i.code),
+        ) || [];
+      status = issues.some((i) => i.severity === "error")
+        ? "failed"
+        : issues.length
+          ? "warning"
+          : "passed";
+    } else if (j.check === "accessibility") {
+      issues =
+        epubInspection?.issues.filter((i) =>
+          [
+            "MISSING_ALT",
+            "SVG_TEXT_ALTERNATIVE",
+            "HEADING_STRUCTURE",
+            "TABLE_SEMANTICS",
+            "ACCESSIBILITY_METADATA",
+            "ACCESSIBILITY_CONFORMANCE_MISMATCH",
+            "METADATA_LANGUAGE",
+            "MATHML_DISCLOSURE",
+          ].includes(i.code),
+        ) || [];
+      status = issues.some((i) => i.severity === "error")
+        ? "failed"
+        : issues.length
+          ? "warning"
+          : "passed";
+    } else if (j.check === "cover") {
+      const dims = metadata as any;
+      issues = dims.coverWarning
+        ? [{ code: "COVER_DIMENSIONS", severity: "warning", message: dims.coverWarning }]
+        : [];
+      status = issues.length ? "warning" : "passed";
+    } else if (j.check === "duplicate") {
+      const matches = (
+        await env.DB.prepare(
+          `SELECT v.id,v.asset_id FROM publishing_asset_versions v WHERE v.sha256=? AND v.id<>? LIMIT 10`,
+        )
+          .bind(digest, versionId)
+          .all<any>()
+      ).results;
+      const catalog = (
+        await env.DB.prepare("SELECT id,asset_id FROM asset_versions WHERE sha256=? LIMIT 10")
+          .bind(digest)
+          .all<any>()
+      ).results;
+      if (matches.length || catalog.length) {
+        status = "warning";
+        issues = [
+          {
+            code: "EXACT_DUPLICATE",
+            severity: "warning",
+            message:
+              "Identical content already exists in Cove. Review is required before publication.",
+          },
+        ];
+        const dups: any[] = [];
+        for (const m of matches)
+          dups.push(
+            env.DB.prepare(
+              "INSERT INTO publishing_duplicate_matches(id,asset_version_id,matched_asset_version_id,match_type,confidence,disposition,created_at,updated_at) VALUES(?,?,?,'exact_hash',1,'review',?,?)",
+            ).bind(id("pubdup"), versionId, m.id, at, at),
+          );
+        for (const m of catalog)
+          dups.push(
+            env.DB.prepare(
+              "INSERT INTO publishing_duplicate_matches(id,asset_version_id,match_type,confidence,disposition,created_at,updated_at) VALUES(?,?,'exact_hash',1,'review',?,?)",
+            ).bind(id("pubdup"), versionId, at, at),
+          );
+        if (dups.length) await env.DB.batch(dups);
+      }
+    }
+    await recordInlineResult(env.DB, j.jobId, versionId, j.check, status, issues);
+  }
+  await recordAssetFingerprint(env.DB, {
+    assetVersionId: versionId,
+    accountId: String(edition.account_id),
+    editionId: input.editionId,
+    assetKind: kind,
+    exactSha256: digest,
+    text: fingerprintText,
+    metadata,
+  });
+  const validation = await refreshAssetValidationSummary(env.DB, versionId);
+  await transitionPublishingLifecycle(
+    env.DB,
+    input.editionId,
+    "validation",
+    "publisher",
+    userId,
+    "asset_uploaded",
+    { assetVersionId: versionId, kind },
+  );
+  await audit(
+    env.DB,
+    String(edition.account_id),
+    userId,
+    "publishing_asset_version",
+    versionId,
+    "uploaded",
+    { kind, sizeBytes: input.bytes.byteLength, sha256: digest, validation: validation.summary },
+  );
+  return {
+    assetId,
+    versionId,
+    versionNumber,
+    sha256: digest,
+    quarantineStatus: validation.quarantine,
+    validationSummary: validation.summary,
+    queuedChecks: jobs.filter((j) => j.execution !== "inline").map((j) => j.check),
+    metadata,
+  };
+}
+
+async function signPublishingAccessibilityDeclaration(
+  db: PublishingDB,
+  userId: string,
+  raw: unknown,
+) {
+  const x = z
+    .object({
+      editionId: z.string().min(1),
+      accessibilitySummary: z.string().trim().max(3000).default(""),
+      certifier: z.string().trim().max(300).default(""),
+      credential: z.string().trim().max(500).default(""),
+      claimsConformance: z.boolean().default(false),
+      knownLimitations: z.string().trim().max(3000).default(""),
+      metadataAccurateAttestation: z.literal(true),
+      signatureName: z.string().trim().min(2).max(200),
+    })
+    .parse(raw);
+  const edition = await editionAccess(db, userId, x.editionId, "editor");
+  if (String(edition.format) !== "ebook")
+    throw new ApiError(409, "Accessibility declarations currently apply to EPUB editions.");
+  const asset = await db
+    .prepare(
+      `SELECT v.id version_id,i.accessibility_json,i.format_profile_json,i.issue_summary_json FROM publishing_assets a JOIN publishing_asset_versions v ON v.id=a.current_version_id LEFT JOIN publishing_epub_inspections i ON i.asset_version_id=v.id WHERE a.edition_id=? AND a.kind='manuscript' LIMIT 1`,
+    )
+    .bind(x.editionId)
+    .first<any>();
+  if (!asset?.version_id || !asset.accessibility_json)
+    throw new ApiError(
+      409,
+      "Upload and inspect the current EPUB before signing its accessibility declaration.",
+    );
+  const detected = safeJson<any>(asset.accessibility_json, {});
+  if (x.claimsConformance && detected.validationStatus === "failed")
+    throw new ApiError(
+      409,
+      "This EPUB cannot be declared conformant while Cove's current accessibility validation is failing.",
+    );
+  const revision = Number(edition.revision || 1),
+    existing = await db
+      .prepare(
+        "SELECT 1 ok FROM publishing_accessibility_declarations WHERE edition_id=? AND revision=?",
+      )
+      .bind(x.editionId, revision)
+      .first<any>();
+  if (existing)
+    throw new ApiError(
+      409,
+      "An immutable accessibility declaration already exists for this revision. Open a new revision to change it.",
+    );
+  const declaration = {
+    policyVersion: "fore-epub-accessibility-v1",
+    sourceAssetVersionId: String(asset.version_id),
+    publisher: {
+      summary: x.accessibilitySummary,
+      certifier: x.certifier,
+      credential: x.credential,
+      claimsConformance: x.claimsConformance,
+      knownLimitations: x.knownLimitations,
+      metadataAccurateAttestation: true,
+      signatureName: x.signatureName,
+    },
+    detectedAccessibility: detected,
+    detectedFormat: safeJson<any>(asset.format_profile_json, {}),
+    issues: safeJson<any[]>(asset.issue_summary_json, []),
+  };
+  const at = now();
+  await db
+    .prepare(
+      "INSERT INTO publishing_accessibility_declarations(edition_id,revision,policy_version,declaration_json,attested_by_user_id,created_at) VALUES(?,?,?,?,?,?)",
+    )
+    .bind(x.editionId, revision, "fore-epub-accessibility-v1", stableJson(declaration), userId, at)
+    .run();
+  await audit(
+    db,
+    String(edition.account_id),
+    userId,
+    "publishing_accessibility_declaration",
+    `${x.editionId}:${revision}`,
+    "signed",
+    { sourceAssetVersionId: asset.version_id, claimsConformance: x.claimsConformance },
+  );
+  return {
+    editionId: x.editionId,
+    revision,
+    policyVersion: "fore-epub-accessibility-v1",
+    createdAt: at,
+  };
+}
+
+async function leasePublishingValidationJobs(db: PublishingDB, raw: unknown) {
+  return dispatchPublishingOwnerValidationJob(db, "lease-validation", raw);
+}
+
+async function completePublishingValidationJob(db: PublishingDB, raw: unknown) {
+  return dispatchPublishingOwnerValidationJob(db, "complete-validation", raw);
+}
+
+async function assetStatus(db: PublishingDB, editionId: string) {
+  const rows = (
+    await db
+      .prepare(
+        `SELECT a.id,a.kind,a.required,a.current_version_id,v.quarantine_status,v.validation_summary,v.sha256,v.object_key,v.mime_type,v.size_bytes,v.original_filename
+    FROM publishing_assets a LEFT JOIN publishing_asset_versions v ON v.id=a.current_version_id WHERE a.edition_id=? ORDER BY a.kind`,
+      )
+      .bind(editionId)
+      .all<any>()
+  ).results;
+  return rows;
+}
+
+async function publishingReadiness(db: PublishingDB, userId: string, editionId: string) {
+  const edition = await editionAccess(db, userId, editionId, "analyst"),
+    account = await db
+      .prepare("SELECT * FROM publishing_accounts WHERE id=?")
+      .bind(edition.account_id)
+      .first<any>();
+  const contributors = (
+      await db
+        .prepare(
+          "SELECT * FROM publishing_edition_contributors WHERE edition_id=? ORDER BY position",
+        )
+        .bind(editionId)
+        .all<any>()
+    ).results,
+    assets = await assetStatus(db, editionId);
+  const blockers: string[] = [];
+  if (!account?.terms_accepted_at) blockers.push("Accept the current Cove Publishing agreement.");
+  const legalAddress = await db
+    .prepare(
+      "SELECT id FROM publishing_addresses WHERE account_id=? AND address_type='legal' LIMIT 1",
+    )
+    .bind(edition.account_id)
+    .first<any>();
+  if (!legalAddress) blockers.push("Add a legal business/residential address.");
+  if (account?.identity_status !== "verified")
+    blockers.push("Identity verification must be complete.");
+  if (account?.tax_status !== "verified") blockers.push("Tax information must be validated.");
+  if (account?.payout_status !== "verified") blockers.push("A verified payout method is required.");
+  if (!contributors.some((c) => c.role === "author"))
+    blockers.push("Add at least one author/contributor.");
+  if (!edition.description?.trim()) blockers.push("Add a book description.");
+  if (Number(edition.list_price_minor) < 0) blockers.push("Set a valid list price.");
+  if (edition.format === "ebook" && !assets.some((a) => a.kind === "manuscript"))
+    blockers.push("Upload an EPUB manuscript.");
+  if (!assets.some((a) => a.kind === "cover")) blockers.push("Upload cover artwork.");
+  for (const a of assets.filter((a) => Number(a.required) === 1))
+    if (a.validation_summary !== "passed" && a.validation_summary !== "warning")
+      blockers.push(`${a.kind} validation is not complete.`);
+  const openRequired =
+    (
+      await db
+        .prepare(
+          `SELECT count(*) n FROM publishing_validation_jobs j JOIN publishing_asset_versions v ON v.id=j.asset_version_id JOIN publishing_assets a ON a.id=v.asset_id WHERE a.edition_id=? AND a.current_version_id=v.id AND j.required=1 AND j.status<>'passed'`,
+        )
+        .bind(editionId)
+        .first<any>()
+    )?.n || 0;
+  if (Number(openRequired) > 0)
+    blockers.push(
+      `${openRequired} required validation check${Number(openRequired) === 1 ? " is" : "s are"} still unresolved.`,
+    );
+  const duplicateReview =
+    (
+      await db
+        .prepare(
+          `SELECT count(*) n FROM publishing_duplicate_matches d JOIN publishing_asset_versions v ON v.id=d.asset_version_id JOIN publishing_assets a ON a.id=v.asset_id WHERE a.edition_id=? AND a.current_version_id=v.id AND d.disposition IN ('review','fraud_hold')`,
+        )
+        .bind(editionId)
+        .first<any>()
+    )?.n || 0;
+  if (Number(duplicateReview) > 0) blockers.push("Potential duplicate content requires review.");
+  const declaration = await db
+    .prepare("SELECT * FROM publishing_rights_declarations WHERE edition_id=? AND revision=?")
+    .bind(editionId, edition.revision)
+    .first<any>();
+  if (!declaration) blockers.push("Sign the Cove publisher rights declaration for this revision.");
+  else {
+    if (String(declaration.policy_version) !== FORE_RIGHTS_POLICY_VERSION)
+      blockers.push(
+        `Re-sign the publisher rights declaration under the current ${FORE_RIGHTS_POLICY_VERSION} policy.`,
+      );
+    if (
+      !Number(declaration.authority_attestation) ||
+      !Number(declaration.no_infringement_attestation) ||
+      !Number(declaration.evidence_complete_attestation)
+    )
+      blockers.push("The rights declaration attestations are incomplete.");
+    const evidence = (
+      await db
+        .prepare("SELECT * FROM publishing_rights_evidence WHERE declaration_id=?")
+        .bind(declaration.id)
+        .all<any>()
+    ).results;
+    if (
+      ["licensed", "public_domain"].includes(String(declaration.rights_basis)) &&
+      !evidence.length
+    )
+      blockers.push("Upload rights evidence for licensed or public-domain material.");
+    if (evidence.some((r: any) => !["clean"].includes(String(r.scan_status))))
+      blockers.push("Rights evidence scanning must complete before submission.");
+    if (evidence.some((r: any) => r.verification_status === "rejected"))
+      blockers.push("Rejected rights evidence must be resolved before submission.");
+    if (
+      ["licensed", "public_domain"].includes(String(declaration.rights_basis)) &&
+      !evidence.some((r: any) => r.verification_status === "verified")
+    )
+      blockers.push(
+        "Licensed or public-domain material requires at least one staff-verified rights evidence record before submission.",
+      );
+  }
+  const aiDisclosure = await db
+    .prepare("SELECT * FROM publishing_ai_disclosures WHERE edition_id=? AND revision=?")
+    .bind(editionId, edition.revision)
+    .first<any>();
+  if (!aiDisclosure)
+    blockers.push(
+      "Sign the Cove AI-content disclosure for this revision, including fully human-created works.",
+    );
+  else {
+    if (String(aiDisclosure.policy_version) !== FORE_AI_POLICY_VERSION)
+      blockers.push(
+        `Re-sign the AI-content disclosure under the current ${FORE_AI_POLICY_VERSION} policy.`,
+      );
+    if (
+      edition.format === "audiobook" &&
+      ["ai_generated", "mixed"].includes(String(aiDisclosure.narration_origin)) &&
+      !String(aiDisclosure.synthetic_voice_label || "").trim()
+    )
+      blockers.push(
+        "Synthetic or mixed AI narration requires a customer-facing synthetic voice label.",
+      );
+  }
+  let accessibilityDeclaration: any = null;
+  if (String(edition.format) === "ebook") {
+    const manuscript = assets.find((a: any) => a.kind === "manuscript");
+    accessibilityDeclaration = await db
+      .prepare(
+        "SELECT * FROM publishing_accessibility_declarations WHERE edition_id=? AND revision=?",
+      )
+      .bind(editionId, edition.revision)
+      .first<any>();
+    if (!accessibilityDeclaration)
+      blockers.push(
+        "Sign the Cove EPUB accessibility declaration for this revision, including editions with no formal conformance claim.",
+      );
+    else {
+      if (String(accessibilityDeclaration.policy_version) !== "fore-epub-accessibility-v1")
+        blockers.push(
+          "Re-sign the EPUB accessibility declaration under the current Cove accessibility policy.",
+        );
+      const declaration = safeJson<any>(accessibilityDeclaration.declaration_json, {});
+      if (
+        !manuscript?.current_version_id ||
+        String(declaration.sourceAssetVersionId || "") !==
+          String(manuscript.current_version_id || "")
+      )
+        blockers.push(
+          "The accessibility declaration is bound to an older manuscript. Open a new revision and sign against the current EPUB.",
+        );
+      const inspection = manuscript?.current_version_id
+        ? await db
+            .prepare(
+              "SELECT accessibility_json FROM publishing_epub_inspections WHERE asset_version_id=?",
+            )
+            .bind(manuscript.current_version_id)
+            .first<any>()
+        : null;
+      const detected = safeJson<any>(inspection?.accessibility_json, {});
+      if (declaration?.publisher?.claimsConformance && detected.validationStatus === "failed")
+        blockers.push(
+          "The current EPUB fails Cove accessibility validation and cannot retain a formal conformance claim.",
+        );
+    }
+  }
+  if (String(edition.rights_basis) === "public_domain") {
+    const et = String(edition.edition_type || "original"),
+      summary = String(edition.differentiation_summary || "").trim();
+    if (["original", "canonical_public_domain"].includes(et))
+      blockers.push(
+        "Public-domain submissions must be a differentiated annotated, translated, illustrated, scholarly, or commercial-audiobook edition. Cove reserves the canonical free edition for its canonical public-domain source.",
+      );
+    if (!summary)
+      blockers.push("Describe the substantive differentiation in this public-domain edition.");
+    if (et === "new_translation" && !contributors.some((c) => c.role === "translator"))
+      blockers.push("A new translation edition must identify at least one translator.");
+    const manuscript = assets.find((a: any) => a.kind === "manuscript");
+    if (manuscript?.sha256) {
+      const duplicate = await db
+        .prepare(
+          `SELECT e.id FROM editions e JOIN digital_assets da ON da.edition_id=e.id AND da.kind='epub' JOIN asset_versions av ON av.id=da.current_version_id WHERE av.sha256=? AND (? IS NULL OR e.id<>?) LIMIT 1`,
+        )
+        .bind(
+          manuscript.sha256,
+          edition.catalog_edition_id || null,
+          edition.catalog_edition_id || null,
+        )
+        .first<any>();
+      if (duplicate)
+        blockers.push(
+          "This public-domain EPUB is byte-identical to an existing edition. Commercial public-domain editions must add substantive differentiation rather than duplicate the canonical free copy.",
+        );
+    }
+  }
+  const partner = await db
+    .prepare(
+      "SELECT production_status,default_contract_id FROM publisher_partner_profiles WHERE account_id=?",
+    )
+    .bind(edition.account_id)
+    .first<any>();
+  if (partner && String(partner.production_status) === "active") {
+    if (!edition.contract_id)
+      blockers.push(
+        "Production partner titles must be governed by an assigned distribution contract; per-book flags cannot substitute for contract policy.",
+      );
+    if (edition.contract_id) {
+      const assigned = await db
+        .prepare(
+          "SELECT 1 ok FROM publisher_contract_assignments WHERE account_id=? AND contract_id=? AND status='active'",
+        )
+        .bind(edition.account_id, edition.contract_id)
+        .first<any>();
+      if (!assigned)
+        blockers.push(
+          "The selected distribution contract is not actively assigned to this publisher.",
+        );
+    }
+    if (edition.contract_version_id) {
+      const active = await db
+        .prepare(
+          "SELECT 1 ok FROM rights_contract_versions WHERE id=? AND contract_id=? AND status='active' AND effective_from<=? AND (effective_to IS NULL OR effective_to>?)",
+        )
+        .bind(edition.contract_version_id, edition.contract_id, now(), now())
+        .first<any>();
+      if (!active)
+        blockers.push("The selected distribution contract version is not currently effective.");
+    }
+  }
+  const similarityReview =
+    (
+      await db
+        .prepare(
+          `SELECT count(*) n FROM publishing_similarity_matches sm JOIN publishing_asset_versions v ON v.id=sm.asset_version_id JOIN publishing_assets a ON a.id=v.asset_id WHERE a.edition_id=? AND a.current_version_id=v.id AND sm.cross_account=1 AND sm.disposition IN ('review','fraud_hold') AND sm.score>=.95`,
+        )
+        .bind(editionId)
+        .first<any>()
+    )?.n || 0;
+  if (Number(similarityReview) > 0)
+    blockers.push("High-confidence cross-publisher content similarity requires review.");
+  let commercialAudio: any = null;
+  if (String(edition.format) === "audiobook") {
+    commercialAudio = await commercialAudioReadiness(db as any, editionId);
+    blockers.push(...commercialAudio.blockers);
+  }
+
+  return {
+    ready: blockers.length === 0,
+    blockers,
+    account: {
+      identityStatus: account?.identity_status,
+      taxStatus: account?.tax_status,
+      payoutStatus: account?.payout_status,
+      termsAccepted: !!account?.terms_accepted_at,
+    },
+    assets,
+    contributors,
+    rightsDeclaration: declaration
+      ? { id: declaration.id, status: declaration.status, rightsBasis: declaration.rights_basis }
+      : null,
+    aiDisclosure: aiDisclosure
+      ? {
+          id: aiDisclosure.id,
+          policyVersion: aiDisclosure.policy_version,
+          textOrigin: aiDisclosure.text_origin,
+          coverOrigin: aiDisclosure.cover_origin,
+          narrationOrigin: aiDisclosure.narration_origin,
+        }
+      : null,
+    accessibilityDeclaration: accessibilityDeclaration
+      ? {
+          policyVersion: accessibilityDeclaration.policy_version,
+          revision: Number(accessibilityDeclaration.revision || 0),
+          createdAt: accessibilityDeclaration.created_at,
+        }
+      : null,
+    commercialAudio,
+  };
+}
+
+async function submitPublishingEdition(
+  env: PublishingEnv,
+  userId: string,
+  editionId: string,
+) {
+  const db = env.DB,
+    edition = await editionAccess(db, userId, editionId, "editor"),
+    lifecycle = await ensurePublishingLifecycle(db, editionId);
+  if (["suppressed", "takedown", "retired"].includes(String(lifecycle.state)))
+    throw new ApiError(
+      409,
+      "This release is under staff enforcement and cannot be submitted until Cove restores it.",
+    );
+  const readiness = await publishingReadiness(db, userId, editionId);
+  if (!readiness.ready) throw new ApiError(409, readiness.blockers.join(" "));
+  const title = await db
+      .prepare("SELECT * FROM publishing_titles WHERE id=?")
+      .bind(edition.title_id)
+      .first<any>(),
+    account = await db
+      .prepare(
+        "SELECT id,legal_name,display_name,country_code,contact_email,website,identity_status,tax_status,payout_status,terms_version,terms_accepted_at FROM publishing_accounts WHERE id=?",
+      )
+      .bind(edition.account_id)
+      .first<any>();
+  const addresses = (
+    await db
+      .prepare(
+        "SELECT address_type,line1,line2,city,region,postal_code,country_code FROM publishing_addresses WHERE account_id=? ORDER BY address_type",
+      )
+      .bind(edition.account_id)
+      .all<any>()
+  ).results;
+  const tax = await db
+    .prepare(
+      "SELECT id,country_code,tax_classification,form_type,provider,provider_reference,status,withholding_bps,treaty_country_code,validated_at,expires_at FROM publishing_tax_profiles WHERE account_id=? AND status='verified' ORDER BY updated_at DESC LIMIT 1",
+    )
+    .bind(edition.account_id)
+    .first<any>();
+  const payout = await db
+    .prepare(
+      "SELECT id,provider,provider_account_id,method,bank_country_code,payout_currency,account_last4,status,payout_threshold_minor,verified_at FROM publishing_payout_accounts WHERE account_id=? AND status='verified' ORDER BY updated_at DESC LIMIT 1",
+    )
+    .bind(edition.account_id)
+    .first<any>();
+  const contributors = (
+      await db
+        .prepare(
+          "SELECT pen_name_id,display_name,role,position FROM publishing_edition_contributors WHERE edition_id=? ORDER BY position",
+        )
+        .bind(editionId)
+        .all<any>()
+    ).results,
+    assets = readiness.assets;
+  const rightsDeclaration = await db
+    .prepare("SELECT * FROM publishing_rights_declarations WHERE edition_id=? AND revision=?")
+    .bind(editionId, edition.revision)
+    .first<any>();
+  const rightsEvidence = rightsDeclaration
+    ? (
+        await db
+          .prepare(
+            "SELECT id,evidence_type,description,original_filename,mime_type,size_bytes,sha256,scan_status,verification_status,issued_by,issued_at,expires_at,created_at FROM publishing_rights_evidence WHERE declaration_id=? ORDER BY created_at",
+          )
+          .bind(rightsDeclaration.id)
+          .all<any>()
+      ).results
+    : [];
+  const aiDisclosure = await db
+    .prepare("SELECT * FROM publishing_ai_disclosures WHERE edition_id=? AND revision=?")
+    .bind(editionId, edition.revision)
+    .first<any>();
+  const accessibilityDeclaration = await db
+    .prepare(
+      "SELECT * FROM publishing_accessibility_declarations WHERE edition_id=? AND revision=?",
+    )
+    .bind(editionId, edition.revision)
+    .first<any>();
+  const commercialAudio =
+    String(edition.format) === "audiobook"
+      ? await commercialAudioSubmissionEvidence(db as any, editionId)
+      : null;
+  const snapshot = {
+      schemaVersion: 5,
+      account,
+      addresses,
+      tax,
+      payout,
+      title,
+      edition,
+      contributors,
+      assets,
+      rightsDeclaration,
+      rightsEvidence,
+      aiDisclosure,
+      accessibilityDeclaration,
+      commercialAudio: commercialAudio?.manifest || null,
+      commercialAudioManifestSha256: commercialAudio?.manifestSha256 || null,
+      submittedAt: now(),
+    },
+    serialized = stableJson(snapshot),
+    digest = await sha256Hex(serialized),
+    submissionId = id("pubsub"),
+    revision = Number(edition.revision || 1),
+    at = now();
+  const submissionStatements: any[] = [
+    db
+      .prepare(
+        "INSERT INTO publishing_submission_snapshots(id,edition_id,account_id,revision,snapshot_json,snapshot_sha256,status,submitted_by_user_id,submitted_at) VALUES(?,?,?,?,?,?,'submitted',?,?)",
+      )
+      .bind(submissionId, editionId, edition.account_id, revision, serialized, digest, userId, at),
+    db
+      .prepare("UPDATE publishing_edition_drafts SET status='submitted',updated_at=? WHERE id=?")
+      .bind(at, editionId),
+    db
+      .prepare("UPDATE publishing_titles SET status='in_review',updated_at=? WHERE id=?")
+      .bind(at, edition.title_id),
+    db
+      .prepare(
+        "INSERT INTO publishing_outbox(id,event_type,aggregate_type,aggregate_id,payload_json,available_at,created_at) VALUES(?,'publishing.submitted','submission',?,?,?,?)",
+      )
+      .bind(
+        id("pubout"),
+        submissionId,
+        JSON.stringify({
+          submissionId,
+          editionId,
+          accountId: edition.account_id,
+          snapshotSha256: digest,
+        }),
+        at,
+        at,
+      ),
+  ];
+  if (commercialAudio)
+    submissionStatements.push(
+      db
+        .prepare(
+          "INSERT INTO commercial_audio_submission_snapshots(submission_id,edition_id,policy_id,manifest_json,manifest_sha256,created_at) VALUES(?,?,?,?,?,?)",
+        )
+        .bind(
+          submissionId,
+          editionId,
+          commercialAudio.policyId,
+          commercialAudio.manifestJson,
+          commercialAudio.manifestSha256,
+          at,
+        ),
+    );
+  await db.batch(submissionStatements);
+  await transitionPublishingLifecycle(
+    db,
+    editionId,
+    "submitted",
+    "publisher",
+    userId,
+    "submitted",
+    { submissionId, revision, snapshotSha256: digest },
+  );
+  await transitionPublishingLifecycle(
+    db,
+    editionId,
+    "automated_review",
+    "automation",
+    null,
+    "automated_review_started",
+    { submissionId },
+  );
+  await assessSubmissionContentPolicy(db, submissionId);
+  const automated = await runAutomatedPublishingReview(db, submissionId),
+    publisherRisk = await assessPublisherRisk(
+      db,
+      String(edition.account_id),
+      "publishing_submission",
+    ),
+    autoApprove =
+      automated.outcome === "pass" &&
+      !["hold", "block"].includes(publisherRisk.action) &&
+      String(env.FORE_PUBLISHING_AUTO_APPROVE_LOW_RISK || "false").toLowerCase() === "true";
+  if (autoApprove) {
+    const decided = now();
+    await db.batch([
+      db
+        .prepare(
+          "UPDATE publishing_submission_snapshots SET status='approved',decided_at=? WHERE id=?",
+        )
+        .bind(decided, submissionId),
+      db
+        .prepare("UPDATE publishing_edition_drafts SET status='approved',updated_at=? WHERE id=?")
+        .bind(decided, editionId),
+    ]);
+    await transitionPublishingLifecycle(
+      db,
+      editionId,
+      "approved",
+      "automation",
+      null,
+      "automated_low_risk_approval",
+      { submissionId, riskScore: Number(automated.risk_score || 0) },
+    );
+    const publication = await materializePublishingSubmission(
+      env,
+      submissionId,
+      "system:automated-review",
+    );
+    await audit(
+      db,
+      String(edition.account_id),
+      userId,
+      "publishing_submission",
+      submissionId,
+      "auto_approved",
+      {
+        editionId,
+        revision,
+        snapshotSha256: digest,
+        automatedOutcome: automated.outcome,
+        automatedRiskScore: automated.risk_score,
+        publicationVersionId: publication.publicationVersionId,
+      },
+    );
+    try {
+      const members = (
+        await db
+          .prepare(
+            "SELECT user_id FROM publishing_account_members WHERE account_id=? AND status='active' AND role IN ('owner','admin','editor')",
+          )
+          .bind(edition.account_id)
+          .all<any>()
+      ).results;
+      for (const m of members)
+        await emitNotification(db, {
+          userId: String(m.user_id),
+          eventType: "publisher_book_approved",
+          dedupeKey: `publishing-auto-review:${submissionId}:${m.user_id}`,
+          title: `${title?.title || "Your book"} approved`,
+          body: "Cove's automated publishing review approved this low-risk submission and published it.",
+          subjectType: "publishing_submission",
+          subjectId: submissionId,
+          actionUrl: "/publishing",
+          payload: {
+            submissionId,
+            editionId,
+            decision: "approve",
+            automated: true,
+            publicationVersionId: publication.publicationVersionId,
+          },
+        });
+    } catch (e) {
+      console.error("Automated publishing approval notification enqueue failed", e);
+    }
+    return {
+      submissionId,
+      snapshotSha256: digest,
+      status: "published",
+      lifecycleState: publication.releaseState,
+      automatedReview: { outcome: automated.outcome, riskScore: automated.risk_score },
+      publisherRisk: {
+        score: publisherRisk.score,
+        level: publisherRisk.level,
+        action: publisherRisk.action,
+      },
+      publication,
+    };
+  }
+  await db
+    .prepare("UPDATE publishing_submission_snapshots SET status='in_review' WHERE id=?")
+    .bind(submissionId)
+    .run();
+  await transitionPublishingLifecycle(
+    db,
+    editionId,
+    "human_review",
+    "automation",
+    null,
+    automated.outcome === "pass" ? "human_review_policy" : `automated_${automated.outcome}`,
+    {
+      submissionId,
+      riskScore: Number(automated.risk_score || 0),
+      caseId: (automated as any).caseId || null,
+    },
+  );
+  await audit(
+    db,
+    String(edition.account_id),
+    userId,
+    "publishing_submission",
+    submissionId,
+    "submitted",
+    {
+      editionId,
+      revision,
+      snapshotSha256: digest,
+      automatedOutcome: automated.outcome,
+      automatedRiskScore: automated.risk_score,
+    },
+  );
+  return {
+    submissionId,
+    snapshotSha256: digest,
+    status: "in_review",
+    lifecycleState: "human_review",
+    automatedReview: { outcome: automated.outcome, riskScore: automated.risk_score },
+    publisherRisk: {
+      score: publisherRisk.score,
+      level: publisherRisk.level,
+      action: publisherRisk.action,
+    },
+  };
+}
+
+async function openPublishingRevision(db: PublishingDB, userId: string, editionId: string) {
+  const edition = await editionAccess(db, userId, editionId, "editor");
+  if (
+    !["published", "approved", "submitted", "changes_requested", "withdrawn"].includes(
+      String(edition.status),
+    )
+  )
+    throw new ApiError(409, "This edition is already editable.");
+  const lifecycle = await ensurePublishingLifecycle(db, editionId);
+  if (["suppressed", "takedown", "retired"].includes(String(lifecycle.state)))
+    throw new ApiError(
+      409,
+      "This release must be restored by Cove staff before a publisher update can be opened.",
+    );
+  const at = now(),
+    nextRevision = Number(edition.revision || 1) + 1;
+  await db.batch([
+    db
+      .prepare(
+        "UPDATE publishing_submission_snapshots SET status='withdrawn',decided_at=COALESCE(decided_at,?) WHERE edition_id=? AND revision=? AND status IN ('submitted','in_review','approved')",
+      )
+      .bind(at, editionId, Number(edition.revision || 1)),
+    db
+      .prepare(
+        "UPDATE publishing_edition_drafts SET status='draft',revision=?,updated_at=? WHERE id=?",
+      )
+      .bind(nextRevision, at, editionId),
+  ]);
+  await transitionPublishingLifecycle(
+    db,
+    editionId,
+    "draft",
+    "publisher",
+    userId,
+    "publisher_update_opened",
+    { revision: nextRevision, currentlyLive: !!edition.catalog_product_id },
+  );
+  await audit(
+    db,
+    String(edition.account_id),
+    userId,
+    "publishing_edition",
+    editionId,
+    "revision_opened",
+    { revision: nextRevision },
+  );
+  return { editionId, revision: nextRevision, status: "draft" };
+}
+
+async function setPublishingUpdatePolicy(db: PublishingDB, userId: string, raw: unknown) {
+  const x = z
+      .object({
+        editionId: z.string().min(1),
+        policy: z.enum(["auto_update", "manual_opt_in", "preserve_purchased_version"]),
+      })
+      .parse(raw),
+    edition = await editionAccess(db, userId, x.editionId, "admin"),
+    lifecycle = await ensurePublishingLifecycle(db, x.editionId),
+    at = now();
+  await db
+    .prepare(
+      "UPDATE publishing_release_lifecycles SET owner_update_policy=?,updated_at=? WHERE id=?",
+    )
+    .bind(x.policy, at, lifecycle.id)
+    .run();
+  let pinnedExistingOwners = 0;
+  if (x.policy !== "auto_update" && lifecycle.current_publication_version_id) {
+    const product = await db
+      .prepare(
+        `SELECT p.product_id FROM publishing_publication_versions pv JOIN publishing_publications p ON p.id=pv.publication_id WHERE pv.id=?`,
+      )
+      .bind(lifecycle.current_publication_version_id)
+      .first<any>();
+    if (product?.product_id) {
+      const entitlements = (
+        await db
+          .prepare(
+            "SELECT id,user_id FROM entitlements WHERE product_id=? AND entitlement_type='purchase' AND status='active'",
+          )
+          .bind(product.product_id)
+          .all<any>()
+      ).results;
+      for (const ent of entitlements) {
+        const exists = await db
+          .prepare(
+            "SELECT entitlement_id FROM publishing_entitlement_version_pins WHERE entitlement_id=?",
+          )
+          .bind(ent.id)
+          .first<any>();
+        if (exists) continue;
+        await db
+          .prepare(
+            "INSERT INTO publishing_entitlement_version_pins(entitlement_id,lifecycle_id,publication_version_id,policy_at_grant,pinned_at,updated_at) VALUES(?,?,?,?,?,?)",
+          )
+          .bind(ent.id, lifecycle.id, lifecycle.current_publication_version_id, x.policy, at, at)
+          .run();
+        await db
+          .prepare(
+            "INSERT INTO publishing_owner_version_events(id,entitlement_id,lifecycle_id,from_publication_version_id,to_publication_version_id,action,actor_user_id,created_at) VALUES(?,?,?,?,?,'policy_pin',?,?)",
+          )
+          .bind(
+            id("ownevt"),
+            ent.id,
+            lifecycle.id,
+            null,
+            lifecycle.current_publication_version_id,
+            userId,
+            at,
+          )
+          .run();
+        pinnedExistingOwners++;
+      }
+    }
+  }
+  await audit(
+    db,
+    String(edition.account_id),
+    userId,
+    "publishing_release",
+    lifecycle.id,
+    "owner_update_policy_changed",
+    { policy: x.policy, pinnedExistingOwners },
+  );
+  return { saved: true, policy: x.policy, pinnedExistingOwners };
+}
+
+async function optInOwnedPublicationUpdate(db: PublishingDB, userId: string, raw: unknown) {
+  const x = z.object({ productId: z.string().min(1) }).parse(raw),
+    ent = await db
+      .prepare(
+        "SELECT * FROM entitlements WHERE user_id=? AND product_id=? AND entitlement_type='purchase' AND status='active' ORDER BY granted_at DESC LIMIT 1",
+      )
+      .bind(userId, x.productId)
+      .first<any>();
+  if (!ent) throw new ApiError(403, "An active purchase entitlement is required.");
+  const lifecycle = await db
+    .prepare(
+      `SELECT l.* FROM publishing_release_lifecycles l JOIN publishing_publication_versions pv ON pv.id=l.current_publication_version_id JOIN publishing_publications p ON p.id=pv.publication_id WHERE p.product_id=? LIMIT 1`,
+    )
+    .bind(x.productId)
+    .first<any>();
+  if (!lifecycle || !lifecycle.current_publication_version_id)
+    throw new ApiError(404, "This product does not have a versioned Cove Publishing release.");
+  if (lifecycle.owner_update_policy !== "manual_opt_in")
+    throw new ApiError(409, "This title does not use manual owner updates.");
+  const prior = await db
+      .prepare(
+        "SELECT publication_version_id FROM publishing_entitlement_version_pins WHERE entitlement_id=?",
+      )
+      .bind(ent.id)
+      .first<any>(),
+    at = now();
+  if (prior?.publication_version_id === lifecycle.current_publication_version_id)
+    return { updated: false, publicationVersionId: lifecycle.current_publication_version_id };
+  await db
+    .prepare(
+      `INSERT INTO publishing_entitlement_version_pins(entitlement_id,lifecycle_id,publication_version_id,policy_at_grant,pinned_at,updated_at) VALUES(?,?,?,?,?,?) ON CONFLICT(entitlement_id) DO UPDATE SET lifecycle_id=excluded.lifecycle_id,publication_version_id=excluded.publication_version_id,policy_at_grant=excluded.policy_at_grant,updated_at=excluded.updated_at`,
+    )
+    .bind(ent.id, lifecycle.id, lifecycle.current_publication_version_id, "manual_opt_in", at, at)
+    .run();
+  await db
+    .prepare(
+      "INSERT INTO publishing_owner_version_events(id,entitlement_id,lifecycle_id,from_publication_version_id,to_publication_version_id,action,actor_user_id,created_at) VALUES(?,?,?,?,?,'owner_opt_in',?,?)",
+    )
+    .bind(
+      id("ownevt"),
+      ent.id,
+      lifecycle.id,
+      prior?.publication_version_id || null,
+      lifecycle.current_publication_version_id,
+      userId,
+      at,
+    )
+    .run();
+  return { updated: true, publicationVersionId: lifecycle.current_publication_version_id };
+}
+
+function scopeToGrant(scope: any) {
+  const mode = scope?.mode || "worldwide";
+  if (mode === "single")
+    return {
+      scopeMode: "single" as const,
+      territory: String(scope.territory || "US").toUpperCase(),
+    };
+  if (mode === "set")
+    return { scopeMode: "set" as const, territorySetId: String(scope.territorySetId || "WORLD") };
+  if (mode === "expression")
+    return {
+      scopeMode: "expression" as const,
+      includeTerritories: (scope.include || []).map((x: string) => x.toUpperCase()),
+      excludeTerritories: (scope.exclude || []).map((x: string) => x.toUpperCase()),
+      includeSetIds: scope.includeSetIds || [],
+      excludeSetIds: scope.excludeSetIds || [],
+    };
+  return {
+    scopeMode: "worldwide" as const,
+    excludeTerritories: (scope.exclude || []).map((x: string) => x.toUpperCase()),
+  };
+}
+async function bucketBytes(env: PublishingEnv, key: string) {
+  const obj = await env.BUCKET?.get(key);
+  if (!obj) throw new ApiError(503, "A publication asset is missing from storage.");
+  return new Uint8Array(await new Response(obj.body).arrayBuffer());
+}
+
+async function ensureCatalogParties(db: PublishingDB, account: any, tax: any, payout: any) {
+  const at = now();
+  let publisherId = account.publisher_id,
+    financePartyId = account.finance_party_id,
+    rightsPartyId = account.rights_party_id;
+  if (!publisherId) {
+    publisherId = id("publisher");
+    await db
+      .prepare("INSERT INTO publishers(id,name,website,created_at,updated_at) VALUES(?,?,?,?,?)")
+      .bind(publisherId, account.display_name, account.website || "", at, at)
+      .run();
+  }
+  if (!rightsPartyId) {
+    const r = await upsertRightsParty(db as any, {
+      displayName: account.display_name,
+      partyType: "publisher",
+      publisherId,
+      contactEmail: account.contact_email || "",
+      referenceCode: `FORE-PUB-${account.id}`,
+      status: "active",
+    });
+    rightsPartyId = r.id;
+  }
+  if (!financePartyId) {
+    financePartyId = id("finparty");
+    await db
+      .prepare(
+        `INSERT INTO finance_parties(id,party_type,display_name,publisher_id,tax_country,withholding_bps,payout_currency,status,created_at,updated_at) VALUES(?,'publisher',?,?,?,?,?,'active',?,?)`,
+      )
+      .bind(
+        financePartyId,
+        account.display_name,
+        publisherId,
+        tax?.country_code || account.country_code,
+        Number(tax?.withholding_bps || 0),
+        payout?.payout_currency || "USD",
+        at,
+        at,
+      )
+      .run();
+  }
+  await db
+    .prepare(
+      "UPDATE publishing_accounts SET publisher_id=?,finance_party_id=?,rights_party_id=?,status='active',updated_at=? WHERE id=?",
+    )
+    .bind(publisherId, financePartyId, rightsPartyId, at, account.id)
+    .run();
+  return { publisherId, financePartyId, rightsPartyId };
+}
+
+async function publicationVersionManifest(
+  db: PublishingDB,
+  publicationVersionId: string | null | undefined,
+) {
+  if (!publicationVersionId) return null;
+  const row = await db
+    .prepare("SELECT id,manifest_json FROM publishing_publication_versions WHERE id=?")
+    .bind(publicationVersionId)
+    .first<any>();
+  return row ? { id: String(row.id), manifest: safeJson<any>(row.manifest_json, {}) } : null;
+}
+
+/** Retired: never activate commercial rights directly through the shared application DB. */
+async function privateEditorLegacyactivatePublicationCommercialTerms(
+  _db: PublishingDB,
+  _currentManifest: any,
+  _previousManifest: any | null,
+  _at: string,
+): Promise<never> {
+  throw new ApiError(503, "Commercial activation requires the canonical private owner.");
+}
+
+async function materializePublishingSubmission(
+  env: PublishingEnv,
+  submissionId: string,
+  reviewerUserId: string,
+) {
+  if (hasPublicationOwner(env.DB))
+    return dispatchPublicationMaterialization(env.DB, { submissionId, reviewerUserId });
+  throw new ApiError(503, "Publishing materialization requires its canonical private owner.");
+}
+
+/** The owner reserves canonical identities and holds the product before this
+ * complete implementation can write. Unenrolled legacy callers retain their
+ * existing path until production writer closure is certified. */
+
+async function activatePublicationVersion(
+  db: PublishingDB,
+  publicationVersionId: string,
+  actorUserId: string | null,
+  triggerType: "schedule" | "rollback" | "staff",
+) {
+  if (hasPublicationOwner(db))
+    return dispatchPublicationActivation(db, { publicationVersionId, actorUserId, triggerType });
+  return activatePublicationVersionOwned(db, publicationVersionId, actorUserId, triggerType);
+}
+
+/** The private legal owner executes this implementation against its own
+ * PRIMARY_DB after durably acquiring the product's publication hold. */
+/** Retired: the owner verifies the frozen version and executes the physical activation. */
+async function privateEditorLegacyactivatePublicationVersionOwned(
+  _db: PublishingDB,
+  _publicationVersionId: string,
+  _actorUserId: string | null,
+  _triggerType: "schedule" | "rollback" | "staff",
+): Promise<never> {
+  throw new ApiError(503, "Publication version activation requires its private owner.");
+}
+
+/** Only the owner invokes this implementation on enrolled databases; the
+ * scheduler always dispatches the typed command through its bound facade. */
+/** Retired: scheduled preorder activation cannot bypass canonical owner denial. */
+async function privateEditorLegacyopenPublicationPreorderOwned(
+  _db: PublishingDB,
+  _publicationVersionId: string,
+): Promise<never> {
+  throw new ApiError(503, "Preorder activation requires its canonical private owner.");
+}
+
+async function advancePublishingReleaseSchedules(db: PublishingDB) {
+  // A complete primary activation can already be live/preorder when its
+  // final owner commit fails. Recover recorded holds before the lifecycle
+  // query, which intentionally selects only still-due releases.
+  const recovery = hasPublicationOwner(db) ? await dispatchPublicationRecovery(db) : null;
+  const atMs = Date.now(),
+    atSeconds = Math.floor(atMs / 1000),
+    rows = (
+      await db
+        .prepare(
+          `SELECT l.*,pv.id version_id,pv.manifest_json,pv.version_number FROM publishing_release_lifecycles l LEFT JOIN publishing_publication_versions pv ON pv.id=COALESCE(l.pending_publication_version_id,l.current_publication_version_id) WHERE l.state IN ('scheduled','preorder') AND CASE WHEN json_valid(pv.manifest_json) THEN (CAST(strftime('%s',json_extract(pv.manifest_json,'$.metadata.releaseDate')) AS INTEGER)<=? OR (l.state='scheduled' AND l.pending_publication_version_id IS NULL AND CAST(strftime('%s',json_extract(pv.manifest_json,'$.metadata.preorderDate')) AS INTEGER)<=?)) ELSE 0 END ORDER BY l.updated_at,l.id LIMIT 500`,
+        )
+        .bind(atSeconds, atSeconds)
+        .all<any>()
+    ).results;
+  const advanced: any[] = [];
+  for (const row of rows) {
+    if (!row.version_id) continue;
+    const m = safeJson<any>(row.manifest_json, {}),
+      meta = m.metadata || {},
+      releaseMs = meta.releaseDate ? new Date(meta.releaseDate).getTime() : NaN,
+      preorderMs = meta.preorderDate ? new Date(meta.preorderDate).getTime() : NaN;
+    if (Number.isFinite(releaseMs) && releaseMs <= atMs) {
+      advanced.push(await activatePublicationVersion(db, row.version_id, null, "schedule"));
+      continue;
+    }
+    if (
+      row.state === "scheduled" &&
+      !row.pending_publication_version_id &&
+      Number.isFinite(preorderMs) &&
+      preorderMs <= atMs
+    ) {
+      advanced.push(
+        hasPublicationOwner(db)
+          ? await dispatchPublicationPreorder(db, { publicationVersionId: row.version_id })
+          : await openPublicationPreorderOwned(db, row.version_id),
+      );
+    }
+  }
+  return { checked: rows.length, advanced, ...(recovery ? { recovery } : {}) };
+}
+
+async function rollbackPublishingVersion(
+  db: PublishingDB,
+  reviewerUserId: string,
+  raw: unknown,
+) {
+  const x = z
+      .object({
+        editionId: z.string().min(1),
+        versionNumber: z.number().int().min(1),
+        reasonCode: z.string().trim().min(3).max(120),
+        notes: z.string().max(4000).default(""),
+      })
+      .parse(raw),
+    lifecycle = await ensurePublishingLifecycle(db, x.editionId),
+    target = await db
+      .prepare(
+        "SELECT * FROM publishing_publication_versions WHERE lifecycle_id=? AND version_number=?",
+      )
+      .bind(lifecycle.id, x.versionNumber)
+      .first<any>();
+  if (!target) throw new ApiError(404, "Publication version not found.");
+  if (["suppressed", "takedown", "retired"].includes(String(lifecycle.state)))
+    throw new ApiError(
+      409,
+      "Rollback is blocked while the release is suppressed, taken down, or retired. Restore the release through moderation first.",
+    );
+  if (target.id === lifecycle.current_publication_version_id)
+    return {
+      publicationVersionId: target.id,
+      state: lifecycle.state,
+      versionNumber: x.versionNumber,
+      alreadyCurrent: true,
+    };
+  const result = await activatePublicationVersion(db, target.id, reviewerUserId, "rollback");
+  await audit(db, null, reviewerUserId, "publishing_release", lifecycle.id, "rollback", {
+    toVersion: x.versionNumber,
+    fromVersionId: lifecycle.current_publication_version_id,
+    reasonCode: x.reasonCode,
+    notes: x.notes,
+  });
+  return result;
+}
+
+async function reviewPublishingSubmission(
+  env: PublishingEnv,
+  reviewerUserId: string,
+  raw: unknown,
+) {
+  const x = z
+      .object({
+        submissionId: z.string().min(1),
+        decision: z.enum(["approve", "request_changes", "reject", "hold"]),
+        reasonCode: z.string().max(120).default(""),
+        notes: z.string().max(4000).default(""),
+        publishNow: z.boolean().default(true),
+      })
+      .parse(raw),
+    db = env.DB,
+    sub = await db
+      .prepare("SELECT * FROM publishing_submission_snapshots WHERE id=?")
+      .bind(x.submissionId)
+      .first<any>();
+  if (!sub) throw new ApiError(404, "Publishing submission not found.");
+  if (!["submitted", "in_review"].includes(String(sub.status)))
+    throw new ApiError(
+      409,
+      "This submission is not in an actionable review state. Requested changes require a new revision and submission.",
+    );
+  const lifecycleBefore = await ensurePublishingLifecycle(db, String(sub.edition_id));
+  if (
+    x.decision === "approve" &&
+    ["suppressed", "takedown", "retired"].includes(String(lifecycleBefore.state))
+  )
+    throw new ApiError(
+      409,
+      "This release is under staff enforcement. Restore the release before approving a publisher update.",
+    );
+  const at = now(),
+    next =
+      x.decision === "approve"
+        ? "approved"
+        : x.decision === "request_changes"
+          ? "changes_requested"
+          : x.decision === "reject"
+            ? "rejected"
+            : "in_review";
+  await db.batch([
+    db
+      .prepare(
+        "INSERT INTO publishing_submission_reviews(id,submission_id,reviewer_user_id,decision,reason_code,notes,created_at) VALUES(?,?,?,?,?,?,?)",
+      )
+      .bind(id("pubreview"), x.submissionId, reviewerUserId, x.decision, x.reasonCode, x.notes, at),
+    db
+      .prepare("UPDATE publishing_submission_snapshots SET status=?,decided_at=? WHERE id=?")
+      .bind(next, at, x.submissionId),
+    db
+      .prepare("UPDATE publishing_edition_drafts SET status=?,updated_at=? WHERE id=?")
+      .bind(
+        x.decision === "request_changes"
+          ? "changes_requested"
+          : x.decision === "approve"
+            ? "approved"
+            : x.decision === "reject"
+              ? "withdrawn"
+              : "submitted",
+        at,
+        sub.edition_id,
+      ),
+  ]);
+  const hasLiveVersion = !!lifecycleBefore.current_publication_version_id;
+  const lifecycleDecision =
+    x.decision === "approve"
+      ? "approved"
+      : x.decision === "request_changes"
+        ? hasLiveVersion
+          ? "live"
+          : "draft"
+        : x.decision === "reject"
+          ? hasLiveVersion
+            ? "live"
+            : "retired"
+          : "human_review";
+  await transitionPublishingLifecycle(
+    db,
+    String(sub.edition_id),
+    lifecycleDecision,
+    "staff",
+    reviewerUserId,
+    x.reasonCode || x.decision,
+    {
+      submissionId: x.submissionId,
+      notes: x.notes,
+      keptPriorLiveVersion: hasLiveVersion && x.decision !== "approve",
+    },
+  );
+  await audit(
+    db,
+    String(sub.account_id),
+    reviewerUserId,
+    "publishing_submission",
+    x.submissionId,
+    x.decision,
+    { reasonCode: x.reasonCode },
+  );
+  if (x.decision === "approve" || x.decision === "reject" || x.decision === "request_changes")
+    try {
+      const edition = await db
+          .prepare(
+            `SELECT e.id,t.title FROM publishing_edition_drafts e JOIN publishing_titles t ON t.id=e.title_id WHERE e.id=?`,
+          )
+          .bind(sub.edition_id)
+          .first<any>(),
+        members = (
+          await db
+            .prepare(
+              "SELECT user_id FROM publishing_account_members WHERE account_id=? AND status='active' AND role IN ('owner','admin','editor')",
+            )
+            .bind(sub.account_id)
+            .all<any>()
+        ).results,
+        eventType =
+          x.decision === "approve" ? "publisher_book_approved" : "publisher_book_rejected",
+        label =
+          x.decision === "approve"
+            ? "approved"
+            : x.decision === "request_changes"
+              ? "needs changes"
+              : "rejected";
+      for (const m of members)
+        await emitNotification(db, {
+          userId: String(m.user_id),
+          eventType,
+          dedupeKey: `publishing-review:${x.submissionId}:${x.decision}:${m.user_id}`,
+          title: `${edition?.title || "Your book"} ${label}`,
+          body:
+            x.notes ||
+            (x.decision === "approve"
+              ? "Cove approved this submission."
+              : x.decision === "request_changes"
+                ? "Cove requested changes before this submission can be published."
+                : "Cove rejected this submission."),
+          urgency: x.decision === "approve" ? "normal" : "high",
+          subjectType: "publishing_submission",
+          subjectId: x.submissionId,
+          actionUrl: "/publishing",
+          payload: {
+            submissionId: x.submissionId,
+            editionId: sub.edition_id,
+            decision: x.decision,
+            reasonCode: x.reasonCode,
+          },
+        });
+    } catch (e) {
+      console.error("Publishing decision notification enqueue failed", e);
+    }
+  if (x.decision === "approve" && x.publishNow)
+    return {
+      decision: x.decision,
+      publication: await materializePublishingSubmission(env, x.submissionId, reviewerUserId),
+    };
+  return { decision: x.decision, status: next };
+}
+
+/** A review is no longer a shared-D1 authority write. Only the isolated
+ * privately authenticated owner can record a negative onboarding decision.
+ * Positive KYC/tax/payout verification requires external proof and remains closed. */
+async function reviewPublishingOnboarding(
+  db: PublishingDB,
+  reviewerUserId: string,
+  raw: unknown,
+) {
+  const x = z
+    .object({
+      accountId: z.string().min(1).max(180),
+      kind: z.enum(["identity", "tax", "payout"]),
+      recordId: z.string().min(1).max(180),
+      status: z.enum(["verified", "failed", "expired", "manual_review", "restricted"]),
+      reasonCode: z.string().max(120).default(""),
+      withholdingBps: z.number().int().min(0).max(10000).optional(),
+      requirementsDue: z.array(z.string().max(240)).max(100).optional(),
+    })
+    .parse(raw);
+  if (!hasPublicationOwner(db))
+    throw new ApiError(503, "Publishing verification review requires its private legal owner.");
+  return dispatchPublishingOnboardingReview(db, { ...x, reviewerUserId });
+}
+
+async function publishingSnapshot(
+  db: PublishingDB,
+  userId: string,
+  accountId?: string | null,
+) {
+  const memberships = (
+    await db
+      .prepare(
+        `SELECT m.*,a.display_name,a.legal_name,a.country_code,a.status account_status,a.identity_status,a.tax_status,a.payout_status,a.terms_accepted_at FROM publishing_account_members m JOIN publishing_accounts a ON a.id=m.account_id WHERE m.user_id=? AND m.status='active' ORDER BY a.created_at`,
+      )
+      .bind(userId)
+      .all<any>()
+  ).results;
+  const selected = accountId ? memberships.find((m) => m.account_id === accountId) : memberships[0];
+  if (!selected)
+    return {
+      accounts: memberships,
+      account: null,
+      titles: [],
+      penNames: [],
+      members: [],
+      onboarding: null,
+    };
+  const aid = String(selected.account_id);
+  await requireRole(db, userId, aid, "analyst");
+  const [
+    account,
+    addresses,
+    penNames,
+    members,
+    titles,
+    editions,
+    assets,
+    validations,
+    submissions,
+    publications,
+  ] = await Promise.all([
+    db.prepare("SELECT * FROM publishing_accounts WHERE id=?").bind(aid).first<any>(),
+    db
+      .prepare("SELECT * FROM publishing_addresses WHERE account_id=? ORDER BY address_type")
+      .bind(aid)
+      .all<any>(),
+    db
+      .prepare("SELECT * FROM publishing_pen_names WHERE account_id=? ORDER BY display_name")
+      .bind(aid)
+      .all<any>(),
+    db
+      .prepare(
+        "SELECT role,status,invited_email,accepted_at,created_at,user_id FROM publishing_account_members WHERE account_id=? ORDER BY created_at",
+      )
+      .bind(aid)
+      .all<any>(),
+    db
+      .prepare("SELECT * FROM publishing_titles WHERE account_id=? ORDER BY updated_at DESC")
+      .bind(aid)
+      .all<any>(),
+    db
+      .prepare(
+        `SELECT e.* FROM publishing_edition_drafts e JOIN publishing_titles t ON t.id=e.title_id WHERE t.account_id=? ORDER BY e.updated_at DESC`,
+      )
+      .bind(aid)
+      .all<any>(),
+    db
+      .prepare(
+        `SELECT a.*,v.version_number,v.original_filename,v.mime_type,v.size_bytes,v.sha256,v.quarantine_status,v.validation_summary,v.extracted_metadata_json FROM publishing_assets a JOIN publishing_edition_drafts e ON e.id=a.edition_id JOIN publishing_titles t ON t.id=e.title_id LEFT JOIN publishing_asset_versions v ON v.id=a.current_version_id WHERE t.account_id=? ORDER BY a.updated_at DESC`,
+      )
+      .bind(aid)
+      .all<any>(),
+    db
+      .prepare(
+        `SELECT j.*,v.original_filename,a.kind,a.edition_id FROM publishing_validation_jobs j JOIN publishing_asset_versions v ON v.id=j.asset_version_id JOIN publishing_assets a ON a.id=v.asset_id JOIN publishing_edition_drafts e ON e.id=a.edition_id JOIN publishing_titles t ON t.id=e.title_id WHERE t.account_id=? ORDER BY j.created_at DESC LIMIT 500`,
+      )
+      .bind(aid)
+      .all<any>(),
+    db
+      .prepare(
+        "SELECT id,edition_id,revision,status,snapshot_sha256,submitted_at,decided_at,published_at FROM publishing_submission_snapshots WHERE account_id=? ORDER BY submitted_at DESC",
+      )
+      .bind(aid)
+      .all<any>(),
+    db
+      .prepare(
+        "SELECT * FROM publishing_publications WHERE publishing_account_id=? ORDER BY published_at DESC",
+      )
+      .bind(aid)
+      .all<any>(),
+  ]);
+  const latestIdentity = await db
+      .prepare(
+        "SELECT id,provider,status,reason_code,initiated_at,decided_at,expires_at FROM publishing_identity_verifications WHERE account_id=? ORDER BY initiated_at DESC LIMIT 1",
+      )
+      .bind(aid)
+      .first<any>(),
+    latestTax = await db
+      .prepare(
+        "SELECT id,country_code,tax_classification,form_type,provider,status,withholding_bps,treaty_country_code,validated_at,expires_at FROM publishing_tax_profiles WHERE account_id=? ORDER BY updated_at DESC LIMIT 1",
+      )
+      .bind(aid)
+      .first<any>(),
+    latestPayout = await db
+      .prepare(
+        "SELECT id,provider,method,bank_country_code,payout_currency,account_last4,status,payout_threshold_minor,requirements_due_json,verified_at FROM publishing_payout_accounts WHERE account_id=? ORDER BY updated_at DESC LIMIT 1",
+      )
+      .bind(aid)
+      .first<any>();
+  const [lifecycles, publicationVersions, activations, moderationCases, appeals] =
+    await Promise.all([
+      db
+        .prepare(
+          `SELECT l.* FROM publishing_release_lifecycles l JOIN publishing_edition_drafts e ON e.id=l.publishing_edition_id JOIN publishing_titles t ON t.id=e.title_id WHERE t.account_id=? ORDER BY l.updated_at DESC`,
+        )
+        .bind(aid)
+        .all<any>(),
+      db
+        .prepare(
+          `SELECT pv.id,pv.lifecycle_id,pv.submission_id,pv.version_number,pv.previous_version_id,pv.rollback_of_version_id,pv.snapshot_sha256,pv.owner_delivery_policy,pv.release_state,pv.activated_at,pv.created_at,l.publishing_edition_id FROM publishing_publication_versions pv JOIN publishing_release_lifecycles l ON l.id=pv.lifecycle_id JOIN publishing_edition_drafts e ON e.id=l.publishing_edition_id JOIN publishing_titles t ON t.id=e.title_id WHERE t.account_id=? ORDER BY pv.created_at DESC`,
+        )
+        .bind(aid)
+        .all<any>(),
+      db
+        .prepare(
+          `SELECT pa.* FROM publishing_publication_activations pa JOIN publishing_release_lifecycles l ON l.id=pa.lifecycle_id JOIN publishing_edition_drafts e ON e.id=l.publishing_edition_id JOIN publishing_titles t ON t.id=e.title_id WHERE t.account_id=? ORDER BY pa.created_at DESC LIMIT 500`,
+        )
+        .bind(aid)
+        .all<any>(),
+      db
+        .prepare(
+          `SELECT c.*,(SELECT ma.id FROM moderation_actions ma WHERE ma.case_id=c.id ORDER BY ma.created_at DESC LIMIT 1) latest_action_id,(SELECT ma.action_type FROM moderation_actions ma WHERE ma.case_id=c.id ORDER BY ma.created_at DESC LIMIT 1) latest_action_type,(SELECT ma.rationale FROM moderation_actions ma WHERE ma.case_id=c.id ORDER BY ma.created_at DESC LIMIT 1) latest_action_rationale,(SELECT ma.reversible FROM moderation_actions ma WHERE ma.case_id=c.id ORDER BY ma.created_at DESC LIMIT 1) latest_action_reversible FROM moderation_cases c WHERE c.publishing_account_id=? ORDER BY c.updated_at DESC LIMIT 200`,
+        )
+        .bind(aid)
+        .all<any>(),
+      db
+        .prepare(
+          "SELECT a.*,c.category,c.summary FROM moderation_appeals a JOIN moderation_cases c ON c.id=a.case_id WHERE a.publishing_account_id=? ORDER BY a.submitted_at DESC",
+        )
+        .bind(aid)
+        .all<any>(),
+    ]);
+  let finance = { statements: [] as any[], payouts: [] as any[], royaltyBalances: [] as any[] };
+  if (account?.finance_party_id) {
+    const [statementRows, payoutRows, balanceRows] = await Promise.all([
+      db
+        .prepare(
+          "SELECT id,period_start,period_end,currency,sales_minor,refunds_minor,royalties_minor,withholding_minor,reserve_minor,payable_minor,generated_at FROM finance_statements WHERE party_id=? ORDER BY period_end DESC,generated_at DESC LIMIT 24",
+        )
+        .bind(account.finance_party_id)
+        .all<any>(),
+      db
+        .prepare(
+          `SELECT pi.id,pi.currency,pi.gross_minor,pi.withholding_minor,pi.net_minor,pi.status,pi.external_payout_id,pi.created_at,pb.period_start,pb.period_end,pb.paid_at FROM payout_items pi JOIN payout_batches pb ON pb.id=pi.batch_id WHERE pi.party_id=? ORDER BY pi.created_at DESC LIMIT 50`,
+        )
+        .bind(account.finance_party_id)
+        .all<any>(),
+      db
+        .prepare(
+          "SELECT currency,status,SUM(royalty_minor) royalty_minor,SUM(withholding_minor) withholding_minor,SUM(payable_minor) payable_minor,COUNT(*) event_count FROM finance_royalty_allocations WHERE party_id=? GROUP BY currency,status ORDER BY currency,status",
+        )
+        .bind(account.finance_party_id)
+        .all<any>(),
+    ]);
+    finance = {
+      statements: statementRows.results,
+      payouts: payoutRows.results,
+      royaltyBalances: balanceRows.results,
+    };
+  }
+  const trust = await publisherRightsSnapshot(db, userId, aid);
+  return {
+    accounts: memberships,
+    account,
+    addresses: addresses.results,
+    penNames: penNames.results,
+    members: members.results,
+    titles: titles.results,
+    editions: editions.results,
+    assets: assets.results,
+    validations: validations.results,
+    submissions: submissions.results,
+    publications: publications.results,
+    lifecycles: lifecycles.results,
+    publicationVersions: publicationVersions.results,
+    publicationActivations: activations.results,
+    moderationCases: moderationCases.results,
+    appeals: appeals.results,
+    finance,
+    ...trust,
+    onboarding: {
+      identity: latestIdentity,
+      tax: latestTax,
+      payout: latestPayout,
+      ready:
+        account?.identity_status === "verified" &&
+        account?.tax_status === "verified" &&
+        account?.payout_status === "verified" &&
+        !!account?.terms_accepted_at,
+    },
+  };
+}
+
+async function adminPublishingSnapshot(db: PublishingDB) {
+  const [
+    accounts,
+    submissions,
+    jobs,
+    duplicates,
+    auditRows,
+    lifecycles,
+    versions,
+    activations,
+    automated,
+  ] = await Promise.all([
+    db
+      .prepare(
+        `SELECT a.*,(SELECT count(*) FROM publishing_titles t WHERE t.account_id=a.id) title_count,(SELECT COALESCE(SUM(s.strike_points),0) FROM moderation_sanctions s WHERE s.publishing_account_id=a.id AND s.status='active') active_strikes FROM publishing_accounts a ORDER BY a.updated_at DESC LIMIT 500`,
+      )
+      .all<any>(),
+    db
+      .prepare(
+        `SELECT s.id,s.edition_id,s.account_id,s.revision,s.status,s.snapshot_sha256,s.submitted_at,s.decided_at,s.published_at,t.title,e.format,a.display_name publisher_name,ar.outcome automated_outcome,ar.risk_score automated_risk_score,l.state lifecycle_state FROM publishing_submission_snapshots s JOIN publishing_edition_drafts e ON e.id=s.edition_id JOIN publishing_titles t ON t.id=e.title_id JOIN publishing_accounts a ON a.id=s.account_id LEFT JOIN publishing_automated_reviews ar ON ar.submission_id=s.id LEFT JOIN publishing_release_lifecycles l ON l.publishing_edition_id=e.id ORDER BY s.submitted_at DESC LIMIT 500`,
+      )
+      .all<any>(),
+    db
+      .prepare(
+        "SELECT status,check_type,count(*) count FROM publishing_validation_jobs GROUP BY status,check_type ORDER BY status,check_type",
+      )
+      .all<any>(),
+    db
+      .prepare(
+        `SELECT d.*,v.original_filename,a.kind,t.title FROM publishing_duplicate_matches d JOIN publishing_asset_versions v ON v.id=d.asset_version_id JOIN publishing_assets a ON a.id=v.asset_id JOIN publishing_edition_drafts e ON e.id=a.edition_id JOIN publishing_titles t ON t.id=e.title_id WHERE d.disposition IN ('review','fraud_hold') ORDER BY d.created_at DESC LIMIT 500`,
+      )
+      .all<any>(),
+    db
+      .prepare("SELECT * FROM publishing_audit_events ORDER BY created_at DESC LIMIT 300")
+      .all<any>(),
+    db
+      .prepare(
+        `SELECT l.*,t.title,a.display_name publisher_name,e.format,e.catalog_product_id FROM publishing_release_lifecycles l JOIN publishing_edition_drafts e ON e.id=l.publishing_edition_id JOIN publishing_titles t ON t.id=e.title_id JOIN publishing_accounts a ON a.id=t.account_id ORDER BY l.updated_at DESC LIMIT 500`,
+      )
+      .all<any>(),
+    db
+      .prepare(
+        `SELECT pv.id,pv.lifecycle_id,pv.version_number,pv.previous_version_id,pv.snapshot_sha256,pv.owner_delivery_policy,pv.release_state,pv.activated_at,pv.created_at,l.publishing_edition_id,t.title FROM publishing_publication_versions pv JOIN publishing_release_lifecycles l ON l.id=pv.lifecycle_id JOIN publishing_edition_drafts e ON e.id=l.publishing_edition_id JOIN publishing_titles t ON t.id=e.title_id ORDER BY pv.created_at DESC LIMIT 1000`,
+      )
+      .all<any>(),
+    db
+      .prepare(
+        "SELECT * FROM publishing_publication_activations ORDER BY created_at DESC LIMIT 1000",
+      )
+      .all<any>(),
+    db
+      .prepare("SELECT * FROM publishing_automated_reviews ORDER BY created_at DESC LIMIT 500")
+      .all<any>(),
+  ]);
+  return {
+    accounts: accounts.results,
+    submissions: submissions.results,
+    jobs: jobs.results,
+    duplicates: duplicates.results,
+    audit: auditRows.results,
+    lifecycles: lifecycles.results,
+    versions: versions.results,
+    activations: activations.results,
+    automatedReviews: automated.results,
+  };
+}
+
+async function resolveDuplicateMatch(
+  db: PublishingDB,
+  reviewerUserId: string,
+  raw: unknown,
+) {
+  const x = z
+      .object({
+        id: z.string().min(1),
+        disposition: z.enum(["cleared", "duplicate", "fraud_hold"]),
+      })
+      .parse(raw),
+    row = await db
+      .prepare(
+        `SELECT d.*,t.account_id FROM publishing_duplicate_matches d JOIN publishing_asset_versions v ON v.id=d.asset_version_id JOIN publishing_assets a ON a.id=v.asset_id JOIN publishing_edition_drafts e ON e.id=a.edition_id JOIN publishing_titles t ON t.id=e.title_id WHERE d.id=?`,
+      )
+      .bind(x.id)
+      .first<any>();
+  if (!row) throw new ApiError(404, "Duplicate review item not found.");
+  await db
+    .prepare("UPDATE publishing_duplicate_matches SET disposition=?,updated_at=? WHERE id=?")
+    .bind(x.disposition, now(), x.id)
+    .run();
+  await audit(db, row.account_id, reviewerUserId, "duplicate_match", x.id, "resolved", {
+    disposition: x.disposition,
+  });
+  return { saved: true };
+}
+
+async function catalogPublishingAsset(env: PublishingEnv, assetVersionId: string) {
+  const row = await env.DB.prepare(
+    `SELECT av.object_key,av.mime_type,av.size_bytes,da.kind,p.storefront_status FROM asset_versions av JOIN digital_assets da ON da.id=av.asset_id JOIN editions e ON e.id=da.edition_id JOIN products p ON p.edition_id=e.id WHERE av.id=? AND da.kind='cover' AND p.storefront_status='active' LIMIT 1`,
+  )
+    .bind(assetVersionId)
+    .first<any>();
+  if (!row || !env.BUCKET) throw new ApiError(404, "Catalog asset not found.");
+  const object = await env.BUCKET.get(row.object_key);
+  if (!object) throw new ApiError(404, "Catalog asset not found.");
+  return new Response(object.body, {
+    headers: {
+      "Content-Type": row.mime_type || "application/octet-stream",
+      "Content-Length": String(object.size || row.size_bytes || 0),
+      "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
+}
+
+return {upsertPublishingAccount,invitePublishingMember,startIdentityVerification,submitTaxProfile,submitPayoutAccount,savePublishingTitle,savePublishingEdition,uploadPublishingAsset,signPublishingAccessibilityDeclaration,submitPublishingEdition,openPublishingRevision,setPublishingUpdatePolicy,optInOwnedPublicationUpdate,reviewPublishingSubmission};
+})();
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+/* eslint-disable @typescript-eslint/no-explicit-any -- Historical partner SQL private to isolated QA-only owner. */
 const privateTraditionalPartner=(()=>{
  const dispatchPartnerFeedProcessing=async (_db:unknown,_limit:unknown):Promise<never>=>{
   throw new ApiError(503,"Private partner feed processing requires independent intake verification.");
@@ -11561,2431 +13986,6 @@ async function editionDifferentiationDecision(
  return {certifyPartnerProfile,issuePartnerCredential,revokePartnerCredential,
   submitPartnerFeed,matchAssetExpectations,uploadPartnerAsset,
   assignPublisherContract,reconcilePublicDomainWorks};
-})();
-/* eslint-enable @typescript-eslint/no-explicit-any */
-
-// QA-leased worker queues. All job ownership and retry transitions")}["'][^>]*>([\\s\\S]*?)<\\/meta>|<meta[^>]+(?:property|name)=["']${property.replace(/[.*+?^${}()|[\]\\]/g, "\\// QA-leased worker queues. All job ownership and retry transitions")}["'][^>]+content=["']([^"']*)["'][^>]*\\/?\\s*>`,
-          "gi",
-        ),
-      ),
-    )
-      .map((m) => cleanText(m[1] || m[2] || ""))
-      .filter(Boolean);
-  const title = cleanText(opf.match(/<dc:title[^>]*>([\s\S]*?)<\/dc:title>/i)?.[1] || "");
-  const language = cleanText(opf.match(/<dc:language[^>]*>([\s\S]*?)<\/dc:language>/i)?.[1] || "");
-  const packageVersion = opf.match(/<package\b[^>]*\bversion=["']([^"']+)["']/i)?.[1] || "";
-  if (!title)
-    issues.push({
-      code: "METADATA_TITLE",
-      severity: "error",
-      message: "EPUB metadata has no title.",
-    });
-  if (!language)
-    issues.push({
-      code: "METADATA_LANGUAGE",
-      severity: "warning",
-      message: "EPUB metadata has no primary language.",
-    });
-  const hasNav = /properties\s*=\s*["'][^"']*\bnav\b/i.test(opf),
-    hasNcx = /media-type\s*=\s*["']application\/x-dtbncx\+xml/i.test(opf);
-  if (!hasNav && !hasNcx)
-    issues.push({
-      code: "NAV",
-      severity: "error",
-      message: "EPUB has no navigation document or NCX.",
-    });
-  const renditionLayout =
-      metaValues("rendition:layout")[0] ||
-      (/name=["']fixed-layout["'][^>]+content=["']true["']/i.test(opf)
-        ? "pre-paginated"
-        : "reflowable"),
-    fixed = renditionLayout === "pre-paginated";
-  const pageProgression = (
-    opf.match(/page-progression-direction=["'](ltr|rtl|default)["']/i)?.[1] ||
-    metaValues("page-progression-direction")[0] ||
-    "default"
-  ).toLowerCase();
-  const primaryWritingMode = (
-    metaValues("primary-writing-mode")[0] ||
-    metaValues("rendition:orientation")[0] ||
-    "horizontal-tb"
-  ).toLowerCase();
-  const accessModes = [
-    ...new Set(metaValues("schema:accessMode").concat(metaValues("accessMode"))),
-  ];
-  const accessibilityFeatures = [
-    ...new Set(
-      metaValues("schema:accessibilityFeature").concat(metaValues("accessibilityFeature")),
-    ),
-  ];
-  const accessibilityHazards = [
-    ...new Set(metaValues("schema:accessibilityHazard").concat(metaValues("accessibilityHazard"))),
-  ];
-  const accessModeSufficient = [
-    ...new Set(
-      metaValues("schema:accessModeSufficient").concat(metaValues("accessModeSufficient")),
-    ),
-  ];
-  const accessibilitySummary =
-    metaValues("schema:accessibilitySummary")[0] || metaValues("accessibilitySummary")[0] || "";
-  const conformsTo = [
-    ...new Set(metaValues("dcterms:conformsTo").concat(metaValues("schema:conformsTo"))),
-  ];
-  const certifier = metaValues("a11y:certifiedBy")[0] || metaValues("schema:certifiedBy")[0] || "";
-  const certifierCredential = metaValues("a11y:certifierCredential")[0] || "",
-    certifierReport = metaValues("a11y:certifierReport")[0] || "",
-    certificationDate = metaValues("dcterms:modified")[0] || "";
-  const fonts = entries.filter((f) => /\.(woff2?|ttf|otf)$/i.test(f.name)).map((f) => f.name);
-  const cssFiles = entries.filter((f) => /\.css$/i.test(f.name) && !f.dir).slice(0, 250);
-  let cssText = "";
-  for (const f of cssFiles) {
-    if (cssText.length > 750000) break;
-    cssText += (await f.async("string")).slice(0, 100000);
-  }
-  const htmlFiles = entries
-    .filter((f) => /\.(xhtml|html|htm)$/i.test(f.name) && !f.dir)
-    .slice(0, 1200);
-  let broken = 0,
-    images = 0,
-    missingAlt = 0,
-    emptyAlt = 0,
-    headings = 0,
-    headingJumps = 0,
-    tables = 0,
-    tablesWithoutHeaders = 0,
-    mathml = 0,
-    svg = 0,
-    svgMissingTextAlternative = 0,
-    footnotes = 0,
-    endnotes = 0,
-    pagebreaks = 0,
-    langNodes = 0,
-    remoteResources = 0,
-    scriptedContent = 0,
-    fingerprintTextSize = 0;
-  const fingerprintTextParts: string[] = [];
-  let previousHeading = 0,
-    oversizedImages = false;
-  const normalize = (base: string, ref: string) => {
-    if (/^(https?:|mailto:|tel:|data:|#)/i.test(ref)) return null;
-    const clean = ref.split("#")[0].split("?")[0];
-    if (!clean) return null;
-    const stack = base.split("/").slice(0, -1);
-    for (const part of clean.split("/")) {
-      if (!part || part === ".") continue;
-      if (part === "..") stack.pop();
-      else stack.push(decodeURIComponent(part));
-    }
-    return stack.join("/");
-  };
-  for (const file of htmlFiles) {
-    const text = await file.async("string");
-    if (fingerprintTextSize < 500000) {
-      const chunk = text.slice(0, Math.min(50000, 500000 - fingerprintTextSize));
-      fingerprintTextParts.push(chunk);
-      fingerprintTextSize += chunk.length;
-    }
-    for (const m of text.matchAll(/(?:href|src)\s*=\s*["']([^"']+)["']/gi)) {
-      const p = normalize(file.name, m[1]);
-      if (p && !zip.file(p)) broken++;
-    }
-    for (const m of text.matchAll(
-      /<(img|audio|video|source|link|iframe|object|embed|image)\b[^>]*(?:src|href|xlink:href)\s*=\s*["']([^"']+)["'][^>]*>/gi,
-    ))
-      if (/^(?:https?:)?\/\//i.test(m[2])) remoteResources++;
-    scriptedContent += (text.match(/<script\b/gi) || []).length;
-    for (const m of text.matchAll(/<img\b[^>]*>/gi)) {
-      images++;
-      const tag = m[0],
-        alt = tag.match(/\balt\s*=\s*["']([^"']*)["']/i);
-      if (!alt) missingAlt++;
-      else if (!alt[1].trim()) emptyAlt++;
-      const w = Number(tag.match(/\bwidth\s*=\s*["']?(\d+)/i)?.[1] || 0),
-        h = Number(tag.match(/\bheight\s*=\s*["']?(\d+)/i)?.[1] || 0);
-      if (w > 5000 || h > 5000) oversizedImages = true;
-    }
-    for (const m of text.matchAll(/<h([1-6])\b/gi)) {
-      const level = Number(m[1]);
-      headings++;
-      if (previousHeading && level > previousHeading + 1) headingJumps++;
-      previousHeading = level;
-    }
-    for (const m of text.matchAll(/<table\b[\s\S]*?<\/table>/gi)) {
-      tables++;
-      if (!/<th\b/i.test(m[0])) tablesWithoutHeaders++;
-    }
-    mathml += (text.match(/<math\b/gi) || []).length;
-    svg += (text.match(/<svg\b/gi) || []).length;
-    for (const m of text.matchAll(/<svg\b[\s\S]*?<\/svg>/gi)) {
-      const node = m[0];
-      if (
-        !/aria-hidden\s*=\s*["']true["']/i.test(node) &&
-        !/(?:aria-label|aria-labelledby)\s*=/i.test(node) &&
-        !/<(?:title|desc)\b/i.test(node)
-      )
-        svgMissingTextAlternative++;
-    }
-    footnotes += (text.match(/epub:type=["'][^"']*\bfootnote\b/gi) || []).length;
-    endnotes += (text.match(/epub:type=["'][^"']*\bendnote\b/gi) || []).length;
-    pagebreaks += (text.match(/epub:type=["'][^"']*\bpagebreak\b/gi) || []).length;
-    langNodes += (text.match(/(?:xml:lang|\blang)=["'][^"']+["']/gi) || []).length;
-  }
-  remoteResources +=
-    (cssText.match(/url\(\s*["']?(?:https?:)?\/\//gi) || []).length +
-    (cssText.match(/@import\s+(?:url\()?\s*["']?(?:https?:)?\/\//gi) || []).length;
-  const mediaOverlays = /media-overlay\s*=/i.test(opf),
-    dictionaryContent =
-      /<dc:type[^>]*>\s*dictionary\s*<\/dc:type>/i.test(opf) ||
-      /epub:type=["'][^"']*\bdictionary\b/i.test(fingerprintTextParts.join("\n"));
-  const verticalWriting =
-      /writing-mode\s*:\s*(vertical|tb-|sideways)/i.test(cssText) ||
-      /^vertical/.test(primaryWritingMode),
-    rtl = pageProgression === "rtl" || /direction\s*:\s*rtl/i.test(cssText);
-  const complexCss =
-    /(position\s*:\s*(absolute|fixed)|transform\s*:|columns?\s*:|float\s*:|writing-mode\s*:|shape-outside\s*:)/i.test(
-      cssText,
-    );
-  if (broken)
-    issues.push({
-      code: "BROKEN_LINKS",
-      severity: "error",
-      message: `${broken} internal EPUB references could not be resolved.`,
-    });
-  if (remoteResources)
-    issues.push({
-      code: "REMOTE_RESOURCES",
-      severity: "error",
-      message: `${remoteResources} remote resource reference${remoteResources === 1 ? "" : "s"} would require network access while reading. Package required assets inside the EPUB.`,
-    });
-  if (scriptedContent)
-    issues.push({
-      code: "SCRIPTED_CONTENT",
-      severity: "error",
-      message: `${scriptedContent} scripted content reference${scriptedContent === 1 ? "" : "s"} detected. Cove strips executable EPUB scripting for reader security; publish a non-scripted fallback edition.`,
-    });
-  if (missingAlt)
-    issues.push({
-      code: "MISSING_ALT",
-      severity: "warning",
-      message: `${missingAlt} images do not declare alt text.`,
-    });
-  if (svgMissingTextAlternative)
-    issues.push({
-      code: "SVG_TEXT_ALTERNATIVE",
-      severity: "warning",
-      message: `${svgMissingTextAlternative} inline SVG graphic${svgMissingTextAlternative === 1 ? "" : "s"} lack a title, description, ARIA label, or explicit decorative marker.`,
-    });
-  if (!headings && htmlFiles.length > 1)
-    issues.push({
-      code: "HEADING_STRUCTURE",
-      severity: "warning",
-      message: "No semantic heading elements were detected across the EPUB content documents.",
-    });
-  if (headingJumps)
-    issues.push({
-      code: "HEADING_STRUCTURE",
-      severity: "warning",
-      message: `${headingJumps} heading transitions skip a semantic level.`,
-    });
-  if (tablesWithoutHeaders)
-    issues.push({
-      code: "TABLE_SEMANTICS",
-      severity: "warning",
-      message: `${tablesWithoutHeaders} tables do not contain header cells.`,
-    });
-  const claimedConformance = conformsTo.some((v) => /EPUB Accessibility|wcag/i.test(v));
-  const requiredAccessibilityMetadata =
-    accessModes.length > 0 && accessibilityFeatures.length > 0 && accessibilityHazards.length > 0;
-  if (!requiredAccessibilityMetadata)
-    issues.push({
-      code: "ACCESSIBILITY_METADATA",
-      severity: claimedConformance ? "error" : "warning",
-      message:
-        "EPUB accessibility discoverability metadata is incomplete (accessMode, accessibilityFeature, accessibilityHazard).",
-    });
-  if (claimedConformance && (missingAlt || headingJumps || tablesWithoutHeaders || !language))
-    issues.push({
-      code: "ACCESSIBILITY_CONFORMANCE_MISMATCH",
-      severity: "error",
-      message:
-        "The EPUB claims accessibility conformance but Cove detected unresolved structural/accessibility issues.",
-    });
-  const altTextComplete = missingAlt === 0 && svgMissingTextAlternative === 0,
-    semanticStructure = headings > 0 && headingJumps === 0,
-    tableSemantics = tablesWithoutHeaders === 0;
-  const mathmlDeclaredAccessible =
-    mathml > 0 && accessibilityFeatures.some((v) => /^mathml$/i.test(v.trim()));
-  if (mathml > 0 && !mathmlDeclaredAccessible)
-    issues.push({
-      code: "MATHML_DISCLOSURE",
-      severity: "warning",
-      message:
-        "MathML is present, but the EPUB accessibility metadata does not declare the MathML accessibility feature.",
-    });
-  const nonvisualReading =
-    fixed && images > 0 && !altTextComplete
-      ? "not_supported"
-      : altTextComplete && semanticStructure && !!language
-        ? "supported"
-        : "partial";
-  const visualAdjustments = fixed ? "not_supported" : "supported";
-  const validationStatus = issues.some((i) => i.severity === "error")
-    ? "failed"
-    : issues.length
-      ? "warning"
-      : "passed";
-  const accessibility = {
-    visualAdjustments,
-    nonvisualReading,
-    primaryLanguageDeclared: !!language,
-    readingOrderVerified: (hasNav || hasNcx) && broken === 0,
-    altTextComplete,
-    semanticStructure,
-    tableSemanticsComplete: tableSemantics,
-    mathmlPresent: mathml > 0,
-    mathmlAccessible: mathmlDeclaredAccessible,
-    accessibilityNavigation: hasNav,
-    pageNavigation: pagebreaks > 0,
-    accessModes,
-    accessModeSufficient,
-    features: accessibilityFeatures,
-    hazards: accessibilityHazards,
-    conformsTo,
-    summary: accessibilitySummary,
-    certification: {
-      certifier,
-      credential: certifierCredential,
-      report: certifierReport,
-      date: certificationDate,
-    },
-    validationPolicyVersion: "fore-epub-accessibility-v1",
-    validationStatus,
-  };
-  const compatibilityClass:
-    | "reflowable_standard"
-    | "reflowable_complex"
-    | "fixed_layout"
-    | "comic_manga"
-    | "picture_book"
-    | "dictionary"
-    | "unknown" = dictionaryContent
-    ? "dictionary"
-    : fixed
-      ? images > Math.max(8, htmlFiles.length / 2)
-        ? "comic_manga"
-        : "fixed_layout"
-      : complexCss || verticalWriting
-        ? "reflowable_complex"
-        : "reflowable_standard";
-  const warnings: string[] = [];
-  if (fixed)
-    warnings.push(
-      "Fixed-layout content does not support Cove text-size or line-spacing overrides.",
-    );
-  if (verticalWriting)
-    warnings.push("Vertical writing relies on publisher CSS and may vary by browser engine.");
-  if (mediaOverlays)
-    warnings.push(
-      "Embedded EPUB media overlays are detected but Cove uses its separate audiobook/Biosync system for synchronized audio.",
-    );
-  if (oversizedImages) warnings.push("Oversized images are scaled in reflowable reading mode.");
-  if (dictionaryContent)
-    warnings.push(
-      "Dictionary semantics are preserved, but Cove does not yet provide a dedicated dictionary lookup/navigation mode.",
-    );
-  if (complexCss)
-    warnings.push(
-      "Complex publisher CSS is preserved where safe and may render differently across browser engines.",
-    );
-  if (remoteResources)
-    warnings.push(
-      "Remote resource dependencies are not supported for commercial publication or offline reading.",
-    );
-  if (scriptedContent)
-    warnings.push("Executable EPUB scripting is not supported and is stripped by the Cove reader.");
-  const readerSupport =
-    remoteResources || scriptedContent
-      ? "unsupported"
-      : mediaOverlays || fixed || verticalWriting || dictionaryContent || complexCss
-        ? "supported_with_limits"
-        : "full";
-  const formatProfile = {
-    epubVersion: packageVersion.startsWith("2")
-      ? "EPUB 2"
-      : packageVersion.startsWith("3")
-        ? "EPUB 3"
-        : "EPUB",
-    packageVersion,
-    navigationType: hasNav && hasNcx ? "both" : hasNav ? "epub3_nav" : hasNcx ? "ncx" : "unknown",
-    renditionLayout,
-    pageProgressionDirection: pageProgression,
-    writingMode: verticalWriting
-      ? primaryWritingMode.startsWith("vertical")
-        ? primaryWritingMode
-        : "vertical-rl"
-      : "horizontal-tb",
-    rtl,
-    verticalWriting,
-    complexCss,
-    embeddedFonts: fonts.length > 0,
-    svg: svg > 0,
-    mathml: mathml > 0,
-    complexTables: tables > 0,
-    footnotes: footnotes > 0,
-    endnotes: endnotes > 0,
-    dictionaryContent,
-    mediaOverlays,
-    oversizedImages,
-    accessibilityNavigation: hasNav,
-    compatibilityClass,
-    readerSupport,
-    features: {
-      fontCount: fonts.length,
-      imageCount: images,
-      htmlFileCount: htmlFiles.length,
-      tableCount: tables,
-      mathmlCount: mathml,
-      svgCount: svg,
-      svgMissingTextAlternativeCount: svgMissingTextAlternative,
-      footnoteCount: footnotes,
-      endnoteCount: endnotes,
-      pagebreakCount: pagebreaks,
-      langNodeCount: langNodes,
-      remoteResourceCount: remoteResources,
-      scriptedContentCount: scriptedContent,
-    },
-    warnings,
-  };
-  return {
-    zip,
-    expandedBytes: expanded,
-    metadata: {
-      title,
-      language,
-      packageVersion,
-      fixedLayout: fixed,
-      accessibilityMetadata: requiredAccessibilityMetadata,
-      fontCount: fonts.length,
-      imageCount: images,
-      brokenInternalReferences: broken,
-      missingAlt,
-      emptyAlt,
-      accessibility,
-      formatProfile,
-    },
-    fingerprintText: fingerprintTextParts.join("\n").slice(0, 500000),
-    issues,
-  };
-}
-
-async function readBoundedPublishingUpload(request: Request, limit: number) {
-  const length = Number(request.headers.get("content-length") || 0);
-  if (length > limit) throw new ApiError(413, "This publishing asset exceeds the upload limit.");
-  const reader = request.body?.getReader();
-  if (!reader) return new Uint8Array();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > limit) throw new ApiError(413, "This publishing asset exceeds the upload limit.");
-    chunks.push(value);
-  }
-  const out = new Uint8Array(total);
-  let p = 0;
-  for (const c of chunks) {
-    out.set(c, p);
-    p += c.byteLength;
-  }
-  return out;
-}
-function publishingUploadLimit(kind: string) {
-  return kind === "audio"
-    ? 750 * 1024 * 1024
-    : kind === "manuscript"
-      ? 150 * 1024 * 1024
-      : kind === "cover"
-        ? 25 * 1024 * 1024
-        : 100 * 1024 * 1024;
-}
-
-async function recordInlineResult(
-  db: PublishingDB,
-  jobId: string,
-  versionId: string,
-  check: string,
-  status: "passed" | "warning" | "failed" | "blocked",
-  issues: any[] = [],
-  validator = "fore-inline",
-  version = "1",
-) {
-  const at = now();
-  await db.batch([
-    db
-      .prepare(
-        "UPDATE publishing_validation_jobs SET status=?,attempts=attempts+1,last_error=?,updated_at=? WHERE id=?",
-      )
-      .bind(
-        status,
-        status === "failed" || status === "blocked"
-          ? cleanText(issues[0]?.message || "Validation failed", 1000)
-          : "",
-        at,
-        jobId,
-      ),
-    db
-      .prepare(
-        "INSERT INTO publishing_validation_results(id,job_id,asset_version_id,check_type,validator_name,validator_version,status,issue_count,issues_json,completed_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
-      )
-      .bind(
-        id("pubval"),
-        jobId,
-        versionId,
-        check,
-        validator,
-        version,
-        status,
-        issues.length,
-        JSON.stringify(issues),
-        at,
-      ),
-  ]);
-}
-
-async function refreshAssetValidationSummary(db: PublishingDB, assetVersionId: string) {
-  const jobs = (
-    await db
-      .prepare("SELECT status,required FROM publishing_validation_jobs WHERE asset_version_id=?")
-      .bind(assetVersionId)
-      .all<any>()
-  ).results;
-  const required = jobs.filter((j) => Number(j.required) === 1);
-  let summary = "pending",
-    quarantine = "quarantined";
-  if (required.some((j) => ["failed", "blocked"].includes(String(j.status)))) {
-    summary = "blocked";
-    quarantine = "rejected";
-  } else if (required.some((j) => ["queued", "leased"].includes(String(j.status)))) {
-    summary = required.some((j) => String(j.status) === "leased") ? "running" : "pending";
-    quarantine = "scanning";
-  }
-  else if (required.every((j) => String(j.status) === "passed")) {
-    summary = jobs.some((j) => String(j.status) === "warning") ? "warning" : "passed";
-    quarantine = "clean";
-  } else summary = "blocked";
-  await db
-    .prepare(
-      "UPDATE publishing_asset_versions SET validation_summary=?,quarantine_status=? WHERE id=?",
-    )
-    .bind(summary, quarantine, assetVersionId)
-    .run();
-  return { summary, quarantine };
-}
-
-async function uploadPublishingAsset(
-  env: PublishingEnv,
-  userId: string,
-  input: { editionId: string; kind: string; filename: string; mimeType: string; bytes: Uint8Array },
-) {
-  if (!env.BUCKET) throw new ApiError(503, "Publishing asset storage is not configured.");
-  const edition = await editionAccess(env.DB, userId, input.editionId, "editor");
-  const kind = z.enum(["manuscript", "cover", "supplement", "audio"]).parse(input.kind);
-  if (!["draft", "changes_requested"].includes(String(edition.status)))
-    throw new ApiError(409, "Open a new publishing revision before replacing production assets.");
-  if (!input.bytes.byteLength) throw new ApiError(400, "The uploaded file is empty.");
-  if (input.bytes.byteLength > publishingUploadLimit(kind))
-    throw new ApiError(413, "This publishing asset exceeds the upload limit.");
-  const mime = cleanText(input.mimeType || "application/octet-stream", 120).toLowerCase();
-  if (
-    kind === "manuscript" &&
-    edition.format === "ebook" &&
-    !(mime === "application/epub+zip" || input.filename.toLowerCase().endsWith(".epub"))
-  )
-    throw new ApiError(
-      415,
-      "Cove Publishing currently accepts EPUB source manuscripts for eBooks.",
-    );
-  if (kind === "cover" && !["image/jpeg", "image/png"].includes(mime))
-    throw new ApiError(415, "Cover artwork must be JPEG or PNG.");
-  const digest = await sha256Hex(input.bytes),
-    at = now();
-  const asset = await env.DB.prepare(
-    "SELECT * FROM publishing_assets WHERE edition_id=? AND kind=?",
-  )
-    .bind(input.editionId, kind)
-    .first<any>();
-  const assetId = asset?.id || id("pubasset"),
-    previousCount = Number(
-      (
-        await env.DB.prepare(
-          "SELECT max(version_number) n FROM publishing_asset_versions WHERE asset_id=?",
-        )
-          .bind(assetId)
-          .first<any>()
-      )?.n || 0,
-    ),
-    versionNumber = previousCount + 1,
-    versionId = id("pubassetv");
-  const ext =
-    kind === "cover"
-      ? mime === "image/png"
-        ? "png"
-        : "jpg"
-      : kind === "manuscript"
-        ? "epub"
-        : input.filename
-            .split(".")
-            .pop()
-            ?.replace(/[^a-zA-Z0-9]/g, "")
-            .slice(0, 8) || "bin";
-  const objectKey = `publishing/quarantine/${edition.account_id}/${input.editionId}/${assetId}/${versionId}/source.${ext}`;
-  let metadata: Record<string, unknown> = {};
-  let fingerprintText = "";
-  if (kind === "manuscript" && edition.format === "ebook") {
-    const result = await inspectEpub(input.bytes);
-    metadata = result.metadata;
-    fingerprintText = result.fingerprintText;
-  }
-  if (kind === "cover") {
-    const dims = imageDimensions(input.bytes, mime);
-    if (!dims) throw new ApiError(400, "Cove could not read the cover image dimensions.");
-    metadata = dims;
-    if (dims.width < 1000 || dims.height < 1400)
-      metadata.coverWarning = "Cover is below Cove's recommended production dimensions.";
-    if (dims.height <= dims.width)
-      throw new ApiError(400, "Book cover artwork must be portrait-oriented.");
-  }
-  await env.BUCKET.put(objectKey, input.bytes, {
-    httpMetadata: { contentType: mime },
-    customMetadata: { sha256: digest, source: "fore-publishing-quarantine" },
-  });
-  const checks = publishingChecks(kind, String(edition.format));
-  const jobs = checks.map(([check, required, execution]) => ({
-    jobId: id("pubjob"),
-    check,
-    required,
-    execution,
-  }));
-  try {
-    const statements: any[] = [];
-    if (!asset)
-      statements.push(
-        env.DB.prepare(
-          "INSERT INTO publishing_assets(id,edition_id,kind,required,created_at,updated_at) VALUES(?,?,?,?,?,?)",
-        ).bind(
-          assetId,
-          input.editionId,
-          kind,
-          ["manuscript", "cover"].includes(kind) ? 1 : 0,
-          at,
-          at,
-        ),
-      );
-    statements.push(
-      env.DB.prepare(
-        "INSERT INTO publishing_asset_versions(id,asset_id,version_number,object_key,original_filename,mime_type,size_bytes,sha256,quarantine_status,extracted_metadata_json,validation_summary,created_by_user_id,created_at) VALUES(?,?,?,?,?,?,?,?, 'quarantined',?,'pending',?,?)",
-      ).bind(
-        versionId,
-        assetId,
-        versionNumber,
-        objectKey,
-        cleanText(input.filename, 240),
-        mime,
-        input.bytes.byteLength,
-        digest,
-        JSON.stringify(metadata),
-        userId,
-        at,
-      ),
-    );
-    statements.push(
-      env.DB.prepare(
-        "UPDATE publishing_assets SET current_version_id=?,updated_at=? WHERE id=?",
-      ).bind(versionId, at, assetId),
-    );
-    for (const j of jobs)
-      statements.push(
-        env.DB.prepare(
-          "INSERT INTO publishing_validation_jobs(id,asset_version_id,check_type,required,execution_class,status,priority,available_at,idempotency_key,created_at,updated_at) VALUES(?,?,?,?,?,'queued',100,?,?,?,?)",
-        ).bind(
-          j.jobId,
-          versionId,
-          j.check,
-          j.required ? 1 : 0,
-          j.execution,
-          at,
-          `${versionId}:${j.check}:v1`,
-          at,
-          at,
-        ),
-      );
-    await env.DB.batch(statements);
-  } catch (e) {
-    await env.BUCKET.delete(objectKey);
-    throw e;
-  }
-  // Run cheap deterministic checks immediately. Production-only services remain queued and fail closed.
-  let epubInspection: Awaited<ReturnType<typeof inspectEpub>> | null = null;
-  if (kind === "manuscript" && edition.format === "ebook") {
-    epubInspection = await inspectEpub(input.bytes);
-    await env.DB.prepare(
-      "INSERT INTO publishing_epub_inspections(asset_version_id,inspection_version,metadata_json,accessibility_json,format_profile_json,issue_summary_json,created_at) VALUES(?,?,?,?,?,?,?)",
-    )
-      .bind(
-        versionId,
-        "fore-epub-inspection-v1",
-        JSON.stringify(epubInspection.metadata),
-        JSON.stringify(epubInspection.metadata.accessibility),
-        JSON.stringify(epubInspection.metadata.formatProfile),
-        JSON.stringify(epubInspection.issues),
-        at,
-      )
-      .run();
-  }
-  for (const j of jobs.filter((j) => j.execution === "inline")) {
-    let status: "passed" | "warning" | "failed" = "passed",
-      issues: any[] = [];
-    if (j.check === "archive_safety") {
-      issues = epubInspection?.issues.filter((i) => i.code === "SCRIPTED_CONTENT") || [];
-      status = issues.some((i) => i.severity === "error") ? "failed" : "passed";
-    } else if (j.check === "metadata") {
-      issues =
-        epubInspection?.issues.filter(
-          (i) =>
-            i.code.startsWith("METADATA") ||
-            ["MIMETYPE", "CONTAINER", "OPF", "ENCRYPTED"].includes(i.code),
-        ) || [];
-      status = issues.some((i) => i.severity === "error")
-        ? "failed"
-        : issues.length
-          ? "warning"
-          : "passed";
-    } else if (j.check === "navigation") {
-      issues = epubInspection?.issues.filter((i) => i.code === "NAV") || [];
-      status = issues.length ? "failed" : "passed";
-    } else if (j.check === "links") {
-      issues =
-        epubInspection?.issues.filter((i) =>
-          ["BROKEN_LINKS", "REMOTE_RESOURCES"].includes(i.code),
-        ) || [];
-      status = issues.some((i) => i.severity === "error")
-        ? "failed"
-        : issues.length
-          ? "warning"
-          : "passed";
-    } else if (j.check === "accessibility") {
-      issues =
-        epubInspection?.issues.filter((i) =>
-          [
-            "MISSING_ALT",
-            "SVG_TEXT_ALTERNATIVE",
-            "HEADING_STRUCTURE",
-            "TABLE_SEMANTICS",
-            "ACCESSIBILITY_METADATA",
-            "ACCESSIBILITY_CONFORMANCE_MISMATCH",
-            "METADATA_LANGUAGE",
-            "MATHML_DISCLOSURE",
-          ].includes(i.code),
-        ) || [];
-      status = issues.some((i) => i.severity === "error")
-        ? "failed"
-        : issues.length
-          ? "warning"
-          : "passed";
-    } else if (j.check === "cover") {
-      const dims = metadata as any;
-      issues = dims.coverWarning
-        ? [{ code: "COVER_DIMENSIONS", severity: "warning", message: dims.coverWarning }]
-        : [];
-      status = issues.length ? "warning" : "passed";
-    } else if (j.check === "duplicate") {
-      const matches = (
-        await env.DB.prepare(
-          `SELECT v.id,v.asset_id FROM publishing_asset_versions v WHERE v.sha256=? AND v.id<>? LIMIT 10`,
-        )
-          .bind(digest, versionId)
-          .all<any>()
-      ).results;
-      const catalog = (
-        await env.DB.prepare("SELECT id,asset_id FROM asset_versions WHERE sha256=? LIMIT 10")
-          .bind(digest)
-          .all<any>()
-      ).results;
-      if (matches.length || catalog.length) {
-        status = "warning";
-        issues = [
-          {
-            code: "EXACT_DUPLICATE",
-            severity: "warning",
-            message:
-              "Identical content already exists in Cove. Review is required before publication.",
-          },
-        ];
-        const dups: any[] = [];
-        for (const m of matches)
-          dups.push(
-            env.DB.prepare(
-              "INSERT INTO publishing_duplicate_matches(id,asset_version_id,matched_asset_version_id,match_type,confidence,disposition,created_at,updated_at) VALUES(?,?,?,'exact_hash',1,'review',?,?)",
-            ).bind(id("pubdup"), versionId, m.id, at, at),
-          );
-        for (const m of catalog)
-          dups.push(
-            env.DB.prepare(
-              "INSERT INTO publishing_duplicate_matches(id,asset_version_id,match_type,confidence,disposition,created_at,updated_at) VALUES(?,?,'exact_hash',1,'review',?,?)",
-            ).bind(id("pubdup"), versionId, at, at),
-          );
-        if (dups.length) await env.DB.batch(dups);
-      }
-    }
-    await recordInlineResult(env.DB, j.jobId, versionId, j.check, status, issues);
-  }
-  await recordAssetFingerprint(env.DB, {
-    assetVersionId: versionId,
-    accountId: String(edition.account_id),
-    editionId: input.editionId,
-    assetKind: kind,
-    exactSha256: digest,
-    text: fingerprintText,
-    metadata,
-  });
-  const validation = await refreshAssetValidationSummary(env.DB, versionId);
-  await transitionPublishingLifecycle(
-    env.DB,
-    input.editionId,
-    "validation",
-    "publisher",
-    userId,
-    "asset_uploaded",
-    { assetVersionId: versionId, kind },
-  );
-  await audit(
-    env.DB,
-    String(edition.account_id),
-    userId,
-    "publishing_asset_version",
-    versionId,
-    "uploaded",
-    { kind, sizeBytes: input.bytes.byteLength, sha256: digest, validation: validation.summary },
-  );
-  return {
-    assetId,
-    versionId,
-    versionNumber,
-    sha256: digest,
-    quarantineStatus: validation.quarantine,
-    validationSummary: validation.summary,
-    queuedChecks: jobs.filter((j) => j.execution !== "inline").map((j) => j.check),
-    metadata,
-  };
-}
-
-async function signPublishingAccessibilityDeclaration(
-  db: PublishingDB,
-  userId: string,
-  raw: unknown,
-) {
-  const x = z
-    .object({
-      editionId: z.string().min(1),
-      accessibilitySummary: z.string().trim().max(3000).default(""),
-      certifier: z.string().trim().max(300).default(""),
-      credential: z.string().trim().max(500).default(""),
-      claimsConformance: z.boolean().default(false),
-      knownLimitations: z.string().trim().max(3000).default(""),
-      metadataAccurateAttestation: z.literal(true),
-      signatureName: z.string().trim().min(2).max(200),
-    })
-    .parse(raw);
-  const edition = await editionAccess(db, userId, x.editionId, "editor");
-  if (String(edition.format) !== "ebook")
-    throw new ApiError(409, "Accessibility declarations currently apply to EPUB editions.");
-  const asset = await db
-    .prepare(
-      `SELECT v.id version_id,i.accessibility_json,i.format_profile_json,i.issue_summary_json FROM publishing_assets a JOIN publishing_asset_versions v ON v.id=a.current_version_id LEFT JOIN publishing_epub_inspections i ON i.asset_version_id=v.id WHERE a.edition_id=? AND a.kind='manuscript' LIMIT 1`,
-    )
-    .bind(x.editionId)
-    .first<any>();
-  if (!asset?.version_id || !asset.accessibility_json)
-    throw new ApiError(
-      409,
-      "Upload and inspect the current EPUB before signing its accessibility declaration.",
-    );
-  const detected = safeJson<any>(asset.accessibility_json, {});
-  if (x.claimsConformance && detected.validationStatus === "failed")
-    throw new ApiError(
-      409,
-      "This EPUB cannot be declared conformant while Cove's current accessibility validation is failing.",
-    );
-  const revision = Number(edition.revision || 1),
-    existing = await db
-      .prepare(
-        "SELECT 1 ok FROM publishing_accessibility_declarations WHERE edition_id=? AND revision=?",
-      )
-      .bind(x.editionId, revision)
-      .first<any>();
-  if (existing)
-    throw new ApiError(
-      409,
-      "An immutable accessibility declaration already exists for this revision. Open a new revision to change it.",
-    );
-  const declaration = {
-    policyVersion: "fore-epub-accessibility-v1",
-    sourceAssetVersionId: String(asset.version_id),
-    publisher: {
-      summary: x.accessibilitySummary,
-      certifier: x.certifier,
-      credential: x.credential,
-      claimsConformance: x.claimsConformance,
-      knownLimitations: x.knownLimitations,
-      metadataAccurateAttestation: true,
-      signatureName: x.signatureName,
-    },
-    detectedAccessibility: detected,
-    detectedFormat: safeJson<any>(asset.format_profile_json, {}),
-    issues: safeJson<any[]>(asset.issue_summary_json, []),
-  };
-  const at = now();
-  await db
-    .prepare(
-      "INSERT INTO publishing_accessibility_declarations(edition_id,revision,policy_version,declaration_json,attested_by_user_id,created_at) VALUES(?,?,?,?,?,?)",
-    )
-    .bind(x.editionId, revision, "fore-epub-accessibility-v1", stableJson(declaration), userId, at)
-    .run();
-  await audit(
-    db,
-    String(edition.account_id),
-    userId,
-    "publishing_accessibility_declaration",
-    `${x.editionId}:${revision}`,
-    "signed",
-    { sourceAssetVersionId: asset.version_id, claimsConformance: x.claimsConformance },
-  );
-  return {
-    editionId: x.editionId,
-    revision,
-    policyVersion: "fore-epub-accessibility-v1",
-    createdAt: at,
-  };
-}
-
-async function leasePublishingValidationJobs(db: PublishingDB, raw: unknown) {
-  return dispatchPublishingOwnerValidationJob(db, "lease-validation", raw);
-}
-
-async function completePublishingValidationJob(db: PublishingDB, raw: unknown) {
-  return dispatchPublishingOwnerValidationJob(db, "complete-validation", raw);
-}
-
-async function assetStatus(db: PublishingDB, editionId: string) {
-  const rows = (
-    await db
-      .prepare(
-        `SELECT a.id,a.kind,a.required,a.current_version_id,v.quarantine_status,v.validation_summary,v.sha256,v.object_key,v.mime_type,v.size_bytes,v.original_filename
-    FROM publishing_assets a LEFT JOIN publishing_asset_versions v ON v.id=a.current_version_id WHERE a.edition_id=? ORDER BY a.kind`,
-      )
-      .bind(editionId)
-      .all<any>()
-  ).results;
-  return rows;
-}
-
-async function publishingReadiness(db: PublishingDB, userId: string, editionId: string) {
-  const edition = await editionAccess(db, userId, editionId, "analyst"),
-    account = await db
-      .prepare("SELECT * FROM publishing_accounts WHERE id=?")
-      .bind(edition.account_id)
-      .first<any>();
-  const contributors = (
-      await db
-        .prepare(
-          "SELECT * FROM publishing_edition_contributors WHERE edition_id=? ORDER BY position",
-        )
-        .bind(editionId)
-        .all<any>()
-    ).results,
-    assets = await assetStatus(db, editionId);
-  const blockers: string[] = [];
-  if (!account?.terms_accepted_at) blockers.push("Accept the current Cove Publishing agreement.");
-  const legalAddress = await db
-    .prepare(
-      "SELECT id FROM publishing_addresses WHERE account_id=? AND address_type='legal' LIMIT 1",
-    )
-    .bind(edition.account_id)
-    .first<any>();
-  if (!legalAddress) blockers.push("Add a legal business/residential address.");
-  if (account?.identity_status !== "verified")
-    blockers.push("Identity verification must be complete.");
-  if (account?.tax_status !== "verified") blockers.push("Tax information must be validated.");
-  if (account?.payout_status !== "verified") blockers.push("A verified payout method is required.");
-  if (!contributors.some((c) => c.role === "author"))
-    blockers.push("Add at least one author/contributor.");
-  if (!edition.description?.trim()) blockers.push("Add a book description.");
-  if (Number(edition.list_price_minor) < 0) blockers.push("Set a valid list price.");
-  if (edition.format === "ebook" && !assets.some((a) => a.kind === "manuscript"))
-    blockers.push("Upload an EPUB manuscript.");
-  if (!assets.some((a) => a.kind === "cover")) blockers.push("Upload cover artwork.");
-  for (const a of assets.filter((a) => Number(a.required) === 1))
-    if (a.validation_summary !== "passed" && a.validation_summary !== "warning")
-      blockers.push(`${a.kind} validation is not complete.`);
-  const openRequired =
-    (
-      await db
-        .prepare(
-          `SELECT count(*) n FROM publishing_validation_jobs j JOIN publishing_asset_versions v ON v.id=j.asset_version_id JOIN publishing_assets a ON a.id=v.asset_id WHERE a.edition_id=? AND a.current_version_id=v.id AND j.required=1 AND j.status<>'passed'`,
-        )
-        .bind(editionId)
-        .first<any>()
-    )?.n || 0;
-  if (Number(openRequired) > 0)
-    blockers.push(
-      `${openRequired} required validation check${Number(openRequired) === 1 ? " is" : "s are"} still unresolved.`,
-    );
-  const duplicateReview =
-    (
-      await db
-        .prepare(
-          `SELECT count(*) n FROM publishing_duplicate_matches d JOIN publishing_asset_versions v ON v.id=d.asset_version_id JOIN publishing_assets a ON a.id=v.asset_id WHERE a.edition_id=? AND a.current_version_id=v.id AND d.disposition IN ('review','fraud_hold')`,
-        )
-        .bind(editionId)
-        .first<any>()
-    )?.n || 0;
-  if (Number(duplicateReview) > 0) blockers.push("Potential duplicate content requires review.");
-  const declaration = await db
-    .prepare("SELECT * FROM publishing_rights_declarations WHERE edition_id=? AND revision=?")
-    .bind(editionId, edition.revision)
-    .first<any>();
-  if (!declaration) blockers.push("Sign the Cove publisher rights declaration for this revision.");
-  else {
-    if (String(declaration.policy_version) !== FORE_RIGHTS_POLICY_VERSION)
-      blockers.push(
-        `Re-sign the publisher rights declaration under the current ${FORE_RIGHTS_POLICY_VERSION} policy.`,
-      );
-    if (
-      !Number(declaration.authority_attestation) ||
-      !Number(declaration.no_infringement_attestation) ||
-      !Number(declaration.evidence_complete_attestation)
-    )
-      blockers.push("The rights declaration attestations are incomplete.");
-    const evidence = (
-      await db
-        .prepare("SELECT * FROM publishing_rights_evidence WHERE declaration_id=?")
-        .bind(declaration.id)
-        .all<any>()
-    ).results;
-    if (
-      ["licensed", "public_domain"].includes(String(declaration.rights_basis)) &&
-      !evidence.length
-    )
-      blockers.push("Upload rights evidence for licensed or public-domain material.");
-    if (evidence.some((r: any) => !["clean"].includes(String(r.scan_status))))
-      blockers.push("Rights evidence scanning must complete before submission.");
-    if (evidence.some((r: any) => r.verification_status === "rejected"))
-      blockers.push("Rejected rights evidence must be resolved before submission.");
-    if (
-      ["licensed", "public_domain"].includes(String(declaration.rights_basis)) &&
-      !evidence.some((r: any) => r.verification_status === "verified")
-    )
-      blockers.push(
-        "Licensed or public-domain material requires at least one staff-verified rights evidence record before submission.",
-      );
-  }
-  const aiDisclosure = await db
-    .prepare("SELECT * FROM publishing_ai_disclosures WHERE edition_id=? AND revision=?")
-    .bind(editionId, edition.revision)
-    .first<any>();
-  if (!aiDisclosure)
-    blockers.push(
-      "Sign the Cove AI-content disclosure for this revision, including fully human-created works.",
-    );
-  else {
-    if (String(aiDisclosure.policy_version) !== FORE_AI_POLICY_VERSION)
-      blockers.push(
-        `Re-sign the AI-content disclosure under the current ${FORE_AI_POLICY_VERSION} policy.`,
-      );
-    if (
-      edition.format === "audiobook" &&
-      ["ai_generated", "mixed"].includes(String(aiDisclosure.narration_origin)) &&
-      !String(aiDisclosure.synthetic_voice_label || "").trim()
-    )
-      blockers.push(
-        "Synthetic or mixed AI narration requires a customer-facing synthetic voice label.",
-      );
-  }
-  let accessibilityDeclaration: any = null;
-  if (String(edition.format) === "ebook") {
-    const manuscript = assets.find((a: any) => a.kind === "manuscript");
-    accessibilityDeclaration = await db
-      .prepare(
-        "SELECT * FROM publishing_accessibility_declarations WHERE edition_id=? AND revision=?",
-      )
-      .bind(editionId, edition.revision)
-      .first<any>();
-    if (!accessibilityDeclaration)
-      blockers.push(
-        "Sign the Cove EPUB accessibility declaration for this revision, including editions with no formal conformance claim.",
-      );
-    else {
-      if (String(accessibilityDeclaration.policy_version) !== "fore-epub-accessibility-v1")
-        blockers.push(
-          "Re-sign the EPUB accessibility declaration under the current Cove accessibility policy.",
-        );
-      const declaration = safeJson<any>(accessibilityDeclaration.declaration_json, {});
-      if (
-        !manuscript?.current_version_id ||
-        String(declaration.sourceAssetVersionId || "") !==
-          String(manuscript.current_version_id || "")
-      )
-        blockers.push(
-          "The accessibility declaration is bound to an older manuscript. Open a new revision and sign against the current EPUB.",
-        );
-      const inspection = manuscript?.current_version_id
-        ? await db
-            .prepare(
-              "SELECT accessibility_json FROM publishing_epub_inspections WHERE asset_version_id=?",
-            )
-            .bind(manuscript.current_version_id)
-            .first<any>()
-        : null;
-      const detected = safeJson<any>(inspection?.accessibility_json, {});
-      if (declaration?.publisher?.claimsConformance && detected.validationStatus === "failed")
-        blockers.push(
-          "The current EPUB fails Cove accessibility validation and cannot retain a formal conformance claim.",
-        );
-    }
-  }
-  if (String(edition.rights_basis) === "public_domain") {
-    const et = String(edition.edition_type || "original"),
-      summary = String(edition.differentiation_summary || "").trim();
-    if (["original", "canonical_public_domain"].includes(et))
-      blockers.push(
-        "Public-domain submissions must be a differentiated annotated, translated, illustrated, scholarly, or commercial-audiobook edition. Cove reserves the canonical free edition for its canonical public-domain source.",
-      );
-    if (!summary)
-      blockers.push("Describe the substantive differentiation in this public-domain edition.");
-    if (et === "new_translation" && !contributors.some((c) => c.role === "translator"))
-      blockers.push("A new translation edition must identify at least one translator.");
-    const manuscript = assets.find((a: any) => a.kind === "manuscript");
-    if (manuscript?.sha256) {
-      const duplicate = await db
-        .prepare(
-          `SELECT e.id FROM editions e JOIN digital_assets da ON da.edition_id=e.id AND da.kind='epub' JOIN asset_versions av ON av.id=da.current_version_id WHERE av.sha256=? AND (? IS NULL OR e.id<>?) LIMIT 1`,
-        )
-        .bind(
-          manuscript.sha256,
-          edition.catalog_edition_id || null,
-          edition.catalog_edition_id || null,
-        )
-        .first<any>();
-      if (duplicate)
-        blockers.push(
-          "This public-domain EPUB is byte-identical to an existing edition. Commercial public-domain editions must add substantive differentiation rather than duplicate the canonical free copy.",
-        );
-    }
-  }
-  const partner = await db
-    .prepare(
-      "SELECT production_status,default_contract_id FROM publisher_partner_profiles WHERE account_id=?",
-    )
-    .bind(edition.account_id)
-    .first<any>();
-  if (partner && String(partner.production_status) === "active") {
-    if (!edition.contract_id)
-      blockers.push(
-        "Production partner titles must be governed by an assigned distribution contract; per-book flags cannot substitute for contract policy.",
-      );
-    if (edition.contract_id) {
-      const assigned = await db
-        .prepare(
-          "SELECT 1 ok FROM publisher_contract_assignments WHERE account_id=? AND contract_id=? AND status='active'",
-        )
-        .bind(edition.account_id, edition.contract_id)
-        .first<any>();
-      if (!assigned)
-        blockers.push(
-          "The selected distribution contract is not actively assigned to this publisher.",
-        );
-    }
-    if (edition.contract_version_id) {
-      const active = await db
-        .prepare(
-          "SELECT 1 ok FROM rights_contract_versions WHERE id=? AND contract_id=? AND status='active' AND effective_from<=? AND (effective_to IS NULL OR effective_to>?)",
-        )
-        .bind(edition.contract_version_id, edition.contract_id, now(), now())
-        .first<any>();
-      if (!active)
-        blockers.push("The selected distribution contract version is not currently effective.");
-    }
-  }
-  const similarityReview =
-    (
-      await db
-        .prepare(
-          `SELECT count(*) n FROM publishing_similarity_matches sm JOIN publishing_asset_versions v ON v.id=sm.asset_version_id JOIN publishing_assets a ON a.id=v.asset_id WHERE a.edition_id=? AND a.current_version_id=v.id AND sm.cross_account=1 AND sm.disposition IN ('review','fraud_hold') AND sm.score>=.95`,
-        )
-        .bind(editionId)
-        .first<any>()
-    )?.n || 0;
-  if (Number(similarityReview) > 0)
-    blockers.push("High-confidence cross-publisher content similarity requires review.");
-  let commercialAudio: any = null;
-  if (String(edition.format) === "audiobook") {
-    commercialAudio = await commercialAudioReadiness(db as any, editionId);
-    blockers.push(...commercialAudio.blockers);
-  }
-
-  return {
-    ready: blockers.length === 0,
-    blockers,
-    account: {
-      identityStatus: account?.identity_status,
-      taxStatus: account?.tax_status,
-      payoutStatus: account?.payout_status,
-      termsAccepted: !!account?.terms_accepted_at,
-    },
-    assets,
-    contributors,
-    rightsDeclaration: declaration
-      ? { id: declaration.id, status: declaration.status, rightsBasis: declaration.rights_basis }
-      : null,
-    aiDisclosure: aiDisclosure
-      ? {
-          id: aiDisclosure.id,
-          policyVersion: aiDisclosure.policy_version,
-          textOrigin: aiDisclosure.text_origin,
-          coverOrigin: aiDisclosure.cover_origin,
-          narrationOrigin: aiDisclosure.narration_origin,
-        }
-      : null,
-    accessibilityDeclaration: accessibilityDeclaration
-      ? {
-          policyVersion: accessibilityDeclaration.policy_version,
-          revision: Number(accessibilityDeclaration.revision || 0),
-          createdAt: accessibilityDeclaration.created_at,
-        }
-      : null,
-    commercialAudio,
-  };
-}
-
-async function submitPublishingEdition(
-  env: PublishingEnv,
-  userId: string,
-  editionId: string,
-) {
-  const db = env.DB,
-    edition = await editionAccess(db, userId, editionId, "editor"),
-    lifecycle = await ensurePublishingLifecycle(db, editionId);
-  if (["suppressed", "takedown", "retired"].includes(String(lifecycle.state)))
-    throw new ApiError(
-      409,
-      "This release is under staff enforcement and cannot be submitted until Cove restores it.",
-    );
-  const readiness = await publishingReadiness(db, userId, editionId);
-  if (!readiness.ready) throw new ApiError(409, readiness.blockers.join(" "));
-  const title = await db
-      .prepare("SELECT * FROM publishing_titles WHERE id=?")
-      .bind(edition.title_id)
-      .first<any>(),
-    account = await db
-      .prepare(
-        "SELECT id,legal_name,display_name,country_code,contact_email,website,identity_status,tax_status,payout_status,terms_version,terms_accepted_at FROM publishing_accounts WHERE id=?",
-      )
-      .bind(edition.account_id)
-      .first<any>();
-  const addresses = (
-    await db
-      .prepare(
-        "SELECT address_type,line1,line2,city,region,postal_code,country_code FROM publishing_addresses WHERE account_id=? ORDER BY address_type",
-      )
-      .bind(edition.account_id)
-      .all<any>()
-  ).results;
-  const tax = await db
-    .prepare(
-      "SELECT id,country_code,tax_classification,form_type,provider,provider_reference,status,withholding_bps,treaty_country_code,validated_at,expires_at FROM publishing_tax_profiles WHERE account_id=? AND status='verified' ORDER BY updated_at DESC LIMIT 1",
-    )
-    .bind(edition.account_id)
-    .first<any>();
-  const payout = await db
-    .prepare(
-      "SELECT id,provider,provider_account_id,method,bank_country_code,payout_currency,account_last4,status,payout_threshold_minor,verified_at FROM publishing_payout_accounts WHERE account_id=? AND status='verified' ORDER BY updated_at DESC LIMIT 1",
-    )
-    .bind(edition.account_id)
-    .first<any>();
-  const contributors = (
-      await db
-        .prepare(
-          "SELECT pen_name_id,display_name,role,position FROM publishing_edition_contributors WHERE edition_id=? ORDER BY position",
-        )
-        .bind(editionId)
-        .all<any>()
-    ).results,
-    assets = readiness.assets;
-  const rightsDeclaration = await db
-    .prepare("SELECT * FROM publishing_rights_declarations WHERE edition_id=? AND revision=?")
-    .bind(editionId, edition.revision)
-    .first<any>();
-  const rightsEvidence = rightsDeclaration
-    ? (
-        await db
-          .prepare(
-            "SELECT id,evidence_type,description,original_filename,mime_type,size_bytes,sha256,scan_status,verification_status,issued_by,issued_at,expires_at,created_at FROM publishing_rights_evidence WHERE declaration_id=? ORDER BY created_at",
-          )
-          .bind(rightsDeclaration.id)
-          .all<any>()
-      ).results
-    : [];
-  const aiDisclosure = await db
-    .prepare("SELECT * FROM publishing_ai_disclosures WHERE edition_id=? AND revision=?")
-    .bind(editionId, edition.revision)
-    .first<any>();
-  const accessibilityDeclaration = await db
-    .prepare(
-      "SELECT * FROM publishing_accessibility_declarations WHERE edition_id=? AND revision=?",
-    )
-    .bind(editionId, edition.revision)
-    .first<any>();
-  const commercialAudio =
-    String(edition.format) === "audiobook"
-      ? await commercialAudioSubmissionEvidence(db as any, editionId)
-      : null;
-  const snapshot = {
-      schemaVersion: 5,
-      account,
-      addresses,
-      tax,
-      payout,
-      title,
-      edition,
-      contributors,
-      assets,
-      rightsDeclaration,
-      rightsEvidence,
-      aiDisclosure,
-      accessibilityDeclaration,
-      commercialAudio: commercialAudio?.manifest || null,
-      commercialAudioManifestSha256: commercialAudio?.manifestSha256 || null,
-      submittedAt: now(),
-    },
-    serialized = stableJson(snapshot),
-    digest = await sha256Hex(serialized),
-    submissionId = id("pubsub"),
-    revision = Number(edition.revision || 1),
-    at = now();
-  const submissionStatements: any[] = [
-    db
-      .prepare(
-        "INSERT INTO publishing_submission_snapshots(id,edition_id,account_id,revision,snapshot_json,snapshot_sha256,status,submitted_by_user_id,submitted_at) VALUES(?,?,?,?,?,?,'submitted',?,?)",
-      )
-      .bind(submissionId, editionId, edition.account_id, revision, serialized, digest, userId, at),
-    db
-      .prepare("UPDATE publishing_edition_drafts SET status='submitted',updated_at=? WHERE id=?")
-      .bind(at, editionId),
-    db
-      .prepare("UPDATE publishing_titles SET status='in_review',updated_at=? WHERE id=?")
-      .bind(at, edition.title_id),
-    db
-      .prepare(
-        "INSERT INTO publishing_outbox(id,event_type,aggregate_type,aggregate_id,payload_json,available_at,created_at) VALUES(?,'publishing.submitted','submission',?,?,?,?)",
-      )
-      .bind(
-        id("pubout"),
-        submissionId,
-        JSON.stringify({
-          submissionId,
-          editionId,
-          accountId: edition.account_id,
-          snapshotSha256: digest,
-        }),
-        at,
-        at,
-      ),
-  ];
-  if (commercialAudio)
-    submissionStatements.push(
-      db
-        .prepare(
-          "INSERT INTO commercial_audio_submission_snapshots(submission_id,edition_id,policy_id,manifest_json,manifest_sha256,created_at) VALUES(?,?,?,?,?,?)",
-        )
-        .bind(
-          submissionId,
-          editionId,
-          commercialAudio.policyId,
-          commercialAudio.manifestJson,
-          commercialAudio.manifestSha256,
-          at,
-        ),
-    );
-  await db.batch(submissionStatements);
-  await transitionPublishingLifecycle(
-    db,
-    editionId,
-    "submitted",
-    "publisher",
-    userId,
-    "submitted",
-    { submissionId, revision, snapshotSha256: digest },
-  );
-  await transitionPublishingLifecycle(
-    db,
-    editionId,
-    "automated_review",
-    "automation",
-    null,
-    "automated_review_started",
-    { submissionId },
-  );
-  await assessSubmissionContentPolicy(db, submissionId);
-  const automated = await runAutomatedPublishingReview(db, submissionId),
-    publisherRisk = await assessPublisherRisk(
-      db,
-      String(edition.account_id),
-      "publishing_submission",
-    ),
-    autoApprove =
-      automated.outcome === "pass" &&
-      !["hold", "block"].includes(publisherRisk.action) &&
-      String(env.FORE_PUBLISHING_AUTO_APPROVE_LOW_RISK || "false").toLowerCase() === "true";
-  if (autoApprove) {
-    const decided = now();
-    await db.batch([
-      db
-        .prepare(
-          "UPDATE publishing_submission_snapshots SET status='approved',decided_at=? WHERE id=?",
-        )
-        .bind(decided, submissionId),
-      db
-        .prepare("UPDATE publishing_edition_drafts SET status='approved',updated_at=? WHERE id=?")
-        .bind(decided, editionId),
-    ]);
-    await transitionPublishingLifecycle(
-      db,
-      editionId,
-      "approved",
-      "automation",
-      null,
-      "automated_low_risk_approval",
-      { submissionId, riskScore: Number(automated.risk_score || 0) },
-    );
-    const publication = await materializePublishingSubmission(
-      env,
-      submissionId,
-      "system:automated-review",
-    );
-    await audit(
-      db,
-      String(edition.account_id),
-      userId,
-      "publishing_submission",
-      submissionId,
-      "auto_approved",
-      {
-        editionId,
-        revision,
-        snapshotSha256: digest,
-        automatedOutcome: automated.outcome,
-        automatedRiskScore: automated.risk_score,
-        publicationVersionId: publication.publicationVersionId,
-      },
-    );
-    try {
-      const members = (
-        await db
-          .prepare(
-            "SELECT user_id FROM publishing_account_members WHERE account_id=? AND status='active' AND role IN ('owner','admin','editor')",
-          )
-          .bind(edition.account_id)
-          .all<any>()
-      ).results;
-      for (const m of members)
-        await emitNotification(db, {
-          userId: String(m.user_id),
-          eventType: "publisher_book_approved",
-          dedupeKey: `publishing-auto-review:${submissionId}:${m.user_id}`,
-          title: `${title?.title || "Your book"} approved`,
-          body: "Cove's automated publishing review approved this low-risk submission and published it.",
-          subjectType: "publishing_submission",
-          subjectId: submissionId,
-          actionUrl: "/publishing",
-          payload: {
-            submissionId,
-            editionId,
-            decision: "approve",
-            automated: true,
-            publicationVersionId: publication.publicationVersionId,
-          },
-        });
-    } catch (e) {
-      console.error("Automated publishing approval notification enqueue failed", e);
-    }
-    return {
-      submissionId,
-      snapshotSha256: digest,
-      status: "published",
-      lifecycleState: publication.releaseState,
-      automatedReview: { outcome: automated.outcome, riskScore: automated.risk_score },
-      publisherRisk: {
-        score: publisherRisk.score,
-        level: publisherRisk.level,
-        action: publisherRisk.action,
-      },
-      publication,
-    };
-  }
-  await db
-    .prepare("UPDATE publishing_submission_snapshots SET status='in_review' WHERE id=?")
-    .bind(submissionId)
-    .run();
-  await transitionPublishingLifecycle(
-    db,
-    editionId,
-    "human_review",
-    "automation",
-    null,
-    automated.outcome === "pass" ? "human_review_policy" : `automated_${automated.outcome}`,
-    {
-      submissionId,
-      riskScore: Number(automated.risk_score || 0),
-      caseId: (automated as any).caseId || null,
-    },
-  );
-  await audit(
-    db,
-    String(edition.account_id),
-    userId,
-    "publishing_submission",
-    submissionId,
-    "submitted",
-    {
-      editionId,
-      revision,
-      snapshotSha256: digest,
-      automatedOutcome: automated.outcome,
-      automatedRiskScore: automated.risk_score,
-    },
-  );
-  return {
-    submissionId,
-    snapshotSha256: digest,
-    status: "in_review",
-    lifecycleState: "human_review",
-    automatedReview: { outcome: automated.outcome, riskScore: automated.risk_score },
-    publisherRisk: {
-      score: publisherRisk.score,
-      level: publisherRisk.level,
-      action: publisherRisk.action,
-    },
-  };
-}
-
-async function openPublishingRevision(db: PublishingDB, userId: string, editionId: string) {
-  const edition = await editionAccess(db, userId, editionId, "editor");
-  if (
-    !["published", "approved", "submitted", "changes_requested", "withdrawn"].includes(
-      String(edition.status),
-    )
-  )
-    throw new ApiError(409, "This edition is already editable.");
-  const lifecycle = await ensurePublishingLifecycle(db, editionId);
-  if (["suppressed", "takedown", "retired"].includes(String(lifecycle.state)))
-    throw new ApiError(
-      409,
-      "This release must be restored by Cove staff before a publisher update can be opened.",
-    );
-  const at = now(),
-    nextRevision = Number(edition.revision || 1) + 1;
-  await db.batch([
-    db
-      .prepare(
-        "UPDATE publishing_submission_snapshots SET status='withdrawn',decided_at=COALESCE(decided_at,?) WHERE edition_id=? AND revision=? AND status IN ('submitted','in_review','approved')",
-      )
-      .bind(at, editionId, Number(edition.revision || 1)),
-    db
-      .prepare(
-        "UPDATE publishing_edition_drafts SET status='draft',revision=?,updated_at=? WHERE id=?",
-      )
-      .bind(nextRevision, at, editionId),
-  ]);
-  await transitionPublishingLifecycle(
-    db,
-    editionId,
-    "draft",
-    "publisher",
-    userId,
-    "publisher_update_opened",
-    { revision: nextRevision, currentlyLive: !!edition.catalog_product_id },
-  );
-  await audit(
-    db,
-    String(edition.account_id),
-    userId,
-    "publishing_edition",
-    editionId,
-    "revision_opened",
-    { revision: nextRevision },
-  );
-  return { editionId, revision: nextRevision, status: "draft" };
-}
-
-async function setPublishingUpdatePolicy(db: PublishingDB, userId: string, raw: unknown) {
-  const x = z
-      .object({
-        editionId: z.string().min(1),
-        policy: z.enum(["auto_update", "manual_opt_in", "preserve_purchased_version"]),
-      })
-      .parse(raw),
-    edition = await editionAccess(db, userId, x.editionId, "admin"),
-    lifecycle = await ensurePublishingLifecycle(db, x.editionId),
-    at = now();
-  await db
-    .prepare(
-      "UPDATE publishing_release_lifecycles SET owner_update_policy=?,updated_at=? WHERE id=?",
-    )
-    .bind(x.policy, at, lifecycle.id)
-    .run();
-  let pinnedExistingOwners = 0;
-  if (x.policy !== "auto_update" && lifecycle.current_publication_version_id) {
-    const product = await db
-      .prepare(
-        `SELECT p.product_id FROM publishing_publication_versions pv JOIN publishing_publications p ON p.id=pv.publication_id WHERE pv.id=?`,
-      )
-      .bind(lifecycle.current_publication_version_id)
-      .first<any>();
-    if (product?.product_id) {
-      const entitlements = (
-        await db
-          .prepare(
-            "SELECT id,user_id FROM entitlements WHERE product_id=? AND entitlement_type='purchase' AND status='active'",
-          )
-          .bind(product.product_id)
-          .all<any>()
-      ).results;
-      for (const ent of entitlements) {
-        const exists = await db
-          .prepare(
-            "SELECT entitlement_id FROM publishing_entitlement_version_pins WHERE entitlement_id=?",
-          )
-          .bind(ent.id)
-          .first<any>();
-        if (exists) continue;
-        await db
-          .prepare(
-            "INSERT INTO publishing_entitlement_version_pins(entitlement_id,lifecycle_id,publication_version_id,policy_at_grant,pinned_at,updated_at) VALUES(?,?,?,?,?,?)",
-          )
-          .bind(ent.id, lifecycle.id, lifecycle.current_publication_version_id, x.policy, at, at)
-          .run();
-        await db
-          .prepare(
-            "INSERT INTO publishing_owner_version_events(id,entitlement_id,lifecycle_id,from_publication_version_id,to_publication_version_id,action,actor_user_id,created_at) VALUES(?,?,?,?,?,'policy_pin',?,?)",
-          )
-          .bind(
-            id("ownevt"),
-            ent.id,
-            lifecycle.id,
-            null,
-            lifecycle.current_publication_version_id,
-            userId,
-            at,
-          )
-          .run();
-        pinnedExistingOwners++;
-      }
-    }
-  }
-  await audit(
-    db,
-    String(edition.account_id),
-    userId,
-    "publishing_release",
-    lifecycle.id,
-    "owner_update_policy_changed",
-    { policy: x.policy, pinnedExistingOwners },
-  );
-  return { saved: true, policy: x.policy, pinnedExistingOwners };
-}
-
-async function optInOwnedPublicationUpdate(db: PublishingDB, userId: string, raw: unknown) {
-  const x = z.object({ productId: z.string().min(1) }).parse(raw),
-    ent = await db
-      .prepare(
-        "SELECT * FROM entitlements WHERE user_id=? AND product_id=? AND entitlement_type='purchase' AND status='active' ORDER BY granted_at DESC LIMIT 1",
-      )
-      .bind(userId, x.productId)
-      .first<any>();
-  if (!ent) throw new ApiError(403, "An active purchase entitlement is required.");
-  const lifecycle = await db
-    .prepare(
-      `SELECT l.* FROM publishing_release_lifecycles l JOIN publishing_publication_versions pv ON pv.id=l.current_publication_version_id JOIN publishing_publications p ON p.id=pv.publication_id WHERE p.product_id=? LIMIT 1`,
-    )
-    .bind(x.productId)
-    .first<any>();
-  if (!lifecycle || !lifecycle.current_publication_version_id)
-    throw new ApiError(404, "This product does not have a versioned Cove Publishing release.");
-  if (lifecycle.owner_update_policy !== "manual_opt_in")
-    throw new ApiError(409, "This title does not use manual owner updates.");
-  const prior = await db
-      .prepare(
-        "SELECT publication_version_id FROM publishing_entitlement_version_pins WHERE entitlement_id=?",
-      )
-      .bind(ent.id)
-      .first<any>(),
-    at = now();
-  if (prior?.publication_version_id === lifecycle.current_publication_version_id)
-    return { updated: false, publicationVersionId: lifecycle.current_publication_version_id };
-  await db
-    .prepare(
-      `INSERT INTO publishing_entitlement_version_pins(entitlement_id,lifecycle_id,publication_version_id,policy_at_grant,pinned_at,updated_at) VALUES(?,?,?,?,?,?) ON CONFLICT(entitlement_id) DO UPDATE SET lifecycle_id=excluded.lifecycle_id,publication_version_id=excluded.publication_version_id,policy_at_grant=excluded.policy_at_grant,updated_at=excluded.updated_at`,
-    )
-    .bind(ent.id, lifecycle.id, lifecycle.current_publication_version_id, "manual_opt_in", at, at)
-    .run();
-  await db
-    .prepare(
-      "INSERT INTO publishing_owner_version_events(id,entitlement_id,lifecycle_id,from_publication_version_id,to_publication_version_id,action,actor_user_id,created_at) VALUES(?,?,?,?,?,'owner_opt_in',?,?)",
-    )
-    .bind(
-      id("ownevt"),
-      ent.id,
-      lifecycle.id,
-      prior?.publication_version_id || null,
-      lifecycle.current_publication_version_id,
-      userId,
-      at,
-    )
-    .run();
-  return { updated: true, publicationVersionId: lifecycle.current_publication_version_id };
-}
-
-function scopeToGrant(scope: any) {
-  const mode = scope?.mode || "worldwide";
-  if (mode === "single")
-    return {
-      scopeMode: "single" as const,
-      territory: String(scope.territory || "US").toUpperCase(),
-    };
-  if (mode === "set")
-    return { scopeMode: "set" as const, territorySetId: String(scope.territorySetId || "WORLD") };
-  if (mode === "expression")
-    return {
-      scopeMode: "expression" as const,
-      includeTerritories: (scope.include || []).map((x: string) => x.toUpperCase()),
-      excludeTerritories: (scope.exclude || []).map((x: string) => x.toUpperCase()),
-      includeSetIds: scope.includeSetIds || [],
-      excludeSetIds: scope.excludeSetIds || [],
-    };
-  return {
-    scopeMode: "worldwide" as const,
-    excludeTerritories: (scope.exclude || []).map((x: string) => x.toUpperCase()),
-  };
-}
-async function bucketBytes(env: PublishingEnv, key: string) {
-  const obj = await env.BUCKET?.get(key);
-  if (!obj) throw new ApiError(503, "A publication asset is missing from storage.");
-  return new Uint8Array(await new Response(obj.body).arrayBuffer());
-}
-
-async function ensureCatalogParties(db: PublishingDB, account: any, tax: any, payout: any) {
-  const at = now();
-  let publisherId = account.publisher_id,
-    financePartyId = account.finance_party_id,
-    rightsPartyId = account.rights_party_id;
-  if (!publisherId) {
-    publisherId = id("publisher");
-    await db
-      .prepare("INSERT INTO publishers(id,name,website,created_at,updated_at) VALUES(?,?,?,?,?)")
-      .bind(publisherId, account.display_name, account.website || "", at, at)
-      .run();
-  }
-  if (!rightsPartyId) {
-    const r = await upsertRightsParty(db as any, {
-      displayName: account.display_name,
-      partyType: "publisher",
-      publisherId,
-      contactEmail: account.contact_email || "",
-      referenceCode: `FORE-PUB-${account.id}`,
-      status: "active",
-    });
-    rightsPartyId = r.id;
-  }
-  if (!financePartyId) {
-    financePartyId = id("finparty");
-    await db
-      .prepare(
-        `INSERT INTO finance_parties(id,party_type,display_name,publisher_id,tax_country,withholding_bps,payout_currency,status,created_at,updated_at) VALUES(?,'publisher',?,?,?,?,?,'active',?,?)`,
-      )
-      .bind(
-        financePartyId,
-        account.display_name,
-        publisherId,
-        tax?.country_code || account.country_code,
-        Number(tax?.withholding_bps || 0),
-        payout?.payout_currency || "USD",
-        at,
-        at,
-      )
-      .run();
-  }
-  await db
-    .prepare(
-      "UPDATE publishing_accounts SET publisher_id=?,finance_party_id=?,rights_party_id=?,status='active',updated_at=? WHERE id=?",
-    )
-    .bind(publisherId, financePartyId, rightsPartyId, at, account.id)
-    .run();
-  return { publisherId, financePartyId, rightsPartyId };
-}
-
-async function publicationVersionManifest(
-  db: PublishingDB,
-  publicationVersionId: string | null | undefined,
-) {
-  if (!publicationVersionId) return null;
-  const row = await db
-    .prepare("SELECT id,manifest_json FROM publishing_publication_versions WHERE id=?")
-    .bind(publicationVersionId)
-    .first<any>();
-  return row ? { id: String(row.id), manifest: safeJson<any>(row.manifest_json, {}) } : null;
-}
-
-/** Retired: never activate commercial rights directly through the shared application DB. */
-async function privateEditorLegacyactivatePublicationCommercialTerms(
-  _db: PublishingDB,
-  _currentManifest: any,
-  _previousManifest: any | null,
-  _at: string,
-): Promise<never> {
-  throw new ApiError(503, "Commercial activation requires the canonical private owner.");
-}
-
-async function materializePublishingSubmission(
-  env: PublishingEnv,
-  submissionId: string,
-  reviewerUserId: string,
-) {
-  if (hasPublicationOwner(env.DB))
-    return dispatchPublicationMaterialization(env.DB, { submissionId, reviewerUserId });
-  throw new ApiError(503, "Publishing materialization requires its canonical private owner.");
-}
-
-/** The owner reserves canonical identities and holds the product before this
- * complete implementation can write. Unenrolled legacy callers retain their
- * existing path until production writer closure is certified. */
-
-async function activatePublicationVersion(
-  db: PublishingDB,
-  publicationVersionId: string,
-  actorUserId: string | null,
-  triggerType: "schedule" | "rollback" | "staff",
-) {
-  if (hasPublicationOwner(db))
-    return dispatchPublicationActivation(db, { publicationVersionId, actorUserId, triggerType });
-  return activatePublicationVersionOwned(db, publicationVersionId, actorUserId, triggerType);
-}
-
-/** The private legal owner executes this implementation against its own
- * PRIMARY_DB after durably acquiring the product's publication hold. */
-/** Retired: the owner verifies the frozen version and executes the physical activation. */
-async function privateEditorLegacyactivatePublicationVersionOwned(
-  _db: PublishingDB,
-  _publicationVersionId: string,
-  _actorUserId: string | null,
-  _triggerType: "schedule" | "rollback" | "staff",
-): Promise<never> {
-  throw new ApiError(503, "Publication version activation requires its private owner.");
-}
-
-/** Only the owner invokes this implementation on enrolled databases; the
- * scheduler always dispatches the typed command through its bound facade. */
-/** Retired: scheduled preorder activation cannot bypass canonical owner denial. */
-async function privateEditorLegacyopenPublicationPreorderOwned(
-  _db: PublishingDB,
-  _publicationVersionId: string,
-): Promise<never> {
-  throw new ApiError(503, "Preorder activation requires its canonical private owner.");
-}
-
-async function advancePublishingReleaseSchedules(db: PublishingDB) {
-  // A complete primary activation can already be live/preorder when its
-  // final owner commit fails. Recover recorded holds before the lifecycle
-  // query, which intentionally selects only still-due releases.
-  const recovery = hasPublicationOwner(db) ? await dispatchPublicationRecovery(db) : null;
-  const atMs = Date.now(),
-    atSeconds = Math.floor(atMs / 1000),
-    rows = (
-      await db
-        .prepare(
-          `SELECT l.*,pv.id version_id,pv.manifest_json,pv.version_number FROM publishing_release_lifecycles l LEFT JOIN publishing_publication_versions pv ON pv.id=COALESCE(l.pending_publication_version_id,l.current_publication_version_id) WHERE l.state IN ('scheduled','preorder') AND CASE WHEN json_valid(pv.manifest_json) THEN (CAST(strftime('%s',json_extract(pv.manifest_json,'$.metadata.releaseDate')) AS INTEGER)<=? OR (l.state='scheduled' AND l.pending_publication_version_id IS NULL AND CAST(strftime('%s',json_extract(pv.manifest_json,'$.metadata.preorderDate')) AS INTEGER)<=?)) ELSE 0 END ORDER BY l.updated_at,l.id LIMIT 500`,
-        )
-        .bind(atSeconds, atSeconds)
-        .all<any>()
-    ).results;
-  const advanced: any[] = [];
-  for (const row of rows) {
-    if (!row.version_id) continue;
-    const m = safeJson<any>(row.manifest_json, {}),
-      meta = m.metadata || {},
-      releaseMs = meta.releaseDate ? new Date(meta.releaseDate).getTime() : NaN,
-      preorderMs = meta.preorderDate ? new Date(meta.preorderDate).getTime() : NaN;
-    if (Number.isFinite(releaseMs) && releaseMs <= atMs) {
-      advanced.push(await activatePublicationVersion(db, row.version_id, null, "schedule"));
-      continue;
-    }
-    if (
-      row.state === "scheduled" &&
-      !row.pending_publication_version_id &&
-      Number.isFinite(preorderMs) &&
-      preorderMs <= atMs
-    ) {
-      advanced.push(
-        hasPublicationOwner(db)
-          ? await dispatchPublicationPreorder(db, { publicationVersionId: row.version_id })
-          : await openPublicationPreorderOwned(db, row.version_id),
-      );
-    }
-  }
-  return { checked: rows.length, advanced, ...(recovery ? { recovery } : {}) };
-}
-
-async function rollbackPublishingVersion(
-  db: PublishingDB,
-  reviewerUserId: string,
-  raw: unknown,
-) {
-  const x = z
-      .object({
-        editionId: z.string().min(1),
-        versionNumber: z.number().int().min(1),
-        reasonCode: z.string().trim().min(3).max(120),
-        notes: z.string().max(4000).default(""),
-      })
-      .parse(raw),
-    lifecycle = await ensurePublishingLifecycle(db, x.editionId),
-    target = await db
-      .prepare(
-        "SELECT * FROM publishing_publication_versions WHERE lifecycle_id=? AND version_number=?",
-      )
-      .bind(lifecycle.id, x.versionNumber)
-      .first<any>();
-  if (!target) throw new ApiError(404, "Publication version not found.");
-  if (["suppressed", "takedown", "retired"].includes(String(lifecycle.state)))
-    throw new ApiError(
-      409,
-      "Rollback is blocked while the release is suppressed, taken down, or retired. Restore the release through moderation first.",
-    );
-  if (target.id === lifecycle.current_publication_version_id)
-    return {
-      publicationVersionId: target.id,
-      state: lifecycle.state,
-      versionNumber: x.versionNumber,
-      alreadyCurrent: true,
-    };
-  const result = await activatePublicationVersion(db, target.id, reviewerUserId, "rollback");
-  await audit(db, null, reviewerUserId, "publishing_release", lifecycle.id, "rollback", {
-    toVersion: x.versionNumber,
-    fromVersionId: lifecycle.current_publication_version_id,
-    reasonCode: x.reasonCode,
-    notes: x.notes,
-  });
-  return result;
-}
-
-async function reviewPublishingSubmission(
-  env: PublishingEnv,
-  reviewerUserId: string,
-  raw: unknown,
-) {
-  const x = z
-      .object({
-        submissionId: z.string().min(1),
-        decision: z.enum(["approve", "request_changes", "reject", "hold"]),
-        reasonCode: z.string().max(120).default(""),
-        notes: z.string().max(4000).default(""),
-        publishNow: z.boolean().default(true),
-      })
-      .parse(raw),
-    db = env.DB,
-    sub = await db
-      .prepare("SELECT * FROM publishing_submission_snapshots WHERE id=?")
-      .bind(x.submissionId)
-      .first<any>();
-  if (!sub) throw new ApiError(404, "Publishing submission not found.");
-  if (!["submitted", "in_review"].includes(String(sub.status)))
-    throw new ApiError(
-      409,
-      "This submission is not in an actionable review state. Requested changes require a new revision and submission.",
-    );
-  const lifecycleBefore = await ensurePublishingLifecycle(db, String(sub.edition_id));
-  if (
-    x.decision === "approve" &&
-    ["suppressed", "takedown", "retired"].includes(String(lifecycleBefore.state))
-  )
-    throw new ApiError(
-      409,
-      "This release is under staff enforcement. Restore the release before approving a publisher update.",
-    );
-  const at = now(),
-    next =
-      x.decision === "approve"
-        ? "approved"
-        : x.decision === "request_changes"
-          ? "changes_requested"
-          : x.decision === "reject"
-            ? "rejected"
-            : "in_review";
-  await db.batch([
-    db
-      .prepare(
-        "INSERT INTO publishing_submission_reviews(id,submission_id,reviewer_user_id,decision,reason_code,notes,created_at) VALUES(?,?,?,?,?,?,?)",
-      )
-      .bind(id("pubreview"), x.submissionId, reviewerUserId, x.decision, x.reasonCode, x.notes, at),
-    db
-      .prepare("UPDATE publishing_submission_snapshots SET status=?,decided_at=? WHERE id=?")
-      .bind(next, at, x.submissionId),
-    db
-      .prepare("UPDATE publishing_edition_drafts SET status=?,updated_at=? WHERE id=?")
-      .bind(
-        x.decision === "request_changes"
-          ? "changes_requested"
-          : x.decision === "approve"
-            ? "approved"
-            : x.decision === "reject"
-              ? "withdrawn"
-              : "submitted",
-        at,
-        sub.edition_id,
-      ),
-  ]);
-  const hasLiveVersion = !!lifecycleBefore.current_publication_version_id;
-  const lifecycleDecision =
-    x.decision === "approve"
-      ? "approved"
-      : x.decision === "request_changes"
-        ? hasLiveVersion
-          ? "live"
-          : "draft"
-        : x.decision === "reject"
-          ? hasLiveVersion
-            ? "live"
-            : "retired"
-          : "human_review";
-  await transitionPublishingLifecycle(
-    db,
-    String(sub.edition_id),
-    lifecycleDecision,
-    "staff",
-    reviewerUserId,
-    x.reasonCode || x.decision,
-    {
-      submissionId: x.submissionId,
-      notes: x.notes,
-      keptPriorLiveVersion: hasLiveVersion && x.decision !== "approve",
-    },
-  );
-  await audit(
-    db,
-    String(sub.account_id),
-    reviewerUserId,
-    "publishing_submission",
-    x.submissionId,
-    x.decision,
-    { reasonCode: x.reasonCode },
-  );
-  if (x.decision === "approve" || x.decision === "reject" || x.decision === "request_changes")
-    try {
-      const edition = await db
-          .prepare(
-            `SELECT e.id,t.title FROM publishing_edition_drafts e JOIN publishing_titles t ON t.id=e.title_id WHERE e.id=?`,
-          )
-          .bind(sub.edition_id)
-          .first<any>(),
-        members = (
-          await db
-            .prepare(
-              "SELECT user_id FROM publishing_account_members WHERE account_id=? AND status='active' AND role IN ('owner','admin','editor')",
-            )
-            .bind(sub.account_id)
-            .all<any>()
-        ).results,
-        eventType =
-          x.decision === "approve" ? "publisher_book_approved" : "publisher_book_rejected",
-        label =
-          x.decision === "approve"
-            ? "approved"
-            : x.decision === "request_changes"
-              ? "needs changes"
-              : "rejected";
-      for (const m of members)
-        await emitNotification(db, {
-          userId: String(m.user_id),
-          eventType,
-          dedupeKey: `publishing-review:${x.submissionId}:${x.decision}:${m.user_id}`,
-          title: `${edition?.title || "Your book"} ${label}`,
-          body:
-            x.notes ||
-            (x.decision === "approve"
-              ? "Cove approved this submission."
-              : x.decision === "request_changes"
-                ? "Cove requested changes before this submission can be published."
-                : "Cove rejected this submission."),
-          urgency: x.decision === "approve" ? "normal" : "high",
-          subjectType: "publishing_submission",
-          subjectId: x.submissionId,
-          actionUrl: "/publishing",
-          payload: {
-            submissionId: x.submissionId,
-            editionId: sub.edition_id,
-            decision: x.decision,
-            reasonCode: x.reasonCode,
-          },
-        });
-    } catch (e) {
-      console.error("Publishing decision notification enqueue failed", e);
-    }
-  if (x.decision === "approve" && x.publishNow)
-    return {
-      decision: x.decision,
-      publication: await materializePublishingSubmission(env, x.submissionId, reviewerUserId),
-    };
-  return { decision: x.decision, status: next };
-}
-
-/** A review is no longer a shared-D1 authority write. Only the isolated
- * privately authenticated owner can record a negative onboarding decision.
- * Positive KYC/tax/payout verification requires external proof and remains closed. */
-async function reviewPublishingOnboarding(
-  db: PublishingDB,
-  reviewerUserId: string,
-  raw: unknown,
-) {
-  const x = z
-    .object({
-      accountId: z.string().min(1).max(180),
-      kind: z.enum(["identity", "tax", "payout"]),
-      recordId: z.string().min(1).max(180),
-      status: z.enum(["verified", "failed", "expired", "manual_review", "restricted"]),
-      reasonCode: z.string().max(120).default(""),
-      withholdingBps: z.number().int().min(0).max(10000).optional(),
-      requirementsDue: z.array(z.string().max(240)).max(100).optional(),
-    })
-    .parse(raw);
-  if (!hasPublicationOwner(db))
-    throw new ApiError(503, "Publishing verification review requires its private legal owner.");
-  return dispatchPublishingOnboardingReview(db, { ...x, reviewerUserId });
-}
-
-async function publishingSnapshot(
-  db: PublishingDB,
-  userId: string,
-  accountId?: string | null,
-) {
-  const memberships = (
-    await db
-      .prepare(
-        `SELECT m.*,a.display_name,a.legal_name,a.country_code,a.status account_status,a.identity_status,a.tax_status,a.payout_status,a.terms_accepted_at FROM publishing_account_members m JOIN publishing_accounts a ON a.id=m.account_id WHERE m.user_id=? AND m.status='active' ORDER BY a.created_at`,
-      )
-      .bind(userId)
-      .all<any>()
-  ).results;
-  const selected = accountId ? memberships.find((m) => m.account_id === accountId) : memberships[0];
-  if (!selected)
-    return {
-      accounts: memberships,
-      account: null,
-      titles: [],
-      penNames: [],
-      members: [],
-      onboarding: null,
-    };
-  const aid = String(selected.account_id);
-  await requireRole(db, userId, aid, "analyst");
-  const [
-    account,
-    addresses,
-    penNames,
-    members,
-    titles,
-    editions,
-    assets,
-    validations,
-    submissions,
-    publications,
-  ] = await Promise.all([
-    db.prepare("SELECT * FROM publishing_accounts WHERE id=?").bind(aid).first<any>(),
-    db
-      .prepare("SELECT * FROM publishing_addresses WHERE account_id=? ORDER BY address_type")
-      .bind(aid)
-      .all<any>(),
-    db
-      .prepare("SELECT * FROM publishing_pen_names WHERE account_id=? ORDER BY display_name")
-      .bind(aid)
-      .all<any>(),
-    db
-      .prepare(
-        "SELECT role,status,invited_email,accepted_at,created_at,user_id FROM publishing_account_members WHERE account_id=? ORDER BY created_at",
-      )
-      .bind(aid)
-      .all<any>(),
-    db
-      .prepare("SELECT * FROM publishing_titles WHERE account_id=? ORDER BY updated_at DESC")
-      .bind(aid)
-      .all<any>(),
-    db
-      .prepare(
-        `SELECT e.* FROM publishing_edition_drafts e JOIN publishing_titles t ON t.id=e.title_id WHERE t.account_id=? ORDER BY e.updated_at DESC`,
-      )
-      .bind(aid)
-      .all<any>(),
-    db
-      .prepare(
-        `SELECT a.*,v.version_number,v.original_filename,v.mime_type,v.size_bytes,v.sha256,v.quarantine_status,v.validation_summary,v.extracted_metadata_json FROM publishing_assets a JOIN publishing_edition_drafts e ON e.id=a.edition_id JOIN publishing_titles t ON t.id=e.title_id LEFT JOIN publishing_asset_versions v ON v.id=a.current_version_id WHERE t.account_id=? ORDER BY a.updated_at DESC`,
-      )
-      .bind(aid)
-      .all<any>(),
-    db
-      .prepare(
-        `SELECT j.*,v.original_filename,a.kind,a.edition_id FROM publishing_validation_jobs j JOIN publishing_asset_versions v ON v.id=j.asset_version_id JOIN publishing_assets a ON a.id=v.asset_id JOIN publishing_edition_drafts e ON e.id=a.edition_id JOIN publishing_titles t ON t.id=e.title_id WHERE t.account_id=? ORDER BY j.created_at DESC LIMIT 500`,
-      )
-      .bind(aid)
-      .all<any>(),
-    db
-      .prepare(
-        "SELECT id,edition_id,revision,status,snapshot_sha256,submitted_at,decided_at,published_at FROM publishing_submission_snapshots WHERE account_id=? ORDER BY submitted_at DESC",
-      )
-      .bind(aid)
-      .all<any>(),
-    db
-      .prepare(
-        "SELECT * FROM publishing_publications WHERE publishing_account_id=? ORDER BY published_at DESC",
-      )
-      .bind(aid)
-      .all<any>(),
-  ]);
-  const latestIdentity = await db
-      .prepare(
-        "SELECT id,provider,status,reason_code,initiated_at,decided_at,expires_at FROM publishing_identity_verifications WHERE account_id=? ORDER BY initiated_at DESC LIMIT 1",
-      )
-      .bind(aid)
-      .first<any>(),
-    latestTax = await db
-      .prepare(
-        "SELECT id,country_code,tax_classification,form_type,provider,status,withholding_bps,treaty_country_code,validated_at,expires_at FROM publishing_tax_profiles WHERE account_id=? ORDER BY updated_at DESC LIMIT 1",
-      )
-      .bind(aid)
-      .first<any>(),
-    latestPayout = await db
-      .prepare(
-        "SELECT id,provider,method,bank_country_code,payout_currency,account_last4,status,payout_threshold_minor,requirements_due_json,verified_at FROM publishing_payout_accounts WHERE account_id=? ORDER BY updated_at DESC LIMIT 1",
-      )
-      .bind(aid)
-      .first<any>();
-  const [lifecycles, publicationVersions, activations, moderationCases, appeals] =
-    await Promise.all([
-      db
-        .prepare(
-          `SELECT l.* FROM publishing_release_lifecycles l JOIN publishing_edition_drafts e ON e.id=l.publishing_edition_id JOIN publishing_titles t ON t.id=e.title_id WHERE t.account_id=? ORDER BY l.updated_at DESC`,
-        )
-        .bind(aid)
-        .all<any>(),
-      db
-        .prepare(
-          `SELECT pv.id,pv.lifecycle_id,pv.submission_id,pv.version_number,pv.previous_version_id,pv.rollback_of_version_id,pv.snapshot_sha256,pv.owner_delivery_policy,pv.release_state,pv.activated_at,pv.created_at,l.publishing_edition_id FROM publishing_publication_versions pv JOIN publishing_release_lifecycles l ON l.id=pv.lifecycle_id JOIN publishing_edition_drafts e ON e.id=l.publishing_edition_id JOIN publishing_titles t ON t.id=e.title_id WHERE t.account_id=? ORDER BY pv.created_at DESC`,
-        )
-        .bind(aid)
-        .all<any>(),
-      db
-        .prepare(
-          `SELECT pa.* FROM publishing_publication_activations pa JOIN publishing_release_lifecycles l ON l.id=pa.lifecycle_id JOIN publishing_edition_drafts e ON e.id=l.publishing_edition_id JOIN publishing_titles t ON t.id=e.title_id WHERE t.account_id=? ORDER BY pa.created_at DESC LIMIT 500`,
-        )
-        .bind(aid)
-        .all<any>(),
-      db
-        .prepare(
-          `SELECT c.*,(SELECT ma.id FROM moderation_actions ma WHERE ma.case_id=c.id ORDER BY ma.created_at DESC LIMIT 1) latest_action_id,(SELECT ma.action_type FROM moderation_actions ma WHERE ma.case_id=c.id ORDER BY ma.created_at DESC LIMIT 1) latest_action_type,(SELECT ma.rationale FROM moderation_actions ma WHERE ma.case_id=c.id ORDER BY ma.created_at DESC LIMIT 1) latest_action_rationale,(SELECT ma.reversible FROM moderation_actions ma WHERE ma.case_id=c.id ORDER BY ma.created_at DESC LIMIT 1) latest_action_reversible FROM moderation_cases c WHERE c.publishing_account_id=? ORDER BY c.updated_at DESC LIMIT 200`,
-        )
-        .bind(aid)
-        .all<any>(),
-      db
-        .prepare(
-          "SELECT a.*,c.category,c.summary FROM moderation_appeals a JOIN moderation_cases c ON c.id=a.case_id WHERE a.publishing_account_id=? ORDER BY a.submitted_at DESC",
-        )
-        .bind(aid)
-        .all<any>(),
-    ]);
-  let finance = { statements: [] as any[], payouts: [] as any[], royaltyBalances: [] as any[] };
-  if (account?.finance_party_id) {
-    const [statementRows, payoutRows, balanceRows] = await Promise.all([
-      db
-        .prepare(
-          "SELECT id,period_start,period_end,currency,sales_minor,refunds_minor,royalties_minor,withholding_minor,reserve_minor,payable_minor,generated_at FROM finance_statements WHERE party_id=? ORDER BY period_end DESC,generated_at DESC LIMIT 24",
-        )
-        .bind(account.finance_party_id)
-        .all<any>(),
-      db
-        .prepare(
-          `SELECT pi.id,pi.currency,pi.gross_minor,pi.withholding_minor,pi.net_minor,pi.status,pi.external_payout_id,pi.created_at,pb.period_start,pb.period_end,pb.paid_at FROM payout_items pi JOIN payout_batches pb ON pb.id=pi.batch_id WHERE pi.party_id=? ORDER BY pi.created_at DESC LIMIT 50`,
-        )
-        .bind(account.finance_party_id)
-        .all<any>(),
-      db
-        .prepare(
-          "SELECT currency,status,SUM(royalty_minor) royalty_minor,SUM(withholding_minor) withholding_minor,SUM(payable_minor) payable_minor,COUNT(*) event_count FROM finance_royalty_allocations WHERE party_id=? GROUP BY currency,status ORDER BY currency,status",
-        )
-        .bind(account.finance_party_id)
-        .all<any>(),
-    ]);
-    finance = {
-      statements: statementRows.results,
-      payouts: payoutRows.results,
-      royaltyBalances: balanceRows.results,
-    };
-  }
-  const trust = await publisherRightsSnapshot(db, userId, aid);
-  return {
-    accounts: memberships,
-    account,
-    addresses: addresses.results,
-    penNames: penNames.results,
-    members: members.results,
-    titles: titles.results,
-    editions: editions.results,
-    assets: assets.results,
-    validations: validations.results,
-    submissions: submissions.results,
-    publications: publications.results,
-    lifecycles: lifecycles.results,
-    publicationVersions: publicationVersions.results,
-    publicationActivations: activations.results,
-    moderationCases: moderationCases.results,
-    appeals: appeals.results,
-    finance,
-    ...trust,
-    onboarding: {
-      identity: latestIdentity,
-      tax: latestTax,
-      payout: latestPayout,
-      ready:
-        account?.identity_status === "verified" &&
-        account?.tax_status === "verified" &&
-        account?.payout_status === "verified" &&
-        !!account?.terms_accepted_at,
-    },
-  };
-}
-
-async function adminPublishingSnapshot(db: PublishingDB) {
-  const [
-    accounts,
-    submissions,
-    jobs,
-    duplicates,
-    auditRows,
-    lifecycles,
-    versions,
-    activations,
-    automated,
-  ] = await Promise.all([
-    db
-      .prepare(
-        `SELECT a.*,(SELECT count(*) FROM publishing_titles t WHERE t.account_id=a.id) title_count,(SELECT COALESCE(SUM(s.strike_points),0) FROM moderation_sanctions s WHERE s.publishing_account_id=a.id AND s.status='active') active_strikes FROM publishing_accounts a ORDER BY a.updated_at DESC LIMIT 500`,
-      )
-      .all<any>(),
-    db
-      .prepare(
-        `SELECT s.id,s.edition_id,s.account_id,s.revision,s.status,s.snapshot_sha256,s.submitted_at,s.decided_at,s.published_at,t.title,e.format,a.display_name publisher_name,ar.outcome automated_outcome,ar.risk_score automated_risk_score,l.state lifecycle_state FROM publishing_submission_snapshots s JOIN publishing_edition_drafts e ON e.id=s.edition_id JOIN publishing_titles t ON t.id=e.title_id JOIN publishing_accounts a ON a.id=s.account_id LEFT JOIN publishing_automated_reviews ar ON ar.submission_id=s.id LEFT JOIN publishing_release_lifecycles l ON l.publishing_edition_id=e.id ORDER BY s.submitted_at DESC LIMIT 500`,
-      )
-      .all<any>(),
-    db
-      .prepare(
-        "SELECT status,check_type,count(*) count FROM publishing_validation_jobs GROUP BY status,check_type ORDER BY status,check_type",
-      )
-      .all<any>(),
-    db
-      .prepare(
-        `SELECT d.*,v.original_filename,a.kind,t.title FROM publishing_duplicate_matches d JOIN publishing_asset_versions v ON v.id=d.asset_version_id JOIN publishing_assets a ON a.id=v.asset_id JOIN publishing_edition_drafts e ON e.id=a.edition_id JOIN publishing_titles t ON t.id=e.title_id WHERE d.disposition IN ('review','fraud_hold') ORDER BY d.created_at DESC LIMIT 500`,
-      )
-      .all<any>(),
-    db
-      .prepare("SELECT * FROM publishing_audit_events ORDER BY created_at DESC LIMIT 300")
-      .all<any>(),
-    db
-      .prepare(
-        `SELECT l.*,t.title,a.display_name publisher_name,e.format,e.catalog_product_id FROM publishing_release_lifecycles l JOIN publishing_edition_drafts e ON e.id=l.publishing_edition_id JOIN publishing_titles t ON t.id=e.title_id JOIN publishing_accounts a ON a.id=t.account_id ORDER BY l.updated_at DESC LIMIT 500`,
-      )
-      .all<any>(),
-    db
-      .prepare(
-        `SELECT pv.id,pv.lifecycle_id,pv.version_number,pv.previous_version_id,pv.snapshot_sha256,pv.owner_delivery_policy,pv.release_state,pv.activated_at,pv.created_at,l.publishing_edition_id,t.title FROM publishing_publication_versions pv JOIN publishing_release_lifecycles l ON l.id=pv.lifecycle_id JOIN publishing_edition_drafts e ON e.id=l.publishing_edition_id JOIN publishing_titles t ON t.id=e.title_id ORDER BY pv.created_at DESC LIMIT 1000`,
-      )
-      .all<any>(),
-    db
-      .prepare(
-        "SELECT * FROM publishing_publication_activations ORDER BY created_at DESC LIMIT 1000",
-      )
-      .all<any>(),
-    db
-      .prepare("SELECT * FROM publishing_automated_reviews ORDER BY created_at DESC LIMIT 500")
-      .all<any>(),
-  ]);
-  return {
-    accounts: accounts.results,
-    submissions: submissions.results,
-    jobs: jobs.results,
-    duplicates: duplicates.results,
-    audit: auditRows.results,
-    lifecycles: lifecycles.results,
-    versions: versions.results,
-    activations: activations.results,
-    automatedReviews: automated.results,
-  };
-}
-
-async function resolveDuplicateMatch(
-  db: PublishingDB,
-  reviewerUserId: string,
-  raw: unknown,
-) {
-  const x = z
-      .object({
-        id: z.string().min(1),
-        disposition: z.enum(["cleared", "duplicate", "fraud_hold"]),
-      })
-      .parse(raw),
-    row = await db
-      .prepare(
-        `SELECT d.*,t.account_id FROM publishing_duplicate_matches d JOIN publishing_asset_versions v ON v.id=d.asset_version_id JOIN publishing_assets a ON a.id=v.asset_id JOIN publishing_edition_drafts e ON e.id=a.edition_id JOIN publishing_titles t ON t.id=e.title_id WHERE d.id=?`,
-      )
-      .bind(x.id)
-      .first<any>();
-  if (!row) throw new ApiError(404, "Duplicate review item not found.");
-  await db
-    .prepare("UPDATE publishing_duplicate_matches SET disposition=?,updated_at=? WHERE id=?")
-    .bind(x.disposition, now(), x.id)
-    .run();
-  await audit(db, row.account_id, reviewerUserId, "duplicate_match", x.id, "resolved", {
-    disposition: x.disposition,
-  });
-  return { saved: true };
-}
-
-async function catalogPublishingAsset(env: PublishingEnv, assetVersionId: string) {
-  const row = await env.DB.prepare(
-    `SELECT av.object_key,av.mime_type,av.size_bytes,da.kind,p.storefront_status FROM asset_versions av JOIN digital_assets da ON da.id=av.asset_id JOIN editions e ON e.id=da.edition_id JOIN products p ON p.edition_id=e.id WHERE av.id=? AND da.kind='cover' AND p.storefront_status='active' LIMIT 1`,
-  )
-    .bind(assetVersionId)
-    .first<any>();
-  if (!row || !env.BUCKET) throw new ApiError(404, "Catalog asset not found.");
-  const object = await env.BUCKET.get(row.object_key);
-  if (!object) throw new ApiError(404, "Catalog asset not found.");
-  return new Response(object.body, {
-    headers: {
-      "Content-Type": row.mime_type || "application/octet-stream",
-      "Content-Length": String(object.size || row.size_bytes || 0),
-      "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
-      "X-Content-Type-Options": "nosniff",
-    },
-  });
-}
-
-return {upsertPublishingAccount,invitePublishingMember,startIdentityVerification,submitTaxProfile,submitPayoutAccount,savePublishingTitle,savePublishingEdition,uploadPublishingAsset,signPublishingAccessibilityDeclaration,submitPublishingEdition,openPublishingRevision,setPublishingUpdatePolicy,optInOwnedPublicationUpdate,reviewPublishingSubmission};
 })();
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
