@@ -601,7 +601,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "aae79f8d5b7bad06c551f7a2cafb4ac9155b8bab59cbef4a907372fd30311b35",
+      "siteId": "eb8916e5a08a8c3a7d1f5c4e1462b4938bf2bc08ef7eeda66ce4c099a64afd7c",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 1651,
       "functionName": "handleCommercialAudio",
@@ -613,7 +613,7 @@
       "reason": "This exact SQLite statement mutates only buyer-scoped audiobook listening position (chapter, seconds, speed, version, timestamp) or deletes a deleting account's position. It never grants rights, access, delivery tokens, asset availability or entitlements. The production audio endpoint separately requires authentication, current entitlements, risk check and private owner permission before writes; source-bound SQL, optimistic concurrency, unrelated buyer and revoked-entitlement behavior are exercised in scripts/check-audio-playback-remaining-nonauthorizing.mjs. The enclosing account deletion transaction remains owner-required for its other protected mutations."
     },
     {
-      "siteId": "cc8d5d27151c450eb26147997609a22d94f94820cde68e66bb6d76d56a192787",
+      "siteId": "84742cabb9daddc302940e86406622d4f80812b3631891170145a29a8b1763ec",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 1658,
       "functionName": "handleCommercialAudio",
@@ -625,7 +625,7 @@
       "reason": "This exact SQLite statement mutates only buyer-scoped audiobook listening position (chapter, seconds, speed, version, timestamp) or deletes a deleting account's position. It never grants rights, access, delivery tokens, asset availability or entitlements. The production audio endpoint separately requires authentication, current entitlements, risk check and private owner permission before writes; source-bound SQL, optimistic concurrency, unrelated buyer and revoked-entitlement behavior are exercised in scripts/check-audio-playback-remaining-nonauthorizing.mjs. The enclosing account deletion transaction remains owner-required for its other protected mutations."
     },
     {
-      "siteId": "3adbf592a40848c8dc0c1db1f452bdc7b869462c580913f174ff8bc76d98de24",
+      "siteId": "4280ad6bd2ad7280ef8fb78aaf92289f5643da8f26e22741e56c77d71c00f498",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 1903,
       "functionName": "handleCommercialAudio",
@@ -638,7 +638,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "b5668ab22d412e78c95c61b37d219e8702baf6f42308a7a366f9eceb139fe7a9",
+      "siteId": "fb36ac72516a55190258d80c1d0720aacbe39134c8efb31d09aa54620323d62b",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 1908,
       "functionName": "handleCommercialAudio",
@@ -651,7 +651,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "03b33c2777df6c9cfe547b8dba9aa3c0b7562449ce17c5087a87506634098c0d",
+      "siteId": "b856bd2b9101daabb9e473e3530ff92660a6f87bf80e524b8391c559867c80de",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 2088,
       "functionName": "saveCommercialBiosyncLink",
