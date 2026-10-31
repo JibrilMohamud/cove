@@ -1914,30 +1914,6 @@
       "reason": "This exact projection UPDATE changes ratings, ranking scores or taxonomy text only. It does not change rights, offers, suppression or permission; candidate delivery still needs current legal authorization."
     },
     {
-      "siteId": "2223ace865e855169cf00d03b3fe41108e574d242fc6949160c2a308c36b2a72",
-      "file": "src/features/fore/traditional-publishing.server.ts",
-      "line": 305,
-      "functionName": "savePartnerProfile",
-      "table": "publisher_validation_responses",
-      "operation": "UPDATE",
-      "sqlSha256": "062559a63ed5f36939fe7da2e6fcd8a41d6a05424ff5d6b6d1fd331fcde8588c",
-      "disposition": "non-authorizing-write",
-      "productionOwnerGuarded": false,
-      "reason": "Partner acknowledgement/retry metadata does not activate a publication, rights grant, offer or buyer entitlement."
-    },
-    {
-      "siteId": "56bf4b595ac07df959c48d07554d6f77cae82ea734cc3114f663b8204887e8d6",
-      "file": "src/features/fore/traditional-publishing.server.ts",
-      "line": 624,
-      "functionName": "authenticatePartnerRequest",
-      "table": "publisher_partner_credentials",
-      "operation": "UPDATE",
-      "sqlSha256": "a840a3004f2b07369c457c726fd511516b0e733ea2795cb020943186b6120530",
-      "disposition": "non-authorizing-write",
-      "productionOwnerGuarded": false,
-      "reason": "This exact UPDATE changes only publisher_partner_credentials.last_used_at after credential verification. Credential status, scopes, expiry and identity are not modified."
-    },
-    {
       "siteId": "459cb4d7b0a881b3f541426128dc8bb5f014a4cb82a7e025f912a7dd5ed3ff7e",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 1346,
@@ -1957,54 +1933,6 @@
       "table": "publisher_validation_responses",
       "operation": "INSERT INTO",
       "sqlSha256": "9b62e7340a1298d0887944f2665b5247fca14e5e887776a0b155b7ecb44b9a68",
-      "disposition": "non-authorizing-write",
-      "productionOwnerGuarded": false,
-      "reason": "Partner acknowledgement/retry metadata does not activate a publication, rights grant, offer or buyer entitlement."
-    },
-    {
-      "siteId": "73c446a40ffee8fac933b48245fa222333cf76ebecc5596c1edb4d72148f6fb3",
-      "file": "src/features/fore/traditional-publishing.server.ts",
-      "line": 1651,
-      "functionName": "deliverPartnerValidationResponses",
-      "table": "publisher_validation_responses",
-      "operation": "UPDATE",
-      "sqlSha256": "d5ac54232f09734941e4b1b2764d644178f6db0f578c32f4dc65df245e3c3789",
-      "disposition": "non-authorizing-write",
-      "productionOwnerGuarded": false,
-      "reason": "Partner acknowledgement/retry metadata does not activate a publication, rights grant, offer or buyer entitlement."
-    },
-    {
-      "siteId": "23fc443dfdafa2408d907fc14420f71372e22612762ba836e896e6d66a54f358",
-      "file": "src/features/fore/traditional-publishing.server.ts",
-      "line": 1694,
-      "functionName": "deliverPartnerValidationResponses",
-      "table": "publisher_validation_responses",
-      "operation": "UPDATE",
-      "sqlSha256": "4e02eb4f36cb8088566bf282609e61e57d8dcabe2461a677d4a5168a350c56cc",
-      "disposition": "non-authorizing-write",
-      "productionOwnerGuarded": false,
-      "reason": "Partner acknowledgement/retry metadata does not activate a publication, rights grant, offer or buyer entitlement."
-    },
-    {
-      "siteId": "8db1470a67463700fed83947760e5acef0ea0dd4e4d718d95f21f1c52beee68d",
-      "file": "src/features/fore/traditional-publishing.server.ts",
-      "line": 1705,
-      "functionName": "deliverPartnerValidationResponses",
-      "table": "publisher_validation_responses",
-      "operation": "UPDATE",
-      "sqlSha256": "38878e7913ab259c6d7a22222313b197bbcbf6fdf6f291114dcecbef41e4311f",
-      "disposition": "non-authorizing-write",
-      "productionOwnerGuarded": false,
-      "reason": "Partner acknowledgement/retry metadata does not activate a publication, rights grant, offer or buyer entitlement."
-    },
-    {
-      "siteId": "7a500965fa740369d030e694132b98af28629c690b8c859045544895903cd809",
-      "file": "src/features/fore/traditional-publishing.server.ts",
-      "line": 1727,
-      "functionName": "deliverPartnerValidationResponses",
-      "table": "publisher_validation_responses",
-      "operation": "UPDATE",
-      "sqlSha256": "177702614190cea713cac98b7125915052b511054fd9484c0acc346e1cf85ed7",
       "disposition": "non-authorizing-write",
       "productionOwnerGuarded": false,
       "reason": "Partner acknowledgement/retry metadata does not activate a publication, rights grant, offer or buyer entitlement."
@@ -2119,6 +2047,78 @@
       "disposition": "non-authorizing-write",
       "productionOwnerGuarded": false,
       "reason": "Legal notification delivery queue changes notification status only; dispute and publication transitions remain separate owner-required writes."
+    },
+    {
+      "siteId": "8c675fe955b2e44b71388729c7c5225cff75baa41af3b9022dd30e6f8cc5c5fb",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 305,
+      "functionName": "savePartnerProfile",
+      "table": "publisher_validation_responses",
+      "operation": "UPDATE",
+      "sqlSha256": "062559a63ed5f36939fe7da2e6fcd8a41d6a05424ff5d6b6d1fd331fcde8588c",
+      "disposition": "non-authorizing-write",
+      "productionOwnerGuarded": false,
+      "reason": "Partner acknowledgement/retry metadata does not activate a publication, rights grant, offer or buyer entitlement."
+    },
+    {
+      "siteId": "5f837fb8ca41f49de4d7b15c5b3fbad773cefa15e1827be016f93e279d6ffc3e",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 624,
+      "functionName": "authenticatePartnerRequest",
+      "table": "publisher_partner_credentials",
+      "operation": "UPDATE",
+      "sqlSha256": "a840a3004f2b07369c457c726fd511516b0e733ea2795cb020943186b6120530",
+      "disposition": "non-authorizing-write",
+      "productionOwnerGuarded": false,
+      "reason": "This exact UPDATE changes only publisher_partner_credentials.last_used_at after credential verification. Credential status, scopes, expiry and identity are not modified."
+    },
+    {
+      "siteId": "917b4f1d2aa80676942d30236e0a7f49181cd45a2eabd38e85f9a31d4048a029",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 1651,
+      "functionName": "deliverPartnerValidationResponses",
+      "table": "publisher_validation_responses",
+      "operation": "UPDATE",
+      "sqlSha256": "d5ac54232f09734941e4b1b2764d644178f6db0f578c32f4dc65df245e3c3789",
+      "disposition": "non-authorizing-write",
+      "productionOwnerGuarded": false,
+      "reason": "Partner acknowledgement/retry metadata does not activate a publication, rights grant, offer or buyer entitlement."
+    },
+    {
+      "siteId": "5ca98e16fe26a04dff3b99bd650c21dc5bde42acedbbac5e6d613597bed0cb9b",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 1694,
+      "functionName": "deliverPartnerValidationResponses",
+      "table": "publisher_validation_responses",
+      "operation": "UPDATE",
+      "sqlSha256": "4e02eb4f36cb8088566bf282609e61e57d8dcabe2461a677d4a5168a350c56cc",
+      "disposition": "non-authorizing-write",
+      "productionOwnerGuarded": false,
+      "reason": "Partner acknowledgement/retry metadata does not activate a publication, rights grant, offer or buyer entitlement."
+    },
+    {
+      "siteId": "65a49e6826e82889bb7c8e369aafa31558c6095ac68dfdeef29f7de9edba599e",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 1705,
+      "functionName": "deliverPartnerValidationResponses",
+      "table": "publisher_validation_responses",
+      "operation": "UPDATE",
+      "sqlSha256": "38878e7913ab259c6d7a22222313b197bbcbf6fdf6f291114dcecbef41e4311f",
+      "disposition": "non-authorizing-write",
+      "productionOwnerGuarded": false,
+      "reason": "Partner acknowledgement/retry metadata does not activate a publication, rights grant, offer or buyer entitlement."
+    },
+    {
+      "siteId": "c9381aefc55e5b40d5203f05bf3b853b6fd8fae2198370c71891a14dc6cc0b87",
+      "file": "src/features/fore/traditional-publishing.server.ts",
+      "line": 1727,
+      "functionName": "deliverPartnerValidationResponses",
+      "table": "publisher_validation_responses",
+      "operation": "UPDATE",
+      "sqlSha256": "177702614190cea713cac98b7125915052b511054fd9484c0acc346e1cf85ed7",
+      "disposition": "non-authorizing-write",
+      "productionOwnerGuarded": false,
+      "reason": "Partner acknowledgement/retry metadata does not activate a publication, rights grant, offer or buyer entitlement."
     }
   ]
 }
