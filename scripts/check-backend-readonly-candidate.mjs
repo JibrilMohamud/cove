@@ -16,7 +16,10 @@ assert.match(config, /binding = "COVE_CANONICAL_READONLY"/);
 assert.match(config, /service = "cove-canonical-d1-readonly"/);
 assert.match(config, /COVE_BACKEND_READONLY_CANDIDATE = "1"/);
 assert.match(config, /COVE_CANONICAL_READONLY_RPC = "1"/);
-assert.doesNotMatch(config, /\[\[d1_databases\]\]|\[triggers\]|\bcrons\s*=|\bFORE_BACKEND_TOKEN_SHA256\s*=/);
+assert.doesNotMatch(
+  config,
+  /\[\[d1_databases\]\]|\[triggers\]|\bcrons\s*=|\bFORE_BACKEND_TOKEN_SHA256\s*=/,
+);
 assert.match(backend, /scopeBackendReadonlyCandidate\(env\)/);
 assert.match(backend, /backendReadonlyCandidateRouteAllowed\(request\)/);
 assert.match(backend, /private_backend_readonly_candidate_cron_denied/);
@@ -31,8 +34,9 @@ try {
     format: "esm",
     outfile,
   });
-  const { scopeBackendReadonlyCandidate, backendReadonlyCandidateRouteAllowed } =
-    await import(pathToFileURL(outfile).href);
+  const { scopeBackendReadonlyCandidate, backendReadonlyCandidateRouteAllowed } = await import(
+    pathToFileURL(outfile).href
+  );
   const queries = [];
   let outage = false;
   const service = {
@@ -57,7 +61,10 @@ try {
   const candidate = scopeBackendReadonlyCandidate(fixture);
   assert.equal(typeof candidate.DB.prepare, "function");
   assert.equal((await candidate.DB.prepare("SELECT 1 ok").first()).ok, 1);
-  await assert.rejects(() => candidate.DB.prepare("UPDATE entitlements SET status='active'").run(), /read-only/);
+  await assert.rejects(
+    () => candidate.DB.prepare("UPDATE entitlements SET status='active'").run(),
+    /read-only/,
+  );
   await assert.rejects(() => candidate.DB.prepare("DELETE FROM entitlements").all());
   assert.equal(queries.length, 2);
   outage = true;
@@ -90,10 +97,15 @@ try {
     { FORE_BACKEND_TOKEN_SHA256: "" },
     { COVE_BACKEND_READONLY_CANDIDATE: "0" },
   ])
-    assert.throws(() => scopeBackendReadonlyCandidate({ ...fixture, ...mutation }), /not_certified/);
+    assert.throws(
+      () => scopeBackendReadonlyCandidate({ ...fixture, ...mutation }),
+      /not_certified/,
+    );
   const unchanged = { DB: { prepare() {} } };
   assert.equal(scopeBackendReadonlyCandidate(unchanged), unchanged);
-  console.log("PASS: private health-only backend canary cannot access native D1, serve writes or use a replica/failed read.");
+  console.log(
+    "PASS: private health-only backend canary cannot access native D1, serve writes or use a replica/failed read.",
+  );
 } finally {
   rmSync(folder, { recursive: true, force: true });
 }
