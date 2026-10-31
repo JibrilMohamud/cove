@@ -22,14 +22,15 @@ assert.match(route,/String\(ent\.product_id\) !== String\(grant\.product_id\)/);
 const directory=mkdtempSync(join(tmpdir(),"cove-commercial-buyer-scope-"));
 try{
   const compiled=join(directory,"delivery.mjs");
-  await build({entryPoints:["src/features/fore/delivery.server.ts"],outfile:compiled,
+  await build({stdin:{contents:`export {serveCommercialEpubGrant} from "./src/features/fore/delivery.server.ts";
+export {bindPublicationOwner} from "./src/storefront-strangler/publication-owner-routing.server.ts";`,resolveDir:process.cwd(),sourcefile:"qa-paid-epub-owner.ts",loader:"ts"},outfile:compiled,
     bundle:true,platform:"node",format:"esm",target:"node22",logLevel:"silent"});
-  const {serveCommercialEpubGrant}=await import(pathToFileURL(compiled).href);
+  const {serveCommercialEpubGrant,bindPublicationOwner}=await import(pathToFileURL(compiled).href);
   const token="A".repeat(64),userId="buyer_epub_identity_01",productId="prd_epub_identity_01",entId="ent_epub_identity_01";
   const request=new Request("https://cove.test/api/fore/delivery/epub/"+token,{
     headers:{"cf-ipcountry":"US"}
   });
-  async function attempt(overrides={}){
+  async function attempt(overrides={},withSyntheticOwner=false){
     const audits=[],calls={storage:0,owner:0,media:0};
     const ent={id:entId,user_id:userId,product_id:productId,status:"active",
       entitlement_type:"purchase",order_item_id:null,starts_at:null,ends_at:null,
@@ -63,6 +64,23 @@ try{
     const env={DB:db,FORE_DEFAULT_TERRITORY:"US",BUCKET:{async get(){
       calls.storage++;return {body:new Uint8Array([69,80,85,66,49,50]),size:6};
     }}};
+    if(withSyntheticOwner){
+      const secret="b".repeat(64);
+      env.DB=bindPublicationOwner(db,{secret,territory:"US",currency:"USD",owner:{
+        async fetch(ownerRequest){
+          calls.owner++;
+          assert.equal(new URL(ownerRequest.url).pathname,"/delivery/private-consume-epub-grant");
+          assert.equal(ownerRequest.headers.get("authorization"),"Bearer "+secret);
+          const body=await ownerRequest.json();
+          assert.equal(body.grantId,grant.id);
+          assert.match(body.tokenHash,/^[a-f0-9]{64}$/);
+          assert.equal(body.territory,"US");
+          assert.equal(body.channel,"retail");
+          return Response.json({schema:"cove.owner-epub-consumption.v1",ownerFirst:true,
+            grantId:grant.id,consumed:true,uses:1});
+        }
+      }});
+    }
     const result=await serveCommercialEpubGrant(env,token,request)
       .then(response=>({response}),error=>({error}));
     return {result,audits,calls};
@@ -81,8 +99,13 @@ try{
   const revoked=await attempt({status:"revoked"});
   assert.equal(revoked.result.error?.status,403);
   assert.equal(revoked.calls.storage,0);
-  const success=await attempt();
-  assert.ok(success.result.response instanceof Response,"Same-buyer active entitlement must still deliver");
+  const unbound=await attempt();
+  assert.equal(unbound.result.error?.status,503,"A matching paid bearer token must never bypass private owner");
+  assert.equal(unbound.calls.storage,1,"Original delivery route may load bytes before owner response, but must not return them");
+  assert.deepEqual(unbound.audits,[],"Unbound owner must never emit success stream audit");
+  const success=await attempt({},true);
+  assert.ok(success.result.response instanceof Response,"Same-buyer active entitlement must deliver only after exact private owner acknowledgement");
+  assert.equal(success.calls.owner,1,"Real receipt must be verified exactly once");
   assert.equal(success.result.response.status,200);
   assert.equal(success.calls.storage,1);
   assert.deepEqual(success.audits,[{eventType:"stream_started",reasonCode:""}]);
