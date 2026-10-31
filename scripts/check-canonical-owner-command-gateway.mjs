@@ -87,6 +87,11 @@ try{
       productId,editionId:"ed_gateway_01",workId:"wrk_gateway_01",releaseState:"live",versionNumber:1,
       ownerUpdatePolicy:"auto_update",accessPublished:true
     }]);
+  tests.push(["finance.owner-action",{action:"createFinanceParty",args:[{type:"publisher",displayName:"QA"}],
+    actorUserId:userId,operationId:"finance:"+"a".repeat(64)},"/finance/private-action",{
+    schema:"cove.private-finance-qa.v1",ownerFirst:true,action:"createFinanceParty",actorUserId:userId,
+    operationId:"finance:"+"a".repeat(64),result:{id:"party_qa"}
+  }]);
   let calls=0;
   for(const [kind,body,path,receipt] of tests){
     const writer=kind.startsWith("rights.");

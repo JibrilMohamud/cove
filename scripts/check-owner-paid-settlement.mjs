@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {isPaidOwnerQaSchemaTable} from "./staging/paid-owner-schema-policy.mjs";
 import {DatabaseSync} from "node:sqlite";
 import {build} from "esbuild";
+import {loadPrivateFinance} from "./test-private-finance-loader.mjs";
 import {mkdtempSync,readdirSync,readFileSync,rmSync,copyFileSync} from "node:fs";
 import {join} from "node:path";
 import {tmpdir} from "node:os";
@@ -17,7 +18,7 @@ try{
         b.onLoad({filter:/.*/,namespace:"host"},()=>({contents:"export class DurableObject{constructor(ctx,env){this.ctx=ctx;this.env=env;}}"}));
       }}]:[]});return import(pathToFileURL(outfile).href);
   }
-  const {postPaidSettlementTransaction:post}=await load("src/features/fore/paid-settlement-transaction.server.ts","transaction");
+  const {testPaidSettlement:post,testBindFinance}=await loadPrivateFinance(join(folder,"transaction.mjs"));
   const {CoveLegalAuthority,default:worker}=await load("src/storefront-strangler/legal-authority.worker.ts","owner",true);
   const {finalizePaidOrder}=await load("src/features/fore/commerce.server.ts","caller");
   const {makeStageLegalWriterLock}=await load("src/storefront-strangler/legal-primary-write-lock.ts","lock");
@@ -99,6 +100,7 @@ try{
         primary.exec("COMMIT");committed=true;if(lostAck){lostAck=false;throw Error("lost_commit_ack");}return results;
       }catch(e){if(!committed)primary.exec("ROLLBACK");throw e;}
     }};
+    testBindFinance(DB);
     const env={PRIMARY_DB:DB,COVE_RIGHTS_OWNER_ENABLED:"1",COVE_RIGHTS_OWNER_PRIMARY_ID:"7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",COVE_RIGHTS_OWNER_TEST_EXPIRES_AT:String(Date.now()+10*60_000),COVE_RIGHTS_OWNER_SECRET:secret,STRIPE_LIVEMODE:"false",STRIPE_TAX_ENABLED:"false",STRIPE_SECRET_KEY:"sk_test_fixture_only"};
     const ctx={storage:{sql,transactionSync(fn){owned.exec("BEGIN");try{const r=fn();owned.exec("COMMIT");return r;}catch(e){owned.exec("ROLLBACK");throw e;}}}};
     let owner=new CoveLegalAuthority(ctx,env);

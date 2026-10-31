@@ -1,0 +1,23 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Retire the complete finance and royalty shared SQL families into fixed leased private owner functions, while preserving the exact classification of every untouched API SQL literal and retaining original retired SQL identities. Real SQLite fault-injection validates accounting atomicity and retry recovery; this is not a production ownership attestation.",
+  "retirementEvidence": "docs/architecture/retired-finance-royalty-owner.md",
+  "files": [
+    {
+      "path": "src/features/fore/finance.server.ts",
+      "sha256": "715ad2b91b9e4f8a4c18fe061c58aa24d10bbe2daf3b8a51119648f0270b3d86",
+      "review": "Shared finance and royalty mutations replaced by fixed private owner calls with no SQL fallback; API changes only pass independently authenticated finance staff identity and request idempotency keys. All surviving SQL literals retain their original dispositions."
+    },
+    {
+      "path": "src/features/fore/royalty-engine.server.ts",
+      "sha256": "d640d4223a38fbfac09d11dedf8e542e9c1008f7efe22f92a24dae5f210c70ca",
+      "review": "Shared finance and royalty mutations replaced by fixed private owner calls with no SQL fallback; API changes only pass independently authenticated finance staff identity and request idempotency keys. All surviving SQL literals retain their original dispositions."
+    },
+    {
+      "path": "src/features/fore/api.server.ts",
+      "sha256": "5205931c634f40cadc5a1cd47cd8f2374f6d8eb0c138e0ce61fc357015583f6d",
+      "review": "Shared finance and royalty mutations replaced by fixed private owner calls with no SQL fallback; API changes only pass independently authenticated finance staff identity and request idempotency keys. All surviving SQL literals retain their original dispositions."
+    }
+  ]
+}

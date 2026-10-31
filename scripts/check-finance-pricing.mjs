@@ -32,7 +32,7 @@ for (const t of [
   if (!tables.has(t)) throw new Error("missing table " + t);
 const commerce = fs.readFileSync("src/features/fore/commerce.server.ts", "utf8"),
   pricing = fs.readFileSync("src/features/fore/pricing.server.ts", "utf8"),
-  finance = fs.readFileSync("src/features/fore/finance.server.ts", "utf8"),
+  finance = fs.readFileSync("src/storefront-strangler/legal-authority.worker.ts", "utf8"),
   api = fs.readFileSync("src/features/fore/api.server.ts", "utf8");
 for (const needle of [
   "resolvePricingDecision",
