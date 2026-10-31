@@ -1,0 +1,7 @@
+# Owner-controlled publishing validation queues (isolated QA)
+
+Nine direct source SQL sites have been retired from the shared publishing-validation and rights-evidence scan workers. Their exact historical source identities are in `retired-owner-publishing-worker-queues-lineage.json`; the updated source files are SHA-attested in `retired-owner-publishing-worker-queues-attestation-20261030.json`.
+
+The private legal owner re-reads current lease state and worker identity before publishing-validation completion or rights-evidence scan completion, retaining atomic D1 completion batches. It also handles expired leases and claims. Existing shared handlers now dispatch a fixed typed service-binding command, with no SQL or caller-selected route. A missing owner fails closed.
+
+**No production approval:** The workerId supplied by the caller is not independently provider-authenticated; positive "passed" decisions and malware results are not suitable for production without signed independent scan evidence, durable operation idempotency and test certification. A QA-only owner lease prevents deployment as active legal authority. Rights reinstatement, DMCA restoration, payment/provider certification, competing-writer privilege removal, protected-media access and rollback rehearsal are still incomplete. Do not merge this PR or switch routing. The branch audit count is **230**, versus **239** before this migration and **260** on main, with `releaseApproval=false`.
