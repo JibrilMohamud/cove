@@ -12,7 +12,7 @@ assert.equal(sha(source),lineage.updatedSourceSha256);
 assert.equal(lineage.retiredCount,11);
 assert.equal(new Set(lineage.retired.map(x=>x.siteId)).size,11);
 assert.equal(review.releaseApproval,false);
-assert.equal(review.sites.filter(x=>x.disposition==="owner-command-required").length,249);
+assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=249,"Later independently reviewed retirements may only reduce unresolved count");
 assert.equal(review.sites.filter(x=>x.file==="src/features/fore/publishing-trust.server.ts"&&x.disposition==="owner-command-required").length,42);
 assert.ok(lineage.retired.every(x=>!review.sites.some(y=>y.siteId===x.siteId)));
 assert.doesNotMatch(source,/async function (?:restore|releaseHolds)\s*\(/);

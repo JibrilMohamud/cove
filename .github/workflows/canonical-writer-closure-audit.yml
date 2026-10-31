@@ -156,6 +156,7 @@ jobs:
           node scripts/check-audio-playback-remaining-nonauthorizing.mjs
           node scripts/check-nonauthorizing-owner-version-history.mjs
           node scripts/check-retired-unowned-restoration.mjs
+          node scripts/check-retired-owner-publishing-onboarding.mjs
       - name: Export source-bound workflow migration inventory
         env:
           COVE_WORKFLOW_AUDIT_OUTPUT: ${{ runner.temp }}/cove-canonical-workflow-inventory.json

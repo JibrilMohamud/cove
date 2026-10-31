@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Independent source review confirms exactly four formerly unowned staff publishing verification SQL sites have been physically removed from shared D1. The fixed private QA command rechecks staff principal roles and account/record ownership before negative-only atomic decisions, and blocks every positive verified or withholding mutation; no production authorization or KYC/tax/payout certification is asserted.",
+  "files": [
+    {
+      "path": "src/features/fore/publishing.server.ts",
+      "sha256": "618ea3b00299e924d68e06cc07ff25fdcf0a08ad923dcdab9e1a2e1270b75a25",
+      "review": "Source SHA-256 pinned; all 45 surviving protected publishing SQL fingerprints retained their exact SQL/function identity and original disposition. Staff onboarding no longer performs direct shared SQL."
+    }
+  ],
+  "retirementEvidence": "docs/architecture/retired-owner-publishing-onboarding-20261030.md"
+}
