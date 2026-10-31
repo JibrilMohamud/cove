@@ -1,0 +1,73 @@
+{
+  "schema": "cove.retired-regional-rights-evidence-owner-lineage.v1",
+  "releaseApproval": false,
+  "productionCertified": false,
+  "sourceBefore": 5,
+  "sourceAfter": 1,
+  "sourceFile": "src/features/fore/api.server.ts",
+  "previousSha256": "bf665afee032c0c2618b76b655821fe588e8b109d383413927c07a73439bdd52",
+  "currentSha256": "16d5d8c08467fe43917a12ba77f26d73bfc42cb3b219f7f6a1fdf9bae685883b",
+  "retired": [
+    {
+      "siteId": "94dbff8cb682fa9ccaf9cd7986b7e701826667f2e55ec933bbf2448ec4acefb5",
+      "file": "src/features/fore/api.server.ts",
+      "line": 1347,
+      "functionName": "insertRegionalEvidence",
+      "table": "gutenberg_rights_evidence",
+      "operation": "INSERT OR IGNORE INTO",
+      "sqlSha256": "915a34e71a863ba923d810bb3795367c94190a345f3462edbf317e39699daf82",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "api.insertRegionalEvidence",
+      "reason": "Original shared D1 territorial evidence, positive cache determination and rights-grant status writes physically retired into owner; only a private independently verified regional rights decision may restore grants."
+    },
+    {
+      "siteId": "92b230f1dbd2a298192485cedc85dd34ff0779b3e5e5238ba978354d00242247",
+      "file": "src/features/fore/api.server.ts",
+      "line": 1368,
+      "functionName": "insertRegionalEvidence",
+      "table": "gutenberg_source_cache",
+      "operation": "UPDATE",
+      "sqlSha256": "faf3e55666dfa8d70590c9cf2f2a7950354c4a9d40d5b9c449e026f8036ccd2e",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "api.insertRegionalEvidence",
+      "reason": "Original shared D1 territorial evidence, positive cache determination and rights-grant status writes physically retired into owner; only a private independently verified regional rights decision may restore grants."
+    },
+    {
+      "siteId": "82abd7bd56f8bc84db3c78a060a3bcd472e762cb2a1a29da698dcb0ad0a00252",
+      "file": "src/features/fore/api.server.ts",
+      "line": 1380,
+      "functionName": "insertRegionalEvidence",
+      "table": "rights_grants",
+      "operation": "UPDATE",
+      "sqlSha256": "36694eef8be1b05f27a8cc4ea58a47d74c971aeee4eeaa3d8f3e0c436844797a",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "api.insertRegionalEvidence",
+      "reason": "Original shared D1 territorial evidence, positive cache determination and rights-grant status writes physically retired into owner; only a private independently verified regional rights decision may restore grants."
+    },
+    {
+      "siteId": "392af755f71e8f3d6597ba348d2239742c6aaf502f8cdfd107b5c01535a7b168",
+      "file": "src/features/fore/api.server.ts",
+      "line": 1387,
+      "functionName": "insertRegionalEvidence",
+      "table": "rights_grants",
+      "operation": "UPDATE",
+      "sqlSha256": "15e24d57785febbafe06ef3b19534a19354475d050d4fb06745a19132f91f831",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "api.insertRegionalEvidence",
+      "reason": "Original shared D1 territorial evidence, positive cache determination and rights-grant status writes physically retired into owner; only a private independently verified regional rights decision may restore grants."
+    }
+  ],
+  "ownerCommand": "catalog.verify-regional-rights-evidence",
+  "privateRoute": "/catalog/private-regional-rights-evidence",
+  "proofs": [
+    "The shared API has no direct regional legal evidence insertion, no positive source-rights cache update and no rights_grants suspension/activation SQL. All four original identities are preserved.",
+    "Owner independently loads current enabled regional source/catalog metadata and territory list and checks strongly consistent market withdrawals; no requested territory is accepted from the caller.",
+    "Owner fetches the canonical R2 EPUB key, validates EPUB bytes and SHA256 and independently canonicalizes the source archive.",
+    "Positive public-domain determination requires a privately configured HTTPS verifier with token and fresh attestation matching exact source item, fingerprint, catalog digest, EPUB SHA, content version and territory list; EU requires operator review. Missing verifier denies.",
+    "The private owner suspends old source grants, inserts exact country evidence, updates source, runs the private free catalog normalizer and conditionally reactivates only evidenced grants; mismatched territory outcomes are suspended. Production rights verifier provisioning, positive QA, strong authority and rollback remain blocked."
+  ]
+}
