@@ -29,7 +29,9 @@ try {
     "CREATE TABLE commercial_audio_profiles(edition_id TEXT PRIMARY KEY,publishing_account_id TEXT,audio_publisher TEXT,copyright_notice TEXT,performance_rights_basis TEXT,performance_rights_evidence_id TEXT,identifier_type TEXT,identifier_value TEXT,credits_json TEXT,territory_scope_json TEXT,subscription_eligible INTEGER,offline_eligible INTEGER,cover_asset_version_id TEXT,active_policy_id TEXT,qc_status TEXT,rights_status TEXT,agreements_status TEXT,updated_at TEXT,created_at TEXT)",
     "CREATE TABLE commercial_audio_narrators(id TEXT PRIMARY KEY,edition_id TEXT,display_name TEXT,narration_type TEXT,synthetic_voice_label TEXT,billing_order INTEGER,created_at TEXT)",
     "CREATE TABLE narration_agreements(id TEXT PRIMARY KEY,edition_id TEXT,narrator_id TEXT,agreement_type TEXT,evidence_id TEXT,territories_json TEXT,permitted_uses_json TEXT,signed_at TEXT,expires_at TEXT,status TEXT,attested_by_user_id TEXT,created_at TEXT)",
-    "CREATE TABLE narration_agreement_terminations(id TEXT PRIMARY KEY,agreement_id TEXT,disposition TEXT,effective_at TEXT,replacement_agreement_id TEXT,reason TEXT,actor_user_id TEXT,created_at TEXT)"
+    "CREATE TABLE narration_agreement_terminations(id TEXT PRIMARY KEY,agreement_id TEXT,disposition TEXT,effective_at TEXT,replacement_agreement_id TEXT,reason TEXT,actor_user_id TEXT,created_at TEXT)",
+    "CREATE TABLE publishing_submission_snapshots(id TEXT PRIMARY KEY,edition_id TEXT)",
+    "CREATE TABLE publishing_publications(id TEXT PRIMARY KEY,submission_id TEXT,product_id TEXT)"
   ])primary.exec(sql);
   const ownerId="publisher_owner_qa",intruder="publisher_other_qa",editionId="pubed_qa123",
     accountId="pubacct_qa123";
@@ -102,11 +104,22 @@ try {
   assert.equal(primary.prepare("SELECT COUNT(*) n FROM narration_agreements").get().n,1,
     "exact signed owner replay must not duplicate narrator agreements");
   assert.equal(primary.prepare("SELECT agreements_status FROM commercial_audio_profiles WHERE edition_id=?").get(editionId).agreements_status,"verified");
+  const linkedProduct="prd_audio_qa12345";
+  primary.prepare("INSERT INTO publishing_submission_snapshots VALUES('pubsub_qa123',?)").run(editionId);
+  primary.prepare("INSERT INTO publishing_publications VALUES('pubpub_qa123','pubsub_qa123',?)").run(linkedProduct);
+  const before=durable.prepare("SELECT verdict FROM cove_commercial_authority WHERE product_id=?").get(linkedProduct);
+  assert.equal(before,undefined);
+  const forgedTermination={agreementId,disposition:"terminated",reason:"Unauthorized audio license withdrawal"};
+  assert.equal((await request("agreement-end",intruder,forgedTermination,"audio:forged-withdrawal")).status,503);
+  assert.equal(durable.prepare("SELECT verdict FROM cove_commercial_authority WHERE product_id=?").get(linkedProduct),undefined,
+    "Forged publisher must never deny a live product");
   const termination={agreementId,disposition:"terminated",reason:"QA owner independently revoked this contract",
     effectiveAt:new Date(Date.now()-1000).toISOString()};
   response=await request("agreement-end",ownerId,termination,"audio:termination");
   assert.equal(response.status,200);
   assert.equal(primary.prepare("SELECT agreements_status FROM commercial_audio_profiles WHERE edition_id=?").get(editionId).agreements_status,"pending");
+  assert.equal(durable.prepare("SELECT verdict FROM cove_commercial_authority WHERE product_id=?").get(linkedProduct).verdict,"deny",
+    "Strong owner withdrawal must precede any primary contract termination acknowledgement");
   env.COVE_RIGHTS_OWNER_ENABLED="0";
   assert.equal((await request("profile",ownerId,profile,"audio:disabled")).status,503);
   assert.equal(primary.prepare("SELECT COUNT(*) n FROM narration_agreement_terminations").get().n,1);
