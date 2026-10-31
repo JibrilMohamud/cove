@@ -20,6 +20,8 @@ export type ReadonlyBackendCandidateEnv = {
   COVE_CANONICAL_READONLY?: CanonicalReadService;
   FORE_ENVIRONMENT?: string;
   FORE_BACKEND_TOKEN_SHA256?: string;
+  FORE_BACKEND_TOKEN?: string;
+  COVE_BACKEND_TOKEN_HASH_ONLY?: string;
 };
 
 const READ_PATHS = new Set(["/__cove/health", "/api/fore/health/ready"]);
@@ -36,6 +38,8 @@ export function scopeBackendReadonlyCandidate<T extends ReadonlyBackendCandidate
   if (
     enabled !== "1" ||
     env.FORE_ENVIRONMENT !== "staging" ||
+    env.COVE_BACKEND_TOKEN_HASH_ONLY !== "1" ||
+    Boolean(env.FORE_BACKEND_TOKEN) ||
     env.DB !== undefined ||
     env.COVE_CANONICAL_READONLY_RPC !== "1" ||
     typeof env.COVE_CANONICAL_READONLY?.query !== "function" ||
