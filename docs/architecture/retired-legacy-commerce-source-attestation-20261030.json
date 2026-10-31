@@ -5,8 +5,8 @@
   "files": [
     {
       "path": "src/features/fore/commerce.server.ts",
-      "sha256": "116f24a42a463947939e120919db25ebcbc5ac09a3ef8fb3d8a2b769031e70d8",
-      "review": "Legacy checkout settlement, tender, refund, webhook, disputes and reconciliation SQL removed from shared code. Owner-only quote persistence remains physically present and is not reclassified; two tax mutations also remain directly in this module. The three surviving SQL literals preserve their reviewed authorizing dispositions with source-bound checksums."
+      "sha256": "65f167c2bdf252936372106347084a1523fed98d507717c746d4c31b8db2c81c",
+      "review": "Legacy checkout settlement, tender, refund, webhook, disputes and reconciliation SQL removed from shared code. Owner-only quote persistence remains physically present and is not reclassified; two tax mutations also remain directly in this module. The three surviving SQL literals preserve their reviewed authorizing dispositions with source-bound checksums. New private-owner checkout-quote relocation removes one shared SQL site. The other two commerce SQL literals and dispositions remain unchanged with fresh full-source identifiers. Release locked."
     }
   ],
   "retirementEvidence": "docs/architecture/retired-legacy-commerce-write-family-20261030.md"

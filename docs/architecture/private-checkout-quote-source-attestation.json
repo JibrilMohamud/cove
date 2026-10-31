@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "retirementEvidence": "docs/architecture/retired-private-checkout-quote-owner-lineage.json",
+  "rationale": "The shared checkoutQuote function now requires a private, owner-injected persistence callback before it can reach tax or payment provider APIs. The only fixed checkout-quote INSERT is in the independently leased private QA legal owner, which invokes checkoutQuote against its own primary D1 and tax configuration to reprice the cart, then independently verifies stored buyer, quote, currency and totals. No client controls SQL, quote amount or persistence. Remaining two commerce protected SQL sites retain their original statements and functions with re-fingerprinted current source hash. Production owner is disabled; Stripe LIVE, paid entitlement, geographic and protected rollback certification are pending.",
+  "files": [
+    {
+      "path": "src/features/fore/commerce.server.ts",
+      "sha256": "65f167c2bdf252936372106347084a1523fed98d507717c746d4c31b8db2c81c",
+      "review": "One protected checkout SQL site retired; two unchanged surviving commerce authorizing sites re-fingerprinted."
+    }
+  ]
+}
