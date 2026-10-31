@@ -1,0 +1,34 @@
+{
+  "schema": "cove.retired-publisher-tax-status-owner-lineage.v1",
+  "releaseApproval": false,
+  "productionCertified": false,
+  "sourceBefore": 6,
+  "sourceAfter": 5,
+  "sourceFile": "src/features/fore/risk-tax.server.ts",
+  "previousSha256": "9c37e66c2c23a5f9adcc2b455a3bebafba89304184319637348b86353698eb0b",
+  "currentSha256": "c8d2365c31d1d97ba053b40cfc7f17b70ea7fa83e9a9e111212c1dc67c289936",
+  "retired": [
+    {
+      "siteId": "4d98928a38772e07d19d0b828f350d10c2b895755b9cf3c1e605e16986850a5c",
+      "file": "src/features/fore/risk-tax.server.ts",
+      "line": 1234,
+      "functionName": "registerPublisherTaxVerification",
+      "table": "publishing_accounts",
+      "operation": "UPDATE",
+      "sqlSha256": "44ecd6353ca0a2d12cac55718dc5eaed358f7db965a66c3864502d50d619459e",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "risk-tax.registerPublisherTaxVerification",
+      "reason": "Physical shared D1 publisher tax-status update was retired with its whole tax profile/event batch into the private legal owner; positive status requires independent provider verification."
+    }
+  ],
+  "ownerCommand": "risk.publisher-tax-verification",
+  "privateRoute": "/risk/private-publisher-tax-verification",
+  "proofs": [
+    "The shared tax service has no tax-profile/account or financial tax-event SQL after retirement; an owner-only command is mandatory.",
+    "Private owner independently re-reads the canonical account/profile relationship and exact existing event status, refuses reused event IDs whose content differs.",
+    "Positive 'verified' requires a configured independent HTTPS provider verifier and private verifier token; independent response matches event, account, profile, effective withholding claims and a fresh verification time. Missing verifier must fail closed.",
+    "Negative status and effective withholding are deny-first and never relax an existing effective withholding amount; replay does not duplicate financial event rows.",
+    "Owner updates status, profile and event in a guarded primary D1 batch and returns a scoped receipt; production owner, verifier provisioning and LIVE compliance certification remain blocked."
+  ]
+}
