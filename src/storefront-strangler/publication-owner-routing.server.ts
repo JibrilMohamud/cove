@@ -434,6 +434,22 @@ export async function dispatchVerifiedFreeLibraryEntitlement(db:object,input:{
 
 /** A commercial EPUB token can only be published by the paid legal owner
  * after fresh full-scope authorization and primary contract/policy checks. */
+/** Atomic owner-accounted EPUB usage. Caller cannot choose max limits or
+ * the entitlement; all limits are rederived from the primary and legal owner. */
+export async function dispatchPrivateCommercialEpubConsumption(db:object,input:{
+ grantId:string;tokenHash:string;userId:string;productId:string;entitlementId:string;
+ territory:string;channel:"retail"|"subscription"|"library";
+}):Promise<void>{
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"EPUB use requires private legal authority.");
+ try{
+  const ack=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+   "delivery.consume-epub-grant",input);
+  if(ack.consumed!==true||ack.grantId!==input.grantId)
+   throw Error("epub_consumption_owner_receipt_invalid");
+ }catch{throw new ApiError(503,"Private legal owner refused commercial EPUB usage.");}
+}
+
 export async function dispatchPrivateCommercialEpubGrant(db:object,input:{
  grantId:string;tokenHash:string;userId:string;productId:string;
  entitlementId:string;publicationVersionId:string|null;assetVersionId:string;

@@ -17698,6 +17698,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/promotion/private-action",
       "/catalog/private-ingest-state",
       "/catalog/private-grant-free-library",
+      "/delivery/private-consume-epub-grant",
       "/delivery/private-issue-epub-grant",
       "/delivery/private-record-ownership",
       "/delivery/register-entitlement-device",
@@ -19194,6 +19195,77 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           ownerFirst:true,userId:input.userId,productId:input.productId,
           saved:true,applied:Number((result as {meta?:{changes?:number}})?.meta?.changes||0)===1},
           {headers:noStore});
+      }
+      if(route==="/delivery/private-consume-epub-grant"){
+        const x=z.object({
+          grantId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
+          tokenHash:z.string().regex(/^[a-f0-9]{64}$/),
+          userId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
+          productId:z.string().regex(/^prd_(?!gutenberg_)[A-Za-z0-9_-]{3,120}$/),
+          entitlementId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
+          territory:z.string().regex(/^[A-Z]{2}$/),
+          channel:z.enum(["retail","subscription","library"])
+        }).strict().parse(raw);
+        const db=env.PRIMARY_DB,at=now();
+        if(marketIsWithdrawn(sql,x.territory)||!readPaidAccess(sql,{
+          entitlementId:x.entitlementId,userId:x.userId,productId:x.productId,
+          territory:x.territory,channel:x.channel
+        }))return new Response(null,{status:409,headers:noStore});
+        const [grant,ent,policy,market]=await Promise.all([
+          db.prepare("SELECT * FROM commercial_delivery_grants WHERE id=? AND token_hash=? AND user_id=? AND product_id=? AND entitlement_id=?")
+            .bind(x.grantId,x.tokenHash,x.userId,x.productId,x.entitlementId)
+            .first<{id:string;purpose:string;status:string;uses:number;max_uses:number;
+              expires_at:string;device_id:string|null;policy_snapshot_json:string}>(),
+          db.prepare("SELECT e.id,e.entitlement_type,e.order_item_id FROM entitlements e WHERE e.id=? AND e.user_id=? AND e.product_id=? AND e.status='active' AND (e.starts_at IS NULL OR e.starts_at<=?) AND (e.ends_at IS NULL OR e.ends_at>?)")
+            .bind(x.entitlementId,x.userId,x.productId,at,at)
+            .first<{id:string;entitlement_type:string;order_item_id:string|null}>(),
+          db.prepare("SELECT max_downloads_per_entitlement FROM commercial_delivery_policies WHERE product_id=?")
+            .bind(x.productId).first<{max_downloads_per_entitlement:number}>(),
+          db.prepare("SELECT 1 ok FROM storefront_markets WHERE country_code=? AND market_status='active'")
+            .bind(x.territory).first<{ok:number}>()
+        ]);
+        if(!grant||!ent||!market||grant.status!=="active"||
+           Date.parse(grant.expires_at)<=Date.now()||
+           Number(grant.uses)>=Number(grant.max_uses))
+          return new Response(null,{status:409,headers:noStore});
+        const channel=ent.entitlement_type==="subscription"?"subscription":
+          ent.entitlement_type.includes("library")||ent.entitlement_type.includes("loan")?"library":"retail";
+        if(channel!==x.channel)return new Response(null,{status:409,headers:noStore});
+        if(grant.device_id){
+          const device=await db.prepare("SELECT 1 ok FROM devices WHERE id=? AND user_id=? AND revoked_at IS NULL")
+            .bind(grant.device_id,x.userId).first<{ok:number}>();
+          if(!device)return new Response(null,{status:409,headers:noStore});
+        }
+        if(ent.order_item_id){
+          const hold=await db.prepare("SELECT 1 ok FROM risk_holds h JOIN commerce_order_items oi ON oi.order_id=h.subject_id WHERE h.status='active' AND h.domain='buyer' AND h.subject_type='order' AND h.hold_scope IN ('checkout','entitlement') AND oi.id=? LIMIT 1")
+            .bind(ent.order_item_id).first<{ok:number}>();
+          if(hold)return new Response(null,{status:409,headers:noStore});
+        }
+        let snap:Record<string,unknown>;
+        try{const p=JSON.parse(grant.policy_snapshot_json);if(!p||typeof p!=="object"||Array.isArray(p))throw Error("bad");snap=p as Record<string,unknown>}
+        catch{return new Response(null,{status:409,headers:noStore});}
+        const maxDownloads=Math.max(1,Math.min(10000,
+          Number(policy?.max_downloads_per_entitlement||50),
+          Number(snap.maxDownloads||50)));
+        if(!Number.isSafeInteger(maxDownloads)||maxDownloads<1)
+          return new Response(null,{status:409,headers:noStore});
+        const statements=[
+          db.prepare("UPDATE commercial_delivery_grants SET uses=uses+1,status=CASE WHEN uses+1>=max_uses THEN 'exhausted' ELSE 'active' END,last_used_at=? WHERE id=? AND token_hash=? AND user_id=? AND product_id=? AND entitlement_id=? AND status='active' AND uses<max_uses AND expires_at>? AND (?='read' OR COALESCE((SELECT download_count FROM commercial_entitlement_delivery_usage WHERE entitlement_id=?),0)<?) AND EXISTS(SELECT 1 FROM entitlements e WHERE e.id=? AND e.user_id=? AND e.product_id=? AND e.status='active' AND (e.starts_at IS NULL OR e.starts_at<=?) AND (e.ends_at IS NULL OR e.ends_at>?))")
+            .bind(at,x.grantId,x.tokenHash,x.userId,x.productId,x.entitlementId,
+              at,grant.purpose,x.entitlementId,maxDownloads,
+              x.entitlementId,x.userId,x.productId,at,at)
+        ];
+        if(grant.purpose!=="read"){
+          statements.push(db.prepare(
+            "INSERT INTO commercial_entitlement_delivery_usage(entitlement_id,download_count,last_download_at,updated_at) SELECT ?,1,?,? WHERE EXISTS(SELECT 1 FROM commercial_delivery_grants g WHERE g.id=? AND g.token_hash=? AND g.entitlement_id=? AND g.last_used_at=? AND g.uses>0) ON CONFLICT(entitlement_id) DO UPDATE SET download_count=download_count+1,last_download_at=excluded.last_download_at,updated_at=excluded.updated_at WHERE commercial_entitlement_delivery_usage.download_count<?"
+          ).bind(x.entitlementId,at,at,x.grantId,x.tokenHash,x.entitlementId,at,maxDownloads));
+        }
+        const results=await db.batch(statements) as Array<{meta?:{changes?:number}}>;
+        if(Number(results[0]?.meta?.changes||0)!==1||
+           (grant.purpose!=="read"&&Number(results[1]?.meta?.changes||0)!==1))
+          return new Response(null,{status:409,headers:noStore});
+        return Response.json({schema:"cove.owner-epub-consumption.v1",
+          ownerFirst:true,grantId:x.grantId,consumed:true},{headers:noStore});
       }
       if(route==="/delivery/private-issue-epub-grant"){
         const x=z.object({
