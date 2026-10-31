@@ -1,0 +1,12 @@
+{
+  "schema": "cove.combined-owner-migration-source-audit.v1",
+  "releaseApproval": false,
+  "productionCertified": false,
+  "baseRiskHead": "9ac147ee7a25eab4c727239fa015d2047d8dd336",
+  "biosyncDonorHead": "1626e830fb858b3403239c6f1b96967e1c8462d0",
+  "ownerRequiredReviewCount": 18,
+  "retiredBiosyncSiteId": "b856bd2b9101daabb9e473e3530ff92660a6f87bf80e524b8391c559867c80de",
+  "sourceFile": "src/features/fore/commercial-audio.server.ts",
+  "sourceSha256": "dfb1388150c34061d6f4c7707279f45283a6d62cab9ea547d6c6910b7f324452",
+  "rationale": "Integration of the separately independently verified two-site buyer/publisher risk assessment projection and one-site Biosync publication link migration. Review retains all unchanged candidates and separately attests both commands. Original Biosync lineage records its historical 21→20 source change; combined review on this stack is 18. No production owner activation, paid customer release or exclusive D1 privilege retirement."
+}

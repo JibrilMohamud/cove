@@ -12,7 +12,7 @@ assert.equal(createHash("sha256").update(src).digest("hex"),att.files[0].sha256)
 assert.equal(lineage.sourceSha256,att.files[0].sha256);
 assert.equal(lineage.removedCount,6);assert.equal(review.releaseApproval,false);
 assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=239,"Later reviewed retirements may only reduce unresolved count");
-assert.equal(review.sites.filter(x=>x.file==="src/features/fore/commercial-audio.server.ts"&&x.disposition==="owner-command-required").length,3);
+assert.equal(review.sites.filter(x=>x.file==="src/features/fore/commercial-audio.server.ts"&&x.disposition==="owner-command-required").length,2);
 for(const row of lineage.rows)assert.ok(!review.sites.some(x=>x.siteId===row.siteId));
 for(const method of ["saveCommercialAudioProfile","replaceCommercialAudioNarrators","addNarrationAgreement","endNarrationAgreement"]){
   const start=src.indexOf("export async function "+method+"(");
