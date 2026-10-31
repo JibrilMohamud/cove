@@ -178,6 +178,10 @@ const routes={
     maxUses:z.number().int().min(1).max(100),
     territory,channel:z.enum(["retail","subscription","library"])
   }).strict()},
+  "delivery.consume-epub-grant":{path:"/delivery/private-consume-epub-grant",schema:z.object({
+    grantId:ownerId,tokenHash:z.string().regex(/^[a-f0-9]{64}$/),
+    territory,channel:z.enum(["retail","subscription","library"])
+  }).strict()},
   "delivery.record-ownership":{path:"/delivery/private-record-ownership",schema:z.object({
     entitlementId:ownerId,userId:ownerId,
     productId:product
@@ -476,6 +480,12 @@ export async function dispatchCanonicalOwnerCommand(
     case "delivery.issue-epub-grant":
       if(ack.schema!=="cove.owner-epub-grant.v1"||ack.ownerFirst!==true||
          ack.grantId!==body.grantId||ack.saved!==true)
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "delivery.consume-epub-grant":
+      if(ack.schema!=="cove.owner-epub-consumption.v1"||ack.ownerFirst!==true||
+         ack.grantId!==body.grantId||ack.consumed!==true||
+         !Number.isSafeInteger(ack.uses)||Number(ack.uses)<1)
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "delivery.record-ownership":
