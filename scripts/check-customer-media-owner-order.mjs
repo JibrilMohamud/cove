@@ -21,7 +21,7 @@ const before=(source,guard,effect)=>{
 const epubIssue=block(delivery,"export async function issueCommercialEpubGrant(",
   "async function watermarkEpub(");
 before(epubIssue,"await requireStagePaidEntitlementAccess(env,",
-  "INSERT INTO commercial_delivery_grants");
+  "await dispatchPrivateCommercialEpubGrant(db,");
 const epubServe=block(delivery,"export async function serveCommercialEpubGrant(",
   "export async function revokeDeliveryGrant(");
 before(epubServe,"await requireStagePaidEntitlementAccess(env,",
