@@ -29,5 +29,6 @@
     "For lasting purchase/gift/publisher ownership, owner requires a matching strongly consistent paid commercial authorization proof in an exact valid territory and channel",
     "Conditional D1 insert with uniqueness prevents duplicated snapshots on retries; original owner-internal prepaid preorder can materialize with its own validated context",
     "The snapshot does not itself authorize a sale, download or title; protected delivery gates remain active"
-  ]
+  ],
+  "previousSha256": "964a019b7ee412a582fe0cc41d95ca1a416e51b92b386415f7cf4a0df2ccf37d"
 }
