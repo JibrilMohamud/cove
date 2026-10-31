@@ -163,6 +163,20 @@ export async function dispatchCatalogPersonalImport(db:object,input:{
   }catch{throw new ApiError(503,"Private catalog owner did not accept personal import.");}
 }
 
+/** A private, short-leased QA owner handles negative partner commands only. */
+export async function dispatchPrivatePartnerAction(db:object,
+ action:"certify"|"issue-credential"|"revoke-credential"|"submit-feed"|"asset-expectations"|"upload-asset"|"assign-contract"|"reconcile-public-domain",
+ payload:Record<string,unknown>):Promise<unknown> {
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Partner mutations require a privately bound owner.");
+ try{
+   const operationId="partner:"+crypto.randomUUID();
+   const receipt=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+     "publishing.partner-private-action",{operationId,action,payload});
+   return receipt.result;
+ }catch{throw new ApiError(503,"Private partner owner refused the command.");}
+}
+
 /** Publisher draft metadata may be edited only by a private QA owner. */
 export async function dispatchPrivatePublishingEditor(db:object,
  action:"account-save"|"member-invite"|"identity-start"|"tax-submit"|"payout-submit"|"title-save"|"edition-save"|"asset-upload"|"accessibility-sign"|"edition-submit"|"revision-open"|"update-policy"|"owner-optin"|"review-submission",payload:Record<string,unknown>):Promise<unknown>{

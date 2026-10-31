@@ -12,7 +12,7 @@ assert.equal(att.retiredCount,15);
 assert.equal(att.previousFindings,209);assert.equal(att.currentFindings,194);
 assert.equal(new Set(att.retiredSites.map(s=>s.siteId)).size,15);
 assert.equal(review.releaseApproval,false);
-assert.equal(review.sites.filter(s=>s.disposition==="owner-command-required").length,126);
+assert.equal(review.sites.filter(s=>s.disposition==="owner-command-required").length,113);
 assert.equal(review.sites.filter(s=>s.file==="src/features/fore/preorder.server.ts").length,0);
 assert.ok(att.retiredSites.every(row=>!review.sites.some(s=>s.siteId===row.siteId)));
 assert.doesNotMatch(source,/\b(?:INSERT(?: OR IGNORE)? INTO|UPDATE|DELETE FROM)\s+(?:preorders|preorder_release_plans|entitlements|preorder_refund_jobs|publishing_outbox)\b/i);

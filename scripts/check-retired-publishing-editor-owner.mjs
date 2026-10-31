@@ -14,7 +14,7 @@ assert.equal(createHash("sha256").update(source).digest("hex"),lineage.currentSo
  "Exact publisher source changed without audited SQL site attestation");
 assert.equal(new Set(lineage.retired.map(x=>x.siteId)).size,30);
 assert.equal(review.releaseApproval,false);
-assert.equal(review.sites.filter(x=>x.disposition==="owner-command-required").length,126);
+assert.equal(review.sites.filter(x=>x.disposition==="owner-command-required").length,113);
 assert.equal(review.sites.filter(x=>x.file==="src/features/fore/publishing.server.ts"&&x.disposition==="owner-command-required").length,10);
 assert.ok(lineage.retired.every(x=>!review.sites.some(y=>y.siteId===x.siteId)));
 for(const name of ["upsertPublishingAccount","invitePublishingMember","startIdentityVerification","submitTaxProfile","submitPayoutAccount","savePublishingTitle","savePublishingEdition","uploadPublishingAsset","signPublishingAccessibilityDeclaration","submitPublishingEdition","openPublishingRevision","setPublishingUpdatePolicy","optInOwnedPublicationUpdate","reviewPublishingSubmission"]){

@@ -1,5 +1,5 @@
-import { z } from "zod/v3";
-import { dispatchPartnerFeedProcessing } from "../../storefront-strangler/publication-owner-routing.server";
+/* eslint-disable prettier/prettier -- Byte-position-preserved private partner owner facades. */ import { z } from "zod/v3";
+import { dispatchPartnerFeedProcessing,dispatchPrivatePartnerAction } from "../../storefront-strangler/publication-owner-routing.server";
 import JSZip from "jszip";
 import type { CatalogDB } from "./catalog-model.server";
 import type { CoveEnv } from "./api.server";
@@ -319,81 +319,81 @@ export async function savePartnerProfile(db: CatalogDB, userId: string, raw: unk
   return { accountId: x.accountId, updatedAt: at };
 }
 
-export async function certifyPartnerProfile(db: CatalogDB, actorUserId: string, raw: unknown) {
-  const x = z
-    .object({
-      accountId: z.string().min(1),
-      productionStatus: z.enum([
-        "not_started",
-        "testing",
-        "certification",
-        "active",
-        "paused",
-        "terminated",
-      ]),
-      reason: z.string().trim().min(3).max(2000),
-    })
-    .parse(raw);
-  const profile = await db
-    .prepare(
-      "SELECT account_id,production_status,partner_code FROM publisher_partner_profiles WHERE account_id=?",
-    )
-    .bind(x.accountId)
-    .first<any>();
-  if (!profile) throw new ApiError(404, "Partner integration profile not found.");
-  const previous = String(profile.production_status);
-  if (previous === "terminated" && x.productionStatus !== "terminated")
-    throw new ApiError(
-      409,
-      "A terminated partner must be re-onboarded under a new staff-approved process rather than reactivated in place.",
-    );
-  if (x.productionStatus === "active") {
-    const [assignment, activeVersion] = await Promise.all([
-      db
-        .prepare(
-          "SELECT contract_id FROM publisher_contract_assignments WHERE account_id=? AND status='active' AND (starts_at IS NULL OR starts_at<=?) AND (ends_at IS NULL OR ends_at>?) LIMIT 1",
-        )
-        .bind(x.accountId, now(), now())
-        .first<any>(),
-      db
-        .prepare(
-          `SELECT rcv.id FROM publisher_contract_assignments a JOIN rights_contract_versions rcv ON rcv.contract_id=a.contract_id WHERE a.account_id=? AND a.status='active' AND rcv.status='active' AND rcv.effective_from<=? AND (rcv.effective_to IS NULL OR rcv.effective_to>?) LIMIT 1`,
-        )
-        .bind(x.accountId, now(), now())
-        .first<any>(),
-    ]);
-    if (!assignment || !activeVersion)
-      throw new ApiError(
-        409,
-        "Production activation requires an active assigned distribution contract with an effective approved contract version.",
-      );
-  }
-  const at = now();
-  await db
-    .prepare(
-      "UPDATE publisher_partner_profiles SET production_status=?,updated_at=? WHERE account_id=?",
-    )
-    .bind(x.productionStatus, at, x.accountId)
-    .run();
-  if (["paused", "terminated"].includes(x.productionStatus))
-    await db
-      .prepare(
-        "UPDATE publisher_partner_credentials SET status='revoked',revoked_at=COALESCE(revoked_at,?) WHERE account_id=? AND environment='production' AND status='active'",
-      )
-      .bind(at, x.accountId)
-      .run();
-  await partnerAudit(db, {
-    accountId: x.accountId,
-    environment: "production",
-    actorType: "user",
-    actorId: actorUserId,
-    eventType: "partner.certification.changed",
-    subjectType: "partner",
-    subjectId: x.accountId,
-    event: { from: previous, to: x.productionStatus, reason: x.reason },
-  });
-  return { accountId: x.accountId, from: previous, to: x.productionStatus, updatedAt: at };
+export async function certifyPartnerProfile(db:CatalogDB,actorUserId:string,raw:unknown){
+ return dispatchPrivatePartnerAction(db,"certify",{actorUserId,raw});
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const channelSchema = z.object({
   id: z.string().max(180).optional(),
@@ -468,95 +468,95 @@ const credentialSchema = z.object({
   ipAllowlist: z.array(z.string().trim().min(3).max(80)).max(100).default([]),
   expiresAt: z.string().datetime().nullable().optional(),
 });
-export async function issuePartnerCredential(db: CatalogDB, userId: string, raw: unknown) {
-  const x = credentialSchema.parse(raw);
-  await requirePartnerRole(db, userId, x.accountId, "admin");
-  const profile = await db
-    .prepare("SELECT * FROM publisher_partner_profiles WHERE account_id=?")
-    .bind(x.accountId)
-    .first<any>();
-  if (!profile)
-    throw new ApiError(
-      409,
-      "Configure the traditional-publisher partner profile before issuing credentials.",
-    );
-  if (x.environment === "production" && String(profile.production_status) !== "active")
-    throw new ApiError(
-      409,
-      "Production credentials are issued only after partner certification is active.",
-    );
-  if (x.environment === "sandbox" && !Number(profile.sandbox_enabled))
-    throw new ApiError(409, "Sandbox access is disabled for this partner.");
-  const prefix = `fore_${x.environment === "production" ? "live" : "test"}_${randomToken(8)}`,
-    secret = randomToken(32),
-    presented = `${prefix}.${secret}`,
-    hash = await sha256(presented),
-    credentialId = id("pcred"),
-    at = now();
-  await db
-    .prepare(
-      "INSERT INTO publisher_partner_credentials(id,account_id,environment,label,key_prefix,secret_hash,scopes_json,ip_allowlist_json,actor_user_id,status,expires_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,'active',?,?)",
-    )
-    .bind(
-      credentialId,
-      x.accountId,
-      x.environment,
-      x.label,
-      prefix,
-      hash,
-      JSON.stringify(x.scopes),
-      JSON.stringify(x.ipAllowlist),
-      userId,
-      x.expiresAt || null,
-      at,
-    )
-    .run();
-  await partnerAudit(db, {
-    accountId: x.accountId,
-    environment: x.environment,
-    actorType: "user",
-    actorId: userId,
-    eventType: "partner.credential.issued",
-    subjectType: "credential",
-    subjectId: credentialId,
-    event: { label: x.label, scopes: x.scopes, keyPrefix: prefix },
-  });
-  return {
-    id: credentialId,
-    environment: x.environment,
-    keyPrefix: prefix,
-    secret: presented,
-    scopes: x.scopes,
-    expiresAt: x.expiresAt || null,
-    warning:
-      "Copy this credential now. Cove stores only its cryptographic digest and cannot show the secret again.",
-  };
+export async function issuePartnerCredential(db:CatalogDB,userId:string,raw:unknown){
+ return dispatchPrivatePartnerAction(db,"issue-credential",{actorUserId:userId,raw});
 }
 
-export async function revokePartnerCredential(db: CatalogDB, userId: string, raw: unknown) {
-  const x = z.object({ accountId: z.string().min(1), credentialId: z.string().min(1) }).parse(raw);
-  await requirePartnerRole(db, userId, x.accountId, "admin");
-  const row = await db
-    .prepare("SELECT id,environment FROM publisher_partner_credentials WHERE id=? AND account_id=?")
-    .bind(x.credentialId, x.accountId)
-    .first<any>();
-  if (!row) throw new ApiError(404, "Partner credential not found.");
-  const at = now();
-  await db
-    .prepare("UPDATE publisher_partner_credentials SET status='revoked',revoked_at=? WHERE id=?")
-    .bind(at, x.credentialId)
-    .run();
-  await partnerAudit(db, {
-    accountId: x.accountId,
-    environment: row.environment,
-    actorType: "user",
-    actorId: userId,
-    eventType: "partner.credential.revoked",
-    subjectType: "credential",
-    subjectId: x.credentialId,
-  });
-  return { revoked: true, revokedAt: at };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+export async function revokePartnerCredential(db:CatalogDB,userId:string,raw:unknown){
+ return dispatchPrivatePartnerAction(db,"revoke-credential",{actorUserId:userId,raw});
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 function ipMatchesRule(ip: string, rule: string) {
   if (!rule) return false;
@@ -1111,342 +1111,342 @@ async function readBounded(request: Request, limit: number) {
   return bytes;
 }
 
-export async function submitPartnerFeed(
-  env: CoveEnv,
-  request: Request,
-  principal: PartnerPrincipal,
-) {
-  const bytes = await readBounded(request, 25 * 1024 * 1024),
-    text = new TextDecoder().decode(bytes),
-    contentType = (request.headers.get("content-type") || "").toLowerCase();
-  const declaredFormat =
-    clean(request.headers.get("x-fore-feed-format"), 30) ||
-    (contentType.includes("xml") ? "onix_3" : "fore_json");
-  const feedType = z
-    .enum(["metadata", "price", "availability", "territory", "assets_manifest"])
-    .parse(clean(request.headers.get("x-fore-feed-type"), 40) || "metadata");
-  const mode = z
-    .enum(["full", "delta"])
-    .parse(clean(request.headers.get("x-fore-feed-mode"), 20) || "delta");
-  const replaceMissing =
-    mode === "full" &&
-    feedType === "metadata" &&
-    ["1", "true", "yes"].includes(
-      clean(request.headers.get("x-fore-full-feed-delete-missing"), 10).toLowerCase(),
-    );
-  const externalFeedId =
-    clean(request.headers.get("x-fore-feed-id"), 200) || `auto_${await sha256(bytes)}`;
-  const sequenceRaw = clean(request.headers.get("x-fore-feed-sequence"), 30);
-  const sequenceNumber = sequenceRaw ? z.coerce.number().int().min(0).parse(sequenceRaw) : null;
-  const filename = clean(request.headers.get("x-fore-filename"), 240);
-  const channelId = clean(request.headers.get("x-fore-channel-id"), 180) || null;
-  const format = z.enum(["onix_3", "onix_2_1", "fore_json"]).parse(declaredFormat);
-  const digest = await sha256(bytes),
-    db = env.DB;
-  if (channelId) {
-    const channel = await db
-      .prepare(
-        "SELECT id,channel_type,metadata_format FROM publisher_ingestion_channels WHERE id=? AND account_id=? AND environment=? AND status='active'",
-      )
-      .bind(channelId, principal.accountId, principal.environment)
-      .first<any>();
-    if (!channel)
-      throw new ApiError(
-        409,
-        "The declared ingestion channel is not active for this partner/environment.",
-      );
-    if (feedType !== "assets_manifest" && String(channel.metadata_format) !== format)
-      throw new ApiError(
-        409,
-        `Feed format ${format} does not match ingestion channel ${channelId} (${channel.metadata_format}).`,
-      );
-  }
-  const existing = await db
-    .prepare(
-      "SELECT id,status,item_count,accepted_count,warning_count,rejected_count,applied_count FROM publisher_feed_submissions WHERE account_id=? AND environment=? AND feed_type=? AND (external_feed_id=? OR source_sha256=?) ORDER BY received_at DESC LIMIT 1",
-    )
-    .bind(principal.accountId, principal.environment, feedType, externalFeedId, digest)
-    .first<any>();
-  if (existing) return { ...existing, idempotentReplay: true };
-  const cursor = await db
-    .prepare(
-      "SELECT last_sequence_number FROM publisher_feed_cursors WHERE account_id=? AND environment=? AND feed_type=?",
-    )
-    .bind(principal.accountId, principal.environment, feedType)
-    .first<any>();
-  if (
-    sequenceNumber != null &&
-    cursor?.last_sequence_number != null &&
-    Number(sequenceNumber) <= Number(cursor.last_sequence_number)
-  )
-    throw new ApiError(
-      409,
-      `Feed sequence ${sequenceNumber} is not newer than the last accepted sequence ${cursor.last_sequence_number}.`,
-    );
-  let rawProducts: unknown[] = [],
-    parserWarnings: string[] = [],
-    detectedFormat = format;
-  if (format === "fore_json") {
-    let doc: any;
-    try {
-      doc = JSON.parse(text);
-    } catch {
-      throw new ApiError(400, "Partner JSON feed is not valid JSON.");
-    }
-    rawProducts = Array.isArray(doc)
-      ? doc
-      : feedType === "assets_manifest" && Array.isArray(doc.assets)
-        ? doc.assets
-        : Array.isArray(doc.products)
-          ? doc.products
-          : [];
-    if (!rawProducts.length)
-      throw new ApiError(
-        400,
-        feedType === "assets_manifest"
-          ? "Asset manifest feeds must contain a non-empty assets array."
-          : "Partner JSON feed must contain a non-empty products array.",
-      );
-  } else {
-    if (feedType === "assets_manifest")
-      throw new ApiError(
-        400,
-        "Asset manifests use Cove JSON; ONIX is reserved for bibliographic metadata.",
-      );
-    const parsed = parseOnix(text);
-    rawProducts = parsed.products;
-    parserWarnings = parsed.warnings;
-    detectedFormat = parsed.version as typeof format;
-  }
-  const parsedProducts: PartnerProduct[] = [];
-  const staged: { product: PartnerProduct; issues: any[]; fragmentSha: string }[] = [];
-  for (const raw of rawProducts.slice(0, 100000)) {
-    let product: PartnerProduct;
-    try {
-      product = partnerProductSchema.parse(raw) as PartnerProduct;
-    } catch (e) {
-      const issue = {
-        severity: "error",
-        code: "SCHEMA_INVALID",
-        message: e instanceof Error ? e.message.slice(0, 1500) : "Invalid product record.",
-      };
-      staged.push({
-        product: {
-          productKey: clean(
-            (raw as any)?.productKey ||
-              (raw as any)?.recordReference ||
-              `invalid_${staged.length + 1}`,
-          ),
-          notificationType: "update",
-        },
-        issues: [issue],
-        fragmentSha: await sha256(JSON.stringify(raw)),
-      });
-      continue;
-    }
-    const issues = validatePartnerProduct(product, feedType);
-    parsedProducts.push(product);
-    staged.push({ product, issues, fragmentSha: await sha256(JSON.stringify(product)) });
-  }
-  if (rawProducts.length > 100000)
-    throw new ApiError(
-      413,
-      "A single feed may contain at most 100,000 product records. Split larger catalogs into sequenced feed parts.",
-    );
-  const rejected = staged.filter((s) => s.issues.some((i) => i.severity === "error")).length,
-    warningItems = staged.filter(
-      (s) =>
-        !s.issues.some((i) => i.severity === "error") &&
-        s.issues.some((i) => i.severity === "warning"),
-    ).length,
-    accepted = staged.length - rejected;
-  const submissionId = id("pfeed"),
-    at = now(),
-    status =
-      rejected === staged.length
-        ? "rejected"
-        : rejected > 0 || warningItems > 0 || parserWarnings.length
-          ? "accepted_with_warnings"
-          : "accepted";
-  let rawObjectKey: string | null = null;
-  if (env.BUCKET) {
-    rawObjectKey = `partner-ingest/${principal.environment}/${principal.accountId}/${submissionId}/source.${format === "fore_json" ? "json" : "xml"}`;
-    await env.BUCKET.put(rawObjectKey, bytes, {
-      httpMetadata: {
-        contentType:
-          contentType || (format === "fore_json" ? "application/json" : "application/xml"),
-      },
-      customMetadata: {
-        sha256: digest,
-        accountId: principal.accountId,
-        feedType,
-        environment: principal.environment,
-      },
-    });
-  }
-  const statements: any[] = [
-    db
-      .prepare(
-        `INSERT INTO publisher_feed_submissions(id,account_id,credential_id,channel_id,environment,feed_type,feed_format,mode,replace_missing,external_feed_id,sequence_number,source_filename,source_sha256,raw_object_key,status,item_count,accepted_count,warning_count,rejected_count,error_summary,received_at,validated_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      )
-      .bind(
-        submissionId,
-        principal.accountId,
-        principal.credentialId,
-        channelId,
-        principal.environment,
-        feedType,
-        detectedFormat,
-        mode,
-        replaceMissing ? 1 : 0,
-        externalFeedId,
-        sequenceNumber,
-        filename,
-        digest,
-        rawObjectKey,
-        status,
-        staged.length,
-        accepted,
-        warningItems + parserWarnings.length,
-        rejected,
-        rejected ? `${rejected} item(s) rejected.` : "",
-        at,
-        at,
-      ),
-  ];
-  staged.forEach((s, ordinal) =>
-    statements.push(
-      db
-        .prepare(
-          "INSERT INTO publisher_feed_items(id,submission_id,ordinal,partner_product_key,notification_type,normalized_json,source_fragment_sha256,status,validation_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-        )
-        .bind(
-          id("pfitem"),
-          submissionId,
-          ordinal + 1,
-          s.product.productKey,
-          s.product.notificationType,
-          JSON.stringify(s.product),
-          s.fragmentSha,
-          s.issues.some((i) => i.severity === "error")
-            ? "rejected"
-            : s.issues.length
-              ? "warning"
-              : "valid",
-          JSON.stringify(s.issues),
-          at,
-          at,
-        ),
-    ),
-  );
-  statements.push(
-    db
-      .prepare(
-        "INSERT INTO publisher_validation_responses(id,submission_id,response_type,status,machine_code,message,payload_json,delivery_status,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
-      )
-      .bind(
-        id("pack"),
-        submissionId,
-        "receipt",
-        "received",
-        "FEED_RECEIVED",
-        "Feed received and validated by Cove.",
-        JSON.stringify({
-          submissionId,
-          itemCount: staged.length,
-          acceptedCount: accepted,
-          rejectedCount: rejected,
-          warningCount: warningItems + parserWarnings.length,
-          parserWarnings,
-        }),
-        "pending",
-        at,
-      ),
-  );
-  statements.push(
-    db
-      .prepare(
-        "INSERT INTO publisher_validation_responses(id,submission_id,response_type,status,machine_code,message,payload_json,delivery_status,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
-      )
-      .bind(
-        id("pack"),
-        submissionId,
-        "validation",
-        status,
-        status === "rejected"
-          ? "FEED_REJECTED"
-          : status === "accepted_with_warnings"
-            ? "FEED_VALID_WITH_WARNINGS"
-            : "FEED_VALID",
-        status === "rejected"
-          ? "Feed validation rejected all records."
-          : status === "accepted_with_warnings"
-            ? "Feed validation completed with warnings or rejected records."
-            : "Feed validation passed.",
-        JSON.stringify({
-          submissionId,
-          status,
-          itemCount: staged.length,
-          acceptedCount: accepted,
-          rejectedCount: rejected,
-          warningCount: warningItems + parserWarnings.length,
-        }),
-        "pending",
-        at,
-      ),
-  );
-  if (accepted > 0)
-    statements.push(
-      db
-        .prepare(
-          "INSERT INTO publisher_feed_cursors(account_id,environment,feed_type,last_sequence_number,last_external_feed_id,last_source_sha256,updated_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(account_id,environment,feed_type) DO UPDATE SET last_sequence_number=COALESCE(excluded.last_sequence_number,publisher_feed_cursors.last_sequence_number),last_external_feed_id=excluded.last_external_feed_id,last_source_sha256=excluded.last_source_sha256,updated_at=excluded.updated_at",
-        )
-        .bind(
-          principal.accountId,
-          principal.environment,
-          feedType,
-          sequenceNumber,
-          externalFeedId,
-          digest,
-          at,
-        ),
-    );
-  await db.batch(statements);
-  await partnerAudit(db, {
-    accountId: principal.accountId,
-    environment: principal.environment,
-    actorType: "credential",
-    actorId: principal.credentialId,
-    eventType: "partner.feed.received",
-    subjectType: "feed",
-    subjectId: submissionId,
-    event: {
-      feedType,
-      format: detectedFormat,
-      mode,
-      channelId,
-      itemCount: staged.length,
-      accepted,
-      rejected,
-      warnings: warningItems + parserWarnings.length,
-    },
-  });
-  return {
-    id: submissionId,
-    status,
-    environment: principal.environment,
-    feedType,
-    feedFormat: detectedFormat,
-    mode,
-    itemCount: staged.length,
-    acceptedCount: accepted,
-    warningCount: warningItems + parserWarnings.length,
-    rejectedCount: rejected,
-    parserWarnings,
-    acknowledgementPath: `/api/fore/partner/v1/feeds/${submissionId}/ack`,
-  };
+export async function submitPartnerFeed(_env:CoveEnv,_request:Request,_principal:PartnerPrincipal){
+ throw new ApiError(503,"Partner feed intake requires owner-controlled R2 staging and replay certification.");
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 async function candidateWorkIdentityKeys(p: PartnerProduct) {
   const norm = (v: string) =>
@@ -1476,76 +1476,76 @@ async function candidateWorkIdentityKeys(p: PartnerProduct) {
   return keys;
 }
 
-async function matchAssetExpectations(
-  db: CatalogDB,
-  input: {
-    accountId: string;
-    environment: string;
-    productKey: string;
-    assetKind: string;
-    filename: string;
-    sha256: string;
-    sizeBytes: number;
-    mimeType: string;
-    assetId: string;
-  },
-) {
-  const rows = (
-    await db
-      .prepare(
-        "SELECT * FROM publisher_asset_expectations WHERE account_id=? AND environment=? AND partner_product_key=? AND asset_kind=? AND status IN ('waiting','mismatch') ORDER BY created_at",
-      )
-      .bind(input.accountId, input.environment, input.productKey, input.assetKind)
-      .all<any>()
-  ).results;
-  let matched = 0,
-    mismatched = 0;
-  const at = now();
-  for (const row of rows) {
-    const checksum = String(row.expected_sha256).toLowerCase() === input.sha256.toLowerCase(),
-      size = row.expected_size_bytes == null || Number(row.expected_size_bytes) === input.sizeBytes,
-      mime =
-        !row.expected_mime_type ||
-        String(row.expected_mime_type).toLowerCase() === input.mimeType.toLowerCase();
-    if (checksum && size && mime) {
-      await db
-        .prepare(
-          "UPDATE publisher_asset_expectations SET status='matched',matched_asset_id=?,validation_json='[]',matched_at=? WHERE id=?",
-        )
-        .bind(input.assetId, at, row.id)
-        .run();
-      matched++;
-    } else if (String(row.source_filename) === input.filename || checksum) {
-      await db
-        .prepare(
-          "UPDATE publisher_asset_expectations SET status='mismatch',matched_asset_id=?,validation_json=? WHERE id=?",
-        )
-        .bind(
-          input.assetId,
-          JSON.stringify([
-            {
-              severity: "error",
-              code: "ASSET_BINARY_MISMATCH",
-              message: !checksum
-                ? "Uploaded asset checksum does not match the manifest."
-                : !size
-                  ? "Uploaded asset size does not match the manifest."
-                  : "Uploaded asset MIME type does not match the manifest.",
-            },
-          ]),
-          row.id,
-        )
-        .run();
-      mismatched++;
-    }
-  }
-  if (matched)
-    await db
-      .prepare("UPDATE publisher_feed_assets SET status='accepted',updated_at=? WHERE id=?")
-      .bind(at, input.assetId)
-      .run();
-  return { matched, mismatched };
+async function matchAssetExpectations(_db:CatalogDB,_input:unknown){
+ throw new ApiError(503,"Partner asset expectation matching requires its private owner.");
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /** Canonical partner application is now exclusively owned. This caller cannot write D1. */
 export async function processPartnerFeedQueue(db: CatalogDB, limit = 25) {
@@ -1779,177 +1779,177 @@ export async function partnerFeedAcknowledgement(
   };
 }
 
-export async function uploadPartnerAsset(
-  env: CoveEnv,
-  request: Request,
-  principal: PartnerPrincipal,
-) {
-  const productKey = clean(request.headers.get("x-fore-product-key"), 300);
-  const assetKind = z
-    .enum(["epub", "cover", "audio", "sample", "supplement"])
-    .parse(clean(request.headers.get("x-fore-asset-kind"), 30));
-  const filename =
-    clean(request.headers.get("x-fore-filename"), 240) ||
-    `asset.${assetKind === "epub" ? "epub" : assetKind === "cover" ? "jpg" : "bin"}`;
-  const mime = clean(request.headers.get("content-type"), 120) || "application/octet-stream";
-  if (!productKey) throw new ApiError(400, "X-Cove-Product-Key is required.");
-  const uploadLimit =
-    assetKind === "audio"
-      ? 750 * 1024 * 1024
-      : assetKind === "epub"
-        ? 150 * 1024 * 1024
-        : 25 * 1024 * 1024;
-  const bytes = await readBounded(request, uploadLimit),
-    digest = await sha256(bytes),
-    assetId = id("pfasset"),
-    at = now();
-
-  if (principal.environment === "sandbox") {
-    const known = await env.DB.prepare(
-      `SELECT 1 ok FROM publisher_feed_items i JOIN publisher_feed_submissions s ON s.id=i.submission_id WHERE s.account_id=? AND s.environment='sandbox' AND s.feed_type='metadata' AND i.partner_product_key=? AND i.status IN ('valid','warning','applied') LIMIT 1`,
-    )
-      .bind(principal.accountId, productKey)
-      .first<any>();
-    if (!known)
-      throw new ApiError(
-        409,
-        "Submit sandbox metadata before uploading assets for this product key.",
-      );
-    if (!env.BUCKET) throw new ApiError(503, "Partner sandbox asset storage is not configured.");
-    const objectKey = `partner-ingest/sandbox/${principal.accountId}/assets/${assetId}/${filename.replace(/[^A-Za-z0-9._-]/g, "_")}`;
-    await env.BUCKET.put(objectKey, bytes, {
-      httpMetadata: { contentType: mime },
-      customMetadata: { sha256: digest, environment: "sandbox", productKey },
-    });
-    await env.DB.prepare(
-      "INSERT INTO publisher_feed_assets(id,account_id,environment,partner_product_key,asset_kind,source_filename,mime_type,object_key,size_bytes,sha256,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,'quarantined',?,?)",
-    )
-      .bind(
-        assetId,
-        principal.accountId,
-        principal.environment,
-        productKey,
-        assetKind,
-        filename,
-        mime,
-        objectKey,
-        bytes.byteLength,
-        digest,
-        at,
-        at,
-      )
-      .run();
-    const expectationMatch = await matchAssetExpectations(env.DB, {
-      accountId: principal.accountId,
-      environment: principal.environment,
-      productKey,
-      assetKind,
-      filename,
-      sha256: digest,
-      sizeBytes: bytes.byteLength,
-      mimeType: mime,
-      assetId,
-    });
-    await partnerAudit(env.DB, {
-      accountId: principal.accountId,
-      environment: principal.environment,
-      actorType: "credential",
-      actorId: principal.credentialId,
-      eventType: "partner.asset.uploaded",
-      subjectType: "asset",
-      subjectId: assetId,
-      event: {
-        productKey,
-        assetKind,
-        sha256: digest,
-        sizeBytes: bytes.byteLength,
-        expectationMatch,
-      },
-    });
-    return {
-      id: assetId,
-      environment: "sandbox",
-      sha256: digest,
-      sizeBytes: bytes.byteLength,
-      status: expectationMatch.matched ? "accepted" : "quarantined",
-      expectationMatch,
-    };
-  }
-
-  const mapping = await env.DB.prepare(
-    "SELECT * FROM publisher_catalog_mappings WHERE account_id=? AND environment='production' AND partner_product_key=?",
-  )
-    .bind(principal.accountId, productKey)
-    .first<any>();
-  if (!mapping?.publishing_edition_id)
-    throw new ApiError(
-      409,
-      "Submit and apply partner metadata before uploading assets for this product key.",
-    );
-  const kind = assetKind === "epub" ? "manuscript" : assetKind,
-    limit = publishingUploadLimit(kind);
-  if (bytes.byteLength > limit)
-    throw new ApiError(413, `${assetKind} exceeds the publishing upload limit.`);
-  const result = await uploadPublishingAsset(env, principal.actorUserId, {
-    editionId: String(mapping.publishing_edition_id),
-    kind,
-    filename,
-    mimeType: mime,
-    bytes,
-  });
-  const row = await env.DB.prepare(
-    "SELECT object_key,size_bytes FROM publishing_asset_versions WHERE id=?",
-  )
-    .bind(result.versionId)
-    .first<any>();
-  await env.DB.prepare(
-    "INSERT INTO publisher_feed_assets(id,account_id,environment,partner_product_key,asset_kind,source_filename,mime_type,object_key,size_bytes,sha256,status,linked_publishing_asset_version_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,'linked',?,?,?)",
-  )
-    .bind(
-      assetId,
-      principal.accountId,
-      principal.environment,
-      productKey,
-      assetKind,
-      filename,
-      mime,
-      row?.object_key || "",
-      Number(row?.size_bytes || bytes.byteLength),
-      result.sha256,
-      result.versionId,
-      at,
-      at,
-    )
-    .run();
-  const expectationMatch = await matchAssetExpectations(env.DB, {
-    accountId: principal.accountId,
-    environment: principal.environment,
-    productKey,
-    assetKind,
-    filename,
-    sha256: result.sha256,
-    sizeBytes: Number(row?.size_bytes || bytes.byteLength),
-    mimeType: mime,
-    assetId,
-  });
-  await partnerAudit(env.DB, {
-    accountId: principal.accountId,
-    environment: principal.environment,
-    actorType: "credential",
-    actorId: principal.credentialId,
-    eventType: "partner.asset.uploaded",
-    subjectType: "asset",
-    subjectId: assetId,
-    event: {
-      productKey,
-      assetKind,
-      sha256: result.sha256,
-      versionId: result.versionId,
-      expectationMatch,
-    },
-  });
-  return { id: assetId, environment: "production", ...result, expectationMatch };
+export async function uploadPartnerAsset(_env:CoveEnv,_request:Request,_principal:PartnerPrincipal){
+ throw new ApiError(503,"Partner asset upload requires an independently verified private owner R2 intake.");
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 export async function uploadPartnerAssetBatch(
   env: CoveEnv,
@@ -2187,54 +2187,54 @@ export async function saveContractVersion(
   throw new ApiError(503, "Distribution contract changes require their canonical owner.");
 }
 
-export async function assignPublisherContract(db: CatalogDB, actorUserId: string, raw: unknown) {
-  const x = z
-    .object({
-      accountId: z.string().min(1),
-      contractId: z.string().min(1),
-      relationship: z.enum(["direct", "distributor", "aggregator", "agent"]).default("direct"),
-      startsAt: z.string().datetime().nullable().optional(),
-      endsAt: z.string().datetime().nullable().optional(),
-      status: z.enum(["active", "suspended", "terminated"]).default("active"),
-    })
-    .parse(raw);
-  const [account, contract] = await Promise.all([
-    db.prepare("SELECT id FROM publishing_accounts WHERE id=?").bind(x.accountId).first<any>(),
-    db.prepare("SELECT id FROM rights_contracts WHERE id=?").bind(x.contractId).first<any>(),
-  ]);
-  if (!account || !contract) throw new ApiError(404, "Publisher account or contract not found.");
-  if (x.startsAt && x.endsAt && x.endsAt <= x.startsAt)
-    throw new ApiError(400, "Contract assignment end must follow its start.");
-  const at = now();
-  await db.batch([
-    db
-      .prepare(
-        "INSERT INTO publisher_contract_assignments(account_id,contract_id,relationship,starts_at,ends_at,status,created_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(account_id,contract_id) DO UPDATE SET relationship=excluded.relationship,starts_at=excluded.starts_at,ends_at=excluded.ends_at,status=excluded.status",
-      )
-      .bind(
-        x.accountId,
-        x.contractId,
-        x.relationship,
-        x.startsAt || null,
-        x.endsAt || null,
-        x.status,
-        at,
-      ),
-    db
-      .prepare(
-        "INSERT INTO rights_contract_audit(id,contract_id,action,actor_user_id,snapshot_json,created_at) VALUES(?,?,?,?,?,?)",
-      )
-      .bind(
-        id("rcaudit"),
-        x.contractId,
-        "publisher_assignment",
-        actorUserId,
-        JSON.stringify(x),
-        at,
-      ),
-  ]);
-  return { assigned: true };
+export async function assignPublisherContract(db:CatalogDB,actorUserId:string,raw:unknown){
+ return dispatchPrivatePartnerAction(db,"assign-contract",{actorUserId,raw});
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 function normalizeIdentityText(v: string) {
   return v
@@ -2352,86 +2352,86 @@ export async function rebuildWorkIdentityKeys(db: CatalogDB, limit = 1000) {
   return { scanned: rows.length, partnerMappings: mappings.length, created, collisions };
 }
 
-export async function reconcilePublicDomainWorks(db: CatalogDB, limit = 250) {
-  await rebuildWorkIdentityKeys(db, Math.max(limit * 3, 500));
-  const groups = (
-    await db
-      .prepare(
-        `SELECT lower(trim(w.title)) title_key,lower(COALESCE((SELECT c.name FROM editions e JOIN edition_contributors ec ON ec.edition_id=e.id JOIN contributors c ON c.id=ec.contributor_id WHERE e.work_id=w.id AND ec.role='author' ORDER BY ec.position LIMIT 1),'')) author_key,COALESCE(w.original_language,(SELECT e.language FROM editions e WHERE e.work_id=w.id ORDER BY e.created_at LIMIT 1),'en') language,count(DISTINCT w.id) n,group_concat(DISTINCT w.id) ids FROM works w JOIN editions e0 ON e0.work_id=w.id LEFT JOIN products p0 ON p0.edition_id=e0.id WHERE (e0.canonical_public_domain=1 OR p0.source_name='gutenberg' OR e0.edition_type IN ('canonical_public_domain','annotated','new_translation','illustrated','scholarly')) GROUP BY title_key,author_key,language HAVING count(DISTINCT w.id)>1 LIMIT ?`,
-      )
-      .bind(Math.max(1, Math.min(1000, limit)))
-      .all<any>()
-  ).results;
-  let merged = 0;
-  for (const g of groups) {
-    const ids = String(g.ids || "")
-      .split(",")
-      .filter(Boolean);
-    if (ids.length < 2) continue;
-    const candidates = (
-      await db
-        .prepare(
-          `SELECT w.id,MIN(CASE WHEN p.source_name='gutenberg' THEN 0 ELSE 1 END) source_rank,MIN(w.created_at) created_at FROM works w JOIN editions e ON e.work_id=w.id LEFT JOIN products p ON p.edition_id=e.id WHERE w.id IN (${ids.map(() => "?").join(",")}) GROUP BY w.id ORDER BY source_rank,created_at,w.id`,
-        )
-        .bind(...ids)
-        .all<any>()
-    ).results;
-    const canonical = String(candidates[0].id);
-    for (const old of ids.filter((x) => x !== canonical)) {
-      await db.batch([
-        db.prepare("UPDATE editions SET work_id=? WHERE work_id=?").bind(canonical, old),
-        db
-          .prepare("UPDATE publishing_titles SET catalog_work_id=? WHERE catalog_work_id=?")
-          .bind(canonical, old),
-        db
-          .prepare(
-            "UPDATE publisher_catalog_mappings SET catalog_work_id=? WHERE catalog_work_id=?",
-          )
-          .bind(canonical, old),
-        db
-          .prepare(
-            "INSERT OR REPLACE INTO work_redirects(old_work_id,canonical_work_id,reason,created_at) VALUES(?,?,?,?)",
-          )
-          .bind(old, canonical, "canonical-public-domain-work-reconciliation", now()),
-        db
-          .prepare("UPDATE works SET canonical_status='redirected',updated_at=? WHERE id=?")
-          .bind(now(), old),
-      ]);
-      merged++;
-    }
-    await db
-      .prepare(
-        "UPDATE works SET work_type='public_domain',canonical_status='canonical',updated_at=? WHERE id=?",
-      )
-      .bind(now(), canonical)
-      .run();
-  }
-  const canonicalRows = (
-    await db
-      .prepare(
-        `SELECT w.id work_id,e.id edition_id,p.source_name,av.sha256 FROM works w JOIN editions e ON e.work_id=w.id JOIN products p ON p.edition_id=e.id LEFT JOIN digital_assets da ON da.edition_id=e.id AND da.kind='epub' LEFT JOIN asset_versions av ON av.id=da.current_version_id WHERE p.source_name='gutenberg' AND p.storefront_status='active' ORDER BY w.id,e.created_at`,
-      )
-      .all<any>()
-  ).results;
-  const seen = new Set<string>();
-  for (const r of canonicalRows) {
-    if (seen.has(String(r.work_id))) continue;
-    seen.add(String(r.work_id));
-    await db.batch([
-      db
-        .prepare(
-          "UPDATE editions SET edition_type='canonical_public_domain',canonical_public_domain=1,differentiation_status='not_required' WHERE id=?",
-        )
-        .bind(r.edition_id),
-      db
-        .prepare(
-          "INSERT INTO edition_distinctions(edition_id,edition_type,differentiation_summary,source_text_fingerprint,asset_sha256,verification_status,policy_version,created_at,updated_at) VALUES(?,'canonical_public_domain','Canonical free Gutenberg edition','',?,'verified','fore-public-domain-editions-v1',?,?) ON CONFLICT(edition_id) DO UPDATE SET edition_type='canonical_public_domain',asset_sha256=excluded.asset_sha256,verification_status='verified',updated_at=excluded.updated_at",
-        )
-        .bind(r.edition_id, r.sha256 || "", now(), now()),
-    ]);
-  }
-  return { groups: groups.length, merged, canonicalized: seen.size };
+export async function reconcilePublicDomainWorks(db:CatalogDB,limit=250){
+ return (await dispatchPrivatePartnerAction(db,"reconcile-public-domain",{limit})) as {groups:number;merged:number;canonicalized:number};
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 export async function editionDifferentiationDecision(
   db: CatalogDB,
