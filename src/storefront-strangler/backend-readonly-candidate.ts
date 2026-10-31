@@ -26,17 +26,10 @@ const READ_PATHS = new Set(["/__cove/health", "/api/fore/health/ready"]);
 
 export function backendReadonlyCandidateRouteAllowed(request: Request): boolean {
   const url = new URL(request.url);
-  return (
-    request.method === "GET" &&
-    !url.search &&
-    !url.hash &&
-    READ_PATHS.has(url.pathname)
-  );
+  return request.method === "GET" && !url.search && !url.hash && READ_PATHS.has(url.pathname);
 }
 
-export function scopeBackendReadonlyCandidate<T extends ReadonlyBackendCandidateEnv>(
-  env: T,
-): T {
+export function scopeBackendReadonlyCandidate<T extends ReadonlyBackendCandidateEnv>(env: T): T {
   const enabled = env.COVE_BACKEND_READONLY_CANDIDATE;
   if (enabled === undefined) return env;
 
