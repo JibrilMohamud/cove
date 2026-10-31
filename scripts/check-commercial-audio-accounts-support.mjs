@@ -74,7 +74,10 @@ for (const token of [
     `audio owner invariant missing ${token}`,
   );
 assert.match(read("src/storefront-strangler/legal-authority.worker.ts"), /quarantined/);
-assert.match(read("src/storefront-strangler/legal-authority.worker.ts"), /errors\.length\s*\?\s*[\"\']rejected[\"\']\s*:\s*[\"\']clean[\"\']/);
+assert.match(
+  read("src/storefront-strangler/legal-authority.worker.ts"),
+  /errors\.length\s*\?\s*[\"\']rejected[\"\']\s*:\s*[\"\']clean[\"\']/,
+);
 const ownerAudio = read("src/storefront-strangler/legal-authority.worker.ts");
 for (const invariant of [
   /performance-rights territory must match/i,

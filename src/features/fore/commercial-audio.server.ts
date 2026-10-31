@@ -281,9 +281,25 @@ export async function uploadCommercialAudioFile(
     throw new ApiError(409, "Stored audio length does not match the declared upload length.");
   }
   return dispatchCommercialAudioUploadMetadata(env.DB, {
-    userId, editionId, kind, title, position, durationMs, sampleRateHz,
-    bitrateKbps: bitrateKbps || null, bitrateMode, channels, rms, peak, noise,
-    filename, mime, length, sha, fileId, key,
+    userId,
+    editionId,
+    kind,
+    title,
+    position,
+    durationMs,
+    sampleRateHz,
+    bitrateKbps: bitrateKbps || null,
+    bitrateMode,
+    channels,
+    rms,
+    peak,
+    noise,
+    filename,
+    mime,
+    length,
+    sha,
+    fileId,
+    key,
   });
 }
 
