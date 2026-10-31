@@ -1,0 +1,34 @@
+{
+  "schema": "cove.retired-catalog-source-ingest-owner-lineage.v1",
+  "releaseApproval": false,
+  "productionCertified": false,
+  "sourceBefore": 1,
+  "sourceAfter": 0,
+  "sourceFile": "src/features/fore/api.server.ts",
+  "previousSha256": "16d5d8c08467fe43917a12ba77f26d73bfc42cb3b219f7f6a1fdf9bae685883b",
+  "currentSha256": "3fb00372e365cd872fd78d04ccb3d25101b57cc6fa769f809c4135b504598981",
+  "retired": [
+    {
+      "siteId": "38c487557ee78cf0c0bd79125f1a4d5ce0ffa9ddb4989ab2bcce26f6caf45900",
+      "file": "src/features/fore/api.server.ts",
+      "line": 837,
+      "functionName": "catalogInsert",
+      "table": "gutenberg_source_cache",
+      "operation": "INSERT INTO",
+      "sqlSha256": "7699e76661af59a5c3d19e597f8a30ded3a5ed3a2cab35ebeffcbeecf53233ae",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "api.catalogInsert",
+      "reason": "Source cache metadata observation SQL physically retired from the shared API and implemented in the private legal owner with positive-rights denial and evidence preservation."
+    }
+  ],
+  "ownerCommand": "catalog.observe-source-ingest",
+  "privateRoute": "/catalog/private-source-ingest",
+  "proofs": [
+    "The original shared-source INSERT INTO gutenberg_source_cache UPSERT is physically removed, including seed, remote, regional feed, and US catalog callers.",
+    "The private owner alone persists bounded source observations, independently validating enabled source identity, canonical item linkage, HTTPS source/evidence URLs, metadata bounds and immutable source matching.",
+    "Caller-supplied public-domain approval and verified entitlement flags cannot create new legal authority. Positive rights can only persist when prior source evidence, identical rights fingerprint/territories and absence of strong market withdrawal are verified inside owner.",
+    "Changed/unverified source evidence suspends its free source grants and forces rights_status/commercial_use_status to pending unless already quarantined/rejected.",
+    "No producer fallback has direct shared D1 authority; missing owner fails closed. Source-zero classification is not production cutover, exclusive D1 ownership, end-to-end paid QA, or release approval."
+  ]
+}
