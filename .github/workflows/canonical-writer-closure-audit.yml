@@ -152,6 +152,7 @@ jobs:
           node scripts/check-retired-risk-hold-release-owner.mjs
           node scripts/check-retired-commercial-ownership-snapshot.mjs
           node scripts/check-retired-free-library-entitlement.mjs
+          node scripts/check-retired-commercial-epub-grant.mjs
           node scripts/check-retired-ingestion-state-owner.mjs
           node scripts/check-retired-delivery-expiry-owner.mjs
           node scripts/check-retired-entitlement-devices-owner.mjs
