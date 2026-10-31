@@ -335,3 +335,14 @@ export async function dispatchAccountOwnerAction(db:object,command:
  const receipt=await dispatchCanonicalOwnerCommand(context.owner,context.secret,"account.owner-action",command);
  return receipt.result;
 }
+
+export type RegionalEpubRepairResult={skipped:string;scanned?:never;repaired?:never;
+ missingOrMismatched?:never;conflicts?:never;nextAfter?:never;maybeMore?:never}|{
+ skipped?:never;scanned:number;repaired:number;missingOrMismatched:number;conflicts:number;
+ nextAfter:string;maybeMore:boolean};
+export async function dispatchRegionalEpubRepair(db:object,input:{after:string;limit:number}):Promise<RegionalEpubRepairResult>{
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Regional EPUB repair requires its private canonical owner.");
+ const receipt=await dispatchCanonicalOwnerCommand(context.owner,context.secret,"catalog.repair-regional-assets",input);
+ return receipt.result as RegionalEpubRepairResult;
+}

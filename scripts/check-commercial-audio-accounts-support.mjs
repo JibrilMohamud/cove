@@ -95,13 +95,22 @@ const account = read("src/features/fore/account-management.server.ts");
 for (const token of [
   "accountDataExport",
   "account_deletion_requests",
-  "blocked_legal_hold",
-  "Active staff identity",
-  "Publisher ownership/admin authority",
   "account_security_events",
   "account_billing_methods",
 ])
   assert.ok(account.includes(token), `account management missing ${token}`);
+const owner = read("src/storefront-strangler/legal-authority.worker.ts");
+const accountOwner = owner.slice(
+  owner.indexOf("const privateAccount="),
+  owner.indexOf("async function repairRegionalEpubAssetsPrivate("),
+);
+for (const token of [
+  "blocked_legal_hold",
+  "Active staff identity",
+  "Publisher ownership/admin authority",
+])
+  assert.ok(accountOwner.includes(token), `private account owner missing ${token}`);
+assert.match(account, /dispatchAccountOwnerAction/);
 assert.match(account, /rating_steps/);
 assert.match(account, /contributor_id/);
 assert.doesNotMatch(account, /SELECT id,book_id,rating,body,status/);

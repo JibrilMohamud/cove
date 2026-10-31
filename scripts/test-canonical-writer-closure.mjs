@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Guardrail tests: release must fail closed, inventory must be reproducible. */
 import assert from "node:assert/strict";
+import {assertPublishingOwnerSourceLineage} from "./check-publishing-owner-source-lineage.mjs";
 import {mkdtempSync,readFileSync,rmSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
@@ -36,11 +37,23 @@ try{
     "Unexpectedly empty writer audit: do not certify production from a broken scanner");
   for(const path of [
     "src/features/fore/rights.server.ts",
-    "src/features/fore/publishing.server.ts",
     "src/features/fore/commerce.server.ts",
     "src/features/fore/delivery.server.ts",
     "src/features/fore/commercial-audio.server.ts"
   ])assert.ok(result.byFile[path]>0,"Missing high-risk canonical writer inventory: "+path);
+  // This family now has zero shared writers. Require exact retirement
+  // evidence and the private replacement rather than retaining legacy SQL
+  // merely to satisfy a historical inventory-presence assertion.
+  assertPublishingOwnerSourceLineage();
+  const publishingPath="src/features/fore/publishing.server.ts";
+  assert.equal(result.byFile[publishingPath]||0,0);
+  const lineage=JSON.parse(readFileSync("docs/architecture/retired-publication-helpers-owner-lineage.json","utf8"));
+  const reviewed=JSON.parse(readFileSync("docs/architecture/canonical-writer-review.json","utf8"));
+  assert.equal(lineage.retired.filter(x=>x.file===publishingPath).length,10);
+  assert.ok(lineage.retired.every(x=>!reviewed.sites.some(r=>r.siteId===x.siteId)));
+  assert.equal(reviewed.releaseApproval,false);
+  const owner=readFileSync("src/storefront-strangler/legal-authority.worker.ts","utf8");
+  assert.match(owner,/const \{recordPublicationActivation,ensurePublishingLifecycle,ensureCatalogParties\}=privatePublishingEditor/);
   for(const domain of ["publication_rights","financial","customer_permission",
     "protected_media"])assert.ok(result.byDomain[domain]>0,
     "Unreported canonical writer category: "+domain);

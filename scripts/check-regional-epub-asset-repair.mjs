@@ -5,8 +5,10 @@ import os from "node:os";
 import path from "node:path";
 import { build } from "esbuild";
 import { localBindings } from "./local-api.mjs";
+import { loadAccountOwnerTestClient } from "./test-private-account-client.mjs";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "cove-regional-epub-repair-"));
+let ownerClient;
 try {
   fs.cpSync("drizzle", path.join(root, "drizzle"), { recursive: true });
   await build({
@@ -21,9 +23,8 @@ try {
     outExtension: { ".js": ".mjs" },
     logLevel: "silent",
   });
-  const { repairRegionalEpubAssets } = await import(
-    path.join(root, "regional-epub-asset-repair.server.mjs")
-  );
+  ownerClient = await loadAccountOwnerTestClient(root);
+  const { repairRegionalEpubAssets } = ownerClient;
   const model = await import(path.join(root, "catalog-model.server.mjs"));
   assert.equal(
     model.commercialCatalogStatements,
@@ -278,7 +279,7 @@ try {
   );
 
   const repairSource = fs.readFileSync(
-    "src/features/fore/regional-epub-asset-repair.server.ts",
+    "src/storefront-strangler/legal-authority.worker.ts",
     "utf8",
   );
   assert.match(repairSource, /INDEXED BY sqlite_autoindex_gutenberg_source_cache_1/);
@@ -300,5 +301,6 @@ try {
   );
   console.log("Regional EPUB normalization, R2 repair, withdrawal, and cursor gates passed.");
 } finally {
+  ownerClient?.close();
   fs.rmSync(root, { recursive: true, force: true });
 }
