@@ -224,6 +224,24 @@ const fixturePlugin = {
 };
 process.env.GUTENDEX_BASE_URL = "http://127.0.0.1:4173/__qa/catalog";
 env.GUTENDEX_BASE_URL = process.env.GUTENDEX_BASE_URL;
+// Vite's local API plugin owns a separate D1 connection. Install exactly the
+// same synthetic legal-owner verifier in that isolated connection, not just in
+// the direct seed API. A missing installer must fail the QA run closed.
+const ownerSecret = "c".repeat(64);
+globalThis.__coveBrowserQaOwnerInstall = async (viteServer, apiEnv) => {
+  const routing = await viteServer.ssrLoadModule(
+    "/src/storefront-strangler/publication-owner-routing.server.ts",
+  );
+  const raw = apiEnv.DB;
+  apiEnv.DB = routing.bindPublicationOwner(raw, {
+    owner: createSyntheticFreeLibraryOwner(raw, users, ownerSecret),
+    secret: ownerSecret,
+    territory: "US",
+    currency: "USD",
+  });
+  if (!routing.hasPublicationOwner(apiEnv.DB))
+    throw new Error("Vite browser QA API did not bind its private owner.");
+};
 // Framework plugins resolve aliases/routes from cwd as well as Vite's root.
 // Keep every component on the same copy so React contexts cannot be duplicated.
 process.chdir(scratch);
@@ -291,7 +309,6 @@ await invoke("/catalog?q=pride");
 const ownerRouting = await server.ssrLoadModule(
   "/src/storefront-strangler/publication-owner-routing.server.ts",
 );
-const ownerSecret = "c".repeat(64);
 const privateQaDb = env.DB;
 env.DB = ownerRouting.bindPublicationOwner(privateQaDb, {
   owner: createSyntheticFreeLibraryOwner(privateQaDb, users, ownerSecret),
