@@ -18,7 +18,7 @@ assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").lengt
 assert.ok(lineage.retired.every(x=>x.functionName==="sourceEpubBytes"&&!review.sites.some(y=>y.siteId===x.siteId)));
 assert.doesNotMatch(api,/UPDATE gutenberg_source_cache SET epub_status='completed',epub_cached_at=\?,epub_last_error='',epub_next_attempt_at='',content_hash=\?,canonicalization_version='pgus-upstream-v1' WHERE id=\?/);
 assert.doesNotMatch(api,/UPDATE asset_versions SET object_key=\?,sha256=\? WHERE id=\?/);
-assert.match(owner,/if\(route==="/catalog/verified-us-epub-cache"\)/);
+assert.ok(owner.includes('if(route==="/catalog/verified-us-epub-cache")'));
 assert.match(owner,/await validateStoredEpub\(bytes\)/);
 assert.match(owner,/crypto\.subtle\.digest\("SHA-256",bytes\)/);
 assert.match(owner,/c\.rights_status='public-domain' AND c\.commercial_use_status='approved'/);
