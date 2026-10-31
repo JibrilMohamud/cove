@@ -1,0 +1,12 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Seven audiobook QC lease/measurement SQL sites moved to isolated QA-only owner. Trusted scan provider evidence, idempotent replay and deployed paid authority remain uncertified.",
+  "files": [
+    {
+      "path": "src/features/fore/commercial-audio.server.ts",
+      "sha256": "f8e758fd8c2f6fc083eae65f7ed817469a3f8e853ec271a09f1470b4a4f15859",
+      "review": "Nine protected owner-required writer sites remain in audio."
+    }
+  ]
+}
