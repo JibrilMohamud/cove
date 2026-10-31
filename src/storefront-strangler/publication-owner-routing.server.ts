@@ -473,6 +473,19 @@ export async function dispatchCatalogRegionalState(db:object,input:{
 
 /** Stage-only US EPUB content confirmation. The private owner independently
  * validates the Gutenberg rights row, stored EPUB bytes in R2 and target asset. */
+/** Ingestion completion must never accept a write from the shared D1 caller. */
+export async function dispatchCatalogCompletedUsEpub(db:object,input:{
+ cacheId:string;sha256:string
+}):Promise<void>{
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"US EPUB completion requires a private catalog owner.");
+ try{
+  const ack=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+    "catalog.complete-us-epub-ingest",input);
+  if(ack.saved!==true)throw Error("owner_did_not_commit");
+ }catch{throw new ApiError(503,"Private owner refused US EPUB ingestion completion.");}
+}
+
 export async function dispatchCatalogVerifiedUsEpub(db:object,input:{
  cacheId:string;assetVersionId:string;sha256:string
 }):Promise<void>{

@@ -17644,6 +17644,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/rights/private-configuration",
       "/catalog/observe-us",
       "/catalog/regional-state",
+      "/catalog/complete-us-epub-ingest",
       "/catalog/verified-us-epub-cache",
       "/risk/private-apply-assessment",
       "/risk/private-create-hold",
@@ -18525,6 +18526,37 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         }
         return Response.json({schema:"cove.owner-regional-state.v1",ownerFirst:true,
           sourceId:input.sourceId,runId:input.runId,action:input.action,acquired:true},{headers:noStore});
+      }
+      if(route==="/catalog/complete-us-epub-ingest"){
+        const input=z.object({
+          cacheId:z.string().regex(/^[0-9]{1,10}$/),
+          sha256:z.string().regex(/^[a-f0-9]{64}$/)
+        }).strict().parse(raw);
+        const db=env.PRIMARY_DB;
+        if(!env.BUCKET)return new Response(null,{status:503,headers:noStore});
+        const eligible=await db.prepare(
+          "SELECT c.id FROM gutenberg_source_cache c WHERE c.id=? AND c.source_id='pg_us' AND c.copyright=0 AND c.rights_status='public-domain' AND c.commercial_use_status='approved' AND c.ingest_status='active' AND EXISTS(SELECT 1 FROM gutenberg_rights_evidence e WHERE e.cache_id=c.id AND e.status='approved' AND e.determination='public-domain' AND e.territory_code='US') LIMIT 1"
+        ).bind(input.cacheId).first<{id:string}>();
+        if(!eligible)return new Response(null,{status:409,headers:noStore});
+        // Object location and version are fixed by the owner. No caller-supplied
+        // storage key, rights determination or metadata can authorize content.
+        const object=await env.BUCKET.get("epubs/"+input.cacheId+".epub");
+        if(!object||!Number.isSafeInteger(object.size)||object.size<100||
+          object.size>25*1024*1024)return new Response(null,{status:409,headers:noStore});
+        const bytes=new Uint8Array(await object.arrayBuffer());
+        if(bytes.byteLength!==object.size)return new Response(null,{status:409,headers:noStore});
+        await validateStoredEpub(bytes);
+        const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",bytes));
+        const actual=Array.from(digest,x=>x.toString(16).padStart(2,"0")).join("");
+        if(actual!==input.sha256)return new Response(null,{status:409,headers:noStore});
+        const at=now();
+        const result=await db.prepare(
+          "UPDATE gutenberg_source_cache SET epub_status='completed',epub_cached_at=?,epub_last_error='',epub_next_attempt_at='',content_hash=?,canonicalization_version='pgus-upstream-v1' WHERE id=? AND source_id='pg_us' AND copyright=0 AND rights_status='public-domain' AND commercial_use_status='approved' AND ingest_status='active' AND EXISTS(SELECT 1 FROM gutenberg_rights_evidence e WHERE e.cache_id=gutenberg_source_cache.id AND e.status='approved' AND e.determination='public-domain' AND e.territory_code='US')"
+        ).bind(at,input.sha256,input.cacheId).run();
+        if(Number((result as {meta?:{changes?:number}})?.meta?.changes||0)!==1)
+          return new Response(null,{status:409,headers:noStore});
+        return Response.json({schema:"cove.owner-us-epub-ingest.v1",ownerFirst:true,
+          cacheId:input.cacheId,sha256:input.sha256,saved:true},{headers:noStore});
       }
       if(route==="/catalog/verified-us-epub-cache"){
         const input=z.object({

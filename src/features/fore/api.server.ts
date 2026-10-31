@@ -1,6 +1,6 @@
 import { dispatchCatalogObservation } from "../../storefront-strangler/publication-owner-routing.server";
 import { dispatchCatalogRegionalState } from "../../storefront-strangler/publication-owner-routing.server";
-import { dispatchCatalogVerifiedUsEpub } from "../../storefront-strangler/publication-owner-routing.server";
+import { dispatchCatalogVerifiedUsEpub, dispatchCatalogCompletedUsEpub } from "../../storefront-strangler/publication-owner-routing.server";
 import { dispatchCatalogIngestState } from "../../storefront-strangler/publication-owner-routing.server";
 import {
   dispatchCatalogNegativeSource,
@@ -1582,12 +1582,9 @@ async function cachePendingEpubs(
         },
       });
       if (sourceId === "pg_us") {
-        await db
-          .prepare(
-            "UPDATE gutenberg_source_cache SET epub_status='completed',epub_cached_at=?,epub_last_error='',epub_next_attempt_at='',content_hash=?,canonicalization_version=? WHERE id=?",
-          )
-          .bind(now(), contentHash, canonicalizationVersion, id)
-          .run();
+        // The owner re-reads primary rights evidence and verifies actual R2 EPUB bytes
+        // before marking this source completed. A missing QA owner fails closed.
+        await dispatchCatalogCompletedUsEpub(db, { cacheId: id, sha256: contentHash });
         await dispatchCatalogFreeNormalization(db, id, now());
       } else {
         if (canonicalMetadata) {
