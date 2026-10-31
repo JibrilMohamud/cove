@@ -105,8 +105,12 @@ const preorderOwner = read("src/storefront-strangler/legal-authority.worker.ts")
 assert.ok(preorder.includes("dispatchPrivatePreorderAction"));
 assert.ok(preorderOwner.includes("preorder_released"));
 assert.ok(preorderOwner.includes("ensureOwnershipSnapshot"));
-assert.ok(preorderOwner.includes("Preorder release requires independently verified paid owner authorization."));
-assert.ok(preorderOwner.includes("if(route===\"/preorder/private-action\")"));
+assert.ok(
+  preorderOwner.includes(
+    "Preorder release requires independently verified paid owner authorization.",
+  ),
+);
+assert.ok(preorderOwner.includes('if(route==="/preorder/private-action")'));
 const publishing = read("src/features/fore/publishing.server.ts");
 assert.ok(publishing.includes("publisher_book_approved"));
 assert.ok(publishing.includes("publisher_book_rejected"));
