@@ -1,12 +1,12 @@
 {
   "schema": "cove.production-release-checkpoint.v1",
-  "observedAt": "2026-10-31T13:46:00Z",
+  "observedAt": "2026-10-31T14:19:35.670Z",
   "productionReady": false,
   "source": {
     "releasePR": 546,
-    "releaseHead": "e556c76f06953a6dc13989a5095b1c9b3d63e565",
+    "releaseHead": "d4b74a4150db85af9ad32ee746fd7161ca72806b",
     "soundsPR": 547,
-    "soundsHead": "940d0a4c5007a597218ea3d8cb9e124aff06cbe0"
+    "soundsHead": "f96b211859ed270cd96381b40007566a3af67a66"
   },
   "stripe": {
     "account": "acct_1UWEozIfG1q45dEc",
@@ -24,7 +24,7 @@
     "implementationQaOnly": true,
     "rightsVerifierProvisioned": false,
     "taxVerifierProvisioned": false,
-    "readerDeployment": "918993d8d244453992032dce54fb7704"
+    "readerDeployment": "3f5850868d9442e28649a1de3a74aee5"
   },
   "sounds": {
     "publisherDeployment": "f0e110ecd08f49ed929ecbd833bf4a01",
@@ -43,6 +43,7 @@
     "cron": "11 * * * *"
   },
   "workerInventory": {
+    "observedAt": "2026-10-31T14:18:45.562Z",
     "checked": 450,
     "productionD1Bindings": [
       {
@@ -82,12 +83,6 @@
         ]
       },
       {
-        "name": "cove-pub-qa-continuous-capture",
-        "bindings": [
-          "SOURCE_DB"
-        ]
-      },
-      {
         "name": "cove-storefront-ssr-staging",
         "bindings": [
           "DB"
@@ -98,63 +93,34 @@
     "ownerOnly": false
   },
   "remainingNonownerWorkerPrincipals": [
-    {
-      "name": "cove-literary-handoff-draining-20261025",
-      "bindings": [
-        "DB"
-      ]
-    },
-    {
-      "name": "cove-literary-infer-isolated-disabled",
-      "bindings": [
-        "DB"
-      ]
-    },
-    {
-      "name": "cove-literary-prepare-draining-20261025",
-      "bindings": [
-        "DB"
-      ]
-    },
-    {
-      "name": "cove-literary-publisher-isolated-disabled",
-      "bindings": [
-        "DB"
-      ]
-    },
-    {
-      "name": "cove-persistence-backend",
-      "bindings": [
-        "DB"
-      ]
-    },
-    {
-      "name": "cove-pub-qa-continuous-capture",
-      "bindings": [
-        "SOURCE_DB"
-      ]
-    },
-    {
-      "name": "cove-storefront-ssr-staging",
-      "bindings": [
-        "DB"
-      ]
-    }
+    "cove-literary-handoff-draining-20261025",
+    "cove-literary-infer-isolated-disabled",
+    "cove-literary-prepare-draining-20261025",
+    "cove-literary-publisher-isolated-disabled",
+    "cove-persistence-backend",
+    "cove-storefront-ssr-staging"
   ],
   "inventoryScope": "All 450 deployed Worker scripts. External API principals and tokens are not certified.",
   "paidQa": {
-    "realStripeTestPaymentRefundAndSignedWebhookReplayPassed": true,
-    "originalEpubGrantBytesAndOfflinePassed": true,
-    "originalAudioOfflinePassed": false,
-    "blocker": "Historical dual-format fixture is canonically format=ebook. Owner correctly rejects audio offline licensing. Requires a separate correctly classified, independently paid audiobook fixture."
+    "sha": "d4b74a4150db85af9ad32ee746fd7161ca72806b",
+    "runId": 41208880271,
+    "jobId": 124559498625,
+    "conclusion": "success",
+    "separateAudiobookPurchase": true,
+    "canonicalScopeExplicitUS": true,
+    "originalEbookRightsUnchanged": true,
+    "realStripeTestSettlementRefundRevocation": true,
+    "temporaryWorkersRemoved": true,
+    "productionCertified": false,
+    "deployedQaSchemaLimit": "Tables/indexes only; canonical production trigger parity has not been established"
   },
   "validation": {
     "localOwnerWorkflowSteps": 91,
     "typecheck": "pass",
     "lint": "pass",
     "productionBuild": "pass",
-    "fullSecurityRunPassed": 41205809033,
-    "latestHeadCi": "pending; deployed paid audio journey failing"
+    "fullSecurityRunPassed": 41208880305,
+    "latestHeadCi": "All 13 workflows triggered at d4b74a4150db85af9ad32ee746fd7161ca72806b completed; twelve success and one intentionally skipped production acceptance. Later commits require fresh CI."
   },
   "performance": {
     "origin": "https://www.covereads.com",
@@ -168,5 +134,54 @@
     "geographicAcceptanceCertified": false
   },
   "protectedRollbackRehearsed": false,
-  "migrationStackMerged": false
+  "migrationStackMerged": false,
+  "continuousCapture": {
+    "deployment": "07fc397a823446098f017c8ac4adf786",
+    "canonicalD1Bound": false,
+    "reader": "cove-legal-authority-production",
+    "independentSecret": true,
+    "cron": "* * * * *",
+    "probe": {
+      "status": 200,
+      "countries": [
+        "IE",
+        "IN"
+      ],
+      "complete": true,
+      "expectedMarkets": 23,
+      "canonicalBinding": false,
+      "temporaryVerifierDeleted": true
+    },
+    "postCutoverCycle": {
+      "cursor": "ZA",
+      "expectedMarkets": 23,
+      "lastFullCycleAt": 1793455969067,
+      "leaseUntil": 0
+    }
+  },
+  "performanceGateChanges": {
+    "twoSustainedPhasesPerTransport": true,
+    "exactArrivalCounts": true,
+    "schedulerDelayIncluded": true,
+    "revisionPinnedEvidence": true,
+    "geographyCertified": false
+  },
+  "accountTokenAudit": {
+    "observedAt": "2026-10-31T14:24:38.117Z",
+    "accountTokensChecked": 4,
+    "activeAccountWideD1Writer": {
+      "id": "1c79fb61dbad11f320c96f6a03413e84",
+      "name": "Cove GitHub Deployments",
+      "permission": "D1 Write",
+      "retired": false
+    },
+    "userOwnedTokensCertified": false,
+    "preflightRejectsUnretiredD1ApiWriters": true
+  },
+  "capacityClosure": {
+    "closed": true,
+    "version": "ad9b2937-112f-47ca-bcdf-00454c694c74",
+    "independentlyVerified": true,
+    "productionRollbackCertified": false
+  }
 }

@@ -1,29 +1,20 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { validateCapacityEvidence } from "../performance/strangler-capacity-evidence.mjs";
 
 const file = (name) => "artifacts/strangler-" + name + ".json";
 const groups = [
   ...[1, 2, 3].map((trial) => ({
     name: "cold-" + trial,
     file: file("cold-trial-" + trial),
-    expected: ["new-deployment-cold-20"],
+    mode: "cold",
+    transport: "native-fetch",
   })),
   ...["native-fetch", "http2"].map((transport) => ({
     name: "bursts-" + transport,
     file: file("bursts-" + transport),
-    expected: [
-      "1-concurrent",
-      "4-concurrent",
-      "8-concurrent",
-      "16-concurrent",
-      "32-concurrent",
-      "25-rps-10s",
-      "50-rps-10s",
-      "100-rps-20s",
-      "transport-control-32",
-      "transport-25-rps-10s",
-      "real-core-delegation",
-    ],
+    mode: "bursts",
+    transport,
   })),
 ];
 let failures = 0;
@@ -34,25 +25,17 @@ for (const group of groups) {
     continue;
   }
   const data = JSON.parse(fs.readFileSync(group.file, "utf8"));
-  const received = new Set(data.phases?.map((item) => item.name) || []);
-  const valid =
-    data.phases?.length === group.expected.length &&
-    group.expected.every((name) => received.has(name)) &&
-    data.phases.every(
-      (item) =>
-        item.pass === true &&
-        item.offered > 0 &&
-        item.valid === item.offered &&
-        item.delivered === item.offered &&
-        item.dropped === 0 &&
-        item.maxMs < 800 &&
-        (item.name !== "100-rps-20s" || (item.p95Ms < 600 && item.p99Ms < 750)),
-    );
+  const { valid, failures: reasons } = validateCapacityEvidence(data, {
+    sha: process.env.GITHUB_SHA,
+    mode: group.mode,
+    transport: group.transport,
+  });
   console.log(
     "COVE_CAPACITY_RELEASE_GATE " +
       JSON.stringify({
         name: group.name,
-        valid: Boolean(valid),
+        valid,
+        reasons,
         phases:
           data.phases?.map((item) => ({
             name: item.name,

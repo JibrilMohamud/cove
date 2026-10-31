@@ -7,6 +7,9 @@ on:
       - "scripts/staging/strangler-http-transport.mjs"
       - "scripts/staging/check-strangler-live-capacity.mjs"
       - "scripts/staging/assert-strangler-capacity-evidence.mjs"
+      - "scripts/performance/strangler-capacity-evidence.mjs"
+      - "scripts/performance/strangler-capacity-evidence.test.mjs"
+      - "scripts/staging/verify-strangler-capacity-closure.mjs"
       - "scripts/staging/verify-literary-postpublication-readonly.mjs"
       - "src/storefront-strangler/worker.ts"
       - "scripts/staging/wait-strangler-secret-deployment.mjs"
@@ -20,6 +23,9 @@ on:
       - ".github/workflows/strangler-hosted-capacity-evaluation.yml"
       - "scripts/staging/check-strangler-live-capacity.mjs"
       - "scripts/staging/assert-strangler-capacity-evidence.mjs"
+      - "scripts/performance/strangler-capacity-evidence.mjs"
+      - "scripts/performance/strangler-capacity-evidence.test.mjs"
+      - "scripts/staging/verify-strangler-capacity-closure.mjs"
       - "src/storefront-strangler/worker.ts"
       - "src/storefront-strangler/bootstrap-optimized.server.ts"
       - "src/storefront-strangler/prepared-catalog.server.ts"
@@ -55,6 +61,8 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - name: Reject incomplete or delayed capacity evidence
+        run: node --test scripts/performance/strangler-capacity-evidence.test.mjs
       - name: Verify production routing and stage DB isolation
         run: |
           node scripts/check-storefront-strangler.mjs
@@ -114,11 +122,11 @@ jobs:
             cp artifacts/strangler-cold-native-fetch.json "artifacts/strangler-cold-trial-${trial}.json"
           done
           test "$failures" -eq 0
-      - name: Strict native 1/4/8/16/32 plus 25/50/100 RPS gate
+      - name: Strict native 1/4/8/16/32 plus 25/50 RPS and two 100-RPS phases
         id: native
         continue-on-error: true
         run: node scripts/staging/check-strangler-live-capacity.mjs
-      - name: Strict HTTP2 1/4/8/16/32 plus 25/50/100 RPS gate
+      - name: Strict HTTP2 1/4/8/16/32 plus 25/50 RPS and two 100-RPS phases
         id: http2
         continue-on-error: true
         run: COVE_STAGE_HTTP2=1 node scripts/staging/check-strangler-live-capacity.mjs
@@ -129,10 +137,13 @@ jobs:
         if: always()
         shell: bash
         run: |
-          set +e
+          set -euo pipefail
           if [ -f ".output/strangler/index.mjs" ]; then
             npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.storefront-strangler.stage.jsonc
           fi
+      - name: Independently verify protected stage closure and restored capabilities
+        if: always()
+        run: node scripts/staging/verify-strangler-capacity-closure.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

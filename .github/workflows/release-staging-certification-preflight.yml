@@ -15,6 +15,9 @@ on:
       - "src/storefront-strangler/worker.ts"
       - "scripts/staging/check-strangler-live-capacity.mjs"
       - "scripts/staging/assert-strangler-capacity-evidence.mjs"
+      - "scripts/performance/strangler-capacity-evidence.mjs"
+      - "scripts/performance/strangler-capacity-evidence.test.mjs"
+      - "scripts/staging/verify-strangler-capacity-closure.mjs"
       - "docs/LITERARY_LEGACY_DRAIN_CUTOVER.md"
 permissions:
   contents: read
@@ -31,6 +34,7 @@ jobs:
           node-version: "22"
       - run: node --check scripts/check-release-staging-workflow-gates.mjs
       - run: node scripts/check-release-staging-workflow-gates.mjs
+      - run: node --test scripts/performance/strangler-capacity-evidence.test.mjs
       - run: npm ci --no-audit --no-fund
       - name: Enforce canonical rights, music handoff replay and legacy drain non-regression
         run: |

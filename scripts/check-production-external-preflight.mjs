@@ -13,11 +13,11 @@ export const REQUIRED_EVENTS=[
   "charge.dispute.created","charge.dispute.updated","charge.dispute.closed",
   "charge.dispute.funds_withdrawn","charge.dispute.funds_reinstated"
 ];
-export function assessExternalPrerequisites({ownerSettings,workerSettings,webhooks,webhookUrl,ownerSource}){
+export function assessExternalPrerequisites({ownerSettings,workerSettings,accountTokens,accountTokenInventoryComplete,webhooks,webhookUrl,ownerSource}){
   const problems=[];
   const bindings=ownerSettings?.bindings||[];
   const named=n=>bindings.find(x=>x.name===n);
-  if(named("PRIMARY_DB")?.type!=="d1"||named("PRIMARY_DB")?.id!==PRODUCTION_D1)
+  if(named("PRIMARY_DB")?.type!=="d1"||(named("PRIMARY_DB")?.database_id||named("PRIMARY_DB")?.id)!==PRODUCTION_D1)
     problems.push("Production legal owner lacks the exact primary D1 binding.");
   if(named("LEGAL_AUTHORITY")?.type!=="durable_object_namespace")
     problems.push("Production legal owner lacks its Durable Object authority.");
@@ -33,9 +33,37 @@ export function assessExternalPrerequisites({ownerSettings,workerSettings,webhoo
     for(const worker of workerSettings){
       if(worker.name===PRODUCTION_OWNER)continue;
       for(const binding of worker.bindings||[]){
-        if(binding.type==="d1"&&binding.id===PRODUCTION_D1)
+        if(binding.type==="d1"&&(binding.database_id||binding.id)===PRODUCTION_D1)
           problems.push("Non-owner Worker retains a direct production D1 binding: "+worker.name+" / "+binding.name);
       }
+    }
+  }
+  if(!Array.isArray(accountTokens)||accountTokenInventoryComplete!==true)
+    problems.push("Complete account API token privilege inventory is missing.");
+  else for(const token of accountTokens){
+    if(!["active","disabled","expired"].includes(token.status)){
+      problems.push("Account API token status is incomplete: "+token.id);
+      continue;
+    }
+    if(token.status!=="active")continue;
+    if(!Array.isArray(token.policies)){
+      problems.push("Active account API token policies are incomplete: "+token.id);
+      continue;
+    }
+    for(const policy of token.policies){
+      if(policy.effect==="deny")continue;
+      if(policy.effect!=="allow"){
+        problems.push("Active account API token policy effect is incomplete: "+token.id);
+        continue;
+      }
+      if(!Array.isArray(policy.permission_groups)){
+        problems.push("Active account API token permission inventory is incomplete: "+token.id);
+        continue;
+      }
+      if(policy.permission_groups.some(p=>!p||(!/^[a-f0-9]{32}$/.test(p.id||"")&&!(typeof p.name==="string"&&p.name.trim()))))
+        problems.push("Active account API token permission metadata is incomplete: "+token.id);
+      if(policy.permission_groups.some(p=>p&&(p.id==="09b2857d1c31407795e75e3fed8617a1"||/^D1 (Write|Edit)$/i.test(p.name||""))))
+        problems.push("Active account API token retains D1 Write; database scope must be independently retired or certified: "+token.id);
     }
   }
   let expected=null;
@@ -54,7 +82,8 @@ export function assessExternalPrerequisites({ownerSettings,workerSettings,webhoo
   else if(!matching.some(x=>REQUIRED_EVENTS.every(y=>x.enabled_events?.includes("*")||x.enabled_events?.includes(y))))
     problems.push("Stripe LIVE webhook destination is missing critical payment/refund event types.");
   return {schema:"cove.external-production-preflight.v1",scope:"external-prerequisites-only",
-    checkedScripts:workerSettings?.length??null,webhookEndpoints:webhooks?.length??null,
+    checkedScripts:workerSettings?.length??null,accountTokensChecked:accountTokens?.length??null,
+    userOwnedTokenPrivilegesCertified:false,webhookEndpoints:webhooks?.length??null,
     readyForExternalPrerequisites:problems.length===0,productionCertified:false,problems};
 }
 async function getJson(url,headers){
@@ -92,6 +121,18 @@ export async function readLiveEvidence({cloudflareToken,accountId,stripeRestrict
     workers.push(...subset);
   }
   const ownerSettings=workers.find(x=>x.name===PRODUCTION_OWNER);
+  // Account-owned tokens are a separate SQL capability from Worker bindings.
+  // Never fetch secret values; policies and resource scopes are metadata only.
+  const accountTokens=[];
+  const tokensBase="https://api.cloudflare.com/client/v4/accounts/"+encodeURIComponent(accountId)+"/tokens";
+  for(let page=1;page<=20;page++){
+    const data=await cf(tokensBase+"?per_page=50&page="+page,cloudflareToken);
+    if(!Array.isArray(data.result))throw Error("Account API token privilege inventory incomplete");
+    accountTokens.push(...data.result);
+    if(data.result_info?.total_pages&&page>=data.result_info.total_pages)break;
+    if(!data.result_info?.total_pages&&data.result.length<50)break;
+    if(page===20)throw Error("Account API token inventory too large to certify");
+  }
   const webhooks=[];let starting_after;
   for(let page=1;page<=20;page++){
     const url=new URL("https://api.stripe.com/v1/webhook_endpoints");
@@ -104,7 +145,7 @@ export async function readLiveEvidence({cloudflareToken,accountId,stripeRestrict
     starting_after=data.data.at(-1)?.id;
     if(!starting_after||page===20)throw Error("Stripe webhook inventory incomplete");
   }
-  return {ownerSettings,workerSettings:workers,webhooks};
+  return {ownerSettings,workerSettings:workers,accountTokens,accountTokenInventoryComplete:true,webhooks};
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
   if(!process.argv.includes("--live")){
