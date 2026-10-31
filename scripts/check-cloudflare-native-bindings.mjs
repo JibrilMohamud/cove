@@ -59,6 +59,20 @@ try {
     },
   );
   assert.equal(failClosed.DB, undefined, "Never synthesize a rights database");
+  const rpc = {
+    COVE_CANONICAL_READONLY_RPC: "1",
+    COVE_CANONICAL_READONLY: {
+      query: async () => [{ success: true, results: [{ value: 7 }], meta: {} }],
+    },
+  };
+  const readonly = await resolveNativeWorkerBindings(trusted, {}, async () => rpc);
+  assert.equal(await readonly.DB.prepare("SELECT 7 AS value").first("value"), 7);
+  await assert.rejects(() => resolveNativeWorkerBindings(trusted, { ...rpc, DB: d1 }, getter));
+  const unbound = await resolveNativeWorkerBindings(trusted, {}, async () => ({
+    ...rpc,
+    COVE_CANONICAL_READONLY: undefined,
+  }));
+  assert.equal(unbound.DB, undefined, "Missing read service has no native fallback");
   console.log("Cloudflare-native D1 binding handoff and legal country isolation: PASS");
 } finally {
   fs.rmSync(root, { recursive: true, force: true });

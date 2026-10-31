@@ -93,7 +93,7 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
               localEnvironment as Parameters<typeof serveLeanAnonymousBootstrap>[1],
             );
         }
-        // Cloudflare SSR and the live rights database share one Worker invocation.
+        // The local handler awaits the live primary rights database before rendering.
         // Authenticated and fallback paths always retain their full adapter.
         const { handleCoveApi } = await import("./api.server");
         const response = await handleCoveApi(
@@ -155,6 +155,8 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
     });
     const timing = [`cove_ssr_bootstrap;dur=${(performance.now() - started).toFixed(1)}`];
     if (localRightsAuthority) timing.push("cove_ssr_local_rights;dur=0");
+    if (localRightsAuthority && localEnvironment?.COVE_CANONICAL_READONLY_RPC === "1")
+      timing.push("cove_ssr_readonly_rpc;dur=0");
     if (phase.primaryFailureMs !== null)
       timing.push(`cove_ssr_primary_failure;dur=${phase.primaryFailureMs.toFixed(1)}`);
     if (phase.alternateMs !== null) {

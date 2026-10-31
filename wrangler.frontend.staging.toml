@@ -35,11 +35,10 @@ namespace_id = "731903"
 limit = 180
 period = 60
 
-[[d1_databases]]
-binding = "DB"
-database_name = "cove-production"
-database_id = "4bd657ac-8789-403e-a28c-93aba8d0a989"
-migrations_dir = "drizzle"
+# Provider-enforced read-only SQL. No canonical D1 binding in SSR.
+[[services]]
+binding = "COVE_CANONICAL_READONLY"
+service = "cove-canonical-d1-readonly"
 
 [[r2_buckets]]
 binding = "BUCKET"
@@ -53,6 +52,7 @@ binding = "OPS_ANALYTICS"
 dataset = "cove_ops_anonymous_http_stage"
 
 [vars]
+COVE_CANONICAL_READONLY_RPC = "1"
 COVE_OPS_TELEMETRY_MODE = "analytics-engine"
 FORE_PUBLIC_URL = "https://cove-puce-theta.vercel.app"
 FORE_ENVIRONMENT = "production"

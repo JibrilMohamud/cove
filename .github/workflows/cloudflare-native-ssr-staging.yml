@@ -6,6 +6,13 @@ on:
       - "src/server.ts"
       - "src/lib/cloudflare-ssr-stage-gate.server.ts"
       - "src/lib/cloudflare-native-bindings.server.ts"
+      - "src/lib/canonical-readonly-d1.server.ts"
+      - "infra/canonical-readonly/**"
+      - "wrangler.canonical-readonly.jsonc"
+      - "scripts/check-canonical-readonly-rpc.mjs"
+      - "scripts/read-active-worker-versions.mjs"
+      - "scripts/staging/rehearse-readonly-ssr-rollback*"
+      - "scripts/staging/verify-canonical-readonly-service.mjs"
       - "scripts/check-cloudflare-native-bindings.mjs"
       - "scripts/check-staging-isolated-ops-metrics.mjs"
       - "src/lib/cove-request-env.server.ts"
@@ -82,6 +89,13 @@ on:
       - "src/server.ts"
       - "src/lib/cloudflare-ssr-stage-gate.server.ts"
       - "src/lib/cloudflare-native-bindings.server.ts"
+      - "src/lib/canonical-readonly-d1.server.ts"
+      - "infra/canonical-readonly/**"
+      - "wrangler.canonical-readonly.jsonc"
+      - "scripts/check-canonical-readonly-rpc.mjs"
+      - "scripts/read-active-worker-versions.mjs"
+      - "scripts/staging/rehearse-readonly-ssr-rollback*"
+      - "scripts/staging/verify-canonical-readonly-service.mjs"
       - "scripts/check-cloudflare-native-bindings.mjs"
       - "scripts/check-staging-isolated-ops-metrics.mjs"
       - "src/lib/cove-request-env.server.ts"
@@ -182,6 +196,13 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - name: Test read-only service on the real Worker RPC runtime
+        run: |
+          node --test scripts/staging/rehearse-readonly-ssr-rollback.test.mjs
+          node scripts/check-production-external-preflight.test.mjs
+          npm exec --yes --package=wrangler@4.151.0 -- sh -c 'COVE_MINIFLARE_MODULE="$(dirname "$(command -v wrangler)")/../miniflare" node scripts/check-canonical-readonly-rpc.mjs'
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler types --config wrangler.canonical-readonly.jsonc infra/canonical-readonly/worker-configuration.d.ts
+          npx tsc -p infra/canonical-readonly/tsconfig.json
       - name: Fail-closed stage gate and country binding tests
         run: |
           node --check scripts/performance/cloudflare-concurrency.mjs
@@ -251,10 +272,14 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$CLOUDFLARE_API_TOKEN" || { echo "Cloudflare credential unavailable"; exit 1; }
+      - name: Verify private read service and provider-enforced D1 Read credential
+        run: node scripts/staging/verify-canonical-readonly-service.mjs
       - name: Build immutable reviewed production-source staging artifact
         run: npm run build
       - name: Deploy staging only (no custom domain or traffic migration)
         run: node scripts/performance/deploy-cloudflare-staging.mjs
+      - name: Independently verify SSR no longer has canonical D1
+        run: node scripts/staging/verify-canonical-readonly-service.mjs --ssr
       - name: Independently cold-deploy and strictly benchmark three times
         shell: bash
         run: |

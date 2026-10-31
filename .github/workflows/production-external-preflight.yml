@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - "scripts/check-production-external-preflight.mjs"
+      - "scripts/read-active-worker-versions.mjs"
       - "scripts/check-production-external-preflight.test.mjs"
       - ".github/workflows/production-external-preflight.yml"
   workflow_dispatch:
