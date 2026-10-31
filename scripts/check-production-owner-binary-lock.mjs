@@ -32,6 +32,19 @@ assert.match(
 );
 assert.match(provisioner, /main_module: "legal-authority\.production-locked\.mjs"/);
 assert.doesNotMatch(provisioner, /readFileSync\("\.output\/strangler\/legal-authority\.mjs"/);
+for (const file of [
+  "scripts/staging/provision-publication-source-reader.mjs",
+  "scripts/staging/provision-sounds-source-reader.mjs",
+]) {
+  const source = readFileSync(file, "utf8");
+  assert.match(source, /main_module: "legal-authority\\.production-locked\\.mjs"/);
+  assert.match(
+    source,
+    /readFileSync\\("\\.output\\/strangler\\/legal-authority\\.production-locked\\.mjs"/,
+  );
+  assert.doesNotMatch(source, /readFileSync\\("\\.output\\/strangler\\/legal-authority\\.mjs"/);
+}
+
 
 const dir = mkdtempSync(path.join(tmpdir(), "cove-legal-binary-lock-"));
 try {
