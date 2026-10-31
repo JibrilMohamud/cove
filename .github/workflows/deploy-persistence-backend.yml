@@ -140,6 +140,10 @@ jobs:
           binding = "SOUNDS_ANALYTICS"
           dataset = "cove_sounds_funnel"
 
+          [[analytics_engine_datasets]]
+          binding = "BACKEND_DIAGNOSTICS"
+          dataset = "cove_backend_audio_trigger_diagnostics"
+
           [ai]
           binding = "AI"
 
