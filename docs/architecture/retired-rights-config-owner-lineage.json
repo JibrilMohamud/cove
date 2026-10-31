@@ -65,5 +65,17 @@
       "sqlSha256": "be6435c0367a45cd028ba0fa92a61daeb6d77ff7d46de326d060f0b64f8cd473",
       "ownerExecutor": "privateRightsConfiguration"
     }
+  ],
+  "retiredNonAuthorizingProjection": [
+    {
+      "file": "src/features/fore/rights.server.ts",
+      "siteId": "0cf81e7fc27ae88b1d6c8893e2adbdd59f8669c30ba41725f5834de6a5096e54",
+      "line": 1124,
+      "table": "rights_configuration_audit",
+      "operation": "INSERT INTO",
+      "sqlSha256": "c8ad19e1bef9ed84c5e10d8c966358b6006e9d19a013431e131df00138b10501",
+      "disposition": "non-authorizing-write",
+      "privateExecutor": "privateRightsConfiguration.upsertTerritorySet"
+    }
   ]
 }

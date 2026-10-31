@@ -1,0 +1,18 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Independently reviewed both edited source files against commit 7873f6655211acc689f46fd9ef5054947c7760cd. The API has exactly two extra actor-user parameters and byte-identical SQL. The rights file relocates the six owner-required configuration SQL sites plus the non-authorizing append-only audit statement to the private QA owner, retains the exact unchanged prefix and suffix containing the online rights evaluator, and blocks positive territory activation. Every retained SQL literal, function name, table, operation and disposition is unchanged. No audit-exception baseline, parser, release approval or production binding has been weakened.",
+  "files": [
+    {
+      "path": "src/features/fore/api.server.ts",
+      "sha256": "cdfd7b1fb291c95c33325c70f11ef41eef7d6eefe0f186915b362197491b43bb",
+      "review": "Full source diff inspected: two commerce staff identity arguments passed to rights-party and territory-set fixed private owner commands; all 33 original protected SQL literals and their functions are byte-for-byte unchanged."
+    },
+    {
+      "path": "src/features/fore/rights.server.ts",
+      "sha256": "6b06728db1791caa368a13a9b62fcc74c0f9f7f255d8ed8cafb07f067837093d",
+      "review": "Original protected rights evaluator is preserved byte-for-byte after the new import. Only rights-party/territory-set writers and append-only history moved to the private QA owner. Retained rights_decisions SQL remains exact and non-authorizing."
+    }
+  ],
+  "retirementEvidence": "docs/architecture/retired-rights-config-owner-lineage.json"
+}
