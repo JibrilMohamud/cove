@@ -4827,12 +4827,23 @@ async function registerPrivateCommercialAudioUpload(env:LegalAuthorityEnv,input:
      object.customMetadata?.sha256!==input.sha)
     throw new ApiError(409,"Audio upload receipt does not match the stored object.");
   const found=await db.prepare(
-    "SELECT id,object_key,sha256,edition_id,kind FROM commercial_audio_files WHERE id=?"
+    "SELECT id,object_key,sha256,edition_id,kind,original_filename,mime_type,size_bytes,duration_ms,sample_rate_hz,bitrate_kbps,bitrate_mode,channels,loudness_rms_db,true_peak_db,noise_floor_db,created_by_user_id FROM commercial_audio_files WHERE id=?"
   ).bind(input.fileId).first<any>();
   if(found){
+    const numeric=(value:unknown)=>value===null||value===undefined?null:Number(value);
     if(found.object_key!==input.key||found.sha256!==input.sha||
-       found.edition_id!==input.editionId||found.kind!==input.kind)
-      throw new ApiError(409,"Audio upload identity was already used.");
+       found.edition_id!==input.editionId||found.kind!==input.kind||
+       found.created_by_user_id!==input.userId||
+       found.original_filename!==input.filename||found.mime_type!==input.mime||
+       Number(found.size_bytes)!==input.length||Number(found.duration_ms)!==input.durationMs||
+       Number(found.sample_rate_hz)!==input.sampleRateHz||
+       numeric(found.bitrate_kbps)!==input.bitrateKbps||
+       String(found.bitrate_mode)!==input.bitrateMode||
+       Number(found.channels)!==input.channels||
+       numeric(found.loudness_rms_db)!==input.rms||
+       numeric(found.true_peak_db)!==input.peak||
+       numeric(found.noise_floor_db)!==input.noise)
+      throw new ApiError(409,"Audio upload identity was already used with different metadata.");
     if(input.kind==="preview"){
       const profile=await db.prepare("SELECT preview_file_id FROM commercial_audio_profiles WHERE edition_id=?")
         .bind(input.editionId).first<any>();
@@ -4841,9 +4852,11 @@ async function registerPrivateCommercialAudioUpload(env:LegalAuthorityEnv,input:
       return {id:input.fileId,sha256:input.sha};
     }
     const chapter=await db.prepare(
-      "SELECT id FROM commercial_audio_chapters WHERE edition_id=? AND file_id=?"
+      "SELECT id,position,title FROM commercial_audio_chapters WHERE edition_id=? AND file_id=?"
     ).bind(input.editionId,input.fileId).first<any>();
     if(!chapter)throw new ApiError(503,"Interrupted chapter registration requires owner recovery.");
+    if(Number(chapter.position)!==input.position||chapter.title!==input.title)
+      throw new ApiError(409,"Replayed chapter metadata does not match the original registration.");
     return {id:chapter.id,fileId:input.fileId,sha256:input.sha,replaced:true};
   }
   const at=new Date().toISOString();
