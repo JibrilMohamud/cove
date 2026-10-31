@@ -14,6 +14,22 @@ assert.ok(
 );
 assert.match(buildScript, /legal-authority\.production-locked\.mjs/);
 assert.match(buildScript, /__COVE_PRODUCTION_OWNER_BINARY_LOCK__: "true"/);
+const lockedConfig = JSON.parse(
+  readFileSync("wrangler.legal-authority.production-locked.jsonc", "utf8"),
+);
+assert.equal(lockedConfig.name, "cove-legal-authority-production");
+assert.equal(
+  lockedConfig.main,
+  ".output/strangler/legal-authority.production-locked.mjs",
+);
+const provisioner = readFileSync(
+  "scripts/staging/provision-literary-owner-capabilities.mjs",
+  "utf8",
+);
+assert.match(provisioner, /readFileSync\("\.output\/strangler\/legal-authority\.production-locked\.mjs"/);
+assert.match(provisioner, /main_module: "legal-authority\.production-locked\.mjs"/);
+assert.doesNotMatch(provisioner, /readFileSync\("\.output\/strangler\/legal-authority\.mjs"/);
+
 
 const dir = mkdtempSync(path.join(tmpdir(), "cove-legal-binary-lock-"));
 try {
