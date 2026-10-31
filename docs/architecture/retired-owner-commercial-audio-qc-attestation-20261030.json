@@ -1,12 +1,12 @@
 {
   "schema": "cove.canonical-writer-source-attestation.v1",
   "releaseApproval": false,
-  "rationale": "Seven audiobook QC lease/measurement SQL sites moved to isolated QA-only owner. Trusted scan provider evidence, idempotent replay and deployed paid authority remain uncertified.",
+  "rationale": "Seven audiobook QC lease/measurement SQL sites moved to isolated QA-only owner. Trusted scan provider evidence, idempotent replay and deployed paid authority remain uncertified. Later Biosync link writer retirement independently rechecks linked active versions, R2 manifest bytes/cues and active staff permission. Production is still locked.",
   "files": [
     {
       "path": "src/features/fore/commercial-audio.server.ts",
-      "sha256": "fdc81ae026d2159b0fd2cec92f500b16e52f7bb250927c8e766065bf49e9ceba",
-      "review": "Three owner-required commercial-audio SQL sites remain following the later upload retirement."
+      "sha256": "dfb1388150c34061d6f4c7707279f45283a6d62cab9ea547d6c6910b7f324452",
+      "review": "Three owner-required commercial-audio SQL sites remain following the later upload retirement. Verified Biosync link canonical insert subsequently retired to private QA owner; two remaining offline licensing SQL sites and playback telemetry unchanged."
     }
   ]
 }
