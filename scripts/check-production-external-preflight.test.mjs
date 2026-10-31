@@ -17,6 +17,7 @@ const run=(overrides={})=>assessExternalPrerequisites({...safe,...overrides});
 const accepted=run();
 assert.equal(accepted.readyForExternalPrerequisites,true);
 assert.equal(accepted.productionCertified,false);
+assert.equal(accepted.userOwnedTokenPrivilegesCertified,true);
 assert.deepEqual(accepted.problems,[]);
 const refuse=(input,pattern)=>{
   const result=run(input);
@@ -40,6 +41,7 @@ refuse({accountTokenInventoryComplete:false},/token privilege inventory is missi
 refuse({userTokenInventoryComplete:false},/user API token privilege inventory is missing/);
 refuse({userTokens:null},/user API token privilege inventory is missing/);
 refuse({userTokens:[{id:"user-writer",status:"active",policies:[{effect:"allow",permission_groups:[{name:"D1 Write"}]}]}]},/user API token retains D1 Write/);
+assert.equal(run({userTokens:[{id:"user-writer",status:"active",policies:[{effect:"allow",permission_groups:[{name:"D1 Write"}]}]}]}).userOwnedTokenPrivilegesCertified,false);
 refuse({userTokens:[{id:"user-admin",status:"active",policies:[{effect:"allow",permission_groups:[{name:"Workers Admin"}]}]}]},/user API token retains Workers Admin/);
 refuse({accountTokens:[{id:"deployment-admin",status:"active",policies:[{effect:"allow",permission_groups:[{name:"Workers Admin"}]}]}]},/account API token retains Workers Admin/);
 refuse({accountTokens:[{id:"broad-deployment",status:"active",policies:[{effect:"allow",permission_groups:[{id:"09b2857d1c31407795e75e3fed8617a1"}]}]}]},/D1 Write/);
