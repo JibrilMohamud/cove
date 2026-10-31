@@ -17695,6 +17695,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/risk/private-apply-assessment",
       "/risk/private-create-hold",
       "/risk/private-release-hold",
+      "/risk/private-publisher-tax-verification",
       "/promotion/private-action",
       "/catalog/private-ingest-state",
       "/catalog/private-grant-free-library",
@@ -18832,6 +18833,143 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         return Response.json({schema:"cove.owner-risk-assessment.v1",ownerFirst:true,
           domain:x.domain,subjectId:x.subjectId,assessmentId:x.assessmentId,
           applied:true},{headers:noStore});
+      }
+      if(route==="/risk/private-publisher-tax-verification"){
+        // A publisher tax decision is financial authority, not status telemetry.
+        // Positive verification requires a fresh independent provider bridge
+        // configured on the private Worker, never a caller-selected URL.
+        const envelope=z.object({request:z.record(z.string(),z.unknown())}).strict().parse(raw);
+        const x=z.object({
+          profileId:z.string().min(1).max(160),
+          provider:z.string().min(1).max(80),
+          providerEventId:z.string().min(1).max(240),
+          status:z.enum(["pending","verified","failed","expired","manual_review"]),
+          providerVerificationStatus:z.string().max(80).default(""),
+          formStatus:z.string().max(80).default(""),
+          entityType:z.string().max(80).default("unknown"),
+          taxResidencyCountry:z.string().regex(/^[A-Za-z]{2}$/).default("US"),
+          tinLast4:z.string().regex(/^\d{0,4}$/).default(""),
+          reportable:z.boolean().default(true),
+          withholdingBps:z.number().int().min(0).max(10000).default(0),
+          treatyRateBps:z.number().int().min(0).max(10000).nullable().optional(),
+          backupWithholdingBps:z.number().int().min(0).max(10000).default(0),
+          reasonCode:z.string().max(120).default(""),
+          validFrom:z.string().datetime().nullable().optional(),
+          expiresAt:z.string().datetime().nullable().optional(),
+          nextReviewAt:z.string().datetime().nullable().optional(),
+          normalized:z.record(z.string(),z.unknown()).default({})
+        }).strict().parse(envelope.request);
+        const db=env.PRIMARY_DB,at=now();
+        const profile=await db.prepare(
+          "SELECT t.*,a.tax_status FROM publishing_tax_profiles t JOIN publishing_accounts a ON a.id=t.account_id WHERE t.id=?"
+        ).bind(x.profileId).first<Record<string,unknown>>();
+        if(!profile||typeof profile.account_id!=="string")
+          return new Response(null,{status:409,headers:noStore});
+        const payload=JSON.stringify(x.normalized);
+        if(payload.length>8192)return new Response(null,{status:413,headers:noStore});
+        const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(payload)));
+        const payloadHash=Array.from(digest,b=>b.toString(16).padStart(2,"0")).join("");
+        const previous=await db.prepare(
+          "SELECT status,payload_hash FROM publisher_tax_verification_events WHERE tax_profile_id=? AND provider=? AND provider_event_id=? LIMIT 1"
+        ).bind(x.profileId,x.provider,x.providerEventId).first<{status:string;payload_hash:string}>();
+        if(previous&& (previous.status!==x.status||previous.payload_hash!==payloadHash))
+          return new Response(null,{status:409,headers:noStore});
+        // A client cannot transform a tax-pending/failed publisher into
+        // verified by sending 'verified'. A private verifier independently
+        // authenticates the event and all material withholding claims.
+        if(x.status==="verified"&&!previous){
+          const settings=env as unknown as {
+            COVE_TAX_VERIFIER_URL?:string;COVE_TAX_VERIFIER_TOKEN?:string
+          };
+          const target=settings.COVE_TAX_VERIFIER_URL;
+          if(!target||!settings.COVE_TAX_VERIFIER_TOKEN)
+            return new Response(null,{status:409,headers:noStore});
+          let url:URL;
+          try{
+            url=new URL(target);
+            if(url.protocol!=="https:"||url.username||url.password||url.hash||
+               !/^[A-Za-z0-9.:-]+$/.test(url.host))
+              throw Error("invalid_verifier");
+          }catch{return new Response(null,{status:409,headers:noStore});}
+          url.searchParams.set("provider",x.provider);
+          url.searchParams.set("event_id",x.providerEventId);
+          const verified=await fetch(url.toString(),{
+            method:"GET",redirect:"manual",
+            headers:{"authorization":"Bearer "+settings.COVE_TAX_VERIFIER_TOKEN,
+              "accept":"application/json","cache-control":"no-store"}
+          }).catch(()=>null);
+          if(!verified||verified.status!==200||
+             Number(verified.headers.get("content-length")||0)>8192)
+            return new Response(null,{status:409,headers:noStore});
+          const rawProof=await verified.text();
+          if(rawProof.length>8192)return new Response(null,{status:409,headers:noStore});
+          let proof:Record<string,unknown>;
+          try{
+            const parsed=JSON.parse(rawProof);
+            if(!parsed||Array.isArray(parsed)||typeof parsed!=="object")
+              throw Error("invalid_proof");
+            proof=parsed as Record<string,unknown>;
+          }catch{return new Response(null,{status:409,headers:noStore});}
+          const verifiedAt=Date.parse(String(proof.verifiedAt||""));
+          if(proof.provider!==x.provider||proof.providerEventId!==x.providerEventId||
+             proof.profileId!==x.profileId||proof.accountId!==profile.account_id||
+             proof.status!=="verified"||proof.taxResidencyCountry!==x.taxResidencyCountry.toUpperCase()||
+             proof.withholdingBps!==x.withholdingBps||
+             (proof.treatyRateBps??null)!==(x.treatyRateBps??null)||
+             proof.backupWithholdingBps!==x.backupWithholdingBps||
+             proof.reportable!==x.reportable||
+             !Number.isFinite(verifiedAt)||verifiedAt>Date.now()+60_000||
+             verifiedAt<Date.now()-24*3600_000||
+             (profile.status!=="pending"&&
+              verifiedAt<=Date.parse(String(profile.updated_at||""))))
+            return new Response(null,{status:409,headers:noStore});
+        }
+        if(x.status==="verified"&&previous&&profile.tax_status!=="verified")
+          return new Response(null,{status:409,headers:noStore});
+        if(x.status==="pending"&&String(profile.status)!=="pending"&&!previous)
+          return new Response(null,{status:409,headers:noStore});
+        const oldEffective=Number(profile.effective_withholding_bps||0);
+        const requested=x.status==="verified"
+          ? (x.treatyRateBps??x.withholdingBps)
+          :Math.max(x.withholdingBps,x.backupWithholdingBps);
+        const effective=x.status==="verified"?requested:Math.max(oldEffective,requested);
+        if(previous){
+          if(profile.tax_status!==x.status)
+            return new Response(null,{status:409,headers:noStore});
+          return Response.json({schema:"cove.owner-publisher-tax-verification.v1",
+            ownerFirst:true,profileId:x.profileId,status:x.status,saved:true,
+            effectiveWithholdingBps:Number(profile.effective_withholding_bps||effective),
+            replayed:true},{headers:noStore});
+        }
+        const eventHash=new Uint8Array(await crypto.subtle.digest("SHA-256",
+          new TextEncoder().encode(x.profileId+":"+x.provider+":"+x.providerEventId)));
+        const eventId="ptaxevt_"+Array.from(eventHash,b=>b.toString(16).padStart(2,"0")).join("").slice(0,48);
+        const res=(await db.batch([
+          db.prepare("UPDATE publishing_tax_profiles SET status=?,withholding_bps=?,valid_from=?,expires_at=?,validated_at=?,reason_code=?,updated_at=?,entity_type=?,tax_residency_country=?,tin_last4=?,provider_verification_status=?,form_status=?,reportable=?,treaty_rate_bps=?,backup_withholding_bps=?,effective_withholding_bps=?,compliance_snapshot_json=?,next_review_at=? WHERE id=? AND account_id=?")
+            .bind(x.status,x.withholdingBps,x.validFrom||profile.valid_from||null,
+              x.status==="expired"?at:(x.expiresAt||null),
+              x.status==="verified"?at:null,x.reasonCode,at,x.entityType,
+              x.taxResidencyCountry.toUpperCase(),x.tinLast4,
+              x.providerVerificationStatus||x.status,x.formStatus||x.status,
+              x.reportable?1:0,x.treatyRateBps??null,
+              x.backupWithholdingBps,effective,payload,x.nextReviewAt||null,
+              x.profileId,profile.account_id),
+          db.prepare("UPDATE publishing_accounts SET tax_status=?,updated_at=? WHERE id=? AND EXISTS(SELECT 1 FROM publishing_tax_profiles t WHERE t.id=? AND t.account_id=publishing_accounts.id AND t.status=?)")
+            .bind(x.status,at,profile.account_id,x.profileId,x.status),
+          db.prepare("INSERT INTO publisher_tax_verification_events(id,tax_profile_id,provider,provider_event_id,event_type,status,reason_code,payload_hash,normalized_json,occurred_at,created_at) SELECT ?,?,?,?,'verification_update',?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM publishing_tax_profiles t WHERE t.id=? AND t.status=? AND t.account_id=?)")
+            .bind(eventId,x.profileId,x.provider,x.providerEventId,x.status,x.reasonCode,
+              payloadHash,payload,at,at,x.profileId,x.status,profile.account_id)
+        ])) as Array<{meta?:{changes?:number}}>;
+        if(res.length!==3||res.some(r=>Number(r.meta?.changes||0)!==1))
+          return new Response(null,{status:409,headers:noStore});
+        // Risk assessments are owner-side. A retried negative decision stays
+        // restrictive even if risk notification or policy assessment fails.
+        try{await assessPublisherRisk(db as Parameters<typeof assessPublisherRisk>[0],
+          String(profile.account_id),"tax_verification_update");}
+        catch{/* Tax status remains deny-first; recovery can rescan the account. */}
+        return Response.json({schema:"cove.owner-publisher-tax-verification.v1",
+          ownerFirst:true,profileId:x.profileId,status:x.status,saved:true,
+          effectiveWithholdingBps:effective},{headers:noStore});
       }
       if(route==="/risk/private-release-hold"){
         const x=z.object({
