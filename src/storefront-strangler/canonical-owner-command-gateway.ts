@@ -168,6 +168,13 @@ const routes={
     subjectId:z.string().min(3).max(180),
     assessmentId:z.string().min(3).max(180)
   }).strict()},
+  "risk.release-hold":{path:"/risk/private-release-hold",schema:z.object({
+    holdId:z.string().min(3).max(180),
+    note:z.string().trim().min(3).max(4000),
+    actor:z.object({userId:ownerId,authProvider:z.string().min(1).max(120),
+      authSubject:z.string().min(1).max(240),
+      aal:z.enum(["aal1","aal2"])}).strict()
+  }).strict()},
   "risk.create-hold":{path:"/risk/private-create-hold",schema:z.object({
     assessmentId:z.string().min(3).max(180),
     scope:z.enum(["checkout","account","publishing","usage_credit","payout","review_ranking"]),
@@ -446,6 +453,11 @@ export async function dispatchCanonicalOwnerCommand(
       if(ack.schema!=="cove.owner-risk-assessment.v1"||ack.ownerFirst!==true||
          ack.domain!==body.domain||ack.subjectId!==body.subjectId||
          ack.assessmentId!==body.assessmentId||ack.applied!==true)
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "risk.release-hold":
+      if(ack.schema!=="cove.owner-risk-hold-release.v1"||ack.ownerFirst!==true||
+         ack.id!==body.holdId||ack.status!=="released")
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "risk.create-hold":

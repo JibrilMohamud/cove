@@ -564,6 +564,22 @@ export async function dispatchPrivateEntitlementDevice(db:object,input:{
 
 /** Deny-first, fixed QA risk hold owner. Owner re-reads newest persisted
  * assessment, validates its domain/scope and keeps existing active holds. */
+/** The canonical owner is the only authority that can release a risk hold. */
+export async function dispatchPrivateRiskHoldRelease(db:object, input:{
+ holdId:string;note:string;
+ actor:{userId:string;authProvider:string;authSubject:string;aal:"aal1"|"aal2"}
+}):Promise<{id:string;status:string}> {
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Risk release requires private legal authority.");
+ try{
+   const ack=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+     "risk.release-hold",input);
+   if(ack.id!==input.holdId||ack.status!=="released")
+     throw Error("risk_release_owner_receipt_invalid");
+   return {id:input.holdId,status:"released"};
+ }catch{throw new ApiError(503,"Private owner refused risk hold release.");}
+}
+
 export async function dispatchPrivateRiskHold(db:object,assessmentId:string,
  scope:string,reasonCode:string):Promise<string>{
  const context=owners.get(db);

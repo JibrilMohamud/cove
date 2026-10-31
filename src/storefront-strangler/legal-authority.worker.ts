@@ -17651,6 +17651,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/catalog/verified-us-epub-cache",
       "/risk/private-apply-assessment",
       "/risk/private-create-hold",
+      "/risk/private-release-hold",
       "/promotion/private-action",
       "/catalog/private-ingest-state",
       "/delivery/register-entitlement-device",
@@ -17671,7 +17672,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     let raw:unknown;
     try {
       const bytes=await request.text();
-      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/create-quote"?4096:route==="/publishing/audio/register-upload"?8192:route==="/publishing/audio/qc-jobs"?262144:route==="/publishing/worker/jobs"?262144:route==="/publishing/audio/metadata"?8192:route==="/publishing/onboarding/review"?8192:route==="/rights/private-configuration"?12288:route==="/moderation/private-action"?12288:route==="/support/private-action"?8192:route==="/preorder/private-action"?8192:route==="/trust/private-action"?262144:route==="/finance/private-action"?65536:route==="/account/private-action"?2048:route==="/publishing/editor-action"?262144:route==="/publishing/partner/private-action"?16384:route==="/commercial/checkout/materialize-draft"?2048:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
+      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/create-quote"?4096:route==="/publishing/audio/register-upload"?8192:route==="/publishing/audio/qc-jobs"?262144:route==="/publishing/worker/jobs"?262144:route==="/publishing/audio/metadata"?8192:route==="/publishing/onboarding/review"?8192:route==="/rights/private-configuration"?12288:route==="/moderation/private-action"?12288:route==="/support/private-action"?8192:route==="/preorder/private-action"?8192:route==="/trust/private-action"?262144:route==="/finance/private-action"?65536:route==="/account/private-action"?2048:route==="/publishing/editor-action"?262144:route==="/publishing/partner/private-action"?16384:route==="/risk/private-release-hold"?8192:route==="/commercial/checkout/materialize-draft"?2048:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
       raw=JSON.parse(bytes);
     }catch {return new Response(null,{status:400,headers:noStore});}
     bindPrivateFinanceExecutors(env.PRIMARY_DB,{...privateRoyalty,...privateFinance});
@@ -18783,6 +18784,75 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         return Response.json({schema:"cove.owner-risk-assessment.v1",ownerFirst:true,
           domain:x.domain,subjectId:x.subjectId,assessmentId:x.assessmentId,
           applied:true},{headers:noStore});
+      }
+      if(route==="/risk/private-release-hold"){
+        const x=z.object({
+          holdId:z.string().min(3).max(180),
+          note:z.string().trim().min(3).max(4000),
+          actor:z.object({userId:z.string().regex(/^[a-zA-Z0-9_-]{8,160}$/),
+            authProvider:z.string().min(1).max(120),
+            authSubject:z.string().min(1).max(240),
+            aal:z.enum(["aal1","aal2"])}).strict()
+        }).strict().parse(raw);
+        const db=env.PRIMARY_DB,actor=x.actor;
+        const [principal,permitted,hold]=await Promise.all([
+          db.prepare("SELECT sso_provider,sso_subject,mfa_required FROM staff_principals WHERE user_id=? AND status='active'")
+            .bind(actor.userId).first<{sso_provider:string;sso_subject:string;mfa_required:number}>(),
+          db.prepare("SELECT 1 ok FROM staff_principal_roles pr JOIN staff_role_permissions p ON p.role_id=pr.role_id WHERE pr.user_id=? AND p.permission IN ('risk.hold.manage','staff.manage') LIMIT 1")
+            .bind(actor.userId).first<{ok:number}>(),
+          db.prepare("SELECT * FROM risk_holds WHERE id=?")
+            .bind(x.holdId).first<{id:string;status:string;domain:string;subject_type:string;subject_id:string;hold_scope:string}>()
+        ]);
+        if(!principal||!permitted||!hold||
+           (principal.sso_provider&&principal.sso_provider!==actor.authProvider)||
+           (principal.sso_subject&&principal.sso_subject!==actor.authSubject)||
+           (Number(principal.mfa_required)===1&&actor.aal!=="aal2"))
+          return new Response(null,{status:403,headers:noStore});
+        if(hold.status!=="active")
+          return hold.status==="released"?
+            Response.json({schema:"cove.owner-risk-hold-release.v1",ownerFirst:true,
+              id:x.holdId,status:"released"},{headers:noStore}):
+            new Response(null,{status:409,headers:noStore});
+        // Payout releases must repeat the full fraud/tax/rights reassessment
+        // inside owner authority, not trust the public application decision.
+        if(hold.hold_scope==="payout"&&hold.subject_type==="payout_item"){
+          const reassessment=await assessPayoutRisk(db,hold.subject_id);
+          if(["hold","block"].includes(reassessment.action))
+            return new Response(null,{status:409,headers:noStore});
+          const health=await db.prepare(
+            "SELECT pi.id FROM payout_items pi JOIN finance_parties fp ON fp.id=pi.party_id LEFT JOIN publishing_accounts pa ON pa.finance_party_id=fp.id WHERE pi.id=? AND (pa.id IS NULL OR (pa.tax_status='verified' AND pa.payout_status='verified' AND COALESCE(pa.risk_score,0)<60)) AND NOT EXISTS(SELECT 1 FROM finance_royalty_allocations a JOIN payout_allocation_links l ON l.royalty_allocation_id=a.id WHERE l.payout_item_id=pi.id AND a.status='held')"
+          ).bind(hold.subject_id).first<{id:string}>();
+          if(!health)return new Response(null,{status:409,headers:noStore});
+        }else{
+          // Risk administrators may release a resolved review, but not
+          // override the latest independently persisted hold/block decision.
+          const latest=await db.prepare(
+            "SELECT action FROM risk_assessments WHERE domain=? AND subject_type=? AND subject_id=? ORDER BY created_at DESC,id DESC LIMIT 1"
+          ).bind(hold.domain,hold.subject_type,hold.subject_id).first<{action:string}>();
+          if(!latest||["hold","block"].includes(latest.action))
+            return new Response(null,{status:409,headers:noStore});
+        }
+        const at=now();
+        const update=hold.hold_scope==="payout"&&hold.subject_type==="payout_item"
+          ?db.prepare("UPDATE risk_holds SET status='released',released_at=?,released_by_user_id=?,release_note=? WHERE id=? AND status='active' AND EXISTS(SELECT 1 FROM payout_items pi JOIN finance_parties fp ON fp.id=pi.party_id LEFT JOIN publishing_accounts pa ON pa.finance_party_id=fp.id WHERE pi.id=? AND (pa.id IS NULL OR (pa.tax_status='verified' AND pa.payout_status='verified' AND COALESCE(pa.risk_score,0)<60)) AND NOT EXISTS(SELECT 1 FROM finance_royalty_allocations a JOIN payout_allocation_links l ON l.royalty_allocation_id=a.id WHERE l.payout_item_id=pi.id AND a.status='held'))")
+             .bind(at,actor.userId,x.note,x.holdId,hold.subject_id)
+          :db.prepare("UPDATE risk_holds SET status='released',released_at=?,released_by_user_id=?,release_note=? WHERE id=? AND status='active' AND EXISTS(SELECT 1 FROM risk_assessments a WHERE a.domain=? AND a.subject_type=? AND a.subject_id=? AND a.id=(SELECT id FROM risk_assessments WHERE domain=? AND subject_type=? AND subject_id=? ORDER BY created_at DESC,id DESC LIMIT 1) AND a.action NOT IN ('hold','block'))")
+             .bind(at,actor.userId,x.note,x.holdId,hold.domain,hold.subject_type,hold.subject_id,
+               hold.domain,hold.subject_type,hold.subject_id);
+        const primary=await update.run();
+        if(Number((primary as {meta?:{changes?:number}}).meta?.changes||0)!==1)
+          return new Response(null,{status:409,headers:noStore});
+        // No release if another active hold or a held royalty remains.
+        if(hold.hold_scope==="payout"&&hold.subject_type==="payout_item")
+          await db.prepare(
+            "UPDATE payout_items SET status='pending',hold_reason_code='' WHERE id=? AND status='held' AND NOT EXISTS(SELECT 1 FROM risk_holds WHERE subject_type='payout_item' AND subject_id=? AND hold_scope='payout' AND status='active') AND NOT EXISTS(SELECT 1 FROM finance_royalty_allocations a JOIN payout_allocation_links l ON l.royalty_allocation_id=a.id WHERE l.payout_item_id=? AND a.status='held') AND EXISTS(SELECT 1 FROM payout_items pi JOIN finance_parties fp ON fp.id=pi.party_id LEFT JOIN publishing_accounts pa ON pa.finance_party_id=fp.id WHERE pi.id=? AND (pa.id IS NULL OR (pa.tax_status='verified' AND pa.payout_status='verified' AND COALESCE(pa.risk_score,0)<60)))"
+          ).bind(hold.subject_id,hold.subject_id,hold.subject_id,hold.subject_id).run();
+        await db.prepare(
+          "INSERT INTO risk_case_events(id,case_id,event_type,actor_type,actor_user_id,payload_json,created_at) SELECT ?,id,'hold_released','staff',?,?,? FROM risk_cases WHERE domain=? AND subject_type=? AND subject_id=? AND status NOT IN ('resolved','closed') ORDER BY opened_at DESC LIMIT 1"
+        ).bind("risk_ce_"+crypto.randomUUID(),actor.userId,
+          JSON.stringify({holdId:x.holdId,note:x.note}),at,hold.domain,hold.subject_type,hold.subject_id).run();
+        return Response.json({schema:"cove.owner-risk-hold-release.v1",ownerFirst:true,
+          id:x.holdId,status:"released"},{headers:noStore});
       }
       if(route==="/risk/private-create-hold"){
         const input=z.object({
