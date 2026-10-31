@@ -114,6 +114,12 @@ const routes={
     action:z.enum(["revoke-grant","withdraw-version","restrict-policy"]),
     payload:z.record(z.string(),z.unknown())
   }).strict()},
+  "catalog.ingestion-state":{path:"/catalog/private-ingest-state",schema:z.object({
+    action:z.enum(["recover-interrupted","mark-unavailable","claim-download",
+      "touch-attempt","set-backoff","mark-failure","acquire-regional",
+      "mark-degraded","mark-regional-failed"]),
+    payload:z.record(z.string(),z.unknown())
+  }).strict()},
   "catalog.withdraw-stale":{path:"/catalog/withdraw-stale",schema:z.object({
     sourceId:z.enum(["pg_ca","pg_au","pg_eu"]),
     cycleStartedAt:z.string().datetime(),leaseToken:z.string().uuid(),
@@ -320,6 +326,14 @@ export async function dispatchCanonicalOwnerCommand(
         ack.action!==body.action||!record(ack.result)||
         (body.action==="revoke-grant"&&ack.result.revoked!==true)||
         (body.action!=="revoke-grant"&&ack.result.saved!==true))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "catalog.ingestion-state":
+      if(ack.schema!=="cove.owner-ingestion-state-qa.v1"||ack.ownerFirst!==true||
+         ack.action!==body.action||!record(ack.result)||
+         (["claim-download","acquire-regional"].includes(String(body.action))
+           ?typeof ack.result.claimed!=="boolean"
+           :typeof ack.result.saved!=="boolean"))
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "catalog.withdraw-stale":

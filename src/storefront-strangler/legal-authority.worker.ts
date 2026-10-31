@@ -17639,6 +17639,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/publishing/editor-action",
       "/publishing/partner/private-action",
       "/rights/private-configuration",
+      "/catalog/private-ingest-state",
       "/delivery/private-negative",
       "/catalog/withdraw-stale",
       "/catalog/negative-source",
@@ -18343,6 +18344,102 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
             action:input.action,actorUserId:input.actorUserId,
             operationId:input.operationId,result},{headers:noStore});
         }finally{this.rightsConfigExecution=false;}
+      }
+      if(route==="/catalog/private-ingest-state") {
+        const input=z.object({
+          action:z.enum(["recover-interrupted","mark-unavailable","claim-download",
+            "touch-attempt","set-backoff","mark-failure","acquire-regional",
+            "mark-degraded","mark-regional-failed"]),
+          payload:z.record(z.string(),z.unknown())
+        }).strict().parse(raw);
+        const db=env.PRIMARY_DB;
+        const p=input.payload;
+        const source=z.enum(["pg_us","pg_ca","pg_au","pg_eu"]);
+        const regional=z.enum(["pg_ca","pg_au","pg_eu"]);
+        const cacheId=z.string().regex(/^(?:[0-9]{1,10}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90})$/);
+        const lease=z.string().uuid();
+        let result:{saved?:boolean;claimed?:boolean}={saved:false};
+        switch(input.action){
+          case "recover-interrupted":{
+            z.object({}).strict().parse(p);
+            const at=now(),stale=new Date(Date.now()-15*60_000).toISOString();
+            await db.prepare("UPDATE gutenberg_source_cache SET epub_status='retry',epub_next_attempt_at='',epub_last_error='Recovered after an interrupted EPUB download.',updated_at=? WHERE epub_status='downloading' AND updated_at<? AND ingest_status<>'quarantined'")
+              .bind(at,stale).run();
+            result={saved:true};break;
+          }
+          case "mark-unavailable":{
+            const x=z.object({cacheId}).strict().parse(p);
+            const row=await db.prepare("SELECT source_id FROM gutenberg_source_cache WHERE id=? AND ingest_status<>'quarantined'")
+              .bind(x.cacheId).first<{source_id:string}>();
+            if(!row)return new Response(null,{status:409,headers:noStore});
+            await db.prepare("UPDATE gutenberg_source_cache SET epub_status='unavailable',epub_last_error='No supported source asset was provided.' WHERE id=? AND ingest_status<>'quarantined'")
+              .bind(x.cacheId).run();
+            result={saved:true};break;
+          }
+          case "claim-download":{
+            const x=z.object({cacheId}).strict().parse(p),at=now();
+            const claimed=await db.prepare("UPDATE gutenberg_source_cache SET epub_status='downloading',epub_last_error='',updated_at=? WHERE id=? AND epub_status IN ('pending','retry') AND (epub_next_attempt_at='' OR epub_next_attempt_at<=?) AND ingest_status<>'quarantined' AND EXISTS(SELECT 1 FROM gutenberg_sources s WHERE s.id=gutenberg_source_cache.source_id AND s.enabled=1) RETURNING id")
+              .bind(at,x.cacheId,at).first<{id:string}>();
+            result={claimed:!!claimed};break;
+          }
+          case "touch-attempt":{
+            const x=z.object({sourceId:source}).strict().parse(p);
+            await db.prepare("UPDATE gutenberg_source_states SET epub_last_attempt_at=? WHERE source_id=? AND EXISTS(SELECT 1 FROM gutenberg_sources s WHERE s.id=gutenberg_source_states.source_id AND s.enabled=1)")
+              .bind(now(),x.sourceId).run();
+            result={saved:true};break;
+          }
+          case "set-backoff":{
+            const x=z.object({sourceId:source,retryAt:z.string().datetime()}).strict().parse(p);
+            const t=Date.parse(x.retryAt),minimum=Date.now()+59_000,maximum=Date.now()+24*3600_000+10_000;
+            if(!Number.isFinite(t)||t<minimum||t>maximum)return new Response(null,{status:409,headers:noStore});
+            await db.prepare("UPDATE gutenberg_source_states SET epub_retry_after=? WHERE source_id=?")
+              .bind(x.retryAt,x.sourceId).run();result={saved:true};break;
+          }
+          case "mark-failure":{
+            const x=z.object({cacheId,attempts:z.number().int().min(1).max(100),
+              status:z.enum(["retry","failed"]),retryAt:z.string().max(40),
+              message:z.string().max(500)}).strict().parse(p);
+            const row=await db.prepare("SELECT epub_attempts FROM gutenberg_source_cache WHERE id=? AND epub_status='downloading' AND ingest_status<>'quarantined'")
+              .bind(x.cacheId).first<{epub_attempts:number}>();
+            if(!row||Number(row.epub_attempts)+1!==x.attempts)
+              return new Response(null,{status:409,headers:noStore});
+            if(x.status==="retry"&&(!Number.isFinite(Date.parse(x.retryAt))||Date.parse(x.retryAt)>Date.now()+24*3600_000))
+              return new Response(null,{status:409,headers:noStore});
+            await db.prepare("UPDATE gutenberg_source_cache SET epub_status=?,epub_attempts=?,epub_next_attempt_at=?,epub_last_error=? WHERE id=? AND epub_status='downloading' AND ingest_status<>'quarantined'")
+              .bind(x.status,x.attempts,x.retryAt,x.message,x.cacheId).run();
+            result={saved:true};break;
+          }
+          case "acquire-regional":{
+            const x=z.object({sourceId:regional,leaseToken:lease}).strict().parse(p);
+            const at=now(),until=new Date(Date.now()+5*60_000).toISOString();
+            const eligible=await db.prepare("SELECT id FROM gutenberg_sources WHERE id=? AND enabled=1")
+              .bind(x.sourceId).first<{id:string}>();
+            if(!eligible)return new Response(null,{status:409,headers:noStore});
+            const claimed=await db.prepare("UPDATE gutenberg_source_states SET status='running',lease_token=?,lease_until=?,last_run_at=?,last_error='',updated_at=? WHERE source_id=? AND (lease_until IS NULL OR lease_until='' OR lease_until<?) AND (next_run_at IS NULL OR next_run_at='' OR next_run_at<=?) RETURNING source_id")
+              .bind(x.leaseToken,until,at,at,x.sourceId,at,at).first<{source_id:string}>();
+            result={claimed:!!claimed};break;
+          }
+          case "mark-degraded":{
+            const x=z.object({sourceId:regional,leaseToken:lease,message:z.string().max(1000)}).strict().parse(p);
+            const at=now(),next=new Date(Date.now()+6*3600_000).toISOString();
+            const outcome=await db.prepare("UPDATE gutenberg_source_states SET status='degraded',last_error=?,next_run_at=?,lease_token=NULL,lease_until=NULL,updated_at=? WHERE source_id=? AND lease_token=? AND status='running'")
+              .bind(x.message,next,at,x.sourceId,x.leaseToken).run();
+            result={saved:Number((outcome as {meta?:{changes?:number}})?.meta?.changes||0)>0};break;
+          }
+          case "mark-regional-failed":{
+            const x=z.object({sourceId:regional,leaseToken:lease,
+              attempts:z.number().int().min(1).max(100),retryAt:z.string().datetime(),message:z.string().max(1000)}).strict().parse(p);
+            const row=await db.prepare("SELECT attempts FROM gutenberg_source_states WHERE source_id=? AND lease_token=? AND status='running'")
+              .bind(x.sourceId,x.leaseToken).first<{attempts:number}>();
+            if(!row||Number(row.attempts)+1!==x.attempts||Date.parse(x.retryAt)>Date.now()+24*3600_000)
+              return new Response(null,{status:409,headers:noStore});
+            await db.prepare("UPDATE gutenberg_source_states SET status='failed',last_error=?,attempts=?,next_run_at=?,lease_token=NULL,lease_until=NULL,updated_at=? WHERE source_id=? AND lease_token=? AND status='running'")
+              .bind(x.message,x.attempts,x.retryAt,now(),x.sourceId,x.leaseToken).run();
+            result={saved:true};break;
+          }
+        }
+        return Response.json({schema:"cove.owner-ingestion-state-qa.v1",ownerFirst:true,
+          action:input.action,result},{headers:noStore});
       }
       if(route==="/delivery/private-negative") {
         const request=z.object({

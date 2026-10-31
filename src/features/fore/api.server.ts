@@ -1,3 +1,4 @@
+import { dispatchCatalogIngestState } from "../../storefront-strangler/publication-owner-routing.server";
 import {
   dispatchCatalogNegativeSource,
   dispatchCatalogStaleWithdrawal,
@@ -1412,15 +1413,7 @@ async function cachePendingEpubs(
   if (!env.BUCKET || !safeLimit || !hasEpubDownloadWindow(deadlineMs))
     return { attempted: 0, downloaded: 0, failed: 0, quarantined: 0 };
   const db = database(env);
-  const staleDownloadBefore = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-  await db
-    .prepare(
-      `UPDATE gutenberg_source_cache
-    SET epub_status='retry',epub_next_attempt_at='',epub_last_error='Recovered after an interrupted EPUB download.',updated_at=?
-    WHERE epub_status='downloading' AND updated_at<?`,
-    )
-    .bind(now(), staleDownloadBefore)
-    .run();
+  await dispatchCatalogIngestState(db, "recover-interrupted", {});
   const sources = await db
     .prepare(
       `SELECT s.id FROM gutenberg_sources s LEFT JOIN gutenberg_source_states st ON st.source_id=s.id
@@ -1487,27 +1480,14 @@ async function cachePendingEpubs(
           : null
         : canonicalAssetSource(formats);
     if (!sourceAsset) {
-      await db
-        .prepare(
-          "UPDATE gutenberg_source_cache SET epub_status='unavailable',epub_last_error='No supported source asset was provided.' WHERE id=?",
-        )
-        .bind(id)
-        .run();
+      await dispatchCatalogIngestState(db, "mark-unavailable", { cacheId: id });
       continue;
     }
-    const claim = await db
-      .prepare(
-        "UPDATE gutenberg_source_cache SET epub_status='downloading',epub_last_error='',updated_at=? WHERE id=? AND epub_status IN ('pending','retry') AND (epub_next_attempt_at='' OR epub_next_attempt_at<=?) RETURNING id",
-      )
-      .bind(now(), id, now())
-      .first<{ id: string }>();
-    if (!claim) continue;
+    const claim = await dispatchCatalogIngestState(db, "claim-download", { cacheId: id });
+    if (!claim.claimed) continue;
     attempted++;
     onAttempt?.();
-    await db
-      .prepare("UPDATE gutenberg_source_states SET epub_last_attempt_at=? WHERE source_id=?")
-      .bind(now(), sourceId)
-      .run();
+    await dispatchCatalogIngestState(db, "touch-attempt", { sourceId });
     try {
       if (sourceId === "pg_eu") {
         const metadata = parseJsonObject(row.source_metadata_json || "{}");
@@ -1537,10 +1517,7 @@ async function cachePendingEpubs(
               ),
             ),
         ).toISOString();
-        await db
-          .prepare("UPDATE gutenberg_source_states SET epub_retry_after=? WHERE source_id=?")
-          .bind(until, sourceId)
-          .run();
+        await dispatchCatalogIngestState(db, "set-backoff", { sourceId, retryAt: until });
         pausedSources.add(sourceId);
       }
       if (!response.ok) {
@@ -1651,12 +1628,9 @@ async function cachePendingEpubs(
       const message =
         error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500);
       const { terminal, retryAt } = planEpubRetry(message, attempts);
-      await db
-        .prepare(
-          "UPDATE gutenberg_source_cache SET epub_status=?,epub_attempts=?,epub_next_attempt_at=?,epub_last_error=? WHERE id=?",
-        )
-        .bind(terminal ? "failed" : "retry", attempts, retryAt, message, id)
-        .run();
+      await dispatchCatalogIngestState(db, "mark-failure", {
+        cacheId: id, attempts, status: terminal ? "failed" : "retry", retryAt, message,
+      });
       failed++;
     }
   }
@@ -1719,16 +1693,10 @@ export async function runRegionalCatalogIngestion(
   if (!due) return { skipped: "regional-sources-fresh" };
   const sourceId = String(due.id) as RegionalSourceId;
   const lease = crypto.randomUUID();
-  const leaseUntil = new Date(Date.now() + 5 * 60 * 1000).toISOString();
   const runId = `gir_${crypto.randomUUID()}`;
   let cursorBefore = Math.max(0, Number.parseInt(String(due.cursor || "0"), 10) || 0);
-  const acquired = await db
-    .prepare(
-      `UPDATE gutenberg_source_states SET status='running',lease_token=?,lease_until=?,last_run_at=?,last_error='',updated_at=? WHERE source_id=? AND (lease_until IS NULL OR lease_until='' OR lease_until<?) AND (next_run_at IS NULL OR next_run_at='' OR next_run_at<=?) RETURNING source_id`,
-    )
-    .bind(lease, leaseUntil, current, current, sourceId, current, current)
-    .first<{ source_id: string }>();
-  if (!acquired) return { skipped: "regional-source-running" };
+  const acquired = await dispatchCatalogIngestState(db, "acquire-regional", { sourceId, leaseToken: lease });
+  if (!acquired.claimed) return { skipped: "regional-source-running" };
   await db
     .prepare(
       `INSERT INTO gutenberg_ingest_runs(id,source_id,started_at,status,cursor_before,error) VALUES(?,?,?,'running',?,'')`,
@@ -1744,12 +1712,7 @@ export async function runRegionalCatalogIngestion(
     const result = await fetchRegionalCatalog(sourceId, env, headers, deadlineMs);
     if (result.status === "degraded") {
       const next = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
-      await db
-        .prepare(
-          `UPDATE gutenberg_source_states SET status='degraded',last_error=?,next_run_at=?,lease_token=NULL,lease_until=NULL,updated_at=? WHERE source_id=? AND lease_token=?`,
-        )
-        .bind(result.warning, next, now(), sourceId, lease)
-        .run();
+      await dispatchCatalogIngestState(db, "mark-degraded", { sourceId, leaseToken: lease, message: result.warning });
       await db
         .prepare(
           `UPDATE gutenberg_ingest_runs SET completed_at=?,status='partial',cursor_after=?,error=? WHERE id=?`,
@@ -1969,12 +1932,9 @@ export async function runRegionalCatalogIngestion(
           Math.min(30 * 60_000, Math.pow(2, Math.min(attempts - 1, 5)) * 60_000),
         ),
     ).toISOString();
-    await db
-      .prepare(
-        `UPDATE gutenberg_source_states SET status='failed',last_error=?,attempts=?,next_run_at=?,lease_token=NULL,lease_until=NULL,updated_at=? WHERE source_id=? AND lease_token=?`,
-      )
-      .bind(message, attempts, retryAt, now(), sourceId, lease)
-      .run();
+    await dispatchCatalogIngestState(db, "mark-regional-failed", {
+      sourceId, leaseToken: lease, attempts, retryAt, message,
+    });
     await db
       .prepare(
         `UPDATE gutenberg_ingest_runs SET completed_at=?,status='failed',cursor_before=?,cursor_after=?,error=? WHERE id=?`,
