@@ -205,3 +205,13 @@ export async function dispatchPublishingOwnerValidationJob(
     return receipt.result as Record<string,unknown>;
   }catch{throw new ApiError(503,"Private publishing worker did not certify this job.");}
 }
+
+export async function dispatchCommercialAudioQcJob(db:object,action:"lease"|"complete",payload:unknown) {
+  const context=owners.get(db);
+  if(!context)throw new ApiError(503,"Commercial audiobook QC requires its private owner.");
+  try {
+    const receipt=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+      "publishing.audio-qc-jobs",{action,payload,operationId:"audio-qc:"+crypto.randomUUID()});
+    return receipt.result as Record<string,unknown>;
+  }catch{throw new ApiError(503,"Private audio owner did not certify this QC job.");}
+}

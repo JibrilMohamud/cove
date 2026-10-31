@@ -4513,6 +4513,295 @@ const privatePublishingWorkQueues=(()=>{
 })();
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+/* eslint-disable @typescript-eslint/no-explicit-any -- QA-only audiobook QC row shapes. */
+const privateAudioQcQueues=(()=>{
+  const now=()=>new Date().toISOString();
+  const id=(prefix:string)=>prefix+"_"+crypto.randomUUID();
+  const json=(value:unknown,fallback:Record<string,unknown>)=>{
+    try{return JSON.parse(String(value||""));}catch{return fallback;}
+  };
+async function hash(bytes: Uint8Array) {
+  const d = await crypto.subtle.digest("SHA-256", new Uint8Array(bytes));
+  return [...new Uint8Array(d)].map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+async function leaseCommercialAudioQcJobs(db: CoveEnv["DB"], raw: unknown) {
+  const x = z
+      .object({
+        workerId: z.string().min(1).max(160),
+        limit: z.number().int().min(1).max(25).default(5),
+        leaseSeconds: z.number().int().min(30).max(1800).default(300),
+      })
+      .parse(raw),
+    at = now(),
+    expires = new Date(Date.now() + x.leaseSeconds * 1000).toISOString();
+  const candidates = (
+    await db
+      .prepare(
+        `SELECT edition_id FROM commercial_audio_qc_jobs WHERE attempts<max_attempts AND available_at<=? AND (status='queued' OR (status='leased' AND lease_expires_at<=?)) ORDER BY available_at,updated_at LIMIT ?`,
+      )
+      .bind(at, at, x.limit)
+      .all<any>()
+  ).results;
+  const jobs: any[] = [];
+  for (const c of candidates) {
+    const claimed = await db
+      .prepare(
+        `UPDATE commercial_audio_qc_jobs SET status='leased',lease_owner=?,lease_expires_at=?,attempts=attempts+1,updated_at=? WHERE edition_id=? AND attempts<max_attempts AND available_at<=? AND (status='queued' OR (status='leased' AND lease_expires_at<=?)) RETURNING edition_id,attempts,lease_expires_at`,
+      )
+      .bind(x.workerId, expires, at, c.edition_id, at, at)
+      .first<any>();
+    if (!claimed) continue;
+    const chapters = (
+      await db
+        .prepare(
+          `SELECT c.id chapter_id,c.position,c.title,c.duration_ms,c.mime_type,c.sample_rate_hz,c.bitrate_kbps,c.bitrate_mode,c.channels,c.sha256,f.object_key,f.size_bytes FROM commercial_audio_chapters c JOIN commercial_audio_files f ON f.id=c.file_id WHERE c.edition_id=? ORDER BY c.position`,
+        )
+        .bind(c.edition_id)
+        .all<any>()
+    ).results;
+    const profile = await db
+        .prepare("SELECT preview_file_id FROM commercial_audio_profiles WHERE edition_id=?")
+        .bind(c.edition_id)
+        .first<any>(),
+      preview = profile?.preview_file_id
+        ? await db
+            .prepare(
+              "SELECT id file_id,object_key,size_bytes,mime_type,duration_ms,sample_rate_hz,bitrate_kbps,bitrate_mode,channels,sha256 FROM commercial_audio_files WHERE id=?",
+            )
+            .bind(profile.preview_file_id)
+            .first<any>()
+        : null;
+    jobs.push({
+      editionId: c.edition_id,
+      attempt: claimed.attempts,
+      leaseExpiresAt: claimed.lease_expires_at,
+      chapters,
+      preview,
+    });
+  }
+  return { jobs };
+}
+
+
+async function completeCommercialAudioQc(db: CoveEnv["DB"], raw: unknown) {
+  const measurement = z.object({
+    sha256: z.string().regex(/^[a-f0-9]{64}$/),
+    malwareClean: z.boolean(),
+    durationMs: z.number().int().positive(),
+    rmsDb: z.number(),
+    peakDb: z.number(),
+    noiseFloorDb: z.number(),
+    sampleRateHz: z.number().int(),
+    bitrateKbps: z.number().int().nullable(),
+    bitrateMode: z.string(),
+    channels: z.number().int(),
+  });
+  const x = z
+      .object({
+        editionId: z.string().min(1),
+        workerId: z.string().min(1).max(160).optional(),
+        chapters: z.array(measurement.extend({ chapterId: z.string().min(1) })).min(1),
+        preview: measurement
+          .extend({ fileId: z.string().min(1) })
+          .nullable()
+          .optional(),
+      })
+      .parse(raw),
+    profile = await db
+      .prepare("SELECT * FROM commercial_audio_profiles WHERE edition_id=?")
+      .bind(x.editionId)
+      .first<any>();
+  if (!profile) throw new ApiError(404, "Commercial audio profile not found.");
+  const policyRow = await db
+      .prepare("SELECT * FROM commercial_audio_policy_versions WHERE id=?")
+      .bind(profile.active_policy_id)
+      .first<any>(),
+    policy = json(policyRow?.policy_json, {}),
+    stored = (
+      await db
+        .prepare("SELECT * FROM commercial_audio_chapters WHERE edition_id=? ORDER BY position")
+        .bind(x.editionId)
+        .all<any>()
+    ).results;
+  if (stored.length !== x.chapters.length)
+    throw new ApiError(409, "QC results must cover every current chapter.");
+  const job = await db
+    .prepare("SELECT * FROM commercial_audio_qc_jobs WHERE edition_id=?")
+    .bind(x.editionId)
+    .first<any>();
+  if (job && job.status === "leased" && x.workerId && job.lease_owner !== x.workerId)
+    throw new ApiError(409, "This audio QC job is leased to another worker.");
+  if (job && job.status === "leased" && job.lease_expires_at && job.lease_expires_at < now())
+    throw new ApiError(409, "This audio QC lease expired; lease the job again.");
+  const findings: any[] = [];
+  let status: "passed" | "warning" | "failed" = "passed",
+    channels: number | null = null;
+  for (const s of stored) {
+    const m = x.chapters.find((c) => c.chapterId === s.id);
+    if (!m) throw new ApiError(409, "QC chapter set does not match the current manifest.");
+    const errors: string[] = [];
+    if (m.sha256 !== String(s.sha256))
+      errors.push("content checksum does not match the uploaded chapter");
+    if (!m.malwareClean) errors.push("malware scan failed");
+    if (m.sampleRateHz !== Number(policy.sampleRateHz || 44100))
+      errors.push(`sample rate ${m.sampleRateHz} Hz`);
+    if (
+      s.mime_type === "audio/mpeg" &&
+      (Number(m.bitrateKbps || 0) < Number(policy.mp3MinBitrateKbps || 192) ||
+        String(m.bitrateMode).toUpperCase() !== String(policy.mp3BitrateMode || "CBR"))
+    )
+      errors.push("MP3 encoding below policy");
+    if (m.rmsDb < Number(policy.rmsDbMin || -23) || m.rmsDb > Number(policy.rmsDbMax || -18))
+      errors.push(`RMS ${m.rmsDb} dB`);
+    if (m.peakDb > Number(policy.peakDbMax || -3)) errors.push(`peak ${m.peakDb} dB`);
+    if (m.noiseFloorDb > Number(policy.noiseFloorDbMax || -60))
+      errors.push(`noise floor ${m.noiseFloorDb} dB`);
+    if (channels !== null && channels !== m.channels)
+      errors.push("inconsistent channel configuration");
+    channels = m.channels;
+    if (errors.length) {
+      status = "failed";
+      findings.push({ chapterId: s.id, severity: "error", errors });
+    }
+    await db
+      .prepare(
+        "UPDATE commercial_audio_chapters SET duration_ms=?,sample_rate_hz=?,bitrate_kbps=?,bitrate_mode=?,channels=?,loudness_rms_db=?,true_peak_db=?,noise_floor_db=?,qc_status=? WHERE id=?",
+      )
+      .bind(
+        m.durationMs,
+        m.sampleRateHz,
+        m.bitrateKbps,
+        m.bitrateMode,
+        m.channels,
+        m.rmsDb,
+        m.peakDb,
+        m.noiseFloorDb,
+        errors.length ? "failed" : "passed",
+        s.id,
+      )
+      .run();
+    await db
+      .prepare(
+        "UPDATE commercial_audio_files SET duration_ms=?,sample_rate_hz=?,bitrate_kbps=?,bitrate_mode=?,channels=?,loudness_rms_db=?,true_peak_db=?,noise_floor_db=?,qc_status=?,quarantine_status=? WHERE id=?",
+      )
+      .bind(
+        m.durationMs,
+        m.sampleRateHz,
+        m.bitrateKbps,
+        m.bitrateMode,
+        m.channels,
+        m.rmsDb,
+        m.peakDb,
+        m.noiseFloorDb,
+        errors.length ? "failed" : "passed",
+        errors.length ? "rejected" : "clean",
+        s.file_id,
+      )
+      .run();
+  }
+  const previewFile = profile.preview_file_id
+    ? await db
+        .prepare(
+          "SELECT * FROM commercial_audio_files WHERE id=? AND edition_id=? AND kind='preview'",
+        )
+        .bind(profile.preview_file_id, x.editionId)
+        .first<any>()
+    : null;
+  if (previewFile) {
+    if (!x.preview || x.preview.fileId !== previewFile.id)
+      throw new ApiError(409, "QC results must cover the current preview clip.");
+    const p = x.preview,
+      errors: string[] = [];
+    if (p.sha256 !== String(previewFile.sha256))
+      errors.push("preview checksum does not match the uploaded file");
+    if (!p.malwareClean) errors.push("preview malware scan failed");
+    const seconds = p.durationMs / 1000;
+    if (
+      seconds < Number(policy.previewMinSeconds || 30) ||
+      seconds > Number(policy.previewMaxSeconds || 300)
+    )
+      errors.push(`preview duration ${seconds.toFixed(1)} seconds`);
+    if (p.sampleRateHz !== Number(policy.sampleRateHz || 44100))
+      errors.push(`preview sample rate ${p.sampleRateHz} Hz`);
+    if (
+      previewFile.mime_type === "audio/mpeg" &&
+      (Number(p.bitrateKbps || 0) < Number(policy.mp3MinBitrateKbps || 192) ||
+        String(p.bitrateMode).toUpperCase() !== String(policy.mp3BitrateMode || "CBR"))
+    )
+      errors.push("preview MP3 encoding below policy");
+    if (p.rmsDb < Number(policy.rmsDbMin || -23) || p.rmsDb > Number(policy.rmsDbMax || -18))
+      errors.push(`preview RMS ${p.rmsDb} dB`);
+    if (p.peakDb > Number(policy.peakDbMax || -3)) errors.push(`preview peak ${p.peakDb} dB`);
+    if (p.noiseFloorDb > Number(policy.noiseFloorDbMax || -60))
+      errors.push(`preview noise floor ${p.noiseFloorDb} dB`);
+    if (errors.length) {
+      status = "failed";
+      findings.push({ fileId: previewFile.id, severity: "error", errors });
+    }
+    await db
+      .prepare(
+        "UPDATE commercial_audio_files SET duration_ms=?,sample_rate_hz=?,bitrate_kbps=?,bitrate_mode=?,channels=?,loudness_rms_db=?,true_peak_db=?,noise_floor_db=?,qc_status=?,quarantine_status=? WHERE id=?",
+      )
+      .bind(
+        p.durationMs,
+        p.sampleRateHz,
+        p.bitrateKbps,
+        p.bitrateMode,
+        p.channels,
+        p.rmsDb,
+        p.peakDb,
+        p.noiseFloorDb,
+        errors.length ? "failed" : "passed",
+        errors.length ? "rejected" : "clean",
+        previewFile.id,
+      )
+      .run();
+  }
+  const manifestHash = await hash(
+    new TextEncoder().encode(JSON.stringify(stored.map((s: any) => [s.id, s.sha256, s.position]))),
+  );
+  const runId = id("audioqc");
+  await db
+    .prepare(
+      "INSERT INTO commercial_audio_qc_runs(id,edition_id,policy_id,source_manifest_hash,status,findings_json,measured_json,created_at) VALUES(?,?,?,?,?,?,?,?)",
+    )
+    .bind(
+      runId,
+      x.editionId,
+      profile.active_policy_id,
+      manifestHash,
+      status,
+      JSON.stringify(findings),
+      JSON.stringify({ chapters: x.chapters, preview: x.preview || null }),
+      now(),
+    )
+    .run();
+  await db
+    .prepare("UPDATE commercial_audio_profiles SET qc_status=?,updated_at=? WHERE edition_id=?")
+    .bind(status === "failed" ? "blocked" : status, now(), x.editionId)
+    .run();
+  if (job)
+    await db
+      .prepare(
+        "UPDATE commercial_audio_qc_jobs SET status=?,lease_owner=NULL,lease_expires_at=NULL,last_run_id=?,last_error=?,updated_at=? WHERE edition_id=?",
+      )
+      .bind(
+        status === "failed" ? "failed" : "completed",
+        runId,
+        status === "failed" ? JSON.stringify(findings).slice(0, 4000) : "",
+        now(),
+        x.editionId,
+      )
+      .run();
+  return { id: runId, status, findings };
+}
+
+
+  return {leaseCommercialAudioQcJobs,completeCommercialAudioQc};
+})();
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
   private publicationExecutions=new Set<string>();
   private contractExecutions=new Set<string>();
@@ -4597,6 +4886,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/publishing/partner/process-feed",
       "/catalog/normalize-gutenberg",
       "/catalog/personal-import",
+      "/publishing/audio/qc-jobs",
       "/publishing/worker/jobs",
       "/publishing/audio/metadata",
       "/publishing/onboarding/review",
@@ -4612,7 +4902,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     let raw:unknown;
     try {
       const bytes=await request.text();
-      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/create-quote"?4096:route==="/publishing/worker/jobs"?262144:route==="/publishing/audio/metadata"?8192:route==="/publishing/onboarding/review"?8192:route==="/commercial/checkout/materialize-draft"?2048:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
+      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/create-quote"?4096:route==="/publishing/audio/qc-jobs"?262144:route==="/publishing/worker/jobs"?262144:route==="/publishing/audio/metadata"?8192:route==="/publishing/onboarding/review"?8192:route==="/commercial/checkout/materialize-draft"?2048:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
       raw=JSON.parse(bytes);
     }catch {return new Response(null,{status:400,headers:noStore});}
     const sql=this.ctx.storage.sql as unknown as AuthoritySql;
@@ -4764,6 +5054,19 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         return Response.json({schema:"cove.owner-personal-import.v1",ownerFirst:true,
           userId:q.userId,importId:q.id,productId:catalogIds(q.id).productId,
           operationId:q.operationId,applied:!existing},{headers:noStore});
+      }
+      if(route==="/publishing/audio/qc-jobs") {
+        const input=z.object({
+          action:z.enum(["lease","complete"]),
+          payload:z.record(z.string(),z.unknown()),
+          operationId:z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,95}$/)
+        }).strict().parse(raw);
+        const db=env.PRIMARY_DB as unknown as CoveEnv["DB"];
+        const result=input.action==="lease"?
+          await privateAudioQcQueues.leaseCommercialAudioQcJobs(db,input.payload):
+          await privateAudioQcQueues.completeCommercialAudioQc(db,input.payload);
+        return Response.json({schema:"cove.owner-audio-qc-jobs.v1",ownerFirst:true,
+          operationId:input.operationId,action:input.action,result},{headers:noStore});
       }
       if(route==="/publishing/worker/jobs"){
         const input=z.object({

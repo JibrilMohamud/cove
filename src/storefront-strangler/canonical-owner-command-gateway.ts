@@ -120,6 +120,11 @@ const routes={
     objectKey:z.string().max(500),createdAt:z.string().datetime(),
     operationId:shortOperation
   }).strict()},
+  "publishing.audio-qc-jobs":{path:"/publishing/audio/qc-jobs",schema:z.object({
+    action:z.enum(["lease","complete"]),
+    payload:z.record(z.string(),z.unknown()),
+    operationId:shortOperation
+  }).strict()},
   "publishing.worker-jobs":{path:"/publishing/worker/jobs",schema:z.object({
     action:z.enum(["lease-validation","complete-validation","lease-rights-scan","complete-rights-scan"]),
     payload:z.record(z.string(),z.unknown()),operationId:shortOperation
@@ -197,7 +202,7 @@ export async function dispatchCanonicalOwnerCommand(
     throw Error("canonical_command_binding_invalid");
   const body=definition.schema.parse(raw) as Record<string,unknown>;
   const encoded=JSON.stringify(body);
-  if(encoded.length>(kind==="publishing.worker-jobs"?262144:kind==="publishing.save-contract-version"?32768:8192))throw Error("canonical_command_too_large");
+  if(encoded.length>(["publishing.worker-jobs","publishing.audio-qc-jobs"].includes(kind)?262144:kind==="publishing.save-contract-version"?32768:8192))throw Error("canonical_command_too_large");
   const root=isQuarantine(kind)?"https://legal-quarantine.internal":"https://legal-authority.internal";
   const response=await port.fetch(new Request(root+definition.path,{
     method:"POST",headers:{
@@ -208,7 +213,7 @@ export async function dispatchCanonicalOwnerCommand(
   }));
   if(response.status!==200)throw Error("canonical_command_owner_refused");
   const bytes=await response.text();
-  if(bytes.length>(kind==="publishing.worker-jobs"?524288:131072))throw Error("canonical_command_receipt_too_large");
+  if(bytes.length>(["publishing.worker-jobs","publishing.audio-qc-jobs"].includes(kind)?524288:131072))throw Error("canonical_command_receipt_too_large");
   let ack:unknown;
   try{ack=JSON.parse(bytes);}catch{throw Error("canonical_command_receipt_invalid");}
   if(!record(ack))throw Error("canonical_command_receipt_invalid");
@@ -398,6 +403,15 @@ export async function dispatchCanonicalOwnerCommand(
          ack.operationId!==body.operationId||ack.userId!==body.userId||
          ack.importId!==body.id||ack.productId!=="prd_"+body.id||
          typeof ack.applied!=="boolean")
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "publishing.audio-qc-jobs":
+      if(ack.schema!=="cove.owner-audio-qc-jobs.v1"||ack.ownerFirst!==true||
+         ack.action!==body.action||ack.operationId!==body.operationId||
+         !record(ack.result)||
+         (body.action==="lease"&&!Array.isArray(ack.result.jobs))||
+         (body.action==="complete"&&
+          (typeof ack.result.id!=="string"||!["passed","failed","warning"].includes(String(ack.result.status)))))
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "publishing.worker-jobs":
