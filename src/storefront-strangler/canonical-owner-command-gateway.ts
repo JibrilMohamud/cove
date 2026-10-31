@@ -187,6 +187,23 @@ const routes={
     operationId:z.string().regex(/^preorder:[a-f0-9-]{36}$/),
     payload:z.record(z.string(),z.unknown())
   }).strict()},
+  "rights.private-configuration":{path:"/rights/private-configuration",schema:z.object({
+    action:z.enum(["upsert-party","upsert-territory-set"]),
+    actorUserId:subject,operationId:z.string().regex(/^rights:[a-f0-9]{64}$/),
+    payload:z.record(z.string(),z.unknown())
+  }).strict()},
+  "moderation.execute-action":{path:"/moderation/private-action",schema:z.object({
+    staffUserId:subject,
+    operationId:z.string().regex(/^moderation:[a-f0-9]{64}$/),
+    action:z.object({
+      caseId:z.string().min(1).max(160),
+      actionType:z.enum(["no_action","hide_review","show_review","warn_publisher",
+        "restrict_publisher","suspend_publisher","suppress_title","restore_title",
+        "takedown_title","retire_title","reject_submission","approve_submission",
+        "escalate","copyright_takedown","copyright_restore","impersonation_remove"]),
+      reasonCode:z.string().max(120).default(""),rationale:z.string().max(8000).default("")
+    }).strict()
+  }).strict()},
   "support.execute-action":{path:"/support/private-action",schema:z.object({
     staffUserId:subject,operationId:z.string().regex(/^support:[a-f0-9]{64}$/),
     action:z.object({
@@ -560,6 +577,23 @@ export async function dispatchCanonicalOwnerCommand(
       if(ack.schema!=="cove.owner-preorder-qa.v1"||ack.ownerFirst!==true||
          ack.action!==body.action||ack.operationId!==body.operationId||
          !Object.prototype.hasOwnProperty.call(ack,"result"))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "rights.private-configuration":
+      if(ack.schema!=="cove.owner-rights-config-qa.v1"||ack.ownerFirst!==true||
+         ack.action!==body.action||ack.operationId!==body.operationId||
+         ack.actorUserId!==body.actorUserId||!record(ack.result)||
+         typeof ack.result.id!=="string")
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "moderation.execute-action":
+      if(ack.schema!=="cove.owner-moderation-qa.v1"||ack.ownerFirst!==true||
+         ack.operationId!==body.operationId||ack.staffUserId!==body.staffUserId||
+         ack.caseId!==(body.action as Record<string,unknown>).caseId||
+         ack.actionType!==(body.action as Record<string,unknown>).actionType||
+         !record(ack.result)||typeof ack.result.id!=="string"||
+         ack.result.id!=="modaction_"+String(body.operationId).slice("moderation:".length)||
+         ack.result.actionType!==ack.actionType)
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "support.execute-action":
