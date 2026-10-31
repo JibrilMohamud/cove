@@ -1,0 +1,18 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "retirementEvidence": "docs/architecture/retired-risk-hold-release-owner-lineage.json",
+  "rationale": "Removed the shared direct risk hold release update and its accompanying payout and case event writes. An independently authorized private owner checks live staff principal, role/permission, SSO identity and MFA; for payout performs fresh canonical payout-risk assessment and repeats tax, payout, publisher-risk and held-financial-allocation constraints; for nonpayout disallows overriding latest active hold/block assessment. Only the private owner conditionally marks an active hold released and may re-enable a payout after verifying no concurrent payout hold. Missing owner fails closed. Remaining risk tax site and six API owner-required sites preserved verbatim, re-fingerprinted to exact new source bytes; does not certify a production cutover or full payout recovery.",
+  "files": [
+    {
+      "path": "src/features/fore/risk-tax.server.ts",
+      "sha256": "9c37e66c2c23a5f9adcc2b455a3bebafba89304184319637348b86353698eb0b",
+      "review": "Original risk_holds SQL physically removed, publishing_accounts tax verification remains owner-required and unchanged."
+    },
+    {
+      "path": "src/features/fore/api.server.ts",
+      "sha256": "ee6fa312b61027b1de0c21618da2989f02dd3cf5cbbb1a7402b504657e109bfe",
+      "review": "Only adds the verified staff identity to existing risk release route; six surviving protected SQL literals unchanged."
+    }
+  ]
+}
