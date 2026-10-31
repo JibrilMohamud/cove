@@ -3984,6 +3984,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/publishing/partner/process-feed",
       "/catalog/normalize-gutenberg",
       "/catalog/personal-import",
+      "/publishing/onboarding/review",
       "/publishing/contract/save-version",
       "/publication/materialize-submission",
       "/publication/activate-version",
@@ -4148,6 +4149,80 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         return Response.json({schema:"cove.owner-personal-import.v1",ownerFirst:true,
           userId:q.userId,importId:q.id,productId:catalogIds(q.id).productId,
           operationId:q.operationId,applied:!existing},{headers:noStore});
+      }
+      if(route==="/publishing/onboarding/review") {
+        const input=z.object({
+          reviewerUserId:z.string().regex(/^[a-zA-Z0-9_-]{3,160}$/),
+          accountId:z.string().regex(/^[a-zA-Z0-9_-]{3,160}$/),
+          recordId:z.string().regex(/^[a-zA-Z0-9_-]{3,160}$/),
+          kind:z.enum(["identity","tax","payout"]),
+          status:z.enum(["verified","failed","expired","manual_review","restricted"]),
+          reasonCode:z.string().max(120),
+          withholdingBps:z.number().int().min(0).max(10000).optional(),
+          requirementsDue:z.array(z.string().max(240)).max(100).optional(),
+          operationId:z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,95}$/)
+        }).strict().parse(raw);
+        // The service-binding secret is not a staff grant. The owner repeats
+        // the staff principal + permission check in its own QA database.
+        const principal=await env.PRIMARY_DB.prepare(
+          "SELECT user_id FROM staff_principals WHERE user_id=? AND status='active'"
+        ).bind(input.reviewerUserId).first<{user_id:string}>();
+        const roles=(await env.PRIMARY_DB.prepare(
+          "SELECT p.permission FROM staff_principal_roles pr JOIN staff_role_permissions p ON p.role_id=pr.role_id WHERE pr.user_id=?"
+        ).bind(input.reviewerUserId).all<{permission:string}>()).results;
+        if(!principal||!roles.some(r=>["publishing.review","staff.manage"].includes(r.permission)))
+          return new Response(null,{status:403,headers:noStore});
+        // These three positive statuses confer publisher identity, tax and
+        // payout authority. No evidence provider is bound yet: deny them.
+        if(input.status==="verified"||input.withholdingBps!==undefined||
+           (input.kind!=="payout"&&input.status==="restricted"))
+          return new Response(null,{status:409,headers:noStore});
+        const tables={identity:"publishing_identity_verifications",
+          tax:"publishing_tax_profiles",payout:"publishing_payout_accounts"} as const;
+        // This identifier is from an internal constant, never dynamic SQL
+        // sourced from a request; both IDs must match the existing record.
+        const record=await env.PRIMARY_DB.prepare(
+          "SELECT id,account_id,status FROM "+tables[input.kind]+" WHERE id=? AND account_id=?"
+        ).bind(input.recordId,input.accountId).first<{id:string;account_id:string;status:string}>();
+        const account=await env.PRIMARY_DB.prepare(
+          "SELECT id,identity_status,tax_status,payout_status FROM publishing_accounts WHERE id=?"
+        ).bind(input.accountId).first<Record<string,string>>();
+        if(!record||!account)return new Response(null,{status:409,headers:noStore});
+        const status=input.kind==="payout"&&
+          ["expired","manual_review"].includes(input.status)?"restricted":input.status;
+        const applied=record.status!==status||account[input.kind+"_status"]!==status;
+        if(applied){
+          const at=new Date().toISOString();
+          const statements=input.kind==="identity"?[
+            env.PRIMARY_DB.prepare(
+              "UPDATE publishing_identity_verifications SET status=?,reason_code=?,decided_at=? WHERE id=? AND account_id=?"
+            ).bind(status,input.reasonCode,at,input.recordId,input.accountId),
+            env.PRIMARY_DB.prepare("UPDATE publishing_accounts SET identity_status=?,updated_at=? WHERE id=?")
+              .bind(status,at,input.accountId)
+          ]:input.kind==="tax"?[
+            env.PRIMARY_DB.prepare(
+              "UPDATE publishing_tax_profiles SET status=?,reason_code=?,withholding_bps=COALESCE(?,withholding_bps),validated_at=CASE WHEN ?='verified' THEN ? ELSE validated_at END,updated_at=? WHERE id=? AND account_id=?"
+            ).bind(status,input.reasonCode,null,status,at,at,input.recordId,input.accountId),
+            env.PRIMARY_DB.prepare("UPDATE publishing_accounts SET tax_status=?,updated_at=? WHERE id=?")
+              .bind(status,at,input.accountId)
+          ]:[
+            env.PRIMARY_DB.prepare(
+              "UPDATE publishing_payout_accounts SET status=?,requirements_due_json=?,verified_at=CASE WHEN ?='verified' THEN ? ELSE verified_at END,updated_at=? WHERE id=? AND account_id=?"
+            ).bind(status,JSON.stringify(input.requirementsDue||[]),status,at,at,input.recordId,input.accountId),
+            env.PRIMARY_DB.prepare("UPDATE publishing_accounts SET payout_status=?,updated_at=? WHERE id=?")
+              .bind(status,at,input.accountId)
+          ];
+          statements.push(env.PRIMARY_DB.prepare(
+            "INSERT INTO publishing_audit_events(id,account_id,actor_user_id,entity_type,entity_id,action,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?)"
+          ).bind("pubaudit_"+crypto.randomUUID(),input.accountId,input.reviewerUserId,
+            input.kind+"_verification",input.recordId,"reviewed",
+            JSON.stringify({status:input.status,reasonCode:input.reasonCode,operationId:input.operationId}),at));
+          await env.PRIMARY_DB.batch(statements);
+        }
+        return Response.json({schema:"cove.owner-publishing-onboarding-negative.v1",
+          ownerFirst:true,operationId:input.operationId,accountId:input.accountId,
+          recordId:input.recordId,kind:input.kind,status:input.status,
+          applied,saved:true},{headers:noStore});
       }
       if(route==="/publishing/contract/save-version") {
         const storage=this.ctx.storage as typeof this.ctx.storage & {transactionSync<T>(fn:()=>T):T};

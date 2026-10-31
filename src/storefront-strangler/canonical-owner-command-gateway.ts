@@ -120,6 +120,15 @@ const routes={
     objectKey:z.string().max(500),createdAt:z.string().datetime(),
     operationId:shortOperation
   }).strict()},
+  "publishing.review-onboarding":{path:"/publishing/onboarding/review",schema:z.object({
+    reviewerUserId:subject,accountId:subject,recordId:subject,
+    kind:z.enum(["identity","tax","payout"]),
+    status:z.enum(["verified","failed","expired","manual_review","restricted"]),
+    reasonCode:z.string().max(120),
+    withholdingBps:z.number().int().min(0).max(10000).optional(),
+    requirementsDue:z.array(z.string().max(240)).max(100).optional(),
+    operationId:shortOperation
+  }).strict()},
   "publishing.save-contract-version":{path:"/publishing/contract/save-version",schema:z.object({
     actorUserId:ownerId,operationId:shortOperation,
     contract:z.record(z.string(),z.unknown())
@@ -381,6 +390,13 @@ export async function dispatchCanonicalOwnerCommand(
          ack.operationId!==body.operationId||ack.userId!==body.userId||
          ack.importId!==body.id||ack.productId!=="prd_"+body.id||
          typeof ack.applied!=="boolean")
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "publishing.review-onboarding":
+      if(ack.schema!=="cove.owner-publishing-onboarding-negative.v1"||ack.ownerFirst!==true||
+         ack.operationId!==body.operationId||ack.accountId!==body.accountId||
+         ack.recordId!==body.recordId||ack.kind!==body.kind||ack.status!==body.status||
+         typeof ack.applied!=="boolean"||ack.saved!==true)
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "publishing.save-contract-version":

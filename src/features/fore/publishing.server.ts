@@ -32,6 +32,7 @@ import {
   dispatchPublicationPreorder,
   dispatchPublicationRecovery,
   dispatchPublicationMaterialization,
+  dispatchPublishingOnboardingReview,
 } from "../../storefront-strangler/publication-owner-routing.server";
 
 export type PublishingDB = {
@@ -3333,82 +3334,28 @@ export async function reviewPublishingSubmission(
   return { decision: x.decision, status: next };
 }
 
+/** A review is no longer a shared-D1 authority write. Only the isolated
+ * privately authenticated owner can record a negative onboarding decision.
+ * Positive KYC/tax/payout verification requires external proof and remains closed. */
 export async function reviewPublishingOnboarding(
   db: PublishingDB,
   reviewerUserId: string,
   raw: unknown,
 ) {
   const x = z
-      .object({
-        accountId: z.string().min(1),
-        kind: z.enum(["identity", "tax", "payout"]),
-        recordId: z.string().min(1),
-        status: z.enum(["verified", "failed", "expired", "manual_review", "restricted"]),
-        reasonCode: z.string().max(120).default(""),
-        withholdingBps: z.number().int().min(0).max(10000).optional(),
-        requirementsDue: z.array(z.string().max(240)).max(100).optional(),
-      })
-      .parse(raw),
-    at = now();
-  if (x.kind === "identity") {
-    if (x.status === "restricted") throw new ApiError(400, "Restricted is not an identity status.");
-    await db.batch([
-      db
-        .prepare(
-          "UPDATE publishing_identity_verifications SET status=?,reason_code=?,decided_at=? WHERE id=? AND account_id=?",
-        )
-        .bind(x.status, x.reasonCode, at, x.recordId, x.accountId),
-      db
-        .prepare("UPDATE publishing_accounts SET identity_status=?,updated_at=? WHERE id=?")
-        .bind(x.status, at, x.accountId),
-    ]);
-  } else if (x.kind === "tax") {
-    if (x.status === "restricted") throw new ApiError(400, "Restricted is not a tax status.");
-    await db.batch([
-      db
-        .prepare(
-          "UPDATE publishing_tax_profiles SET status=?,reason_code=?,withholding_bps=COALESCE(?,withholding_bps),validated_at=CASE WHEN ?='verified' THEN ? ELSE validated_at END,updated_at=? WHERE id=? AND account_id=?",
-        )
-        .bind(
-          x.status,
-          x.reasonCode,
-          x.withholdingBps ?? null,
-          x.status,
-          at,
-          at,
-          x.recordId,
-          x.accountId,
-        ),
-      db
-        .prepare("UPDATE publishing_accounts SET tax_status=?,updated_at=? WHERE id=?")
-        .bind(x.status, at, x.accountId),
-    ]);
-  } else {
-    const status = x.status === "expired" || x.status === "manual_review" ? "restricted" : x.status;
-    await db.batch([
-      db
-        .prepare(
-          "UPDATE publishing_payout_accounts SET status=?,requirements_due_json=?,verified_at=CASE WHEN ?='verified' THEN ? ELSE verified_at END,updated_at=? WHERE id=? AND account_id=?",
-        )
-        .bind(
-          status,
-          JSON.stringify(x.requirementsDue || []),
-          status,
-          at,
-          at,
-          x.recordId,
-          x.accountId,
-        ),
-      db
-        .prepare("UPDATE publishing_accounts SET payout_status=?,updated_at=? WHERE id=?")
-        .bind(status, at, x.accountId),
-    ]);
-  }
-  await audit(db, x.accountId, reviewerUserId, `${x.kind}_verification`, x.recordId, "reviewed", {
-    status: x.status,
-    reasonCode: x.reasonCode,
-  });
-  return { saved: true };
+    .object({
+      accountId: z.string().min(1).max(180),
+      kind: z.enum(["identity", "tax", "payout"]),
+      recordId: z.string().min(1).max(180),
+      status: z.enum(["verified", "failed", "expired", "manual_review", "restricted"]),
+      reasonCode: z.string().max(120).default(""),
+      withholdingBps: z.number().int().min(0).max(10000).optional(),
+      requirementsDue: z.array(z.string().max(240)).max(100).optional(),
+    })
+    .parse(raw);
+  if (!hasPublicationOwner(db))
+    throw new ApiError(503, "Publishing verification review requires its private legal owner.");
+  return dispatchPublishingOnboardingReview(db, { ...x, reviewerUserId });
 }
 
 export async function publishingSnapshot(

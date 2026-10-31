@@ -162,3 +162,20 @@ export async function dispatchCatalogPersonalImport(db:object,input:{
       "catalog.personal-import",{...input,operationId});
   }catch{throw new ApiError(503,"Private catalog owner did not accept personal import.");}
 }
+
+/** This operation is intentionally NEGATIVE-only until external provider
+ * evidence and an owner-controlled positive verification path are certified. */
+export async function dispatchPublishingOnboardingReview(db:object,command:{
+  reviewerUserId:string;accountId:string;kind:"identity"|"tax"|"payout";
+  recordId:string;status:"verified"|"failed"|"expired"|"manual_review"|"restricted";
+  reasonCode:string;withholdingBps?:number;requirementsDue?:string[];
+}) {
+  const context=owners.get(db);
+  if(!context)throw new ApiError(503,"Publishing onboarding requires a private owner.");
+  const operationId="onboarding:"+crypto.randomUUID();
+  try {
+    const ack=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+      "publishing.review-onboarding",{...command,operationId});
+    return {saved:true,applied:ack.applied===true};
+  }catch {throw new ApiError(503,"Publishing onboarding owner refused unverified decision.");}
+}
