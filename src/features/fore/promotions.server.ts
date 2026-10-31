@@ -1,3 +1,4 @@
+import { dispatchPrivatePromotionOwner } from "../../storefront-strangler/publication-owner-routing.server";
 import { z } from "zod/v3";
 import type { CatalogDB } from "./catalog-model.server";
 import { ApiError } from "./service";
@@ -7,10 +8,6 @@ import { recordRetailEvent } from "./retail-intelligence.server";
 
 const now = () => new Date().toISOString();
 const uid = (p: string) => `${p}_${crypto.randomUUID()}`;
-async function sha256(value: string) {
-  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(d), (b) => b.toString(16).padStart(2, "0")).join("");
-}
 const campaignType = z.enum([
   "scheduled_price_drop",
   "daily_deal",
@@ -379,24 +376,7 @@ async function materializeCampaign(db: CatalogDB, campaignId: string) {
     }
     if (c.status === "live" || c.starts_at <= at)
       await updatePreorderLowestPrice(db, p.product_id, "campaign_price_drop");
-    await db
-      .prepare(
-        "INSERT INTO publishing_outbox(id,event_type,aggregate_type,aggregate_id,payload_json,status,attempts,available_at,created_at) VALUES(?, 'promotion.price_changed','promotion_campaign',?,?,'pending',0,?,?)",
-      )
-      .bind(
-        uid("out"),
-        c.id,
-        JSON.stringify({
-          campaignId: c.id,
-          productId: p.product_id,
-          startsAt: c.starts_at,
-          endsAt: c.ends_at,
-          promotionalPriceMinor: price,
-        }),
-        at,
-        at,
-      )
-      .run();
+    await dispatchPrivatePromotionOwner(db, "price-event", { campaignId: c.id, productId: p.product_id });
   }
 }
 
@@ -581,42 +561,11 @@ export async function createCampaignCoupon(db: CatalogDB, userId: string, raw: u
     throw new ApiError(409, "Coupon codes can be issued only for approved campaigns.");
   if (x.kind === "percent" && x.value > 100)
     throw new ApiError(400, "Percentage coupons cannot exceed 100%.");
-  const products = (
-    await db
-      .prepare("SELECT product_id FROM promotion_campaign_products WHERE campaign_id=?")
-      .bind(c.id)
-      .all<any>()
-  ).results.map((r: any) => String(r.product_id));
-  const code = x.code.toUpperCase().replace(/\s+/g, ""),
-    hash = await sha256(code),
-    at = now();
-  await db
-    .prepare(
-      `INSERT INTO commerce_promo_codes(code_hash,code_label,kind,value,currency,minimum_subtotal_minor,max_redemptions,max_per_user,redemptions,active,starts_at,ends_at,created_at,updated_at,campaign_id,funding_source,publisher_funding_bps,eligible_products_json,stackable) VALUES(?,?,?,?,?,?,?,?,0,1,?,?,?,?,?,?,?,?,?) ON CONFLICT(code_hash) DO UPDATE SET campaign_id=excluded.campaign_id,kind=excluded.kind,value=excluded.value,currency=excluded.currency,minimum_subtotal_minor=excluded.minimum_subtotal_minor,max_redemptions=excluded.max_redemptions,max_per_user=excluded.max_per_user,active=excluded.active,starts_at=excluded.starts_at,ends_at=excluded.ends_at,updated_at=excluded.updated_at,funding_source=excluded.funding_source,publisher_funding_bps=excluded.publisher_funding_bps,eligible_products_json=excluded.eligible_products_json,stackable=excluded.stackable`,
-    )
-    .bind(
-      hash,
-      code,
-      x.kind,
-      x.value,
-      c.currency || null,
-      x.minimumSubtotalMinor,
-      c.max_redemptions || null,
-      x.maxPerUser,
-      c.starts_at,
-      c.ends_at,
-      at,
-      at,
-      c.id,
-      c.funding_source,
-      c.publisher_funding_bps,
-      JSON.stringify(products),
-      c.stackable,
-    )
-    .run();
-  await campaignEvent(db, c.id, "coupon_issued", "publisher", userId, {
-    codeLabel: code,
-    maxPerUser: x.maxPerUser,
+  const code = x.code.toUpperCase().replace(/\s+/g, "");
+  await dispatchPrivatePromotionOwner(db, "issue-coupon", {
+    userId, accountId: x.accountId, campaignId: x.campaignId,
+    code, kind: x.kind, value: x.value,
+    minimumSubtotalMinor: x.minimumSubtotalMinor, maxPerUser: x.maxPerUser,
   });
   return { campaignId: c.id, codeLabel: code };
 }

@@ -144,6 +144,7 @@ jobs:
           node scripts/test-owner-finance.mjs
           node scripts/check-retired-account-owner.mjs
           node scripts/check-retired-regional-checkpoints-owner.mjs
+          node scripts/check-retired-promotion-owner.mjs
           node scripts/check-retired-us-catalog-observation-owner.mjs
           node scripts/check-retired-us-epub-hydration-owner.mjs
           node scripts/check-retired-ingestion-state-owner.mjs

@@ -487,3 +487,16 @@ export async function dispatchCatalogVerifiedUsEpub(db:object,input:{
   if(ack.saved!==true)throw Error("owner_did_not_commit");
  }catch{throw new ApiError(503,"Private owner refused this US EPUB cache update.");}
 }
+
+/** Private, independently checked promotion commands; no shared SQL fallback. */
+export async function dispatchPrivatePromotionOwner(
+ db:object,action:"price-event"|"issue-coupon",payload:Record<string,unknown>
+):Promise<void>{
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Promotion commands require private canonical authority.");
+ try{
+  const receipt=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+   "promotion.private-action",{action,payload});
+  if(receipt.saved!==true)throw Error("owner_promotion_receipt_missing");
+ }catch{throw new ApiError(503,"Private owner refused the promotion change.");}
+}

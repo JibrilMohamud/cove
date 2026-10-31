@@ -625,32 +625,6 @@
       "commandFamily": null
     },
     {
-      "siteId": "11ab68c131b22d5a6ae51331e3eb0c4c818097cf2bfcaa4a5465cde38b117170",
-      "file": "src/features/fore/promotions.server.ts",
-      "line": 384,
-      "functionName": "materializeCampaign",
-      "table": "publishing_outbox",
-      "operation": "INSERT INTO",
-      "sqlSha256": "8b7bdff350ab35f0a90d4c6be751a8952743006e8ba3c84bd31213d688468dc5",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "promotions.materializeCampaign",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "3b917bd4093a3677c1400d88e0f212776f7c57bb101d915cc9e046a506488784",
-      "file": "src/features/fore/promotions.server.ts",
-      "line": 595,
-      "functionName": "createCampaignCoupon",
-      "table": "commerce_promo_codes",
-      "operation": "INSERT INTO",
-      "sqlSha256": "e783dbd7fd3e1efaf4da82bea1ba08757fa37e693e6ddb6aa72ab52bb610465b",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "promotions.createCampaignCoupon",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
       "siteId": "bede3c96c119cae339febbd776604b6e055e431dce5df5d0827b51749a8e2b2b",
       "file": "src/features/fore/publishing-trust.server.ts",
       "line": 763,
