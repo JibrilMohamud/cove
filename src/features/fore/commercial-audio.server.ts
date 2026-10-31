@@ -10,6 +10,7 @@ import { ApiError, now } from "./service";
 import { resolveProductRights } from "./rights.server";
 import { recordSyncProjection } from "./sync.server";
 import { ensureReadingJourney, recordReadingProgress } from "./social.server";
+import { dispatchPrivateOfflineAudioLicense } from "../../storefront-strangler/publication-owner-routing.server";
 import { signOfflineAudioLicense, verifyStoredAudioLicense } from "./offline-audio.server";
 import { hashText, audioManifestHash } from "./offline-audio-license";
 import { requireStagePaidEntitlementAccess } from "../../storefront-strangler/legal-consumer-fence.server";
@@ -1298,29 +1299,15 @@ export async function handleCommercialAudio(
     // The signer may shorten this lease if the entitlement changed while
     // preparing it. Persist and return that exact authenticated expiry.
     const signedExpires = signed.expiresAt;
-    await db.batch([
-      db
-        .prepare(
-          "UPDATE audio_offline_licenses SET status='revoked',revoked_at=?,revocation_reason='license_refreshed' WHERE entitlement_id=? AND device_id=? AND status='active'",
-        )
-        .bind(issued, ent.id, device.id),
-      db
-        .prepare(
-          "INSERT INTO audio_offline_licenses(id,user_id,product_id,entitlement_id,device_id,token_hash,manifest_hash,status,issued_at,expires_at,last_refreshed_at) VALUES(?,?,?,?,?,?,?,'active',?,?,?)",
-        )
-        .bind(
-          licenseId,
-          userId,
-          row.product_id,
-          ent.id,
-          device.id,
-          tokenHash,
-          manifestHash,
-          issued,
-          signedExpires,
-          issued,
-        ),
-    ]);
+    // The private legal owner independently verifies the paid grant, exact
+    // source publication, active device, signature claims and manifest digest
+    // against current primary rows before atomically replacing this lease.
+    await dispatchPrivateOfflineAudioLicense(db,{
+      licenseId,userId,productId:String(row.product_id),entitlementId:String(ent.id),
+      editionId:edition.id,deviceId:String(device.id),
+      deviceKeyHash:await hashText(String(device.device_key)),tokenHash,manifestHash,
+      issuedAt:issued,expiresAt:signedExpires,territory:territory.toUpperCase(),
+    });
     return new Response(JSON.stringify({ licenseId, token: rawToken, manifestHash, ...signed }), {
       headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
     });
