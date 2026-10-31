@@ -15,10 +15,6 @@ on:
       - "wrangler.content-literary-prepare.prod-disabled.jsonc"
       - "wrangler.content-literary-infer.prod-disabled.jsonc"
       - ".github/workflows/literary-prod-handoff-dormant-deploy.yml"
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/literary-prod-handoff-dormant-deploy.yml"
   workflow_dispatch:
 permissions:
   contents: read
@@ -59,6 +55,8 @@ jobs:
         with: { node-version: "22" }
       - run: npm ci --no-audit --no-fund
       - run: node scripts/check-literary-private-publication.mjs
+      - run: node scripts/build-storefront-strangler.mjs
+      - run: node scripts/staging/provision-literary-owner-capabilities.mjs
       - run: npm run build:content-processing
       - name: Install dormant production literary handoff without cron or public routes
         run: node scripts/staging/deploy-literary-handoff-disabled.mjs

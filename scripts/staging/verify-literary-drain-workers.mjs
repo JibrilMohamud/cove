@@ -40,13 +40,17 @@ for (const role of ["handoff", "prepare"]) {
       .filter((x) => x.type === "d1")
       .map((x) => x.database_id)
       .sort(),
-    ["4bd657ac-8789-403e-a28c-93aba8d0a989", "400c3af3-5d40-41fd-83cc-98228e40ddac"].sort(),
+    role === "handoff" ? [] : ["400c3af3-5d40-41fd-83cc-98228e40ddac"],
   );
+  assert.ok(b.some((x) => x.type === "service" && x.service === "cove-legal-authority-production"));
   const r2 = b.filter((x) => x.type === "r2_bucket");
   assert.ok(
-    r2.some(
-      (x) => x.name === "BUCKET" && x.bucket_name === "cove-literary-originals-isolated-20261024",
-    ),
+    role === "handoff"
+      ? r2.length === 0
+      : r2.some(
+          (x) =>
+            x.name === "BUCKET" && x.bucket_name === "cove-literary-originals-isolated-20261024",
+        ),
   );
   if (role === "prepare") {
     assert.ok(

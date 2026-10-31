@@ -11,11 +11,11 @@ assert.equal(config.vars.FORE_LITERARY_INFERENCE_PUBLISH_ENABLED, "0");
 assert.ok(!config.routes && !config.route && !config.triggers && !config.queues);
 assert.deepEqual(
   config.d1_databases.map((x) => x.database_id),
-  ["4bd657ac-8789-403e-a28c-93aba8d0a989", "400c3af3-5d40-41fd-83cc-98228e40ddac"],
+  [],
 );
 assert.deepEqual(
   config.r2_buckets.map((x) => x.bucket_name),
-  ["cove-literary-originals-isolated-20261024"],
+  [],
 );
 assert.ok(!config.vars.FORE_LITERARY_INFERENCE_PUBLISH_TOKEN_SHA256);
 assert.ok(!config.vars.FORE_LITERARY_INFERENCE_BACKEND_TOKEN_SHA256);

@@ -28,12 +28,13 @@ for (const [file, role] of roleFiles) {
   assert.equal(cfg.vars.FORE_CONTENT_D1_ADMISSION_MAX_MS, "100");
   assert.deepEqual(
     cfg.d1_databases.map((x) => x.database_id),
-    [primary, secondary],
+    role === "literary-handoff" ? [] : [secondary],
   );
   assert.deepEqual(
     cfg.r2_buckets.map((x) => x.bucket_name),
-    role === "literary-handoff" ? [privateBucket] : [privateBucket, sourceBucket],
+    role === "literary-handoff" ? [] : [privateBucket, sourceBucket],
   );
+  assert.ok(cfg.services.some((x) => x.service === "cove-legal-authority-production"));
   if (role === "literary-handoff") {
     assert.equal(cfg.vars.FORE_CONTENT_HANDOFF_ENABLED, "1");
     assert.equal(cfg.vars.FORE_LITERARY_DRAIN_RECONCILE_ENABLED, "1");

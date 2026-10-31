@@ -8,10 +8,6 @@ on:
       - "scripts/staging/verify-literary-drain-predeploy.mjs"
       - "scripts/staging/verify-literary-drain-workers.mjs"
       - "scripts/check-literary-drain-deploy-policy.mjs"
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/literary-drain-worker-deploy.yml"
   workflow_dispatch:
 permissions:
   contents: read
@@ -49,6 +45,8 @@ jobs:
       - run: node scripts/check-literary-preparation-domain.mjs
       - run: node scripts/check-literary-prepare-outbox.mjs
       - run: node scripts/staging/verify-literary-drain-predeploy.mjs
+      - run: node scripts/build-storefront-strangler.mjs
+      - run: node scripts/staging/provision-literary-owner-capabilities.mjs
       - run: npm run build:content-processing
       - name: Install guarded private preparation Worker
         run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.content-literary-prepare.prod-draining.jsonc

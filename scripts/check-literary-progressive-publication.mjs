@@ -15,9 +15,15 @@ for (const cfg of [inference, publisher]) {
   assert.ok(!cfg.routes && !cfg.route && !cfg.queues);
   assert.deepEqual(
     cfg.d1_databases.map((x) => x.database_id),
-    ["4bd657ac-8789-403e-a28c-93aba8d0a989", "400c3af3-5d40-41fd-83cc-98228e40ddac"],
+    cfg === inference ? ["400c3af3-5d40-41fd-83cc-98228e40ddac"] : [],
   );
-  assert.equal(cfg.secrets.required.length, 2);
+  assert.ok(cfg.secrets.required.includes("COVE_LITERARY_READ_SECRET"));
+  assert.ok(
+    cfg.services.some(
+      (x) =>
+        x.binding === "LITERARY_PRIMARY_READER" && x.service === "cove-legal-authority-production",
+    ),
+  );
 }
 assert.equal(inference.name, "cove-literary-infer-isolated-disabled");
 assert.equal(publisher.name, "cove-literary-publisher-isolated-disabled");

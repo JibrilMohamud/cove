@@ -47,9 +47,9 @@ for (const role of roles) {
     const db = b.filter((x) => x.type === "d1").map((x) => x.database_id);
     const buckets = b.filter((x) => x.type === "r2_bucket").map((x) => x.bucket_name);
     verified =
-      db.length === (role.role === "literary-prepare" ? 1 : 2) &&
+      db.length === 1 &&
       (role.role !== "literary-prepare" || !db.includes(primary)) &&
-      (role.role !== "literary-infer" || db.includes(primary)) &&
+      !db.includes(primary) &&
       db.includes(contentDb) &&
       buckets.length === (role.role === "literary-prepare" ? 2 : 1) &&
       buckets.includes(privateBucket) &&

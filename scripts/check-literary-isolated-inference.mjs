@@ -89,6 +89,21 @@ try {
     publishIsolatedLiteraryInference,
   } = await import(path.join(dir, "inference.mjs"));
   const { emptyLiteraryProfile, PROFILE_POLICY } = await import(path.join(dir, "profile.mjs"));
+  await build({
+    stdin: {
+      contents:
+        'export * from "./src/storefront-strangler/literary-owner-protocol"; export * from "./src/storefront-strangler/literary-owner-service";',
+      resolveDir: process.cwd(),
+    },
+    outfile: path.join(dir, "owner-port.mjs"),
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    logLevel: "silent",
+  });
+  const { scopeLiteraryPrimaryReadEnv, handleLiteraryOwnerService, LITERARY_PUBLICATION_ROUTE } =
+    await import(path.join(dir, "owner-port.mjs"));
+
   const sourceHash = "a".repeat(64),
     fingerprint = "b".repeat(64),
     prepareId = "c".repeat(64);
@@ -206,7 +221,7 @@ try {
         " VALUES(?,?,?,?,?,'done',1,?,?,?,?,?)",
     )
     .run(prepareId, "p_a", "e_a", "pg_a", sourceHash, now, prepKey, sha(prep), now, now);
-  const env = {
+  const rawEnv = {
     DB: db(primary),
     CONTENT_DB: db(content),
     BUCKET,
@@ -227,6 +242,22 @@ try {
       },
     },
   };
+  const ownerEnv = {
+    PRIMARY_DB: rawEnv.DB,
+    LITERARY_CONTENT_DB: rawEnv.CONTENT_DB,
+    LITERARY_BUCKET: rawEnv.BUCKET,
+    COVE_RIGHTS_OWNER_PRIMARY_ID: "4bd657ac-8789-403e-a28c-93aba8d0a989",
+    COVE_LITERARY_READ_SECRET: "1".repeat(64),
+    COVE_LITERARY_PUBLICATION_SECRET: "2".repeat(64),
+  };
+  const env = scopeLiteraryPrimaryReadEnv({
+    ...rawEnv,
+    DB: undefined,
+    COVE_LITERARY_PRIVATE_READ_ENABLED: "1",
+    COVE_LITERARY_READ_SECRET: ownerEnv.COVE_LITERARY_READ_SECRET,
+    LITERARY_PRIMARY_READER: { fetch: (request) => handleLiteraryOwnerService(request, ownerEnv) },
+  });
+  assert.throws(() => env.DB.prepare("UPDATE rights_grants SET status='active'"), /not_allowed/);
   await assert.rejects(
     seedOneIsolatedLiteraryInference({ ...env, FORE_CONTENT_INFERENCE_ENABLED: "0" }),
     /disabled/,
@@ -300,12 +331,12 @@ try {
   assert.equal(primary.prepare("SELECT status FROM literary_profiles").get().status, "provisional");
   assert.deepEqual(
     await publishIsolatedLiteraryInference(
-      { ...env, FORE_LITERARY_INFERENCE_PUBLISH_ENABLED: "0" },
+      { ...rawEnv, FORE_LITERARY_INFERENCE_PUBLISH_ENABLED: "0" },
       seeded.enqueued,
     ).catch((e) => ({ error: e.message })),
     { error: "literary_inference_publication_disabled" },
   );
-  assert.deepEqual(await publishIsolatedLiteraryInference(env, seeded.enqueued), {
+  assert.deepEqual(await publishIsolatedLiteraryInference(rawEnv, seeded.enqueued), {
     skipped: "canonical_owner_not_isolated",
   });
   assert.equal(primary.prepare("SELECT status FROM literary_profiles").get().status, "provisional");
@@ -316,21 +347,21 @@ try {
   primary
     .prepare("INSERT INTO rights_grants VALUES(?,?,?,?,?,?,?,?,?,?)")
     .run("deny", "e_a", "ebook", "retail", "active", "deny", "manual", "AU", null, null);
-  assert.deepEqual(await publishIsolatedLiteraryInference(env, seeded.enqueued), {
+  assert.deepEqual(await publishIsolatedLiteraryInference(rawEnv, seeded.enqueued), {
     skipped: "rights_source_or_version_changed",
   });
   primary.prepare("UPDATE rights_grants SET status='revoked' WHERE id='deny'").run();
   const job = content.prepare("SELECT result_key FROM literary_inference_jobs").get();
   tamper = true;
   await assert.rejects(
-    publishIsolatedLiteraryInference(env, seeded.enqueued),
+    publishIsolatedLiteraryInference(rawEnv, seeded.enqueued),
     /artifact_sha_mismatch/,
   );
   tamper = false;
   primary
     .prepare("UPDATE gutenberg_source_cache SET content_hash=? WHERE id='pg_a'")
     .run("f".repeat(64));
-  assert.deepEqual(await publishIsolatedLiteraryInference(env, seeded.enqueued), {
+  assert.deepEqual(await publishIsolatedLiteraryInference(rawEnv, seeded.enqueued), {
     skipped: "rights_source_or_version_changed",
   });
   primary
@@ -339,10 +370,10 @@ try {
   // If canonical ownership is rolled back after a publisher precheck but
   // before its single authoritative UPDATE, the SQL predicate must deny it.
   const racePublisher = {
-    ...env,
+    ...rawEnv,
     DB: {
       prepare(sql) {
-        const prepared = env.DB.prepare(sql);
+        const prepared = rawEnv.DB.prepare(sql);
         if (!sql.startsWith("UPDATE literary_profiles SET")) return prepared;
         return {
           bind(...args) {
@@ -363,13 +394,23 @@ try {
   });
   assert.equal(primary.prepare("SELECT status FROM literary_profiles").get().status, "provisional");
   primary.prepare("UPDATE cove_runtime_config SET value='isolated'").run();
-  assert.deepEqual(await publishIsolatedLiteraryInference(env, seeded.enqueued), {
-    published: "p_a",
-  });
+  const ownerPublication = await handleLiteraryOwnerService(
+    new Request("https://owner.internal" + LITERARY_PUBLICATION_ROUTE, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: "Bearer " + ownerEnv.COVE_LITERARY_PUBLICATION_SECRET,
+      },
+      body: JSON.stringify({ jobId: seeded.enqueued }),
+    }),
+    ownerEnv,
+  );
+  assert.equal(ownerPublication.status, 200);
+  assert.deepEqual(await ownerPublication.json(), { published: "p_a" });
   assert.equal(primary.prepare("SELECT status FROM literary_profiles").get().status, "analyzed");
   assert.equal(primary.prepare("SELECT revision FROM literary_profiles").get().revision, 1);
   assert.deepEqual(
-    await publishIsolatedLiteraryInference(env, seeded.enqueued),
+    await publishIsolatedLiteraryInference(rawEnv, seeded.enqueued),
     {
       skipped: "rights_source_or_version_changed",
     },
@@ -386,7 +427,7 @@ try {
   // Binding a secondary to the rights database must fail closed.
   content.exec("CREATE TABLE rights_grants(id TEXT PRIMARY KEY)");
   await assert.rejects(seedOneIsolatedLiteraryInference(env), /binding_not_isolated/);
-  await assert.rejects(publishIsolatedLiteraryInference(env, seeded.enqueued), /not_isolated/);
+  await assert.rejects(publishIsolatedLiteraryInference(rawEnv, seeded.enqueued), /not_isolated/);
   console.log(
     "LITERARY_ISOLATED_INFERENCE_PASS dual SQLite domains, write-once R2 collision/lost-lease recovery, primary zero inference writes, independent quota, live source+rights final gating, tampered R2, exact-once canonical revision and binding containment",
   );
