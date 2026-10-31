@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Six commercial-audio publisher profile/narration SQL sites physically removed from shared API, moved into QA leased legal authority owner with owner-side membership, edition and verified rights evidence checks. Positive restoration, agreement termination deny-first and replay certification remain blocked.",
+  "files": [
+    {
+      "path": "src/features/fore/commercial-audio.server.ts",
+      "sha256": "ed683776f494d30ebbea6e675675fef731b29dc3f706a7bc034bbc3ef63f0bf6",
+      "review": "18 surviving protected SQL candidates retain exact function/literal identity, with 16 still owner-required and two non-authorizing playback writes. No reclassification."
+    }
+  ],
+  "retirementEvidence": "docs/architecture/retired-owner-commercial-audio-metadata-20261030.md"
+}
