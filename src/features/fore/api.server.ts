@@ -1,6 +1,6 @@
 import { dispatchCatalogObservation } from "../../storefront-strangler/publication-owner-routing.server";
 import { dispatchCatalogRegionalState } from "../../storefront-strangler/publication-owner-routing.server";
-import { dispatchCatalogVerifiedUsEpub, dispatchCatalogCompletedUsEpub } from "../../storefront-strangler/publication-owner-routing.server";
+import { dispatchCatalogVerifiedUsEpub, dispatchCatalogCompletedUsEpub, dispatchVerifiedRegionalEpubMetadata } from "../../storefront-strangler/publication-owner-routing.server";
 import { dispatchCatalogIngestState } from "../../storefront-strangler/publication-owner-routing.server";
 import {
   dispatchCatalogNegativeSource,
@@ -1588,26 +1588,9 @@ async function cachePendingEpubs(
         await dispatchCatalogFreeNormalization(db, id, now());
       } else {
         if (canonicalMetadata) {
-          const authorsJson = JSON.stringify(canonicalMetadata.authors);
-          const languagesJson = JSON.stringify(canonicalMetadata.languages);
-          await db
-            .prepare(
-              `UPDATE gutenberg_source_cache SET
-            title=CASE WHEN ?<>'' THEN ? ELSE title END,
-            authors_json=CASE WHEN ?<>'[]' THEN ? ELSE authors_json END,
-            languages_json=CASE WHEN ?<>'[]' THEN ? ELSE languages_json END,updated_at=? WHERE id=?`,
-            )
-            .bind(
-              canonicalMetadata.title,
-              canonicalMetadata.title,
-              authorsJson,
-              authorsJson,
-              languagesJson,
-              languagesJson,
-              now(),
-              id,
-            )
-            .run();
+          // Source metadata is never accepted as owner evidence. The private
+          // owner reopens and independently canonicalizes the stored EPUB.
+          await dispatchVerifiedRegionalEpubMetadata(db, {cacheId:id,sha256:contentHash});
         }
         await insertRegionalEvidence(env, row, contentHash, canonicalizationVersion);
       }

@@ -505,6 +505,21 @@ export async function dispatchPrivateMarketUpsert(db:object,input:{
  }catch{throw new ApiError(503,"Private market owner refused this change.");}
 }
 
+/** Regional metadata derives exclusively from the independently verified
+ * canonicalized R2 EPUB, not from caller-supplied title/author/territory. */
+export async function dispatchVerifiedRegionalEpubMetadata(db:object,input:{
+ cacheId:string;sha256:string
+}):Promise<void> {
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Regional EPUB metadata requires private authority.");
+ try{
+   const ack=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+     "catalog.regional-epub-metadata",input);
+   if(ack.saved!==true||ack.cacheId!==input.cacheId||ack.sha256!==input.sha256)
+     throw Error("regional_metadata_receipt_mismatch");
+ }catch{throw new ApiError(503,"Private owner refused regional EPUB metadata update.");}
+}
+
 export async function dispatchCatalogVerifiedUsEpub(db:object,input:{
  cacheId:string;assetVersionId:string;sha256:string
 }):Promise<void>{

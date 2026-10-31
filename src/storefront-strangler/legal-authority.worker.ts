@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Private legal-authority boundary is security-sensitive. */
 import {validateStoredEpub} from "../features/fore/stored-epub.server";
+import {canonicalizeRegionalEpub} from "../features/fore/gutenberg-federation.server";
 import JSZip from "jszip";
 import {recordAccountSecurityEvent} from "../features/fore/account-management.server";
 import {eraseProviderIdentity} from "../features/fore/account-erasure.server";
@@ -17644,6 +17645,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/rights/private-configuration",
       "/catalog/observe-us",
       "/catalog/regional-state",
+      "/catalog/verified-regional-epub-metadata",
       "/market/private-admin-upsert",
       "/catalog/complete-us-epub-ingest",
       "/catalog/verified-us-epub-cache",
@@ -18595,6 +18597,45 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         ]);
         return Response.json({schema:"cove.owner-private-market-admin.v1",ownerFirst:true,
           countryCode:m.countryCode,operationId:input.operationId,saved:true},{headers:noStore});
+      }
+      if(route==="/catalog/verified-regional-epub-metadata") {
+        const input=z.object({
+          cacheId:z.string().regex(/^(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90}$/),
+          sha256:z.string().regex(/^[a-f0-9]{64}$/)
+        }).strict().parse(raw);
+        const db=env.PRIMARY_DB;
+        if(!env.BUCKET)return new Response(null,{status:503,headers:noStore});
+        const eligible=await db.prepare(
+          "SELECT source_id FROM gutenberg_source_cache WHERE id=? AND source_id IN ('pg_ca','pg_au','pg_eu') AND ingest_status<>'quarantined' AND rights_status<>'quarantined' AND epub_status='downloading'"
+        ).bind(input.cacheId).first<{source_id:"pg_ca"|"pg_au"|"pg_eu"}>();
+        if(!eligible)return new Response(null,{status:409,headers:noStore});
+        const object=await env.BUCKET.get("epubs/"+input.cacheId+".epub");
+        if(!object||!Number.isSafeInteger(object.size)||object.size<100||
+           object.size>30*1024*1024)return new Response(null,{status:409,headers:noStore});
+        const bytes=new Uint8Array(await object.arrayBuffer());
+        if(bytes.byteLength!==object.size)return new Response(null,{status:409,headers:noStore});
+        await validateStoredEpub(bytes);
+        const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",bytes));
+        const actual=Array.from(digest,x=>x.toString(16).padStart(2,"0")).join("");
+        if(actual!==input.sha256)return new Response(null,{status:409,headers:noStore});
+        // A separate regional source canonicalizer re-reads metadata from
+        // the stored archive. No title, author or language is caller input.
+        const revalidated=await canonicalizeRegionalEpub(bytes,eligible.source_id);
+        const meta=revalidated.metadata;
+        if(!meta||typeof meta.title!=="string"||meta.title.length>240||
+           !Array.isArray(meta.authors)||meta.authors.length>100||
+           !Array.isArray(meta.languages)||meta.languages.length>40)
+          return new Response(null,{status:409,headers:noStore});
+        const authors=JSON.stringify(meta.authors),languages=JSON.stringify(meta.languages);
+        if(authors.length>12000||languages.length>1500)
+          return new Response(null,{status:409,headers:noStore});
+        const result=await db.prepare(
+          "UPDATE gutenberg_source_cache SET title=CASE WHEN ?<>'' THEN ? ELSE title END,authors_json=CASE WHEN ?<>'[]' THEN ? ELSE authors_json END,languages_json=CASE WHEN ?<>'[]' THEN ? ELSE languages_json END,updated_at=? WHERE id=? AND source_id=? AND ingest_status<>'quarantined' AND rights_status<>'quarantined' AND epub_status='downloading'"
+        ).bind(meta.title,meta.title,authors,authors,languages,languages,now(),input.cacheId,eligible.source_id).run();
+        if(Number((result as {meta?:{changes?:number}})?.meta?.changes||0)!==1)
+          return new Response(null,{status:409,headers:noStore});
+        return Response.json({schema:"cove.owner-regional-epub-metadata.v1",
+          ownerFirst:true,cacheId:input.cacheId,sha256:input.sha256,saved:true},{headers:noStore});
       }
       if(route==="/catalog/complete-us-epub-ingest"){
         const input=z.object({
