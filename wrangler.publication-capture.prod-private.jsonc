@@ -1,0 +1,35 @@
+{
+  "name": "cove-pub-qa-continuous-capture",
+  "main": ".output/strangler/publication-capture.mjs",
+  "compatibility_date": "2026-10-22",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true
+  },
+  "d1_databases": [
+    {
+      "binding": "PUBLIC_SOURCE_DB",
+      "database_name": "cove-publication-source-stage-20261022",
+      "database_id": "1825b4a1-0329-408d-9cc2-a40e6a17c822",
+      "migrations_dir": "infra/publication-source"
+    }
+  ],
+  "vars": {
+    "COVE_PUBLICATION_CAPTURE_ENABLED": "1"
+  },
+  "services": [
+    {
+      "binding": "SOURCE_READER",
+      "service": "cove-legal-authority-production"
+    }
+  ],
+  "triggers": {
+    "crons": [
+      "* * * * *"
+    ]
+  }
+}

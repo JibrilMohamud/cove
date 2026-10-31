@@ -1,4 +1,6 @@
 /* eslint-disable prettier/prettier -- Private legal-authority boundary is security-sensitive. */
+import {readPublicationSource} from "./publication-source-reader";
+import {PUBLICATION_SOURCE_ROUTE} from "./publication-source-protocol";
 import {readSoundsPublicationSource} from "./sounds-source-reader";
 import {SOUNDS_SOURCE_ROUTE} from "./sounds-source-protocol";
 import {validateStoredEpub} from "../features/fore/stored-epub.server";
@@ -131,6 +133,7 @@ type LegalAuthorityEnv = Pick<CoveEnv,"FORE_AUTH_MODE"|"SUPABASE_URL"|"SUPABASE_
   FORE_PUBLISHING_AUTO_APPROVE_LOW_RISK?:string;
   COVE_RIGHTS_OWNER_SECRET?: string;
   COVE_SOUNDS_SOURCE_READER_SECRET?: string;
+  COVE_PUBLICATION_SOURCE_READER_SECRET?: string;
   COVE_RIGHTS_OWNER_ENABLED?: string;
   COVE_RIGHTS_OWNER_PRIMARY_ID?: string;
   COVE_RIGHTS_OWNER_TEST_EXPIRES_AT?: string;
@@ -21937,6 +21940,8 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
 // The Durable Object remains the single legal serialization point.
 export default {
   async fetch(request:Request,env:LegalAuthorityEnv):Promise<Response> {
+    if(new URL(request.url).pathname===PUBLICATION_SOURCE_ROUTE)
+      return readPublicationSource(request,env as unknown as Parameters<typeof readPublicationSource>[1]);
     // Advisory fixed reads are privately authenticated independently of legal commands.
     if(new URL(request.url).pathname===SOUNDS_SOURCE_ROUTE)
       return readSoundsPublicationSource(request,env);

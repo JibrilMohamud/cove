@@ -15,16 +15,26 @@ assert.ok(token && process.env.CLOUDFLARE_ACCOUNT_ID === account);
 assert.equal(new Set([canonical, source, ledger]).size, 3);
 
 function template(lane) {
-  const path = `wrangler.publication-${lane}.stage.jsonc`;
+  const path =
+    lane === "capture"
+      ? "wrangler.publication-capture.prod-private.jsonc"
+      : `wrangler.publication-${lane}.stage.jsonc`;
   const parsed = ts.parseConfigFileTextToJson(path, fs.readFileSync(path, "utf8"));
   assert.ok(!parsed.error, `Unable to read controlled ${lane} template`);
   const config = parsed.config;
   assert.equal(config.workers_dev, false);
   assert.equal(config.preview_urls, false);
-  assert.ok(!config.routes && !config.route && !config.triggers && !config.queues);
+  assert.ok(
+    !config.routes && !config.route && (lane === "capture" || !config.triggers) && !config.queues,
+  );
   if (lane === "capture") {
-    assert.equal(config.vars.COVE_PUBLICATION_CAPTURE_ENABLED, "0");
-    assert.equal(config.d1_databases.find((b) => b.binding === "SOURCE_DB").database_id, canonical);
+    assert.equal(config.vars.COVE_PUBLICATION_CAPTURE_ENABLED, "1");
+    assert.ok(
+      !config.d1_databases.some((b) => b.binding === "SOURCE_DB" || b.database_id === canonical),
+    );
+    assert.deepEqual(config.services, [
+      { binding: "SOURCE_READER", service: "cove-legal-authority-production" },
+    ]);
     assert.equal(
       config.d1_databases.find((b) => b.binding === "PUBLIC_SOURCE_DB").database_id,
       source,
@@ -111,6 +121,17 @@ for (const lane of ["capture", "export", "publish"]) {
     ),
   );
   assert.ok(schedules.schedules?.some((s) => s.cron === "* * * * *"));
+  if (lane === "capture") {
+    assert.ok(!bindings.some((b) => b.type === "d1" && (b.id || b.database_id) === canonical));
+    assert.ok(
+      bindings.some(
+        (b) =>
+          b.name === "SOURCE_READER" &&
+          b.type === "service" &&
+          b.service === "cove-legal-authority-production",
+      ),
+    );
+  }
   assert.equal(settings.routes?.length || 0, 0);
   console.log(
     "CONTINUOUS_QA_DEPLOYED",

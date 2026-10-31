@@ -1,3 +1,7 @@
+import {
+  requestPublicationSource,
+  type PublicationSourcePort,
+} from "./publication-source-protocol";
 import { produceHomepagePresentation } from "./homepage-presentation.server";
 import type { StorefrontDB } from "./localization-optimized.server";
 
@@ -9,7 +13,9 @@ type CanonicalDB = StorefrontDB & {
 };
 type SnapshotDB = StorefrontDB;
 export type CaptureEnv = {
-  SOURCE_DB: CanonicalDB;
+  SOURCE_DB?: CanonicalDB;
+  SOURCE_READER?: PublicationSourcePort;
+  COVE_PUBLICATION_SOURCE_READER_SECRET?: string;
   PUBLIC_SOURCE_DB: SnapshotDB;
   COVE_PUBLICATION_CAPTURE_ENABLED?: string;
 };
@@ -22,7 +28,7 @@ async function digest(body: string) {
   const value = new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode(body)));
   return [...value].map((x) => x.toString(16).padStart(2, "0")).join("");
 }
-function checkedSource(db: CanonicalDB): StorefrontDB {
+export function checkedSource(db: CanonicalDB): StorefrontDB {
   // Reopen only *read-only* source statements after a reported D1 transport
   // loss. A new session is essential: retrying the broken sticky connection
   // simply repeats the same error. Never replay writes, rights decisions or
@@ -93,12 +99,22 @@ export async function capturePublicSource(env: CaptureEnv) {
   if (!locked) return { busy: true, countries: [] };
   const countries: string[] = [];
   try {
-    const canonical = checkedSource(env.SOURCE_DB);
-    const active = await canonical
-      .prepare(
-        "SELECT country_code FROM storefront_markets WHERE market_status='active' ORDER BY country_code LIMIT 33",
-      )
-      .all<{ country_code: string }>();
+    if (env.SOURCE_READER && env.SOURCE_DB) throw Error("capture_ambiguous_source_capability");
+    if (!env.SOURCE_READER && !env.SOURCE_DB) throw Error("capture_source_missing");
+    const canonical = env.SOURCE_READER ? null : checkedSource(env.SOURCE_DB!);
+    const privateSource = env.SOURCE_READER
+      ? await requestPublicationSource(
+          env.SOURCE_READER,
+          env.COVE_PUBLICATION_SOURCE_READER_SECRET || "",
+        )
+      : null;
+    const active = canonical
+      ? await canonical
+          .prepare(
+            "SELECT country_code FROM storefront_markets WHERE market_status='active' ORDER BY country_code LIMIT 33",
+          )
+          .all<{ country_code: string }>()
+      : { results: privateSource!.countries!.map((country_code) => ({ country_code })) };
     const markets = active.results.map((x) => x.country_code);
     if (!markets.length || markets.length > 32 || markets.some((x) => !/^[A-Z]{2}$/.test(x)))
       throw Error("capture_market_config_invalid");
@@ -118,19 +134,29 @@ export async function capturePublicSource(env: CaptureEnv) {
       const country = markets[position];
       const now = Date.now();
       let body = "";
-      const snapshot = await produceHomepagePresentation(
-        canonical,
-        country,
-        {
-          async get() {
-            throw Error("capture_does_not_read_serving_r2");
-          },
-          async put(_key, value) {
-            body = value;
-          },
-        },
-        now,
-      );
+      const remote = env.SOURCE_READER
+        ? await requestPublicationSource(
+            env.SOURCE_READER,
+            env.COVE_PUBLICATION_SOURCE_READER_SECRET || "",
+            country,
+          )
+        : null;
+      if (remote) body = remote.body!;
+      const snapshot = remote
+        ? { expiresAt: remote.expiresAt! }
+        : await produceHomepagePresentation(
+            canonical!,
+            country,
+            {
+              async get() {
+                throw Error("capture_does_not_read_serving_r2");
+              },
+              async put(_key, value) {
+                body = value;
+              },
+            },
+            now,
+          );
       if (!body || enc.encode(body).length > MAX_BYTES || snapshot.expiresAt <= now)
         throw Error("capture_invalid_snapshot");
       const sha = await digest(body);

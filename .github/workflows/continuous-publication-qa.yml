@@ -3,6 +3,10 @@ on:
   pull_request:
     paths:
       - "scripts/staging/deploy-continuous-publication-qa.mjs"
+      - "scripts/staging/provision-publication-source-reader.mjs"
+      - "src/storefront-strangler/publication-source-reader.ts"
+      - "src/storefront-strangler/publication-source-protocol.ts"
+      - "wrangler.publication-capture.prod-private.jsonc"
       - "scripts/staging/verify-continuous-publication-qa.mjs"
       - ".github/workflows/continuous-publication-qa.yml"
   push:
@@ -33,6 +37,8 @@ jobs:
         with: { node-version: "22", cache: npm }
       - run: npm ci
       - run: node scripts/build-storefront-strangler.mjs
+      - name: Provision the fixed advisory source on the disabled private owner
+        run: node scripts/staging/provision-publication-source-reader.mjs
       - name: Deploy nonpublic fenced QA publication cron Workers
         run: node scripts/staging/deploy-continuous-publication-qa.mjs
       - name: Observe 23 fresh markets in the independent R2 ledger and next cron capture
