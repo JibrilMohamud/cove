@@ -504,9 +504,9 @@ async function markD1QuotaBlocked() {
 }
 
 async function audioTrackTriggerSlots(env: BackendEnv) {
-  const readDb = backendScheduledPrimaryReadDb(env);
+  const db = backendScheduledPrimaryReadDb(env);
   const at = new Date().toISOString();
-  const row = await readDb.prepare(
+  const row = await db.prepare(
     `SELECT
       SUM(CASE WHEN status='queued' AND next_attempt_at<=? THEN 1 ELSE 0 END) queued,
       SUM(CASE WHEN status='running' AND lease_until>? THEN 1 ELSE 0 END) running
@@ -526,9 +526,9 @@ async function audioTrackTriggerSlots(env: BackendEnv) {
 }
 
 async function audioAlignmentTriggerSlots(env: BackendEnv) {
-  const readDb = backendScheduledPrimaryReadDb(env);
+  const db = backendScheduledPrimaryReadDb(env);
   const at = new Date().toISOString();
-  const row = await readDb.prepare(
+  const row = await db.prepare(
     `SELECT
       SUM(CASE WHEN kind='align' AND status='queued' AND next_attempt_at<=? AND attempts<6 THEN 1 ELSE 0 END) queued,
       SUM(CASE WHEN kind='align' AND status='running' AND lease_until>? THEN 1 ELSE 0 END) running,
@@ -550,12 +550,12 @@ async function audioAlignmentTriggerSlots(env: BackendEnv) {
 }
 
 async function warmOneShortBiosyncTranscript(env: BackendEnv) {
-  const readDb = backendScheduledPrimaryReadDb(env);
+  const db = backendScheduledPrimaryReadDb(env);
   // The first end-to-end map proved hosted Whisper works on short tracks.
   // Warm one independent ASR transcript per hour; the existing Vercel/GitHub
   // verifier still has to match the exact EPUB before publishing any map.
   if (!env.AI || !env.BUCKET) return;
-  const rows = await readDb.prepare(
+  const rows = await db.prepare(
     "SELECT e.id edition_id,json_extract(t.value,'$.id') track_id,json_extract(t.value,'$.sha256') audio_sha " +
       "FROM audio_jobs j JOIN audio_editions e ON e.id=json_extract(j.payload_json,'$.editionId') " +
       "JOIN json_each(e.tracks_json) t ON json_extract(t.value,'$.id')=json_extract(j.payload_json,'$.trackId') " +
@@ -649,11 +649,11 @@ async function runScheduled(cron: string, env: BackendEnv) {
       // Bootstrap one short real timing map before returning to alternating
       // acquisition windows. Keeps early BioSync health failures visible without
       // starving the long-running track backlog indefinitely.
-      const readDb = backendScheduledPrimaryReadDb(env);
-      const firstMapPending = await readDb.prepare("SELECT 1 FROM audio_timing LIMIT 1").first();
+      const db = backendScheduledPrimaryReadDb(env);
+      const firstMapPending = await db.prepare("SELECT 1 FROM audio_timing LIMIT 1").first();
       const shortBootstrap = firstMapPending
         ? null
-        : await readDb.prepare(
+        : await db.prepare(
             "SELECT j.id FROM audio_jobs j JOIN audio_editions e ON e.id=json_extract(j.payload_json,'$.editionId') JOIN json_each(e.tracks_json) t ON json_extract(t.value,'$.id')=json_extract(j.payload_json,'$.trackId') WHERE j.kind='align' AND j.status='queued' AND j.attempts<3 AND j.next_attempt_at<=? AND CAST(json_extract(t.value,'$.duration') AS REAL)<=120 LIMIT 1",
           )
             .bind(new Date().toISOString())
@@ -737,8 +737,8 @@ async function runScheduled(cron: string, env: BackendEnv) {
           break;
         }
       }
-      const readDb = backendScheduledPrimaryReadDb(env);
-      const backlog = await readDb.prepare(
+      const db = backendScheduledPrimaryReadDb(env);
+      const backlog = await db.prepare(
         "SELECT COUNT(*) count FROM audio_jobs WHERE kind='track' AND status IN ('queued','running')",
       ).first<{ count?: number }>();
       const pendingTracks = Number(backlog?.count || 0);
