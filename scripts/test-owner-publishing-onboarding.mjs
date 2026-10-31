@@ -14,7 +14,7 @@ try {
     bundle:true,platform:"node",format:"esm",target:"node22",outfile:output,logLevel:"silent",
     plugins:[{name:"fake-cloudflare-host",setup(b){
       b.onResolve({filter:/^cloudflare:workers$/},()=>({path:"fake-host",namespace:"owner-host"}));
-      b.onLoad({filter:/.*/,namespace:"owner-host"},({contents:"export class DurableObject { constructor(ctx,env) { this.ctx=ctx; this.env=env; } }"}));
+      b.onLoad({filter:/.*/,namespace:"owner-host"},()=>({contents:"export class DurableObject { constructor(ctx,env) { this.ctx=ctx; this.env=env; } }"}));
     }}]});
   const {CoveLegalAuthority}=await import(pathToFileURL(output).href);
   primary.exec("PRAGMA foreign_keys=ON");
