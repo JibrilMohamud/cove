@@ -1,0 +1,28 @@
+/* eslint-disable prettier/prettier -- Stage source ownership, not production authorization. */
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+const get=x=>readFileSync(x,"utf8");
+const source=get("src/features/fore/publishing-trust.server.ts");
+const owner=get("src/storefront-strangler/legal-authority.worker.ts");
+const routing=get("src/storefront-strangler/publication-owner-routing.server.ts");
+const gateway=get("src/storefront-strangler/canonical-owner-command-gateway.ts");
+const review=JSON.parse(get("docs/architecture/canonical-writer-review.json"));
+const lineage=JSON.parse(get("docs/architecture/retired-private-trust-owner-lineage.json"));
+assert.equal(lineage.retiredCount,38);
+assert.equal(new Set(lineage.retired.map(x=>x.siteId)).size,38);
+assert.equal(review.releaseApproval,false);
+assert.equal(review.sites.filter(x=>x.disposition==="owner-command-required").length,156);
+assert.equal(review.sites.filter(x=>x.file==="src/features/fore/publishing-trust.server.ts"&&x.disposition==="owner-command-required").length,0);
+assert.ok(lineage.retired.every(x=>!review.sites.some(y=>y.siteId===x.siteId)));
+assert.match(source,/dispatchPrivateTrustAction\(db,"validate-notice"/);
+assert.match(source,/dispatchPrivateTrustAction\(db,"resolve-dispute"/);
+assert.doesNotMatch(source,/\b(?:INSERT(?: OR IGNORE)? INTO|UPDATE|DELETE FROM)\s+(?:copyright_notices|copyright_counter_notices|rights_disputes|royalty_holds|finance_royalty_events|publishing_rights_declarations)\b/i);
+assert.match(owner,/const privateTrust=\(\(\)=>/);
+assert.match(owner,/if\(route==="\/trust\/private-action"\)/);
+assert.match(owner,/x\.decision==="compliant_takedown"/);
+assert.match(owner,/x\.status==="verified"/);
+assert.match(owner,/x\.restoreContent===true\|\|x\.royaltyDisposition==="release"/);
+assert.match(owner,/SELECT user_id FROM staff_principals WHERE user_id=\? AND status='active'/);
+assert.match(routing,/if\(!context\)throw new ApiError\(503,"A private legal-trust owner is required/);
+assert.match(gateway,/"trust.owner-action":\{path:"\/trust\/private-action"/);
+console.log("PASS: 38 trust SQL mutations retained privately under QA lease; zero protected shared trust SQL; owner-required=156; no positive production legal restoration");
