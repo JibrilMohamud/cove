@@ -134,9 +134,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "eb8916e5a08a8c3a7d1f5c4e1462b4938bf2bc08ef7eeda66ce4c099a64afd7c",
+      "siteId": "d1c4c9b61bd142fba93c0e7a267c281a5009d2f9ade6297d170b3c5caf4cb9e2",
       "file": "src/features/fore/commercial-audio.server.ts",
-      "line": 1051,
+      "line": 1052,
       "functionName": "handleCommercialAudio",
       "table": "commercial_audio_playback",
       "operation": "INSERT INTO",
@@ -146,9 +146,9 @@
       "reason": "This exact SQLite statement mutates only buyer-scoped audiobook listening position (chapter, seconds, speed, version, timestamp) or deletes a deleting account's position. It never grants rights, access, delivery tokens, asset availability or entitlements. The production audio endpoint separately requires authentication, current entitlements, risk check and private owner permission before writes; source-bound SQL, optimistic concurrency, unrelated buyer and revoked-entitlement behavior are exercised in scripts/check-audio-playback-remaining-nonauthorizing.mjs. The enclosing account deletion transaction remains owner-required for its other protected mutations."
     },
     {
-      "siteId": "84742cabb9daddc302940e86406622d4f80812b3631891170145a29a8b1763ec",
+      "siteId": "1a896a0ce4bb75c0de49119853dba34e3c45a2116498b4192d693de81414273d",
       "file": "src/features/fore/commercial-audio.server.ts",
-      "line": 1058,
+      "line": 1059,
       "functionName": "handleCommercialAudio",
       "table": "commercial_audio_playback",
       "operation": "UPDATE",
@@ -158,9 +158,9 @@
       "reason": "This exact SQLite statement mutates only buyer-scoped audiobook listening position (chapter, seconds, speed, version, timestamp) or deletes a deleting account's position. It never grants rights, access, delivery tokens, asset availability or entitlements. The production audio endpoint separately requires authentication, current entitlements, risk check and private owner permission before writes; source-bound SQL, optimistic concurrency, unrelated buyer and revoked-entitlement behavior are exercised in scripts/check-audio-playback-remaining-nonauthorizing.mjs. The enclosing account deletion transaction remains owner-required for its other protected mutations."
     },
     {
-      "siteId": "4280ad6bd2ad7280ef8fb78aaf92289f5643da8f26e22741e56c77d71c00f498",
+      "siteId": "6deb000c6caf1d71213f35b1414a499ccbb82b58b882cd0af7c4c28c7f37335e",
       "file": "src/features/fore/commercial-audio.server.ts",
-      "line": 1303,
+      "line": 1304,
       "functionName": "handleCommercialAudio",
       "table": "audio_offline_licenses",
       "operation": "UPDATE",
@@ -171,9 +171,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "fb36ac72516a55190258d80c1d0720aacbe39134c8efb31d09aa54620323d62b",
+      "siteId": "bc40c69bbc91cf83136ef5939b6cb64774d76f00ddf4620a05c31fe830f183de",
       "file": "src/features/fore/commercial-audio.server.ts",
-      "line": 1308,
+      "line": 1309,
       "functionName": "handleCommercialAudio",
       "table": "audio_offline_licenses",
       "operation": "INSERT INTO",
@@ -181,19 +181,6 @@
       "disposition": "owner-command-required",
       "productionOwnerGuarded": false,
       "commandFamily": "commercial-audio.handleCommercialAudio",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "b856bd2b9101daabb9e473e3530ff92660a6f87bf80e524b8391c559867c80de",
-      "file": "src/features/fore/commercial-audio.server.ts",
-      "line": 1488,
-      "functionName": "saveCommercialBiosyncLink",
-      "table": "commercial_biosync_links",
-      "operation": "INSERT INTO",
-      "sqlSha256": "f926df4bd506f7e81d86bb3223bc2566c099c047468c896cab9b3d6059bc2d3b",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "commercial-audio.saveCommercialBiosyncLink",
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
