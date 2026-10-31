@@ -1,5 +1,5 @@
 import { dispatchVerifiedFreeLibraryEntitlement } from "../../storefront-strangler/publication-owner-routing.server";
-import { dispatchCatalogObservation } from "../../storefront-strangler/publication-owner-routing.server";
+import { dispatchCatalogObservation,dispatchPrivateCatalogSourceBatch } from "../../storefront-strangler/publication-owner-routing.server";
 import { dispatchCatalogRegionalState,dispatchPrivateRegionalRightsEvidence } from "../../storefront-strangler/publication-owner-routing.server";
 import { dispatchCatalogVerifiedUsEpub, dispatchCatalogCompletedUsEpub, dispatchVerifiedRegionalEpubMetadata } from "../../storefront-strangler/publication-owner-routing.server";
 import { dispatchCatalogIngestState } from "../../storefront-strangler/publication-owner-routing.server";
@@ -810,69 +810,28 @@ type CatalogSourceOptions = {
   sourceMetadata?: Record<string, unknown>;
   contentHash?: string;
 };
+/** A source observation is never itself proof of copyright or distribution.
+ * The private legal owner owns the only UPSERT after independent checks. */
+export type CatalogSourceObservation={
+  cacheId:string;sourceId:"pg_us"|"pg_ca"|"pg_au"|"pg_eu";
+  fields:Array<string|number|null>;
+};
 export function catalogInsert(
-  db: CoveEnv["DB"],
-  book: any,
-  sourceUrl: string,
-  at: string,
-  options: CatalogSourceOptions = {},
-) {
-  const formats = book.formats || {};
-  const sourceId = options.sourceId || "pg_us";
-  const source =
-    sourceId === "pg_us" ? epubSource(formats) : canonicalAssetSource(formats)?.url || "";
-  const sourceItemId = options.sourceItemId || String(book.id);
-  const sourceProject = options.sourceProject || "Project Gutenberg";
-  const sourceLicenseUrl =
-    options.sourceLicenseUrl || "https://www.gutenberg.org/policy/license.html";
-  const rightsStatus =
-    options.rightsStatus || (book.copyright === false ? "public-domain" : "pending");
-  const rightsTerritories =
-    options.rightsTerritories || (sourceId === "pg_us" && book.copyright === false ? ["US"] : []);
-  const commercialUseStatus =
-    options.commercialUseStatus ||
-    (sourceId === "pg_us" && book.copyright === false ? "approved" : "pending");
-  return db
-    .prepare(
-      `INSERT INTO gutenberg_source_cache(
-        id,title,authors_json,summary,subjects_json,bookshelves_json,languages_json,formats_json,download_count,copyright,
-        source_url,source_updated_at,first_ingested_at,updated_at,last_seen_at,ingest_status,ingest_attempts,last_error,
-        epub_status,epub_attempts,epub_next_attempt_at,epub_cached_at,epub_last_error,
-        source_id,source_item_id,source_project,source_license_url,rights_status,rights_territories_json,rights_evidence_url,
-        rights_checked_at,rights_evidence_id,commercial_use_status,trademark_cleanup_required,canonicalization_version,source_metadata_json,content_hash
-      ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-      ON CONFLICT(id) DO UPDATE SET
-        title=excluded.title,authors_json=excluded.authors_json,summary=excluded.summary,subjects_json=excluded.subjects_json,
-        bookshelves_json=excluded.bookshelves_json,languages_json=excluded.languages_json,formats_json=excluded.formats_json,
-        download_count=excluded.download_count,copyright=excluded.copyright,source_url=excluded.source_url,
-        source_updated_at=excluded.source_updated_at,updated_at=excluded.updated_at,last_seen_at=excluded.last_seen_at,
-        ingest_status='active',ingest_attempts=0,last_error='',source_id=excluded.source_id,source_item_id=excluded.source_item_id,
-        source_project=excluded.source_project,source_license_url=excluded.source_license_url,
-        rights_territories_json=excluded.rights_territories_json,rights_evidence_url=excluded.rights_evidence_url,
-        source_metadata_json=excluded.source_metadata_json,content_hash=CASE WHEN gutenberg_source_cache.formats_json=excluded.formats_json AND gutenberg_source_cache.rights_territories_json=excluded.rights_territories_json AND gutenberg_source_cache.rights_evidence_url=excluded.rights_evidence_url AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'') THEN CASE WHEN excluded.content_hash<>'' THEN excluded.content_hash ELSE gutenberg_source_cache.content_hash END ELSE excluded.content_hash END,
-        trademark_cleanup_required=excluded.trademark_cleanup_required,
-        rights_status=CASE WHEN gutenberg_source_cache.commercial_use_status='approved' AND gutenberg_source_cache.rights_status='public-domain'
-          AND gutenberg_source_cache.rights_territories_json=excluded.rights_territories_json AND gutenberg_source_cache.rights_evidence_url=excluded.rights_evidence_url AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'')
-          THEN gutenberg_source_cache.rights_status ELSE excluded.rights_status END,
-        commercial_use_status=CASE WHEN gutenberg_source_cache.commercial_use_status='approved' AND gutenberg_source_cache.rights_status='public-domain'
-          AND gutenberg_source_cache.rights_territories_json=excluded.rights_territories_json AND gutenberg_source_cache.rights_evidence_url=excluded.rights_evidence_url AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'')
-          THEN 'approved' ELSE excluded.commercial_use_status END,
-        rights_evidence_id=CASE WHEN gutenberg_source_cache.rights_territories_json=excluded.rights_territories_json
-          AND gutenberg_source_cache.rights_evidence_url=excluded.rights_evidence_url AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'') THEN COALESCE(gutenberg_source_cache.rights_evidence_id,excluded.rights_evidence_id) ELSE excluded.rights_evidence_id END,
-        rights_checked_at=CASE WHEN gutenberg_source_cache.rights_territories_json=excluded.rights_territories_json
-          AND gutenberg_source_cache.rights_evidence_url=excluded.rights_evidence_url AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'') THEN COALESCE(gutenberg_source_cache.rights_checked_at,excluded.rights_checked_at) ELSE excluded.rights_checked_at END,
-        canonicalization_version=CASE WHEN gutenberg_source_cache.formats_json=excluded.formats_json AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'') THEN gutenberg_source_cache.canonicalization_version ELSE excluded.canonicalization_version END,
-        epub_status=CASE WHEN gutenberg_source_cache.epub_status='downloading' AND gutenberg_source_cache.formats_json=excluded.formats_json THEN 'downloading' WHEN gutenberg_source_cache.epub_status='completed' AND gutenberg_source_cache.formats_json=excluded.formats_json
-          AND gutenberg_source_cache.rights_territories_json=excluded.rights_territories_json AND gutenberg_source_cache.rights_evidence_url=excluded.rights_evidence_url AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'')
-          THEN 'completed' WHEN excluded.epub_status='unavailable' THEN 'unavailable' ELSE 'pending' END,
-        epub_next_attempt_at=CASE WHEN gutenberg_source_cache.epub_status='completed' AND gutenberg_source_cache.formats_json=excluded.formats_json
-          AND gutenberg_source_cache.rights_territories_json=excluded.rights_territories_json AND gutenberg_source_cache.rights_evidence_url=excluded.rights_evidence_url AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'')
-          THEN gutenberg_source_cache.epub_next_attempt_at ELSE '' END,
-        epub_last_error=CASE WHEN gutenberg_source_cache.epub_status='completed' AND gutenberg_source_cache.formats_json=excluded.formats_json
-          AND gutenberg_source_cache.rights_territories_json=excluded.rights_territories_json AND gutenberg_source_cache.rights_evidence_url=excluded.rights_evidence_url AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'')
-          THEN gutenberg_source_cache.epub_last_error ELSE '' END`,
-    )
-    .bind(
+  db:CoveEnv["DB"],book:any,sourceUrl:string,at:string,
+  options:CatalogSourceOptions={}
+):CatalogSourceObservation{
+  void db;
+  const formats=book.formats||{};
+  const sourceId=options.sourceId||"pg_us";
+  const source=sourceId==="pg_us"?epubSource(formats):canonicalAssetSource(formats)?.url||"";
+  const sourceItemId=options.sourceItemId||String(book.id);
+  const sourceProject=options.sourceProject||"Project Gutenberg";
+  const sourceLicenseUrl=options.sourceLicenseUrl||"https://www.gutenberg.org/policy/license.html";
+  const rightsStatus=options.rightsStatus||(book.copyright===false?"public-domain":"pending");
+  const rightsTerritories=options.rightsTerritories||(sourceId==="pg_us"&&book.copyright===false?["US"]:[]);
+  const commercialUseStatus=options.commercialUseStatus||
+    (sourceId==="pg_us"&&book.copyright===false?"approved":"pending");
+  return {cacheId:String(book.id),sourceId,fields:[
       String(book.id),
       book.title,
       JSON.stringify(book.authors || []),
@@ -910,7 +869,7 @@ export function catalogInsert(
       options.canonicalizationVersion || "",
       JSON.stringify(options.sourceMetadata || {}),
       options.contentHash || "",
-    );
+  ]};
 }
 
 async function ensureCatalogState(env: CoveEnv) {
@@ -931,7 +890,7 @@ async function seedCatalog(env: CoveEnv) {
   const statements = books.map((book) =>
     catalogInsert(db, book, "https://www.gutenberg.org/ebooks/" + book.id + "/", at),
   );
-  if (statements.length) await db.batch(statements);
+  if (statements.length) await dispatchPrivateCatalogSourceBatch(db,statements);
   for (const book of books) {
     await dispatchCatalogFreeNormalization(db, String(book.id), at);
     await syncEditionTaxonomy(db, catalogIds(String(book.id)).editionId);
@@ -968,7 +927,7 @@ async function getBook(env: CoveEnv, id: string, userId?: string): Promise<Catal
   const seeded = seedBook(id);
   if (seeded) {
     const at = now();
-    await db.batch([
+    await dispatchPrivateCatalogSourceBatch(db,[
       catalogInsert(db, seeded, "https://www.gutenberg.org/ebooks/" + seeded.id + "/", at),
     ]);
     await dispatchCatalogFreeNormalization(db, String(seeded.id), at);
@@ -986,7 +945,7 @@ async function getBook(env: CoveEnv, id: string, userId?: string): Promise<Catal
   if (!book?.id || book.copyright !== false)
     throw new ApiError(404, "This edition is not confirmed public domain.");
   const at = now();
-  await db.batch([
+  await dispatchPrivateCatalogSourceBatch(db,[
     catalogInsert(
       db,
       book,
@@ -1736,7 +1695,7 @@ export async function runRegionalCatalogIngestion(
           sourceMetadata: { ...(item.metadata || {}), catalogHash: result.bodyHash },
         }),
       );
-      if (statements.length) await db.batch(statements);
+      if (statements.length) await dispatchPrivateCatalogSourceBatch(db,statements);
       accepted += statements.length;
     }
 
@@ -2017,7 +1976,7 @@ export async function runCatalogIngestion(
         at,
       ),
     );
-    if (statements.length) await db.batch(statements);
+    if (statements.length) await dispatchPrivateCatalogSourceBatch(db,statements);
     for (const book of changed) await dispatchCatalogFreeNormalization(db, String(book.id), at);
     // This must run even when the source and canonical rows were unchanged:
     // a previous run may have failed *after* canonical normalization but
