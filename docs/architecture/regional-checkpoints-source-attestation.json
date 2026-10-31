@@ -2,12 +2,12 @@
   "schema": "cove.canonical-writer-source-attestation.v1",
   "releaseApproval": false,
   "retirementEvidence": "docs/architecture/retired-regional-checkpoints-owner-lineage.json",
-  "rationale": "Independently compared three surviving regional Gutenberg source-state SQL statements against the prior reviewed owner from PR #508. Not-modified, same-snapshot, and completion checkpoints are routed into QA-only private owner transactions with current primary lease, current ingest run, snapshot consistency and deny-first stale-source checks. All eleven surviving original API canonical SQL sites preserve their SQL literals, functions, tables, operations and dispositions, and are re-fingerprinted to the current full-source SHA. No positive rights grant or production approval. Two direct US EPUB hydration writes were privately retired with independent R2 EPUB and SHA-256 validation, source rights checks and asset linkage; nine surviving canonical API SQL sites unchanged. Production owner remains locked.",
+  "rationale": "Independently compared three surviving regional Gutenberg source-state SQL statements against the prior reviewed owner from PR #508. Not-modified, same-snapshot, and completion checkpoints are routed into QA-only private owner transactions with current primary lease, current ingest run, snapshot consistency and deny-first stale-source checks. All eleven surviving original API canonical SQL sites preserve their SQL literals, functions, tables, operations and dispositions, and are re-fingerprinted to the current full-source SHA. No positive rights grant or production approval. Two direct US EPUB hydration writes were privately retired with independent R2 EPUB and SHA-256 validation, source rights checks and asset linkage; nine surviving canonical API SQL sites unchanged. Production owner remains locked. Static formatting-only owner call wrapping changes no SQL, grant eligibility, or authority; source SHA and exact site identities were recomputed.",
   "files": [
     {
       "path": "src/features/fore/api.server.ts",
-      "sha256": "b194f3280070907d36ad9a50a441a849f8a12d4aaaa42ce7c9aa727df797e877",
-      "review": "Three exact regional checkpoint source SQL literals relocated into private QA owner. Eleven surviving canonical API SQL literals, functions and dispositions unchanged and source-attested. Two US EPUB hydration mutations retired into byte-verified private owner; nine surviving API SQL sites retain unchanged identities."
+      "sha256": "dc947022dcc36dd37c76f2868f169079a0b3963e8518b47018d80a287f8c105c",
+      "review": "Three exact regional checkpoint source SQL literals relocated into private QA owner. Eleven surviving canonical API SQL literals, functions and dispositions unchanged and source-attested. Two US EPUB hydration mutations retired into byte-verified private owner; nine surviving API SQL sites retain unchanged identities. Formatting-only change to owner call argument layout; all original SQL literals, operations and dispositions remain unchanged."
     }
   ]
 }

@@ -1632,7 +1632,11 @@ async function cachePendingEpubs(
         error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500);
       const { terminal, retryAt } = planEpubRetry(message, attempts);
       await dispatchCatalogIngestState(db, "mark-failure", {
-        cacheId: id, attempts, status: terminal ? "failed" : "retry", retryAt, message,
+        cacheId: id,
+        attempts,
+        status: terminal ? "failed" : "retry",
+        retryAt,
+        message,
       });
       failed++;
     }
@@ -1698,7 +1702,10 @@ export async function runRegionalCatalogIngestion(
   const lease = crypto.randomUUID();
   const runId = `gir_${crypto.randomUUID()}`;
   let cursorBefore = Math.max(0, Number.parseInt(String(due.cursor || "0"), 10) || 0);
-  const acquired = await dispatchCatalogIngestState(db, "acquire-regional", { sourceId, leaseToken: lease });
+  const acquired = await dispatchCatalogIngestState(db, "acquire-regional", {
+    sourceId,
+    leaseToken: lease,
+  });
   if (!acquired.claimed) return { skipped: "regional-source-running" };
   await db
     .prepare(
@@ -1715,7 +1722,11 @@ export async function runRegionalCatalogIngestion(
     const result = await fetchRegionalCatalog(sourceId, env, headers, deadlineMs);
     if (result.status === "degraded") {
       const next = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
-      await dispatchCatalogIngestState(db, "mark-degraded", { sourceId, leaseToken: lease, message: result.warning });
+      await dispatchCatalogIngestState(db, "mark-degraded", {
+        sourceId,
+        leaseToken: lease,
+        message: result.warning,
+      });
       await db
         .prepare(
           `UPDATE gutenberg_ingest_runs SET completed_at=?,status='partial',cursor_after=?,error=? WHERE id=?`,
@@ -1930,7 +1941,11 @@ export async function runRegionalCatalogIngestion(
         ),
     ).toISOString();
     await dispatchCatalogIngestState(db, "mark-regional-failed", {
-      sourceId, leaseToken: lease, attempts, retryAt, message,
+      sourceId,
+      leaseToken: lease,
+      attempts,
+      retryAt,
+      message,
     });
     await db
       .prepare(
