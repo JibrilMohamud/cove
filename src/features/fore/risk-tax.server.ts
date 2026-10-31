@@ -1,4 +1,7 @@
-import { dispatchPrivateRiskHold, dispatchPrivateRiskAssessmentUpdate } from "../../storefront-strangler/publication-owner-routing.server";
+import {
+  dispatchPrivateRiskHold,
+  dispatchPrivateRiskAssessmentUpdate,
+} from "../../storefront-strangler/publication-owner-routing.server";
 import { z } from "zod/v3";
 import { ApiError } from "./service";
 import type { CatalogDB } from "./catalog-model.server";
