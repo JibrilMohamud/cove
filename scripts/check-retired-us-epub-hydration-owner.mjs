@@ -34,11 +34,22 @@ assert.equal(completion.retired.length,1);
 assert.equal(completion.currentSha256,createHash("sha256").update(api).digest("hex"));
 assert.ok(completion.retired.every(x=>x.functionName==="cachePendingEpubs"&&
   !review.sites.some(y=>y.siteId===x.siteId)));
-assert.equal(review.sites.filter(x=>x.disposition==="owner-command-required").length,17);
+assert.equal(review.sites.filter(x=>x.disposition==="owner-command-required").length,16);
 assert.doesNotMatch(api,/UPDATE gutenberg_source_cache SET epub_status='completed',epub_cached_at=\?,epub_last_error='',epub_next_attempt_at='',content_hash=\?,canonicalization_version=\? WHERE id=\?/);
 assert.ok(api.includes("await dispatchCatalogCompletedUsEpub(db, { cacheId: id, sha256: contentHash })"));
 assert.ok(routing.includes('if(!context)throw new ApiError(503,"US EPUB completion requires a private catalog owner.")'));
 assert.ok(gateway.includes('case "catalog.complete-us-epub-ingest":'));
 assert.ok(owner.includes('if(route==="/catalog/complete-us-epub-ingest")'));
 assert.ok(owner.includes("e.territory_code='US'"));
-console.log("PASS: shared US EPUB hydration and ingestion completion SQL sites retired with independent R2 verification; production locked");
+const repair=JSON.parse(read("docs/architecture/retired-epub-asset-version-owner-lineage.json"));
+assert.equal(repair.sourceBefore,17);
+assert.equal(repair.sourceAfter,16);
+assert.equal(repair.releaseApproval,false);
+assert.equal(repair.productionCertified,false);
+assert.equal(repair.currentSha256,createHash("sha256").update(api).digest("hex"));
+assert.equal(repair.retired.length,1);
+assert.ok(repair.retired.every(x=>x.functionName==="cachePendingEpubs"&&x.table==="asset_versions"&&
+  !review.sites.some(y=>y.siteId===x.siteId)));
+assert.ok(!api.includes("UPDATE asset_versions SET object_key=?,sha256=? WHERE asset_id=? AND version_number=1"));
+assert.ok(owner.includes("ON CONFLICT(asset_id,version_number) DO UPDATE SET source_url=excluded.source_url,object_key=COALESCE(excluded.object_key,asset_versions.object_key),sha256=COALESCE(excluded.sha256,asset_versions.sha256)"));
+console.log("PASS: private EPUB completion and normalization now own canonical asset version updates; 16 owner-required source sites, production locked");
