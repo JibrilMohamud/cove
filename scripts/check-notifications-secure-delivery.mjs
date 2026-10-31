@@ -112,8 +112,14 @@ assert.ok(
 );
 assert.ok(preorderOwner.includes('if(route==="/preorder/private-action")'));
 const publishing = read("src/features/fore/publishing.server.ts");
-assert.ok(publishing.includes("publisher_book_approved"));
-assert.ok(publishing.includes("publisher_book_rejected"));
+const privatePublishing = read("src/storefront-strangler/legal-authority.worker.ts");
+// Notification generation moves with the canonical reviewer into the private
+// leased owner; the public review facade has no shared-D1 notification path.
+assert.ok(publishing.includes('dispatchPrivatePublishingEditor(env.DB,"review-submission"'));
+assert.ok(privatePublishing.includes("publisher_book_approved"));
+assert.ok(privatePublishing.includes("publisher_book_rejected"));
+assert.ok(privatePublishing.includes('if(!["reject","hold"].includes(String(decision.decision)))'));
+assert.ok(privatePublishing.includes("cove.private-publishing-editor-qa.v1"));
 const finance = read("src/features/fore/finance.server.ts");
 assert.ok(finance.includes("payout_sent"));
 const reporting = read("src/features/fore/creator-reporting.server.ts");

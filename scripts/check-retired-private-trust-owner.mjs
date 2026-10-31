@@ -14,7 +14,7 @@ const sha256=x=>createHash("sha256").update(x).digest("hex");
 assert.equal(sha256(source),lineage.currentSourceSha256,"Exact retired source bytes changed without reattestation");
 assert.equal(new Set(lineage.retired.map(x=>x.siteId)).size,38);
 assert.equal(review.releaseApproval,false);
-assert.equal(review.sites.filter(x=>x.disposition==="owner-command-required").length,156);
+assert.equal(review.sites.filter(x=>x.disposition==="owner-command-required").length,126);
 assert.equal(review.sites.filter(x=>x.file==="src/features/fore/publishing-trust.server.ts"&&x.disposition==="owner-command-required").length,0);
 assert.ok(lineage.retired.every(x=>!review.sites.some(y=>y.siteId===x.siteId)));
 assert.match(source,/dispatchPrivateTrustAction\(db,"validate-notice"/);

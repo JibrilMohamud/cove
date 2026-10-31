@@ -9,7 +9,7 @@ import {currentWriterSites,REVIEW_PATH} from "./reconcile-canonical-writers.mjs"
 const history="publishing_owner_version_events";
 const review=JSON.parse(readFileSync(REVIEW_PATH,"utf8"));
 const all=currentWriterSites().filter(x=>x.table===history);
-assert.equal(all.length,3,"The whole owner-version audit inventory needs fresh review if history writers change");
+assert.equal(all.length,1,"Only private settlement grant-pin remains in shared source scan; publisher policy/opt-in are private to the owner");
 // The formerly shared commerce grant_pin writer was physically retired;
 // only the atomic private QA settlement grant pin remains with two non-authorizing
 // policy history actions. The preorder grant-pin writer is private to the leased QA owner.
@@ -21,7 +21,11 @@ const safeFunctions=new Map([
   ["optInOwnedPublicationUpdate","owner_opt_in"]
 ]);
 const safe=all.filter(x=>x.file==="src/features/fore/publishing.server.ts");
-assert.equal(safe.length,2);
+assert.equal(safe.length,0);
+const publishingOwner=readFileSync("src/storefront-strangler/legal-authority.worker.ts","utf8");
+assert.match(publishingOwner,/const privatePublishingEditor=\(\(\)=>/);
+assert.match(publishingOwner,/policy_pin/);
+assert.match(publishingOwner,/owner_opt_in/);
 const raw=readFileSync("src/features/fore/publishing.server.ts","utf8");
 const source=ts.createSourceFile("src/features/fore/publishing.server.ts",raw,ts.ScriptTarget.Latest,true);
 const literals=[];
@@ -66,7 +70,7 @@ try{
     assert.equal(db.prepare(sql).run(id,"ent_revoked","life1",null,"version_new","actor","now").changes,1);
     counts[action]++;
   }
-  assert.deepEqual(counts,{policy_pin:1,owner_opt_in:1});
+  assert.deepEqual(counts,{policy_pin:0,owner_opt_in:0});
   assert.equal(db.prepare("SELECT status FROM entitlements WHERE id='ent_revoked'").get().status,"revoked");
   assert.equal(db.prepare("SELECT publication_version_id FROM publishing_entitlement_version_pins WHERE entitlement_id='ent_revoked'").get().publication_version_id,"version_recalled",
     "Version-event history does not update canonical entitlement version pins");
@@ -101,4 +105,4 @@ for(const path of walk("src")){
 }
 assert.equal(reads,1,"Only the private preorder owner grant_pin history predicate may be read");
 assert.equal(review.releaseApproval,false);
-console.log("PASS: two exact policy/opt-in history rows cannot grant versions, revive revoked entitlements or counterfeit grant_pin; the former shared preorder grant-pin writer is now private QA-only");
+console.log("PASS: two policy/opt-in history writers moved with positive owner version path into private QA owner; sole scanned version history writer is private paid settlement");
