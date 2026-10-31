@@ -477,10 +477,7 @@ export async function dispatchCatalogVerifiedUsEpub(db:object,input:{
  cacheId:string;assetVersionId:string;sha256:string
 }):Promise<void>{
  const context=owners.get(db);
- // An unbound public-US read may serve already validated Gutenberg bytes,
- // but MUST NOT persist a D1 cache/asset-authority mutation. A bound owner
- // that refuses confirmation still fails closed below.
- if(!context)return;
+ if(!context)throw new ApiError(503,"Verified EPUB cache update requires private authority.");
  try{
   const ack=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
    "catalog.cache-us-epub",input);
