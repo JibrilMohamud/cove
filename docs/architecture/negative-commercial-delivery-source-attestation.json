@@ -2,12 +2,12 @@
   "schema": "cove.canonical-writer-source-attestation.v1",
   "releaseApproval": false,
   "retirementEvidence": "docs/architecture/retired-negative-commercial-delivery-owner-lineage.json",
-  "rationale": "Exactly four authorizing delivery mutations (customer grant revocation, restrictive policy upsert, distribution withdrawal and active grant revocation) and one non-authorizing distribution event write moved from the shared delivery module to private legal authority. The owner independently reads the current grant, product, version, staff principal, permissions and prior distribution status; only negative withdrawal and tightening are accepted. No paid-access grant issuance, redemption or positive relaxation is authorized. All nine other delivery sites retain their exact SQL literal/function/disposition and full-file fingerprint-based site identity. No production routing, release gate or direct D1 privilege changes. Strict delivery facade lint correction adds only a comment; source SHA re-attested and SQL unchanged.",
+  "rationale": "Exactly four authorizing delivery mutations (customer grant revocation, restrictive policy upsert, distribution withdrawal and active grant revocation) and one non-authorizing distribution event write moved from the shared delivery module to private legal authority. The owner independently reads the current grant, product, version, staff principal, permissions and prior distribution status; only negative withdrawal and tightening are accepted. No paid-access grant issuance, redemption or positive relaxation is authorized. All nine other delivery sites retain their exact SQL literal/function/disposition and full-file fingerprint-based site identity. No production routing, release gate or direct D1 privilege changes. Strict delivery facade lint correction adds only a comment; source SHA re-attested and SQL unchanged. Two additional negative-only expiry and exhaustion transitions are privately controlled; the owner rechecks token clock and use counter, and the public denial remains effective even if the owner is unavailable.",
   "files": [
     {
       "path": "src/features/fore/delivery.server.ts",
-      "sha256": "b5c2943b4d6d5b233f0c40e9d30081a72c2ffd82e38fa86752555b408426a5b7",
-      "review": "Verified each retained SQL statement text byte-for-byte against predecessor. Original five retired SQL fingerprints recorded in immutable audit lineage. A strict formatting-only file comment was added; all nine retained SQL literals and source classifications remain unchanged."
+      "sha256": "261c1a41beceaa6cc1ec8358058a76eb1d6c7110cc391fa379055b6423feacdf",
+      "review": "Verified each retained SQL statement text byte-for-byte against predecessor. Original five retired SQL fingerprints recorded in immutable audit lineage. A strict formatting-only file comment was added; all nine retained SQL literals and source classifications remain unchanged. Two expiration/exhaustion negative-only grant statuses are now private owner commands. All seven remaining source SQL candidates preserve their exact original SQL and disposition."
     }
   ]
 }
