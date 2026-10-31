@@ -38,10 +38,13 @@ jobs:
         run: |
           node scripts/check-cove-sounds-discovery.mjs
           node scripts/check-cove-sounds-snapshot.mjs
+          node scripts/check-sounds-source-reader.mjs
       - name: Build isolated private publisher
         run: node scripts/build-storefront-strangler.mjs
       - name: Require Cloudflare production publication permission
         run: test -n "$CLOUDFLARE_API_TOKEN"
+      - name: Install authenticated fixed-query reader on the disabled private owner
+        run: node scripts/staging/provision-sounds-source-reader.mjs
       - name: Seed private R2 and KV from read-only canonical publication metadata
         id: seed
         run: node scripts/staging/seed-cove-sounds-private.mjs

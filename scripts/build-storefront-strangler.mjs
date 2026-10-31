@@ -147,3 +147,13 @@ await build({
   external: ["node:*", "cloudflare:*"],
   logLevel: "silent",
 });
+
+await build({
+  entryPoints: ["src/storefront-strangler/sounds-source-reader.ts"],
+  outfile: ".output/strangler/sounds-source-reader.mjs",
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "es2022",
+  logLevel: "silent",
+});

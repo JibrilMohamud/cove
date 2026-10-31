@@ -20,6 +20,18 @@ assert.equal(bucket?.bucket_name, "cove-sounds-private-presentation",
 assert.equal(kv?.namespace_id, "544267f3cf604c1d8976f1b06d258e24",
   "Independent KV binding must be deployed before enabling snapshots");
 assert.ok(metrics, "Anonymous Analytics Engine binding must be deployed");
+// The scheduled publisher must not possess a production D1 capability.
+const publisherReply = await fetch(root + "/workers/scripts/cove-sounds-publication/settings", {
+  headers, signal: AbortSignal.timeout(30_000),
+});
+assert.ok(publisherReply.ok);
+const publisherData = await publisherReply.json();
+assert.equal(publisherData.success, true);
+const publisherBindings = publisherData.result?.bindings || [];
+assert.ok(!publisherBindings.some(b => b.type === "d1"), "Publisher retains a D1 capability");
+assert.ok(publisherBindings.some(b => b.name === "SOUNDS_SOURCE_READER" && b.type === "service" &&
+  b.service === "cove-legal-authority-production"), "Private owner source binding missing");
+assert.ok(publisherBindings.some(b => b.name === "COVE_SOUNDS_SOURCE_READER_SECRET" && b.type === "secret_text"));
 const paths = [
   "gothic-hour", "letters-never-sent", "beyond-the-old-woods",
   "rainlit-library", "the-long-voyage", "after-the-last-page",

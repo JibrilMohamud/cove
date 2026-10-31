@@ -37,6 +37,7 @@ try {
       presentation: "src/storefront-strangler/homepage-presentation.server.ts",
       driver: "src/storefront-strangler/publication-driver.worker.ts",
       capture: "src/storefront-strangler/publication-capture.server.ts",
+      sourceReader: "src/storefront-strangler/publication-source-reader.ts",
     },
     outdir: dir,
     bundle: true,
@@ -55,6 +56,7 @@ try {
   const { handleCoveApi } = await import(path.join(dir, "api.js"));
   const { default: driver } = await import(path.join(dir, "driver.js"));
   const { capturePublicSource } = await import(path.join(dir, "capture.js"));
+  const { readPublicationSource } = await import(path.join(dir, "sourceReader.js"));
   let invoked = 0;
   const control = {
     GATE: "a".repeat(64),
@@ -340,6 +342,64 @@ try {
     sourceDomain.prepare("SELECT COUNT(*) n FROM cove_publication_source_identity").get().n,
     1,
   );
+  // The deployed continuous capture has no canonical D1 binding. Exercise
+  // the actual fixed private reader and capture adapter together.
+  const readerSecret = "d".repeat(64);
+  const readerEnv = {
+    PRIMARY_DB: SOURCE_DB,
+    COVE_RIGHTS_OWNER_PRIMARY_ID: "4bd657ac-8789-403e-a28c-93aba8d0a989",
+    COVE_PUBLICATION_SOURCE_READER_SECRET: readerSecret,
+  };
+  const readerCall = (body, secret = readerSecret, customEnv = readerEnv) =>
+    readPublicationSource(
+      new Request("https://legal-authority.internal/__cove/publication/advisory-source", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: "Bearer " + secret },
+        body: JSON.stringify(body),
+      }),
+      customEnv,
+    );
+  const readsBefore = sourceSql.length;
+  assert.equal((await readerCall({}, "forged")).status, 401);
+  assert.equal((await readerCall({ sql: "DELETE FROM products" })).status, 400);
+  assert.equal((await readerCall({ country: "US", userId: "someone" })).status, 400);
+  assert.equal(
+    (await readerCall({}, readerSecret, { ...readerEnv, COVE_RIGHTS_OWNER_PRIMARY_ID: "qa" }))
+      .status,
+    503,
+  );
+  assert.equal(sourceSql.length, readsBefore, "Rejected private source requests must not touch D1");
+  const privateCapture = {
+    PUBLIC_SOURCE_DB,
+    COVE_PUBLICATION_CAPTURE_ENABLED: "1",
+    COVE_PUBLICATION_SOURCE_READER_SECRET: readerSecret,
+    SOURCE_READER: { fetch: (request) => readPublicationSource(request, readerEnv) },
+  };
+  const privateResult = await capturePublicSource(privateCapture);
+  assert.equal(privateResult.countries.length, 2);
+  assert.ok(privateResult.countries.every((c) => ["CA", "JP", "SA", "US"].includes(c)));
+  await assert.rejects(() => capturePublicSource({ ...privateCapture, SOURCE_DB }), /ambiguous/);
+  await assert.rejects(
+    () =>
+      capturePublicSource({
+        ...privateCapture,
+        SOURCE_READER: {
+          async fetch() {
+            return new Response(null, { status: 503 });
+          },
+        },
+      }),
+    /reader_unavailable/,
+  );
+  const privateConfig = JSON.parse(
+    fs.readFileSync("wrangler.publication-capture.prod-private.jsonc", "utf8"),
+  );
+  assert.ok(
+    !privateConfig.d1_databases.some(
+      (b) => b.binding === "SOURCE_DB" || b.database_id === "4bd657ac-8789-403e-a28c-93aba8d0a989",
+    ),
+  );
+  assert.equal(privateConfig.services[0].service, "cove-legal-authority-production");
   let materializedReads = 0;
   const MATERIALIZED_DB = {
     ...PUBLIC_SOURCE_DB,

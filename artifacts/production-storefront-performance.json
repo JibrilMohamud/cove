@@ -1,0 +1,236 @@
+{
+  "observedAt": "2026-10-31T13:35:30.882Z",
+  "origin": "https://www.covereads.com",
+  "note": "Synthetic runner TTFB is not field Core Web Vitals or a cold-cache guarantee.",
+  "assessment": {
+    "p75": 337,
+    "p95": 794,
+    "targetMs": 800,
+    "slowSamples": 1,
+    "failures": 0,
+    "status": "fail"
+  },
+  "results": [
+    {
+      "language": "en-US,en;q=0.9",
+      "sample": 1,
+      "ttfbMs": 3443,
+      "totalMs": 3506,
+      "timing": "cove_ssr_bootstrap;dur=249.8, cove_backend_context;dur=39.0, cove_backend_context;dur=39.0, cove_backend_limit;dur=56.0, cove_backend_catalog;dur=64.0, cove_backend_page;dur=0.0, cove_backend_bootstrap;dur=0.0, cove_backend_auth;dur=0.0, cove_backend_context;dur=39.0, cove_backend_log_queued;dur=0.0, cove_backend_api;dur=120.0, cove_entry;dur=0.0, cove_render;dur=299.3, cove_total;dur=301.0",
+      "vercelCache": "MISS",
+      "cards": 24,
+      "bytes": 139706,
+      "sequence": 1
+    },
+    {
+      "language": "es-ES,es;q=0.9",
+      "sample": 1,
+      "ttfbMs": 357,
+      "totalMs": 407,
+      "timing": "cove_ssr_bootstrap;dur=198.6, cove_backend_context;dur=37.0, cove_backend_context;dur=37.0, cove_backend_limit;dur=54.0, cove_backend_catalog;dur=51.0, cove_backend_page;dur=0.0, cove_backend_bootstrap;dur=0.0, cove_backend_auth;dur=0.0, cove_backend_context;dur=37.0, cove_backend_log_queued;dur=0.0, cove_backend_api;dur=105.0, cove_entry;dur=0.0, cove_render;dur=226.1, cove_total;dur=227.0",
+      "vercelCache": "MISS",
+      "cards": 24,
+      "bytes": 191674,
+      "sequence": 2
+    },
+    {
+      "language": "fr-FR,fr;q=0.9",
+      "sample": 1,
+      "ttfbMs": 321,
+      "totalMs": 420,
+      "timing": "cove_ssr_bootstrap;dur=195.5, cove_backend_context;dur=51.0, cove_backend_context;dur=51.0, cove_backend_limit;dur=51.0, cove_backend_catalog;dur=53.0, cove_backend_page;dur=0.0, cove_backend_bootstrap;dur=0.0, cove_backend_auth;dur=0.0, cove_backend_context;dur=51.0, cove_backend_log_queued;dur=0.0, cove_backend_api;dur=104.0, cove_entry;dur=0.0, cove_render;dur=218.3, cove_total;dur=219.5",
+      "vercelCache": "MISS",
+      "cards": 24,
+      "bytes": 192864,
+      "sequence": 3
+    },
+    {
+      "language": "de-DE,de;q=0.9",
+      "sample": 1,
+      "ttfbMs": 337,
+      "totalMs": 388,
+      "timing": "cove_ssr_bootstrap;dur=206.8, cove_backend_context;dur=60.0, cove_backend_limit;dur=59.0, cove_backend_context;dur=60.0, cove_backend_catalog;dur=60.0, cove_backend_page;dur=0.0, cove_backend_bootstrap;dur=0.0, cove_backend_auth;dur=0.0, cove_backend_context;dur=60.0, cove_backend_log_queued;dur=0.0, cove_backend_api;dur=119.0, cove_entry;dur=0.0, cove_render;dur=236.1, cove_total;dur=236.4",
+      "vercelCache": "MISS",
+      "cards": 24,
+      "bytes": 191606,
+      "sequence": 4
+    },
+    {
+      "language": "ar-SA,ar;q=0.9",
+      "sample": 1,
+      "ttfbMs": 355,
+      "totalMs": 398,
+      "timing": "cove_ssr_bootstrap;dur=194.0, cove_backend_context;dur=54.0, cove_backend_context;dur=54.0, cove_backend_limit;dur=54.0, cove_backend_catalog;dur=59.0, cove_backend_page;dur=0.0, cove_backend_bootstrap;dur=0.0, cove_backend_auth;dur=0.0, cove_backend_context;dur=54.0, cove_backend_log_queued;dur=0.0, cove_backend_api;dur=113.0, cove_entry;dur=0.0, cove_render;dur=232.1, cove_total;dur=232.6",
+      "vercelCache": "MISS",
+      "cards": 24,
+      "bytes": 203022,
+      "sequence": 5
+    },
+    {
+      "language": "fr-FR,fr;q=0.9",
+      "sample": 2,
+      "ttfbMs": 336,
+      "totalMs": 346,
+      "timing": "cove_ssr_bootstrap;dur=158.7, cove_entry;dur=0.0, cove_render;dur=196.4, cove_total;dur=197.3",
+      "vercelCache": "MISS",
+      "cards": 24,
+      "bytes": 192863,
+      "sequence": 6
+    },
+    {
+      "language": "de-DE,de;q=0.9",
+      "sample": 2,
+      "ttfbMs": 274,
+      "totalMs": 328,
+      "timing": "cove_ssr_bootstrap;dur=166.4, cove_entry;dur=0.0, cove_render;dur=188.4, cove_total;dur=188.9",
+      "vercelCache": "MISS",
+      "cards": 24,
+      "bytes": 191605,
+      "sequence": 7
+    },
+    {
+      "language": "ar-SA,ar;q=0.9",
+      "sample": 2,
+      "ttfbMs": 268,
+      "totalMs": 319,
+      "timing": "cove_ssr_bootstrap;dur=156.4, cove_entry;dur=0.0, cove_render;dur=183.9, cove_total;dur=184.2",
+      "vercelCache": "MISS",
+      "cards": 24,
+      "bytes": 203021,
+      "sequence": 8
+    },
+    {
+      "language": "en-US,en;q=0.9",
+      "sample": 2,
+      "ttfbMs": 312,
+      "totalMs": 355,
+      "timing": "cove_ssr_bootstrap;dur=166.6, cove_entry;dur=0.0, cove_render;dur=189.8, cove_total;dur=190.1",
+      "vercelCache": "MISS",
+      "cards": 24,
+      "bytes": 139705,
+      "sequence": 9
+    },
+    {
+      "language": "es-ES,es;q=0.9",
+      "sample": 2,
+      "ttfbMs": 315,
+      "totalMs": 361,
+      "timing": "cove_ssr_bootstrap;dur=201.7, cove_entry;dur=0.0, cove_render;dur=223.8, cove_total;dur=224.0",
+      "vercelCache": "MISS",
+      "cards": 24,
+      "bytes": 191673,
+      "sequence": 10
+    },
+    {
+      "language": "ar-SA,ar;q=0.9",
+      "sample": 3,
+      "ttfbMs": 333,
+      "totalMs": 338,
+      "timing": "cove_ssr_bootstrap;dur=157.7, cove_entry;dur=0.0, cove_render;dur=182.0, cove_total;dur=182.3",
+      "vercelCache": "MISS",
+      "cards": 24,
+      "bytes": 203021,
+      "sequence": 11
+    },
+    {
+      "language": "en-US,en;q=0.9",
+      "sample": 3,
+      "ttfbMs": 273,
+      "totalMs": 316,
+      "timing": "cove_ssr_bootstrap;dur=164.7, cove_entry;dur=0.0, cove_render;dur=180.5, cove_total;dur=180.7",
+      "vercelCache": "MISS",
+      "cards": 24,
+      "bytes": 139705,
+      "sequence": 12
+    },
+    {
+      "language": "es-ES,es;q=0.9",
+      "sample": 3,
+      "ttfbMs": 285,
+      "totalMs": 337,
+      "timing": "cove_ssr_bootstrap;dur=157.4, cove_entry;dur=0.0, cove_render;dur=176.5, cove_total;dur=176.8",
+      "vercelCache": "MISS",
+      "cards": 24,
+      "bytes": 191673,
+      "sequence": 13
+    },
+    {
+      "language": "fr-FR,fr;q=0.9",
+      "sample": 3,
+      "ttfbMs": 794,
+      "totalMs": 842,
+      "timing": "cove_ssr_bootstrap;dur=690.1, cove_entry;dur=0.0, cove_render;dur=712.8, cove_total;dur=713.1",
+      "vercelCache": "MISS",
+      "cards": 24,
+      "bytes": 192863,
+      "sequence": 14
+    },
+    {
+      "language": "de-DE,de;q=0.9",
+      "sample": 3,
+      "ttfbMs": 285,
+      "totalMs": 329,
+      "timing": "cove_ssr_bootstrap;dur=153.1, cove_entry;dur=0.0, cove_render;dur=177.5, cove_total;dur=177.7",
+      "vercelCache": "MISS",
+      "cards": 24,
+      "bytes": 191605,
+      "sequence": 15
+    },
+    {
+      "language": "es-ES,es;q=0.9",
+      "sample": 4,
+      "ttfbMs": 266,
+      "totalMs": 318,
+      "timing": "cove_ssr_bootstrap;dur=161.4, cove_entry;dur=0.0, cove_render;dur=185.5, cove_total;dur=186.0",
+      "vercelCache": "MISS",
+      "cards": 24,
+      "bytes": 191673,
+      "sequence": 16
+    },
+    {
+      "language": "fr-FR,fr;q=0.9",
+      "sample": 4,
+      "ttfbMs": 419,
+      "totalMs": 469,
+      "timing": "cove_ssr_bootstrap;dur=168.1, cove_entry;dur=0.0, cove_render;dur=189.9, cove_total;dur=190.2",
+      "vercelCache": "MISS",
+      "cards": 24,
+      "bytes": 192863,
+      "sequence": 17
+    },
+    {
+      "language": "de-DE,de;q=0.9",
+      "sample": 4,
+      "ttfbMs": 251,
+      "totalMs": 296,
+      "timing": "cove_ssr_bootstrap;dur=156.3, cove_entry;dur=0.0, cove_render;dur=172.2, cove_total;dur=172.5",
+      "vercelCache": "MISS",
+      "cards": 24,
+      "bytes": 191605,
+      "sequence": 18
+    },
+    {
+      "language": "ar-SA,ar;q=0.9",
+      "sample": 4,
+      "ttfbMs": 264,
+      "totalMs": 307,
+      "timing": "cove_ssr_bootstrap;dur=158.7, cove_entry;dur=0.0, cove_render;dur=174.8, cove_total;dur=175.3",
+      "vercelCache": "MISS",
+      "cards": 24,
+      "bytes": 203021,
+      "sequence": 19
+    },
+    {
+      "language": "en-US,en;q=0.9",
+      "sample": 4,
+      "ttfbMs": 306,
+      "totalMs": 309,
+      "timing": "cove_ssr_bootstrap;dur=152.3, cove_entry;dur=0.0, cove_render;dur=166.2, cove_total;dur=166.6",
+      "vercelCache": "MISS",
+      "cards": 24,
+      "bytes": 139705,
+      "sequence": 20
+    }
+  ],
+  "failures": []
+}

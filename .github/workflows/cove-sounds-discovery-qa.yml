@@ -12,6 +12,11 @@ on:
       - "scripts/staging/report-cove-sounds-verified-conversion.mjs"
       - "drizzle/0082_cove_sounds_verified_purchase_attribution.sql"
       - "src/storefront-strangler/sounds-publication.worker.ts"
+      - "src/storefront-strangler/sounds-source-reader.ts"
+      - "src/storefront-strangler/sounds-source-protocol.ts"
+      - "scripts/check-sounds-source-reader.mjs"
+      - "wrangler.sounds-publication.prod-isolated.jsonc"
+      - "wrangler.sounds-publication.prod-disabled.jsonc"
       - "scripts/check-cove-sounds-snapshot.mjs"
       - "src/features/fore/social.server.ts"
       - "scripts/browser-qa/sounds-discovery.spec.mjs"
@@ -37,6 +42,11 @@ on:
       - "scripts/staging/report-cove-sounds-verified-conversion.mjs"
       - "drizzle/0082_cove_sounds_verified_purchase_attribution.sql"
       - "src/storefront-strangler/sounds-publication.worker.ts"
+      - "src/storefront-strangler/sounds-source-reader.ts"
+      - "src/storefront-strangler/sounds-source-protocol.ts"
+      - "scripts/check-sounds-source-reader.mjs"
+      - "wrangler.sounds-publication.prod-isolated.jsonc"
+      - "wrangler.sounds-publication.prod-disabled.jsonc"
       - "scripts/check-cove-sounds-snapshot.mjs"
       - "src/features/fore/social.server.ts"
       - "scripts/browser-qa/sounds-discovery.spec.mjs"
@@ -69,6 +79,7 @@ jobs:
         run: |
           node scripts/check-cove-sounds-discovery.mjs
           node scripts/check-cove-sounds-snapshot.mjs
+          node scripts/check-sounds-source-reader.mjs
           node scripts/check-cove-sounds-verified-attribution.mjs
           node scripts/staging/report-cove-sounds-verified-conversion.mjs --self-test
       - name: Compile and verify all route and client imports
