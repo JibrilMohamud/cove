@@ -28,7 +28,9 @@ import {
   scopeToGrant,bucketBytes,ensureCatalogParties,publicationVersionManifest,
 } from "../features/fore/publishing.server";
 import {ownerContractVersionSchema} from "./owner-contract-version-schema";
-import {ApiError} from "../features/fore/service";
+import {ApiError,now} from "../features/fore/service";
+import {recordAction,assertScope,sha256} from "../features/fore/support.server";
+import type {StaffContext} from "../features/fore/moderation.server";
 import {mirrorPublishingMalwareResult} from "../features/fore/security.server";
 import {createContractVersionOwnerSchema,executeOwnerContractVersion} from "./owner-contract-version-executor";
 import {createMarketAuthoritySchema,denyMarket,marketIsWithdrawn} from "./market-authority-core";
@@ -4269,6 +4271,256 @@ async function refreshAgreementStatus(db: CoveEnv["DB"], editionId: string) {
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 
+/* eslint-disable @typescript-eslint/no-explicit-any -- Typed QA-only staff action ownership, production locked. */
+const supportOwnerId=(p:string)=>p+"_"+crypto.randomUUID();
+async function executeSupportActionOwned(
+  env: CoveEnv,
+  staff: StaffContext,
+  permission: (p: string) => boolean,
+  raw: unknown,
+  ownerSql:AuthoritySql,
+  ownerTransaction:(fn:()=>ReturnType<typeof denyPaidEntitlement>)=>ReturnType<typeof denyPaidEntitlement>,
+) {
+  const x = z
+      .object({
+        caseId: z.string().min(1),
+        actionType: z.enum([
+          "resend_receipt",
+          "refund",
+          "restore_entitlement",
+          "revoke_entitlement",
+          "reset_publication",
+          "requeue_download",
+          "revoke_device",
+          "security_recovery",
+          "note_only",
+        ]),
+        targetId: z.string().min(1),
+        reasonCode: z.string().min(2).max(120),
+        rationale: z.string().trim().min(10).max(5000),
+        idempotencyKey: z.string().min(16).max(200),
+        amountMinor: z.number().int().positive().optional(),
+      })
+      .parse(raw),
+    db = env.DB,
+    c = await db.prepare("SELECT * FROM support_cases WHERE id=?").bind(x.caseId).first<any>();
+  if (!c) throw new ApiError(404, "Support case not found.");
+  if (x.actionType === "refund" && !permission("support.refund"))
+    throw new ApiError(403, "Staff permission required: support.refund.");
+  if (x.actionType === "reset_publication" && !permission("support.publication.manage"))
+    throw new ApiError(403, "Staff permission required: support.publication.manage.");
+  if (x.actionType === "security_recovery" && !permission("account.recovery.manage"))
+    throw new ApiError(403, "Staff permission required: account.recovery.manage.");
+  if (
+    ["restore_entitlement", "revoke_entitlement"].includes(x.actionType) &&
+    !permission("support.entitlement.manage")
+  )
+    throw new ApiError(403, "Staff permission required: support.entitlement.manage.");
+  if (
+    ["revoke_device", "requeue_download"].includes(x.actionType) &&
+    !permission("support.device.manage")
+  )
+    throw new ApiError(403, "Staff permission required: support.device.manage.");
+  if (x.actionType === "resend_receipt" && !permission("support.receipt.resend"))
+    throw new ApiError(403, "Staff permission required: support.receipt.resend.");
+  if (x.actionType === "refund") {
+    throw new ApiError(503,"Provider-backed support refunds are not independently certified.");
+  }
+  if (x.actionType === "resend_receipt") {
+    const order = await db
+      .prepare(
+        "SELECT id,user_id,invoice_number,receipt_url,status FROM commerce_orders WHERE id=?",
+      )
+      .bind(x.targetId)
+      .first<any>();
+    if (!order) throw new ApiError(404, "Order not found.");
+    assertScope(c, order.id, "order");
+    assertScope(c, order.user_id, "user");
+    const at = now(),
+      notificationId = supportOwnerId("notif");
+    await db
+      .prepare(
+        "INSERT OR IGNORE INTO commerce_notifications(id,user_id,notification_type,dedupe_key,title,body,payload_json,created_at) VALUES(?,?,'receipt',?,?,?,?,?)",
+      )
+      .bind(
+        notificationId,
+        order.user_id,
+        `support-receipt:${x.idempotencyKey}`,
+        `Receipt ${order.invoice_number}`,
+        `Your Cove receipt ${order.invoice_number} is ready.`,
+        JSON.stringify({ orderId: order.id, receiptUrl: order.receipt_url || null }),
+        at,
+      )
+      .run();
+    await db
+      .prepare(
+        "INSERT OR IGNORE INTO publishing_outbox(id,event_type,aggregate_type,aggregate_id,payload_json,status,available_at,created_at) VALUES(?,?,?,?,?,'pending',?,?)",
+      )
+      .bind(
+        "outbox_support_"+(await sha256(x.idempotencyKey)).slice(0,48),
+        "support.receipt.resend",
+        "order",
+        order.id,
+        JSON.stringify({
+          userId: order.user_id,
+          orderId: order.id,
+          invoiceNumber: order.invoice_number,
+        }),
+        at,
+        at,
+      )
+      .run();
+    return recordAction(db, staff, { ...x, targetType: "order" }, order, {
+      queued: true,
+      notificationId,
+    });
+  }
+  if (["restore_entitlement", "revoke_entitlement"].includes(x.actionType)) {
+    // A support ticket cannot supply evidence for positive restoration.
+    if (x.actionType === "restore_entitlement")
+      throw new ApiError(503, "Fresh independent positive rights proof is required.");
+    const before = await db.prepare("SELECT * FROM entitlements WHERE id=?")
+      .bind(x.targetId).first<any>();
+    if (!before) throw new ApiError(404,"Entitlement not found.");
+    assertScope(c,before.user_id,"user");
+    assertScope(c,before.product_id,"product");
+    // Only commercial entitlements have a durable paid-authority epoch.
+    // Public-domain/non-paid grants require a separately scoped owner command.
+    if (!/^prd_(?!gutenberg_)[a-zA-Z0-9_-]{3,120}$/.test(String(before.product_id)))
+      throw new ApiError(503,"No strong owner authority for this entitlement class.");
+    const operationId = "support-entitlement:"+(await sha256(x.idempotencyKey));
+    const outcome=ownerTransaction(()=>denyPaidEntitlement(ownerSql,{
+      entitlementId:String(before.id),userId:String(before.user_id),
+      productId:String(before.product_id),operationId
+    }));
+    if (!outcome.applied) throw new ApiError(409,"An owner revocation superseded this action.");
+    await db.batch([
+      db.prepare("UPDATE entitlements SET status='revoked',updated_at=? WHERE id=? AND status<>'revoked'")
+        .bind(now(),x.targetId),
+      db.prepare("UPDATE audio_offline_licenses SET status='revoked',revoked_at=?,revocation_reason='entitlement_revoked' WHERE entitlement_id=? AND status='active'")
+        .bind(now(),x.targetId)
+    ]);
+    const after=await db.prepare("SELECT * FROM entitlements WHERE id=?")
+      .bind(x.targetId).first<any>();
+    if(!after||after.status!=="revoked")
+      throw new ApiError(503,"Owner denial applied but canonical reconciliation is incomplete.");
+    return recordAction(db,staff,{...x,targetType:"entitlement"},before,after);
+  }
+  if (x.actionType === "revoke_device") {
+    const before = await db
+      .prepare("SELECT * FROM devices WHERE id=?")
+      .bind(x.targetId)
+      .first<any>();
+    if (!before) throw new ApiError(404, "Device not found.");
+    assertScope(c, before.user_id, "user");
+    await db
+      .prepare("UPDATE devices SET revoked_at=COALESCE(revoked_at,?) WHERE id=?")
+      .bind(now(), x.targetId)
+      .run();
+    await db
+      .prepare(
+        "UPDATE audio_offline_licenses SET status='revoked',revoked_at=?,revocation_reason='support_device_revoke' WHERE device_id=? AND status='active'",
+      )
+      .bind(now(), x.targetId)
+      .run();
+    const after = await db
+      .prepare("SELECT * FROM devices WHERE id=?")
+      .bind(x.targetId)
+      .first<any>();
+    return recordAction(db, staff, { ...x, targetType: "device" }, before, after);
+  }
+  if (x.actionType === "reset_publication") {
+    const before = await db
+      .prepare(
+        `SELECT l.*,t.account_id,p.product_id FROM publishing_release_lifecycles l JOIN publishing_edition_drafts e ON e.id=l.publishing_edition_id JOIN publishing_titles t ON t.id=e.title_id LEFT JOIN publishing_publication_versions pv ON pv.id=l.current_publication_version_id LEFT JOIN publishing_publications p ON p.id=pv.publication_id WHERE l.publishing_edition_id=?`,
+      )
+      .bind(x.targetId)
+      .first<any>();
+    if (!before) throw new ApiError(404, "Publishing lifecycle not found.");
+    assertScope(c, before.account_id, "publisher");
+    if (before.product_id) assertScope(c, before.product_id, "product");
+    if (["suppressed", "takedown", "retired"].includes(String(before.state)))
+      throw new ApiError(
+        409,
+        "Trust & Safety enforcement cannot be bypassed through customer support.",
+      );
+    if (["live", "updated"].includes(String(before.state)))
+      throw new ApiError(
+        409,
+        "Live publications must be changed through Publishing Operations, not Customer Support.",
+      );
+    await db
+      .prepare(
+        "UPDATE publishing_release_lifecycles SET state='draft',state_reason='support_reset',updated_at=? WHERE publishing_edition_id=?",
+      )
+      .bind(now(), x.targetId)
+      .run();
+    await db
+      .prepare("UPDATE publishing_edition_drafts SET status='draft',updated_at=? WHERE id=?")
+      .bind(now(), x.targetId)
+      .run();
+    const after = await db
+      .prepare("SELECT * FROM publishing_release_lifecycles WHERE publishing_edition_id=?")
+      .bind(x.targetId)
+      .first<any>();
+    return recordAction(db, staff, { ...x, targetType: "publishing_edition" }, before, after);
+  }
+  if (x.actionType === "requeue_download") {
+    const before = await db
+      .prepare("SELECT * FROM audio_offline_licenses WHERE id=?")
+      .bind(x.targetId)
+      .first<any>();
+    if (!before) throw new ApiError(404, "Offline license not found.");
+    assertScope(c, before.user_id, "user");
+    assertScope(c, before.product_id, "product");
+    await db
+      .prepare(
+        "UPDATE audio_offline_licenses SET status='revoked',revoked_at=?,revocation_reason='support_reissue' WHERE id=? AND status='active'",
+      )
+      .bind(now(), x.targetId)
+      .run();
+    return recordAction(db, staff, { ...x, targetType: "offline_license" }, before, {
+      reissueRequired: true,
+    });
+  }
+  if (x.actionType === "security_recovery") {
+    const account = await db
+      .prepare("SELECT app_id,email FROM auth_accounts WHERE app_id=?")
+      .bind(x.targetId)
+      .first<any>();
+    if (!account) throw new ApiError(404, "Account not found.");
+    assertScope(c, account.app_id, "user");
+    const emailHash = await sha256(
+      String(account.email || "")
+        .trim()
+        .toLowerCase(),
+    );
+    await db
+      .prepare(
+        "INSERT INTO account_recovery_events(id,user_id,email_hash,event_type,actor_type,actor_user_id,metadata_json,created_at) VALUES(?,?,?,'staff_escalated','staff',?,?,?)",
+      )
+      .bind(
+        supportOwnerId("recovery"),
+        account.app_id,
+        emailHash,
+        staff.userId,
+        JSON.stringify({ caseId: x.caseId, reasonCode: x.reasonCode }),
+        now(),
+      )
+      .run();
+    return recordAction(
+      db,
+      staff,
+      { ...x, targetType: "user" },
+      { id: account.app_id, emailHash },
+      { recoveryEscalated: true },
+    );
+  }
+  return recordAction(db, staff, { ...x, targetType: "case" }, {}, { noteOnly: true });
+}
+
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 // QA-leased worker queues. All job ownership and retry transitions are
 // validated at the independently bound primary DB, not on the storefront D1 facade.
 /* eslint-disable @typescript-eslint/no-explicit-any -- QA lease-only D1 worker row shapes, release locked. */
@@ -4992,6 +5244,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/publishing/worker/jobs",
       "/publishing/audio/metadata",
       "/publishing/onboarding/review",
+      "/support/private-action",
       "/publishing/contract/save-version",
       "/publication/materialize-submission",
       "/publication/activate-version",
@@ -5004,7 +5257,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     let raw:unknown;
     try {
       const bytes=await request.text();
-      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/create-quote"?4096:route==="/publishing/audio/register-upload"?8192:route==="/publishing/audio/qc-jobs"?262144:route==="/publishing/worker/jobs"?262144:route==="/publishing/audio/metadata"?8192:route==="/publishing/onboarding/review"?8192:route==="/commercial/checkout/materialize-draft"?2048:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
+      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/create-quote"?4096:route==="/publishing/audio/register-upload"?8192:route==="/publishing/audio/qc-jobs"?262144:route==="/publishing/worker/jobs"?262144:route==="/publishing/audio/metadata"?8192:route==="/publishing/onboarding/review"?8192:route==="/support/private-action"?8192:route==="/commercial/checkout/materialize-draft"?2048:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
       raw=JSON.parse(bytes);
     }catch {return new Response(null,{status:400,headers:noStore});}
     const sql=this.ctx.storage.sql as unknown as AuthoritySql;
@@ -5289,6 +5542,62 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         sql.exec("INSERT INTO cove_audio_metadata_command_receipts(operation_id,request_digest,receipt_json) VALUES(?,?,?)",
           input.operationId,requestDigest,JSON.stringify(ack));
         return Response.json(ack,{headers:noStore});
+      }
+      if(route==="/support/private-action") {
+        const input=z.object({
+          staffUserId:z.string().regex(/^[A-Za-z0-9_-]{3,160}$/),
+          operationId:z.string().regex(/^support:[a-f0-9]{64}$/),
+          action:z.object({
+            caseId:z.string().min(1),actionType:z.enum([
+              "resend_receipt","refund","restore_entitlement","revoke_entitlement",
+              "reset_publication","requeue_download","revoke_device","security_recovery","note_only"
+            ]),
+            targetId:z.string().min(1),reasonCode:z.string().min(2).max(120),
+            rationale:z.string().trim().min(10).max(5000),
+            idempotencyKey:z.string().min(16).max(200),
+            amountMinor:z.number().int().positive().optional()
+          }).strict()
+        }).strict().parse(raw);
+        if(input.operationId!=="support:"+(await sha256(input.action.idempotencyKey)))
+          return new Response(null,{status:400,headers:noStore});
+        const staff=await env.PRIMARY_DB.prepare(
+          "SELECT user_id FROM staff_principals WHERE user_id=? AND status='active'"
+        ).bind(input.staffUserId).first<{user_id:string}>();
+        const perms=(await env.PRIMARY_DB.prepare(
+          "SELECT p.permission FROM staff_principal_roles pr JOIN staff_role_permissions p ON p.role_id=pr.role_id WHERE pr.user_id=?"
+        ).bind(input.staffUserId).all<{permission:string}>()).results.map(r=>r.permission);
+        if(!staff||!perms.length)return new Response(null,{status:403,headers:noStore});
+        const expected={
+          refund:"support.refund",restore_entitlement:"support.entitlement.manage",
+          revoke_entitlement:"support.entitlement.manage",reset_publication:"support.publication.manage",
+          requeue_download:"support.device.manage",revoke_device:"support.device.manage",
+          security_recovery:"account.recovery.manage",resend_receipt:"support.receipt.resend",
+          note_only:"support.case.manage"
+        }[input.action.actionType];
+        if(!expected||!perms.includes(expected))return new Response(null,{status:403,headers:noStore});
+        const previous=await env.PRIMARY_DB.prepare(
+          "SELECT * FROM support_actions WHERE idempotency_key=?"
+        ).bind(input.action.idempotencyKey).first<any>();
+        if(previous&&(
+          previous.staff_user_id!==input.staffUserId||
+          previous.case_id!==input.action.caseId||
+          previous.action_type!==input.action.actionType||
+          previous.target_id!==input.action.targetId
+        ))return new Response(null,{status:409,headers:noStore});
+        const result=previous||await executeSupportActionOwned(
+          {DB:env.PRIMARY_DB,COVE_SSR_STAGING:"1"} as unknown as CoveEnv,
+          {userId:input.staffUserId} as StaffContext,
+          p=>perms.includes(p),input.action,sql,
+          fn=>(this.ctx.storage as typeof this.ctx.storage & {
+            transactionSync<T>(fn:()=>T):T
+          }).transactionSync(fn)
+        );
+        return Response.json({
+          schema:"cove.owner-support-action.v1",ownerFirst:true,
+          operationId:input.operationId,actionType:input.action.actionType,
+          staffUserId:input.staffUserId,caseId:input.action.caseId,
+          result
+        },{headers:noStore});
       }
       if(route==="/publishing/onboarding/review") {
         const input=z.object({

@@ -1,0 +1,25 @@
+/* eslint-disable prettier/prettier -- Source retirement check is not a production release certificate. */
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+const get=p=>readFileSync(p,"utf8");
+const source=get("src/features/fore/support.server.ts");
+const owner=get("src/storefront-strangler/legal-authority.worker.ts");
+const gateway=get("src/storefront-strangler/canonical-owner-command-gateway.ts");
+const routing=get("src/storefront-strangler/publication-owner-routing.server.ts");
+const review=JSON.parse(get("docs/architecture/canonical-writer-review.json"));
+const lineage=JSON.parse(get("docs/architecture/retired-support-owner-lineage.json"));
+assert.equal(lineage.retiredSiteIds.length,8);
+assert.equal(review.releaseApproval,false);
+assert.equal(review.sites.filter(x=>x.disposition==="owner-command-required").length,209);
+assert.equal(review.sites.filter(x=>x.file==="src/features/fore/support.server.ts").length,0);
+assert.ok(lineage.retiredSiteIds.every(id=>!review.sites.some(x=>x.siteId===id)));
+assert.doesNotMatch(source,/\b(?:INSERT(?: OR IGNORE)? INTO|UPDATE)\s+(?:entitlements|audio_offline_licenses|devices|commerce_notifications|publishing_outbox|publishing_release_lifecycles|publishing_edition_drafts)\b/i);
+assert.match(source,/dispatchSupportOwnerAction\(env.DB/);
+assert.match(owner,/if\(route==="\/support\/private-action"\)/);
+assert.match(owner,/SELECT user_id FROM staff_principals WHERE user_id=\? AND status='active'/);
+assert.match(owner,/denyPaidEntitlement\(ownerSql/);
+assert.match(owner,/Provider-backed support refunds are not independently certified/);
+assert.match(owner,/Fresh independent positive rights proof is required/);
+assert.match(gateway,/"support.execute-action":\{path:"\/support\/private-action"/);
+assert.match(routing,/if\(!context\)throw new ApiError\(503,"Support operations require a private canonical owner/);
+console.log("PASS: 8 support writer sites retired into QA-only owner; 209 unresolved; release blocked");

@@ -149,6 +149,19 @@ const routes={
     action:z.enum(["profile","narrators","agreement-add","agreement-end"]),
     userId:subject,payload:z.record(z.string(),z.unknown()),operationId:shortOperation
   }).strict()},
+  "support.execute-action":{path:"/support/private-action",schema:z.object({
+    staffUserId:subject,operationId:z.string().regex(/^support:[a-f0-9]{64}$/),
+    action:z.object({
+      caseId:z.string().min(1),actionType:z.enum([
+        "resend_receipt","refund","restore_entitlement","revoke_entitlement",
+        "reset_publication","requeue_download","revoke_device","security_recovery","note_only"
+      ]),
+      targetId:z.string().min(1),reasonCode:z.string().min(2).max(120),
+      rationale:z.string().trim().min(10).max(5000),
+      idempotencyKey:z.string().min(16).max(200),
+      amountMinor:z.number().int().positive().optional()
+    }).strict()
+  }).strict()},
   "publishing.review-onboarding":{path:"/publishing/onboarding/review",schema:z.object({
     reviewerUserId:subject,accountId:subject,recordId:subject,
     kind:z.enum(["identity","tax","payout"]),
@@ -457,6 +470,13 @@ export async function dispatchCanonicalOwnerCommand(
          (["agreement-add","agreement-end"].includes(String(ack.action))&&
           (typeof ack.result.id!=="string"||ack.result.id.length<3)))
         throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "support.execute-action":
+      if(ack.schema!=="cove.owner-support-action.v1"||ack.ownerFirst!==true||
+         ack.operationId!==body.operationId||ack.staffUserId!==body.staffUserId||
+         ack.actionType!==(body.action as Record<string,unknown>).actionType||
+         ack.caseId!==(body.action as Record<string,unknown>).caseId||
+         !record(ack.result))throw Error("canonical_command_receipt_mismatch");
       break;
     case "publishing.review-onboarding":
       if(ack.schema!=="cove.owner-publishing-onboarding-negative.v1"||ack.ownerFirst!==true||

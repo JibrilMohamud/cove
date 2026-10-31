@@ -1,8 +1,7 @@
 import { z } from "zod/v3";
 import type { CoveEnv } from "./api.server";
 import { ApiError, now } from "./service";
-import { refundOrder } from "./commerce.server";
-import { executeStageCanonicalAdminCommand } from "../../storefront-strangler/legal-admin-owner-commands.server";
+import { dispatchSupportOwnerAction } from "../../storefront-strangler/publication-owner-routing.server";
 import type { StaffContext } from "./moderation.server";
 
 const id = (p: string) => `${p}_${crypto.randomUUID()}`;
@@ -13,7 +12,7 @@ const parse = (s: any) => {
     return {};
   }
 };
-async function sha256(value: string) {
+export async function sha256(value: string) {
   const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return [...new Uint8Array(d)].map((x) => x.toString(16).padStart(2, "0")).join("");
 }
@@ -317,7 +316,7 @@ export async function addSupportNote(db: CoveEnv["DB"], staff: StaffContext, raw
   return { saved: true };
 }
 
-async function recordAction(
+export async function recordAction(
   db: CoveEnv["DB"],
   staff: StaffContext,
   x: {
@@ -370,7 +369,7 @@ async function recordAction(
   await db.prepare("UPDATE support_cases SET updated_at=? WHERE id=?").bind(at, x.caseId).run();
   return { id: actionId };
 }
-function assertScope(c: any, target: any, kind: "user" | "order" | "product" | "publisher") {
+export function assertScope(c: any, target: any, kind: "user" | "order" | "product" | "publisher") {
   if (kind === "user" && c.user_id && String(target) !== String(c.user_id))
     throw new ApiError(409, "This action target is outside the support case customer scope.");
   if (kind === "order" && c.order_id && String(target) !== String(c.order_id))
@@ -385,324 +384,27 @@ function assertScope(c: any, target: any, kind: "user" | "order" | "product" | "
     throw new ApiError(409, "This action target is outside the support case publisher scope.");
 }
 
+/**
+ * All canonical support actions now enter a private, independently leased QA
+ * owner. Do not restore the previous direct D1 action handler. Production
+ * without the private owner deliberately fails closed.
+ */
 export async function executeSupportAction(
-  env: CoveEnv,
-  staff: StaffContext,
-  permission: (p: string) => boolean,
-  raw: unknown,
+  env: CoveEnv, staff: StaffContext, permission: (p:string)=>boolean, raw:unknown
 ) {
-  const x = z
-      .object({
-        caseId: z.string().min(1),
-        actionType: z.enum([
-          "resend_receipt",
-          "refund",
-          "restore_entitlement",
-          "revoke_entitlement",
-          "reset_publication",
-          "requeue_download",
-          "revoke_device",
-          "security_recovery",
-          "note_only",
-        ]),
-        targetId: z.string().min(1),
-        reasonCode: z.string().min(2).max(120),
-        rationale: z.string().trim().min(10).max(5000),
-        idempotencyKey: z.string().min(16).max(200),
-        amountMinor: z.number().int().positive().optional(),
-      })
-      .parse(raw),
-    db = env.DB,
-    c = await db.prepare("SELECT * FROM support_cases WHERE id=?").bind(x.caseId).first<any>();
-  if (!c) throw new ApiError(404, "Support case not found.");
-  if (x.actionType === "refund" && !permission("support.refund"))
-    throw new ApiError(403, "Staff permission required: support.refund.");
-  if (x.actionType === "reset_publication" && !permission("support.publication.manage"))
-    throw new ApiError(403, "Staff permission required: support.publication.manage.");
-  if (x.actionType === "security_recovery" && !permission("account.recovery.manage"))
-    throw new ApiError(403, "Staff permission required: account.recovery.manage.");
-  if (
-    ["restore_entitlement", "revoke_entitlement"].includes(x.actionType) &&
-    !permission("support.entitlement.manage")
-  )
-    throw new ApiError(403, "Staff permission required: support.entitlement.manage.");
-  if (
-    ["revoke_device", "requeue_download"].includes(x.actionType) &&
-    !permission("support.device.manage")
-  )
-    throw new ApiError(403, "Staff permission required: support.device.manage.");
-  if (x.actionType === "resend_receipt" && !permission("support.receipt.resend"))
-    throw new ApiError(403, "Staff permission required: support.receipt.resend.");
-  if (x.actionType === "refund") {
-    const before = await db
-      .prepare(
-        "SELECT id,status,total_minor,refunded_minor,currency,user_id FROM commerce_orders WHERE id=?",
-      )
-      .bind(x.targetId)
-      .first<any>();
-    if (!before) throw new ApiError(404, "Order not found.");
-    assertScope(c, before.id, "order");
-    assertScope(c, before.user_id, "user");
-    const result = await refundOrder(env, {
-      orderId: x.targetId,
-      amountMinor: x.amountMinor,
-      reason: x.reasonCode,
-      idempotencyKey: `support:${x.idempotencyKey}`,
-    });
-    return recordAction(
-      db,
-      staff,
-      { ...x, targetType: "order" },
-      before,
-      result,
-      result.providerRefundId || "",
-    );
-  }
-  if (x.actionType === "resend_receipt") {
-    const order = await db
-      .prepare(
-        "SELECT id,user_id,invoice_number,receipt_url,status FROM commerce_orders WHERE id=?",
-      )
-      .bind(x.targetId)
-      .first<any>();
-    if (!order) throw new ApiError(404, "Order not found.");
-    assertScope(c, order.id, "order");
-    assertScope(c, order.user_id, "user");
-    const at = now(),
-      notificationId = id("notif");
-    await db
-      .prepare(
-        "INSERT OR IGNORE INTO commerce_notifications(id,user_id,notification_type,dedupe_key,title,body,payload_json,created_at) VALUES(?,?,'receipt',?,?,?,?,?)",
-      )
-      .bind(
-        notificationId,
-        order.user_id,
-        `support-receipt:${x.idempotencyKey}`,
-        `Receipt ${order.invoice_number}`,
-        `Your Cove receipt ${order.invoice_number} is ready.`,
-        JSON.stringify({ orderId: order.id, receiptUrl: order.receipt_url || null }),
-        at,
-      )
-      .run();
-    await db
-      .prepare(
-        "INSERT INTO publishing_outbox(id,event_type,aggregate_type,aggregate_id,payload_json,status,available_at,created_at) VALUES(?,?,?,?,?,'pending',?,?)",
-      )
-      .bind(
-        id("outbox"),
-        "support.receipt.resend",
-        "order",
-        order.id,
-        JSON.stringify({
-          userId: order.user_id,
-          orderId: order.id,
-          invoiceNumber: order.invoice_number,
-        }),
-        at,
-        at,
-      )
-      .run();
-    return recordAction(db, staff, { ...x, targetType: "order" }, order, {
-      queued: true,
-      notificationId,
-    });
-  }
-  if (["restore_entitlement", "revoke_entitlement"].includes(x.actionType)) {
-    const before = await db
-      .prepare("SELECT * FROM entitlements WHERE id=?")
-      .bind(x.targetId)
-      .first<any>();
-    if (!before) throw new ApiError(404, "Entitlement not found.");
-    assertScope(c, before.user_id, "user");
-    assertScope(c, before.product_id, "product");
-    if (x.actionType === "restore_entitlement") {
-      const p = await db
-        .prepare("SELECT storefront_status FROM products WHERE id=?")
-        .bind(before.product_id)
-        .first<any>();
-      const enforcement = await db
-        .prepare(
-          `SELECT l.state FROM publishing_release_lifecycles l JOIN publishing_edition_drafts e ON e.id=l.publishing_edition_id WHERE e.catalog_product_id=? ORDER BY l.updated_at DESC LIMIT 1`,
-        )
-        .bind(before.product_id)
-        .first<any>();
-      if (!p || ["suppressed", "takedown", "retired"].includes(String(enforcement?.state || "")))
-        throw new ApiError(
-          409,
-          "Trust & Safety enforcement prevents entitlement restoration for this product.",
-        );
-      if (before.order_item_id) {
-        const order = await db
-          .prepare(
-            "SELECT o.status FROM commerce_orders o JOIN commerce_order_items oi ON oi.order_id=o.id WHERE oi.id=?",
-          )
-          .bind(before.order_item_id)
-          .first<any>();
-        if (order && ["refunded", "canceled", "chargeback_lost"].includes(String(order.status)))
-          throw new ApiError(
-            409,
-            "The originating order no longer supports an active sale entitlement. Refund/chargeback state must be resolved through commerce operations.",
-          );
-      }
-    }
-    // Negative support actions must cross the same strongly consistent
-    // owner boundary as refunds. The owner derives the buyer and product
-    // from canonical evidence; support staff cannot supply either identity.
-    // The private writer commits its durable denial FIRST, then reconciles
-    // the entitlement and related offline-license state in primary D1.
-    // Repeating the same case operation repairs D1 after an owner-first
-    // partial failure, without regranting withdrawn rights.
-    const ownerStaging =
-      env.COVE_SSR_STAGING === "1" ||
-      env.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1" ||
-      env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1";
-    if (ownerStaging) {
-      if (x.actionType === "restore_entitlement")
-        throw new ApiError(
-          503,
-          "Staging entitlement restoration requires fresh owner-verified positive rights.",
-        );
-      const operationId = "support-entitlement:" + (await sha256(x.idempotencyKey));
-      await executeStageCanonicalAdminCommand(env, {
-        action: "revoke-entitlement",
-        entitlementId: x.targetId,
-        operationId,
-      });
-      const after = await db
-        .prepare("SELECT * FROM entitlements WHERE id=?")
-        .bind(x.targetId)
-        .first<{ id: string; status: string }>();
-      if (!after || after.status !== "revoked")
-        throw new ApiError(503, "Owner-first entitlement denial was not reconciled.");
-      return recordAction(db, staff, { ...x, targetType: "entitlement" }, before, after);
-    }
-    const status = x.actionType === "restore_entitlement" ? "active" : "revoked";
-    await db
-      .prepare("UPDATE entitlements SET status=?,updated_at=? WHERE id=?")
-      .bind(status, now(), x.targetId)
-      .run();
-    if (status === "revoked")
-      await db
-        .prepare(
-          "UPDATE audio_offline_licenses SET status='revoked',revoked_at=?,revocation_reason='entitlement_revoked' WHERE entitlement_id=? AND status='active'",
-        )
-        .bind(now(), x.targetId)
-        .run();
-    const after = await db
-      .prepare("SELECT * FROM entitlements WHERE id=?")
-      .bind(x.targetId)
-      .first<any>();
-    return recordAction(db, staff, { ...x, targetType: "entitlement" }, before, after);
-  }
-  if (x.actionType === "revoke_device") {
-    const before = await db
-      .prepare("SELECT * FROM devices WHERE id=?")
-      .bind(x.targetId)
-      .first<any>();
-    if (!before) throw new ApiError(404, "Device not found.");
-    assertScope(c, before.user_id, "user");
-    await db
-      .prepare("UPDATE devices SET revoked_at=COALESCE(revoked_at,?) WHERE id=?")
-      .bind(now(), x.targetId)
-      .run();
-    await db
-      .prepare(
-        "UPDATE audio_offline_licenses SET status='revoked',revoked_at=?,revocation_reason='support_device_revoke' WHERE device_id=? AND status='active'",
-      )
-      .bind(now(), x.targetId)
-      .run();
-    const after = await db
-      .prepare("SELECT * FROM devices WHERE id=?")
-      .bind(x.targetId)
-      .first<any>();
-    return recordAction(db, staff, { ...x, targetType: "device" }, before, after);
-  }
-  if (x.actionType === "reset_publication") {
-    const before = await db
-      .prepare(
-        `SELECT l.*,t.account_id,p.product_id FROM publishing_release_lifecycles l JOIN publishing_edition_drafts e ON e.id=l.publishing_edition_id JOIN publishing_titles t ON t.id=e.title_id LEFT JOIN publishing_publication_versions pv ON pv.id=l.current_publication_version_id LEFT JOIN publishing_publications p ON p.id=pv.publication_id WHERE l.publishing_edition_id=?`,
-      )
-      .bind(x.targetId)
-      .first<any>();
-    if (!before) throw new ApiError(404, "Publishing lifecycle not found.");
-    assertScope(c, before.account_id, "publisher");
-    if (before.product_id) assertScope(c, before.product_id, "product");
-    if (["suppressed", "takedown", "retired"].includes(String(before.state)))
-      throw new ApiError(
-        409,
-        "Trust & Safety enforcement cannot be bypassed through customer support.",
-      );
-    if (["live", "updated"].includes(String(before.state)))
-      throw new ApiError(
-        409,
-        "Live publications must be changed through Publishing Operations, not Customer Support.",
-      );
-    await db
-      .prepare(
-        "UPDATE publishing_release_lifecycles SET state='draft',state_reason='support_reset',updated_at=? WHERE publishing_edition_id=?",
-      )
-      .bind(now(), x.targetId)
-      .run();
-    await db
-      .prepare("UPDATE publishing_edition_drafts SET status='draft',updated_at=? WHERE id=?")
-      .bind(now(), x.targetId)
-      .run();
-    const after = await db
-      .prepare("SELECT * FROM publishing_release_lifecycles WHERE publishing_edition_id=?")
-      .bind(x.targetId)
-      .first<any>();
-    return recordAction(db, staff, { ...x, targetType: "publishing_edition" }, before, after);
-  }
-  if (x.actionType === "requeue_download") {
-    const before = await db
-      .prepare("SELECT * FROM audio_offline_licenses WHERE id=?")
-      .bind(x.targetId)
-      .first<any>();
-    if (!before) throw new ApiError(404, "Offline license not found.");
-    assertScope(c, before.user_id, "user");
-    assertScope(c, before.product_id, "product");
-    await db
-      .prepare(
-        "UPDATE audio_offline_licenses SET status='revoked',revoked_at=?,revocation_reason='support_reissue' WHERE id=? AND status='active'",
-      )
-      .bind(now(), x.targetId)
-      .run();
-    return recordAction(db, staff, { ...x, targetType: "offline_license" }, before, {
-      reissueRequired: true,
-    });
-  }
-  if (x.actionType === "security_recovery") {
-    const account = await db
-      .prepare("SELECT app_id,email FROM auth_accounts WHERE app_id=?")
-      .bind(x.targetId)
-      .first<any>();
-    if (!account) throw new ApiError(404, "Account not found.");
-    assertScope(c, account.app_id, "user");
-    const emailHash = await sha256(
-      String(account.email || "")
-        .trim()
-        .toLowerCase(),
-    );
-    await db
-      .prepare(
-        "INSERT INTO account_recovery_events(id,user_id,email_hash,event_type,actor_type,actor_user_id,metadata_json,created_at) VALUES(?,?,?,'staff_escalated','staff',?,?,?)",
-      )
-      .bind(
-        id("recovery"),
-        account.app_id,
-        emailHash,
-        staff.userId,
-        JSON.stringify({ caseId: x.caseId, reasonCode: x.reasonCode }),
-        now(),
-      )
-      .run();
-    return recordAction(
-      db,
-      staff,
-      { ...x, targetType: "user" },
-      { id: account.app_id, emailHash },
-      { recoveryEscalated: true },
-    );
-  }
-  return recordAction(db, staff, { ...x, targetType: "case" }, {}, { noteOnly: true });
+  // Retain the public authenticated staff entry and independently verify again
+  // at the owner; caller-provided permission booleans are never authoritative.
+  if (!staff?.userId) throw new ApiError(403,"Staff identity is required.");
+  const parsed=z.object({
+    caseId:z.string().min(1),actionType:z.enum([
+      "resend_receipt","refund","restore_entitlement","revoke_entitlement",
+      "reset_publication","requeue_download","revoke_device","security_recovery","note_only"
+    ]),
+    targetId:z.string().min(1),reasonCode:z.string().min(2).max(120),
+    rationale:z.string().trim().min(10).max(5000),
+    idempotencyKey:z.string().min(16).max(200),
+    amountMinor:z.number().int().positive().optional()
+  }).parse(raw);
+  // A missing/expired QA owner binding is not permission to fall back to D1.
+  return dispatchSupportOwnerAction(env.DB,staff.userId,parsed);
 }
