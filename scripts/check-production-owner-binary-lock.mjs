@@ -18,10 +18,7 @@ const lockedConfig = JSON.parse(
   readFileSync("wrangler.legal-authority.production-locked.jsonc", "utf8"),
 );
 assert.equal(lockedConfig.name, "cove-legal-authority-production");
-assert.equal(
-  lockedConfig.main,
-  ".output/strangler/legal-authority.production-locked.mjs",
-);
+assert.equal(lockedConfig.main, ".output/strangler/legal-authority.production-locked.mjs");
 const provisioner = readFileSync(
   "scripts/staging/provision-literary-owner-capabilities.mjs",
   "utf8",
