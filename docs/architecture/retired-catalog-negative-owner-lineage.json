@@ -6,7 +6,7 @@
   "releaseApproval": false,
   "sourceFile": "src/features/fore/api.server.ts",
   "previousSha256": "a7343cab1ecf7643ce84ca88ca3532683ce7b3a983a416192a6de9856e8a2321",
-  "currentSha256": "f412a0a8255986ed45749405c097fd69a7dcb318e3605f459d2775668bafefa3",
+  "currentSha256": "632f895215957af9dba88942146439880986dc7fe60cb513e05036086227e33e",
   "retired": [
     {
       "file": "src/features/fore/api.server.ts",

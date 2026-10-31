@@ -1,3 +1,4 @@
+import { dispatchCatalogRegionalState } from "../../storefront-strangler/publication-owner-routing.server";
 import {
   dispatchCatalogNegativeSource,
   dispatchCatalogStaleWithdrawal,
@@ -1722,12 +1723,15 @@ export async function runRegionalCatalogIngestion(
   const leaseUntil = new Date(Date.now() + 5 * 60 * 1000).toISOString();
   const runId = `gir_${crypto.randomUUID()}`;
   let cursorBefore = Math.max(0, Number.parseInt(String(due.cursor || "0"), 10) || 0);
-  const acquired = await db
-    .prepare(
-      `UPDATE gutenberg_source_states SET status='running',lease_token=?,lease_until=?,last_run_at=?,last_error='',updated_at=? WHERE source_id=? AND (lease_until IS NULL OR lease_until='' OR lease_until<?) AND (next_run_at IS NULL OR next_run_at='' OR next_run_at<=?) RETURNING source_id`,
-    )
-    .bind(lease, leaseUntil, current, current, sourceId, current, current)
-    .first<{ source_id: string }>();
+  const acquired = (
+    await dispatchCatalogRegionalState(db, {
+      action: "acquire",
+      sourceId,
+      leaseToken: lease,
+      runId,
+      data: {},
+    })
+  ).acquired;
   if (!acquired) return { skipped: "regional-source-running" };
   await db
     .prepare(
@@ -1744,12 +1748,13 @@ export async function runRegionalCatalogIngestion(
     const result = await fetchRegionalCatalog(sourceId, env, headers, deadlineMs);
     if (result.status === "degraded") {
       const next = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
-      await db
-        .prepare(
-          `UPDATE gutenberg_source_states SET status='degraded',last_error=?,next_run_at=?,lease_token=NULL,lease_until=NULL,updated_at=? WHERE source_id=? AND lease_token=?`,
-        )
-        .bind(result.warning, next, now(), sourceId, lease)
-        .run();
+      await dispatchCatalogRegionalState(db, {
+        action: "degraded",
+        sourceId,
+        leaseToken: lease,
+        runId,
+        data: { warning: result.warning, next },
+      });
       await db
         .prepare(
           `UPDATE gutenberg_ingest_runs SET completed_at=?,status='partial',cursor_after=?,error=? WHERE id=?`,
@@ -1765,13 +1770,13 @@ export async function runRegionalCatalogIngestion(
     }
     if (result.status === "not-modified") {
       const next = new Date(Date.now() + Number(due.refresh_seconds || 86400) * 1000).toISOString();
-      await db
-        .prepare(
-          `UPDATE gutenberg_source_states SET status='idle',cursor=NULL,cycle_started_at=NULL,last_success_at=?,attempts=0,next_run_at=?,lease_token=NULL,lease_until=NULL,
-        etag=COALESCE(NULLIF(?,''),etag),last_modified=COALESCE(NULLIF(?,''),last_modified),updated_at=? WHERE source_id=? AND lease_token=?`,
-        )
-        .bind(now(), next, result.etag, result.lastModified, now(), sourceId, lease)
-        .run();
+      await dispatchCatalogRegionalState(db, {
+        action: "unchanged",
+        sourceId,
+        leaseToken: lease,
+        runId,
+        data: { next, etag: result.etag, lastModified: result.lastModified },
+      });
       await db
         .prepare(
           `UPDATE gutenberg_ingest_runs SET completed_at=?,status='not-modified',cursor_after=NULL,response_etag=?,response_last_modified=? WHERE id=?`,
@@ -1795,22 +1800,18 @@ export async function runRegionalCatalogIngestion(
     ) {
       const completed = now();
       const next = new Date(Date.now() + Number(due.refresh_seconds || 86400) * 1000).toISOString();
-      await db
-        .prepare(
-          `UPDATE gutenberg_source_states SET status='idle',cursor=NULL,cycle_started_at=NULL,last_success_at=?,last_error='',attempts=0,next_run_at=?,lease_token=NULL,lease_until=NULL,
-        etag=?,last_modified=?,content_hash=?,updated_at=? WHERE source_id=? AND lease_token=?`,
-        )
-        .bind(
-          completed,
+      await dispatchCatalogRegionalState(db, {
+        action: "same-snapshot",
+        sourceId,
+        leaseToken: lease,
+        runId,
+        data: {
           next,
-          result.etag,
-          result.lastModified,
-          result.bodyHash,
-          completed,
-          sourceId,
-          lease,
-        )
-        .run();
+          etag: result.etag,
+          lastModified: result.lastModified,
+          bodyHash: result.bodyHash,
+        },
+      });
       await db
         .prepare(
           `UPDATE gutenberg_ingest_runs SET completed_at=?,status='not-modified',cursor_after=NULL,fetched_count=?,response_etag=?,response_last_modified=?,response_hash=? WHERE id=?`,
@@ -1899,29 +1900,27 @@ export async function runRegionalCatalogIngestion(
         ).staleCount
       : 0;
 
-    await db
-      .prepare(
-        `UPDATE gutenberg_source_states SET status='idle',cursor=?,cycle_started_at=?,last_success_at=?,last_error='',attempts=0,total_catalog_count=?,
-      seen_count=seen_count+?,accepted_count=accepted_count+?,quarantined_count=quarantined_count+?,next_run_at=?,lease_token=NULL,lease_until=NULL,
-      etag=?,last_modified=?,content_hash=?,updated_at=? WHERE source_id=? AND lease_token=?`,
-      )
-      .bind(
+    await dispatchCatalogRegionalState(db, {
+      action: "complete",
+      sourceId,
+      leaseToken: lease,
+      runId,
+      data: {
         cursorAfter,
-        complete ? null : cycleStartedAt,
-        complete ? completed : due.last_success_at || null,
-        result.items.length,
-        items.length,
-        accepted,
-        staleCount,
+        cycleStartedAt: complete ? null : cycleStartedAt,
+        snapshotStart: cycleStartedAt,
+        lastSuccessAt: complete ? completed : due.last_success_at || null,
+        complete,
+        totalCatalogCount: result.items.length,
+        seenCount: items.length,
+        acceptedCount: accepted,
+        quarantinedCount: staleCount,
         next,
-        result.etag,
-        result.lastModified,
-        result.bodyHash,
-        completed,
-        sourceId,
-        lease,
-      )
-      .run();
+        etag: result.etag,
+        lastModified: result.lastModified,
+        bodyHash: result.bodyHash,
+      },
+    });
     await db
       .prepare(
         `UPDATE gutenberg_ingest_runs SET completed_at=?,status=?,cursor_before=?,cursor_after=?,fetched_count=?,accepted_count=?,quarantined_count=?,
@@ -1969,12 +1968,13 @@ export async function runRegionalCatalogIngestion(
           Math.min(30 * 60_000, Math.pow(2, Math.min(attempts - 1, 5)) * 60_000),
         ),
     ).toISOString();
-    await db
-      .prepare(
-        `UPDATE gutenberg_source_states SET status='failed',last_error=?,attempts=?,next_run_at=?,lease_token=NULL,lease_until=NULL,updated_at=? WHERE source_id=? AND lease_token=?`,
-      )
-      .bind(message, attempts, retryAt, now(), sourceId, lease)
-      .run();
+    await dispatchCatalogRegionalState(db, {
+      action: "failed",
+      sourceId,
+      leaseToken: lease,
+      runId,
+      data: { message, attempts, retryAt },
+    });
     await db
       .prepare(
         `UPDATE gutenberg_ingest_runs SET completed_at=?,status='failed',cursor_before=?,cursor_after=?,error=? WHERE id=?`,
