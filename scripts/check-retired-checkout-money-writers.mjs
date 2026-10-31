@@ -23,9 +23,12 @@ for(const [name,next] of [["createPromoCode","issueGiftCard"],["issueGiftCard","
 assert.match(api,/executeStageOwnerMonetaryAdmin/);
 assert.match(api,/createStageOwnerCheckoutQuote/);
 const sites=review.sites.filter(x=>x.file==="src/features/fore/commerce.server.ts");
-assert.equal(sites.length,3);
+assert.equal(sites.length,0);
+assert.ok(!source.includes('INSERT INTO commerce_checkout_quotes('));
+assert.ok(!source.includes('UPDATE commerce_orders SET stripe_tax_transaction_id='));
+assert.ok(!source.includes('UPDATE commerce_refunds SET tax_reversal_id='));
 assert.ok(sites.every(x=>x.disposition==="owner-command-required"));
 assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=260,
   "A later audited retirement may reduce, but never increase, this previously certified source count");
 assert.equal(review.releaseApproval,false);
-console.log("PASS: 16 physically removed shared checkout and monetary-admin writer sites, private owner staging preserved, production enrollment fail-closed; no more than 260 owner-required sites remain; the owner-only quote and two tax writers still require closure.");
+console.log("PASS: 16 physically removed shared checkout and monetary-admin writer sites, private owner staging preserved, production enrollment fail-closed; no more than 260 owner-required sites remain; the shared quote and tax writers are retired to private QA authority; production certification remains blocked.");
