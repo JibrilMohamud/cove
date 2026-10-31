@@ -24,7 +24,11 @@ const versions = await readActiveWorkerVersions(read, script);
 assert.equal(versions.length, 1, "Candidate cannot have a mixed-version rollout");
 assert.equal(versions[0].percentage, 100);
 const bindings = versions[0].bindings;
-assert.ok(!bindings.some((b) => ["d1", "r2_bucket", "kv_namespace", "durable_object_namespace"].includes(b.type)));
+assert.ok(
+  !bindings.some((b) =>
+    ["d1", "r2_bucket", "kv_namespace", "durable_object_namespace"].includes(b.type),
+  ),
+);
 assert.deepEqual(
   bindings.map((b) => b.name).sort(),
   [
@@ -52,7 +56,11 @@ const schedules = await read(script + "/schedules");
 assert.deepEqual(schedules.schedules, []);
 const domains = await read("workers/domains");
 assert.ok(!domains.some((d) => d.service === name), "Candidate has public custom domain");
-const routes = await read("https://api.cloudflare.com/client/v4/zones/07e218b2e74bc522122e0994b8e37576/workers/routes");
+const routes = await read(
+  "https://api.cloudflare.com/client/v4/zones/07e218b2e74bc522122e0994b8e37576/workers/routes",
+);
 assert.ok(Array.isArray(routes), "Owned zone route inventory incomplete");
 assert.ok(!routes.some((r) => r.script === name), "Candidate has public zone route");
-console.log("PASS: deployed candidate is private, health-only, provider-read-only and has no cron, native D1 or public ingress.");
+console.log(
+  "PASS: deployed candidate is private, health-only, provider-read-only and has no cron, native D1 or public ingress.",
+);
