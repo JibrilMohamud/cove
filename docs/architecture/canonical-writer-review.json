@@ -145,22 +145,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "21b59fc37bf45d34f46d0c1f2d926e14a8d076082f9aaf67d5a02bc4cb385535",
+      "siteId": "0ee57a0e8d0daacb8d28a2ddcfd06f8d3fa72137780a5ab4ee20745a6e125059",
       "file": "src/features/fore/delivery.server.ts",
-      "line": 223,
-      "functionName": "ownershipRecord",
-      "table": "entitlement_ownership_records",
-      "operation": "INSERT INTO",
-      "sqlSha256": "c3569df39d06b514fdd961d3dcff093f657a49201af09da04a2658c637d355d0",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "delivery.ownershipRecord",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "f531dd54836dfff5e986eec2a9e67356292c235bc2971ae2bdf6d10082e7b091",
-      "file": "src/features/fore/delivery.server.ts",
-      "line": 335,
+      "line": 309,
       "functionName": "audit",
       "table": "commercial_download_audit",
       "operation": "INSERT INTO",
@@ -170,9 +157,9 @@
       "reason": "Delivery telemetry records the outcome after authorization; this table never grants delivery permission."
     },
     {
-      "siteId": "df1aa141494c6509d7f0e26d33db22b976b121f292d5b371b805ba8517fcf02f",
+      "siteId": "8c3cebb0c723d04955561896ad9ac083d30ca5924f144060b00769cfaa8595e0",
       "file": "src/features/fore/delivery.server.ts",
-      "line": 646,
+      "line": 620,
       "functionName": "issueCommercialEpubGrant",
       "table": "commercial_delivery_grants",
       "operation": "INSERT INTO",
@@ -183,9 +170,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "dfad04a9d9442d7bc3dc0aa1881b0618a8225bb1a42fda21944effcbaa7b854a",
+      "siteId": "6b72c80a311c69ddbb36456c091674cb3ce1e6919e0ec8675cbd52201b6fa0d7",
       "file": "src/features/fore/delivery.server.ts",
-      "line": 872,
+      "line": 846,
       "functionName": "serveCommercialEpubGrant",
       "table": "commercial_entitlement_delivery_usage",
       "operation": "INSERT INTO",
@@ -196,9 +183,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "b6eb1e74c32ceb8d9296dcbf53c0710c940d5002a8c7f109088cb70ea1fc7da5",
+      "siteId": "68e56e470da1fe5a6bffa68e9cada73d102a5e19cf9d63a7e33fc1e03fc848c4",
       "file": "src/features/fore/delivery.server.ts",
-      "line": 896,
+      "line": 870,
       "functionName": "serveCommercialEpubGrant",
       "table": "commercial_delivery_grants",
       "operation": "UPDATE",

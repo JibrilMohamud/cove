@@ -39,7 +39,7 @@ import {z} from "zod/v3";
 import {createRoyaltyContractVersion} from "../features/fore/royalty-engine.server";
 import {resolvePricingDecision} from "../features/fore/pricing.server";
 import {emitNotification} from "../features/fore/notifications.server";
-import {ensureOwnershipSnapshot} from "../features/fore/delivery.server";
+// Ownership is now created only through the private owner executor.
 import {
   stableJson,safeJson,audit,
   scopeToGrant,bucketBytes,publicationVersionManifest,
@@ -81,6 +81,48 @@ import {
   validateAuthorityCommand, type AuthoritySql,
 } from "./legal-authority-core";
 
+/** Owner-only materialization. Policy, pinned version, user, edition and
+ * product are derived from primary D1; an external request cannot supply
+ * retention or perpetual redownload policies. */
+async function materializeOwnerOwnershipRecord(db:LegalAuthorityEnv["PRIMARY_DB"],x:{
+ entitlementId:string;userId:string;productId:string
+}){
+ const at=now();
+ const ent=await db.prepare(
+   "SELECT e.id,e.user_id,e.product_id,e.entitlement_type,e.granted_at,p.edition_id,ed.work_id,p.source_name FROM entitlements e JOIN products p ON p.id=e.product_id JOIN editions ed ON ed.id=p.edition_id WHERE e.id=? AND e.user_id=? AND e.product_id=? AND e.status='active' AND (e.starts_at IS NULL OR e.starts_at<=?) AND (e.ends_at IS NULL OR e.ends_at>?)"
+ ).bind(x.entitlementId,x.userId,x.productId,at,at).first<{
+   id:string;user_id:string;product_id:string;entitlement_type:string;
+   granted_at:string;edition_id:string;work_id:string;source_name:string
+ }>();
+ if(!ent||["gutenberg","upload"].includes(ent.source_name))
+  return {saved:false,reason:"entitlement_invalid"};
+ const [pin,lifecycle]=await Promise.all([
+   db.prepare("SELECT publication_version_id FROM publishing_entitlement_version_pins WHERE entitlement_id=?")
+     .bind(ent.id).first<{publication_version_id:string}>(),
+   db.prepare("SELECT l.current_publication_version_id,l.owner_update_policy FROM publishing_release_lifecycles l JOIN publishing_publication_versions pv ON pv.id=l.current_publication_version_id JOIN publishing_publications pp ON pp.id=pv.publication_id WHERE pp.product_id=? LIMIT 1")
+     .bind(x.productId).first<{current_publication_version_id:string;owner_update_policy:string}>()
+ ]);
+ const version=pin?.publication_version_id||lifecycle?.current_publication_version_id||null;
+ if(version){
+   const valid=await db.prepare(
+     "SELECT pv.id FROM publishing_publication_versions pv JOIN publishing_publications pp ON pp.id=pv.publication_id WHERE pv.id=? AND pp.product_id=?"
+   ).bind(version,x.productId).first<{id:string}>();
+   if(!valid)return {saved:false,reason:"publication_scope_invalid"};
+ }
+ const permanent=["purchase","gift","publisher"].includes(ent.entitlement_type),
+   policy=String(lifecycle?.owner_update_policy||"auto_update");
+ await db.prepare(
+   "INSERT INTO entitlement_ownership_records(entitlement_id,user_id,product_id,work_id,edition_id,ownership_scope,publication_version_id,owner_update_policy,redownload_policy,rights_expiry_policy,removal_policy,annotations_policy,biosync_policy,acquired_at,created_at,updated_at) SELECT ?,?,?,?,?, 'exact_edition',?,?,?,?,?,'migrate_or_preserve','version_bound',?,?,? WHERE EXISTS(SELECT 1 FROM entitlements e WHERE e.id=? AND e.user_id=? AND e.product_id=? AND e.status='active' AND (e.starts_at IS NULL OR e.starts_at<=?) AND (e.ends_at IS NULL OR e.ends_at>?)) ON CONFLICT(entitlement_id) DO NOTHING"
+ ).bind(ent.id,ent.user_id,ent.product_id,ent.work_id,ent.edition_id,version,policy,
+   permanent?"preserve_for_owner":"disabled",
+   permanent?"preserve_for_owner":"block_delivery",
+   permanent?"preserve_for_owner":"block_delivery",
+   ent.granted_at||at,at,at,ent.id,ent.user_id,ent.product_id,at,at).run();
+ const existing=await db.prepare(
+   "SELECT entitlement_id,user_id,product_id FROM entitlement_ownership_records WHERE entitlement_id=? AND user_id=? AND product_id=?"
+ ).bind(ent.id,ent.user_id,ent.product_id).first<{entitlement_id:string}>();
+ return {saved:!!existing,reason:existing?"":"not_committed"};
+}
 type LegalAuthorityEnv = Pick<CoveEnv,"FORE_AUTH_MODE"|"SUPABASE_URL"|"SUPABASE_SECRET_KEY"|"FORE_INGESTION_SIGNING_KEY"> & {
   PRIMARY_DB: CatalogDB;
   BUCKET?:PublishingEnv["BUCKET"];
@@ -5018,7 +5060,8 @@ async function grantReleaseEntitlement(db: CatalogDB, preorder: any) {
       )
       .run();
   }
-  await ensureOwnershipSnapshot(db, String(preorder.user_id), String(preorder.product_id));
+  await materializeOwnerOwnershipRecord(db,{entitlementId:String(entitlement?.id||entId),
+    userId:String(preorder.user_id),productId:String(preorder.product_id)});
   await db
     .prepare(
       "UPDATE commerce_order_items SET entitlement_status='granted',fulfillment_status='fulfilled' WHERE id=?",
@@ -17654,6 +17697,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/risk/private-release-hold",
       "/promotion/private-action",
       "/catalog/private-ingest-state",
+      "/delivery/private-record-ownership",
       "/delivery/register-entitlement-device",
       "/delivery/private-negative",
       "/catalog/withdraw-stale",
@@ -19109,6 +19153,33 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         }
         return Response.json({schema:"cove.owner-ingestion-state-qa.v1",ownerFirst:true,
           action:input.action,result},{headers:noStore});
+      }
+      if(route==="/delivery/private-record-ownership"){
+        const x=z.object({entitlementId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
+          userId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
+          productId:z.string().regex(/^prd_[A-Za-z0-9_-]{3,120}$/)
+        }).strict().parse(raw);
+        const protectedItem=await env.PRIMARY_DB.prepare(
+          "SELECT e.entitlement_type FROM entitlements e JOIN products p ON p.id=e.product_id WHERE e.id=? AND e.user_id=? AND e.product_id=? AND p.source_name NOT IN ('gutenberg','upload') AND e.status='active' AND (e.starts_at IS NULL OR e.starts_at<=?) AND (e.ends_at IS NULL OR e.ends_at>?)"
+        ).bind(x.entitlementId,x.userId,x.productId,now(),now())
+         .first<{entitlement_type:string}>();
+        if(!protectedItem)return new Response(null,{status:409,headers:noStore});
+        // A persistent purchase, gift or publisher record can preserve
+        // post-termination access. Require positive strongly-consistent
+        // paid owner proof in at least one exact authorized contract scope.
+        if(["purchase","gift","publisher"].includes(protectedItem.entitlement_type)){
+          const scopes=sql.exec<{territory:string;channel:string}>(
+            "SELECT territory,channel FROM cove_paid_entitlement_scopes WHERE entitlement_id=? LIMIT 30",
+            x.entitlementId).toArray();
+          const valid=scopes.some(scope=>!!readPaidAccess(sql,{
+            ...x,territory:scope.territory,channel:scope.channel
+          }));
+          if(!valid)return new Response(null,{status:409,headers:noStore});
+        }
+        const result=await materializeOwnerOwnershipRecord(env.PRIMARY_DB,x);
+        if(!result.saved)return new Response(null,{status:409,headers:noStore});
+        return Response.json({schema:"cove.owner-ownership-snapshot.v1",
+          ownerFirst:true,entitlementId:x.entitlementId,saved:true},{headers:noStore});
       }
       if(route==="/delivery/register-entitlement-device"){
         const x=z.object({

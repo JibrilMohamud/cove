@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "retirementEvidence": "docs/architecture/retired-commercial-ownership-snapshot-owner-lineage.json",
+  "rationale": "The sole shared INSERT INTO entitlement_ownership_records is removed from delivery and replaced by one private-owner command. Owner revalidates effective existing canonical entitlement, edition, product, current/pinned publication version, current policies, and for permanent ownership proves a matching strongly consistent paid commercial entitlement and contract scope. It refuses gifts, purchases and publisher entitlements without independent legal proof, avoids duplicate insertion and returns a receipt checked by the caller. Owner-internal preorder settlement invokes the same private materialization helper after verified release. Four remaining delivery SQL candidates have their exact literals and function identities preserved, with new source fingerprints; no production rights enablement or exclusive writer cutover.",
+  "files": [
+    {
+      "path": "src/features/fore/delivery.server.ts",
+      "sha256": "400d1373a77029a377794fea142159663be601048ada2efc4cc5f64e57091d1d",
+      "review": "Original protected ownership SQL physically removed; three commercial delivery grant/download mutations and one nonauthorizing audit SQL unchanged."
+    }
+  ]
+}

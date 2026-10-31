@@ -6,7 +6,7 @@
   "files": [
     {
       "path": "src/features/fore/delivery.server.ts",
-      "sha256": "964a019b7ee412a582fe0cc41d95ca1a416e51b92b386415f7cf4a0df2ccf37d",
+      "sha256": "400d1373a77029a377794fea142159663be601048ada2efc4cc5f64e57091d1d",
       "review": "Two device association SQL sites retired with independently authenticated private owner; exact SHA and all surviving delivery SQL site identities recomputed."
     }
   ]
