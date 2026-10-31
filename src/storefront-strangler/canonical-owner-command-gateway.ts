@@ -242,6 +242,13 @@ const routes={
     cycleStartedAt:z.string().datetime(),leaseToken:z.string().uuid(),
     runId:z.string().regex(/^gir_[0-9a-f-]{36}$/)
   }).strict()},
+  "catalog.observe-source-ingest":{path:"/catalog/private-source-ingest",schema:z.object({
+    records:z.array(z.object({
+      cacheId:z.string().regex(/^(?:[0-9]{1,10}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90})$/),
+      sourceId:z.enum(["pg_us","pg_ca","pg_au","pg_eu"]),
+      fields:z.array(z.union([z.string().max(65000),z.number().finite(),z.null()])).length(37)
+    }).strict()).min(1).max(50)
+  }).strict()},
   "catalog.verify-regional-rights-evidence":{
     path:"/catalog/private-regional-rights-evidence",
     schema:z.object({
@@ -566,6 +573,12 @@ export async function dispatchCanonicalOwnerCommand(
       if(ack.schema!=="cove.owner-catalog-stale-denial.v1"||ack.ownerFirst!==true||
          ack.sourceId!==body.sourceId||ack.runId!==body.runId||ack.denied!==true||
          !Number.isSafeInteger(ack.staleCount)||Number(ack.staleCount)<0)
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "catalog.observe-source-ingest":
+      if(ack.schema!=="cove.owner-catalog-source-ingest.v1"||
+         ack.ownerFirst!==true||ack.saved!==true||
+         !Number.isSafeInteger(ack.count)||!Array.isArray(body.records)||ack.count!==body.records.length)
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "catalog.verify-regional-rights-evidence":

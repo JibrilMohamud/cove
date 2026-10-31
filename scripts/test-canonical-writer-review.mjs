@@ -84,21 +84,29 @@ const syntheticBoundary=new Map([
 assert.equal(assertPrivateSettlementSourceBoundary(syntheticBoundary),true);
 for(const declaration of ['import "./paid-settlement-transaction.server";','export * from "./paid-settlement-transaction.server";','const x=import("./paid-settlement-transaction.server");'])
   assert.throws(()=>assertPrivateSettlementSourceBoundary(new Map([...syntheticBoundary,["src/features/fore/rogue.server.ts",declaration]])),/Non-owner runtime importer/);
-const legacy=review.sites.find(x=>x.disposition==="owner-command-required");
+// Zero live owner-required SQL is the intended terminal state. The negative
+// laundering tests must still use a genuinely historical protected row, not
+// assume the source inventory contains an unresolved authorizing writer.
+const retired=JSON.parse(readFileSync("docs/architecture/retired-catalog-source-ingest-owner-lineage.json","utf8"));
+const legacy=review.sites.find(x=>x.disposition==="owner-command-required")||retired.retired[0];
+assert.equal(legacy.disposition,"owner-command-required");
+const oldReview=review.sites.includes(legacy)?review.sites:[...review.sites,legacy];
 const another=review.sites.find(x=>x.disposition==="non-authorizing-write");
+assert.ok(another,"A reviewed telemetry exception is necessary for mutation testing");
 assert.throws(()=>assertFrozenExceptionLineage(
-  review.sites.map(x=>x===legacy?{...x,disposition:"non-authorizing-write"}:x)),/New or laundered/,
+  oldReview.map(x=>x===legacy?{...x,disposition:"non-authorizing-write"}:x)),/New or laundered/,
   "An unresolved production SQL statement cannot become nonauthorizing just to improve the metric");
 assert.throws(()=>assertFrozenExceptionLineage(
-  review.sites.map(x=>x===legacy?{...x,disposition:"private-owner-qa-executor"}:x)),/New or laundered/,
+  oldReview.map(x=>x===legacy?{...x,disposition:"private-owner-qa-executor"}:x)),/New or laundered/,
   "An unresolved production SQL statement cannot be laundered into an owner QA executor");
 assert.throws(()=>assertFrozenExceptionLineage([...review.sites,another]),/New or laundered/,
   "Duplicate previously reviewed exceptions cannot bypass frozen multiplicities");
-const withoutOne=review.sites.filter(x=>x!==legacy);
+const withoutOne=review.sites.filter(x=>x!==review.sites[0]);
 assert.equal(assertFrozenExceptionLineage(withoutOne),true,
-  "A genuinely deleted authorizing SQL site may lower the open count");
+  "A genuinely deleted source SQL site may lower the open count");
 assert.equal(reconcileWriterSites(current,{...review,sites:withoutOne}).unknown.length,1,
   "The active source must still prevent deleting a review row without removing its SQL");
-
-assert.throws(()=>reconcileWriterSites(current,{...review,sites:review.sites.map(x=>x===legacy?{...x,disposition:"private-owner-qa-executor"}:x)}),/cannot erase legacy/);
+assert.throws(()=>reconcileWriterSites(current,{
+  ...review,sites:oldReview.map(x=>x===legacy?{...x,disposition:"private-owner-qa-executor"}:x)
+}),/cannot erase legacy/);
 console.log("PASS: "+current.length+" exact SQL sites reconciled; "+(counts["owner-command-required"]||0)+" owner-required; frozen exception lineage prevents reclassification; source edits invalidate review; production release still denied");

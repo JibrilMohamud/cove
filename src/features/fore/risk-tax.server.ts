@@ -803,18 +803,37 @@ export async function assessPayoutRisk(db: CatalogDB, payoutItemId: string) {
 /** Risk holds are never released from shared D1. A private, independently
  * authenticated owner must re-evaluate risk and atomically commit the release. */
 export async function releaseRiskHold(
-  db:CatalogDB,staffUserId:string,raw:unknown,
-  identity?:{id:string;authProvider?:string;authSubject?:string;aal?:"aal1"|"aal2"|null}|null,
-){
-  const x=z.object({holdId:z.string().min(3).max(180),
-    note:z.string().trim().min(3).max(4000)}).strict().parse(raw);
-  if(!identity||identity.id!==staffUserId||!identity.authProvider||
-     !identity.authSubject||!["aal1","aal2"].includes(identity.aal||""))
-    throw new ApiError(503,"Risk hold release requires verified staff authority.");
-  return dispatchPrivateRiskHoldRelease(db,{
-    holdId:x.holdId,note:x.note,
-    actor:{userId:staffUserId,authProvider:identity.authProvider,
-      authSubject:identity.authSubject,aal:identity.aal as "aal1"|"aal2"}
+  db: CatalogDB,
+  staffUserId: string,
+  raw: unknown,
+  identity?: {
+    id: string;
+    authProvider?: string;
+    authSubject?: string;
+    aal?: "aal1" | "aal2" | null;
+  } | null,
+) {
+  const x = z
+    .object({ holdId: z.string().min(3).max(180), note: z.string().trim().min(3).max(4000) })
+    .strict()
+    .parse(raw);
+  if (
+    !identity ||
+    identity.id !== staffUserId ||
+    !identity.authProvider ||
+    !identity.authSubject ||
+    !["aal1", "aal2"].includes(identity.aal || "")
+  )
+    throw new ApiError(503, "Risk hold release requires verified staff authority.");
+  return dispatchPrivateRiskHoldRelease(db, {
+    holdId: x.holdId,
+    note: x.note,
+    actor: {
+      userId: staffUserId,
+      authProvider: identity.authProvider,
+      authSubject: identity.authSubject,
+      aal: identity.aal as "aal1" | "aal2",
+    },
   });
 }
 
@@ -1168,7 +1187,7 @@ export async function upsertTaxRegistration(db: CatalogDB, raw: unknown) {
 /** Financial tax status is a private-owner command. The caller may never
  * change tax verification or withholding through its shared D1 binding. */
 export async function registerPublisherTaxVerification(db: CatalogDB, raw: unknown) {
-  return dispatchPrivatePublisherTaxVerification(db,raw);
+  return dispatchPrivatePublisherTaxVerification(db, raw);
 }
 
 export async function effectivePublisherWithholding(db: CatalogDB, partyId: string, at = now()) {

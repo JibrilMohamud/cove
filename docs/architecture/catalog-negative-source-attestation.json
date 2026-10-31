@@ -6,7 +6,7 @@
   "files": [
     {
       "path": "src/features/fore/api.server.ts",
-      "sha256": "16d5d8c08467fe43917a12ba77f26d73bfc42cb3b219f7f6a1fdf9bae685883b",
+      "sha256": "8de4594b1d450baba197706399ec2c57292ee4f2fe37d22bf8d904f2f13505de",
       "review": "Compared every remaining API site to the predecessor SQL literal, validated identical SQL and containing function and recomputed all twenty-six site identities against the new full source SHA; seven removed sites have explicit immutable lineage. Final formatting-only revision preserves every remaining SQL literal, function and disposition; SHA-256 and all site IDs rechecked. Subsequent nine-site ingestion-state retirement preserves all existing source SQL literals; source SHA independently re-attested. Three independently verified US catalog observation writes were retired; the fourteen remaining API canonical SQL candidates retain identical SQL and disposition. Three further regional source-state SQL checkpoints privately retired; unchanged eleven API SQL identities were independently re-fingerprinted to the exact new source SHA. Two US EPUB hydration mutations retired into byte-verified private owner; nine surviving API SQL sites retain unchanged identities."
     }
   ]

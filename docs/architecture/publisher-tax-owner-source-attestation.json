@@ -6,7 +6,7 @@
   "files": [
     {
       "path": "src/features/fore/risk-tax.server.ts",
-      "sha256": "c8d2365c31d1d97ba053b40cfc7f17b70ea7fa83e9a9e111212c1dc67c289936",
+      "sha256": "5f0956bdb9e37a6b88042b19961a1095ec3e629c6f7bd132011afc1f9767d4f8",
       "review": "The original financial SQL and dependent profile/event batch are absent from shared D1. There are no other reviewed SQL sites in this source file, so no reclassified exception or unreconciled caller change is involved."
     }
   ]

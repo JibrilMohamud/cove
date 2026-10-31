@@ -17708,6 +17708,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/catalog/withdraw-stale",
       "/catalog/negative-source",
       "/catalog/private-regional-rights-evidence",
+      "/catalog/private-source-ingest",
       "/moderation/private-action",
       "/support/private-action",
       "/publishing/contract/save-version",
@@ -17722,7 +17723,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     let raw:unknown;
     try {
       const bytes=await request.text();
-      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/create-quote"?4096:route==="/publishing/audio/register-upload"?8192:route==="/publishing/audio/qc-jobs"?262144:route==="/publishing/worker/jobs"?262144:route==="/publishing/audio/metadata"?8192:route==="/publishing/onboarding/review"?8192:route==="/rights/private-configuration"?12288:route==="/moderation/private-action"?12288:route==="/support/private-action"?8192:route==="/preorder/private-action"?8192:route==="/trust/private-action"?262144:route==="/finance/private-action"?65536:route==="/account/private-action"?2048:route==="/publishing/editor-action"?262144:route==="/publishing/partner/private-action"?16384:route==="/risk/private-release-hold"?8192:route==="/delivery/private-issue-epub-grant"?12288:route==="/commercial/checkout/materialize-draft"?2048:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
+      if(bytes.length>(route==="/catalog/private-source-ingest"?262144:route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/create-quote"?4096:route==="/publishing/audio/register-upload"?8192:route==="/publishing/audio/qc-jobs"?262144:route==="/publishing/worker/jobs"?262144:route==="/publishing/audio/metadata"?8192:route==="/publishing/onboarding/review"?8192:route==="/rights/private-configuration"?12288:route==="/moderation/private-action"?12288:route==="/support/private-action"?8192:route==="/preorder/private-action"?8192:route==="/trust/private-action"?262144:route==="/finance/private-action"?65536:route==="/account/private-action"?2048:route==="/publishing/editor-action"?262144:route==="/publishing/partner/private-action"?16384:route==="/risk/private-release-hold"?8192:route==="/delivery/private-issue-epub-grant"?12288:route==="/commercial/checkout/materialize-draft"?2048:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
       raw=JSON.parse(bytes);
     }catch {return new Response(null,{status:400,headers:noStore});}
     bindPrivateFinanceExecutors(env.PRIMARY_DB,{...privateRoyalty,...privateFinance});
@@ -18648,6 +18649,148 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         ]);
         return Response.json({schema:"cove.owner-private-market-admin.v1",ownerFirst:true,
           countryCode:m.countryCode,operationId:input.operationId,saved:true},{headers:noStore});
+      }
+      if(route==="/catalog/private-source-ingest"){
+        const x=z.object({records:z.array(z.object({
+          cacheId:z.string().regex(/^(?:[0-9]{1,10}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90})$/),
+          sourceId:z.enum(["pg_us","pg_ca","pg_au","pg_eu"]),
+          fields:z.array(z.union([z.string().max(65000),z.number().finite(),z.null()])).length(37)
+        }).strict()).min(1).max(50)}).strict().parse(raw);
+        const db=env.PRIMARY_DB,at=now();
+        if(new Set(x.records.map(r=>r.cacheId)).size!==x.records.length)
+          return new Response(null,{status:409,headers:noStore});
+        const statements:ReturnType<typeof db.prepare>[]=[];
+        for(const rec of x.records){
+          const args=[...rec.fields];
+          const prefix=rec.sourceId==="pg_ca"?"pgca_":rec.sourceId==="pg_au"?"pgau_":"pgeu_";
+          if(args[0]!==rec.cacheId||args[23]!==rec.sourceId||
+             (rec.sourceId==="pg_us"?!/^[0-9]{1,10}$/.test(rec.cacheId):
+               !rec.cacheId.startsWith(prefix))||
+             args[15]!=="active"||typeof args[24]!=="string"||
+             typeof args[1]!=="string"||args[1].length>240||
+             typeof args[7]!=="string"||args[7].length>24000||
+             typeof args[28]!=="string"||args[28].length>4000||
+             typeof args[29]!=="string"||
+             typeof args[35]!=="string"||args[35].length>24000||
+             (args[9]!==0&&args[9]!==1&&args[9]!==null))
+            return new Response(null,{status:409,headers:noStore});
+          let territories:string[],sourceUrl:URL,evidenceUrl:URL,meta:Record<string,unknown>;
+          try{
+            const parsed=JSON.parse(String(args[28]));
+            if(!Array.isArray(parsed))throw Error("territories");
+            territories=parsed.map(String);
+            if(territories.length>50||territories.some(t=>!/^[A-Z]{2}$/.test(t)))
+              throw Error("territory_code");
+            const parsedMeta=JSON.parse(String(args[35]));
+            if(!parsedMeta||typeof parsedMeta!=="object"||Array.isArray(parsedMeta))
+              throw Error("metadata");
+            meta=parsedMeta as Record<string,unknown>;
+            sourceUrl=new URL(String(args[10]));evidenceUrl=new URL(String(args[29]));
+            if([sourceUrl,evidenceUrl].some(u=>u.protocol!=="https:"||u.username||
+               u.password||u.hostname==="localhost"||u.hostname.endsWith(".internal")||
+               /^\d+\.\d+\.\d+\.\d+$/.test(u.hostname)))
+              throw Error("untrusted_origin");
+            if(rec.sourceId==="pg_us"&&!/^(?:www\.)?gutenberg\.org$/.test(sourceUrl.hostname))
+              throw Error("untrusted_gutenberg_host");
+            if(rec.sourceId==="pg_ca"&&!/^(?:www\.)?gutenberg\.ca$/.test(sourceUrl.hostname))
+              throw Error("untrusted_canadian_source");
+            if(rec.sourceId==="pg_au"&&!/^(?:www\.|mail\.)?gutenberg\.net\.au$/.test(sourceUrl.hostname))
+              throw Error("untrusted_australian_source");
+          }catch{return new Response(null,{status:409,headers:noStore});}
+          const source=await db.prepare("SELECT id,license_url,trademark_cleanup_required FROM gutenberg_sources WHERE id=? AND enabled=1")
+            .bind(rec.sourceId).first<{id:string;license_url:string|null;trademark_cleanup_required:number|null}>();
+          if(!source||(source.license_url&&args[26]!==source.license_url))
+            return new Response(null,{status:409,headers:noStore});
+          args[33]=(Number(args[33])===1||Number(source.trademark_cleanup_required)===1)?1:0;
+          const prior=await db.prepare("SELECT source_id,source_item_id,source_url,source_license_url,content_hash,copyright,trademark_cleanup_required,rights_status,commercial_use_status,rights_territories_json,rights_evidence_url,formats_json,source_metadata_json FROM gutenberg_source_cache WHERE id=?")
+            .bind(rec.cacheId).first<{source_id:string;rights_status:string;commercial_use_status:string;
+              source_item_id:string;source_url:string;source_license_url:string;content_hash:string|null;
+              copyright:number|null;trademark_cleanup_required:number|null;
+              rights_territories_json:string;rights_evidence_url:string;formats_json:string;source_metadata_json:string}>();
+          if(prior&&prior.source_id!==rec.sourceId)
+            return new Response(null,{status:409,headers:noStore});
+          let previousMeta:Record<string,unknown>={};
+          try{previousMeta=JSON.parse(prior?.source_metadata_json||"{}");}
+          catch{/* No malformed old metadata may justify positive permission. */}
+          if(prior?.trademark_cleanup_required===1)args[33]=1;
+          const stable=!!prior&&prior.rights_territories_json===args[28]&&
+            prior.rights_evidence_url===args[29]&&prior.formats_json===args[7]&&
+            prior.source_item_id===args[24]&&prior.source_url===args[10]&&
+            prior.source_license_url===args[26]&&
+            (!args[36]||prior.content_hash===args[36])&&
+            String(previousMeta?.rightsFingerprint||"")===String(meta.rightsFingerprint||"");
+          let verified=!!prior&&stable&&prior.copyright===0&&args[9]===0&&
+            territories.length>0&&prior.rights_status==="public-domain"&&
+            prior.commercial_use_status==="approved"&&
+            !territories.some(t=>marketIsWithdrawn(sql,t));
+          if(verified){
+            for(const country of territories){
+              const proof=await db.prepare("SELECT id FROM gutenberg_rights_evidence WHERE cache_id=? AND territory_code=? AND determination='public-domain' AND status='approved' LIMIT 1")
+                .bind(rec.cacheId,country).first<{id:string}>();
+              if(!proof){verified=false;break;}
+            }
+          }
+          // Source metadata cannot establish legal authority, even if it
+          // contains 'approved' or caller-provided rights evidence IDs.
+          args[27]="pending";args[30]=null;args[31]=null;args[32]="pending";
+          args[11]=at;args[12]=at;args[13]=at;args[14]=at;
+          if(!verified){
+            statements.push(db.prepare("UPDATE rights_grants SET status='suspended',updated_at=? WHERE edition_id=? AND source=? AND status='active'")
+              .bind(at,catalogIds(rec.cacheId).editionId,"gutenberg-"+rec.sourceId+"-public-domain"));
+          }
+          statements.push(db.prepare(`INSERT INTO gutenberg_source_cache(
+        id,title,authors_json,summary,subjects_json,bookshelves_json,languages_json,formats_json,download_count,copyright,
+        source_url,source_updated_at,first_ingested_at,updated_at,last_seen_at,ingest_status,ingest_attempts,last_error,
+        epub_status,epub_attempts,epub_next_attempt_at,epub_cached_at,epub_last_error,
+        source_id,source_item_id,source_project,source_license_url,rights_status,rights_territories_json,rights_evidence_url,
+        rights_checked_at,rights_evidence_id,commercial_use_status,trademark_cleanup_required,canonicalization_version,source_metadata_json,content_hash
+      ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      ON CONFLICT(id) DO UPDATE SET
+        title=excluded.title,authors_json=excluded.authors_json,summary=excluded.summary,subjects_json=excluded.subjects_json,
+        bookshelves_json=excluded.bookshelves_json,languages_json=excluded.languages_json,formats_json=excluded.formats_json,
+        download_count=excluded.download_count,copyright=excluded.copyright,source_url=excluded.source_url,
+        source_updated_at=excluded.source_updated_at,updated_at=excluded.updated_at,last_seen_at=excluded.last_seen_at,
+        ingest_status=CASE WHEN gutenberg_source_cache.ingest_status='quarantined' THEN 'quarantined' ELSE 'active' END,ingest_attempts=0,last_error='',source_id=excluded.source_id,source_item_id=excluded.source_item_id,
+        source_project=excluded.source_project,source_license_url=excluded.source_license_url,
+        rights_territories_json=excluded.rights_territories_json,rights_evidence_url=excluded.rights_evidence_url,
+        source_metadata_json=excluded.source_metadata_json,content_hash=CASE WHEN gutenberg_source_cache.formats_json=excluded.formats_json AND gutenberg_source_cache.rights_territories_json=excluded.rights_territories_json AND gutenberg_source_cache.rights_evidence_url=excluded.rights_evidence_url AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'') THEN CASE WHEN excluded.content_hash<>'' THEN excluded.content_hash ELSE gutenberg_source_cache.content_hash END ELSE excluded.content_hash END,
+        trademark_cleanup_required=excluded.trademark_cleanup_required,
+        rights_status=CASE WHEN gutenberg_source_cache.rights_status IN ('quarantined','rejected') THEN gutenberg_source_cache.rights_status WHEN gutenberg_source_cache.commercial_use_status='approved' AND gutenberg_source_cache.rights_status='public-domain' AND EXISTS(SELECT 1 FROM gutenberg_rights_evidence ev WHERE ev.cache_id=gutenberg_source_cache.id AND ev.status='approved' AND ev.determination='public-domain')
+          AND gutenberg_source_cache.rights_territories_json=excluded.rights_territories_json AND gutenberg_source_cache.rights_evidence_url=excluded.rights_evidence_url AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'')
+          THEN gutenberg_source_cache.rights_status ELSE excluded.rights_status END,
+        commercial_use_status=CASE WHEN gutenberg_source_cache.commercial_use_status IN ('quarantined','rejected') THEN gutenberg_source_cache.commercial_use_status WHEN gutenberg_source_cache.commercial_use_status='approved' AND gutenberg_source_cache.rights_status='public-domain' AND EXISTS(SELECT 1 FROM gutenberg_rights_evidence ev WHERE ev.cache_id=gutenberg_source_cache.id AND ev.status='approved' AND ev.determination='public-domain')
+          AND gutenberg_source_cache.rights_territories_json=excluded.rights_territories_json AND gutenberg_source_cache.rights_evidence_url=excluded.rights_evidence_url AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'')
+          THEN 'approved' ELSE excluded.commercial_use_status END,
+        rights_evidence_id=CASE WHEN gutenberg_source_cache.rights_territories_json=excluded.rights_territories_json
+          AND gutenberg_source_cache.rights_evidence_url=excluded.rights_evidence_url AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'') THEN COALESCE(gutenberg_source_cache.rights_evidence_id,excluded.rights_evidence_id) ELSE excluded.rights_evidence_id END,
+        rights_checked_at=CASE WHEN gutenberg_source_cache.rights_territories_json=excluded.rights_territories_json
+          AND gutenberg_source_cache.rights_evidence_url=excluded.rights_evidence_url AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'') THEN COALESCE(gutenberg_source_cache.rights_checked_at,excluded.rights_checked_at) ELSE excluded.rights_checked_at END,
+        canonicalization_version=CASE WHEN gutenberg_source_cache.formats_json=excluded.formats_json AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'') THEN gutenberg_source_cache.canonicalization_version ELSE excluded.canonicalization_version END,
+        epub_status=CASE WHEN gutenberg_source_cache.epub_status='downloading' AND gutenberg_source_cache.formats_json=excluded.formats_json THEN 'downloading' WHEN gutenberg_source_cache.epub_status='completed' AND gutenberg_source_cache.formats_json=excluded.formats_json
+          AND gutenberg_source_cache.rights_territories_json=excluded.rights_territories_json AND gutenberg_source_cache.rights_evidence_url=excluded.rights_evidence_url AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'')
+          THEN 'completed' WHEN excluded.epub_status='unavailable' THEN 'unavailable' ELSE 'pending' END,
+        epub_next_attempt_at=CASE WHEN gutenberg_source_cache.epub_status='completed' AND gutenberg_source_cache.formats_json=excluded.formats_json
+          AND gutenberg_source_cache.rights_territories_json=excluded.rights_territories_json AND gutenberg_source_cache.rights_evidence_url=excluded.rights_evidence_url AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'')
+          THEN gutenberg_source_cache.epub_next_attempt_at ELSE '' END,
+        epub_last_error=CASE WHEN gutenberg_source_cache.epub_status='completed' AND gutenberg_source_cache.formats_json=excluded.formats_json
+          AND gutenberg_source_cache.rights_territories_json=excluded.rights_territories_json AND gutenberg_source_cache.rights_evidence_url=excluded.rights_evidence_url AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'')
+          THEN gutenberg_source_cache.epub_last_error ELSE '' END`).bind(...args));
+          if(!verified){
+            statements.push(db.prepare("UPDATE gutenberg_source_cache SET rights_status=CASE WHEN rights_status IN ('quarantined','rejected') THEN rights_status ELSE 'pending' END,commercial_use_status=CASE WHEN commercial_use_status IN ('quarantined','rejected') THEN commercial_use_status ELSE 'pending' END,rights_evidence_id=NULL,rights_checked_at=NULL WHERE id=? AND source_id=?")
+              .bind(rec.cacheId,rec.sourceId));
+          }
+        }
+        const results=(await db.batch(statements)) as Array<{meta?:{changes?:number}}>;
+        if(results.length!==statements.length)
+          return new Response(null,{status:409,headers:noStore});
+        const persisted=await db.prepare(
+          "SELECT COUNT(*) n FROM gutenberg_source_cache WHERE id IN ("+
+          x.records.map(()=>"?").join(",")+")"
+        ).bind(...x.records.map(r=>r.cacheId)).first<{n:number}>();
+        if(Number(persisted?.n||0)!==new Set(x.records.map(r=>r.cacheId)).size)
+          return new Response(null,{status:409,headers:noStore});
+        return Response.json({schema:"cove.owner-catalog-source-ingest.v1",
+          ownerFirst:true,saved:true,count:x.records.length},{headers:noStore});
       }
       if(route==="/catalog/private-regional-rights-evidence"){
         // An independently verified regional copyright determination is

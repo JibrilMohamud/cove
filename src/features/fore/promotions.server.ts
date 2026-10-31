@@ -376,7 +376,10 @@ async function materializeCampaign(db: CatalogDB, campaignId: string) {
     }
     if (c.status === "live" || c.starts_at <= at)
       await updatePreorderLowestPrice(db, p.product_id, "campaign_price_drop");
-    await dispatchPrivatePromotionOwner(db, "price-event", { campaignId: c.id, productId: p.product_id });
+    await dispatchPrivatePromotionOwner(db, "price-event", {
+      campaignId: c.id,
+      productId: p.product_id,
+    });
   }
 }
 
@@ -563,9 +566,14 @@ export async function createCampaignCoupon(db: CatalogDB, userId: string, raw: u
     throw new ApiError(400, "Percentage coupons cannot exceed 100%.");
   const code = x.code.toUpperCase().replace(/\s+/g, "");
   await dispatchPrivatePromotionOwner(db, "issue-coupon", {
-    userId, accountId: x.accountId, campaignId: x.campaignId,
-    code, kind: x.kind, value: x.value,
-    minimumSubtotalMinor: x.minimumSubtotalMinor, maxPerUser: x.maxPerUser,
+    userId,
+    accountId: x.accountId,
+    campaignId: x.campaignId,
+    code,
+    kind: x.kind,
+    value: x.value,
+    minimumSubtotalMinor: x.minimumSubtotalMinor,
+    maxPerUser: x.maxPerUser,
   });
   return { campaignId: c.id, codeLabel: code };
 }

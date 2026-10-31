@@ -6,8 +6,8 @@
   "sourceAfter": 13,
   "sourceFile": "src/features/fore/risk-tax.server.ts",
   "previousSha256": "0dde93b70179c00fecfdbe64a17351023ea9735b2579f39fb1f5ea50255bb981",
-  "currentSha256": "c8d2365c31d1d97ba053b40cfc7f17b70ea7fa83e9a9e111212c1dc67c289936",
-  "apiSha256": "bf665afee032c0c2618b76b655821fe588e8b109d383413927c07a73439bdd52",
+  "currentSha256": "5f0956bdb9e37a6b88042b19961a1095ec3e629c6f7bd132011afc1f9767d4f8",
+  "apiSha256": "3fb00372e365cd872fd78d04ccb3d25101b57cc6fa769f809c4135b504598981",
   "retired": [
     {
       "siteId": "ab7c6572ef188556fe2334c7c58d07eb5b9932d8633445a84d16afede2b60229",

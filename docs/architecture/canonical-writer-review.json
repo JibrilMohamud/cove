@@ -17,20 +17,7 @@
       "reason": "Browser QA seeds an isolated temporary database through localBindings; this development server is not a deployed production writer."
     },
     {
-      "siteId": "38c487557ee78cf0c0bd79125f1a4d5ce0ffa9ddb4989ab2bcce26f6caf45900",
-      "file": "src/features/fore/api.server.ts",
-      "line": 837,
-      "functionName": "catalogInsert",
-      "table": "gutenberg_source_cache",
-      "operation": "INSERT INTO",
-      "sqlSha256": "7699e76661af59a5c3d19e597f8a30ded3a5ed3a2cab35ebeffcbeecf53233ae",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "api.catalogInsert",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
-      "siteId": "9b45c25dd8e3624cbbce862489ab030f835d75233ea82960124a81c15fae9b10",
+      "siteId": "8bc3ddf967b246fe05f5ec2c3e814407329a534427269859eed972cd2368861b",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 1053,
       "functionName": "handleCommercialAudio",
@@ -42,7 +29,7 @@
       "reason": "This exact SQLite statement mutates only buyer-scoped audiobook listening position (chapter, seconds, speed, version, timestamp) or deletes a deleting account's position. It never grants rights, access, delivery tokens, asset availability or entitlements. The production audio endpoint separately requires authentication, current entitlements, risk check and private owner permission before writes; source-bound SQL, optimistic concurrency, unrelated buyer and revoked-entitlement behavior are exercised in scripts/check-audio-playback-remaining-nonauthorizing.mjs. The enclosing account deletion transaction remains owner-required for its other protected mutations."
     },
     {
-      "siteId": "e91d6087b836a53a0855aa2d81518920b3984cb6f82d69fd61b21fae207a5ebb",
+      "siteId": "9b8b8bed4b7103f5a3277503bef32b5e09398e48d8138d7ee2dedda90401821d",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 1060,
       "functionName": "handleCommercialAudio",

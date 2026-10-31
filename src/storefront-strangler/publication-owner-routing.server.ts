@@ -459,6 +459,24 @@ export async function dispatchPrivateCommercialEpubGrant(db:object,input:{
  * private legal-owner assessment; never fall back to shared D1. */
 /** Independently stored and approved regional legal evidence is mandatory;
  * an R2 EPUB hash or a self-reported public-domain bit alone never grants. */
+/** Only source metadata may be observed here. A private independently
+ * authorized writer owns all canonical updates and denies positive rights
+ * unless current owner-side source evidence exists. */
+export async function dispatchPrivateCatalogSourceBatch(db:object,
+ records:Array<{cacheId:string;sourceId:"pg_us"|"pg_ca"|"pg_au"|"pg_eu";fields:Array<string|number|null>}>
+):Promise<void>{
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Catalog source ingestion requires private legal authority.");
+ for(let i=0;i<records.length;i+=25){
+  const part=records.slice(i,i+25);
+  try{
+   const ack=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+     "catalog.observe-source-ingest",{records:part});
+   if(ack.saved!==true||ack.count!==part.length)throw Error("owner_source_ingest_receipt_invalid");
+  }catch{throw new ApiError(503,"Private legal owner refused source ingestion.");}
+ }
+}
+
 export async function dispatchPrivateRegionalRightsEvidence(db:object,input:{
  cacheId:string;sha256:string;canonicalizationVersion:string
 }):Promise<{territories:string[];evidenceId:string}>{

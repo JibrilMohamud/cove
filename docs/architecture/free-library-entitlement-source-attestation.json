@@ -6,7 +6,7 @@
   "files": [
     {
       "path": "src/features/fore/api.server.ts",
-      "sha256": "bf665afee032c0c2618b76b655821fe588e8b109d383413927c07a73439bdd52",
+      "sha256": "3fb00372e365cd872fd78d04ccb3d25101b57cc6fa769f809c4135b504598981",
       "review": "Exact direct free-library entitlement SQL removed; all five remaining canonical API protected SQL literals retain their original SQL and owner-required classifications."
     }
   ]

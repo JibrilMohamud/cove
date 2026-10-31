@@ -40,11 +40,17 @@ const localizationEnd = source.indexOf(
 const marketSnippet = source.slice(localizationRoute, localizationEnd);
 assert.match(marketSnippet, /executeStageMarketEditorPause\(env, input\)/);
 assert.match(marketSnippet, /upsertMarket\(db, staff\.userId, input, who\)/);
-const marketSource = readFileSync("src/features/fore/localization.server.ts","utf8");
-const privateRouting = readFileSync("src/storefront-strangler/publication-owner-routing.server.ts","utf8");
-assert.match(marketSource,/dispatchPrivateMarketUpsert/);
-assert.match(privateRouting,/if\(!context\)throw new ApiError\(503,"Market update requires private legal authority\."\)/);
-assert.doesNotMatch(marketSource,/INSERT INTO storefront_markets\(/);
+const marketSource = readFileSync("src/features/fore/localization.server.ts", "utf8");
+const privateRouting = readFileSync(
+  "src/storefront-strangler/publication-owner-routing.server.ts",
+  "utf8",
+);
+assert.match(marketSource, /dispatchPrivateMarketUpsert/);
+assert.match(
+  privateRouting,
+  /if\(!context\)throw new ApiError\(503,"Market update requires private legal authority\."\)/,
+);
+assert.doesNotMatch(marketSource, /INSERT INTO storefront_markets\(/);
 assert.doesNotMatch(marketSnippet, /db\.prepare\(/);
 const lockedStagingPattern =
   /env\.COVE_SSR_STAGING === "1" \|\| env\.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1"/g;
