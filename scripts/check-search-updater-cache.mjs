@@ -1,3 +1,4 @@
+import { syntheticCatalogIngestOwner } from "./test-synthetic-catalog-ingest-owner.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -17,6 +18,7 @@ try {
       "src/features/fore/public-api-cache.server.ts",
       "src/features/fore/catalog-fetch.server.ts",
       "src/persistence-backend.worker.ts",
+      "src/storefront-strangler/publication-owner-routing.server.ts",
     ],
     entryNames: "[name]",
     bundle: true,
@@ -31,7 +33,7 @@ try {
   const cache = await import(path.join(scratch, "public-api-cache.server.mjs"));
   const { fetchCatalogPage } = await import(path.join(scratch, "catalog-fetch.server.mjs"));
   const { default: worker } = await import(path.join(scratch, "persistence-backend.worker.mjs"));
-  const env = localBindings(scratch);
+  let env = localBindings(scratch);
   const request = (route) => new Request(`https://fore.test/api/fore${route}`);
   const input = (query) => search.parseSearchInput(new URL(`https://fore.test/catalog?${query}`));
   assert.deepEqual(input("language=en,fr&language=de&language=en").languages, ["en", "fr", "de"]);
@@ -103,6 +105,17 @@ try {
     "SELECT COUNT(*) n FROM products WHERE id LIKE 'prd_gutenberg_9000%'",
   ).first();
   assert.equal(fixtureCount.n, 28, "only the local fixture adds 28 synthetic catalog rows");
+  // A synthetic, strictly local owner exercises the ingestion state machine.
+  // Missing production owner bindings still fail closed in the earlier test.
+  const { bindPublicationOwner } = await import(
+    path.join(scratch, "publication-owner-routing.server.mjs")
+  );
+  const rawEnv = env;
+  const secret = "a".repeat(64);
+  env = {...rawEnv,DB:bindPublicationOwner(rawEnv.DB,{
+    owner:syntheticCatalogIngestOwner(rawEnv.DB,secret),
+    secret,territory:"US",currency:"USD"
+  })};
   // Exercise real parsed aliases and real rights-filtered queries, not only
   // cache-key helpers. Newest is normalized to released (a FILTER, not just order).
   assert.equal(input("sort=newest").sort, "released");

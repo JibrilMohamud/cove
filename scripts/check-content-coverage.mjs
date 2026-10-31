@@ -1,3 +1,4 @@
+import { syntheticCatalogIngestOwner } from "./test-synthetic-catalog-ingest-owner.mjs";
 import JSZip from "jszip";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -121,8 +122,7 @@ try {
   );
   const rawEnv = env;
   const secret = "a".repeat(64);
-  const owner = {
-    async fetch(request) {
+  const normalizeOwner = async (request) => {
       assert.equal(request.method, "POST");
       assert.equal(new URL(request.url).pathname, "/catalog/normalize-gutenberg");
       assert.equal(request.headers.get("authorization"), "Bearer " + secret);
@@ -158,8 +158,8 @@ try {
         operationId,
         applied: true,
       });
-    },
   };
+  const owner = syntheticCatalogIngestOwner(rawEnv.DB, secret, normalizeOwner);
   env = {
     ...rawEnv,
     DB: bindPublicationOwner(rawEnv.DB, {
