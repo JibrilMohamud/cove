@@ -4265,6 +4265,7 @@ async function refreshAgreementStatus(db: CoveEnv["DB"], editionId: string) {
 
 // QA-leased worker queues. All job ownership and retry transitions are
 // validated at the independently bound primary DB, not on the storefront D1 facade.
+/* eslint-disable @typescript-eslint/no-explicit-any -- QA lease-only D1 worker row shapes, release locked. */
 const privatePublishingWorkQueues=(()=>{
   const now=()=>new Date().toISOString();
   const id=(prefix:string)=>prefix+"_"+crypto.randomUUID();
@@ -4510,6 +4511,7 @@ const privatePublishingWorkQueues=(()=>{
   return {leasePublishingValidationJobs,completePublishingValidationJob,
     leaseRightsEvidenceScanJobs,completeRightsEvidenceScanJob};
 })();
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
   private publicationExecutions=new Set<string>();
