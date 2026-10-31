@@ -31,7 +31,7 @@ assert.match(owner,/if\(route==="\/risk\/private-release-hold"\)/);
 for(const check of ["staff_principals","staff_principal_roles","staff_role_permissions",
   "risk.hold.manage","mfa_required","assessPayoutRisk(db,hold.subject_id)",
   "a.status='held'","pa.tax_status='verified'","pa.payout_status='verified'",
-  "status='active'","hold.status!=='active'","id=? AND status='active'",
+  "status='active'",'hold.status!=="active"',"id=? AND status='active'",
   "payout_items SET status='pending'"])
  assert.ok(owner.includes(check),"Owner-side risk release proof missing: "+check);
 console.log("PASS: private risk-release owner and 13 exact source audit findings; production remains disabled.");
