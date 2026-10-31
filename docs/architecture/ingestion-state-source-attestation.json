@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "retirementEvidence": "docs/architecture/retired-ingestion-state-owner-lineage.json",
+  "rationale": "The exact nine reviewed shared SQL mutations for Gutenberg download recovery, absence, downloading claims, attempts, retry-after, failure recording, regional ingestion lease acquisition and negative degraded/failed transitions were replaced by fixed private owner state-machine commands. The private legal owner derives local time, verifies current source identity, source enabled status, pending/retry and quarantined fences, active lease token and attempts; it cannot authorize a positive publishing/territory grant or commercial entitlement. All seventeen surviving API canonical SQL literals and functions are identical to the parent and have independent site SHA re-attestation. This is staging-only; production owner disabled and releaseApproval=false; full ingestion QA still needed.",
+  "files": [
+    {
+      "path": "src/features/fore/api.server.ts",
+      "sha256": "3eb3fbf20c150f7f21fd59e125e6867a7805c1774c04c21828d65e0a0ea0f518",
+      "review": "Verified every surviving original API SQL literal and function byte for byte and recalculated its site ID for this full-source SHA."
+    }
+  ]
+}

@@ -1,0 +1,111 @@
+{
+  "schema": "cove.retired-ingestion-state-owner-lineage.v1",
+  "sourceBefore": 48,
+  "sourceAfter": 39,
+  "sourceFile": "src/features/fore/api.server.ts",
+  "previousSha256": "f412a0a8255986ed45749405c097fd69a7dcb318e3605f459d2775668bafefa3",
+  "currentSha256": "3eb3fbf20c150f7f21fd59e125e6867a7805c1774c04c21828d65e0a0ea0f518",
+  "releaseApproval": false,
+  "productionCertified": false,
+  "retired": [
+    {
+      "file": "src/features/fore/api.server.ts",
+      "line": 1418,
+      "functionName": "cachePendingEpubs",
+      "table": "gutenberg_source_cache",
+      "operation": "UPDATE",
+      "disposition": "owner-command-required",
+      "sqlSha256": "69e2e87a03948804d1a403f7f6e441b840102b3078c6a5672772d671d06f6e22",
+      "siteId": "3e87f5b7e64b0400c222f1fc07bfee346cb26c0a39814aad9b830fab51a36569",
+      "ownerRoute": "/catalog/private-ingest-state"
+    },
+    {
+      "file": "src/features/fore/api.server.ts",
+      "line": 1492,
+      "functionName": "cachePendingEpubs",
+      "table": "gutenberg_source_cache",
+      "operation": "UPDATE",
+      "disposition": "owner-command-required",
+      "sqlSha256": "d141a3d4f59208f4e2415fec749f5e6ab0b490b8354b0e5152ace0545dd18840",
+      "siteId": "cbbcafb88aa14dc55f2bfc89073f17761b5814694a14e25d99821ea3f3496574",
+      "ownerRoute": "/catalog/private-ingest-state"
+    },
+    {
+      "file": "src/features/fore/api.server.ts",
+      "line": 1500,
+      "functionName": "cachePendingEpubs",
+      "table": "gutenberg_source_cache",
+      "operation": "UPDATE",
+      "disposition": "owner-command-required",
+      "sqlSha256": "8f9baa28db9c754174ce00507f4721d1f5c293b9635a3e2a79446ad42b9e77ed",
+      "siteId": "905d9fb86179760cab1d4c61229391d4e8e5286db6e72a0399bb0ce24b1fbd43",
+      "ownerRoute": "/catalog/private-ingest-state"
+    },
+    {
+      "file": "src/features/fore/api.server.ts",
+      "line": 1508,
+      "functionName": "cachePendingEpubs",
+      "table": "gutenberg_source_states",
+      "operation": "UPDATE",
+      "disposition": "owner-command-required",
+      "sqlSha256": "ae3ef585f9dd1e1701f7867cf897968cbe54e6ff45f20bb6c33e53a9441efdb1",
+      "siteId": "e4cd4cf2fb03efd229969bcc06b907b1c978b2f7bb229a3a086e518672c34f3f",
+      "ownerRoute": "/catalog/private-ingest-state"
+    },
+    {
+      "file": "src/features/fore/api.server.ts",
+      "line": 1541,
+      "functionName": "cachePendingEpubs",
+      "table": "gutenberg_source_states",
+      "operation": "UPDATE",
+      "disposition": "owner-command-required",
+      "sqlSha256": "5547b66c976a424b688c7f65111ed4f757bf84ff16c6a2d0edff6542bd9cfc10",
+      "siteId": "9a5f4d7606669d30d34e2c24823903b6063158d46b8b8812a34166a9dd24110b",
+      "ownerRoute": "/catalog/private-ingest-state"
+    },
+    {
+      "file": "src/features/fore/api.server.ts",
+      "line": 1656,
+      "functionName": "cachePendingEpubs",
+      "table": "gutenberg_source_cache",
+      "operation": "UPDATE",
+      "disposition": "owner-command-required",
+      "sqlSha256": "680600ca81a8e528009ac517e39f0fb90ba78c01d4c5cca2f3f707f4c984c48d",
+      "siteId": "dd7feac035f44146b27c934f0071a49d11719482d4a10d5e357e42463d938aa5",
+      "ownerRoute": "/catalog/private-ingest-state"
+    },
+    {
+      "file": "src/features/fore/api.server.ts",
+      "line": 1727,
+      "functionName": "runRegionalCatalogIngestion",
+      "table": "gutenberg_source_states",
+      "operation": "UPDATE",
+      "disposition": "owner-command-required",
+      "sqlSha256": "e0989037cc0d0d301a269d6b651bae533249e2d3e5c7699b83b086c183f1d1fc",
+      "siteId": "c7cc72b8bd593a788a37ba39d143fc32b34adf37e4c51ba2daaea5386f5e2053",
+      "ownerRoute": "/catalog/private-ingest-state"
+    },
+    {
+      "file": "src/features/fore/api.server.ts",
+      "line": 1749,
+      "functionName": "runRegionalCatalogIngestion",
+      "table": "gutenberg_source_states",
+      "operation": "UPDATE",
+      "disposition": "owner-command-required",
+      "sqlSha256": "2c82b2ae9e4c003d82ed883d581958e165d77506675467bc9882994453e712c3",
+      "siteId": "ef6c14ba75c9bd667f35f025ffbfa58bc7ca71ba54f5d04347019ba21a0d9e84",
+      "ownerRoute": "/catalog/private-ingest-state"
+    },
+    {
+      "file": "src/features/fore/api.server.ts",
+      "line": 1974,
+      "functionName": "runRegionalCatalogIngestion",
+      "table": "gutenberg_source_states",
+      "operation": "UPDATE",
+      "disposition": "owner-command-required",
+      "sqlSha256": "ba62be7c72b656ea7c845974a8f393e9d279c8ed20cc80bd3fcf387c82d97b2e",
+      "siteId": "d59a1e6ff9386ac3ba6a4f3da0e139409eae5020a251daae5f8ca70002f57dd1",
+      "ownerRoute": "/catalog/private-ingest-state"
+    }
+  ]
+}
