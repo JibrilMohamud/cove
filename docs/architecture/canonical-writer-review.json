@@ -2013,7 +2013,7 @@
       "reason": "Legal notification delivery queue changes notification status only; dispute and publication transitions remain separate owner-required writes."
     },
     {
-      "siteId": "8c675fe955b2e44b71388729c7c5225cff75baa41af3b9022dd30e6f8cc5c5fb",
+      "siteId": "7932f81aface7d96280f5eb3962149bf13d2e12f4fd1c4c365cc6fbda65f2028",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 305,
       "functionName": "savePartnerProfile",
@@ -2025,7 +2025,7 @@
       "reason": "Partner acknowledgement/retry metadata does not activate a publication, rights grant, offer or buyer entitlement."
     },
     {
-      "siteId": "5f837fb8ca41f49de4d7b15c5b3fbad773cefa15e1827be016f93e279d6ffc3e",
+      "siteId": "ab24a1177ce5770af1eea78a582e750d95ef54bda924b26f1acf97fc284001ca",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 624,
       "functionName": "authenticatePartnerRequest",
@@ -2037,7 +2037,7 @@
       "reason": "This exact UPDATE changes only publisher_partner_credentials.last_used_at after credential verification. Credential status, scopes, expiry and identity are not modified."
     },
     {
-      "siteId": "917b4f1d2aa80676942d30236e0a7f49181cd45a2eabd38e85f9a31d4048a029",
+      "siteId": "d4a5f12d8ef9779e653aeae9677c20e20e22d4f28f6b2ac9377b9633e88f979a",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 1651,
       "functionName": "deliverPartnerValidationResponses",
@@ -2049,7 +2049,7 @@
       "reason": "Partner acknowledgement/retry metadata does not activate a publication, rights grant, offer or buyer entitlement."
     },
     {
-      "siteId": "5ca98e16fe26a04dff3b99bd650c21dc5bde42acedbbac5e6d613597bed0cb9b",
+      "siteId": "f49924f3333dc13f5ded2c94093372152de914ffff165314eb6092f6d2ef29eb",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 1694,
       "functionName": "deliverPartnerValidationResponses",
@@ -2061,7 +2061,7 @@
       "reason": "Partner acknowledgement/retry metadata does not activate a publication, rights grant, offer or buyer entitlement."
     },
     {
-      "siteId": "65a49e6826e82889bb7c8e369aafa31558c6095ac68dfdeef29f7de9edba599e",
+      "siteId": "b523e7397ac4dabd7f1cec06fdc462ab8a04661128d69b15fe5ebace3c661617",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 1705,
       "functionName": "deliverPartnerValidationResponses",
@@ -2073,7 +2073,7 @@
       "reason": "Partner acknowledgement/retry metadata does not activate a publication, rights grant, offer or buyer entitlement."
     },
     {
-      "siteId": "c9381aefc55e5b40d5203f05bf3b853b6fd8fae2198370c71891a14dc6cc0b87",
+      "siteId": "4288872c07117b9ed60132074508a83caeabc23184d925b964d471649f2d8c46",
       "file": "src/features/fore/traditional-publishing.server.ts",
       "line": 1727,
       "functionName": "deliverPartnerValidationResponses",
