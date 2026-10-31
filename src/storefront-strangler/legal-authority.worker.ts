@@ -4093,24 +4093,15 @@ async function replaceCommercialAudioNarrators(
   // Validate the complete replacement before any destructive operation.
   for(const n of x.narrators) if(n.narrationType!=="human"&&!n.syntheticVoiceLabel.trim())
     throw new ApiError(400,"Synthetic or mixed narration requires a customer-facing voice label.");
-  await db
-    .prepare("DELETE FROM commercial_audio_narrators WHERE edition_id=?")
-    .bind(x.editionId)
-    .run();
-  const at = now();
-  for (const [i, n] of x.narrators.entries()) {
-    if (n.narrationType !== "human" && !n.syntheticVoiceLabel.trim())
-      throw new ApiError(
-        400,
-        "Synthetic or mixed narration requires a customer-facing voice label.",
-      );
-    await db
-      .prepare(
-        "INSERT INTO commercial_audio_narrators(id,edition_id,display_name,narration_type,synthetic_voice_label,billing_order,created_at) VALUES(?,?,?,?,?,?,?)",
-      )
-      .bind(id("narr"), x.editionId, n.displayName, n.narrationType, n.syntheticVoiceLabel, i, at)
-      .run();
-  }
+  const at=now(),statements=[
+    db.prepare("DELETE FROM commercial_audio_narrators WHERE edition_id=?").bind(x.editionId)
+  ];
+  for(const [i,n] of x.narrators.entries())
+    statements.push(db.prepare(
+      "INSERT INTO commercial_audio_narrators(id,edition_id,display_name,narration_type,synthetic_voice_label,billing_order,created_at) VALUES(?,?,?,?,?,?,?)"
+    ).bind(id("narr"),x.editionId,n.displayName,n.narrationType,n.syntheticVoiceLabel,i,at));
+  // D1 batch is atomic: a failed insertion cannot delete the existing list.
+  await db.batch(statements);
   return { saved: true };
 }
 
@@ -4285,6 +4276,9 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     createMarketAuthoritySchema(ctx.storage.sql as unknown as AuthoritySql);
     createPublicationMaterializationSchema(ctx.storage.sql as unknown as AuthoritySql);
     createContractVersionOwnerSchema(ctx.storage.sql as unknown as AuthoritySql);
+    (ctx.storage.sql as AuthoritySql).exec(
+      "CREATE TABLE IF NOT EXISTS cove_audio_metadata_command_receipts(operation_id TEXT PRIMARY KEY,request_digest TEXT NOT NULL,receipt_json TEXT NOT NULL)"
+    );
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -4525,6 +4519,16 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         }).strict().parse(raw);
         // The owner never trusts caller-supplied edition/account/verification status;
         // every handler re-reads current member roles, draft and verified evidence.
+        const fingerprint=new Uint8Array(await crypto.subtle.digest("SHA-256",
+          new TextEncoder().encode(JSON.stringify(input))));
+        const requestDigest=Array.from(fingerprint,b=>b.toString(16).padStart(2,"0")).join("");
+        const prior=sql.exec<{request_digest:string;receipt_json:string}>(
+          "SELECT request_digest,receipt_json FROM cove_audio_metadata_command_receipts WHERE operation_id=?",
+          input.operationId).toArray()[0];
+        if(prior) {
+          if(prior.request_digest!==requestDigest)return new Response(null,{status:409,headers:noStore});
+          return Response.json(JSON.parse(prior.receipt_json),{headers:noStore});
+        }
         const action=input.action;
         const db=env.PRIMARY_DB as unknown as CoveEnv["DB"];
         const result=action==="profile"?
@@ -4534,8 +4538,11 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
             action==="agreement-add"?
               await privateAudioMetadata.addNarrationAgreement(db,input.userId,input.payload):
               await privateAudioMetadata.endNarrationAgreement(db,input.userId,input.payload);
-        return Response.json({schema:"cove.owner-audio-metadata.v1",ownerFirst:true,
-          operationId:input.operationId,action,userId:input.userId,result},{headers:noStore});
+        const ack={schema:"cove.owner-audio-metadata.v1",ownerFirst:true,
+          operationId:input.operationId,action,userId:input.userId,result};
+        sql.exec("INSERT INTO cove_audio_metadata_command_receipts(operation_id,request_digest,receipt_json) VALUES(?,?,?)",
+          input.operationId,requestDigest,JSON.stringify(ack));
+        return Response.json(ack,{headers:noStore});
       }
       if(route==="/publishing/onboarding/review") {
         const input=z.object({
