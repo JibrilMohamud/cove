@@ -19,6 +19,6 @@ assert.equal(lineage.retired.length,1);
 assert.equal(lineage.retired[0].commandFamily,"localization.upsertMarket");
 assert.equal(registry.sites.filter(s=>s.file==="src/storefront-strangler/localization-optimized.server.ts"&&s.commandFamily==="localization-optimized.upsertMarket").length,0);
 const ownerRequired=registry.sites.filter(s=>s.disposition==="owner-command-required").length;
-assert.ok(ownerRequired>0&&ownerRequired<=370,
-  "Verified SQL retirements may reduce the count; exact source inventory and frozen exceptions independently prevent laundering");
+assert.equal(ownerRequired,0,
+  "The final owner-required source writer count must be zero; exact source inventory and frozen exceptions independently prevent laundering");
 console.log("PASS: duplicate optimized writer removed, private owner retains canonical behavior and shared SQL stays retired; one market writer physically retired, "+ownerRequired+" owner-required sites still block release.");
