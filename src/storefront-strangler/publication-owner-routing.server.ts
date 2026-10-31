@@ -417,6 +417,19 @@ export async function dispatchCatalogNegativeSource(db:object,
 }
 
 /** Fixed negative-only commercial delivery commands; no shared SQL fallback. */
+export async function dispatchPrivateOwnershipSnapshot(db:object,input:{
+ entitlementId:string;userId:string;productId:string
+}):Promise<void>{
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Commercial ownership requires private authority.");
+ try{
+  const receipt=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+    "delivery.record-ownership",input);
+  if(receipt.saved!==true||receipt.entitlementId!==input.entitlementId)
+    throw Error("ownership_record_receipt_invalid");
+ }catch{throw new ApiError(503,"Private owner rejected ownership snapshot.");}
+}
+
 export async function dispatchNegativeDeliveryOwner(db:object,
  action:"revoke-grant"|"withdraw-version"|"restrict-policy"|"expire-grant"|"exhaust-grant",payload:object){
  const context=owners.get(db);

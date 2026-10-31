@@ -1,5 +1,5 @@
 /* eslint-disable prettier/prettier -- Audited private delivery-owner facades retain source lineage. */
-import { dispatchPrivateEntitlementDevice } from "../../storefront-strangler/publication-owner-routing.server";
+import { dispatchPrivateEntitlementDevice,dispatchPrivateOwnershipSnapshot } from "../../storefront-strangler/publication-owner-routing.server";
 import { dispatchNegativeDeliveryOwner } from "../../storefront-strangler/publication-owner-routing.server";
 import JSZip from "jszip";
 import { z } from "zod/v3";
@@ -202,46 +202,20 @@ function applyContractDeliveryPolicy(base: any, contractPolicy: any) {
   out.contract_policy = contractPolicy || {};
   return out;
 }
-async function ownershipRecord(db: DB, ent: any, product: any, lifecycle: any) {
-  const existing = await db
-    .prepare("SELECT * FROM entitlement_ownership_records WHERE entitlement_id=?")
-    .bind(ent.id)
-    .first<any>();
-  if (existing) return existing;
-  const at = now(),
-    purchase = ["purchase", "gift", "publisher"].includes(String(ent.entitlement_type)),
-    pin = await db
-      .prepare(
-        "SELECT publication_version_id FROM publishing_entitlement_version_pins WHERE entitlement_id=?",
-      )
-      .bind(ent.id)
-      .first<any>(),
-    version = pin?.publication_version_id || lifecycle?.current_publication_version_id || null,
-    policy = String(lifecycle?.owner_update_policy || "auto_update");
-  await db
-    .prepare(
-      `INSERT INTO entitlement_ownership_records(entitlement_id,user_id,product_id,work_id,edition_id,ownership_scope,publication_version_id,owner_update_policy,redownload_policy,rights_expiry_policy,removal_policy,annotations_policy,biosync_policy,acquired_at,created_at,updated_at) VALUES(?,?,?,?,?,'exact_edition',?,?,?,?,?,'migrate_or_preserve','version_bound',?,?,?)`,
-    )
-    .bind(
-      ent.id,
-      ent.user_id,
-      product.id,
-      product.work_id,
-      product.edition_id,
-      version,
-      policy,
-      purchase ? "preserve_for_owner" : "disabled",
-      purchase ? "preserve_for_owner" : "block_delivery",
-      purchase ? "preserve_for_owner" : "block_delivery",
-      ent.granted_at || at,
-      at,
-      at,
-    )
-    .run();
-  return db
-    .prepare("SELECT * FROM entitlement_ownership_records WHERE entitlement_id=?")
-    .bind(ent.id)
-    .first<any>();
+/** A stored ownership snapshot affects archival rights: only the private
+ * authority may create one, and all caller-provided policy values are ignored. */
+async function ownershipRecord(db:DB,ent:any,product:any,_lifecycle:any){
+  const existing=await db.prepare("SELECT * FROM entitlement_ownership_records WHERE entitlement_id=?")
+    .bind(ent.id).first<any>();
+  if(existing)return existing;
+  await dispatchPrivateOwnershipSnapshot(db,{
+    entitlementId:String(ent.id),userId:String(ent.user_id),productId:String(product.id)
+  });
+  const committed=await db.prepare(
+    "SELECT * FROM entitlement_ownership_records WHERE entitlement_id=? AND user_id=? AND product_id=?"
+  ).bind(ent.id,ent.user_id,product.id).first<any>();
+  if(!committed)throw new ApiError(503,"Private ownership record was not committed.");
+  return committed;
 }
 async function resolvedPublicationVersion(db: DB, ent: any, ownership: any, lifecycle: any) {
   if (!lifecycle?.current_publication_version_id) return null;
