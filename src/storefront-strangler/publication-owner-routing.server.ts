@@ -168,7 +168,7 @@ export async function dispatchPrivateTrustAction(db:object,
  action:"sign-rights"|"upload-evidence"|"assess-content"|"submit-notice"|
  "validate-notice"|"submit-counter"|"validate-counter"|"court-action"|
  "resolve-dispute"|"repeat-policy"|"review-evidence",
- payload:Record<string,unknown>):Promise<any>{
+ payload:Record<string,unknown>):Promise<unknown>{
  const context=owners.get(db);
  if(!context)throw new ApiError(503,"A private legal-trust owner is required.");
  try{

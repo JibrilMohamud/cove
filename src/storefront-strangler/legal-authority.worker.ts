@@ -5491,7 +5491,7 @@ return {ensurePreorderReleasePlan,registerPaidPreorder,updatePreorderLowestPrice
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- Historical trust rights SQL is private to the QA lease. */
 const privateTrust=(()=>{
- const dispatchPublishingOwnerValidationJob=async()=>{throw new ApiError(503,"Private rights scan lease is not delegated from a private owner.");};
+ const dispatchPublishingOwnerValidationJob=async (_db:unknown,_kind:unknown,_input:unknown):Promise<never>=>{throw new ApiError(503,"Private rights scan lease is not delegated from a private owner.");};
 
 const now = () => new Date().toISOString();
 const id = (p: string) => `${p}_${crypto.randomUUID()}`;

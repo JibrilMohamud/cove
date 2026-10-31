@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Temporary QA-only migration boundary; historical read helpers retained byte-for-byte. */
 import { z } from "zod/v3";
 import { ApiError } from "./service";
 import { createModerationCase, type StaffContext } from "./moderation.server";
