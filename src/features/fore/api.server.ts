@@ -1611,17 +1611,9 @@ async function cachePendingEpubs(
         }
         await insertRegionalEvidence(env, row, contentHash, canonicalizationVersion);
       }
-      // Ensure the canonical asset version points to Cove-controlled storage after successful validation.
-      try {
-        await db
-          .prepare(
-            "UPDATE asset_versions SET object_key=?,sha256=? WHERE asset_id=? AND version_number=1",
-          )
-          .bind(`epubs/${id}.epub`, contentHash, `asset_epub_gutenberg_${id}`)
-          .run();
-      } catch {
-        /* asset row may not exist until the next normalization pass */
-      }
+      // The private normalizer (called above for both US and regional EPUBs)
+      // owns asset_versions INSERT/UPSERT, including object_key and SHA-256.
+      // Never repair canonical asset metadata with a shared D1 fallback.
       downloaded++;
     } catch (error) {
       const attempts = Number(row.epub_attempts || 0) + 1;
