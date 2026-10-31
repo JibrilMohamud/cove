@@ -12,7 +12,7 @@ import {FORE_AI_POLICY_VERSION,FORE_RIGHTS_POLICY_VERSION,assessSubmissionConten
 import {commercialAudioReadiness,commercialAudioSubmissionEvidence,saveCommercialBiosyncLink} from "../features/fore/commercial-audio.server";
 import {assessUsageRisk,effectivePublisherWithholding,assessPayoutRisk,assessPublisherRisk} from "../features/fore/risk-tax.server";
 import {ensurePreorderReleasePlan} from "../features/fore/preorder.server";
-import {hasPublicationOwner,dispatchPublicationActivation,dispatchPublicationPreorder,dispatchPublicationRecovery,dispatchPublicationMaterialization,dispatchPublishingOnboardingReview,dispatchPublishingOwnerValidationJob} from "./publication-owner-routing.server";
+import {bindPublicationOwner,hasPublicationOwner,dispatchPublicationActivation,dispatchPublicationPreorder,dispatchPublicationRecovery,dispatchPublicationMaterialization,dispatchPublishingOnboardingReview,dispatchPublishingOwnerValidationJob} from "./publication-owner-routing.server";
 import {uploadPublishingAsset,publishingUploadLimit} from "../features/fore/publishing.server";
 import {checkoutQuote} from "../features/fore/commerce.server";
 import {sha256 as partnerFeedSha256,partnerAudit as partnerFeedAudit,
@@ -20725,9 +20725,22 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           return new Response(null,{status:409,headers:noStore});
         // Persisted buyer risk is reused across retries. The first evaluation
         // is owner-invoked, rather than a stale caller-supplied risk verdict.
+        // Private owner re-enters only the independently authenticated risk
+        // assessment / negative hold routes on this same Durable Object.
+        // An unbound raw PRIMARY_DB cannot dispatch its own risk updates.
+        const localRiskDb=bindPublicationOwner(db,{
+          owner:{fetch:async(req:Request)=>{
+            const route=new URL(req.url).pathname;
+            if(route!=="/risk/private-apply-assessment"&&
+               route!=="/risk/private-create-hold")
+              return new Response(null,{status:403,headers:noStore});
+            return this.fetch(req);
+          }},
+          secret:String(env.COVE_RIGHTS_OWNER_SECRET),territory:"US",currency:"USD"
+        });
         const risk=order.risk_assessment_id&&order.risk_action?
           {action:order.risk_action}:
-          await assessBuyerOrderRisk(db,order.id);
+          await assessBuyerOrderRisk(localRiskDb,order.id);
         if(!["allow","monitor","challenge","hold","block"].includes(risk.action))
           throw Error("owner_checkout_unknown_risk_action");
         if(risk.action==="block"||

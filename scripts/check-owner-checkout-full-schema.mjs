@@ -15,6 +15,14 @@ try {
     plugins:[{name:"host",setup(b){
       b.onResolve({filter:/^cloudflare:workers$/},()=>({path:"host",namespace:"mock-host"}));
       b.onLoad({filter:/.*/,namespace:"mock-host"},()=>({contents:"export class DurableObject{constructor(ctx,env){this.ctx=ctx;this.env=env;}}"}));
+      // Instrument ONLY the disposable schema QA bundle; the production source
+      // keeps its deliberately nondisclosing error log unchanged.
+      b.onLoad({filter:/legal-authority\\.worker\\.ts$/},(args)=>({
+        contents:readFileSync(args.path,"utf8").replace(
+          'console.error("cove_legal_authority_closed",error instanceof Error?error.name:"unknown");',
+          'console.error("cove_legal_authority_closed_qa_only",error instanceof Error?error.stack:"unknown");'
+        ),loader:"ts"
+      }));
     }}]});
   const {CoveLegalAuthority}=await import(pathToFileURL(path).href);
   const migrations=readdirSync("drizzle").filter(n=>n.endsWith(".sql")).sort();

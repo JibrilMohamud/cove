@@ -156,6 +156,7 @@ export function localBindings(root, options = {}) {
 }
 export function foreApiDevPlugin() {
   let env;
+  let browserQaOwnerInstall;
   return {
     name: "fore-local-api",
     configureServer(server) {
@@ -186,6 +187,20 @@ export function foreApiDevPlugin() {
       server.middlewares.use(async (req, res, next) => {
         if (!req.url?.startsWith("/api/fore/")) return next();
         try {
+          // The Vite API plugin creates a SEPARATE local DB connection from
+          // browser-qa-server.mjs. Both need the disposable owner facade;
+          // otherwise browser requests falsely bypass the seeded QA owner.
+          // This only runs in explicitly isolated browser-QA mode, never in
+          // production deployments or normal development mode.
+          if (process.env.FORE_AUTH_MODE === "browser-qa-managed") {
+            if (!browserQaOwnerInstall) {
+              const install = globalThis.__coveBrowserQaOwnerInstall;
+              if (typeof install !== "function")
+                throw new Error("Browser QA owner installer is unavailable.");
+              browserQaOwnerInstall = Promise.resolve(install(server, env));
+            }
+            await browserQaOwnerInstall;
+          }
           const request = new Request(`http://${req.headers.host}${req.url}`, {
             method: req.method,
             headers: req.headers,

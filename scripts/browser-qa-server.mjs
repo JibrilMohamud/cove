@@ -6,6 +6,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { createServer } from "vite";
 import JSZip from "jszip";
 import { localBindings } from "./local-api.mjs";
+import { createSyntheticFreeLibraryOwner } from "./test-browser-qa-owner.mjs";
 
 // Never use production credentials or data. This server is not shipped in the app.
 for (const key of Object.keys(process.env))
@@ -223,6 +224,24 @@ const fixturePlugin = {
 };
 process.env.GUTENDEX_BASE_URL = "http://127.0.0.1:4173/__qa/catalog";
 env.GUTENDEX_BASE_URL = process.env.GUTENDEX_BASE_URL;
+// Vite's local API plugin owns a separate D1 connection. Install exactly the
+// same synthetic legal-owner verifier in that isolated connection, not just in
+// the direct seed API. A missing installer must fail the QA run closed.
+const ownerSecret = "c".repeat(64);
+globalThis.__coveBrowserQaOwnerInstall = async (viteServer, apiEnv) => {
+  const routing = await viteServer.ssrLoadModule(
+    "/src/storefront-strangler/publication-owner-routing.server.ts",
+  );
+  const raw = apiEnv.DB;
+  apiEnv.DB = routing.bindPublicationOwner(raw, {
+    owner: createSyntheticFreeLibraryOwner(raw, users, ownerSecret),
+    secret: ownerSecret,
+    territory: "US",
+    currency: "USD",
+  });
+  if (!routing.hasPublicationOwner(apiEnv.DB))
+    throw new Error("Vite browser QA API did not bind its private owner.");
+};
 // Framework plugins resolve aliases/routes from cwd as well as Vite's root.
 // Keep every component on the same copy so React contexts cannot be duplicated.
 process.chdir(scratch);
@@ -284,6 +303,21 @@ const server = await createServer({
 await server.listen();
 api = await server.ssrLoadModule("/src/features/fore/api.server.ts");
 await invoke("/catalog?q=pride");
+// Both the API and fixture owner must share Vite's exact SSR module identity:
+// a different WeakMap would silently turn a supposedly authorized QA grant
+// into 503. The owner stub uses only scratch D1 and synthetic QA users.
+const ownerRouting = await server.ssrLoadModule(
+  "/src/storefront-strangler/publication-owner-routing.server.ts",
+);
+const privateQaDb = env.DB;
+env.DB = ownerRouting.bindPublicationOwner(privateQaDb, {
+  owner: createSyntheticFreeLibraryOwner(privateQaDb, users, ownerSecret),
+  secret: ownerSecret,
+  territory: "US",
+  currency: "USD",
+});
+if (!ownerRouting.hasPublicationOwner(env.DB))
+  throw Error("Synthetic browser-QA owner facade is not registered");
 const zip = new JSZip();
 zip.file("mimetype", "application/epub+zip", { compression: "STORE" });
 zip.file(

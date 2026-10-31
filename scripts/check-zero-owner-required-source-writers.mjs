@@ -23,7 +23,7 @@ assert.doesNotMatch(src,/\bINSERT INTO gutenberg_source_cache\(/);
 const start=src.indexOf("export function catalogInsert(");
 const stop=src.indexOf("async function ensureCatalogState(",start);
 assert.ok(start>0&&stop>start);
-assert.match(src.slice(start,stop),/return \{cacheId:String\(book.id\),sourceId,fields:/);
+assert.match(src.slice(start,stop),/return\s+\{\s*cacheId:\s*String\(book\.id\),\s*sourceId,\s*fields:\s*\[/);
 assert.doesNotMatch(src.slice(start,stop),/\.prepare\(/);
 assert.ok((src.match(/dispatchPrivateCatalogSourceBatch\(db,/g)||[]).length>=5);
 assert.match(routing,/if\(!context\)throw new ApiError\(503,"Catalog source ingestion requires private legal authority."\)/);

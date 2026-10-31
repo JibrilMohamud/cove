@@ -5,7 +5,7 @@
   "files": [
     {
       "path": "src/features/fore/commerce.server.ts",
-      "sha256": "7d9cf94252eb2758d3861d8ab2a347bc249f3ba8840ec117b119c2ba166cd146",
+      "sha256": "52ba9bb4feec5b2b7c5586687d72cd3498751a0601061823b95a5adbc6ac955f",
       "review": "Historical earlier retirement remains intact; current commerce server additionally retires 38 legacy payment writer statements, independently attested at docs/architecture/retired-legacy-commerce-source-attestation-20261030.json. Two tax SQL sites remain owner-required. Source-only formatting and explicit fail-safe refund error logging are now included; exact surviving SQL remained unchanged. Independent review restored the owner-only checkout quote persistence and blocks public unenrolled callers; the quote SQL is still classified owner-required. New private-owner checkout-quote relocation removes one shared SQL site. The other two commerce SQL literals and dispositions remain unchanged with fresh full-source identifiers. Release locked. Final remaining two Stripe Tax transaction/reversal canonical SQL statements were retired to separately authenticated private QA owner commands. Current commerce module contains zero protected mutation sites. Production is not certified."
     }
   ],
