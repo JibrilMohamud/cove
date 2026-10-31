@@ -6,6 +6,9 @@ import { build } from "esbuild";
 import { localBindings } from "./local-api.mjs";
 
 const folder = fs.mkdtempSync(path.join(os.tmpdir(), "cove-legal-"));
+const originalDateNow = Date.now;
+const fixedRateMinute = originalDateNow();
+Date.now = () => fixedRateMinute;
 try {
   fs.cpSync("drizzle", path.join(folder, "drizzle"), { recursive: true });
   await build({
@@ -70,5 +73,6 @@ try {
     "PASS: durable anonymous privacy requests, origin isolation, validation, spam trap and rate limiting.",
   );
 } finally {
+  Date.now = originalDateNow;
   fs.rmSync(folder, { recursive: true, force: true });
 }
