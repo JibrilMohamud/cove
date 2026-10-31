@@ -19044,7 +19044,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
             new TextEncoder().encode(JSON.stringify([x.campaignId,hash,x.kind,x.value,
               x.minimumSubtotalMinor,x.maxPerUser]))));
           const eventId="promoevt_"+Array.from(eventBytes,b=>b.toString(16).padStart(2,"0")).join("").slice(0,32);
-          const results=await db.batch([
+          const results=(await db.batch([
             db.prepare(
               "INSERT INTO commerce_promo_codes(code_hash,code_label,kind,value,currency,minimum_subtotal_minor,max_redemptions,max_per_user,redemptions,active,starts_at,ends_at,created_at,updated_at,campaign_id,funding_source,publisher_funding_bps,eligible_products_json,stackable) VALUES(?,?,?,?,?,?,?,?,0,1,?,?,?,?,?,?,?,?,?) ON CONFLICT(code_hash) DO UPDATE SET campaign_id=excluded.campaign_id,kind=excluded.kind,value=excluded.value,currency=excluded.currency,minimum_subtotal_minor=excluded.minimum_subtotal_minor,max_redemptions=excluded.max_redemptions,max_per_user=excluded.max_per_user,active=excluded.active,starts_at=excluded.starts_at,ends_at=excluded.ends_at,updated_at=excluded.updated_at,funding_source=excluded.funding_source,publisher_funding_bps=excluded.publisher_funding_bps,eligible_products_json=excluded.eligible_products_json,stackable=excluded.stackable WHERE commerce_promo_codes.campaign_id=excluded.campaign_id"
             ).bind(hash,x.code,x.kind,x.value,campaign.currency||null,x.minimumSubtotalMinor,
@@ -19287,6 +19287,10 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           grantId:x.grantId,saved:true},{headers:noStore});
       }
       if(route==="/audio/private-offline-license"){
+        const audioDigest=async(value:string)=>{
+          const bytes=new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value)));
+          return Array.from(bytes,b=>b.toString(16).padStart(2,"0")).join("");
+        };
         const x=z.object({
           licenseId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
           userId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
@@ -19343,7 +19347,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         ]);
         if(!ent||!device||!manifestRow||!market||riskAccount||riskOrder||
            (ent.ends_at&&Date.parse(ent.ends_at)<end)||
-           (await sha256Hex(String(device.device_key)))!==x.deviceKeyHash||
+           (await audioDigest(String(device.device_key)))!==x.deviceKeyHash||
            x.editionId!=="ca_"+manifestRow.edition_id.replace(/[^A-Za-z0-9_-]/g,"_"))
           return new Response(null,{status:409,headers:noStore});
         let frozen:{chapters?:unknown;profile?:unknown;narrators?:unknown;agreements?:unknown};
@@ -19355,7 +19359,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           agreements=Array.isArray(frozen?.agreements)?frozen.agreements as Array<Record<string,unknown>>:[];
         if(profile.offlineEligible!==true||!chapters.length||!narrators.length||!agreements.length||
            chapters.some(c=>typeof c.id!=="string"||! /^[a-f0-9]{64}$/.test(String(c.sha256||"")))||
-           (await sha256Hex(JSON.stringify(chapters.map(c=>[c.id,c.sha256]))))!==x.manifestHash)
+           (await audioDigest(JSON.stringify(chapters.map(c=>[c.id,c.sha256]))))!==x.manifestHash)
           return new Response(null,{status:409,headers:noStore});
         const terminated=(await db.prepare(
           "SELECT nt.agreement_id FROM narration_agreement_terminations nt JOIN narration_agreements na ON na.id=nt.agreement_id WHERE na.edition_id=? AND nt.effective_at<=?"
@@ -19393,7 +19397,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
               x.tokenHash,x.manifestHash,x.issuedAt,x.expiresAt,at,
               x.entitlementId,x.userId,x.productId,at,x.expiresAt,
               x.deviceId,x.userId,x.userId,max,x.entitlementId,at,x.deviceId,max)
-        ]);
+        ])) as Array<{meta?:{changes?:number}}>;
         if(results.length!==2||
            Number((results[1] as {meta?:{changes?:number}})?.meta?.changes||0)!==1)
           return new Response(null,{status:409,headers:noStore});
@@ -19469,7 +19473,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         ).bind(at,at,x.grantId,x.tokenHash,at,limit)]:[claim];
         // D1 batch is transactional and serializes the protected pair. Never
         // return the paid bytes unless BOTH guarded mutations committed.
-        const applied=await db.batch(statements);
+        const applied=(await db.batch(statements)) as Array<{meta?:{changes?:number}}>;
         if(applied.length!==statements.length||applied.some(r=>
           Number((r as {meta?:{changes?:number}})?.meta?.changes||0)!==1))
           return new Response(null,{status:409,headers:noStore});
