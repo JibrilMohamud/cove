@@ -1,0 +1,24 @@
+# Private nonproduction health probe for removing the last non-owner native D1
+# binding. NO public route, workers.dev ingress, cron, native D1, or media R2.
+# This is not a replacement for the production persistence backend.
+name = "cove-persistence-backend-readonly-candidate"
+main = "backend-dist/worker.js"
+compatibility_date = "2026-10-17"
+workers_dev = false
+preview_urls = false
+routes = []
+
+[[services]]
+binding = "COVE_CANONICAL_READONLY"
+service = "cove-canonical-d1-readonly"
+
+[vars]
+COVE_BACKEND_READONLY_CANDIDATE = "1"
+COVE_CANONICAL_READONLY_RPC = "1"
+FORE_ENVIRONMENT = "staging"
+FORE_PUBLIC_URL = "https://cove-puce-theta.vercel.app"
+
+# Operator must separately provision FORE_BACKEND_TOKEN_SHA256 as a secret
+# with its own >=24-character random backend bearer. Never reuse the live
+# backend's token or copy its D1-persisted SHA. Without a valid secret, every
+# request is rejected and the candidate is not operable.
