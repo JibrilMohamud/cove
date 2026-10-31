@@ -10,7 +10,7 @@ const review=JSON.parse(get("docs/architecture/canonical-writer-review.json"));
 const lineage=JSON.parse(get("docs/architecture/retired-support-owner-lineage.json"));
 assert.equal(lineage.retiredSiteIds.length,8);
 assert.equal(review.releaseApproval,false);
-assert.equal(review.sites.filter(x=>x.disposition==="owner-command-required").length,156);
+assert.equal(review.sites.filter(x=>x.disposition==="owner-command-required").length,126);
 assert.equal(review.sites.filter(x=>x.file==="src/features/fore/support.server.ts").length,0);
 assert.ok(lineage.retiredSiteIds.every(id=>!review.sites.some(x=>x.siteId===id)));
 assert.doesNotMatch(source,/\b(?:INSERT(?: OR IGNORE)? INTO|UPDATE)\s+(?:entitlements|audio_offline_licenses|devices|commerce_notifications|publishing_outbox|publishing_release_lifecycles|publishing_edition_drafts)\b/i);
