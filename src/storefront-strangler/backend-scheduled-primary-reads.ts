@@ -8,6 +8,7 @@ import {
 export type ScheduledPrimaryReadEnv = {
   DB: CoveEnv["DB"];
   COVE_BACKEND_SCHEDULED_READONLY_RPC?: string;
+  COVE_CANONICAL_READONLY_RPC?: string;
   COVE_CANONICAL_READONLY?: CanonicalReadService;
 };
 
@@ -21,6 +22,7 @@ export function backendScheduledPrimaryReadDb(env: ScheduledPrimaryReadEnv): Cov
   if (env.COVE_BACKEND_SCHEDULED_READONLY_RPC === undefined) return env.DB;
   if (
     env.COVE_BACKEND_SCHEDULED_READONLY_RPC !== "1" ||
+    env.COVE_CANONICAL_READONLY_RPC !== "1" ||
     typeof env.COVE_CANONICAL_READONLY?.query !== "function"
   )
     throw new Error("scheduled_primary_read_owner_unavailable");
