@@ -126,9 +126,9 @@ async function cf(url,token){
   if(data.success!==true||!Array.isArray(data.errors))throw Error("Cloudflare API verification failed");
   return data;
 }
-export async function readLiveEvidence({cloudflareToken,accountId,stripeRestrictedKey}){
-  if(!cloudflareToken||!accountId||!stripeRestrictedKey)
-    throw Error("Cloudflare token/account and Stripe LIVE restricted read-only key are all mandatory.");
+export async function readLiveEvidence({cloudflareToken,cloudflareUserAuditToken,accountId,stripeRestrictedKey}){
+  if(!cloudflareToken||!cloudflareUserAuditToken||!accountId||!stripeRestrictedKey)
+    throw Error("Cloudflare account audit key, separately permissioned user-token audit key, account ID and Stripe LIVE restricted read-only key are all mandatory.");
   const base="https://api.cloudflare.com/client/v4/accounts/"+encodeURIComponent(accountId)+"/workers/scripts";
   // List Worker Scripts is an unpaginated endpoint. Adding unsupported page
   // arguments repeats the entire account and falsely fails at >100 scripts.
@@ -169,7 +169,7 @@ export async function readLiveEvidence({cloudflareToken,accountId,stripeRestrict
   // User-scoped credentials are not listed by /accounts/{id}/tokens.
   // The auditing credential must have explicit API Tokens Read permission.
   for(let page=1;page<=20;page++){
-    const data=await cf("https://api.cloudflare.com/client/v4/user/tokens?per_page=50&page="+page,cloudflareToken);
+    const data=await cf("https://api.cloudflare.com/client/v4/user/tokens?per_page=50&page="+page,cloudflareUserAuditToken);
     if(!Array.isArray(data.result))throw Error("User API token privilege inventory incomplete");
     userTokens.push(...data.result);
     if(data.result_info?.total_pages&&page>=data.result_info.total_pages)break;
@@ -198,6 +198,7 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
     const ownerSource=readFileSync("src/storefront-strangler/legal-authority.worker.ts","utf8");
     const evidence=await readLiveEvidence({
       cloudflareToken:process.env.CLOUDFLARE_API_TOKEN,
+      cloudflareUserAuditToken:process.env.CLOUDFLARE_USER_TOKEN_AUDIT_KEY,
       accountId:process.env.CLOUDFLARE_ACCOUNT_ID,
       stripeRestrictedKey:process.env.STRIPE_LIVE_RESTRICTED_READ_KEY
     });
