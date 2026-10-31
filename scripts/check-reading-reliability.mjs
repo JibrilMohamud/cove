@@ -139,12 +139,17 @@ try {
     )
     .run();
   await env.BUCKET.delete("epubs/1342.epub");
-  const ownerless = await request("/books/1342/epub");
-  assert.equal(ownerless.status, 503, "ownerless canonical hydration must fail closed");
-  const unpersisted = await db
-    .prepare("SELECT epub_status FROM gutenberg_source_cache WHERE id='1342'")
+  const beforeOwnerless = await db
+    .prepare("SELECT epub_status,content_hash FROM gutenberg_source_cache WHERE id='1342'")
     .first();
-  assert.notEqual(unpersisted.epub_status, "completed");
+  const ownerless = await request("/books/1342/epub");
+  assert.equal(ownerless.status, 200, "verified public-US EPUB bytes may be streamed without a canonical write");
+  assert.equal((await ownerless.arrayBuffer()).byteLength, bytes.length);
+  const unpersisted = await db
+    .prepare("SELECT epub_status,content_hash FROM gutenberg_source_cache WHERE id='1342'")
+    .first();
+  assert.deepEqual(unpersisted, beforeOwnerless,
+    "A public read without an owner must never mint or update canonical cache state");
   await env.BUCKET.delete("epubs/1342.epub");
   env = {
     ...env,

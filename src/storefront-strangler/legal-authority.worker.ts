@@ -8,7 +8,7 @@ import {bindPrivateFinanceExecutors} from "./finance-owner-routing.server";
 import {runAutomatedPublishingReview} from "../features/fore/moderation.server";
 import {upsertRightsContract} from "../features/fore/rights.server";
 import {FORE_AI_POLICY_VERSION,FORE_RIGHTS_POLICY_VERSION,assessSubmissionContentPolicy,publisherRightsSnapshot,recordAssetFingerprint,scanAccountRiskLinks,scanIdentitySimilarity} from "../features/fore/publishing-trust.server";
-import {commercialAudioReadiness,commercialAudioSubmissionEvidence} from "../features/fore/commercial-audio.server";
+import {commercialAudioReadiness,commercialAudioSubmissionEvidence,saveCommercialBiosyncLink} from "../features/fore/commercial-audio.server";
 import {assessUsageRisk,effectivePublisherWithholding,assessPayoutRisk,assessPublisherRisk} from "../features/fore/risk-tax.server";
 import {ensurePreorderReleasePlan} from "../features/fore/preorder.server";
 import {hasPublicationOwner,dispatchPublicationActivation,dispatchPublicationPreorder,dispatchPublicationRecovery,dispatchPublicationMaterialization,dispatchPublishingOnboardingReview,dispatchPublishingOwnerValidationJob} from "./publication-owner-routing.server";
@@ -17607,6 +17607,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/order/settle",
       "/commercial/order/recover-settlements",
       "/commercial/refund/reserve",
+      "/publishing/audio/biosync-verify",
       "/commercial/tax/confirm",
       "/commercial/checkout/create-quote",
       "/commercial/checkout/materialize-draft",
@@ -18595,7 +18596,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         // A caller-provided or inconsistent lower-risk assessment never
         // materializes into commerce or a publisher account.
         let policy:unknown;
-        try{policy=JSON.parse(currentPolicy.policy_json);}catch{}
+        try{policy=JSON.parse(currentPolicy.policy_json);}catch{ /* Malformed policy must fail closed. */ }
         if(!policy||typeof policy!=="object"||Array.isArray(policy))
           return new Response(null,{status:409,headers:noStore});
         const thresholds=(policy as {thresholds?:Record<string,unknown>}).thresholds||{};
@@ -19729,6 +19730,52 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           ready:true,blocked:false,riskAction:risk.action,
           captureMethod:risk.action==="hold"?"manual":order.capture_method,
           tenderReserved:true,quoteConsumed:true,applied:true},{headers:noStore});
+      }
+      if(route==="/publishing/audio/biosync-verify"){
+        const input=z.object({
+          actorUserId:z.string().min(8).max(160),
+          request:z.object({
+            ebookProductId:z.string().min(1).max(180),
+            audiobookProductId:z.string().min(1).max(180),
+            ebookAssetVersionId:z.string().min(1).max(180),
+            audioManifestHash:z.string().regex(/^[a-f0-9]{64}$/),
+            timingManifestObjectKey:z.string().min(1).max(1000),
+            timingManifestSha256:z.string().regex(/^[a-f0-9]{64}$/),
+            precision:z.enum(["sentence","word"]).optional(),
+            coverageBps:z.number().int().min(0).max(10000).optional(),
+            verifiedBy:z.string().min(1).max(120).optional()
+          }).strict()
+        }).strict().parse(raw);
+        const db=env.PRIMARY_DB;
+        const staff=await db.prepare(
+          "SELECT 1 ok FROM staff_principals sp JOIN staff_principal_roles roles ON roles.user_id=sp.user_id JOIN staff_role_permissions perms ON perms.role_id=roles.role_id WHERE sp.user_id=? AND sp.status='active' AND perms.permission IN ('audio.qc.review','staff.manage') LIMIT 1"
+        ).bind(input.actorUserId).first<{ok:number}>();
+        if(!staff||!env.BUCKET)return new Response(null,{status:403,headers:noStore});
+        // Entire manifest, linked active publication, version and cue checks
+        // are rerun with the owner's independent PRIMARY_DB and BUCKET.
+        const ownerEnv={DB:db,BUCKET:env.BUCKET} as CoveEnv;
+        const verified=await saveCommercialBiosyncLink(
+          ownerEnv,input.actorUserId,input.request,async row=>{
+            const fingerprint=new TextEncoder().encode(JSON.stringify([
+              row.ebookProductId,row.audiobookProductId,row.ebookAssetVersionId,
+              row.audioManifestHash,row.timingManifestSha256
+            ]));
+            const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",fingerprint));
+            const linkId="biosync_"+Array.from(digest,b=>b.toString(16).padStart(2,"0")).join("").slice(0,40);
+            await db.prepare(
+              "INSERT OR IGNORE INTO commercial_biosync_links(id,ebook_product_id,audiobook_product_id,ebook_asset_version_id,audio_manifest_hash,timing_manifest_object_key,timing_manifest_sha256,precision,coverage_bps,verification_status,verified_by,verified_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,'verified',?,?,?)"
+            ).bind(linkId,row.ebookProductId,row.audiobookProductId,row.ebookAssetVersionId,
+              row.audioManifestHash,row.timingManifestObjectKey,row.timingManifestSha256,
+              row.precision,row.coverageBps,row.verifiedBy,row.verifiedAt,row.verifiedAt).run();
+            const committed=await db.prepare(
+              "SELECT id FROM commercial_biosync_links WHERE id=? AND ebook_product_id=? AND audiobook_product_id=? AND ebook_asset_version_id=? AND audio_manifest_hash=? AND timing_manifest_sha256=? AND verification_status='verified'"
+            ).bind(linkId,row.ebookProductId,row.audiobookProductId,row.ebookAssetVersionId,
+              row.audioManifestHash,row.timingManifestSha256).first<{id:string}>();
+            if(committed?.id!==linkId)throw Error("verified_biosync_owner_commit_mismatch");
+            return linkId;
+          });
+        return Response.json({...verified,schema:"cove.owner-biosync-verified.v1",
+          ownerFirst:true,actorUserId:input.actorUserId,verified:true},{headers:noStore});
       }
       if(route==="/commercial/tax/confirm"){
         const input=z.object({
