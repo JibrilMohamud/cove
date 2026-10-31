@@ -453,6 +453,23 @@ export async function dispatchPrivateCommercialEpubGrant(db:object,input:{
 
 /** The private paid owner consumes a bearer token and its download allowance
  * in one guarded D1 batch. The shared delivery server is read-only. */
+/** The offline audio signer is not a D1 writer. An independently verified
+ * private owner commits both license refresh and any revocation. */
+export async function dispatchPrivateOfflineAudioLicense(db:object,input:{
+ licenseId:string;userId:string;productId:string;entitlementId:string;
+ editionId:string;deviceId:string;deviceKeyHash:string;tokenHash:string;
+ manifestHash:string;issuedAt:string;expiresAt:string;territory:string;
+}):Promise<void>{
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Offline audio license requires private legal authority.");
+ try{
+  const ack=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+    "audio.issue-offline-license",input);
+  if(ack.saved!==true||ack.licenseId!==input.licenseId||
+     ack.expiresAt!==input.expiresAt)throw Error("offline_audio_receipt_mismatch");
+ }catch{throw new ApiError(503,"Private legal owner refused offline audio license.");}
+}
+
 export async function dispatchPrivateCommercialEpubConsumption(db:object,input:{
  grantId:string;tokenHash:string;territory:string;channel:"retail"|"subscription"|"library";
 }):Promise<void>{
