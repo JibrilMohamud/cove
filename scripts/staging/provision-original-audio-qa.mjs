@@ -1,7 +1,7 @@
 /* eslint-disable prettier/prettier -- Explicit frozen synthetic audio fixture SQL follows private QA schema. */
-/* Synthetic dual-format publisher fixture for deployed ISOLATED paid QA only.
+/* Synthetic format-specific audiobook publisher fixture for deployed ISOLATED paid QA only.
  * Never call on live catalog, real customers or a production D1.
- * The same QA purchased SKU covers the original EPUB + generated audio.
+ * An independently purchased audiobook SKU covers only generated audio.
  */
 import assert from "node:assert/strict";
 import {createHash} from "node:crypto";
@@ -18,7 +18,7 @@ export function qaAudioPublicationVersion(runId) {
 export async function provisionPublishedQaAudio(qaSql,{runId,productId,
   buyerId,objectKey,sha,sizeBytes,evidenceSha,evidenceSize}){
   assert.match(runId,/^[0-9]{8,15}-[0-9]{1,5}$/);
-  assert.equal(productId,"prd_paid_qa_20261027");
+  assert.equal(productId,"prd_audio_qa_"+runId);
   assert.equal(buyerId,"user_initial_qa_"+runId);
   assert.equal(objectKey,"qa/chapter.wav");
   assert.match(sha,/^[a-f0-9]{64}$/);
@@ -97,5 +97,5 @@ export async function provisionPublishedQaAudio(qaSql,{runId,productId,
     [version,lifecycle,publication,submission,qaAudioPublicationVersion(runId),sum,manifest,buyerId,time,time]);
   await qaSql("UPDATE publishing_release_lifecycles SET current_publication_version_id=? WHERE id=?",
     [version,lifecycle]);
-  console.log("QA original dual-format synthetic publisher/narrator/audio manifest provisioned");
+  console.log("QA independently purchased audiobook publisher/narrator manifest provisioned");
 }

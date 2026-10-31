@@ -6,6 +6,7 @@ import path from "node:path";
 import {randomBytes,createHash,generateKeyPairSync} from "node:crypto";
 import {pathToFileURL} from "node:url";
 import {isPaidOwnerQaSchemaTable} from "./paid-owner-schema-policy.mjs";
+import {provisionPaidAudioOrder} from "./provision-paid-audio-order-qa.mjs";
 import {provisionPublishedQaAudio} from "./provision-original-audio-qa.mjs";
 import JSZip from "jszip";
 import {build} from "esbuild";
@@ -255,7 +256,7 @@ const assertNoRoute=(config)=>{
 };
 let ownerCreated=false,callerCreated=false,writerCreated=false,settlementCreated=false;
 let cleanupError=null,listener=null,webhookServer=null,webhookSigningSecret="";
-let paymentIntentId=null,initialPaymentIntentId=null,mediaBucketCreated=false;
+let paymentIntentId=null,initialPaymentIntentId=null,audioPaymentIntentId=null,mediaBucketCreated=false;
 let matchedPackets=[],initialOutageInjected=false;
 const until=async(check,label,ms=45000)=>{
   const end=Date.now()+ms;
@@ -435,7 +436,7 @@ try {
       }
       const event=JSON.parse(raw);
       if(event?.type!=="payment_intent.succeeded" ||
-         ![test.orderId,initialOrder].includes(
+         ![test.orderId,initialOrder,"order_audio_qa_"+runId].includes(
            event?.data?.object?.metadata?.fore_order_id)){
         res.writeHead(200);res.end("ignored");return;
       }
@@ -583,8 +584,11 @@ try {
     [test.productId,nowSql,nowSql]
   );
   console.log("QA original EPUB/registered device private assets provisioned");
+  const audioFixture=await provisionPaidAudioOrder(qaSql,{
+    runId,buyerId:initialBuyer,evidenceSha:digest(rightsBytes)
+  });
   await provisionPublishedQaAudio(qaSql,{
-    runId,productId:test.productId,buyerId:initialBuyer,
+    runId,productId:audioFixture.productId,buyerId:initialBuyer,
     objectKey:"qa/chapter.wav",sha:audioSha,sizeBytes:audioBytes.length,
     evidenceSha:digest(rightsBytes),evidenceSize:rightsBytes.length
   });
@@ -968,7 +972,7 @@ try {
   const originalCall=(route,token,extra={})=>fetch(settlementOrigin+route,{
     method:"POST",headers:{"content-type":"application/json",
       authorization:"Bearer "+gate,...extra},
-    body:JSON.stringify({orderId:initialOrder,userId:initialBuyer,
+    body:JSON.stringify({orderId:route.startsWith("/original/audio-")?audioFixture.orderId:initialOrder,userId:initialBuyer,
       ...(token?{token}:{})}),
     signal:AbortSignal.timeout(12000)
   });
@@ -1013,6 +1017,43 @@ try {
     "Original EPUB offline issuer must fail closed on owner outage");
   console.log("PASS: ORIGINAL Cove EPUB grant and token -> private R2 bytes; registered-device offline EPUB issuer -> original P-256 verifier; owner outage denies both");
 
+  // Audiobook access has its OWN paid SKU, format-specific contract, grant,
+  // immutable acquisition scope and Stripe payment. The ebook cannot pay for it.
+  const audioPublication=await post("/commercial/retail/publish-verified",{
+    productId:audioFixture.productId,territory:"US",currency:"USD",
+    operationId:"qa:"+runId+":positive-audio-publication"
+  });
+  assert.equal(audioPublication.status,200,"Independent audiobook rights must publish before payment");
+  assert.equal((await postSettlement("/authorize-initial",audioFixture.orderId,initialBuyer)).status,451,
+    "Paid ebook must not authorize the separate unpaid audiobook");
+  assert.notEqual((await originalCall("/original/audio-offline")).status,200,
+    "No audiobook license may be issued before its separate payment");
+  const audioPI=await stripeRequest("payment_intents",{amount:"399",currency:"usd",
+    "metadata[fore_order_id]":audioFixture.orderId,
+    description:"Cove independent audiobook purchase QA (test only)"});
+  audioPaymentIntentId=audioPI.id;
+  const audioLink=await qaSql("UPDATE commerce_orders SET stripe_payment_intent_id=? WHERE id=? AND status='pending_payment' AND stripe_due_minor=399 AND currency='USD'",
+    [audioPaymentIntentId,audioFixture.orderId]);
+  assert.equal(audioLink.meta?.changes,1);
+  const audioConfirmation=await stripeRequest("payment_intents/"+encodeURIComponent(audioPaymentIntentId)+"/confirm",{
+    payment_method:"pm_card_visa",return_url:"https://example.invalid/cove-audio-qa"});
+  assert.equal(audioConfirmation.status,"succeeded");
+  const audioPacket=await until(()=>matchedPackets.find(x=>x.raw?.includes(audioPaymentIntentId)),
+    "independent_audio_signed_webhook",60000);
+  await until(async()=>{
+    const response=await fetch(settlementOrigin+"/signed-stripe-settlement",{method:"POST",
+      headers:{"content-type":"application/json",authorization:"Bearer "+gate,"stripe-signature":audioPacket.signature},
+      body:audioPacket.raw,signal:AbortSignal.timeout(15000)});
+    if(response.status===200)return true;
+    assert.equal(response.status,503,"Only retryable provider/owner delays may defer audio settlement");
+    await pause(1000);return false;
+  },"independent_audiobook_settlement",60000);
+  assert.equal((await postSettlement("/authorize-initial",audioFixture.orderId,initialBuyer)).status,200);
+  const audioLedger=await qaSql("SELECT entry_type,amount_minor FROM commerce_ledger_entries WHERE order_id=?",[audioFixture.orderId]);
+  assert.ok(audioLedger.results.some(x=>x.entry_type==="processor_fee"));
+  assert.ok(audioLedger.results.some(x=>x.entry_type==="royalty_accrual"));
+  assert.equal(audioLedger.results.reduce((sum,x)=>sum+Number(x.amount_minor),0),0);
+  console.log("PASS: independent paid audiobook SKU/contract/grant; ebook purchase cannot authorize audio; separate signed Stripe TEST settlement and balanced journal");
   const audioPreflight=await originalCall("/original/audio-preflight");
   assert.equal(audioPreflight.status,200);
   const audioProof=await audioPreflight.json();
@@ -1034,7 +1075,8 @@ try {
     "Original chapter streaming must return exact R2 PCM bytes, not merely a 206 header");
   const audioOfflineResponse=await originalCall("/original/audio-offline");
   assert.equal(audioOfflineResponse.status,200,
-    "Original audiobook offline issuer must verify a paid, registered device");
+    "Original audiobook offline issuer must verify a paid, registered device; status="+audioOfflineResponse.status+
+    " category="+String((await audioOfflineResponse.clone().json().catch(()=>null))?.qaErrorCategory||"missing"));
   let audioLicense=await audioOfflineResponse.json();
   assert.ok(audioLicense.receipt?.signature && audioLicense.licenseId &&
     audioLicense.token && audioLicense.expiresAt);
@@ -1046,7 +1088,7 @@ try {
   });
   const {verifyOfflineAudioLicense}=await import(pathToFileURL(audioVerifierFile).href);
   const expectedAudioEdition={
-    id:"ca_qa_audio_draft_"+runId,productId:test.productId,
+    id:"ca_qa_audio_draft_"+runId,productId:audioFixture.productId,
     tracks:[{id:"qa_audio_chapter_"+runId,sha256:audioSha}]
   };
   const audioClaims=await verifyOfflineAudioLicense(
@@ -1072,7 +1114,7 @@ try {
   const audioVerify=await fetch(settlementOrigin+"/original/audio-verify",{
     method:"POST",headers:{"content-type":"application/json",
       authorization:"Bearer "+gate},
-    body:JSON.stringify({orderId:initialOrder,userId:initialBuyer,
+    body:JSON.stringify({orderId:audioFixture.orderId,userId:initialBuyer,
       token:audioLicense.token,licenseId:audioLicense.licenseId}),
     signal:AbortSignal.timeout(12000)
   });
@@ -1090,7 +1132,7 @@ try {
   assert.notEqual(audioLicense.token,previousAudio.token);
   const verifyAudioOnline=license=>fetch(settlementOrigin+"/original/audio-verify",{
     method:"POST",headers:{"content-type":"application/json",authorization:"Bearer "+gate},
-    body:JSON.stringify({orderId:initialOrder,userId:initialBuyer,
+    body:JSON.stringify({orderId:audioFixture.orderId,userId:initialBuyer,
       token:license.token,licenseId:license.licenseId}),
     signal:AbortSignal.timeout(12000)
   });
@@ -1120,6 +1162,14 @@ try {
     "Original audio offline issuer must fail closed when independent owner is unavailable");
   console.log("PASS: ORIGINAL commercial audiobook range stream, synthetic frozen narrator publisher proof, offline license issue/verify and owner-outage veto");
 
+  const audioRefund=await stripeRequest("refunds",{payment_intent:audioPaymentIntentId,reason:"requested_by_customer"});
+  assert.equal(audioRefund.status,"succeeded");
+  assert.equal((await post("/commercial/entitlement/revoke-order",{
+    orderId:audioFixture.orderId,operationId:"stripe-audio-qa-refund:"+audioRefund.id
+  })).status,200);
+  assert.equal((await postSettlement("/authorize-initial",audioFixture.orderId,initialBuyer)).status,451);
+  assert.equal((await postSettlement("/authorize-initial",initialOrder,initialBuyer)).status,200,
+    "Audio refund must leave the independently purchased ebook available");
   const initialRefund=await stripeRequest("refunds",{
     payment_intent:initialPaymentIntentId,
     reason:"requested_by_customer"
@@ -1155,7 +1205,7 @@ try {
     "Previously issued EPUB bearer must fail closed after refund; status="+oldBearer.status);
   const refusedAudioVerify=await fetch(settlementOrigin+"/original/audio-verify",{
     method:"POST",headers:{"content-type":"application/json",authorization:"Bearer "+gate},
-    body:JSON.stringify({orderId:initialOrder,userId:initialBuyer,
+    body:JSON.stringify({orderId:audioFixture.orderId,userId:initialBuyer,
       token:audioLicense.token,licenseId:audioLicense.licenseId}),
     signal:AbortSignal.timeout(12000)
   });
