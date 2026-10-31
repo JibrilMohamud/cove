@@ -19,6 +19,12 @@ async function load(entryPoint) {
 const { SOUNDS_SCHEMA, soundsKey, validateSoundsSnapshot, getSoundsSnapshot, handleSoundsSnapshot } =
   await load("src/features/fore/cove-sounds-snapshot.server.ts");
 const { publishCoveSounds } = await load("src/storefront-strangler/sounds-publication.worker.ts");
+const { readSoundsPublicationSource } = await load("src/storefront-strangler/sounds-source-reader.ts");
+const readerSecret = "c".repeat(64);
+const sourceReader = (db) => ({ fetch: request => readSoundsPublicationSource(request, {
+  PRIMARY_DB: db, COVE_RIGHTS_OWNER_PRIMARY_ID: "4bd657ac-8789-403e-a28c-93aba8d0a989",
+  COVE_SOUNDS_SOURCE_READER_SECRET: readerSecret,
+}) });
 const at = Date.now();
 const recording = {
   id: "cm_7", title: "Gothic Nocturne", composer: "Composer", performer: "Performer",
@@ -97,7 +103,8 @@ const writes = new Map();
 const published = await publishCoveSounds({
   COVE_SOUNDS_PUBLICATION_ENABLED: "1",
   COVE_SOUNDS_MARKETS: "US",
-  SOURCE_DB: { prepare(sql) {
+  COVE_SOUNDS_SOURCE_READER_SECRET: readerSecret,
+  SOUNDS_SOURCE_READER: sourceReader({ prepare(sql) {
     return { bind() { return this; }, async all() {
       if (sql.includes("FROM storefront_markets")) return { results: [{ currency: "USD" }] };
       if (sql.includes("FROM soundtrack_recordings")) return { results: [{
@@ -109,7 +116,7 @@ const published = await publishCoveSounds({
       }] };
       return { results: [] };
     } };
-  } },
+  } }),
   SOUNDS_PRESENTATION: { async put(key, body) { writes.set(key, body); } },
   SOUNDS_PRESENTATION_KV: { async put(key, body) {
     assert.equal(writes.get(key), body, "Durable R2 write must precede KV acceleration");
@@ -125,12 +132,13 @@ const overseasWrites = [];
 await assert.rejects(() => publishCoveSounds({
   COVE_SOUNDS_PUBLICATION_ENABLED: "1",
   COVE_SOUNDS_MARKETS: "GB",
-  SOURCE_DB: { prepare(sql) {
+  COVE_SOUNDS_SOURCE_READER_SECRET: readerSecret,
+  SOUNDS_SOURCE_READER: sourceReader({ prepare(sql) {
     return { bind() { return this; }, async all() {
       if (sql.includes("FROM storefront_markets")) return { results: [{ currency: "GBP" }] };
       return { results: [] };
     } };
-  } },
+  } }),
   SOUNDS_PRESENTATION: { async put(key) { overseasWrites.push(key); } },
 }, at), /territory not publication-ready: GB/);
 assert.deepEqual(overseasWrites, [], "No empty overseas edition snapshot may be published");

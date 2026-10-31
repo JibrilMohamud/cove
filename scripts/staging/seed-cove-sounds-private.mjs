@@ -1,5 +1,7 @@
 /* eslint-disable prettier/prettier -- Keep the evidence gates and failure assertions adjacent until source normalization. */
 import assert from "node:assert/strict";
+import { randomBytes } from "node:crypto";
+import { readSoundsPublicationSource } from "../../.output/strangler/sounds-source-reader.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -14,6 +16,7 @@ const bucket = "cove-sounds-private-presentation";
 const namespace = "544267f3cf604c1d8976f1b06d258e24";
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "cove-sounds-seed-"));
 let completed = 0;
+const seedReaderSecret = randomBytes(32).toString("hex");
 const api = async (resource, options = {}) => {
   const r = await fetch("https://api.cloudflare.com/client/v4/" + resource, {
     ...options,
@@ -64,7 +67,11 @@ function wrangler(args) {
 }
 try {
   const output = await publishCoveSounds({
-    SOURCE_DB: { prepare: statement },
+    COVE_SOUNDS_SOURCE_READER_SECRET: seedReaderSecret,
+    SOUNDS_SOURCE_READER: { fetch: request => readSoundsPublicationSource(request, {
+      PRIMARY_DB: { prepare: statement }, COVE_RIGHTS_OWNER_PRIMARY_ID: databaseId,
+      COVE_SOUNDS_SOURCE_READER_SECRET: seedReaderSecret,
+    }) },
     COVE_SOUNDS_PUBLICATION_ENABLED: "1",
     COVE_SOUNDS_MARKETS: "US",
     SOUNDS_PRESENTATION: {

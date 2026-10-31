@@ -17,10 +17,9 @@ assert.equal(result.schema,"cove.production-writer-topology.v1");
 assert.deepEqual(result.persistenceCanonicalBindings,["DB"]);
 assert.equal(result.scheduledJobs.length,6);
 assert.deepEqual(result.additionalCanonicalBindings.map(x=>[x.worker,x.binding]),[
-  ["cove-sounds-publication","SOURCE_DB"],
   ["cove-storefront-ssr-staging","DB"]
 ]);
-assert.deepEqual(result.additionalCanonicalBindings[0].configuredCrons,["11 * * * *"]);
+assert.deepEqual(result.additionalCanonicalBindings[0].configuredCrons,[]);
 assert.ok(result.bypassRisks.includes("other_deployed_workers_have_direct_canonical_D1_bindings"));
 assert.equal(result.legalAuthorityEnabledInCommittedConfig,false);
 assert.equal(result.productionAuthorizationCertified,false);
@@ -31,7 +30,7 @@ const future=inspect(backend.replace(/\[\[d1_databases\]\][\s\S]*?(?=\n\[)/,"")
   .replace(/^crons\s*=.*$/m,"crons = []"),
   owner.replace('"COVE_RIGHTS_OWNER_ENABLED": "0"','"COVE_RIGHTS_OWNER_ENABLED": "1"'),others);
 assert.equal(future.persistenceCanonicalBindings.length,0);
-assert.equal(future.additionalCanonicalBindings.length,2,
+assert.equal(future.additionalCanonicalBindings.length,1,
   "Fixing persistence binding does not isolate other deployed Workers");
 assert.equal(future.scheduledJobs.length,0);
 assert.equal(future.legalAuthorityEnabledInCommittedConfig,true);

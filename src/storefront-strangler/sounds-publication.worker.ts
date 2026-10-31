@@ -2,19 +2,16 @@
 import {
   COVE_SOUNDS_STATIONS, stationRecordings, type CoveSoundsRecording,
 } from "../features/fore/cove-sounds-stations";
+import { SOUNDS_SOURCE_ROUTE, SOUNDS_SOURCE_SCHEMA } from "./sounds-source-protocol";
 import {
   SOUNDS_SCHEMA, soundsKey, validateSoundsSnapshot, type SoundsSnapshot,
 } from "../features/fore/cove-sounds-snapshot.server";
 
-type Statement = {
-  bind(...args: unknown[]): Statement;
-  all<T>(): Promise<{ results: T[] }>;
-};
-type D1 = { prepare(sql: string): Statement };
 type Bucket = { put(key: string, value: string, options: { httpMetadata: { contentType: string } }): Promise<unknown> };
 type KV = { put(key: string, value: string, options: { expirationTtl: number }): Promise<unknown> };
 type Env = {
-  SOURCE_DB: D1;
+  SOUNDS_SOURCE_READER: { fetch(request: Request): Promise<Response> };
+  COVE_SOUNDS_SOURCE_READER_SECRET: string;
   SOUNDS_PRESENTATION: Bucket;
   SOUNDS_PRESENTATION_KV?: KV;
   COVE_SOUNDS_PUBLICATION_ENABLED: string;
@@ -59,46 +56,29 @@ type BookRow = { id: string; title: string; author: string };
 /** Every SELECT is an advisory producer hint. Authorization stays at serving time. */
 export async function publishCoveSounds(env: Env, at = Date.now()) {
   if (env.COVE_SOUNDS_PUBLICATION_ENABLED !== "1") throw Error("sounds_publication_disabled");
-  if (!env.SOUNDS_PRESENTATION || !env.SOURCE_DB) throw Error("sounds_publication_binding_missing");
+  if (!env.SOUNDS_PRESENTATION || !env.SOUNDS_SOURCE_READER?.fetch ||
+      !/^[a-f0-9]{64}$/.test(env.COVE_SOUNDS_SOURCE_READER_SECRET || "")) throw Error("sounds_publication_binding_missing");
   const markets = (env.COVE_SOUNDS_MARKETS || "US").split(",").map((x) => x.trim());
   if (!markets.length || markets.length > 8 || new Set(markets).size !== markets.length ||
       markets.some((x) => !/^[A-Z]{2}$/.test(x))) throw Error("Invalid bounded sounds markets");
-  const titles = [...new Set(COVE_SOUNDS_STATIONS.flatMap((s) => s.books.map((b) => b.title)))];
   const publication: { territory: string; stations: number; recordings: number; candidates: number }[] = [];
   for (const territory of markets) {
-    const market = await env.SOURCE_DB.prepare(
-      "SELECT default_currency currency FROM storefront_markets WHERE country_code=? AND market_status='active'",
-    ).bind(territory).all<{ currency: string }>();
-    if (market.results.length !== 1 || !/^[A-Z]{3}$/.test(market.results[0].currency))
-      throw Error("Cove Sounds market unavailable: " + territory);
-    const [commons, external, editions] = await Promise.all([
-      env.SOURCE_DB.prepare(
-        `SELECT id,title,composer,performer,period,instruments_json,moods_json,energy,
-           has_vocals,attribution_text,source_page_url,license_statement,license_url,
-           allowed_territories_json territories_json
-         FROM soundtrack_recordings
-         WHERE status='ready' AND quality_status='passed'
-           AND storage_key IS NOT NULL AND source_snapshot_key IS NOT NULL
-         ORDER BY title,id LIMIT 300`,
-      ).all<Row>(),
-      env.SOURCE_DB.prepare(
-        `SELECT id,title,composer,performer,period,instruments_json,moods_json,energy,
-           has_vocals,attribution_text,source_page_url,license_statement,license_url,territories_json
-         FROM soundtrack_external_recordings
-         WHERE status='ready' AND storage_key IS NOT NULL ORDER BY title,id LIMIT 300`,
-      ).all<Row>(),
-      env.SOURCE_DB.prepare(
-        `SELECT p.id, e.title,
-           COALESCE((SELECT group_concat(c.name,' ') FROM edition_contributors ec
-             JOIN contributors c ON c.id=ec.contributor_id
-             WHERE ec.edition_id=e.id AND ec.role='author'),'') author
-         FROM editions e JOIN products p ON p.edition_id=e.id
-         WHERE p.storefront_status='active' AND p.source_name<>'upload'
-           AND e.release_status IN ('available','preorder')
-           AND lower(e.title) IN (SELECT lower(value) FROM json_each(?))
-         ORDER BY p.id LIMIT 160`,
-      ).bind(JSON.stringify(titles)).all<BookRow>(),
-    ]);
+    const response = await env.SOUNDS_SOURCE_READER.fetch(new Request("https://legal-authority.internal" + SOUNDS_SOURCE_ROUTE, {
+      method: "POST", headers: { "content-type": "application/json",
+        authorization: "Bearer " + env.COVE_SOUNDS_SOURCE_READER_SECRET },
+      body: JSON.stringify({ territory }), signal: AbortSignal.timeout(15_000),
+    }));
+    if (response.status !== 200) throw Error("sounds_publication_source_unavailable");
+    const data = await response.json() as { schema?: string; territory?: string; currency?: string;
+      commons?: Row[]; external?: Row[]; editions?: BookRow[] };
+    if (data.schema !== SOUNDS_SOURCE_SCHEMA || data.territory !== territory ||
+        !/^[A-Z]{3}$/.test(data.currency || "") ||
+        !Array.isArray(data.commons) || data.commons.length > 300 ||
+        !Array.isArray(data.external) || data.external.length > 300 ||
+        !Array.isArray(data.editions) || data.editions.length > 160)
+      throw Error("sounds_publication_source_invalid");
+    const commons = { results: data.commons }, external = { results: data.external },
+      editions = { results: data.editions };
     const recordings = [...commons.results, ...external.results]
       .filter((row) => parse(row.territories_json, 100).some((x) => x === territory || (x === "*" && row.id.startsWith("cm_"))))
       .map(present).filter((row): row is CoveSoundsRecording => row !== null);
@@ -113,7 +93,7 @@ export async function publishCoveSounds(env: Env, at = Date.now()) {
         schema: SOUNDS_SCHEMA,
         territory,
         slug: station.slug,
-        currency: market.results[0].currency,
+        currency: data.currency!,
         generatedAt: at,
         expiresAt: at + 75 * 60_000,
         recordings: stationRecordings(station, recordings),
