@@ -659,9 +659,17 @@ try {
     return new Response("missing", { status: 404 });
   };
   const regionalTick = await api.runCatalogIngestion(env, 2);
-  assert.equal(regionalTick.regional.failed, true, "a source without its private owner must fail closed");
+  assert.equal(
+    regionalTick.regional.failed,
+    true,
+    "a source without its private owner must fail closed",
+  );
   assert.match(regionalTick.regional.error, /Regional ingestion requires a private owner/);
-  assert.equal(regionalTick.epubs.attempted, 2, "unowned regional work cannot consume the US asset budget");
+  assert.equal(
+    regionalTick.epubs.attempted,
+    2,
+    "unowned regional work cannot consume the US asset budget",
+  );
   assert.equal(assetsAttempted, 2, "the owner-disabled tick still has one shared download budget");
   await env.DB.prepare("UPDATE gutenberg_sources SET enabled=0 WHERE id<>'pg_us'").run();
   await resetAssets();
