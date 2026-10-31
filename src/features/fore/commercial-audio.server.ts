@@ -1,5 +1,9 @@
 import { z } from "zod/v3";
-import { dispatchCommercialAudioMetadata, dispatchCommercialAudioQcJob } from "../../storefront-strangler/publication-owner-routing.server";
+import {
+  dispatchCommercialAudioMetadata,
+  dispatchCommercialAudioQcJob,
+  dispatchCommercialAudioUploadMetadata,
+} from "../../storefront-strangler/publication-owner-routing.server";
 import type { CoveEnv } from "./api.server";
 import { ApiError, now } from "./service";
 import { resolveProductRights } from "./rights.server";
@@ -189,15 +193,6 @@ export async function addNarrationAgreement(db: CoveEnv["DB"], userId: string, r
 export async function endNarrationAgreement(db: CoveEnv["DB"], userId: string, raw: unknown) {
   return dispatchCommercialAudioMetadata(db, "agreement-end", userId, raw);
 }
-async function queueCommercialAudioQc(db: CoveEnv["DB"], editionId: string) {
-  const at = now();
-  await db
-    .prepare(
-      `INSERT INTO commercial_audio_qc_jobs(edition_id,status,attempts,max_attempts,lease_owner,lease_expires_at,available_at,last_run_id,last_error,created_at,updated_at) VALUES(?,'queued',0,5,NULL,NULL,?,NULL,'',?,?) ON CONFLICT(edition_id) DO UPDATE SET status='queued',attempts=0,lease_owner=NULL,lease_expires_at=NULL,available_at=excluded.available_at,last_error='',updated_at=excluded.updated_at`,
-    )
-    .bind(editionId, at, at, at)
-    .run();
-}
 export async function leaseCommercialAudioQcJobs(db: CoveEnv["DB"], raw: unknown) {
   return dispatchCommercialAudioQcJob(db, "lease", raw);
 }
@@ -274,8 +269,7 @@ export async function uploadCommercialAudioFile(
       );
   if (!request.body) throw new ApiError(400, "The audio upload body is empty.");
   const fileId = id("audiofile"),
-    key = `publishing/audio/${safe(editionId)}/${fileId}-${sha.slice(0, 16)}.${mime === "audio/mpeg" ? "mp3" : "m4a"}`,
-    at = now();
+    key = `publishing/audio/${safe(editionId)}/${fileId}-${sha.slice(0, 16)}.${mime === "audio/mpeg" ? "mp3" : "m4a"}`;
   await env.BUCKET.put(key, request.body, {
     httpMetadata: { contentType: mime },
     customMetadata: { sha256: sha, editionId },
@@ -286,95 +280,11 @@ export async function uploadCommercialAudioFile(
     await env.BUCKET.delete(key);
     throw new ApiError(409, "Stored audio length does not match the declared upload length.");
   }
-  await env.DB.prepare(
-    "INSERT INTO commercial_audio_files(id,edition_id,kind,object_key,original_filename,mime_type,size_bytes,sha256,duration_ms,sample_rate_hz,bitrate_kbps,bitrate_mode,channels,loudness_rms_db,true_peak_db,noise_floor_db,qc_status,quarantine_status,created_by_user_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'pending','quarantined',?,?)",
-  )
-    .bind(
-      fileId,
-      editionId,
-      kind,
-      key,
-      filename,
-      mime,
-      length,
-      sha,
-      durationMs,
-      sampleRateHz,
-      bitrateKbps || null,
-      bitrateMode,
-      channels,
-      rms,
-      peak,
-      noise,
-      userId,
-      at,
-    )
-    .run();
-  if (kind === "preview") {
-    await env.DB.prepare(
-      "UPDATE commercial_audio_profiles SET preview_file_id=?,qc_status='pending',updated_at=? WHERE edition_id=?",
-    )
-      .bind(fileId, at, editionId)
-      .run();
-    await queueCommercialAudioQc(env.DB, editionId);
-    return { id: fileId, sha256: sha };
-  }
-  const existing = await env.DB.prepare(
-      "SELECT id FROM commercial_audio_chapters WHERE edition_id=? AND position=?",
-    )
-      .bind(editionId, position)
-      .first<any>(),
-    chapterId = existing?.id || id("chapter");
-  if (existing)
-    await env.DB.prepare(
-      "UPDATE commercial_audio_chapters SET title=?,file_id=?,duration_ms=?,mime_type=?,sample_rate_hz=?,bitrate_kbps=?,bitrate_mode=?,channels=?,loudness_rms_db=?,true_peak_db=?,noise_floor_db=?,sha256=?,qc_status='pending' WHERE id=?",
-    )
-      .bind(
-        title,
-        fileId,
-        durationMs,
-        mime,
-        sampleRateHz,
-        bitrateKbps || null,
-        bitrateMode,
-        channels,
-        rms,
-        peak,
-        noise,
-        sha,
-        chapterId,
-      )
-      .run();
-  else
-    await env.DB.prepare(
-      "INSERT INTO commercial_audio_chapters(id,edition_id,position,title,file_id,duration_ms,mime_type,sample_rate_hz,bitrate_kbps,bitrate_mode,channels,loudness_rms_db,true_peak_db,noise_floor_db,sha256,qc_status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending',?)",
-    )
-      .bind(
-        chapterId,
-        editionId,
-        position,
-        title,
-        fileId,
-        durationMs,
-        mime,
-        sampleRateHz,
-        bitrateKbps || null,
-        bitrateMode,
-        channels,
-        rms,
-        peak,
-        noise,
-        sha,
-        at,
-      )
-      .run();
-  await env.DB.prepare(
-    "UPDATE commercial_audio_profiles SET qc_status='pending',updated_at=? WHERE edition_id=?",
-  )
-    .bind(at, editionId)
-    .run();
-  await queueCommercialAudioQc(env.DB, editionId);
-  return { id: chapterId, fileId, sha256: sha, replaced: !!existing };
+  return dispatchCommercialAudioUploadMetadata(env.DB, {
+    userId, editionId, kind, title, position, durationMs, sampleRateHz,
+    bitrateKbps: bitrateKbps || null, bitrateMode, channels, rms, peak, noise,
+    filename, mime, length, sha, fileId, key,
+  });
 }
 
 export async function completeCommercialAudioQc(db: CoveEnv["DB"], raw: unknown) {
