@@ -11,16 +11,24 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), "cove-reading-stats-"));
 try {
   fs.cpSync("drizzle", path.join(root, "drizzle"), { recursive: true });
   await build({
-    entryPoints: ["src/features/fore/api.server.ts"],
+    // Bundle the API and its owner facade together so their private WeakMap
+    // identity is the same as in production. Never duplicate the owner module.
+    stdin: {
+      contents: `export {handleCoveApi} from "./src/features/fore/api.server.ts";
+export {bindPublicationOwner} from "./src/storefront-strangler/publication-owner-routing.server.ts";`,
+      resolveDir: process.cwd(),
+      sourcefile: "statistics-qa-owner-entry.ts",
+      loader: "ts",
+    },
     bundle: true,
     platform: "node",
     format: "esm",
     outfile: path.join(root, "api.mjs"),
     logLevel: "silent",
   });
-  const { handleCoveApi } = await import(path.join(root, "api.mjs"));
-  const env = localBindings(root),
-    db = env.DB,
+  const { handleCoveApi, bindPublicationOwner } = await import(path.join(root, "api.mjs"));
+  let env = localBindings(root);
+  const db = env.DB,
     alice = "statistics-alice",
     bob = "statistics-bob",
     at = new Date().toISOString();
@@ -52,6 +60,47 @@ try {
     .prepare("SELECT id,public_id,edition_id FROM products WHERE source_external_id='1342'")
     .first();
   assert.ok(product?.public_id, "canonical product must expose a Cove public ID");
+  // Missing legal authority must DENY even a free-library write. Use an
+  // isolated, explicitly synthetic owner to exercise the subsequent reader
+  // statistics integration without asserting production legal rights.
+  const denied = await request(alice, "/library", "POST", {
+    bookId: product.public_id,
+    status: "finished",
+    progress: 1,
+  });
+  assert.equal(denied.status, 503, "Unbound free-library entitlement must fail closed");
+  const ownerSecret = "a".repeat(64);
+  const owner = {
+    async fetch(ownerRequest) {
+      assert.equal(ownerRequest.method, "POST");
+      if (new URL(ownerRequest.url).pathname !== "/catalog/private-grant-free-library")
+        return new Response(null, { status: 404 });
+      if (ownerRequest.headers.get("authorization") !== "Bearer " + ownerSecret)
+        return new Response(null, { status: 401 });
+      const claim = await ownerRequest.json();
+      if (
+        claim.userId !== alice ||
+        claim.productId !== String(product.id) ||
+        claim.territory !== "US"
+      ) return new Response(null, { status: 409 });
+      const persisted = await db.prepare(
+        "SELECT id FROM products WHERE id=? AND source_name='gutenberg' AND source_external_id='1342'"
+      ).bind(claim.productId).first();
+      if (!persisted) return new Response(null, { status: 409 });
+      return Response.json({
+        schema: "cove.owner-free-library-entitlement.v1",
+        ownerFirst: true, saved: true,
+        userId: claim.userId, productId: claim.productId,
+      });
+    },
+  };
+  env = {
+    ...env,
+    DB: bindPublicationOwner(db, {
+      owner, secret: ownerSecret, territory: "US", currency: "USD",
+    }),
+  };
+
   const metrics = await request(alice, "/metrics", "PUT", {
     bookId: product.public_id,
     wordCount: 119999,
