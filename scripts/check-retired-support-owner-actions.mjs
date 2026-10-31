@@ -18,7 +18,7 @@ assert.match(source,/dispatchSupportOwnerAction\(env.DB/);
 assert.match(owner,/if\(route==="\/support\/private-action"\)/);
 assert.match(owner,/SELECT user_id FROM staff_principals WHERE user_id=\? AND status='active'/);
 assert.match(owner,/denyPaidEntitlement\(ownerSql/);
-assert.match(owner,/Owner-backed support refunds await independently verified live/);
+assert.match(owner,/Provider-backed support refunds are not independently certified/);
 assert.match(owner,/Fresh independent positive rights proof is required/);
 assert.match(gateway,/"support.execute-action":\{path:"\/support\/private-action"/);
 assert.match(routing,/if\(!context\)throw new ApiError\(503,"Support operations require a private canonical owner/);
