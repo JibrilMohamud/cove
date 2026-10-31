@@ -4490,7 +4490,7 @@ const privatePublishingWorkQueues=(()=>{
       )
       .bind(x.jobId, x.workerId)
       .first<any>();
-  if (!j)
+  if (!j || (j.lease_expires_at && j.lease_expires_at < now()))
     throw new ApiError(409, "Evidence scan lease is missing or no longer owned by this worker.");
   const at = now(),
     scanStatus = x.status === "passed" ? "clean" : x.status === "blocked" ? "rejected" : "failed";
