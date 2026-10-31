@@ -18839,18 +18839,20 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           :db.prepare("UPDATE risk_holds SET status='released',released_at=?,released_by_user_id=?,release_note=? WHERE id=? AND status='active' AND EXISTS(SELECT 1 FROM risk_assessments a WHERE a.domain=? AND a.subject_type=? AND a.subject_id=? AND a.id=(SELECT id FROM risk_assessments WHERE domain=? AND subject_type=? AND subject_id=? ORDER BY created_at DESC,id DESC LIMIT 1) AND a.action NOT IN ('hold','block'))")
              .bind(at,actor.userId,x.note,x.holdId,hold.domain,hold.subject_type,hold.subject_id,
                hold.domain,hold.subject_type,hold.subject_id);
-        const primary=await update.run();
-        if(Number((primary as {meta?:{changes?:number}}).meta?.changes||0)!==1)
-          return new Response(null,{status:409,headers:noStore});
-        // No release if another active hold or a held royalty remains.
+        // One D1 batch ensures a crash cannot strand a released payout
+        // between the hold flag and the conditional money-availability gate.
+        const statements=[update];
         if(hold.hold_scope==="payout"&&hold.subject_type==="payout_item")
-          await db.prepare(
-            "UPDATE payout_items SET status='pending',hold_reason_code='' WHERE id=? AND status='held' AND NOT EXISTS(SELECT 1 FROM risk_holds WHERE subject_type='payout_item' AND subject_id=? AND hold_scope='payout' AND status='active') AND NOT EXISTS(SELECT 1 FROM finance_royalty_allocations a JOIN payout_allocation_links l ON l.royalty_allocation_id=a.id WHERE l.payout_item_id=? AND a.status='held') AND EXISTS(SELECT 1 FROM payout_items pi JOIN finance_parties fp ON fp.id=pi.party_id LEFT JOIN publishing_accounts pa ON pa.finance_party_id=fp.id WHERE pi.id=? AND (pa.id IS NULL OR (pa.tax_status='verified' AND pa.payout_status='verified' AND COALESCE(pa.risk_score,0)<60)))"
-          ).bind(hold.subject_id,hold.subject_id,hold.subject_id,hold.subject_id).run();
-        await db.prepare(
-          "INSERT INTO risk_case_events(id,case_id,event_type,actor_type,actor_user_id,payload_json,created_at) SELECT ?,id,'hold_released','staff',?,?,? FROM risk_cases WHERE domain=? AND subject_type=? AND subject_id=? AND status NOT IN ('resolved','closed') ORDER BY opened_at DESC LIMIT 1"
+          statements.push(db.prepare(
+            "UPDATE payout_items SET status='pending',hold_reason_code='' WHERE id=? AND status='held' AND EXISTS(SELECT 1 FROM risk_holds WHERE id=? AND status='released' AND released_at=?) AND NOT EXISTS(SELECT 1 FROM risk_holds WHERE subject_type='payout_item' AND subject_id=? AND hold_scope='payout' AND status='active') AND NOT EXISTS(SELECT 1 FROM finance_royalty_allocations a JOIN payout_allocation_links l ON l.royalty_allocation_id=a.id WHERE l.payout_item_id=? AND a.status='held') AND EXISTS(SELECT 1 FROM payout_items pi JOIN finance_parties fp ON fp.id=pi.party_id LEFT JOIN publishing_accounts pa ON pa.finance_party_id=fp.id WHERE pi.id=? AND (pa.id IS NULL OR (pa.tax_status='verified' AND pa.payout_status='verified' AND COALESCE(pa.risk_score,0)<60)))"
+          ).bind(hold.subject_id,x.holdId,at,hold.subject_id,hold.subject_id,hold.subject_id));
+        statements.push(db.prepare(
+          "INSERT INTO risk_case_events(id,case_id,event_type,actor_type,actor_user_id,payload_json,created_at) SELECT ?,id,'hold_released','staff',?,?,? FROM risk_cases WHERE domain=? AND subject_type=? AND subject_id=? AND status NOT IN ('resolved','closed') AND EXISTS(SELECT 1 FROM risk_holds WHERE id=? AND status='released' AND released_at=?) ORDER BY opened_at DESC LIMIT 1"
         ).bind("risk_ce_"+crypto.randomUUID(),actor.userId,
-          JSON.stringify({holdId:x.holdId,note:x.note}),at,hold.domain,hold.subject_type,hold.subject_id).run();
+          JSON.stringify({holdId:x.holdId,note:x.note}),at,hold.domain,hold.subject_type,hold.subject_id,x.holdId,at));
+        const outcomes=await db.batch(statements);
+        if(Number((outcomes[0] as {meta?:{changes?:number}})?.meta?.changes||0)!==1)
+          return new Response(null,{status:409,headers:noStore});
         return Response.json({schema:"cove.owner-risk-hold-release.v1",ownerFirst:true,
           id:x.holdId,status:"released"},{headers:noStore});
       }
