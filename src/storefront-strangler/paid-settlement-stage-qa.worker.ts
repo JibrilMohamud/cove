@@ -1,4 +1,5 @@
 /* eslint-disable prettier/prettier -- Isolated synthetic paid-settlement QA is a narrow trust boundary. */
+import {bindPublicationOwner} from "./publication-owner-routing.server";
 import {certifyStagePaidSettlement,assertStagePaidOrderNotWithdrawn} from "./paid-settlement-publication.server";
 import type {CoveEnv} from "../features/fore/api.server";
 import {requireStagePaidEntitlementAccess} from "./legal-consumer-fence.server";
@@ -104,6 +105,12 @@ export default {
         }
       }
     } as unknown as CoveEnv;
+    // The original handlers now dispatch ownership, device and bearer writes
+    // through the exact same independently checking private owner as settlement.
+    facade.DB=bindPublicationOwner(facade.DB,{
+      owner:facade.LEGAL_AUTHORITY!.getByName("cove-staged-legal-global-v1"),
+      secret:env.COVE_RIGHTS_OWNER_SECRET!,territory:"US",currency:"USD"
+    });
     if(signedStripe){
       // Exercise the ACTUAL signed Cove webhook handler, not a fabricated
       // "Stripe succeeded" owner call. Only the one synthetic paid-order

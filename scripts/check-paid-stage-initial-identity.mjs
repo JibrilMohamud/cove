@@ -1,5 +1,9 @@
 /* eslint-disable prettier/prettier -- Exact isolated paid QA identity boundary regression. */
 import assert from "node:assert/strict";
+import {isPaidOwnerQaSchemaTable} from "./staging/paid-owner-schema-policy.mjs";
+assert.equal(isPaidOwnerQaSchemaTable("auth_accounts"),true);
+assert.equal(isPaidOwnerQaSchemaTable("auth_sessions"),false);
+assert.equal(isPaidOwnerQaSchemaTable("auth_tokens"),false);
 import {build} from "esbuild";
 import {mkdtempSync,rmSync} from "node:fs";
 import os from "node:os";
