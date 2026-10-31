@@ -14,7 +14,7 @@ export const CONFIG="wrangler.legal-authority.production-locked.jsonc";
  */
 export function verifyLockedOwnerConfig(config,source){
   assert.equal(config.name,"cove-legal-authority-production");
-  assert.equal(config.main,".output/strangler/legal-authority.mjs");
+  assert.equal(config.main,".output/strangler/legal-authority.production-locked.mjs");
   assert.equal(config.workers_dev,false);
   assert.equal(config.preview_urls,false);
   assert.deepEqual(config.routes,[]);
