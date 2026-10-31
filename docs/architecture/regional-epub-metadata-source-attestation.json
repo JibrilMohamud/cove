@@ -6,7 +6,7 @@
   "files": [
     {
       "path": "src/features/fore/api.server.ts",
-      "sha256": "16d5d8c08467fe43917a12ba77f26d73bfc42cb3b219f7f6a1fdf9bae685883b",
+      "sha256": "3fb00372e365cd872fd78d04ccb3d25101b57cc6fa769f809c4135b504598981",
       "review": "Replaced exact direct regional metadata SQL in cachePendingEpubs with one fixed private owner command; all six surviving canonical API mutation candidates retain their SQL/function identity and original owner-required disposition."
     }
   ]
