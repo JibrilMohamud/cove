@@ -124,7 +124,7 @@ assert.ok(blocked, "tax-document evidence identity must be immutable");
 
 // Source checks make sure the operational surface is connected rather than schema-only.
 const royalty = fs.readFileSync(
-  path.join(root, "src/features/fore/royalty-engine.server.ts"),
+  path.join(root, "src/storefront-strangler/legal-authority.worker.ts"),
   "utf8",
 );
 const reporting = fs.readFileSync(

@@ -336,8 +336,8 @@ const policyMigration = fs.readFileSync(
 );
 const catalogModel = fs.readFileSync("src/features/fore/catalog-model.server.ts", "utf8");
 const trust = fs.readFileSync("src/features/fore/publishing-trust.server.ts", "utf8");
-const finance = fs.readFileSync("src/features/fore/finance.server.ts", "utf8");
-const royaltyEngine = fs.readFileSync("src/features/fore/royalty-engine.server.ts", "utf8");
+const finance = fs.readFileSync("src/storefront-strangler/legal-authority.worker.ts", "utf8");
+const royaltyEngine = fs.readFileSync("src/storefront-strangler/legal-authority.worker.ts", "utf8");
 const stageSites = fs.readFileSync("scripts/stage-sites.mjs", "utf8");
 const moderation = fs.readFileSync("src/features/fore/moderation.server.ts", "utf8");
 const retail = fs.readFileSync("src/features/fore/retail.server.ts", "utf8");

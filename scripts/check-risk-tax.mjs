@@ -179,7 +179,7 @@ assert.ok(
   retail.includes("assessCommunityReviewRisk"),
   "community fraud signals must enter unified risk cases",
 );
-const royalty = read("src/features/fore/royalty-engine.server.ts");
+const royalty = read("src/storefront-strangler/legal-authority.worker.ts");
 for (const token of [
   "deviceFingerprintHash",
   "networkFingerprintHash",
@@ -190,7 +190,7 @@ for (const token of [
   "withholding_rule_id",
 ])
   assert.ok(royalty.includes(token), `royalty compliance missing ${token}`);
-const finance = read("src/features/fore/finance.server.ts");
+const finance = read("src/storefront-strangler/legal-authority.worker.ts");
 assert.ok(finance.includes("assessPayoutRisk"), "payout risk assessment missing");
 const auth = read("src/features/fore/auth.server.ts");
 assert.ok(auth.includes("assessAccountTakeoverRisk"), "account takeover signals missing from auth");

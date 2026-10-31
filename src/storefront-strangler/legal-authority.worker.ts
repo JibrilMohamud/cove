@@ -1,10 +1,12 @@
 /* eslint-disable prettier/prettier -- Private legal-authority boundary is security-sensitive. */
 import JSZip from "jszip";
+import {formatMinorCurrency} from "../features/fore/currency";
+import {bindPrivateFinanceExecutors} from "./finance-owner-routing.server";
 import {runAutomatedPublishingReview} from "../features/fore/moderation.server";
 import {upsertRightsContract,upsertRightsParty} from "../features/fore/rights.server";
 import {FORE_AI_POLICY_VERSION,FORE_RIGHTS_POLICY_VERSION,assessSubmissionContentPolicy,publisherRightsSnapshot,recordAssetFingerprint,scanAccountRiskLinks,scanIdentitySimilarity} from "../features/fore/publishing-trust.server";
 import {commercialAudioReadiness,commercialAudioSubmissionEvidence} from "../features/fore/commercial-audio.server";
-import {assessPublisherRisk} from "../features/fore/risk-tax.server";
+import {assessUsageRisk,effectivePublisherWithholding,assessPayoutRisk,assessPublisherRisk} from "../features/fore/risk-tax.server";
 import {ensurePreorderReleasePlan} from "../features/fore/preorder.server";
 import {hasPublicationOwner,dispatchPublicationActivation,dispatchPublicationPreorder,dispatchPublicationRecovery,dispatchPublicationMaterialization,dispatchPublishingOnboardingReview,dispatchPublishingOwnerValidationJob} from "./publication-owner-routing.server";
 import {uploadPublishingAsset,publishingUploadLimit} from "../features/fore/publishing.server";
@@ -14623,7 +14625,1763 @@ async function registerPrivateCommercialAudioUpload(env:LegalAuthorityEnv,input:
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+
+/* eslint-disable @typescript-eslint/no-explicit-any -- Original financial algorithms execute only inside the private QA owner. */
+const createPrivateRoyalty=(seed?:string)=>{
+const now = () => new Date().toISOString();
+const id = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
+const clampBps = (value: unknown, fallback = 0) =>
+  Math.max(
+    0,
+    Math.min(10000, Number.isFinite(Number(value)) ? Math.round(Number(value)) : fallback),
+  );
+const minor = (value: unknown) => Math.round(Number(value || 0));
+function safeJson<T>(value: unknown, fallback: T): T {
+  try {
+    return JSON.parse(String(value ?? "")) as T;
+  } catch {
+    return fallback;
+  }
+}
+async function sha256(value: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+type RoyaltyContext = {
+  sourceType:
+    | "sale"
+    | "refund"
+    | "chargeback"
+    | "subscription"
+    | "library"
+    | "wholesale"
+    | "agency"
+    | "promotion_adjustment"
+    | "manual_adjustment";
+  sourceId: string;
+  orderId?: string | null;
+  orderItemId?: string | null;
+  usageEventId?: string | null;
+  productId: string;
+  publisherId?: string | null;
+  territory: string;
+  format: string;
+  salesChannel: string;
+  currency: string;
+  quantity?: number;
+  listPriceMinor?: number;
+  customerPriceMinor?: number;
+  taxMinor?: number;
+  processorFeeMinor?: number;
+  promotionDiscountMinor?: number;
+  foreFundedDiscountMinor?: number;
+  publisherFundedDiscountMinor?: number;
+  distributorFeeMinor?: number;
+  grossValueMinor?: number;
+  rightsBasis?: string | null;
+  promotionType?: string | null;
+  promotionFundingSource?: string | null;
+  distributorId?: string | null;
+  subscriptionPlanId?: string | null;
+  occurredAt: string;
+  /** Optional contractual availability anchor (for example, a paid preorder release date). */
+  availabilityAnchorAt?: string | null;
+  metadata?: Record<string, unknown>;
+};
+
+type RoyaltyRuleAction = {
+  basis?: "list_price" | "customer_price" | "net_receipts" | "gross_value";
+  royaltyRateBps?: number;
+  foreCommissionBps?: number;
+  flatRoyaltyMinorPerUnit?: number;
+  reserveBps?: number;
+  paymentTermsDays?: number;
+  processorFeeTreatment?: "deduct" | "ignore";
+  distributorFeeTreatment?: "deduct" | "ignore";
+  taxTreatment?: "deduct" | "ignore";
+  foreFundedDiscountTreatment?: "add_back" | "ignore";
+  publisherFundedDiscountTreatment?: "deduct" | "ignore";
+};
+
+type RoyaltyRuleConditions = {
+  territories?: string[];
+  excludeTerritories?: string[];
+  publisherIds?: string[];
+  productIds?: string[];
+  formats?: string[];
+  salesChannels?: string[];
+  rightsBasis?: string[];
+  promotionTypes?: string[];
+  promotionFundingSources?: string[];
+  distributorIds?: string[];
+  subscriptionPlanIds?: string[];
+  minCustomerPriceMinor?: number;
+  maxCustomerPriceMinor?: number;
+  minListPriceMinor?: number;
+  maxListPriceMinor?: number;
+};
+
+function includesOrAny(values: string[] | undefined, actual: string | null | undefined) {
+  if (!values?.length) return true;
+  return values.map((v) => String(v).toUpperCase()).includes(String(actual || "").toUpperCase());
+}
+function ruleMatches(conditions: RoyaltyRuleConditions, ctx: RoyaltyContext) {
+  if (!includesOrAny(conditions.territories, ctx.territory)) return false;
+  if (
+    conditions.excludeTerritories?.map((x) => x.toUpperCase()).includes(ctx.territory.toUpperCase())
+  )
+    return false;
+  if (!includesOrAny(conditions.publisherIds, ctx.publisherId)) return false;
+  if (!includesOrAny(conditions.productIds, ctx.productId)) return false;
+  if (!includesOrAny(conditions.formats, ctx.format)) return false;
+  if (!includesOrAny(conditions.salesChannels, ctx.salesChannel)) return false;
+  if (!includesOrAny(conditions.rightsBasis, ctx.rightsBasis)) return false;
+  if (!includesOrAny(conditions.promotionTypes, ctx.promotionType)) return false;
+  if (!includesOrAny(conditions.promotionFundingSources, ctx.promotionFundingSource)) return false;
+  if (!includesOrAny(conditions.distributorIds, ctx.distributorId)) return false;
+  if (!includesOrAny(conditions.subscriptionPlanIds, ctx.subscriptionPlanId)) return false;
+  const customer = minor(ctx.customerPriceMinor),
+    list = minor(ctx.listPriceMinor);
+  if (conditions.minCustomerPriceMinor != null && customer < conditions.minCustomerPriceMinor)
+    return false;
+  if (conditions.maxCustomerPriceMinor != null && customer > conditions.maxCustomerPriceMinor)
+    return false;
+  if (conditions.minListPriceMinor != null && list < conditions.minListPriceMinor) return false;
+  if (conditions.maxListPriceMinor != null && list > conditions.maxListPriceMinor) return false;
+  return true;
+}
+
+async function contractForContext(db: CatalogDB, ctx: RoyaltyContext) {
+  const row = await db
+    .prepare(
+      `SELECT rc.*,rcv.id contract_version_id,rcv.version,rcv.calculation_basis,rcv.fore_commission_bps,rcv.default_royalty_rate_bps,rcv.payment_terms_days,rcv.reserve_bps,rcv.rules_version_hash,rcv.effective_from version_effective_from,rcv.effective_to version_effective_to
+    FROM finance_royalty_contracts rc
+    JOIN finance_royalty_contract_versions rcv ON rcv.contract_id=rc.id
+    JOIN products p ON p.id=?
+    JOIN editions e ON e.id=p.edition_id
+    WHERE rc.status='active'
+      AND (rc.product_id=? OR rc.product_id IS NULL)
+      AND (rc.edition_id=e.id OR rc.edition_id IS NULL)
+      AND (rc.publisher_id=e.publisher_id OR rc.publisher_id IS NULL)
+      AND (rc.territory_code IS NULL OR upper(rc.territory_code)=upper(?))
+      AND (rc.format IS NULL OR lower(rc.format)=lower(?))
+      AND (rc.sales_channel IS NULL OR lower(rc.sales_channel)=lower(?))
+      AND rc.effective_from<=? AND (rc.effective_to IS NULL OR rc.effective_to>?)
+      AND rcv.effective_from<=? AND (rcv.effective_to IS NULL OR rcv.effective_to>?)
+    ORDER BY
+      CASE WHEN rc.product_id=? THEN 0 WHEN rc.edition_id=e.id THEN 1 WHEN rc.publisher_id=e.publisher_id THEN 2 ELSE 3 END,
+      CASE WHEN rc.territory_code IS NOT NULL THEN 0 ELSE 1 END,
+      CASE WHEN rc.format IS NOT NULL THEN 0 ELSE 1 END,
+      CASE WHEN rc.sales_channel IS NOT NULL THEN 0 ELSE 1 END,
+      rc.effective_from DESC,rcv.version DESC
+    LIMIT 1`,
+    )
+    .bind(
+      ctx.productId,
+      ctx.productId,
+      ctx.territory,
+      ctx.format,
+      ctx.salesChannel,
+      ctx.occurredAt,
+      ctx.occurredAt,
+      ctx.occurredAt,
+      ctx.occurredAt,
+      ctx.productId,
+    )
+    .first<any>();
+  if (!row) return null;
+  const rules = (
+    await db
+      .prepare(
+        "SELECT * FROM finance_royalty_rules WHERE contract_version_id=? ORDER BY priority,rule_key",
+      )
+      .bind(row.contract_version_id)
+      .all<any>()
+  ).results;
+  return { ...row, rules };
+}
+
+function defaultAction(contract: any): RoyaltyRuleAction {
+  return {
+    basis:
+      contract.calculation_basis === "list_price"
+        ? "list_price"
+        : contract.calculation_basis === "customer_price"
+          ? "customer_price"
+          : "net_receipts",
+    foreCommissionBps: Number(contract.fore_commission_bps || 0),
+    royaltyRateBps:
+      contract.default_royalty_rate_bps == null
+        ? undefined
+        : Number(contract.default_royalty_rate_bps),
+    reserveBps: Number(contract.reserve_bps || 0),
+    paymentTermsDays: Number(contract.payment_terms_days || 60),
+    processorFeeTreatment: "deduct",
+    distributorFeeTreatment: "deduct",
+    taxTreatment: "deduct",
+    foreFundedDiscountTreatment: "add_back",
+    publisherFundedDiscountTreatment: "deduct",
+  };
+}
+
+function calculateEconomics(ctx: RoyaltyContext, action: RoyaltyRuleAction) {
+  const list = Math.max(0, minor(ctx.listPriceMinor));
+  const customer = Math.max(0, minor(ctx.customerPriceMinor));
+  const tax = Math.max(0, minor(ctx.taxMinor));
+  const processor = Math.max(0, minor(ctx.processorFeeMinor));
+  const distributor = Math.max(0, minor(ctx.distributorFeeMinor));
+  const foreFunded = Math.max(0, minor(ctx.foreFundedDiscountMinor));
+  const publisherFunded = Math.max(0, minor(ctx.publisherFundedDiscountMinor));
+  const grossValue = Math.max(0, minor(ctx.grossValueMinor ?? customer));
+  let net = customer;
+  if ((action.foreFundedDiscountTreatment || "add_back") === "add_back") net += foreFunded;
+  if ((action.publisherFundedDiscountTreatment || "deduct") === "ignore") net += publisherFunded;
+  if ((action.taxTreatment || "deduct") === "deduct") net -= tax;
+  if ((action.processorFeeTreatment || "deduct") === "deduct") net -= processor;
+  if ((action.distributorFeeTreatment || "deduct") === "deduct") net -= distributor;
+  net = Math.max(0, net);
+  const basisKind = action.basis || "net_receipts";
+  const basis =
+    basisKind === "list_price"
+      ? list
+      : basisKind === "customer_price"
+        ? customer
+        : basisKind === "gross_value"
+          ? grossValue
+          : net;
+  const qty = Math.max(1, Math.round(Number(ctx.quantity || 1)));
+  const flat = Math.max(0, minor(action.flatRoyaltyMinorPerUnit)) * qty;
+  let commission = 0,
+    pool = 0;
+  if (action.royaltyRateBps != null) {
+    pool = Math.max(0, Math.floor((basis * clampBps(action.royaltyRateBps)) / 10000) + flat);
+    commission = Math.max(0, basis - pool);
+  } else {
+    commission = Math.floor((basis * clampBps(action.foreCommissionBps, 0)) / 10000);
+    pool = Math.max(0, basis - commission + flat);
+  }
+  return {
+    list,
+    customer,
+    tax,
+    processor,
+    distributor,
+    foreFunded,
+    publisherFunded,
+    grossValue,
+    netReceipts: net,
+    basis,
+    commission,
+    pool,
+  };
+}
+
+async function activeDisputeHold(db: CatalogDB, productId: string) {
+  return !!(await db
+    .prepare(
+      `SELECT 1 ok FROM royalty_holds h WHERE h.status='active' AND ((h.scope_type='product' AND h.scope_id=?) OR (h.scope_type='edition' AND h.scope_id=(SELECT edition_id FROM products WHERE id=?)) OR (h.scope_type='publication' AND h.scope_id IN (SELECT id FROM publishing_publications WHERE product_id=?))) LIMIT 1`,
+    )
+    .bind(productId, productId, productId)
+    .first<any>());
+}
+
+function ledger(
+  statements: Parameters<CatalogDB["batch"]>[0],
+  db: CatalogDB,
+  orderId: string | null,
+  userId: string | null,
+  type: string,
+  account: string,
+  amount: number,
+  currency: string,
+  external: string,
+  metadata: Record<string, unknown> = {},
+) {
+  statements.push(
+    db
+      .prepare(
+        "INSERT INTO commerce_ledger_entries(id,order_id,user_id,entry_type,account_code,amount_minor,currency,external_reference,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+      )
+      .bind(
+        id("led"),
+        orderId,
+        userId,
+        type,
+        account,
+        amount,
+        currency,
+        external,
+        JSON.stringify(metadata),
+        now(),
+      ),
+  );
+}
+
+type SaleRoyaltyPlan = {
+  statements: Parameters<CatalogDB["batch"]>[0];
+  at: string;
+  processorFees?: Map<string, number>;
+  preorderReleaseDates?: Map<string, string>;
+};
+
+async function calculateAndAccrueRoyalty(
+  db: CatalogDB,
+  ctx: RoyaltyContext,
+  plan?: SaleRoyaltyPlan,
+) {
+  const existing = await db
+    .prepare(
+      "SELECT * FROM finance_royalty_calculations WHERE source_type=? AND source_id=? AND product_id=? ORDER BY calculated_at DESC LIMIT 1",
+    )
+    .bind(ctx.sourceType, ctx.sourceId, ctx.productId)
+    .first<any>();
+  if (existing) return existing;
+  const contract = await contractForContext(db, ctx);
+  if (!contract)
+    throw new ApiError(
+      409,
+      `No active royalty contract covers ${ctx.productId} / ${ctx.territory} / ${ctx.salesChannel}.`,
+    );
+  let chosen: any = null;
+  const trace: string[] = [`contract:${contract.id}:v${contract.version}`];
+  for (const rule of contract.rules || []) {
+    const conditions = safeJson<RoyaltyRuleConditions>(rule.conditions_json, {});
+    if (ruleMatches(conditions, ctx)) {
+      chosen = rule;
+      trace.push(`rule:${rule.rule_key}`);
+      break;
+    }
+    trace.push(`skip:${rule.rule_key}`);
+  }
+  const action = {
+    ...defaultAction(contract),
+    ...(chosen ? safeJson<RoyaltyRuleAction>(chosen.action_json, {}) : {}),
+  };
+  if (!chosen) trace.push("rule:contract-default");
+  const economics = calculateEconomics(ctx, action);
+  const rulesCanonical = JSON.stringify(
+    (contract.rules || []).map((r: any) => ({
+      key: r.rule_key,
+      priority: r.priority,
+      conditions: safeJson(r.conditions_json, {}),
+      action: safeJson(r.action_json, {}),
+    })),
+  );
+  const versionHash =
+    contract.rules_version_hash ||
+    (await sha256(
+      JSON.stringify({
+        contractId: contract.id,
+        version: contract.version,
+        defaults: defaultAction(contract),
+        rules: rulesCanonical,
+      }),
+    ));
+  const splits = (
+    await db
+      .prepare(
+        "SELECT rs.*,fp.withholding_bps,fp.status party_status FROM finance_royalty_splits rs JOIN finance_parties fp ON fp.id=rs.party_id WHERE rs.contract_version_id=? ORDER BY rs.priority,rs.id",
+      )
+      .bind(contract.contract_version_id)
+      .all<any>()
+  ).results;
+  if (!splits.length)
+    throw new ApiError(
+      409,
+      `Royalty contract version ${contract.contract_version_id} has no payee splits.`,
+    );
+  const totalShare = splits.reduce((sum: number, s: any) => sum + Number(s.share_bps || 0), 0);
+  if (totalShare !== 10000)
+    throw new ApiError(
+      500,
+      `Royalty split must allocate exactly 100% for contract version ${contract.contract_version_id}; found ${totalShare / 100}%.`,
+    );
+
+  const statements: Parameters<CatalogDB["batch"]>[0] = plan?.statements || [];
+  const calcId = id("roycalc"),
+    calculatedAt = plan?.at || now();
+  const snapshot = {
+    context: ctx,
+    economics,
+    action,
+    contract: {
+      id: contract.id,
+      versionId: contract.contract_version_id,
+      version: contract.version,
+    },
+    rule: chosen ? { id: chosen.id, key: chosen.rule_key } : null,
+  };
+  statements.push(
+    db
+      .prepare(
+        `INSERT INTO finance_royalty_calculations(id,source_type,source_id,order_id,order_item_id,usage_event_id,product_id,contract_id,contract_version_id,contract_version_hash,rule_id,territory_code,format,sales_channel,currency,quantity,list_price_minor,customer_price_minor,tax_minor,processor_fee_minor,promotion_discount_minor,fore_funded_discount_minor,publisher_funded_discount_minor,distributor_fee_minor,net_receipts_minor,basis_minor,fore_commission_minor,royalty_pool_minor,rule_trace_json,input_snapshot_json,calculated_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      )
+      .bind(
+        calcId,
+        ctx.sourceType,
+        ctx.sourceId,
+        ctx.orderId || null,
+        ctx.orderItemId || null,
+        ctx.usageEventId || null,
+        ctx.productId,
+        contract.id,
+        contract.contract_version_id,
+        versionHash,
+        chosen?.id || null,
+        ctx.territory.toUpperCase(),
+        ctx.format,
+        ctx.salesChannel,
+        ctx.currency.toUpperCase(),
+        Math.max(1, Math.round(Number(ctx.quantity || 1))),
+        economics.list,
+        economics.customer,
+        economics.tax,
+        economics.processor,
+        minor(ctx.promotionDiscountMinor),
+        economics.foreFunded,
+        economics.publisherFunded,
+        economics.distributor,
+        economics.netReceipts,
+        economics.basis,
+        economics.commission,
+        economics.pool,
+        JSON.stringify(trace),
+        JSON.stringify(snapshot),
+        calculatedAt,
+      ),
+  );
+  const held = await activeDisputeHold(db, ctx.productId);
+  const paymentTerms = Math.max(
+    0,
+    Math.min(730, Number(action.paymentTermsDays ?? contract.payment_terms_days ?? 60)),
+  );
+  const reserveBps = clampBps(action.reserveBps, Number(contract.reserve_bps || 0));
+  const occurredMs = Date.parse(ctx.occurredAt);
+  const anchorMs = ctx.availabilityAnchorAt ? Date.parse(ctx.availabilityAnchorAt) : occurredMs;
+  const availabilityBaseMs = Number.isFinite(anchorMs)
+    ? Math.max(occurredMs, anchorMs)
+    : occurredMs;
+  const availableAt = new Date(availabilityBaseMs + paymentTerms * 86400000).toISOString();
+  const orderUser = ctx.orderId
+    ? await db
+        .prepare("SELECT user_id FROM commerce_orders WHERE id=?")
+        .bind(ctx.orderId)
+        .first<any>()
+    : null;
+  for (const split of splits) {
+    const royalty = Math.floor((economics.pool * clampBps(split.share_bps)) / 10000);
+    const tax = await effectivePublisherWithholding(db, String(split.party_id), calculatedAt);
+    const withholdingBps = tax.taxProfileId ? tax.bps : clampBps(split.withholding_bps);
+    const withholding = Math.floor((royalty * clampBps(withholdingBps)) / 10000);
+    const reserve = Math.floor((royalty * reserveBps) / 10000);
+    const payable = Math.max(0, royalty - withholding - reserve);
+    const status = split.party_status === "hold" || held || !tax.verified ? "held" : "accrued";
+    let legacyId: string | null = null;
+    if (
+      ctx.orderId &&
+      ctx.orderItemId &&
+      ["sale", "refund", "chargeback"].includes(ctx.sourceType)
+    ) {
+      legacyId = id("roy");
+      statements.push(
+        db
+          .prepare(
+            `INSERT INTO finance_royalty_events(id,order_id,order_item_id,contract_version_id,party_id,event_type,basis_minor,royalty_minor,withholding_minor,reserve_minor,payable_minor,currency,status,available_at,external_reference,created_at,royalty_calculation_id,sales_channel,territory_code,product_id)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          )
+          .bind(
+            legacyId,
+            ctx.orderId,
+            ctx.orderItemId,
+            contract.contract_version_id,
+            split.party_id,
+            ctx.sourceType,
+            economics.basis,
+            royalty,
+            withholding,
+            reserve,
+            payable,
+            ctx.currency,
+            status,
+            availableAt,
+            ctx.sourceId,
+            calculatedAt,
+            calcId,
+            ctx.salesChannel,
+            ctx.territory,
+            ctx.productId,
+          ),
+      );
+    }
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO finance_royalty_allocations(id,calculation_id,party_id,share_bps,royalty_minor,withholding_minor,reserve_minor,payable_minor,currency,status,available_at,legacy_royalty_event_id,created_at,tax_profile_id,withholding_rule_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        )
+        .bind(
+          id("royalloc"),
+          calcId,
+          split.party_id,
+          Number(split.share_bps),
+          royalty,
+          withholding,
+          reserve,
+          payable,
+          ctx.currency.toUpperCase(),
+          status,
+          availableAt,
+          legacyId,
+          calculatedAt,
+          tax.taxProfileId || null,
+          tax.ruleId || null,
+        ),
+    );
+    const ref = `${calcId}:${split.party_id}`;
+    ledger(
+      statements,
+      db,
+      ctx.orderId || null,
+      orderUser?.user_id || null,
+      "royalty_accrual",
+      "royalty_expense",
+      royalty,
+      ctx.currency,
+      ref,
+      {
+        calculationId: calcId,
+        contractVersionId: contract.contract_version_id,
+        partyId: split.party_id,
+        sourceType: ctx.sourceType,
+      },
+    );
+    ledger(
+      statements,
+      db,
+      ctx.orderId || null,
+      orderUser?.user_id || null,
+      "royalty_accrual",
+      `royalty_payable:${split.party_id}`,
+      -payable,
+      ctx.currency,
+      ref,
+      { calculationId: calcId },
+    );
+    if (withholding)
+      ledger(
+        statements,
+        db,
+        ctx.orderId || null,
+        orderUser?.user_id || null,
+        "royalty_withholding",
+        "withholding_payable",
+        -withholding,
+        ctx.currency,
+        ref,
+        { calculationId: calcId },
+      );
+    if (reserve)
+      ledger(
+        statements,
+        db,
+        ctx.orderId || null,
+        orderUser?.user_id || null,
+        "royalty_reserve",
+        "royalty_reserve_liability",
+        -reserve,
+        ctx.currency,
+        ref,
+        { calculationId: calcId },
+      );
+  }
+  // A calculation marker can never survive without ALL payee allocations
+  // and its complete balanced journal. Unknown commit outcomes replay via
+  // the existing unique source identity.
+  if (plan)
+    return {
+      id: calcId,
+      contract_version_id: contract.contract_version_id,
+      fore_commission_minor: economics.commission,
+    };
+  await db.batch(statements);
+  return db
+    .prepare("SELECT * FROM finance_royalty_calculations WHERE id=?")
+    .bind(calcId)
+    .first<any>();
+}
+
+async function accrueSaleRoyaltiesForOrder(
+  db: CatalogDB,
+  orderId: string,
+  plan?: SaleRoyaltyPlan,
+) {
+  const order = await db
+    .prepare("SELECT * FROM commerce_orders WHERE id=?")
+    .bind(orderId)
+    .first<any>();
+  if (!order) throw new ApiError(404, "Order not found.");
+  const items = (
+    await db
+      .prepare(
+        `SELECT oi.*,p.format,e.publisher_id,e.release_status,pd.base_amount_minor,pd.scheduled_amount_minor,pd.promotion_amount_minor,pd.promotion_id,pr.promotion_type pricing_promotion_type,pr.funding_source pricing_funding_source,pr.publisher_funding_bps pricing_publisher_funding_bps,ped.rights_basis,pc.campaign_type checkout_promotion_type,pc.funding_source checkout_funding_source,pc.publisher_funding_bps checkout_publisher_funding_bps,rp.release_at preorder_release_at
+    FROM commerce_order_items oi JOIN products p ON p.id=oi.product_id JOIN editions e ON e.id=p.edition_id
+    LEFT JOIN pricing_decisions pd ON pd.id=oi.pricing_decision_id LEFT JOIN promotions pr ON pr.id=pd.promotion_id
+    LEFT JOIN promotion_campaigns pc ON pc.id=oi.promotion_campaign_id
+    LEFT JOIN preorders po ON po.id=oi.preorder_id LEFT JOIN preorder_release_plans rp ON rp.id=po.release_plan_id
+    LEFT JOIN publishing_publications pub ON pub.id=(SELECT pub2.id FROM publishing_publications pub2 WHERE pub2.product_id=oi.product_id ORDER BY pub2.published_at DESC,pub2.id DESC LIMIT 1)
+    LEFT JOIN publishing_submission_snapshots ss ON ss.id=pub.submission_id LEFT JOIN publishing_edition_drafts ped ON ped.id=ss.edition_id
+    WHERE oi.order_id=?`,
+      )
+      .bind(orderId)
+      .all<any>()
+  ).results;
+  const at = plan?.at || order.paid_at || now();
+  for (const item of items) {
+    const promoDiscount =
+      Number(item.discount_minor || 0) + Number(item.promotion_amount_minor || 0);
+    const pricingPromo = Number(item.promotion_amount_minor || 0);
+    const pricingPublisherBps = clampBps(
+      item.pricing_publisher_funding_bps,
+      item.pricing_funding_source === "publisher"
+        ? 10000
+        : item.pricing_funding_source === "fore"
+          ? 0
+          : 5000,
+    );
+    const pricingPublisherFunding = Math.floor((pricingPromo * pricingPublisherBps) / 10000);
+    const pricingCoveFunding = pricingPromo - pricingPublisherFunding;
+    const checkoutPublisherFunding = Number(item.publisher_discount_funding_minor || 0);
+    const checkoutCoveFunding = Number(item.fore_discount_funding_minor || 0);
+    const calc = await calculateAndAccrueRoyalty(
+      db,
+      {
+        sourceType: "sale",
+        sourceId: item.id,
+        orderId,
+        orderItemId: item.id,
+        productId: item.product_id,
+        publisherId: item.publisher_id,
+        territory: order.territory_code,
+        format: item.format,
+        salesChannel: item.sales_channel || "retail",
+        currency: order.currency,
+        quantity: 1,
+        listPriceMinor: Number(
+          item.scheduled_amount_minor ?? item.base_amount_minor ?? item.unit_amount_minor,
+        ),
+        customerPriceMinor: Math.max(
+          0,
+          Number(item.unit_amount_minor) - Number(item.discount_minor || 0),
+        ),
+        taxMinor: Number(item.tax_minor || 0),
+        processorFeeMinor:
+          plan?.processorFees?.get(item.id) ?? Number(item.processor_fee_minor || 0),
+        promotionDiscountMinor: promoDiscount,
+        foreFundedDiscountMinor: pricingCoveFunding + checkoutCoveFunding,
+        publisherFundedDiscountMinor: pricingPublisherFunding + checkoutPublisherFunding,
+        distributorFeeMinor: Number(item.distributor_fee_minor || 0),
+        rightsBasis: item.rights_basis || null,
+        promotionType: item.checkout_promotion_type || item.pricing_promotion_type || null,
+        promotionFundingSource: item.checkout_funding_source || item.pricing_funding_source || null,
+        occurredAt: at,
+        availabilityAnchorAt:
+          plan?.preorderReleaseDates?.get(item.id) ||
+          (item.fulfillment_type === "preorder" ? item.preorder_release_at || null : null),
+        metadata: {
+          invoiceNumber: order.invoice_number,
+          pricingDecisionId: item.pricing_decision_id || null,
+          promotionCampaignId: item.promotion_campaign_id || null,
+          preorderReleaseAt: item.preorder_release_at || null,
+        },
+      },
+      plan,
+    );
+    if (calc) {
+      const statement = db
+        .prepare(
+          "UPDATE commerce_order_items SET royalty_contract_version_id=?,recognized_revenue_minor=? WHERE id=?",
+        )
+        .bind(calc.contract_version_id, Number(calc.fore_commission_minor || 0), item.id);
+      if (plan) plan.statements.push(statement);
+      else await statement.run();
+    }
+  }
+}
+
+async function createRoyaltyContractVersion(db: CatalogDB, raw: unknown) {
+  const ruleSchema = z.object({
+    key: z.string().trim().min(1).max(120),
+    priority: z.number().int().min(0).max(100000).default(100),
+    conditions: z.record(z.string(), z.unknown()).default({}),
+    action: z
+      .object({
+        basis: z.enum(["list_price", "customer_price", "net_receipts", "gross_value"]).optional(),
+        royaltyRateBps: z.number().int().min(0).max(10000).optional(),
+        foreCommissionBps: z.number().int().min(0).max(10000).optional(),
+        flatRoyaltyMinorPerUnit: z.number().int().min(0).optional(),
+        reserveBps: z.number().int().min(0).max(10000).optional(),
+        paymentTermsDays: z.number().int().min(0).max(730).optional(),
+        processorFeeTreatment: z.enum(["deduct", "ignore"]).optional(),
+        distributorFeeTreatment: z.enum(["deduct", "ignore"]).optional(),
+        taxTreatment: z.enum(["deduct", "ignore"]).optional(),
+        foreFundedDiscountTreatment: z.enum(["add_back", "ignore"]).optional(),
+        publisherFundedDiscountTreatment: z.enum(["deduct", "ignore"]).optional(),
+      })
+      .refine(
+        (a) =>
+          a.royaltyRateBps != null ||
+          a.foreCommissionBps != null ||
+          a.flatRoyaltyMinorPerUnit != null ||
+          !!a.basis,
+        "A rule action must change at least one royalty term.",
+      ),
+  });
+  const x = z
+    .object({
+      contractId: z.string().min(1),
+      effectiveFrom: z.string().datetime(),
+      effectiveTo: z.string().datetime().nullable().optional(),
+      basis: z.enum(["list_price", "customer_price", "net_revenue"]).default("net_revenue"),
+      foreCommissionBps: z.number().int().min(0).max(10000).default(3000),
+      defaultRoyaltyRateBps: z.number().int().min(0).max(10000).nullable().optional(),
+      paymentTermsDays: z.number().int().min(0).max(730).default(60),
+      reserveBps: z.number().int().min(0).max(10000).default(0),
+      notes: z.string().max(2000).default(""),
+      changeReason: z.string().trim().min(1).max(2000).default("Contract terms versioned."),
+      createdByUserId: z.string().max(180).nullable().optional(),
+      supersedesVersionId: z.string().nullable().optional(),
+      splits: z
+        .array(
+          z.object({ partyId: z.string().min(1), shareBps: z.number().int().min(0).max(10000) }),
+        )
+        .min(1),
+      rules: z.array(ruleSchema).default([]),
+    })
+    .parse(raw);
+  if (x.effectiveTo && x.effectiveTo <= x.effectiveFrom)
+    throw new ApiError(400, "Contract version end must be after its start.");
+  if (x.splits.reduce((s, r) => s + r.shareBps, 0) !== 10000)
+    throw new ApiError(400, "Royalty splits must allocate exactly 100%.");
+  const contract = await db
+    .prepare("SELECT * FROM finance_royalty_contracts WHERE id=?")
+    .bind(x.contractId)
+    .first<any>();
+  if (!contract) throw new ApiError(404, "Royalty contract not found.");
+  const versionId = seed?"rcv_"+seed:id("rcv");
+  if(seed){
+    const done=await db.prepare("SELECT contract_id,version,rules_version_hash FROM finance_royalty_contract_versions WHERE id=?").bind(versionId).first<any>();
+    if(done)return {contractId:done.contract_id,versionId,version:Number(done.version),rulesVersionHash:done.rules_version_hash};
+  }
+  const previous = await db
+    .prepare(
+      "SELECT id,version FROM finance_royalty_contract_versions WHERE contract_id=? ORDER BY version DESC LIMIT 1",
+    )
+    .bind(x.contractId)
+    .first<any>();
+  if (x.supersedesVersionId) {
+    const target = await db
+      .prepare("SELECT id FROM finance_royalty_contract_versions WHERE id=? AND contract_id=?")
+      .bind(x.supersedesVersionId, x.contractId)
+      .first<any>();
+    if (!target)
+      throw new ApiError(
+        400,
+        "Superseded royalty-contract version does not belong to this contract.",
+      );
+  }
+  const version = Number(previous?.version || 0) + 1;
+  const supersedesVersionId = x.supersedesVersionId || previous?.id || null;
+  const at = now();
+  const canonical = JSON.stringify({
+    contractId: x.contractId,
+    version,
+    supersedesVersionId,
+    effectiveFrom: x.effectiveFrom,
+    effectiveTo: x.effectiveTo || null,
+    basis: x.basis,
+    foreCommissionBps: x.foreCommissionBps,
+    defaultRoyaltyRateBps: x.defaultRoyaltyRateBps ?? null,
+    paymentTermsDays: x.paymentTermsDays,
+    reserveBps: x.reserveBps,
+    splits: x.splits,
+    rules: x.rules,
+    changeReason: x.changeReason,
+  });
+  const hash = await sha256(canonical);
+  const statements:Parameters<CatalogDB["batch"]>[0]=[];
+  statements.push(db
+    .prepare(
+      "INSERT INTO finance_royalty_contract_versions(id,contract_id,version,calculation_basis,fore_commission_bps,payment_terms_days,reserve_bps,effective_from,created_at,rules_version_hash,default_royalty_rate_bps,effective_to,notes,supersedes_version_id,created_by_user_id,change_reason) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    )
+    .bind(
+      versionId,
+      x.contractId,
+      version,
+      x.basis,
+      x.foreCommissionBps,
+      x.paymentTermsDays,
+      x.reserveBps,
+      x.effectiveFrom,
+      at,
+      hash,
+      x.defaultRoyaltyRateBps ?? null,
+      x.effectiveTo || null,
+      x.notes,
+      supersedesVersionId,
+      x.createdByUserId || null,
+      x.changeReason,
+    )
+    );
+  for (const [i, s] of x.splits.entries())
+    statements.push(db
+      .prepare(
+        "INSERT INTO finance_royalty_splits(id,contract_version_id,party_id,share_bps,priority,created_at) VALUES(?,?,?,?,?,?)",
+      )
+      .bind(id("rs"), versionId, s.partyId, s.shareBps, i, at)
+      );
+  const rules = x.rules.length
+    ? x.rules
+    : [
+        {
+          key: "default",
+          priority: 100,
+          conditions: {},
+          action: {
+            basis: x.basis === "net_revenue" ? "net_receipts" : x.basis,
+            foreCommissionBps: x.foreCommissionBps,
+            reserveBps: x.reserveBps,
+            paymentTermsDays: x.paymentTermsDays,
+          },
+        },
+      ];
+  for (const r of rules)
+    statements.push(db
+      .prepare(
+        "INSERT INTO finance_royalty_rules(id,contract_version_id,rule_key,priority,conditions_json,action_json,created_at) VALUES(?,?,?,?,?,?,?)",
+      )
+      .bind(
+        id("rule"),
+        versionId,
+        r.key,
+        r.priority,
+        JSON.stringify(r.conditions),
+        JSON.stringify(r.action),
+        at,
+      )
+      );
+  await db.batch(statements);
+  return { contractId: x.contractId, versionId, version, rulesVersionHash: hash };
+}
+
+async function recordUsageEvent(db: CatalogDB, raw: unknown) {
+  const x = z
+    .object({
+      sourceType: z.enum([
+        "subscription_read",
+        "subscription_listen",
+        "library_loan",
+        "library_read",
+        "library_listen",
+        "wholesale_unit",
+        "agency_unit",
+      ]),
+      sourceReference: z.string().min(1).max(240),
+      productId: z.string().min(1),
+      userId: z.string().nullable().optional(),
+      territory: z
+        .string()
+        .regex(/^[A-Za-z]{2}$/)
+        .default("US"),
+      currency: z
+        .string()
+        .regex(/^[A-Za-z]{3}$/)
+        .default("USD"),
+      units: z.number().min(0).default(0),
+      pagesRead: z.number().int().min(0).default(0),
+      secondsConsumed: z.number().int().min(0).default(0),
+      grossValueMinor: z.number().int().min(0).default(0),
+      poolId: z.string().nullable().optional(),
+      occurredAt: z.string().datetime(),
+      deviceFingerprintHash: z.union([z.literal(""), z.string().min(16).max(128)]).default(""),
+      networkFingerprintHash: z.union([z.literal(""), z.string().min(16).max(128)]).default(""),
+      sessionFingerprintHash: z.union([z.literal(""), z.string().min(16).max(128)]).default(""),
+      metadata: z.record(z.string(), z.unknown()).default({}),
+    })
+    .parse(raw);
+  const eventId = id("usage"),
+    at = now();
+  await db
+    .prepare(
+      `INSERT OR IGNORE INTO finance_usage_events(id,source_type,source_reference,product_id,user_id,territory_code,currency,units,pages_read,seconds_consumed,gross_value_minor,pool_id,occurred_at,metadata_json,created_at,device_fingerprint_hash,network_fingerprint_hash,session_fingerprint_hash) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    )
+    .bind(
+      eventId,
+      x.sourceType,
+      x.sourceReference,
+      x.productId,
+      x.userId || null,
+      x.territory.toUpperCase(),
+      x.currency.toUpperCase(),
+      x.units,
+      x.pagesRead,
+      x.secondsConsumed,
+      x.grossValueMinor,
+      x.poolId || null,
+      x.occurredAt,
+      JSON.stringify(x.metadata),
+      at,
+      x.deviceFingerprintHash,
+      x.networkFingerprintHash,
+      x.sessionFingerprintHash,
+    )
+    .run();
+  const persisted = await db
+    .prepare("SELECT * FROM finance_usage_events WHERE source_type=? AND source_reference=?")
+    .bind(x.sourceType, x.sourceReference)
+    .first<any>();
+  return persisted;
+}
+
+async function processUsageEventRoyalty(db: CatalogDB, usageEventId: string) {
+  const u = await db
+    .prepare(
+      `SELECT u.*,p.format,e.publisher_id FROM finance_usage_events u JOIN products p ON p.id=u.product_id JOIN editions e ON e.id=p.edition_id WHERE u.id=?`,
+    )
+    .bind(usageEventId)
+    .first<any>();
+  if (!u) throw new ApiError(404, "Usage event not found.");
+  if (u.processed_at) return { usageEventId, status: "already_processed" };
+  const risk = await assessUsageRisk(db, usageEventId);
+  if (["hold", "block"].includes(risk.action))
+    return {
+      usageEventId,
+      status: "held_for_risk_review",
+      riskAssessmentId: risk.id,
+      riskScore: risk.score,
+    };
+  const channel = String(u.source_type).startsWith("subscription")
+    ? "subscription"
+    : String(u.source_type).startsWith("library")
+      ? "library"
+      : String(u.source_type).startsWith("wholesale")
+        ? "wholesale"
+        : "agency";
+  const quantity =
+    channel === "subscription"
+      ? Number(u.pages_read || 0) > 0
+        ? Number(u.pages_read)
+        : Number(u.seconds_consumed || 0) > 0
+          ? Number(u.seconds_consumed)
+          : Math.max(1, Number(u.units || 0))
+      : Math.max(1, Math.round(Number(u.units || 1)));
+  const meta = safeJson<any>(u.metadata_json, {});
+  const calc = await calculateAndAccrueRoyalty(db, {
+    sourceType: channel as any,
+    sourceId: u.id,
+    usageEventId: u.id,
+    productId: u.product_id,
+    publisherId: u.publisher_id,
+    territory: u.territory_code || "US",
+    format: u.format || "ebook",
+    salesChannel: channel,
+    currency: u.currency || "USD",
+    quantity,
+    grossValueMinor: Number(u.gross_value_minor || 0),
+    customerPriceMinor: Number(u.gross_value_minor || 0),
+    listPriceMinor: Number(u.gross_value_minor || 0),
+    taxMinor: Number(meta.taxMinor || 0),
+    processorFeeMinor: Number(meta.processorFeeMinor || 0),
+    distributorFeeMinor: Number(meta.distributorFeeMinor || 0),
+    rightsBasis: meta.rightsBasis || null,
+    distributorId: meta.distributorId || null,
+    subscriptionPlanId: meta.subscriptionPlanId || null,
+    occurredAt: u.occurred_at,
+    metadata: meta,
+  });
+  await db
+    .prepare("UPDATE finance_usage_events SET processed_at=? WHERE id=?")
+    .bind(now(), u.id)
+    .run();
+  return { usageEventId: u.id, calculationId: calc?.id, status: "processed" };
+}
+
+async function createUsagePool(db: CatalogDB, raw: unknown) {
+  const x = z
+    .object({
+      poolType: z.enum(["subscription", "library", "wholesale"]),
+      periodStart: z.string().datetime(),
+      periodEnd: z.string().datetime(),
+      territory: z
+        .string()
+        .regex(/^[A-Za-z]{2}$/)
+        .nullable()
+        .optional(),
+      currency: z.string().regex(/^[A-Za-z]{3}$/),
+      poolMinor: z.number().int().min(0),
+      metric: z.enum(["units", "pages", "seconds", "weighted"]),
+      rules: z.record(z.string(), z.unknown()).default({}),
+    })
+    .parse(raw);
+  if (x.periodEnd <= x.periodStart)
+    throw new ApiError(400, "Usage-pool end must be after its start.");
+  const poolId = seed?"pool_"+seed:id("pool"),
+    at = now();
+  await db
+    .prepare(
+      "INSERT OR IGNORE INTO finance_usage_pools(id,pool_type,period_start,period_end,territory_code,currency,pool_minor,metric,status,rules_json,created_at) VALUES(?,?,?,?,?,?,?,?,'draft',?,?)",
+    )
+    .bind(
+      poolId,
+      x.poolType,
+      x.periodStart,
+      x.periodEnd,
+      x.territory?.toUpperCase() || null,
+      x.currency.toUpperCase(),
+      x.poolMinor,
+      x.metric,
+      JSON.stringify(x.rules),
+      at,
+    )
+    .run();
+  return { id: poolId, status: "draft" };
+}
+
+async function allocateUsagePool(db: CatalogDB, poolId: string) {
+  const pool = await db
+    .prepare("SELECT * FROM finance_usage_pools WHERE id=?")
+    .bind(poolId)
+    .first<any>();
+  if (!pool) throw new ApiError(404, "Usage pool not found.");
+  if (pool.status === "allocated" || pool.status === "closed")
+    return { poolId, status: pool.status };
+  if (pool.status !== "draft" && pool.status !== "locked")
+    throw new ApiError(409, "Usage pool cannot be allocated from its current state.");
+  const family =
+    pool.pool_type === "subscription"
+      ? "subscription_%"
+      : pool.pool_type === "library"
+        ? "library_%"
+        : "wholesale_%";
+  const recovering=pool.status==="locked";
+  const rows = (
+    await db
+      .prepare(
+        `SELECT * FROM finance_usage_events WHERE source_type LIKE ? AND occurred_at>=? AND occurred_at<? AND currency=? AND (? IS NULL OR territory_code=?) AND processed_at IS NULL AND (pool_id IS NULL OR pool_id=?) ORDER BY occurred_at,id`,
+      )
+      .bind(
+        family,
+        pool.period_start,
+        pool.period_end,
+        pool.currency,
+        pool.territory_code,
+        pool.territory_code,
+        pool.id,
+      )
+      .all<any>()
+  ).results;
+  if(recovering){
+    const assigned=(await db.prepare("SELECT id FROM finance_usage_events WHERE pool_id=? AND processed_at IS NULL ORDER BY occurred_at,id").bind(pool.id).all<any>()).results;
+    for(const row of assigned)await processUsageEventRoyalty(db,row.id);
+    const pending=Number((await db.prepare("SELECT COUNT(*) n FROM finance_usage_events WHERE pool_id=? AND processed_at IS NULL").bind(pool.id).first<any>())?.n||0);
+    if(pending)return {poolId:pool.id,status:"locked",pending};
+    await db.prepare("UPDATE finance_usage_pools SET status='allocated',allocated_at=? WHERE id=?").bind(now(),pool.id).run();
+    return {poolId:pool.id,status:"allocated",recovered:true};
+  }
+  if (!rows.length) throw new ApiError(409, "No unprocessed usage events match this pool.");
+  const rules = safeJson<any>(pool.rules_json, {});
+  const weight = (r: any) =>
+    pool.metric === "pages"
+      ? Number(r.pages_read || 0)
+      : pool.metric === "seconds"
+        ? Number(r.seconds_consumed || 0)
+        : pool.metric === "weighted"
+          ? Number(r.units || 0) * Number(rules.unitWeight ?? 1) +
+            Number(r.pages_read || 0) * Number(rules.pageWeight ?? 0) +
+            Number(r.seconds_consumed || 0) * Number(rules.secondWeight ?? 0)
+          : Number(r.units || 0);
+  const weights = rows.map(weight),
+    total = weights.reduce((a: number, b: number) => a + b, 0);
+  if (total <= 0) throw new ApiError(409, "Usage pool has no positive allocation metric.");
+  const raw = weights.map((w: number) => (Number(pool.pool_minor) * w) / total),
+    alloc = raw.map((v: number) => Math.floor(v));
+  let remaining = Number(pool.pool_minor) - alloc.reduce((a: number, b: number) => a + b, 0);
+  raw
+    .map((v: number, i: number) => ({ i, f: v - Math.floor(v) }))
+    .sort((a: any, b: any) => b.f - a.f || a.i - b.i)
+    .forEach((x: any) => {
+      if (remaining-- > 0) alloc[x.i]++;
+    });
+  const at = now();
+  const statements:Parameters<CatalogDB["batch"]>[0]=[
+    db.prepare("UPDATE finance_usage_pools SET status='locked',locked_at=? WHERE id=? AND status='draft'").bind(at,pool.id)
+  ];
+  for(let i=0;i<rows.length;i++)statements.push(db.prepare(
+    "UPDATE finance_usage_events SET gross_value_minor=?,pool_id=? WHERE id=? AND processed_at IS NULL"
+  ).bind(alloc[i],pool.id,rows[i].id));
+  await db.batch(statements);
+  for(const row of rows)await processUsageEventRoyalty(db,row.id);
+  const pending=Number((await db.prepare("SELECT COUNT(*) n FROM finance_usage_events WHERE pool_id=? AND processed_at IS NULL").bind(pool.id).first<any>())?.n||0);
+  if(pending)return {poolId:pool.id,status:"locked",pending};
+  await db
+    .prepare("UPDATE finance_usage_pools SET status='allocated',allocated_at=? WHERE id=?")
+    .bind(now(), pool.id)
+    .run();
+  return {
+    poolId: pool.id,
+    status: "allocated",
+    events: rows.length,
+    poolMinor: Number(pool.pool_minor),
+    allocatedMinor: alloc.reduce((a: number, b: number) => a + b, 0),
+  };
+}
+
+return {calculateAndAccrueRoyalty,accrueSaleRoyaltiesForOrder,createRoyaltyContractVersion,recordUsageEvent,processUsageEventRoyalty,createUsagePool,allocateUsagePool};
+};
+const privateRoyalty=createPrivateRoyalty();
+const createPrivateFinance=(royalty=privateRoyalty,seed?:string)=>{
+let sequence=0;
+const {accrueSaleRoyaltiesForOrder,createRoyaltyContractVersion}=royalty;
+const now = () => new Date().toISOString();
+const uid = (p: string) => `${p}_${seed?seed+"_"+(++sequence):crypto.randomUUID()}`;
+
+async function postLedger(
+  db: CatalogDB,
+  orderId: string | null,
+  userId: string | null,
+  type: string,
+  account: string,
+  amount: number,
+  currency: string,
+  external: string,
+  metadata: any = {},
+  statements?:Parameters<CatalogDB["batch"]>[0],
+) {
+  const exists = await db
+    .prepare(
+      "SELECT 1 ok FROM commerce_ledger_entries WHERE COALESCE(order_id,'')=COALESCE(?,'') AND entry_type=? AND account_code=? AND external_reference=? LIMIT 1",
+    )
+    .bind(orderId, type, account, external)
+    .first<any>();
+  if (exists) return;
+  const statement=db
+    .prepare(
+      "INSERT OR IGNORE INTO commerce_ledger_entries(id,order_id,user_id,entry_type,account_code,amount_minor,currency,external_reference,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+    )
+    .bind(
+      "led_"+crypto.randomUUID(),
+      orderId,
+      userId,
+      type,
+      account,
+      amount,
+      currency,
+      external,
+      JSON.stringify(metadata),
+      now(),
+    )
+;
+  if(statements)statements.push(statement);else await db.batch([statement]);
+}
+
+async function accrueRoyaltiesForOrder(db: CatalogDB, orderId: string) {
+  return accrueSaleRoyaltiesForOrder(db, orderId);
+}
+
+async function reversalFromCalculation(
+  db: CatalogDB,
+  sourceType: "refund" | "chargeback",
+  sourceId: string,
+  original: any,
+  ratio: number,
+  order: any,
+  refundId: string | null,
+) {
+  const reversalSource = `${sourceId}:${original.id}`;
+  const exists = await db
+    .prepare(
+      "SELECT id FROM finance_royalty_calculations WHERE source_type=? AND source_id=? AND product_id=?",
+    )
+    .bind(sourceType, reversalSource, original.product_id)
+    .first<any>();
+  if (exists) return;
+  const hash = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(JSON.stringify([sourceType, sourceId, original.id])),
+  );
+  const calcId =
+      "roycalc_" +
+      Array.from(new Uint8Array(hash), (b) => b.toString(16).padStart(2, "0")).join(""),
+    at = now(),
+    scale = (n: any) =>
+      -Math.min(Math.abs(Number(n || 0)), Math.round(Math.abs(Number(n || 0)) * ratio));
+  const statements: Parameters<CatalogDB["batch"]>[0] = [];
+  const appendLedger = (
+    type: string,
+    account: string,
+    amount: number,
+    reference: string,
+    metadata: Record<string, unknown>,
+  ) => {
+    statements.push(
+      db
+        .prepare(
+          "INSERT OR IGNORE INTO commerce_ledger_entries(id,order_id,user_id,entry_type,account_code,amount_minor,currency,external_reference,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          `led:${calcId}:${reference}:${account}`,
+          original.order_id,
+          order?.user_id || null,
+          type,
+          account,
+          amount,
+          original.currency,
+          reference,
+          JSON.stringify(metadata),
+          at,
+        ),
+    );
+  };
+  statements.push(
+    db
+      .prepare(
+        `INSERT INTO finance_royalty_calculations(id,source_type,source_id,order_id,order_item_id,product_id,contract_id,contract_version_id,contract_version_hash,rule_id,territory_code,format,sales_channel,currency,quantity,list_price_minor,customer_price_minor,tax_minor,processor_fee_minor,promotion_discount_minor,fore_funded_discount_minor,publisher_funded_discount_minor,distributor_fee_minor,net_receipts_minor,basis_minor,fore_commission_minor,royalty_pool_minor,rule_trace_json,input_snapshot_json,calculated_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      )
+      .bind(
+        calcId,
+        sourceType,
+        reversalSource,
+        original.order_id,
+        original.order_item_id,
+        original.product_id,
+        original.contract_id,
+        original.contract_version_id,
+        original.contract_version_hash,
+        original.rule_id,
+        original.territory_code,
+        original.format,
+        original.sales_channel,
+        original.currency,
+        original.quantity,
+        scale(original.list_price_minor),
+        scale(original.customer_price_minor),
+        scale(original.tax_minor),
+        scale(original.processor_fee_minor),
+        scale(original.promotion_discount_minor),
+        scale(original.fore_funded_discount_minor),
+        scale(original.publisher_funded_discount_minor),
+        scale(original.distributor_fee_minor),
+        scale(original.net_receipts_minor),
+        scale(original.basis_minor),
+        scale(original.fore_commission_minor),
+        scale(original.royalty_pool_minor),
+        JSON.stringify([`reversal:${sourceType}`, `original:${original.id}`, `ratio:${ratio}`]),
+        JSON.stringify({ reversalOf: original.id, ratio, sourceId }),
+        at,
+      ),
+  );
+  const allocations = (
+    await db
+      .prepare("SELECT * FROM finance_royalty_allocations WHERE calculation_id=? ORDER BY party_id")
+      .bind(original.id)
+      .all<any>()
+  ).results;
+  for (const a of allocations) {
+    const royalty = scale(a.royalty_minor),
+      withholding = scale(a.withholding_minor),
+      reserve = scale(a.reserve_minor),
+      payable = scale(a.payable_minor),
+      legacyId = `roy:${calcId}:${a.party_id}`;
+    if (original.order_id && original.order_item_id) {
+      statements.push(
+        db
+          .prepare(
+            `INSERT OR IGNORE INTO finance_royalty_events(id,order_id,order_item_id,refund_id,contract_version_id,party_id,event_type,basis_minor,royalty_minor,withholding_minor,reserve_minor,payable_minor,currency,status,available_at,external_reference,created_at,royalty_calculation_id,sales_channel,territory_code,product_id)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          )
+          .bind(
+            legacyId,
+            original.order_id,
+            original.order_item_id,
+            refundId,
+            original.contract_version_id,
+            a.party_id,
+            sourceType,
+            scale(original.basis_minor),
+            royalty,
+            withholding,
+            reserve,
+            payable,
+            original.currency,
+            "accrued",
+            at,
+            reversalSource,
+            at,
+            calcId,
+            original.sales_channel,
+            original.territory_code,
+            original.product_id,
+          ),
+      );
+    }
+    statements.push(
+      db
+        .prepare(
+          "INSERT INTO finance_royalty_allocations(id,calculation_id,party_id,share_bps,royalty_minor,withholding_minor,reserve_minor,payable_minor,currency,status,available_at,legacy_royalty_event_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,'accrued',?,?,?)",
+        )
+        .bind(
+          `royalloc:${calcId}:${a.party_id}`,
+          calcId,
+          a.party_id,
+          a.share_bps,
+          royalty,
+          withholding,
+          reserve,
+          payable,
+          original.currency,
+          at,
+          original.order_id ? legacyId : null,
+          at,
+        ),
+    );
+    const ref = `${calcId}:${a.party_id}`;
+    appendLedger(`royalty_${sourceType}`, "royalty_expense", royalty, ref, {
+      reversalOf: original.id,
+      sourceId,
+    });
+    appendLedger(`royalty_${sourceType}`, `royalty_payable:${a.party_id}`, -payable, ref, {
+      reversalOf: original.id,
+      sourceId,
+    });
+    if (withholding)
+      appendLedger(`royalty_${sourceType}`, "withholding_payable", -withholding, ref, {
+        reversalOf: original.id,
+      });
+    if (reserve)
+      appendLedger(`royalty_${sourceType}`, "royalty_reserve_liability", -reserve, ref, {
+        reversalOf: original.id,
+      });
+  }
+  // A calculation row cannot become the completion marker before its
+  // allocations and balanced ledger exist. D1 rolls back the ENTIRE batch
+  // on any failed posting. Competing exact retries either commit once or
+  // observe the already committed unique calculation after losing the race.
+  try {
+    await db.batch(statements);
+  } catch (error) {
+    const committed = await db
+      .prepare(
+        "SELECT id FROM finance_royalty_calculations WHERE source_type=? AND source_id=? AND product_id=?",
+      )
+      .bind(sourceType, reversalSource, original.product_id)
+      .first<{ id: string }>();
+    if (!committed || committed.id !== calcId) throw error;
+  }
+}
+
+async function reverseRoyaltiesForRefund(db: CatalogDB, refundId: string) {
+  const refund = await db
+    .prepare("SELECT * FROM commerce_refunds WHERE id=?")
+    .bind(refundId)
+    .first<any>();
+  if (!refund) return;
+  const order = await db
+    .prepare("SELECT * FROM commerce_orders WHERE id=?")
+    .bind(refund.order_id)
+    .first<any>();
+  if (!order) return;
+  const ratio = Math.min(1, Number(refund.amount_minor) / Math.max(1, Number(order.total_minor)));
+  const calculations = (
+    await db
+      .prepare("SELECT * FROM finance_royalty_calculations WHERE order_id=? AND source_type='sale'")
+      .bind(order.id)
+      .all<any>()
+  ).results;
+  for (const c of calculations)
+    await reversalFromCalculation(db, "refund", refund.id, c, ratio, order, refund.id);
+}
+
+async function createRoyaltyContract(db: CatalogDB, raw: unknown) {
+  const x = z
+    .object({
+      name: z.string().min(1),
+      publisherId: z.string().nullable().optional(),
+      productId: z.string().nullable().optional(),
+      editionId: z.string().nullable().optional(),
+      territory: z.string().length(2).nullable().optional(),
+      format: z.string().nullable().optional(),
+      salesChannel: z
+        .enum(["retail", "subscription", "library", "wholesale", "agency"])
+        .default("retail"),
+      effectiveFrom: z.string().datetime(),
+      effectiveTo: z.string().datetime().nullable().optional(),
+      basis: z.enum(["list_price", "customer_price", "net_revenue"]).default("net_revenue"),
+      foreCommissionBps: z.number().int().min(0).max(10000).default(3000),
+      defaultRoyaltyRateBps: z.number().int().min(0).max(10000).nullable().optional(),
+      paymentTermsDays: z.number().int().min(0).max(730).default(60),
+      reserveBps: z.number().int().min(0).max(10000).default(0),
+      notes: z.string().max(2000).default(""),
+      splits: z
+        .array(z.object({ partyId: z.string(), shareBps: z.number().int().min(0).max(10000) }))
+        .min(1),
+      rules: z.array(z.any()).default([]),
+    })
+    .parse(raw);
+  if (x.splits.reduce((s, r) => s + r.shareBps, 0) !== 10000)
+    throw new ApiError(400, "Royalty splits must allocate exactly 100%.");
+  const at = now(),
+    id = uid("rc");
+  await db
+    .prepare(
+      "INSERT OR IGNORE INTO finance_royalty_contracts(id,name,publisher_id,product_id,edition_id,territory_code,format,sales_channel,effective_from,effective_to,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,'active',?,?)",
+    )
+    .bind(
+      id,
+      x.name,
+      x.publisherId || null,
+      x.productId || null,
+      x.editionId || null,
+      x.territory?.toUpperCase() || null,
+      x.format || null,
+      x.salesChannel,
+      x.effectiveFrom,
+      x.effectiveTo || null,
+      at,
+      at,
+    )
+    .run();
+  const version = await createRoyaltyContractVersion(db, {
+    contractId: id,
+    effectiveFrom: x.effectiveFrom,
+    effectiveTo: x.effectiveTo,
+    basis: x.basis,
+    foreCommissionBps: x.foreCommissionBps,
+    defaultRoyaltyRateBps: x.defaultRoyaltyRateBps,
+    paymentTermsDays: x.paymentTermsDays,
+    reserveBps: x.reserveBps,
+    notes: x.notes,
+    splits: x.splits,
+    rules: x.rules,
+  });
+  return {
+    id,
+    versionId: version.versionId,
+    version: version.version,
+    rulesVersionHash: version.rulesVersionHash,
+  };
+}
+
+async function createFinanceParty(db: CatalogDB, raw: unknown) {
+  const x = z
+      .object({
+        type: z.enum(["publisher", "author", "agent", "narrator", "distributor", "other"]),
+        displayName: z.string().min(1),
+        publisherId: z.string().nullable().optional(),
+        contributorId: z.string().nullable().optional(),
+        taxCountry: z.string().length(2).nullable().optional(),
+        withholdingBps: z.number().int().min(0).max(10000).default(0),
+        payoutCurrency: z.string().length(3).default("USD"),
+      })
+      .parse(raw),
+    at = now(),
+    id = uid("party");
+  await db
+    .prepare(
+      "INSERT OR IGNORE INTO finance_parties(id,party_type,display_name,publisher_id,contributor_id,tax_country,withholding_bps,payout_currency,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?, 'active',?,?)",
+    )
+    .bind(
+      id,
+      x.type,
+      x.displayName,
+      x.publisherId || null,
+      x.contributorId || null,
+      x.taxCountry?.toUpperCase() || null,
+      x.withholdingBps,
+      x.payoutCurrency.toUpperCase(),
+      at,
+      at,
+    )
+    .run();
+  return { id };
+}
+
+async function createPayoutBatch(db: CatalogDB, raw: unknown) {
+  const x = z
+      .object({
+        currency: z.string().length(3),
+        periodStart: z.string().datetime(),
+        periodEnd: z.string().datetime(),
+      })
+      .parse(raw),
+    at = now(),
+    id = uid("paybatch"),
+    currency = x.currency.toUpperCase();
+  const existing=seed?await db.prepare("SELECT * FROM payout_batches WHERE id=?").bind(id).first<any>():null;
+  if(existing){
+    const items=(await db.prepare("SELECT id FROM payout_items WHERE batch_id=? ORDER BY id").bind(id).all<any>()).results;
+    for(const item of items)await assessPayoutRisk(db,item.id);
+    return {id,grossMinor:Number(existing.gross_minor),withholdingMinor:Number(existing.withholding_minor),netMinor:Number(existing.net_minor),parties:items.length};
+  }
+  const statements:Parameters<CatalogDB["batch"]>[0]=[];
+  const riskItems:string[]=[];
+  const eligible = await db
+    .prepare(
+      `SELECT party_id,SUM(royalty_minor) gross,SUM(withholding_minor) withholding,SUM(payable_minor) net FROM finance_royalty_allocations WHERE currency=? AND status='accrued' AND available_at<=? AND created_at>=? AND created_at<? AND NOT EXISTS(SELECT 1 FROM payout_allocation_links pal JOIN payout_items pi ON pi.id=pal.payout_item_id JOIN payout_batches pb ON pb.id=pi.batch_id WHERE pal.royalty_allocation_id=finance_royalty_allocations.id AND pb.status<>'canceled') GROUP BY party_id HAVING SUM(payable_minor)<>0`,
+    )
+    .bind(currency, at, x.periodStart, x.periodEnd)
+    .all<any>();
+  let gross = 0,
+    withholding = 0,
+    net = 0;
+  statements.push(db
+    .prepare(
+      "INSERT INTO payout_batches(id,currency,period_start,period_end,status,created_at) VALUES(?,?,?,?,'draft',?)",
+    )
+    .bind(id, currency, x.periodStart, x.periodEnd, at)
+    );
+  for (const r of eligible.results) {
+    const pi = uid("payi");
+    statements.push(db
+      .prepare(
+        "INSERT INTO payout_items(id,batch_id,party_id,currency,gross_minor,withholding_minor,net_minor,status,created_at) VALUES(?,?,?,?,?,?,?,'pending',?)",
+      )
+      .bind(pi, id, r.party_id, currency, r.gross, r.withholding, r.net, at)
+      );
+    const allocations = await db
+      .prepare(
+        "SELECT id,legacy_royalty_event_id,tax_profile_id FROM finance_royalty_allocations WHERE party_id=? AND currency=? AND status='accrued' AND available_at<=? AND created_at>=? AND created_at<? AND NOT EXISTS(SELECT 1 FROM payout_allocation_links pal JOIN payout_items pi ON pi.id=pal.payout_item_id JOIN payout_batches pb ON pb.id=pi.batch_id WHERE pal.royalty_allocation_id=finance_royalty_allocations.id AND pb.status<>'canceled')",
+      )
+      .bind(r.party_id, currency, at, x.periodStart, x.periodEnd)
+      .all<any>();
+    for (const a of allocations.results) {
+      statements.push(db
+        .prepare(
+          "INSERT OR IGNORE INTO payout_allocation_links(payout_item_id,royalty_allocation_id) VALUES(?,?)",
+        )
+        .bind(pi, a.id)
+        );
+      if (a.legacy_royalty_event_id)
+        statements.push(db
+          .prepare(
+            "INSERT OR IGNORE INTO payout_event_links(payout_item_id,royalty_event_id) VALUES(?,?)",
+          )
+          .bind(pi, a.legacy_royalty_event_id)
+          );
+    }
+    const taxProfile =
+      allocations.results.find((a: any) => a.tax_profile_id)?.tax_profile_id || null;
+    if (taxProfile)
+      statements.push(db
+        .prepare("UPDATE payout_items SET tax_profile_id=? WHERE id=?")
+        .bind(taxProfile, pi)
+        );
+    riskItems.push(pi);
+    gross += Number(r.gross);
+    withholding += Number(r.withholding);
+    net += Number(r.net);
+  }
+  statements.push(db
+    .prepare("UPDATE payout_batches SET gross_minor=?,withholding_minor=?,net_minor=? WHERE id=?")
+    .bind(gross, withholding, net, id)
+    );
+  await db.batch(statements);
+  for(const pi of riskItems)await assessPayoutRisk(db,pi);
+  return {
+    id,
+    grossMinor: gross,
+    withholdingMinor: withholding,
+    netMinor: net,
+    parties: eligible.results.length,
+  };
+}
+
+async function approvePayoutBatch(db:CatalogDB,batchId:string){
+ const b=await db.prepare("SELECT * FROM payout_batches WHERE id=?").bind(batchId).first<any>();
+ if(!b||!["draft","approved"].includes(b.status))throw new ApiError(409,"Payout batch is not in draft status.");
+ const held=Number((await db.prepare("SELECT COUNT(*) n FROM payout_items WHERE batch_id=? AND status='held'").bind(batchId).first<any>())?.n||0);
+ if(b.status==="draft")await db.batch([
+  db.prepare("UPDATE payout_batches SET status='approved',approved_at=? WHERE id=?").bind(now(),batchId),
+  db.prepare("UPDATE finance_royalty_allocations SET status='payable' WHERE id IN (SELECT royalty_allocation_id FROM payout_allocation_links WHERE payout_item_id IN (SELECT id FROM payout_items WHERE batch_id=? AND status='pending')) AND status='accrued'").bind(batchId),
+  db.prepare("UPDATE finance_royalty_events SET status='payable' WHERE id IN (SELECT royalty_event_id FROM payout_event_links WHERE payout_item_id IN (SELECT id FROM payout_items WHERE batch_id=? AND status='pending')) AND status='accrued'").bind(batchId)
+ ]);
+ return {id:batchId,status:"approved",heldItems:held};
+}
+
+async function reverseRoyaltiesForChargeback(
+  db: CatalogDB,
+  orderId: string,
+  disputeId: string,
+) {
+  const order = await db
+    .prepare("SELECT * FROM commerce_orders WHERE id=?")
+    .bind(orderId)
+    .first<any>();
+  if (!order) return;
+  const calculations = (
+    await db
+      .prepare("SELECT * FROM finance_royalty_calculations WHERE order_id=? AND source_type='sale'")
+      .bind(orderId)
+      .all<any>()
+  ).results;
+  for (const c of calculations)
+    await reversalFromCalculation(db, "chargeback", disputeId, c, 1, order, null);
+}
+
+async function settlePayoutBatch(db: CatalogDB, raw: unknown) {
+  const x = z
+      .object({
+        batchId: z.string().min(1),
+        settlements: z
+          .array(
+            z.object({
+              payoutItemId: z.string().min(1),
+              externalPayoutId: z.string().min(3).max(180),
+            }),
+          )
+          .min(1),
+      })
+      .parse(raw),
+    batch = await db
+      .prepare("SELECT * FROM payout_batches WHERE id=?")
+      .bind(x.batchId)
+      .first<any>();
+  if (!batch || !["approved", "processing", "paid"].includes(batch.status))
+    throw new ApiError(409, "Payout batch is not approved for settlement.");
+  const at = now();
+  for (const settlement of x.settlements) {
+    const item = await db
+      .prepare("SELECT * FROM payout_items WHERE id=? AND batch_id=?")
+      .bind(settlement.payoutItemId, x.batchId)
+      .first<any>();
+    if (!item) throw new ApiError(404, "Payout item not found.");
+    if (item.status === "paid") {
+      if(item.external_payout_id!==settlement.externalPayoutId)
+        throw new ApiError(409,"A paid item cannot change its payout-provider reference.");
+      continue;
+    }
+    const reused=await db.prepare("SELECT id FROM payout_items WHERE external_payout_id=? AND id<>? LIMIT 1")
+      .bind(settlement.externalPayoutId,item.id).first<any>();
+    if(reused)throw new ApiError(409,"A payout-provider reference cannot settle two items.");
+    if (item.status === "held")
+      throw new ApiError(
+        409,
+        `Payout item is held by rights, fraud, or tax compliance (${item.hold_reason_code || "ACTIVE_HOLD"}).`,
+      );
+    const held = await db
+      .prepare(
+        "SELECT 1 ok FROM finance_royalty_allocations WHERE status='held' AND id IN (SELECT royalty_allocation_id FROM payout_allocation_links WHERE payout_item_id=?) LIMIT 1",
+      )
+      .bind(item.id)
+      .first<any>();
+    if (held)
+      throw new ApiError(409, "Payout item contains royalties frozen by an active rights dispute.");
+    const statements:Parameters<CatalogDB["batch"]>[0]=[];
+    statements.push(db
+      .prepare("UPDATE payout_items SET status='paid',external_payout_id=? WHERE id=?")
+      .bind(settlement.externalPayoutId, item.id)
+      );
+    statements.push(db
+      .prepare(
+        "UPDATE finance_royalty_allocations SET status='paid' WHERE id IN (SELECT royalty_allocation_id FROM payout_allocation_links WHERE payout_item_id=?)",
+      )
+      .bind(item.id)
+      );
+    statements.push(db
+      .prepare(
+        "UPDATE finance_royalty_events SET status='paid' WHERE id IN (SELECT royalty_event_id FROM payout_event_links WHERE payout_item_id=?)",
+      )
+      .bind(item.id)
+      );
+    await postLedger(
+      db,
+      null,
+      null,
+      "royalty_payout",
+      `royalty_payable:${item.party_id}`,
+      Number(item.net_minor),
+      item.currency,
+      settlement.externalPayoutId,
+      { payoutItemId: item.id },
+      statements,
+    );
+    await postLedger(
+      db,
+      null,
+      null,
+      "royalty_payout",
+      "cash",
+      -Number(item.net_minor),
+      item.currency,
+      settlement.externalPayoutId,
+      { payoutItemId: item.id },
+      statements,
+    );
+    await db.batch(statements);
+    try {
+      const accounts = (
+        await db
+          .prepare("SELECT id FROM publishing_accounts WHERE finance_party_id=?")
+          .bind(item.party_id)
+          .all<any>()
+      ).results;
+      for (const a of accounts) {
+        const members = (
+          await db
+            .prepare(
+              "SELECT user_id FROM publishing_account_members WHERE account_id=? AND status='active' AND role IN ('owner','admin','analyst')",
+            )
+            .bind(a.id)
+            .all<any>()
+        ).results;
+        for (const m of members)
+          await emitNotification(db, {
+            userId: String(m.user_id),
+            eventType: "payout_sent",
+            dedupeKey: `payout:${item.id}:${m.user_id}`,
+            title: "Payout sent",
+            body: `Cove sent your payout of ${formatMinorCurrency(Number(item.net_minor || 0), String(item.currency))}.`,
+            subjectType: "payout_item",
+            subjectId: String(item.id),
+            actionUrl: "/publishing",
+            payload: {
+              batchId: x.batchId,
+              payoutItemId: item.id,
+              externalPayoutId: settlement.externalPayoutId,
+              currency: item.currency,
+              netMinor: Number(item.net_minor || 0),
+            },
+          });
+      }
+    } catch (e) {
+      console.error("Payout notification enqueue failed", e);
+    }
+  }
+  const remaining = Number(
+    (
+      await db
+        .prepare("SELECT COUNT(*) n FROM payout_items WHERE batch_id=? AND status<>'paid'")
+        .bind(x.batchId)
+        .first<any>()
+    )?.n || 0,
+  );
+  await db
+    .prepare(
+      "UPDATE payout_batches SET status=?,paid_at=CASE WHEN ?=0 THEN ? ELSE paid_at END WHERE id=?",
+    )
+    .bind(remaining === 0 ? "paid" : "processing", remaining, at, x.batchId)
+    .run();
+  return { batchId: x.batchId, status: remaining === 0 ? "paid" : "processing", remaining };
+}
+
+
+return {accrueRoyaltiesForOrder,reverseRoyaltiesForRefund,createRoyaltyContract,createFinanceParty,createPayoutBatch,approvePayoutBatch,reverseRoyaltiesForChargeback,settlePayoutBatch};
+};
+const privateFinance=createPrivateFinance();
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
+  private financeExecution=false;
   private publicationExecutions=new Set<string>();
   private contractExecutions=new Set<string>();
   private publicationRecoveryRunning=false;
@@ -14632,6 +16390,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
   private settlementRecoveryRunning=false;
   constructor(ctx: { storage: { sql: unknown } }, env: LegalAuthorityEnv) {
     super(ctx, env);
+    (ctx.storage.sql as AuthoritySql).exec("CREATE TABLE IF NOT EXISTS cove_finance_command_receipts(operation_id TEXT PRIMARY KEY,request_digest TEXT NOT NULL,receipt_json TEXT)");
     createAuthoritySchema(ctx.storage.sql as unknown as AuthoritySql);
     createAuthorityProofSchema(ctx.storage.sql as unknown as AuthoritySql);
     createCommercialAuthoritySchema(ctx.storage.sql as unknown as AuthoritySql);
@@ -14714,6 +16473,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/publishing/onboarding/review",
       "/preorder/private-action",
       "/trust/private-action",
+      "/finance/private-action",
       "/publishing/editor-action",
       "/publishing/partner/private-action",
       "/support/private-action",
@@ -14729,9 +16489,10 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     let raw:unknown;
     try {
       const bytes=await request.text();
-      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/create-quote"?4096:route==="/publishing/audio/register-upload"?8192:route==="/publishing/audio/qc-jobs"?262144:route==="/publishing/worker/jobs"?262144:route==="/publishing/audio/metadata"?8192:route==="/publishing/onboarding/review"?8192:route==="/support/private-action"?8192:route==="/preorder/private-action"?8192:route==="/trust/private-action"?262144:route==="/publishing/editor-action"?262144:route==="/publishing/partner/private-action"?16384:route==="/commercial/checkout/materialize-draft"?2048:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
+      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/create-quote"?4096:route==="/publishing/audio/register-upload"?8192:route==="/publishing/audio/qc-jobs"?262144:route==="/publishing/worker/jobs"?262144:route==="/publishing/audio/metadata"?8192:route==="/publishing/onboarding/review"?8192:route==="/support/private-action"?8192:route==="/preorder/private-action"?8192:route==="/trust/private-action"?262144:route==="/finance/private-action"?65536:route==="/publishing/editor-action"?262144:route==="/publishing/partner/private-action"?16384:route==="/commercial/checkout/materialize-draft"?2048:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
       raw=JSON.parse(bytes);
     }catch {return new Response(null,{status:400,headers:noStore});}
+    bindPrivateFinanceExecutors(env.PRIMARY_DB,{...privateRoyalty,...privateFinance});
     const sql=this.ctx.storage.sql as unknown as AuthoritySql;
     try {
       if(route==="/commercial/order/recover-settlements"){
@@ -15014,6 +16775,49 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         sql.exec("INSERT INTO cove_audio_metadata_command_receipts(operation_id,request_digest,receipt_json) VALUES(?,?,?)",
           input.operationId,requestDigest,JSON.stringify(ack));
         return Response.json(ack,{headers:noStore});
+      }
+      if(route==="/finance/private-action"){
+        const input=z.object({
+          action:z.enum(["createFinanceParty","createRoyaltyContract","createRoyaltyContractVersion",
+            "createPayoutBatch","approvePayoutBatch","settlePayoutBatch","recordUsageEvent",
+            "processUsageEventRoyalty","createUsagePool","allocateUsagePool"]),
+          actorUserId:z.string().regex(/^[a-zA-Z0-9_-]{3,160}$/),
+          operationId:z.string().regex(/^finance:[a-f0-9]{64}$/),args:z.tuple([z.unknown()])
+        }).strict().parse(raw);
+        const db=env.PRIMARY_DB;
+        const principal=await db.prepare("SELECT user_id FROM staff_principals WHERE user_id=? AND status='active'")
+          .bind(input.actorUserId).first<{user_id:string}>();
+        const permissions=(await db.prepare("SELECT p.permission FROM staff_principal_roles pr JOIN staff_role_permissions p ON p.role_id=pr.role_id WHERE pr.user_id=?")
+          .bind(input.actorUserId).all<{permission:string}>()).results.map(x=>x.permission);
+        const required=["recordUsageEvent","processUsageEventRoyalty","createUsagePool","allocateUsagePool"].includes(input.action)?
+          "finance.usage.ingest":input.action==="createRoyaltyContractVersion"?"finance.contract.manage":"finance.manage";
+        if(!principal||!permissions.includes(required))return new Response(null,{status:403,headers:noStore});
+        if(this.financeExecution)return new Response(null,{status:409,headers:noStore});
+        this.financeExecution=true;
+        try{
+          const canonical=(x:unknown):string=>Array.isArray(x)?"["+x.map(canonical).join(",")+"]":
+            x&&typeof x==="object"?"{"+Object.keys(x).sort().map(k=>JSON.stringify(k)+":"+canonical((x as Record<string,unknown>)[k])).join(",")+"}":JSON.stringify(x)??"null";
+          const requestDigest=await sha256(canonical([input.action,input.actorUserId,input.args]));
+          const prior=sql.exec<{request_digest:string;receipt_json:string|null}>("SELECT request_digest,receipt_json FROM cove_finance_command_receipts WHERE operation_id=?",input.operationId).toArray()[0];
+          if(prior){
+            if(prior.request_digest!==requestDigest)return new Response(null,{status:409,headers:noStore});
+            if(prior.receipt_json)return new Response(prior.receipt_json,{headers:{...noStore,"content-type":"application/json"}});
+          }else sql.exec("INSERT INTO cove_finance_command_receipts(operation_id,request_digest,receipt_json) VALUES(?,?,NULL)",input.operationId,requestDigest);
+          // Stable, journal-bound IDs survive the gap between a committed D1
+          // batch and a lost owner response. Replays reuse the same identities.
+          const royalty=createPrivateRoyalty(input.operationId.slice(8));
+          const finance=createPrivateFinance(royalty,input.operationId.slice(8));
+          const funcs={...royalty,...finance};
+          const argument=input.action==="createRoyaltyContractVersion"?
+            {...z.record(z.string(),z.unknown()).parse(input.args[0]),createdByUserId:input.actorUserId}:input.args[0];
+          const result=await (funcs[input.action] as (db:CatalogDB,arg:unknown)=>Promise<unknown>)(db,argument);
+          const receipt={schema:"cove.private-finance-qa.v1",ownerFirst:true,actorUserId:input.actorUserId,
+            action:input.action,operationId:input.operationId,result:result??null};
+          // An incomplete risk-held usage allocation must remain recoverable.
+          if(!(result&&typeof result==="object"&&"status" in result&&["locked","held_for_risk_review"].includes(String(result.status))))
+            sql.exec("UPDATE cove_finance_command_receipts SET receipt_json=? WHERE operation_id=?",JSON.stringify(receipt),input.operationId);
+          return Response.json(receipt,{headers:noStore});
+        }finally{this.financeExecution=false;}
       }
       if(route==="/publishing/partner/private-action"){
         const input=z.object({

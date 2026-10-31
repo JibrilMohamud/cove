@@ -310,3 +310,18 @@ export async function dispatchCommercialAudioUploadMetadata(db:object,payload:{
     return receipt.result as Record<string,unknown>;
   }catch{throw new ApiError(503,"Private owner did not verify the stored audio upload.");}
 }
+
+export async function dispatchFinanceOwnerAction(db:object,action:import("./finance-owner-routing.server").FinanceAction,
+ args:unknown[],actor:import("./finance-owner-routing.server").FinanceActor){
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Financial mutations require the private financial owner.");
+ if(args.length!==1)throw new ApiError(400,"Invalid financial command arguments.");
+ const canonical=(x:unknown):string=>Array.isArray(x)?"["+x.map(canonical).join(",")+"]":
+   x&&typeof x==="object"?"{"+Object.keys(x).sort().map(k=>JSON.stringify(k)+":"+canonical((x as Record<string,unknown>)[k])).join(",")+"}":JSON.stringify(x)??"null";
+ const key=actor.operationId||canonical(args);
+ const bytes=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(canonical([action,actor.userId,key])));
+ const operationId="finance:"+Array.from(new Uint8Array(bytes),x=>x.toString(16).padStart(2,"0")).join("");
+ const receipt=await dispatchCanonicalOwnerCommand(context.owner,context.secret,"finance.owner-action",
+   {action,args,actorUserId:actor.userId,operationId});
+ return receipt.result;
+}

@@ -114,7 +114,7 @@ assert.ok(preorderOwner.includes('if(route==="/preorder/private-action")'));
 const publishing = read("src/features/fore/publishing.server.ts");
 assert.ok(publishing.includes("publisher_book_approved"));
 assert.ok(publishing.includes("publisher_book_rejected"));
-const finance = read("src/features/fore/finance.server.ts");
+const finance = read("src/storefront-strangler/legal-authority.worker.ts");
 assert.ok(finance.includes("payout_sent"));
 const reporting = read("src/features/fore/creator-reporting.server.ts");
 assert.ok(reporting.includes("royalty_statement_ready"));

@@ -4,6 +4,7 @@ import "./check-owner-stripe-webhook.mjs";
 import "./check-owner-checkout-payment.mjs";
 import assert from "node:assert/strict";
 import {build} from "esbuild";
+import {loadPrivateFinance} from "./test-private-finance-loader.mjs";
 import {mkdtempSync,rmSync,readFileSync} from "node:fs";
 import {join} from "node:path";
 import {tmpdir} from "node:os";
@@ -12,9 +13,7 @@ import {pathToFileURL} from "node:url";
 const folder=mkdtempSync(join(tmpdir(),"cove-refund-owner-executor-"));
 try {
   const outfile=join(folder,"executor.mjs");
-  await build({entryPoints:["src/storefront-strangler/refund-accounting-owner-executor.ts"],
-    outfile,bundle:true,platform:"node",format:"esm",target:"node22",logLevel:"silent"});
-  const {executeOwnerRefundAccounting:executePrivate}=await import(pathToFileURL(outfile).href);
+  const {testRefundAccounting:executePrivate,testBindFinance}=await loadPrivateFinance(outfile);
   const writerOut=join(folder,"writer.mjs");
   // Execute the frozen historical transaction as an isolated TEST fixture;
   // the production module is now a nonauthorizing, fail-closed stub.
@@ -83,6 +82,7 @@ try {
       assert.deepEqual(values,[orderId]);
       return {toArray:()=>denied?[{ok:1}]:[]};
     }};
+    testBindFinance(db);
     return {db,ownerSql,refund,counts:()=>({batchCount,firstCount,royaltyBatches})};
   }
   const negative=[

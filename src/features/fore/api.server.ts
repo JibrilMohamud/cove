@@ -2224,8 +2224,7 @@ export async function runCatalogIngestion(
       ),
     );
     if (statements.length) await db.batch(statements);
-    for (const book of changed)
-      await dispatchCatalogFreeNormalization(db, String(book.id), at);
+    for (const book of changed) await dispatchCatalogFreeNormalization(db, String(book.id), at);
     // This must run even when the source and canonical rows were unchanged:
     // a previous run may have failed *after* canonical normalization but
     // before taxonomy/outbox publication, and mapping rules may have changed.
@@ -4002,7 +4001,14 @@ async function handleCoveRequest(
         const staff = await requireStaffPermission(db, who, "finance.contract.manage");
         const input = (await body(request)) as Record<string, unknown>;
         return json(
-          await createRoyaltyContractVersion(db, { ...input, createdByUserId: staff.userId }),
+          await createRoyaltyContractVersion(
+            db,
+            { ...input, createdByUserId: staff.userId },
+            {
+              userId: staff.userId,
+              operationId: request.headers.get("Idempotency-Key") || undefined,
+            },
+          ),
         );
       }
       if (request.method === "POST" && path === "/admin/publishing/distribution-contract-version") {
@@ -4038,22 +4044,42 @@ async function handleCoveRequest(
         return json(await refreshCreatorDailyMetrics(db, await body(request)));
       }
       if (request.method === "POST" && path === "/admin/publishing/usage-event") {
-        await requireStaffPermission(db, who, "finance.usage.ingest");
-        return json(await recordUsageEvent(db, await body(request)));
+        const staff = await requireStaffPermission(db, who, "finance.usage.ingest");
+        return json(
+          await recordUsageEvent(db, await body(request), {
+            userId: staff.userId,
+            operationId: request.headers.get("Idempotency-Key") || undefined,
+          }),
+        );
       }
       if (request.method === "POST" && path === "/admin/publishing/usage-event/process") {
-        await requireStaffPermission(db, who, "finance.usage.ingest");
+        const staff = await requireStaffPermission(db, who, "finance.usage.ingest");
         const x = z.object({ usageEventId: z.string().min(1) }).parse(await body(request));
-        return json(await processUsageEventRoyalty(db, x.usageEventId));
+        return json(
+          await processUsageEventRoyalty(db, x.usageEventId, {
+            userId: staff.userId,
+            operationId: request.headers.get("Idempotency-Key") || undefined,
+          }),
+        );
       }
       if (request.method === "POST" && path === "/admin/publishing/usage-pool") {
-        await requireStaffPermission(db, who, "finance.usage.ingest");
-        return json(await createUsagePool(db, await body(request)));
+        const staff = await requireStaffPermission(db, who, "finance.usage.ingest");
+        return json(
+          await createUsagePool(db, await body(request), {
+            userId: staff.userId,
+            operationId: request.headers.get("Idempotency-Key") || undefined,
+          }),
+        );
       }
       if (request.method === "POST" && path === "/admin/publishing/usage-pool/allocate") {
-        await requireStaffPermission(db, who, "finance.usage.ingest");
+        const staff = await requireStaffPermission(db, who, "finance.usage.ingest");
         const x = z.object({ poolId: z.string().min(1) }).parse(await body(request));
-        return json(await allocateUsagePool(db, x.poolId));
+        return json(
+          await allocateUsagePool(db, x.poolId, {
+            userId: staff.userId,
+            operationId: request.headers.get("Idempotency-Key") || undefined,
+          }),
+        );
       }
       if (request.method === "POST" && path === "/admin/publishing/tax-document") {
         await requireStaffPermission(db, who, "finance.tax_document.manage");
@@ -4653,7 +4679,11 @@ async function handleCoveRequest(
               path.includes("price-schedule")
             ? "finance.manage"
             : "commerce.manage";
-      await requireCommerceAdmin(request, env, commercePermission);
+      const financeStaff = await requireCommerceAdmin(request, env, commercePermission);
+      const financeActor = {
+        userId: financeStaff.userId,
+        operationId: request.headers.get("Idempotency-Key") || undefined,
+      };
       if (request.method === "GET" && path === "/admin/commerce/status") {
         const [commerce, finance, pricing, rights] = await Promise.all([
           commerceAdminSnapshot(database(env)),
@@ -4710,17 +4740,17 @@ async function handleCoveRequest(
       if (request.method === "POST" && path === "/admin/commerce/rights-check")
         return json(await rightsAvailabilityCheck(database(env), await body(request)));
       if (request.method === "POST" && path === "/admin/commerce/finance-party")
-        return json(await createFinanceParty(database(env), await body(request)));
+        return json(await createFinanceParty(database(env), await body(request), financeActor));
       if (request.method === "POST" && path === "/admin/commerce/royalty-contract")
-        return json(await createRoyaltyContract(database(env), await body(request)));
+        return json(await createRoyaltyContract(database(env), await body(request), financeActor));
       if (request.method === "POST" && path === "/admin/commerce/payout-batch")
-        return json(await createPayoutBatch(database(env), await body(request)));
+        return json(await createPayoutBatch(database(env), await body(request), financeActor));
       if (request.method === "POST" && path === "/admin/commerce/payout-approve") {
         const x = z.object({ batchId: z.string().min(1) }).parse(await body(request));
-        return json(await approvePayoutBatch(database(env), x.batchId));
+        return json(await approvePayoutBatch(database(env), x.batchId, financeActor));
       }
       if (request.method === "POST" && path === "/admin/commerce/payout-settle")
-        return json(await settlePayoutBatch(database(env), await body(request)));
+        return json(await settlePayoutBatch(database(env), await body(request), financeActor));
       if (request.method === "POST" && path === "/admin/commerce/fx-rate")
         return json(await upsertFxRate(database(env), await body(request)));
       if (request.method === "POST" && path === "/admin/commerce/price-schedule")

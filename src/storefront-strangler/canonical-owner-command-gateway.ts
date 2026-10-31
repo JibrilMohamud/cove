@@ -158,6 +158,13 @@ const routes={
     action:z.enum(["account-save","member-invite","identity-start","tax-submit","payout-submit","title-save","edition-save","asset-upload","accessibility-sign","edition-submit","revision-open","update-policy","owner-optin","review-submission"]),
     operationId:z.string().regex(/^editor:[a-f0-9-]{36}$/),
     payload:z.record(z.string(),z.unknown())}).strict()},
+  "finance.owner-action":{path:"/finance/private-action",schema:z.object({
+    action:z.enum(["createFinanceParty","createRoyaltyContract","createRoyaltyContractVersion",
+      "createPayoutBatch","approvePayoutBatch","settlePayoutBatch","recordUsageEvent",
+      "processUsageEventRoyalty","createUsagePool","allocateUsagePool"]),
+    args:z.tuple([z.unknown()]),actorUserId:subject,
+    operationId:z.string().regex(/^finance:[a-f0-9]{64}$/)
+  }).strict()},
   "trust.owner-action":{path:"/trust/private-action",schema:z.object({
     action:z.enum(["sign-rights","upload-evidence","assess-content",
       "submit-notice","validate-notice","submit-counter","validate-counter",
@@ -503,6 +510,12 @@ export async function dispatchCanonicalOwnerCommand(
       if(ack.schema!=="cove.private-publishing-editor-qa.v1"||ack.ownerFirst!==true||
          ack.action!==body.action||ack.operationId!==body.operationId||
          !Object.prototype.hasOwnProperty.call(ack,"result"))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "finance.owner-action":
+      if(ack.schema!=="cove.private-finance-qa.v1"||ack.ownerFirst!==true||
+         ack.action!==body.action||ack.actorUserId!==body.actorUserId||
+         ack.operationId!==body.operationId||!Object.prototype.hasOwnProperty.call(ack,"result"))
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "trust.owner-action":
