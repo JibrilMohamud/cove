@@ -4974,6 +4974,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/publishing/partner/process-feed",
       "/catalog/normalize-gutenberg",
       "/catalog/personal-import",
+      "/publishing/audio/register-upload",
       "/publishing/audio/qc-jobs",
       "/publishing/worker/jobs",
       "/publishing/audio/metadata",
@@ -4990,7 +4991,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     let raw:unknown;
     try {
       const bytes=await request.text();
-      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/create-quote"?4096:route==="/publishing/audio/qc-jobs"?262144:route==="/publishing/worker/jobs"?262144:route==="/publishing/audio/metadata"?8192:route==="/publishing/onboarding/review"?8192:route==="/commercial/checkout/materialize-draft"?2048:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
+      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/create-quote"?4096:route==="/publishing/audio/register-upload"?8192:route==="/publishing/audio/qc-jobs"?262144:route==="/publishing/worker/jobs"?262144:route==="/publishing/audio/metadata"?8192:route==="/publishing/onboarding/review"?8192:route==="/commercial/checkout/materialize-draft"?2048:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
       raw=JSON.parse(bytes);
     }catch {return new Response(null,{status:400,headers:noStore});}
     const sql=this.ctx.storage.sql as unknown as AuthoritySql;
@@ -5142,6 +5143,31 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         return Response.json({schema:"cove.owner-personal-import.v1",ownerFirst:true,
           userId:q.userId,importId:q.id,productId:catalogIds(q.id).productId,
           operationId:q.operationId,applied:!existing},{headers:noStore});
+      }
+      if(route==="/publishing/audio/register-upload"){
+        const input=z.object({
+          userId:z.string().regex(/^[a-zA-Z0-9_-]{3,160}$/),
+          editionId:z.string().min(3).max(160),
+          kind:z.enum(["chapter","preview"]),
+          title:z.string().min(1).max(300),
+          position:z.number().int().min(0).max(10000),
+          durationMs:z.number().int().positive().max(86_400_000),
+          sampleRateHz:z.number().int().min(8000).max(192000),
+          bitrateKbps:z.number().int().min(16).max(1000).nullable(),
+          bitrateMode:z.string().max(20),channels:z.number().int().min(1).max(8),
+          rms:z.number().finite().nullable(),peak:z.number().finite().nullable(),
+          noise:z.number().finite().nullable(),filename:z.string().min(1).max(240),
+          mime:z.enum(["audio/mpeg","audio/mp4"]),
+          length:z.number().int().positive().max(750*1024*1024),
+          sha:z.string().regex(/^[a-f0-9]{64}$/),
+          fileId:z.string().regex(/^audiofile_[a-f0-9-]{36}$/),
+          key:z.string().min(1).max(1000),
+          operationId:z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,95}$/)
+        }).strict().parse(raw);
+        const result=await registerPrivateCommercialAudioUpload(env,input);
+        return Response.json({schema:"cove.owner-audio-upload.v1",ownerFirst:true,
+          operationId:input.operationId,fileId:input.fileId,
+          editionId:input.editionId,kind:input.kind,result},{headers:noStore});
       }
       if(route==="/publishing/audio/qc-jobs") {
         const input=z.object({

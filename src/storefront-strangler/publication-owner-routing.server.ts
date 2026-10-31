@@ -215,3 +215,18 @@ export async function dispatchCommercialAudioQcJob(db:object,action:"lease"|"com
     return receipt.result as Record<string,unknown>;
   }catch{throw new ApiError(503,"Private audio owner did not certify this QC job.");}
 }
+
+export async function dispatchCommercialAudioUploadMetadata(db:object,payload:{
+  userId:string;editionId:string;kind:"chapter"|"preview";title:string;position:number;
+  durationMs:number;sampleRateHz:number;bitrateKbps:number|null;bitrateMode:string;
+  channels:number;rms:number|null;peak:number|null;noise:number|null;filename:string;
+  mime:"audio/mpeg"|"audio/mp4";length:number;sha:string;fileId:string;key:string;
+}) {
+  const context=owners.get(db);
+  if(!context)throw new ApiError(503,"Commercial audio uploads require the private owner.");
+  try {
+    const receipt=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+      "publishing.audio-register-upload",{...payload,operationId:"audio-upload:"+payload.fileId});
+    return receipt.result as Record<string,unknown>;
+  }catch{throw new ApiError(503,"Private owner did not verify the stored audio upload.");}
+}

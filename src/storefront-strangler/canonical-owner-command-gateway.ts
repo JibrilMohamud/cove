@@ -120,6 +120,22 @@ const routes={
     objectKey:z.string().max(500),createdAt:z.string().datetime(),
     operationId:shortOperation
   }).strict()},
+  "publishing.audio-register-upload":{path:"/publishing/audio/register-upload",schema:z.object({
+    userId:subject,editionId:subject,kind:z.enum(["chapter","preview"]),
+    title:z.string().min(1).max(300),position:z.number().int().min(0).max(10000),
+    durationMs:z.number().int().positive().max(86_400_000),
+    sampleRateHz:z.number().int().min(8000).max(192000),
+    bitrateKbps:z.number().int().min(16).max(1000).nullable(),
+    bitrateMode:z.string().max(20),channels:z.number().int().min(1).max(8),
+    rms:z.number().finite().nullable(),peak:z.number().finite().nullable(),
+    noise:z.number().finite().nullable(),filename:z.string().min(1).max(240),
+    mime:z.enum(["audio/mpeg","audio/mp4"]),
+    length:z.number().int().positive().max(750*1024*1024),
+    sha:z.string().regex(/^[a-f0-9]{64}$/),
+    fileId:z.string().regex(/^audiofile_[a-f0-9-]{36}$/),
+    key:z.string().min(1).max(1000),
+    operationId:shortOperation
+  }).strict()},
   "publishing.audio-qc-jobs":{path:"/publishing/audio/qc-jobs",schema:z.object({
     action:z.enum(["lease","complete"]),
     payload:z.record(z.string(),z.unknown()),
@@ -403,6 +419,15 @@ export async function dispatchCanonicalOwnerCommand(
          ack.operationId!==body.operationId||ack.userId!==body.userId||
          ack.importId!==body.id||ack.productId!=="prd_"+body.id||
          typeof ack.applied!=="boolean")
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "publishing.audio-register-upload":
+      if(ack.schema!=="cove.owner-audio-upload.v1"||ack.ownerFirst!==true||
+         ack.operationId!==body.operationId||ack.fileId!==body.fileId||
+         ack.editionId!==body.editionId||ack.kind!==body.kind||
+         !record(ack.result)||ack.result.sha256!==body.sha||
+         (body.kind==="preview"&&ack.result.id!==body.fileId)||
+         (body.kind==="chapter"&&ack.result.fileId!==body.fileId))
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "publishing.audio-qc-jobs":
