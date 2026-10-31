@@ -6,7 +6,7 @@
   "files": [
     {
       "path": "src/features/fore/risk-tax.server.ts",
-      "sha256": "0dde93b70179c00fecfdbe64a17351023ea9735b2579f39fb1f5ea50255bb981",
+      "sha256": "9c37e66c2c23a5f9adcc2b455a3bebafba89304184319637348b86353698eb0b",
       "review": "One risk_holds shared insert replaced by independent negative-only private legal owner; four original protected risk-tax source SQL sites re-fingerprinted. Two immutable buyer/publisher risk assessment projections are private owner-bound. Both surviving protected risk-tax SQL literals/functions are unchanged and their source-bound IDs were recomputed. Formatting-only risk import update: original protected SQL literals and containing functions remain identical."
     }
   ]
