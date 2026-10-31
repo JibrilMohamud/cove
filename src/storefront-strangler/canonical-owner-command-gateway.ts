@@ -205,6 +205,14 @@ const routes={
       "PUBLISHER_RISK_REVIEW","PUBLISHER_RISK_BLOCK","SUSPICIOUS_USAGE",
       "PAYOUT_RISK_REVIEW","COMMUNITY_MANIPULATION_REVIEW"])
   }).strict()},
+  "audio.issue-offline-license":{path:"/audio/private-offline-license",schema:z.object({
+    licenseId:ownerId,userId:ownerId,productId:product,entitlementId:ownerId,
+    editionId:z.string().min(3).max(160),deviceId:ownerId,
+    deviceKeyHash:z.string().regex(/^[a-f0-9]{64}$/),
+    tokenHash:z.string().regex(/^[a-f0-9]{64}$/),
+    manifestHash:z.string().regex(/^[a-f0-9]{64}$/),
+    issuedAt:z.string().datetime(),expiresAt:z.string().datetime(),territory
+  }).strict()},
   "audio.verify-biosync":{path:"/publishing/audio/biosync-verify",schema:z.object({
     actorUserId:ownerId,
     request:z.object({
@@ -508,6 +516,11 @@ export async function dispatchCanonicalOwnerCommand(
       if(ack.schema!=="cove.owner-risk-hold-qa.v1"||ack.ownerFirst!==true||
          ack.assessmentId!==body.assessmentId||typeof ack.holdId!=="string"||
          ack.holdId.length<3||ack.saved!==true)throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "audio.issue-offline-license":
+      if(ack.schema!=="cove.owner-offline-audio.v1"||ack.ownerFirst!==true||
+         ack.licenseId!==body.licenseId||ack.saved!==true||
+         ack.expiresAt!==body.expiresAt)throw Error("canonical_command_receipt_mismatch");
       break;
     case "audio.verify-biosync":
       if(ack.schema!=="cove.owner-biosync-verified.v1"||ack.ownerFirst!==true||
