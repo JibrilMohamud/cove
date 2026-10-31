@@ -19044,7 +19044,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
             new TextEncoder().encode(JSON.stringify([x.campaignId,hash,x.kind,x.value,
               x.minimumSubtotalMinor,x.maxPerUser]))));
           const eventId="promoevt_"+Array.from(eventBytes,b=>b.toString(16).padStart(2,"0")).join("").slice(0,32);
-          const results=(await db.batch([
+          const results=await db.batch([
             db.prepare(
               "INSERT INTO commerce_promo_codes(code_hash,code_label,kind,value,currency,minimum_subtotal_minor,max_redemptions,max_per_user,redemptions,active,starts_at,ends_at,created_at,updated_at,campaign_id,funding_source,publisher_funding_bps,eligible_products_json,stackable) VALUES(?,?,?,?,?,?,?,?,0,1,?,?,?,?,?,?,?,?,?) ON CONFLICT(code_hash) DO UPDATE SET campaign_id=excluded.campaign_id,kind=excluded.kind,value=excluded.value,currency=excluded.currency,minimum_subtotal_minor=excluded.minimum_subtotal_minor,max_redemptions=excluded.max_redemptions,max_per_user=excluded.max_per_user,active=excluded.active,starts_at=excluded.starts_at,ends_at=excluded.ends_at,updated_at=excluded.updated_at,funding_source=excluded.funding_source,publisher_funding_bps=excluded.publisher_funding_bps,eligible_products_json=excluded.eligible_products_json,stackable=excluded.stackable WHERE commerce_promo_codes.campaign_id=excluded.campaign_id"
             ).bind(hash,x.code,x.kind,x.value,campaign.currency||null,x.minimumSubtotalMinor,
