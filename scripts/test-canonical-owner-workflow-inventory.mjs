@@ -31,7 +31,8 @@ const edited={...review,sites:review.sites.slice(1)};
 assert.throws(()=>buildWorkflowInventory(edited,sites),/Unreviewed SQL|Stale SQL/);
 const invented=[...sites,{...sites[0],siteId:"new-unreviewed-site"}];
 assert.throws(()=>buildWorkflowInventory(review,invented),/Unreviewed SQL/);
-const grant=review.sites.find(x=>x.disposition==="owner-command-required");
+// A zero-open-writer source inventory must still reject forged production certification.
+const grant=review.sites.find(x=>x.disposition==="owner-command-required")||review.sites[0];
 assert.ok(grant);
 const forged={...review,sites:review.sites.map(x=>x.siteId===grant.siteId?{...x,productionOwnerGuarded:true}:x)};
 assert.throws(()=>buildWorkflowInventory(forged,sites),/cannot assert deployed production ownership/);
