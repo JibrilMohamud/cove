@@ -1,0 +1,46 @@
+# Temporary, branch-restricted formatter. Delete after its one authorized commit.
+name: one-shot-owner-migration-format
+on:
+  push:
+    branches:
+      - security/private-catalog-source-upsert-20261031
+    paths:
+      - .github/workflows/one-shot-owner-migration-format.yml
+permissions:
+  contents: write
+jobs:
+  format:
+    if: github.ref == 'refs/heads/security/private-catalog-source-upsert-20261031'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: security/private-catalog-source-upsert-20261031
+          persist-credentials: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Format exact strict-lint failures only
+        run: |
+          npx prettier --write \
+            scripts/check-content-coverage.mjs \
+            scripts/check-reading-reliability.mjs \
+            scripts/check-search-updater-cache.mjs \
+            scripts/test-staged-admin-owner-route.mjs \
+            src/features/fore/api.server.ts \
+            src/features/fore/commerce.server.ts \
+            src/features/fore/commercial-audio.server.ts \
+            src/features/fore/pipeline.server.ts \
+            src/features/fore/promotions.server.ts \
+            src/features/fore/risk-tax.server.ts
+      - name: Commit formatted source only
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- scripts/check-content-coverage.mjs scripts/check-reading-reliability.mjs scripts/check-search-updater-cache.mjs scripts/test-staged-admin-owner-route.mjs src/features/fore/api.server.ts src/features/fore/commerce.server.ts src/features/fore/commercial-audio.server.ts src/features/fore/pipeline.server.ts src/features/fore/promotions.server.ts src/features/fore/risk-tax.server.ts
+          if ! git diff --cached --quiet; then
+            git commit -m "style(owner): format migration source and QA files without changing behavior"
+            git push origin HEAD:security/private-catalog-source-upsert-20261031
+          fi
