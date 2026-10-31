@@ -33,8 +33,13 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: cove-isolated-data-plane
-  cancel-in-progress: true
+  # A stack of migration PRs runs the same correctness test independently.
+  # The previous repo-global group cancelled unrelated PR #552 whenever a
+  # commit landed on PR #553, leaving no evidence about #552 correctness.
+  # Keep cancellation scoped to superseded commits on the SAME PR. Manual
+  # archived capacity/real-feed drills never cancel each other.
+  group: cove-isolated-data-plane-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('branch-{0}', github.ref) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   correctness:
     runs-on: ubuntu-latest
