@@ -47,14 +47,15 @@ try {
     "An EPUB bearer token may not be exchanged for a foreign or non-EPUB asset");
 
   const compiled=join(folder,"delivery.mjs");
-  await build({entryPoints:["src/features/fore/delivery.server.ts"],outfile:compiled,
+  await build({stdin:{contents:`export {serveCommercialEpubGrant} from "./src/features/fore/delivery.server.ts";
+export {bindPublicationOwner} from "./src/storefront-strangler/publication-owner-routing.server.ts";`,resolveDir:process.cwd(),sourcefile:"qa-epub-asset-owner.ts",loader:"ts"},outfile:compiled,
     bundle:true,platform:"node",format:"esm",target:"node22",logLevel:"silent"});
-  const {serveCommercialEpubGrant}=await import(pathToFileURL(compiled).href);
+  const {serveCommercialEpubGrant,bindPublicationOwner}=await import(pathToFileURL(compiled).href);
   const token="Z".repeat(64),request=new Request("https://cove.test/api/fore/delivery/epub/"+token),
     buyer="buyer_epub_asset_01",product="prd_buyer_book",entId="ent_epub_asset_01";
 
-  async function redeem(versionId){
-    const audits=[],calls={r2:0};
+  async function redeem(versionId,withSyntheticOwner=false){
+    const audits=[],calls={r2:0,owner:0};
     const grant={id:"grant_epub_asset_01",user_id:buyer,product_id:product,
       entitlement_id:entId,asset_version_id:versionId,publication_version_id:null,
       status:"active",issued_at:new Date().toISOString(),
@@ -84,6 +85,23 @@ try {
         }
       }}};
     }}};
+    if(withSyntheticOwner){
+      const secret="c".repeat(64);
+      env.DB=bindPublicationOwner(env.DB,{secret,territory:"US",currency:"USD",owner:{
+        async fetch(ownerRequest){
+          calls.owner++;
+          assert.equal(new URL(ownerRequest.url).pathname,"/delivery/private-consume-epub-grant");
+          assert.equal(ownerRequest.headers.get("authorization"),"Bearer "+secret);
+          const claim=await ownerRequest.json();
+          assert.equal(claim.grantId,grant.id);
+          assert.match(claim.tokenHash,/^[a-f0-9]{64}$/);
+          assert.equal(claim.territory,"US");
+          assert.equal(claim.channel,"retail");
+          return Response.json({schema:"cove.owner-epub-consumption.v1",ownerFirst:true,
+            grantId:grant.id,consumed:true,uses:1});
+        }
+      }});
+    }
     const result=await serveCommercialEpubGrant(env,token,request)
       .then(response=>({response}),error=>({error}));
     return {result,audits,calls};
@@ -95,8 +113,12 @@ try {
     assert.equal(outcome.calls.r2,0,"Private R2 is never requested on invalid asset identity");
     assert.deepEqual(outcome.audits,[{event:"denied",reason:"asset_missing"}]);
   }
-  const success=await redeem("version_buyer");
-  assert.equal(success.result.response?.status,200,"Valid EPUB for purchased edition must still stream");
+  const withoutOwner=await redeem("version_buyer");
+  assert.equal(withoutOwner.result.error?.status,503,"Valid asset and buyer alone cannot authorize EPUB stream");
+  assert.deepEqual(withoutOwner.audits,[],"Unbound owner must never record a successful stream");
+  const success=await redeem("version_buyer",true);
+  assert.equal(success.result.response?.status,200,"Valid EPUB for purchased edition must stream only with a verified owner receipt");
+  assert.equal(success.calls.owner,1,"Private owner must verify this token exactly once");
   assert.equal(success.calls.r2,1);
   assert.equal(success.result.response.headers.get("cache-control"),"private, no-store");
   console.log("PASS: actual commercial EPUB redemption refuses foreign-edition and non-EPUB asset versions before R2, valid purchased EPUB still streams");
