@@ -32,5 +32,9 @@
       "binding": "LITERARY_CANONICAL_OWNER",
       "service": "cove-legal-authority-production"
     }
-  ]
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
 }

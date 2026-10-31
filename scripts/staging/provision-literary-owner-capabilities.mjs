@@ -61,6 +61,11 @@ for (const key of [
   "tags",
 ])
   if (owner[key] !== undefined) metadata[key] = owner[key];
+metadata.observability = {
+  enabled: true,
+  head_sampling_rate: 1,
+  logs: { enabled: true, persist: true, invocation_logs: true, head_sampling_rate: 1 },
+};
 metadata.bindings.push(
   { type: "d1", name: "LITERARY_CONTENT_DB", id: "400c3af3-5d40-41fd-83cc-98228e40ddac" },
   {

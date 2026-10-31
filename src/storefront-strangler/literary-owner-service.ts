@@ -129,8 +129,20 @@ export async function handleLiteraryOwnerService(request: Request, env: Literary
     if (route === LITERARY_HANDOFF_ROUTE) {
       if (Object.keys(body).join(",") !== "reconcile" || typeof body.reconcile !== "boolean")
         return new Response(null, { status: 400, headers: noStore });
-      if (!(await admitCatalogBatch(env.PRIMARY_DB, 100)).allowed)
-        return new Response(null, { status: 503, headers: noStore });
+      const admission = await admitCatalogBatch(env.PRIMARY_DB, 100);
+      if (!admission.allowed) {
+        console.info(
+          JSON.stringify({
+            event: "literary_owner_handoff_deferred",
+            reason: admission.reason,
+            probeMs: admission.probeMs,
+          }),
+        );
+        return Response.json(
+          { skipped: admission.reason, probeMs: admission.probeMs },
+          { headers: noStore },
+        );
+      }
       const result = await runBoundedLiteraryHandoffTick({
         DB: env.PRIMARY_DB,
         CONTENT_DB: env.LITERARY_CONTENT_DB,
@@ -169,6 +181,7 @@ export async function handleLiteraryOwnerService(request: Request, env: Literary
     );
     return Response.json(result, { headers: noStore });
   } catch {
+    console.error(JSON.stringify({ event: "literary_owner_unavailable", route }));
     return new Response(null, { status: 503, headers: noStore });
   }
 }

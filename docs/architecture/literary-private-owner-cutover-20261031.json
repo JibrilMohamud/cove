@@ -1,0 +1,147 @@
+{
+  "schema": "cove.literary-private-owner-cutover.v1",
+  "observedAt": "2026-10-31T21:27:51.743Z",
+  "productionCertified": false,
+  "legalOwnerEnabled": false,
+  "source": {
+    "pr": 549,
+    "validatedHead": "dffe6a307bc010301e187fc59d729afbdfdd7a47",
+    "realStripeTestRun": 41242231187,
+    "realStripeTestJob": 124658310545,
+    "realStripeTestConclusion": "success"
+  },
+  "owner": {
+    "script": "cove-legal-authority-production",
+    "version": "3463ff93f07740bfa4d5fb7bfc143cd5",
+    "legalCommandsStillDisabled": true,
+    "observabilityEnabled": true
+  },
+  "roles": [
+    {
+      "role": "prepare",
+      "name": "cove-literary-prepare-draining-20261025",
+      "canonicalD1Bound": false,
+      "databases": [
+        {
+          "name": "CONTENT_DB",
+          "id": "400c3af3-5d40-41fd-83cc-98228e40ddac"
+        }
+      ],
+      "version": "3a47a47c-fa10-47f6-be3d-ffe1da99f6c6",
+      "cron": [
+        "* * * * *"
+      ],
+      "workersDev": false,
+      "previews": false
+    },
+    {
+      "role": "infer",
+      "name": "cove-literary-infer-isolated-disabled",
+      "canonicalD1Bound": false,
+      "databases": [
+        {
+          "name": "CONTENT_DB",
+          "id": "400c3af3-5d40-41fd-83cc-98228e40ddac"
+        }
+      ],
+      "version": "29751f56-1241-4825-ad9e-43ebdbe6e925",
+      "cron": [
+        "* * * * *"
+      ],
+      "workersDev": false,
+      "previews": false
+    },
+    {
+      "role": "publisher",
+      "name": "cove-literary-publisher-isolated-disabled",
+      "canonicalD1Bound": false,
+      "databases": [],
+      "version": "6521f438-666e-4099-97d0-6d905585d0b9",
+      "cron": [],
+      "workersDev": false,
+      "previews": false
+    },
+    {
+      "role": "handoff",
+      "name": "cove-literary-handoff-draining-20261025",
+      "canonicalD1Bound": false,
+      "databases": [],
+      "version": "22c65008-983f-4239-b3d7-47add370fa51",
+      "cron": [
+        "* * * * *"
+      ],
+      "workersDev": false,
+      "previews": false
+    }
+  ],
+  "privateRuntimeProof": {
+    "ownerVersionAtProbe": "ac948fd6c3ae47e393575e668052280e",
+    "status": 200,
+    "canonicalD1OnProbe": false,
+    "processingOwner": "isolated",
+    "budgetDomain": "isolated",
+    "sqlInputRejected": 400,
+    "readCredentialCannotPublish": 401,
+    "alreadyPublishedReplay": "rights_source_or_version_changed",
+    "legalCommands": 503,
+    "proofWorkerDeleted": true
+  },
+  "scheduledContinuation": {
+    "preparationObserved": true,
+    "preparationResult": "no_preparation_jobs",
+    "handoffObserved": true,
+    "inferenceObserved": true,
+    "inferenceBlockedByExistingDailyBudget": true,
+    "admissionBudgetMs": 100,
+    "observedPrimaryBusyDeferralsPreserved": true,
+    "newInferenceGeneratedForCertification": false
+  },
+  "regressions": {
+    "ownerWorkflowSteps": 91,
+    "realTwoSqlitePreparationRevocation": true,
+    "lostHandoffAckReplay": true,
+    "ownerRollback": true,
+    "tamperedInferenceArtifact": true,
+    "exactlyOnceProfileRevision": true,
+    "capabilitySeparation": true,
+    "typecheck": "pass",
+    "lint": "pass"
+  },
+  "workerInventory": {
+    "observedAt": "2026-10-31T21:25:52.296Z",
+    "checked": 450,
+    "principals": [
+      {
+        "name": "cove-legal-authority-production",
+        "bindings": [
+          "PRIMARY_DB"
+        ]
+      },
+      {
+        "name": "cove-persistence-backend",
+        "bindings": [
+          "DB"
+        ]
+      },
+      {
+        "name": "cove-storefront-ssr-staging",
+        "bindings": [
+          "DB"
+        ]
+      }
+    ],
+    "failed": []
+  },
+  "remainingNonownerCanonicalWorkers": [
+    "cove-persistence-backend",
+    "cove-storefront-ssr-staging"
+  ],
+  "remainingBlocks": [
+    "Production legal authority is still QA-only and disabled",
+    "Persistence backend and SSR staging retain canonical D1",
+    "Account-wide deployment-token D1 Write remains active; user-owned token inventory uncertified",
+    "LIVE payment/refund/customer authorization not certified",
+    "Strict geographic capacity and full production rollback not certified",
+    "Migration stack unmerged"
+  ]
+}

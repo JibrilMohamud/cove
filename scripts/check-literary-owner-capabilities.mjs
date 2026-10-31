@@ -101,6 +101,14 @@ try {
     assert.equal((await handleLiteraryOwnerService(req, { ...env, ...override })).status, status);
     assert.equal(reads, before, "Rejected capability must not reach any database");
   }
+  const deferredBefore = reads;
+  const deferred = await handleLiteraryOwnerService(
+    request(LITERARY_HANDOFF_ROUTE, { reconcile: true }, handoffSecret),
+    env,
+  );
+  assert.equal(deferred.status, 200, "Admission deferral remains a successful no-work cron result");
+  assert.equal((await deferred.json()).skipped, "primary_unavailable");
+  assert.equal(reads, deferredBefore + 1, "Unavailable primary must prevent all job effects");
   const port = {
     async fetch(req) {
       calls++;

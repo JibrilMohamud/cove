@@ -55,5 +55,9 @@
       "FORE_LITERARY_INFERENCE_BACKEND_TOKEN",
       "COVE_LITERARY_READ_SECRET"
     ]
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
   }
 }

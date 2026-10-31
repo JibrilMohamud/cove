@@ -30,5 +30,9 @@
       "COVE_LITERARY_READ_SECRET",
       "COVE_LITERARY_PUBLICATION_SECRET"
     ]
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
   }
 }

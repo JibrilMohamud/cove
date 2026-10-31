@@ -10,12 +10,6 @@ on:
       - "scripts/prove-production-owner-handshake.mjs"
       - "scripts/check-locked-production-legal-owner.mjs"
       - ".github/workflows/production-legal-owner-locked.yml"
-  push:
-    branches: [main]
-    paths:
-      - "wrangler.legal-authority.production-locked.jsonc"
-      - "scripts/check-locked-production-legal-owner.mjs"
-      - ".github/workflows/production-legal-owner-locked.yml"
   workflow_dispatch:
 
 permissions:
@@ -55,7 +49,7 @@ jobs:
 
   deploy-locked-owner:
     needs: prove-locked-owner
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -76,7 +70,7 @@ jobs:
         run: node scripts/check-locked-production-legal-owner.mjs
       - run: node scripts/build-storefront-strangler.mjs
       - name: Deploy isolated, unroutable, QA-ineligible production owner
-        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.legal-authority.production-locked.jsonc
+        run: node scripts/staging/provision-literary-owner-capabilities.mjs
       - name: Verify live disabled binding and original public routing
         run: |
           node scripts/check-locked-production-legal-owner.mjs --live
