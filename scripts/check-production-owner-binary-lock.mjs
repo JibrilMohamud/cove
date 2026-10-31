@@ -26,10 +26,12 @@ const provisioner = readFileSync(
   "scripts/staging/provision-literary-owner-capabilities.mjs",
   "utf8",
 );
-assert.match(provisioner, /readFileSync\("\.output\/strangler\/legal-authority\.production-locked\.mjs"/);
+assert.match(
+  provisioner,
+  /readFileSync\("\.output\/strangler\/legal-authority\.production-locked\.mjs"/,
+);
 assert.match(provisioner, /main_module: "legal-authority\.production-locked\.mjs"/);
 assert.doesNotMatch(provisioner, /readFileSync\("\.output\/strangler\/legal-authority\.mjs"/);
-
 
 const dir = mkdtempSync(path.join(tmpdir(), "cove-legal-binary-lock-"));
 try {
@@ -52,7 +54,8 @@ try {
               namespace: "worker-host",
             }));
             plugin.onLoad({ filter: /.*/, namespace: "worker-host" }, () => ({
-              contents: "export class DurableObject { constructor(ctx,env) { this.ctx=ctx; this.env=env; } }",
+              contents:
+                "export class DurableObject { constructor(ctx,env) { this.ctx=ctx; this.env=env; } }",
             }));
           },
         },
