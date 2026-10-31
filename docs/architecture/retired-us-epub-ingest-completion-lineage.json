@@ -6,7 +6,7 @@
   "releaseApproval": false,
   "sourceFile": "src/features/fore/api.server.ts",
   "previousSha256": "b194f3280070907d36ad9a50a441a849f8a12d4aaaa42ce7c9aa727df797e877",
-  "currentSha256": "3c11509e11029c8fe3317be733d4ad253acf56bbe91d34d2d2f9eb82a1b0f20f",
+  "currentSha256": "8f9bd4401cae89d5a81a58442567acab5997202524d265df45d65b451512752d",
   "privateCommand": "catalog.complete-us-epub-ingest",
   "privateRoute": "/catalog/complete-us-epub-ingest",
   "independentProofs": [
