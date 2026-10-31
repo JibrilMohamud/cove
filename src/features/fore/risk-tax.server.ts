@@ -2,6 +2,7 @@ import {
   dispatchPrivateRiskHold,
   dispatchPrivateRiskAssessmentUpdate,
   dispatchPrivateRiskHoldRelease,
+  dispatchPrivatePublisherTaxVerification,
 } from "../../storefront-strangler/publication-owner-routing.server";
 import { z } from "zod/v3";
 import { ApiError } from "./service";
@@ -1164,95 +1165,10 @@ export async function upsertTaxRegistration(db: CatalogDB, raw: unknown) {
   return { id };
 }
 
+/** Financial tax status is a private-owner command. The caller may never
+ * change tax verification or withholding through its shared D1 binding. */
 export async function registerPublisherTaxVerification(db: CatalogDB, raw: unknown) {
-  const x = z
-      .object({
-        profileId: z.string().min(1),
-        provider: z.string().min(1).max(80),
-        providerEventId: z.string().min(1).max(240),
-        status: z.enum(["pending", "verified", "failed", "expired", "manual_review"]),
-        providerVerificationStatus: z.string().max(80).default(""),
-        formStatus: z.string().max(80).default(""),
-        entityType: z.string().max(80).default("unknown"),
-        taxResidencyCountry: z
-          .string()
-          .regex(/^[A-Za-z]{2}$/)
-          .default("US"),
-        tinLast4: z
-          .string()
-          .regex(/^\d{0,4}$/)
-          .default(""),
-        reportable: z.boolean().default(true),
-        withholdingBps: z.number().int().min(0).max(10000).default(0),
-        treatyRateBps: z.number().int().min(0).max(10000).nullable().optional(),
-        backupWithholdingBps: z.number().int().min(0).max(10000).default(0),
-        reasonCode: z.string().max(120).default(""),
-        validFrom: z.string().datetime().nullable().optional(),
-        expiresAt: z.string().datetime().nullable().optional(),
-        nextReviewAt: z.string().datetime().nullable().optional(),
-        normalized: z.record(z.string(), z.unknown()).default({}),
-      })
-      .parse(raw),
-    profile = await db
-      .prepare("SELECT * FROM publishing_tax_profiles WHERE id=?")
-      .bind(x.profileId)
-      .first<any>();
-  if (!profile) throw new ApiError(404, "Publisher tax profile not found.");
-  const effective =
-      x.status === "verified"
-        ? (x.treatyRateBps ?? x.withholdingBps)
-        : Math.max(x.withholdingBps, x.backupWithholdingBps),
-    at = now(),
-    payload = JSON.stringify(x.normalized);
-  await db.batch([
-    db
-      .prepare(
-        `UPDATE publishing_tax_profiles SET status=?,withholding_bps=?,valid_from=?,expires_at=?,validated_at=?,reason_code=?,updated_at=?,entity_type=?,tax_residency_country=?,tin_last4=?,provider_verification_status=?,form_status=?,reportable=?,treaty_rate_bps=?,backup_withholding_bps=?,effective_withholding_bps=?,compliance_snapshot_json=?,next_review_at=? WHERE id=?`,
-      )
-      .bind(
-        x.status,
-        x.withholdingBps,
-        x.validFrom || profile.valid_from || null,
-        x.expiresAt || null,
-        x.status === "verified" ? at : null,
-        x.reasonCode,
-        at,
-        x.entityType,
-        x.taxResidencyCountry.toUpperCase(),
-        x.tinLast4,
-        x.providerVerificationStatus || x.status,
-        x.formStatus || x.status,
-        x.reportable ? 1 : 0,
-        x.treatyRateBps ?? null,
-        x.backupWithholdingBps,
-        effective,
-        payload,
-        x.nextReviewAt || null,
-        x.profileId,
-      ),
-    db
-      .prepare("UPDATE publishing_accounts SET tax_status=?,updated_at=? WHERE id=?")
-      .bind(x.status, at, profile.account_id),
-    db
-      .prepare(
-        "INSERT OR IGNORE INTO publisher_tax_verification_events(id,tax_profile_id,provider,provider_event_id,event_type,status,reason_code,payload_hash,normalized_json,occurred_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-      )
-      .bind(
-        uid("ptaxevt"),
-        x.profileId,
-        x.provider,
-        x.providerEventId,
-        "verification_update",
-        x.status,
-        x.reasonCode,
-        await sha256(payload),
-        payload,
-        at,
-        at,
-      ),
-  ]);
-  await assessPublisherRisk(db, String(profile.account_id), "tax_verification_update");
-  return { profileId: x.profileId, status: x.status, effectiveWithholdingBps: effective };
+  return dispatchPrivatePublisherTaxVerification(db,raw);
 }
 
 export async function effectivePublisherWithholding(db: CatalogDB, partyId: string, at = now()) {

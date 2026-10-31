@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "retirementEvidence": "docs/architecture/retired-publisher-tax-status-owner-lineage.json",
+  "rationale": "The exact shared SQL in registerPublisherTaxVerification no longer modifies canonical publishing account status; it forwards a fixed typed private command. The private owner alone updates tax profiles, publisher tax status and immutable event rows and requires independent provider verification for any positive tax verified status; absent provider evidence it denies instead of laundering tax approval.",
+  "files": [
+    {
+      "path": "src/features/fore/risk-tax.server.ts",
+      "sha256": "c8d2365c31d1d97ba053b40cfc7f17b70ea7fa83e9a9e111212c1dc67c289936",
+      "review": "The original financial SQL and dependent profile/event batch are absent from shared D1. There are no other reviewed SQL sites in this source file, so no reclassified exception or unreconciled caller change is involved."
+    }
+  ]
+}

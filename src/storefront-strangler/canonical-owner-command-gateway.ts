@@ -191,6 +191,8 @@ const routes={
     subjectId:z.string().min(3).max(180),
     assessmentId:z.string().min(3).max(180)
   }).strict()},
+  "risk.publisher-tax-verification":{path:"/risk/private-publisher-tax-verification",
+    schema:z.object({request:z.record(z.string(),z.unknown())}).strict()},
   "risk.release-hold":{path:"/risk/private-release-hold",schema:z.object({
     holdId:z.string().min(3).max(180),
     note:z.string().trim().min(3).max(4000),
@@ -505,6 +507,14 @@ export async function dispatchCanonicalOwnerCommand(
       if(ack.schema!=="cove.owner-risk-assessment.v1"||ack.ownerFirst!==true||
          ack.domain!==body.domain||ack.subjectId!==body.subjectId||
          ack.assessmentId!==body.assessmentId||ack.applied!==true)
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "risk.publisher-tax-verification":
+      if(ack.schema!=="cove.owner-publisher-tax-verification.v1"||
+         ack.ownerFirst!==true||ack.profileId!==(body.request as Record<string,unknown>).profileId||
+         ack.status!==(body.request as Record<string,unknown>).status||
+         ack.saved!==true||typeof ack.effectiveWithholdingBps!=="number"||
+         !Number.isFinite(ack.effectiveWithholdingBps))
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "risk.release-hold":

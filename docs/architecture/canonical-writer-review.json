@@ -462,19 +462,6 @@
       "reason": "Evaluation history is written after resolving rights. Authorization re-evaluates grants; the recorded decision is not a reusable positive grant."
     },
     {
-      "siteId": "4d98928a38772e07d19d0b828f350d10c2b895755b9cf3c1e605e16986850a5c",
-      "file": "src/features/fore/risk-tax.server.ts",
-      "line": 1234,
-      "functionName": "registerPublisherTaxVerification",
-      "table": "publishing_accounts",
-      "operation": "UPDATE",
-      "sqlSha256": "44ecd6353ca0a2d12cac55718dc5eaed358f7db965a66c3864502d50d619459e",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "risk-tax.registerPublisherTaxVerification",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
       "siteId": "207c8a25174f9f7d5222412edca827ed504fa3cd81d5180283c70166342e3b2d",
       "file": "src/features/fore/search.server.ts",
       "line": 2064,
