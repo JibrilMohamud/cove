@@ -500,3 +500,17 @@ export async function dispatchPrivatePromotionOwner(
   if(receipt.saved!==true)throw Error("owner_promotion_receipt_missing");
  }catch{throw new ApiError(503,"Private owner refused the promotion change.");}
 }
+
+/** Exact entitlement/device binding; private owner independently rechecks
+ * the active entitlement and revoked-device state against canonical D1. */
+export async function dispatchPrivateEntitlementDevice(db:object,input:{
+ userId:string;entitlementId:string;productId:string;deviceId:string;maxActiveDevices:number
+}):Promise<void>{
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Device-entitlement registration requires a private owner.");
+ try{
+  const ack=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+   "delivery.register-entitlement-device",input);
+  if(ack.saved!==true)throw Error("device_owner_receipt_invalid");
+ }catch{throw new ApiError(503,"Private owner refused entitlement-device registration.");}
+}
