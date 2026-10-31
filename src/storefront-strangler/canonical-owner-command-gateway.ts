@@ -411,8 +411,8 @@ export async function dispatchCanonicalOwnerCommand(
          ack.actorUserId!==body.actorUserId||
          ack.status!=="verified"||ack.verified!==true||
          typeof ack.id!=="string"||ack.id.length<16||
-         ack.timingManifestSha256!==body.request.timingManifestSha256||
-         !Number.isSafeInteger(ack.cueCount)||ack.cueCount<1)
+         (!record(body.request)||ack.timingManifestSha256!==body.request.timingManifestSha256)||
+         (typeof ack.cueCount!=="number"||!Number.isSafeInteger(ack.cueCount)||ack.cueCount<1))
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "promotion.private-action":
