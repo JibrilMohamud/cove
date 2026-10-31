@@ -13,7 +13,7 @@ assert.equal(lineage.sourceAfter,23);
 assert.equal(lineage.retired.length,1);
 assert.equal(createHash("sha256").update(src).digest("hex"),lineage.currentSha256);
 assert.ok(!src.includes("INSERT INTO commerce_checkout_quotes("));
-assert.ok(src.includes("if(!persistOwnerQuote)"));
+assert.match(src,/if\s*\(!persistOwnerQuote\)/);
 assert.ok(src.includes("await persistOwnerQuote({"));
 assert.ok(owner.includes('if(route==="/commercial/checkout/create-quote")'));
 assert.ok(owner.includes('const quote=await checkoutQuote(ownerEnv,{id:command.userId},command.request,async row=>'));
