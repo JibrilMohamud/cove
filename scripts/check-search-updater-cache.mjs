@@ -92,7 +92,7 @@ try {
   const imported = await api.runCatalogIngestion({ ...env, BUCKET: undefined });
   // Production canonical normalization without an owner lease is denied.
   assert.equal(imported.failed, true, "owner-less catalog ingestion must fail closed");
-  assert.match(imported.error, /Catalog normalization requires private authority/);
+  assert.match(imported.error, /Catalog source ingestion requires private legal authority/);
   const unowned = await env.DB.prepare(
     "SELECT id FROM products WHERE id='prd_gutenberg_900001'",
   ).first();

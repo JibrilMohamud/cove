@@ -115,7 +115,7 @@ jobs:
       - run: node scripts/check-offline-audio-issuer-authorization.mjs
       - run: node scripts/check-customer-media-owner-order.mjs
   real-test-payment-to-private-owner:
-    if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["qa/private-paid-owner-independent-20261028","qa/original-customer-media-paid-owner-20261028"]'), github.event.pull_request.head.ref)) || ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main')
+    if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["qa/private-paid-owner-independent-20261028","qa/original-customer-media-paid-owner-20261028","release/production-certification-20261031"]'), github.event.pull_request.head.ref)) || ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:

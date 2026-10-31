@@ -71,11 +71,19 @@ for (const token of [
   assert.ok(delivery.includes(token), `delivery server missing ${token}`);
 assert.match(delivery, /token_hash/);
 assert.doesNotMatch(migration, /signed_url/i);
-assert.match(delivery, /uses=uses\+1/);
-assert.match(delivery, /uses<max_uses/);
+// Bearer consumption is now owned by the private authority. Require the
+// shared handler to dispatch there and prohibit reintroducing either writer.
+const deliveryOwner = read("src/storefront-strangler/legal-authority.worker.ts");
+assert.match(delivery, /await dispatchPrivateCommercialEpubConsumption\(db,/);
+assert.doesNotMatch(delivery, /UPDATE commercial_delivery_grants SET uses=/);
+assert.doesNotMatch(delivery, /INSERT INTO commercial_entitlement_delivery_usage\(/);
+assert.match(deliveryOwner, /if\(route==="\/delivery\/private-consume-epub-grant"\)/);
+assert.match(deliveryOwner, /uses=uses\+1/);
+assert.match(deliveryOwner, /uses<max_uses/);
 assert.ok(delivery.includes("commercial_entitlement_delivery_usage"));
 assert.ok(delivery.includes("temporary_rights_expired"));
-assert.ok(delivery.includes("commercial_entitlement_devices"));
+assert.match(delivery, /dispatchPrivateEntitlementDevice/);
+assert.ok(deliveryOwner.includes("commercial_entitlement_devices"));
 const api = read("src/features/fore/api.server.ts");
 for (const token of [
   "/notifications/preferences",
@@ -104,7 +112,7 @@ const preorderOwner = read("src/storefront-strangler/legal-authority.worker.ts")
 // to the separately bound QA-only owner, never a public D1 fallback.
 assert.ok(preorder.includes("dispatchPrivatePreorderAction"));
 assert.ok(preorderOwner.includes("preorder_released"));
-assert.ok(preorderOwner.includes("ensureOwnershipSnapshot"));
+assert.ok(preorderOwner.includes("await materializeOwnerOwnershipRecord(db,"));
 assert.ok(
   preorderOwner.includes(
     "Preorder release requires independently verified paid owner authorization.",
