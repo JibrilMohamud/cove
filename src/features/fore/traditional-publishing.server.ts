@@ -2353,7 +2353,7 @@ export async function rebuildWorkIdentityKeys(db: CatalogDB, limit = 1000) {
 }
 
 export async function reconcilePublicDomainWorks(db:CatalogDB,limit=250){
- return dispatchPrivatePartnerAction(db,"reconcile-public-domain",{limit});
+ return (await dispatchPrivatePartnerAction(db,"reconcile-public-domain",{limit})) as {groups:number;merged:number;canonicalized:number};
 }
 
 
