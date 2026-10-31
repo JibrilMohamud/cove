@@ -18657,6 +18657,8 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           fields:z.array(z.union([z.string().max(65000),z.number().finite(),z.null()])).length(37)
         }).strict()).min(1).max(50)}).strict().parse(raw);
         const db=env.PRIMARY_DB,at=now();
+        if(new Set(x.records.map(r=>r.cacheId)).size!==x.records.length)
+          return new Response(null,{status:409,headers:noStore});
         const statements:ReturnType<typeof db.prepare>[]=[];
         for(const rec of x.records){
           const args=[...rec.fields];
@@ -18690,22 +18692,35 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
               throw Error("untrusted_origin");
             if(rec.sourceId==="pg_us"&&!/^(?:www\.)?gutenberg\.org$/.test(sourceUrl.hostname))
               throw Error("untrusted_gutenberg_host");
+            if(rec.sourceId==="pg_ca"&&!/^(?:www\.)?gutenberg\.ca$/.test(sourceUrl.hostname))
+              throw Error("untrusted_canadian_source");
+            if(rec.sourceId==="pg_au"&&!/^(?:www\.|mail\.)?gutenberg\.net\.au$/.test(sourceUrl.hostname))
+              throw Error("untrusted_australian_source");
           }catch{return new Response(null,{status:409,headers:noStore});}
-          const source=await db.prepare("SELECT id FROM gutenberg_sources WHERE id=? AND enabled=1")
-            .bind(rec.sourceId).first<{id:string}>();
-          if(!source)return new Response(null,{status:409,headers:noStore});
-          const prior=await db.prepare("SELECT source_id,rights_status,commercial_use_status,rights_territories_json,rights_evidence_url,formats_json,source_metadata_json FROM gutenberg_source_cache WHERE id=?")
+          const source=await db.prepare("SELECT id,license_url,trademark_cleanup_required FROM gutenberg_sources WHERE id=? AND enabled=1")
+            .bind(rec.sourceId).first<{id:string;license_url:string|null;trademark_cleanup_required:number|null}>();
+          if(!source||(source.license_url&&args[26]!==source.license_url))
+            return new Response(null,{status:409,headers:noStore});
+          args[33]=(Number(args[33])===1||Number(source.trademark_cleanup_required)===1)?1:0;
+          const prior=await db.prepare("SELECT source_id,source_item_id,source_url,source_license_url,content_hash,copyright,trademark_cleanup_required,rights_status,commercial_use_status,rights_territories_json,rights_evidence_url,formats_json,source_metadata_json FROM gutenberg_source_cache WHERE id=?")
             .bind(rec.cacheId).first<{source_id:string;rights_status:string;commercial_use_status:string;
+              source_item_id:string;source_url:string;source_license_url:string;content_hash:string|null;
+              copyright:number|null;trademark_cleanup_required:number|null;
               rights_territories_json:string;rights_evidence_url:string;formats_json:string;source_metadata_json:string}>();
           if(prior&&prior.source_id!==rec.sourceId)
             return new Response(null,{status:409,headers:noStore});
           let previousMeta:Record<string,unknown>={};
           try{previousMeta=JSON.parse(prior?.source_metadata_json||"{}");}
           catch{/* No malformed old metadata may justify positive permission. */}
+          if(prior?.trademark_cleanup_required===1)args[33]=1;
           const stable=!!prior&&prior.rights_territories_json===args[28]&&
             prior.rights_evidence_url===args[29]&&prior.formats_json===args[7]&&
+            prior.source_item_id===args[24]&&prior.source_url===args[10]&&
+            prior.source_license_url===args[26]&&
+            (!args[36]||prior.content_hash===args[36])&&
             String(previousMeta?.rightsFingerprint||"")===String(meta.rightsFingerprint||"");
-          let verified=!!prior&&stable&&prior.rights_status==="public-domain"&&
+          let verified=!!prior&&stable&&prior.copyright===0&&args[9]===0&&
+            territories.length>0&&prior.rights_status==="public-domain"&&
             prior.commercial_use_status==="approved"&&
             !territories.some(t=>marketIsWithdrawn(sql,t));
           if(verified){
