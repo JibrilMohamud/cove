@@ -1,6 +1,7 @@
 /* eslint-disable prettier/prettier -- Stage source ownership, not production authorization. */
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
+import {createHash} from "node:crypto";
 const get=x=>readFileSync(x,"utf8");
 const source=get("src/features/fore/publishing-trust.server.ts");
 const owner=get("src/storefront-strangler/legal-authority.worker.ts");
@@ -9,6 +10,8 @@ const gateway=get("src/storefront-strangler/canonical-owner-command-gateway.ts")
 const review=JSON.parse(get("docs/architecture/canonical-writer-review.json"));
 const lineage=JSON.parse(get("docs/architecture/retired-private-trust-owner-lineage.json"));
 assert.equal(lineage.retiredCount,38);
+const sha256=x=>createHash("sha256").update(x).digest("hex");
+assert.equal(sha256(source),lineage.currentSourceSha256,"Exact retired source bytes changed without reattestation");
 assert.equal(new Set(lineage.retired.map(x=>x.siteId)).size,38);
 assert.equal(review.releaseApproval,false);
 assert.equal(review.sites.filter(x=>x.disposition==="owner-command-required").length,156);

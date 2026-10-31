@@ -243,5 +243,6 @@
     "Repeat-infringer publication retirement pending owner denial",
     "Court action pending independent filing proof"
   ],
-  "historicRestorationAttestation": "docs/architecture/retired-unowned-restoration-source-attestation-20261030.json"
+  "historicRestorationAttestation": "docs/architecture/retired-unowned-restoration-source-attestation-20261030.json",
+  "currentSourceSha256": "7b712809bd58a2d0456ad38da3b0ecb75621688dedd070a2f8687ebef6765590"
 }
