@@ -1,0 +1,28 @@
+/* eslint-disable prettier/prettier -- Immutable source lineage of privately verified US EPUB hydration. */
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+import {createHash} from "node:crypto";
+const read=p=>readFileSync(p,"utf8");
+const api=read("src/features/fore/api.server.ts");
+const owner=read("src/storefront-strangler/legal-authority.worker.ts");
+const gateway=read("src/storefront-strangler/canonical-owner-command-gateway.ts");
+const routing=read("src/storefront-strangler/publication-owner-routing.server.ts");
+const review=JSON.parse(read("docs/architecture/canonical-writer-review.json"));
+const lineage=JSON.parse(read("docs/architecture/retired-us-epub-hydration-owner-lineage.json"));
+assert.equal(review.releaseApproval,false);
+assert.equal(lineage.sourceBefore,33);
+assert.equal(lineage.sourceAfter,31);
+assert.equal(lineage.retired.length,2);
+assert.equal(createHash("sha256").update(api).digest("hex"),lineage.currentSha256);
+assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=31);
+assert.ok(lineage.retired.every(x=>x.functionName==="sourceEpubBytes"&&!review.sites.some(y=>y.siteId===x.siteId)));
+assert.doesNotMatch(api,/UPDATE gutenberg_source_cache SET epub_status='completed',epub_cached_at=\?,epub_last_error='',epub_next_attempt_at='',content_hash=\?,canonicalization_version='pgus-upstream-v1' WHERE id=\?/);
+assert.doesNotMatch(api,/UPDATE asset_versions SET object_key=\?,sha256=\? WHERE id=\?/);
+assert.match(owner,/if\(route==="/catalog/verified-us-epub-cache"\)/);
+assert.match(owner,/await validateStoredEpub\(bytes\)/);
+assert.match(owner,/crypto\.subtle\.digest\("SHA-256",bytes\)/);
+assert.match(owner,/c\.rights_status='public-domain' AND c\.commercial_use_status='approved'/);
+assert.match(owner,/await db\.batch\(\[/);
+assert.match(gateway,/case "catalog.cache-us-epub":/);
+assert.match(routing,/dispatchCatalogVerifiedUsEpub/);
+console.log("PASS: two shared US EPUB hydration SQL sites retired with independent R2 verification; production locked");

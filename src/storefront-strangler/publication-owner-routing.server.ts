@@ -470,3 +470,17 @@ export async function dispatchCatalogRegionalState(db:object,input:{
   return {acquired:ack.acquired===true};
  }catch{throw new ApiError(503,"Private owner refused regional source checkpoint.");}
 }
+
+/** Stage-only US EPUB content confirmation. The private owner independently
+ * validates the Gutenberg rights row, stored EPUB bytes in R2 and target asset. */
+export async function dispatchCatalogVerifiedUsEpub(db:object,input:{
+ cacheId:string;assetVersionId:string;sha256:string
+}):Promise<void>{
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Verified EPUB cache update requires private authority.");
+ try{
+  const ack=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+   "catalog.cache-us-epub",input);
+  if(ack.saved!==true)throw Error("owner_did_not_commit");
+ }catch{throw new ApiError(503,"Private owner refused this US EPUB cache update.");}
+}

@@ -1,0 +1,32 @@
+{
+  "schema": "cove.retired-us-epub-hydration-owner-lineage.v1",
+  "sourceBefore": 33,
+  "sourceAfter": 31,
+  "productionCertified": false,
+  "releaseApproval": false,
+  "sourceFile": "src/features/fore/api.server.ts",
+  "previousSha256": "5dc9499bd0b2b4a96aa10402568b2b9fee3571b9db37defa27a180c3f4065a73",
+  "currentSha256": "b194f3280070907d36ad9a50a441a849f8a12d4aaaa42ce7c9aa727df797e877",
+  "retired": [
+    {
+      "siteId": "d9b97ab29829659a88363c2077c522821d387694b755301b5915a9f6dd524af4",
+      "sqlSha256": "7ba27d525da8e585bfc2186df9b3aba0004e78e1846dc1696036db031ea8ba0c",
+      "file": "src/features/fore/api.server.ts",
+      "line": 2292,
+      "table": "gutenberg_source_cache",
+      "operation": "UPDATE",
+      "functionName": "sourceEpubBytes",
+      "privateRoute": "/catalog/verified-us-epub-cache"
+    },
+    {
+      "siteId": "8ec12b002bf78dbe07afe34246fda683c142cbf604ba05bf0718403a9924eae0",
+      "sqlSha256": "5d41d1647d106472a9327b771d8e06d79a38d918b9b5447a090d44d30eb1ea9b",
+      "file": "src/features/fore/api.server.ts",
+      "line": 2296,
+      "table": "asset_versions",
+      "operation": "UPDATE",
+      "functionName": "sourceEpubBytes",
+      "privateRoute": "/catalog/verified-us-epub-cache"
+    }
+  ]
+}

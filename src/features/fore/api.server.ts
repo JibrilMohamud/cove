@@ -1,5 +1,6 @@
 import { dispatchCatalogObservation } from "../../storefront-strangler/publication-owner-routing.server";
 import { dispatchCatalogRegionalState } from "../../storefront-strangler/publication-owner-routing.server";
+import { dispatchCatalogVerifiedUsEpub } from "../../storefront-strangler/publication-owner-routing.server";
 import { dispatchCatalogIngestState } from "../../storefront-strangler/publication-owner-routing.server";
 import {
   dispatchCatalogNegativeSource,
@@ -2286,16 +2287,11 @@ async function sourceEpubBytes(env: CoveEnv, product: any, asset: any, externalI
     await env.BUCKET.put(key, bytes, {
       httpMetadata: { contentType: "application/epub+zip", cacheControl: "31536000" },
     });
-  await database(env).batch([
-    database(env)
-      .prepare(
-        "UPDATE gutenberg_source_cache SET epub_status='completed',epub_cached_at=?,epub_last_error='',epub_next_attempt_at='',content_hash=?,canonicalization_version='pgus-upstream-v1' WHERE id=? AND source_id='pg_us' AND ingest_status<>'quarantined'",
-      )
-      .bind(now(), contentHash, externalId),
-    database(env)
-      .prepare("UPDATE asset_versions SET object_key=?,sha256=? WHERE id=?")
-      .bind(key, contentHash, asset.asset_version_id),
-  ]);
+  await dispatchCatalogVerifiedUsEpub(database(env), {
+    cacheId: externalId,
+    assetVersionId: String(asset.asset_version_id),
+    sha256: contentHash,
+  });
   return { bytes, key, mimeType: asset.mime_type || "application/epub+zip" };
 }
 async function activeEntitlement(
