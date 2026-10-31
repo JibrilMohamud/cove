@@ -772,21 +772,19 @@ export async function serveCommercialEpubGrant(env: CoveEnv, rawToken: string, r
   if (grant.status !== "active")
     return fail(410, "This delivery grant is no longer active.", `grant_${grant.status}`);
   if (new Date(String(grant.expires_at)).getTime() <= Date.now()) {
-    await db
-      .prepare(
-        "UPDATE commercial_delivery_grants SET status='expired' WHERE id=? AND status='active'",
-      )
-      .bind(grant.id)
-      .run();
+    try {
+      await dispatchNegativeDeliveryOwner(db, "expire-grant", { grantId: String(grant.id) });
+    } catch {
+      // The bearer token remains denied even without a state-maintenance write.
+    }
     return fail(410, "This delivery grant expired. Request a new one.", "grant_expired");
   }
   if (Number(grant.uses) >= Number(grant.max_uses)) {
-    await db
-      .prepare(
-        "UPDATE commercial_delivery_grants SET status='exhausted' WHERE id=? AND status='active'",
-      )
-      .bind(grant.id)
-      .run();
+    try {
+      await dispatchNegativeDeliveryOwner(db, "exhaust-grant", { grantId: String(grant.id) });
+    } catch {
+      // The bearer token remains denied even without a state-maintenance write.
+    }
     return fail(
       410,
       "This delivery grant has already been used. Request a new one.",
