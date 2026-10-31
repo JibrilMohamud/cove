@@ -17,19 +17,6 @@
       "reason": "Browser QA seeds an isolated temporary database through localBindings; this development server is not a deployed production writer."
     },
     {
-      "siteId": "38c487557ee78cf0c0bd79125f1a4d5ce0ffa9ddb4989ab2bcce26f6caf45900",
-      "file": "src/features/fore/api.server.ts",
-      "line": 837,
-      "functionName": "catalogInsert",
-      "table": "gutenberg_source_cache",
-      "operation": "INSERT INTO",
-      "sqlSha256": "7699e76661af59a5c3d19e597f8a30ded3a5ed3a2cab35ebeffcbeecf53233ae",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "api.catalogInsert",
-      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
-    },
-    {
       "siteId": "9b45c25dd8e3624cbbce862489ab030f835d75233ea82960124a81c15fae9b10",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 1053,
