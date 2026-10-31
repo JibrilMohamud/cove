@@ -25,4 +25,20 @@ assert.match(owner,/c\.rights_status='public-domain' AND c\.commercial_use_statu
 assert.match(owner,/await db\.batch\(\[/);
 assert.match(gateway,/case "catalog.cache-us-epub":/);
 assert.match(routing,/dispatchCatalogVerifiedUsEpub/);
-console.log("PASS: two shared US EPUB hydration SQL sites retired with independent R2 verification; production locked");
+const completion=JSON.parse(read("docs/architecture/retired-us-epub-ingest-completion-lineage.json"));
+assert.equal(completion.releaseApproval,false);
+assert.equal(completion.productionCertified,false);
+assert.equal(completion.sourceBefore,18);
+assert.equal(completion.sourceAfter,17);
+assert.equal(completion.retired.length,1);
+assert.equal(completion.currentSha256,createHash("sha256").update(api).digest("hex"));
+assert.ok(completion.retired.every(x=>x.functionName==="cachePendingEpubs"&&
+  !review.sites.some(y=>y.siteId===x.siteId)));
+assert.equal(review.sites.filter(x=>x.disposition==="owner-command-required").length,17);
+assert.doesNotMatch(api,/UPDATE gutenberg_source_cache SET epub_status='completed',epub_cached_at=\?,epub_last_error='',epub_next_attempt_at='',content_hash=\?,canonicalization_version=\? WHERE id=\?/);
+assert.ok(api.includes("await dispatchCatalogCompletedUsEpub(db, { cacheId: id, sha256: contentHash })"));
+assert.ok(routing.includes('if(!context)throw new ApiError(503,"US EPUB completion requires a private catalog owner.")'));
+assert.ok(gateway.includes('case "catalog.complete-us-epub-ingest":'));
+assert.ok(owner.includes('if(route==="/catalog/complete-us-epub-ingest")'));
+assert.ok(owner.includes("e.territory_code='US'"));
+console.log("PASS: shared US EPUB hydration and ingestion completion SQL sites retired with independent R2 verification; production locked");
