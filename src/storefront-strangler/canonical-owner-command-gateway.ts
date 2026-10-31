@@ -138,6 +138,13 @@ const routes={
     assetVersionId:z.string().min(3).max(180),
     sha256:z.string().regex(/^[a-f0-9]{64}$/)
   }).strict()},
+  "risk.create-hold":{path:"/risk/private-create-hold",schema:z.object({
+    assessmentId:z.string().min(3).max(180),
+    scope:z.enum(["checkout","account","publishing","usage_credit","payout","review_ranking"]),
+    reasonCode:z.enum(["BUYER_RISK_REVIEW","BUYER_RISK_BLOCK","ACCOUNT_TAKEOVER_REVIEW",
+      "PUBLISHER_RISK_REVIEW","PUBLISHER_RISK_BLOCK","SUSPICIOUS_USAGE",
+      "PAYOUT_RISK_REVIEW","COMMUNITY_MANIPULATION_REVIEW"])
+  }).strict()},
   "promotion.private-action":{path:"/promotion/private-action",schema:z.object({
     action:z.enum(["price-event","issue-coupon"]),
     payload:z.record(z.string(),z.unknown())
@@ -377,6 +384,11 @@ export async function dispatchCanonicalOwnerCommand(
          ack.cacheId!==body.cacheId||ack.assetVersionId!==body.assetVersionId||
          ack.sha256!==body.sha256||ack.saved!==true)
         throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "risk.create-hold":
+      if(ack.schema!=="cove.owner-risk-hold-qa.v1"||ack.ownerFirst!==true||
+         ack.assessmentId!==body.assessmentId||typeof ack.holdId!=="string"||
+         ack.holdId.length<3||ack.saved!==true)throw Error("canonical_command_receipt_mismatch");
       break;
     case "promotion.private-action":
       if(ack.schema!=="cove.owner-promotion-private.v1"||ack.ownerFirst!==true||

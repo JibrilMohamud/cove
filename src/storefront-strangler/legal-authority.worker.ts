@@ -17643,6 +17643,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/catalog/observe-us",
       "/catalog/regional-state",
       "/catalog/verified-us-epub-cache",
+      "/risk/private-create-hold",
       "/promotion/private-action",
       "/catalog/private-ingest-state",
       "/delivery/register-entitlement-device",
@@ -18562,6 +18563,74 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         return Response.json({schema:"cove.owner-us-epub-cache.v1",ownerFirst:true,
           cacheId:input.cacheId,assetVersionId:input.assetVersionId,
           sha256:input.sha256,saved:true},{headers:noStore});
+      }
+      if(route==="/risk/private-create-hold"){
+        const input=z.object({
+          assessmentId:z.string().min(3).max(180),
+          scope:z.enum(["checkout","account","publishing","usage_credit","payout","review_ranking"]),
+          reasonCode:z.enum(["BUYER_RISK_REVIEW","BUYER_RISK_BLOCK","ACCOUNT_TAKEOVER_REVIEW",
+            "PUBLISHER_RISK_REVIEW","PUBLISHER_RISK_BLOCK","SUSPICIOUS_USAGE",
+            "PAYOUT_RISK_REVIEW","COMMUNITY_MANIPULATION_REVIEW"])
+        }).strict().parse(raw);
+        const db=env.PRIMARY_DB, at=now();
+        const assessment=await db.prepare(
+          "SELECT id,domain,subject_type,subject_id,action,created_at FROM risk_assessments WHERE id=?"
+        ).bind(input.assessmentId).first<{
+          id:string;domain:string;subject_type:string;subject_id:string;action:string;created_at:string
+        }>();
+        if(!assessment||!["hold","block"].includes(assessment.action))
+          return new Response(null,{status:409,headers:noStore});
+        const domainScope:Record<string,[string,string]>={
+          checkout:["buyer","order"],account:["buyer","user"],
+          publishing:["publisher","publishing_account"],usage_credit:["usage","usage_event"],
+          payout:["payout","payout_item"],review_ranking:["community","review"]
+        };
+        const expected=domainScope[input.scope];
+        const allowedReason:Record<string,string>={
+          checkout:assessment.action==="block"?"BUYER_RISK_BLOCK":"BUYER_RISK_REVIEW",
+          account:"ACCOUNT_TAKEOVER_REVIEW",
+          publishing:assessment.action==="block"?"PUBLISHER_RISK_BLOCK":"PUBLISHER_RISK_REVIEW",
+          usage_credit:"SUSPICIOUS_USAGE",payout:"PAYOUT_RISK_REVIEW",
+          review_ranking:"COMMUNITY_MANIPULATION_REVIEW"
+        };
+        if(!expected||assessment.domain!==expected[0]||
+           assessment.subject_type!==expected[1]||
+           input.reasonCode!==allowedReason[input.scope])
+          return new Response(null,{status:409,headers:noStore});
+        // Never recreate a previously released hold from a stale assessment.
+        const latest=await db.prepare(
+          "SELECT id FROM risk_assessments WHERE domain=? AND subject_type=? AND subject_id=? ORDER BY created_at DESC,id DESC LIMIT 1"
+        ).bind(assessment.domain,assessment.subject_type,assessment.subject_id).first<{id:string}>();
+        if(latest?.id!==assessment.id)return new Response(null,{status:409,headers:noStore});
+        let active=await db.prepare(
+          "SELECT id FROM risk_holds WHERE subject_type=? AND subject_id=? AND hold_scope=? AND status='active' LIMIT 1"
+        ).bind(assessment.subject_type,assessment.subject_id,input.scope).first<{id:string}>();
+        if(!active){
+          let amountMinor:number|null=null,currency:string|null=null;
+          if(input.scope==="checkout"){
+            const o=await db.prepare("SELECT total_minor,currency FROM commerce_orders WHERE id=?")
+              .bind(assessment.subject_id).first<{total_minor:number;currency:string}>();
+            if(!o)return new Response(null,{status:409,headers:noStore});
+            amountMinor=Number(o.total_minor);currency=o.currency;
+          }
+          if(input.scope==="payout"){
+            const p=await db.prepare("SELECT net_minor,currency FROM payout_items WHERE id=?")
+              .bind(assessment.subject_id).first<{net_minor:number;currency:string}>();
+            if(!p)return new Response(null,{status:409,headers:noStore});
+            amountMinor=Number(p.net_minor);currency=p.currency;
+          }
+          const newId="risk_hold_"+crypto.randomUUID();
+          await db.prepare(
+            "INSERT INTO risk_holds(id,assessment_id,domain,subject_type,subject_id,hold_scope,reason_code,status,amount_minor,currency,release_conditions_json,created_by_type,created_at,expires_at) SELECT ?,a.id,a.domain,a.subject_type,a.subject_id,?,?,'active',?,?,?,'system',?,NULL FROM risk_assessments a WHERE a.id=? AND a.action IN ('hold','block') AND NOT EXISTS(SELECT 1 FROM risk_assessments newer WHERE newer.domain=a.domain AND newer.subject_type=a.subject_type AND newer.subject_id=a.subject_id AND (newer.created_at>a.created_at OR (newer.created_at=a.created_at AND newer.id>a.id))) AND NOT EXISTS(SELECT 1 FROM risk_holds h WHERE h.subject_type=a.subject_type AND h.subject_id=a.subject_id AND h.hold_scope=? AND h.status='active')"
+          ).bind(newId,input.scope,input.reasonCode,amountMinor,currency,
+            JSON.stringify({manualReview:true}),at,assessment.id,input.scope).run();
+          active=await db.prepare(
+            "SELECT id FROM risk_holds WHERE subject_type=? AND subject_id=? AND hold_scope=? AND status='active' LIMIT 1"
+          ).bind(assessment.subject_type,assessment.subject_id,input.scope).first<{id:string}>();
+        }
+        if(!active)return new Response(null,{status:409,headers:noStore});
+        return Response.json({schema:"cove.owner-risk-hold-qa.v1",
+          ownerFirst:true,assessmentId:assessment.id,holdId:active.id,saved:true},{headers:noStore});
       }
       if(route==="/promotion/private-action"){
         const input=z.object({

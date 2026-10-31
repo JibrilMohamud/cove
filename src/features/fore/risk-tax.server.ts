@@ -1,3 +1,4 @@
+import { dispatchPrivateRiskHold } from "../../storefront-strangler/publication-owner-routing.server";
 import { z } from "zod/v3";
 import { ApiError } from "./service";
 import type { CatalogDB } from "./catalog-model.server";
@@ -229,27 +230,7 @@ export async function createRiskHold(
     .bind(a.subjectType, a.subjectId, scope)
     .first<any>();
   if (active) return active;
-  const id = uid("risk_hold"),
-    at = now();
-  await db
-    .prepare(
-      "INSERT INTO risk_holds(id,assessment_id,domain,subject_type,subject_id,hold_scope,reason_code,status,amount_minor,currency,release_conditions_json,created_by_type,created_at,expires_at) VALUES(?,?,?,?,?,?,?,'active',?,?,?,'system',?,?)",
-    )
-    .bind(
-      id,
-      a.id,
-      a.domain,
-      a.subjectType,
-      a.subjectId,
-      scope,
-      reasonCode,
-      opts.amountMinor ?? null,
-      opts.currency?.toUpperCase() || null,
-      JSON.stringify({ manualReview: true }),
-      at,
-      opts.expiresAt || null,
-    )
-    .run();
+  const id = await dispatchPrivateRiskHold(db, String(a.id), scope, reasonCode);
   await ensureRiskCase(db, a, {
     publishingAccountId: opts.publishingAccountId,
     summary: opts.summary || `${a.domain} risk ${a.action}: ${reasonCode}`,

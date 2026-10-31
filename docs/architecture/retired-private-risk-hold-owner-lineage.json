@@ -1,0 +1,22 @@
+{
+  "schema": "cove.retired-private-risk-hold-owner-lineage.v1",
+  "releaseApproval": false,
+  "productionCertified": false,
+  "sourceBefore": 25,
+  "sourceAfter": 24,
+  "sourceFile": "src/features/fore/risk-tax.server.ts",
+  "previousSha256": "af4689d900ae4d56bbbcbf18f1761de54db161c176a017a29cbfde583f0ff706",
+  "currentSha256": "85d03e377016eaa6ae78dea55af79d84e8b5473e060bea129fc246c9b102c16f",
+  "retired": [
+    {
+      "siteId": "f4cd024dff4952178d6c46fd0e0f5e783bc1e68b2732b3850eb337e663a3b6c4",
+      "sqlSha256": "c1901bd896e7979620a06d49b492f7237553208ee316026c5de10d24b7fb5110",
+      "file": "src/features/fore/risk-tax.server.ts",
+      "line": 236,
+      "table": "risk_holds",
+      "operation": "INSERT INTO",
+      "functionName": "createRiskHold",
+      "ownerRoute": "/risk/private-create-hold"
+    }
+  ]
+}
