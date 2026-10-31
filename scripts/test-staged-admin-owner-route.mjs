@@ -39,15 +39,19 @@ const localizationEnd = source.indexOf(
 );
 const marketSnippet = source.slice(localizationRoute, localizationEnd);
 assert.match(marketSnippet, /executeStageMarketEditorPause\(env, input\)/);
-assert.match(marketSnippet, /env\.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1"/);
-assert.match(marketSnippet, /Staging market edits require a verified owner-first pause command/);
+assert.match(marketSnippet, /upsertMarket\(db, staff\.userId, input, who\)/);
+const marketSource = readFileSync("src/features/fore/localization.server.ts","utf8");
+const privateRouting = readFileSync("src/storefront-strangler/publication-owner-routing.server.ts","utf8");
+assert.match(marketSource,/dispatchPrivateMarketUpsert/);
+assert.match(privateRouting,/if\(!context\)throw new ApiError\(503,"Market update requires private legal authority\."\)/);
+assert.doesNotMatch(marketSource,/INSERT INTO storefront_markets\(/);
 assert.doesNotMatch(marketSnippet, /db\.prepare\(/);
 const lockedStagingPattern =
   /env\.COVE_SSR_STAGING === "1" \|\| env\.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1"/g;
 assert.equal(
   [...source.matchAll(lockedStagingPattern)].length,
-  3,
-  "Both legacy rights editors and the market editor must deny raw D1 in isolated locked staging",
+  2,
+  "Both legacy rights editors remain explicitly locked; market mutations require a private owner and have no shared D1 fallback",
 );
 assert.equal(
   (source.match(/Staging rights edits require verified owner-first commands/g) || []).length,
