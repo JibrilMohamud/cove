@@ -116,6 +116,10 @@ export async function provisionPaidAudioOrder(qaSql, { runId, buyerId, evidenceS
     created_at: at,
     updated_at: at,
   });
+  await qaSql(
+    "INSERT INTO catalog_search_documents(product_id,external_book_id,title,format,availability,currency,suppressed,first_ingested_at,updated_at) VALUES(?,?,?,'audiobook','available','USD',0,?,?)",
+    [productId, id("source"), "Original generated QA audiobook", at, at],
+  );
   await clone("commerce_orders", "order_paid_qa_20261027", {
     id: orderId,
     user_id: buyerId,

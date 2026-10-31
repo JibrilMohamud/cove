@@ -171,14 +171,21 @@ try {
     /immutable/,
   );
   await build({
-    entryPoints: ["src/features/fore/rights.server.ts"],
+    stdin: {
+      contents:
+        'export {resolveProductRights} from "./src/features/fore/rights.server.ts"; export {authorizeStorefrontPresentationIds} from "./src/features/fore/catalog-model.server.ts";',
+      resolveDir: process.cwd(),
+      loader: "ts",
+    },
     outfile: join(dir, "rights.mjs"),
     bundle: true,
     platform: "node",
     format: "esm",
     logLevel: "silent",
   });
-  const { resolveProductRights } = await import(pathToFileURL(join(dir, "rights.mjs")).href);
+  const { resolveProductRights, authorizeStorefrontPresentationIds } = await import(
+    pathToFileURL(join(dir, "rights.mjs")).href
+  );
   const D1 = {
     prepare(sql) {
       let values = [];
@@ -205,6 +212,11 @@ try {
     persist: false,
   });
   assert.equal(allowed.allowed, true, JSON.stringify(allowed));
+  assert.equal(
+    (await authorizeStorefrontPresentationIds(D1, [audio.productId], "US", "USD")).length,
+    1,
+    "A real paid storefront offer requires a matching visible catalog document",
+  );
   assert.equal(allowed.grantId, audio.grantId);
   assert.equal(allowed.contractVersionId, audio.versionId);
   assert.equal(
