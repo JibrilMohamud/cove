@@ -1,0 +1,72 @@
+{
+  "schema": "cove.retired-regional-ingestion-state-owner-lineage.v1",
+  "sourceBefore": 52,
+  "sourceAfter": 46,
+  "productionCertified": false,
+  "releaseApproval": false,
+  "sourceFile": "src/features/fore/api.server.ts",
+  "previousSha256": "f412a0a8255986ed45749405c097fd69a7dcb318e3605f459d2775668bafefa3",
+  "currentSha256": "2604b2196873248a9feb18d0988e31a22070e9208a484622f470d9b63712bd2d",
+  "retired": [
+    {
+      "siteId": "c7cc72b8bd593a788a37ba39d143fc32b34adf37e4c51ba2daaea5386f5e2053",
+      "sqlSha256": "e0989037cc0d0d301a269d6b651bae533249e2d3e5c7699b83b086c183f1d1fc",
+      "file": "src/features/fore/api.server.ts",
+      "line": 1727,
+      "table": "gutenberg_source_states",
+      "operation": "UPDATE",
+      "functionName": "runRegionalCatalogIngestion",
+      "privateRoute": "/catalog/regional-state"
+    },
+    {
+      "siteId": "ef6c14ba75c9bd667f35f025ffbfa58bc7ca71ba54f5d04347019ba21a0d9e84",
+      "sqlSha256": "2c82b2ae9e4c003d82ed883d581958e165d77506675467bc9882994453e712c3",
+      "file": "src/features/fore/api.server.ts",
+      "line": 1749,
+      "table": "gutenberg_source_states",
+      "operation": "UPDATE",
+      "functionName": "runRegionalCatalogIngestion",
+      "privateRoute": "/catalog/regional-state"
+    },
+    {
+      "siteId": "fab2210829c2cf6b6cd92bf5b6c3d67a519178da10495b50c6dd62cccff355c1",
+      "sqlSha256": "e04f7645e65a9a0686e9f56e54085b1b2350701d6e731c0e1d1e67b776187b26",
+      "file": "src/features/fore/api.server.ts",
+      "line": 1770,
+      "table": "gutenberg_source_states",
+      "operation": "UPDATE",
+      "functionName": "runRegionalCatalogIngestion",
+      "privateRoute": "/catalog/regional-state"
+    },
+    {
+      "siteId": "0e66b23771a4739e3f7454885d3de4ba2ab07239715cc667f56a88e4812176a8",
+      "sqlSha256": "c32c2d5aabac0eac74464fd3b637bd247a6777990c3e645224d4c5ef594db8c7",
+      "file": "src/features/fore/api.server.ts",
+      "line": 1800,
+      "table": "gutenberg_source_states",
+      "operation": "UPDATE",
+      "functionName": "runRegionalCatalogIngestion",
+      "privateRoute": "/catalog/regional-state"
+    },
+    {
+      "siteId": "bb8b95e6179a431a9b659dbdb80e57cdc5450fc5fef5e13887c1e02757799bf7",
+      "sqlSha256": "f81b3f0ea38ab6b9dc8c4ffca19749e214af5a83d5f5538dc6915166d0d68870",
+      "file": "src/features/fore/api.server.ts",
+      "line": 1904,
+      "table": "gutenberg_source_states",
+      "operation": "UPDATE",
+      "functionName": "runRegionalCatalogIngestion",
+      "privateRoute": "/catalog/regional-state"
+    },
+    {
+      "siteId": "d59a1e6ff9386ac3ba6a4f3da0e139409eae5020a251daae5f8ca70002f57dd1",
+      "sqlSha256": "ba62be7c72b656ea7c845974a8f393e9d279c8ed20cc80bd3fcf387c82d97b2e",
+      "file": "src/features/fore/api.server.ts",
+      "line": 1974,
+      "table": "gutenberg_source_states",
+      "operation": "UPDATE",
+      "functionName": "runRegionalCatalogIngestion",
+      "privateRoute": "/catalog/regional-state"
+    }
+  ]
+}

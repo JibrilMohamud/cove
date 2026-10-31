@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "retirementEvidence": "docs/architecture/retired-regional-ingestion-owner-lineage.json",
+  "rationale": "Independently reviewed the regional API source against b333b17f. Six exact original source-state UPDATE literals were relocated into the QA-only private legal owner with active regional source lease, active ingest run, bounded checkpoint inputs, and no positive rights grant. The 20 surviving API SQL sites retain exact SQL/function/table/operation/disposition, and were re-fingerprinted to the full new source SHA. No production owner activation.",
+  "files": [
+    {
+      "path": "src/features/fore/api.server.ts",
+      "sha256": "2604b2196873248a9feb18d0988e31a22070e9208a484622f470d9b63712bd2d",
+      "review": "Six protected regional source-state mutations physically removed from shared API and transplanted with intact SQL literals into private owner; independently re-attested 20 unchanged SQL sites."
+    }
+  ]
+}
