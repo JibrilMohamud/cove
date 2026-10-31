@@ -2,12 +2,12 @@
   "schema": "cove.canonical-writer-source-attestation.v1",
   "releaseApproval": false,
   "retirementEvidence": "docs/architecture/retired-risk-assessment-projection-lineage.json",
-  "rationale": "Two shared risk assessment mutations were migrated into a typed QA-private legal owner that independently checks the newest immutable buyer/publisher assessment, matching subject, current effective policy and threshold-derived action/level. SQL writes repeat latest-assessment and policy predicates and refuse optimistic risk clearance around active holds. The two remaining protected risk-tax SQL sites retain byte-identical SQL/function/disposition with full-file SHA reattested. This is source retirement, not production ownership certification.",
+  "rationale": "Two shared risk assessment mutations were migrated into a typed QA-private legal owner that independently checks the newest immutable buyer/publisher assessment, matching subject, current effective policy and threshold-derived action/level. SQL writes repeat latest-assessment and policy predicates and refuse optimistic risk clearance around active holds. The two remaining protected risk-tax SQL sites retain byte-identical SQL/function/disposition with full-file SHA reattested. This is source retirement, not production ownership certification. The only subsequent source change formats the static import; both surviving protected source SQL sites have updated exact source fingerprints.",
   "files": [
     {
       "path": "src/features/fore/risk-tax.server.ts",
-      "sha256": "f910c1ff78fac62d50066ba9147aedd3937068a04413b47955ccfc3c17a7552c",
-      "review": "Two exact protected SQL sites retired and two surviving site identities re-fingerprinted."
+      "sha256": "0dde93b70179c00fecfdbe64a17351023ea9735b2579f39fb1f5ea50255bb981",
+      "review": "Two exact protected SQL sites retired and two surviving site identities re-fingerprinted. Formatting-only risk import update: original protected SQL literals and containing functions remain identical."
     }
   ]
 }

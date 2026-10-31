@@ -605,9 +605,9 @@
       "reason": "Evaluation history is written after resolving rights. Authorization re-evaluates grants; the recorded decision is not a reusable positive grant."
     },
     {
-      "siteId": "aab7a502d1040417dfb2142f89e08668abef23a0b556b1858ecabe65b299b699",
+      "siteId": "ab7c6572ef188556fe2334c7c58d07eb5b9932d8633445a84d16afede2b60229",
       "file": "src/features/fore/risk-tax.server.ts",
-      "line": 816,
+      "line": 819,
       "functionName": "releaseRiskHold",
       "table": "risk_holds",
       "operation": "UPDATE",
@@ -618,9 +618,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "19e9913986eb6edeccd561cfeaa059b0a51928c6e0f0bf5a6112fefced78a22c",
+      "siteId": "f57a540197fba24dd9794a3e172d86097f49f51dae03cf00db3eed61daf83e02",
       "file": "src/features/fore/risk-tax.server.ts",
-      "line": 1258,
+      "line": 1261,
       "functionName": "registerPublisherTaxVerification",
       "table": "publishing_accounts",
       "operation": "UPDATE",
