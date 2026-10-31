@@ -6612,7 +6612,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         if(!expected||!perms.includes(expected))return new Response(null,{status:403,headers:noStore});
         const previous=await env.PRIMARY_DB.prepare(
           "SELECT * FROM support_actions WHERE idempotency_key=?"
-        ).bind(input.action.idempotencyKey).first<any>();
+        ).bind(input.action.idempotencyKey).first<{staff_user_id:string;case_id:string;action_type:string;target_id:string}>();
         if(previous&&(
           previous.staff_user_id!==input.staffUserId||
           previous.case_id!==input.action.caseId||

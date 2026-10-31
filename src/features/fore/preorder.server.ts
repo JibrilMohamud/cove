@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Stage-only private owner facade; historical reader and API signatures retained. */
 /* Canonical preorder writers moved to the short-leased private QA owner.
  * The public server has no direct preorder finance/access mutation path. */
 import type {CatalogDB} from "./catalog-model.server";

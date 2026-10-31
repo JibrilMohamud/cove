@@ -169,6 +169,7 @@ export async function dispatchPrivatePreorderAction(
  db:object,action:"ensure-plan"|"register-paid"|"update-lowest"|"customer-cancel"|
   "publisher-cancel"|"lease-refunds"|"complete-refund"|"advance",
  payload:Record<string,unknown>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Typed private command family has heterogeneous validated receipts.
 ):Promise<any> {
  const context=owners.get(db);
  if(!context)throw new ApiError(503,"Preorder primary writer is not privately owned.");
