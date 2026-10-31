@@ -601,7 +601,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "69a714dcd57bfbadcae1e762b7819bff3b50a320168d08635eab7db2ff421463",
+      "siteId": "695ec96e37c33d89135f22c80c40280949b31c84ba0aa644e39ea519b4131ba7",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 459,
       "functionName": "queueCommercialAudioQc",
@@ -614,7 +614,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "3ed5ad34d2ef6a9980e81b86f5aff9d8a88f8d20e2a76d3f7608b6ec51dad94d",
+      "siteId": "ed706e84d58faa60ee54221f0df76b94d7b434065c772474483701fb841b6553",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 486,
       "functionName": "leaseCommercialAudioQcJobs",
@@ -627,7 +627,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "3c30c27314af6a36b75884bdc12c3eafc5bc88667c7986d82892fc218aa14e1f",
+      "siteId": "b69b8588c46f5cc9af0a0e52ba6633f0c1027310b9f5d234a946d34228fc53ed",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 607,
       "functionName": "uploadCommercialAudioFile",
@@ -640,7 +640,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "47cd77261b1a09f333bb76edd593da39c37e7f9c00461b838cd138e32cd24aea",
+      "siteId": "a2be22de3cb12eb5fbe83e2239c94dcce0960236e57f94fde91796a1c6bc7677",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 632,
       "functionName": "uploadCommercialAudioFile",
@@ -653,7 +653,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "8dfa76a39a5fb2626f5a4e6772ddee59c4fafa42b73139a884cf439f4eec40e7",
+      "siteId": "f5b302e277a26a09484e554ad8567660302de5d5229110d00cd8b2b7485fea23",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 647,
       "functionName": "uploadCommercialAudioFile",
@@ -666,7 +666,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "73318f2a1e1c33bb338cd79642f301c2237db2b535958f178c62b7dab02f63b4",
+      "siteId": "d1a6330f5908b6d42f8e0698919d9044f0ce0a0baade3651c9ede5766e24d530",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 667,
       "functionName": "uploadCommercialAudioFile",
@@ -679,7 +679,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "4e5d0bcdfa82183b7c37532b6525aeade344c779af657f1cac8feec79e43b8fb",
+      "siteId": "b8eaa78e13bdffa5c4136dfcb38f1fc48a8e912a3279ba2cc10cf7ccd021de06",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 689,
       "functionName": "uploadCommercialAudioFile",
@@ -692,7 +692,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "c136cb8f6391f4459590edc24d86042cfdde6914d68f807e60247ab8bb7d82d0",
+      "siteId": "2d874c6500d9463c0bc122473dc4b0ccb43ad2fe1862548b027d2df61a24d208",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 779,
       "functionName": "completeCommercialAudioQc",
@@ -705,7 +705,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "c2c5f89fabb0f7ef8b2b86d4951a6f76158b34ffa310160198155cd391af1998",
+      "siteId": "8d9199d8eb57f0ded81a6cf42300e49d283a4223bc062813b83f073a02f873e1",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 796,
       "functionName": "completeCommercialAudioQc",
@@ -718,7 +718,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "46972a87d00d783e4e3c7f20595c795abbef6422fbbd00065cec58bcb070a240",
+      "siteId": "ca299da2792a529bbb1dc80892f031ed9301ff723a05b6a8d276ad6ec4fd150b",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 854,
       "functionName": "completeCommercialAudioQc",
@@ -731,7 +731,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "395ef2df5333afcedfadc6f90caea7b74e40cad56cba5f84a4d84074e8272cb4",
+      "siteId": "a0ea5679ec323462cbddbc37c29ef9f1d1f3100331f18e0c267722645f15827e",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 877,
       "functionName": "completeCommercialAudioQc",
@@ -744,7 +744,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "96db3f247f0b5f9ffad19f0677e7dc3a071e3d7c40d3bf955743e3f70d0a49a1",
+      "siteId": "442d27f2f11516ad28665d6c972400d0eb2416a515073c00ffd258f28176be2d",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 891,
       "functionName": "completeCommercialAudioQc",
@@ -757,7 +757,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "bd6134723e2ac06739f929b9134cf2226a8a4e4596d78bd44c0214ecee9db53e",
+      "siteId": "1511fbc3554e867bce81da0eb9263f3aed971ffdfb1ccea01fc7aaa25a4fd95e",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 897,
       "functionName": "completeCommercialAudioQc",
@@ -770,7 +770,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "49b738c4e9908d6e649bb6b3ff8dc2c13dcc6cfb1bd182da5ea5d844725adb63",
+      "siteId": "a2ecdcda2d2fa30064908730512faae45cc474a3d4cafc7dbff9e0db8d5113c4",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 1651,
       "functionName": "handleCommercialAudio",
@@ -782,7 +782,7 @@
       "reason": "This exact SQLite statement mutates only buyer-scoped audiobook listening position (chapter, seconds, speed, version, timestamp) or deletes a deleting account's position. It never grants rights, access, delivery tokens, asset availability or entitlements. The production audio endpoint separately requires authentication, current entitlements, risk check and private owner permission before writes; source-bound SQL, optimistic concurrency, unrelated buyer and revoked-entitlement behavior are exercised in scripts/check-audio-playback-remaining-nonauthorizing.mjs. The enclosing account deletion transaction remains owner-required for its other protected mutations."
     },
     {
-      "siteId": "0b39d87f29e22504d67751d19b744a0a5d6dfe81f0eaff60979da404ded87f94",
+      "siteId": "16a98c49451ae4b53a9060e9ea5d3ff94a9a0c6190562a27c602ceb4aaa4a420",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 1658,
       "functionName": "handleCommercialAudio",
@@ -794,7 +794,7 @@
       "reason": "This exact SQLite statement mutates only buyer-scoped audiobook listening position (chapter, seconds, speed, version, timestamp) or deletes a deleting account's position. It never grants rights, access, delivery tokens, asset availability or entitlements. The production audio endpoint separately requires authentication, current entitlements, risk check and private owner permission before writes; source-bound SQL, optimistic concurrency, unrelated buyer and revoked-entitlement behavior are exercised in scripts/check-audio-playback-remaining-nonauthorizing.mjs. The enclosing account deletion transaction remains owner-required for its other protected mutations."
     },
     {
-      "siteId": "9d8b8315a27ee0a5b4ab82c06fe6b3c0243106125272ef56229c39ad60c384b8",
+      "siteId": "4d6e8359b2baab929fc468e3cf07dca38a01528f35866ed264d05b00c99f7c96",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 1903,
       "functionName": "handleCommercialAudio",
@@ -807,7 +807,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "068e62a1428d3f88d13edf0b60f8f93168998e60b4f1f1c5f98422c723ca672c",
+      "siteId": "90eb4cbf36f31a057b75783b896ef6713ab93d9ff1b5f6c91623fa84b6154227",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 1908,
       "functionName": "handleCommercialAudio",
@@ -820,7 +820,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "1dc5b843eacea5a2dfb8b01fa5ff37cfe1276320b0957e8238ecf3fb972fbca1",
+      "siteId": "4131c25b96e2a58ea3068145876f0caa1923dd236aaeaa4a237833a4b8f88ad7",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 2088,
       "functionName": "saveCommercialBiosyncLink",

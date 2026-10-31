@@ -1,7 +1,7 @@
 {
   "schema": "cove.retired-owner-audio-metadata.v1",
   "sourceFile": "src/features/fore/commercial-audio.server.ts",
-  "sourceSha256": "ed683776f494d30ebbea6e675675fef731b29dc3f706a7bc034bbc3ef63f0bf6",
+  "sourceSha256": "15349e1eb7749b1bcceb6f518b22cd304bfdae87267588a22ccde1bc1cc62992",
   "productionReleaseEligible": false,
   "removedCount": 6,
   "rows": [

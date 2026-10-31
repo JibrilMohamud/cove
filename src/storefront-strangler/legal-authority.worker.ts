@@ -3906,6 +3906,7 @@ function personalImportStatements(
 
 /** QA-private, independently authorizing publisher audiovisual metadata. No public
  * route, caller-supplied SQL, or production lease can reach these mutations. */
+/* eslint-disable @typescript-eslint/no-explicit-any -- Historical D1 row shapes in the isolated, QA-leased audiobook owner clone. */
 const privateAudioMetadata=(()=>{
   const now=()=>new Date().toISOString();
 const id = (p: string) => `${p}_${crypto.randomUUID()}`;
@@ -4258,6 +4259,7 @@ async function refreshAgreementStatus(db: CoveEnv["DB"], editionId: string) {
 
   return {saveCommercialAudioProfile,replaceCommercialAudioNarrators,addNarrationAgreement,endNarrationAgreement};
 })();
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
   private publicationExecutions=new Set<string>();

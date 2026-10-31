@@ -1,5 +1,5 @@
 import { z } from "zod/v3";
-import {dispatchCommercialAudioMetadata} from "../../storefront-strangler/publication-owner-routing.server";
+import { dispatchCommercialAudioMetadata } from "../../storefront-strangler/publication-owner-routing.server";
 import type { CoveEnv } from "./api.server";
 import { ApiError, now } from "./service";
 import { resolveProductRights } from "./rights.server";
@@ -171,19 +171,23 @@ export async function commercialAudioPublisherSnapshot(
 }
 
 export async function saveCommercialAudioProfile(db: CoveEnv["DB"], userId: string, raw: unknown) {
-  return dispatchCommercialAudioMetadata(db,"profile",userId,raw);
+  return dispatchCommercialAudioMetadata(db, "profile", userId, raw);
 }
 
-export async function replaceCommercialAudioNarrators(db: CoveEnv["DB"], userId: string, raw: unknown) {
-  return dispatchCommercialAudioMetadata(db,"narrators",userId,raw);
+export async function replaceCommercialAudioNarrators(
+  db: CoveEnv["DB"],
+  userId: string,
+  raw: unknown,
+) {
+  return dispatchCommercialAudioMetadata(db, "narrators", userId, raw);
 }
 
 export async function addNarrationAgreement(db: CoveEnv["DB"], userId: string, raw: unknown) {
-  return dispatchCommercialAudioMetadata(db,"agreement-add",userId,raw);
+  return dispatchCommercialAudioMetadata(db, "agreement-add", userId, raw);
 }
 
 export async function endNarrationAgreement(db: CoveEnv["DB"], userId: string, raw: unknown) {
-  return dispatchCommercialAudioMetadata(db,"agreement-end",userId,raw);
+  return dispatchCommercialAudioMetadata(db, "agreement-end", userId, raw);
 }
 async function queueCommercialAudioQc(db: CoveEnv["DB"], editionId: string) {
   const at = now();
