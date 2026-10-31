@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { build } from "esbuild";
 import { localBindings } from "./local-api.mjs";
-import {respondQaPrivateIngestState} from "./staging/qa-private-ingest-state-fixture.mjs";
+import {respondQaPrivateIngestState,respondQaUsEpubCompletion} from "./staging/qa-private-ingest-state-fixture.mjs";
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "cove-coverage-"));
 const fetchBefore = globalThis.fetch;
 try {
@@ -127,6 +127,8 @@ try {
       assert.equal(request.method, "POST");
       const pathname=new URL(request.url).pathname;
       if(pathname==="/catalog/private-ingest-state")return respondQaPrivateIngestState(rawEnv.DB,request);
+       if(pathname==="/catalog/complete-us-epub-ingest")
+         return respondQaUsEpubCompletion(rawEnv.DB,rawEnv.BUCKET,request,secret,validateStoredEpub);
       assert.equal(pathname, "/catalog/normalize-gutenberg");
       assert.equal(request.headers.get("authorization"), "Bearer " + secret);
       const { sourceId, operationId } = await request.json();

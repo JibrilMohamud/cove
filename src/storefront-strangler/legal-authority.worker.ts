@@ -18535,7 +18535,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         const db=env.PRIMARY_DB;
         if(!env.BUCKET)return new Response(null,{status:503,headers:noStore});
         const eligible=await db.prepare(
-          "SELECT c.id FROM gutenberg_source_cache c WHERE c.id=? AND c.source_id='pg_us' AND c.copyright=0 AND c.rights_status='public-domain' AND c.commercial_use_status='approved' AND c.ingest_status='active' AND EXISTS(SELECT 1 FROM gutenberg_rights_evidence e WHERE e.cache_id=c.id AND e.status='approved' AND e.determination='public-domain' AND e.territory_code='US') LIMIT 1"
+          "SELECT c.id FROM gutenberg_source_cache c JOIN gutenberg_sources s ON s.id=c.source_id AND s.enabled=1 WHERE c.id=? AND c.source_id='pg_us' AND c.copyright=0 AND c.rights_status='public-domain' AND c.commercial_use_status='approved' AND c.ingest_status='active' AND c.epub_status='downloading' AND c.rights_territories_json='[\"US\"]' AND EXISTS(SELECT 1 FROM gutenberg_rights_evidence e WHERE e.cache_id=c.id AND e.status='approved' AND e.determination='public-domain' AND e.territory_code='US') LIMIT 1"
         ).bind(input.cacheId).first<{id:string}>();
         if(!eligible)return new Response(null,{status:409,headers:noStore});
         // Object location and version are fixed by the owner. No caller-supplied
@@ -18551,7 +18551,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         if(actual!==input.sha256)return new Response(null,{status:409,headers:noStore});
         const at=now();
         const result=await db.prepare(
-          "UPDATE gutenberg_source_cache SET epub_status='completed',epub_cached_at=?,epub_last_error='',epub_next_attempt_at='',content_hash=?,canonicalization_version='pgus-upstream-v1' WHERE id=? AND source_id='pg_us' AND copyright=0 AND rights_status='public-domain' AND commercial_use_status='approved' AND ingest_status='active' AND EXISTS(SELECT 1 FROM gutenberg_rights_evidence e WHERE e.cache_id=gutenberg_source_cache.id AND e.status='approved' AND e.determination='public-domain' AND e.territory_code='US')"
+          "UPDATE gutenberg_source_cache SET epub_status='completed',epub_cached_at=?,epub_last_error='',epub_next_attempt_at='',content_hash=?,canonicalization_version='pgus-upstream-v1' WHERE id=? AND source_id='pg_us' AND copyright=0 AND rights_status='public-domain' AND commercial_use_status='approved' AND ingest_status='active' AND epub_status='downloading' AND rights_territories_json='[\"US\"]' AND EXISTS(SELECT 1 FROM gutenberg_rights_evidence e WHERE e.cache_id=gutenberg_source_cache.id AND e.status='approved' AND e.determination='public-domain' AND e.territory_code='US')"
         ).bind(at,input.sha256,input.cacheId).run();
         if(Number((result as {meta?:{changes?:number}})?.meta?.changes||0)!==1)
           return new Response(null,{status:409,headers:noStore});
