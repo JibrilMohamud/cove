@@ -20725,25 +20725,21 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           return new Response(null,{status:409,headers:noStore});
         // Persisted buyer risk is reused across retries. The first evaluation
         // is owner-invoked, rather than a stale caller-supplied risk verdict.
+        // Private owner re-enters only the independently authenticated risk
+        // assessment / negative hold routes on this same Durable Object.
+        // An unbound raw PRIMARY_DB cannot dispatch its own risk updates.
+        const localRiskDb=bindPublicationOwner(db,{
+          owner:{fetch:async(req:Request)=>{
+            const route=new URL(req.url).pathname;
+            if(route!=="/risk/private-apply-assessment"&&
+               route!=="/risk/private-create-hold")
+              return new Response(null,{status:403,headers:noStore});
+            return this.fetch(req);
+          }},
+          secret:String(env.COVE_RIGHTS_OWNER_SECRET),territory:"US",currency:"USD"
+        });
         const risk=order.risk_assessment_id&&order.risk_action?
           {action:order.risk_action}:
-          // The QA private owner must apply its own independently validated
-          // risk command. A raw PRIMARY_DB cannot resolve an external owner
-          // dispatch, and a shared D1 fallback would be an authorization bypass.
-          // This narrowly scoped facade permits only the two risk commands to
-          // re-enter this SAME authenticated Durable Object. No other caller
-          // receives the facade and every risk transition still passes the
-          // exact private owner policy/hold predicates.
-          const localRiskDb=bindPublicationOwner(db,{
-            owner:{fetch:async(req:Request)=>{
-              const route=new URL(req.url).pathname;
-              if(route!=="/risk/private-apply-assessment"&&
-                 route!=="/risk/private-create-hold")
-                return new Response(null,{status:403,headers:noStore});
-              return this.fetch(req);
-            }},
-            secret:String(env.COVE_RIGHTS_OWNER_SECRET),territory:"US",currency:"USD"
-          });
           await assessBuyerOrderRisk(localRiskDb,order.id);
         if(!["allow","monitor","challenge","hold","block"].includes(risk.action))
           throw Error("owner_checkout_unknown_risk_action");
