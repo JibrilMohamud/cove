@@ -107,5 +107,31 @@
     "partner feed intake and 25MB upload transaction until private R2 staged proof",
     "large partner media upload and R2 object expectation matching",
     "contract assignment and public domain canonical edition assertion"
+  ],
+  "transferredNonAuthorizingAudit": [
+    {
+      "siteId": "459cb4d7b0a881b3f541426128dc8bb5f014a4cb82a7e025f912a7dd5ed3ff7e",
+      "functionName": "submitPartnerFeed",
+      "table": "publisher_validation_responses",
+      "operation": "INSERT INTO",
+      "sqlSha256": "9b62e7340a1298d0887944f2665b5247fca14e5e887776a0b155b7ecb44b9a68",
+      "disposition": "non-authorizing-write"
+    },
+    {
+      "siteId": "35601bcd91c1c169aceee4167c6865dab93adbfe2bf8a0300d6ba0d42765505c",
+      "functionName": "submitPartnerFeed",
+      "table": "publisher_validation_responses",
+      "operation": "INSERT INTO",
+      "sqlSha256": "9b62e7340a1298d0887944f2665b5247fca14e5e887776a0b155b7ecb44b9a68",
+      "disposition": "non-authorizing-write"
+    },
+    {
+      "siteId": "2ef92135562f9136319cb9cfe00276e549929e8114e6cc448e91b29594f321ee",
+      "functionName": "assignPublisherContract",
+      "table": "rights_contract_audit",
+      "operation": "INSERT INTO",
+      "sqlSha256": "353bbf7b541a04c9e2d7d370caaa476e0d06f643858068959d59dcc77eb36484",
+      "disposition": "non-authorizing-write"
+    }
   ]
 }
