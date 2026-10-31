@@ -18554,7 +18554,8 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           db.prepare("UPDATE asset_versions SET object_key=?,sha256=? WHERE id=? AND EXISTS(SELECT 1 FROM digital_assets da JOIN products p ON p.edition_id=da.edition_id JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE da.id=asset_versions.asset_id AND da.kind='epub' AND p.source_name='gutenberg' AND c.id=? AND c.source_id='pg_us' AND c.copyright=0 AND c.rights_status='public-domain' AND c.commercial_use_status='approved' AND c.ingest_status='active')")
             .bind(objectKey,input.sha256,input.assetVersionId,input.cacheId)
         ]);
-        if(result.some(x=>Number((x as {meta?:{changes?:number}})?.meta?.changes||0)!==1))
+        const outcomes=result as Array<{meta?:{changes?:number}}>;
+        if(outcomes.some(x=>Number(x.meta?.changes||0)!==1))
           return new Response(null,{status:409,headers:noStore});
         return Response.json({schema:"cove.owner-us-epub-cache.v1",ownerFirst:true,
           cacheId:input.cacheId,assetVersionId:input.assetVersionId,
