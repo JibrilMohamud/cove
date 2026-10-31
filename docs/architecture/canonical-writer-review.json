@@ -2644,9 +2644,9 @@
       "reason": "New exact canonical presentation projection inside the private QA-only materialization executor; derived from canonical rows under the durable publication hold. Runtime import containment is checked. This does not close any historical production writer."
     },
     {
-      "siteId": "08a473016c7f35c60a567ac1abfa7fd324e2938703b9052887f28363ad53a13b",
+      "siteId": "bede3c96c119cae339febbd776604b6e055e431dce5df5d0827b51749a8e2b2b",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 762,
+      "line": 763,
       "functionName": "disputeEvent",
       "table": "rights_dispute_events",
       "operation": "INSERT INTO",
@@ -2656,9 +2656,9 @@
       "reason": "Dispute timeline event records do not change the dispute, product, contract, or entitlement state."
     },
     {
-      "siteId": "562eba2d0f538ede377c0b3c1f3cdcd14ada692db13c58724c78149c4a80bdec",
+      "siteId": "f86bc05b93b7966bee617de3e8b8959698a2002b044a3a93ce7f293bb36aea51",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 785,
+      "line": 786,
       "functionName": "notify",
       "table": "rights_notification_jobs",
       "operation": "INSERT INTO",
@@ -2668,9 +2668,9 @@
       "reason": "Legal notification delivery queue changes notification status only; dispute and publication transitions remain separate owner-required writes."
     },
     {
-      "siteId": "2251dd4dd371f317a8a75db8c47b0e246ebc134c5445220d9379ab30571397a9",
+      "siteId": "4203149a248779711c92cc1d236aed0b984be960bd3944e82934f14336a9c3de",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1025,
+      "line": 1026,
       "functionName": "leaseRightsNotificationJobs",
       "table": "rights_notification_jobs",
       "operation": "UPDATE",
@@ -2680,9 +2680,9 @@
       "reason": "Legal notification delivery queue changes notification status only; dispute and publication transitions remain separate owner-required writes."
     },
     {
-      "siteId": "afd148cf4cf94792434e8a42e95a8bff698e05c56bcba79a5ad588fab3cfdc61",
+      "siteId": "8905a6e93b4d92edec1ddb7860c5419fabacc9d7a6a049f794010e6193535d77",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1041,
+      "line": 1042,
       "functionName": "leaseRightsNotificationJobs",
       "table": "rights_notification_jobs",
       "operation": "UPDATE",
@@ -2692,9 +2692,9 @@
       "reason": "Legal notification delivery queue changes notification status only; dispute and publication transitions remain separate owner-required writes."
     },
     {
-      "siteId": "19688020800ab17fac238b0583127fe2e2b5749e26a45b5d6c8b11dc3d775111",
+      "siteId": "1285afa7557c6897760565544d0b3a753dd9fac1016ee0727ee47c2abef82e21",
       "file": "src/features/fore/publishing-trust.server.ts",
-      "line": 1084,
+      "line": 1085,
       "functionName": "completeRightsNotificationJob",
       "table": "rights_notification_jobs",
       "operation": "UPDATE",
