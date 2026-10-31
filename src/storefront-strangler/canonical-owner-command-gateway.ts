@@ -242,6 +242,14 @@ const routes={
     cycleStartedAt:z.string().datetime(),leaseToken:z.string().uuid(),
     runId:z.string().regex(/^gir_[0-9a-f-]{36}$/)
   }).strict()},
+  "catalog.verify-regional-rights-evidence":{
+    path:"/catalog/private-regional-rights-evidence",
+    schema:z.object({
+      cacheId:z.string().regex(/^(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90}$/),
+      sha256:z.string().regex(/^[a-f0-9]{64}$/),
+      canonicalizationVersion:z.enum(["regional-gutenberg-v2","regional-gutenberg-html-v1"])
+    }).strict()
+  },
   "catalog.negative-source":{path:"/catalog/negative-source",schema:z.object({
     action:z.enum(["quarantine-regional","mark-us-retry"]),
     cacheId:source,reason:z.string().max(500)
@@ -558,6 +566,14 @@ export async function dispatchCanonicalOwnerCommand(
       if(ack.schema!=="cove.owner-catalog-stale-denial.v1"||ack.ownerFirst!==true||
          ack.sourceId!==body.sourceId||ack.runId!==body.runId||ack.denied!==true||
          !Number.isSafeInteger(ack.staleCount)||Number(ack.staleCount)<0)
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "catalog.verify-regional-rights-evidence":
+      if(ack.schema!=="cove.owner-regional-rights-evidence.v1"||
+         ack.ownerFirst!==true||ack.cacheId!==body.cacheId||
+         ack.sha256!==body.sha256||ack.verified!==true||
+         typeof ack.evidenceId!=="string"||!Array.isArray(ack.territories)||
+         !ack.territories.length||ack.territories.some((t:unknown)=>typeof t!=="string"||!/^[A-Z]{2}$/.test(t)))
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "catalog.negative-source":

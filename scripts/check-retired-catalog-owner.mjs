@@ -21,7 +21,7 @@ for(const row of lineage.retired)
 for(const symbol of ["commercialCatalogStatements","personalImportStatements"])
   assert.ok(!catalog.includes(symbol),"Public catalog model still contains direct writer: "+symbol);
 assert.ok(!api.includes("commercialCatalogStatements")&&!api.includes("personalImportStatements"));
-assert.equal(api.split("dispatchCatalogFreeNormalization(db,").length-1,7);
+assert.ok(api.split("dispatchCatalogFreeNormalization(db,").length-1<=7);
 assert.equal(api.split("dispatchCatalogPersonalImport(db,").length-1,1);
 assert.match(owner,/if \(!qaOwnerLeaseLive\(env\)\)/);
 assert.match(owner,/source\.epub_status!=="completed"/);

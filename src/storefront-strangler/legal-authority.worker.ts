@@ -17707,6 +17707,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/delivery/private-negative",
       "/catalog/withdraw-stale",
       "/catalog/negative-source",
+      "/catalog/private-regional-rights-evidence",
       "/moderation/private-action",
       "/support/private-action",
       "/publishing/contract/save-version",
@@ -18647,6 +18648,170 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         ]);
         return Response.json({schema:"cove.owner-private-market-admin.v1",ownerFirst:true,
           countryCode:m.countryCode,operationId:input.operationId,saved:true},{headers:noStore});
+      }
+      if(route==="/catalog/private-regional-rights-evidence"){
+        // An independently verified regional copyright determination is
+        // required in addition to R2 integrity and current source metadata.
+        // This never accepts a caller-selected country or an asserted right.
+        const x=z.object({
+          cacheId:z.string().regex(/^(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90}$/),
+          sha256:z.string().regex(/^[a-f0-9]{64}$/),
+          canonicalizationVersion:z.enum(["regional-gutenberg-v2","regional-gutenberg-html-v1"])
+        }).strict().parse(raw);
+        const db=env.PRIMARY_DB,at=now();
+        const cache=await db.prepare(
+          "SELECT c.id,c.source_id,c.source_item_id,c.source_url,c.rights_evidence_url,c.rights_territories_json,c.source_metadata_json,c.copyright,c.epub_status,c.ingest_status,c.rights_status,c.commercial_use_status FROM gutenberg_source_cache c JOIN gutenberg_sources s ON s.id=c.source_id AND s.enabled=1 WHERE c.id=? AND c.source_id IN ('pg_ca','pg_au','pg_eu') AND c.copyright=0 AND c.ingest_status<>'quarantined' AND c.rights_status<>'quarantined' AND c.epub_status IN ('downloading','completed')"
+        ).bind(x.cacheId).first<{
+          id:string;source_id:"pg_ca"|"pg_au"|"pg_eu";source_item_id:string;
+          source_url:string;rights_evidence_url:string;
+          rights_territories_json:string;source_metadata_json:string;
+          copyright:number;epub_status:string;ingest_status:string;
+          rights_status:string;commercial_use_status:string
+        }>();
+        if(!cache||!env.BUCKET)return new Response(null,{status:409,headers:noStore});
+        let territories:string[],metadata:Record<string,unknown>;
+        try{
+          const t=JSON.parse(cache.rights_territories_json),m=JSON.parse(cache.source_metadata_json);
+          if(!Array.isArray(t)||!m||Array.isArray(m)||typeof m!=="object")
+            throw Error("invalid");
+          territories=[...new Set(t.map((v:unknown)=>String(v).toUpperCase()))];
+          metadata=m as Record<string,unknown>;
+          if(!territories.length||territories.length>50||
+             territories.some(t=>!/^[A-Z]{2}$/.test(t)||marketIsWithdrawn(sql,t)))
+            throw Error("territory_denied");
+          const rightsUrl=new URL(cache.rights_evidence_url||cache.source_url);
+          if(rightsUrl.protocol!=="https:"||rightsUrl.username||rightsUrl.password)
+            throw Error("untrusted_evidence_origin");
+        }catch{return new Response(null,{status:409,headers:noStore});}
+        const object=await env.BUCKET.get("epubs/"+x.cacheId+".epub");
+        if(!object||!Number.isSafeInteger(object.size)||object.size<100||
+           object.size>30*1024*1024)return new Response(null,{status:409,headers:noStore});
+        const bytes=new Uint8Array(await object.arrayBuffer());
+        if(bytes.byteLength!==object.size)return new Response(null,{status:409,headers:noStore});
+        await validateStoredEpub(bytes);
+        const actualBytes=new Uint8Array(await crypto.subtle.digest("SHA-256",bytes));
+        const actual=Array.from(actualBytes,b=>b.toString(16).padStart(2,"0")).join("");
+        if(actual!==x.sha256)return new Response(null,{status:409,headers:noStore});
+        // The private owner independently inspects the archive, not metadata
+        // or MIME type asserted by the regional feed writer.
+        const revalidated=await canonicalizeRegionalEpub(bytes,cache.source_id);
+        if(!revalidated.metadata?.title||!revalidated.metadata?.authors)
+          return new Response(null,{status:409,headers:noStore});
+        const settings=env as unknown as{
+          COVE_REGIONAL_RIGHTS_VERIFIER_URL?:string;
+          COVE_REGIONAL_RIGHTS_VERIFIER_TOKEN?:string
+        };
+        if(!settings.COVE_REGIONAL_RIGHTS_VERIFIER_URL||
+           !settings.COVE_REGIONAL_RIGHTS_VERIFIER_TOKEN)
+          return new Response(null,{status:409,headers:noStore});
+        let url:URL;
+        try{
+          url=new URL(settings.COVE_REGIONAL_RIGHTS_VERIFIER_URL);
+          if(url.protocol!=="https:"||url.username||url.password||url.hash)
+            throw Error("invalid_verifier");
+        }catch{return new Response(null,{status:409,headers:noStore});}
+        url.searchParams.set("cache_id",x.cacheId);
+        url.searchParams.set("source_id",cache.source_id);
+        url.searchParams.set("source_item_id",cache.source_item_id);
+        url.searchParams.set("epub_sha256",x.sha256);
+        const response=await fetch(url.toString(),{
+          method:"GET",redirect:"manual",
+          headers:{"authorization":"Bearer "+settings.COVE_REGIONAL_RIGHTS_VERIFIER_TOKEN,
+            "accept":"application/json","cache-control":"no-store"}
+        }).catch(()=>null);
+        if(!response||response.status!==200||
+           Number(response.headers.get("content-length")||0)>16384)
+          return new Response(null,{status:409,headers:noStore});
+        const text=await response.text();
+        if(text.length>16384)return new Response(null,{status:409,headers:noStore});
+        let proof:Record<string,unknown>;
+        try{
+          const parsed=JSON.parse(text);
+          if(!parsed||Array.isArray(parsed)||typeof parsed!=="object")
+            throw Error("invalid_proof");
+          proof=parsed as Record<string,unknown>;
+        }catch{return new Response(null,{status:409,headers:noStore});}
+        const verifiedAt=Date.parse(String(proof.verifiedAt||""));
+        if(proof.decision!=="public-domain"||proof.status!=="approved"||
+           proof.cacheId!==x.cacheId||proof.sourceId!==cache.source_id||
+           proof.sourceItemId!==cache.source_item_id||
+           proof.epubSha256!==x.sha256||proof.canonicalizationVersion!==x.canonicalizationVersion||
+           proof.evidenceUrl!==(cache.rights_evidence_url||cache.source_url)||
+           proof.rightsFingerprint!==String(metadata.rightsFingerprint||"")||
+           proof.evidenceDigest!==String(metadata.evidenceDigest||"")||
+           proof.catalogHash!==String(metadata.catalogHash||"")||
+           !Array.isArray(proof.territories)||
+           JSON.stringify([...new Set((proof.territories as unknown[]).map(String))].sort())!==
+             JSON.stringify([...territories].sort())||
+           !Number.isFinite(verifiedAt)||verifiedAt>Date.now()+60_000||
+           verifiedAt<Date.now()-60*60_000||
+           (cache.source_id==="pg_eu"&&
+             (proof.evidenceType!=="operator-review"||
+              typeof proof.approverId!=="string"||proof.approverId.length<8)))
+          return new Response(null,{status:409,headers:noStore});
+        const editionId=catalogIds(x.cacheId).editionId,
+          grantSource="gutenberg-"+cache.source_id+"-public-domain";
+        // A previously suspended or revoked right can only be reinstated by
+        // legally newer evidence. Never automatically reuse an old approval.
+        const negatives=(await db.prepare(
+          "SELECT status,updated_at FROM rights_grants WHERE edition_id=? AND source=? AND status IN ('suspended','revoked','withdrawn')"
+        ).bind(editionId,grantSource).all<{status:string;updated_at:string}>()).results;
+        if(negatives.some(r=>!r.updated_at||verifiedAt<=Date.parse(r.updated_at)))
+          return new Response(null,{status:409,headers:noStore});
+        const evidences:ReturnType<typeof db.prepare>[]=[];
+        let firstEvidenceId="";
+        for(const territory of territories){
+          const material=JSON.stringify({
+            sourceId:cache.source_id,sourceItemId:cache.source_item_id,territory,
+            evidenceUrl:cache.rights_evidence_url,
+            itemFingerprint:metadata.rightsFingerprint||"",
+            evidenceDigest:metadata.evidenceDigest||"",
+            catalogHash:metadata.catalogHash||"",
+            canonicalContentHash:x.sha256
+          });
+          const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(material)));
+          const hash=Array.from(digest,b=>b.toString(16).padStart(2,"0")).join("");
+          const evidenceId="gre_"+cache.source_id+"_"+territory.toLowerCase()+"_"+x.cacheId+"_"+hash.slice(0,12);
+          if(!firstEvidenceId)firstEvidenceId=evidenceId;
+          evidences.push(db.prepare(
+            "INSERT OR IGNORE INTO gutenberg_rights_evidence(id,source_id,cache_id,source_item_id,determination,territory_code,evidence_url,evidence_type,evidence_hash,parser_version,status,checked_at,created_at) VALUES(?,?,?,?,'public-domain',?,?,?,?,'regional-gutenberg-v1','approved',?,?)"
+          ).bind(evidenceId,cache.source_id,x.cacheId,cache.source_item_id,
+            territory,cache.rights_evidence_url||cache.source_url,
+            cache.source_id==="pg_eu"?"operator-review":"source-catalog",hash,at,at));
+        }
+        // A single initial transaction retires any old source grant before
+        // new positive metadata becomes readable by normalization.
+        const claim=(await db.batch([
+          db.prepare("UPDATE rights_grants SET status='suspended',updated_at=? WHERE edition_id=? AND source=? AND status='active'")
+            .bind(at,editionId,grantSource),
+          ...evidences,
+          db.prepare("UPDATE gutenberg_source_cache SET rights_status='public-domain',commercial_use_status='approved',rights_checked_at=?,rights_evidence_id=?,canonicalization_version=?,content_hash=?,epub_status='completed',epub_cached_at=?,epub_last_error='',epub_next_attempt_at='',ingest_status='active',last_error='' WHERE id=? AND source_id=? AND copyright=0 AND ingest_status<>'quarantined' AND rights_status<>'quarantined' AND epub_status IN ('downloading','completed')")
+            .bind(at,firstEvidenceId,x.canonicalizationVersion,x.sha256,at,x.cacheId,cache.source_id)
+        ])) as Array<{meta?:{changes?:number}}>;
+        if(claim.length!==territories.length+2||
+           Number(claim[claim.length-1].meta?.changes||0)!==1)
+          return new Response(null,{status:409,headers:noStore});
+        // The same private owner normalizer derives products/editions/grants
+        // from the just-approved legal record; no public SQL or cross-owner
+        // promise can issue rights before the verified authority is installed.
+        await db.batch(commercialCatalogStatements(db,x.cacheId,at));
+        if(territories.some(t=>marketIsWithdrawn(sql,t)))
+          return new Response(null,{status:409,headers:noStore});
+        const activated=await db.prepare(
+          "UPDATE rights_grants SET status='active',updated_at=?,source_evidence_id=(SELECT ge.id FROM gutenberg_rights_evidence ge JOIN gutenberg_source_cache c ON c.id=ge.cache_id WHERE ge.cache_id=? AND ge.status='approved' AND ge.determination='public-domain' AND upper(ge.territory_code)=upper(rights_grants.territory_code) AND c.rights_status='public-domain' AND c.commercial_use_status='approved' AND EXISTS(SELECT 1 FROM json_each(c.rights_territories_json) jt WHERE upper(jt.value)=upper(ge.territory_code) ) ORDER BY ge.checked_at DESC,ge.created_at DESC,ge.id DESC LIMIT 1) WHERE edition_id=? AND source=? AND status IN ('suspended','pending','active') AND EXISTS(SELECT 1 FROM gutenberg_rights_evidence ge JOIN gutenberg_source_cache c ON c.id=ge.cache_id WHERE ge.cache_id=? AND ge.status='approved' AND ge.determination='public-domain' AND upper(ge.territory_code)=upper(rights_grants.territory_code) AND c.rights_status='public-domain' AND c.commercial_use_status='approved' AND EXISTS(SELECT 1 FROM json_each(c.rights_territories_json) jt WHERE upper(jt.value)=upper(ge.territory_code)))"
+        ).bind(at,x.cacheId,editionId,grantSource,x.cacheId).run();
+        const active=(await db.prepare(
+          "SELECT DISTINCT territory_code FROM rights_grants WHERE edition_id=? AND source=? AND status='active' AND source_evidence_id IN (SELECT id FROM gutenberg_rights_evidence WHERE cache_id=? AND status='approved' AND determination='public-domain')"
+        ).bind(editionId,grantSource,x.cacheId).all<{territory_code:string}>()).results;
+        if(active.length!==territories.length||
+           active.some(r=>!territories.includes(String(r.territory_code).toUpperCase()))){
+          await db.prepare("UPDATE rights_grants SET status='suspended',updated_at=? WHERE edition_id=? AND source=? AND status='active'")
+            .bind(now(),editionId,grantSource).run();
+          return new Response(null,{status:409,headers:noStore});
+        }
+        return Response.json({schema:"cove.owner-regional-rights-evidence.v1",
+          ownerFirst:true,cacheId:x.cacheId,sha256:x.sha256,verified:true,
+          evidenceId:firstEvidenceId,territories},{headers:noStore});
       }
       if(route==="/catalog/verified-regional-epub-metadata") {
         const input=z.object({

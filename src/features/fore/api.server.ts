@@ -1,6 +1,6 @@
 import { dispatchVerifiedFreeLibraryEntitlement } from "../../storefront-strangler/publication-owner-routing.server";
 import { dispatchCatalogObservation } from "../../storefront-strangler/publication-owner-routing.server";
-import { dispatchCatalogRegionalState } from "../../storefront-strangler/publication-owner-routing.server";
+import { dispatchCatalogRegionalState,dispatchPrivateRegionalRightsEvidence } from "../../storefront-strangler/publication-owner-routing.server";
 import { dispatchCatalogVerifiedUsEpub, dispatchCatalogCompletedUsEpub, dispatchVerifiedRegionalEpubMetadata } from "../../storefront-strangler/publication-owner-routing.server";
 import { dispatchCatalogIngestState } from "../../storefront-strangler/publication-owner-routing.server";
 import {
@@ -1319,88 +1319,16 @@ async function insertRegionalEvidence(
   contentHash: string,
   canonicalizationVersion: string,
 ) {
-  const db = database(env);
-  const territories = parseJsonArray(row.rights_territories_json)
-    .map((x) => String(x).toUpperCase())
-    .filter((x) => /^[A-Z]{2}$/.test(x));
-  if (!territories.length)
-    throw new Error("No country-level rights evidence was supplied for this item.");
-  const checkedAt = now();
-  const sourceMetadata = parseJsonObject(row.source_metadata_json || "{}");
-  let firstEvidenceId = "";
-  for (const territory of territories) {
-    const evidenceHash = await sha256Hex(
-      JSON.stringify({
-        sourceId: row.source_id,
-        sourceItemId: row.source_item_id,
-        territory,
-        evidenceUrl: row.rights_evidence_url,
-        itemFingerprint: sourceMetadata.rightsFingerprint || "",
-        evidenceDigest: sourceMetadata.evidenceDigest || "",
-        catalogHash: sourceMetadata.catalogHash || "",
-        canonicalContentHash: contentHash,
-      }),
-    );
-    const evidenceId = `gre_${String(row.source_id).replace(/[^a-z0-9_]/gi, "_")}_${territory.toLowerCase()}_${String(row.id).replace(/[^a-z0-9_]/gi, "_")}_${evidenceHash.slice(0, 12)}`;
-    await db
-      .prepare(
-        `INSERT OR IGNORE INTO gutenberg_rights_evidence(
-      id,source_id,cache_id,source_item_id,determination,territory_code,evidence_url,evidence_type,evidence_hash,parser_version,status,checked_at,created_at
-    ) VALUES(?,?,?,?, 'public-domain',?,?,?,?,'regional-gutenberg-v1','approved',?,?)`,
-      )
-      .bind(
-        evidenceId,
-        row.source_id,
-        row.id,
-        row.source_item_id,
-        territory,
-        row.rights_evidence_url || row.source_url,
-        row.source_id === "pg_eu" ? "operator-review" : "source-catalog",
-        evidenceHash,
-        checkedAt,
-        checkedAt,
-      )
-      .run();
-    if (!firstEvidenceId) firstEvidenceId = evidenceId;
-  }
-  await db
-    .prepare(
-      `UPDATE gutenberg_source_cache SET rights_status='public-domain',commercial_use_status='approved',rights_checked_at=?,rights_evidence_id=?,
-    canonicalization_version=?,content_hash=?,epub_status='completed',epub_cached_at=?,epub_last_error='',epub_next_attempt_at='',ingest_status='active',last_error='' WHERE id=?`,
-    )
-    .bind(checkedAt, firstEvidenceId, canonicalizationVersion, contentHash, checkedAt, row.id)
-    .run();
-  const editionId = catalogIds(String(row.id)).editionId;
-  const grantSource = `gutenberg-${String(row.source_id)}-public-domain`;
-  // Suspend the previous source-derived grant set before rebuilding it from this exact evidence
-  // snapshot. This prevents an old country grant from surviving if upstream jurisdiction evidence
-  // is narrowed on a later verification pass.
-  await db
-    .prepare(
-      `UPDATE rights_grants SET status='suspended',updated_at=? WHERE edition_id=? AND source=? AND status='active'`,
-    )
-    .bind(checkedAt, editionId, grantSource)
-    .run();
-  await dispatchCatalogFreeNormalization(db, String(row.id), checkedAt);
-  await db
-    .prepare(
-      `UPDATE rights_grants SET status='active',updated_at=?,source_evidence_id=(
-      SELECT ge.id FROM gutenberg_rights_evidence ge JOIN gutenberg_source_cache c ON c.id=ge.cache_id
-      WHERE ge.cache_id=? AND ge.status='approved' AND ge.determination='public-domain'
-        AND upper(ge.territory_code)=upper(rights_grants.territory_code)
-        AND EXISTS(SELECT 1 FROM json_each(c.rights_territories_json) jt WHERE upper(jt.value)=upper(ge.territory_code))
-      ORDER BY ge.checked_at DESC,ge.created_at DESC,ge.id DESC LIMIT 1
-    ) WHERE edition_id=? AND source=? AND EXISTS(
-      SELECT 1 FROM gutenberg_rights_evidence ge JOIN gutenberg_source_cache c ON c.id=ge.cache_id
-      WHERE ge.cache_id=? AND ge.status='approved' AND ge.determination='public-domain'
-        AND upper(ge.territory_code)=upper(rights_grants.territory_code)
-        AND EXISTS(SELECT 1 FROM json_each(c.rights_territories_json) jt WHERE upper(jt.value)=upper(ge.territory_code))
-    )`,
-    )
-    .bind(checkedAt, row.id, editionId, grantSource, row.id)
-    .run();
-  await syncEditionTaxonomy(db, editionId);
-  return { territories, evidenceId: firstEvidenceId };
+  // The private owner independently reopens the stored R2 EPUB, obtains fresh
+  // country-level evidence from the configured legal verifier, and performs
+  // the entire evidence/cache/suspend/normalize/reactivate sequence. No shared
+  // D1 positive-rights SQL survives, and missing verifier proof fails closed.
+  const db=database(env);
+  const evidence=await dispatchPrivateRegionalRightsEvidence(db,{
+    cacheId:String(row.id),sha256:contentHash,canonicalizationVersion
+  });
+  await syncEditionTaxonomy(db,catalogIds(String(row.id)).editionId);
+  return evidence;
 }
 
 async function quarantineRegionalItem(env: CoveEnv, id: string, message: string) {
