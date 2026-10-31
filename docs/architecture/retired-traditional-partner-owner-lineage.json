@@ -1,0 +1,111 @@
+{
+  "schema": "cove.retired-partner-qa-owner.v1",
+  "baselineFindings": 126,
+  "ownerRequiredFindings": 113,
+  "retiredCount": 13,
+  "siteReview": [
+    {
+      "siteId": "caf296c95167145624ed6b247e0f9cd8bb72d20e6ea3c4ce6b4c76f50c86b2cc",
+      "functionName": "certifyPartnerProfile",
+      "table": "publisher_partner_credentials",
+      "operation": "UPDATE",
+      "sqlSha256": "75d7604a17db21ca5ecc4c4f9fb2c37bccd37df6144dc8f29db582fd63f77e3d"
+    },
+    {
+      "siteId": "3fd4421db2e135b20a9820b04470c4b4b8f9c87ed01b318912f62a0c4891c2b9",
+      "functionName": "issuePartnerCredential",
+      "table": "publisher_partner_credentials",
+      "operation": "INSERT INTO",
+      "sqlSha256": "0e21eec03ed4865b2459dba17d6671e176c6495b6767aae4bb156c75a34558f5"
+    },
+    {
+      "siteId": "1255b2b3dc214ab7f2d8dae2757d85673dcaa14c94c5183e2202a3a39b4e774f",
+      "functionName": "revokePartnerCredential",
+      "table": "publisher_partner_credentials",
+      "operation": "UPDATE",
+      "sqlSha256": "d3bce19353171c6614bcd7a4a2aae3c88fd11c2339997f396e7b88a17150620f"
+    },
+    {
+      "siteId": "690b85e68195f71f6392d777bdcac9570e48b3196c25798cd5f03ca778b12daf",
+      "functionName": "submitPartnerFeed",
+      "table": "publisher_feed_submissions",
+      "operation": "INSERT INTO",
+      "sqlSha256": "051e44b07997dec831cf8492a958e28bb9d609b4325bf35440cbb17a12d9df5a"
+    },
+    {
+      "siteId": "7738cc8e360ab08420d86c5133a78d6f164b394ad7b5d295b8d71b69faa10d48",
+      "functionName": "submitPartnerFeed",
+      "table": "publisher_feed_items",
+      "operation": "INSERT INTO",
+      "sqlSha256": "613fcbd6f5fdffb38e84644af948cb290501144e4763422a462739bc17038832"
+    },
+    {
+      "siteId": "abe7120b9fff6d19977f2b3ba5e4fcab74165c4f1cebad9d75d302df120e7b52",
+      "functionName": "matchAssetExpectations",
+      "table": "publisher_feed_assets",
+      "operation": "UPDATE",
+      "sqlSha256": "4ee291a19c661c46573d1a342799b3dec8995d7648315924b476b41a8e3fbe16"
+    },
+    {
+      "siteId": "60609b4fdb61ae4f5b2dfe91ce412028fba22e754a4efd844718ace1131932d8",
+      "functionName": "uploadPartnerAsset",
+      "table": "publisher_feed_assets",
+      "operation": "INSERT INTO",
+      "sqlSha256": "0ee036244463a71d48c27c9229358e77249a7395e3be1c4430a001f655390294"
+    },
+    {
+      "siteId": "4c9b0aa41c73b7ffb20426f1f118da6ef215436ebc211afc2f55ae0df25ae8a9",
+      "functionName": "uploadPartnerAsset",
+      "table": "publisher_feed_assets",
+      "operation": "INSERT INTO",
+      "sqlSha256": "9e332dd796eba0fc1800ad0a953e6fa156741ecde9c7eb63f67cbaf40a87fe75"
+    },
+    {
+      "siteId": "2b2d299402fa814af5e3f92859a24ff28d884864f1e2ceee859b1a642b98dd58",
+      "functionName": "assignPublisherContract",
+      "table": "publisher_contract_assignments",
+      "operation": "INSERT INTO",
+      "sqlSha256": "94bccd84bc30d54f4eccb2797599a2e0e67be26f7a3a4fbe2d81014f319aa299"
+    },
+    {
+      "siteId": "9b1f72c5dac1174607149cda2036b1deee9818d61aeabf89db73f088b59c4d85",
+      "functionName": "reconcilePublicDomainWorks",
+      "table": "editions",
+      "operation": "UPDATE",
+      "sqlSha256": "401ac53551838d97d3ea65d0bb22b73fdda35aa400f978e5e755b334e28c920a"
+    },
+    {
+      "siteId": "197cadcbc64658fa983781f1ce2166f4c10e8502bb4e37e8f79ecbcaf7fc1036",
+      "functionName": "reconcilePublicDomainWorks",
+      "table": "publishing_titles",
+      "operation": "UPDATE",
+      "sqlSha256": "394134d917491e979e5c3a322f65c15289162c91b1e8abb9a85ea31744f51b37"
+    },
+    {
+      "siteId": "026f6fa11b797a0e09d80b118c86c578cf7d346671e3983aad0da0414c14cf19",
+      "functionName": "reconcilePublicDomainWorks",
+      "table": "publisher_catalog_mappings",
+      "operation": "UPDATE",
+      "sqlSha256": "ddb5cc43757d77ed3ab0ee27ef3be374aa4282c96df19c00f307e225b387520d"
+    },
+    {
+      "siteId": "dcd35cfc1973ce1b32083cc831fba1e72565da639fce065d58c7a6e9adbb6c06",
+      "functionName": "reconcilePublicDomainWorks",
+      "table": "editions",
+      "operation": "UPDATE",
+      "sqlSha256": "67ddd7ea4ad174c1fb75c216732c3a8cb3a506ea1abd9a77fba480f3c896b4fd"
+    }
+  ],
+  "productionReleaseApproved": false,
+  "allowedQa": [
+    "active staff-verified partner pause and terminate",
+    "account-role-checked negative credential revoke"
+  ],
+  "blockedQa": [
+    "active partner certification",
+    "new sandbox or production credentials until idempotent replay proof",
+    "partner feed intake and 25MB upload transaction until private R2 staged proof",
+    "large partner media upload and R2 object expectation matching",
+    "contract assignment and public domain canonical edition assertion"
+  ]
+}
