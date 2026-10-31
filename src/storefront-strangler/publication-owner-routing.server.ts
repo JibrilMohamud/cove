@@ -162,3 +162,71 @@ export async function dispatchCatalogPersonalImport(db:object,input:{
       "catalog.personal-import",{...input,operationId});
   }catch{throw new ApiError(503,"Private catalog owner did not accept personal import.");}
 }
+
+/** This operation is intentionally NEGATIVE-only until external provider
+ * evidence and an owner-controlled positive verification path are certified. */
+export async function dispatchPublishingOnboardingReview(db:object,command:{
+  reviewerUserId:string;accountId:string;kind:"identity"|"tax"|"payout";
+  recordId:string;status:"verified"|"failed"|"expired"|"manual_review"|"restricted";
+  reasonCode:string;withholdingBps?:number;requirementsDue?:string[];
+}) {
+  const context=owners.get(db);
+  if(!context)throw new ApiError(503,"Publishing onboarding requires a private owner.");
+  const operationId="onboarding:"+crypto.randomUUID();
+  try {
+    const ack=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+      "publishing.review-onboarding",{...command,operationId});
+    return {saved:true,applied:ack.applied===true};
+  }catch {throw new ApiError(503,"Publishing onboarding owner refused unverified decision.");}
+}
+
+/** Publisher actor is derived from authenticated API identity and rechecked
+ * against the current owner-side publishing membership, edition, and evidence. */
+export async function dispatchCommercialAudioMetadata(db:object,
+  action:"profile"|"narrators"|"agreement-add"|"agreement-end",userId:string,payload:unknown){
+  const context=owners.get(db);
+  if(!context)throw new ApiError(503,"Commercial audiobook edits require a private publisher owner.");
+  const operationId="audiometa:"+crypto.randomUUID();
+  try{
+    const ack=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+      "publishing.audio-metadata",{action,userId,payload,operationId});
+    return ack.result as Record<string,unknown>;
+  }catch {throw new ApiError(503,"The private owner did not certify this audiobook metadata change.");}
+}
+
+export async function dispatchPublishingOwnerValidationJob(
+  db:object,action:"lease-validation"|"complete-validation"|"lease-rights-scan"|"complete-rights-scan",
+  payload:unknown) {
+  const context=owners.get(db);
+  if(!context)throw new ApiError(503,"Publishing validation requires its private owner.");
+  try {
+    const receipt=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+      "publishing.worker-jobs",{action,payload,operationId:"publishing-jobs:"+crypto.randomUUID()});
+    return receipt.result as Record<string,unknown>;
+  }catch{throw new ApiError(503,"Private publishing worker did not certify this job.");}
+}
+
+export async function dispatchCommercialAudioQcJob(db:object,action:"lease"|"complete",payload:unknown) {
+  const context=owners.get(db);
+  if(!context)throw new ApiError(503,"Commercial audiobook QC requires its private owner.");
+  try {
+    const receipt=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+      "publishing.audio-qc-jobs",{action,payload,operationId:"audio-qc:"+crypto.randomUUID()});
+    return receipt.result as Record<string,unknown>;
+  }catch{throw new ApiError(503,"Private audio owner did not certify this QC job.");}
+}
+
+export async function dispatchCommercialAudioUploadMetadata(db:object,payload:{
+  userId:string;editionId:string;kind:"chapter"|"preview";title:string;position:number;
+  durationMs:number;sampleRateHz:number;bitrateKbps:number|null;bitrateMode:string;
+  channels:number;rms:number|null;peak:number|null;noise:number|null;filename:string;
+  mime:"audio/mpeg"|"audio/mp4";length:number;sha:string;fileId:string;key:string;
+}) {
+  const context=owners.get(db);
+  if(!context)throw new ApiError(503,"Commercial audio uploads require the private owner.");
+  try {
+    const receipt=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+      "publishing.audio-register-upload",{...payload,operationId:"audio-upload:"+payload.fileId});
+    return receipt.result as Record<string,unknown>;
+  }catch{throw new ApiError(503,"Private owner did not verify the stored audio upload.");}
+}

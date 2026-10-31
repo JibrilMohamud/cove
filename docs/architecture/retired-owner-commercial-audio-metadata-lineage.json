@@ -1,0 +1,63 @@
+{
+  "schema": "cove.retired-owner-audio-metadata.v1",
+  "sourceFile": "src/features/fore/commercial-audio.server.ts",
+  "sourceSha256": "fdc81ae026d2159b0fd2cec92f500b16e52f7bb250927c8e766065bf49e9ceba",
+  "productionReleaseEligible": false,
+  "removedCount": 6,
+  "rows": [
+    {
+      "siteId": "5de6be4333303d73525940c09479032dfe68af1287b81cb6e44c0cdad898beab",
+      "sqlSha256": "fa3da2e09358f7e1ec1e31f0f1ff2173fe92db1cb77492c92d606f34f0f5a87e",
+      "table": "commercial_audio_profiles",
+      "operation": "INSERT INTO",
+      "functionName": "saveCommercialAudioProfile",
+      "line": 228,
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "e40008f9d382745fa19c524505e88083ad203c6965d4f3776069b2b4b6ad957e",
+      "sqlSha256": "23156111af366d6359cde43071f8192c6389370e15d4ea43f191f401bace44eb",
+      "table": "commercial_audio_narrators",
+      "operation": "DELETE FROM",
+      "functionName": "replaceCommercialAudioNarrators",
+      "line": 285,
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "eec988775af1e43140cb9c3bea5b66c21316bb1913deded2bbec443b0fd8a307",
+      "sqlSha256": "62f552007cb24494de83b482ee70a65ed8ff10fef32afa9f629ab2197841ae8d",
+      "table": "commercial_audio_narrators",
+      "operation": "INSERT INTO",
+      "functionName": "replaceCommercialAudioNarrators",
+      "line": 297,
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "c90ee2ec43d0b42156862d9bb930eddd5ba326efe6ea34a99b2df64ddbe6f1c4",
+      "sqlSha256": "9239a108e4271d3580c940a5f9a250c1c84487d74d069c2e116a56e4df8f66a8",
+      "table": "narration_agreements",
+      "operation": "INSERT INTO",
+      "functionName": "addNarrationAgreement",
+      "line": 347,
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "65beb472056d85a0649267cc431b2394bb96730d50aa3dfdac9a71bde35f6d38",
+      "sqlSha256": "1703ccc086a06d7adf9397684e07678e7adf35223b6e4dacb86efed0fec755fa",
+      "table": "narration_agreement_terminations",
+      "operation": "INSERT INTO",
+      "functionName": "endNarrationAgreement",
+      "line": 413,
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "8a51ae5becdf9049be7910238c7e9fe63a4d94a7e827fded5c6e548a1666ab30",
+      "sqlSha256": "1dd6841832a6b5c34ec36a13857a56adecf40409b0cea38556360ccfd10ba205",
+      "table": "commercial_audio_profiles",
+      "operation": "UPDATE",
+      "functionName": "refreshAgreementStatus",
+      "line": 443,
+      "disposition": "owner-command-required"
+    }
+  ]
+}

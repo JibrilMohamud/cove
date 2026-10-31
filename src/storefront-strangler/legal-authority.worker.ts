@@ -29,6 +29,7 @@ import {
 } from "../features/fore/publishing.server";
 import {ownerContractVersionSchema} from "./owner-contract-version-schema";
 import {ApiError} from "../features/fore/service";
+import {mirrorPublishingMalwareResult} from "../features/fore/security.server";
 import {createContractVersionOwnerSchema,executeOwnerContractVersion} from "./owner-contract-version-executor";
 import {createMarketAuthoritySchema,denyMarket,marketIsWithdrawn} from "./market-authority-core";
 import { authorizeStorefrontPresentationIds,catalogIds, type CatalogDB } from "../features/fore/catalog-model.server";
@@ -3903,6 +3904,1005 @@ function personalImportStatements(
 
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+
+/** QA-private, independently authorizing publisher audiovisual metadata. No public
+ * route, caller-supplied SQL, or production lease can reach these mutations. */
+/* eslint-disable @typescript-eslint/no-explicit-any -- Historical D1 row shapes in the isolated, QA-leased audiobook owner clone. */
+const privateAudioMetadata=(()=>{
+  const now=()=>new Date().toISOString();
+const id = (p: string) => `${p}_${crypto.randomUUID()}`;
+const json = (s: any, f: any) => {
+  try {
+    return JSON.parse(String(s || ""));
+  } catch {
+    return f;
+  }
+};
+function stable(value: any): string {
+  if (Array.isArray(value)) return `[${value.map(stable).join(",")}]`;
+  if (value && typeof value === "object")
+    return `{${Object.keys(value)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${stable(value[k])}`)
+      .join(",")}}`;
+  return JSON.stringify(value);
+}
+function validIsbn13(value: string) {
+  if (!/^\d{13}$/.test(value)) return false;
+  const sum = value
+      .split("")
+      .slice(0, 12)
+      .reduce((a, n, i) => a + Number(n) * (i % 2 ? 3 : 1), 0),
+    check = (10 - (sum % 10)) % 10;
+  return check === Number(value[12]);
+}
+async function publishingEdition(
+  db: CoveEnv["DB"],
+  userId: string,
+  editionId: string,
+  write = false,
+) {
+  const row = await db
+    .prepare(
+      `SELECT e.*,t.account_id,t.title,t.subtitle,t.description FROM publishing_edition_drafts e JOIN publishing_titles t ON t.id=e.title_id WHERE e.id=?`,
+    )
+    .bind(editionId)
+    .first<any>();
+  if (!row || row.format !== "audiobook")
+    throw new ApiError(404, "Commercial audiobook edition not found.");
+  const m = await db
+    .prepare(
+      "SELECT role FROM publishing_account_members WHERE account_id=? AND user_id=? AND status='active'",
+    )
+    .bind(row.account_id, userId)
+    .first<any>();
+  if (!m || (write && !["owner", "admin", "editor"].includes(String(m.role))))
+    throw new ApiError(403, "You do not have permission to manage this audiobook.");
+  return row;
+}
+function requireAudioEditable(edition: any) {
+  if (!["draft", "changes_requested"].includes(String(edition.status)))
+    throw new ApiError(
+      409,
+      "Open a publishing update before changing commercial audiobook metadata, files, narrators, or agreements.",
+    );
+  return edition;
+}
+async function requireAudioProfile(db: CoveEnv["DB"], editionId: string) {
+  const p = await db
+    .prepare("SELECT 1 ok FROM commercial_audio_profiles WHERE edition_id=?")
+    .bind(editionId)
+    .first<any>();
+  if (!p)
+    throw new ApiError(
+      409,
+      "Save the commercial audiobook profile before adding narrators, agreements, or audio files.",
+    );
+}
+
+async function saveCommercialAudioProfile(db: CoveEnv["DB"], userId: string, raw: unknown) {
+  const x = z
+      .object({
+        editionId: z.string().min(1),
+        audioPublisher: z.string().trim().min(1).max(240),
+        copyrightNotice: z.string().trim().min(1).max(500),
+        performanceRightsBasis: z.string().trim().min(10).max(4000),
+        performanceRightsEvidenceId: z.string().min(1).nullable(),
+        identifierType: z
+          .enum(["isbn13", "asin", "ean", "upc", "publisher", "other"])
+          .default("isbn13"),
+        identifierValue: z.string().trim().min(1).max(120),
+        credits: z
+          .array(z.object({ role: z.string().min(1).max(80), name: z.string().min(1).max(240) }))
+          .max(100)
+          .default([]),
+        territoryScope: z.record(z.any()).default({ mode: "worldwide" }),
+        subscriptionEligible: z.boolean().default(false),
+        offlineEligible: z.boolean().default(true),
+        coverAssetVersionId: z.string().nullable().optional(),
+      })
+      .parse(raw),
+    e = requireAudioEditable(await publishingEdition(db, userId, x.editionId, true)),
+    policy = await db
+      .prepare("SELECT id FROM commercial_audio_policy_versions WHERE status='active' LIMIT 1")
+      .first<any>();
+  if (!policy) throw new ApiError(503, "Commercial audiobook policy is unavailable.");
+  if (x.performanceRightsEvidenceId) {
+    const ev = await db
+      .prepare(
+        "SELECT 1 ok FROM publishing_rights_evidence pe JOIN publishing_rights_declarations pd ON pd.id=pe.declaration_id WHERE pe.id=? AND pd.edition_id=? AND pe.verification_status='verified'",
+      )
+      .bind(x.performanceRightsEvidenceId, x.editionId)
+      .first<any>();
+    if (!ev)
+      throw new ApiError(
+        409,
+        "Performance-rights evidence must be staff-verified for this edition.",
+      );
+  }
+  if (x.identifierType === "isbn13" && !validIsbn13(x.identifierValue))
+    throw new ApiError(400, "Audiobook ISBN-13 is invalid.");
+  if (x.subscriptionEligible && !e.subscription_permitted)
+    throw new ApiError(
+      409,
+      "Enable subscription distribution on the edition before marking the audiobook subscription-eligible.",
+    );
+  const editionTerritory = json(e.territory_scope_json, {});
+  if (stable(x.territoryScope) !== stable(editionTerritory))
+    throw new ApiError(
+      409,
+      "Audiobook performance-rights territory must match this edition's distribution territory. Change the edition rights scope first.",
+    );
+  const at = now();
+  await db
+    .prepare(
+      `INSERT INTO commercial_audio_profiles(edition_id,publishing_account_id,audio_publisher,copyright_notice,performance_rights_basis,performance_rights_evidence_id,identifier_type,identifier_value,credits_json,territory_scope_json,subscription_eligible,offline_eligible,cover_asset_version_id,active_policy_id,qc_status,rights_status,agreements_status,updated_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending',?,'pending',?,?) ON CONFLICT(edition_id) DO UPDATE SET audio_publisher=excluded.audio_publisher,copyright_notice=excluded.copyright_notice,performance_rights_basis=excluded.performance_rights_basis,performance_rights_evidence_id=excluded.performance_rights_evidence_id,identifier_type=excluded.identifier_type,identifier_value=excluded.identifier_value,credits_json=excluded.credits_json,territory_scope_json=excluded.territory_scope_json,subscription_eligible=excluded.subscription_eligible,offline_eligible=excluded.offline_eligible,cover_asset_version_id=excluded.cover_asset_version_id,active_policy_id=excluded.active_policy_id,rights_status=excluded.rights_status,updated_at=excluded.updated_at`,
+    )
+    .bind(
+      x.editionId,
+      e.account_id,
+      x.audioPublisher,
+      x.copyrightNotice,
+      x.performanceRightsBasis,
+      x.performanceRightsEvidenceId,
+      x.identifierType,
+      x.identifierValue,
+      JSON.stringify(x.credits),
+      JSON.stringify(x.territoryScope),
+      x.subscriptionEligible ? 1 : 0,
+      x.offlineEligible ? 1 : 0,
+      x.coverAssetVersionId || null,
+      policy.id,
+      x.performanceRightsEvidenceId ? "verified" : "pending",
+      at,
+      at,
+    )
+    .run();
+  return { saved: true };
+}
+
+async function replaceCommercialAudioNarrators(
+  db: CoveEnv["DB"],
+  userId: string,
+  raw: unknown,
+) {
+  const x = z
+    .object({
+      editionId: z.string().min(1),
+      narrators: z
+        .array(
+          z.object({
+            displayName: z.string().trim().min(1).max(240),
+            narrationType: z.enum(["human", "synthetic", "mixed"]).default("human"),
+            syntheticVoiceLabel: z.string().max(240).default(""),
+          }),
+        )
+        .min(1)
+        .max(30),
+    })
+    .parse(raw);
+  const e = requireAudioEditable(await publishingEdition(db, userId, x.editionId, true));
+  await requireAudioProfile(db, e.id);
+  const active = await db
+    .prepare("SELECT count(*) n FROM narration_agreements WHERE edition_id=? AND status='active'")
+    .bind(x.editionId)
+    .first<any>();
+  if (Number(active?.n || 0) > 0)
+    throw new ApiError(
+      409,
+      "Narrators with active agreements cannot be replaced. Supersede agreements first.",
+    );
+  // Validate the complete replacement before any destructive operation.
+  for(const n of x.narrators) if(n.narrationType!=="human"&&!n.syntheticVoiceLabel.trim())
+    throw new ApiError(400,"Synthetic or mixed narration requires a customer-facing voice label.");
+  const at=now(),statements=[
+    db.prepare("DELETE FROM commercial_audio_narrators WHERE edition_id=?").bind(x.editionId)
+  ];
+  for(const [i,n] of x.narrators.entries())
+    statements.push(db.prepare(
+      "INSERT INTO commercial_audio_narrators(id,edition_id,display_name,narration_type,synthetic_voice_label,billing_order,created_at) VALUES(?,?,?,?,?,?,?)"
+    ).bind(id("narr"),x.editionId,n.displayName,n.narrationType,n.syntheticVoiceLabel,i,at));
+  // D1 batch is atomic: a failed insertion cannot delete the existing list.
+  await db.batch(statements);
+  return { saved: true };
+}
+
+async function addNarrationAgreement(db: CoveEnv["DB"], userId: string, raw: unknown) {
+  const x = z
+    .object({
+      editionId: z.string().min(1),
+      narratorId: z.string().min(1),
+      agreementType: z.enum([
+        "employment",
+        "work_for_hire",
+        "license",
+        "union",
+        "synthetic_voice_license",
+        "other",
+      ]),
+      evidenceId: z.string().min(1),
+      territories: z.array(z.string().min(2).max(20)).min(1),
+      permittedUses: z
+        .array(z.enum(["retail", "subscription", "library", "preview", "offline"]))
+        .min(1),
+      signedAt: z.string().datetime(),
+      expiresAt: z.string().datetime().nullable().optional(),
+    })
+    .parse(raw);
+  const e = requireAudioEditable(await publishingEdition(db, userId, x.editionId, true));
+  await requireAudioProfile(db, e.id);
+  const n = await db
+    .prepare("SELECT * FROM commercial_audio_narrators WHERE id=? AND edition_id=?")
+    .bind(x.narratorId, x.editionId)
+    .first<any>();
+  if (!n) throw new ApiError(404, "Narrator not found.");
+  if (n.narration_type !== "human" && x.agreementType !== "synthetic_voice_license")
+    throw new ApiError(400, "Synthetic narration requires a synthetic voice license agreement.");
+  const ev = await db
+    .prepare(
+      "SELECT pe.id FROM publishing_rights_evidence pe JOIN publishing_rights_declarations pd ON pd.id=pe.declaration_id WHERE pe.id=? AND pd.edition_id=? AND pe.verification_status='verified'",
+    )
+    .bind(x.evidenceId, x.editionId)
+    .first<any>();
+  if (!ev) throw new ApiError(409, "Narration agreement evidence must be staff-verified.");
+  const agreementId = id("narragr"),
+    at = now();
+  await db
+    .prepare(
+      "INSERT INTO narration_agreements(id,edition_id,narrator_id,agreement_type,evidence_id,territories_json,permitted_uses_json,signed_at,expires_at,status,attested_by_user_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,'active',?,?)",
+    )
+    .bind(
+      agreementId,
+      x.editionId,
+      x.narratorId,
+      x.agreementType,
+      x.evidenceId,
+      JSON.stringify(x.territories),
+      JSON.stringify(x.permittedUses),
+      x.signedAt,
+      x.expiresAt || null,
+      userId,
+      at,
+    )
+    .run();
+  await refreshAgreementStatus(db, x.editionId);
+  return { id: agreementId };
+}
+async function endNarrationAgreement(db: CoveEnv["DB"], userId: string, raw: unknown) {
+  const x = z
+      .object({
+        agreementId: z.string().min(1),
+        disposition: z.enum(["terminated", "superseded"]),
+        effectiveAt: z.string().datetime().optional(),
+        replacementAgreementId: z.string().min(1).nullable().optional(),
+        reason: z.string().trim().min(10).max(2000),
+      })
+      .parse(raw),
+    agreement = await db
+      .prepare("SELECT * FROM narration_agreements WHERE id=?")
+      .bind(x.agreementId)
+      .first<any>();
+  if (!agreement) throw new ApiError(404, "Narration agreement not found.");
+  await publishingEdition(db, userId, String(agreement.edition_id), true);
+  const existing = await db
+    .prepare("SELECT id FROM narration_agreement_terminations WHERE agreement_id=?")
+    .bind(x.agreementId)
+    .first<any>();
+  if (existing)
+    throw new ApiError(
+      409,
+      "This narration agreement already has an immutable termination/supersession record.",
+    );
+  if (x.disposition === "superseded") {
+    if (!x.replacementAgreementId)
+      throw new ApiError(400, "A replacement agreement is required when superseding an agreement.");
+    const replacement = await db
+      .prepare("SELECT id,narrator_id,edition_id FROM narration_agreements WHERE id=?")
+      .bind(x.replacementAgreementId)
+      .first<any>();
+    if (
+      !replacement ||
+      replacement.edition_id !== agreement.edition_id ||
+      replacement.narrator_id !== agreement.narrator_id
+    )
+      throw new ApiError(
+        409,
+        "Replacement agreement must belong to the same edition and narrator.",
+      );
+  }
+  const at = now(),
+    effectiveAt = x.effectiveAt || at,
+    terminationId = id("narrterm");
+  await db
+    .prepare(
+      "INSERT INTO narration_agreement_terminations(id,agreement_id,disposition,effective_at,replacement_agreement_id,reason,actor_user_id,created_at) VALUES(?,?,?,?,?,?,?,?)",
+    )
+    .bind(
+      terminationId,
+      x.agreementId,
+      x.disposition,
+      effectiveAt,
+      x.replacementAgreementId || null,
+      x.reason,
+      userId,
+      at,
+    )
+    .run();
+  await refreshAgreementStatus(db, String(agreement.edition_id));
+  return { id: terminationId, effectiveAt };
+}
+async function refreshAgreementStatus(db: CoveEnv["DB"], editionId: string) {
+  const at = now(),
+    narrators = await db
+      .prepare("SELECT count(*) n FROM commercial_audio_narrators WHERE edition_id=?")
+      .bind(editionId)
+      .first<any>(),
+    covered = await db
+      .prepare(
+        `SELECT count(DISTINCT na.narrator_id) n FROM narration_agreements na WHERE na.edition_id=? AND na.status='active' AND (na.expires_at IS NULL OR na.expires_at>?) AND NOT EXISTS(SELECT 1 FROM narration_agreement_terminations nt WHERE nt.agreement_id=na.id AND nt.effective_at<=?)`,
+      )
+      .bind(editionId, at, at)
+      .first<any>();
+  await db
+    .prepare(
+      "UPDATE commercial_audio_profiles SET agreements_status=?,updated_at=? WHERE edition_id=?",
+    )
+    .bind(
+      Number(narrators?.n || 0) > 0 && Number(covered?.n || 0) >= Number(narrators?.n || 0)
+        ? "verified"
+        : "pending",
+      at,
+      editionId,
+    )
+    .run();
+}
+
+
+  async function requireAudioUploadEdition(db:CoveEnv["DB"],userId:string,editionId:string){
+    const edition=requireAudioEditable(await publishingEdition(db,userId,editionId,true));
+    await requireAudioProfile(db,edition.id);
+    return edition;
+  }
+  return {saveCommercialAudioProfile,replaceCommercialAudioNarrators,addNarrationAgreement,
+    endNarrationAgreement,requireAudioUploadEdition};
+})();
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+
+// QA-leased worker queues. All job ownership and retry transitions are
+// validated at the independently bound primary DB, not on the storefront D1 facade.
+/* eslint-disable @typescript-eslint/no-explicit-any -- QA lease-only D1 worker row shapes, release locked. */
+const privatePublishingWorkQueues=(()=>{
+  const now=()=>new Date().toISOString();
+  const id=(prefix:string)=>prefix+"_"+crypto.randomUUID();
+  const cleanText=(value:unknown,max=500)=>String(value??"").trim().slice(0,max);
+  async function refreshAssetValidationSummary(db: PublishingDB, assetVersionId: string) {
+  const jobs = (
+    await db
+      .prepare("SELECT status,required FROM publishing_validation_jobs WHERE asset_version_id=?")
+      .bind(assetVersionId)
+      .all<any>()
+  ).results;
+  const required = jobs.filter((j) => Number(j.required) === 1);
+  let summary = "pending",
+    quarantine = "quarantined";
+  if (required.some((j) => ["failed", "blocked"].includes(String(j.status)))) {
+    summary = "blocked";
+    quarantine = "rejected";
+  } else if (required.some((j) => ["queued", "leased"].includes(String(j.status)))) {
+    summary = required.some((j) => String(j.status) === "leased") ? "running" : "pending";
+    quarantine = "scanning";
+  }
+  else if (required.every((j) => String(j.status) === "passed")) {
+    summary = jobs.some((j) => String(j.status) === "warning") ? "warning" : "passed";
+    quarantine = "clean";
+  } else summary = "blocked";
+  await db
+    .prepare(
+      "UPDATE publishing_asset_versions SET validation_summary=?,quarantine_status=? WHERE id=?",
+    )
+    .bind(summary, quarantine, assetVersionId)
+    .run();
+  return { summary, quarantine };
+}
+
+
+  async function leasePublishingValidationJobs(db: PublishingDB, raw: unknown) {
+  const x = z
+      .object({
+        workerId: z.string().trim().min(3).max(120),
+        limit: z.number().int().min(1).max(50).default(10),
+        leaseSeconds: z.number().int().min(30).max(900).default(300),
+        executionClasses: z
+          .array(z.enum(["worker", "external"]))
+          .min(1)
+          .max(2)
+          .default(["worker", "external"]),
+      })
+      .parse(raw),
+    at = now(),
+    expires = new Date(Date.now() + x.leaseSeconds * 1000).toISOString();
+  // Recover abandoned leases before taking new work. Jobs retry up to max_attempts and then
+  // fail closed as blocked instead of circulating forever or silently passing.
+  await db.batch([
+    db
+      .prepare(
+        "UPDATE publishing_validation_jobs SET status='queued',lease_owner=NULL,lease_expires_at=NULL,available_at=?,last_error='Previous worker lease expired; retrying.',updated_at=? WHERE status='leased' AND lease_expires_at<? AND attempts<max_attempts",
+      )
+      .bind(at, at, at),
+    db
+      .prepare(
+        "UPDATE publishing_validation_jobs SET status='blocked',lease_owner=NULL,lease_expires_at=NULL,last_error='Validation exhausted its retry budget.',updated_at=? WHERE status='leased' AND lease_expires_at<? AND attempts>=max_attempts",
+      )
+      .bind(at, at),
+  ]);
+  const candidates = (
+    await db
+      .prepare(
+        `SELECT id FROM publishing_validation_jobs WHERE status='queued' AND attempts<max_attempts AND available_at<=? AND execution_class IN (${x.executionClasses.map(() => "?").join(",")}) ORDER BY priority ASC,created_at ASC LIMIT ?`,
+      )
+      .bind(at, ...x.executionClasses, x.limit)
+      .all<any>()
+  ).results;
+  for (const row of candidates)
+    await db
+      .prepare(
+        "UPDATE publishing_validation_jobs SET status='leased',lease_owner=?,lease_expires_at=?,attempts=attempts+1,updated_at=? WHERE id=? AND status='queued'",
+      )
+      .bind(x.workerId, expires, at, row.id)
+      .run();
+  const jobs = (
+    await db
+      .prepare(
+        `SELECT j.*,v.object_key,v.mime_type,v.size_bytes,v.sha256,v.original_filename,a.kind,a.edition_id FROM publishing_validation_jobs j JOIN publishing_asset_versions v ON v.id=j.asset_version_id JOIN publishing_assets a ON a.id=v.asset_id WHERE j.status='leased' AND j.lease_owner=? AND j.lease_expires_at=? ORDER BY j.priority,j.created_at`,
+      )
+      .bind(x.workerId, expires)
+      .all<any>()
+  ).results;
+  return { jobs, leaseExpiresAt: expires };
+}
+
+
+  async function completePublishingValidationJob(db: PublishingDB, raw: unknown) {
+  const x = z
+    .object({
+      jobId: z.string().min(1),
+      workerId: z.string().min(3).max(120),
+      status: z.enum(["passed", "warning", "failed", "blocked"]),
+      validatorName: z.string().min(1).max(120),
+      validatorVersion: z.string().max(80).default(""),
+      issues: z
+        .array(
+          z.object({
+            code: z.string().max(120),
+            severity: z.enum(["info", "warning", "error"]).default("error"),
+            message: z.string().max(2000),
+            location: z.string().max(500).optional(),
+          }),
+        )
+        .max(2000)
+        .default([]),
+      reportObjectKey: z.string().max(500).nullable().optional(),
+      reportSha256: z
+        .string()
+        .regex(/^[a-fA-F0-9]{64}$/)
+        .nullable()
+        .optional(),
+    })
+    .parse(raw);
+  const job = await db
+    .prepare("SELECT * FROM publishing_validation_jobs WHERE id=?")
+    .bind(x.jobId)
+    .first<any>();
+  if (!job) throw new ApiError(404, "Validation job not found.");
+  if (
+    job.status !== "leased" ||
+    job.lease_owner !== x.workerId ||
+    (job.lease_expires_at && job.lease_expires_at < now())
+  )
+    throw new ApiError(409, "This validation lease is no longer active.");
+  const at = now();
+  await db.batch([
+    db
+      .prepare(
+        "UPDATE publishing_validation_jobs SET status=?,lease_owner=NULL,lease_expires_at=NULL,last_error=?,updated_at=? WHERE id=?",
+      )
+      .bind(
+        x.status,
+        ["failed", "blocked"].includes(x.status)
+          ? cleanText(x.issues[0]?.message || "Validation failed", 1000)
+          : "",
+        at,
+        x.jobId,
+      ),
+    db
+      .prepare(
+        "INSERT INTO publishing_validation_results(id,job_id,asset_version_id,check_type,validator_name,validator_version,status,issue_count,issues_json,report_object_key,report_sha256,completed_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+      )
+      .bind(
+        id("pubval"),
+        x.jobId,
+        job.asset_version_id,
+        job.check_type,
+        x.validatorName,
+        x.validatorVersion,
+        x.status,
+        x.issues.length,
+        JSON.stringify(x.issues),
+        x.reportObjectKey || null,
+        x.reportSha256 || null,
+        at,
+      ),
+  ]);
+  if (String(job.check_type) === "malware")
+    await mirrorPublishingMalwareResult(db, {
+      assetVersionId: String(job.asset_version_id),
+      status: x.status,
+      validatorName: x.validatorName,
+      validatorVersion: x.validatorVersion,
+      issues: x.issues,
+      reportObjectKey: x.reportObjectKey || null,
+      reportSha256: x.reportSha256 || null,
+    });
+  const asset = await refreshAssetValidationSummary(db, String(job.asset_version_id));
+  return { jobId: x.jobId, assetVersionId: job.asset_version_id, ...asset };
+}
+
+
+  async function leaseRightsEvidenceScanJobs(db: PublishingDB, raw: unknown) {
+  const x = z
+      .object({
+        workerId: z.string().min(1).max(160),
+        limit: z.number().int().min(1).max(50).default(10),
+        leaseSeconds: z.number().int().min(30).max(1800).default(300),
+      })
+      .parse(raw),
+    at = now(),
+    until = new Date(Date.now() + x.leaseSeconds * 1000).toISOString();
+  await db
+    .prepare(
+      "UPDATE publishing_rights_evidence_scan_jobs SET status='queued',lease_owner=NULL,lease_expires_at=NULL,available_at=?,updated_at=? WHERE status='leased' AND lease_expires_at<? AND attempts<max_attempts",
+    )
+    .bind(at, at, at)
+    .run();
+  const rows = (
+    await db
+      .prepare(
+        "SELECT j.*,e.object_key,e.mime_type,e.sha256,e.size_bytes FROM publishing_rights_evidence_scan_jobs j JOIN publishing_rights_evidence e ON e.id=j.evidence_id WHERE j.status='queued' AND j.available_at<=? AND j.attempts<j.max_attempts ORDER BY j.created_at LIMIT ?",
+      )
+      .bind(at, x.limit)
+      .all<any>()
+  ).results;
+  for (const r of rows)
+    await db
+      .prepare(
+        "UPDATE publishing_rights_evidence_scan_jobs SET status='leased',lease_owner=?,lease_expires_at=?,attempts=attempts+1,updated_at=? WHERE id=? AND status='queued'",
+      )
+      .bind(x.workerId, until, at, r.id)
+      .run();
+  return { jobs: rows };
+}
+
+  async function completeRightsEvidenceScanJob(db: PublishingDB, raw: unknown) {
+  const x = z
+      .object({
+        jobId: z.string().min(1),
+        workerId: z.string().min(1),
+        status: z.enum(["passed", "failed", "blocked"]),
+        error: z.string().max(2000).default(""),
+      })
+      .parse(raw),
+    j = await db
+      .prepare(
+        "SELECT * FROM publishing_rights_evidence_scan_jobs WHERE id=? AND status='leased' AND lease_owner=?",
+      )
+      .bind(x.jobId, x.workerId)
+      .first<any>();
+  if (!j || (j.lease_expires_at && j.lease_expires_at < now()))
+    throw new ApiError(409, "Evidence scan lease is missing or no longer owned by this worker.");
+  const at = now(),
+    scanStatus = x.status === "passed" ? "clean" : x.status === "blocked" ? "rejected" : "failed";
+  await db.batch([
+    db
+      .prepare(
+        "UPDATE publishing_rights_evidence_scan_jobs SET status=?,lease_owner=NULL,lease_expires_at=NULL,last_error=?,updated_at=? WHERE id=?",
+      )
+      .bind(x.status, x.error, at, j.id),
+    db
+      .prepare("UPDATE publishing_rights_evidence SET scan_status=? WHERE id=?")
+      .bind(scanStatus, j.evidence_id),
+  ]);
+  return { id: j.id, status: x.status };
+}
+
+
+  return {leasePublishingValidationJobs,completePublishingValidationJob,
+    leaseRightsEvidenceScanJobs,completeRightsEvidenceScanJob};
+})();
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+/* eslint-disable @typescript-eslint/no-explicit-any -- QA-only audiobook QC row shapes. */
+const privateAudioQcQueues=(()=>{
+  const now=()=>new Date().toISOString();
+  const id=(prefix:string)=>prefix+"_"+crypto.randomUUID();
+  const json=(value:unknown,fallback:Record<string,unknown>)=>{
+    try{return JSON.parse(String(value||""));}catch{return fallback;}
+  };
+async function hash(bytes: Uint8Array) {
+  const d = await crypto.subtle.digest("SHA-256", new Uint8Array(bytes));
+  return [...new Uint8Array(d)].map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+async function leaseCommercialAudioQcJobs(db: CoveEnv["DB"], raw: unknown) {
+  const x = z
+      .object({
+        workerId: z.string().min(1).max(160),
+        limit: z.number().int().min(1).max(25).default(5),
+        leaseSeconds: z.number().int().min(30).max(1800).default(300),
+      })
+      .parse(raw),
+    at = now(),
+    expires = new Date(Date.now() + x.leaseSeconds * 1000).toISOString();
+  const candidates = (
+    await db
+      .prepare(
+        `SELECT edition_id FROM commercial_audio_qc_jobs WHERE attempts<max_attempts AND available_at<=? AND (status='queued' OR (status='leased' AND lease_expires_at<=?)) ORDER BY available_at,updated_at LIMIT ?`,
+      )
+      .bind(at, at, x.limit)
+      .all<any>()
+  ).results;
+  const jobs: any[] = [];
+  for (const c of candidates) {
+    const claimed = await db
+      .prepare(
+        `UPDATE commercial_audio_qc_jobs SET status='leased',lease_owner=?,lease_expires_at=?,attempts=attempts+1,updated_at=? WHERE edition_id=? AND attempts<max_attempts AND available_at<=? AND (status='queued' OR (status='leased' AND lease_expires_at<=?)) RETURNING edition_id,attempts,lease_expires_at`,
+      )
+      .bind(x.workerId, expires, at, c.edition_id, at, at)
+      .first<any>();
+    if (!claimed) continue;
+    const chapters = (
+      await db
+        .prepare(
+          `SELECT c.id chapter_id,c.position,c.title,c.duration_ms,c.mime_type,c.sample_rate_hz,c.bitrate_kbps,c.bitrate_mode,c.channels,c.sha256,f.object_key,f.size_bytes FROM commercial_audio_chapters c JOIN commercial_audio_files f ON f.id=c.file_id WHERE c.edition_id=? ORDER BY c.position`,
+        )
+        .bind(c.edition_id)
+        .all<any>()
+    ).results;
+    const profile = await db
+        .prepare("SELECT preview_file_id FROM commercial_audio_profiles WHERE edition_id=?")
+        .bind(c.edition_id)
+        .first<any>(),
+      preview = profile?.preview_file_id
+        ? await db
+            .prepare(
+              "SELECT id file_id,object_key,size_bytes,mime_type,duration_ms,sample_rate_hz,bitrate_kbps,bitrate_mode,channels,sha256 FROM commercial_audio_files WHERE id=?",
+            )
+            .bind(profile.preview_file_id)
+            .first<any>()
+        : null;
+    jobs.push({
+      editionId: c.edition_id,
+      attempt: claimed.attempts,
+      leaseExpiresAt: claimed.lease_expires_at,
+      chapters,
+      preview,
+    });
+  }
+  return { jobs };
+}
+
+
+async function completeCommercialAudioQc(db: CoveEnv["DB"], raw: unknown) {
+  const measurement = z.object({
+    sha256: z.string().regex(/^[a-f0-9]{64}$/),
+    malwareClean: z.boolean(),
+    durationMs: z.number().int().positive(),
+    rmsDb: z.number(),
+    peakDb: z.number(),
+    noiseFloorDb: z.number(),
+    sampleRateHz: z.number().int(),
+    bitrateKbps: z.number().int().nullable(),
+    bitrateMode: z.string(),
+    channels: z.number().int(),
+  });
+  const x = z
+      .object({
+        editionId: z.string().min(1),
+        workerId: z.string().min(1).max(160).optional(),
+        chapters: z.array(measurement.extend({ chapterId: z.string().min(1) })).min(1),
+        preview: measurement
+          .extend({ fileId: z.string().min(1) })
+          .nullable()
+          .optional(),
+      })
+      .parse(raw),
+    profile = await db
+      .prepare("SELECT * FROM commercial_audio_profiles WHERE edition_id=?")
+      .bind(x.editionId)
+      .first<any>();
+  if (!profile) throw new ApiError(404, "Commercial audio profile not found.");
+  const policyRow = await db
+      .prepare("SELECT * FROM commercial_audio_policy_versions WHERE id=?")
+      .bind(profile.active_policy_id)
+      .first<any>(),
+    policy = json(policyRow?.policy_json, {}),
+    stored = (
+      await db
+        .prepare("SELECT * FROM commercial_audio_chapters WHERE edition_id=? ORDER BY position")
+        .bind(x.editionId)
+        .all<any>()
+    ).results;
+  if (stored.length !== x.chapters.length)
+    throw new ApiError(409, "QC results must cover every current chapter.");
+  const job = await db
+    .prepare("SELECT * FROM commercial_audio_qc_jobs WHERE edition_id=?")
+    .bind(x.editionId)
+    .first<any>();
+  if (job && job.status === "leased" && x.workerId && job.lease_owner !== x.workerId)
+    throw new ApiError(409, "This audio QC job is leased to another worker.");
+  if (job && job.status === "leased" && job.lease_expires_at && job.lease_expires_at < now())
+    throw new ApiError(409, "This audio QC lease expired; lease the job again.");
+  const findings: any[] = [];
+  let status: "passed" | "warning" | "failed" = "passed",
+    channels: number | null = null;
+  for (const s of stored) {
+    const m = x.chapters.find((c) => c.chapterId === s.id);
+    if (!m) throw new ApiError(409, "QC chapter set does not match the current manifest.");
+    const errors: string[] = [];
+    if (m.sha256 !== String(s.sha256))
+      errors.push("content checksum does not match the uploaded chapter");
+    if (!m.malwareClean) errors.push("malware scan failed");
+    if (m.sampleRateHz !== Number(policy.sampleRateHz || 44100))
+      errors.push(`sample rate ${m.sampleRateHz} Hz`);
+    if (
+      s.mime_type === "audio/mpeg" &&
+      (Number(m.bitrateKbps || 0) < Number(policy.mp3MinBitrateKbps || 192) ||
+        String(m.bitrateMode).toUpperCase() !== String(policy.mp3BitrateMode || "CBR"))
+    )
+      errors.push("MP3 encoding below policy");
+    if (m.rmsDb < Number(policy.rmsDbMin || -23) || m.rmsDb > Number(policy.rmsDbMax || -18))
+      errors.push(`RMS ${m.rmsDb} dB`);
+    if (m.peakDb > Number(policy.peakDbMax || -3)) errors.push(`peak ${m.peakDb} dB`);
+    if (m.noiseFloorDb > Number(policy.noiseFloorDbMax || -60))
+      errors.push(`noise floor ${m.noiseFloorDb} dB`);
+    if (channels !== null && channels !== m.channels)
+      errors.push("inconsistent channel configuration");
+    channels = m.channels;
+    if (errors.length) {
+      status = "failed";
+      findings.push({ chapterId: s.id, severity: "error", errors });
+    }
+    await db
+      .prepare(
+        "UPDATE commercial_audio_chapters SET duration_ms=?,sample_rate_hz=?,bitrate_kbps=?,bitrate_mode=?,channels=?,loudness_rms_db=?,true_peak_db=?,noise_floor_db=?,qc_status=? WHERE id=?",
+      )
+      .bind(
+        m.durationMs,
+        m.sampleRateHz,
+        m.bitrateKbps,
+        m.bitrateMode,
+        m.channels,
+        m.rmsDb,
+        m.peakDb,
+        m.noiseFloorDb,
+        errors.length ? "failed" : "passed",
+        s.id,
+      )
+      .run();
+    await db
+      .prepare(
+        "UPDATE commercial_audio_files SET duration_ms=?,sample_rate_hz=?,bitrate_kbps=?,bitrate_mode=?,channels=?,loudness_rms_db=?,true_peak_db=?,noise_floor_db=?,qc_status=?,quarantine_status=? WHERE id=?",
+      )
+      .bind(
+        m.durationMs,
+        m.sampleRateHz,
+        m.bitrateKbps,
+        m.bitrateMode,
+        m.channels,
+        m.rmsDb,
+        m.peakDb,
+        m.noiseFloorDb,
+        errors.length ? "failed" : "passed",
+        errors.length ? "rejected" : "clean",
+        s.file_id,
+      )
+      .run();
+  }
+  const previewFile = profile.preview_file_id
+    ? await db
+        .prepare(
+          "SELECT * FROM commercial_audio_files WHERE id=? AND edition_id=? AND kind='preview'",
+        )
+        .bind(profile.preview_file_id, x.editionId)
+        .first<any>()
+    : null;
+  if (previewFile) {
+    if (!x.preview || x.preview.fileId !== previewFile.id)
+      throw new ApiError(409, "QC results must cover the current preview clip.");
+    const p = x.preview,
+      errors: string[] = [];
+    if (p.sha256 !== String(previewFile.sha256))
+      errors.push("preview checksum does not match the uploaded file");
+    if (!p.malwareClean) errors.push("preview malware scan failed");
+    const seconds = p.durationMs / 1000;
+    if (
+      seconds < Number(policy.previewMinSeconds || 30) ||
+      seconds > Number(policy.previewMaxSeconds || 300)
+    )
+      errors.push(`preview duration ${seconds.toFixed(1)} seconds`);
+    if (p.sampleRateHz !== Number(policy.sampleRateHz || 44100))
+      errors.push(`preview sample rate ${p.sampleRateHz} Hz`);
+    if (
+      previewFile.mime_type === "audio/mpeg" &&
+      (Number(p.bitrateKbps || 0) < Number(policy.mp3MinBitrateKbps || 192) ||
+        String(p.bitrateMode).toUpperCase() !== String(policy.mp3BitrateMode || "CBR"))
+    )
+      errors.push("preview MP3 encoding below policy");
+    if (p.rmsDb < Number(policy.rmsDbMin || -23) || p.rmsDb > Number(policy.rmsDbMax || -18))
+      errors.push(`preview RMS ${p.rmsDb} dB`);
+    if (p.peakDb > Number(policy.peakDbMax || -3)) errors.push(`preview peak ${p.peakDb} dB`);
+    if (p.noiseFloorDb > Number(policy.noiseFloorDbMax || -60))
+      errors.push(`preview noise floor ${p.noiseFloorDb} dB`);
+    if (errors.length) {
+      status = "failed";
+      findings.push({ fileId: previewFile.id, severity: "error", errors });
+    }
+    await db
+      .prepare(
+        "UPDATE commercial_audio_files SET duration_ms=?,sample_rate_hz=?,bitrate_kbps=?,bitrate_mode=?,channels=?,loudness_rms_db=?,true_peak_db=?,noise_floor_db=?,qc_status=?,quarantine_status=? WHERE id=?",
+      )
+      .bind(
+        p.durationMs,
+        p.sampleRateHz,
+        p.bitrateKbps,
+        p.bitrateMode,
+        p.channels,
+        p.rmsDb,
+        p.peakDb,
+        p.noiseFloorDb,
+        errors.length ? "failed" : "passed",
+        errors.length ? "rejected" : "clean",
+        previewFile.id,
+      )
+      .run();
+  }
+  const manifestHash = await hash(
+    new TextEncoder().encode(JSON.stringify(stored.map((s: any) => [s.id, s.sha256, s.position]))),
+  );
+  const runId = id("audioqc");
+  await db
+    .prepare(
+      "INSERT INTO commercial_audio_qc_runs(id,edition_id,policy_id,source_manifest_hash,status,findings_json,measured_json,created_at) VALUES(?,?,?,?,?,?,?,?)",
+    )
+    .bind(
+      runId,
+      x.editionId,
+      profile.active_policy_id,
+      manifestHash,
+      status,
+      JSON.stringify(findings),
+      JSON.stringify({ chapters: x.chapters, preview: x.preview || null }),
+      now(),
+    )
+    .run();
+  await db
+    .prepare("UPDATE commercial_audio_profiles SET qc_status=?,updated_at=? WHERE edition_id=?")
+    .bind(status === "failed" ? "blocked" : status, now(), x.editionId)
+    .run();
+  if (job)
+    await db
+      .prepare(
+        "UPDATE commercial_audio_qc_jobs SET status=?,lease_owner=NULL,lease_expires_at=NULL,last_run_id=?,last_error=?,updated_at=? WHERE edition_id=?",
+      )
+      .bind(
+        status === "failed" ? "failed" : "completed",
+        runId,
+        status === "failed" ? JSON.stringify(findings).slice(0, 4000) : "",
+        now(),
+        x.editionId,
+      )
+      .run();
+  return { id: runId, status, findings };
+}
+
+
+  return {leaseCommercialAudioQcJobs,completeCommercialAudioQc};
+})();
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+/* eslint-disable @typescript-eslint/no-explicit-any -- QA-only R2 upload receipt and D1 media row types. */
+async function registerPrivateCommercialAudioUpload(env:LegalAuthorityEnv,input:any) {
+  const db=env.PRIMARY_DB as unknown as CoveEnv["DB"];
+  await privateAudioMetadata.requireAudioUploadEdition(db,input.userId,input.editionId);
+  const expected="publishing/audio/"+String(input.editionId).replace(/[^A-Za-z0-9_-]/g,"_")+
+    "/"+input.fileId+"-"+input.sha.slice(0,16)+"."+(input.mime==="audio/mpeg"?"mp3":"m4a");
+  if(input.key!==expected)throw new ApiError(409,"Audio object identity is invalid.");
+  const bucket=env.BUCKET as unknown as {head?:(key:string)=>Promise<{
+    size:number;customMetadata?:Record<string,string>
+  }|null>}|undefined;
+  if(!bucket?.head)throw new ApiError(503,"Private audio object verification unavailable.");
+  const object=await bucket.head(input.key);
+  if(!object||Number(object.size)!==input.length||
+     object.customMetadata?.editionId!==input.editionId||
+     object.customMetadata?.sha256!==input.sha)
+    throw new ApiError(409,"Audio upload receipt does not match the stored object.");
+  const found=await db.prepare(
+    "SELECT id,object_key,sha256,edition_id,kind,original_filename,mime_type,size_bytes,duration_ms,sample_rate_hz,bitrate_kbps,bitrate_mode,channels,loudness_rms_db,true_peak_db,noise_floor_db,created_by_user_id FROM commercial_audio_files WHERE id=?"
+  ).bind(input.fileId).first<any>();
+  if(found){
+    const numeric=(value:unknown)=>value===null||value===undefined?null:Number(value);
+    if(found.object_key!==input.key||found.sha256!==input.sha||
+       found.edition_id!==input.editionId||found.kind!==input.kind||
+       found.created_by_user_id!==input.userId||
+       found.original_filename!==input.filename||found.mime_type!==input.mime||
+       Number(found.size_bytes)!==input.length||Number(found.duration_ms)!==input.durationMs||
+       Number(found.sample_rate_hz)!==input.sampleRateHz||
+       numeric(found.bitrate_kbps)!==input.bitrateKbps||
+       String(found.bitrate_mode)!==input.bitrateMode||
+       Number(found.channels)!==input.channels||
+       numeric(found.loudness_rms_db)!==input.rms||
+       numeric(found.true_peak_db)!==input.peak||
+       numeric(found.noise_floor_db)!==input.noise)
+      throw new ApiError(409,"Audio upload identity was already used with different metadata.");
+    if(input.kind==="preview"){
+      const profile=await db.prepare("SELECT preview_file_id FROM commercial_audio_profiles WHERE edition_id=?")
+        .bind(input.editionId).first<any>();
+      if(profile?.preview_file_id!==input.fileId)
+        throw new ApiError(503,"Interrupted preview registration requires owner recovery.");
+      return {id:input.fileId,sha256:input.sha};
+    }
+    const chapter=await db.prepare(
+      "SELECT id,position,title FROM commercial_audio_chapters WHERE edition_id=? AND file_id=?"
+    ).bind(input.editionId,input.fileId).first<any>();
+    if(!chapter)throw new ApiError(503,"Interrupted chapter registration requires owner recovery.");
+    if(Number(chapter.position)!==input.position||chapter.title!==input.title)
+      throw new ApiError(409,"Replayed chapter metadata does not match the original registration.");
+    return {id:chapter.id,fileId:input.fileId,sha256:input.sha,replaced:true};
+  }
+  const at=new Date().toISOString();
+  const statements:any[]=[
+    db.prepare(
+      "INSERT INTO commercial_audio_files(id,edition_id,kind,object_key,original_filename,mime_type,size_bytes,sha256,duration_ms,sample_rate_hz,bitrate_kbps,bitrate_mode,channels,loudness_rms_db,true_peak_db,noise_floor_db,qc_status,quarantine_status,created_by_user_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'pending','quarantined',?,?)"
+    ).bind(input.fileId,input.editionId,input.kind,input.key,input.filename,input.mime,
+      input.length,input.sha,input.durationMs,input.sampleRateHz,input.bitrateKbps,
+      input.bitrateMode,input.channels,input.rms,input.peak,input.noise,input.userId,at)
+  ];
+  let chapterId:string|null=null,existingChapter=false;
+  if(input.kind==="preview"){
+    statements.push(db.prepare(
+      "UPDATE commercial_audio_profiles SET preview_file_id=?,qc_status='pending',updated_at=? WHERE edition_id=?"
+    ).bind(input.fileId,at,input.editionId));
+  }else {
+    const existing=await db.prepare(
+      "SELECT id FROM commercial_audio_chapters WHERE edition_id=? AND position=?"
+    ).bind(input.editionId,input.position).first<any>();
+    chapterId=existing?.id||"chapter_"+crypto.randomUUID();
+    existingChapter=!!existing;
+    if(existing)
+      statements.push(db.prepare(
+        "UPDATE commercial_audio_chapters SET title=?,file_id=?,duration_ms=?,mime_type=?,sample_rate_hz=?,bitrate_kbps=?,bitrate_mode=?,channels=?,loudness_rms_db=?,true_peak_db=?,noise_floor_db=?,sha256=?,qc_status='pending' WHERE id=?"
+      ).bind(input.title,input.fileId,input.durationMs,input.mime,input.sampleRateHz,
+        input.bitrateKbps,input.bitrateMode,input.channels,input.rms,input.peak,input.noise,
+        input.sha,chapterId));
+    else
+      statements.push(db.prepare(
+        "INSERT INTO commercial_audio_chapters(id,edition_id,position,title,file_id,duration_ms,mime_type,sample_rate_hz,bitrate_kbps,bitrate_mode,channels,loudness_rms_db,true_peak_db,noise_floor_db,sha256,qc_status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending',?)"
+      ).bind(chapterId,input.editionId,input.position,input.title,input.fileId,
+        input.durationMs,input.mime,input.sampleRateHz,input.bitrateKbps,input.bitrateMode,
+        input.channels,input.rms,input.peak,input.noise,input.sha,at));
+    statements.push(db.prepare(
+      "UPDATE commercial_audio_profiles SET qc_status='pending',updated_at=? WHERE edition_id=?"
+    ).bind(at,input.editionId));
+  }
+  statements.push(db.prepare(
+    "INSERT INTO commercial_audio_qc_jobs(edition_id,status,attempts,max_attempts,lease_owner,lease_expires_at,available_at,last_run_id,last_error,created_at,updated_at) VALUES(?,'queued',0,5,NULL,NULL,?,NULL,'',?,?) ON CONFLICT(edition_id) DO UPDATE SET status='queued',attempts=0,lease_owner=NULL,lease_expires_at=NULL,available_at=excluded.available_at,last_error='',updated_at=excluded.updated_at"
+  ).bind(input.editionId,at,at,at));
+  await db.batch(statements);
+  return input.kind==="preview"?{id:input.fileId,sha256:input.sha}:
+    {id:chapterId,fileId:input.fileId,sha256:input.sha,replaced:existingChapter};
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
   private publicationExecutions=new Set<string>();
   private contractExecutions=new Set<string>();
@@ -3920,6 +4920,9 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     createMarketAuthoritySchema(ctx.storage.sql as unknown as AuthoritySql);
     createPublicationMaterializationSchema(ctx.storage.sql as unknown as AuthoritySql);
     createContractVersionOwnerSchema(ctx.storage.sql as unknown as AuthoritySql);
+    (ctx.storage.sql as AuthoritySql).exec(
+      "CREATE TABLE IF NOT EXISTS cove_audio_metadata_command_receipts(operation_id TEXT PRIMARY KEY,request_digest TEXT NOT NULL,receipt_json TEXT NOT NULL)"
+    );
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -3984,6 +4987,11 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/publishing/partner/process-feed",
       "/catalog/normalize-gutenberg",
       "/catalog/personal-import",
+      "/publishing/audio/register-upload",
+      "/publishing/audio/qc-jobs",
+      "/publishing/worker/jobs",
+      "/publishing/audio/metadata",
+      "/publishing/onboarding/review",
       "/publishing/contract/save-version",
       "/publication/materialize-submission",
       "/publication/activate-version",
@@ -3996,7 +5004,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     let raw:unknown;
     try {
       const bytes=await request.text();
-      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/create-quote"?4096:route==="/commercial/checkout/materialize-draft"?2048:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
+      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/create-quote"?4096:route==="/publishing/audio/register-upload"?8192:route==="/publishing/audio/qc-jobs"?262144:route==="/publishing/worker/jobs"?262144:route==="/publishing/audio/metadata"?8192:route==="/publishing/onboarding/review"?8192:route==="/commercial/checkout/materialize-draft"?2048:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
       raw=JSON.parse(bytes);
     }catch {return new Response(null,{status:400,headers:noStore});}
     const sql=this.ctx.storage.sql as unknown as AuthoritySql;
@@ -4148,6 +5156,213 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         return Response.json({schema:"cove.owner-personal-import.v1",ownerFirst:true,
           userId:q.userId,importId:q.id,productId:catalogIds(q.id).productId,
           operationId:q.operationId,applied:!existing},{headers:noStore});
+      }
+      if(route==="/publishing/audio/register-upload"){
+        const input=z.object({
+          userId:z.string().regex(/^[a-zA-Z0-9_-]{3,160}$/),
+          editionId:z.string().min(3).max(160),
+          kind:z.enum(["chapter","preview"]),
+          title:z.string().min(1).max(300),
+          position:z.number().int().min(0).max(10000),
+          durationMs:z.number().int().positive().max(86_400_000),
+          sampleRateHz:z.number().int().min(8000).max(192000),
+          bitrateKbps:z.number().int().min(16).max(1000).nullable(),
+          bitrateMode:z.string().max(20),channels:z.number().int().min(1).max(8),
+          rms:z.number().finite().nullable(),peak:z.number().finite().nullable(),
+          noise:z.number().finite().nullable(),filename:z.string().min(1).max(240),
+          mime:z.enum(["audio/mpeg","audio/mp4"]),
+          length:z.number().int().positive().max(750*1024*1024),
+          sha:z.string().regex(/^[a-f0-9]{64}$/),
+          fileId:z.string().regex(/^audiofile_[a-f0-9-]{36}$/),
+          key:z.string().min(1).max(1000),
+          operationId:z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,95}$/)
+        }).strict().parse(raw);
+        const result=await registerPrivateCommercialAudioUpload(env,input);
+        return Response.json({schema:"cove.owner-audio-upload.v1",ownerFirst:true,
+          operationId:input.operationId,fileId:input.fileId,
+          editionId:input.editionId,kind:input.kind,result},{headers:noStore});
+      }
+      if(route==="/publishing/audio/qc-jobs") {
+        const input=z.object({
+          action:z.enum(["lease","complete"]),
+          payload:z.record(z.string(),z.unknown()),
+          operationId:z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,95}$/)
+        }).strict().parse(raw);
+        const db=env.PRIMARY_DB as unknown as CoveEnv["DB"];
+        const result=input.action==="lease"?
+          await privateAudioQcQueues.leaseCommercialAudioQcJobs(db,input.payload):
+          await privateAudioQcQueues.completeCommercialAudioQc(db,input.payload);
+        return Response.json({schema:"cove.owner-audio-qc-jobs.v1",ownerFirst:true,
+          operationId:input.operationId,action:input.action,result},{headers:noStore});
+      }
+      if(route==="/publishing/worker/jobs"){
+        const input=z.object({
+          action:z.enum(["lease-validation","complete-validation","lease-rights-scan","complete-rights-scan"]),
+          payload:z.record(z.string(),z.unknown()),
+          operationId:z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,95}$/)
+        }).strict().parse(raw);
+        // A QA service binding is NOT a verified worker principal. Positive scan
+        // results cannot be deployed until the worker proof is independently signed.
+        const db=env.PRIMARY_DB as unknown as PublishingDB;
+        const result=input.action==="lease-validation"?
+          await privatePublishingWorkQueues.leasePublishingValidationJobs(db,input.payload):
+          input.action==="complete-validation"?
+            await privatePublishingWorkQueues.completePublishingValidationJob(db,input.payload):
+            input.action==="lease-rights-scan"?
+              await privatePublishingWorkQueues.leaseRightsEvidenceScanJobs(db,input.payload):
+              await privatePublishingWorkQueues.completeRightsEvidenceScanJob(db,input.payload);
+        return Response.json({schema:"cove.owner-publishing-worker-jobs.v1",
+          ownerFirst:true,operationId:input.operationId,action:input.action,result},{headers:noStore});
+      }
+      if(route==="/publishing/audio/metadata") {
+        const input=z.object({
+          action:z.enum(["profile","narrators","agreement-add","agreement-end"]),
+          userId:z.string().regex(/^[a-zA-Z0-9_-]{3,160}$/),
+          payload:z.record(z.string(),z.unknown()),
+          operationId:z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,95}$/)
+        }).strict().parse(raw);
+        // The owner never trusts caller-supplied edition/account/verification status;
+        // every handler re-reads current member roles, draft and verified evidence.
+        const fingerprint=new Uint8Array(await crypto.subtle.digest("SHA-256",
+          new TextEncoder().encode(JSON.stringify(input))));
+        const requestDigest=Array.from(fingerprint,b=>b.toString(16).padStart(2,"0")).join("");
+        const prior=sql.exec<{request_digest:string;receipt_json:string}>(
+          "SELECT request_digest,receipt_json FROM cove_audio_metadata_command_receipts WHERE operation_id=?",
+          input.operationId).toArray()[0];
+        if(prior) {
+          if(prior.request_digest!==requestDigest)return new Response(null,{status:409,headers:noStore});
+          return Response.json(JSON.parse(prior.receipt_json),{headers:noStore});
+        }
+        const action=input.action;
+        const db=env.PRIMARY_DB as unknown as CoveEnv["DB"];
+        if(action==="agreement-end") {
+          const termination=z.object({
+            agreementId:z.string().min(1).max(180),
+            disposition:z.enum(["terminated","superseded"]),
+            effectiveAt:z.string().datetime().optional(),
+            replacementAgreementId:z.string().min(1).max(180).nullable().optional(),
+            reason:z.string().trim().min(10).max(2000)
+          }).parse(input.payload);
+          const priorAgreement=await db.prepare(
+            "SELECT na.edition_id,na.narrator_id FROM narration_agreements na JOIN publishing_edition_drafts e ON e.id=na.edition_id JOIN publishing_titles t ON t.id=e.title_id JOIN publishing_account_members m ON m.account_id=t.account_id WHERE na.id=? AND m.user_id=? AND m.status='active' AND m.role IN ('owner','admin','editor')"
+          ).bind(termination.agreementId,input.userId).first<{edition_id:string;narrator_id:string}>();
+          if(!priorAgreement)throw new ApiError(403,"Publisher authorization is not current.");
+          const existing=await db.prepare(
+            "SELECT id FROM narration_agreement_terminations WHERE agreement_id=?"
+          ).bind(termination.agreementId).first<{id:string}>();
+          if(existing)throw new ApiError(409,"Agreement is already terminated.");
+          if(termination.disposition==="superseded") {
+            if(!termination.replacementAgreementId)throw new ApiError(400,"Replacement required.");
+            const replacement=await db.prepare(
+              "SELECT id FROM narration_agreements WHERE id=? AND edition_id=? AND narrator_id=?"
+            ).bind(termination.replacementAgreementId,priorAgreement.edition_id,priorAgreement.narrator_id).first<{id:string}>();
+            if(!replacement)throw new ApiError(409,"Replacement must cover the same edition and narrator.");
+          }
+          const products=(await db.prepare(
+            "SELECT DISTINCT p.product_id FROM publishing_publications p JOIN publishing_submission_snapshots ss ON ss.id=p.submission_id WHERE ss.edition_id=? AND p.product_id IS NOT NULL"
+          ).bind(priorAgreement.edition_id).all<{product_id:string}>()).results;
+          if(products.length>25)throw new ApiError(503,"Publication revocation set must be reviewed.");
+          if(products.length){
+            // A terminated audio performance licence withdraws *every* linked
+            // published product synchronously, before D1 is allowed to change.
+            const storage=this.ctx.storage as typeof this.ctx.storage & {
+              transactionSync<T>(fn:()=>T):T;
+            };
+            storage.transactionSync(()=>{
+              for(const [i,item] of products.entries()){
+                const denied=denyCommercialProduct(sql,{productId:item.product_id,
+                  operationId:"audio-termination:"+input.operationId+":"+i});
+                if(!denied.applied)throw Error("owner_audio_termination_denial_failed");
+              }
+            });
+          }
+        }
+        const result=action==="profile"?
+          await privateAudioMetadata.saveCommercialAudioProfile(db,input.userId,input.payload):
+          action==="narrators"?
+            await privateAudioMetadata.replaceCommercialAudioNarrators(db,input.userId,input.payload):
+            action==="agreement-add"?
+              await privateAudioMetadata.addNarrationAgreement(db,input.userId,input.payload):
+              await privateAudioMetadata.endNarrationAgreement(db,input.userId,input.payload);
+        const ack={schema:"cove.owner-audio-metadata.v1",ownerFirst:true,
+          operationId:input.operationId,action,userId:input.userId,result};
+        sql.exec("INSERT INTO cove_audio_metadata_command_receipts(operation_id,request_digest,receipt_json) VALUES(?,?,?)",
+          input.operationId,requestDigest,JSON.stringify(ack));
+        return Response.json(ack,{headers:noStore});
+      }
+      if(route==="/publishing/onboarding/review") {
+        const input=z.object({
+          reviewerUserId:z.string().regex(/^[a-zA-Z0-9_-]{3,160}$/),
+          accountId:z.string().regex(/^[a-zA-Z0-9_-]{3,160}$/),
+          recordId:z.string().regex(/^[a-zA-Z0-9_-]{3,160}$/),
+          kind:z.enum(["identity","tax","payout"]),
+          status:z.enum(["verified","failed","expired","manual_review","restricted"]),
+          reasonCode:z.string().max(120),
+          withholdingBps:z.number().int().min(0).max(10000).optional(),
+          requirementsDue:z.array(z.string().max(240)).max(100).optional(),
+          operationId:z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,95}$/)
+        }).strict().parse(raw);
+        // The service-binding secret is not a staff grant. The owner repeats
+        // the staff principal + permission check in its own QA database.
+        const principal=await env.PRIMARY_DB.prepare(
+          "SELECT user_id FROM staff_principals WHERE user_id=? AND status='active'"
+        ).bind(input.reviewerUserId).first<{user_id:string}>();
+        const roles=(await env.PRIMARY_DB.prepare(
+          "SELECT p.permission FROM staff_principal_roles pr JOIN staff_role_permissions p ON p.role_id=pr.role_id WHERE pr.user_id=?"
+        ).bind(input.reviewerUserId).all<{permission:string}>()).results;
+        if(!principal||!roles.some(r=>["publishing.review","staff.manage"].includes(r.permission)))
+          return new Response(null,{status:403,headers:noStore});
+        // These three positive statuses confer publisher identity, tax and
+        // payout authority. No evidence provider is bound yet: deny them.
+        if(input.status==="verified"||input.withholdingBps!==undefined||
+           (input.kind!=="payout"&&input.status==="restricted"))
+          return new Response(null,{status:409,headers:noStore});
+        const tables={identity:"publishing_identity_verifications",
+          tax:"publishing_tax_profiles",payout:"publishing_payout_accounts"} as const;
+        // This identifier is from an internal constant, never dynamic SQL
+        // sourced from a request; both IDs must match the existing record.
+        const record=await env.PRIMARY_DB.prepare(
+          "SELECT id,account_id,status FROM "+tables[input.kind]+" WHERE id=? AND account_id=?"
+        ).bind(input.recordId,input.accountId).first<{id:string;account_id:string;status:string}>();
+        const account=await env.PRIMARY_DB.prepare(
+          "SELECT id,identity_status,tax_status,payout_status FROM publishing_accounts WHERE id=?"
+        ).bind(input.accountId).first<Record<string,string>>();
+        if(!record||!account)return new Response(null,{status:409,headers:noStore});
+        const status=input.kind==="payout"&&
+          ["expired","manual_review"].includes(input.status)?"restricted":input.status;
+        const applied=record.status!==status||account[input.kind+"_status"]!==status;
+        if(applied){
+          const at=new Date().toISOString();
+          const statements=input.kind==="identity"?[
+            env.PRIMARY_DB.prepare(
+              "UPDATE publishing_identity_verifications SET status=?,reason_code=?,decided_at=? WHERE id=? AND account_id=?"
+            ).bind(status,input.reasonCode,at,input.recordId,input.accountId),
+            env.PRIMARY_DB.prepare("UPDATE publishing_accounts SET identity_status=?,updated_at=? WHERE id=?")
+              .bind(status,at,input.accountId)
+          ]:input.kind==="tax"?[
+            env.PRIMARY_DB.prepare(
+              "UPDATE publishing_tax_profiles SET status=?,reason_code=?,withholding_bps=COALESCE(?,withholding_bps),validated_at=CASE WHEN ?='verified' THEN ? ELSE validated_at END,updated_at=? WHERE id=? AND account_id=?"
+            ).bind(status,input.reasonCode,null,status,at,at,input.recordId,input.accountId),
+            env.PRIMARY_DB.prepare("UPDATE publishing_accounts SET tax_status=?,updated_at=? WHERE id=?")
+              .bind(status,at,input.accountId)
+          ]:[
+            env.PRIMARY_DB.prepare(
+              "UPDATE publishing_payout_accounts SET status=?,requirements_due_json=?,verified_at=CASE WHEN ?='verified' THEN ? ELSE verified_at END,updated_at=? WHERE id=? AND account_id=?"
+            ).bind(status,JSON.stringify(input.requirementsDue||[]),status,at,at,input.recordId,input.accountId),
+            env.PRIMARY_DB.prepare("UPDATE publishing_accounts SET payout_status=?,updated_at=? WHERE id=?")
+              .bind(status,at,input.accountId)
+          ];
+          statements.push(env.PRIMARY_DB.prepare(
+            "INSERT INTO publishing_audit_events(id,account_id,actor_user_id,entity_type,entity_id,action,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?)"
+          ).bind("pubaudit_"+crypto.randomUUID(),input.accountId,input.reviewerUserId,
+            input.kind+"_verification",input.recordId,"reviewed",
+            JSON.stringify({status:input.status,reasonCode:input.reasonCode,operationId:input.operationId}),at));
+          await env.PRIMARY_DB.batch(statements);
+        }
+        return Response.json({schema:"cove.owner-publishing-onboarding-negative.v1",
+          ownerFirst:true,operationId:input.operationId,accountId:input.accountId,
+          recordId:input.recordId,kind:input.kind,status:input.status,
+          applied,saved:true},{headers:noStore});
       }
       if(route==="/publishing/contract/save-version") {
         const storage=this.ctx.storage as typeof this.ctx.storage & {transactionSync<T>(fn:()=>T):T};

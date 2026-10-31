@@ -32,6 +32,8 @@ import {
   dispatchPublicationPreorder,
   dispatchPublicationRecovery,
   dispatchPublicationMaterialization,
+  dispatchPublishingOnboardingReview,
+  dispatchPublishingOwnerValidationJob,
 } from "../../storefront-strangler/publication-owner-routing.server";
 
 export type PublishingDB = {
@@ -2023,143 +2025,11 @@ export async function signPublishingAccessibilityDeclaration(
 }
 
 export async function leasePublishingValidationJobs(db: PublishingDB, raw: unknown) {
-  const x = z
-      .object({
-        workerId: z.string().trim().min(3).max(120),
-        limit: z.number().int().min(1).max(50).default(10),
-        leaseSeconds: z.number().int().min(30).max(900).default(300),
-        executionClasses: z
-          .array(z.enum(["worker", "external"]))
-          .min(1)
-          .max(2)
-          .default(["worker", "external"]),
-      })
-      .parse(raw),
-    at = now(),
-    expires = new Date(Date.now() + x.leaseSeconds * 1000).toISOString();
-  // Recover abandoned leases before taking new work. Jobs retry up to max_attempts and then
-  // fail closed as blocked instead of circulating forever or silently passing.
-  await db.batch([
-    db
-      .prepare(
-        "UPDATE publishing_validation_jobs SET status='queued',lease_owner=NULL,lease_expires_at=NULL,available_at=?,last_error='Previous worker lease expired; retrying.',updated_at=? WHERE status='leased' AND lease_expires_at<? AND attempts<max_attempts",
-      )
-      .bind(at, at, at),
-    db
-      .prepare(
-        "UPDATE publishing_validation_jobs SET status='blocked',lease_owner=NULL,lease_expires_at=NULL,last_error='Validation exhausted its retry budget.',updated_at=? WHERE status='leased' AND lease_expires_at<? AND attempts>=max_attempts",
-      )
-      .bind(at, at),
-  ]);
-  const candidates = (
-    await db
-      .prepare(
-        `SELECT id FROM publishing_validation_jobs WHERE status='queued' AND attempts<max_attempts AND available_at<=? AND execution_class IN (${x.executionClasses.map(() => "?").join(",")}) ORDER BY priority ASC,created_at ASC LIMIT ?`,
-      )
-      .bind(at, ...x.executionClasses, x.limit)
-      .all<any>()
-  ).results;
-  for (const row of candidates)
-    await db
-      .prepare(
-        "UPDATE publishing_validation_jobs SET status='leased',lease_owner=?,lease_expires_at=?,attempts=attempts+1,updated_at=? WHERE id=? AND status='queued'",
-      )
-      .bind(x.workerId, expires, at, row.id)
-      .run();
-  const jobs = (
-    await db
-      .prepare(
-        `SELECT j.*,v.object_key,v.mime_type,v.size_bytes,v.sha256,v.original_filename,a.kind,a.edition_id FROM publishing_validation_jobs j JOIN publishing_asset_versions v ON v.id=j.asset_version_id JOIN publishing_assets a ON a.id=v.asset_id WHERE j.status='leased' AND j.lease_owner=? AND j.lease_expires_at=? ORDER BY j.priority,j.created_at`,
-      )
-      .bind(x.workerId, expires)
-      .all<any>()
-  ).results;
-  return { jobs, leaseExpiresAt: expires };
+  return dispatchPublishingOwnerValidationJob(db, "lease-validation", raw);
 }
 
 export async function completePublishingValidationJob(db: PublishingDB, raw: unknown) {
-  const x = z
-    .object({
-      jobId: z.string().min(1),
-      workerId: z.string().min(3).max(120),
-      status: z.enum(["passed", "warning", "failed", "blocked"]),
-      validatorName: z.string().min(1).max(120),
-      validatorVersion: z.string().max(80).default(""),
-      issues: z
-        .array(
-          z.object({
-            code: z.string().max(120),
-            severity: z.enum(["info", "warning", "error"]).default("error"),
-            message: z.string().max(2000),
-            location: z.string().max(500).optional(),
-          }),
-        )
-        .max(2000)
-        .default([]),
-      reportObjectKey: z.string().max(500).nullable().optional(),
-      reportSha256: z
-        .string()
-        .regex(/^[a-fA-F0-9]{64}$/)
-        .nullable()
-        .optional(),
-    })
-    .parse(raw);
-  const job = await db
-    .prepare("SELECT * FROM publishing_validation_jobs WHERE id=?")
-    .bind(x.jobId)
-    .first<any>();
-  if (!job) throw new ApiError(404, "Validation job not found.");
-  if (
-    job.status !== "leased" ||
-    job.lease_owner !== x.workerId ||
-    (job.lease_expires_at && job.lease_expires_at < now())
-  )
-    throw new ApiError(409, "This validation lease is no longer active.");
-  const at = now();
-  await db.batch([
-    db
-      .prepare(
-        "UPDATE publishing_validation_jobs SET status=?,lease_owner=NULL,lease_expires_at=NULL,last_error=?,updated_at=? WHERE id=?",
-      )
-      .bind(
-        x.status,
-        ["failed", "blocked"].includes(x.status)
-          ? cleanText(x.issues[0]?.message || "Validation failed", 1000)
-          : "",
-        at,
-        x.jobId,
-      ),
-    db
-      .prepare(
-        "INSERT INTO publishing_validation_results(id,job_id,asset_version_id,check_type,validator_name,validator_version,status,issue_count,issues_json,report_object_key,report_sha256,completed_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
-      )
-      .bind(
-        id("pubval"),
-        x.jobId,
-        job.asset_version_id,
-        job.check_type,
-        x.validatorName,
-        x.validatorVersion,
-        x.status,
-        x.issues.length,
-        JSON.stringify(x.issues),
-        x.reportObjectKey || null,
-        x.reportSha256 || null,
-        at,
-      ),
-  ]);
-  if (String(job.check_type) === "malware")
-    await mirrorPublishingMalwareResult(db, {
-      assetVersionId: String(job.asset_version_id),
-      status: x.status,
-      validatorName: x.validatorName,
-      validatorVersion: x.validatorVersion,
-      issues: x.issues,
-      reportObjectKey: x.reportObjectKey || null,
-      reportSha256: x.reportSha256 || null,
-    });
-  const asset = await refreshAssetValidationSummary(db, String(job.asset_version_id));
-  return { jobId: x.jobId, assetVersionId: job.asset_version_id, ...asset };
+  return dispatchPublishingOwnerValidationJob(db, "complete-validation", raw);
 }
 
 async function assetStatus(db: PublishingDB, editionId: string) {
@@ -3333,82 +3203,28 @@ export async function reviewPublishingSubmission(
   return { decision: x.decision, status: next };
 }
 
+/** A review is no longer a shared-D1 authority write. Only the isolated
+ * privately authenticated owner can record a negative onboarding decision.
+ * Positive KYC/tax/payout verification requires external proof and remains closed. */
 export async function reviewPublishingOnboarding(
   db: PublishingDB,
   reviewerUserId: string,
   raw: unknown,
 ) {
   const x = z
-      .object({
-        accountId: z.string().min(1),
-        kind: z.enum(["identity", "tax", "payout"]),
-        recordId: z.string().min(1),
-        status: z.enum(["verified", "failed", "expired", "manual_review", "restricted"]),
-        reasonCode: z.string().max(120).default(""),
-        withholdingBps: z.number().int().min(0).max(10000).optional(),
-        requirementsDue: z.array(z.string().max(240)).max(100).optional(),
-      })
-      .parse(raw),
-    at = now();
-  if (x.kind === "identity") {
-    if (x.status === "restricted") throw new ApiError(400, "Restricted is not an identity status.");
-    await db.batch([
-      db
-        .prepare(
-          "UPDATE publishing_identity_verifications SET status=?,reason_code=?,decided_at=? WHERE id=? AND account_id=?",
-        )
-        .bind(x.status, x.reasonCode, at, x.recordId, x.accountId),
-      db
-        .prepare("UPDATE publishing_accounts SET identity_status=?,updated_at=? WHERE id=?")
-        .bind(x.status, at, x.accountId),
-    ]);
-  } else if (x.kind === "tax") {
-    if (x.status === "restricted") throw new ApiError(400, "Restricted is not a tax status.");
-    await db.batch([
-      db
-        .prepare(
-          "UPDATE publishing_tax_profiles SET status=?,reason_code=?,withholding_bps=COALESCE(?,withholding_bps),validated_at=CASE WHEN ?='verified' THEN ? ELSE validated_at END,updated_at=? WHERE id=? AND account_id=?",
-        )
-        .bind(
-          x.status,
-          x.reasonCode,
-          x.withholdingBps ?? null,
-          x.status,
-          at,
-          at,
-          x.recordId,
-          x.accountId,
-        ),
-      db
-        .prepare("UPDATE publishing_accounts SET tax_status=?,updated_at=? WHERE id=?")
-        .bind(x.status, at, x.accountId),
-    ]);
-  } else {
-    const status = x.status === "expired" || x.status === "manual_review" ? "restricted" : x.status;
-    await db.batch([
-      db
-        .prepare(
-          "UPDATE publishing_payout_accounts SET status=?,requirements_due_json=?,verified_at=CASE WHEN ?='verified' THEN ? ELSE verified_at END,updated_at=? WHERE id=? AND account_id=?",
-        )
-        .bind(
-          status,
-          JSON.stringify(x.requirementsDue || []),
-          status,
-          at,
-          at,
-          x.recordId,
-          x.accountId,
-        ),
-      db
-        .prepare("UPDATE publishing_accounts SET payout_status=?,updated_at=? WHERE id=?")
-        .bind(status, at, x.accountId),
-    ]);
-  }
-  await audit(db, x.accountId, reviewerUserId, `${x.kind}_verification`, x.recordId, "reviewed", {
-    status: x.status,
-    reasonCode: x.reasonCode,
-  });
-  return { saved: true };
+    .object({
+      accountId: z.string().min(1).max(180),
+      kind: z.enum(["identity", "tax", "payout"]),
+      recordId: z.string().min(1).max(180),
+      status: z.enum(["verified", "failed", "expired", "manual_review", "restricted"]),
+      reasonCode: z.string().max(120).default(""),
+      withholdingBps: z.number().int().min(0).max(10000).optional(),
+      requirementsDue: z.array(z.string().max(240)).max(100).optional(),
+    })
+    .parse(raw);
+  if (!hasPublicationOwner(db))
+    throw new ApiError(503, "Publishing verification review requires its private legal owner.");
+  return dispatchPublishingOnboardingReview(db, { ...x, reviewerUserId });
 }
 
 export async function publishingSnapshot(

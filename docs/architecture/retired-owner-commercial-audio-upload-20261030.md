@@ -1,0 +1,7 @@
+# R2 audiobook upload registration — private QA owner
+
+Six additional shared commercial-audio SQL writers are physically retired: file registration, preview linkage, chapter update/insert, profile QC invalidation, and QC queue creation. An upload first stores bytes through R2 with an expected SHA-256. The fixed typed owner command then independently checks current draft/publisher permission and R2 object identity, size, edition and checksum metadata before applying one atomic primary-D1 batch for the file, chapter/preview, profile and QC job. Existing file-ID replays return the prior verified receipt without duplicate inserts.
+
+Historical SQL fingerprints and the updated exact source hash are preserved in `retired-owner-commercial-audio-upload-lineage.json` and `retired-owner-commercial-audio-upload-attestation-20261030.json`. The commercial-audio source has only three owner-required sites remaining (offline audio licensing and Biosync), while the entire PR audit is **217**, down from 260 on main.
+
+This is **QA only**: the private legal owner is production-disabled; the new owner needs its own R2 bucket binding; QC/rights positive provider evidence, offline customer entitlement, lost-result recovery, direct-production-D1 privilege retirement and protected rollback are not certified. Orphan R2 cleanup after an owner rejection also requires operational recovery. Do not merge/deploy as a paid-rights release. `releaseApproval=false`.

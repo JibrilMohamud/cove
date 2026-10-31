@@ -1,0 +1,72 @@
+{
+  "schema": "cove.owner-commercial-audio-qc-lineage.v1",
+  "releaseApproval": false,
+  "sourceFile": "src/features/fore/commercial-audio.server.ts",
+  "updatedSourceSha256": "fdc81ae026d2159b0fd2cec92f500b16e52f7bb250927c8e766065bf49e9ceba",
+  "retiredCount": 7,
+  "rows": [
+    {
+      "siteId": "ed706e84d58faa60ee54221f0df76b94d7b434065c772474483701fb841b6553",
+      "operation": "UPDATE",
+      "functionName": "leaseCommercialAudioQcJobs",
+      "table": "commercial_audio_qc_jobs",
+      "line": 486,
+      "sqlSha256": "d8631bbee4215c854138f1bd5aa19291e2c3e3fac87091e1a28dd88ed4d3fc94",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "2d874c6500d9463c0bc122473dc4b0ccb43ad2fe1862548b027d2df61a24d208",
+      "operation": "UPDATE",
+      "functionName": "completeCommercialAudioQc",
+      "table": "commercial_audio_chapters",
+      "line": 779,
+      "sqlSha256": "88f56c69560489814fd52fa3889b893b06b45123a9d626cc5f1445047845789d",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "8d9199d8eb57f0ded81a6cf42300e49d283a4223bc062813b83f073a02f873e1",
+      "operation": "UPDATE",
+      "functionName": "completeCommercialAudioQc",
+      "table": "commercial_audio_files",
+      "line": 796,
+      "sqlSha256": "28fa1f9eb36b1376d0a0067db997ec9b1eceb850f7f299b071f5ffb09d19a05b",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "ca299da2792a529bbb1dc80892f031ed9301ff723a05b6a8d276ad6ec4fd150b",
+      "operation": "UPDATE",
+      "functionName": "completeCommercialAudioQc",
+      "table": "commercial_audio_files",
+      "line": 854,
+      "sqlSha256": "28fa1f9eb36b1376d0a0067db997ec9b1eceb850f7f299b071f5ffb09d19a05b",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "a0ea5679ec323462cbddbc37c29ef9f1d1f3100331f18e0c267722645f15827e",
+      "operation": "INSERT INTO",
+      "functionName": "completeCommercialAudioQc",
+      "table": "commercial_audio_qc_runs",
+      "line": 877,
+      "sqlSha256": "ae1b597dc5201061771028af2741f5679f56964495c3175580d6f12659be82d0",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "442d27f2f11516ad28665d6c972400d0eb2416a515073c00ffd258f28176be2d",
+      "operation": "UPDATE",
+      "functionName": "completeCommercialAudioQc",
+      "table": "commercial_audio_profiles",
+      "line": 891,
+      "sqlSha256": "a72b9cc6756a665e76301eca19b615ada6216e026059fa8774d0246b763e744d",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "1511fbc3554e867bce81da0eb9263f3aed971ffdfb1ccea01fc7aaa25a4fd95e",
+      "operation": "UPDATE",
+      "functionName": "completeCommercialAudioQc",
+      "table": "commercial_audio_qc_jobs",
+      "line": 897,
+      "sqlSha256": "47cab8d4690ec965704a8ddda654747441b05612f3ee5c659645de5b1db79e1b",
+      "disposition": "owner-command-required"
+    }
+  ]
+}

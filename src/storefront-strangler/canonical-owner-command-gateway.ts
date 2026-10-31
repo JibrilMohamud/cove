@@ -120,6 +120,44 @@ const routes={
     objectKey:z.string().max(500),createdAt:z.string().datetime(),
     operationId:shortOperation
   }).strict()},
+  "publishing.audio-register-upload":{path:"/publishing/audio/register-upload",schema:z.object({
+    userId:subject,editionId:subject,kind:z.enum(["chapter","preview"]),
+    title:z.string().min(1).max(300),position:z.number().int().min(0).max(10000),
+    durationMs:z.number().int().positive().max(86_400_000),
+    sampleRateHz:z.number().int().min(8000).max(192000),
+    bitrateKbps:z.number().int().min(16).max(1000).nullable(),
+    bitrateMode:z.string().max(20),channels:z.number().int().min(1).max(8),
+    rms:z.number().finite().nullable(),peak:z.number().finite().nullable(),
+    noise:z.number().finite().nullable(),filename:z.string().min(1).max(240),
+    mime:z.enum(["audio/mpeg","audio/mp4"]),
+    length:z.number().int().positive().max(750*1024*1024),
+    sha:z.string().regex(/^[a-f0-9]{64}$/),
+    fileId:z.string().regex(/^audiofile_[a-f0-9-]{36}$/),
+    key:z.string().min(1).max(1000),
+    operationId:shortOperation
+  }).strict()},
+  "publishing.audio-qc-jobs":{path:"/publishing/audio/qc-jobs",schema:z.object({
+    action:z.enum(["lease","complete"]),
+    payload:z.record(z.string(),z.unknown()),
+    operationId:shortOperation
+  }).strict()},
+  "publishing.worker-jobs":{path:"/publishing/worker/jobs",schema:z.object({
+    action:z.enum(["lease-validation","complete-validation","lease-rights-scan","complete-rights-scan"]),
+    payload:z.record(z.string(),z.unknown()),operationId:shortOperation
+  }).strict()},
+  "publishing.audio-metadata":{path:"/publishing/audio/metadata",schema:z.object({
+    action:z.enum(["profile","narrators","agreement-add","agreement-end"]),
+    userId:subject,payload:z.record(z.string(),z.unknown()),operationId:shortOperation
+  }).strict()},
+  "publishing.review-onboarding":{path:"/publishing/onboarding/review",schema:z.object({
+    reviewerUserId:subject,accountId:subject,recordId:subject,
+    kind:z.enum(["identity","tax","payout"]),
+    status:z.enum(["verified","failed","expired","manual_review","restricted"]),
+    reasonCode:z.string().max(120),
+    withholdingBps:z.number().int().min(0).max(10000).optional(),
+    requirementsDue:z.array(z.string().max(240)).max(100).optional(),
+    operationId:shortOperation
+  }).strict()},
   "publishing.save-contract-version":{path:"/publishing/contract/save-version",schema:z.object({
     actorUserId:ownerId,operationId:shortOperation,
     contract:z.record(z.string(),z.unknown())
@@ -180,7 +218,7 @@ export async function dispatchCanonicalOwnerCommand(
     throw Error("canonical_command_binding_invalid");
   const body=definition.schema.parse(raw) as Record<string,unknown>;
   const encoded=JSON.stringify(body);
-  if(encoded.length>(kind==="publishing.save-contract-version"?32768:8192))throw Error("canonical_command_too_large");
+  if(encoded.length>(["publishing.worker-jobs","publishing.audio-qc-jobs"].includes(kind)?262144:kind==="publishing.save-contract-version"?32768:8192))throw Error("canonical_command_too_large");
   const root=isQuarantine(kind)?"https://legal-quarantine.internal":"https://legal-authority.internal";
   const response=await port.fetch(new Request(root+definition.path,{
     method:"POST",headers:{
@@ -191,7 +229,7 @@ export async function dispatchCanonicalOwnerCommand(
   }));
   if(response.status!==200)throw Error("canonical_command_owner_refused");
   const bytes=await response.text();
-  if(bytes.length>131072)throw Error("canonical_command_receipt_too_large");
+  if(bytes.length>(["publishing.worker-jobs","publishing.audio-qc-jobs"].includes(kind)?524288:131072))throw Error("canonical_command_receipt_too_large");
   let ack:unknown;
   try{ack=JSON.parse(bytes);}catch{throw Error("canonical_command_receipt_invalid");}
   if(!record(ack))throw Error("canonical_command_receipt_invalid");
@@ -381,6 +419,50 @@ export async function dispatchCanonicalOwnerCommand(
          ack.operationId!==body.operationId||ack.userId!==body.userId||
          ack.importId!==body.id||ack.productId!=="prd_"+body.id||
          typeof ack.applied!=="boolean")
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "publishing.audio-register-upload":
+      if(ack.schema!=="cove.owner-audio-upload.v1"||ack.ownerFirst!==true||
+         ack.operationId!==body.operationId||ack.fileId!==body.fileId||
+         ack.editionId!==body.editionId||ack.kind!==body.kind||
+         !record(ack.result)||ack.result.sha256!==body.sha||
+         (body.kind==="preview"&&ack.result.id!==body.fileId)||
+         (body.kind==="chapter"&&ack.result.fileId!==body.fileId))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "publishing.audio-qc-jobs":
+      if(ack.schema!=="cove.owner-audio-qc-jobs.v1"||ack.ownerFirst!==true||
+         ack.action!==body.action||ack.operationId!==body.operationId||
+         !record(ack.result)||
+         (body.action==="lease"&&!Array.isArray(ack.result.jobs))||
+         (body.action==="complete"&&
+          (typeof ack.result.id!=="string"||!["passed","failed","warning"].includes(String(ack.result.status)))))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "publishing.worker-jobs":
+      if(ack.schema!=="cove.owner-publishing-worker-jobs.v1"||
+         ack.ownerFirst!==true||ack.operationId!==body.operationId||
+         ack.action!==body.action||!record(ack.result)||
+         (String(body.action).startsWith("lease-")&&!Array.isArray(ack.result.jobs))||
+         (body.action==="complete-rights-scan"&&
+           (typeof ack.result.id!=="string"||!["passed","failed","blocked"].includes(String(ack.result.status))))||
+         (body.action==="complete-validation"&&typeof ack.result.assetVersionId!=="string"))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "publishing.audio-metadata":
+      if(ack.schema!=="cove.owner-audio-metadata.v1"||ack.ownerFirst!==true||
+         ack.operationId!==body.operationId||ack.action!==body.action||
+         ack.userId!==body.userId||!record(ack.result)||
+         (["profile","narrators"].includes(String(ack.action))&&ack.result.saved!==true)||
+         (["agreement-add","agreement-end"].includes(String(ack.action))&&
+          (typeof ack.result.id!=="string"||ack.result.id.length<3)))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "publishing.review-onboarding":
+      if(ack.schema!=="cove.owner-publishing-onboarding-negative.v1"||ack.ownerFirst!==true||
+         ack.operationId!==body.operationId||ack.accountId!==body.accountId||
+         ack.recordId!==body.recordId||ack.kind!==body.kind||ack.status!==body.status||
+         typeof ack.applied!=="boolean"||ack.saved!==true)
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "publishing.save-contract-version":

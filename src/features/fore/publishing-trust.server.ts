@@ -2,6 +2,7 @@ import { z } from "zod/v3";
 import { ApiError } from "./service";
 import { createModerationCase, type StaffContext } from "./moderation.server";
 import type { PublishingDB, PublishingEnv } from "./publishing.server";
+import { dispatchPublishingOwnerValidationJob } from "../../storefront-strangler/publication-owner-routing.server";
 
 const now = () => new Date().toISOString();
 const id = (p: string) => `${p}_${crypto.randomUUID()}`;
@@ -1412,142 +1413,10 @@ async function applyRoyaltyHold(db: PublishingDB, dispute: any, pub: any, staffU
     .bind(scopeId, scopeId)
     .run();
 }
-async function releaseHolds(
-  db: PublishingDB,
-  disputeId: string,
-  staffUserId: string | null,
-  reason: string,
-) {
-  const rows = (
-      await db
-        .prepare("SELECT * FROM royalty_holds WHERE dispute_id=? AND status='active'")
-        .bind(disputeId)
-        .all<any>()
-    ).results,
-    at = now();
-  for (const h of rows) {
-    await db
-      .prepare(
-        "UPDATE royalty_holds SET status='released',released_by_user_id=?,released_at=?,release_reason=? WHERE id=?",
-      )
-      .bind(staffUserId, at, reason, h.id)
-      .run();
-    if (h.scope_type === "product") {
-      await db
-        .prepare(
-          `UPDATE finance_royalty_events SET status='accrued' WHERE status='held' AND product_id=? AND NOT EXISTS (SELECT 1 FROM royalty_holds rh WHERE rh.status='active' AND rh.scope_type='product' AND rh.scope_id=?)`,
-        )
-        .bind(h.scope_id, h.scope_id)
-        .run();
-      await db
-        .prepare(
-          `UPDATE finance_royalty_allocations SET status='accrued' WHERE status='held' AND calculation_id IN (SELECT id FROM finance_royalty_calculations WHERE product_id=?) AND NOT EXISTS (SELECT 1 FROM royalty_holds rh WHERE rh.status='active' AND rh.scope_type='product' AND rh.scope_id=?)`,
-        )
-        .bind(h.scope_id, h.scope_id)
-        .run();
-      await db
-        .prepare(
-          `UPDATE payout_items SET status='pending' WHERE status='held' AND NOT EXISTS (SELECT 1 FROM payout_event_links pel JOIN finance_royalty_events re ON re.id=pel.royalty_event_id WHERE pel.payout_item_id=payout_items.id AND re.status='held') AND NOT EXISTS (SELECT 1 FROM payout_allocation_links pal JOIN finance_royalty_allocations ra ON ra.id=pal.royalty_allocation_id WHERE pal.payout_item_id=payout_items.id AND ra.status='held')`,
-        )
-        .run();
-    }
-  }
-}
-async function restore(
-  db: PublishingDB,
-  dispute: any,
-  actorType: "staff" | "worker",
-  actorUserId: string | null,
-  reason: string,
-) {
-  const at = now();
-  if (dispute.lifecycle_id) {
-    const l = await db
-      .prepare("SELECT * FROM publishing_release_lifecycles WHERE id=?")
-      .bind(dispute.lifecycle_id)
-      .first<any>();
-    if (l && l.state === "takedown") {
-      const target = ["live", "updated", "preorder", "scheduled", "approved"].includes(
-        String(l.enforcement_previous_state),
-      )
-        ? String(l.enforcement_previous_state)
-        : "approved";
-      await db.batch([
-        db
-          .prepare(
-            "UPDATE publishing_release_lifecycles SET state=?,state_reason=?,updated_at=? WHERE id=?",
-          )
-          .bind(target, reason, at, l.id),
-        db
-          .prepare(
-            "INSERT INTO publishing_lifecycle_events(id,lifecycle_id,from_state,to_state,trigger_type,actor_user_id,reason_code,metadata_json,created_at) VALUES(?,?,'takedown',?,'moderation',?,?,?,?)",
-          )
-          .bind(
-            id("lifeevt"),
-            l.id,
-            target,
-            actorUserId,
-            "copyright_restore",
-            JSON.stringify({ disputeId: dispute.id }),
-            at,
-          ),
-      ]);
-      const pub = await db
-        .prepare(
-          `SELECT p.product_id FROM publishing_publications p JOIN publishing_submission_snapshots s ON s.id=p.submission_id WHERE s.edition_id=? ORDER BY p.published_at DESC LIMIT 1`,
-        )
-        .bind(l.publishing_edition_id)
-        .first<any>();
-      if (pub && ["live", "updated", "preorder"].includes(target))
-        await db
-          .prepare("UPDATE products SET storefront_status='active',updated_at=? WHERE id=?")
-          .bind(at, pub.product_id)
-          .run();
-    }
-  }
-  const affectedProducts = (
-    await db
-      .prepare("SELECT scope_id FROM royalty_holds WHERE dispute_id=? AND scope_type='product'")
-      .bind(dispute.id)
-      .all<any>()
-  ).results.map((r: any) => String(r.scope_id));
-  await releaseHolds(db, dispute.id, actorUserId, reason);
-  for (const productId of affectedProducts) {
-    const otherHold = await db
-      .prepare(
-        "SELECT 1 ok FROM royalty_holds WHERE status='active' AND scope_type='product' AND scope_id=? LIMIT 1",
-      )
-      .bind(productId)
-      .first<any>();
-    if (otherHold) continue;
-    const release = await db
-      .prepare(
-        `SELECT l.state FROM publishing_publications p JOIN publishing_submission_snapshots s ON s.id=p.submission_id JOIN publishing_release_lifecycles l ON l.publishing_edition_id=s.edition_id WHERE p.product_id=? ORDER BY p.published_at DESC LIMIT 1`,
-      )
-      .bind(productId)
-      .first<any>();
-    if (release && ["live", "updated", "preorder"].includes(String(release.state)))
-      await db
-        .prepare("UPDATE products SET storefront_status='active',updated_at=? WHERE id=?")
-        .bind(at, productId)
-        .run();
-  }
-  await db
-    .prepare("UPDATE rights_disputes SET status='restored',updated_at=? WHERE id=?")
-    .bind(at, dispute.id)
-    .run();
-  await db
-    .prepare("UPDATE copyright_notices SET status='restored',updated_at=? WHERE dispute_id=?")
-    .bind(at, dispute.id)
-    .run();
-  await db
-    .prepare(
-      "UPDATE copyright_counter_notices SET status='restored',updated_at=? WHERE dispute_id=? AND status IN ('forwarded','waiting','compliant')",
-    )
-    .bind(at, dispute.id)
-    .run();
-  await disputeEvent(db, dispute.id, "content_restored", actorType, actorUserId, { reason }).run();
-}
+// Restoring takedown publications and releasing funds MUST be performed by
+// an independently authorized canonical owner, not shared D1. No public
+// replacement is deliberately exposed until rights/court evidence and
+// finance hold release can be verified atomically under an owner epoch.
 
 export async function validateCopyrightNotice(db: PublishingDB, staff: StaffContext, raw: unknown) {
   const x = z
@@ -2051,10 +1920,13 @@ export async function resolveRightsDispute(db: PublishingDB, staff: StaffContext
     );
   const mustRelease = ["no_infringement", "claimant_withdrawn"].includes(x.resolutionCode);
   const royaltyDisposition = mustRelease ? "release" : x.royaltyDisposition || "continue_hold";
-  if (x.restoreContent)
-    await restore(db, d, "staff", staff.userId, `resolution:${x.resolutionCode}`);
-  else if (royaltyDisposition === "release")
-    await releaseHolds(db, d.id, staff.userId, x.resolutionCode);
+  // No staff/public D1 path may reactivate withdrawn rights or free held funds.
+  // Deny before the infringement/finance/dispute side effects below.
+  if (x.restoreContent || royaltyDisposition === "release")
+    throw new ApiError(
+      503,
+      "Copyright restoration and royalty release require the independently authorized legal owner.",
+    );
   if (
     d.publishing_account_id &&
     ["infringement_confirmed", "court_order"].includes(x.resolutionCode)
@@ -2260,38 +2132,15 @@ export async function advanceRightsDisputeDeadlines(db: PublishingDB) {
       .bind(now())
       .all<any>()
   ).results;
-  let restored = 0;
-  for (const d of due) {
-    await db
-      .prepare("UPDATE rights_disputes SET status='restoration_eligible',updated_at=? WHERE id=?")
-      .bind(now(), d.id)
-      .run();
-    await restore(
-      db,
-      { ...d, status: "restoration_eligible" },
-      "worker",
-      null,
-      "dmca_counter_notice_window_elapsed",
+  // DO NOT acknowledge a restored work or notify a claimant of restoration
+  // while the production owner is unavailable. Leave disputes pending and
+  // explicitly fail the job so operators can resolve the legal deadline.
+  if (due.length)
+    throw new ApiError(
+      503,
+      "Copyright restoration deadline reached; independent legal-owner certification is required.",
     );
-    const n = await db
-        .prepare("SELECT claimant_email FROM copyright_notices WHERE dispute_id=?")
-        .bind(d.id)
-        .first<any>(),
-      a = d.publishing_account_id
-        ? await db
-            .prepare("SELECT contact_email FROM publishing_accounts WHERE id=?")
-            .bind(d.publishing_account_id)
-            .first<any>()
-        : null;
-    await notify(db, d.id, "restored", "claimant", n?.claimant_email || "", {
-      reason: "counter_notice_window_elapsed",
-    });
-    await notify(db, d.id, "restored", "publisher", a?.contact_email || "", {
-      reason: "counter_notice_window_elapsed",
-    });
-    restored++;
-  }
-  return { checked: due.length, restored };
+  return { checked: 0, restored: 0 };
 }
 
 export async function leaseRightsNotificationJobs(db: PublishingDB, raw: unknown) {
@@ -2373,68 +2222,11 @@ export async function completeRightsNotificationJob(db: PublishingDB, raw: unkno
 }
 
 export async function leaseRightsEvidenceScanJobs(db: PublishingDB, raw: unknown) {
-  const x = z
-      .object({
-        workerId: z.string().min(1).max(160),
-        limit: z.number().int().min(1).max(50).default(10),
-        leaseSeconds: z.number().int().min(30).max(1800).default(300),
-      })
-      .parse(raw),
-    at = now(),
-    until = new Date(Date.now() + x.leaseSeconds * 1000).toISOString();
-  await db
-    .prepare(
-      "UPDATE publishing_rights_evidence_scan_jobs SET status='queued',lease_owner=NULL,lease_expires_at=NULL,available_at=?,updated_at=? WHERE status='leased' AND lease_expires_at<? AND attempts<max_attempts",
-    )
-    .bind(at, at, at)
-    .run();
-  const rows = (
-    await db
-      .prepare(
-        "SELECT j.*,e.object_key,e.mime_type,e.sha256,e.size_bytes FROM publishing_rights_evidence_scan_jobs j JOIN publishing_rights_evidence e ON e.id=j.evidence_id WHERE j.status='queued' AND j.available_at<=? AND j.attempts<j.max_attempts ORDER BY j.created_at LIMIT ?",
-      )
-      .bind(at, x.limit)
-      .all<any>()
-  ).results;
-  for (const r of rows)
-    await db
-      .prepare(
-        "UPDATE publishing_rights_evidence_scan_jobs SET status='leased',lease_owner=?,lease_expires_at=?,attempts=attempts+1,updated_at=? WHERE id=? AND status='queued'",
-      )
-      .bind(x.workerId, until, at, r.id)
-      .run();
-  return { jobs: rows };
+  return dispatchPublishingOwnerValidationJob(db, "lease-rights-scan", raw);
 }
+
 export async function completeRightsEvidenceScanJob(db: PublishingDB, raw: unknown) {
-  const x = z
-      .object({
-        jobId: z.string().min(1),
-        workerId: z.string().min(1),
-        status: z.enum(["passed", "failed", "blocked"]),
-        error: z.string().max(2000).default(""),
-      })
-      .parse(raw),
-    j = await db
-      .prepare(
-        "SELECT * FROM publishing_rights_evidence_scan_jobs WHERE id=? AND status='leased' AND lease_owner=?",
-      )
-      .bind(x.jobId, x.workerId)
-      .first<any>();
-  if (!j)
-    throw new ApiError(409, "Evidence scan lease is missing or no longer owned by this worker.");
-  const at = now(),
-    scanStatus = x.status === "passed" ? "clean" : x.status === "blocked" ? "rejected" : "failed";
-  await db.batch([
-    db
-      .prepare(
-        "UPDATE publishing_rights_evidence_scan_jobs SET status=?,lease_owner=NULL,lease_expires_at=NULL,last_error=?,updated_at=? WHERE id=?",
-      )
-      .bind(x.status, x.error, at, j.id),
-    db
-      .prepare("UPDATE publishing_rights_evidence SET scan_status=? WHERE id=?")
-      .bind(scanStatus, j.evidence_id),
-  ]);
-  return { id: j.id, status: x.status };
+  return dispatchPublishingOwnerValidationJob(db, "complete-rights-scan", raw);
 }
 
 export async function reviewRightsEvidence(db: PublishingDB, staff: StaffContext, raw: unknown) {
