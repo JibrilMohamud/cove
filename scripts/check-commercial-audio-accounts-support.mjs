@@ -68,7 +68,7 @@ for (const token of [
 ])
   assert.ok(audio.includes(token), `commercial audio missing ${token}`);
 assert.match(audio, /quarantined/);
-assert.match(audio, /errors\.length\s*\?\s*[\"\']rejected[\"\']\s*:\s*[\"\']clean[\"\']/);
+assert.match(read("src/storefront-strangler/legal-authority.worker.ts"), /errors\.length\s*\?\s*[\"\']rejected[\"\']\s*:\s*[\"\']clean[\"\']/);
 const ownerAudio = read("src/storefront-strangler/legal-authority.worker.ts");
 for (const invariant of [
   /performance-rights territory must match/i,
