@@ -18686,9 +18686,9 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
             sourceUrl=new URL(String(args[10]));evidenceUrl=new URL(String(args[29]));
             if([sourceUrl,evidenceUrl].some(u=>u.protocol!=="https:"||u.username||
                u.password||u.hostname==="localhost"||u.hostname.endsWith(".internal")||
-               /^\\d+\\.\\d+\\.\\d+\\.\\d+$/.test(u.hostname)))
+               /^\d+\.\d+\.\d+\.\d+$/.test(u.hostname)))
               throw Error("untrusted_origin");
-            if(rec.sourceId==="pg_us"&&!/^(?:www\\.)?gutenberg\\.org$/.test(sourceUrl.hostname))
+            if(rec.sourceId==="pg_us"&&!/^(?:www\.)?gutenberg\.org$/.test(sourceUrl.hostname))
               throw Error("untrusted_gutenberg_host");
           }catch{return new Response(null,{status:409,headers:noStore});}
           const source=await db.prepare("SELECT id FROM gutenberg_sources WHERE id=? AND enabled=1")
