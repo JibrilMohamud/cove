@@ -41,7 +41,11 @@ try {
   primary.prepare("INSERT INTO commercial_audio_policy_versions VALUES('capol_qa','active')").run();
   primary.prepare("INSERT INTO publishing_rights_declarations VALUES('rightsdecl_qa',?)").run(editionId);
   primary.prepare("INSERT INTO publishing_rights_evidence VALUES('rightsev_qa','rightsdecl_qa','verified')").run();
-  const db={prepare(sql){return {bind(...args){return {
+  const db={prepare(sql){return {
+    async first(){return primary.prepare(sql).get()||null;},
+    async all(){return {results:primary.prepare(sql).all()};},
+    async run(){return {meta:{changes:primary.prepare(sql).run().changes}};},
+    bind(...args){return {
     async first(){return primary.prepare(sql).get(...args)||null;},
     async all(){return {results:primary.prepare(sql).all(...args)};},
     async run(){return {meta:{changes:primary.prepare(sql).run(...args).changes}};}
