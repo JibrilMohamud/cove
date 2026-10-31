@@ -17697,6 +17697,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/risk/private-release-hold",
       "/promotion/private-action",
       "/catalog/private-ingest-state",
+      "/catalog/private-grant-free-library",
       "/delivery/private-record-ownership",
       "/delivery/register-entitlement-device",
       "/delivery/private-negative",
@@ -19153,6 +19154,45 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         }
         return Response.json({schema:"cove.owner-ingestion-state-qa.v1",ownerFirst:true,
           action:input.action,result},{headers:noStore});
+      }
+      if(route==="/catalog/private-grant-free-library"){
+        const input=z.object({
+          userId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
+          productId:z.string().regex(/^prd_gutenberg_(?:[0-9]{1,10}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90})$/),
+          territory:z.string().regex(/^[A-Z]{2}$/)
+        }).strict().parse(raw);
+        const db=env.PRIMARY_DB,at=now(),sourceId=input.productId.slice("prd_gutenberg_".length);
+        if(marketIsWithdrawn(sql,input.territory))
+          return new Response(null,{status:409,headers:noStore});
+        const market=await db.prepare(
+          "SELECT default_currency FROM storefront_markets WHERE country_code=? AND market_status='active'"
+        ).bind(input.territory).first<{default_currency:string}>();
+        if(!market||! /^[A-Z]{3}$/.test(market.default_currency))
+          return new Response(null,{status:409,headers:noStore});
+        const legal=readAuthorizedPresentations(sql,[input.productId],
+          input.territory,market.default_currency);
+        if(legal.length!==1||legal[0].product_id!==input.productId)
+          return new Response(null,{status:409,headers:noStore});
+        const source=await db.prepare(
+          "SELECT p.id FROM products p JOIN gutenberg_source_cache c ON c.id=? WHERE p.id=? AND p.source_name='gutenberg' AND c.source_item_id=p.source_external_id AND c.rights_status='public-domain' AND c.commercial_use_status='approved' AND c.ingest_status='active' AND c.rights_evidence_id IS NOT NULL AND c.rights_evidence_id<>'' AND EXISTS(SELECT 1 FROM json_each(c.rights_territories_json) jt WHERE upper(jt.value)=?) AND (c.source_id='pg_us' AND c.copyright=0 OR (c.source_id IN ('pg_ca','pg_au','pg_eu') AND EXISTS(SELECT 1 FROM gutenberg_rights_evidence e WHERE e.id=c.rights_evidence_id AND e.cache_id=c.id AND e.status='approved' AND e.determination='public-domain' AND e.territory_code=?)))"
+        ).bind(sourceId,input.productId,input.territory,input.territory)
+         .first<{id:string}>();
+        if(!source)return new Response(null,{status:409,headers:noStore});
+        // The INSERT repeats source/territory/revocation checks. A revoked
+        // record is not silently reactivated; an exact active replay is
+        // idempotent. Legal owner proof is checked before this D1 mutation.
+        const result=await db.prepare(
+          "INSERT INTO entitlements(id,user_id,product_id,entitlement_type,status,source,granted_at,updated_at) SELECT ?,?,p.id,'public-domain','active','gutenberg',?,? FROM products p JOIN gutenberg_source_cache c ON c.id=? WHERE p.id=? AND p.source_name='gutenberg' AND c.source_item_id=p.source_external_id AND c.rights_status='public-domain' AND c.commercial_use_status='approved' AND c.ingest_status='active' AND c.rights_evidence_id IS NOT NULL AND EXISTS(SELECT 1 FROM json_each(c.rights_territories_json) j WHERE upper(j.value)=?) AND NOT EXISTS(SELECT 1 FROM entitlements prior WHERE prior.user_id=? AND prior.product_id=p.id AND prior.entitlement_type='public-domain' AND prior.status='revoked') ON CONFLICT(user_id,product_id,entitlement_type) WHERE status='active' DO NOTHING"
+        ).bind(crypto.randomUUID(),input.userId,at,at,sourceId,input.productId,
+          input.territory,input.userId).run();
+        const live=await db.prepare(
+          "SELECT 1 ok FROM entitlements WHERE user_id=? AND product_id=? AND entitlement_type='public-domain' AND status='active' LIMIT 1"
+        ).bind(input.userId,input.productId).first<{ok:number}>();
+        if(!live)return new Response(null,{status:409,headers:noStore});
+        return Response.json({schema:"cove.owner-free-library-entitlement.v1",
+          ownerFirst:true,userId:input.userId,productId:input.productId,
+          saved:true,applied:Number((result as {meta?:{changes?:number}})?.meta?.changes||0)===1},
+          {headers:noStore});
       }
       if(route==="/delivery/private-record-ownership"){
         const x=z.object({entitlementId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),

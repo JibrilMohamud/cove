@@ -163,6 +163,11 @@ const routes={
     assetVersionId:z.string().min(3).max(180),
     sha256:z.string().regex(/^[a-f0-9]{64}$/)
   }).strict()},
+  "catalog.grant-verified-free-library":{path:"/catalog/private-grant-free-library",schema:z.object({
+    userId:ownerId,
+    productId:z.string().regex(/^prd_gutenberg_(?:[0-9]{1,10}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90})$/),
+    territory
+  }).strict()},
   "delivery.record-ownership":{path:"/delivery/private-record-ownership",schema:z.object({
     entitlementId:ownerId,userId:ownerId,
     productId:product
@@ -451,6 +456,11 @@ export async function dispatchCanonicalOwnerCommand(
       if(ack.schema!=="cove.owner-us-epub-cache.v1"||ack.ownerFirst!==true||
          ack.cacheId!==body.cacheId||ack.assetVersionId!==body.assetVersionId||
          ack.sha256!==body.sha256||ack.saved!==true)
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "catalog.grant-verified-free-library":
+      if(ack.schema!=="cove.owner-free-library-entitlement.v1"||ack.ownerFirst!==true||
+         ack.userId!==body.userId||ack.productId!==body.productId||ack.saved!==true)
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "delivery.record-ownership":
