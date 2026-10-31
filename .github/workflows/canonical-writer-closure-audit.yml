@@ -159,6 +159,7 @@ jobs:
           node scripts/check-retired-owner-publishing-onboarding.mjs
           node scripts/check-retired-owner-commercial-audio-metadata.mjs
           node scripts/check-retired-owner-publishing-worker-queues.mjs
+          node scripts/test-owner-publishing-work-queues.mjs
           node scripts/test-owner-audio-metadata.mjs
           node scripts/test-owner-publishing-onboarding.mjs
       - name: Export source-bound workflow migration inventory
