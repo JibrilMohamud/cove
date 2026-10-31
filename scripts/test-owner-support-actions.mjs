@@ -48,7 +48,7 @@ try{
      async all(){return {results:primary.prepare(statement).all(...args)};},
      async run(){return {meta:{changes:primary.prepare(statement).run(...args).changes}};},
      executeForBatch(){return primary.prepare(statement).run(...args);}
-   }};}},
+   };}};},
    async batch(statements){primary.exec("BEGIN");try{
      for(const stmt of statements)stmt.executeForBatch();
      primary.exec("COMMIT");
