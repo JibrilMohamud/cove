@@ -12,7 +12,7 @@ const webhookUrl="https://www.covereads.com/api/fore/stripe/webhook";
 const webhook={livemode:true,status:"enabled",url:webhookUrl,enabled_events:[...REQUIRED_EVENTS]};
 const safe={ownerSettings,workerSettings:[{name:PRODUCTION_OWNER,bindings:ownerSettings.bindings},
   {name:"read-only-canary",bindings:[]}],webhooks:[webhook],
-  accountTokens:[],accountTokenInventoryComplete:true,webhookUrl,ownerSource:"function productionLegalOwner() { return true; }"};
+  accountTokens:[],accountTokenInventoryComplete:true,userTokens:[],userTokenInventoryComplete:true,webhookUrl,ownerSource:"function productionLegalOwner() { return true; }"};
 const run=(overrides={})=>assessExternalPrerequisites({...safe,...overrides});
 const accepted=run();
 assert.equal(accepted.readyForExternalPrerequisites,true);
@@ -37,6 +37,11 @@ refuse({accountTokens:[{id:"missing-effect",status:"active",policies:[{}]}]},/po
 refuse({accountTokens:[{id:"missing-permission-metadata",status:"active",policies:[{effect:"allow",permission_groups:[{}]}]}]},/permission metadata is incomplete/);
 refuse({accountTokens:null},/token privilege inventory is missing/);
 refuse({accountTokenInventoryComplete:false},/token privilege inventory is missing/);
+refuse({userTokenInventoryComplete:false},/user API token privilege inventory is missing/);
+refuse({userTokens:null},/user API token privilege inventory is missing/);
+refuse({userTokens:[{id:"user-writer",status:"active",policies:[{effect:"allow",permission_groups:[{name:"D1 Write"}]}]}]},/User API token retains D1 Write/);
+refuse({userTokens:[{id:"user-admin",status:"active",policies:[{effect:"allow",permission_groups:[{name:"Workers Admin"}]}]}]},/User API token retains Workers Admin/);
+refuse({accountTokens:[{id:"deployment-admin",status:"active",policies:[{effect:"allow",permission_groups:[{name:"Workers Admin"}]}]}]},/account API token retains Workers Admin/);
 refuse({accountTokens:[{id:"broad-deployment",status:"active",policies:[{effect:"allow",permission_groups:[{id:"09b2857d1c31407795e75e3fed8617a1"}]}]}]},/D1 Write/);
 refuse({accountTokens:[{id:"broad-deployment",status:"active",policies:[{effect:"allow",permission_groups:[{name:"D1 Write"}]}]}]},/D1 Write/);
 refuse({accountTokens:[{id:"unknown",status:"active"}]},/policies are incomplete/);
@@ -56,6 +61,7 @@ refuse({webhookUrl:"https://attacker.example/api/fore/stripe/webhook"},/URL is m
 const actualFetch=globalThis.fetch;
 const tokenPages=[];
 let failTokenPage=false;
+let failUserTokenPage=false;
 let activeHiddenWriter=false;
 let denyVersion=false;
 const readVersion="11111111-1111-4111-8111-111111111111";
@@ -65,6 +71,11 @@ globalThis.fetch=async (input,options={})=>{
   const url=new URL(input);
   let result;
   if(url.hostname==="api.stripe.com")result={data:[webhook],has_more:false};
+  else if(url.pathname==="/client/v4/user/tokens"||url.pathname==="/user/tokens"){
+    assert.equal(url.searchParams.get("per_page"),"50");
+    if(failUserTokenPage)return new Response("denied",{status:403});
+    result={success:true,errors:[],result:[{id:"read-only-user",status:"active",policies:[{effect:"allow",permission_groups:[{name:"D1 Read"}]}]}],result_info:{total_pages:1}};
+  }
   else if(url.pathname.endsWith("/tokens")){
     assert.equal(url.searchParams.get("per_page"),"50");
     const page=Number(url.searchParams.get("page"));tokenPages.push(page);
@@ -95,6 +106,8 @@ try{
   assert.equal(evidence.accountTokens.length,51);
   assert.equal(evidence.workerSettings.length,152,"Unpaginated >100 Worker account must be fully inspected");
   assert.equal(evidence.accountTokenInventoryComplete,true);
+  assert.equal(evidence.userTokenInventoryComplete,true);
+  assert.equal(evidence.userTokens.length,1);
   refuse(evidence,/page-two-writer/);
   activeHiddenWriter=true;
   const split=await readLiveEvidence({cloudflareToken:"synthetic-reader",accountId:"test-account",stripeRestrictedKey:"synthetic-stripe-reader"});
@@ -105,5 +118,8 @@ try{
   denyVersion=false;activeHiddenWriter=false;
   failTokenPage=true;
   await assert.rejects(()=>readLiveEvidence({cloudflareToken:"synthetic-reader",accountId:"test-account",stripeRestrictedKey:"synthetic-stripe-reader"}),/HTTP 403/);
+  failTokenPage=false;
+  failUserTokenPage=true;
+  await assert.rejects(()=>readLiveEvidence({cloudflareToken:"synthetic-reader",accountId:"test-account",stripeRestrictedKey:"synthetic-stripe-reader"}),/HTTP 403/);
 }finally{globalThis.fetch=actualFetch;}
-console.log("PASS: read-only production preflight rejects missing owner/webhook/Worker/token evidence, active D1 API writers, incomplete pagination and provider denial.");
+console.log("PASS: read-only production preflight rejects missing owner/webhook/Worker/token evidence, active D1 API writers, incomplete pagination, user tokens and provider denial.");
