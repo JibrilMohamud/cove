@@ -15,7 +15,7 @@ try {
     // identity is the same as in production. Never duplicate the owner module.
     stdin: {
       contents: `export {handleCoveApi} from "./src/features/fore/api.server.ts";
-export {bindPublicationOwner} from "./src/storefront-strangler/publication-owner-routing.server.ts";`,
+export {bindPublicationOwner,hasPublicationOwner,dispatchVerifiedFreeLibraryEntitlement} from "./src/storefront-strangler/publication-owner-routing.server.ts";`,
       resolveDir: process.cwd(),
       sourcefile: "statistics-qa-owner-entry.ts",
       loader: "ts",
@@ -26,7 +26,7 @@ export {bindPublicationOwner} from "./src/storefront-strangler/publication-owner
     outfile: path.join(root, "api.mjs"),
     logLevel: "silent",
   });
-  const { handleCoveApi, bindPublicationOwner } = await import(path.join(root, "api.mjs"));
+  const { handleCoveApi, bindPublicationOwner, hasPublicationOwner, dispatchVerifiedFreeLibraryEntitlement } = await import(path.join(root, "api.mjs"));
   let env = localBindings(root);
   const db = env.DB,
     alice = "statistics-alice",
@@ -101,6 +101,10 @@ export {bindPublicationOwner} from "./src/storefront-strangler/publication-owner
     }),
   };
 
+  assert.equal(hasPublicationOwner(env.DB),true,"Synthetic private legal owner must be bound to exactly this D1 facade");
+  await dispatchVerifiedFreeLibraryEntitlement(env.DB,{
+    userId:alice,productId:String(product.id),territory:"US"
+  });
   const metrics = await request(alice, "/metrics", "PUT", {
     bookId: product.public_id,
     wordCount: 119999,
