@@ -4531,6 +4531,48 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         }
         const action=input.action;
         const db=env.PRIMARY_DB as unknown as CoveEnv["DB"];
+        if(action==="agreement-end") {
+          const termination=z.object({
+            agreementId:z.string().min(1).max(180),
+            disposition:z.enum(["terminated","superseded"]),
+            effectiveAt:z.string().datetime().optional(),
+            replacementAgreementId:z.string().min(1).max(180).nullable().optional(),
+            reason:z.string().trim().min(10).max(2000)
+          }).parse(input.payload);
+          const priorAgreement=await db.prepare(
+            "SELECT na.edition_id,na.narrator_id FROM narration_agreements na JOIN publishing_edition_drafts e ON e.id=na.edition_id JOIN publishing_titles t ON t.id=e.title_id JOIN publishing_account_members m ON m.account_id=t.account_id WHERE na.id=? AND m.user_id=? AND m.status='active' AND m.role IN ('owner','admin','editor')"
+          ).bind(termination.agreementId,input.userId).first<{edition_id:string;narrator_id:string}>();
+          if(!priorAgreement)throw new ApiError(403,"Publisher authorization is not current.");
+          const existing=await db.prepare(
+            "SELECT id FROM narration_agreement_terminations WHERE agreement_id=?"
+          ).bind(termination.agreementId).first<{id:string}>();
+          if(existing)throw new ApiError(409,"Agreement is already terminated.");
+          if(termination.disposition==="superseded") {
+            if(!termination.replacementAgreementId)throw new ApiError(400,"Replacement required.");
+            const replacement=await db.prepare(
+              "SELECT id FROM narration_agreements WHERE id=? AND edition_id=? AND narrator_id=?"
+            ).bind(termination.replacementAgreementId,priorAgreement.edition_id,priorAgreement.narrator_id).first<{id:string}>();
+            if(!replacement)throw new ApiError(409,"Replacement must cover the same edition and narrator.");
+          }
+          const products=(await db.prepare(
+            "SELECT DISTINCT p.product_id FROM publishing_publications p JOIN publishing_submission_snapshots ss ON ss.id=p.submission_id WHERE ss.edition_id=? AND p.product_id IS NOT NULL"
+          ).bind(priorAgreement.edition_id).all<{product_id:string}>()).results;
+          if(products.length>25)throw new ApiError(503,"Publication revocation set must be reviewed.");
+          if(products.length){
+            // A terminated audio performance licence withdraws *every* linked
+            // published product synchronously, before D1 is allowed to change.
+            const storage=this.ctx.storage as typeof this.ctx.storage & {
+              transactionSync<T>(fn:()=>T):T;
+            };
+            storage.transactionSync(()=>{
+              for(const [i,item] of products.entries()){
+                const denied=denyCommercialProduct(sql,{productId:item.product_id,
+                  operationId:"audio-termination:"+input.operationId+":"+i});
+                if(!denied.applied)throw Error("owner_audio_termination_denial_failed");
+              }
+            });
+          }
+        }
         const result=action==="profile"?
           await privateAudioMetadata.saveCommercialAudioProfile(db,input.userId,input.payload):
           action==="narrators"?
