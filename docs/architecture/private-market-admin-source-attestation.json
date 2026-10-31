@@ -6,7 +6,7 @@
   "files": [
     {
       "path": "src/features/fore/api.server.ts",
-      "sha256": "ee6fa312b61027b1de0c21618da2989f02dd3cf5cbbb1a7402b504657e109bfe",
+      "sha256": "bf665afee032c0c2618b76b655821fe588e8b109d383413927c07a73439bdd52",
       "review": "Only removes obsolete staging market-write refusal so an independently authorized QA private command can execute; all seven surviving API protected SQL literals, functions and dispositions remain byte-identical; site IDs re-fingerprinted."
     },
     {
