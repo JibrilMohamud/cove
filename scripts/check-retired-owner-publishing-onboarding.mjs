@@ -21,7 +21,7 @@ assert.doesNotMatch(method,/\b(?:UPDATE|DELETE FROM|INSERT INTO)\s+publishing_/i
 assert.match(gateway,/"publishing\.review-onboarding":\{path:"\/publishing\/onboarding\/review"/);
 assert.match(gateway,/case "publishing\.review-onboarding":/);
 assert.match(routing,/"publishing\.review-onboarding",\{\.\.\.command,operationId\}/);
-assert.match(owner,/if\(route==="/publishing\/onboarding\/review"\)/);
+assert.ok(owner.includes('if(route==="/publishing/onboarding/review")'));
 assert.match(owner,/SELECT user_id FROM staff_principals WHERE user_id=\? AND status='active'/);
 assert.match(owner,/SELECT p.permission FROM staff_principal_roles pr JOIN staff_role_permissions p/);
 assert.match(owner,/if\(input.status==="verified"\|\|input.withholdingBps!==undefined/);
