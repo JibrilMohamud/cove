@@ -19686,7 +19686,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         }else{
           refund=await db.prepare(
             "SELECT id,order_id,status,succeeded_at,tax_reversal_id FROM commerce_refunds WHERE id=? AND order_id=?"
-          ).bind(input.refundId,input.orderId).first<typeof refund extends null?never:NonNullable<typeof refund>>();
+          ).bind(input.refundId,input.orderId).first<{id:string;order_id:string;status:string;succeeded_at:string|null;tax_reversal_id:string|null}>();
           if(!refund||!refund.succeeded_at||!order.stripe_tax_transaction_id||
              (refund.tax_reversal_id&&refund.tax_reversal_id!==input.taxTransactionId))
             return new Response(null,{status:409,headers:noStore});
