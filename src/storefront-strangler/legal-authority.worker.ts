@@ -18750,7 +18750,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       }
       if(route==="/delivery/private-negative") {
         const request=z.object({
-          action:z.enum(["revoke-grant","withdraw-version","restrict-policy"]),
+          action:z.enum(["revoke-grant","withdraw-version","restrict-policy","expire-grant","exhaust-grant"]),
           payload:z.record(z.string(),z.unknown())
         }).strict().parse(raw);
         const db=env.PRIMARY_DB;
@@ -18767,6 +18767,31 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
             "UPDATE commercial_delivery_grants SET status='revoked',revoked_at=?,revocation_reason='customer_revoked' WHERE id=? AND user_id=? AND status='active'"
           ).bind(now(),x.grantId,x.userId).run();
           result={revoked:true};
+        }else if(request.action==="expire-grant"||request.action==="exhaust-grant"){
+          const x=z.object({grantId:z.string().min(3).max(180)}).strict().parse(payload);
+          // A token cannot request expiration/exhaustion: the private owner
+          // independently compares its own current clock and usage counter.
+          const current=await db.prepare(
+            "SELECT status,expires_at,uses,max_uses FROM commercial_delivery_grants WHERE id=?"
+          ).bind(x.grantId).first<{status:string;expires_at:string;uses:number;max_uses:number}>();
+          if(!current)return new Response(null,{status:404,headers:noStore});
+          const target=request.action==="expire-grant"?"expired":"exhausted";
+          if(current.status!==target){
+            if(current.status!=="active"||
+               (target==="expired"&&Date.parse(current.expires_at)>Date.now())||
+               (target==="exhausted"&&Number(current.uses)<Number(current.max_uses)))
+              return new Response(null,{status:409,headers:noStore});
+            const at=now();
+            const statement=target==="expired"
+              ?db.prepare("UPDATE commercial_delivery_grants SET status='expired' WHERE id=? AND status='active' AND expires_at<=?")
+                .bind(x.grantId,at)
+              :db.prepare("UPDATE commercial_delivery_grants SET status='exhausted' WHERE id=? AND status='active' AND uses>=max_uses")
+                .bind(x.grantId);
+            const outcome=await statement.run();
+            if(Number((outcome as {meta?:{changes?:number}})?.meta?.changes||0)!==1)
+              return new Response(null,{status:409,headers:noStore});
+          }
+          result={saved:true};
         }else{
           const actor=z.object({actorUserId:z.string().min(3).max(180)});
           const actorId=actor.parse(payload).actorUserId;
