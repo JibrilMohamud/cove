@@ -457,6 +457,24 @@ export async function dispatchPrivateCommercialEpubGrant(db:object,input:{
  * private owner commits both license refresh and any revocation. */
 /** Financial permissions may only change after independently verified
  * private legal-owner assessment; never fall back to shared D1. */
+/** Independently stored and approved regional legal evidence is mandatory;
+ * an R2 EPUB hash or a self-reported public-domain bit alone never grants. */
+export async function dispatchPrivateRegionalRightsEvidence(db:object,input:{
+ cacheId:string;sha256:string;canonicalizationVersion:string
+}):Promise<{territories:string[];evidenceId:string}>{
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Regional rights evidence requires private legal authority.");
+ try{
+  const ack=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+    "catalog.verify-regional-rights-evidence",input);
+  if(ack.verified!==true||ack.cacheId!==input.cacheId||
+     ack.sha256!==input.sha256||!Array.isArray(ack.territories)||
+     typeof ack.evidenceId!=="string")
+    throw Error("regional_rights_receipt_mismatch");
+  return {territories:ack.territories as string[],evidenceId:ack.evidenceId};
+ }catch{throw new ApiError(503,"Private legal owner refused regional rights evidence.");}
+}
+
 export async function dispatchPrivatePublisherTaxVerification(db:object,request:unknown):
  Promise<{profileId:string;status:string;effectiveWithholdingBps:number}>{
  const context=owners.get(db);
