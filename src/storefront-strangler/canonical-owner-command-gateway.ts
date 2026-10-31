@@ -149,6 +149,10 @@ const routes={
     action:z.enum(["profile","narrators","agreement-add","agreement-end"]),
     userId:subject,payload:z.record(z.string(),z.unknown()),operationId:shortOperation
   }).strict()},
+  "publishing.editor-action":{path:"/publishing/editor-action",schema:z.object({
+    action:z.enum(["account-save","member-invite","identity-start","tax-submit","payout-submit","title-save","edition-save","asset-upload","accessibility-sign","edition-submit","revision-open","update-policy","owner-optin","review-submission"]),
+    operationId:z.string().regex(/^editor:[a-f0-9-]{36}$/),
+    payload:z.record(z.string(),z.unknown())}).strict()},
   "trust.owner-action":{path:"/trust/private-action",schema:z.object({
     action:z.enum(["sign-rights","upload-evidence","assess-content",
       "submit-notice","validate-notice","submit-counter","validate-counter",
@@ -482,6 +486,12 @@ export async function dispatchCanonicalOwnerCommand(
          (["profile","narrators"].includes(String(ack.action))&&ack.result.saved!==true)||
          (["agreement-add","agreement-end"].includes(String(ack.action))&&
           (typeof ack.result.id!=="string"||ack.result.id.length<3)))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "publishing.editor-action":
+      if(ack.schema!=="cove.private-publishing-editor-qa.v1"||ack.ownerFirst!==true||
+         ack.action!==body.action||ack.operationId!==body.operationId||
+         !Object.prototype.hasOwnProperty.call(ack,"result"))
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "trust.owner-action":

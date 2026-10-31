@@ -1,0 +1,5 @@
+# Private QA publisher editor retirement (30 reviewed SQL sites)
+
+The exact source inventory falls from **156 to 126**. The existing public functions now dispatch strictly enumerated, short-leased private-owner RPCs, or fail closed if unbound. SQL bodies live inside an unexported owner closure; no untyped SQL executor or shared-D1 fallback exists. Historical site IDs and SQL digests are recorded in the lineage JSON. All remaining SQL source line identities are preserved.
+
+Only QA publisher drafts, invitations, pending verification submissions, accessibility attestations and negative staff review are candidates to run. New publication submissions, commercial version changes, owner opt-in, asset writes and approvals explicitly fail closed until legal/storage/payment evidence, idempotent recovery and independent production JWT proof exist. Owner checks active staff permissions and QA auth-account existence, but this **does not independently prove an end-user JWT**. No production configuration is touched; this branch must stay draft.

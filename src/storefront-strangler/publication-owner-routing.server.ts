@@ -163,6 +163,19 @@ export async function dispatchCatalogPersonalImport(db:object,input:{
   }catch{throw new ApiError(503,"Private catalog owner did not accept personal import.");}
 }
 
+/** Publisher draft metadata may be edited only by a private QA owner. */
+export async function dispatchPrivatePublishingEditor(db:object,
+ action:"account-save"|"member-invite"|"identity-start"|"tax-submit"|"payout-submit"|"title-save"|"edition-save"|"asset-upload"|"accessibility-sign"|"edition-submit"|"revision-open"|"update-policy"|"owner-optin"|"review-submission",payload:Record<string,unknown>):Promise<unknown>{
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Publishing editor requires a private canonical owner.");
+ try{
+   const operationId="editor:"+crypto.randomUUID();
+   const receipt=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+     "publishing.editor-action",{action,payload,operationId});
+   return receipt.result;
+ }catch{throw new ApiError(503,"Private publishing editor owner refused this action.");}
+}
+
 /** QA-only copyright/trust command. No delegated SQL and no public fallback. */
 export async function dispatchPrivateTrustAction(db:object,
  action:"sign-rights"|"upload-evidence"|"assess-content"|"submit-notice"|

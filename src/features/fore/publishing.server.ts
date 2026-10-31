@@ -1,4 +1,4 @@
-import JSZip from "jszip";
+/* eslint-disable prettier/prettier -- Publishing editor QA facades */ import JSZip from "jszip";
 import { z } from "zod/v3";
 import { ApiError } from "./service";
 import {
@@ -33,7 +33,7 @@ import {
   dispatchPublicationRecovery,
   dispatchPublicationMaterialization,
   dispatchPublishingOnboardingReview,
-  dispatchPublishingOwnerValidationJob,
+  dispatchPublishingOwnerValidationJob,dispatchPrivatePublishingEditor,
 } from "../../storefront-strangler/publication-owner-routing.server";
 
 export type PublishingDB = {
@@ -368,88 +368,88 @@ const accountSchema = z.object({
   acceptTerms: z.boolean().default(false),
 });
 
-export async function upsertPublishingAccount(db: PublishingDB, userId: string, raw: unknown) {
-  const x = accountSchema.parse(raw),
-    at = now();
-  if (x.id) {
-    await requireRole(db, userId, x.id, "admin");
-    await db
-      .prepare(
-        `UPDATE publishing_accounts SET account_type=?,legal_name=?,display_name=?,country_code=?,contact_email=?,website=?,terms_version=?,terms_accepted_at=CASE WHEN ?=1 THEN COALESCE(terms_accepted_at,?) ELSE terms_accepted_at END,updated_at=? WHERE id=?`,
-      )
-      .bind(
-        x.accountType,
-        x.legalName,
-        x.displayName,
-        x.countryCode,
-        x.contactEmail,
-        x.website,
-        x.termsVersion,
-        x.acceptTerms ? 1 : 0,
-        at,
-        at,
-        x.id,
-      )
-      .run();
-    const identityMatches = await scanIdentitySimilarity(db, {
-      accountId: x.id,
-      subjectType: "publisher_name",
-      subjectId: x.id,
-      name: x.displayName,
-    });
-    const riskLinks = await scanAccountRiskLinks(db, x.id);
-    await audit(db, x.id, userId, "publishing_account", x.id, "updated", {
-      identitySimilarityMatches: identityMatches.length,
-      riskLinks: riskLinks.links,
-    });
-    return {
-      id: x.id,
-      identitySimilarityMatches: identityMatches.length,
-      riskLinks: riskLinks.links,
-    };
-  }
-  const accountId = id("pubacct");
-  await db.batch([
-    db
-      .prepare(
-        `INSERT INTO publishing_accounts(id,account_type,legal_name,display_name,country_code,contact_email,website,status,terms_version,terms_accepted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'draft',?,?,?,?)`,
-      )
-      .bind(
-        accountId,
-        x.accountType,
-        x.legalName,
-        x.displayName,
-        x.countryCode,
-        x.contactEmail,
-        x.website,
-        x.termsVersion,
-        x.acceptTerms ? at : null,
-        at,
-        at,
-      ),
-    db
-      .prepare(
-        `INSERT INTO publishing_account_members(account_id,user_id,role,status,accepted_at,created_at,updated_at) VALUES(?,?,'owner','active',?,?,?)`,
-      )
-      .bind(accountId, userId, at, at, at),
-  ]);
-  const identityMatches = await scanIdentitySimilarity(db, {
-    accountId,
-    subjectType: "publisher_name",
-    subjectId: accountId,
-    name: x.displayName,
-  });
-  const riskLinks = await scanAccountRiskLinks(db, accountId);
-  await audit(db, accountId, userId, "publishing_account", accountId, "created", {
-    identitySimilarityMatches: identityMatches.length,
-    riskLinks: riskLinks.links,
-  });
-  return {
-    id: accountId,
-    identitySimilarityMatches: identityMatches.length,
-    riskLinks: riskLinks.links,
-  };
+export async function upsertPublishingAccount(db:PublishingDB,userId:string,raw:unknown){
+return dispatchPrivatePublishingEditor(db,"account-save",{userId,raw});
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 export async function savePublishingAddress(db: PublishingDB, userId: string, raw: unknown) {
   const x = z
@@ -529,211 +529,211 @@ export async function savePenName(db: PublishingDB, userId: string, raw: unknown
   return { id: penId, identitySimilarityMatches: identityMatches.length };
 }
 
-export async function invitePublishingMember(db: PublishingDB, userId: string, raw: unknown) {
-  const x = z
-    .object({
-      accountId: z.string().min(1),
-      email: z.string().email(),
-      role: z.enum(["admin", "editor", "finance", "analyst"]),
-    })
-    .parse(raw);
-  await requireRole(db, userId, x.accountId, "admin");
-  const invitationUserId = `invite:${crypto.randomUUID()}`,
-    at = now();
-  await db
-    .prepare(
-      `INSERT INTO publishing_account_members(account_id,user_id,role,status,invited_email,invited_by_user_id,created_at,updated_at) VALUES(?,?,?,'invited',?,?,?,?)`,
-    )
-    .bind(x.accountId, invitationUserId, x.role, x.email.toLowerCase(), userId, at, at)
-    .run();
-  await audit(db, x.accountId, userId, "team_invitation", invitationUserId, "created", {
-    role: x.role,
-    email: x.email.toLowerCase(),
-  });
-  return { invitationId: invitationUserId, status: "invited" };
+export async function invitePublishingMember(db:PublishingDB,userId:string,raw:unknown){
+return dispatchPrivatePublishingEditor(db,"member-invite",{userId,raw});
 }
 
-export async function startIdentityVerification(db: PublishingDB, userId: string, raw: unknown) {
-  const x = z
-    .object({
-      accountId: z.string().min(1),
-      provider: z.string().trim().min(1).max(80).default("external_kyc"),
-      providerReference: z.string().max(240).default(""),
-      verificationType: z.string().max(80).default("government_id"),
-    })
-    .parse(raw);
-  await requireRole(db, userId, x.accountId, "admin");
-  const acct = await db
-    .prepare("SELECT legal_name,country_code FROM publishing_accounts WHERE id=?")
-    .bind(x.accountId)
-    .first<any>();
-  if (!acct) throw new ApiError(404, "Publishing account not found.");
-  const verificationId = id("kyc"),
-    at = now();
-  await db.batch([
-    db
-      .prepare(
-        `INSERT INTO publishing_identity_verifications(id,account_id,provider,provider_reference,verification_type,status,country_code,legal_name_snapshot,initiated_at) VALUES(?,?,?,?,?,'pending',?,?,?)`,
-      )
-      .bind(
-        verificationId,
-        x.accountId,
-        x.provider,
-        x.providerReference || verificationId,
-        x.verificationType,
-        acct.country_code,
-        acct.legal_name,
-        at,
-      ),
-    db
-      .prepare("UPDATE publishing_accounts SET identity_status='pending',updated_at=? WHERE id=?")
-      .bind(at, x.accountId),
-  ]);
-  await audit(db, x.accountId, userId, "identity_verification", verificationId, "started", {
-    provider: x.provider,
-  });
-  return { id: verificationId, status: "pending", rawIdentityDocumentsStoredByCove: false };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+export async function startIdentityVerification(db:PublishingDB,userId:string,raw:unknown){
+return dispatchPrivatePublishingEditor(db,"identity-start",{userId,raw});
 }
 
-export async function submitTaxProfile(db: PublishingDB, userId: string, raw: unknown) {
-  const x = z
-    .object({
-      accountId: z.string().min(1),
-      countryCode: z
-        .string()
-        .regex(/^[A-Za-z]{2}$/)
-        .transform((v) => v.toUpperCase()),
-      taxResidencyCountry: z
-        .string()
-        .regex(/^[A-Za-z]{2}$/)
-        .transform((v) => v.toUpperCase())
-        .optional(),
-      entityType: z
-        .enum([
-          "individual",
-          "sole_proprietor",
-          "partnership",
-          "corporation",
-          "llc",
-          "nonprofit",
-          "trust",
-          "other",
-          "unknown",
-        ])
-        .default("unknown"),
-      taxClassification: z.string().max(120).default(""),
-      formType: z.string().max(80).default(""),
-      provider: z.string().trim().min(1).max(80).default("external_tax"),
-      providerReference: z.string().max(240).default(""),
-      treatyCountryCode: z
-        .string()
-        .regex(/^[A-Za-z]{2}$/)
-        .transform((v) => v.toUpperCase())
-        .nullable()
-        .optional(),
-    })
-    .parse(raw);
-  await requireRole(db, userId, x.accountId, "finance");
-  const profileId = id("tax"),
-    at = now();
-  await db.batch([
-    db
-      .prepare(
-        `INSERT INTO publishing_tax_profiles(id,account_id,country_code,tax_classification,form_type,provider,provider_reference,status,treaty_country_code,created_at,updated_at,entity_type,tax_residency_country,provider_verification_status,form_status) VALUES(?,?,?,?,?,?,?,'pending',?,?,?,?,?,'pending','pending')`,
-      )
-      .bind(
-        profileId,
-        x.accountId,
-        x.countryCode,
-        x.taxClassification,
-        x.formType,
-        x.provider,
-        x.providerReference || profileId,
-        x.treatyCountryCode || null,
-        at,
-        at,
-        x.entityType,
-        x.taxResidencyCountry || x.countryCode,
-      ),
-    db
-      .prepare("UPDATE publishing_accounts SET tax_status='pending',updated_at=? WHERE id=?")
-      .bind(at, x.accountId),
-  ]);
-  await audit(db, x.accountId, userId, "tax_profile", profileId, "submitted", {
-    provider: x.provider,
-    country: x.countryCode,
-    taxResidencyCountry: x.taxResidencyCountry || x.countryCode,
-    entityType: x.entityType,
-  });
-  await assessPublisherRisk(db, x.accountId, "tax_profile_submitted");
-  return { id: profileId, status: "pending", rawTaxIdentifiersStoredByCove: false };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+export async function submitTaxProfile(db:PublishingDB,userId:string,raw:unknown){
+return dispatchPrivatePublishingEditor(db,"tax-submit",{userId,raw});
 }
 
-export async function submitPayoutAccount(db: PublishingDB, userId: string, raw: unknown) {
-  const x = z
-    .object({
-      accountId: z.string().min(1),
-      provider: z.string().trim().min(1).max(80).default("external_payout"),
-      providerAccountId: z.string().max(240).default(""),
-      method: z.enum(["eft", "ach", "sepa", "wire", "other"]).default("eft"),
-      bankCountryCode: z
-        .string()
-        .regex(/^[A-Za-z]{2}$/)
-        .transform((v) => v.toUpperCase()),
-      payoutCurrency: z
-        .string()
-        .regex(/^[A-Za-z]{3}$/)
-        .transform((v) => v.toUpperCase()),
-      accountLast4: z
-        .string()
-        .regex(/^\d{0,4}$/)
-        .default(""),
-      accountHolderType: z.enum(["individual", "company", "unknown"]).default("unknown"),
-      payoutThresholdMinor: z.number().int().min(0).max(10000000).default(5000),
-    })
-    .parse(raw);
-  await requireRole(db, userId, x.accountId, "finance");
-  const payoutId = id("payoutacct"),
-    at = now();
-  await db.batch([
-    db
-      .prepare(
-        `INSERT INTO publishing_payout_accounts(id,account_id,provider,provider_account_id,method,bank_country_code,payout_currency,account_last4,account_holder_type,status,payout_threshold_minor,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,'pending',?,?,?)`,
-      )
-      .bind(
-        payoutId,
-        x.accountId,
-        x.provider,
-        x.providerAccountId || payoutId,
-        x.method,
-        x.bankCountryCode,
-        x.payoutCurrency,
-        x.accountLast4,
-        x.accountHolderType,
-        x.payoutThresholdMinor,
-        at,
-        at,
-      ),
-    db
-      .prepare("UPDATE publishing_accounts SET payout_status='pending',updated_at=? WHERE id=?")
-      .bind(at, x.accountId),
-  ]);
-  const riskLinks = await scanAccountRiskLinks(db, x.accountId);
-  await audit(db, x.accountId, userId, "payout_account", payoutId, "submitted", {
-    provider: x.provider,
-    currency: x.payoutCurrency,
-    bankCountry: x.bankCountryCode,
-    riskLinks: riskLinks.links,
-  });
-  const risk = await assessPublisherRisk(db, x.accountId, "payout_account_submitted");
-  return {
-    id: payoutId,
-    status: "pending",
-    rawBankCredentialsStoredByCove: false,
-    riskLinks: riskLinks.links,
-    risk: { score: risk.score, level: risk.level, action: risk.action },
-  };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+export async function submitPayoutAccount(db:PublishingDB,userId:string,raw:unknown){
+return dispatchPrivatePublishingEditor(db,"payout-submit",{userId,raw});
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const titleSchema = z.object({
   id: z.string().max(180).optional(),
@@ -755,38 +755,38 @@ const titleSchema = z.object({
   categories: z.array(z.string().trim().min(1).max(180)).max(12).default([]),
   keywords: z.array(z.string().trim().min(1).max(100)).max(20).default([]),
 });
-export async function savePublishingTitle(db: PublishingDB, userId: string, raw: unknown) {
-  const x = titleSchema.parse(raw);
-  await requireRole(db, userId, x.accountId, "editor");
-  const titleId = x.id || id("pubtitle"),
-    at = now();
-  await db
-    .prepare(
-      `INSERT INTO publishing_titles(id,account_id,title,subtitle,description,language,audience,publisher_name,imprint_name,series_name,series_relationship,series_position,categories_json,keywords_json,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,'draft',?,?)
-    ON CONFLICT(id) DO UPDATE SET title=excluded.title,subtitle=excluded.subtitle,description=excluded.description,language=excluded.language,audience=excluded.audience,publisher_name=excluded.publisher_name,imprint_name=excluded.imprint_name,series_name=excluded.series_name,series_relationship=excluded.series_relationship,series_position=excluded.series_position,categories_json=excluded.categories_json,keywords_json=excluded.keywords_json,updated_at=excluded.updated_at`,
-    )
-    .bind(
-      titleId,
-      x.accountId,
-      x.title,
-      x.subtitle,
-      x.description,
-      x.language.toLowerCase(),
-      x.audience,
-      x.publisherName,
-      x.imprintName,
-      x.seriesName,
-      x.seriesRelationship,
-      x.seriesPosition ?? null,
-      JSON.stringify(x.categories),
-      JSON.stringify(x.keywords),
-      at,
-      at,
-    )
-    .run();
-  await audit(db, x.accountId, userId, "publishing_title", titleId, x.id ? "updated" : "created");
-  return { id: titleId };
+export async function savePublishingTitle(db:PublishingDB,userId:string,raw:unknown){
+return dispatchPrivatePublishingEditor(db,"title-save",{userId,raw});
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const territoryScopeSchema = z.object({
   mode: z.enum(["single", "set", "worldwide", "expression"]).default("worldwide"),
@@ -871,137 +871,137 @@ const editionSchema = z.object({
     .max(50)
     .default([]),
 });
-export async function savePublishingEdition(db: PublishingDB, userId: string, raw: unknown) {
-  const x = editionSchema.parse(raw);
-  const title = await db
-    .prepare("SELECT * FROM publishing_titles WHERE id=?")
-    .bind(x.titleId)
-    .first<any>();
-  if (!title) throw new ApiError(404, "Publishing title not found.");
-  await requireRole(db, userId, String(title.account_id), "editor");
-  if (x.rightsStartAt && x.rightsEndAt && x.rightsEndAt <= x.rightsStartAt)
-    throw new ApiError(400, "Rights end date must follow the start date.");
-  if (x.preorderDate && x.releaseDate && x.preorderDate > x.releaseDate)
-    throw new ApiError(400, "Preorder date cannot be after release date.");
-  if (x.contractVersionId && !x.contractId)
-    throw new ApiError(400, "A contract version requires a distribution contract.");
-  if (x.contractId) {
-    const assignment = await db
-      .prepare(
-        "SELECT 1 ok FROM publisher_contract_assignments WHERE account_id=? AND contract_id=? AND status='active' AND (starts_at IS NULL OR starts_at<=?) AND (ends_at IS NULL OR ends_at>?)",
-      )
-      .bind(title.account_id, x.contractId, now(), now())
-      .first<any>();
-    if (!assignment)
-      throw new ApiError(
-        403,
-        "That distribution contract is not actively assigned to this publishing organization.",
-      );
-    if (x.contractVersionId) {
-      const v = await db
-        .prepare(
-          "SELECT 1 ok FROM rights_contract_versions WHERE id=? AND contract_id=? AND status='active'",
-        )
-        .bind(x.contractVersionId, x.contractId)
-        .first<any>();
-      if (!v)
-        throw new ApiError(400, "The selected contract version is not active for that contract.");
-    }
-  }
-  const editionId = x.id || id("pubed"),
-    at = now();
-  const existing = x.id
-    ? await db
-        .prepare(
-          "SELECT id,status,revision FROM publishing_edition_drafts WHERE id=? AND title_id=?",
-        )
-        .bind(x.id, x.titleId)
-        .first<any>()
-    : null;
-  if (x.id && !existing) throw new ApiError(404, "Publishing edition not found.");
-  if (existing && ["submitted", "approved", "published"].includes(String(existing.status)))
-    throw new ApiError(
-      409,
-      "Create a new revision before changing a submitted or published edition.",
-    );
-  const nextRevision =
-    existing?.status === "changes_requested"
-      ? Number(existing.revision || 1) + 1
-      : Number(existing?.revision || 1);
-  const nextStatus =
-    existing?.status === "changes_requested" ? "draft" : existing?.status || "draft";
-  const statements: any[] = [
-    db
-      .prepare(
-        `INSERT INTO publishing_edition_drafts(id,title_id,format,edition_label,language,isbn13,publisher_identifier,rights_basis,edition_type,differentiation_summary,contract_id,contract_version_id,territory_scope_json,rights_start_at,rights_end_at,release_date,preorder_date,list_currency,list_price_minor,drm_requirement,downloadable,subscription_permitted,library_permitted,sales_channels_json,status,revision,created_at,updated_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET format=excluded.format,edition_label=excluded.edition_label,language=excluded.language,isbn13=excluded.isbn13,publisher_identifier=excluded.publisher_identifier,rights_basis=excluded.rights_basis,edition_type=excluded.edition_type,differentiation_summary=excluded.differentiation_summary,contract_id=excluded.contract_id,contract_version_id=excluded.contract_version_id,territory_scope_json=excluded.territory_scope_json,rights_start_at=excluded.rights_start_at,rights_end_at=excluded.rights_end_at,release_date=excluded.release_date,preorder_date=excluded.preorder_date,list_currency=excluded.list_currency,list_price_minor=excluded.list_price_minor,drm_requirement=excluded.drm_requirement,downloadable=excluded.downloadable,subscription_permitted=excluded.subscription_permitted,library_permitted=excluded.library_permitted,sales_channels_json=excluded.sales_channels_json,status=excluded.status,revision=excluded.revision,updated_at=excluded.updated_at`,
-      )
-      .bind(
-        editionId,
-        x.titleId,
-        x.format,
-        x.editionLabel,
-        x.language.toLowerCase(),
-        x.isbn13 || null,
-        x.publisherIdentifier,
-        x.rightsBasis,
-        x.editionType,
-        x.differentiationSummary,
-        x.contractId || null,
-        x.contractVersionId || null,
-        JSON.stringify({
-          ...x.territoryScope,
-          include: x.territoryScope.include.map((v) => v.toUpperCase()),
-          exclude: x.territoryScope.exclude.map((v) => v.toUpperCase()),
-          territory: x.territoryScope.territory?.toUpperCase(),
-        }),
-        x.rightsStartAt || null,
-        x.rightsEndAt || null,
-        x.releaseDate || null,
-        x.preorderDate || null,
-        x.listCurrency,
-        x.listPriceMinor,
-        x.drmRequirement,
-        x.downloadable ? 1 : 0,
-        x.subscriptionPermitted ? 1 : 0,
-        x.libraryPermitted ? 1 : 0,
-        JSON.stringify(x.salesChannels),
-        nextStatus,
-        nextRevision,
-        at,
-        at,
-      ),
-    db.prepare("DELETE FROM publishing_edition_contributors WHERE edition_id=?").bind(editionId),
-  ];
-  x.contributors.forEach((c) =>
-    statements.push(
-      db
-        .prepare(
-          "INSERT INTO publishing_edition_contributors(edition_id,pen_name_id,display_name,role,position) VALUES(?,?,?,?,?)",
-        )
-        .bind(editionId, c.penNameId || null, c.displayName, c.role, c.position),
-    ),
-  );
-  await db.batch(statements);
-  await ensurePublishingLifecycle(db, editionId);
-  await transitionPublishingLifecycle(
-    db,
-    editionId,
-    "draft",
-    "publisher",
-    userId,
-    x.id ? "draft_updated" : "draft_created",
-  );
-  await audit(
-    db,
-    String(title.account_id),
-    userId,
-    "publishing_edition",
-    editionId,
-    x.id ? "updated" : "created",
-  );
-  return { id: editionId };
+export async function savePublishingEdition(db:PublishingDB,userId:string,raw:unknown){
+return dispatchPrivatePublishingEditor(db,"edition-save",{userId,raw});
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 function publishingChecks(kind: string, format: string) {
   if (kind === "cover")
@@ -1638,391 +1638,391 @@ async function refreshAssetValidationSummary(db: PublishingDB, assetVersionId: s
   return { summary, quarantine };
 }
 
-export async function uploadPublishingAsset(
-  env: PublishingEnv,
-  userId: string,
-  input: { editionId: string; kind: string; filename: string; mimeType: string; bytes: Uint8Array },
-) {
-  if (!env.BUCKET) throw new ApiError(503, "Publishing asset storage is not configured.");
-  const edition = await editionAccess(env.DB, userId, input.editionId, "editor");
-  const kind = z.enum(["manuscript", "cover", "supplement", "audio"]).parse(input.kind);
-  if (!["draft", "changes_requested"].includes(String(edition.status)))
-    throw new ApiError(409, "Open a new publishing revision before replacing production assets.");
-  if (!input.bytes.byteLength) throw new ApiError(400, "The uploaded file is empty.");
-  if (input.bytes.byteLength > publishingUploadLimit(kind))
-    throw new ApiError(413, "This publishing asset exceeds the upload limit.");
-  const mime = cleanText(input.mimeType || "application/octet-stream", 120).toLowerCase();
-  if (
-    kind === "manuscript" &&
-    edition.format === "ebook" &&
-    !(mime === "application/epub+zip" || input.filename.toLowerCase().endsWith(".epub"))
-  )
-    throw new ApiError(
-      415,
-      "Cove Publishing currently accepts EPUB source manuscripts for eBooks.",
-    );
-  if (kind === "cover" && !["image/jpeg", "image/png"].includes(mime))
-    throw new ApiError(415, "Cover artwork must be JPEG or PNG.");
-  const digest = await sha256Hex(input.bytes),
-    at = now();
-  const asset = await env.DB.prepare(
-    "SELECT * FROM publishing_assets WHERE edition_id=? AND kind=?",
-  )
-    .bind(input.editionId, kind)
-    .first<any>();
-  const assetId = asset?.id || id("pubasset"),
-    previousCount = Number(
-      (
-        await env.DB.prepare(
-          "SELECT max(version_number) n FROM publishing_asset_versions WHERE asset_id=?",
-        )
-          .bind(assetId)
-          .first<any>()
-      )?.n || 0,
-    ),
-    versionNumber = previousCount + 1,
-    versionId = id("pubassetv");
-  const ext =
-    kind === "cover"
-      ? mime === "image/png"
-        ? "png"
-        : "jpg"
-      : kind === "manuscript"
-        ? "epub"
-        : input.filename
-            .split(".")
-            .pop()
-            ?.replace(/[^a-zA-Z0-9]/g, "")
-            .slice(0, 8) || "bin";
-  const objectKey = `publishing/quarantine/${edition.account_id}/${input.editionId}/${assetId}/${versionId}/source.${ext}`;
-  let metadata: Record<string, unknown> = {};
-  let fingerprintText = "";
-  if (kind === "manuscript" && edition.format === "ebook") {
-    const result = await inspectEpub(input.bytes);
-    metadata = result.metadata;
-    fingerprintText = result.fingerprintText;
-  }
-  if (kind === "cover") {
-    const dims = imageDimensions(input.bytes, mime);
-    if (!dims) throw new ApiError(400, "Cove could not read the cover image dimensions.");
-    metadata = dims;
-    if (dims.width < 1000 || dims.height < 1400)
-      metadata.coverWarning = "Cover is below Cove's recommended production dimensions.";
-    if (dims.height <= dims.width)
-      throw new ApiError(400, "Book cover artwork must be portrait-oriented.");
-  }
-  await env.BUCKET.put(objectKey, input.bytes, {
-    httpMetadata: { contentType: mime },
-    customMetadata: { sha256: digest, source: "fore-publishing-quarantine" },
-  });
-  const checks = publishingChecks(kind, String(edition.format));
-  const jobs = checks.map(([check, required, execution]) => ({
-    jobId: id("pubjob"),
-    check,
-    required,
-    execution,
-  }));
-  try {
-    const statements: any[] = [];
-    if (!asset)
-      statements.push(
-        env.DB.prepare(
-          "INSERT INTO publishing_assets(id,edition_id,kind,required,created_at,updated_at) VALUES(?,?,?,?,?,?)",
-        ).bind(
-          assetId,
-          input.editionId,
-          kind,
-          ["manuscript", "cover"].includes(kind) ? 1 : 0,
-          at,
-          at,
-        ),
-      );
-    statements.push(
-      env.DB.prepare(
-        "INSERT INTO publishing_asset_versions(id,asset_id,version_number,object_key,original_filename,mime_type,size_bytes,sha256,quarantine_status,extracted_metadata_json,validation_summary,created_by_user_id,created_at) VALUES(?,?,?,?,?,?,?,?, 'quarantined',?,'pending',?,?)",
-      ).bind(
-        versionId,
-        assetId,
-        versionNumber,
-        objectKey,
-        cleanText(input.filename, 240),
-        mime,
-        input.bytes.byteLength,
-        digest,
-        JSON.stringify(metadata),
-        userId,
-        at,
-      ),
-    );
-    statements.push(
-      env.DB.prepare(
-        "UPDATE publishing_assets SET current_version_id=?,updated_at=? WHERE id=?",
-      ).bind(versionId, at, assetId),
-    );
-    for (const j of jobs)
-      statements.push(
-        env.DB.prepare(
-          "INSERT INTO publishing_validation_jobs(id,asset_version_id,check_type,required,execution_class,status,priority,available_at,idempotency_key,created_at,updated_at) VALUES(?,?,?,?,?,'queued',100,?,?,?,?)",
-        ).bind(
-          j.jobId,
-          versionId,
-          j.check,
-          j.required ? 1 : 0,
-          j.execution,
-          at,
-          `${versionId}:${j.check}:v1`,
-          at,
-          at,
-        ),
-      );
-    await env.DB.batch(statements);
-  } catch (e) {
-    await env.BUCKET.delete(objectKey);
-    throw e;
-  }
-  // Run cheap deterministic checks immediately. Production-only services remain queued and fail closed.
-  let epubInspection: Awaited<ReturnType<typeof inspectEpub>> | null = null;
-  if (kind === "manuscript" && edition.format === "ebook") {
-    epubInspection = await inspectEpub(input.bytes);
-    await env.DB.prepare(
-      "INSERT INTO publishing_epub_inspections(asset_version_id,inspection_version,metadata_json,accessibility_json,format_profile_json,issue_summary_json,created_at) VALUES(?,?,?,?,?,?,?)",
-    )
-      .bind(
-        versionId,
-        "fore-epub-inspection-v1",
-        JSON.stringify(epubInspection.metadata),
-        JSON.stringify(epubInspection.metadata.accessibility),
-        JSON.stringify(epubInspection.metadata.formatProfile),
-        JSON.stringify(epubInspection.issues),
-        at,
-      )
-      .run();
-  }
-  for (const j of jobs.filter((j) => j.execution === "inline")) {
-    let status: "passed" | "warning" | "failed" = "passed",
-      issues: any[] = [];
-    if (j.check === "archive_safety") {
-      issues = epubInspection?.issues.filter((i) => i.code === "SCRIPTED_CONTENT") || [];
-      status = issues.some((i) => i.severity === "error") ? "failed" : "passed";
-    } else if (j.check === "metadata") {
-      issues =
-        epubInspection?.issues.filter(
-          (i) =>
-            i.code.startsWith("METADATA") ||
-            ["MIMETYPE", "CONTAINER", "OPF", "ENCRYPTED"].includes(i.code),
-        ) || [];
-      status = issues.some((i) => i.severity === "error")
-        ? "failed"
-        : issues.length
-          ? "warning"
-          : "passed";
-    } else if (j.check === "navigation") {
-      issues = epubInspection?.issues.filter((i) => i.code === "NAV") || [];
-      status = issues.length ? "failed" : "passed";
-    } else if (j.check === "links") {
-      issues =
-        epubInspection?.issues.filter((i) =>
-          ["BROKEN_LINKS", "REMOTE_RESOURCES"].includes(i.code),
-        ) || [];
-      status = issues.some((i) => i.severity === "error")
-        ? "failed"
-        : issues.length
-          ? "warning"
-          : "passed";
-    } else if (j.check === "accessibility") {
-      issues =
-        epubInspection?.issues.filter((i) =>
-          [
-            "MISSING_ALT",
-            "SVG_TEXT_ALTERNATIVE",
-            "HEADING_STRUCTURE",
-            "TABLE_SEMANTICS",
-            "ACCESSIBILITY_METADATA",
-            "ACCESSIBILITY_CONFORMANCE_MISMATCH",
-            "METADATA_LANGUAGE",
-            "MATHML_DISCLOSURE",
-          ].includes(i.code),
-        ) || [];
-      status = issues.some((i) => i.severity === "error")
-        ? "failed"
-        : issues.length
-          ? "warning"
-          : "passed";
-    } else if (j.check === "cover") {
-      const dims = metadata as any;
-      issues = dims.coverWarning
-        ? [{ code: "COVER_DIMENSIONS", severity: "warning", message: dims.coverWarning }]
-        : [];
-      status = issues.length ? "warning" : "passed";
-    } else if (j.check === "duplicate") {
-      const matches = (
-        await env.DB.prepare(
-          `SELECT v.id,v.asset_id FROM publishing_asset_versions v WHERE v.sha256=? AND v.id<>? LIMIT 10`,
-        )
-          .bind(digest, versionId)
-          .all<any>()
-      ).results;
-      const catalog = (
-        await env.DB.prepare("SELECT id,asset_id FROM asset_versions WHERE sha256=? LIMIT 10")
-          .bind(digest)
-          .all<any>()
-      ).results;
-      if (matches.length || catalog.length) {
-        status = "warning";
-        issues = [
-          {
-            code: "EXACT_DUPLICATE",
-            severity: "warning",
-            message:
-              "Identical content already exists in Cove. Review is required before publication.",
-          },
-        ];
-        const dups: any[] = [];
-        for (const m of matches)
-          dups.push(
-            env.DB.prepare(
-              "INSERT INTO publishing_duplicate_matches(id,asset_version_id,matched_asset_version_id,match_type,confidence,disposition,created_at,updated_at) VALUES(?,?,?,'exact_hash',1,'review',?,?)",
-            ).bind(id("pubdup"), versionId, m.id, at, at),
-          );
-        for (const m of catalog)
-          dups.push(
-            env.DB.prepare(
-              "INSERT INTO publishing_duplicate_matches(id,asset_version_id,match_type,confidence,disposition,created_at,updated_at) VALUES(?,?,'exact_hash',1,'review',?,?)",
-            ).bind(id("pubdup"), versionId, at, at),
-          );
-        if (dups.length) await env.DB.batch(dups);
-      }
-    }
-    await recordInlineResult(env.DB, j.jobId, versionId, j.check, status, issues);
-  }
-  await recordAssetFingerprint(env.DB, {
-    assetVersionId: versionId,
-    accountId: String(edition.account_id),
-    editionId: input.editionId,
-    assetKind: kind,
-    exactSha256: digest,
-    text: fingerprintText,
-    metadata,
-  });
-  const validation = await refreshAssetValidationSummary(env.DB, versionId);
-  await transitionPublishingLifecycle(
-    env.DB,
-    input.editionId,
-    "validation",
-    "publisher",
-    userId,
-    "asset_uploaded",
-    { assetVersionId: versionId, kind },
-  );
-  await audit(
-    env.DB,
-    String(edition.account_id),
-    userId,
-    "publishing_asset_version",
-    versionId,
-    "uploaded",
-    { kind, sizeBytes: input.bytes.byteLength, sha256: digest, validation: validation.summary },
-  );
-  return {
-    assetId,
-    versionId,
-    versionNumber,
-    sha256: digest,
-    quarantineStatus: validation.quarantine,
-    validationSummary: validation.summary,
-    queuedChecks: jobs.filter((j) => j.execution !== "inline").map((j) => j.check),
-    metadata,
-  };
+export async function uploadPublishingAsset(env:PublishingEnv,userId:string,input:{editionId:string;kind:string;filename:string;mimeType:string;bytes:Uint8Array}){
+if(!(input.bytes instanceof Uint8Array)||input.bytes.byteLength>65536)throw new ApiError(503,"Publishing asset upload requires private storage attestation.");
+return dispatchPrivatePublishingEditor(env.DB,"asset-upload",{userId,raw:{...input,bytes:Array.from(input.bytes)}});
 }
 
-export async function signPublishingAccessibilityDeclaration(
-  db: PublishingDB,
-  userId: string,
-  raw: unknown,
-) {
-  const x = z
-    .object({
-      editionId: z.string().min(1),
-      accessibilitySummary: z.string().trim().max(3000).default(""),
-      certifier: z.string().trim().max(300).default(""),
-      credential: z.string().trim().max(500).default(""),
-      claimsConformance: z.boolean().default(false),
-      knownLimitations: z.string().trim().max(3000).default(""),
-      metadataAccurateAttestation: z.literal(true),
-      signatureName: z.string().trim().min(2).max(200),
-    })
-    .parse(raw);
-  const edition = await editionAccess(db, userId, x.editionId, "editor");
-  if (String(edition.format) !== "ebook")
-    throw new ApiError(409, "Accessibility declarations currently apply to EPUB editions.");
-  const asset = await db
-    .prepare(
-      `SELECT v.id version_id,i.accessibility_json,i.format_profile_json,i.issue_summary_json FROM publishing_assets a JOIN publishing_asset_versions v ON v.id=a.current_version_id LEFT JOIN publishing_epub_inspections i ON i.asset_version_id=v.id WHERE a.edition_id=? AND a.kind='manuscript' LIMIT 1`,
-    )
-    .bind(x.editionId)
-    .first<any>();
-  if (!asset?.version_id || !asset.accessibility_json)
-    throw new ApiError(
-      409,
-      "Upload and inspect the current EPUB before signing its accessibility declaration.",
-    );
-  const detected = safeJson<any>(asset.accessibility_json, {});
-  if (x.claimsConformance && detected.validationStatus === "failed")
-    throw new ApiError(
-      409,
-      "This EPUB cannot be declared conformant while Cove's current accessibility validation is failing.",
-    );
-  const revision = Number(edition.revision || 1),
-    existing = await db
-      .prepare(
-        "SELECT 1 ok FROM publishing_accessibility_declarations WHERE edition_id=? AND revision=?",
-      )
-      .bind(x.editionId, revision)
-      .first<any>();
-  if (existing)
-    throw new ApiError(
-      409,
-      "An immutable accessibility declaration already exists for this revision. Open a new revision to change it.",
-    );
-  const declaration = {
-    policyVersion: "fore-epub-accessibility-v1",
-    sourceAssetVersionId: String(asset.version_id),
-    publisher: {
-      summary: x.accessibilitySummary,
-      certifier: x.certifier,
-      credential: x.credential,
-      claimsConformance: x.claimsConformance,
-      knownLimitations: x.knownLimitations,
-      metadataAccurateAttestation: true,
-      signatureName: x.signatureName,
-    },
-    detectedAccessibility: detected,
-    detectedFormat: safeJson<any>(asset.format_profile_json, {}),
-    issues: safeJson<any[]>(asset.issue_summary_json, []),
-  };
-  const at = now();
-  await db
-    .prepare(
-      "INSERT INTO publishing_accessibility_declarations(edition_id,revision,policy_version,declaration_json,attested_by_user_id,created_at) VALUES(?,?,?,?,?,?)",
-    )
-    .bind(x.editionId, revision, "fore-epub-accessibility-v1", stableJson(declaration), userId, at)
-    .run();
-  await audit(
-    db,
-    String(edition.account_id),
-    userId,
-    "publishing_accessibility_declaration",
-    `${x.editionId}:${revision}`,
-    "signed",
-    { sourceAssetVersionId: asset.version_id, claimsConformance: x.claimsConformance },
-  );
-  return {
-    editionId: x.editionId,
-    revision,
-    policyVersion: "fore-epub-accessibility-v1",
-    createdAt: at,
-  };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+export async function signPublishingAccessibilityDeclaration(db:PublishingDB,userId:string,raw:unknown){
+return dispatchPrivatePublishingEditor(db,"accessibility-sign",{userId,raw});
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 export async function leasePublishingValidationJobs(db: PublishingDB, raw: unknown) {
   return dispatchPublishingOwnerValidationJob(db, "lease-validation", raw);
@@ -2323,493 +2323,493 @@ export async function publishingReadiness(db: PublishingDB, userId: string, edit
   };
 }
 
-export async function submitPublishingEdition(
-  env: PublishingEnv,
-  userId: string,
-  editionId: string,
-) {
-  const db = env.DB,
-    edition = await editionAccess(db, userId, editionId, "editor"),
-    lifecycle = await ensurePublishingLifecycle(db, editionId);
-  if (["suppressed", "takedown", "retired"].includes(String(lifecycle.state)))
-    throw new ApiError(
-      409,
-      "This release is under staff enforcement and cannot be submitted until Cove restores it.",
-    );
-  const readiness = await publishingReadiness(db, userId, editionId);
-  if (!readiness.ready) throw new ApiError(409, readiness.blockers.join(" "));
-  const title = await db
-      .prepare("SELECT * FROM publishing_titles WHERE id=?")
-      .bind(edition.title_id)
-      .first<any>(),
-    account = await db
-      .prepare(
-        "SELECT id,legal_name,display_name,country_code,contact_email,website,identity_status,tax_status,payout_status,terms_version,terms_accepted_at FROM publishing_accounts WHERE id=?",
-      )
-      .bind(edition.account_id)
-      .first<any>();
-  const addresses = (
-    await db
-      .prepare(
-        "SELECT address_type,line1,line2,city,region,postal_code,country_code FROM publishing_addresses WHERE account_id=? ORDER BY address_type",
-      )
-      .bind(edition.account_id)
-      .all<any>()
-  ).results;
-  const tax = await db
-    .prepare(
-      "SELECT id,country_code,tax_classification,form_type,provider,provider_reference,status,withholding_bps,treaty_country_code,validated_at,expires_at FROM publishing_tax_profiles WHERE account_id=? AND status='verified' ORDER BY updated_at DESC LIMIT 1",
-    )
-    .bind(edition.account_id)
-    .first<any>();
-  const payout = await db
-    .prepare(
-      "SELECT id,provider,provider_account_id,method,bank_country_code,payout_currency,account_last4,status,payout_threshold_minor,verified_at FROM publishing_payout_accounts WHERE account_id=? AND status='verified' ORDER BY updated_at DESC LIMIT 1",
-    )
-    .bind(edition.account_id)
-    .first<any>();
-  const contributors = (
-      await db
-        .prepare(
-          "SELECT pen_name_id,display_name,role,position FROM publishing_edition_contributors WHERE edition_id=? ORDER BY position",
-        )
-        .bind(editionId)
-        .all<any>()
-    ).results,
-    assets = readiness.assets;
-  const rightsDeclaration = await db
-    .prepare("SELECT * FROM publishing_rights_declarations WHERE edition_id=? AND revision=?")
-    .bind(editionId, edition.revision)
-    .first<any>();
-  const rightsEvidence = rightsDeclaration
-    ? (
-        await db
-          .prepare(
-            "SELECT id,evidence_type,description,original_filename,mime_type,size_bytes,sha256,scan_status,verification_status,issued_by,issued_at,expires_at,created_at FROM publishing_rights_evidence WHERE declaration_id=? ORDER BY created_at",
-          )
-          .bind(rightsDeclaration.id)
-          .all<any>()
-      ).results
-    : [];
-  const aiDisclosure = await db
-    .prepare("SELECT * FROM publishing_ai_disclosures WHERE edition_id=? AND revision=?")
-    .bind(editionId, edition.revision)
-    .first<any>();
-  const accessibilityDeclaration = await db
-    .prepare(
-      "SELECT * FROM publishing_accessibility_declarations WHERE edition_id=? AND revision=?",
-    )
-    .bind(editionId, edition.revision)
-    .first<any>();
-  const commercialAudio =
-    String(edition.format) === "audiobook"
-      ? await commercialAudioSubmissionEvidence(db as any, editionId)
-      : null;
-  const snapshot = {
-      schemaVersion: 5,
-      account,
-      addresses,
-      tax,
-      payout,
-      title,
-      edition,
-      contributors,
-      assets,
-      rightsDeclaration,
-      rightsEvidence,
-      aiDisclosure,
-      accessibilityDeclaration,
-      commercialAudio: commercialAudio?.manifest || null,
-      commercialAudioManifestSha256: commercialAudio?.manifestSha256 || null,
-      submittedAt: now(),
-    },
-    serialized = stableJson(snapshot),
-    digest = await sha256Hex(serialized),
-    submissionId = id("pubsub"),
-    revision = Number(edition.revision || 1),
-    at = now();
-  const submissionStatements: any[] = [
-    db
-      .prepare(
-        "INSERT INTO publishing_submission_snapshots(id,edition_id,account_id,revision,snapshot_json,snapshot_sha256,status,submitted_by_user_id,submitted_at) VALUES(?,?,?,?,?,?,'submitted',?,?)",
-      )
-      .bind(submissionId, editionId, edition.account_id, revision, serialized, digest, userId, at),
-    db
-      .prepare("UPDATE publishing_edition_drafts SET status='submitted',updated_at=? WHERE id=?")
-      .bind(at, editionId),
-    db
-      .prepare("UPDATE publishing_titles SET status='in_review',updated_at=? WHERE id=?")
-      .bind(at, edition.title_id),
-    db
-      .prepare(
-        "INSERT INTO publishing_outbox(id,event_type,aggregate_type,aggregate_id,payload_json,available_at,created_at) VALUES(?,'publishing.submitted','submission',?,?,?,?)",
-      )
-      .bind(
-        id("pubout"),
-        submissionId,
-        JSON.stringify({
-          submissionId,
-          editionId,
-          accountId: edition.account_id,
-          snapshotSha256: digest,
-        }),
-        at,
-        at,
-      ),
-  ];
-  if (commercialAudio)
-    submissionStatements.push(
-      db
-        .prepare(
-          "INSERT INTO commercial_audio_submission_snapshots(submission_id,edition_id,policy_id,manifest_json,manifest_sha256,created_at) VALUES(?,?,?,?,?,?)",
-        )
-        .bind(
-          submissionId,
-          editionId,
-          commercialAudio.policyId,
-          commercialAudio.manifestJson,
-          commercialAudio.manifestSha256,
-          at,
-        ),
-    );
-  await db.batch(submissionStatements);
-  await transitionPublishingLifecycle(
-    db,
-    editionId,
-    "submitted",
-    "publisher",
-    userId,
-    "submitted",
-    { submissionId, revision, snapshotSha256: digest },
-  );
-  await transitionPublishingLifecycle(
-    db,
-    editionId,
-    "automated_review",
-    "automation",
-    null,
-    "automated_review_started",
-    { submissionId },
-  );
-  await assessSubmissionContentPolicy(db, submissionId);
-  const automated = await runAutomatedPublishingReview(db, submissionId),
-    publisherRisk = await assessPublisherRisk(
-      db,
-      String(edition.account_id),
-      "publishing_submission",
-    ),
-    autoApprove =
-      automated.outcome === "pass" &&
-      !["hold", "block"].includes(publisherRisk.action) &&
-      String(env.FORE_PUBLISHING_AUTO_APPROVE_LOW_RISK || "false").toLowerCase() === "true";
-  if (autoApprove) {
-    const decided = now();
-    await db.batch([
-      db
-        .prepare(
-          "UPDATE publishing_submission_snapshots SET status='approved',decided_at=? WHERE id=?",
-        )
-        .bind(decided, submissionId),
-      db
-        .prepare("UPDATE publishing_edition_drafts SET status='approved',updated_at=? WHERE id=?")
-        .bind(decided, editionId),
-    ]);
-    await transitionPublishingLifecycle(
-      db,
-      editionId,
-      "approved",
-      "automation",
-      null,
-      "automated_low_risk_approval",
-      { submissionId, riskScore: Number(automated.risk_score || 0) },
-    );
-    const publication = await materializePublishingSubmission(
-      env,
-      submissionId,
-      "system:automated-review",
-    );
-    await audit(
-      db,
-      String(edition.account_id),
-      userId,
-      "publishing_submission",
-      submissionId,
-      "auto_approved",
-      {
-        editionId,
-        revision,
-        snapshotSha256: digest,
-        automatedOutcome: automated.outcome,
-        automatedRiskScore: automated.risk_score,
-        publicationVersionId: publication.publicationVersionId,
-      },
-    );
-    try {
-      const members = (
-        await db
-          .prepare(
-            "SELECT user_id FROM publishing_account_members WHERE account_id=? AND status='active' AND role IN ('owner','admin','editor')",
-          )
-          .bind(edition.account_id)
-          .all<any>()
-      ).results;
-      for (const m of members)
-        await emitNotification(db, {
-          userId: String(m.user_id),
-          eventType: "publisher_book_approved",
-          dedupeKey: `publishing-auto-review:${submissionId}:${m.user_id}`,
-          title: `${title?.title || "Your book"} approved`,
-          body: "Cove's automated publishing review approved this low-risk submission and published it.",
-          subjectType: "publishing_submission",
-          subjectId: submissionId,
-          actionUrl: "/publishing",
-          payload: {
-            submissionId,
-            editionId,
-            decision: "approve",
-            automated: true,
-            publicationVersionId: publication.publicationVersionId,
-          },
-        });
-    } catch (e) {
-      console.error("Automated publishing approval notification enqueue failed", e);
-    }
-    return {
-      submissionId,
-      snapshotSha256: digest,
-      status: "published",
-      lifecycleState: publication.releaseState,
-      automatedReview: { outcome: automated.outcome, riskScore: automated.risk_score },
-      publisherRisk: {
-        score: publisherRisk.score,
-        level: publisherRisk.level,
-        action: publisherRisk.action,
-      },
-      publication,
-    };
-  }
-  await db
-    .prepare("UPDATE publishing_submission_snapshots SET status='in_review' WHERE id=?")
-    .bind(submissionId)
-    .run();
-  await transitionPublishingLifecycle(
-    db,
-    editionId,
-    "human_review",
-    "automation",
-    null,
-    automated.outcome === "pass" ? "human_review_policy" : `automated_${automated.outcome}`,
-    {
-      submissionId,
-      riskScore: Number(automated.risk_score || 0),
-      caseId: (automated as any).caseId || null,
-    },
-  );
-  await audit(
-    db,
-    String(edition.account_id),
-    userId,
-    "publishing_submission",
-    submissionId,
-    "submitted",
-    {
-      editionId,
-      revision,
-      snapshotSha256: digest,
-      automatedOutcome: automated.outcome,
-      automatedRiskScore: automated.risk_score,
-    },
-  );
-  return {
-    submissionId,
-    snapshotSha256: digest,
-    status: "in_review",
-    lifecycleState: "human_review",
-    automatedReview: { outcome: automated.outcome, riskScore: automated.risk_score },
-    publisherRisk: {
-      score: publisherRisk.score,
-      level: publisherRisk.level,
-      action: publisherRisk.action,
-    },
-  };
+export async function submitPublishingEdition(env:PublishingEnv,userId:string,editionId:string){
+return dispatchPrivatePublishingEditor(env.DB,"edition-submit",{userId,editionId});
 }
 
-export async function openPublishingRevision(db: PublishingDB, userId: string, editionId: string) {
-  const edition = await editionAccess(db, userId, editionId, "editor");
-  if (
-    !["published", "approved", "submitted", "changes_requested", "withdrawn"].includes(
-      String(edition.status),
-    )
-  )
-    throw new ApiError(409, "This edition is already editable.");
-  const lifecycle = await ensurePublishingLifecycle(db, editionId);
-  if (["suppressed", "takedown", "retired"].includes(String(lifecycle.state)))
-    throw new ApiError(
-      409,
-      "This release must be restored by Cove staff before a publisher update can be opened.",
-    );
-  const at = now(),
-    nextRevision = Number(edition.revision || 1) + 1;
-  await db.batch([
-    db
-      .prepare(
-        "UPDATE publishing_submission_snapshots SET status='withdrawn',decided_at=COALESCE(decided_at,?) WHERE edition_id=? AND revision=? AND status IN ('submitted','in_review','approved')",
-      )
-      .bind(at, editionId, Number(edition.revision || 1)),
-    db
-      .prepare(
-        "UPDATE publishing_edition_drafts SET status='draft',revision=?,updated_at=? WHERE id=?",
-      )
-      .bind(nextRevision, at, editionId),
-  ]);
-  await transitionPublishingLifecycle(
-    db,
-    editionId,
-    "draft",
-    "publisher",
-    userId,
-    "publisher_update_opened",
-    { revision: nextRevision, currentlyLive: !!edition.catalog_product_id },
-  );
-  await audit(
-    db,
-    String(edition.account_id),
-    userId,
-    "publishing_edition",
-    editionId,
-    "revision_opened",
-    { revision: nextRevision },
-  );
-  return { editionId, revision: nextRevision, status: "draft" };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+export async function openPublishingRevision(db:PublishingDB,userId:string,editionId:string){
+return dispatchPrivatePublishingEditor(db,"revision-open",{userId,editionId});
 }
 
-export async function setPublishingUpdatePolicy(db: PublishingDB, userId: string, raw: unknown) {
-  const x = z
-      .object({
-        editionId: z.string().min(1),
-        policy: z.enum(["auto_update", "manual_opt_in", "preserve_purchased_version"]),
-      })
-      .parse(raw),
-    edition = await editionAccess(db, userId, x.editionId, "admin"),
-    lifecycle = await ensurePublishingLifecycle(db, x.editionId),
-    at = now();
-  await db
-    .prepare(
-      "UPDATE publishing_release_lifecycles SET owner_update_policy=?,updated_at=? WHERE id=?",
-    )
-    .bind(x.policy, at, lifecycle.id)
-    .run();
-  let pinnedExistingOwners = 0;
-  if (x.policy !== "auto_update" && lifecycle.current_publication_version_id) {
-    const product = await db
-      .prepare(
-        `SELECT p.product_id FROM publishing_publication_versions pv JOIN publishing_publications p ON p.id=pv.publication_id WHERE pv.id=?`,
-      )
-      .bind(lifecycle.current_publication_version_id)
-      .first<any>();
-    if (product?.product_id) {
-      const entitlements = (
-        await db
-          .prepare(
-            "SELECT id,user_id FROM entitlements WHERE product_id=? AND entitlement_type='purchase' AND status='active'",
-          )
-          .bind(product.product_id)
-          .all<any>()
-      ).results;
-      for (const ent of entitlements) {
-        const exists = await db
-          .prepare(
-            "SELECT entitlement_id FROM publishing_entitlement_version_pins WHERE entitlement_id=?",
-          )
-          .bind(ent.id)
-          .first<any>();
-        if (exists) continue;
-        await db
-          .prepare(
-            "INSERT INTO publishing_entitlement_version_pins(entitlement_id,lifecycle_id,publication_version_id,policy_at_grant,pinned_at,updated_at) VALUES(?,?,?,?,?,?)",
-          )
-          .bind(ent.id, lifecycle.id, lifecycle.current_publication_version_id, x.policy, at, at)
-          .run();
-        await db
-          .prepare(
-            "INSERT INTO publishing_owner_version_events(id,entitlement_id,lifecycle_id,from_publication_version_id,to_publication_version_id,action,actor_user_id,created_at) VALUES(?,?,?,?,?,'policy_pin',?,?)",
-          )
-          .bind(
-            id("ownevt"),
-            ent.id,
-            lifecycle.id,
-            null,
-            lifecycle.current_publication_version_id,
-            userId,
-            at,
-          )
-          .run();
-        pinnedExistingOwners++;
-      }
-    }
-  }
-  await audit(
-    db,
-    String(edition.account_id),
-    userId,
-    "publishing_release",
-    lifecycle.id,
-    "owner_update_policy_changed",
-    { policy: x.policy, pinnedExistingOwners },
-  );
-  return { saved: true, policy: x.policy, pinnedExistingOwners };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+export async function setPublishingUpdatePolicy(db:PublishingDB,userId:string,raw:unknown){
+return dispatchPrivatePublishingEditor(db,"update-policy",{userId,raw});
 }
 
-export async function optInOwnedPublicationUpdate(db: PublishingDB, userId: string, raw: unknown) {
-  const x = z.object({ productId: z.string().min(1) }).parse(raw),
-    ent = await db
-      .prepare(
-        "SELECT * FROM entitlements WHERE user_id=? AND product_id=? AND entitlement_type='purchase' AND status='active' ORDER BY granted_at DESC LIMIT 1",
-      )
-      .bind(userId, x.productId)
-      .first<any>();
-  if (!ent) throw new ApiError(403, "An active purchase entitlement is required.");
-  const lifecycle = await db
-    .prepare(
-      `SELECT l.* FROM publishing_release_lifecycles l JOIN publishing_publication_versions pv ON pv.id=l.current_publication_version_id JOIN publishing_publications p ON p.id=pv.publication_id WHERE p.product_id=? LIMIT 1`,
-    )
-    .bind(x.productId)
-    .first<any>();
-  if (!lifecycle || !lifecycle.current_publication_version_id)
-    throw new ApiError(404, "This product does not have a versioned Cove Publishing release.");
-  if (lifecycle.owner_update_policy !== "manual_opt_in")
-    throw new ApiError(409, "This title does not use manual owner updates.");
-  const prior = await db
-      .prepare(
-        "SELECT publication_version_id FROM publishing_entitlement_version_pins WHERE entitlement_id=?",
-      )
-      .bind(ent.id)
-      .first<any>(),
-    at = now();
-  if (prior?.publication_version_id === lifecycle.current_publication_version_id)
-    return { updated: false, publicationVersionId: lifecycle.current_publication_version_id };
-  await db
-    .prepare(
-      `INSERT INTO publishing_entitlement_version_pins(entitlement_id,lifecycle_id,publication_version_id,policy_at_grant,pinned_at,updated_at) VALUES(?,?,?,?,?,?) ON CONFLICT(entitlement_id) DO UPDATE SET lifecycle_id=excluded.lifecycle_id,publication_version_id=excluded.publication_version_id,policy_at_grant=excluded.policy_at_grant,updated_at=excluded.updated_at`,
-    )
-    .bind(ent.id, lifecycle.id, lifecycle.current_publication_version_id, "manual_opt_in", at, at)
-    .run();
-  await db
-    .prepare(
-      "INSERT INTO publishing_owner_version_events(id,entitlement_id,lifecycle_id,from_publication_version_id,to_publication_version_id,action,actor_user_id,created_at) VALUES(?,?,?,?,?,'owner_opt_in',?,?)",
-    )
-    .bind(
-      id("ownevt"),
-      ent.id,
-      lifecycle.id,
-      prior?.publication_version_id || null,
-      lifecycle.current_publication_version_id,
-      userId,
-      at,
-    )
-    .run();
-  return { updated: true, publicationVersionId: lifecycle.current_publication_version_id };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+export async function optInOwnedPublicationUpdate(db:PublishingDB,userId:string,raw:unknown){
+return dispatchPrivatePublishingEditor(db,"owner-optin",{userId,raw});
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 export function scopeToGrant(scope: any) {
   const mode = scope?.mode || "worldwide";
@@ -3043,165 +3043,165 @@ export async function rollbackPublishingVersion(
   return result;
 }
 
-export async function reviewPublishingSubmission(
-  env: PublishingEnv,
-  reviewerUserId: string,
-  raw: unknown,
-) {
-  const x = z
-      .object({
-        submissionId: z.string().min(1),
-        decision: z.enum(["approve", "request_changes", "reject", "hold"]),
-        reasonCode: z.string().max(120).default(""),
-        notes: z.string().max(4000).default(""),
-        publishNow: z.boolean().default(true),
-      })
-      .parse(raw),
-    db = env.DB,
-    sub = await db
-      .prepare("SELECT * FROM publishing_submission_snapshots WHERE id=?")
-      .bind(x.submissionId)
-      .first<any>();
-  if (!sub) throw new ApiError(404, "Publishing submission not found.");
-  if (!["submitted", "in_review"].includes(String(sub.status)))
-    throw new ApiError(
-      409,
-      "This submission is not in an actionable review state. Requested changes require a new revision and submission.",
-    );
-  const lifecycleBefore = await ensurePublishingLifecycle(db, String(sub.edition_id));
-  if (
-    x.decision === "approve" &&
-    ["suppressed", "takedown", "retired"].includes(String(lifecycleBefore.state))
-  )
-    throw new ApiError(
-      409,
-      "This release is under staff enforcement. Restore the release before approving a publisher update.",
-    );
-  const at = now(),
-    next =
-      x.decision === "approve"
-        ? "approved"
-        : x.decision === "request_changes"
-          ? "changes_requested"
-          : x.decision === "reject"
-            ? "rejected"
-            : "in_review";
-  await db.batch([
-    db
-      .prepare(
-        "INSERT INTO publishing_submission_reviews(id,submission_id,reviewer_user_id,decision,reason_code,notes,created_at) VALUES(?,?,?,?,?,?,?)",
-      )
-      .bind(id("pubreview"), x.submissionId, reviewerUserId, x.decision, x.reasonCode, x.notes, at),
-    db
-      .prepare("UPDATE publishing_submission_snapshots SET status=?,decided_at=? WHERE id=?")
-      .bind(next, at, x.submissionId),
-    db
-      .prepare("UPDATE publishing_edition_drafts SET status=?,updated_at=? WHERE id=?")
-      .bind(
-        x.decision === "request_changes"
-          ? "changes_requested"
-          : x.decision === "approve"
-            ? "approved"
-            : x.decision === "reject"
-              ? "withdrawn"
-              : "submitted",
-        at,
-        sub.edition_id,
-      ),
-  ]);
-  const hasLiveVersion = !!lifecycleBefore.current_publication_version_id;
-  const lifecycleDecision =
-    x.decision === "approve"
-      ? "approved"
-      : x.decision === "request_changes"
-        ? hasLiveVersion
-          ? "live"
-          : "draft"
-        : x.decision === "reject"
-          ? hasLiveVersion
-            ? "live"
-            : "retired"
-          : "human_review";
-  await transitionPublishingLifecycle(
-    db,
-    String(sub.edition_id),
-    lifecycleDecision,
-    "staff",
-    reviewerUserId,
-    x.reasonCode || x.decision,
-    {
-      submissionId: x.submissionId,
-      notes: x.notes,
-      keptPriorLiveVersion: hasLiveVersion && x.decision !== "approve",
-    },
-  );
-  await audit(
-    db,
-    String(sub.account_id),
-    reviewerUserId,
-    "publishing_submission",
-    x.submissionId,
-    x.decision,
-    { reasonCode: x.reasonCode },
-  );
-  if (x.decision === "approve" || x.decision === "reject" || x.decision === "request_changes")
-    try {
-      const edition = await db
-          .prepare(
-            `SELECT e.id,t.title FROM publishing_edition_drafts e JOIN publishing_titles t ON t.id=e.title_id WHERE e.id=?`,
-          )
-          .bind(sub.edition_id)
-          .first<any>(),
-        members = (
-          await db
-            .prepare(
-              "SELECT user_id FROM publishing_account_members WHERE account_id=? AND status='active' AND role IN ('owner','admin','editor')",
-            )
-            .bind(sub.account_id)
-            .all<any>()
-        ).results,
-        eventType =
-          x.decision === "approve" ? "publisher_book_approved" : "publisher_book_rejected",
-        label =
-          x.decision === "approve"
-            ? "approved"
-            : x.decision === "request_changes"
-              ? "needs changes"
-              : "rejected";
-      for (const m of members)
-        await emitNotification(db, {
-          userId: String(m.user_id),
-          eventType,
-          dedupeKey: `publishing-review:${x.submissionId}:${x.decision}:${m.user_id}`,
-          title: `${edition?.title || "Your book"} ${label}`,
-          body:
-            x.notes ||
-            (x.decision === "approve"
-              ? "Cove approved this submission."
-              : x.decision === "request_changes"
-                ? "Cove requested changes before this submission can be published."
-                : "Cove rejected this submission."),
-          urgency: x.decision === "approve" ? "normal" : "high",
-          subjectType: "publishing_submission",
-          subjectId: x.submissionId,
-          actionUrl: "/publishing",
-          payload: {
-            submissionId: x.submissionId,
-            editionId: sub.edition_id,
-            decision: x.decision,
-            reasonCode: x.reasonCode,
-          },
-        });
-    } catch (e) {
-      console.error("Publishing decision notification enqueue failed", e);
-    }
-  if (x.decision === "approve" && x.publishNow)
-    return {
-      decision: x.decision,
-      publication: await materializePublishingSubmission(env, x.submissionId, reviewerUserId),
-    };
-  return { decision: x.decision, status: next };
+export async function reviewPublishingSubmission(env:PublishingEnv,userId:string,raw:unknown){
+return dispatchPrivatePublishingEditor(env.DB,"review-submission",{userId,raw});
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /** A review is no longer a shared-D1 authority write. Only the isolated
  * privately authenticated owner can record a negative onboarding decision.

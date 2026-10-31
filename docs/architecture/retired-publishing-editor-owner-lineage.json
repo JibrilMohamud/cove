@@ -1,0 +1,225 @@
+{
+  "schema": "cove.publishing-editor-private-qa.v1",
+  "previousFindings": 156,
+  "currentFindings": 126,
+  "retiredCount": 30,
+  "retired": [
+    {
+      "siteId": "905b55da08f01e6d073a4cefa3f6ecc5083990f68533aaacf20c04be06c42919",
+      "functionName": "upsertPublishingAccount",
+      "operation": "UPDATE",
+      "table": "publishing_accounts",
+      "sqlSha256": "d19d6e926ee71ae1dacd75babd6311bcefdf735495435d4b3a3caeee48811125"
+    },
+    {
+      "siteId": "37d8c3e24f0a25473061c3af863fd63cb805c16af640e77cf64457463adac9f6",
+      "functionName": "upsertPublishingAccount",
+      "operation": "INSERT INTO",
+      "table": "publishing_accounts",
+      "sqlSha256": "b54aaa6bed521afa61d8de8a6823a9a63639b335f2689838b59b5965946647ad"
+    },
+    {
+      "siteId": "53d9bf73b438132669808d7a4363e0aeebb68292e613f1c2783163dbf66f877d",
+      "functionName": "upsertPublishingAccount",
+      "operation": "INSERT INTO",
+      "table": "publishing_account_members",
+      "sqlSha256": "15a843976a5c17c7ec9f1c0c329fe0d0c880e62563aeee73961c8486310f9ecf"
+    },
+    {
+      "siteId": "63b8f35eca93f1a976d6fc31b2a8e80b7f2b78cab64529204bc78ff1400c4ca3",
+      "functionName": "invitePublishingMember",
+      "operation": "INSERT INTO",
+      "table": "publishing_account_members",
+      "sqlSha256": "7eba0aac66bb97f3ec941500b4bd156d043e369330826bb3970fd3b1c26ca5c6"
+    },
+    {
+      "siteId": "73df7a2f6b322c1fd157047084c786a7e967cca47c6a891ba9ae8eaa630987ca",
+      "functionName": "startIdentityVerification",
+      "operation": "INSERT INTO",
+      "table": "publishing_identity_verifications",
+      "sqlSha256": "824e5e6d2ddd5b697937499aca6547e1d5bbe31ae39b6449fa084d97a44fe586"
+    },
+    {
+      "siteId": "fde040c651640e1e63395a547eedba2c53d2c40b1f19808267e7813c5dc366ed",
+      "functionName": "startIdentityVerification",
+      "operation": "UPDATE",
+      "table": "publishing_accounts",
+      "sqlSha256": "419d1010fc68a2f5d09e6d95ba6a2afa05d3b8786ebf0e03166db09549654357"
+    },
+    {
+      "siteId": "e04d25b626fc53ad0bfa5a211ba346ce3e396a58d1854587f041181397f0c26d",
+      "functionName": "submitTaxProfile",
+      "operation": "UPDATE",
+      "table": "publishing_accounts",
+      "sqlSha256": "265ba6c6ff61387a5b30a2b3644bd6eab18f5a1745b6d992f9a7589e898f7be5"
+    },
+    {
+      "siteId": "65ac51fbf8b6adaef0133b2c2213279171cceddf3a473afad45b026e56106bf1",
+      "functionName": "submitPayoutAccount",
+      "operation": "UPDATE",
+      "table": "publishing_accounts",
+      "sqlSha256": "b754d10f51de282c630cae704ab6d971418822eb556b664a3e83dd12daa6d129"
+    },
+    {
+      "siteId": "6561eff078e64084a752929e871739718ee3511525a605ac6ddf95d6c2f7b7fd",
+      "functionName": "savePublishingTitle",
+      "operation": "INSERT INTO",
+      "table": "publishing_titles",
+      "sqlSha256": "eed3f703deee6e5e1d10bc9f93a4970b6b15ade5a932367764e996fcf9368de8"
+    },
+    {
+      "siteId": "86186aefea48ef6eb31a4e863d3c51963ef4bdf227309038337e959f97701063",
+      "functionName": "savePublishingEdition",
+      "operation": "INSERT INTO",
+      "table": "publishing_edition_drafts",
+      "sqlSha256": "e7839131e879b885c72e22828bef10a81f36ef34d8089352f8acb495c27ff13d"
+    },
+    {
+      "siteId": "e2f59a5fb722a197be1a4b50171606b6ca01f28b77461a56e7c69ef70cc8f3e9",
+      "functionName": "uploadPublishingAsset",
+      "operation": "INSERT INTO",
+      "table": "publishing_assets",
+      "sqlSha256": "7b4fd872adb60a354835f72513616a3dc9dbd10e61a6513d25d1ab6eaf4310e5"
+    },
+    {
+      "siteId": "213e26f44fd5ed87c15af70ad33f122c96f8306a73cf26f8b7ada0eacd362e80",
+      "functionName": "uploadPublishingAsset",
+      "operation": "INSERT INTO",
+      "table": "publishing_asset_versions",
+      "sqlSha256": "ceb2248fb3cd859ef8c06470ee679b2970fb6d02242620f4b91afa0c24dfa18e"
+    },
+    {
+      "siteId": "69e93291d9cfd8840d27d6ddca0298e504b149e65181fe3e508411cd9a21ec3d",
+      "functionName": "uploadPublishingAsset",
+      "operation": "UPDATE",
+      "table": "publishing_assets",
+      "sqlSha256": "81ffe527b373dcaff5c75c2b5006b238f6e96b2ebccf104ccd3663f02d1bac19"
+    },
+    {
+      "siteId": "e9f1d21ad0f40e42d4b59cea99e30323217833744be61a14f5c7d41760fbdf9d",
+      "functionName": "uploadPublishingAsset",
+      "operation": "INSERT INTO",
+      "table": "publishing_validation_jobs",
+      "sqlSha256": "f882fa4302a4e1b1241878082e8b06d2722df3f2819cf161782f640e37956dfb"
+    },
+    {
+      "siteId": "968137e1039ac4a61598a1063d6e34653e8613879ae4bcbc79372508575aa2ae",
+      "functionName": "signPublishingAccessibilityDeclaration",
+      "operation": "INSERT INTO",
+      "table": "publishing_accessibility_declarations",
+      "sqlSha256": "b54b88082576948a96099382bb65d120528d9aeb6ee4d84212d699705215e2c0"
+    },
+    {
+      "siteId": "b6dd1264528464d5a4ebcea056c623c175a8535d67545df6d28b114d8d9fcc72",
+      "functionName": "submitPublishingEdition",
+      "operation": "INSERT INTO",
+      "table": "publishing_submission_snapshots",
+      "sqlSha256": "d610ab76b3efeb8b7e046fb0d7764ac8e1cef4a185565af46803bb34991f7bc1"
+    },
+    {
+      "siteId": "53dd0b8472d1e0c058c8688994129785853daa3164f766248fa8129ff28e2b7f",
+      "functionName": "submitPublishingEdition",
+      "operation": "UPDATE",
+      "table": "publishing_edition_drafts",
+      "sqlSha256": "ddb91d0efb2a8706b82a245cebe0a19636146dc167ff82da7777eabc38a217c8"
+    },
+    {
+      "siteId": "71162be7351eff573db28f769c44ac08cb84e74547e237fd39545b8c769fb530",
+      "functionName": "submitPublishingEdition",
+      "operation": "UPDATE",
+      "table": "publishing_titles",
+      "sqlSha256": "3129401c8a5a125f2caca2eb8a5253a46d07358039553a8e50f193c1bb97a85f"
+    },
+    {
+      "siteId": "05f78d9ebe00c893e84496eb077e5acda9aa6566d4566e0ec694d91c8f4b5fb5",
+      "functionName": "submitPublishingEdition",
+      "operation": "INSERT INTO",
+      "table": "publishing_outbox",
+      "sqlSha256": "d1b469697a53ad6854acea25582d3b9efe8bda639883cc588d9c0bcdbed01b37"
+    },
+    {
+      "siteId": "745425e5028cfc0f6cd9716746b73c477f5677d94744b0ffbfe21ce3f83e5f20",
+      "functionName": "submitPublishingEdition",
+      "operation": "INSERT INTO",
+      "table": "commercial_audio_submission_snapshots",
+      "sqlSha256": "9a3f9c3424df5aeb918018648e3da2632c53d3adf5185e0703aa4a31404abd69"
+    },
+    {
+      "siteId": "2aad27809d1d3516c74a60c67ebec61d8a09462e7b1356387d945776424c77f6",
+      "functionName": "submitPublishingEdition",
+      "operation": "UPDATE",
+      "table": "publishing_submission_snapshots",
+      "sqlSha256": "04c1c9198a8ca8e14b7f9cbc17c91a7c950b50149af742a7263993401c45fc71"
+    },
+    {
+      "siteId": "72d025bb5fc03c22e3d262978efd6d57fdd5e330a68bab5d391e3f59d562bda6",
+      "functionName": "submitPublishingEdition",
+      "operation": "UPDATE",
+      "table": "publishing_edition_drafts",
+      "sqlSha256": "83b0cf003f4e1217ce8829cacaae630fb6daa235e0cac22caba46d941a392081"
+    },
+    {
+      "siteId": "5a708a3677c860517a1a24b1578265eac5a785ace0156f3e48d811543d605fcc",
+      "functionName": "submitPublishingEdition",
+      "operation": "UPDATE",
+      "table": "publishing_submission_snapshots",
+      "sqlSha256": "8ba2a0a1a6418fd071099c8259b19893e9c32a00e89de00fbd8185f04b9ebac9"
+    },
+    {
+      "siteId": "837e7d5bd5b5a85d9dadce837ed3fa527f941f88130cdc011010bb16eb1e7bcd",
+      "functionName": "openPublishingRevision",
+      "operation": "UPDATE",
+      "table": "publishing_submission_snapshots",
+      "sqlSha256": "7624ce080ab2b68071e10ad1caca8beadd1316e7d9f22b643af988772a98d270"
+    },
+    {
+      "siteId": "976a6a24365ef88f6a223401a13c3cc93790fb67cdd65af9d942886700b41634",
+      "functionName": "openPublishingRevision",
+      "operation": "UPDATE",
+      "table": "publishing_edition_drafts",
+      "sqlSha256": "b919f8360a39e40a420bf3958a9cd264e1a0fbce929001032b090a7b34286bc7"
+    },
+    {
+      "siteId": "d0ff70bf09e7469b843c21d66fb279e5c6de5878328dc35ec1bc79a380158306",
+      "functionName": "setPublishingUpdatePolicy",
+      "operation": "UPDATE",
+      "table": "publishing_release_lifecycles",
+      "sqlSha256": "27b47f32bb386dac53efda79595fdc5aa1a365c8ac213083527f1fbf5be0b011"
+    },
+    {
+      "siteId": "b541c35ad72a13be3df73c8904eb0563e4a510584ab0936ba0260f25453d5397",
+      "functionName": "setPublishingUpdatePolicy",
+      "operation": "INSERT INTO",
+      "table": "publishing_entitlement_version_pins",
+      "sqlSha256": "98a2b7eb338c8fe7db15d567311d2375e6d7e10446039ebd6ff688a40f839b5c"
+    },
+    {
+      "siteId": "6eeb2a2612c5c95236a6ab21bc8b4a014e7412cbe2559be4c7d08d85c90ff036",
+      "functionName": "optInOwnedPublicationUpdate",
+      "operation": "INSERT INTO",
+      "table": "publishing_entitlement_version_pins",
+      "sqlSha256": "6719193bd1032497077de1facddded1687d35ab241216d9b292ba5a9050ecc5e"
+    },
+    {
+      "siteId": "07afa155332a60583c4149d813961cc925598b061ec98009568804b10e024e3f",
+      "functionName": "reviewPublishingSubmission",
+      "operation": "UPDATE",
+      "table": "publishing_submission_snapshots",
+      "sqlSha256": "bdc794f6c1bd4af85d53f7597d3e8a1cfaec0c6d7642d9d1295cfd10630e7e36"
+    },
+    {
+      "siteId": "51cb9d1f6aefb21a53508528ef11e8e5ddbffabfb676850491af364ae932ef46",
+      "functionName": "reviewPublishingSubmission",
+      "operation": "UPDATE",
+      "table": "publishing_edition_drafts",
+      "sqlSha256": "5a333bc6228a1a7c3b11ee6d0006aba05f7bcc6dd540241a753b181cdf026f06"
+    }
+  ],
+  "productionEnabled": false,
+  "notes": [
+    "Immutable source lines retained for nonretired SQL sites",
+    "Positive publishing submission, asset writes and paid version updates fail closed",
+    "Owner checks staff role separately; publisher user JWT not yet independently verified",
+    "QA private owner only; no production entitlement or rollback certification"
+  ]
+}
