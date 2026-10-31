@@ -6,7 +6,7 @@
   "releaseApproval": false,
   "sourceFile": "src/features/fore/api.server.ts",
   "previousSha256": "5e6cbf3647a74e34ebb14fe268d3aa1ae5f18e0c1a7a5bea1b97edf7b1e4a054",
-  "currentSha256": "8f9bd4401cae89d5a81a58442567acab5997202524d265df45d65b451512752d",
+  "currentSha256": "ee6fa312b61027b1de0c21618da2989f02dd3cf5cbbb1a7402b504657e109bfe",
   "privateCommand": "catalog.normalize-gutenberg",
   "privateRoute": "/catalog/normalize-gutenberg",
   "proofs": [
