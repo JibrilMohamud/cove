@@ -104,7 +104,7 @@ try {
     true,
     "source import cannot authorize catalog rows without owner",
   );
-  assert.match(attemptedImport.error, /Catalog normalization requires private authority/);
+  assert.match(attemptedImport.error, /Catalog (source ingestion requires private legal|normalization requires private) authority/);
   env.seedAdditionalLocalCatalogBooks(
     Array.from({ length: 48 }, (_, i) => ({
       ...seed,
@@ -129,6 +129,33 @@ try {
       if(pathname==="/catalog/private-ingest-state")return respondQaPrivateIngestState(rawEnv.DB,request);
        if(pathname==="/catalog/complete-us-epub-ingest")
          return respondQaUsEpubCompletion(rawEnv.DB,rawEnv.BUCKET,request,secret,validateStoredEpub);
+      if(pathname==="/catalog/private-source-ingest"){
+        // Synthetic QA only. A source observation is *not* legal proof; this
+        // fixture must have separately seeded an exact approved source record
+        // and positive stored evidence before it accepts metadata refresh.
+        assert.equal(request.headers.get("authorization"),"Bearer "+secret);
+        const data=await request.json();
+        assert.ok(Array.isArray(data.records)&&data.records.length>0&&data.records.length<=25);
+        for(const rec of data.records){
+          assert.equal(rec.sourceId,"pg_us");
+          assert.match(rec.cacheId,/^9900[0-9]{2}$/);
+          assert.equal(rec.fields[0],rec.cacheId);
+          assert.equal(rec.fields[23],rec.sourceId);
+          const existing=await rawEnv.DB.prepare(
+            "SELECT rights_status,commercial_use_status FROM gutenberg_source_cache WHERE id=? AND source_id='pg_us'"
+          ).bind(rec.cacheId).first();
+          const evidence=await rawEnv.DB.prepare(
+            "SELECT id FROM gutenberg_rights_evidence WHERE cache_id=? AND determination='public-domain' AND status='approved' AND territory_code='US'"
+          ).bind(rec.cacheId).first();
+          if(!existing||existing.rights_status!=="public-domain"||
+             existing.commercial_use_status!=="approved"||!evidence)
+            return new Response(null,{status:409});
+          await rawEnv.DB.prepare("UPDATE gutenberg_source_cache SET title=?,updated_at=? WHERE id=?")
+            .bind(rec.fields[1],new Date().toISOString(),rec.cacheId).run();
+        }
+        return Response.json({schema:"cove.owner-catalog-source-ingest.v1",
+          ownerFirst:true,saved:true,count:data.records.length});
+      }
       assert.equal(pathname, "/catalog/normalize-gutenberg");
       assert.equal(request.headers.get("authorization"), "Bearer " + secret);
       const { sourceId, operationId } = await request.json();
