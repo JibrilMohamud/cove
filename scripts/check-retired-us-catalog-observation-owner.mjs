@@ -14,11 +14,14 @@ assert.equal(sha(api),lineage.currentSha256);
 assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=43);
 assert.ok(lineage.retired.every(x=>x.functionName==="runCatalogIngestion"));
 assert.ok(lineage.retired.every(x=>!review.sites.some(y=>y.siteId===x.siteId)));
-for(const sql of [
+for(const token of [
  "UPDATE gutenberg_source_cache SET last_seen_at=?,source_updated_at=?",
- "UPDATE gutenberg_source_cache\\n            SET download_count=?",
- "UPDATE catalog_search_documents\\n            SET download_count=?"
-]) {const token=sql.replace(/\\\\n/g,"\\n");assert.ok(!api.includes(token),"Shared popularity SQL remained");assert.ok(owner.includes(token),"Original SQL absent from legal owner");}
+ "SET download_count=?,source_updated_at=?,last_seen_at=?,updated_at=?",
+ "UPDATE catalog_search_documents"
+]) {
+ assert.ok(!api.includes(token),"Shared popularity SQL remained: "+token);
+ assert.ok(owner.includes(token),"Original SQL absent from legal owner: "+token);
+}
 assert.match(owner,/if\(route==="\/catalog\/observe-us"\)/);
 assert.match(owner,/c\.source_id='pg_us' AND c\.copyright=0/);
 assert.match(owner,/await db\.batch\(statements\)/);
