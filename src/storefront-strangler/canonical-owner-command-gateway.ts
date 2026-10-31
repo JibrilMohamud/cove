@@ -110,6 +110,10 @@ const routes={
   "partner.process-feed":{path:"/publishing/partner/process-feed",schema:z.object({
     limit:z.number().int().min(1).max(25),operationId:shortOperation
   }).strict()},
+  "delivery.private-negative":{path:"/delivery/private-negative",schema:z.object({
+    action:z.enum(["revoke-grant","withdraw-version","restrict-policy"]),
+    payload:z.record(z.string(),z.unknown())
+  }).strict()},
   "catalog.withdraw-stale":{path:"/catalog/withdraw-stale",schema:z.object({
     sourceId:z.enum(["pg_ca","pg_au","pg_eu"]),
     cycleStartedAt:z.string().datetime(),leaseToken:z.string().uuid(),
@@ -311,6 +315,13 @@ export async function dispatchCanonicalOwnerCommand(
   try{ack=JSON.parse(bytes);}catch{throw Error("canonical_command_receipt_invalid");}
   if(!record(ack))throw Error("canonical_command_receipt_invalid");
   switch(kind){
+    case "delivery.private-negative":
+      if(ack.schema!=="cove.owner-negative-delivery-qa.v1"||ack.ownerFirst!==true||
+        ack.action!==body.action||!record(ack.result)||
+        (body.action==="revoke-grant"&&ack.result.revoked!==true)||
+        (body.action!=="revoke-grant"&&ack.result.saved!==true))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
     case "catalog.withdraw-stale":
       if(ack.schema!=="cove.owner-catalog-stale-denial.v1"||ack.ownerFirst!==true||
          ack.sourceId!==body.sourceId||ack.runId!==body.runId||ack.denied!==true||

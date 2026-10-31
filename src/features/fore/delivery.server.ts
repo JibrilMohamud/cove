@@ -1,3 +1,4 @@
+import { dispatchNegativeDeliveryOwner } from "../../storefront-strangler/publication-owner-routing.server";
 import JSZip from "jszip";
 import { z } from "zod/v3";
 import type { CoveEnv } from "./api.server";
@@ -968,19 +969,7 @@ export async function serveCommercialEpubGrant(env: CoveEnv, rawToken: string, r
 }
 
 export async function revokeDeliveryGrant(db: DB, userId: string, grantId: string) {
-  const r = await db
-    .prepare("SELECT * FROM commercial_delivery_grants WHERE id=? AND user_id=?")
-    .bind(grantId, userId)
-    .first<any>();
-  if (!r) throw new ApiError(404, "Delivery grant not found.");
-  if (r.status === "active")
-    await db
-      .prepare(
-        "UPDATE commercial_delivery_grants SET status='revoked',revoked_at=?,revocation_reason='customer_revoked' WHERE id=?",
-      )
-      .bind(now(), grantId)
-      .run();
-  return { revoked: true };
+  return dispatchNegativeDeliveryOwner(db, "revoke-grant", { userId, grantId }) as Promise<{ revoked: boolean }>;
 }
 
 export async function ownershipStatus(db: DB, userId: string, productId: string) {
@@ -1038,106 +1027,34 @@ export async function ownershipStatus(db: DB, userId: string, productId: string)
 }
 
 export async function setCommercialDeliveryPolicy(db: DB, actorUserId: string, raw: unknown) {
-  const x = z
-      .object({
-        productId: z.string().min(1),
-        requireDeviceRegistration: z.boolean().default(false),
-        maxActiveDevices: z.number().int().min(1).max(100).default(6),
-        maxDownloadsPerEntitlement: z.number().int().min(1).max(100000).default(50),
-        tokenTtlSeconds: z.number().int().min(30).max(3600).default(300),
-        tokenMaxUses: z.number().int().min(1).max(20).default(2),
-        watermarkMode: z.enum(["none", "license_marker"]).default("none"),
-        encryptionMode: z.enum(["none", "external_wrapped_key"]).default("none"),
-        allowBrowserRead: z.boolean().default(true),
-        allowFileDownload: z.boolean().default(true),
-      })
-      .parse(raw),
-    at = now();
-  const product = await db
-    .prepare("SELECT id FROM products WHERE id=?")
-    .bind(x.productId)
-    .first<any>();
-  if (!product) throw new ApiError(404, "Product not found.");
-  await db
-    .prepare(
-      `INSERT INTO commercial_delivery_policies(product_id,require_device_registration,max_active_devices,max_downloads_per_entitlement,token_ttl_seconds,token_max_uses,watermark_mode,encryption_mode,allow_browser_read,allow_file_download,updated_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(product_id) DO UPDATE SET require_device_registration=excluded.require_device_registration,max_active_devices=excluded.max_active_devices,max_downloads_per_entitlement=excluded.max_downloads_per_entitlement,token_ttl_seconds=excluded.token_ttl_seconds,token_max_uses=excluded.token_max_uses,watermark_mode=excluded.watermark_mode,encryption_mode=excluded.encryption_mode,allow_browser_read=excluded.allow_browser_read,allow_file_download=excluded.allow_file_download,updated_by=excluded.updated_by,updated_at=excluded.updated_at`,
-    )
-    .bind(
-      x.productId,
-      Number(x.requireDeviceRegistration),
-      x.maxActiveDevices,
-      x.maxDownloadsPerEntitlement,
-      x.tokenTtlSeconds,
-      x.tokenMaxUses,
-      x.watermarkMode,
-      x.encryptionMode,
-      Number(x.allowBrowserRead),
-      Number(x.allowFileDownload),
-      actorUserId,
-      at,
-      at,
-    )
-    .run();
-  // Policy changes affect newly issued grants only. Existing grants retain their immutable policy snapshot.
-  return { saved: true, productId: x.productId, policy: x };
+  const x = z.object({
+    productId: z.string().min(1),
+    requireDeviceRegistration: z.boolean().default(false),
+    maxActiveDevices: z.number().int().min(1).max(100).default(6),
+    maxDownloadsPerEntitlement: z.number().int().min(1).max(100000).default(50),
+    tokenTtlSeconds: z.number().int().min(30).max(3600).default(300),
+    tokenMaxUses: z.number().int().min(1).max(20).default(2),
+    watermarkMode: z.enum(["none", "license_marker"]).default("none"),
+    encryptionMode: z.enum(["none", "external_wrapped_key"]).default("none"),
+    allowBrowserRead: z.boolean().default(true),
+    allowFileDownload: z.boolean().default(true),
+  }).parse(raw);
+  return dispatchNegativeDeliveryOwner(db, "restrict-policy", {
+    actorUserId, policy: x,
+  }) as Promise<{ saved: boolean; productId: string; policy: typeof x }>;
 }
 
 export async function setDistributionControl(db: DB, actorUserId: string, raw: unknown) {
-  const x = z
-      .object({
-        publicationVersionId: z.string().min(1),
-        status: z.enum(["distributable", "owner_only", "blocked", "recalled"]),
-        allowExistingOwners: z.boolean().default(true),
-        reasonCode: z.string().max(120).default(""),
-        reasonDetail: z.string().max(2000).default(""),
-      })
-      .parse(raw),
-    at = now(),
-    prev = await db
-      .prepare(
-        "SELECT * FROM publication_version_distribution_controls WHERE publication_version_id=?",
-      )
-      .bind(x.publicationVersionId)
-      .first<any>();
-  await db
-    .prepare(
-      `INSERT INTO publication_version_distribution_controls(publication_version_id,distribution_status,allow_existing_owners,reason_code,reason_detail,effective_at,updated_by,updated_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(publication_version_id) DO UPDATE SET distribution_status=excluded.distribution_status,allow_existing_owners=excluded.allow_existing_owners,reason_code=excluded.reason_code,reason_detail=excluded.reason_detail,effective_at=excluded.effective_at,updated_by=excluded.updated_by,updated_at=excluded.updated_at`,
-    )
-    .bind(
-      x.publicationVersionId,
-      x.status,
-      Number(x.allowExistingOwners),
-      x.reasonCode,
-      x.reasonDetail,
-      at,
-      actorUserId,
-      at,
-    )
-    .run();
-  await db
-    .prepare(
-      "INSERT INTO publication_version_distribution_events(id,publication_version_id,from_status,to_status,allow_existing_owners,reason_code,reason_detail,actor_user_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
-    )
-    .bind(
-      uid("dist"),
-      x.publicationVersionId,
-      prev?.distribution_status || null,
-      x.status,
-      Number(x.allowExistingOwners),
-      x.reasonCode,
-      x.reasonDetail,
-      actorUserId,
-      at,
-    )
-    .run();
-  if (["blocked", "recalled"].includes(x.status) && !x.allowExistingOwners)
-    await db
-      .prepare(
-        "UPDATE commercial_delivery_grants SET status='revoked',revoked_at=?,revocation_reason=? WHERE publication_version_id=? AND status='active'",
-      )
-      .bind(at, `distribution_${x.status}`, x.publicationVersionId)
-      .run();
-  return { saved: true };
+  const x = z.object({
+    publicationVersionId: z.string().min(1),
+    status: z.enum(["distributable", "owner_only", "blocked", "recalled"]),
+    allowExistingOwners: z.boolean().default(true),
+    reasonCode: z.string().max(120).default(""),
+    reasonDetail: z.string().max(2000).default(""),
+  }).parse(raw);
+  return dispatchNegativeDeliveryOwner(db, "withdraw-version", {
+    actorUserId, distribution: x,
+  }) as Promise<{ saved: boolean }>;
 }
 
 export async function snapshotAnnotationAnchor(db: DB, userId: string, raw: unknown) {

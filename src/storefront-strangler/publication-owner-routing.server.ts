@@ -415,3 +415,15 @@ export async function dispatchCatalogNegativeSource(db:object,
   return {changed:result.changed===true};
  }catch{throw new ApiError(503,"Private catalog owner refused source quarantine.");}
 }
+
+/** Fixed negative-only commercial delivery commands; no shared SQL fallback. */
+export async function dispatchNegativeDeliveryOwner(db:object,
+ action:"revoke-grant"|"withdraw-version"|"restrict-policy",payload:object){
+ const context=owners.get(db);
+ if(!context)throw new ApiError(503,"Commercial delivery requires private owner.");
+ try{
+  const receipt=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
+   "delivery.private-negative",{action,payload});
+  return receipt.result;
+ }catch{throw new ApiError(503,"Private owner rejected commercial delivery change.");}
+}
