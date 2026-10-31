@@ -506,15 +506,14 @@ async function markD1QuotaBlocked() {
 async function audioTrackTriggerSlots(env: BackendEnv) {
   const db = backendScheduledPrimaryReadDb(env);
   const at = new Date().toISOString();
-  const row = await db.prepare(
+  const statement = db.prepare(
     `SELECT
       SUM(CASE WHEN status='queued' AND next_attempt_at<=? THEN 1 ELSE 0 END) queued,
       SUM(CASE WHEN status='running' AND lease_until>? THEN 1 ELSE 0 END) running
     FROM audio_jobs
     WHERE kind='track'`,
-  )
-    .bind(at, at)
-    .first<{ queued?: number; running?: number }>();
+  );
+  const row = await statement.bind(at, at).first<{ queued?: number; running?: number }>();
   const queued = Number(row?.queued || 0);
   const running = Number(row?.running || 0);
   const targetConcurrency = queued >= 128 ? 2 : 1;
@@ -528,14 +527,15 @@ async function audioTrackTriggerSlots(env: BackendEnv) {
 async function audioAlignmentTriggerSlots(env: BackendEnv) {
   const db = backendScheduledPrimaryReadDb(env);
   const at = new Date().toISOString();
-  const row = await db.prepare(
+  const statement = db.prepare(
     `SELECT
       SUM(CASE WHEN kind='align' AND status='queued' AND next_attempt_at<=? AND attempts<6 THEN 1 ELSE 0 END) queued,
       SUM(CASE WHEN kind='align' AND status='running' AND lease_until>? THEN 1 ELSE 0 END) running,
       SUM(CASE WHEN kind='track' AND status='running' AND lease_until>? THEN 1 ELSE 0 END) active_tracks
     FROM audio_jobs
     WHERE kind IN ('align','track')`,
-  )
+  );
+  const row = await statement
     .bind(at, at, at)
     .first<{ queued?: number; running?: number; active_tracks?: number }>();
   const queued = Number(row?.queued || 0);
@@ -555,7 +555,7 @@ async function warmOneShortBiosyncTranscript(env: BackendEnv) {
   // Warm one independent ASR transcript per hour; the existing Vercel/GitHub
   // verifier still has to match the exact EPUB before publishing any map.
   if (!env.AI || !env.BUCKET) return;
-  const rows = await db.prepare(
+  const statement = db.prepare(
     "SELECT e.id edition_id,json_extract(t.value,'$.id') track_id,json_extract(t.value,'$.sha256') audio_sha " +
       "FROM audio_jobs j JOIN audio_editions e ON e.id=json_extract(j.payload_json,'$.editionId') " +
       "JOIN json_each(e.tracks_json) t ON json_extract(t.value,'$.id')=json_extract(j.payload_json,'$.trackId') " +
@@ -563,7 +563,8 @@ async function warmOneShortBiosyncTranscript(env: BackendEnv) {
       "AND CAST(json_extract(t.value,'$.duration') AS REAL)>0 " +
       "AND CAST(json_extract(t.value,'$.duration') AS REAL)<=240 " +
       "AND json_extract(t.value,'$.sha256') IS NOT NULL ORDER BY j.updated_at,j.id LIMIT 40",
-  ).all<{ edition_id: string; track_id: string; audio_sha: string }>();
+  );
+  const rows = await statement.all<{ edition_id: string; track_id: string; audio_sha: string }>();
   const options = rows.results.filter((r) => /^[a-f0-9]{64}$/.test(r.audio_sha));
   // Rotate across short tracks so an unavailable or corrupt recording cannot
   // permanently block progress for every other eligible track.
@@ -651,13 +652,13 @@ async function runScheduled(cron: string, env: BackendEnv) {
       // starving the long-running track backlog indefinitely.
       const db = backendScheduledPrimaryReadDb(env);
       const firstMapPending = await db.prepare("SELECT 1 FROM audio_timing LIMIT 1").first();
-      const shortBootstrap = firstMapPending
-        ? null
-        : await db.prepare(
-            "SELECT j.id FROM audio_jobs j JOIN audio_editions e ON e.id=json_extract(j.payload_json,'$.editionId') JOIN json_each(e.tracks_json) t ON json_extract(t.value,'$.id')=json_extract(j.payload_json,'$.trackId') WHERE j.kind='align' AND j.status='queued' AND j.attempts<3 AND j.next_attempt_at<=? AND CAST(json_extract(t.value,'$.duration') AS REAL)<=120 LIMIT 1",
-          )
-            .bind(new Date().toISOString())
-            .first();
+      let shortBootstrap: unknown = null;
+      if (!firstMapPending) {
+        const statement = db.prepare(
+          "SELECT j.id FROM audio_jobs j JOIN audio_editions e ON e.id=json_extract(j.payload_json,'$.editionId') JOIN json_each(e.tracks_json) t ON json_extract(t.value,'$.id')=json_extract(j.payload_json,'$.trackId') WHERE j.kind='align' AND j.status='queued' AND j.attempts<3 AND j.next_attempt_at<=? AND CAST(json_extract(t.value,'$.duration') AS REAL)<=120 LIMIT 1",
+        );
+        shortBootstrap = await statement.bind(new Date().toISOString()).first();
+      }
       const alignmentWindow = new Date().getUTCMinutes() % 30 < 15 || Boolean(shortBootstrap);
       if (alignmentState.running > 0 || (alignmentWindow && alignmentState.queued > 0)) {
         const work: Promise<unknown>[] = [scheduledCatalog(env)];
@@ -738,9 +739,10 @@ async function runScheduled(cron: string, env: BackendEnv) {
         }
       }
       const db = backendScheduledPrimaryReadDb(env);
-      const backlog = await db.prepare(
+      const statement = db.prepare(
         "SELECT COUNT(*) count FROM audio_jobs WHERE kind='track' AND status IN ('queued','running')",
-      ).first<{ count?: number }>();
+      );
+      const backlog = await statement.first<{ count?: number }>();
       const pendingTracks = Number(backlog?.count || 0);
       if (pendingTracks >= 96) {
         console.info(`Cove audio discovery paused with ${pendingTracks} pending track jobs.`);
