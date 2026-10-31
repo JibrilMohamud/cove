@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "retirementEvidence": "docs/architecture/retired-regional-epub-metadata-owner-lineage.json",
+  "rationale": "One shared canonical regional metadata mutation is physically removed from the Gutenberg EPUB ingestion worker. The fixed private QA legal-owner command independently verifies the unquarantined downloading source, immutable deterministic R2 EPUB object, bounded validated archive and actual SHA-256, and recomputes canonical title, authors and languages from the stored EPUB rather than trusting the caller. It only updates metadata while repeating source and ingest-state predicates, never grants new rights or entitlements. Six surviving API protected SQL literals and their containing function and original SQL are identical and site IDs were recalculated. No production owner binding, positive regional-rights grant or release approval is claimed.",
+  "files": [
+    {
+      "path": "src/features/fore/api.server.ts",
+      "sha256": "8f9bd4401cae89d5a81a58442567acab5997202524d265df45d65b451512752d",
+      "review": "Replaced exact direct regional metadata SQL in cachePendingEpubs with one fixed private owner command; all six surviving canonical API mutation candidates retain their SQL/function identity and original owner-required disposition."
+    }
+  ]
+}

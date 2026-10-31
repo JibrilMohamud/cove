@@ -1,0 +1,34 @@
+{
+  "schema": "cove.retired-regional-epub-metadata-owner-lineage.v1",
+  "sourceBefore": 15,
+  "sourceAfter": 14,
+  "releaseApproval": false,
+  "productionCertified": false,
+  "sourceFile": "src/features/fore/api.server.ts",
+  "previousSha256": "3c11509e11029c8fe3317be733d4ad253acf56bbe91d34d2d2f9eb82a1b0f20f",
+  "currentSha256": "8f9bd4401cae89d5a81a58442567acab5997202524d265df45d65b451512752d",
+  "retired": [
+    {
+      "siteId": "d571687dc77efdddaa138663ff70452a5a3287d8098b650f8c14a0342f27b002",
+      "file": "src/features/fore/api.server.ts",
+      "line": 1595,
+      "functionName": "cachePendingEpubs",
+      "table": "gutenberg_source_cache",
+      "operation": "UPDATE",
+      "sqlSha256": "dd8864e24838e26944d1a4820a4180ec53d1a470843e9602faabbb333afe2113",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "api.cachePendingEpubs",
+      "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
+    }
+  ],
+  "privateCommand": "catalog.regional-epub-metadata",
+  "privateRoute": "/catalog/verified-regional-epub-metadata",
+  "proofs": [
+    "Owner fetches registered regional cache row and requires currently downloading, unquarantined source",
+    "Owner derives immutable R2 key from source identifier, enforces size bound, validates EPUB archive and computes its actual SHA-256",
+    "Owner independently re-canonicalizes stored EPUB and derives title, authors and language from R2 content, rejecting caller-supplied metadata",
+    "Conditional primary-D1 metadata update repeats source/status fence, without changing rights, commercial-use or entitlement fields",
+    "No shared or production-disabled SQL fallback; source-only staging migration and unresolved positive rights remain release blockers"
+  ]
+}

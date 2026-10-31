@@ -150,6 +150,10 @@ const routes={
       merchandisingRegion:z.string().min(1).max(80),checkoutEnabled:z.boolean()
     }).strict()
   }).strict()},
+  "catalog.regional-epub-metadata":{path:"/catalog/verified-regional-epub-metadata",schema:z.object({
+    cacheId:z.string().regex(/^(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90}$/),
+    sha256:z.string().regex(/^[a-f0-9]{64}$/)
+  }).strict()},
   "catalog.complete-us-epub-ingest":{path:"/catalog/complete-us-epub-ingest",schema:z.object({
     cacheId:z.string().regex(/^[0-9]{1,10}$/),
     sha256:z.string().regex(/^[a-f0-9]{64}$/)
@@ -420,6 +424,11 @@ export async function dispatchCanonicalOwnerCommand(
     case "market.admin-upsert":
       if(ack.schema!=="cove.owner-private-market-admin.v1"||ack.ownerFirst!==true||
          ack.operationId!==body.operationId||ack.countryCode!==(body.market as Record<string,unknown>).countryCode||
+         ack.saved!==true)throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "catalog.regional-epub-metadata":
+      if(ack.schema!=="cove.owner-regional-epub-metadata.v1"||ack.ownerFirst!==true||
+         ack.cacheId!==body.cacheId||ack.sha256!==body.sha256||
          ack.saved!==true)throw Error("canonical_command_receipt_mismatch");
       break;
     case "catalog.complete-us-epub-ingest":
