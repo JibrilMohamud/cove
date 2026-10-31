@@ -44,12 +44,22 @@ try{
     "A zero-source owner audit requires independent production certification");
   assert.equal(result.unresolvedDirectWrites,reviewedCount,
     "Scanned canonical SQL must exactly match the separately reviewed source inventory");
+  // Presence of a high-risk file is not itself evidence of a writer.
+  // Compare its exact scanned count to independently reviewed sites, which
+  // may legitimately contain only non-authorizing audit history.
+  const reviewedFileSites=JSON.parse(readFileSync(
+    "docs/architecture/canonical-writer-review.json","utf8"
+  )).sites;
   for(const path of [
     "src/features/fore/rights.server.ts",
     "src/features/fore/commerce.server.ts",
     "src/features/fore/delivery.server.ts",
     "src/features/fore/commercial-audio.server.ts"
-  ])assert.ok(result.byFile[path]>0,"Missing high-risk canonical writer inventory: "+path);
+  ]){
+    assert.equal(result.byFile[path]||0,
+      reviewedFileSites.filter(x=>x.file===path).length,
+      "High-risk canonical source inventory must match the exact review for "+path);
+  }
   // This family now has zero shared writers. Require exact retirement
   // evidence and the private replacement rather than retaining legacy SQL
   // merely to satisfy a historical inventory-presence assertion.
