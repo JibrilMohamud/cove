@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "retirementEvidence": "docs/architecture/retired-private-biosync-owner-lineage.json",
+  "rationale": "The remaining Biosync publication-link canonical INSERT is removed from the shared audiobook module. An independently authenticated QA private owner checks current staff audio.qc.review permission, active published ebook/audiobook versions, exact current manuscript and audio manifest identities, R2 timing manifest byte length and checksum, cue monotonicity, chapter duration bounds, and verified coverage before a deterministic idempotent fixed INSERT. The owner reruns source verification against its own primary D1 and R2; external callers supply neither SQL nor a positive rights grant. The two remaining commercial audio offline license mutations and playback telemetry retain exactly their original SQL/function identities, re-fingerprinted for the new source SHA. Production paid access and legal owner remain disabled.",
+  "files": [
+    {
+      "path": "src/features/fore/commercial-audio.server.ts",
+      "sha256": "dfb1388150c34061d6f4c7707279f45283a6d62cab9ea547d6c6910b7f324452",
+      "review": "One protected Biosync SQL link writer privately retired; two protected offline license SQL sites and two nonauthorizing telemetry sites preserved byte-for-byte."
+    }
+  ]
+}

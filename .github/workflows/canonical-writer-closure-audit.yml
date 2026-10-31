@@ -188,6 +188,7 @@ jobs:
           node scripts/check-retired-owner-commercial-audio-metadata.mjs
           node scripts/check-retired-owner-publishing-worker-queues.mjs
           node scripts/check-retired-owner-commercial-audio-qc.mjs
+          node scripts/check-retired-private-biosync-owner.mjs
           node scripts/check-retired-owner-commercial-audio-upload.mjs
           node scripts/test-owner-commercial-audio-qc.mjs
           node scripts/test-owner-publishing-work-queues.mjs
