@@ -5,6 +5,7 @@ import {
   savedGroupAlignedAudioProgress,
 } from "./spoiler-progress.server";
 import { z } from "zod/v3";
+import { readArenaPost } from "./community-arena";
 import type { CoveEnv } from "./api.server";
 import { ApiError, bookIdSchema, json, now, rateLimit, readBody, requireIdentity } from "./service";
 import { resolveProduct } from "./catalog-model.server";
@@ -2104,6 +2105,123 @@ export async function handleSocial(
       blockedReaders: blocked.results,
     });
   }
+  if (method === "GET" && path === "/social/arena") {
+    // Fetch from the already-indexed public social-event timeline, NOT a global
+    // table scan of social posts. The endpoint runs only on the Arena tab.
+    const cursor = socialCursor(url.searchParams.get("cursor"));
+    const sort = z.enum(["recent", "trending"]).parse(url.searchParams.get("sort") || "recent");
+    const kind = z
+      .enum(["all", "take", "debate", "matchup"])
+      .parse(url.searchParams.get("kind") || "all");
+    const batch = (
+      await db
+        .prepare(
+          `SELECT e.id,e.entity_id,e.entity_type,e.event_type,e.created_at
+           FROM social_events e
+           WHERE e.visibility='public' AND e.moderation_status='visible'
+             ${cursor ? "AND (e.created_at<? OR (e.created_at=? AND e.id<?))" : ""}
+           ORDER BY e.created_at DESC,e.id DESC LIMIT 80`,
+        )
+        .bind(...(cursor ? [cursor.at, cursor.at, cursor.id] : []))
+        .all<any>()
+    ).results;
+    const ids = [
+      ...new Set(
+        batch
+          .filter((e) => e.entity_type === "post" && e.event_type === "discussion_started")
+          .map((e) => String(e.entity_id)),
+      ),
+    ];
+    const posts = ids.length
+      ? (
+          await db
+            .prepare(
+              `SELECT p.* FROM social_posts p
+             JOIN social_profiles sp ON sp.user_id=p.user_id
+            WHERE p.id IN (${ids.map(() => "?").join(",")})
+              AND p.context_type='profile' AND p.post_type='prompt'
+              AND p.parent_id IS NULL AND p.user_id=p.context_id
+              AND p.visibility='public' AND p.moderation_status='visible'
+              AND p.deleted_at IS NULL AND p.body LIKE '[COVE-ARENA:%'
+              AND sp.profile_visibility='public' AND sp.activity_visibility='public'`,
+            )
+            .bind(...ids)
+            .all<any>()
+        ).results
+      : [];
+    const byId = new Map(posts.map((p: any) => [String(p.id), p]));
+    const candidates = batch
+      .map((event) => ({ event, post: byId.get(String(event.entity_id)) }))
+      .filter((entry) => {
+        if (!entry.post) return false;
+        const parsed = readArenaPost(String(entry.post.body));
+        return !!parsed && (kind === "all" || parsed.kind === kind);
+      })
+      .slice(0, 16);
+    const visible = await visiblePosts(
+      db,
+      userId,
+      candidates.map((e) => e.post),
+      1,
+      env,
+    );
+    const reactIds = visible.map((p) => String(p.id));
+    const votes = reactIds.length
+      ? (
+          await db
+            .prepare(
+              `SELECT post_id,reaction,COUNT(*) total FROM social_post_reactions
+            WHERE reaction IN ('agree','funny') AND post_id IN (${reactIds.map(() => "?").join(",")})
+            GROUP BY post_id,reaction`,
+            )
+            .bind(...reactIds)
+            .all<any>()
+        ).results
+      : [];
+    const counts = new Map<string, { fire: number; clown: number }>();
+    for (const v of votes) {
+      const id = String(v.post_id);
+      const record = counts.get(id) || { fire: 0, clown: 0 };
+      if (v.reaction === "agree") record.fire = Number(v.total);
+      if (v.reaction === "funny") record.clown = Number(v.total);
+      counts.set(id, record);
+    }
+    const items = visible.flatMap((p) => {
+      const parsed = readArenaPost(String(p.body || ""));
+      if (!parsed) return [];
+      return [
+        {
+          ...p,
+          body: parsed.text,
+          kind: parsed.kind,
+          bookId: parsed.bookId,
+          ...(counts.get(String(p.id)) || { fire: 0, clown: 0 }),
+        },
+      ];
+    });
+    if (sort === "trending") {
+      // A bounded recent-window ranking: disagreement can boost by at most 20%,
+      // and only becomes meaningful after multiple independent reactions.
+      items.sort((a, b) => {
+        const score = (post: typeof a) => {
+          const votes = post.fire + post.clown;
+          const balance = votes ? 1 - Math.abs(post.fire - post.clown) / votes : 0;
+          const controversy = Math.min(1, votes / 12) * balance;
+          const engagement = Math.log1p(votes) + 0.35 * Math.log1p(post.replies || 0);
+          const ageHours = Math.max(0, (Date.now() - Date.parse(post.createdAt)) / 3600000);
+          return (engagement * (1 + 0.2 * controversy)) / (1 + ageHours / 72);
+        };
+        return score(b) - score(a);
+      });
+    }
+    const last = candidates.length === 16 ? candidates[15].event : batch[batch.length - 1];
+    return json({
+      items,
+      nextCursor:
+        last && (batch.length === 80 || candidates.length === 16) ? cursorFor(last) : null,
+      rankingWindow: "recent",
+    });
+  }
   if (method === "GET" && path === "/social/posts") {
     const contextType = z
         .enum(["work", "margin", "group", "list", "profile"])
@@ -3482,10 +3600,13 @@ export async function handleSocial(
       if (!target) throw new ApiError(404, "Reader not found.");
       const rel = await relationship(db, uidv, targetUserId),
         policy = target.repliesPolicy;
+      // The owner may always start a post on their own profile, regardless of
+      // the reply policy they apply to *other* readers.
       if (
-        policy === "none" ||
-        (policy === "following" && !rel.following) ||
-        (policy === "mutuals" && !rel.mutual)
+        uidv !== targetUserId &&
+        (policy === "none" ||
+          (policy === "following" && !rel.following) ||
+          (policy === "mutuals" && !rel.mutual))
       )
         throw new ApiError(403, "This reader is not accepting replies from your account.");
     }
@@ -3710,6 +3831,25 @@ export async function handleSocial(
     const readablePost = await visiblePosts(db, uidv, [p], 1, env);
     if (!readablePost.length || readablePost[0].locked)
       throw new ApiError(403, "Reach this passage before reacting.");
+    if (
+      x.active &&
+      p.context_type === "profile" &&
+      p.post_type === "prompt" &&
+      p.user_id === p.context_id &&
+      readArenaPost(String(p.body || ""))
+    ) {
+      if (x.reaction !== "agree" && x.reaction !== "funny")
+        throw new ApiError(400, "Choose Fire or Clown for Community Arena voting.");
+      const opposite = x.reaction === "agree" ? "funny" : "agree";
+      const previous = await db
+        .prepare(
+          "SELECT 1 existing FROM social_post_reactions WHERE post_id=? AND user_id=? AND reaction=?",
+        )
+        .bind(postId, uidv, opposite)
+        .first();
+      if (previous)
+        throw new ApiError(409, "Remove your previous vote before choosing another side.");
+    }
     if (x.active)
       await db
         .prepare(

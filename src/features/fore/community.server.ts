@@ -3,6 +3,12 @@ import type { CoveEnv } from "./api.server";
 import type { CatalogBook } from "./client";
 import { ApiError, bookIdSchema, json, now, rateLimit, readBody, requireIdentity } from "./service";
 import { countWords } from "./domain";
+import {
+  REVIEW_TAG_KEYS,
+  parseTaggedReview,
+  serializeTaggedReview,
+  type ReviewTag,
+} from "./review-tags";
 import { getCanonicalBook, resolveProduct } from "./catalog-model.server";
 import { refreshSearchQualitySignals } from "./search.server";
 import { createModerationCase } from "./moderation.server";
@@ -52,6 +58,10 @@ const visibility = z.enum(["public", "private"]);
 const reviewInput = z.object({
   rating: z.number().min(0.5).max(5).multipleOf(0.5),
   body: z.string().trim().max(20000).default(""),
+  tags: z
+    .array(z.enum(REVIEW_TAG_KEYS as [string, ...string[]]))
+    .max(3)
+    .default([]),
   visibility: visibility.default("private"),
   spoiler: z.boolean().default(false),
 });
@@ -65,7 +75,8 @@ const toReview = (r: any, userId?: string | null) => ({
   bookId: r.book_id,
   name: r.name || "Reader",
   rating: r.rating_steps === null ? null : r.rating_steps / 2,
-  body: r.body,
+  body: parseTaggedReview(String(r.body || "")).body,
+  tags: parseTaggedReview(String(r.body || "")).tags,
   visibility: r.visibility,
   spoiler: !!r.spoiler,
   wordCount: r.word_count,
@@ -194,6 +205,22 @@ export async function handleCommunity(
         binds.push(Number(rating) * 2);
       }
       if (url.searchParams.get("textOnly") === "true") where.push("r.body<>''");
+      // The indexed book_id condition always bounds this optional read-only search.
+      const q = z
+        .string()
+        .max(80)
+        .parse(url.searchParams.get("q") || "")
+        .trim();
+      const tag = url.searchParams.get("tag");
+      if (q) {
+        where.push("instr(lower(r.body),lower(?))>0");
+        binds.push(q);
+      }
+      if (tag) {
+        const validTag = z.enum(REVIEW_TAG_KEYS as [string, ...string[]]).parse(tag);
+        where.push("instr(substr(r.body,1,120),?)>0");
+        binds.push("#" + validTag);
+      }
       const order = {
         popular: "review_rank_score DESC,r.created_at DESC",
         trending:
@@ -255,6 +282,7 @@ export async function handleCommunity(
       const input = reviewInput.parse(await readBody(request));
       if ((resolvedBook as any).uploaded && input.visibility === "public")
         throw new ApiError(400, "Reviews of personal imports stay private.");
+      const taggedBody = serializeTaggedReview(input.body, input.tags as ReviewTag[]);
       const at = now(),
         provenance = await deriveReviewProvenance(db, uid, id),
         proposedId = crypto.randomUUID();
@@ -268,7 +296,7 @@ export async function handleCommunity(
             uid,
             reviewKey,
             input.rating * 2,
-            input.body,
+            taggedBody,
             input.visibility,
             input.spoiler ? 1 : 0,
             countWords(input.body),

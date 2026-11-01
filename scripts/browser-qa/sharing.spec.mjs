@@ -46,7 +46,7 @@ async function setup(browser, request, testInfo, progress = 1) {
   };
 }
 async function inventory(page, sent = false) {
-  await page.goto(`/community?tab=${sent ? "sharing" : "received"}`);
+  await page.goto(`/profile?section=${sent ? "sharing" : "received"}`);
   await expect(page.locator(".sharing-inventory h2")).toHaveText(
     sent ? "My sharing" : "Shared with me",
   );
@@ -71,27 +71,25 @@ test("guest navigation stays private and fits the device", async ({ page }, test
   expect(documentResponse?.headers()["content-security-policy"]).not.toContain(
     "upgrade-insecure-requests",
   );
-  await expect(page.getByText("Sign in to see your private sharing.")).toBeVisible();
-  for (const name of ["Activity", "Discover", "Shared with me", "My sharing", "My profile"])
-    await expect(
-      page.locator(".community-tabs").getByRole("link", { name, exact: true }),
-    ).toBeVisible();
-  // The SSR links are visible before Vite finishes hydrating in the QA server.
-  // Wait for the actual client before navigating to avoid canceled dev imports.
+  // Legacy personal-community links redirect to a private account surface.
+  await expect(page).toHaveURL(/\/profile\?section=received$/);
+  await expect(page.getByRole("heading", { name: "Make yourself at home." })).toBeVisible();
+  await expect(page.getByText(note)).toHaveCount(0);
   await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
   await noOverflow(page);
-  const sharingTab = page
-    .locator(".community-tabs")
-    .getByRole("link", { name: "My sharing", exact: true });
-  const tabHref = await sharingTab.getAttribute("href");
-  expect(tabHref).toContain("tab=sharing");
-  await sharingTab.click();
-  await expect(page).toHaveURL(/\/community\?tab=sharing$/);
-  await expect(page.getByRole("heading", { name: "Manage your sharing" })).toBeVisible();
+  await page.goto("/community");
+  await expect(page.getByRole("heading", { name: "The conversation starts here." })).toBeVisible();
+  const publicTabs = page.locator(".community-tabs");
+  for (const name of ["Explore", "Readers & clubs", "Following"])
+    await expect(publicTabs.getByRole("link", { name, exact: true })).toBeVisible();
+  for (const name of ["Shared with me", "My sharing", "My profile"])
+    await expect(publicTabs.getByRole("link", { name, exact: true })).toHaveCount(0);
+  await page.goto("/profile?section=sharing");
+  await expect(page.getByRole("heading", { name: "Make yourself at home." })).toBeVisible();
   await expect(page.getByText(note)).toHaveCount(0);
-  await page.screenshot({ path: testInfo.outputPath("guest-community.png"), fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath("guest-account.png"), fullPage: true });
   const results = await new AxeBuilder({ page })
-    .include(".community-page")
+    .include(".account-empty")
     .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
     .analyze();
   expect(results.violations.filter((v) => ["serious", "critical"].includes(v.impact))).toEqual([]);
@@ -382,7 +380,7 @@ test("native browser storage persists nonextractable offline encryption keys", a
   const fixture = await setup(browser, request, testInfo);
   try {
     const page = await fixture.pageFor(null);
-    await page.goto("/community?tab=received");
+    await page.goto("/profile?section=received");
     await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
     await page.evaluate(async () => {
       const { putRecord } = await import("/src/features/fore/offline.ts");

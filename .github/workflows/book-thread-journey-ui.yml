@@ -3,6 +3,12 @@ on:
   pull_request:
     paths:
       - "src/features/fore/Community.tsx"
+      - "src/features/fore/CommunityArena.tsx"
+      - "src/features/fore/community-arena.ts"
+      - "src/features/fore/review-tags.ts"
+      - "src/features/fore/Reviews.tsx"
+      - "src/features/fore/community.server.ts"
+      - "scripts/check-community-arena.mjs"
       - "src/features/fore/Book.tsx"
       - "src/features/fore/Work.tsx"
       - "src/features/fore/BookDiscussionDeferred.tsx"
@@ -27,4 +33,5 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: node scripts/check-book-thread-journey-ui.mjs
       - run: npm run test:social-reading
+      - run: npm run test:community-arena
       - run: npm run typecheck

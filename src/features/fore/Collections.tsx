@@ -1332,6 +1332,31 @@ export function ProfilePage() {
         </div>
       </div>
       <AccountGuard>
+        <section className="recommendation-privacy-panel" aria-labelledby="account-community-tools">
+          <div>
+            <span className="small-label">{ui("YOUR COMMUNITY SETTINGS")}</span>
+            <h2 id="account-community-tools">{ui("Profile & sharing")}</h2>
+            <p className="muted">
+              {ui(
+                "Manage what readers can see and what is shared with you. Public Hot Takes, debates, and tournaments are in Community.",
+              )}
+            </p>
+          </div>
+          <div className="recommendation-privacy-actions">
+            <a className="button outline" href="/profile?section=me">
+              {ui("Reader profile & clubs")}
+            </a>
+            <a className="button outline" href="/profile?section=received">
+              {ui("Shared with me")}
+            </a>
+            <a className="button outline" href="/profile?section=sharing">
+              {ui("My sharing")}
+            </a>
+            <a className="text-link" href="/community">
+              {ui("Explore public Community")}
+            </a>
+          </div>
+        </section>
         <div className="profile-panel">
           <span className="profile-avatar">{(data.user?.name || "R")[0].toUpperCase()}</span>
           <h2>{data.user?.registered ? data.user.name : "Welcome to Cove"}</h2>

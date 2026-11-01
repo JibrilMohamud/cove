@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "identity": {
+    "id": "cove_arena_demo",
+    "username": "cove_arena_demo",
+    "displayName": "Cove Community Demo"
+  },
+  "posts": [
+    {
+      "kind": "take",
+      "text": "A three-star novel can be more memorable than a five-star one. The books that challenge or frustrate us sometimes leave the strongest imprint. Fire or Clown?",
+      "bookId": ""
+    },
+    {
+      "kind": "take",
+      "text": "A film adaptation doesn't have to reproduce every scene to be faithful. Capturing the book's emotional truth matters more than copying its plot beat for beat. Fire or Clown?",
+      "bookId": ""
+    },
+    {
+      "kind": "take",
+      "text": "A compelling villain does not automatically deserve a redemption arc. Some of the best stories let us understand a character without excusing their choices. Fire or Clown?",
+      "bookId": ""
+    },
+    {
+      "kind": "debate",
+      "text": "What makes a romance truly great: sparkling chemistry, or watching two flawed people grow into partners worthy of each other? Make the case for your favorite book—without spoilers.",
+      "bookId": ""
+    },
+    {
+      "kind": "debate",
+      "text": "Should a novel with a slow opening be judged more generously when its ending is extraordinary? Does the payoff earn the patience it asks of the reader?",
+      "bookId": ""
+    },
+    {
+      "kind": "matchup",
+      "text": "A: Jane Eyre — Charlotte Brontë's intense, gothic romance, where love has to contend with conscience and independence.\nB: Pride and Prejudice — Jane Austen's witty, character-driven romance, built on first impressions and personal growth.\n\nWhich book delivers the better romance? Vote A for Jane Eyre or B for Pride and Prejudice. Defend your pick in the replies (spoiler-free, please).",
+      "bookId": ""
+    }
+  ]
+}

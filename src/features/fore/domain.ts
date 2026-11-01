@@ -20,6 +20,7 @@ export type Review = {
   name: string;
   rating: number | null;
   body: string;
+  tags?: import("./review-tags").ReviewTag[];
   visibility: "public" | "private";
   spoiler: boolean;
   wordCount: number;
