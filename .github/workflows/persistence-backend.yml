@@ -123,6 +123,8 @@ jobs:
         run: npm run test:persistence-backend
       - name: Production backend deployment must not mint alternate D1 writers
         run: node scripts/check-production-persistence-deploy-identity.mjs
+      - name: Production Workers must never reuse the broad account token
+        run: node scripts/check-production-worker-release-tokens.mjs
       - name: Audio trigger diagnostic has no canonical D1 writer
         run: node scripts/check-backend-audio-diagnostics.mjs
       - name: Soundtrack library rights and delivery regressions
