@@ -2705,11 +2705,11 @@ function LegacyCommunityAccountRedirect({ section }: { section: "received" | "sh
 function LegacyCommunityFollowingRedirect() {
   const ui = useUiText();
   useEffect(() => {
-    window.location.replace("/following");
+    window.location.replace("/settings?tab=network");
   }, []);
   return (
     <main className="community-page">
-      <a className="text-link" href="/following">
+      <a className="text-link" href="/settings?tab=network">
         {ui("Following")}
       </a>
     </main>
