@@ -1356,14 +1356,14 @@
     flex-basis: 100%;
   }
   .cove-debates-filters {
-    flex-wrap: nowrap;
-    overflow-x: auto;
+    flex-wrap: wrap;
+    overflow: visible;
     width: 100%;
     padding: 3px 0 8px;
-    scrollbar-color: #765a70 transparent;
   }
   .cove-debates-filters button {
     flex: 0 0 auto;
+    padding: 10px 13px;
   }
   .cove-arena .cove-arena-feed-links {
     justify-content: flex-start;
