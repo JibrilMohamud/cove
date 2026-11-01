@@ -1,0 +1,28 @@
+name: Community open-reply formatter
+on:
+  push:
+    branches: [fix/community-real-discussions-and-debates-20261101]
+    paths: [.github/workflows/community-final-format.yml]
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - run: npm ci --no-audit --no-fund
+      - run: npx prettier --write src/features/fore/community-arena.ts src/features/fore/CommunityArena.tsx src/features/fore/social.server.ts scripts/check-community-arena.mjs
+      - name: Commit formatting only
+        run: |
+          git diff --check
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/features/fore/community-arena.ts src/features/fore/CommunityArena.tsx src/features/fore/social.server.ts scripts/check-community-arena.mjs
+          git commit -m "style(community): apply formatting to opt-in reply policy"
+          git push origin HEAD:refs/heads/fix/community-real-discussions-and-debates-20261101
