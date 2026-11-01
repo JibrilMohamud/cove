@@ -22,6 +22,12 @@ name = "LEGAL_AUTHORITY"
 class_name = "CoveLegalAuthority"
 script_name = "cove-legal-authority-production"
 
+# Read-only canonical D1 provider. The RPC is independently permissioned to
+# D1 Read; no HTTP/scheduled cutover is enabled by this binding alone.
+[[services]]
+binding = "COVE_CANONICAL_READONLY"
+service = "cove-canonical-d1-readonly"
+
 # Provisioned private R2 media bucket; public r2.dev access remains disabled.
 [[r2_buckets]]
 binding = "BUCKET"
