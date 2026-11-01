@@ -46,7 +46,10 @@ for (const name of requiredChecks) {
   assert.match(excerpt, /if: \$\{\{ steps\.deploy_auth\.outputs\.enabled == 'true' \}\}/);
   assert.doesNotMatch(excerpt, /inputs\.(worker_name|d1_database_id)/);
 }
-assert.match(text, /concurrency:\n  group: cove-persistence-production\n  cancel-in-progress: false/);
+assert.match(
+  text,
+  /concurrency:\n  group: cove-persistence-production\n  cancel-in-progress: false/,
+);
 console.log(
   "PASS: production backend deploy is fixed to one Worker/D1/bucket and owner verification cannot be skipped by input.",
 );
