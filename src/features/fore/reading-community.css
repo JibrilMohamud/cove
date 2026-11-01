@@ -147,3 +147,154 @@
   .cove-arena-feed { grid-column:1; grid-row:1; }
   .cove-arena-composer { grid-column:1; grid-row:2; }
 }
+
+
+/* Public-first Community: content leads; posting is a secondary action. */
+.community-page:has(.cove-arena) {
+  max-width: 1180px;
+  padding-top: 22px;
+}
+.community-page:has(.cove-arena) > .community-tabs {
+  margin-bottom: 14px;
+  gap: 4px;
+  padding-bottom: 9px;
+}
+.community-page:has(.cove-arena) > .community-tabs a {
+  font-size: 14px;
+  font-weight: 650;
+  border-radius: 8px;
+}
+.community-page:has(.cove-arena) > .community-tabs a.active {
+  background: #253448;
+  color: #fff;
+}
+.cove-arena-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 0 20px;
+}
+.cove-arena-head h1 {
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: clamp(1.6rem, 3vw, 2.15rem);
+  letter-spacing: -.035em;
+  line-height: 1.2;
+}
+.cove-arena-head p {
+  margin-top: 5px;
+  font-size: 14px;
+  color: var(--muted-foreground);
+}
+.cove-arena-layout {
+  grid-template-columns: minmax(0, 1.65fr) minmax(230px, .85fr);
+  gap: 20px;
+  align-items: start;
+}
+.cove-arena-feed { grid-column: 1; grid-row: 1; gap: 12px; }
+.cove-arena-composer {
+  grid-column: 2;
+  grid-row: 1;
+  position: sticky;
+  top: 16px;
+  padding: 17px;
+  gap: 13px;
+  border-radius: 13px;
+}
+.cove-arena-composer-head p {
+  margin-top: 5px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.cove-arena-start { width: 100%; }
+.cove-arena-publish-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.cove-arena-feed-heading {
+  justify-content: flex-start;
+  row-gap: 12px;
+  padding: 0 0 12px;
+}
+.cove-arena-feed-heading > h2 {
+  font-family: var(--font-sans, sans-serif);
+  font-size: 15px;
+  font-weight: 650;
+}
+.cove-arena-feed-heading > label { margin-inline-start: auto; font-size: 12px; color: var(--muted-foreground); }
+.cove-arena-feed-heading select {
+  padding: 7px 8px;
+  background: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.cove-arena-kind button {
+  border-color: var(--border);
+  color: var(--muted-foreground);
+  font-size: 13px;
+  font-weight: 650;
+  padding: 8px 12px;
+}
+.cove-arena-kind button.selected {
+  background: #263744;
+  color: #fff;
+  border-color: #c7a16b;
+}
+.cove-arena-card {
+  border-radius: 13px;
+  padding: 20px;
+  background: var(--card);
+  gap: 13px;
+}
+.cove-arena-card header .small-label {
+  color: #e9c888;
+  letter-spacing: .025em;
+  font-size: 11px;
+}
+.cove-arena-card .cove-arena-body { line-height: 1.6; font-size: 15px; }
+.cove-arena-card .cove-arena-votes button { font-size: 13px; }
+.cove-preferences-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.cove-preferences-heading h1 {
+  font: 700 clamp(1.6rem, 3vw, 2.2rem)/1.15 var(--font-serif, Georgia, serif);
+}
+.cove-preferences-heading p { color: var(--muted-foreground); margin-top: 7px; font-size: 14px; }
+.cove-preferences-shortcuts {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--border);
+}
+.cove-preferences-shortcuts a {
+  border: 1px solid var(--border);
+  background: var(--card);
+  padding: 11px 13px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+}
+.cove-preferences-page .social-page-heading {
+  margin-block: 24px 18px;
+}
+@media (max-width: 850px) {
+  .cove-arena-layout { grid-template-columns: minmax(0, 1fr); }
+  .cove-arena-feed { grid-column: 1; grid-row: 1; }
+  .cove-arena-composer { grid-column: 1; grid-row: 2; position: static; }
+}
+@media (max-width: 540px) {
+  .community-page:has(.cove-arena) { padding-top: 16px; }
+  .cove-arena-feed-heading { align-items: stretch; }
+  .cove-arena-feed-heading > h2 { width: 100%; }
+  .cove-arena-feed-heading > label { margin-inline-start: 0; }
+  .cove-arena-card { padding: 15px; }
+}
