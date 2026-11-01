@@ -13,9 +13,9 @@ export function makeArenaPost(kind: ArenaKind, text: string, bookId = ""): strin
   return `[COVE-ARENA:${kind}${safeBook ? ":" + safeBook : ""}]\n${text.trim()}`;
 }
 
-export function readArenaPost(raw: string):
-  | { kind: ArenaKind; bookId: string; text: string }
-  | null {
+export function readArenaPost(
+  raw: string,
+): { kind: ArenaKind; bookId: string; text: string } | null {
   const match = marker.exec(raw);
   if (!match || !raw.slice(match[0].length).trim()) return null;
   return {
