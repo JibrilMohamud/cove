@@ -29,9 +29,10 @@ test("View debates navigates to full-page search and discovery filters", async (
   // SSR controls can be visible before React attaches its event handlers.
   // Prove this page is actually interactive before trying filter clicks.
   await page.waitForFunction(
-    () => Object.keys(document.querySelector(".cove-debates-filters button") || {}).some(
-      (key) => key.startsWith("__reactProps$"),
-    ),
+    () => {
+      const button = document.querySelector(".cove-debates-filters button");
+      return Object.keys(button || {}).some((key) => key.startsWith("__reactProps$"));
+    },
     undefined,
     { timeout: 30_000 },
   );
