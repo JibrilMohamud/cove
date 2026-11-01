@@ -2279,7 +2279,7 @@ function PollView({ id, clubId }: { id: string; clubId: string }) {
   );
 }
 
-function MyCommunity() {
+export function MyCommunity() {
   const ui = useUiText();
   const { data } = useAccount();
   const q = useQuery<any>({
@@ -2684,6 +2684,28 @@ function MyCommunity() {
     </section>
   );
 }
+function LegacyCommunityAccountRedirect({
+  section,
+}: {
+  section: "received" | "sharing" | "me";
+}) {
+  const destination = `/profile?section=${encodeURIComponent(section)}`;
+  useEffect(() => {
+    window.location.replace(destination);
+  }, [destination]);
+  return (
+    <main className="community-page">
+      <p>
+        This personal page has moved to My Account.{" "}
+        <a className="text-link" href={destination}>
+          Continue to your account
+        </a>
+        .
+      </p>
+    </main>
+  );
+}
+
 export function CommunityPage() {
   const ui = useUiText();
   const { data, signIn } = useAccount();
@@ -2698,7 +2720,7 @@ export function CommunityPage() {
     focusedWork = params.get("work"),
     arenaPost = params.get("arenaPost"),
     arenaOwner = params.get("arenaOwner");
-  const tab = params.get("tab") || "feed";
+  const tab = params.get("tab") || "arena";
   if (
     focusedThread &&
     focusedWork &&
@@ -2758,6 +2780,9 @@ export function CommunityPage() {
         />
       </main>
     );
+  // Preserve old personal Community URLs while moving private tools to My Account.
+  if (tab === "received" || tab === "sharing" || tab === "me")
+    return <LegacyCommunityAccountRedirect section={tab} />;
   if (profile) return <PublicProfile ref={profile} />;
   if (journey) return <Journey id={journey} />;
   if (list) return <ListView id={list} />;
@@ -2767,11 +2792,11 @@ export function CommunityPage() {
     <main className="community-page">
       <header className="community-banner">
         <div>
-          <span className="small-label">{ui("FORE COMMUNITY")}</span>
-          <h1>{ui("Read together without leaving the book.")}</h1>
+          <span className="small-label">{ui("COVE COMMUNITY")}</span>
+          <h1>{ui("The conversation starts here.")}</h1>
           <p>
             {ui(
-              "Follow readers, share finished-book journeys, compare The Three, and opt into quiet, progress-aware conversations inside the books you are actually reading.",
+              "Explore literary hot takes, defend your favorite books, join debates, and vote in tournaments. Reading is personal; the conversation is open.",
             )}
           </p>
         </div>
@@ -2779,12 +2804,9 @@ export function CommunityPage() {
       </header>
       <nav className="community-tabs" aria-label={ui("Community sections")}>
         {[
-          ["feed", Activity, ui("Activity")],
-          ["arena", Flame, ui("Reading Room")],
-          ["discover", Users, ui("Discover")],
-          ["received", BookHeart, ui("Shared with me")],
-          ["sharing", Share2, ui("My sharing")],
-          ["me", CircleUserRound, ui("My profile")],
+          ["arena", Flame, ui("Explore")],
+          ["discover", Users, ui("Readers & clubs")],
+          ["feed", Activity, ui("Following")],
         ].map(([key, Icon, label]: any) => (
           <a
             className={tab === key ? "active" : ""}
@@ -2807,30 +2829,30 @@ export function CommunityPage() {
         >
           <ArenaTab />
         </Suspense>
-      ) : tab === "sharing" ? (
-        <SharingPage sent />
-      ) : tab === "received" ? (
-        <SharingPage />
       ) : tab === "discover" ? (
         <Discover />
-      ) : tab === "me" ? (
-        <MyCommunity />
-      ) : data.user ? (
+      ) : tab === "feed" && data.user ? (
         <Feed />
-      ) : (
+      ) : tab === "feed" ? (
         <section className="community-signin">
           <Users size={42} />
-          <h2>{ui("Your reading circle starts here.")}</h2>
+          <h2>{ui("Following is personal. Community is public.")}</h2>
           <p>
             {ui(
-              "Sign in to follow readers, share Reading Journeys, and join spoiler-aware conversations.",
+              "Everyone can explore Hot Takes, debates, tournaments, readers, and clubs. Sign in only to see your personalized following feed.",
             )}
           </p>
           <button className="button gold" onClick={signIn}>
-            {ui("Sign in")}
+            {ui("Sign in to see Following")}
           </button>
-          <Discover />
+          <a className="text-link" href="/community">
+            {ui("Explore public conversations")}
+          </a>
         </section>
+      ) : (
+        <Suspense fallback={<p className="muted">{ui("Opening Community…")}</p>}>
+          <ArenaTab />
+        </Suspense>
       )}
     </main>
   );
