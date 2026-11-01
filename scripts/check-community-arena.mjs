@@ -331,6 +331,42 @@ try {
     fs.readFileSync("src/features/fore/Community.tsx", "utf8"),
     /import\("\.\/CommunityArena"\)/,
   );
+  const arenaUi = fs.readFileSync("src/features/fore/CommunityArena.tsx", "utf8");
+  const arenaStyle = fs.readFileSync("src/features/fore/community-arena-experience.css", "utf8");
+  assert.match(arenaUi, /import ".\/community-arena-experience\.css"/);
+  assert.match(arenaUi, /CONTROVERSY PROMPTS/, "visible prompts strip");
+  assert.match(arenaUi, /setPromptOffset/, "shuffle prompts must be interactive");
+  assert.match(
+    arenaUi,
+    /openComposer\(prompt\.kind, prompt\.question\)/,
+    "prompts must prefill the real composer",
+  );
+  assert.match(arenaUi, /"trending"\);/, "the default sort must be Trending");
+  assert.match(arenaUi, /Trending · Most divisive/);
+  assert.match(arenaUi, /"community-bracket"/, "bracket needs its own query");
+  assert.match(arenaUi, /kind=matchup/, "only published matchups go in the bracket");
+  assert.match(arenaUi, /refetchInterval: 30_000/, "activity must refresh from real data");
+  assert.match(arenaUi, /<Dialog open=\{bracketOpen\}/, "View Bracket must open a real panel");
+  assert.match(arenaUi, /<ReaderCover title=\{name\}/, "matchups have book-cover support");
+  assert.match(arenaUi, /!publicProfile/, "posting still requires public profile and activity");
+  assert.match(arenaUi, /post\.spoiler/, "spoilers must still be protected");
+  assert.match(arenaUi, /setReporting/, "existing post reporting must remain");
+  assert.doesNotMatch(
+    arenaUi,
+    /1,245|37 more actions|time left|ROUND OF 16/,
+    "no made-up live metrics",
+  );
+  assert.match(arenaStyle, /@media \(max-width: 570px\)/, "small-screen responsive rules");
+  assert.match(arenaStyle, /prefers-reduced-motion/, "respect reduced motion");
+  assert.match(
+    arenaRead,
+    /balance \* confidence \* 6/,
+    "Trending must prioritize evidenced divisiveness",
+  );
+  for (const id of ["1260", "1342"]) {
+    assert.ok(fs.existsSync("public/covers/" + id + ".jpg"), "bracket cover must exist: " + id);
+  }
+
   console.log(
     "PASS: review filters, demo test-account seed of six literary posts, public Arena, voting, privacy, bounded feed",
   );

@@ -6,6 +6,7 @@ import {
 } from "./spoiler-progress.server";
 import { z } from "zod/v3";
 import { readArenaPost } from "./community-arena";
+import { handleCommunityTournaments } from "./community-tournaments.server";
 import type { CoveEnv } from "./api.server";
 import { ApiError, bookIdSchema, json, now, rateLimit, readBody, requireIdentity } from "./service";
 import { resolveProduct } from "./catalog-model.server";
@@ -1552,6 +1553,8 @@ export async function handleSocial(
       .first())
   )
     throw new ApiError(403, "This account is being erased.");
+  const tournaments = await handleCommunityTournaments(request, env, path, userId);
+  if (tournaments) return tournaments;
   if (path === "/social/sharing") {
     const viewer = requireIdentity(userId);
     if (method === "GET") return json(await sharingInventory(db, viewer, url, env));
@@ -2238,16 +2241,17 @@ export async function handleSocial(
       ];
     });
     if (sort === "trending") {
-      // A bounded recent-window ranking: disagreement can boost by at most 20%,
-      // and only becomes meaningful after multiple independent reactions.
+      // Rank the bounded recent window by *balanced disagreement*, not raw
+      // popularity. Confidence grows over the first 12 reactions so a 1:1
+      // result cannot outrank an established contested discussion by accident.
       items.sort((a, b) => {
         const score = (post: typeof a) => {
           const votes = post.fire + post.clown;
           const balance = votes ? 1 - Math.abs(post.fire - post.clown) / votes : 0;
-          const controversy = Math.min(1, votes / 12) * balance;
-          const engagement = Math.log1p(votes) + 0.35 * Math.log1p(post.replies || 0);
+          const confidence = Math.min(1, votes / 12);
+          const engagement = Math.log1p(votes) * 0.3 + Math.log1p(post.replies || 0) * 0.2;
           const ageHours = Math.max(0, (Date.now() - Date.parse(post.createdAt)) / 3600000);
-          return (engagement * (1 + 0.2 * controversy)) / (1 + ageHours / 72);
+          return (balance * confidence * 6 + engagement) / (1 + ageHours / 120);
         };
         return score(b) - score(a);
       });
@@ -4890,7 +4894,13 @@ export async function handleSocial(
   if (method === "POST" && path === "/social/report") {
     const x = z
       .object({
-        subjectType: z.enum(["social_post", "social_list", "social_profile", "reading_group"]),
+        subjectType: z.enum([
+          "social_post",
+          "social_list",
+          "social_profile",
+          "reading_group",
+          "community_tournament",
+        ]),
         subjectId: z.string().min(1).max(240),
         reason: z.enum([
           "spam",
@@ -4923,6 +4933,18 @@ export async function handleSocial(
       )
         throw new ApiError(404, "Discussion not found.");
       reportedUserId = String(p.user_id);
+    } else if (x.subjectType === "community_tournament") {
+      const t = await db
+        .prepare(
+          `SELECT t.host_user_id FROM community_tournaments t
+         JOIN social_profiles sp ON sp.user_id=t.host_user_id
+         WHERE t.id=? AND t.status<>'cancelled'
+           AND sp.profile_visibility='public' AND sp.activity_visibility='public'`,
+        )
+        .bind(x.subjectId)
+        .first<{ host_user_id: string }>();
+      if (!t) throw new ApiError(404, "Tournament not found.");
+      reportedUserId = String(t.host_user_id);
     } else if (x.subjectType === "social_list")
       reportedUserId = String((await assertContextReadable(db, uidv, "list", x.subjectId)).user_id);
     else if (x.subjectType === "social_profile")

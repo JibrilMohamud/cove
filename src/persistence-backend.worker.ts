@@ -20,6 +20,7 @@ import {
 import { processAccountDeletionQueue } from "./features/fore/account-management.server";
 import { processNotificationDeliveryQueue } from "./features/fore/notifications.server";
 import { processAuthorSocialFanoutJobs } from "./features/fore/social.server";
+import { advanceDueTournaments } from "./features/fore/community-tournaments.server";
 import { processPartnerFeedQueue } from "./features/fore/traditional-publishing.server";
 import { advancePreorders } from "./features/fore/preorder.server";
 import { processPreorderRefundJobs } from "./features/fore/commerce.server";
@@ -877,6 +878,16 @@ async function hostedBiosyncTranscript(
 export default {
   async scheduled(controller: { cron: string }, env: BackendEnv, ctx: ExecutionContextLike) {
     env = scopeCommerceProductionD1(scopeExclusiveCanonicalD1(scopePublicationOwnerEnv(env)));
+    if (controller.cron === "*/10 * * * *") {
+      // Bounded social-only bracket authority. Winner snapshots, next-round
+      // pairings, and optimistic CAS commit in one D1 transaction.
+      ctx.waitUntil?.(
+        advanceDueTournaments(env.DB, 5).catch((error) => {
+          console.error("Community tournament advancement failed", error);
+          throw error;
+        }),
+      );
+    }
     if (
       controller.cron === "*/10 * * * *" ||
       controller.cron === "23 * * * *" ||

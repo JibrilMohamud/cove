@@ -4,6 +4,12 @@ on:
     paths:
       - "src/features/fore/Community.tsx"
       - "src/features/fore/CommunityArena.tsx"
+      - "src/features/fore/OfficialTournament.tsx"
+      - "src/features/fore/community-tournaments.server.ts"
+      - "src/features/fore/official-tournament.css"
+      - "drizzle/0091_community_tournament_rounds.sql"
+      - "scripts/check-community-tournaments.mjs"
+      - "scripts/browser-qa/localization-a11y.spec.mjs"
       - "src/features/fore/community-arena.ts"
       - "src/features/fore/review-tags.ts"
       - "src/features/fore/Reviews.tsx"
@@ -34,4 +40,5 @@ jobs:
       - run: node scripts/check-book-thread-journey-ui.mjs
       - run: npm run test:social-reading
       - run: npm run test:community-arena
+      - run: node scripts/check-community-tournaments.mjs
       - run: npm run typecheck

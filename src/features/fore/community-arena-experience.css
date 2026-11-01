@@ -1,0 +1,1209 @@
+/* Cove Reading Room — scoped visual experience. The social API remains authoritative. */
+.community-page:has(.cove-arena) {
+  max-width: 1490px;
+  width: min(100%, 1490px);
+  padding-top: 18px;
+}
+.community-page:has(.cove-arena) > .community-tabs {
+  margin-bottom: 10px;
+  border-bottom-color: #273244;
+}
+.cove-arena {
+  --arena-bg: #0f141e;
+  --arena-panel: #171e2a;
+  --arena-stroke: #354051;
+  --arena-muted: #aebcd0;
+  --arena-rose: #f36eac;
+  --arena-gold: #f5c77b;
+  --arena-hot: #ff8053;
+  --arena-cold: #8c9eff;
+  color: #f5eee9;
+  isolation: isolate;
+  position: relative;
+  border-radius: 19px;
+  padding: clamp(13px, 2.3vw, 28px);
+  background:
+    radial-gradient(ellipse 50% 23% at 65% 0%, rgba(198, 50, 104, 0.13), transparent 85%),
+    radial-gradient(ellipse 48% 40% at -15% 28%, rgba(91, 60, 112, 0.14), transparent 90%),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.008) 0 1px, transparent 1px 6px),
+    #0e131c;
+  border: 1px solid #30313d;
+  box-shadow: 0 15px 55px rgba(0, 0, 0, 0.22);
+  overflow: clip;
+}
+.cove-arena *,
+.cove-arena *::before,
+.cove-arena *::after {
+  box-sizing: border-box;
+}
+.cove-arena button,
+.cove-arena select,
+.cove-arena textarea,
+.cove-arena input {
+  font: inherit;
+}
+.cove-arena button {
+  cursor: pointer;
+}
+.cove-arena button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.cove-arena button:focus-visible,
+.cove-arena a:focus-visible,
+.cove-arena select:focus-visible,
+.cove-arena textarea:focus-visible,
+.cove-arena input:focus-visible {
+  outline: 2px solid #ffb1d0;
+  outline-offset: 3px;
+}
+.cove-arena-head {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: end;
+  gap: 18px;
+  margin: 0 0 25px;
+  padding: 6px 4px 21px;
+  border-bottom: 1px solid #333343;
+}
+.cove-arena .cove-arena-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #f5c481;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.16em;
+  margin-bottom: 9px;
+}
+.cove-arena-head h1 {
+  font: 800 clamp(24px, 3vw, 40px)/1.08 var(--font-serif, Georgia, serif);
+  letter-spacing: -0.035em;
+  margin: 0;
+  color: #fff4e4;
+}
+.cove-arena-head h1 em {
+  color: #f48cba;
+  font-weight: 500;
+}
+.cove-arena-head p {
+  margin: 9px 0 0;
+  color: #b7b9c9;
+  font-size: 14px;
+}
+.cove-arena-primary,
+.cove-arena-rail-cta {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 9px;
+  color: #1b0d16 !important;
+  font-weight: 850 !important;
+  font-size: 13px !important;
+  letter-spacing: 0.015em;
+  border: 0;
+  border-radius: 9px;
+  padding: 12px 17px;
+  background: linear-gradient(120deg, #ff9caa, #f172ad 62%, #e9579c);
+  box-shadow:
+    0 5px 17px rgba(235, 69, 140, 0.17),
+    inset 0 1px rgba(255, 255, 255, 0.3);
+  transition:
+    transform 0.16s ease,
+    filter 0.16s ease;
+}
+.cove-arena-primary:hover,
+.cove-arena-rail-cta:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+.cove-arena-layout {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.95fr) minmax(310px, 0.89fr) !important;
+  gap: clamp(14px, 1.7vw, 24px);
+  align-items: start;
+}
+.cove-arena-main,
+.cove-arena-rail {
+  min-width: 0;
+  display: grid;
+  gap: 24px;
+}
+.cove-arena-main {
+  grid-column: 1;
+  grid-row: 1;
+}
+.cove-arena-rail {
+  grid-column: 2;
+  grid-row: 1;
+}
+.cove-arena-prompts,
+.cove-arena-feed {
+  min-width: 0;
+}
+.cove-arena-section-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 15px;
+}
+.cove-arena .cove-arena-section-top h2,
+.cove-arena-rail-head h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font: 850 13px/1.3 var(--font-sans, Arial, sans-serif);
+  color: #f6dfc5;
+  letter-spacing: 0.08em;
+  margin: 0;
+}
+.cove-arena-section-top h2 svg,
+.cove-arena-activity-heading h3 svg {
+  color: #ff8353;
+  fill: rgba(255, 131, 83, 0.15);
+}
+.cove-arena-minor-action,
+.cove-arena-rail-head button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 5px 0;
+  background: none;
+  border: 0;
+  color: #e8b2cd;
+  font-weight: 750 !important;
+  font-size: 12px !important;
+}
+.cove-arena-minor-action:hover,
+.cove-arena-rail-head button:hover {
+  color: #fff;
+}
+.cove-arena-prompt-grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(155px, 1fr);
+  gap: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 2px 14px;
+  scroll-snap-type: x proximity;
+  scrollbar-color: #92526c transparent;
+}
+.cove-arena-prompt {
+  --prompt-a: #7b1945;
+  --prompt-b: #201424;
+  --prompt-glow: #ff8aba;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 205px;
+  border: 1px solid color-mix(in srgb, var(--prompt-glow) 35%, transparent);
+  border-radius: 13px;
+  padding: 16px 14px 13px;
+  color: #fff5ea;
+  background: linear-gradient(155deg, var(--prompt-a) 0%, var(--prompt-b) 100%);
+  box-shadow: inset 0 -45px 46px rgba(6, 8, 17, 0.32);
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  align-items: stretch;
+  text-align: left;
+  scroll-snap-align: start;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease;
+}
+.cove-arena-prompt::before {
+  content: "✦";
+  position: absolute;
+  z-index: -1;
+  font-size: 126px;
+  line-height: 1;
+  top: 29px;
+  right: -22px;
+  transform: rotate(-19deg);
+  color: var(--prompt-glow);
+  opacity: 0.19;
+  text-shadow: 0 0 26px var(--prompt-glow);
+}
+.cove-arena-prompt::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(
+      circle at 88% 10%,
+      color-mix(in srgb, var(--prompt-glow) 22%, transparent),
+      transparent 52%
+    ),
+    repeating-linear-gradient(0deg, transparent 0 11px, rgba(255, 255, 255, 0.02) 11px 12px);
+}
+.cove-arena-prompt:hover {
+  transform: translateY(-2px);
+  border-color: var(--prompt-glow);
+}
+.cove-arena-prompt-amber {
+  --prompt-a: #825116;
+  --prompt-b: #23190f;
+  --prompt-glow: #f6bb53;
+}
+.cove-arena-prompt-violet {
+  --prompt-a: #562475;
+  --prompt-b: #1a1730;
+  --prompt-glow: #d990ff;
+}
+.cove-arena-prompt-blue {
+  --prompt-a: #16496a;
+  --prompt-b: #101e31;
+  --prompt-glow: #81d2ff;
+}
+.cove-arena-prompt-orange {
+  --prompt-a: #85391a;
+  --prompt-b: #241515;
+  --prompt-glow: #ff985c;
+}
+.cove-arena-prompt-kicker {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: #ffdfc9;
+  text-transform: uppercase;
+}
+.cove-arena-prompt strong {
+  font: 760 clamp(13px, 1.15vw, 16px)/1.43 var(--font-sans, Arial, sans-serif);
+  letter-spacing: -0.01em;
+  text-wrap: pretty;
+  text-shadow: 0 2px 7px #0005;
+}
+.cove-arena-prompt-arrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 11px;
+  border-top: 1px solid rgba(255, 255, 255, 0.17);
+  font-size: 11px;
+  font-weight: 800;
+  color: #ffe1cc;
+}
+.cove-arena-feed {
+  display: block;
+}
+.cove-arena-takes-header {
+  padding-bottom: 4px;
+}
+.cove-arena-takes-header h2 {
+  font-size: 14px !important;
+}
+.cove-arena-takes-header p {
+  font-size: 12px;
+  color: #97a9bb;
+  margin: 5px 0 0;
+}
+.cove-arena-title-glow {
+  color: #ff6fa7;
+}
+.cove-arena-feed-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 11px;
+  border-bottom: 1px solid #333342;
+  padding-bottom: 12px;
+}
+.cove-arena-subtabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.cove-arena-subtabs button {
+  padding: 10px 12px;
+  background: #1b2029;
+  border: 1px solid #333543;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #cdbebc;
+  white-space: nowrap;
+}
+.cove-arena-subtabs button.selected,
+.cove-arena-subtabs button[aria-selected="true"] {
+  color: #fff0e1;
+  border-color: #bc7869;
+  background: linear-gradient(160deg, #56382f, #352328);
+  box-shadow: inset 0 1px #eb9f8266;
+}
+.cove-arena-sort {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 11px;
+  color: #a6b2c2;
+}
+.cove-arena-sort select {
+  padding: 9px 26px 9px 11px;
+  min-width: 166px;
+  font-size: 12px;
+  font-weight: 750;
+  border: 1px solid #414452;
+  border-radius: 8px;
+  color: #f5eee9;
+  background: #161c27;
+  max-width: 100%;
+}
+.cove-arena-post-list {
+  display: grid;
+  gap: 9px;
+}
+.cove-arena-card {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 17px 18px !important;
+  background:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.027), transparent 65%), #171d27 !important;
+  border: 1px solid #353b49 !important;
+  border-radius: 13px !important;
+  min-width: 0;
+  transition: border-color 0.18s ease;
+}
+.cove-arena-card:hover {
+  border-color: #85556d !important;
+}
+.cove-arena-card-content {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  align-content: start;
+  gap: 12px;
+}
+.cove-arena-card header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: nowrap;
+}
+.cove-arena-avatar {
+  flex: 0 0 39px;
+  height: 39px;
+  width: 39px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #ffe1cc;
+  font:
+    850 18px/1 Georgia,
+    serif;
+  background: radial-gradient(circle at 30% 20%, #bb677e, #5c3148 65%, #30202e);
+  border: 2px solid #865d69;
+}
+.cove-arena-byline {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.cove-arena-byline a {
+  color: #fff3e9;
+  font-size: 12px;
+  font-weight: 850;
+  overflow-wrap: anywhere;
+}
+.cove-arena-byline small {
+  color: #a1aebf;
+  font-size: 11px;
+}
+.cove-arena-byline small span {
+  color: #f2aa9b;
+}
+.cove-arena-divisive-tag {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.025em;
+  color: #fc85ba;
+  padding: 5px 7px;
+  background: #421b32;
+  border: 1px solid #84405c;
+  border-radius: 5px;
+}
+.cove-arena-card .cove-arena-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #f2eff1;
+  font: 690 clamp(13px, 1.15vw, 16px)/1.51 var(--font-sans, Arial, sans-serif) !important;
+  margin: 0 !important;
+  max-width: 75ch;
+}
+.cove-arena-card .spoiler-disclosure {
+  color: #e5d9de;
+  font-size: 13px;
+}
+.cove-arena-card .spoiler-disclosure summary {
+  color: #ffb8d8;
+  cursor: pointer;
+}
+.cove-arena-card-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.cove-arena-card-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.cove-arena-votes {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.cove-arena-votes button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 9px;
+  border: 1px solid #734238;
+  border-radius: 8px;
+  background: #2b211f;
+  color: #f7d3b8;
+  font-size: 12px;
+}
+.cove-arena-votes button.clown {
+  border-color: #803e63;
+  background: #301d2c;
+  color: #f8b2d6;
+}
+.cove-arena-votes button.selected {
+  border-color: #ff9b80;
+  background: #693526;
+  box-shadow: inset 0 0 0 1px #f8ae7977;
+}
+.cove-arena-votes button.clown.selected {
+  border-color: #ff9dcc;
+  background: #66264c;
+}
+.cove-arena-votes button span {
+  font-size: 11px;
+}
+.cove-arena-replies,
+.cove-arena-book-link,
+.cove-arena-text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #9eabc0;
+  white-space: nowrap;
+}
+.cove-arena-replies:hover,
+.cove-arena-book-link:hover,
+.cove-arena-text-button:hover {
+  color: #ffe2c5;
+}
+.cove-arena-text-button {
+  background: none;
+  border: 0;
+  padding: 5px;
+}
+.cove-arena-card-book-image {
+  width: clamp(77px, 11vw, 116px);
+  flex: 0 0 clamp(77px, 11vw, 116px);
+  min-height: 138px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #272b39;
+  border: 1px solid #76616a;
+}
+.cove-arena-card-book-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cove-arena-report {
+  border-top: 1px solid #464057;
+  padding-top: 12px;
+  display: grid;
+  gap: 9px;
+}
+.cove-arena-report label {
+  display: grid;
+  gap: 5px;
+  color: #eee;
+  font-size: 12px;
+}
+.cove-arena-report select,
+.cove-arena-report textarea {
+  background: #111821;
+  color: #f5eee9;
+  border: 1px solid #566077;
+  border-radius: 6px;
+}
+.cove-arena-report textarea {
+  min-height: 75px;
+}
+.cove-arena-load {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 7px;
+  margin-top: 12px;
+  padding: 11px;
+  color: #f5c7d8;
+  background: #1f202c;
+  border: 1px solid #643f59;
+  border-radius: 9px;
+  font-weight: 800;
+}
+.cove-arena-status {
+  padding: 23px;
+  background: #1b202d;
+  border: 1px dashed #575266;
+  border-radius: 10px;
+  color: #c6c9d4;
+}
+.cove-arena-status .text-link {
+  color: #ffafcf;
+}
+.cove-arena-tournament {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 130% 48% at 52% -8%, rgba(234, 132, 78, 0.15), transparent 70%),
+    linear-gradient(145deg, #251d1b 0%, #151a22 40%, #1c151d 100%);
+  border: 1px solid #78523d;
+  box-shadow:
+    inset 0 0 0 3px #221c1a,
+    0 12px 35px rgba(0, 0, 0, 0.19);
+  border-radius: 15px;
+  padding: 17px 16px 0;
+  min-width: 0;
+}
+.cove-arena-rail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.cove-arena-tournament .cove-arena-rail-head h2 svg {
+  color: #ffc16d;
+}
+.cove-arena-rail-head button {
+  color: #ffcb9d;
+  font-size: 11px !important;
+}
+.cove-arena-match-heading {
+  text-align: center;
+  margin: 19px 0 13px;
+}
+.cove-arena-match-heading span {
+  font-size: 10px;
+  color: #ffa795;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+}
+.cove-arena-match-heading h3 {
+  margin: 5px 0 1px;
+  color: #fff1e5;
+  font: 800 clamp(20px, 2vw, 27px)/1.1 var(--font-serif, Georgia, serif);
+}
+.cove-arena-match-heading p {
+  color: #c5aeaa;
+  font-size: 11px;
+  margin: 6px 0 0;
+}
+.cove-arena-contenders {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+  position: relative;
+}
+.cove-arena-contender {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  gap: 7px;
+}
+.cove-arena-book-cover {
+  display: grid;
+  place-items: center;
+  position: relative;
+  height: clamp(138px, 15vw, 193px);
+  width: 100%;
+  max-width: 143px;
+  padding: 5px;
+  border: 1px solid #a27b67;
+  border-radius: 8px;
+  background: linear-gradient(145deg, #482c31, #272438);
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.36);
+  overflow: hidden;
+}
+.cove-arena-cover-fallback {
+  display: grid;
+  place-items: center;
+  position: absolute;
+  inset: 0;
+  color: #d1ae8f;
+}
+.cove-arena-book-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 4px;
+  position: relative;
+}
+.cove-arena-contender strong {
+  text-align: center;
+  color: #f7ebdd;
+  font: 800 12px/1.25 var(--font-sans, Arial, sans-serif);
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-wrap: anywhere;
+}
+.cove-arena-contender button {
+  width: 100%;
+  max-width: 140px;
+  padding: 8px 9px;
+  color: #ffcab4;
+  background: #392127;
+  border: 1px solid #98635b;
+  border-radius: 7px;
+  font: 800 11px var(--font-sans, Arial, sans-serif);
+}
+.cove-arena-contender button[aria-pressed="true"] {
+  background: #7e3c55;
+  color: #fff;
+  border-color: #ffc1c1;
+}
+.cove-arena-versus {
+  position: absolute;
+  top: 67px;
+  left: 50%;
+  transform: translateX(-50%) rotate(-11deg);
+  color: #ff87b3;
+  font:
+    italic 900 25px/1 Georgia,
+    serif;
+  text-shadow:
+    0 0 13px #ed3c8faa,
+    0 0 26px #ed3c8f77;
+  pointer-events: none;
+}
+.cove-arena-tournament-score {
+  padding: 15px 2px 12px;
+}
+.cove-arena-tournament-score p {
+  color: #c6bec5;
+  text-align: center;
+  font-size: 12px;
+}
+.cove-arena-score-numbers {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.cove-arena-score-numbers strong {
+  color: #fa84bb;
+  font: 900 23px var(--font-sans, Arial, sans-serif);
+}
+.cove-arena-score-numbers strong:last-child {
+  color: #9aa8ff;
+}
+.cove-arena-score-numbers span {
+  color: #bdadb8;
+  font-size: 11px;
+}
+.cove-arena-score-track {
+  display: flex;
+  height: 9px;
+  gap: 3px;
+  border-radius: 99px;
+  overflow: hidden;
+  background: #3b3444;
+}
+.cove-arena-score-track span:first-child {
+  background: linear-gradient(90deg, #f36da5, #fb5b9e);
+}
+.cove-arena-score-track span:last-child {
+  background: linear-gradient(90deg, #686efb, #8ba8fc);
+}
+.cove-arena-match-discuss {
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  align-items: center;
+  margin: 0 -16px;
+  padding: 11px 15px;
+  border-top: 1px solid #554044;
+  border-bottom: 1px solid #554044;
+  color: #ffc2cd;
+  font-size: 11px;
+  font-weight: 850;
+}
+.cove-arena-match-discuss:hover {
+  background: #3e2832;
+}
+.cove-arena-activity {
+  padding: 13px 0 15px;
+}
+.cove-arena-activity-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.cove-arena-activity-heading h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 900 11px var(--font-sans, Arial, sans-serif);
+  color: #f4cca0;
+  letter-spacing: 0.065em;
+  margin: 0;
+}
+.cove-arena-activity-heading small {
+  font-size: 10px;
+  color: #9e98a3;
+}
+.cove-arena-activity ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 7px;
+}
+.cove-arena-activity li {
+  display: flex;
+  align-items: start;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #c8b7b1;
+  background: #ffffff08;
+  padding: 8px;
+  border-radius: 7px;
+}
+.cove-arena-activity li b {
+  color: #ffccb0;
+}
+.cove-arena-activity li a {
+  color: #f3bed2;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.cove-arena-activity li small {
+  display: block;
+  margin-top: 2px;
+  color: #9ea1b3;
+}
+.cove-arena-activity-dot {
+  flex: 0 0 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-top: 5px;
+  background: #ef8b60;
+  box-shadow: 0 0 0 3px #54332a;
+}
+.cove-arena-activity-empty {
+  font-size: 12px;
+  color: #b0a3ac;
+}
+.cove-arena-rail-state {
+  padding: 25px 9px;
+  text-align: center;
+  color: #d0c3c6;
+  font-size: 12px;
+}
+.cove-arena-rail-state svg {
+  margin: 0 auto;
+  color: #f7c2b1;
+}
+.cove-arena-rail-state p {
+  margin: 9px 0;
+}
+.cove-arena-rail-state button {
+  color: #ffc1d4;
+  text-decoration: underline;
+  background: none;
+  border: 0;
+}
+.cove-arena-composer {
+  position: static !important;
+  display: grid !important;
+  grid-column: auto !important;
+  grid-row: auto !important;
+  gap: 11px;
+  padding: 19px !important;
+  background: linear-gradient(135deg, #261e2b, #1a202e);
+  border: 1px solid #655069;
+  border-radius: 13px;
+}
+.cove-arena-composer .cove-arena-rail-head h2 {
+  color: #ffc4df;
+}
+.cove-arena-compose-intro {
+  color: #d6cad5;
+  font-size: 13px;
+  margin: 0;
+  line-height: 1.45;
+}
+.cove-arena-composer .cove-arena-rail-cta {
+  width: 100%;
+}
+.cove-arena-compose-rule {
+  margin: 0;
+  color: #9aa4b5;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.cove-arena-private-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px;
+  color: #e4c8d3;
+  background: #422637;
+  border: 1px solid #895576;
+  border-radius: 9px;
+}
+.cove-arena-private-note svg {
+  flex-shrink: 0;
+}
+.cove-arena-private-note p {
+  font-size: 12px;
+  margin: 0;
+  line-height: 1.5;
+}
+.cove-arena-private-note a {
+  text-decoration: underline;
+  color: #ffe0a2;
+}
+.cove-arena-compose-form {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.cove-arena-compose-form > label {
+  display: grid;
+  gap: 4px;
+  color: #e9dae4;
+  font-size: 12px;
+}
+.cove-arena-compose-form .note-input {
+  background: #101823;
+  border: 1px solid #6a576e;
+  color: #fff1e9;
+  border-radius: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 10px;
+  font-size: 13px;
+}
+.cove-arena-compose-form textarea {
+  min-height: 135px;
+  resize: vertical;
+}
+.cove-arena-compose-form .cove-arena-spoiler {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.cove-arena-kind {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.cove-arena-kind button {
+  padding: 7px 10px;
+  color: #c1b4c4;
+  border: 1px solid #6a506a;
+  background: #252134;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 800;
+}
+.cove-arena-kind button.selected {
+  color: #fff6eb;
+  background: #663554;
+  border-color: #f0a7ce;
+}
+.cove-arena-publish-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.cove-arena-publish-actions .cove-arena-rail-cta {
+  flex: 1;
+  width: auto;
+}
+.cove-arena-bracket-dialog {
+  width: min(calc(100vw - 24px), 980px);
+  max-width: 980px !important;
+  max-height: min(86vh, 850px);
+  overflow-y: auto;
+  color: #fbe9db;
+  background: #141924;
+  border: 1px solid #8d5367;
+}
+.cove-arena-bracket-dialog h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font:
+    800 22px/1.2 Georgia,
+    serif;
+  color: #f8d5b4;
+}
+.cove-arena-bracket-dialog p {
+  color: #aeb5c4;
+  font-size: 13px;
+}
+.cove-arena-bracket-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+.cove-arena-bracket-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) 18px minmax(0, 0.8fr);
+  gap: 0;
+  align-items: center;
+  padding: 12px;
+  background: #20212b;
+  border: 1px solid #554351;
+  border-radius: 12px;
+}
+.cove-arena-bracket-pair {
+  display: grid;
+  gap: 5px;
+}
+.cove-arena-bracket-pair button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  background: #2d2532;
+  color: #fff1e3;
+  border: 1px solid #5d465c;
+  border-radius: 7px;
+  padding: 6px;
+  font-size: 11px;
+  font-weight: 750;
+  min-width: 0;
+}
+.cove-arena-bracket-pair button[aria-pressed="true"] {
+  border-color: #f38bbb;
+  background: #61324a;
+}
+.cove-arena-bracket-pair button > span:nth-child(2) {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.cove-arena-bracket-pair button > b {
+  font-size: 12px;
+  color: #ffa5c8;
+}
+.cove-arena-bracket-cover {
+  width: 30px;
+  height: 40px;
+  min-width: 30px;
+  padding: 0;
+  border-radius: 3px;
+}
+.cove-arena-bracket-cover .cove-arena-cover-fallback svg {
+  width: 16px;
+}
+.cove-arena-bracket-cover img {
+  border-radius: 2px;
+}
+.cove-arena-bracket-connector {
+  height: 50%;
+  border-right: 2px solid #ca8cac;
+  border-top: 2px solid #ca8cac;
+  border-bottom: 2px solid #ca8cac;
+  position: relative;
+}
+.cove-arena-bracket-connector::after {
+  content: "";
+  display: block;
+  width: 18px;
+  position: absolute;
+  right: -18px;
+  top: 50%;
+  border-top: 2px solid #ca8cac;
+}
+.cove-arena-bracket-next {
+  margin-left: 12px;
+  padding: 10px 6px;
+  border: 1px dashed #866079;
+  border-radius: 7px;
+  text-align: center;
+  background: #302435;
+}
+.cove-arena-bracket-next strong {
+  display: block;
+  font: 800 12px var(--font-sans, Arial, sans-serif);
+  color: #f8bbd4;
+}
+.cove-arena-bracket-next small {
+  color: #b5a9b4;
+  font-size: 10px;
+}
+.cove-arena-bracket-entry > a {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  color: #f1b3ce;
+  font-size: 11px;
+  font-weight: 800;
+  margin-top: 12px;
+}
+@media (max-width: 1050px) {
+  .cove-arena-layout {
+    grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.9fr) !important;
+  }
+  .cove-arena-prompt-grid {
+    grid-auto-columns: 175px;
+  }
+  .cove-arena-book-cover {
+    height: 150px;
+  }
+  .cove-arena-versus {
+    top: 54px;
+  }
+  .cove-arena-subtabs button {
+    padding: 8px;
+  }
+}
+@media (max-width: 780px) {
+  .cove-arena-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .cove-arena-main {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .cove-arena-rail {
+    grid-column: 1;
+    grid-row: 2;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+  .cove-arena-composer {
+    grid-column: auto;
+  }
+  .cove-arena-prompt-grid {
+    grid-auto-columns: minmax(180px, 36%);
+  }
+}
+@media (max-width: 570px) {
+  .community-page:has(.cove-arena) {
+    padding-inline: 8px;
+  }
+  .cove-arena {
+    border-radius: 12px;
+    padding: 13px 11px;
+  }
+  .cove-arena-head {
+    gap: 11px;
+    margin-bottom: 18px;
+    padding-bottom: 15px;
+  }
+  .cove-arena-head h1 {
+    font-size: 27px;
+  }
+  .cove-arena-head p {
+    font-size: 12px;
+  }
+  .cove-arena-primary {
+    width: 100%;
+  }
+  .cove-arena-prompt-grid {
+    grid-auto-columns: minmax(185px, 68%);
+  }
+  .cove-arena-prompt {
+    min-height: 185px;
+  }
+  .cove-arena-rail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cove-arena-feed-toolbar {
+    align-items: stretch;
+  }
+  .cove-arena-subtabs {
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  .cove-arena-subtabs button {
+    flex: 0 0 auto;
+  }
+  .cove-arena-sort {
+    justify-content: flex-end;
+  }
+  .cove-arena-card {
+    gap: 10px;
+    padding: 13px !important;
+  }
+  .cove-arena-avatar {
+    width: 33px;
+    height: 33px;
+    flex-basis: 33px;
+  }
+  .cove-arena-card-book-image {
+    min-height: 100px;
+    width: 68px;
+    flex-basis: 68px;
+  }
+  .cove-arena-card .cove-arena-body {
+    font-size: 13px !important;
+  }
+  .cove-arena-votes button span {
+    display: none;
+  }
+  .cove-arena-contenders {
+    gap: 20px;
+  }
+  .cove-arena-book-cover {
+    height: 178px;
+  }
+  .cove-arena-versus {
+    top: 67px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cove-arena-prompt,
+  .cove-arena-primary,
+  .cove-arena-rail-cta {
+    transition: none;
+  }
+}
