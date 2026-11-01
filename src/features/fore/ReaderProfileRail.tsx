@@ -1,5 +1,5 @@
 import { ArrowRight } from "lucide-react";
-import { ModuleHead } from "./ReaderProfileBits";
+import { ModuleHead, ReaderCover, bookLink, dateLabel } from "./ReaderProfileBits";
 import type { ProfileJourney, ProfileShelf, ProfileBook } from "./ReaderProfileBits";
 export function ReaderProfileRail({ counts, journeys, shelves, current, url }: {
  counts:{ finished?:number; thisYear?:number };
@@ -15,5 +15,15 @@ export function ReaderProfileRail({ counts, journeys, shelves, current, url }: {
     <div><strong>{Number(counts.thisYear||0)}</strong><span>This year</span></div>
    </div>
   </section>
- </aside>;
+  {current?.book && <section><ModuleHead title="Currently reading"/>
+    <a className="cove-reader-now" href={bookLink(current.book)}><ReaderCover book={current.book}/>
+      <span><strong>{current.book.title}</strong><small>{current.book.authors}</small>
+      <em>{Math.round(Math.min(1,Math.max(0,current.progress))*100)}% read</em></span></a>
+  </section>}
+  {shelves.length>0 && <section><ModuleHead title="Shelves" href={url+"&profileTab=Shelves"}/>
+    {shelves.slice(0,4).map(item=><a className="cove-reader-aside-link"
+      key={item.id} href={"/community?list="+encodeURIComponent(item.id)}>
+      {item.title}<small>{item.item_count} books</small></a>)}
+  </section>}
+  </aside>;
 }
