@@ -10,45 +10,165 @@
   "maximumRemainingWorkflowConsumers": 40,
   "maximumRemainingSecretReferences": 45,
   "legacyConsumers": [
-    ".github/workflows/backend-readonly-candidate.yml",
-    ".github/workflows/biosync-canary.yml",
-    ".github/workflows/canonical-readonly-service.yml",
-    ".github/workflows/cloudflare-native-ssr-staging.yml",
-    ".github/workflows/cloudflare-paired-release-freeze.yml",
-    ".github/workflows/continuous-publication-qa.yml",
-    ".github/workflows/cove-commerce-private-qa-deploy.yml",
-    ".github/workflows/cove-sounds-private-rollout.yml",
-    ".github/workflows/cove-sounds-verified-conversion-report.yml",
-    ".github/workflows/covereads-secure-ssr-gateway.yml",
-    ".github/workflows/deployed-canonical-d1-principal-audit.yml",
-    ".github/workflows/deployed-commerce-browser-acceptance.yml",
-    ".github/workflows/fast-storefront-real-catalog-acceptance.yml",
-    ".github/workflows/hosted-music-supply-disabled-qa.yml",
-    ".github/workflows/isolated-commons-audio-technical-qa.yml",
-    ".github/workflows/isolated-commons-review-cases.yml",
-    ".github/workflows/isolated-data-plane.yml",
-    ".github/workflows/isolated-open-license-discovery.yml",
-    ".github/workflows/legal-authority-private-qa.yml",
-    ".github/workflows/literary-activation-readiness.yml",
-    ".github/workflows/literary-drain-worker-deploy.yml",
-    ".github/workflows/literary-guarded-owner-drain.yml",
-    ".github/workflows/literary-isolated-replay-handoff-deploy.yml",
-    ".github/workflows/literary-isolated-utc-budget.yml",
-    ".github/workflows/literary-live-cutover-preflight.yml",
-    ".github/workflows/literary-owner-capability-migration.yml",
-    ".github/workflows/literary-private-binding-stage-canary.yml",
-    ".github/workflows/literary-prod-handoff-dormant-deploy.yml",
-    ".github/workflows/literary-prod-publisher-dormant-deploy.yml",
-    ".github/workflows/literary-progressive-canonical-publication.yml",
-    ".github/workflows/literary-remote-staging-e2e.yml",
-    ".github/workflows/paid-legal-full-schema-private-qa.yml",
-    ".github/workflows/production-cutover-topology-audit.yml",
-    ".github/workflows/production-external-preflight.yml",
-    ".github/workflows/publication-source-isolation-qa.yml",
-    ".github/workflows/storefront-strangler-safe-integration.yml",
-    ".github/workflows/strangler-data-plane-preflight.yml",
-    ".github/workflows/strangler-hosted-capacity-evaluation.yml",
-    ".github/workflows/strangler-stage-core-deploy.yml",
-    ".github/workflows/strangler-stage-private-bucket-provision.yml"
+    {
+      "path": ".github/workflows/backend-readonly-candidate.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/biosync-canary.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/canonical-readonly-service.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/cloudflare-native-ssr-staging.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/cloudflare-paired-release-freeze.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/continuous-publication-qa.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/cove-commerce-private-qa-deploy.yml",
+      "maxReferences": 2
+    },
+    {
+      "path": ".github/workflows/cove-sounds-private-rollout.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/cove-sounds-verified-conversion-report.yml",
+      "maxReferences": 2
+    },
+    {
+      "path": ".github/workflows/covereads-secure-ssr-gateway.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/deployed-canonical-d1-principal-audit.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/deployed-commerce-browser-acceptance.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/fast-storefront-real-catalog-acceptance.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/hosted-music-supply-disabled-qa.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/isolated-commons-audio-technical-qa.yml",
+      "maxReferences": 2
+    },
+    {
+      "path": ".github/workflows/isolated-commons-review-cases.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/isolated-data-plane.yml",
+      "maxReferences": 2
+    },
+    {
+      "path": ".github/workflows/isolated-open-license-discovery.yml",
+      "maxReferences": 2
+    },
+    {
+      "path": ".github/workflows/legal-authority-private-qa.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/literary-activation-readiness.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/literary-drain-worker-deploy.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/literary-guarded-owner-drain.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/literary-isolated-replay-handoff-deploy.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/literary-isolated-utc-budget.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/literary-live-cutover-preflight.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/literary-owner-capability-migration.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/literary-private-binding-stage-canary.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/literary-prod-handoff-dormant-deploy.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/literary-prod-publisher-dormant-deploy.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/literary-progressive-canonical-publication.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/literary-remote-staging-e2e.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/paid-legal-full-schema-private-qa.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/production-cutover-topology-audit.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/production-external-preflight.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/publication-source-isolation-qa.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/storefront-strangler-safe-integration.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/strangler-data-plane-preflight.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/strangler-hosted-capacity-evaluation.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/strangler-stage-core-deploy.yml",
+      "maxReferences": 1
+    },
+    {
+      "path": ".github/workflows/strangler-stage-private-bucket-provision.yml",
+      "maxReferences": 1
+    }
   ]
 }
