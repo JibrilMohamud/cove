@@ -109,6 +109,18 @@ try {
   assert.equal(guestFeed.items[0].id, created.id);
   const publicDiscovery = await get("/social/discover", null);
   assert.ok(publicDiscovery.people.some((person) => person.user_id === "alice"));
+  const followResponse = await social.handleSocial(
+    req("/social/follow", { userId: "alice", following: true }),
+    env,
+    "/social/follow",
+    "bob",
+  );
+  assert.equal(followResponse.status, 200);
+  const network = await get("/social/network", "bob");
+  assert.equal(network.people.length, 1, "Settings Network must show actual followed readers");
+  assert.equal(network.people[0].user_id, "alice");
+  assert.deepEqual(network.blocked, []);
+  assert.equal(network.nextCursor, null);
   assert.equal((await get("/social/arena?kind=matchup", "bob")).items.length, 0);
   assert.equal((await get("/social/arena?kind=take", "bob")).items.length, 1);
 
@@ -200,6 +212,8 @@ try {
   );
   assert.equal(owner.status, 200);
   assert.equal((await get("/social/arena", "bob")).items.length, 0, "blocking hides Arena posts");
+  const blockedNetwork = await get("/social/network", "alice");
+  assert.equal(blockedNetwork.blocked[0]?.user_id, "bob");
 
   // Staging/demo authors use the normal authenticated social API, not a
   // direct social_posts INSERT or a privileged production seeding backdoor.
@@ -281,6 +295,14 @@ try {
     "Arena GET must not add canonical writers",
   );
   assert.match(source, /LIMIT 80/, "Arena feed must be bounded");
+  const networkSource = source
+    .split('if (method === "GET" && path === "/social/network")')[1]
+    .split('if (method === "GET" && path === "/social/discover")')[0];
+  assert.ok(networkSource, "Network GET endpoint must exist");
+  assert.match(networkSource, /LIMIT 31/, "Following must be keyset-bounded");
+  assert.match(networkSource, /LIMIT 100/, "Blocked list must be bounded");
+  assert.doesNotMatch(networkSource, /\b(?:INSERT|UPDATE|DELETE|REPLACE)\s+/i,
+    "Settings Network GET cannot introduce a new canonical D1 writer");
   const communityPage = fs.readFileSync("src/features/fore/Community.tsx", "utf8");
   assert.match(
     communityPage,
