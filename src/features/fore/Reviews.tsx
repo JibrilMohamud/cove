@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Heart, Star, Lock, Globe, Flag, Loader2, Trash2 } from "lucide-react";
+import { Heart, Star, Lock, Globe, Flag, Loader2, Trash2, Search } from "lucide-react";
 import { toast } from "sonner";
 import {
   Select,
@@ -22,6 +22,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { api, useAccount } from "./client";
 import { RATINGS, RATING_LABELS, type Review } from "./domain";
+import { REVIEW_TAG_KEYS, REVIEW_TAGS, type ReviewTag } from "./review-tags";
 
 function provenanceLabel(review: Review) {
   switch (review.provenance?.type) {
@@ -71,9 +72,12 @@ export function Reviews({ bookId, personal = false }: { bookId: string; personal
   const [sort, setSort] = useState("popular"),
     [filter, setFilter] = useState("all"),
     [textOnly, setTextOnly] = useState(false),
+    [tagFilter, setTagFilter] = useState("all"),
+    [searchDraft, setSearchDraft] = useState(""),
+    [search, setSearch] = useState(""),
     [page, setPage] = useState(1);
   const result = useQuery<ReviewResult>({
-    queryKey: ["reviews", bookId, data.user?.id, sort, filter, textOnly, page],
+    queryKey: ["reviews", bookId, data.user?.id, sort, filter, textOnly, tagFilter, search, page],
     queryFn: () =>
       api(
         `/books/${bookId}/reviews?` +
@@ -81,12 +85,15 @@ export function Reviews({ bookId, personal = false }: { bookId: string; personal
             sort,
             ...(filter === "all" ? {} : { rating: filter }),
             textOnly: String(textOnly),
+            ...(tagFilter === "all" ? {} : { tag: tagFilter }),
+            ...(search ? { q: search } : {}),
             page: String(page),
           }),
       ),
   });
   const [rating, setRating] = useState<number | null>(null),
     [body, setBody] = useState(""),
+    [tags, setTags] = useState<ReviewTag[]>([]),
     [visibility, setVisibility] = useState("private"),
     [spoiler, setSpoiler] = useState(false),
     [busy, setBusy] = useState(false),
@@ -98,6 +105,7 @@ export function Reviews({ bookId, personal = false }: { bookId: string; personal
   useEffect(() => {
     setRating(mine?.rating || null);
     setBody(mine?.body || "");
+    setTags(mine?.tags || []);
     setVisibility(mine?.visibility || "private");
     setSpoiler(mine?.spoiler || false);
   }, [mine?.id, mine?.updatedAt]);
@@ -105,7 +113,7 @@ export function Reviews({ bookId, personal = false }: { bookId: string; personal
     if (!data.user) return signIn();
     setBusy(true);
     try {
-      await api("/books/" + bookId + "/reviews", "PUT", { rating, body, visibility, spoiler });
+      await api("/books/" + bookId + "/reviews", "PUT", { rating, body, tags: body.trim() ? tags : [], visibility, spoiler });
       await result.refetch();
       toast.success(visibility === "private" ? "Saved privately" : "Your rating is published");
     } catch (e) {
@@ -221,6 +229,21 @@ export function Reviews({ bookId, personal = false }: { bookId: string; personal
               maxLength={20000}
               placeholder="What will stay with you?"
             />
+            <fieldset className="review-tags-editor" disabled={!body.trim()}>
+              <legend>Review tags (optional · up to 3)</legend>
+              <div className="review-tag-chips">
+                {REVIEW_TAG_KEYS.map((tag) => {
+                  const active = tags.includes(tag);
+                  return (
+                    <button type="button" key={tag} className={active ? "selected" : ""} aria-pressed={active}
+                      disabled={!active && tags.length >= 3}
+                      onClick={() => setTags((current) => active ? current.filter((t) => t !== tag) : [...current, tag])}>
+                      {REVIEW_TAGS[tag]}
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
             <div className="review-options">
               <Select value={visibility} onValueChange={setVisibility}>
                 <SelectTrigger aria-label="Review visibility">
@@ -306,6 +329,13 @@ export function Reviews({ bookId, personal = false }: { bookId: string; personal
                 <SelectItem value="shortest">Word count · shortest</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={tagFilter} onValueChange={(v) => { setTagFilter(v); setPage(1); }}>
+              <SelectTrigger aria-label="Filter by review tag"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All review tags</SelectItem>
+                {REVIEW_TAG_KEYS.map((key) => <SelectItem key={key} value={key}>{REVIEW_TAGS[key]}</SelectItem>)}
+              </SelectContent>
+            </Select>
             <label className="switch-label">
               <Switch
                 checked={textOnly}
@@ -317,6 +347,15 @@ export function Reviews({ bookId, personal = false }: { bookId: string; personal
               Written reviews only
             </label>
           </div>
+          <form className="review-search" role="search" onSubmit={(e) => { e.preventDefault(); setSearch(searchDraft.trim().slice(0, 80)); setPage(1); }}>
+            <label htmlFor="review-search-input">Search written reviews</label>
+            <div>
+              <input id="review-search-input" className="note-input" type="search" maxLength={80} value={searchDraft}
+                placeholder="Find a word or phrase…" onChange={(e) => setSearchDraft(e.target.value)} />
+              <button type="submit" className="button outline"><Search size={16} /> Search</button>
+              {search && <button type="button" className="text-link" onClick={() => { setSearch(""); setSearchDraft(""); setPage(1); }}>Clear</button>}
+            </div>
+          </form>
           <div className="review-list">
             {result.data?.reviews.map((r) => (
               <article className="review-card" key={r.id}>
@@ -344,6 +383,9 @@ export function Reviews({ bookId, personal = false }: { bookId: string; personal
                     </div>
                   )}
                 </header>
+                {!!r.tags?.length && <div className="review-tag-chips review-tag-display">
+                  {r.tags.map((tag) => <span key={tag}>{REVIEW_TAGS[tag]}</span>)}
+                </div>}
                 {r.body ? (
                   r.spoiler ? (
                     <details className="spoiler-review">
