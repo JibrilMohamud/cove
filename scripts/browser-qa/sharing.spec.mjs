@@ -96,6 +96,32 @@ test("guest navigation stays private and fits the device", async ({ page }, test
   expect(errors).toEqual([]);
 });
 
+test("signed-in avatar menu owns personal navigation outside public Community", async ({
+  browser,
+  request,
+}, testInfo) => {
+  const fixture = await setup(browser, request, testInfo);
+  try {
+    const page = await fixture.pageFor("alice");
+    await page.goto("/community");
+    await expect(page.locator(".community-banner")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Community", exact: true })).toBeVisible();
+    const sections = page.getByRole("navigation", { name: "Community sections" });
+    await expect(sections.getByRole("link", { name: "Following" })).toHaveCount(0);
+    const avatar = page.getByRole("button", { name: "Open account menu" });
+    await avatar.click();
+    const menu = page.getByRole("menu");
+    for (const name of ["Profile", "Shared inbox", "Notifications", "Following", "Settings", "Sign out"])
+      await expect(menu.getByRole("menuitem", { name, exact: true })).toBeVisible();
+    await menu.getByRole("menuitem", { name: "Settings" }).click();
+    await expect(page).toHaveURL(/\/settings$/);
+    await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
+    await noOverflow(page);
+  } finally {
+    await fixture.close();
+  }
+});
+
 test("note consent updates the recipient's actual inbox", async ({
   browser,
   request,
