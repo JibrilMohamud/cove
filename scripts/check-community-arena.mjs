@@ -201,6 +201,67 @@ try {
   assert.equal(owner.status, 200);
   assert.equal((await get("/social/arena", "bob")).items.length, 0, "blocking hides Arena posts");
 
+  // Staging/demo authors use the normal authenticated social API, not a
+  // direct social_posts INSERT or a privileged production seeding backdoor.
+  const fixture = JSON.parse(
+    fs.readFileSync("scripts/fixtures/community-arena-starter-posts.json", "utf8"),
+  );
+  assert.equal(fixture.identity.id, "cove_arena_demo");
+  await db
+    .prepare(
+      "INSERT INTO auth_accounts(provider_id,app_id,email,username,created_at) VALUES(?,?,?,?,?)",
+    )
+    .bind(
+      fixture.identity.id,
+      fixture.identity.id,
+      "cove-arena-demo@example.test",
+      fixture.identity.username,
+      at,
+    )
+    .run();
+  await get("/social/me", fixture.identity.id);
+  await db
+    .prepare(
+      "UPDATE social_profiles SET profile_visibility='public',activity_visibility='public' WHERE user_id=?",
+    )
+    .bind(fixture.identity.id)
+    .run();
+  const publishedIds = [];
+  for (const seed of fixture.posts) {
+    assert.ok(["take", "debate", "matchup"].includes(seed.kind));
+    if (seed.kind === "matchup") {
+      assert.match(seed.text, /^A: Jane Eyre/);
+      assert.match(seed.text, /B: Pride and Prejudice/);
+    }
+    const response = await social.handleSocial(
+      req("/social/posts", {
+        contextType: "profile",
+        contextId: fixture.identity.id,
+        postType: "prompt",
+        body: arena.makeArenaPost(seed.kind, seed.text, seed.bookId),
+        visibility: "public",
+        spoiler: false,
+      }),
+      env,
+      "/social/posts",
+      fixture.identity.id,
+    );
+    assert.equal(response.status, 201, "demo post must pass the existing social API");
+    publishedIds.push((await response.json()).id);
+  }
+  assert.equal(new Set(publishedIds).size, fixture.posts.length);
+  const demoPublic = await get("/social/arena", null);
+  const demoEntries = demoPublic.items.filter((post) => publishedIds.includes(post.id));
+  assert.equal(demoEntries.length, fixture.posts.length, "all demo posts are publicly visible");
+  for (const [kind, expectedCount] of [["take", 3], ["debate", 2], ["matchup", 1]]) {
+    const category = await get(`/social/arena?kind=${kind}`, null);
+    const count = category.items.filter((post) => publishedIds.includes(post.id)).length;
+    assert.equal(count, expectedCount, `demo ${kind} count`);
+  }
+  assert.ok(demoEntries.some((entry) => entry.kind === "matchup" &&
+    entry.body.includes("Jane Eyre") && entry.body.includes("Pride and Prejudice")));
+
+
   const source = fs.readFileSync("src/features/fore/social.server.ts", "utf8");
   const arenaRead = source
     .split('if (method === "GET" && path === "/social/arena")')[1]
@@ -237,7 +298,7 @@ try {
     /import\("\.\/CommunityArena"\)/,
   );
   console.log(
-    "PASS: review labels/search, Arena publishing/reactions/privacy, and bounded read-only feed",
+    "PASS: review filters, demo test-account seed of six literary posts, public Arena, voting, privacy, bounded feed",
   );
 } finally {
   fs.rmSync(scratch, { recursive: true, force: true });
