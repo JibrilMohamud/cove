@@ -16,7 +16,10 @@ assert.match(code, /ORDER BY available_at LIMIT \?/);
 
 // A single atomic CAS is the only allowed lease acquisition. Another runner
 // may select the same row, but must not emit notifications without a claim.
-assert.match(code, /UPDATE author_release_alert_jobs SET status='processing',attempts=attempts\+1,updated_at=\?/);
+assert.match(
+  code,
+  /UPDATE author_release_alert_jobs SET status='processing',attempts=attempts\+1,updated_at=\?/,
+);
 assert.match(code, /status='processing' AND updated_at<=\?\)\) RETURNING attempts/);
 assert.match(code, /\.first<\{ attempts: number \}>\(\)/);
 assert.match(code, /if \(!claimed\) continue/);
