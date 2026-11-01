@@ -87,6 +87,11 @@ assert.ok(
   me.profile?.profile_visibility === "public" && me.profile?.activity_visibility === "public",
   "QA identity could not enable public posts",
 );
+// Label a previously unnamed synthetic QA identity so public readers see a
+// clearly identified demo author, without altering a named account.
+if (!me.person?.name || me.person.name === "Reader") {
+  await request("/profile", "POST", { name: "Cove Community Demo" });
+}
 const fixture = JSON.parse(
   fs.readFileSync("scripts/fixtures/community-arena-starter-posts.json", "utf8"),
 );
