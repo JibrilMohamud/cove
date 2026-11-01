@@ -43,6 +43,8 @@ jobs:
         run: node scripts/check-backend-audio-diagnostics.mjs
       - name: Backend HTTP primary reads fail closed without native D1 fallback
         run: node scripts/check-backend-http-primary-reads.mjs
+      - name: Private owner scheduler processes bounded author fanout without caller D1
+        run: node scripts/check-backend-author-social-owner.mjs
       - name: Production backend deployment must not mint alternate D1 writers
         run: node scripts/check-production-persistence-deploy-identity.mjs
       - name: Production legal owner cannot enter synthetic QA lease
