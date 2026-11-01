@@ -114,6 +114,10 @@ const routes={
   "partner.process-feed":{path:"/publishing/partner/process-feed",schema:z.object({
     limit:z.number().int().min(1).max(25),operationId:shortOperation
   }).strict()},
+  "social.process-author-fanout":{path:"/social/private-author-fanout",schema:z.object({
+    limit:z.number().int().min(1).max(10),batchSize:z.number().int().min(1).max(250),
+    operationId:shortOperation
+  }).strict()},
   "delivery.register-entitlement-device":{path:"/delivery/register-entitlement-device",schema:z.object({
     userId:ownerId,entitlementId:ownerId,productId:product,deviceId:ownerId,
     maxActiveDevices:z.number().int().min(1).max(100)
@@ -765,6 +769,16 @@ export async function dispatchCanonicalOwnerCommand(
       break;
     case "commerce.publish-entitlement":
       if(ack.applied!==true||!positiveEpoch(ack.epoch))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "social.process-author-fanout":
+      if(ack.schema!=="cove.owner-author-social-fanout.v1"||ack.ownerFirst!==true||
+         ack.operationId!==body.operationId||
+         ![ack.processed,ack.delivered,ack.failed].every(n=>
+           Number.isSafeInteger(n)&&Number(n)>=0)||
+         Number(ack.processed)>Number(body.limit)||
+         Number(ack.failed)>Number(body.limit)||
+         Number(ack.delivered)>Number(body.limit)*Number(body.batchSize))
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "partner.process-feed":
