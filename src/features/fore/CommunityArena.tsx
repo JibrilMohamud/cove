@@ -196,6 +196,10 @@ export function CommunityArena({ fullPage = false }: { fullPage?: boolean }) {
   const [debateFilter, setDebateFilter] = useState<DebateFilter>("trending");
   const [searchInput, setSearchInput] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  // Disable SSR-only controls until React event handlers are attached.
+  // Prevents browser-visible clicks and search input from being silently lost.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
   useEffect(() => {
     const debounce = setTimeout(() => setSearchTerm(searchInput.trim().slice(0, 80)), 350);
     return () => clearTimeout(debounce);
@@ -420,6 +424,7 @@ export function CommunityArena({ fullPage = false }: { fullPage?: boolean }) {
                   type="search"
                   maxLength={80}
                   value={searchInput}
+                  disabled={!hydrated}
                   placeholder="Search takes, comments, readers, and books…"
                   onChange={(e) => setSearchInput(e.target.value)}
                 />
@@ -443,6 +448,7 @@ export function CommunityArena({ fullPage = false }: { fullPage?: boolean }) {
                     key={value}
                     type="button"
                     aria-pressed={debateFilter === value}
+                    disabled={!hydrated}
                     className={debateFilter === value ? "active" : ""}
                     onClick={() => chooseDebateFilter(value)}
                   >
