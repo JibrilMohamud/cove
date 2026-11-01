@@ -11,99 +11,328 @@
     radial-gradient(ellipse at 45% -10%, #80533e60, transparent 52%),
     radial-gradient(ellipse at 85% 80%, #58234255, transparent 60%),
     linear-gradient(150deg, #282121, #161a23 65%);
-  box-shadow: inset 0 0 0 3px #322520, 0 16px 40px #0004;
+  box-shadow:
+    inset 0 0 0 3px #322520,
+    0 16px 40px #0004;
 }
-.cove-tourney-official .cove-arena-rail-head h2 { color: #ffcf88; }
-.cove-tourney-official .cove-arena-rail-head h2 svg { color: #ffc470; }
-.cove-tourney-title { text-align: center; margin: 9px 0; }
-.cove-tourney-title > span { color: #ff8b98; font-size: 10px; letter-spacing: .1em; font-weight: 850; }
+.cove-tourney-official .cove-arena-rail-head h2 {
+  color: #ffcf88;
+}
+.cove-tourney-official .cove-arena-rail-head h2 svg {
+  color: #ffc470;
+}
+.cove-tourney-title {
+  text-align: center;
+  margin: 9px 0;
+}
+.cove-tourney-title > span {
+  color: #ff8b98;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  font-weight: 850;
+}
 .cove-tourney-title h3 {
   margin: 6px 0 0;
   font: 750 clamp(19px, 1.9vw, 27px)/1.2 var(--font-serif, Georgia, serif);
   color: #ffe8d1;
   overflow-wrap: anywhere;
 }
-.cove-tourney-select { display: grid; gap: 5px; color: #cab5c4; font-size: 11px; }
-.cove-tourney-select select { width: 100%; min-width: 0; }
-.cove-tourney-official select, .cove-tourney-form select,
-.cove-tourney-form input, .cove-tourney-form textarea {
+.cove-tourney-select {
+  display: grid;
+  gap: 5px;
+  color: #cab5c4;
+  font-size: 11px;
+}
+.cove-tourney-select select {
+  width: 100%;
+  min-width: 0;
+}
+.cove-tourney-official select,
+.cove-tourney-form select,
+.cove-tourney-form input,
+.cove-tourney-form textarea {
   color: #fff3e9;
   background: #171923;
   border: 1px solid #866172;
   border-radius: 8px;
   padding: 10px;
 }
-.cove-tourney-preview-matches { display: grid; gap: 12px; }
-.cove-tourney-preview-match { display: grid; gap: 6px; border: 1px solid #594044; padding: 9px; border-radius: 9px; background: #12161dc4; }
-.cove-tourney-versus-title { color: #f5a2aa; font-size: 10px; font-weight: 800; letter-spacing: .075em; text-align: center; }
+.cove-tourney-preview-matches {
+  display: grid;
+  gap: 12px;
+}
+.cove-tourney-preview-match {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #594044;
+  padding: 9px;
+  border-radius: 9px;
+  background: #12161dc4;
+}
+.cove-tourney-versus-title {
+  color: #f5a2aa;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.075em;
+  text-align: center;
+}
 .cove-tourney-book {
-  display: flex; align-items: center; gap: 9px; text-align: left;
-  padding: 7px; min-width: 0; width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  text-align: left;
+  padding: 7px;
+  min-width: 0;
+  width: 100%;
   border: 1px solid #52404e;
   border-radius: 7px;
   background: #29212b;
   color: #ffebe3;
-  transition: border-color .15s, background .15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
 }
-.cove-tourney-book:hover:enabled { border-color: #ffa5cb; background: #3f2635; }
-.cove-tourney-book[aria-pressed="true"] { border-color: #ff90bb; background: #5f2946; }
-.cove-tourney-book.winner { border-color: #e5b369; background: #533d2c; }
-.cove-tourney-book:disabled { cursor: default; opacity: .82; }
+.cove-tourney-book:hover:enabled {
+  border-color: #ffa5cb;
+  background: #3f2635;
+}
+.cove-tourney-book[aria-pressed="true"] {
+  border-color: #ff90bb;
+  background: #5f2946;
+}
+.cove-tourney-book.winner {
+  border-color: #e5b369;
+  background: #533d2c;
+}
+.cove-tourney-book:disabled {
+  cursor: default;
+  opacity: 0.82;
+}
 .cove-tourney-cover {
-  display: grid; place-items: center; flex: 0 0 40px;
-  width: 40px; height: 58px; border: 1px solid #b78b6b;
+  display: grid;
+  place-items: center;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 58px;
+  border: 1px solid #b78b6b;
   border-radius: 4px;
-  background: #44333c; color: #f7c9a0;
+  background: #44333c;
+  color: #f7c9a0;
   overflow: hidden;
 }
-.cove-tourney-cover img { width: 100%; height: 100%; object-fit: cover; }
-.cove-tourney-cover-empty { opacity: .55; }
-.cove-tourney-book-copy { min-width: 0; flex: 1; display: grid; gap: 3px; }
-.cove-tourney-book-copy small { color: #e99b94; font-size: 9px; font-weight: 900; }
-.cove-tourney-book-copy strong { font-size: 12px; line-height: 1.3; font-weight: 750; overflow-wrap: anywhere; }
-.cove-tourney-book > b { color: #ffa2be; font-size: 17px; margin-left: 5px; }
-.cove-tourney-deadline { display: flex; align-items: center; justify-content: center; gap: 7px; color: #f0adbb; font-size: 11px; }
-.cove-tourney-activity { margin: 0 -18px -13px; padding: 14px 17px; background: #100f16a8; border-top: 1px solid #60434b; display: grid; gap: 5px; }
-.cove-tourney-activity h4 { margin: 0; color: #f5c48e; font-size: 11px; letter-spacing: .09em; }
-.cove-tourney-activity p { font-size: 11px; color: #c0aab6; line-height: 1.5; margin: 0; }
-.cove-tourney-activity p:first-of-type { color: #ffd4d7; }
-.cove-tourney-message { padding: 25px 11px; display: grid; place-items: center; gap: 8px; text-align: center; color: #d9c5c9; font-size: 12px; line-height: 1.5; }
-.cove-tourney-message svg { color: #ffa4b9; }
-.cove-tourney-message p { margin: 0; }
-.cove-tourney-message button { background: none; color: #ffc8d9; border: 0; text-decoration: underline; padding: 3px; }
+.cove-tourney-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cove-tourney-cover-empty {
+  opacity: 0.55;
+}
+.cove-tourney-book-copy {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 3px;
+}
+.cove-tourney-book-copy small {
+  color: #e99b94;
+  font-size: 9px;
+  font-weight: 900;
+}
+.cove-tourney-book-copy strong {
+  font-size: 12px;
+  line-height: 1.3;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+.cove-tourney-book > b {
+  color: #ffa2be;
+  font-size: 17px;
+  margin-left: 5px;
+}
+.cove-tourney-deadline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: #f0adbb;
+  font-size: 11px;
+}
+.cove-tourney-activity {
+  margin: 0 -18px -13px;
+  padding: 14px 17px;
+  background: #100f16a8;
+  border-top: 1px solid #60434b;
+  display: grid;
+  gap: 5px;
+}
+.cove-tourney-activity h4 {
+  margin: 0;
+  color: #f5c48e;
+  font-size: 11px;
+  letter-spacing: 0.09em;
+}
+.cove-tourney-activity p {
+  font-size: 11px;
+  color: #c0aab6;
+  line-height: 1.5;
+  margin: 0;
+}
+.cove-tourney-activity p:first-of-type {
+  color: #ffd4d7;
+}
+.cove-tourney-message {
+  padding: 25px 11px;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  text-align: center;
+  color: #d9c5c9;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.cove-tourney-message svg {
+  color: #ffa4b9;
+}
+.cove-tourney-message p {
+  margin: 0;
+}
+.cove-tourney-message button {
+  background: none;
+  color: #ffc8d9;
+  border: 0;
+  text-decoration: underline;
+  padding: 3px;
+}
 .cove-tourney-create-button {
-  display: flex; justify-content: center; align-items: center; gap: 8px;
-  border: 1px solid #b56783; border-radius: 8px;
-  padding: 12px; color: #ffd9e6; font-size: 12px; font-weight: 850;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #b56783;
+  border-radius: 8px;
+  padding: 12px;
+  color: #ffd9e6;
+  font-size: 12px;
+  font-weight: 850;
   background: #602c46;
 }
-.cove-tourney-create-button:hover { background: #793253; }
-.cove-tourney-champion { display: grid; gap: 8px; place-items: center; text-align: center; padding: 24px 13px; background: #4e352a; border: 1px solid #d9ad6e; border-radius: 10px; }
-.cove-tourney-champion svg { color: #fbc877; }
-.cove-tourney-champion span { color: #ffdc91; font-size: 11px; font-weight: 900; letter-spacing: .1em; }
-.cove-tourney-champion strong { color: #fff3dc; font: 800 21px/1.3 Georgia, serif; }
-.cove-tourney-dialog { max-width: min(940px, calc(100vw - 20px)) !important; }
+.cove-tourney-create-button:hover {
+  background: #793253;
+}
+.cove-tourney-champion {
+  display: grid;
+  gap: 8px;
+  place-items: center;
+  text-align: center;
+  padding: 24px 13px;
+  background: #4e352a;
+  border: 1px solid #d9ad6e;
+  border-radius: 10px;
+}
+.cove-tourney-champion svg {
+  color: #fbc877;
+}
+.cove-tourney-champion span {
+  color: #ffdc91;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+.cove-tourney-champion strong {
+  color: #fff3dc;
+  font:
+    800 21px/1.3 Georgia,
+    serif;
+}
+.cove-tourney-dialog {
+  max-width: min(940px, calc(100vw - 20px)) !important;
+}
 .cove-tourney-dialog .cove-tourney-bracket-board {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
-  align-items: start; gap: 15px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  align-items: start;
+  gap: 15px;
   margin-top: 15px;
 }
-.cove-tourney-round { display: grid; gap: 11px; padding: 12px; background: #24212d; border: 1px solid #695065; border-radius: 12px; }
-.cove-tourney-round > h3 { color: #fac89d; font-size: 14px; font-weight: 900; margin: 0; }
-.cove-tourney-bracket-match { display: grid; gap: 5px; padding: 7px; border: 1px solid #564458; border-radius: 9px; background: #151721; }
-.cove-tourney-bracket-match > small { font-size: 10px; color: #d39fb8; }
-.cove-tourney-bracket-match .cove-tourney-book { padding: 5px; }
-.cove-tourney-bracket-match .cove-tourney-cover { flex-basis: 28px; width: 28px; height: 40px; }
-.cove-tourney-bracket-match .cove-tourney-book-copy strong { font-size: 11px; }
-.cove-tourney-awaiting { border: 1px dashed #67566b; border-radius: 8px; color: #a9a0b8; padding: 16px; text-align: center; font-size: 12px; }
-.cove-tourney-form { display: grid; gap: 15px; }
-.cove-tourney-form label { display: grid; gap: 6px; color: #ffe3d3; font-size: 12px; font-weight: 750; }
-.cove-tourney-form textarea { min-height: 110px; resize: vertical; width: 100%; }
-.cove-tourney-form p { margin: 0; font-size: 11px; color: #bbc1d0; }
+.cove-tourney-round {
+  display: grid;
+  gap: 11px;
+  padding: 12px;
+  background: #24212d;
+  border: 1px solid #695065;
+  border-radius: 12px;
+}
+.cove-tourney-round > h3 {
+  color: #fac89d;
+  font-size: 14px;
+  font-weight: 900;
+  margin: 0;
+}
+.cove-tourney-bracket-match {
+  display: grid;
+  gap: 5px;
+  padding: 7px;
+  border: 1px solid #564458;
+  border-radius: 9px;
+  background: #151721;
+}
+.cove-tourney-bracket-match > small {
+  font-size: 10px;
+  color: #d39fb8;
+}
+.cove-tourney-bracket-match .cove-tourney-book {
+  padding: 5px;
+}
+.cove-tourney-bracket-match .cove-tourney-cover {
+  flex-basis: 28px;
+  width: 28px;
+  height: 40px;
+}
+.cove-tourney-bracket-match .cove-tourney-book-copy strong {
+  font-size: 11px;
+}
+.cove-tourney-awaiting {
+  border: 1px dashed #67566b;
+  border-radius: 8px;
+  color: #a9a0b8;
+  padding: 16px;
+  text-align: center;
+  font-size: 12px;
+}
+.cove-tourney-form {
+  display: grid;
+  gap: 15px;
+}
+.cove-tourney-form label {
+  display: grid;
+  gap: 6px;
+  color: #ffe3d3;
+  font-size: 12px;
+  font-weight: 750;
+}
+.cove-tourney-form textarea {
+  min-height: 110px;
+  resize: vertical;
+  width: 100%;
+}
+.cove-tourney-form p {
+  margin: 0;
+  font-size: 11px;
+  color: #bbc1d0;
+}
 @media (max-width: 780px) {
-  .cove-tourney-official { min-width: 0; }
-  .cove-tourney-cover { flex-basis: 35px; width: 35px; height: 50px; }
+  .cove-tourney-official {
+    min-width: 0;
+  }
+  .cove-tourney-cover {
+    flex-basis: 35px;
+    width: 35px;
+    height: 50px;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .cove-tourney-book { transition: none; }
+  .cove-tourney-book {
+    transition: none;
+  }
 }

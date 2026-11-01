@@ -53,7 +53,9 @@ for (const locale of locales) {
       const expectedWebkitCancellation =
         replacingCommunityDocument &&
         page.context().browser()?.browserType().name() === "webkit" &&
-        /^.*\/127\.0\.0\.1:4173\/api\/fore\/account due to access control checks\.$/.test(e.message);
+        /^.*\/127\.0\.0\.1:4173\/api\/fore\/account due to access control checks\.$/.test(
+          e.message,
+        );
       if (!expectedWebkitCancellation) failures.push(e.message);
     });
     await page.goto("/community");

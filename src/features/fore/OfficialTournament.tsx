@@ -41,17 +41,41 @@ type OfficialBracket = {
   entries: Entry[];
   matches: Match[];
 };
-const verifiedCovers = new Set(["1260", "1342", "84", "2701", "11", "345", "174", "768", "64317", "98"]);
+const verifiedCovers = new Set([
+  "1260",
+  "1342",
+  "84",
+  "2701",
+  "11",
+  "345",
+  "174",
+  "768",
+  "64317",
+  "98",
+]);
 const roundNames = ["Quarterfinals", "Semifinals", "Final"];
 
 function BookThumb({ book }: { book: Entry | undefined }) {
-  if (!book) return <span className="cove-tourney-cover cove-tourney-cover-empty"><BookOpen size={20} /></span>;
+  if (!book)
+    return (
+      <span className="cove-tourney-cover cove-tourney-cover-empty">
+        <BookOpen size={20} />
+      </span>
+    );
   return (
     <span className="cove-tourney-cover">
       {verifiedCovers.has(book.sourceExternalId) ? (
-        <img src={"/covers/" + book.sourceExternalId + ".jpg"} alt="" loading="lazy"
-          onError={(event) => { event.currentTarget.hidden = true; }} />
-      ) : <BookOpen size={20} aria-hidden="true" />}
+        <img
+          src={"/covers/" + book.sourceExternalId + ".jpg"}
+          alt=""
+          loading="lazy"
+          onError={(event) => {
+            event.currentTarget.hidden = true;
+          }}
+        />
+      ) : (
+        <BookOpen size={20} aria-hidden="true" />
+      )}
     </span>
   );
 }
@@ -59,15 +83,26 @@ function dateLabel(iso: string): string {
   const t = Date.parse(iso);
   if (!Number.isFinite(t)) return "Unknown";
   return new Intl.DateTimeFormat(undefined, {
-    month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
   }).format(new Date(t));
 }
 function roundLabel(tournament: OfficialBracket, round: number): string {
-  return round === tournament.roundsTotal ? "Final" :
-    round === tournament.roundsTotal - 1 ? "Semifinals" : roundNames[0];
+  return round === tournament.roundsTotal
+    ? "Final"
+    : round === tournament.roundsTotal - 1
+      ? "Semifinals"
+      : roundNames[0];
 }
 function BookChoice({
-  book, count, selected, winner, disabled, onClick,
+  book,
+  count,
+  selected,
+  winner,
+  disabled,
+  onClick,
 }: {
   book: Entry | undefined;
   count: number;
@@ -77,8 +112,13 @@ function BookChoice({
   onClick: () => void;
 }) {
   return (
-    <button type="button" className={"cove-tourney-book" + (winner ? " winner" : "")}
-      aria-pressed={selected} disabled={disabled || !book} onClick={onClick}>
+    <button
+      type="button"
+      className={"cove-tourney-book" + (winner ? " winner" : "")}
+      aria-pressed={selected}
+      disabled={disabled || !book}
+      onClick={onClick}
+    >
       <BookThumb book={book} />
       <span className="cove-tourney-book-copy">
         <small>{book ? "SEED " + book.seed : "TBD"}</small>
@@ -108,8 +148,8 @@ export function OfficialTournament() {
   const all = tournaments.data?.items || [];
   const selected = all.find((item) => item.id === selectedId) || all[0];
   const entries = new Map(selected?.entries.map((entry) => [entry.id, entry]) || []);
-  const liveMatches = selected?.matches.filter((match) =>
-    match.round === selected.currentRound) || [];
+  const liveMatches =
+    selected?.matches.filter((match) => match.round === selected.currentRound) || [];
 
   async function cast(match: Match, entryId: string) {
     if (!data.user) return signIn();
@@ -117,7 +157,8 @@ export function OfficialTournament() {
     setBusy(true);
     try {
       await api("/social/tournaments/" + encodeURIComponent(selected.id) + "/vote", "POST", {
-        matchId: match.id, entryId,
+        matchId: match.id,
+        entryId,
       });
       await tournaments.refetch();
     } catch (error) {
@@ -131,10 +172,14 @@ export function OfficialTournament() {
     setBusy(true);
     try {
       const result = await api<{ advanced: boolean }>(
-        "/social/tournaments/" + encodeURIComponent(selected.id) + "/advance", "POST", {},
+        "/social/tournaments/" + encodeURIComponent(selected.id) + "/advance",
+        "POST",
+        {},
       );
       await tournaments.refetch();
-      toast.success(result.advanced ? "Round finalized and bracket advanced" : "Round not ready to close");
+      toast.success(
+        result.advanced ? "Round finalized and bracket advanced" : "Round not ready to close",
+      );
     } catch (error) {
       toast.error((error as Error).message);
     } finally {
@@ -143,15 +188,24 @@ export function OfficialTournament() {
   }
   async function create() {
     if (!data.user) return signIn();
-    const ids = bookIds.split(/[\n,]/).map((value) =>
-      value.trim().replace(/^.*\/books\//, "").replace(/[?#].*$/, "")).filter(Boolean);
+    const ids = bookIds
+      .split(/[\n,]/)
+      .map((value) =>
+        value
+          .trim()
+          .replace(/^.*\/books\//, "")
+          .replace(/[?#].*$/, ""),
+      )
+      .filter(Boolean);
     if (ids.length !== 4 || new Set(ids).size !== 4)
       return toast.error("Enter four different Cove book IDs, one per line.");
     if (busy) return;
     setBusy(true);
     try {
       const result = await api<OfficialBracket>("/social/tournaments", "POST", {
-        title: title.trim(), productIds: ids, roundDurationMinutes: duration,
+        title: title.trim(),
+        productIds: ids,
+        roundDurationMinutes: duration,
       });
       setSelectedId(result.id);
       setCreateOpen(false);
@@ -172,12 +226,18 @@ export function OfficialTournament() {
   return (
     <section className="cove-tourney-official" aria-labelledby="cove-official-heading">
       <div className="cove-arena-rail-head">
-        <h2 id="cove-official-heading"><Trophy size={18} /> LIVE TOURNAMENTS</h2>
+        <h2 id="cove-official-heading">
+          <Trophy size={18} /> LIVE TOURNAMENTS
+        </h2>
         <button type="button" onClick={() => setBracketOpen(true)} disabled={!selected}>
           VIEW BRACKET <ArrowRight size={14} />
         </button>
       </div>
-      {tournaments.isLoading && <p className="cove-tourney-message" role="status">Loading official brackets…</p>}
+      {tournaments.isLoading && (
+        <p className="cove-tourney-message" role="status">
+          Loading official brackets…
+        </p>
+      )}
       {tournaments.isError && (
         <div className="cove-tourney-message" role="alert">
           Tournament service is unavailable. The database migration may still be pending.
@@ -187,14 +247,24 @@ export function OfficialTournament() {
       {selected && (
         <>
           {all.length > 1 && (
-            <label className="cove-tourney-select">Browse tournament
+            <label className="cove-tourney-select">
+              Browse tournament
               <select value={selected.id} onChange={(event) => setSelectedId(event.target.value)}>
-                {all.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+                {all.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title}
+                  </option>
+                ))}
               </select>
             </label>
           )}
           <div className="cove-tourney-title">
-            <span>READERS' CHOICE / {selected.status === "live" ? roundLabel(selected, selected.currentRound) : "Champion crowned"}</span>
+            <span>
+              READERS' CHOICE /{" "}
+              {selected.status === "live"
+                ? roundLabel(selected, selected.currentRound)
+                : "Champion crowned"}
+            </span>
             <h3>{selected.title}</h3>
           </div>
           {selected.status === "completed" && champion ? (
@@ -208,24 +278,41 @@ export function OfficialTournament() {
               <div className="cove-tourney-preview-matches">
                 {liveMatches.map((match) => (
                   <div className="cove-tourney-preview-match" key={match.id}>
-                    <div className="cove-tourney-versus-title">MATCH {match.slot} / {match.aVotes + match.bVotes} votes</div>
-                    <BookChoice book={entries.get(match.entryAId)} count={match.aVotes}
+                    <div className="cove-tourney-versus-title">
+                      MATCH {match.slot} / {match.aVotes + match.bVotes} votes
+                    </div>
+                    <BookChoice
+                      book={entries.get(match.entryAId)}
+                      count={match.aVotes}
                       selected={match.myEntryId === match.entryAId}
                       winner={match.winnerEntryId === match.entryAId}
-                      disabled={!active || !!busy} onClick={() => cast(match, match.entryAId)} />
-                    <BookChoice book={entries.get(match.entryBId)} count={match.bVotes}
+                      disabled={!active || !!busy}
+                      onClick={() => cast(match, match.entryAId)}
+                    />
+                    <BookChoice
+                      book={entries.get(match.entryBId)}
+                      count={match.bVotes}
                       selected={match.myEntryId === match.entryBId}
                       winner={match.winnerEntryId === match.entryBId}
-                      disabled={!active || !!busy} onClick={() => cast(match, match.entryBId)} />
+                      disabled={!active || !!busy}
+                      onClick={() => cast(match, match.entryBId)}
+                    />
                   </div>
                 ))}
               </div>
-              <div className="cove-tourney-deadline"><Clock3 size={14} />
-                {active ? "Voting closes " + dateLabel(selected.roundDeadline)
+              <div className="cove-tourney-deadline">
+                <Clock3 size={14} />
+                {active
+                  ? "Voting closes " + dateLabel(selected.roundDeadline)
                   : "Voting closed " + dateLabel(selected.roundDeadline)}
               </div>
               {expired && (
-                <button type="button" className="cove-arena-rail-cta" disabled={busy} onClick={advance}>
+                <button
+                  type="button"
+                  className="cove-arena-rail-cta"
+                  disabled={busy}
+                  onClick={advance}
+                >
                   Finalize round <ArrowRight size={14} />
                 </button>
               )}
@@ -233,10 +320,17 @@ export function OfficialTournament() {
           )}
           <div className="cove-tourney-activity">
             <h4>ROUND ACTIVITY</h4>
-            <p>{selected.status === "completed" ? "Verified final result · bracket completed" :
-              "Round " + selected.currentRound + " of " + selected.roundsTotal + " · " +
-              liveMatches.reduce((sum, match) => sum + match.aVotes + match.bVotes, 0) +
-              " recorded votes"}</p>
+            <p>
+              {selected.status === "completed"
+                ? "Verified final result · bracket completed"
+                : "Round " +
+                  selected.currentRound +
+                  " of " +
+                  selected.roundsTotal +
+                  " · " +
+                  liveMatches.reduce((sum, match) => sum + match.aVotes + match.bVotes, 0) +
+                  " recorded votes"}
+            </p>
             <p>Results are finalized after the deadline. Ties advance the lower seed.</p>
           </div>
         </>
@@ -247,17 +341,25 @@ export function OfficialTournament() {
           <p>No live brackets yet. Launch Cove's first four-book tournament.</p>
         </div>
       )}
-      <button type="button" className="cove-tourney-create-button" onClick={() => {
-        if (!data.user) return signIn();
-        setCreateOpen(true);
-      }}><Plus size={16} /> Create a book tournament</button>
+      <button
+        type="button"
+        className="cove-tourney-create-button"
+        onClick={() => {
+          if (!data.user) return signIn();
+          setCreateOpen(true);
+        }}
+      >
+        <Plus size={16} /> Create a book tournament
+      </button>
       <Dialog open={bracketOpen} onOpenChange={setBracketOpen}>
         <DialogContent className="cove-arena-bracket-dialog cove-tourney-dialog">
-          <DialogTitle><Trophy size={20} /> {selected?.title || "Official tournament bracket"}</DialogTitle>
+          <DialogTitle>
+            <Trophy size={20} /> {selected?.title || "Official tournament bracket"}
+          </DialogTitle>
           <DialogDescription>
-            Real reader ballots determine each winner. Votes freeze at each round's deadline;
-            the final tallies and qualifying books are persisted together.
-            Tied matches use the lower original seed.
+            Real reader ballots determine each winner. Votes freeze at each round's deadline; the
+            final tallies and qualifying books are persisted together. Tied matches use the lower
+            original seed.
           </DialogDescription>
           {selected && (
             <div className="cove-tourney-bracket-board">
@@ -267,26 +369,53 @@ export function OfficialTournament() {
                 return (
                   <section key={round} className="cove-tourney-round">
                     <h3>{roundLabel(selected, round)}</h3>
-                    {matches.length ? matches.map((match) => (
-                      <div className="cove-tourney-bracket-match" key={match.id}>
-                        <small>Match {match.slot} · {match.status === "closed" ? "Final" : "Voting"}</small>
-                        <BookChoice book={entries.get(match.entryAId)} count={match.aVotes}
-                          selected={match.myEntryId === match.entryAId}
-                          winner={match.winnerEntryId === match.entryAId}
-                          disabled={busy || selected.status !== "live" || round !== selected.currentRound || !!expired}
-                          onClick={() => cast(match, match.entryAId)} />
-                        <BookChoice book={entries.get(match.entryBId)} count={match.bVotes}
-                          selected={match.myEntryId === match.entryBId}
-                          winner={match.winnerEntryId === match.entryBId}
-                          disabled={busy || selected.status !== "live" || round !== selected.currentRound || !!expired}
-                          onClick={() => cast(match, match.entryBId)} />
-                      </div>
-                    )) : <div className="cove-tourney-awaiting">Awaiting qualifying books</div>}
+                    {matches.length ? (
+                      matches.map((match) => (
+                        <div className="cove-tourney-bracket-match" key={match.id}>
+                          <small>
+                            Match {match.slot} · {match.status === "closed" ? "Final" : "Voting"}
+                          </small>
+                          <BookChoice
+                            book={entries.get(match.entryAId)}
+                            count={match.aVotes}
+                            selected={match.myEntryId === match.entryAId}
+                            winner={match.winnerEntryId === match.entryAId}
+                            disabled={
+                              busy ||
+                              selected.status !== "live" ||
+                              round !== selected.currentRound ||
+                              !!expired
+                            }
+                            onClick={() => cast(match, match.entryAId)}
+                          />
+                          <BookChoice
+                            book={entries.get(match.entryBId)}
+                            count={match.bVotes}
+                            selected={match.myEntryId === match.entryBId}
+                            winner={match.winnerEntryId === match.entryBId}
+                            disabled={
+                              busy ||
+                              selected.status !== "live" ||
+                              round !== selected.currentRound ||
+                              !!expired
+                            }
+                            onClick={() => cast(match, match.entryBId)}
+                          />
+                        </div>
+                      ))
+                    ) : (
+                      <div className="cove-tourney-awaiting">Awaiting qualifying books</div>
+                    )}
                   </section>
                 );
               })}
-              {champion && <div className="cove-tourney-champion"><Trophy size={23} />
-                <span>CHAMPION</span><strong>{champion.title}</strong></div>}
+              {champion && (
+                <div className="cove-tourney-champion">
+                  <Trophy size={23} />
+                  <span>CHAMPION</span>
+                  <strong>{champion.title}</strong>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>
@@ -295,27 +424,42 @@ export function OfficialTournament() {
         <DialogContent className="cove-arena-bracket-dialog cove-tourney-dialog">
           <DialogTitle>Host an official tournament</DialogTitle>
           <DialogDescription>
-            Choose four existing Cove books. The bracket is fixed at creation; readers vote in
-            two timed rounds. Vote totals are finalized on the server, not by the host.
+            Choose four existing Cove books. The bracket is fixed at creation; readers vote in two
+            timed rounds. Vote totals are finalized on the server, not by the host.
           </DialogDescription>
           <div className="cove-tourney-form">
-            <label>Bracket name
+            <label>
+              Bracket name
               <input value={title} maxLength={100} onChange={(e) => setTitle(e.target.value)} />
             </label>
-            <label>Four Cove book IDs or /books/ links (one per line)
-              <textarea value={bookIds} rows={5} onChange={(e) => setBookIds(e.target.value)}
-                placeholder={"1342\n1260\n84\n2701"} />
+            <label>
+              Four Cove book IDs or /books/ links (one per line)
+              <textarea
+                value={bookIds}
+                rows={5}
+                onChange={(e) => setBookIds(e.target.value)}
+                placeholder={"1342\n1260\n84\n2701"}
+              />
             </label>
-            <label>Time per round
+            <label>
+              Time per round
               <select value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
                 <option value={60}>1 hour</option>
                 <option value={1440}>1 day</option>
                 <option value={10080}>1 week</option>
               </select>
             </label>
-            <p>A public reader profile and public activity are required. Match ballots are private.</p>
-            <button type="button" className="cove-arena-rail-cta" disabled={busy || title.trim().length < 4}
-              onClick={create}>{busy ? "Creating…" : "Publish official bracket"}</button>
+            <p>
+              A public reader profile and public activity are required. Match ballots are private.
+            </p>
+            <button
+              type="button"
+              className="cove-arena-rail-cta"
+              disabled={busy || title.trim().length < 4}
+              onClick={create}
+            >
+              {busy ? "Creating…" : "Publish official bracket"}
+            </button>
           </div>
         </DialogContent>
       </Dialog>
