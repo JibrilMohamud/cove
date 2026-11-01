@@ -1,0 +1,33 @@
+{
+  "schema": "cove.canonical-d1-two-principal-live-readback.v1",
+  "observedOn": "2026-10-31 (America/New_York)",
+  "source": "Read-only complete Cloudflare Workers script enumeration and each script's live settings endpoint, connected Cove account",
+  "accountId": "d26430caa63ec55f6612e32f36aca5e9",
+  "canonicalD1": "4bd657ac-8789-403e-a28c-93aba8d0a989",
+  "workerScriptsListed": 452,
+  "workerSettingsInspected": 452,
+  "settingsErrors": 0,
+  "directCanonicalBindings": 2,
+  "nonOwnerBindings": 1,
+  "principals": [
+    {
+      "script": "cove-legal-authority-production",
+      "binding": "PRIMARY_DB",
+      "role": "disabled legal-owner Worker"
+    },
+    {
+      "script": "cove-persistence-backend",
+      "binding": "DB",
+      "role": "uncertified existing non-owner"
+    }
+  ],
+  "ownerEnabled": false,
+  "priorBaseline": {
+    "date": "2026-10-30",
+    "directCanonicalBindings": 9,
+    "nonOwnerBindings": 8
+  },
+  "classification": "Capability inventory only. No claim of LIVE entitlement, Stripe settlement, rights-authority activation, tested rollback, or full deployment token retirement.",
+  "certified": false,
+  "note": "CI must repeat an exhaustive live inventory. This readback does not replace review of D1 API tokens, HTTP/cron writers, or the owner-command cutover."
+}
