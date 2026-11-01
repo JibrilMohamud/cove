@@ -29,7 +29,8 @@ assert.ok(workflow.includes("github.ref == 'refs/heads/main'"));
 assert.ok(workflow.includes("needs: static-synthetic-only"));
 assert.ok(workflow.includes("persist-credentials: false"));
 assert.ok(workflow.includes("cancel-in-progress: false"));
-assert.ok(workflow.includes("secrets.CLOUDFLARE_API_TOKEN"));
+assert.ok(workflow.includes("secrets.CLOUDFLARE_COVE_LITERARY_REMOTE_STAGING_E2E_TOKEN"));
+assert.ok(!workflow.includes("secrets.CLOUDFLARE_API_TOKEN"));
 console.log(
   "LITERARY_REMOTE_QA_CONTAINMENT_PASS no primary production bindings, synthetic staged assets",
 );

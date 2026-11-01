@@ -35,7 +35,7 @@ jobs:
     timeout-minutes: 20
     env:
       CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_COVE_LITERARY_REMOTE_STAGING_E2E_TOKEN }}
     steps:
       - uses: actions/checkout@v6
         with:

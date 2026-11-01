@@ -22,9 +22,9 @@ jobs:
           node scripts/staging/report-cove-sounds-market-readiness.mjs --self-test
       - name: Read-only canonical paid orders and anonymous Analytics Engine
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_COVE_COVE_SOUNDS_VERIFIED_CONVERSION_REPORT_TOKEN }}
         run: node scripts/staging/report-cove-sounds-verified-conversion.mjs
       - name: Audit licensed inventory in all active storefront countries
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_COVE_COVE_SOUNDS_VERIFIED_CONVERSION_REPORT_TOKEN }}
         run: node scripts/staging/report-cove-sounds-market-readiness.mjs

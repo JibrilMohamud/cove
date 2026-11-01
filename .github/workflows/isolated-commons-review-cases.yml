@@ -38,7 +38,7 @@ jobs:
     timeout-minutes: 5
     env:
       CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_COVE_ISOLATED_COMMONS_REVIEW_CASES_TOKEN }}
       COVE_MUSIC_REVIEW_APPLY: "1"
     steps:
       - uses: actions/checkout@v6
