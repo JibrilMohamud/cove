@@ -78,8 +78,7 @@ test("guest navigation stays private and fits the device", async ({ page }, test
   await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
   await noOverflow(page);
   await page.goto("/community");
-  await expect(page.getByRole("heading", { name: "The conversation starts here." }))
-    .toBeVisible();
+  await expect(page.getByRole("heading", { name: "The conversation starts here." })).toBeVisible();
   const publicTabs = page.locator(".community-tabs");
   for (const name of ["Explore", "Readers & clubs", "Following"])
     await expect(publicTabs.getByRole("link", { name, exact: true })).toBeVisible();
