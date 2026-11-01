@@ -380,7 +380,7 @@ test("native browser storage persists nonextractable offline encryption keys", a
   const fixture = await setup(browser, request, testInfo);
   try {
     const page = await fixture.pageFor(null);
-    await page.goto("/community?tab=received");
+    await page.goto("/profile?section=received");
     await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
     await page.evaluate(async () => {
       const { putRecord } = await import("/src/features/fore/offline.ts");
