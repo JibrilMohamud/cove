@@ -45,6 +45,8 @@ jobs:
         run: node scripts/check-backend-http-primary-reads.mjs
       - name: Private owner scheduler processes bounded author fanout without caller D1
         run: node scripts/check-backend-author-social-owner.mjs
+      - name: Private owner handles author release scan and alerts without caller D1
+        run: node scripts/check-backend-author-release-alerts-owner.mjs
       - name: Production backend deployment must not mint alternate D1 writers
         run: node scripts/check-production-persistence-deploy-identity.mjs
       - name: Production legal owner cannot enter synthetic QA lease
