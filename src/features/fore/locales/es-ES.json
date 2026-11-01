@@ -859,5 +859,13 @@
   "Searching…": "Buscando…",
   "Follow": "Seguir",
   "Unfollowed": "Has dejado de seguir a esta persona.",
-  "Follow request sent": "Solicitud de seguimiento enviada"
+  "Follow request sent": "Solicitud de seguimiento enviada",
+  "Cart": "Carrito",
+  "Wishlist": "Lista de deseos",
+  "Orders": "Pedidos",
+  "Preferences": "Preferencias",
+  "Account": "Cuenta",
+  "Manage your reading preferences, account, and network.": "Gestiona tus preferencias de lectura, tu cuenta y tus contactos.",
+  "Settings sections": "Secciones de ajustes",
+  "Loading settings…": "Cargando ajustes…"
 }
