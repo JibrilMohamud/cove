@@ -72,11 +72,11 @@ function isOpen(t: TournamentRow): boolean {
 }
 async function publicTournament(db: DB, id: string): Promise<TournamentRow> {
   const row = await db.prepare(
-    \`SELECT t.* FROM community_tournaments t
+    `SELECT t.* FROM community_tournaments t
      JOIN social_profiles sp ON sp.user_id=t.host_user_id
      JOIN auth_accounts a ON a.app_id=t.host_user_id AND a.disabled_at IS NULL
      WHERE t.id=? AND t.status<>'cancelled'
-       AND sp.profile_visibility='public' AND sp.activity_visibility='public'\`
+       AND sp.profile_visibility='public' AND sp.activity_visibility='public'`
   ).bind(id).first<TournamentRow>();
   if (!row) throw new ApiError(404, "Tournament not found.");
   return row;
@@ -88,22 +88,22 @@ async function tournamentDetail(db: DB, id: string, viewer: string | null) {
       "SELECT * FROM community_tournament_entries WHERE tournament_id=? ORDER BY seed"
     ).bind(id).all<EntryRow>(),
     db.prepare(
-      \`SELECT m.*,
+      `SELECT m.*,
         (SELECT COUNT(*) FROM community_tournament_votes v
           WHERE v.match_id=m.id AND v.entry_id=m.entry_a_id) AS a_votes,
         (SELECT COUNT(*) FROM community_tournament_votes v
           WHERE v.match_id=m.id AND v.entry_id=m.entry_b_id) AS b_votes
        FROM community_tournament_matches m
-       WHERE m.tournament_id=? ORDER BY m.round_number,m.slot\`
+       WHERE m.tournament_id=? ORDER BY m.round_number,m.slot`
     ).bind(id).all<MatchRow>(),
   ]);
   const entries = entryResult.results;
   const matches = matchResult.results;
   const mine = viewer && matches.length
     ? (await db.prepare(
-      \`SELECT v.match_id,v.entry_id FROM community_tournament_votes v
+      `SELECT v.match_id,v.entry_id FROM community_tournament_votes v
        JOIN community_tournament_matches m ON m.id=v.match_id
-       WHERE m.tournament_id=? AND v.user_id=?\`
+       WHERE m.tournament_id=? AND v.user_id=?`
     ).bind(id, viewer).all<{ match_id: string; entry_id: string }>()).results
     : [];
   const selections = new Map(mine.map((vote) => [vote.match_id, vote.entry_id]));
@@ -145,9 +145,9 @@ async function validatedBooks(db: DB, ids: string[]) {
   const books: { id: string; publicId: string; title: string; externalId: string }[] = [];
   for (const ref of ids) {
     const book = await db.prepare(
-      \`SELECT p.id,p.public_id,e.title,p.source_external_id
+      `SELECT p.id,p.public_id,e.title,p.source_external_id
        FROM products p JOIN editions e ON e.id=p.edition_id
-       WHERE p.id=? OR p.public_id=? LIMIT 1\`
+       WHERE p.id=? OR p.public_id=? LIMIT 1`
     ).bind(ref, ref).first<{
       id: string; public_id: string | null; title: string;
       source_external_id: string | null;
@@ -177,20 +177,20 @@ async function createTournament(db: DB, actor: string, payload: z.infer<typeof c
   // D1 batch is transactional. Never publish a tournament with missing entrants.
   await db.batch([
     db.prepare(
-      \`INSERT INTO community_tournaments
+      `INSERT INTO community_tournaments
        (id,host_user_id,title,entrants_count,rounds_total,current_round,
         round_duration_minutes,round_deadline,status,version,created_at,updated_at)
-       VALUES(?,?,?,?,2,1,?,?,'live',1,?,?)\`
+       VALUES(?,?,?,?,2,1,?,?,'live',1,?,?)`
     ).bind(id, actor, payload.title, entries.length, payload.roundDurationMinutes, deadline, started, started),
     ...entries.map((book) => db.prepare(
-      \`INSERT INTO community_tournament_entries
+      `INSERT INTO community_tournament_entries
        (id,tournament_id,seed,product_id,public_product_id,title_snapshot,source_external_id)
-       VALUES(?,?,?,?,?,?,?)\`
+       VALUES(?,?,?,?,?,?,?)`
     ).bind(book.entryId, id, book.seed, book.id, book.publicId, book.title, book.externalId)),
     ...[0, 1].map((slot) => db.prepare(
-      \`INSERT INTO community_tournament_matches
+      `INSERT INTO community_tournament_matches
        (id,tournament_id,round_number,slot,entry_a_id,entry_b_id,status,opened_at,closes_at)
-       VALUES(?,?,1,?,?,?,'open',?,?)\`
+       VALUES(?,?,1,?,?,?,'open',?,?)`
     ).bind(newId("ctm"), id, slot + 1, entries[slot * 2].entryId, entries[slot * 2 + 1].entryId, started, deadline)),
   ]);
   return tournamentDetail(db, id, actor);
@@ -199,8 +199,8 @@ async function castVote(db: DB, id: string, actor: string, input: z.infer<typeof
   const tournament = await publicTournament(db, id);
   if (!isOpen(tournament)) throw new ApiError(409, "This round has closed.");
   const match = await db.prepare(
-    \`SELECT id,entry_a_id,entry_b_id,status,round_number FROM community_tournament_matches
-     WHERE id=? AND tournament_id=?\`
+    `SELECT id,entry_a_id,entry_b_id,status,round_number FROM community_tournament_matches
+     WHERE id=? AND tournament_id=?`
   ).bind(input.matchId, id).first<MatchRow>();
   if (!match || match.status !== "open" ||
       Number(match.round_number) !== Number(tournament.current_round) ||
@@ -211,10 +211,10 @@ async function castVote(db: DB, id: string, actor: string, input: z.infer<typeof
     // One upsert per reader per match. The SQL triggers independently reject
     // late votes, wrong entrants, and voting after an advancement.
     await db.prepare(
-      \`INSERT INTO community_tournament_votes(match_id,user_id,entry_id,created_at,updated_at)
+      `INSERT INTO community_tournament_votes(match_id,user_id,entry_id,created_at,updated_at)
        VALUES(?,?,?,?,?)
        ON CONFLICT(match_id,user_id) DO UPDATE SET entry_id=excluded.entry_id,
-       updated_at=excluded.updated_at\`
+       updated_at=excluded.updated_at`
     ).bind(match.id, actor, input.entryId, at, at).run();
   } catch (error) {
     if (String(error).includes("tournament_vote_closed_or_invalid"))
@@ -230,19 +230,19 @@ async function advanceTournament(db: DB, id: string): Promise<boolean> {
   if (!t || t.status !== "live" || safeTime(t.round_deadline) > Date.now()) return false;
   const round = Number(t.current_round);
   const matches = (await db.prepare(
-    \`SELECT m.* FROM community_tournament_matches m
+    `SELECT m.* FROM community_tournament_matches m
      WHERE m.tournament_id=? AND m.round_number=?
-     ORDER BY m.slot\`
+     ORDER BY m.slot`
   ).bind(id, round).all<MatchRow>()).results;
   const expected = Number(t.entrants_count) / Math.pow(2, round);
   if (matches.length !== expected || matches.some((m) => m.status !== "open"))
     throw new ApiError(409, "Tournament round state is incomplete.");
   const ballots = (await db.prepare(
-    \`SELECT v.match_id,v.entry_id,COUNT(*) AS votes
+    `SELECT v.match_id,v.entry_id,COUNT(*) AS votes
      FROM community_tournament_votes v
      JOIN community_tournament_matches m ON m.id=v.match_id
      WHERE m.tournament_id=? AND m.round_number=?
-     GROUP BY v.match_id,v.entry_id\`
+     GROUP BY v.match_id,v.entry_id`
   ).bind(id, round).all<{ match_id: string; entry_id: string; votes: number }>()).results;
   const totals = new Map(ballots.map((b) => [b.match_id + ":" + b.entry_id, Number(b.votes)]));
   const seeds = (await db.prepare(
@@ -273,26 +273,26 @@ async function advanceTournament(db: DB, id: string): Promise<boolean> {
   // the guarded statements remain no-ops and UNIQUE slots prevent duplication.
   const writes = [
     db.prepare(
-      \`UPDATE community_tournaments
+      `UPDATE community_tournaments
        SET current_round=?,round_deadline=?,status=?,champion_entry_id=?,
            version=version+1,updated_at=?
        WHERE id=? AND version=? AND current_round=? AND status='live'
-         AND round_deadline<=?\`
+         AND round_deadline<=?`
     ).bind(nextRound, nextDeadline, done ? "completed" : "live",
       done ? resolved[0].winnerId : null, at, id, t.version, round, at),
     ...resolved.map(({ match, aVotes, bVotes, winnerId }) => db.prepare(
-      \`UPDATE community_tournament_matches
+      `UPDATE community_tournament_matches
        SET status='closed',winner_entry_id=?,final_a=?,final_b=?,closed_at=?
        WHERE id=? AND status='open' AND EXISTS(
          SELECT 1 FROM community_tournaments t WHERE t.id=?
-           AND t.version=? AND t.current_round=?)\`
+           AND t.version=? AND t.current_round=?)`
     ).bind(winnerId, aVotes, bVotes, at, match.id, id, Number(t.version) + 1, nextRound)),
     ...nextMatches.map((match) => db.prepare(
-      \`INSERT OR IGNORE INTO community_tournament_matches
+      `INSERT OR IGNORE INTO community_tournament_matches
        (id,tournament_id,round_number,slot,entry_a_id,entry_b_id,status,opened_at,closes_at)
        SELECT ?,id,?,?,?,?,'open',updated_at,round_deadline
        FROM community_tournaments
-       WHERE id=? AND version=? AND current_round=? AND status='live'\`
+       WHERE id=? AND version=? AND current_round=? AND status='live'`
     ).bind(match.id, nextRound, match.slot, match.a, match.b, id, Number(t.version) + 1, nextRound)),
   ];
   const results = await db.batch(writes);
@@ -302,8 +302,8 @@ async function advanceTournament(db: DB, id: string): Promise<boolean> {
 /** Run from the existing backend's social scheduled queue, never from a GET. */
 export async function advanceDueTournaments(db: DB, limit = 5): Promise<number> {
   const due = (await db.prepare(
-    \`SELECT id FROM community_tournaments WHERE status='live'
-     AND round_deadline<=? ORDER BY round_deadline,id LIMIT ?\`
+    `SELECT id FROM community_tournaments WHERE status='live'
+     AND round_deadline<=? ORDER BY round_deadline,id LIMIT ?`
   ).bind(now(), Math.max(1, Math.min(limit, 10))).all<{ id: string }>()).results;
   let advanced = 0;
   for (const row of due) if (await advanceTournament(db, row.id)) advanced++;
@@ -317,13 +317,13 @@ export async function handleCommunityTournaments(
   const db = env.DB, method = request.method;
   if (path === "/social/tournaments" && method === "GET") {
     const ids = (await db.prepare(
-      \`SELECT t.id FROM community_tournaments t
+      `SELECT t.id FROM community_tournaments t
        JOIN social_profiles sp ON sp.user_id=t.host_user_id
        JOIN auth_accounts a ON a.app_id=t.host_user_id AND a.disabled_at IS NULL
        WHERE t.status<>'cancelled' AND sp.profile_visibility='public'
          AND sp.activity_visibility='public'
        ORDER BY CASE WHEN t.status='live' THEN 0 ELSE 1 END,t.created_at DESC
-       LIMIT 8\`
+       LIMIT 8`
     ).all<{ id: string }>()).results;
     return json({ items: await Promise.all(ids.map((t) => tournamentDetail(db, t.id, userId))) });
   }
