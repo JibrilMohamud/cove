@@ -44,7 +44,18 @@ for (const locale of locales) {
       await route.fulfill({ response });
     });
     const failures = [];
-    page.on("pageerror", (e) => failures.push(e.message));
+    // WebKit may abort an outgoing /account read when the legacy redirect
+    // replaces this document. This is a browser navigation cancellation, not
+    // an API 500 or an application exception. Ignore ONLY that precise message
+    // during the redirect; keep every other page error visible to QA.
+    let replacingCommunityDocument = false;
+    page.on("pageerror", (e) => {
+      const expectedWebkitCancellation =
+        replacingCommunityDocument &&
+        page.context().browser()?.browserType().name() === "webkit" &&
+        /^.*\/127\.0\.0\.1:4173\/api\/fore\/account due to access control checks\.$/.test(e.message);
+      if (!expectedWebkitCancellation) failures.push(e.message);
+    });
     await page.goto("/community");
     await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
     // Finish the initial read-only API requests before changing routes: iPad
@@ -84,10 +95,13 @@ for (const locale of locales) {
       .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
       .analyze();
     // Old Following links resolve to Settings > Network, still behind sign-in.
+    replacingCommunityDocument = true;
     await page.goto("/community?tab=feed");
     await expect(page).toHaveURL(/\/settings\?tab=network$/);
     await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
     await expect(page.getByRole("heading", { name: "Make yourself at home." })).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    replacingCommunityDocument = false;
     expect(
       results.violations.map((r) => ({ id: r.id, targets: r.nodes.map((n) => n.target) })),
     ).toEqual([]);
