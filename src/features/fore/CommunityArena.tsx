@@ -1,5 +1,6 @@
 import { useState } from "react";
 import "./community-arena-experience.css";
+import { OfficialTournament } from "./OfficialTournament";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
@@ -636,13 +637,14 @@ export function CommunityArena() {
           </section>
         </div>
         <aside className="cove-arena-rail" aria-label="Community matchups and posting">
+          <OfficialTournament />
           <section className="cove-arena-tournament" aria-labelledby="cove-tournament-heading">
             <div className="cove-arena-rail-head">
               <h2 id="cove-tournament-heading">
                 <Trophy size={18} /> TOURNAMENTS
               </h2>
               <button type="button" onClick={() => setBracketOpen(true)}>
-                VIEW BRACKET <ArrowRight size={15} />
+                VIEW MATCHUPS <ArrowRight size={15} />
               </button>
             </div>
             {bracket.isLoading && (
@@ -878,7 +880,7 @@ export function CommunityArena() {
       <Dialog open={bracketOpen} onOpenChange={setBracketOpen}>
         <DialogContent className="cove-arena-bracket-dialog">
           <DialogTitle>
-            <Trophy size={20} /> Community tournament brackets
+            <Trophy size={20} /> Reader-created standalone matchups
           </DialogTitle>
           <DialogDescription>
             Each head-to-head reflects a public matchup and its real votes. Winners and later rounds
