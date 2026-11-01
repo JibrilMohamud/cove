@@ -2800,7 +2800,7 @@ export function CommunityPage() {
   if (club) return <ClubView id={club} />;
   return (
     <main className="community-page">
-       <nav className="community-tabs" aria-label={ui("Community sections")}>
+      <nav className="community-tabs" aria-label={ui("Community sections")}>
         {[
           ["arena", Flame, ui("Explore")],
           ["discover", Users, ui("Readers & clubs")],
@@ -2828,7 +2828,7 @@ export function CommunityPage() {
         </Suspense>
       ) : tab === "discover" ? (
         <Discover />
-       ) : (
+      ) : (
         <Suspense fallback={<p className="muted">{ui("Opening Community…")}</p>}>
           <ArenaTab />
         </Suspense>
