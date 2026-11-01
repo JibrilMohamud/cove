@@ -754,20 +754,30 @@ export async function queueAuthorReleaseAlerts(db: CatalogDB) {
 
 export async function processAuthorReleaseAlerts(db: CatalogDB, limit = 20) {
   const at = now(),
+    // Recover abandoned jobs, but never steal an actively processing batch.
+    // A crash after one or more notifications can safely replay because
+    // emitNotification uses the same per-follower dedupe key.
+    expiredAt = new Date(Date.now() - 30 * 60_000).toISOString(),
     jobs = await db
       .prepare(
-        "SELECT * FROM author_release_alert_jobs WHERE status='pending' AND available_at<=? ORDER BY available_at LIMIT ?",
+        "SELECT * FROM author_release_alert_jobs WHERE (status='pending' AND available_at<=?) OR (status='processing' AND updated_at<=?) ORDER BY available_at LIMIT ?",
       )
-      .bind(at, Math.max(1, Math.min(100, limit)))
+      .bind(at, expiredAt, Math.max(1, Math.min(100, limit)))
       .all<any>();
-  let notifications = 0;
+  let notifications = 0,
+    processed = 0;
   for (const job of jobs.results) {
-    await db
+    const claimAt = now();
+    // Atomic compare-and-set. An overlapping cron or an expired worker can
+    // never claim the same fresh job, nor finish someone else's later lease.
+    const claimed = await db
       .prepare(
-        "UPDATE author_release_alert_jobs SET status='processing',attempts=attempts+1,updated_at=? WHERE id=? AND status='pending'",
+        "UPDATE author_release_alert_jobs SET status='processing',attempts=attempts+1,updated_at=? WHERE id=? AND ((status='pending' AND available_at<=?) OR (status='processing' AND updated_at<=?)) RETURNING attempts",
       )
-      .bind(at, job.id)
-      .run();
+      .bind(claimAt, job.id, at, expiredAt)
+      .first<{ attempts: number }>();
+    if (!claimed) continue;
+    processed++;
     try {
       const product = await db
         .prepare(
@@ -824,30 +834,32 @@ export async function processAuthorReleaseAlerts(db: CatalogDB, limit = 20) {
         const cursor = String(followers.results.at(-1)?.user_id || "");
         await db
           .prepare(
-            "UPDATE author_release_alert_jobs SET status='pending',cursor_user_id=?,available_at=?,updated_at=? WHERE id=?",
+            "UPDATE author_release_alert_jobs SET status='pending',cursor_user_id=?,available_at=?,updated_at=? WHERE id=? AND status='processing' AND updated_at=?",
           )
-          .bind(cursor, at, at, job.id)
+          .bind(cursor, at, now(), job.id, claimAt)
           .run();
       } else
         await db
-          .prepare("UPDATE author_release_alert_jobs SET status='done',updated_at=? WHERE id=?")
-          .bind(at, job.id)
+          .prepare(
+            "UPDATE author_release_alert_jobs SET status='done',updated_at=? WHERE id=? AND status='processing' AND updated_at=?",
+          )
+          .bind(now(), job.id, claimAt)
           .run();
     } catch (e) {
-      const attempts = Number(job.attempts || 0) + 1,
+      const attempts = Number(claimed.attempts),
         status = attempts >= 5 ? "dead" : "pending",
         retry = new Date(
           Date.now() + Math.min(3600, 60 * Math.pow(2, attempts)) * 1000,
         ).toISOString();
       await db
         .prepare(
-          "UPDATE author_release_alert_jobs SET status=?,available_at=?,updated_at=? WHERE id=?",
+          "UPDATE author_release_alert_jobs SET status=?,available_at=?,updated_at=? WHERE id=? AND status='processing' AND updated_at=?",
         )
-        .bind(status, retry, now(), job.id)
+        .bind(status, retry, now(), job.id, claimAt)
         .run();
     }
   }
-  return { processed: jobs.results.length, notifications };
+  return { processed, notifications };
 }
 
 export async function publisherAuthorProfiles(db: CatalogDB, userId: string, accountId: string) {
