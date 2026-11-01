@@ -13,7 +13,7 @@ assert.match(backend, /dispatchPrivateAuthorSocialFanout\(env, 10, 250\)/);
 assert.match(backend, /processAuthorSocialFanoutJobs\(env\.DB, 10, 250\)/);
 assert.match(owner, /"\/social\/private-author-fanout"/);
 assert.match(owner, /processAuthorSocialFanoutJobs\(\s*env\.PRIMARY_DB/);
-assert.match(owner, /if\(!qaOwnerLeaseLive\(env\)\)/);
+assert.match(owner, /if\s*\(!qaOwnerLeaseLive\(env\)\)/);
 assert.match(owner, /__COVE_PRODUCTION_OWNER_BINARY_LOCK__===true\)return false/);
 assert.match(gateway, /"social\.process-author-fanout"/);
 for (const file of [
