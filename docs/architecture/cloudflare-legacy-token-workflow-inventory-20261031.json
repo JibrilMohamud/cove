@@ -1,140 +1,15 @@
 {
   "schema": "cove.legacy-cloudflare-broad-token-workflow-inventory.v1",
-  "observedOn": "2026-10-31",
+  "observedOn": "2026-11-01",
   "releaseApproval": false,
   "productionExclusiveOwnerCertified": false,
   "credentialRevocationCertified": false,
   "previouslyGrantedPermissions": 385,
-  "description": "Six guarded Cloudflare workflows moved to distinct dedicated secrets, with no broad-token fallback. These secrets and provider-enforced scopes are not yet provisioned or independently certified. 31 workflows with 36 references still use the broad token; release remains NO-GO.",
+  "description": "All 103 GitHub Actions workflow files have been source-audited: there are zero references to the original broad CLOUDFLARE_API_TOKEN GitHub Secret after this stacked PR. 37 isolated workflow credential names remain UNPROVISIONED and their effective Cloudflare policies UNVERIFIED. The source-audit success does NOT authorize any production release, live payments, database revocation, or broad token retirement; hold revocation until all scoped credentials are installed, exercised and attested.",
   "workflowFilesAudited": 103,
-  "maximumRemainingWorkflowConsumers": 31,
-  "maximumRemainingSecretReferences": 36,
-  "legacyConsumers": [
-    {
-      "path": ".github/workflows/biosync-canary.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/cloudflare-native-ssr-staging.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/cloudflare-paired-release-freeze.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/continuous-publication-qa.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/cove-commerce-private-qa-deploy.yml",
-      "maxReferences": 2
-    },
-    {
-      "path": ".github/workflows/cove-sounds-private-rollout.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/cove-sounds-verified-conversion-report.yml",
-      "maxReferences": 2
-    },
-    {
-      "path": ".github/workflows/covereads-secure-ssr-gateway.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/fast-storefront-real-catalog-acceptance.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/hosted-music-supply-disabled-qa.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/isolated-commons-audio-technical-qa.yml",
-      "maxReferences": 2
-    },
-    {
-      "path": ".github/workflows/isolated-commons-review-cases.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/isolated-data-plane.yml",
-      "maxReferences": 2
-    },
-    {
-      "path": ".github/workflows/isolated-open-license-discovery.yml",
-      "maxReferences": 2
-    },
-    {
-      "path": ".github/workflows/legal-authority-private-qa.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/literary-activation-readiness.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/literary-drain-worker-deploy.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/literary-guarded-owner-drain.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/literary-isolated-replay-handoff-deploy.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/literary-isolated-utc-budget.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/literary-live-cutover-preflight.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/literary-owner-capability-migration.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/literary-private-binding-stage-canary.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/literary-progressive-canonical-publication.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/literary-remote-staging-e2e.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/paid-legal-full-schema-private-qa.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/publication-source-isolation-qa.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/storefront-strangler-safe-integration.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/strangler-data-plane-preflight.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/strangler-hosted-capacity-evaluation.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/strangler-stage-core-deploy.yml",
-      "maxReferences": 1
-    }
-  ],
+  "maximumRemainingWorkflowConsumers": 0,
+  "maximumRemainingSecretReferences": 0,
+  "legacyConsumers": [],
   "scopedConsumers": [
     {
       "path": ".github/workflows/backend-readonly-candidate.yml",
@@ -169,6 +44,192 @@
     {
       "path": ".github/workflows/literary-prod-publisher-dormant-deploy.yml",
       "secret": "CLOUDFLARE_COVE_DORMANT_LITERARY_PUBLISHER_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/biosync-canary.yml",
+      "secret": "CLOUDFLARE_COVE_BIOSYNC_CANARY_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/cloudflare-native-ssr-staging.yml",
+      "secret": "CLOUDFLARE_COVE_CLOUDFLARE_NATIVE_SSR_STAGING_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/cloudflare-paired-release-freeze.yml",
+      "secret": "CLOUDFLARE_COVE_CLOUDFLARE_PAIRED_RELEASE_FREEZE_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/continuous-publication-qa.yml",
+      "secret": "CLOUDFLARE_COVE_CONTINUOUS_PUBLICATION_QA_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/cove-commerce-private-qa-deploy.yml",
+      "secret": "CLOUDFLARE_COVE_COVE_COMMERCE_PRIVATE_QA_DEPLOY_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/cove-sounds-private-rollout.yml",
+      "secret": "CLOUDFLARE_COVE_COVE_SOUNDS_PRIVATE_ROLLOUT_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/cove-sounds-verified-conversion-report.yml",
+      "secret": "CLOUDFLARE_COVE_COVE_SOUNDS_VERIFIED_CONVERSION_REPORT_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/covereads-secure-ssr-gateway.yml",
+      "secret": "CLOUDFLARE_COVE_COVEREADS_SECURE_SSR_GATEWAY_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/fast-storefront-real-catalog-acceptance.yml",
+      "secret": "CLOUDFLARE_COVE_FAST_STOREFRONT_REAL_CATALOG_ACCEPTANCE_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/hosted-music-supply-disabled-qa.yml",
+      "secret": "CLOUDFLARE_COVE_HOSTED_MUSIC_SUPPLY_DISABLED_QA_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/isolated-commons-audio-technical-qa.yml",
+      "secret": "CLOUDFLARE_COVE_ISOLATED_COMMONS_AUDIO_TECHNICAL_QA_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/isolated-commons-review-cases.yml",
+      "secret": "CLOUDFLARE_COVE_ISOLATED_COMMONS_REVIEW_CASES_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/isolated-data-plane.yml",
+      "secret": "CLOUDFLARE_COVE_ISOLATED_DATA_PLANE_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/isolated-open-license-discovery.yml",
+      "secret": "CLOUDFLARE_COVE_ISOLATED_OPEN_LICENSE_DISCOVERY_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/legal-authority-private-qa.yml",
+      "secret": "CLOUDFLARE_COVE_LEGAL_AUTHORITY_PRIVATE_QA_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/literary-activation-readiness.yml",
+      "secret": "CLOUDFLARE_COVE_LITERARY_ACTIVATION_READINESS_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/literary-drain-worker-deploy.yml",
+      "secret": "CLOUDFLARE_COVE_LITERARY_DRAIN_WORKER_DEPLOY_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/literary-guarded-owner-drain.yml",
+      "secret": "CLOUDFLARE_COVE_LITERARY_GUARDED_OWNER_DRAIN_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/literary-isolated-replay-handoff-deploy.yml",
+      "secret": "CLOUDFLARE_COVE_LITERARY_ISOLATED_REPLAY_HANDOFF_DEPLOY_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/literary-isolated-utc-budget.yml",
+      "secret": "CLOUDFLARE_COVE_LITERARY_ISOLATED_UTC_BUDGET_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/literary-live-cutover-preflight.yml",
+      "secret": "CLOUDFLARE_COVE_LITERARY_LIVE_CUTOVER_PREFLIGHT_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/literary-owner-capability-migration.yml",
+      "secret": "CLOUDFLARE_COVE_LITERARY_OWNER_CAPABILITY_MIGRATION_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/literary-private-binding-stage-canary.yml",
+      "secret": "CLOUDFLARE_COVE_LITERARY_PRIVATE_BINDING_STAGE_CANARY_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/literary-progressive-canonical-publication.yml",
+      "secret": "CLOUDFLARE_COVE_LITERARY_PROGRESSIVE_CANONICAL_PUBLICATION_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/literary-remote-staging-e2e.yml",
+      "secret": "CLOUDFLARE_COVE_LITERARY_REMOTE_STAGING_E2E_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/paid-legal-full-schema-private-qa.yml",
+      "secret": "CLOUDFLARE_COVE_PAID_LEGAL_FULL_SCHEMA_PRIVATE_QA_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/publication-source-isolation-qa.yml",
+      "secret": "CLOUDFLARE_COVE_PUBLICATION_SOURCE_ISOLATION_QA_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/storefront-strangler-safe-integration.yml",
+      "secret": "CLOUDFLARE_COVE_STOREFRONT_STRANGLER_SAFE_INTEGRATION_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/strangler-data-plane-preflight.yml",
+      "secret": "CLOUDFLARE_COVE_STRANGLER_DATA_PLANE_PREFLIGHT_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/strangler-hosted-capacity-evaluation.yml",
+      "secret": "CLOUDFLARE_COVE_STRANGLER_HOSTED_CAPACITY_EVALUATION_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/strangler-stage-core-deploy.yml",
+      "secret": "CLOUDFLARE_COVE_STRANGLER_STAGE_CORE_DEPLOY_TOKEN",
       "provisioned": false,
       "providerPrivilegesCertified": false
     }
