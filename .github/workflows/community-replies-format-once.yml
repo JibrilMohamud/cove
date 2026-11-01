@@ -1,0 +1,30 @@
+name: Temporary Community replies formatter
+on:
+  push:
+    branches: [fix/community-real-discussions-and-debates-20261101]
+    paths:
+      - .github/workflows/community-replies-format-once.yml
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - run: npm ci --no-audit --no-fund
+      - name: Prettier check and corrections
+        run: npx prettier --write src/features/fore/Community.tsx src/features/fore/CommunityArena.tsx src/features/fore/community-arena-experience.css src/features/fore/social.server.ts src/features/fore/community-tournaments.server.ts src/features/fore/OfficialTournament.tsx scripts/check-community-arena.mjs scripts/check-community-tournaments.mjs
+      - name: Commit formatting only
+        run: |
+          git diff --check
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/features/fore/Community.tsx src/features/fore/CommunityArena.tsx src/features/fore/community-arena-experience.css src/features/fore/social.server.ts src/features/fore/community-tournaments.server.ts src/features/fore/OfficialTournament.tsx scripts/check-community-arena.mjs scripts/check-community-tournaments.mjs
+          git commit -m "style(community): format new discussions and Hot Takes browser"
+          git push origin HEAD:refs/heads/fix/community-real-discussions-and-debates-20261101
