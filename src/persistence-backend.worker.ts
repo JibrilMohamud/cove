@@ -4,7 +4,10 @@ import { scopeExclusiveCanonicalD1 } from "./storefront-strangler/canonical-d1-w
 import { scopeCommerceProductionD1 } from "./storefront-strangler/commerce-d1-write-fence";
 import { backendScheduledPrimaryReadDb } from "./storefront-strangler/backend-scheduled-primary-reads";
 import { verifyIndependentBackendCredential } from "./storefront-strangler/backend-independent-credential";
-import { reportAudioTriggerDiagnostic } from "./storefront-strangler/backend-audio-trigger-diagnostics";
+import {
+  reportAudioTriggerDiagnostic,
+  type BackendDiagnosticsEnv,
+} from "./storefront-strangler/backend-audio-trigger-diagnostics";
 import {
   backendReadonlyCandidateRouteAllowed,
   scopeBackendReadonlyCandidate,
@@ -67,7 +70,7 @@ type BackendEnv = CoveEnv &
     FORE_BACKEND_TOKEN?: string;
     FORE_BACKEND_TOKEN_SHA256?: string;
     COVE_BACKEND_TOKEN_HASH_ONLY?: string;
-    BACKEND_DIAGNOSTICS?: import("./storefront-strangler/backend-audio-trigger-diagnostics").BackendDiagnosticsEnv["BACKEND_DIAGNOSTICS"];
+    BACKEND_DIAGNOSTICS?: BackendDiagnosticsEnv["BACKEND_DIAGNOSTICS"];
     FORE_PUBLIC_URL?: string;
     FORE_CATALOG_PAGES_PER_TICK?: string;
     FORE_CATALOG_EPUBS_PER_TICK?: string;
