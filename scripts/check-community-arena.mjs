@@ -104,6 +104,11 @@ try {
   assert.equal(first.items[0].kind, "take");
   assert.equal(first.items[0].bookId, "1342");
   assert.equal(first.items[0].body, "The ending matters more than the beginning.");
+  const guestFeed = await get("/social/arena", null);
+  assert.equal(guestFeed.items.length, 1, "signed-out readers can browse Community posts");
+  assert.equal(guestFeed.items[0].id, created.id);
+  const publicDiscovery = await get("/social/discover", null);
+  assert.ok(publicDiscovery.people.some((person) => person.user_id === "alice"));
   assert.equal((await get("/social/arena?kind=matchup", "bob")).items.length, 0);
   assert.equal((await get("/social/arena?kind=take", "bob")).items.length, 1);
 
@@ -206,6 +211,17 @@ try {
     "Arena GET must not add canonical writers",
   );
   assert.match(source, /LIMIT 80/, "Arena feed must be bounded");
+  const communityPage = fs.readFileSync("src/features/fore/Community.tsx", "utf8");
+  assert.match(communityPage, /params\.get\("tab"\) \|\| "arena"/,
+    "Public Arena must be the Community default");
+  const communityNavigation = communityPage
+    .split('<nav className="community-tabs"')[1].split('].map(')[0];
+  assert.doesNotMatch(communityNavigation, /"received"|"sharing"|"me"/,
+    "private tools must not appear in Community navigation");
+  const accountRoute = fs.readFileSync("src/routes/profile.tsx", "utf8");
+  for (const section of ["me", "sharing", "received"])
+    assert.match(accountRoute, new RegExp('"' + section + '"'),
+      "Private tools should be accessible from My Account");
   assert.match(
     fs.readFileSync("src/features/fore/Community.tsx", "utf8"),
     /lazy\(\(\) => import\("\.\/CommunityArena"\)/,
