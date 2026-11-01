@@ -4,7 +4,9 @@ import { test, expect } from "@playwright/test";
 // guard rejected these valid IDs, returning to the overview on every click.
 test.use({ serviceWorkers: "block" });
 
-test("Arena owner deep link opens the original discussion and real reply composer", async ({\n  page,\n}) => {
+test("Arena owner deep link opens the original discussion and real reply composer", async ({
+  page,
+}) => {
   await page.goto(
     "/community?arenaPost=post_f7ef8023-5b9f-4d19-b86a-9d4de9ef80e6&arenaOwner=sb%3A9f4af27d-00f1-40e7-b591-b7b4cdba4269",
   );
