@@ -65,7 +65,7 @@ export function ReaderCover({ book }: { book?: ProfileBook | null }) {
       {cover && !broken ? (
         <img
           src={cover}
-          alt={"Cover of " + (book.title || "book")}
+          alt={"Cover of " + (book?.title || "book")}
           loading="lazy"
           decoding="async"
           onError={() => setBroken(true)}
