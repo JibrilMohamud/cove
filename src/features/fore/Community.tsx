@@ -2684,6 +2684,7 @@ export function MyCommunity() {
   );
 }
 function LegacyCommunityAccountRedirect({ section }: { section: "received" | "sharing" | "me" }) {
+  const ui = useUiText();
   const destination = `/profile?section=${encodeURIComponent(section)}`;
   useEffect(() => {
     window.location.replace(destination);
@@ -2691,11 +2692,13 @@ function LegacyCommunityAccountRedirect({ section }: { section: "received" | "sh
   return (
     <main className="community-page">
       <p>
-        This personal page has moved to My Account.{" "}
         <a className="text-link" href={destination}>
-          Continue to your account
+          {section === "received"
+            ? ui("Shared with me")
+            : section === "sharing"
+              ? ui("My sharing")
+              : ui("My profile")}
         </a>
-        .
       </p>
     </main>
   );
