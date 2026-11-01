@@ -1,0 +1,34 @@
+name: Temporary official tournament formatter
+on:
+  push:
+    branches:
+      - feat/community-reading-room-redesign-2026-11-01
+    paths:
+      - .github/workflows/community-tournament-format-once.yml
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - run: npm ci --no-audit --no-fund
+      - name: Apply Cove Prettier to changed source
+        run: |
+          npx prettier --write src/features/fore/community-tournaments.server.ts src/features/fore/OfficialTournament.tsx src/features/fore/official-tournament.css scripts/check-community-tournaments.mjs scripts/browser-qa/localization-a11y.spec.mjs src/features/fore/CommunityArena.tsx
+      - name: Commit formatting corrections
+        run: |
+          git diff --check
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/features/fore/community-tournaments.server.ts src/features/fore/OfficialTournament.tsx src/features/fore/official-tournament.css scripts/check-community-tournaments.mjs scripts/browser-qa/localization-a11y.spec.mjs src/features/fore/CommunityArena.tsx
+          git commit -m "style(community): format tournament implementation"
+          git push origin HEAD:refs/heads/feat/community-reading-room-redesign-2026-11-01
