@@ -2110,6 +2110,7 @@ export async function handleSocial(
     // table scan of social posts. The endpoint runs only on the Arena tab.
     const cursor = socialCursor(url.searchParams.get("cursor"));
     const sort = z.enum(["recent", "trending"]).parse(url.searchParams.get("sort") || "recent");
+    const kind = z.enum(["all", "take", "debate", "matchup"]).parse(url.searchParams.get("kind") || "all");
     const batch = (
       await db.prepare(
         `SELECT e.id,e.entity_id,e.entity_type,e.event_type,e.created_at
@@ -2137,7 +2138,11 @@ export async function handleSocial(
     const byId = new Map(posts.map((p: any) => [String(p.id), p]));
     const candidates = batch
       .map((event) => ({ event, post: byId.get(String(event.entity_id)) }))
-      .filter((entry) => entry.post && readArenaPost(String(entry.post.body)))
+      .filter((entry) => {
+        if (!entry.post) return false;
+        const parsed = readArenaPost(String(entry.post.body));
+        return !!parsed && (kind === "all" || parsed.kind === kind);
+      })
       .slice(0, 16);
     const visible = await visiblePosts(db, userId, candidates.map((e) => e.post), 1, env);
     const reactIds = visible.map((p) => String(p.id));
