@@ -5,21 +5,13 @@
   "productionExclusiveOwnerCertified": false,
   "credentialRevocationCertified": false,
   "previouslyGrantedPermissions": 385,
-  "description": "Manual complete scan of 103 GitHub Actions workflow files on the stacked scoped-production-deploy branch. Remaining references to secrets.CLOUDFLARE_API_TOKEN are unretired consumers, not permission to use the broad token for a production release. Three production read-only audit workflows moved to a separately scoped Workers/Token Read credential, without D1 Write or Workers Admin; this audit token is not yet provisioned.",
+  "description": "Six guarded Cloudflare workflows moved to distinct dedicated secrets, with no broad-token fallback. These secrets and provider-enforced scopes are not yet provisioned or independently certified. 31 workflows with 36 references still use the broad token; release remains NO-GO.",
   "workflowFilesAudited": 103,
-  "maximumRemainingWorkflowConsumers": 37,
-  "maximumRemainingSecretReferences": 42,
+  "maximumRemainingWorkflowConsumers": 31,
+  "maximumRemainingSecretReferences": 36,
   "legacyConsumers": [
     {
-      "path": ".github/workflows/backend-readonly-candidate.yml",
-      "maxReferences": 1
-    },
-    {
       "path": ".github/workflows/biosync-canary.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/canonical-readonly-service.yml",
       "maxReferences": 1
     },
     {
@@ -48,10 +40,6 @@
     },
     {
       "path": ".github/workflows/covereads-secure-ssr-gateway.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/deployed-commerce-browser-acceptance.yml",
       "maxReferences": 1
     },
     {
@@ -115,14 +103,6 @@
       "maxReferences": 1
     },
     {
-      "path": ".github/workflows/literary-prod-handoff-dormant-deploy.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/literary-prod-publisher-dormant-deploy.yml",
-      "maxReferences": 1
-    },
-    {
       "path": ".github/workflows/literary-progressive-canonical-publication.yml",
       "maxReferences": 1
     },
@@ -153,10 +133,44 @@
     {
       "path": ".github/workflows/strangler-stage-core-deploy.yml",
       "maxReferences": 1
+    }
+  ],
+  "scopedConsumers": [
+    {
+      "path": ".github/workflows/backend-readonly-candidate.yml",
+      "secret": "CLOUDFLARE_COVE_BACKEND_CANDIDATE_DEPLOY_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/canonical-readonly-service.yml",
+      "secret": "CLOUDFLARE_COVE_CANONICAL_READER_DEPLOY_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/deployed-commerce-browser-acceptance.yml",
+      "secret": "CLOUDFLARE_COVE_ARCHIVED_COMMERCE_QA_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
     },
     {
       "path": ".github/workflows/strangler-stage-private-bucket-provision.yml",
-      "maxReferences": 1
+      "secret": "CLOUDFLARE_COVE_STAGE_R2_PROVISION_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/literary-prod-handoff-dormant-deploy.yml",
+      "secret": "CLOUDFLARE_COVE_DORMANT_LITERARY_HANDOFF_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
+    },
+    {
+      "path": ".github/workflows/literary-prod-publisher-dormant-deploy.yml",
+      "secret": "CLOUDFLARE_COVE_DORMANT_LITERARY_PUBLISHER_TOKEN",
+      "provisioned": false,
+      "providerPrivilegesCertified": false
     }
   ]
 }

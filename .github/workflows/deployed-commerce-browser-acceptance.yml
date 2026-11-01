@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_COVE_ARCHIVED_COMMERCE_QA_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
       CLOUDFLARE_SEND_METRICS: "false"
       COVE_QA_BUYER_EMAIL: ${{ secrets.COVE_QA_BUYER_EMAIL }}
@@ -28,6 +28,14 @@ jobs:
       COVE_QA_OUTSIDER_PASSWORD: ${{ secrets.COVE_QA_OUTSIDER_PASSWORD }}
       COVE_SANDBOX_SECRET_KEY: ${{ secrets.COVE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_TEST_SECRET_KEY || secrets.STRIPE_SANDBOX_SECRET_KEY || secrets.STRIPE_TEST_SECRET_KEY }}
     steps:
+      - name: Require dedicated scoped Cloudflare credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]]; then
+            echo "::error::Dedicated CLOUDFLARE_COVE_ARCHIVED_COMMERCE_QA_TOKEN is required; no broad-token fallback."
+            exit 1
+          fi
       - uses: actions/checkout@v6
         with: { persist-credentials: false }
       - uses: actions/setup-node@v6

@@ -12,13 +12,60 @@ assert.equal(inventory.schema, "cove.legacy-cloudflare-broad-token-workflow-inve
 assert.equal(inventory.releaseApproval, false);
 assert.equal(inventory.productionExclusiveOwnerCertified, false);
 assert.equal(inventory.credentialRevocationCertified, false);
-assert.equal(inventory.maximumRemainingWorkflowConsumers, 37);
-assert.equal(inventory.maximumRemainingSecretReferences, 42);
+assert.equal(inventory.maximumRemainingWorkflowConsumers, 31);
+assert.equal(inventory.maximumRemainingSecretReferences, 36);
 const files = readdirSync(".github/workflows")
   .filter((name) => /\.ya?ml$/.test(name))
   .map((name) => path.posix.join(".github/workflows", name));
 const allow = new Map(inventory.legacyConsumers.map((x) => [x.path, x.maxReferences]));
 assert.equal(allow.size, inventory.legacyConsumers.length);
+const expectedScopedConsumers = new Map([
+  [
+    ".github/workflows/backend-readonly-candidate.yml",
+    "CLOUDFLARE_COVE_BACKEND_CANDIDATE_DEPLOY_TOKEN",
+  ],
+  [
+    ".github/workflows/canonical-readonly-service.yml",
+    "CLOUDFLARE_COVE_CANONICAL_READER_DEPLOY_TOKEN",
+  ],
+  [
+    ".github/workflows/deployed-commerce-browser-acceptance.yml",
+    "CLOUDFLARE_COVE_ARCHIVED_COMMERCE_QA_TOKEN",
+  ],
+  [
+    ".github/workflows/strangler-stage-private-bucket-provision.yml",
+    "CLOUDFLARE_COVE_STAGE_R2_PROVISION_TOKEN",
+  ],
+  [
+    ".github/workflows/literary-prod-handoff-dormant-deploy.yml",
+    "CLOUDFLARE_COVE_DORMANT_LITERARY_HANDOFF_TOKEN",
+  ],
+  [
+    ".github/workflows/literary-prod-publisher-dormant-deploy.yml",
+    "CLOUDFLARE_COVE_DORMANT_LITERARY_PUBLISHER_TOKEN",
+  ],
+]);
+assert.equal(inventory.scopedConsumers.length, expectedScopedConsumers.size);
+for (const entry of inventory.scopedConsumers) {
+  assert.equal(expectedScopedConsumers.get(entry.path), entry.secret);
+  assert.equal(entry.provisioned, false);
+  assert.equal(entry.providerPrivilegesCertified, false);
+  const source = readFileSync(entry.path, "utf8");
+  assert.ok(
+    source.includes("CLOUDFLARE_API_TOKEN: ${{ secrets." + entry.secret + " }}"),
+    "Dedicated secret reference required: " + entry.path,
+  );
+  assert.ok(
+    source.includes("- name: Require dedicated scoped Cloudflare credential"),
+    "Missing fail-closed credential check: " + entry.path,
+  );
+  assert.equal(
+    source.includes("secrets.CLOUDFLARE_API_TOKEN"),
+    false,
+    "Retired workflow regained broad token: " + entry.path,
+  );
+}
+
 let consumers = 0;
 let references = 0;
 for (const file of files) {
@@ -60,7 +107,7 @@ for (const file of [
   );
 }
 console.log(
-  `PASS: ${consumers}/37 unretired workflow consumers, ${references}/42 old token references; no new grants or release approval.`,
+  `PASS: ${consumers}/31 unretired workflow consumers, ${references}/36 old token references; no new grants or release approval.`,
 );
 if (consumers)
   console.log(
