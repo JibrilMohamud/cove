@@ -45,6 +45,8 @@ jobs:
         run: node scripts/check-production-persistence-deploy-identity.mjs
       - name: Production Workers must never reuse the broad account token
         run: node scripts/check-production-worker-release-tokens.mjs
+      - name: Audit every remaining broad Cloudflare token workflow consumer
+        run: node scripts/check-cloudflare-legacy-token-inventory.mjs
       - name: Production legal owner cannot enter synthetic QA lease
         run: node scripts/check-production-owner-binary-lock.mjs
       - name: Reading statistics and audiobook regressions
