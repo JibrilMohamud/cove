@@ -70,6 +70,22 @@ try {
   const tally = await get("/social/arena?sort=trending", "bob");
   assert.equal(tally.items[0].fire, 1);
   assert.equal(tally.items[0].clown, 0);
+  await assert.rejects(
+    () => social.handleSocial(req(`/social/posts/${created.id}/reaction`, {
+      reaction: "funny", active: true,
+    }), env, `/social/posts/${created.id}/reaction`, "bob"),
+    /Remove your previous vote/,
+    "A reader cannot vote Fire and Clown simultaneously",
+  );
+  await social.handleSocial(req(`/social/posts/${created.id}/reaction`, {
+    reaction: "agree", active: false,
+  }), env, `/social/posts/${created.id}/reaction`, "bob");
+  await social.handleSocial(req(`/social/posts/${created.id}/reaction`, {
+    reaction: "funny", active: true,
+  }), env, `/social/posts/${created.id}/reaction`, "bob");
+  const swapped = await get("/social/arena", "bob");
+  assert.equal(swapped.items[0].fire, 0);
+  assert.equal(swapped.items[0].clown, 1);
 
   await db.prepare(
     "INSERT INTO reviews(id,user_id,book_id,rating_steps,body,visibility,spoiler,word_count,created_at,updated_at) VALUES(?,?,?,?,?,'public',0,?,?,?)",
