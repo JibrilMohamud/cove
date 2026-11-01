@@ -169,39 +169,6 @@ try {
   assert.equal((await get("/social/arena?kind=take", "bob")).items.length, 1);
 
 
-  // A public Arena post must NOT bypass legacy profile reply settings.
-  await assert.rejects(() => social.handleSocial(
-    req("/social/posts", {
-      contextType: "profile", contextId: "alice", parentId: created.id,
-      postType: "reply", body: "Uninvited legacy reply.", visibility: "public",
-    }), env, "/social/posts", "charlie",
-  ), /not accepting replies/, "Legacy profile privacy remains enforced.");
-
-  // Authors can explicitly open a newly published public debate to everyone.
-  const openResponse = await social.handleSocial(
-    req("/social/posts", {
-      contextType: "profile", contextId: "alice", postType: "prompt",
-      body: openMarker, visibility: "public",
-    }), env, "/social/posts", "alice",
-  );
-  assert.equal(openResponse.status, 201);
-  const openPost = await openResponse.json();
-  const outsideReply = await social.handleSocial(
-    req("/social/posts", {
-      contextType: "profile", contextId: "alice", parentId: openPost.id,
-      postType: "reply", body: "Outsider public reply is welcome.", visibility: "public",
-    }), env, "/social/posts", "charlie",
-  );
-  assert.equal(outsideReply.status, 201, "Explicit opt-in accepts public readers beyond followers.");
-  const firstOpenReply = await outsideReply.json();
-  const nestedReply = await social.handleSocial(
-    req("/social/posts", {
-      contextType: "profile", contextId: "alice", parentId: firstOpenReply.id,
-      postType: "reply", body: "Nested threads also stay open.", visibility: "public",
-    }), env, "/social/posts", "charlie",
-  );
-  assert.equal(nestedReply.status, 201, "Nested replies inherit the root Arena opt-in.");
-
   const voted = await social.handleSocial(
     req(`/social/posts/${created.id}/reaction`, {
       reaction: "agree",
@@ -278,6 +245,39 @@ try {
     mockGetBook,
   );
   assert.equal((await noMatches.json()).reviews.length, 0);
+
+  // A public Arena post must NOT bypass legacy profile reply settings.
+  await assert.rejects(() => social.handleSocial(
+    req("/social/posts", {
+      contextType: "profile", contextId: "alice", parentId: created.id,
+      postType: "reply", body: "Uninvited legacy reply.", visibility: "public",
+    }), env, "/social/posts", "charlie",
+  ), /not accepting replies/, "Legacy profile privacy remains enforced.");
+
+  // Authors can explicitly open a newly published public debate to everyone.
+  const openResponse = await social.handleSocial(
+    req("/social/posts", {
+      contextType: "profile", contextId: "alice", postType: "prompt",
+      body: openMarker, visibility: "public",
+    }), env, "/social/posts", "alice",
+  );
+  assert.equal(openResponse.status, 201);
+  const openPost = await openResponse.json();
+  const outsideReply = await social.handleSocial(
+    req("/social/posts", {
+      contextType: "profile", contextId: "alice", parentId: openPost.id,
+      postType: "reply", body: "Outsider public reply is welcome.", visibility: "public",
+    }), env, "/social/posts", "charlie",
+  );
+  assert.equal(outsideReply.status, 201, "Explicit opt-in accepts public readers beyond followers.");
+  const firstOpenReply = await outsideReply.json();
+  const nestedReply = await social.handleSocial(
+    req("/social/posts", {
+      contextType: "profile", contextId: "alice", parentId: firstOpenReply.id,
+      postType: "reply", body: "Nested threads also stay open.", visibility: "public",
+    }), env, "/social/posts", "charlie",
+  );
+  assert.equal(nestedReply.status, 201, "Nested replies inherit the root Arena opt-in.");
 
   const owner = await social.handleSocial(
     req("/social/block", {
