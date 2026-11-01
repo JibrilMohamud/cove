@@ -7,7 +7,10 @@ import fs from "node:fs";
 const email = process.env.COVE_QA_OUTSIDER_EMAIL || "";
 const password = process.env.COVE_QA_OUTSIDER_PASSWORD || "";
 const target = process.env.COVE_QA_SEED_TARGET || "";
-assert.ok(email.includes("@") && password.length, "QA outsider credentials must be supplied securely");
+assert.ok(
+  email.includes("@") && password.length,
+  "QA outsider credentials must be supplied securely",
+);
 assert.equal(
   process.env.COVE_QA_SEED_CONFIRM,
   "publish-six-public-posts",
@@ -60,8 +63,7 @@ assert.equal(account.user?.email?.toLowerCase(), email.toLowerCase(), "Account i
 const userId = account.user.id;
 const me = await request("/social/me");
 assert.ok(
-  me.profile?.profile_visibility === "public" &&
-    me.profile?.activity_visibility === "public",
+  me.profile?.profile_visibility === "public" && me.profile?.activity_visibility === "public",
   "QA account must voluntarily enable public profile and public activity in Settings before seeding",
 );
 const fixture = JSON.parse(
@@ -71,8 +73,7 @@ assert.equal(fixture.posts.length, 6);
 const seen = new Set();
 for (const kind of ["take", "debate", "matchup"]) {
   const list = await request("/social/arena?kind=" + kind);
-  for (const post of list.items || [])
-    if (post.user?.id === userId) seen.add(post.body);
+  for (const post of list.items || []) if (post.user?.id === userId) seen.add(post.body);
 }
 let added = 0,
   skipped = 0;
@@ -83,8 +84,7 @@ for (const post of fixture.posts) {
     skipped++;
     continue;
   }
-  const marker = "[COVE-ARENA:" + post.kind +
-    (post.bookId ? ":" + post.bookId : "") + "]\n";
+  const marker = "[COVE-ARENA:" + post.kind + (post.bookId ? ":" + post.bookId : "") + "]\n";
   const result = await request("/social/posts", "POST", {
     contextType: "profile",
     contextId: userId,
