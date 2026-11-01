@@ -21,6 +21,8 @@ import {ensurePreorderReleasePlan} from "../features/fore/preorder.server";
 import {bindPublicationOwner,hasPublicationOwner,dispatchPublicationActivation,dispatchPublicationPreorder,dispatchPublicationRecovery,dispatchPublicationMaterialization,dispatchPublishingOnboardingReview,dispatchPublishingOwnerValidationJob} from "./publication-owner-routing.server";
 import {uploadPublishingAsset,publishingUploadLimit} from "../features/fore/publishing.server";
 import {checkoutQuote} from "../features/fore/commerce.server";
+import {processAuthorSocialFanoutJobs} from "../features/fore/social.server";
+import {queueAuthorReleaseAlerts,processAuthorReleaseAlerts} from "../features/fore/retail-intelligence.server";
 import {sha256 as partnerFeedSha256,partnerAudit as partnerFeedAudit,
   normalizedCountryList as partnerNormalizedCountryList} from "../features/fore/traditional-publishing.server";
 import type {PartnerProduct} from "../features/fore/traditional-publishing.server";
@@ -17611,6 +17613,8 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
   private contractExecutions=new Set<string>();
   private publicationRecoveryRunning=false;
   private partnerFeedRunning=false;
+  private authorSocialFanoutRunning=false;
+  private authorReleaseAlertsRunning=false;
   private settlementExecutions=new Set<string>();
   private settlementRecoveryRunning=false;
   constructor(ctx: { storage: { sql: unknown } }, env: LegalAuthorityEnv) {
@@ -17691,6 +17695,8 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/entitlement/publish-verified",
       "/commercial/entitlement/publish-order-verified",
       "/publishing/partner/process-feed",
+      "/social/private-author-fanout",
+      "/social/private-author-release-alerts",
       "/catalog/normalize-gutenberg",
       "/catalog/personal-import",
       "/publishing/audio/register-upload",
@@ -17823,6 +17829,49 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           return Response.json({schema:"cove.publication-recovery.v1",ownerFirst:true,
             operationId:input.operationId,...result},{headers:noStore});
         } finally {this.publicationRecoveryRunning=false;}
+      }
+      if(route==="/social/private-author-release-alerts") {
+        const q=raw as {limit?:unknown;operationId?:unknown}|null;
+        if(!q||typeof q!=="object"||Array.isArray(q)||
+          Object.keys(q).sort().join(",")!=="limit,operationId"||
+          !Number.isSafeInteger(q.limit)||Number(q.limit)<1||Number(q.limit)>50||
+          typeof q.operationId!=="string"||
+          !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,95}$/.test(q.operationId))
+          return new Response(null,{status:400,headers:noStore});
+        if(this.authorReleaseAlertsRunning)return new Response(null,{status:409,headers:noStore});
+        this.authorReleaseAlertsRunning=true;
+        try {
+          // Always use the owner's own canonical database. The scheduler
+          // provides only batch size and unique operation ID; it cannot pick
+          // rights, followers, SQL, content or a scan cursor.
+          const scan=await queueAuthorReleaseAlerts(env.PRIMARY_DB);
+          const delivery=await processAuthorReleaseAlerts(env.PRIMARY_DB,Number(q.limit));
+          return Response.json({schema:"cove.owner-author-release-alerts.v1",
+            ownerFirst:true,operationId:q.operationId,queued:scan.queued,
+            processed:delivery.processed,notifications:delivery.notifications},{headers:noStore});
+        }finally{this.authorReleaseAlertsRunning=false;}
+      }
+      if(route==="/social/private-author-fanout") {
+        const q=raw as {limit?:unknown;batchSize?:unknown;operationId?:unknown}|null;
+        if(!q||typeof q!=="object"||Array.isArray(q)||
+          Object.keys(q).sort().join(",")!=="batchSize,limit,operationId"||
+          !Number.isSafeInteger(q.limit)||Number(q.limit)<1||Number(q.limit)>10||
+          !Number.isSafeInteger(q.batchSize)||Number(q.batchSize)<1||Number(q.batchSize)>250||
+          typeof q.operationId!=="string"||
+          !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,95}$/.test(q.operationId))
+          return new Response(null,{status:400,headers:noStore});
+        if(this.authorSocialFanoutRunning)return new Response(null,{status:409,headers:noStore});
+        this.authorSocialFanoutRunning=true;
+        try {
+          // Only the private owner has the canonical write capability.
+          // The caller provides a bounded tick size, never SQL, user IDs,
+          // notification content or a job cursor.
+          const result=await processAuthorSocialFanoutJobs(
+            env.PRIMARY_DB,Number(q.limit),Number(q.batchSize)
+          );
+          return Response.json({schema:"cove.owner-author-social-fanout.v1",
+            ownerFirst:true,operationId:q.operationId,...result},{headers:noStore});
+        }finally{this.authorSocialFanoutRunning=false;}
       }
       if(route==="/publishing/partner/process-feed") {
         const q=raw as {limit?:unknown;operationId?:unknown}|null;
