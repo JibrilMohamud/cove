@@ -82,7 +82,7 @@ jobs:
           sudo apt-get install -y -qq ffmpeg
       - name: Verify exact-master DSP and trust boundaries
         run: python scripts/soundtracks/test-profile-audio.py -v
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         if: matrix.consumer == 0 || env.COVE_SOUNDTRACK_REVIEW_TOKEN != ''
         with:
           path: ~/.cache/huggingface/hub
