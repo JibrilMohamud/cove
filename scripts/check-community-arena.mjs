@@ -253,14 +253,23 @@ try {
   const demoPublic = await get("/social/arena", null);
   const demoEntries = demoPublic.items.filter((post) => publishedIds.includes(post.id));
   assert.equal(demoEntries.length, fixture.posts.length, "all demo posts are publicly visible");
-  for (const [kind, expectedCount] of [["take", 3], ["debate", 2], ["matchup", 1]]) {
+  for (const [kind, expectedCount] of [
+    ["take", 3],
+    ["debate", 2],
+    ["matchup", 1],
+  ]) {
     const category = await get(`/social/arena?kind=${kind}`, null);
     const count = category.items.filter((post) => publishedIds.includes(post.id)).length;
     assert.equal(count, expectedCount, `demo ${kind} count`);
   }
-  assert.ok(demoEntries.some((entry) => entry.kind === "matchup" &&
-    entry.body.includes("Jane Eyre") && entry.body.includes("Pride and Prejudice")));
-
+  assert.ok(
+    demoEntries.some(
+      (entry) =>
+        entry.kind === "matchup" &&
+        entry.body.includes("Jane Eyre") &&
+        entry.body.includes("Pride and Prejudice"),
+    ),
+  );
 
   const source = fs.readFileSync("src/features/fore/social.server.ts", "utf8");
   const arenaRead = source
