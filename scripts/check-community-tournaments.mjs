@@ -158,6 +158,39 @@ try {
     /closed/,
     "Completed tournament ballot cannot change.",
   );
+  // A 16-book bracket must advance through four independently finalized rounds,
+  // never generating a second copy on replay. Zero-vote ties use published seed order.
+  const sixteen = await call("/social/tournaments", "POST", {
+    ...payload,
+    title: "Sixteen classics tournament",
+    productIds: [
+      "1342", "2701", "1661", "2641", "11", "345", "1260", "84",
+      "2852", "64317", "768", "2591", "74", "98", "174", "5200",
+    ],
+  }, "host");
+  assert.equal(sixteen.body.roundsTotal, 4);
+  assert.equal(sixteen.body.entries.length, 16);
+  assert.equal(sixteen.body.matches.length, 8);
+  for (let round = 1; round <= 4; round++) {
+    const state = (await call("/social/tournaments/" + sixteen.body.id)).body;
+    assert.equal(state.currentRound, round);
+    await db.prepare("UPDATE community_tournaments SET round_deadline=? WHERE id=?")
+      .bind(yesterday, sixteen.body.id).run();
+    await db.prepare(
+      "UPDATE community_tournament_matches SET closes_at=? WHERE tournament_id=? AND round_number=?"
+    ).bind(yesterday, sixteen.body.id, round).run();
+    assert.equal(await service.advanceDueTournaments(db, 5), 1);
+    assert.equal(await service.advanceDueTournaments(db, 5), 0);
+    const after = (await call("/social/tournaments/" + sixteen.body.id)).body;
+    assert.equal(after.matches.filter((m) => m.status === "closed").length,
+      [8, 12, 14, 15][round - 1], "Closed rounds must retain immutable match results.");
+  }
+  const grandFinal = (await call("/social/tournaments/" + sixteen.body.id)).body;
+  assert.equal(grandFinal.status, "completed");
+  assert.equal(grandFinal.matches.length, 15);
+  assert.equal(grandFinal.championEntryId, grandFinal.entries[0].id,
+    "Seed-one tie breaker is deterministic across four rounds.");
+
   await db
     .prepare("UPDATE social_profiles SET activity_visibility='private' WHERE user_id='host'")
     .run();
@@ -174,7 +207,7 @@ try {
     "Tournament endpoints must not mutate legal, rights, or financial tables.",
   );
   console.log(
-    "PASS: real four-book bracket, vote exclusivity, final snapshots, " +
+    "PASS: real four- and sixteen-book brackets, vote exclusivity, final snapshots, " +
       "timed advancement, idempotent replay, completed champion, privacy and social-only mutations",
   );
 } finally {
