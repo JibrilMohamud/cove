@@ -12,7 +12,9 @@ function FollowingRoute() {
     <SiteShell active="/following" title="Following">
       <AccountGuard>
         <div className="community-page">
-          <a className="text-link" href="/community">← Community</a>
+          <a className="text-link" href="/community">
+            ← Community
+          </a>
           <Suspense fallback={<p role="status">Loading your reading circle…</p>}>
             <Feed />
           </Suspense>
