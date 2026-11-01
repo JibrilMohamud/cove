@@ -859,5 +859,13 @@
   "Searching…": "جارٍ البحث…",
   "Follow": "متابعة",
   "Unfollowed": "تم إلغاء المتابعة",
-  "Follow request sent": "تم إرسال طلب المتابعة"
+  "Follow request sent": "تم إرسال طلب المتابعة",
+  "Cart": "السلة",
+  "Wishlist": "قائمة الرغبات",
+  "Orders": "الطلبات",
+  "Preferences": "التفضيلات",
+  "Account": "الحساب",
+  "Manage your reading preferences, account, and network.": "أدِر تفضيلات القراءة وحسابك وشبكتك.",
+  "Settings sections": "أقسام الإعدادات",
+  "Loading settings…": "جارٍ تحميل الإعدادات…"
 }
