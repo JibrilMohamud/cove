@@ -30,7 +30,9 @@ import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as OrdersRouteImport } from './routes/orders'
 import { Route as PreordersRouteImport } from './routes/preorders'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as FollowingRouteImport } from './routes/following'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as PublishingRouteImport } from './routes/publishing'
 import { Route as PublishingPolicyRouteImport } from './routes/publishing-policy'
 import { Route as SearchRouteImport } from './routes/search'
@@ -172,9 +174,19 @@ const PrivacyRoute = PrivacyRouteImport.update({
   path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FollowingRoute = FollowingRouteImport.update({
+  id: '/following',
+  path: '/following',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PublishingRoute = PublishingRouteImport.update({
@@ -375,7 +387,9 @@ export interface FileRoutesByFullPath {
   '/orders': typeof OrdersRoute
   '/preorders': typeof PreordersRoute
   '/privacy': typeof PrivacyRoute
+  '/following': typeof FollowingRoute
   '/profile': typeof ProfileRoute
+  '/settings': typeof SettingsRoute
   '/publishing': typeof PublishingRoute
   '/publishing-policy': typeof PublishingPolicyRoute
   '/search': typeof SearchRoute
@@ -434,7 +448,9 @@ export interface FileRoutesByTo {
   '/orders': typeof OrdersRoute
   '/preorders': typeof PreordersRoute
   '/privacy': typeof PrivacyRoute
+  '/following': typeof FollowingRoute
   '/profile': typeof ProfileRoute
+  '/settings': typeof SettingsRoute
   '/publishing': typeof PublishingRoute
   '/publishing-policy': typeof PublishingPolicyRoute
   '/search': typeof SearchRoute
@@ -494,7 +510,9 @@ export interface FileRoutesById {
   '/orders': typeof OrdersRoute
   '/preorders': typeof PreordersRoute
   '/privacy': typeof PrivacyRoute
+  '/following': typeof FollowingRoute
   '/profile': typeof ProfileRoute
+  '/settings': typeof SettingsRoute
   '/publishing': typeof PublishingRoute
   '/publishing-policy': typeof PublishingPolicyRoute
   '/search': typeof SearchRoute
@@ -555,7 +573,9 @@ export interface FileRouteTypes {
     | '/orders'
     | '/preorders'
     | '/privacy'
+    | '/following'
     | '/profile'
+    | '/settings'
     | '/publishing'
     | '/publishing-policy'
     | '/search'
@@ -614,7 +634,9 @@ export interface FileRouteTypes {
     | '/orders'
     | '/preorders'
     | '/privacy'
+    | '/following'
     | '/profile'
+    | '/settings'
     | '/publishing'
     | '/publishing-policy'
     | '/search'
@@ -673,7 +695,9 @@ export interface FileRouteTypes {
     | '/orders'
     | '/preorders'
     | '/privacy'
+    | '/following'
     | '/profile'
+    | '/settings'
     | '/publishing'
     | '/publishing-policy'
     | '/search'
@@ -733,7 +757,9 @@ export interface RootRouteChildren {
   OrdersRoute: typeof OrdersRoute
   PreordersRoute: typeof PreordersRoute
   PrivacyRoute: typeof PrivacyRoute
+  FollowingRoute: typeof FollowingRoute
   ProfileRoute: typeof ProfileRoute
+  SettingsRoute: typeof SettingsRoute
   PublishingRoute: typeof PublishingRoute
   PublishingPolicyRoute: typeof PublishingPolicyRoute
   SearchRoute: typeof SearchRoute
@@ -919,11 +945,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/following': {
+      id: '/following'
+      path: '/following'
+      fullPath: '/following'
+      preLoaderRoute: typeof FollowingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/profile': {
       id: '/profile'
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/publishing': {
@@ -1208,7 +1248,9 @@ const rootRouteChildren: RootRouteChildren = {
   OrdersRoute: OrdersRoute,
   PreordersRoute: PreordersRoute,
   PrivacyRoute: PrivacyRoute,
+  FollowingRoute: FollowingRoute,
   ProfileRoute: ProfileRoute,
+  SettingsRoute: SettingsRoute,
   PublishingRoute: PublishingRoute,
   PublishingPolicyRoute: PublishingPolicyRoute,
   SearchRoute: SearchRoute,
