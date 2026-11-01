@@ -859,5 +859,13 @@
   "Searching…": "Recherche…",
   "Follow": "Suivre",
   "Unfollowed": "Abonnement retiré",
-  "Follow request sent": "Demande d'abonnement envoyée"
+  "Follow request sent": "Demande d'abonnement envoyée",
+  "Cart": "Panier",
+  "Wishlist": "Liste de souhaits",
+  "Orders": "Commandes",
+  "Preferences": "Préférences",
+  "Account": "Compte",
+  "Manage your reading preferences, account, and network.": "Gérez vos préférences de lecture, votre compte et votre réseau.",
+  "Settings sections": "Sections des paramètres",
+  "Loading settings…": "Chargement des paramètres…"
 }
