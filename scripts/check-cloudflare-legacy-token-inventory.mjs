@@ -46,6 +46,16 @@ for (const file of [
     "Production release workflow must never re-enable the legacy token: " + file,
   );
 }
+for (const file of [
+  ".github/workflows/production-external-preflight.yml",
+  ".github/workflows/deployed-canonical-d1-principal-audit.yml",
+  ".github/workflows/production-cutover-topology-audit.yml",
+]) {
+  assert.ok(
+    readFileSync(file, "utf8").includes("secrets.CLOUDFLARE_COVE_READONLY_AUDIT_TOKEN"),
+    "Production audit must use independent read-only credentials: " + file,
+  );
+}
 console.log(
   `PASS: ${consumers}/37 unretired workflow consumers, ${references}/42 old token references; no new grants or release approval.`,
 );
