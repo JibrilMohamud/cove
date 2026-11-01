@@ -2250,7 +2250,7 @@ export async function handleSocial(
       const readable = await visiblePosts(db, userId, replyRows, 1, env);
       for (const reply of readable)
         if (!reply.locked && String(reply.body || "").toLowerCase().includes(search))
-          replyMatches.add(String(reply.parentId || reply.parent_id || ""));
+          replyMatches.add(String(reply.parentId || ""));
     }
     const items = visible.flatMap((p) => {
       const parsed = readArenaPost(String(p.body || ""));
@@ -2273,7 +2273,7 @@ export async function handleSocial(
       ];
     });
     if (sort === "top")
-      items.sort((a, b) => (b.fire + b.clown + b.replies) - (a.fire + a.clown + a.replies));
+      items.sort((a, b) => (b.fire + b.clown + (b.replies || 0)) - (a.fire + a.clown + (a.replies || 0)));
     if (sort === "trending") {
       // Rank the bounded recent window by *balanced disagreement*, not raw
       // popularity. Confidence grows over the first 12 reactions so a 1:1
