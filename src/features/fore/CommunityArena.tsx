@@ -159,11 +159,11 @@ export function CommunityArena() {
     <section className="cove-arena">
       <header className="social-page-heading">
         <div>
-          <span className="small-label">THE READING ROOM</span>
+          <span className="small-label">PUBLIC COMMUNITY · NO ACCOUNT NEEDED TO BROWSE</span>
           <h1>Hot Takes, Debates & Tournaments</h1>
           <p>
-            Disagree about books, defend your favorites, and discover new reading tastes. Reviews
-            and ordinary book discussions stay on book pages.
+            Explore lively book opinions, take sides in literary debates, and vote in matchups.
+            Sign in only when you want to contribute. Book pages keep their own reviews.
           </p>
         </div>
         <Flame size={40} aria-hidden="true" />
@@ -266,18 +266,24 @@ export function CommunityArena() {
         <section className="cove-arena-feed">
           <div className="cove-arena-feed-heading">
             <h2>From the Community</h2>
-            <label>
-              Show
-              <select
-                value={kindFilter}
-                onChange={(e) => setKindFilter(e.target.value as typeof kindFilter)}
-              >
-                <option value="all">All formats</option>
-                <option value="take">Hot Takes</option>
-                <option value="debate">Debates</option>
-                <option value="matchup">Tournament matchups</option>
-              </select>
-            </label>
+            <div className="cove-arena-kind" role="group" aria-label="Community post categories">
+              {([
+                ["all", "All"],
+                ["take", "Hot Takes"],
+                ["debate", "Debates"],
+                ["matchup", "Tournaments"],
+              ] as const).map(([key, label]) => (
+                <button
+                  type="button"
+                  key={key}
+                  aria-pressed={kindFilter === key}
+                  className={kindFilter === key ? "selected" : ""}
+                  onClick={() => setKindFilter(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <label>
               Sort
               <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}>
