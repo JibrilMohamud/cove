@@ -10,7 +10,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
 import {
@@ -22,6 +22,7 @@ import {
   CircleUserRound,
   Club,
   Heart,
+  Flame,
   ListPlus,
   LockKeyhole,
   MessageCircle,
@@ -37,6 +38,9 @@ import { toast } from "sonner";
 import { api, authorOf, useAccount, type CatalogBook } from "./client";
 import { SharingPage, MemberPicker, type ShareMember } from "./Sharing";
 import { useStorefrontLocale } from "./localization";
+import { readArenaPost, ARENA_KINDS } from "./community-arena";
+
+const ArenaTab = lazy(() => import("./CommunityArena").then((m) => ({ default: m.CommunityArena })));
 
 type Post = {
   id: string;
@@ -248,10 +252,10 @@ export function DiscussionThread({
       {p.spoiler ? (
         <details className="spoiler-disclosure">
           <summary>{ui("Spoiler — reveal")}</summary>
-          <p>{p.body}</p>
+          <p>{readArenaPost(p.body || "")?.text || p.body}</p>
         </details>
       ) : (
-        <p>{p.body}</p>
+        <p>{readArenaPost(p.body || "")?.text || p.body}</p>
       )}
     </>
   );
@@ -362,7 +366,7 @@ export function DiscussionThread({
                     <span>@{p.user?.username || "reader"}</span>
                   </a>
                   <span>
-                    {p.postType === "question" ? ui("Question") : ui("Discussion")}
+                    {readArenaPost(p.body || "") ? ARENA_KINDS[readArenaPost(p.body || "")!.kind] : p.postType === "question" ? ui("Question") : ui("Discussion")}
                     {p.chapter ? ` · ${p.chapter}` : ""}
                     {p.editedAt ? " · edited" : ""}
                   </span>
@@ -2685,7 +2689,9 @@ export function CommunityPage() {
     club = params.get("club"),
     poll = params.get("poll"),
     focusedThread = params.get("thread"),
-    focusedWork = params.get("work");
+    focusedWork = params.get("work"),
+    arenaPost = params.get("arenaPost"),
+    arenaOwner = params.get("arenaOwner");
   const tab = params.get("tab") || "feed";
   if (
     focusedThread &&
@@ -2720,6 +2726,21 @@ export function CommunityPage() {
         />
       </main>
     );
+  if (
+    arenaPost && arenaOwner &&
+    /^[a-zA-Z0-9_-]{1,240}$/.test(arenaPost) &&
+    /^[a-zA-Z0-9_-]{1,240}$/.test(arenaOwner)
+  )
+    return (
+      <main className="cove-book-thread-focus">
+        <a className="text-link" href="/community?tab=arena">{ui("← Back to the Reading Room")}</a>
+        <h1>{ui("Community conversation")}</h1>
+        <DiscussionThread contextType="profile" contextId={arenaOwner}
+          postId={arenaPost} title={ui("Original post")} />
+        <DiscussionThread contextType="profile" contextId={arenaOwner}
+          parentId={arenaPost} title={ui("Replies")} />
+      </main>
+    );
   if (profile) return <PublicProfile ref={profile} />;
   if (journey) return <Journey id={journey} />;
   if (list) return <ListView id={list} />;
@@ -2742,6 +2763,7 @@ export function CommunityPage() {
       <nav className="community-tabs" aria-label={ui("Community sections")}>
         {[
           ["feed", Activity, ui("Activity")],
+          ["arena", Flame, ui("Reading Room")],
           ["discover", Users, ui("Discover")],
           ["received", BookHeart, ui("Shared with me")],
           ["sharing", Share2, ui("My sharing")],
@@ -2758,7 +2780,11 @@ export function CommunityPage() {
           </a>
         ))}
       </nav>
-      {tab === "sharing" ? (
+      {tab === "arena" ? (
+        <Suspense fallback={<p className="muted" role="status">Opening the Reading Room…</p>}>
+          <ArenaTab />
+        </Suspense>
+      ) : tab === "sharing" ? (
         <SharingPage sent />
       ) : tab === "received" ? (
         <SharingPage />
