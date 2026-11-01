@@ -32,7 +32,9 @@ assert.match(migrationInput, /default: false/);
 assert.match(migrationInput, /type: boolean/);
 assert.match(text, /inputs\.apply_migrations == true/);
 assert.doesNotMatch(text, /github\.event_name == 'push' \|\| inputs\.apply_migrations/);
-const preflightIndex = text.indexOf("- name: Verify exact disabled production owner before binding");
+const preflightIndex = text.indexOf(
+  "- name: Verify exact disabled production owner before binding",
+);
 const migrationIndex = text.indexOf("- name: Apply pending D1 migrations");
 const deployIndex = text.indexOf("- name: Deploy persistence Worker");
 assert.ok(preflightIndex >= 0 && preflightIndex < migrationIndex);
