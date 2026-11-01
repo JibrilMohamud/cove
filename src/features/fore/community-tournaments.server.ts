@@ -12,8 +12,10 @@ const createSchema = z
     title: z.string().trim().min(4).max(100),
     productIds: z
       .array(z.string().trim().min(1).max(160))
-      .length(4)
-      .refine((ids) => new Set(ids).size === ids.length, "Choose four different books."),
+      .min(4)
+      .max(16)
+      .refine((ids) => [4, 8, 16].includes(ids.length), "Choose 4, 8, or 16 books.")
+      .refine((ids) => new Set(ids).size === ids.length, "Choose different books."),
     roundDurationMinutes: z.union([z.literal(60), z.literal(1440), z.literal(10080)]).default(1440),
   })
   .strict();
@@ -188,7 +190,7 @@ async function validatedBooks(db: DB, ids: string[]) {
     });
   }
   if (new Set(books.map((b) => b.id)).size !== books.length)
-    throw new ApiError(400, "Tournament entrants must be four distinct books.");
+    throw new ApiError(400, "Tournament entrants must be distinct Cove books.");
   return books;
 }
 async function createTournament(db: DB, actor: string, payload: z.infer<typeof createSchema>) {
@@ -203,6 +205,7 @@ async function createTournament(db: DB, actor: string, payload: z.infer<typeof c
     started = now();
   const deadline = dbTime(Date.parse(started) + payload.roundDurationMinutes * 60_000);
   const entries = books.map((book, i) => ({ ...book, entryId: newId("cte"), seed: i + 1 }));
+  const roundsTotal = Math.log2(entries.length);
   // D1 batch is transactional. Never publish a tournament with missing entrants.
   await db.batch([
     db
@@ -210,13 +213,14 @@ async function createTournament(db: DB, actor: string, payload: z.infer<typeof c
         `INSERT INTO community_tournaments
        (id,host_user_id,title,entrants_count,rounds_total,current_round,
         round_duration_minutes,round_deadline,status,version,created_at,updated_at)
-       VALUES(?,?,?,?,2,1,?,?,'live',1,?,?)`,
+       VALUES(?,?,?,?,?,1,?,?,'live',1,?,?)`,
       )
       .bind(
         id,
         actor,
         payload.title,
         entries.length,
+        roundsTotal,
         payload.roundDurationMinutes,
         deadline,
         started,
@@ -231,7 +235,7 @@ async function createTournament(db: DB, actor: string, payload: z.infer<typeof c
         )
         .bind(book.entryId, id, book.seed, book.id, book.publicId, book.title, book.externalId),
     ),
-    ...[0, 1].map((slot) =>
+    ...Array.from({ length: entries.length / 2 }, (_, slot) => slot).map((slot) =>
       db
         .prepare(
           `INSERT INTO community_tournament_matches
@@ -417,6 +421,12 @@ async function advanceTournament(db: DB, id: string): Promise<boolean> {
 }
 /** Run from the existing backend's social scheduled queue, never from a GET. */
 export async function advanceDueTournaments(db: DB, limit = 5): Promise<number> {
+  // A deployment can precede its additive migration. Never introduce a
+  // failing scheduled job solely because the bracket schema is not installed.
+  const installed = await db.prepare(
+    "SELECT 1 ok FROM sqlite_master WHERE type='table' AND name='community_tournaments'"
+  ).first<{ ok: number }>();
+  if (!installed) return 0;
   const due = (
     await db
       .prepare(
@@ -440,6 +450,14 @@ export async function handleCommunityTournaments(
   if (path !== "/social/tournaments" && !tournamentPath.test(path)) return null;
   const db = env.DB,
     method = request.method;
+  const installed = await db.prepare(
+    "SELECT 1 ok FROM sqlite_master WHERE type='table' AND name='community_tournaments'"
+  ).first<{ ok: number }>();
+  if (!installed) {
+    if (method === "GET" && path === "/social/tournaments")
+      return json({ items: [], enabled: false });
+    throw new ApiError(503, "Tournament migration not installed.");
+  }
   if (path === "/social/tournaments" && method === "GET") {
     const ids = (
       await db
