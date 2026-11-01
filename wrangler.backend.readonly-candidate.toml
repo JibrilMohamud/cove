@@ -14,6 +14,7 @@ service = "cove-canonical-d1-readonly"
 
 [vars]
 COVE_BACKEND_READONLY_CANDIDATE = "1"
+COVE_BACKEND_TOKEN_HASH_ONLY = "1"
 COVE_CANONICAL_READONLY_RPC = "1"
 FORE_ENVIRONMENT = "staging"
 FORE_PUBLIC_URL = "https://cove-puce-theta.vercel.app"

@@ -33,6 +33,7 @@ assert.deepEqual(
   bindings.map((b) => b.name).sort(),
   [
     "COVE_BACKEND_READONLY_CANDIDATE",
+    "COVE_BACKEND_TOKEN_HASH_ONLY",
     "COVE_CANONICAL_READONLY",
     "COVE_CANONICAL_READONLY_RPC",
     "FORE_BACKEND_TOKEN_SHA256",
@@ -44,6 +45,7 @@ function binding(name) {
   return bindings.find((b) => b.name === name);
 }
 assert.equal(binding("COVE_BACKEND_READONLY_CANDIDATE").text, "1");
+assert.equal(binding("COVE_BACKEND_TOKEN_HASH_ONLY").text, "1");
 assert.equal(binding("COVE_CANONICAL_READONLY_RPC").text, "1");
 assert.equal(binding("FORE_ENVIRONMENT").text, "staging");
 assert.equal(binding("FORE_BACKEND_TOKEN_SHA256").type, "secret_text");

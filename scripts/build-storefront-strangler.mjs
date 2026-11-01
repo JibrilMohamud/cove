@@ -120,6 +120,24 @@ for (const lane of [
   });
 }
 
+// Deliberately separate from the disposable QA artifact. This production
+// binary will keep every positive/negative legal, customer and payment route
+// disabled even if runtime vars accidentally claim the dedicated QA D1 ID.
+// It is NOT the certified production rights owner or a release cutover.
+await build({
+  entryPoints: ["src/storefront-strangler/legal-authority.worker.ts"],
+  alias: { jszip: "jszip/dist/jszip.min.js" },
+  outfile: ".output/strangler/legal-authority.production-locked.mjs",
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "es2022",
+  conditions: ["workerd", "worker", "browser", "import", "default"],
+  external: ["node:*", "cloudflare:*"],
+  define: { __COVE_PRODUCTION_OWNER_BINARY_LOCK__: "true" },
+  logLevel: "silent",
+});
+
 // Compile only as a separate short-lived private-QA service. This Worker is
 // absent from production routing and has no default public hostname.
 await build({

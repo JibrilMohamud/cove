@@ -1,6 +1,6 @@
 {
   "name": "cove-legal-authority-production",
-  "main": ".output/strangler/legal-authority.mjs",
+  "main": ".output/strangler/legal-authority.production-locked.mjs",
   "compatibility_date": "2026-10-25",
   "workers_dev": false,
   "routes": [],
