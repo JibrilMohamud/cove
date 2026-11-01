@@ -47,6 +47,21 @@ and Worker scope before either secret is provisioned. Those deployments
 require an explicit workflow dispatch on `main`; pushing code alone never
 uses their production release credentials.
 
+A separate `CLOUDFLARE_COVE_READONLY_AUDIT_TOKEN` is required by the
+production external preflight, canonical D1 fleet audit, and production
+cutover topology audit. Grant read access sufficient for complete active
+Worker bindings, routes, and account token policy inventories, but **no**
+Workers Admin, D1 Write or Worker deployment permission. User-owned tokens
+must be audited using the separately permissioned user-token audit key.
+Absent read-only credentials must fail the audit, never silently report a
+passing production certificate.
+
+A complete source inventory still identifies **37** other GitHub Actions
+workflows and **42** references to the old account-wide Cloudflare token.
+These consumers are tracked by per-file non-regression limits. The old token
+must not be revoked until each is migrated and the replacement credentials
+are independently tested, then the account-wide token is verified inactive.
+
 The workflow refuses reuse of the same credential for deployment and
 migration. Never fall back to the old `CLOUDFLARE_API_TOKEN` secret. GitHub
 Actions cannot safely infer that a token called "scoped" is actually scoped:
