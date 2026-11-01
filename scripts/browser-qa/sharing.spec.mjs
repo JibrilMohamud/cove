@@ -111,7 +111,14 @@ test("signed-in avatar menu owns personal navigation outside public Community", 
     const avatar = page.getByRole("button", { name: "Open account menu" });
     await avatar.click();
     const menu = page.getByRole("menu");
-    for (const name of ["Profile", "Shared inbox", "Notifications", "Following", "Settings", "Sign out"])
+    for (const name of [
+      "Profile",
+      "Shared inbox",
+      "Notifications",
+      "Following",
+      "Settings",
+      "Sign out",
+    ])
       await expect(menu.getByRole("menuitem", { name, exact: true })).toBeVisible();
     await menu.getByRole("menuitem", { name: "Settings" }).click();
     await expect(page).toHaveURL(/\/settings$/);
