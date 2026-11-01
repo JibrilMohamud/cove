@@ -1,3 +1,4 @@
+import "./review-discovery.css";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Heart, Star, Lock, Globe, Flag, Loader2, Trash2, Search } from "lucide-react";
