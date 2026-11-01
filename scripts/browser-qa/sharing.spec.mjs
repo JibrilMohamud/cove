@@ -90,7 +90,7 @@ test("guest navigation stays private and fits the device", async ({ page }, test
   await expect(page.getByText(note)).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("guest-account.png"), fullPage: true });
   const results = await new AxeBuilder({ page })
-    .include(".community-page")
+    .include(".account-empty")
     .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
     .analyze();
   expect(results.violations.filter((v) => ["serious", "critical"].includes(v.impact))).toEqual([]);
