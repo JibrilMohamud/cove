@@ -3,7 +3,10 @@ import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 
 const inventory = JSON.parse(
-  readFileSync("docs/architecture/cloudflare-legacy-token-workflow-inventory-20261031.json", "utf8"),
+  readFileSync(
+    "docs/architecture/cloudflare-legacy-token-workflow-inventory-20261031.json",
+    "utf8",
+  ),
 );
 assert.equal(inventory.schema, "cove.legacy-cloudflare-broad-token-workflow-inventory.v1");
 assert.equal(inventory.releaseApproval, false);
