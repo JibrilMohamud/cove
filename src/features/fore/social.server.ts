@@ -3799,6 +3799,18 @@ export async function handleSocial(
     const readablePost = await visiblePosts(db, uidv, [p], 1, env);
     if (!readablePost.length || readablePost[0].locked)
       throw new ApiError(403, "Reach this passage before reacting.");
+    if (x.active && p.context_type === "profile" && p.post_type === "prompt" &&
+        p.user_id === p.context_id && readArenaPost(String(p.body || ""))) {
+      if (x.reaction !== "agree" && x.reaction !== "funny")
+        throw new ApiError(400, "Choose Fire or Clown for Community Arena voting.");
+      const opposite = x.reaction === "agree" ? "funny" : "agree";
+      const previous = await db
+        .prepare("SELECT 1 existing FROM social_post_reactions WHERE post_id=? AND user_id=? AND reaction=?")
+        .bind(postId, uidv, opposite)
+        .first();
+      if (previous)
+        throw new ApiError(409, "Remove your previous vote before choosing another side.");
+    }
     if (x.active)
       await db
         .prepare(
