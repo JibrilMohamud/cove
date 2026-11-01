@@ -3,6 +3,16 @@ on:
   pull_request:
     paths:
       - "src/features/fore/Community.tsx"
+      - "src/routes/community.tsx"
+      - "src/features/fore/CommunityProfileRoute.tsx"
+      - "src/features/fore/ReaderProfileOverview.tsx"
+      - "src/features/fore/ReaderProfileSections.tsx"
+      - "src/features/fore/ReaderProfileRail.tsx"
+      - "src/features/fore/ReaderProfileBits.tsx"
+      - "src/features/fore/reader-profile.css"
+      - "src/features/fore/reader-profile-cards.css"
+      - "src/features/fore/reader-profile-shelves.css"
+      - "scripts/check-reader-profile-redesign.mjs"
       - "src/features/fore/CommunityArena.tsx"
       - "src/features/fore/OfficialTournament.tsx"
       - "src/features/fore/community-tournaments.server.ts"
@@ -38,6 +48,7 @@ jobs:
           node-version: "22"
       - run: npm ci --no-audit --no-fund
       - run: node scripts/check-book-thread-journey-ui.mjs
+      - run: node scripts/check-reader-profile-redesign.mjs
       - run: npm run test:social-reading
       - run: npm run test:community-arena
       - run: node scripts/check-community-tournaments.mjs
