@@ -14,9 +14,17 @@ jobs:
     timeout-minutes: 15
     env:
       CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_COVE_BACKEND_CANDIDATE_DEPLOY_TOKEN }}
       CLOUDFLARE_SEND_METRICS: "false"
     steps:
+      - name: Require dedicated scoped Cloudflare credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]]; then
+            echo "::error::Dedicated CLOUDFLARE_COVE_BACKEND_CANDIDATE_DEPLOY_TOKEN is required; no broad-token fallback."
+            exit 1
+          fi
       - uses: actions/checkout@v6
         with:
           persist-credentials: false

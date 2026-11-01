@@ -123,6 +123,10 @@ jobs:
         run: npm run test:persistence-backend
       - name: Production backend deployment must not mint alternate D1 writers
         run: node scripts/check-production-persistence-deploy-identity.mjs
+      - name: Production Workers must never reuse the broad account token
+        run: node scripts/check-production-worker-release-tokens.mjs
+      - name: Audit every remaining broad Cloudflare token workflow consumer
+        run: node scripts/check-cloudflare-legacy-token-inventory.mjs
       - name: Audio trigger diagnostic has no canonical D1 writer
         run: node scripts/check-backend-audio-diagnostics.mjs
       - name: Backend HTTP primary reads fail closed without native D1 fallback
