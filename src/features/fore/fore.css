@@ -2860,3 +2860,15 @@ a svg {
 .audio-loading-lines i:first-child { height: 23px; width: 72%; }
 .audio-loading-lines i:last-child { width: 60%; }
 @media (max-width: 650px) { .audio-loading .audio-card { min-height: 154px; } }
+
+/* Review discovery remains within the book's deferred reviews section. */
+.review-tags-editor { border: 0; padding: 0; margin: 16px 0; min-width: 0; }
+.review-tags-editor legend { font-size: .875rem; font-weight: 600; margin-bottom: 8px; }
+.review-tag-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.review-tag-chips button, .review-tag-display span { border: 1px solid var(--border, #8885); border-radius: 999px; padding: 5px 11px; background: transparent; color: inherit; font-size: .8rem; }
+.review-tag-chips button.selected { background: var(--accent, #deb98a); color: var(--background, #161616); border-color: transparent; }
+.review-tag-chips button:disabled { opacity: .55; cursor: not-allowed; }
+.review-tag-display { margin-top: 12px; }
+.review-search { display: grid; gap: 5px; margin: 12px 0 18px; }
+.review-search > div { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.review-search input { flex: 1 1 220px; min-width: 0; }
