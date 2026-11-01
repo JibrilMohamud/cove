@@ -1663,7 +1663,7 @@ export async function handleSocial(
   if (method === "GET" && path === "/social/network") {
     const viewer = requireIdentity(userId);
     const after = (url.searchParams.get("after") || "").trim();
-    if (after.length > 180 || (after && !/^[a-zA-Z0-9_-]+$/.test(after)))
+    if (after.length > 180 || (after && !/^[a-zA-Z0-9_:-]+$/.test(after)))
       throw new ApiError(400, "Invalid following cursor.");
     const rows = (
       await db
