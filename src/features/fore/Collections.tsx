@@ -1334,25 +1334,26 @@ export function ProfilePage() {
       <AccountGuard>
         <section className="recommendation-privacy-panel" aria-labelledby="account-community-tools">
           <div>
-            <span className="small-label">YOUR COMMUNITY SETTINGS</span>
-            <h2 id="account-community-tools">Profile & sharing</h2>
+            <span className="small-label">{ui("YOUR COMMUNITY SETTINGS")}</span>
+            <h2 id="account-community-tools">{ui("Profile & sharing")}</h2>
             <p className="muted">
-              Manage what readers can see and what is shared with you. Public Hot Takes, debates,
-              and tournaments are in Community.
+              {ui(
+                "Manage what readers can see and what is shared with you. Public Hot Takes, debates, and tournaments are in Community.",
+              )}
             </p>
           </div>
           <div className="recommendation-privacy-actions">
             <a className="button outline" href="/profile?section=me">
-              Reader profile & clubs
+              {ui("Reader profile & clubs")}
             </a>
             <a className="button outline" href="/profile?section=received">
-              Shared with me
+              {ui("Shared with me")}
             </a>
             <a className="button outline" href="/profile?section=sharing">
-              My sharing
+              {ui("My sharing")}
             </a>
             <a className="text-link" href="/community">
-              Explore public Community
+              {ui("Explore public Community")}
             </a>
           </div>
         </section>
