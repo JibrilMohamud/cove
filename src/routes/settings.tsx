@@ -21,8 +21,12 @@ function SettingsRoute() {
             </div>
           </header>
           <nav className="cove-preferences-shortcuts" aria-label="Account settings sections">
-            <a href="/profile"><UserRound size={17} /> Account &amp; reading preferences</a>
-            <a href="/notifications"><Bell size={17} /> Notification preferences</a>
+            <a href="/profile">
+              <UserRound size={17} /> Account &amp; reading preferences
+            </a>
+            <a href="/notifications">
+              <Bell size={17} /> Notification preferences
+            </a>
           </nav>
           <Suspense fallback={<p role="status">Loading Community settings…</p>}>
             <ReaderPreferences />
