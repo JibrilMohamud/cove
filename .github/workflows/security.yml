@@ -43,6 +43,8 @@ jobs:
         run: node scripts/check-backend-audio-diagnostics.mjs
       - name: Production backend deployment must not mint alternate D1 writers
         run: node scripts/check-production-persistence-deploy-identity.mjs
+      - name: Production Workers must never reuse the broad account token
+        run: node scripts/check-production-worker-release-tokens.mjs
       - name: Production legal owner cannot enter synthetic QA lease
         run: node scripts/check-production-owner-binary-lock.mjs
       - name: Reading statistics and audiobook regressions
