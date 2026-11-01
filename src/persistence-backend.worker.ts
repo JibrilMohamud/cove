@@ -4,7 +4,7 @@ import { scopeExclusiveCanonicalD1 } from "./storefront-strangler/canonical-d1-w
 import { scopeCommerceProductionD1 } from "./storefront-strangler/commerce-d1-write-fence";
 import { backendScheduledPrimaryReadDb } from "./storefront-strangler/backend-scheduled-primary-reads";
 import { backendHttpPrimaryReadDb } from "./storefront-strangler/backend-http-primary-reads";
-import { dispatchPrivateAuthorSocialFanout } from "./storefront-strangler/backend-author-social-owner";
+import { dispatchPrivateAuthorSocialFanout, dispatchPrivateAuthorReleaseAlerts } from "./storefront-strangler/backend-author-social-owner";
 import { verifyIndependentBackendCredential } from "./storefront-strangler/backend-independent-credential";
 import {
   reportAudioTriggerDiagnostic,
@@ -450,6 +450,8 @@ async function runCommercialQueues(cron: string, env: BackendEnv) {
       [
         "author-release-alerts",
         async () => {
+          if (env.COVE_AUTHOR_SOCIAL_OWNER_QA !== undefined)
+            return dispatchPrivateAuthorReleaseAlerts(env, 50);
           await queueAuthorReleaseAlerts(env.DB);
           return processAuthorReleaseAlerts(env.DB, 50);
         },
