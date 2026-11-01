@@ -42,8 +42,7 @@ assert.equal(
   "Both scheduler ownership predicates must use the independent D1 Read service",
 );
 assert.equal(
-  (backend.match(/admitCatalogBatch\(\s*backendScheduledPrimaryReadDb\(env\)/g) || [])
-    .length,
+  (backend.match(/admitCatalogBatch\(\s*backendScheduledPrimaryReadDb\(env\)/g) || []).length,
   3,
   "All three guarded background admission probes must use the independent reader",
 );
