@@ -42,6 +42,7 @@ type OfficialBracket = {
   matches: Match[];
 };
 const verifiedCovers = new Set([
+  "1661", "2641", "2852", "2591", "74", "5200", "2600", "16", "4300", "120", "1400", "205", "1080", "46",
   "1260",
   "1342",
   "84",
@@ -53,7 +54,7 @@ const verifiedCovers = new Set([
   "64317",
   "98",
 ]);
-const roundNames = ["Quarterfinals", "Semifinals", "Final"];
+
 
 function BookThumb({ book }: { book: Entry | undefined }) {
   if (!book)
@@ -90,11 +91,9 @@ function dateLabel(iso: string): string {
   }).format(new Date(t));
 }
 function roundLabel(tournament: OfficialBracket, round: number): string {
-  return round === tournament.roundsTotal
-    ? "Final"
-    : round === tournament.roundsTotal - 1
-      ? "Semifinals"
-      : roundNames[0];
+  const entrants = Math.pow(2, tournament.roundsTotal - round + 1);
+  return entrants >= 16 ? "Round of 16" : entrants === 8 ? "Quarterfinals" :
+    entrants === 4 ? "Semifinals" : "Final";
 }
 function BookChoice({
   book,
@@ -138,7 +137,7 @@ export function OfficialTournament() {
   const [bookIds, setBookIds] = useState("");
   const [duration, setDuration] = useState(1440);
   const [busy, setBusy] = useState(false);
-  const tournaments = useQuery<{ items: OfficialBracket[] }>({
+  const tournaments = useQuery<{ items: OfficialBracket[]; enabled?: boolean }>({
     queryKey: ["official-community-tournaments", data.user?.id],
     queryFn: () => api("/social/tournaments"),
     refetchInterval: 30_000,
@@ -197,8 +196,8 @@ export function OfficialTournament() {
           .replace(/[?#].*$/, ""),
       )
       .filter(Boolean);
-    if (ids.length !== 4 || new Set(ids).size !== 4)
-      return toast.error("Enter four different Cove book IDs, one per line.");
+    if (![4, 8, 16].includes(ids.length) || new Set(ids).size !== ids.length)
+      return toast.error("Enter 4, 8, or 16 different Cove book IDs, one per line.");
     if (busy) return;
     setBusy(true);
     try {
@@ -335,14 +334,18 @@ export function OfficialTournament() {
           </div>
         </>
       )}
+      {tournaments.data?.enabled === false && (
+        <p className="cove-tourney-message">Tournament setup is pending database migration.</p>
+      )}
       {!selected && !tournaments.isLoading && !tournaments.isError && (
         <div className="cove-tourney-message">
           <BookOpen size={29} />
-          <p>No live brackets yet. Launch Cove's first four-book tournament.</p>
+          <p>No live brackets yet. Launch Cove's first book tournament.</p>
         </div>
       )}
       <button
         type="button"
+        disabled={tournaments.data?.enabled === false}
         className="cove-tourney-create-button"
         onClick={() => {
           if (!data.user) return signIn();
@@ -424,7 +427,7 @@ export function OfficialTournament() {
         <DialogContent className="cove-arena-bracket-dialog cove-tourney-dialog">
           <DialogTitle>Host an official tournament</DialogTitle>
           <DialogDescription>
-            Choose four existing Cove books. The bracket is fixed at creation; readers vote in two
+            Choose 4, 8, or 16 existing Cove books. The bracket is fixed at creation; readers vote in
             timed rounds. Vote totals are finalized on the server, not by the host.
           </DialogDescription>
           <div className="cove-tourney-form">
@@ -433,10 +436,10 @@ export function OfficialTournament() {
               <input value={title} maxLength={100} onChange={(e) => setTitle(e.target.value)} />
             </label>
             <label>
-              Four Cove book IDs or /books/ links (one per line)
+              4, 8, or 16 Cove book IDs or /books/ links (one per line)
               <textarea
                 value={bookIds}
-                rows={5}
+                rows={8}
                 onChange={(e) => setBookIds(e.target.value)}
                 placeholder={"1342\n1260\n84\n2701"}
               />
