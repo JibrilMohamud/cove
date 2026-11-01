@@ -93,6 +93,14 @@ jobs:
             if (u.protocol !== "https:" || u.username || u.password || u.pathname !== "/" || u.search || u.hash) {
               throw new Error("public_url must be an HTTPS origin with no path, credentials, query, or fragment");
             }
+            const trusted = new Set([
+              "https://cove-puce-theta.vercel.app",
+              "https://covereads.com",
+              "https://www.covereads.com"
+            ]);
+            if (!trusted.has(u.origin)) {
+              throw new Error("public_url must be a reviewed Cove production origin");
+            }
           '
 
       - name: Build persistence Worker
