@@ -61,10 +61,31 @@ assert.ok(!signedIn.mfaRequired, "Complete MFA using the normal site UI before s
 const account = await request("/account");
 assert.equal(account.user?.email?.toLowerCase(), email.toLowerCase(), "Account identity mismatch");
 const userId = account.user.id;
-const me = await request("/social/me");
+let me = await request("/social/me");
+// User-authorized QA account only: publicly posting requires a public social
+// identity. Change ONLY the two visibility switches, retaining every other
+// reader privacy default and using the existing authenticated profile API.
+if (
+  me.profile?.profile_visibility !== "public" ||
+  me.profile?.activity_visibility !== "public"
+) {
+  const p = me.profile;
+  await request("/social/profile", "POST", {
+    bio: p.bio || "",
+    profileVisibility: "public",
+    followPolicy: p.follow_policy || "open",
+    repliesPolicy: p.replies_policy || "following",
+    activityVisibility: "public",
+    journeyVisibilityDefault: p.journey_visibility_default || "private",
+    highlightVisibilityDefault: p.highlight_visibility_default || "private",
+    showCurrentlyReading: !!p.show_currently_reading,
+    expectedVersion: Number(p.version || 1),
+  });
+  me = await request("/social/me");
+}
 assert.ok(
   me.profile?.profile_visibility === "public" && me.profile?.activity_visibility === "public",
-  "QA account must voluntarily enable public profile and public activity in Settings before seeding",
+  "QA identity could not enable public posts",
 );
 const fixture = JSON.parse(
   fs.readFileSync("scripts/fixtures/community-arena-starter-posts.json", "utf8"),
