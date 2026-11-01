@@ -118,6 +118,9 @@ const routes={
     limit:z.number().int().min(1).max(10),batchSize:z.number().int().min(1).max(250),
     operationId:shortOperation
   }).strict()},
+  "social.process-author-release-alerts":{path:"/social/private-author-release-alerts",schema:z.object({
+    limit:z.number().int().min(1).max(50),operationId:shortOperation
+  }).strict()},
   "delivery.register-entitlement-device":{path:"/delivery/register-entitlement-device",schema:z.object({
     userId:ownerId,entitlementId:ownerId,productId:product,deviceId:ownerId,
     maxActiveDevices:z.number().int().min(1).max(100)
@@ -769,6 +772,15 @@ export async function dispatchCanonicalOwnerCommand(
       break;
     case "commerce.publish-entitlement":
       if(ack.applied!==true||!positiveEpoch(ack.epoch))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "social.process-author-release-alerts":
+      if(ack.schema!=="cove.owner-author-release-alerts.v1"||ack.ownerFirst!==true||
+         ack.operationId!==body.operationId||
+         ![ack.queued,ack.processed,ack.notifications].every(n=>
+           Number.isSafeInteger(n)&&Number(n)>=0)||
+         Number(ack.processed)>Number(body.limit)||
+         Number(ack.notifications)>Number(body.limit)*1000)
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "social.process-author-fanout":
