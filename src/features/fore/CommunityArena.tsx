@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./community-arena-experience.css";
 import { OfficialTournament } from "./OfficialTournament";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
@@ -10,6 +10,7 @@ import {
   MessageCircle,
   Plus,
   RefreshCw,
+  Search,
   Trophy,
   Sparkles,
   ShieldAlert,
@@ -33,9 +34,15 @@ type ArenaItem = {
   createdAt: string;
   user?: { id: string; username: string; name: string } | null;
 };
-type ArenaPageResult = { items: ArenaItem[]; nextCursor: string | null; rankingWindow: string };
+type ArenaPageResult = {
+  items: ArenaItem[];
+  nextCursor: string | null;
+  rankingWindow: string;
+  activity?: { postId: string; side: "A" | "B"; createdAt: string }[];
+};
 type TakeTab = "debates" | "fire" | "clowns";
-type TakeSort = "trending" | "recent" | "fire" | "clown";
+type TakeSort = "trending" | "recent" | "fire" | "clown" | "top";
+type DebateFilter = "trending" | "fire" | "clown" | "new" | "top" | "following";
 
 const PROMPTS: { title: string; question: string; kind: ArenaKind; tint: string }[] = [
   {
@@ -178,13 +185,40 @@ function ReaderCover({ title, className = "" }: { title: string; className?: str
   );
 }
 
-export function CommunityArena() {
+export function CommunityArena({ fullPage = false }: { fullPage?: boolean }) {
   const { data, signIn } = useAccount();
   const [kind, setKind] = useState<ArenaKind>("take");
   const [body, setBody] = useState("");
   const [bookRef, setBookRef] = useState("");
   const [spoiler, setSpoiler] = useState(false);
+  const [publicReplies, setPublicReplies] = useState(true);
   const [sort, setSort] = useState<TakeSort>("trending");
+  const [debateFilter, setDebateFilter] = useState<DebateFilter>("trending");
+  const [searchInput, setSearchInput] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  // Disable SSR-only controls until React event handlers are attached.
+  // Prevents browser-visible clicks and search input from being silently lost.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
+  useEffect(() => {
+    const debounce = setTimeout(() => setSearchTerm(searchInput.trim().slice(0, 80)), 350);
+    return () => clearTimeout(debounce);
+  }, [searchInput]);
+  function chooseDebateFilter(next: DebateFilter) {
+    setDebateFilter(next);
+    setTakeTab(next === "fire" ? "fire" : next === "clown" ? "clowns" : "debates");
+    setSort(
+      next === "new" || next === "following"
+        ? "recent"
+        : next === "top"
+          ? "top"
+          : next === "fire"
+            ? "fire"
+            : next === "clown"
+              ? "clown"
+              : "trending",
+    );
+  }
   const [takeTab, setTakeTab] = useState<TakeTab>("debates");
   const [promptOffset, setPromptOffset] = useState(0);
   const [busy, setBusy] = useState("");
@@ -206,16 +240,20 @@ export function CommunityArena() {
     queryKey: [
       "community-arena",
       data.user?.id,
-      sort === "recent" ? "recent" : "trending",
+      sort === "recent" ? "recent" : sort === "top" ? "top" : "trending",
       takeTab === "debates" ? "all" : "take",
+      fullPage ? searchTerm : "",
+      fullPage && debateFilter === "following",
     ],
     initialPageParam: "",
     queryFn: ({ pageParam }) =>
       api(
         "/social/arena?sort=" +
-          (sort === "recent" ? "recent" : "trending") +
+          (sort === "recent" ? "recent" : sort === "top" ? "top" : "trending") +
           "&kind=" +
           (takeTab === "debates" ? "all" : "take") +
+          (fullPage && searchTerm ? "&search=" + encodeURIComponent(searchTerm) : "") +
+          (fullPage && debateFilter === "following" ? "&following=1" : "") +
           (pageParam ? "&cursor=" + encodeURIComponent(String(pageParam)) : ""),
       ),
     getNextPageParam: (page) => page.nextCursor || undefined,
@@ -239,6 +277,7 @@ export function CommunityArena() {
     if (sort === "fire") return b.fire - a.fire || divisiveScore(b) - divisiveScore(a);
     if (sort === "clown") return b.clown - a.clown || divisiveScore(b) - divisiveScore(a);
     if (sort === "recent") return Date.parse(b.createdAt) - Date.parse(a.createdAt);
+    if (sort === "top") return b.fire + b.clown + b.replies - (a.fire + a.clown + a.replies);
     return divisiveScore(b) - divisiveScore(a);
   });
   const prompts = Array.from({ length: 5 }, (_, i) => PROMPTS[(promptOffset + i) % PROMPTS.length]);
@@ -267,7 +306,7 @@ export function CommunityArena() {
         contextType: "profile",
         contextId: data.user.id,
         postType: "prompt",
-        body: makeArenaPost(kind, body, bookId),
+        body: makeArenaPost(kind, body, bookId, publicReplies),
         visibility: "public",
         spoiler,
       });
@@ -348,16 +387,27 @@ export function CommunityArena() {
   const bPercent = headlineMatch && totalVotes ? 100 - aPercent : 0;
 
   return (
-    <section className="cove-arena">
+    <section className={"cove-arena" + (fullPage ? " cove-arena-debates-page" : "")}>
       <header className="cove-arena-head">
         <div>
           <span className="cove-arena-eyebrow">
-            <Sparkles size={13} /> THE READING ROOM / COVE COMMUNITY
+            <Sparkles size={13} />{" "}
+            {fullPage ? "THE DISCOURSE / COVE COMMUNITY" : "THE READING ROOM / COVE COMMUNITY"}
           </span>
-          <h1 aria-label="Community">
-            Good books. <em>Bold opinions.</em>
-          </h1>
-          <p>Make your case. Pick a side. Find your people.</p>
+          {fullPage ? (
+            <h1>
+              Hot Takes. <em>Real conversations.</em>
+            </h1>
+          ) : (
+            <h1 aria-label="Community">
+              Good books. <em>Bold opinions.</em>
+            </h1>
+          )}
+          <p>
+            {fullPage
+              ? "Find a debate, read the replies, and make your case."
+              : "Make your case. Pick a side. Find your people."}
+          </p>
         </div>
         <button type="button" className="cove-arena-primary" onClick={() => openComposer()}>
           <Plus size={18} /> Drop a hot take
@@ -365,6 +415,49 @@ export function CommunityArena() {
       </header>
       <div className="cove-arena-layout">
         <div className="cove-arena-main">
+          {fullPage && (
+            <section className="cove-debates-discovery" aria-label="Search and filter debates">
+              <label className="cove-debates-search">
+                <Search size={20} aria-hidden="true" />
+                <span className="sr-only">Search recent public debates and comments</span>
+                <input
+                  type="search"
+                  maxLength={80}
+                  value={searchInput}
+                  disabled={!hydrated}
+                  placeholder="Search takes, comments, readers, and books…"
+                  onChange={(e) => setSearchInput(e.target.value)}
+                />
+              </label>
+              <div
+                className="cove-debates-filters"
+                role="group"
+                aria-label="Debate discovery filters"
+              >
+                {(
+                  [
+                    ["trending", "Trending"],
+                    ["fire", "Fire"],
+                    ["clown", "Clownery"],
+                    ["new", "New"],
+                    ["top", "Top"],
+                    ["following", "Following"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={debateFilter === value}
+                    disabled={!hydrated}
+                    className={debateFilter === value ? "active" : ""}
+                    onClick={() => chooseDebateFilter(value)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
           <section className="cove-arena-prompts" aria-labelledby="cove-prompt-heading">
             <div className="cove-arena-section-top">
               <h2 id="cove-prompt-heading">
@@ -405,15 +498,26 @@ export function CommunityArena() {
                   <Flame size={19} /> HOT TAKES <span className="cove-arena-title-glow">/</span> THE
                   DISCOURSE
                 </h2>
-                <p>Bookish arguments worth staying up for.</p>
+                <p>
+                  {fullPage
+                    ? "The newest arguments and opinions from Cove readers."
+                    : "Bookish arguments worth staying up for."}
+                </p>
               </div>
-              <button
-                type="button"
-                className="cove-arena-minor-action"
-                onClick={() => openComposer("debate")}
-              >
-                <Plus size={16} /> Start a debate
-              </button>
+              <div className="cove-arena-feed-links">
+                {!fullPage && (
+                  <a className="cove-arena-minor-action" href="/community?tab=debates">
+                    View debates <ArrowRight size={15} />
+                  </a>
+                )}
+                <button
+                  type="button"
+                  className="cove-arena-minor-action"
+                  onClick={() => openComposer("debate")}
+                >
+                  <Plus size={16} /> Start a debate
+                </button>
+              </div>
             </div>
             <div className="cove-arena-feed-toolbar">
               <div className="cove-arena-subtabs" role="tablist" aria-label="Hot Takes feed">
@@ -446,6 +550,7 @@ export function CommunityArena() {
                   <option value="recent">Newest</option>
                   <option value="fire">Most fire</option>
                   <option value="clown">Most clowned</option>
+                  <option value="top">Top engagement</option>
                 </select>
               </label>
             </div>
@@ -618,7 +723,11 @@ export function CommunityArena() {
             </div>
             {!feed.isLoading && !feed.isError && !items.length && (
               <div className="cove-arena-status">
-                No public posts in this feed yet. Got an opinion?{" "}
+                {searchTerm
+                  ? "No matching public debates in this page of recent activity. "
+                  : debateFilter === "following" && fullPage
+                    ? "No debates from readers you follow in this page. "
+                    : "No public posts in this feed yet. Got an opinion? "}{" "}
                 <button type="button" className="text-link" onClick={() => openComposer("take")}>
                   Start the conversation.
                 </button>
@@ -741,6 +850,28 @@ export function CommunityArena() {
                 </h3>
                 <small>Refreshes every 30s</small>
               </div>
+              {(bracket.data?.activity || []).length > 0 && (
+                <ul aria-label="Recent recorded matchup votes">
+                  {(bracket.data?.activity || []).slice(0, 6).map((event, index) => {
+                    const post = matchups.find((item) => item.id === event.postId);
+                    const book = post
+                      ? matchupNames(post.body)[event.side === "A" ? 0 : 1]
+                      : "a contender";
+                    return (
+                      <li key={event.postId + ":" + index}>
+                        <span className="cove-arena-activity-dot" />
+                        <span>
+                          A reader voted for <b>{book}</b>
+                          <small>
+                            {post ? matchupNames(post.body).join(" vs ") : "Matchup"} ·{" "}
+                            {timeAgo(event.createdAt)}
+                          </small>
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
               {matchups.length ? (
                 <ul>
                   {matchups.slice(0, 3).map((post) => (
@@ -851,6 +982,18 @@ export function CommunityArena() {
                   />{" "}
                   Contains spoilers
                 </label>
+                <label className="cove-arena-spoiler">
+                  <input
+                    type="checkbox"
+                    checked={publicReplies}
+                    onChange={(e) => setPublicReplies(e.target.checked)}
+                  />
+                  Allow anyone to reply to this public Community post
+                </label>
+                <p className="cove-arena-compose-rule">
+                  Open replies are opt-in. Unchecking uses your profile reply settings; blocked
+                  readers and moderated accounts cannot participate.
+                </p>
                 <div className="cove-arena-publish-actions">
                   <button
                     type="button"

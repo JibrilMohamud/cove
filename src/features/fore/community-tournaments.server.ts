@@ -139,6 +139,20 @@ async function tournamentDetail(db: DB, id: string, viewer: string | null) {
         ).results
       : [];
   const selections = new Map(mine.map((vote) => [vote.match_id, vote.entry_id]));
+  // The activity feed exposes only anonymous, stored current ballots.
+  // Do not expose voter IDs or infer historical vote-switch events.
+  const recentBallots = (
+    await db
+      .prepare(
+        `SELECT v.match_id,v.entry_id,v.updated_at
+     FROM community_tournament_votes v
+     JOIN community_tournament_matches m ON m.id=v.match_id
+     WHERE m.tournament_id=?
+     ORDER BY v.updated_at DESC LIMIT 8`,
+      )
+      .bind(id)
+      .all<{ match_id: string; entry_id: string; updated_at: string }>()
+  ).results;
   return {
     id: tournament.id,
     title: tournament.title,
@@ -156,6 +170,11 @@ async function tournamentDetail(db: DB, id: string, viewer: string | null) {
       productId: entry.public_product_id,
       title: entry.title_snapshot,
       sourceExternalId: entry.source_external_id,
+    })),
+    activity: recentBallots.map((vote) => ({
+      matchId: vote.match_id,
+      entryId: vote.entry_id,
+      createdAt: vote.updated_at,
     })),
     matches: matches.map((match) => ({
       id: match.id,
