@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ArrowRight, BookOpen, Star } from "lucide-react";
 
-export type ProfileBook = { productId?: string; title?: string; authors?: string; coverUrl?: string };
+export type ProfileBook = { productId?: string; title?: string; authors?: string; coverUrl?: string; sourceExternalId?: string };
 export type ProfileJourney = {
  id: string; product_id?: string; title_snapshot: string; author_snapshot?: string;
  cover_url?: string; finished_at?: string; review_excerpt?: string | null; rating_steps?: number | null;
