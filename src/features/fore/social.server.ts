@@ -2110,22 +2110,33 @@ export async function handleSocial(
     // table scan of social posts. The endpoint runs only on the Arena tab.
     const cursor = socialCursor(url.searchParams.get("cursor"));
     const sort = z.enum(["recent", "trending"]).parse(url.searchParams.get("sort") || "recent");
-    const kind = z.enum(["all", "take", "debate", "matchup"]).parse(url.searchParams.get("kind") || "all");
+    const kind = z
+      .enum(["all", "take", "debate", "matchup"])
+      .parse(url.searchParams.get("kind") || "all");
     const batch = (
-      await db.prepare(
-        `SELECT e.id,e.entity_id,e.entity_type,e.event_type,e.created_at
+      await db
+        .prepare(
+          `SELECT e.id,e.entity_id,e.entity_type,e.event_type,e.created_at
            FROM social_events e
            WHERE e.visibility='public' AND e.moderation_status='visible'
              ${cursor ? "AND (e.created_at<? OR (e.created_at=? AND e.id<?))" : ""}
            ORDER BY e.created_at DESC,e.id DESC LIMIT 80`,
-      ).bind(...(cursor ? [cursor.at, cursor.at, cursor.id] : [])).all<any>()
+        )
+        .bind(...(cursor ? [cursor.at, cursor.at, cursor.id] : []))
+        .all<any>()
     ).results;
-    const ids = [...new Set(batch
-      .filter((e) => e.entity_type === "post" && e.event_type === "discussion_started")
-      .map((e) => String(e.entity_id)))];
+    const ids = [
+      ...new Set(
+        batch
+          .filter((e) => e.entity_type === "post" && e.event_type === "discussion_started")
+          .map((e) => String(e.entity_id)),
+      ),
+    ];
     const posts = ids.length
-      ? (await db.prepare(
-          `SELECT p.* FROM social_posts p
+      ? (
+          await db
+            .prepare(
+              `SELECT p.* FROM social_posts p
              JOIN social_profiles sp ON sp.user_id=p.user_id
             WHERE p.id IN (${ids.map(() => "?").join(",")})
               AND p.context_type='profile' AND p.post_type='prompt'
@@ -2133,7 +2144,10 @@ export async function handleSocial(
               AND p.visibility='public' AND p.moderation_status='visible'
               AND p.deleted_at IS NULL AND p.body LIKE '[COVE-ARENA:%'
               AND sp.profile_visibility='public' AND sp.activity_visibility='public'`,
-        ).bind(...ids).all<any>()).results
+            )
+            .bind(...ids)
+            .all<any>()
+        ).results
       : [];
     const byId = new Map(posts.map((p: any) => [String(p.id), p]));
     const candidates = batch
@@ -2144,14 +2158,25 @@ export async function handleSocial(
         return !!parsed && (kind === "all" || parsed.kind === kind);
       })
       .slice(0, 16);
-    const visible = await visiblePosts(db, userId, candidates.map((e) => e.post), 1, env);
+    const visible = await visiblePosts(
+      db,
+      userId,
+      candidates.map((e) => e.post),
+      1,
+      env,
+    );
     const reactIds = visible.map((p) => String(p.id));
     const votes = reactIds.length
-      ? (await db.prepare(
-          `SELECT post_id,reaction,COUNT(*) total FROM social_post_reactions
+      ? (
+          await db
+            .prepare(
+              `SELECT post_id,reaction,COUNT(*) total FROM social_post_reactions
             WHERE reaction IN ('agree','funny') AND post_id IN (${reactIds.map(() => "?").join(",")})
             GROUP BY post_id,reaction`,
-        ).bind(...reactIds).all<any>()).results
+            )
+            .bind(...reactIds)
+            .all<any>()
+        ).results
       : [];
     const counts = new Map<string, { fire: number; clown: number }>();
     for (const v of votes) {
@@ -2164,13 +2189,15 @@ export async function handleSocial(
     const items = visible.flatMap((p) => {
       const parsed = readArenaPost(String(p.body || ""));
       if (!parsed) return [];
-      return [{
-        ...p,
-        body: parsed.text,
-        kind: parsed.kind,
-        bookId: parsed.bookId,
-        ...(counts.get(String(p.id)) || { fire: 0, clown: 0 }),
-      }];
+      return [
+        {
+          ...p,
+          body: parsed.text,
+          kind: parsed.kind,
+          bookId: parsed.bookId,
+          ...(counts.get(String(p.id)) || { fire: 0, clown: 0 }),
+        },
+      ];
     });
     if (sort === "trending") {
       // A bounded recent-window ranking: disagreement can boost by at most 20%,
@@ -2182,7 +2209,7 @@ export async function handleSocial(
           const controversy = Math.min(1, votes / 12) * balance;
           const engagement = Math.log1p(votes) + 0.35 * Math.log1p(post.replies || 0);
           const ageHours = Math.max(0, (Date.now() - Date.parse(post.createdAt)) / 3600000);
-          return engagement * (1 + 0.2 * controversy) / (1 + ageHours / 72);
+          return (engagement * (1 + 0.2 * controversy)) / (1 + ageHours / 72);
         };
         return score(b) - score(a);
       });
@@ -2190,8 +2217,8 @@ export async function handleSocial(
     const last = candidates.length === 16 ? candidates[15].event : batch[batch.length - 1];
     return json({
       items,
-      nextCursor: last && (batch.length === 80 || candidates.length === 16)
-        ? cursorFor(last) : null,
+      nextCursor:
+        last && (batch.length === 80 || candidates.length === 16) ? cursorFor(last) : null,
       rankingWindow: "recent",
     });
   }
@@ -3804,13 +3831,20 @@ export async function handleSocial(
     const readablePost = await visiblePosts(db, uidv, [p], 1, env);
     if (!readablePost.length || readablePost[0].locked)
       throw new ApiError(403, "Reach this passage before reacting.");
-    if (x.active && p.context_type === "profile" && p.post_type === "prompt" &&
-        p.user_id === p.context_id && readArenaPost(String(p.body || ""))) {
+    if (
+      x.active &&
+      p.context_type === "profile" &&
+      p.post_type === "prompt" &&
+      p.user_id === p.context_id &&
+      readArenaPost(String(p.body || ""))
+    ) {
       if (x.reaction !== "agree" && x.reaction !== "funny")
         throw new ApiError(400, "Choose Fire or Clown for Community Arena voting.");
       const opposite = x.reaction === "agree" ? "funny" : "agree";
       const previous = await db
-        .prepare("SELECT 1 existing FROM social_post_reactions WHERE post_id=? AND user_id=? AND reaction=?")
+        .prepare(
+          "SELECT 1 existing FROM social_post_reactions WHERE post_id=? AND user_id=? AND reaction=?",
+        )
         .bind(postId, uidv, opposite)
         .first();
       if (previous)
