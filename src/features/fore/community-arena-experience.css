@@ -1208,7 +1208,6 @@
   }
 }
 
-
 /* Dedicated Hot Takes discovery: roomy, searchable, keyboard-friendly. */
 .cove-arena .cove-arena-feed-links {
   display: flex;
@@ -1220,18 +1219,31 @@
 .cove-arena-debates-page .cove-arena-layout {
   grid-template-columns: minmax(0, 1fr) !important;
 }
-.cove-arena-debates-page .cove-arena-main { grid-column: 1; grid-row: 1; }
+.cove-arena-debates-page .cove-arena-main {
+  grid-column: 1;
+  grid-row: 1;
+}
 .cove-arena-debates-page .cove-arena-prompts,
 .cove-arena-debates-page .cove-arena-tournament,
-.cove-arena-debates-page .cove-tourney-official { display: none !important; }
+.cove-arena-debates-page .cove-tourney-official {
+  display: none !important;
+}
 .cove-arena-debates-page .cove-arena-rail {
   grid-column: 1;
   grid-row: 2;
   grid-template-columns: minmax(0, 1fr);
 }
-.cove-arena-debates-page .cove-arena-composer { width: min(100%, 850px); margin-inline: auto; }
-.cove-arena-debates-page .cove-arena-post-list { max-width: 1040px; margin-inline: auto; }
-.cove-arena-debates-page .cove-arena-card { padding: clamp(15px, 1.75vw, 24px) !important; }
+.cove-arena-debates-page .cove-arena-composer {
+  width: min(100%, 850px);
+  margin-inline: auto;
+}
+.cove-arena-debates-page .cove-arena-post-list {
+  max-width: 1040px;
+  margin-inline: auto;
+}
+.cove-arena-debates-page .cove-arena-card {
+  padding: clamp(15px, 1.75vw, 24px) !important;
+}
 .cove-debates-discovery {
   display: flex;
   flex-wrap: wrap;
@@ -1254,7 +1266,10 @@
   background: #161a20;
   color: #95aac0;
 }
-.cove-debates-search:focus-within { border-color: #c8f56b; box-shadow: 0 0 0 1px #c8f56b55; }
+.cove-debates-search:focus-within {
+  border-color: #c8f56b;
+  box-shadow: 0 0 0 1px #c8f56b55;
+}
 .cove-debates-search input {
   width: 100%;
   min-width: 0;
@@ -1264,8 +1279,15 @@
   color: #f9f3f3;
   font-size: 14px;
 }
-.cove-debates-search input::placeholder { color: #94a1b0; }
-.cove-debates-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cove-debates-search input::placeholder {
+  color: #94a1b0;
+}
+.cove-debates-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
 .cove-debates-filters button {
   padding: 11px 15px;
   border: 1px solid #47404c;
@@ -1274,21 +1296,39 @@
   color: #b4b4c8;
   font-size: 13px;
   font-weight: 800;
-  transition: background .15s ease, color .15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
-.cove-debates-filters button:hover { color: #fff; background: #403041; }
+.cove-debates-filters button:hover {
+  color: #fff;
+  background: #403041;
+}
 .cove-debates-filters button.active,
 .cove-debates-filters button[aria-pressed="true"] {
   border-color: #cafa69;
   color: #162005;
   background: #cafa69;
 }
-.cove-arena-debates-page .cove-arena-card .cove-arena-body { font-size: clamp(15px,1.3vw,18px) !important; }
-.cove-arena-debates-page .cove-arena-feed-toolbar { padding: 4px 0 15px; }
-.cove-arena-debates-page .cove-arena-feed-toolbar .cove-arena-subtabs { gap: 10px; }
-.cove-arena-debates-page .cove-arena-subtabs button { padding: 12px 17px; }
-.cove-arena-debates-page .cove-arena-status { text-align: center; }
-.cove-arena-activity li span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.cove-arena-debates-page .cove-arena-card .cove-arena-body {
+  font-size: clamp(15px, 1.3vw, 18px) !important;
+}
+.cove-arena-debates-page .cove-arena-feed-toolbar {
+  padding: 4px 0 15px;
+}
+.cove-arena-debates-page .cove-arena-feed-toolbar .cove-arena-subtabs {
+  gap: 10px;
+}
+.cove-arena-debates-page .cove-arena-subtabs button {
+  padding: 12px 17px;
+}
+.cove-arena-debates-page .cove-arena-status {
+  text-align: center;
+}
+.cove-arena-activity li span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .cove-tourney-activity-events {
   display: grid;
   list-style: none;
@@ -1305,14 +1345,33 @@
   border-top: 1px solid #60434b66;
   padding-top: 7px;
 }
-.cove-tourney-activity-events b { color: #ffd3a7; }
+.cove-tourney-activity-events b {
+  color: #ffd3a7;
+}
 @media (max-width: 650px) {
-  .cove-debates-discovery { padding: 12px; }
-  .cove-debates-search { flex-basis: 100%; }
-  .cove-debates-filters { flex-wrap: nowrap; overflow-x: auto; width: 100%; padding: 3px 0 8px; scrollbar-color: #765a70 transparent; }
-  .cove-debates-filters button { flex: 0 0 auto; }
-  .cove-arena .cove-arena-feed-links { justify-content: flex-start; gap: 8px; }
+  .cove-debates-discovery {
+    padding: 12px;
+  }
+  .cove-debates-search {
+    flex-basis: 100%;
+  }
+  .cove-debates-filters {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    width: 100%;
+    padding: 3px 0 8px;
+    scrollbar-color: #765a70 transparent;
+  }
+  .cove-debates-filters button {
+    flex: 0 0 auto;
+  }
+  .cove-arena .cove-arena-feed-links {
+    justify-content: flex-start;
+    gap: 8px;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .cove-debates-filters button { transition: none; }
+  .cove-debates-filters button {
+    transition: none;
+  }
 }

@@ -202,9 +202,17 @@ export function CommunityArena({ fullPage = false }: { fullPage?: boolean }) {
   function chooseDebateFilter(next: DebateFilter) {
     setDebateFilter(next);
     setTakeTab(next === "fire" ? "fire" : next === "clown" ? "clowns" : "debates");
-    setSort(next === "new" || next === "following" ? "recent" :
-      next === "top" ? "top" : next === "fire" ? "fire" :
-      next === "clown" ? "clown" : "trending");
+    setSort(
+      next === "new" || next === "following"
+        ? "recent"
+        : next === "top"
+          ? "top"
+          : next === "fire"
+            ? "fire"
+            : next === "clown"
+              ? "clown"
+              : "trending",
+    );
   }
   const [takeTab, setTakeTab] = useState<TakeTab>("debates");
   const [promptOffset, setPromptOffset] = useState(0);
@@ -264,7 +272,7 @@ export function CommunityArena({ fullPage = false }: { fullPage?: boolean }) {
     if (sort === "fire") return b.fire - a.fire || divisiveScore(b) - divisiveScore(a);
     if (sort === "clown") return b.clown - a.clown || divisiveScore(b) - divisiveScore(a);
     if (sort === "recent") return Date.parse(b.createdAt) - Date.parse(a.createdAt);
-    if (sort === "top") return (b.fire + b.clown + b.replies) - (a.fire + a.clown + a.replies);
+    if (sort === "top") return b.fire + b.clown + b.replies - (a.fire + a.clown + a.replies);
     return divisiveScore(b) - divisiveScore(a);
   });
   const prompts = Array.from({ length: 5 }, (_, i) => PROMPTS[(promptOffset + i) % PROMPTS.length]);
@@ -378,16 +386,23 @@ export function CommunityArena({ fullPage = false }: { fullPage?: boolean }) {
       <header className="cove-arena-head">
         <div>
           <span className="cove-arena-eyebrow">
-            <Sparkles size={13} /> {fullPage ? "THE DISCOURSE / COVE COMMUNITY" : "THE READING ROOM / COVE COMMUNITY"}
+            <Sparkles size={13} />{" "}
+            {fullPage ? "THE DISCOURSE / COVE COMMUNITY" : "THE READING ROOM / COVE COMMUNITY"}
           </span>
           {fullPage ? (
-            <h1>Hot Takes. <em>Real conversations.</em></h1>
+            <h1>
+              Hot Takes. <em>Real conversations.</em>
+            </h1>
           ) : (
-            <h1 aria-label="Community">Good books. <em>Bold opinions.</em></h1>
+            <h1 aria-label="Community">
+              Good books. <em>Bold opinions.</em>
+            </h1>
           )}
-          <p>{fullPage
-            ? "Find a debate, read the replies, and make your case."
-            : "Make your case. Pick a side. Find your people."}</p>
+          <p>
+            {fullPage
+              ? "Find a debate, read the replies, and make your case."
+              : "Make your case. Pick a side. Find your people."}
+          </p>
         </div>
         <button type="button" className="cove-arena-primary" onClick={() => openComposer()}>
           <Plus size={18} /> Drop a hot take
@@ -400,19 +415,38 @@ export function CommunityArena({ fullPage = false }: { fullPage?: boolean }) {
               <label className="cove-debates-search">
                 <Search size={20} aria-hidden="true" />
                 <span className="sr-only">Search recent public debates and comments</span>
-                <input type="search" maxLength={80} value={searchInput}
+                <input
+                  type="search"
+                  maxLength={80}
+                  value={searchInput}
                   placeholder="Search takes, comments, readers, and books…"
-                  onChange={(e) => setSearchInput(e.target.value)} />
+                  onChange={(e) => setSearchInput(e.target.value)}
+                />
               </label>
-              <div className="cove-debates-filters" role="group" aria-label="Debate discovery filters">
-                {([
-                  ["trending", "Trending"], ["fire", "Fire"], ["clown", "Clownery"],
-                  ["new", "New"], ["top", "Top"], ["following", "Following"],
-                ] as const).map(([value,label]) => (
-                  <button key={value} type="button"
+              <div
+                className="cove-debates-filters"
+                role="group"
+                aria-label="Debate discovery filters"
+              >
+                {(
+                  [
+                    ["trending", "Trending"],
+                    ["fire", "Fire"],
+                    ["clown", "Clownery"],
+                    ["new", "New"],
+                    ["top", "Top"],
+                    ["following", "Following"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
                     aria-pressed={debateFilter === value}
                     className={debateFilter === value ? "active" : ""}
-                    onClick={() => chooseDebateFilter(value)}>{label}</button>
+                    onClick={() => chooseDebateFilter(value)}
+                  >
+                    {label}
+                  </button>
                 ))}
               </div>
             </section>
@@ -457,14 +491,23 @@ export function CommunityArena({ fullPage = false }: { fullPage?: boolean }) {
                   <Flame size={19} /> HOT TAKES <span className="cove-arena-title-glow">/</span> THE
                   DISCOURSE
                 </h2>
-                <p>{fullPage ? "The newest arguments and opinions from Cove readers." : "Bookish arguments worth staying up for."}</p>
+                <p>
+                  {fullPage
+                    ? "The newest arguments and opinions from Cove readers."
+                    : "Bookish arguments worth staying up for."}
+                </p>
               </div>
               <div className="cove-arena-feed-links">
-                {!fullPage && <a className="cove-arena-minor-action" href="/community?tab=debates">
-                  View debates <ArrowRight size={15} />
-                </a>}
-                <button type="button" className="cove-arena-minor-action"
-                  onClick={() => openComposer("debate")}>
+                {!fullPage && (
+                  <a className="cove-arena-minor-action" href="/community?tab=debates">
+                    View debates <ArrowRight size={15} />
+                  </a>
+                )}
+                <button
+                  type="button"
+                  className="cove-arena-minor-action"
+                  onClick={() => openComposer("debate")}
+                >
                   <Plus size={16} /> Start a debate
                 </button>
               </div>
@@ -673,9 +716,11 @@ export function CommunityArena({ fullPage = false }: { fullPage?: boolean }) {
             </div>
             {!feed.isLoading && !feed.isError && !items.length && (
               <div className="cove-arena-status">
-                {searchTerm ? "No matching public debates in this page of recent activity. " :
-                  debateFilter === "following" && fullPage ? "No debates from readers you follow in this page. " :
-                  "No public posts in this feed yet. Got an opinion? "}{" "}
+                {searchTerm
+                  ? "No matching public debates in this page of recent activity. "
+                  : debateFilter === "following" && fullPage
+                    ? "No debates from readers you follow in this page. "
+                    : "No public posts in this feed yet. Got an opinion? "}{" "}
                 <button type="button" className="text-link" onClick={() => openComposer("take")}>
                   Start the conversation.
                 </button>
@@ -802,13 +847,21 @@ export function CommunityArena({ fullPage = false }: { fullPage?: boolean }) {
                 <ul aria-label="Recent recorded matchup votes">
                   {(bracket.data?.activity || []).slice(0, 6).map((event, index) => {
                     const post = matchups.find((item) => item.id === event.postId);
-                    const book = post ? matchupNames(post.body)[event.side === "A" ? 0 : 1] : "a contender";
-                    return <li key={event.postId + ":" + index}>
-                      <span className="cove-arena-activity-dot" />
-                      <span>A reader voted for <b>{book}</b>
-                        <small>{post ? matchupNames(post.body).join(" vs ") : "Matchup"} · {timeAgo(event.createdAt)}</small>
-                      </span>
-                    </li>;
+                    const book = post
+                      ? matchupNames(post.body)[event.side === "A" ? 0 : 1]
+                      : "a contender";
+                    return (
+                      <li key={event.postId + ":" + index}>
+                        <span className="cove-arena-activity-dot" />
+                        <span>
+                          A reader voted for <b>{book}</b>
+                          <small>
+                            {post ? matchupNames(post.body).join(" vs ") : "Matchup"} ·{" "}
+                            {timeAgo(event.createdAt)}
+                          </small>
+                        </span>
+                      </li>
+                    );
                   })}
                 </ul>
               )}

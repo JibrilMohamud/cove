@@ -384,13 +384,17 @@ export function OfficialTournament() {
                   return (
                     <li key={event.matchId + ":" + event.entryId + ":" + index}>
                       <span aria-hidden="true">🔥</span>
-                      <span>A reader voted for <b>{entry?.title || "a contender"}</b>
-                        {" · "}Match {match?.slot || "?"} · {dateLabel(event.createdAt)}</span>
+                      <span>
+                        A reader voted for <b>{entry?.title || "a contender"}</b>
+                        {" · "}Match {match?.slot || "?"} · {dateLabel(event.createdAt)}
+                      </span>
                     </li>
                   );
                 })}
               </ul>
-            ) : <p>No ballots yet. Be the first to vote.</p>}
+            ) : (
+              <p>No ballots yet. Be the first to vote.</p>
+            )}
             <p>Results are finalized after the deadline. Ties advance the lower seed.</p>
           </div>
         </>
