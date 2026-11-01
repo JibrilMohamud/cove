@@ -145,14 +145,13 @@ export function SettingsNetwork() {
                 </div>
               ))}
             </div>
-            {!network.isLoading &&
-              !(view === "following" ? followed : blocked).length && (
-                <p className="muted">
-                  {view === "following"
-                    ? ui("You aren't following anyone yet.")
-                    : ui("You haven't blocked anyone.")}
-                </p>
-              )}
+            {!network.isLoading && !(view === "following" ? followed : blocked).length && (
+              <p className="muted">
+                {view === "following"
+                  ? ui("You aren't following anyone yet.")
+                  : ui("You haven't blocked anyone.")}
+              </p>
+            )}
             {view === "following" && network.hasNextPage && (
               <button
                 className="button outline"
@@ -176,7 +175,9 @@ export function SettingsNetwork() {
             {search.isError && <p role="alert">{ui("Search failed.")}</p>}
             <div className="cove-network-people">
               {(search.data?.people || [])
-                .filter((person) => person.user_id !== data.user?.id && !blockedIds.has(person.user_id))
+                .filter(
+                  (person) => person.user_id !== data.user?.id && !blockedIds.has(person.user_id),
+                )
                 .map((person) => (
                   <div className="cove-network-person" key={person.user_id}>
                     <ReaderLink person={person} />
