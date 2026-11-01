@@ -6,6 +6,7 @@ import {
 } from "./spoiler-progress.server";
 import { z } from "zod/v3";
 import { readArenaPost } from "./community-arena";
+import { handleCommunityTournaments } from "./community-tournaments.server";
 import type { CoveEnv } from "./api.server";
 import { ApiError, bookIdSchema, json, now, rateLimit, readBody, requireIdentity } from "./service";
 import { resolveProduct } from "./catalog-model.server";
@@ -1552,6 +1553,8 @@ export async function handleSocial(
       .first())
   )
     throw new ApiError(403, "This account is being erased.");
+  const tournaments = await handleCommunityTournaments(request, env, path, userId);
+  if (tournaments) return tournaments;
   if (path === "/social/sharing") {
     const viewer = requireIdentity(userId);
     if (method === "GET") return json(await sharingInventory(db, viewer, url, env));
