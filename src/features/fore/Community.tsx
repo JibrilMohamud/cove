@@ -2821,7 +2821,7 @@ export function CommunityPage() {
         <Suspense
           fallback={
             <p className="muted" role="status">
-              Opening the Reading Room…
+              {ui("Opening Community…")}
             </p>
           }
         >
