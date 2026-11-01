@@ -44,10 +44,7 @@ const expectedScopedConsumers = new Map([
     ".github/workflows/literary-prod-publisher-dormant-deploy.yml",
     "CLOUDFLARE_COVE_DORMANT_LITERARY_PUBLISHER_TOKEN",
   ],
-  [
-    ".github/workflows/biosync-canary.yml",
-    "CLOUDFLARE_COVE_BIOSYNC_CANARY_TOKEN",
-  ],
+  [".github/workflows/biosync-canary.yml", "CLOUDFLARE_COVE_BIOSYNC_CANARY_TOKEN"],
   [
     ".github/workflows/cloudflare-native-ssr-staging.yml",
     "CLOUDFLARE_COVE_CLOUDFLARE_NATIVE_SSR_STAGING_TOKEN",
@@ -92,10 +89,7 @@ const expectedScopedConsumers = new Map([
     ".github/workflows/isolated-commons-review-cases.yml",
     "CLOUDFLARE_COVE_ISOLATED_COMMONS_REVIEW_CASES_TOKEN",
   ],
-  [
-    ".github/workflows/isolated-data-plane.yml",
-    "CLOUDFLARE_COVE_ISOLATED_DATA_PLANE_TOKEN",
-  ],
+  [".github/workflows/isolated-data-plane.yml", "CLOUDFLARE_COVE_ISOLATED_DATA_PLANE_TOKEN"],
   [
     ".github/workflows/isolated-open-license-discovery.yml",
     "CLOUDFLARE_COVE_ISOLATED_OPEN_LICENSE_DISCOVERY_TOKEN",
@@ -246,7 +240,11 @@ if (consumers)
     "BLOCKED: account-wide Cloudflare token must NOT be revoked or considered retired until each consumer migrates and independent permission review passes.",
   );
 
-if (inventory.scopedConsumers.some((entry) => !entry.provisioned || !entry.providerPrivilegesCertified)) {
+if (
+  inventory.scopedConsumers.some(
+    (entry) => !entry.provisioned || !entry.providerPrivilegesCertified,
+  )
+) {
   console.log(
     "BLOCKED: zero broad-token source references, but scoped credentials are not provisioned or provider-certified. Live release and old-token revocation remain forbidden.",
   );
