@@ -1,4 +1,5 @@
 import { useState } from "react";
+import "./official-tournament.css";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, BookOpen, Clock3, Plus, Trophy } from "lucide-react";
 import { toast } from "sonner";
