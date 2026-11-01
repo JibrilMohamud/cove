@@ -266,7 +266,7 @@ async function catalogBatch(request: Request, env: BackendEnv) {
   let searchSync: { skipped: string; reason: string; probeMs: number } | undefined;
   if (Date.now() < deadline) {
     const admission = await admitCatalogBatch(
-      env.DB,
+      backendScheduledPrimaryReadDb(env),
       catalogAdmissionBudget(env.FORE_CATALOG_ADMISSION_MAX_MS),
     );
     if (admission.allowed) {
@@ -611,9 +611,10 @@ async function runScheduled(cron: string, env: BackendEnv) {
       // All code paths read the same primary-D1 owner as external Workers.
       // During a drain neither side may start fresh work. The environment
       // switch alone is deliberately insufficient to claim ownership.
+      const schedulerOwnerDb = backendScheduledPrimaryReadDb(env);
       const [assetOwner, literaryOwner] = await Promise.all([
-        contentPipelineOwner(env.DB, "assets"),
-        contentPipelineOwner(env.DB, "literary"),
+        contentPipelineOwner(schedulerOwnerDb, "assets"),
+        contentPipelineOwner(schedulerOwnerDb, "literary"),
       ]);
       const work = [
         ...(!external && assetOwner === "legacy" ? [() => runStoredAssetTick(env)] : []),
@@ -1011,7 +1012,7 @@ export default {
     if (path === "/__cove/ingestion/music-supply-handoff" && request.method === "POST")
       return handleCanonicalMusicHandoff(request, env, () =>
         admitCatalogBatch(
-          env.DB,
+          backendScheduledPrimaryReadDb(env),
           catalogAdmissionBudget(env.FORE_MUSIC_CANONICAL_HANDOFF_PROBE_MS),
         ),
       );
@@ -1037,7 +1038,7 @@ export default {
       // A bulk repair is deferrable: never initiate it while the shared
       // primary D1 is unavailable or already showing substantial queue delay.
       const admission = await admitCatalogBatch(
-        env.DB,
+        backendScheduledPrimaryReadDb(env),
         catalogAdmissionBudget(env.FORE_REGIONAL_EPUB_REPAIR_PROBE_MS),
       );
       if (!admission.allowed)
