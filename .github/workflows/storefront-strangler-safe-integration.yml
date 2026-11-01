@@ -58,10 +58,9 @@ jobs:
           import assert from "node:assert/strict";
           import fs from "node:fs";
           const raw = fs.readFileSync(".github/workflows/deploy-persistence-backend.yml", "utf8");
-          const push = raw.split("  push:")[1]?.split("  workflow_dispatch:")[0] || "";
-          assert.ok(push.includes("src/persistence-backend.worker.ts"));
-          assert.ok(!push.includes('"package-lock.json"'));
-          assert.ok(!push.includes('".github/workflows/deploy-persistence-backend.yml"'));
+          assert.match(raw, /^  workflow_dispatch:\s*$/m);
+          assert.doesNotMatch(raw, /^  push:\s*$/m);
+          assert.match(raw, /github\.ref == 'refs\/heads\/main'/);
           console.log("PASS: dependency-only main merge cannot auto-deploy persistence.");
           NODE
       - name: Install Chromium for progressive interaction QA
