@@ -37,6 +37,16 @@ commits, PR comments or chat:
   Supply it only when `apply_migrations=true`; revoke it after the
   migration and independently verify revocation.
 
+The other production Worker deployment workflows also require **separate**
+credentials. `CLOUDFLARE_COVE_RELEASE_GATEWAY_TOKEN` is for the disabled
+`cove-fast-customer-gateway` only; `CLOUDFLARE_COVE_RELEASE_LEGAL_OWNER_TOKEN`
+is for the **disabled** legal-owner Worker only. Neither is interchangeable
+with the backend deployment token, and neither should have D1 Write.
+Cloudflare token policy should be independently reviewed for precise account
+and Worker scope before either secret is provisioned. Those deployments
+require an explicit workflow dispatch on `main`; pushing code alone never
+uses their production release credentials.
+
 The workflow refuses reuse of the same credential for deployment and
 migration. Never fall back to the old `CLOUDFLARE_API_TOKEN` secret. GitHub
 Actions cannot safely infer that a token called "scoped" is actually scoped:
