@@ -66,6 +66,14 @@ for (const entry of inventory.scopedConsumers) {
   );
 }
 
+const stageBucket = readFileSync(
+  ".github/workflows/strangler-stage-private-bucket-provision.yml",
+  "utf8",
+);
+assert.match(stageBucket, /github\.event_name == 'workflow_dispatch'/);
+assert.match(stageBucket, /github\.ref == 'refs\/heads\/main'/);
+assert.match(stageBucket, /persist-credentials: false/);
+
 let consumers = 0;
 let references = 0;
 for (const file of files) {
