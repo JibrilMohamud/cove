@@ -136,3 +136,14 @@
 .cove-arena-report { display:grid; gap:.6rem; }
 .cove-arena-report textarea { min-height:70px; }
 @media (max-width:850px) { .cove-arena-layout { grid-template-columns:minmax(0,1fr); } }
+
+/* Public conversation feed precedes the optional composer, including on phones. */
+.cove-arena-layout { grid-template-columns:minmax(0,1.65fr) minmax(240px,.85fr); }
+.cove-arena-feed { grid-column:1; grid-row:1; }
+.cove-arena-composer { grid-column:2; grid-row:1; }
+.cove-arena-feed-heading { align-items:center; }
+@media (max-width:850px) {
+  .cove-arena-layout { grid-template-columns:minmax(0,1fr); }
+  .cove-arena-feed { grid-column:1; grid-row:1; }
+  .cove-arena-composer { grid-column:1; grid-row:2; }
+}
