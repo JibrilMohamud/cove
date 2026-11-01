@@ -1,0 +1,145 @@
+.cove-reader-profile-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 270px;
+  gap: 42px;
+  align-items: start;
+}
+.cove-reader-main,
+.cove-reader-rail {
+  display: grid;
+  gap: 28px;
+  min-width: 0;
+}
+.cove-reader-intro {
+  font:
+    13px Georgia,
+    serif;
+  color: #a9bacc;
+  margin: 0 0 12px;
+}
+.cove-reader-cover {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2/3;
+  background: #26374a;
+  border: 1px solid #526579;
+  border-radius: 5px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px #0007;
+}
+.cove-reader-cover img {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  display: block;
+}
+.cove-reader-faux-cover {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: space-between;
+  text-align: center;
+  align-items: center;
+  padding: clamp(6px, 2vw, 17px);
+  background: linear-gradient(135deg, #25364c, #425366 60%, #273b4c);
+  color: #e7dbc1;
+  border-left: 5px solid #a4a076;
+  overflow-wrap: anywhere;
+}
+.cove-reader-faux-cover strong {
+  font:
+    600 clamp(10px, 1.4vw, 18px)/1.25 Georgia,
+    serif;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+}
+.cove-reader-faux-cover small {
+  font-size: 9px;
+}
+.cove-reader-three {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 13px;
+}
+.cove-reader-three > a {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+.cove-reader-three strong,
+.cove-reader-three small {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cove-reader-three small {
+  color: #a0b2c2;
+  font-size: 11px;
+}
+.cove-reader-recent {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+.cove-reader-recent a {
+  min-width: 0;
+}
+.cove-reader-recent small {
+  display: block;
+  color: #8fa0ad;
+  font-size: 11px;
+  margin-top: 6px;
+}
+.cove-reader-journal {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr);
+  gap: 16px;
+  padding: 15px 0;
+  border-bottom: 1px solid #344351;
+}
+.cove-reader-journal > a {
+  width: 70px;
+}
+.cove-reader-journal h3 {
+  font:
+    600 22px Georgia,
+    serif;
+  margin: 0 0 7px;
+}
+.cove-reader-journal small,
+.cove-reader-journal > div > p:first-of-type {
+  font-size: 11px;
+  color: #9db2c4;
+}
+.cove-reader-journal p {
+  margin: 8px 0;
+}
+.cove-reader-rating {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  color: #b9e77a;
+}
+.cove-reader-review {
+  font:
+    15px/1.6 Georgia,
+    serif;
+  color: #bad0df;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cove-reader-journey-link {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  font-size: 11px;
+  color: #a0b6c8 !important;
+}
