@@ -859,5 +859,13 @@
   "Searching…": "Searching…",
   "Follow": "Follow",
   "Unfollowed": "Unfollowed",
-  "Follow request sent": "Follow request sent"
+  "Follow request sent": "Follow request sent",
+  "Cart": "Cart",
+  "Wishlist": "Wishlist",
+  "Orders": "Orders",
+  "Preferences": "Preferences",
+  "Account": "Account",
+  "Manage your reading preferences, account, and network.": "Manage your reading preferences, account, and network.",
+  "Settings sections": "Settings sections",
+  "Loading settings…": "Loading settings…"
 }
