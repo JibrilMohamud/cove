@@ -41,7 +41,7 @@ export function CommunityProfileRoute({
         visibleJourneyIds.map(async (id) => {
           try {
             const x = await api<JourneyDetail>("/social/journeys/" + encodeURIComponent(id));
-            return { id, ...x };
+            return { ...x, id };
           } catch {
             return { id };
           }
