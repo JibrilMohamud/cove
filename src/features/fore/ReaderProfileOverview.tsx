@@ -4,6 +4,7 @@ import { ReaderProfileSections } from "./ReaderProfileSections";
 import { ReaderProfileRail } from "./ReaderProfileRail";
 import "./reader-profile.css";
 import "./reader-profile-cards.css";
+import "./reader-profile-shelves.css";
 
 type Result = {
  profile:{id:string;name?:string;username?:string;bio?:string};
