@@ -129,6 +129,10 @@ jobs:
         run: node scripts/check-backend-http-primary-reads.mjs
       - name: Private owner scheduler processes bounded author fanout without caller D1
         run: node scripts/check-backend-author-social-owner.mjs
+      - name: Private owner handles author release scan and alerts without caller D1
+        run: node scripts/check-backend-author-release-alerts-owner.mjs
+      - name: Author release notifications recover interrupted leases and fence stale runners
+        run: node scripts/check-author-release-alert-recovery.mjs
       - name: Soundtrack library rights and delivery regressions
         run: npm run test:soundtracks
       - name: Literary profiles, evidence and chapter-matching regressions
