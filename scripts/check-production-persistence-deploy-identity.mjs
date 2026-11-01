@@ -32,6 +32,25 @@ assert.match(migrationInput, /default: false/);
 assert.match(migrationInput, /type: boolean/);
 assert.match(text, /inputs\.apply_migrations == true/);
 assert.doesNotMatch(text, /github\.event_name == 'push' \|\| inputs\.apply_migrations/);
+assert.doesNotMatch(text, /secrets\.CLOUDFLARE_API_TOKEN/);
+assert.match(text, /CLOUDFLARE_COVE_RELEASE_DEPLOY_TOKEN/);
+assert.match(text, /CLOUDFLARE_COVE_RELEASE_D1_MIGRATIONS_TOKEN/);
+assert.match(text, /separately scoped CLOUDFLARE_COVE_RELEASE_DEPLOY_TOKEN is required/);
+assert.match(text, /Worker deployment and production D1 migration credentials must be distinct/);
+const migrations = text.slice(
+  text.indexOf("- name: Apply pending D1 migrations"),
+  text.indexOf("- name: Deploy persistence Worker"),
+);
+assert.match(
+  migrations,
+  /apiToken: \$\{\{ secrets\.CLOUDFLARE_COVE_RELEASE_D1_MIGRATIONS_TOKEN \}\}/,
+);
+const workerDeploy = text.slice(
+  text.indexOf("- name: Deploy persistence Worker"),
+  text.indexOf("- name: Verify production persistence binding after deployment"),
+);
+assert.match(workerDeploy, /apiToken: \$\{\{ secrets\.CLOUDFLARE_COVE_RELEASE_DEPLOY_TOKEN \}\}/);
+assert.doesNotMatch(workerDeploy, /CLOUDFLARE_COVE_RELEASE_D1_MIGRATIONS_TOKEN/);
 const preflightIndex = text.indexOf(
   "- name: Verify exact disabled production owner before binding",
 );
@@ -57,7 +76,10 @@ assert.ok(text.indexOf('[[ "$WORKER_NAME" == "', validation) < build);
 const binding = 'script_name = "' + owner + '"';
 const configStep = text.indexOf("- name: Write deployment config");
 const ownerBinding = text.indexOf(binding, configStep);
-const credentials = text.indexOf("- name: Check deployment credentials", configStep);
+const credentials = text.indexOf(
+  "- name: Require independently scoped production release credentials",
+  configStep,
+);
 assert.ok(ownerBinding > configStep && ownerBinding < credentials);
 assert.doesNotMatch(
   text.slice(configStep, ownerBinding),
