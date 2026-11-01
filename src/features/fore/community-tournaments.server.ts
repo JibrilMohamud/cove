@@ -78,7 +78,11 @@ function safeTime(iso: string): number {
 function isOpen(t: TournamentRow): boolean {
   return t.status === "live" && safeTime(t.round_deadline) > Date.now();
 }
-async function publicTournament(db: DB, id: string, viewer: string | null = null): Promise<TournamentRow> {
+async function publicTournament(
+  db: DB,
+  id: string,
+  viewer: string | null = null,
+): Promise<TournamentRow> {
   const row = await db
     .prepare(
       `SELECT t.* FROM community_tournaments t
