@@ -121,6 +121,8 @@ jobs:
         run: npx eslint src/lib/persistence-backend.ts src/persistence-backend.worker.ts
       - name: Persistence architecture
         run: npm run test:persistence-backend
+      - name: Production backend deployment must not mint alternate D1 writers
+        run: node scripts/check-production-persistence-deploy-identity.mjs
       - name: Audio trigger diagnostic has no canonical D1 writer
         run: node scripts/check-backend-audio-diagnostics.mjs
       - name: Soundtrack library rights and delivery regressions
