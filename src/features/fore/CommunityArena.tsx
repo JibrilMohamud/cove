@@ -260,7 +260,11 @@ export function CommunityArena() {
                 >
                   {busy === "publish" ? "Publishing…" : "Publish"}
                 </button>
-                <button className="text-link" disabled={!!busy} onClick={() => setComposerOpen(false)}>
+                <button
+                  className="text-link"
+                  disabled={!!busy}
+                  onClick={() => setComposerOpen(false)}
+                >
                   Cancel
                 </button>
               </div>
