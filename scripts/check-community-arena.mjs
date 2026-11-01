@@ -64,8 +64,13 @@ try {
     "1342",
   );
   assert.equal(arena.readArenaPost("Unmarked content"), null);
+  const openMarker = arena.makeArenaPost("debate", "Public debate with open replies.", "", true);
+  assert.equal(arena.readArenaPost(openMarker)?.allowPublicReplies, true);
+  assert.equal(arena.readArenaPost(arena.makeArenaPost("debate", "Legacy protected reply policy."))?.allowPublicReplies, false);
+  assert.equal(arena.readArenaPost(openMarker)?.bookId, "");
 
-  for (const user of ["alice", "bob"]) {
+
+  for (const user of ["alice", "bob", "charlie"]) {
     await db
       .prepare(
         "INSERT INTO auth_accounts(provider_id,app_id,email,username,created_at) VALUES(?,?,?,?,?)",
@@ -162,6 +167,40 @@ try {
   assert.equal(network.nextCursor, null);
   assert.equal((await get("/social/arena?kind=matchup", "bob")).items.length, 0);
   assert.equal((await get("/social/arena?kind=take", "bob")).items.length, 1);
+
+
+  // A public Arena post must NOT bypass legacy profile reply settings.
+  await assert.rejects(() => social.handleSocial(
+    req("/social/posts", {
+      contextType: "profile", contextId: "alice", parentId: created.id,
+      postType: "reply", body: "Uninvited legacy reply.", visibility: "public",
+    }), env, "/social/posts", "charlie",
+  ), /not accepting replies/, "Legacy profile privacy remains enforced.");
+
+  // Authors can explicitly open a newly published public debate to everyone.
+  const openResponse = await social.handleSocial(
+    req("/social/posts", {
+      contextType: "profile", contextId: "alice", postType: "prompt",
+      body: openMarker, visibility: "public",
+    }), env, "/social/posts", "alice",
+  );
+  assert.equal(openResponse.status, 201);
+  const openPost = await openResponse.json();
+  const outsideReply = await social.handleSocial(
+    req("/social/posts", {
+      contextType: "profile", contextId: "alice", parentId: openPost.id,
+      postType: "reply", body: "Outsider public reply is welcome.", visibility: "public",
+    }), env, "/social/posts", "charlie",
+  );
+  assert.equal(outsideReply.status, 201, "Explicit opt-in accepts public readers beyond followers.");
+  const firstOpenReply = await outsideReply.json();
+  const nestedReply = await social.handleSocial(
+    req("/social/posts", {
+      contextType: "profile", contextId: "alice", parentId: firstOpenReply.id,
+      postType: "reply", body: "Nested threads also stay open.", visibility: "public",
+    }), env, "/social/posts", "charlie",
+  );
+  assert.equal(nestedReply.status, 201, "Nested replies inherit the root Arena opt-in.");
 
   const voted = await social.handleSocial(
     req(`/social/posts/${created.id}/reaction`, {
@@ -403,6 +442,8 @@ try {
   const arenaStyle = fs.readFileSync("src/features/fore/community-arena-experience.css", "utf8");
   assert.match(arenaUi, /import ".\/community-arena-experience\.css"/);
   assert.match(arenaUi, /CONTROVERSY PROMPTS/, "visible prompts strip");
+  assert.match(arenaUi, /setPublicReplies/, "Public Arena authors control open replies.");
+
   assert.match(arenaUi, /View debates/, "Reading Room must link to complete debate browser.");
   assert.match(arenaUi, /Search takes, comments, readers, and books/, "Debate search is visible.");
   assert.match(arenaUi, /cove-debates-filters/, "Six discovery filters are interactive.");
