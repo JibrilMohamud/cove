@@ -147,8 +147,11 @@ async function validatedBooks(db: DB, ids: string[]) {
     const book = await db.prepare(
       `SELECT p.id,p.public_id,e.title,p.source_external_id
        FROM products p JOIN editions e ON e.id=p.edition_id
-       WHERE p.id=? OR p.public_id=? LIMIT 1`
-    ).bind(ref, ref).first<{
+       WHERE p.id=? OR p.public_id=?
+          OR (p.source_name='gutenberg' AND p.source_external_id=?)
+       ORDER BY CASE WHEN p.id=? THEN 0 WHEN p.public_id=? THEN 1 ELSE 2 END
+       LIMIT 1`
+    ).bind(ref, ref, ref, ref, ref).first<{
       id: string; public_id: string | null; title: string;
       source_external_id: string | null;
     }>();
