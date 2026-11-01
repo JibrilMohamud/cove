@@ -301,8 +301,11 @@ try {
   assert.ok(networkSource, "Network GET endpoint must exist");
   assert.match(networkSource, /LIMIT 31/, "Following must be keyset-bounded");
   assert.match(networkSource, /LIMIT 100/, "Blocked list must be bounded");
-  assert.doesNotMatch(networkSource, /\b(?:INSERT|UPDATE|DELETE|REPLACE)\s+/i,
-    "Settings Network GET cannot introduce a new canonical D1 writer");
+  assert.doesNotMatch(
+    networkSource,
+    /\b(?:INSERT|UPDATE|DELETE|REPLACE)\s+/i,
+    "Settings Network GET cannot introduce a new canonical D1 writer",
+  );
   const communityPage = fs.readFileSync("src/features/fore/Community.tsx", "utf8");
   assert.match(
     communityPage,
