@@ -115,7 +115,7 @@ try {
   const source = fs.readFileSync("src/features/fore/social.server.ts", "utf8");
   const arenaRead = source.split('if (method === "GET" && path === "/social/arena")')[1]
     .split('if (method === "GET" && path === "/social/posts")')[0];
-  assert.doesNotMatch(arenaRead, /\\b(?:INSERT|UPDATE|DELETE|REPLACE)\\s+(?:INTO|FROM|\\w)/i,
+  assert.doesNotMatch(arenaRead, /\b(?:INSERT|UPDATE|DELETE|REPLACE)\s+(?:INTO|FROM|\w)/i,
     "Arena GET must not add canonical writers");
   assert.match(source, /LIMIT 80/, "Arena feed must be bounded");
   assert.match(fs.readFileSync("src/features/fore/Community.tsx", "utf8"), /lazy\(\(\) => import\("\.\/CommunityArena"\)/);
