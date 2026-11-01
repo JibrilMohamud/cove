@@ -65,10 +65,7 @@ let me = await request("/social/me");
 // User-authorized QA account only: publicly posting requires a public social
 // identity. Change ONLY the two visibility switches, retaining every other
 // reader privacy default and using the existing authenticated profile API.
-if (
-  me.profile?.profile_visibility !== "public" ||
-  me.profile?.activity_visibility !== "public"
-) {
+if (me.profile?.profile_visibility !== "public" || me.profile?.activity_visibility !== "public") {
   const p = me.profile;
   await request("/social/profile", "POST", {
     bio: p.bio || "",
