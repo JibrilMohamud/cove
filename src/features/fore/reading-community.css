@@ -298,3 +298,35 @@
   .cove-arena-feed-heading > label { margin-inline-start: 0; }
   .cove-arena-card { padding: 15px; }
 }
+
+
+/* Jammed-inspired Settings tabs and private Network management. */
+.cove-settings-tabs { display:inline-flex; flex-wrap:wrap; gap:4px; margin:0 0 18px; padding:4px; background:var(--secondary); border-radius:9px; }
+.cove-settings-tabs a { padding:10px 15px; border-radius:6px; color:var(--muted-foreground); font-size:14px; font-weight:650; }
+.cove-settings-tabs a.selected { color:#fff; background:#101823; box-shadow:0 1px 4px rgb(0 0 0 / 20%); }
+.cove-settings-network { padding:24px; background:#111822; border:1px solid var(--border); border-radius:18px; display:grid; gap:20px; }
+.cove-network-toolbar { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
+.cove-network-toggle { display:inline-flex; align-items:center; padding:3px; gap:3px; border-radius:999px; background:#080e16; border:1px solid #303947; }
+.cove-network-toggle button { border:0; background:transparent; color:#e2e8ee; padding:9px 13px; font-size:13px; font-weight:650; border-radius:999px; }
+.cove-network-toggle button.selected { background:#438cf0; color:#091221; }
+.cove-network-search { display:flex; align-items:center; gap:8px; border:1px solid #526071; border-radius:7px; padding:0 10px; min-height:42px; min-width:min(100%,280px); }
+.cove-network-search input { color:var(--foreground); width:100%; min-width:0; border:0; background:transparent; outline:0; font-size:14px; }
+.cove-network-search:focus-within { outline:2px solid var(--ring); outline-offset:2px; }
+.cove-network-columns { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:28px; }
+.cove-network-columns section { min-width:0; display:grid; gap:11px; align-content:start; }
+.cove-network-columns h2 { font-size:15px; font-weight:650; margin:0; }
+.cove-network-columns .muted { font-size:13px; line-height:1.5; }
+.cove-network-people { display:grid; gap:7px; }
+.cove-network-person { display:flex; justify-content:space-between; align-items:center; gap:10px; border-bottom:1px solid var(--border); padding:9px 0; }
+.cove-network-person > a { display:flex; gap:9px; align-items:center; min-width:0; color:var(--foreground); }
+.cove-network-person > a > span:last-child { display:grid; min-width:0; gap:2px; }
+.cove-network-person strong,.cove-network-person small { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cove-network-person small { color:var(--muted-foreground); font-size:12px; }
+.cove-network-person .text-link { flex-shrink:0; gap:5px; font-size:12px; }
+.cove-network-empty { display:flex; align-items:center; gap:8px; }
+@media (max-width:700px) {
+  .cove-settings-network { padding:16px; }
+  .cove-network-columns { grid-template-columns: minmax(0,1fr); }
+  .cove-network-toolbar { align-items:stretch; }
+  .cove-network-search { flex:1; }
+}
