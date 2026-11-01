@@ -105,7 +105,10 @@ try {
   mode = "overcount";
   await assert.rejects(() => dispatchPrivateAuthorSocialFanout(env, 10, 250), /receipt_mismatch/);
   mode = "down";
-  await assert.rejects(() => dispatchPrivateAuthorSocialFanout(env, 10, 250), /private_owner_unavailable/);
+  await assert.rejects(
+    () => dispatchPrivateAuthorSocialFanout(env, 10, 250),
+    /private_owner_unavailable/,
+  );
   for (const invalid of [
     { COVE_AUTHOR_SOCIAL_OWNER_QA: "0" },
     { COVE_LEGAL_CONSUMER_STAGE_ENABLED: "0" },
@@ -124,7 +127,9 @@ try {
     /author_social_private_owner_not_enrolled/,
   );
   assert.equal(calls.length, 4, "No invalid enrollment may contact the owner.");
-  console.log("PASS: scheduled author fanout is bounded, owner-first, QA-only and fails without caller D1 fallback.");
+  console.log(
+    "PASS: scheduled author fanout is bounded, owner-first, QA-only and fails without caller D1 fallback.",
+  );
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }
