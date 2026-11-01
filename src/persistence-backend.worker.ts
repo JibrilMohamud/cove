@@ -4,6 +4,7 @@ import { scopeExclusiveCanonicalD1 } from "./storefront-strangler/canonical-d1-w
 import { scopeCommerceProductionD1 } from "./storefront-strangler/commerce-d1-write-fence";
 import { backendScheduledPrimaryReadDb } from "./storefront-strangler/backend-scheduled-primary-reads";
 import { backendHttpPrimaryReadDb } from "./storefront-strangler/backend-http-primary-reads";
+import { dispatchPrivateAuthorSocialFanout } from "./storefront-strangler/backend-author-social-owner";
 import { verifyIndependentBackendCredential } from "./storefront-strangler/backend-independent-credential";
 import {
   reportAudioTriggerDiagnostic,
@@ -67,6 +68,7 @@ type BackendEnv = CoveEnv &
     COVE_CANONICAL_READONLY_RPC?: string;
     COVE_BACKEND_SCHEDULED_READONLY_RPC?: string;
     COVE_BACKEND_HTTP_READONLY_RPC?: string;
+    COVE_AUTHOR_SOCIAL_OWNER_QA?: string;
     COVE_CANONICAL_READONLY?: import("./lib/canonical-readonly-d1.server").CanonicalReadService;
     COVE_COMMERCE_OWNER_D1_FENCE?: string;
     FORE_BACKEND_TOKEN?: string;
@@ -437,7 +439,13 @@ async function runCommercialQueues(cron: string, env: BackendEnv) {
   }
   if (cron === "23 * * * *") {
     tasks.push(
-      ["author-social-fanout", () => processAuthorSocialFanoutJobs(env.DB, 10, 250)],
+      [
+        "author-social-fanout",
+        () =>
+          env.COVE_AUTHOR_SOCIAL_OWNER_QA === undefined
+            ? processAuthorSocialFanoutJobs(env.DB, 10, 250)
+            : dispatchPrivateAuthorSocialFanout(env, 10, 250),
+      ],
       ["partner-feed", () => processPartnerFeedQueue(env.DB, 15)],
       [
         "author-release-alerts",
