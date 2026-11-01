@@ -2,7 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, useAccount } from "./client";
 import { DiscussionThread } from "./Community";
-import { ReaderProfileOverview } from "./ReaderProfileOverview";
+import { ReaderProfileOverview, type ReaderProfileData } from "./ReaderProfileOverview";
+import type { ProfileJourney } from "./ReaderProfileBits";
+
+type JourneyDetail = { id: string; book?: { productId?: string }; cover_url?: string; author_snapshot?: string; review_excerpt?: string | null; rating_steps?: number | null };
 
 export function CommunityProfileRoute({
   profileRef,
@@ -12,9 +15,9 @@ export function CommunityProfileRoute({
   tab: string | null;
 }) {
   const { data, signIn } = useAccount();
-  const q = useQuery<any>({
+  const q = useQuery<ReaderProfileData>({
     queryKey: ["social-profile", profileRef, data.user?.id || "guest"],
-    queryFn: () => api("/social/profile/" + encodeURIComponent(profileRef)),
+    queryFn: () => api<ReaderProfileData>("/social/profile/" + encodeURIComponent(profileRef)),
   });
   // These published journeys are already filtered by the profile endpoint.
   // Fetch details through the existing authorization-aware journey API; never
@@ -22,7 +25,7 @@ export function CommunityProfileRoute({
   const visibleJourneyIds: string[] = (q.data?.journeys || [])
     .slice(0, 8)
     .map((j: { id: string }) => j.id);
-  const detail = useQuery({
+  const detail = useQuery<JourneyDetail[]>({
     queryKey: ["profile-journey-art", profileRef, data.user?.id || "guest", visibleJourneyIds],
     enabled: visibleJourneyIds.length > 0,
     staleTime: 60_000,
@@ -30,7 +33,7 @@ export function CommunityProfileRoute({
       Promise.all(
         visibleJourneyIds.map(async (id) => {
           try {
-            const x = await api<any>("/social/journeys/" + encodeURIComponent(id));
+            const x = await api<JourneyDetail>("/social/journeys/" + encodeURIComponent(id));
             return { id, ...x };
           } catch {
             return { id };
@@ -40,8 +43,9 @@ export function CommunityProfileRoute({
   });
   async function follow() {
     if (!data.user) return signIn();
+    if (!q.data) return;
     try {
-      const relationship = q.data.relationship;
+      const relationship = q.data.relationship || {};
       const following = !!relationship.following || relationship.followRequestStatus === "pending";
       await api("/social/follow", "POST", { userId: q.data.profile.id, following: !following });
       await q.refetch();
@@ -51,8 +55,9 @@ export function CommunityProfileRoute({
   }
   async function mute() {
     if (!data.user) return signIn();
+    if (!q.data) return;
     try {
-      const muted = !!q.data.relationship.muted;
+      const muted = !!q.data.relationship?.muted;
       await api("/social/mute", "POST", { userId: q.data.profile.id, muted: !muted });
       await q.refetch();
       toast.success(muted ? "Reader unmuted" : "Reader muted");
@@ -62,6 +67,7 @@ export function CommunityProfileRoute({
   }
   async function block() {
     if (!data.user) return signIn();
+    if (!q.data) return;
     if (!confirm("Block this reader? You will no longer see each other's Community activity."))
       return;
     try {
@@ -73,6 +79,7 @@ export function CommunityProfileRoute({
   }
   async function report() {
     if (!data.user) return signIn();
+    if (!q.data) return;
     try {
       await api("/social/report", "POST", {
         subjectType: "social_profile",
@@ -104,8 +111,8 @@ export function CommunityProfileRoute({
       ? "Requested"
       : "Follow";
   const snapshots = new Map((detail.data || []).map((j) => [j.id, j]));
-  const publicJourneys = (q.data.journeys || []).map((j: any) => {
-    const detailRow: any = snapshots.get(j.id);
+  const publicJourneys = (q.data.journeys || []).map((j: ProfileJourney) => {
+    const detailRow = snapshots.get(j.id);
     return detailRow
       ? {
           ...j,
@@ -118,7 +125,7 @@ export function CommunityProfileRoute({
       : j;
   });
   const year = String(new Date().getUTCFullYear());
-  const thisYear = publicJourneys.filter((j: any) =>
+  const thisYear = publicJourneys.filter((j: ProfileJourney) =>
     String(j.finished_at || "").startsWith(year),
   ).length;
   const result = { ...q.data, journeys: publicJourneys, counts: { ...q.data.counts, thisYear } };
