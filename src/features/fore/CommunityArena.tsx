@@ -319,7 +319,10 @@ export function CommunityArena() {
                   </time>
                 </header>
                 {post.spoiler ? (
-                  <details className="spoiler-disclosure"><summary>Contains spoilers · reveal post</summary><p className="cove-arena-body">{post.body}</p></details>
+                  <details className="spoiler-disclosure">
+                    <summary>Contains spoilers · reveal post</summary>
+                    <p className="cove-arena-body">{post.body}</p>
+                  </details>
                 ) : (
                   <p className="cove-arena-body">{post.body}</p>
                 )}
@@ -333,14 +336,26 @@ export function CommunityArena() {
                     type="button"
                     aria-pressed={(post.myReactions || []).includes("agree")}
                     className={(post.myReactions || []).includes("agree") ? "selected" : ""}
-                    disabled={!!busy} onClick={() => vote(post, "agree")}>{fireName} · {post.fire}</button>
+                    disabled={!!busy}
+                    onClick={() => vote(post, "agree")}
+                  >
+                    {fireName} · {post.fire}
+                  </button>
                   <button
                     type="button"
                     aria-pressed={(post.myReactions || []).includes("funny")}
                     className={(post.myReactions || []).includes("funny") ? "selected" : ""}
-                    disabled={!!busy} onClick={() => vote(post, "funny")}>{clownName} · {post.clown}</button>
+                    disabled={!!busy}
+                    onClick={() => vote(post, "funny")}
+                  >
+                    {clownName} · {post.clown}
+                  </button>
                 </div>
-                {balance !== null && <p className="small muted">{balance}% disagreement balance · 12+ reactions</p>}
+                {balance !== null && (
+                  <p className="small muted">
+                    {balance}% disagreement balance · 12+ reactions
+                  </p>
+                )}
                 <footer>
                   <a
                     className="text-link"
