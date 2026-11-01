@@ -16,7 +16,9 @@ for (const kind of [
   "audio_trigger_last_error",
   "audio_trigger_last_success",
   "audio_trigger_last_timeout",
-]) assert.match(worker, new RegExp(kind));
+]) {
+  assert.match(worker, new RegExp(kind));
+}
 
 const prod = readFileSync("wrangler.backend.production.toml", "utf8");
 const deploy = readFileSync(".github/workflows/deploy-persistence-backend.yml", "utf8");
@@ -45,8 +47,16 @@ try {
 
   const points = [];
   const env = {
-    DB: { prepare() { throw Error("CANONICAL_D1_MUST_NOT_BE_TOUCHED"); } },
-    BACKEND_DIAGNOSTICS: { writeDataPoint(value) { points.push(value); } },
+    DB: {
+      prepare() {
+        throw Error("CANONICAL_D1_MUST_NOT_BE_TOUCHED");
+      },
+    },
+    BACKEND_DIAGNOSTICS: {
+      writeDataPoint(value) {
+        points.push(value);
+      },
+    },
   };
   reportAudioTriggerDiagnostic(env, "audio_trigger_last_timeout", {
     path: "/api/fore/internal/ingestion/audio-align",
@@ -69,7 +79,13 @@ try {
   });
   assert.equal(JSON.parse(info[1]).status, 200);
   reportAudioTriggerDiagnostic(
-    { BACKEND_DIAGNOSTICS: { writeDataPoint() { throw Error("metric unavailable"); } } },
+    {
+      BACKEND_DIAGNOSTICS: {
+        writeDataPoint() {
+          throw Error("metric unavailable");
+        },
+      },
+    },
     "audio_trigger_last_error",
     { path: "https://bad.invalid/?secret=TOKEN", status: 403, body: "SECRET" },
   );
