@@ -162,8 +162,8 @@ export function CommunityArena() {
           <span className="small-label">PUBLIC COMMUNITY · NO ACCOUNT NEEDED TO BROWSE</span>
           <h1>Hot Takes, Debates & Tournaments</h1>
           <p>
-            Explore lively book opinions, take sides in literary debates, and vote in matchups.
-            Sign in only when you want to contribute. Book pages keep their own reviews.
+            Explore lively book opinions, take sides in literary debates, and vote in matchups. Sign
+            in only when you want to contribute. Book pages keep their own reviews.
           </p>
         </div>
         <Flame size={40} aria-hidden="true" />
@@ -267,12 +267,14 @@ export function CommunityArena() {
           <div className="cove-arena-feed-heading">
             <h2>From the Community</h2>
             <div className="cove-arena-kind" role="group" aria-label="Community post categories">
-              {([
-                ["all", "All"],
-                ["take", "Hot Takes"],
-                ["debate", "Debates"],
-                ["matchup", "Tournaments"],
-              ] as const).map(([key, label]) => (
+              {(
+                [
+                  ["all", "All"],
+                  ["take", "Hot Takes"],
+                  ["debate", "Debates"],
+                  ["matchup", "Tournaments"],
+                ] as const
+              ).map(([key, label]) => (
                 <button
                   type="button"
                   key={key}

@@ -212,16 +212,26 @@ try {
   );
   assert.match(source, /LIMIT 80/, "Arena feed must be bounded");
   const communityPage = fs.readFileSync("src/features/fore/Community.tsx", "utf8");
-  assert.match(communityPage, /params\.get\("tab"\) \|\| "arena"/,
-    "Public Arena must be the Community default");
+  assert.match(
+    communityPage,
+    /params\.get\("tab"\) \|\| "arena"/,
+    "Public Arena must be the Community default",
+  );
   const communityNavigation = communityPage
-    .split('<nav className="community-tabs"')[1].split('].map(')[0];
-  assert.doesNotMatch(communityNavigation, /"received"|"sharing"|"me"/,
-    "private tools must not appear in Community navigation");
+    .split('<nav className="community-tabs"')[1]
+    .split("].map(")[0];
+  assert.doesNotMatch(
+    communityNavigation,
+    /"received"|"sharing"|"me"/,
+    "private tools must not appear in Community navigation",
+  );
   const accountRoute = fs.readFileSync("src/routes/profile.tsx", "utf8");
   for (const section of ["me", "sharing", "received"])
-    assert.match(accountRoute, new RegExp('"' + section + '"'),
-      "Private tools should be accessible from My Account");
+    assert.match(
+      accountRoute,
+      new RegExp('"' + section + '"'),
+      "Private tools should be accessible from My Account",
+    );
   assert.match(
     fs.readFileSync("src/features/fore/Community.tsx", "utf8"),
     /import\("\.\/CommunityArena"\)/,

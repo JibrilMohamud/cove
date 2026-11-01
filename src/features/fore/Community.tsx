@@ -2683,11 +2683,7 @@ export function MyCommunity() {
     </section>
   );
 }
-function LegacyCommunityAccountRedirect({
-  section,
-}: {
-  section: "received" | "sharing" | "me";
-}) {
+function LegacyCommunityAccountRedirect({ section }: { section: "received" | "sharing" | "me" }) {
   const destination = `/profile?section=${encodeURIComponent(section)}`;
   useEffect(() => {
     window.location.replace(destination);
