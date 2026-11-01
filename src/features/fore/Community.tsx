@@ -19,7 +19,6 @@ import {
   BookOpen,
   Check,
   ChevronRight,
-  CircleUserRound,
   Club,
   Heart,
   Flame,
@@ -36,7 +35,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { api, authorOf, useAccount, type CatalogBook } from "./client";
-import { SharingPage, MemberPicker, type ShareMember } from "./Sharing";
+import { MemberPicker, type ShareMember } from "./Sharing";
 import { useStorefrontLocale } from "./localization";
 import { readArenaPost, ARENA_KINDS } from "./community-arena";
 
