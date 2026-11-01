@@ -114,7 +114,13 @@ export function Reviews({ bookId, personal = false }: { bookId: string; personal
     if (!data.user) return signIn();
     setBusy(true);
     try {
-      await api("/books/" + bookId + "/reviews", "PUT", { rating, body, tags: body.trim() ? tags : [], visibility, spoiler });
+      await api("/books/" + bookId + "/reviews", "PUT", {
+        rating,
+        body,
+        tags: body.trim() ? tags : [],
+        visibility,
+        spoiler,
+      });
       await result.refetch();
       toast.success(visibility === "private" ? "Saved privately" : "Your rating is published");
     } catch (e) {
@@ -236,9 +242,18 @@ export function Reviews({ bookId, personal = false }: { bookId: string; personal
                 {REVIEW_TAG_KEYS.map((tag) => {
                   const active = tags.includes(tag);
                   return (
-                    <button type="button" key={tag} className={active ? "selected" : ""} aria-pressed={active}
+                    <button
+                      type="button"
+                      key={tag}
+                      className={active ? "selected" : ""}
+                      aria-pressed={active}
                       disabled={!active && tags.length >= 3}
-                      onClick={() => setTags((current) => active ? current.filter((t) => t !== tag) : [...current, tag])}>
+                      onClick={() =>
+                        setTags((current) =>
+                          active ? current.filter((t) => t !== tag) : [...current, tag],
+                        )
+                      }
+                    >
                       {REVIEW_TAGS[tag]}
                     </button>
                   );
@@ -330,11 +345,23 @@ export function Reviews({ bookId, personal = false }: { bookId: string; personal
                 <SelectItem value="shortest">Word count · shortest</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={tagFilter} onValueChange={(v) => { setTagFilter(v); setPage(1); }}>
-              <SelectTrigger aria-label="Filter by review tag"><SelectValue /></SelectTrigger>
+            <Select
+              value={tagFilter}
+              onValueChange={(v) => {
+                setTagFilter(v);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger aria-label="Filter by review tag">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All review tags</SelectItem>
-                {REVIEW_TAG_KEYS.map((key) => <SelectItem key={key} value={key}>{REVIEW_TAGS[key]}</SelectItem>)}
+                {REVIEW_TAG_KEYS.map((key) => (
+                  <SelectItem key={key} value={key}>
+                    {REVIEW_TAGS[key]}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <label className="switch-label">
@@ -348,13 +375,42 @@ export function Reviews({ bookId, personal = false }: { bookId: string; personal
               Written reviews only
             </label>
           </div>
-          <form className="review-search" role="search" onSubmit={(e) => { e.preventDefault(); setSearch(searchDraft.trim().slice(0, 80)); setPage(1); }}>
+          <form
+            className="review-search"
+            role="search"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setSearch(searchDraft.trim().slice(0, 80));
+              setPage(1);
+            }}
+          >
             <label htmlFor="review-search-input">Search written reviews</label>
             <div>
-              <input id="review-search-input" className="note-input" type="search" maxLength={80} value={searchDraft}
-                placeholder="Find a word or phrase…" onChange={(e) => setSearchDraft(e.target.value)} />
-              <button type="submit" className="button outline"><Search size={16} /> Search</button>
-              {search && <button type="button" className="text-link" onClick={() => { setSearch(""); setSearchDraft(""); setPage(1); }}>Clear</button>}
+              <input
+                id="review-search-input"
+                className="note-input"
+                type="search"
+                maxLength={80}
+                value={searchDraft}
+                placeholder="Find a word or phrase…"
+                onChange={(e) => setSearchDraft(e.target.value)}
+              />
+              <button type="submit" className="button outline">
+                <Search size={16} /> Search
+              </button>
+              {search && (
+                <button
+                  type="button"
+                  className="text-link"
+                  onClick={() => {
+                    setSearch("");
+                    setSearchDraft("");
+                    setPage(1);
+                  }}
+                >
+                  Clear
+                </button>
+              )}
             </div>
           </form>
           <div className="review-list">
@@ -384,9 +440,13 @@ export function Reviews({ bookId, personal = false }: { bookId: string; personal
                     </div>
                   )}
                 </header>
-                {!!r.tags?.length && <div className="review-tag-chips review-tag-display">
-                  {r.tags.map((tag) => <span key={tag}>{REVIEW_TAGS[tag]}</span>)}
-                </div>}
+                {!!r.tags?.length && (
+                  <div className="review-tag-chips review-tag-display">
+                    {r.tags.map((tag) => (
+                      <span key={tag}>{REVIEW_TAGS[tag]}</span>
+                    ))}
+                  </div>
+                )}
                 {r.body ? (
                   r.spoiler ? (
                     <details className="spoiler-review">
