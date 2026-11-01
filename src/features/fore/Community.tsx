@@ -2767,7 +2767,7 @@ export function CommunityPage() {
     arenaPost &&
     arenaOwner &&
     /^[a-zA-Z0-9_-]{1,240}$/.test(arenaPost) &&
-    /^[a-zA-Z0-9_-]{1,240}$/.test(arenaOwner)
+    /^(?:sb:)?[a-zA-Z0-9_-]{1,240}$/.test(arenaOwner)
   )
     return (
       <main className="cove-book-thread-focus">
@@ -2803,6 +2803,7 @@ export function CommunityPage() {
       <nav className="community-tabs" aria-label={ui("Community sections")}>
         {[
           ["arena", Flame, ui("Explore")],
+          ["debates", MessageCircle, ui("Hot Takes")],
           ["discover", Users, ui("Readers & clubs")],
         ].map(([key, Icon, label]: any) => (
           <a
@@ -2816,7 +2817,7 @@ export function CommunityPage() {
           </a>
         ))}
       </nav>
-      {tab === "arena" ? (
+      {tab === "arena" || tab === "debates" ? (
         <Suspense
           fallback={
             <p className="muted" role="status">
@@ -2824,7 +2825,7 @@ export function CommunityPage() {
             </p>
           }
         >
-          <ArenaTab />
+          <ArenaTab fullPage={tab === "debates"} />
         </Suspense>
       ) : tab === "discover" ? (
         <Discover />
