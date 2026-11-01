@@ -1,0 +1,31 @@
+.cove-shopping-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
+  margin: 4px 0 26px;
+  padding-bottom: 12px;
+}
+.cove-shopping-nav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 16px;
+  min-height: 44px;
+  border-radius: 9px;
+  color: var(--muted-foreground);
+  font-weight: 650;
+  font-size: 14px;
+}
+.cove-shopping-nav a:hover,
+.cove-shopping-nav a:focus-visible { background: var(--secondary); color: var(--foreground); }
+.cove-shopping-nav a.selected {
+  background: #263744;
+  border: 1px solid #c7a16b;
+  color: #fff;
+}
+@media (max-width: 540px) {
+  .cove-shopping-nav { gap: 4px; }
+  .cove-shopping-nav a { padding-inline: 10px; font-size: 13px; }
+}

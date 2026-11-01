@@ -1658,6 +1658,44 @@ export async function handleSocial(
       nextCursor: rows.length > 8 && last ? last.updated_at + "|" + last.id : null,
     });
   }
+  // Private, indexed and bounded account-network listing. No new writers or
+  // schema changes. Only requested by the Settings > Network panel.
+  if (method === "GET" && path === "/social/network") {
+    const viewer = requireIdentity(userId);
+    const after = (url.searchParams.get("after") || "").trim();
+    if (after.length > 180 || (after && !/^[a-zA-Z0-9_:-]+$/.test(after)))
+      throw new ApiError(400, "Invalid following cursor.");
+    const rows = (
+      await db
+        .prepare(
+          `SELECT f.followed_user_id user_id,a.username,COALESCE(p.name,a.username,'Reader') name
+           FROM social_follows f
+           JOIN auth_accounts a ON a.app_id=f.followed_user_id AND a.disabled_at IS NULL
+           LEFT JOIN profiles p ON p.user_id=a.app_id
+           WHERE f.follower_user_id=? AND f.followed_user_id>?
+           ORDER BY f.followed_user_id LIMIT 31`,
+        )
+        .bind(viewer, after)
+        .all<{ user_id: string; username: string | null; name: string }>()
+    ).results;
+    const people = rows.slice(0, 30);
+    const blocked = (
+      await db
+        .prepare(
+          `SELECT b.blocked_user_id user_id,a.username,COALESCE(p.name,a.username,'Reader') name
+           FROM social_blocks b LEFT JOIN auth_accounts a ON a.app_id=b.blocked_user_id
+           LEFT JOIN profiles p ON p.user_id=b.blocked_user_id
+           WHERE b.blocker_user_id=? ORDER BY b.blocked_user_id LIMIT 100`,
+        )
+        .bind(viewer)
+        .all<{ user_id: string; username: string | null; name: string }>()
+    ).results;
+    return json({
+      people,
+      blocked,
+      nextCursor: rows.length > 30 ? people.at(-1)?.user_id || null : null,
+    });
+  }
   if (method === "GET" && path === "/social/discover") {
     const term = (url.searchParams.get("q") || "").trim().replace(/^@/, "").slice(0, 100),
       after = (url.searchParams.get("after") || "").slice(0, 240);

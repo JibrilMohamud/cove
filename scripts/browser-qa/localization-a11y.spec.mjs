@@ -70,31 +70,24 @@ for (const locale of locales) {
     await expect(page.locator('.cove-site-footer a[href="/privacy#contact-us"]')).toHaveText(
       messages["Contact & privacy requests"],
     );
-    await expect(
-      page.getByRole("heading", { name: messages["The conversation starts here."] }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Community", exact: true })).toBeVisible();
     const sections = page.getByRole("navigation", { name: messages["Community sections"] });
     await expect(sections.getByRole("link", { name: messages["Explore"] })).toBeVisible();
     await expect(sections.getByRole("link", { name: messages["Readers & clubs"] })).toBeVisible();
-    await expect(sections.getByRole("link", { name: messages["Following"] })).toBeVisible();
+    await expect(sections.getByRole("link", { name: messages["Following"] })).toHaveCount(0);
     await expect(sections.getByRole("link", { name: messages["My sharing"] })).toHaveCount(0);
-    // Public Wild West content is visible before sign-in. Following alone
-    // requires authentication, and personal sharing lives under My Account.
-    await expect(
-      page.getByRole("heading", { name: "Hot Takes, Debates & Tournaments" }),
-    ).toBeVisible();
+    // Community browsing is public and does not require an account.
+    // Following, notifications and settings are accessed from the account menu.
+    await expect(page.getByRole("heading", { name: "Explore", exact: true })).toBeVisible();
     const results = await new AxeBuilder({ page })
       .include(".community-page")
       .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
       .analyze();
-    await sections.getByRole("link", { name: messages["Following"] }).focus();
-    await page.keyboard.press("Enter");
-    await expect(page).toHaveURL(/community\?tab=feed/);
+    // Old Following links resolve to Settings > Network, still behind sign-in.
+    await page.goto("/community?tab=feed");
+    await expect(page).toHaveURL(/\/settings\?tab=network$/);
     await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
-    await page.waitForLoadState("networkidle");
-    await expect(
-      page.getByRole("heading", { name: messages["Following is personal. Community is public."] }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Make yourself at home." })).toBeVisible();
     expect(
       results.violations.map((r) => ({ id: r.id, targets: r.nodes.map((n) => n.target) })),
     ).toEqual([]);

@@ -39,6 +39,7 @@ export function CommunityArena() {
   const [sort, setSort] = useState<"recent" | "trending">("recent");
   const [kindFilter, setKindFilter] = useState<"all" | ArenaKind>("all");
   const [busy, setBusy] = useState("");
+  const [composerOpen, setComposerOpen] = useState(false);
   const [reporting, setReporting] = useState("");
   const [reportReason, setReportReason] = useState("spam");
   const [reportDetails, setReportDetails] = useState("");
@@ -83,6 +84,7 @@ export function CommunityArena() {
       setBody("");
       setBookRef("");
       setSpoiler(false);
+      setComposerOpen(false);
       await feed.refetch();
       toast.success("Published to Community");
     } catch (error) {
@@ -157,35 +159,36 @@ export function CommunityArena() {
 
   return (
     <section className="cove-arena">
-      <header className="social-page-heading">
+      <header className="cove-arena-head">
         <div>
-          <span className="small-label">PUBLIC COMMUNITY · NO ACCOUNT NEEDED TO BROWSE</span>
-          <h1>Hot Takes, Debates & Tournaments</h1>
-          <p>
-            Explore lively book opinions, take sides in literary debates, and vote in matchups. Sign
-            in only when you want to contribute. Book pages keep their own reviews.
-          </p>
+          <h1>Community</h1>
+          <p>Hot takes, heated debates, and the books worth arguing about.</p>
         </div>
-        <Flame size={40} aria-hidden="true" />
       </header>
       <div className="cove-arena-layout">
         <section className="community-settings-card cove-arena-composer">
-          <h2>Start something</h2>
+          <div className="cove-arena-composer-head">
+            <h2>Have a take?</h2>
+            <p>Start a discussion readers actually want to join.</p>
+          </div>
           {!data.user ? (
             <button className="button gold" onClick={signIn}>
-              Sign in to participate
+              Sign in to post
             </button>
           ) : mine.isLoading ? (
             <p className="muted">Checking Community privacy settings…</p>
           ) : !publicProfile ? (
             <p className="muted">
-              Public Arena posts require a public reader profile and public activity visibility. You
-              can change both in{" "}
-              <a className="text-link" href="/community?tab=me">
-                My profile settings
+              Public posts need a public reader profile and public activity visibility.
+              <a className="text-link" href="/settings">
+                Adjust privacy settings
               </a>
-              . Your private books, highlights, and reading position stay private.
+              . Your private library, highlights, and reading position stay private.
             </p>
+          ) : !composerOpen ? (
+            <button className="button gold cove-arena-start" onClick={() => setComposerOpen(true)}>
+              + Start a conversation
+            </button>
           ) : (
             <>
               <div className="cove-arena-kind" role="group" aria-label="Post format">
@@ -249,23 +252,31 @@ export function CommunityArena() {
                 />
                 Hide behind a spoiler warning
               </label>
-              <button
-                className="button gold"
-                disabled={!!busy || body.trim().length < 10}
-                onClick={publish}
-              >
-                {busy === "publish" ? "Publishing…" : "Publish to Community"}
-              </button>
+              <div className="cove-arena-publish-actions">
+                <button
+                  className="button gold"
+                  disabled={!!busy || body.trim().length < 10}
+                  onClick={publish}
+                >
+                  {busy === "publish" ? "Publishing…" : "Publish"}
+                </button>
+                <button
+                  className="text-link"
+                  disabled={!!busy}
+                  onClick={() => setComposerOpen(false)}
+                >
+                  Cancel
+                </button>
+              </div>
             </>
           )}
           <p className="small muted">
-            Tournament matchups use A/B voting. For larger brackets and multi-option polls, use your
-            reading group's existing poll tools.
+            Keep it about books. Mark spoilers and disagree with ideas, not people.
           </p>
         </section>
         <section className="cove-arena-feed">
           <div className="cove-arena-feed-heading">
-            <h2>From the Community</h2>
+            <h2>Explore</h2>
             <div className="cove-arena-kind" role="group" aria-label="Community post categories">
               {(
                 [

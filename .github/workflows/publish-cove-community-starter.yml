@@ -1,0 +1,39 @@
+name: Publish curated Cove Community starter posts
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Cove deployment for authenticated, public sample posts
+        required: true
+        default: https://cove-jibrilmohamuds-projects.vercel.app
+        type: choice
+        options:
+          - https://cove-jibrilmohamuds-projects.vercel.app
+          - https://covereads.com
+      publish_confirmed:
+        description: I understand this publishes six public posts using the QA outsider account
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    if: inputs.publish_confirmed == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Authenticate normal QA account and publish curated posts
+        env:
+          COVE_QA_OUTSIDER_EMAIL: ${{ secrets.COVE_QA_OUTSIDER_EMAIL }}
+          COVE_QA_OUTSIDER_PASSWORD: ${{ secrets.COVE_QA_OUTSIDER_PASSWORD }}
+          COVE_QA_SEED_TARGET: ${{ inputs.target }}
+          COVE_QA_SEED_CONFIRM: publish-six-public-posts
+        run: node scripts/staging/publish-community-starter.mjs
