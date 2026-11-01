@@ -124,9 +124,7 @@ try {
     format: "esm",
     outfile: independentFile,
   });
-  const { verifyIndependentBackendCredential } = await import(
-    pathToFileURL(independentFile).href
-  );
+  const { verifyIndependentBackendCredential } = await import(pathToFileURL(independentFile).href);
   const standaloneToken = "separate-private-cove-token-" + "p".repeat(48);
   const standaloneHash = createHash("sha256").update(standaloneToken).digest("hex");
   const independentConfig = {
@@ -137,39 +135,36 @@ try {
     new Request("https://private.invalid/__cove/health", {
       headers: { "x-cove-backend-token": token },
     });
-  assert.equal(
-    await verifyIndependentBackendCredential(
-      authRequest(standaloneToken),
-      { ...independentConfig, DB: { prepare() { throw Error("D1_READ_FORBIDDEN"); } } },
-    ),
-    true,
-    "Independent credential must not access the primary D1",
-  );
+  const forbiddenDb = {
+    prepare() {
+      throw Error("D1_READ_FORBIDDEN");
+    },
+  };
+  const verified = await verifyIndependentBackendCredential(authRequest(standaloneToken), {
+    ...independentConfig,
+    DB: forbiddenDb,
+  });
+  assert.equal(verified, true, "Independent credential must not access the primary D1");
   for (const bad of [
     { COVE_BACKEND_TOKEN_HASH_ONLY: "0" },
     { COVE_BACKEND_TOKEN_HASH_ONLY: undefined },
     { FORE_BACKEND_TOKEN_SHA256: "" },
     { FORE_BACKEND_TOKEN_SHA256: "g".repeat(64) },
     { FORE_BACKEND_TOKEN: standaloneToken },
-  ])
-    assert.equal(
-      await verifyIndependentBackendCredential(
-        authRequest(standaloneToken),
-        { ...independentConfig, ...bad },
-      ),
-      false,
-      "Misconfigured hash-only auth must deny without fallback",
+  ]) {
+    const denied = await verifyIndependentBackendCredential(authRequest(standaloneToken), {
+      ...independentConfig,
+      ...bad,
+    });
+    assert.equal(denied, false, "Misconfigured hash-only auth must deny without fallback");
+  }
+  for (const supplied of ["", "short", standaloneToken + "wrong", "x".repeat(513)]) {
+    const denied = await verifyIndependentBackendCredential(
+      authRequest(supplied),
+      independentConfig,
     );
-  for (const supplied of [
-    "",
-    "short",
-    standaloneToken + "wrong",
-    "x".repeat(513),
-  ])
-    assert.equal(
-      await verifyIndependentBackendCredential(authRequest(supplied), independentConfig),
-      false,
-    );
+    assert.equal(denied, false);
+  }
   const readonlyFile = path.join(folder, "scheduled.mjs");
   await build({
     entryPoints: ["src/storefront-strangler/backend-scheduled-primary-reads.ts"],
