@@ -37,6 +37,7 @@ export function CommunityArena() {
   const [bookRef, setBookRef] = useState("");
   const [spoiler, setSpoiler] = useState(false);
   const [sort, setSort] = useState<"recent" | "trending">("recent");
+  const [kindFilter, setKindFilter] = useState<"all" | ArenaKind>("all");
   const [busy, setBusy] = useState("");
   const [reporting, setReporting] = useState("");
   const [reportReason, setReportReason] = useState("spam");
@@ -50,10 +51,10 @@ export function CommunityArena() {
   const publicProfile = mine.data?.profile?.profile_visibility === "public" &&
     mine.data?.profile?.activity_visibility === "public";
   const feed = useInfiniteQuery<ArenaPageResult>({
-    queryKey: ["community-arena", data.user?.id, sort],
+    queryKey: ["community-arena", data.user?.id, sort, kindFilter],
     initialPageParam: "",
     queryFn: ({ pageParam }) => api(
-      `/social/arena?sort=${sort}${pageParam ? `&cursor=${encodeURIComponent(String(pageParam))}` : ""}`,
+      `/social/arena?sort=${sort}&kind=${kindFilter}${pageParam ? `&cursor=${encodeURIComponent(String(pageParam))}` : ""}`,
     ),
     getNextPageParam: (page) => page.nextCursor || undefined,
     staleTime: 30_000,
@@ -196,6 +197,14 @@ export function CommunityArena() {
         <section className="cove-arena-feed">
           <div className="cove-arena-feed-heading">
             <h2>From the Community</h2>
+            <label>Show
+              <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value as typeof kindFilter)}>
+                <option value="all">All formats</option>
+                <option value="take">Hot Takes</option>
+                <option value="debate">Debates</option>
+                <option value="matchup">Tournament matchups</option>
+              </select>
+            </label>
             <label>Sort
               <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}>
                 <option value="recent">Newest</option>
