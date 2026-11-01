@@ -119,6 +119,30 @@ try {
   const network = await get("/social/network", "bob");
   assert.equal(network.people.length, 1, "Settings Network must show actual followed readers");
   assert.equal(network.people[0].user_id, "alice");
+  // The real profile-thread API must create and fetch reply children, and
+  // searching comment text must return its public parent debate.
+  const replyRes = await social.handleSocial(
+    req("/social/posts", {
+      contextType: "profile", contextId: "alice", parentId: created.id,
+      postType: "reply", body: "Parliament of mushrooms is my closing argument.",
+      visibility: "public", spoiler: false,
+    }), env, "/social/posts", "bob",
+  );
+  assert.equal(replyRes.status, 201);
+  const replies = await get(
+    `/social/posts?contextType=profile&contextId=alice&parentId=${created.id}`, "bob",
+  );
+  assert.equal(replies.posts.length, 1, "Deep-linked Arena must show real persisted comments.");
+  assert.match(replies.posts[0].body, /Parliament of mushrooms/);
+  const searched = await get("/social/arena?search=mushrooms", "bob");
+  assert.ok(searched.items.some((p) => p.id === created.id),
+    "Searching a visible public reply must find its parent debate.");
+  assert.equal((await get("/social/arena?search=nonexistentmadeupword", "bob")).items.length, 0);
+  assert.equal((await get("/social/arena?following=1", null)).items.length, 0,
+    "Guest following feed fails closed.");
+  assert.ok((await get("/social/arena?following=1", "bob")).items.some((p) => p.id === created.id),
+    "Following only includes people the reader follows.");
+
   assert.deepEqual(network.blocked, []);
   assert.equal(network.nextCursor, null);
   assert.equal((await get("/social/arena?kind=matchup", "bob")).items.length, 0);
@@ -284,6 +308,20 @@ try {
         entry.body.includes("Pride and Prejudice"),
     ),
   );
+  const fixtureMatch = demoEntries.find((p) => p.kind === "matchup");
+  assert.ok(fixtureMatch);
+  const ballot = await social.handleSocial(
+    req(`/social/posts/${fixtureMatch.id}/reaction`, { reaction: "agree", active: true }),
+    env, `/social/posts/${fixtureMatch.id}/reaction`, "bob",
+  );
+  assert.equal(ballot.status, 200);
+  const liveBracket = await get("/social/arena?kind=matchup", null);
+  assert.ok(liveBracket.activity.some((event) =>
+    event.postId === fixtureMatch.id && event.side === "A"),
+    "Bracket activity must show recorded anonymous votes, not merely new-post events.");
+  assert.ok(liveBracket.activity.every((event) => !("userId" in event)),
+    "Voting activity must not expose voter identities.");
+
 
   const source = fs.readFileSync("src/features/fore/social.server.ts", "utf8");
   const arenaRead = source
@@ -331,10 +369,22 @@ try {
     fs.readFileSync("src/features/fore/Community.tsx", "utf8"),
     /import\("\.\/CommunityArena"\)/,
   );
+  assert.match(communityPage, /\^\(\?:sb:\)\?/,
+    "Supabase colon-prefixed owner IDs must open their real thread.");
+  assert.match(communityPage, /tab === "debates"/, "Standalone Hot Takes page must be routed.");
+  assert.match(communityPage, /parentId=\{arenaPost\}/,
+    "The discussion route must render actual reply children.");
   const arenaUi = fs.readFileSync("src/features/fore/CommunityArena.tsx", "utf8");
   const arenaStyle = fs.readFileSync("src/features/fore/community-arena-experience.css", "utf8");
   assert.match(arenaUi, /import ".\/community-arena-experience\.css"/);
   assert.match(arenaUi, /CONTROVERSY PROMPTS/, "visible prompts strip");
+  assert.match(arenaUi, /View debates/, "Reading Room must link to complete debate browser.");
+  assert.match(arenaUi, /Search takes, comments, readers, and books/, "Debate search is visible.");
+  assert.match(arenaUi, /cove-debates-filters/, "Six discovery filters are interactive.");
+  assert.match(arenaUi, /bracket\.data\?\.activity/, "Bracket votes must populate activity.");
+  assert.match(arenaRead, /social_post_reactions[\s\S]*ORDER BY created_at DESC LIMIT 12/,
+    "Activity must read bounded real recorded ballots.");
+
   assert.match(arenaUi, /setPromptOffset/, "shuffle prompts must be interactive");
   assert.match(
     arenaUi,
