@@ -398,9 +398,7 @@ function AccountButton() {
           disabled={signingOut}
         >
           <LogOut size={17} />
-          {signingOut
-            ? ui("Signing out…")
-            : ui("Sign out")}
+          {signingOut ? ui("Signing out…") : ui("Sign out")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
