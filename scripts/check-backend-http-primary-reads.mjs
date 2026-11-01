@@ -24,10 +24,7 @@ assert.equal(
 );
 assert.match(backend, /handleSeoDocumentRequest\(request, primary, env\.FORE_PUBLIC_URL\)/);
 assert.match(backend, /primary\.prepare\("SELECT 1 ok"\)/);
-assert.match(
-  backend,
-  /\.prepare\("SELECT language,tracks_json FROM audio_editions WHERE id=\?"\)/,
-);
+assert.match(backend, /\.prepare\("SELECT language,tracks_json FROM audio_editions WHERE id=\?"\)/);
 
 const folder = mkdtempSync(path.join(tmpdir(), "cove-http-primary-read-"));
 try {
