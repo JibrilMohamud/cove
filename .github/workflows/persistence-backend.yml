@@ -127,6 +127,8 @@ jobs:
         run: node scripts/check-backend-audio-diagnostics.mjs
       - name: Backend HTTP primary reads fail closed without native D1 fallback
         run: node scripts/check-backend-http-primary-reads.mjs
+      - name: Private owner scheduler processes bounded author fanout without caller D1
+        run: node scripts/check-backend-author-social-owner.mjs
       - name: Soundtrack library rights and delivery regressions
         run: npm run test:soundtracks
       - name: Literary profiles, evidence and chapter-matching regressions
