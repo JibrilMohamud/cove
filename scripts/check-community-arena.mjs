@@ -62,6 +62,8 @@ try {
   assert.equal(first.items[0].kind, "take");
   assert.equal(first.items[0].bookId, "1342");
   assert.equal(first.items[0].body, "The ending matters more than the beginning.");
+  assert.equal((await get("/social/arena?kind=matchup", "bob")).items.length, 0);
+  assert.equal((await get("/social/arena?kind=take", "bob")).items.length, 1);
 
   const voted = await social.handleSocial(req(`/social/posts/${created.id}/reaction`, {
     reaction: "agree", active: true,
