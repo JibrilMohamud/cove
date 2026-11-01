@@ -191,6 +191,7 @@ export function CommunityArena({ fullPage = false }: { fullPage?: boolean }) {
   const [body, setBody] = useState("");
   const [bookRef, setBookRef] = useState("");
   const [spoiler, setSpoiler] = useState(false);
+  const [publicReplies, setPublicReplies] = useState(true);
   const [sort, setSort] = useState<TakeSort>("trending");
   const [debateFilter, setDebateFilter] = useState<DebateFilter>("trending");
   const [searchInput, setSearchInput] = useState("");
@@ -301,7 +302,7 @@ export function CommunityArena({ fullPage = false }: { fullPage?: boolean }) {
         contextType: "profile",
         contextId: data.user.id,
         postType: "prompt",
-        body: makeArenaPost(kind, body, bookId),
+        body: makeArenaPost(kind, body, bookId, publicReplies),
         visibility: "public",
         spoiler,
       });
@@ -975,6 +976,15 @@ export function CommunityArena({ fullPage = false }: { fullPage?: boolean }) {
                   />{" "}
                   Contains spoilers
                 </label>
+                <label className="cove-arena-spoiler">
+                  <input type="checkbox" checked={publicReplies}
+                    onChange={(e) => setPublicReplies(e.target.checked)} />
+                  Allow anyone to reply to this public Community post
+                </label>
+                <p className="cove-arena-compose-rule">
+                  Open replies are opt-in. Unchecking uses your profile reply settings;
+                  blocked readers and moderated accounts cannot participate.
+                </p>
                 <div className="cove-arena-publish-actions">
                   <button
                     type="button"
