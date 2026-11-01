@@ -9,8 +9,8 @@ assert.equal(inventory.schema, "cove.legacy-cloudflare-broad-token-workflow-inve
 assert.equal(inventory.releaseApproval, false);
 assert.equal(inventory.productionExclusiveOwnerCertified, false);
 assert.equal(inventory.credentialRevocationCertified, false);
-assert.equal(inventory.maximumRemainingWorkflowConsumers, 40);
-assert.equal(inventory.maximumRemainingSecretReferences, 45);
+assert.equal(inventory.maximumRemainingWorkflowConsumers, 37);
+assert.equal(inventory.maximumRemainingSecretReferences, 42);
 const files = readdirSync(".github/workflows")
   .filter((name) => /\.ya?ml$/.test(name))
   .map((name) => path.posix.join(".github/workflows", name));
@@ -36,6 +36,9 @@ for (const file of [
   ".github/workflows/deploy-persistence-backend.yml",
   ".github/workflows/deploy-locked-fast-storefront-gateway.yml",
   ".github/workflows/production-legal-owner-locked.yml",
+  ".github/workflows/production-external-preflight.yml",
+  ".github/workflows/deployed-canonical-d1-principal-audit.yml",
+  ".github/workflows/production-cutover-topology-audit.yml",
 ]) {
   assert.equal(
     readFileSync(file, "utf8").includes("secrets.CLOUDFLARE_API_TOKEN"),
@@ -44,7 +47,7 @@ for (const file of [
   );
 }
 console.log(
-  `PASS: ${consumers}/40 unretired workflow consumers, ${references}/45 old token references; no new grants or release approval.`,
+  `PASS: ${consumers}/37 unretired workflow consumers, ${references}/42 old token references; no new grants or release approval.`,
 );
 if (consumers)
   console.log(
