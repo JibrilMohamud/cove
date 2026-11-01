@@ -1,6 +1,9 @@
 name: Publish curated Cove Community starter posts
 
 on:
+  push:
+    branches: [qa/cove-community-publish-once]
+    paths: [.github/workflows/publish-cove-community-starter.yml]
   workflow_dispatch:
     inputs:
       target:
@@ -22,7 +25,7 @@ permissions:
 
 jobs:
   publish:
-    if: inputs.publish_confirmed == true
+    if: github.event_name == 'push' || inputs.publish_confirmed == true
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -34,6 +37,6 @@ jobs:
         env:
           COVE_QA_OUTSIDER_EMAIL: ${{ secrets.COVE_QA_OUTSIDER_EMAIL }}
           COVE_QA_OUTSIDER_PASSWORD: ${{ secrets.COVE_QA_OUTSIDER_PASSWORD }}
-          COVE_QA_SEED_TARGET: ${{ inputs.target }}
+          COVE_QA_SEED_TARGET: ${{ github.event_name == 'push' && 'https://cove-jibrilmohamuds-projects.vercel.app' || inputs.target }}
           COVE_QA_SEED_CONFIRM: publish-six-public-posts
         run: node scripts/staging/publish-community-starter.mjs
