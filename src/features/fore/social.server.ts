@@ -2238,16 +2238,17 @@ export async function handleSocial(
       ];
     });
     if (sort === "trending") {
-      // A bounded recent-window ranking: disagreement can boost by at most 20%,
-      // and only becomes meaningful after multiple independent reactions.
+      // Rank the bounded recent window by *balanced disagreement*, not raw
+      // popularity. Confidence grows over the first 12 reactions so a 1:1
+      // result cannot outrank an established contested discussion by accident.
       items.sort((a, b) => {
         const score = (post: typeof a) => {
           const votes = post.fire + post.clown;
           const balance = votes ? 1 - Math.abs(post.fire - post.clown) / votes : 0;
-          const controversy = Math.min(1, votes / 12) * balance;
-          const engagement = Math.log1p(votes) + 0.35 * Math.log1p(post.replies || 0);
+          const confidence = Math.min(1, votes / 12);
+          const engagement = Math.log1p(votes) * 0.3 + Math.log1p(post.replies || 0) * 0.2;
           const ageHours = Math.max(0, (Date.now() - Date.parse(post.createdAt)) / 3600000);
-          return (engagement * (1 + 0.2 * controversy)) / (1 + ageHours / 72);
+          return (balance * confidence * 6 + engagement) / (1 + ageHours / 120);
         };
         return score(b) - score(a);
       });
