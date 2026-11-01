@@ -58,11 +58,12 @@ jobs:
           import assert from "node:assert/strict";
           import fs from "node:fs";
           const raw = fs.readFileSync(".github/workflows/deploy-persistence-backend.yml", "utf8");
-          const push = raw.split("  push:")[1]?.split("  workflow_dispatch:")[0] || "";
-          assert.ok(push.includes("src/persistence-backend.worker.ts"));
-          assert.ok(!push.includes('"package-lock.json"'));
-          assert.ok(!push.includes('".github/workflows/deploy-persistence-backend.yml"'));
-          console.log("PASS: dependency-only main merge cannot auto-deploy persistence.");
+          assert.match(raw, /^  workflow_dispatch:/m);
+          assert.doesNotMatch(raw, /^  push:/m);
+          assert.match(raw, /github\.event_name == 'workflow_dispatch' && github\.ref == 'refs\/heads\/main'/);
+          assert.match(raw, /inputs\.apply_migrations == true/);
+          assert.match(raw, /default: false\n        type: boolean/);
+          console.log("PASS: even source and dependency merges cannot auto-deploy or migrate production persistence.");
           NODE
       - name: Install Chromium for progressive interaction QA
         run: npx playwright install --with-deps chromium
