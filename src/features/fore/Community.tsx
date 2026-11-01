@@ -14,7 +14,6 @@ import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
 import {
-  Activity,
   BookHeart,
   BookOpen,
   Check,
@@ -27,7 +26,6 @@ import {
   MessageCircle,
   Plus,
   Share2,
-  Sparkles,
   Star,
   UserPlus,
   Users,
