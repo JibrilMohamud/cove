@@ -83,9 +83,9 @@ for (const locale of locales) {
       .include(".community-page")
       .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
       .analyze();
-    // Old Following links redirect to the dedicated private reading-circle page.
+    // Old Following links resolve to Settings > Network, still behind sign-in.
     await page.goto("/community?tab=feed");
-    await expect(page).toHaveURL(/\/following$/);
+    await expect(page).toHaveURL(/\/settings\?tab=network$/);
     await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
     await expect(page.getByRole("heading", { name: "Make yourself at home." })).toBeVisible();
     expect(
