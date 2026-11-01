@@ -14,6 +14,10 @@ import {
   ReceiptText,
   Building2,
   Bell,
+  Inbox,
+  Settings,
+  LogOut,
+  Rss,
   Users,
   LifeBuoy,
 } from "lucide-react";
@@ -38,8 +42,17 @@ import { Toaster, toast } from "sonner";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { AccountContext, api, type AccountData } from "./client";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import "./fore.css";
 import "./legal.css";
+import "./account-menu.css";
 import { registerReadingTools } from "./webmcp";
 import {
   StorefrontLocaleControl,
@@ -55,7 +68,6 @@ const nav = [
   ["/wishlist", "nav.wishlist", "Wishlist", Heart],
   ["/cart", "nav.cart", "Cart", ShoppingCart],
   ["/orders", "nav.orders", "Orders", ReceiptText],
-  ["/notifications", "nav.notifications", "Notifications", Bell],
   ["/community", "nav.community", "Community", Users],
   ["/shelves", "nav.shelves", "Shelves", LibraryBig],
   ["/stats", "nav.stats", "Stats", BarChart3],
@@ -307,13 +319,69 @@ export function SiteShell({
 }
 import { useAccount } from "./client";
 function AccountButton() {
-  const { data, signIn, signUp } = useAccount();
+  const { data, signIn, signUp, reload } = useAccount();
   const store = useStorefrontLocale();
+  const [signingOut, setSigningOut] = useState(false);
+  async function signOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await api("/auth/logout", "POST", {});
+      await reload();
+      window.location.assign("/");
+    } catch (error) {
+      toast.error((error as Error).message);
+      setSigningOut(false);
+    }
+  }
   return data.user ? (
-    <a href="/profile" className="account-button">
-      <span className="avatar">{(data.user.name || data.user.email || "R")[0].toUpperCase()}</span>
-      <span>{data.user.name || store.t("account.mine", "My account")}</span>
-    </a>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="cove-avatar-trigger"
+          aria-label={store.t("account.openMenu", "Open account menu")}
+          title={data.user.name || data.user.username || store.t("account.mine", "My account")}
+        >
+          <span className="avatar" aria-hidden="true">
+            {(data.user.name || data.user.username || data.user.email || "R").slice(0, 1).toUpperCase()}
+          </span>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" sideOffset={10} className="cove-account-menu">
+        <DropdownMenuLabel className="cove-account-menu-id">
+          <strong>{data.user.name || store.t("account.mine", "My account")}</strong>
+          <small>{data.user.username ? `@${data.user.username}` : data.user.email}</small>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link to="/profile" preload={false}><UserRound size={17} />{store.t("account.menuProfile", "Profile")}</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link to="/profile" search={{ section: "received" }} preload={false}><Inbox size={17} />{store.t("account.menuInbox", "Shared inbox")}</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link to="/notifications" preload={false}><Bell size={17} />{store.t("account.menuNotifications", "Notifications")}</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link to="/following" preload={false}><Rss size={17} />{store.t("account.menuFollowing", "Following")}</Link>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link to="/settings" preload={false}><Settings size={17} />{store.t("account.menuSettings", "Settings")}</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="cove-account-signout"
+          onSelect={() => void signOut()}
+          disabled={signingOut}
+        >
+          <LogOut size={17} />
+          {signingOut
+            ? store.t("account.signingOut", "Signing out…")
+            : store.t("account.menuSignOut", "Sign out")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   ) : (
     <div className="account-actions">
       <button className="text-link" onClick={signIn}>
