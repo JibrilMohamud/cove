@@ -73,7 +73,7 @@ assert.ok(text.indexOf('[[ "$WORKER_NAME" == "', validation) < build);
 const binding = 'script_name = "' + owner + '"';
 const configStep = text.indexOf("- name: Write deployment config");
 const ownerBinding = text.indexOf(binding, configStep);
-const credentials = text.indexOf("- name: Check deployment credentials", configStep);
+const credentials = text.indexOf("- name: Require independently scoped production release credentials", configStep);
 assert.ok(ownerBinding > configStep && ownerBinding < credentials);
 assert.doesNotMatch(
   text.slice(configStep, ownerBinding),
