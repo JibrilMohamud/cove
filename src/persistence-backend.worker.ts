@@ -4,7 +4,10 @@ import { scopeExclusiveCanonicalD1 } from "./storefront-strangler/canonical-d1-w
 import { scopeCommerceProductionD1 } from "./storefront-strangler/commerce-d1-write-fence";
 import { backendScheduledPrimaryReadDb } from "./storefront-strangler/backend-scheduled-primary-reads";
 import { backendHttpPrimaryReadDb } from "./storefront-strangler/backend-http-primary-reads";
-import { dispatchPrivateAuthorSocialFanout, dispatchPrivateAuthorReleaseAlerts } from "./storefront-strangler/backend-author-social-owner";
+import {
+  dispatchPrivateAuthorSocialFanout,
+  dispatchPrivateAuthorReleaseAlerts,
+} from "./storefront-strangler/backend-author-social-owner";
 import { verifyIndependentBackendCredential } from "./storefront-strangler/backend-independent-credential";
 import {
   reportAudioTriggerDiagnostic,
