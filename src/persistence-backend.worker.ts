@@ -3,6 +3,7 @@ import { scopePublicationOwnerEnv } from "./storefront-strangler/publication-own
 import { scopeExclusiveCanonicalD1 } from "./storefront-strangler/canonical-d1-write-fence";
 import { scopeCommerceProductionD1 } from "./storefront-strangler/commerce-d1-write-fence";
 import { backendScheduledPrimaryReadDb } from "./storefront-strangler/backend-scheduled-primary-reads";
+import { backendHttpPrimaryReadDb } from "./storefront-strangler/backend-http-primary-reads";
 import { verifyIndependentBackendCredential } from "./storefront-strangler/backend-independent-credential";
 import {
   reportAudioTriggerDiagnostic,
@@ -65,6 +66,7 @@ type BackendEnv = CoveEnv &
     COVE_BACKEND_READONLY_CANDIDATE?: string;
     COVE_CANONICAL_READONLY_RPC?: string;
     COVE_BACKEND_SCHEDULED_READONLY_RPC?: string;
+    COVE_BACKEND_HTTP_READONLY_RPC?: string;
     COVE_CANONICAL_READONLY?: import("./lib/canonical-readonly-d1.server").CanonicalReadService;
     COVE_COMMERCE_OWNER_D1_FENCE?: string;
     FORE_BACKEND_TOKEN?: string;
@@ -800,7 +802,9 @@ async function hostedBiosyncTranscript(
   if (!/^pg-[1-9][0-9]{0,8}$/.test(editionId) || !/^[a-zA-Z0-9_-]{1,100}$/.test(trackId)) {
     return json({ error: "Invalid audio identity." }, 400);
   }
-  const row = await env.DB.prepare("SELECT language,tracks_json FROM audio_editions WHERE id=?")
+  const primary = backendHttpPrimaryReadDb(env);
+  const row = await primary
+    .prepare("SELECT language,tracks_json FROM audio_editions WHERE id=?")
     .bind(editionId)
     .first<{ language: string; tracks_json: string }>();
   if (!row) return json({ error: "Unknown audio edition." }, 404);
@@ -964,7 +968,8 @@ export default {
       if (!["GET", "HEAD"].includes(request.method))
         return json({ error: "Method not allowed." }, 405);
       if (new URL(request.url).search) return json({ error: "Not found." }, 404);
-      const document = await handleSeoDocumentRequest(request, env.DB, env.FORE_PUBLIC_URL);
+      const primary = backendHttpPrimaryReadDb(env);
+      const document = await handleSeoDocumentRequest(request, primary, env.FORE_PUBLIC_URL);
       if (!document) return json({ error: "Not found." }, 404);
       if (request.method === "HEAD")
         return new Response(null, { status: document.status, headers: document.headers });
@@ -988,7 +993,8 @@ export default {
       return hostedBiosyncTranscript(request, env, hostedTranscript[1], hostedTranscript[2]);
     if (path === "/__cove/health" && request.method === "GET") {
       try {
-        const row = await env.DB.prepare("SELECT 1 ok").first<{ ok?: number }>();
+        const primary = backendHttpPrimaryReadDb(env);
+        const row = await primary.prepare("SELECT 1 ok").first<{ ok?: number }>();
         return json({
           ok: row?.ok === 1,
           database: true,
