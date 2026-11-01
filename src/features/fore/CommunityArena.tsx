@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { BookOpen, Flame, MessageCircle, Swords, Trophy } from "lucide-react";
+import {
+  ArrowRight, BookOpen, ChevronRight, Flame, MessageCircle,
+  Plus, RefreshCw, Swords, Trophy, Sparkles, ShieldAlert
+} from "lucide-react";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { api, useAccount } from "./client";
 import { ARENA_KINDS, makeArenaPost, type ArenaKind } from "./community-arena";
 
@@ -20,6 +24,27 @@ type ArenaItem = {
   user?: { id: string; username: string; name: string } | null;
 };
 type ArenaPageResult = { items: ArenaItem[]; nextCursor: string | null; rankingWindow: string };
+type TakeTab = "debates" | "fire" | "clowns";
+type TakeSort = "trending" | "recent" | "fire" | "clown";
+
+const PROMPTS: { title: string; question: string; kind: ArenaKind; tint: string }[] = [
+  { title: "DEFEND YOUR FAVORITE", question: "Which book deserves a five-star rating that almost nobody agrees with?", kind: "debate", tint: "rose" },
+  { title: "THE ONE YOU DNF'D", question: "Which beloved classic did you put down—and why?", kind: "take", tint: "amber" },
+  { title: "HOTTEST LITERARY TAKE", question: "Is a brilliant ending enough to forgive a painfully slow beginning?", kind: "debate", tint: "violet" },
+  { title: "PICK A SIDE", question: "Are morally gray protagonists more compelling than traditional heroes?", kind: "debate", tint: "blue" },
+  { title: "THE OVERRATED SHELF", question: "Which wildly popular book didn't live up to its reputation?", kind: "take", tint: "orange" },
+  { title: "ADAPTATION WARS", question: "What movie adaptation is actually better than the book?", kind: "debate", tint: "rose" },
+  { title: "UNPOPULAR OPINION", question: "A three-star read can be more memorable than a five-star read. Agree?", kind: "take", tint: "violet" },
+  { title: "THE GREAT REREAD", question: "Which book completely changed for you on a second reading?", kind: "take", tint: "blue" },
+];
+
+const VERIFIED_PUBLIC_COVERS: Record<string, string> = {
+  "jane eyre": "/covers/1260.jpg",
+  "pride and prejudice": "/covers/1342.jpg",
+  "frankenstein": "/covers/84.jpg",
+  "moby dick": "/covers/2701.jpg",
+};
+const VERIFIED_COVER_IDS = new Set(["1260", "1342", "84", "2701", "11", "345", "174", "768", "64317"]);
 
 function bookIdentifier(value: string): string | null {
   const raw = value.trim();
@@ -29,6 +54,45 @@ function bookIdentifier(value: string): string | null {
   const match = /^\/books\/([A-Za-z0-9_-]{1,100})(?:[/?#].*)?$/.exec(pathname);
   return match ? match[1] : null;
 }
+function matchupNames(body: string): [string, string] {
+  const a = /^A:\s*(.+)$/im.exec(body);
+  const b = /^B:\s*(.+)$/im.exec(body);
+  const title = (line: string | undefined) =>
+    (line || "").split(/\s+[—–]\s+|\s+-\s+/)[0].trim().slice(0, 90);
+  return [title(a?.[1]) || "First book", title(b?.[1]) || "Second book"];
+}
+function bookCover(title: string): string | null {
+  return VERIFIED_PUBLIC_COVERS[title.toLowerCase().replace(/[^a-z0-9 ]/g, "").trim()] || null;
+}
+function timeAgo(iso: string): string {
+  const elapsed = Math.max(0, Date.now() - new Date(iso).getTime());
+  if (!Number.isFinite(elapsed)) return "";
+  if (elapsed < 60_000) return "just now";
+  if (elapsed < 3_600_000) return Math.floor(elapsed / 60_000) + "m ago";
+  if (elapsed < 86_400_000) return Math.floor(elapsed / 3_600_000) + "h ago";
+  return Math.floor(elapsed / 86_400_000) + "d ago";
+}
+function balancePercent(post: ArenaItem): number | null {
+  const total = post.fire + post.clown;
+  return total >= 12 ? Math.round(100 * (1 - Math.abs(post.fire - post.clown) / total)) : null;
+}
+function divisiveScore(post: ArenaItem): number {
+  const n = post.fire + post.clown;
+  const balance = n ? 1 - Math.abs(post.fire - post.clown) / n : 0;
+  // The first few votes cannot create an artificially high divisiveness rank.
+  const confidence = Math.min(1, n / 12);
+  const ageHours = Math.max(0, (Date.now() - Date.parse(post.createdAt)) / 3_600_000);
+  return (balance * confidence * 5 + Math.log1p(n) * 0.5 + Math.log1p(post.replies) * 0.2) / (1 + ageHours / 120);
+}
+function ReaderCover({ title, className = "" }: { title: string; className?: string }) {
+  const src = bookCover(title);
+  return (
+    <span className={"cove-arena-book-cover " + className}>
+      <span className="cove-arena-cover-fallback" aria-hidden="true"><BookOpen size={26} /></span>
+      {src && <img src={src} alt={"Cover of " + title} loading="lazy" onError={(e) => { e.currentTarget.hidden = true; }} />}
+    </span>
+  );
+}
 
 export function CommunityArena() {
   const { data, signIn } = useAccount();
@@ -36,10 +100,12 @@ export function CommunityArena() {
   const [body, setBody] = useState("");
   const [bookRef, setBookRef] = useState("");
   const [spoiler, setSpoiler] = useState(false);
-  const [sort, setSort] = useState<"recent" | "trending">("recent");
-  const [kindFilter, setKindFilter] = useState<"all" | ArenaKind>("all");
+  const [sort, setSort] = useState<TakeSort>("trending");
+  const [takeTab, setTakeTab] = useState<TakeTab>("debates");
+  const [promptOffset, setPromptOffset] = useState(0);
   const [busy, setBusy] = useState("");
   const [composerOpen, setComposerOpen] = useState(false);
+  const [bracketOpen, setBracketOpen] = useState(false);
   const [reporting, setReporting] = useState("");
   const [reportReason, setReportReason] = useState("spam");
   const [reportDetails, setReportDetails] = useState("");
@@ -49,21 +115,43 @@ export function CommunityArena() {
     enabled: !!data.user,
     staleTime: 60_000,
   });
-  const publicProfile =
-    mine.data?.profile?.profile_visibility === "public" &&
+  const publicProfile = mine.data?.profile?.profile_visibility === "public" &&
     mine.data?.profile?.activity_visibility === "public";
   const feed = useInfiniteQuery<ArenaPageResult>({
-    queryKey: ["community-arena", data.user?.id, sort, kindFilter],
+    queryKey: ["community-arena", data.user?.id, sort === "recent" ? "recent" : "trending", takeTab === "debates" ? "all" : "take"],
     initialPageParam: "",
-    queryFn: ({ pageParam }) =>
-      api(
-        `/social/arena?sort=${sort}&kind=${kindFilter}${pageParam ? `&cursor=${encodeURIComponent(String(pageParam))}` : ""}`,
-      ),
+    queryFn: ({ pageParam }) => api(
+      "/social/arena?sort=" + (sort === "recent" ? "recent" : "trending") +
+      "&kind=" + (takeTab === "debates" ? "all" : "take") +
+      (pageParam ? "&cursor=" + encodeURIComponent(String(pageParam)) : "")
+    ),
     getNextPageParam: (page) => page.nextCursor || undefined,
     staleTime: 30_000,
   });
-  const items = feed.data?.pages.flatMap((page) => page.items) || [];
+  const bracket = useQuery<ArenaPageResult>({
+    queryKey: ["community-bracket", data.user?.id],
+    queryFn: () => api("/social/arena?sort=recent&kind=matchup"),
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+  });
+  const matchups = bracket.data?.items || [];
+  const headlineMatch = matchups[0];
+  const allItems = (feed.data?.pages.flatMap((page) => page.items) || []).filter((post) => post.kind !== "matchup");
+  const items = [...allItems].sort((a, b) => {
+    if (takeTab === "fire" || sort === "fire") return b.fire - a.fire || divisiveScore(b) - divisiveScore(a);
+    if (takeTab === "clowns" || sort === "clown") return b.clown - a.clown || divisiveScore(b) - divisiveScore(a);
+    if (sort === "recent") return Date.parse(b.createdAt) - Date.parse(a.createdAt);
+    return divisiveScore(b) - divisiveScore(a);
+  });
+  const prompts = Array.from({ length: 5 }, (_, i) => PROMPTS[(promptOffset + i) % PROMPTS.length]);
 
+  function openComposer(nextKind: ArenaKind = "take", prompt = "") {
+    setKind(nextKind);
+    setBody(prompt);
+    setComposerOpen(true);
+    // On narrow layouts the composer follows the main feed; make the action reachable.
+    requestAnimationFrame(() => document.getElementById("cove-arena-compose")?.scrollIntoView({ behavior: "smooth", block: "center" }));
+  }
   async function publish() {
     if (!data.user) return signIn();
     if (!publicProfile || !body.trim() || busy) return;
@@ -85,7 +173,7 @@ export function CommunityArena() {
       setBookRef("");
       setSpoiler(false);
       setComposerOpen(false);
-      await feed.refetch();
+      await Promise.all([feed.refetch(), bracket.refetch()]);
       toast.success("Published to Community");
     } catch (error) {
       toast.error((error as Error).message);
@@ -93,7 +181,6 @@ export function CommunityArena() {
       setBusy("");
     }
   }
-
   async function vote(post: ArenaItem, target: "agree" | "funny") {
     if (!data.user) return signIn();
     if (busy) return;
@@ -102,34 +189,23 @@ export function CommunityArena() {
       const previous = post.myReactions || [];
       const active = !previous.includes(target);
       const other = target === "agree" ? "funny" : "agree";
-      // Both choices reuse the existing supported reactions. On a choice
-      // change, clear the old reaction first. No new voting write API.
       if (active && previous.includes(other))
-        await api(`/social/posts/${encodeURIComponent(post.id)}/reaction`, "POST", {
-          reaction: other,
-          active: false,
-        });
-      await api(`/social/posts/${encodeURIComponent(post.id)}/reaction`, "POST", {
-        reaction: target,
-        active,
-      });
-      await feed.refetch();
+        await api("/social/posts/" + encodeURIComponent(post.id) + "/reaction", "POST", { reaction: other, active: false });
+      await api("/social/posts/" + encodeURIComponent(post.id) + "/reaction", "POST", { reaction: target, active });
+      await Promise.all([feed.refetch(), bracket.refetch()]);
     } catch (error) {
       toast.error((error as Error).message);
     } finally {
       setBusy("");
     }
   }
-
   async function report(postId: string) {
     if (!data.user) return signIn();
     setBusy(postId);
     try {
       await api("/social/report", "POST", {
-        subjectType: "social_post",
-        subjectId: postId,
-        reason: reportReason,
-        details: reportDetails.trim(),
+        subjectType: "social_post", subjectId: postId,
+        reason: reportReason, details: reportDetails.trim(),
       });
       setReporting("");
       setReportDetails("");
@@ -140,15 +216,12 @@ export function CommunityArena() {
       setBusy("");
     }
   }
-
   async function remove(post: ArenaItem) {
     if (busy || !confirm("Remove this Community post and its replies?")) return;
     setBusy(post.id);
     try {
-      await api(`/social/posts/${encodeURIComponent(post.id)}`, "DELETE", {
-        expectedVersion: post.version || 1,
-      });
-      await feed.refetch();
+      await api("/social/posts/" + encodeURIComponent(post.id), "DELETE", { expectedVersion: post.version || 1 });
+      await Promise.all([feed.refetch(), bracket.refetch()]);
       toast.success("Post removed");
     } catch (error) {
       toast.error((error as Error).message);
@@ -156,302 +229,328 @@ export function CommunityArena() {
       setBusy("");
     }
   }
+  const matchNames = headlineMatch ? matchupNames(headlineMatch.body) : null;
+  const totalVotes = headlineMatch ? headlineMatch.fire + headlineMatch.clown : 0;
+  const aPercent = headlineMatch && totalVotes ? Math.round(100 * headlineMatch.fire / totalVotes) : 0;
+  const bPercent = headlineMatch && totalVotes ? 100 - aPercent : 0;
 
   return (
     <section className="cove-arena">
       <header className="cove-arena-head">
         <div>
-          <h1>Community</h1>
-          <p>Hot takes, heated debates, and the books worth arguing about.</p>
+          <span className="cove-arena-eyebrow"><Sparkles size={13} /> THE READING ROOM / COVE COMMUNITY</span>
+          <h1>Good books. <em>Bold opinions.</em></h1>
+          <p>Make your case. Pick a side. Find your people.</p>
         </div>
+        <button type="button" className="cove-arena-primary" onClick={() => openComposer()}>
+          <Plus size={18} /> Drop a hot take
+        </button>
       </header>
       <div className="cove-arena-layout">
-        <section className="community-settings-card cove-arena-composer">
-          <div className="cove-arena-composer-head">
-            <h2>Have a take?</h2>
-            <p>Start a discussion readers actually want to join.</p>
-          </div>
-          {!data.user ? (
-            <button className="button gold" onClick={signIn}>
-              Sign in to post
-            </button>
-          ) : mine.isLoading ? (
-            <p className="muted">Checking Community privacy settings…</p>
-          ) : !publicProfile ? (
-            <p className="muted">
-              Public posts need a public reader profile and public activity visibility.
-              <a className="text-link" href="/settings">
-                Adjust privacy settings
-              </a>
-              . Your private library, highlights, and reading position stay private.
-            </p>
-          ) : !composerOpen ? (
-            <button className="button gold cove-arena-start" onClick={() => setComposerOpen(true)}>
-              + Start a conversation
-            </button>
-          ) : (
-            <>
-              <div className="cove-arena-kind" role="group" aria-label="Post format">
-                <button
-                  type="button"
-                  className={kind === "take" ? "selected" : ""}
-                  onClick={() => setKind("take")}
-                >
-                  <Flame size={16} /> Hot Take
-                </button>
-                <button
-                  type="button"
-                  className={kind === "debate" ? "selected" : ""}
-                  onClick={() => setKind("debate")}
-                >
-                  <Swords size={16} /> Debate
-                </button>
-                <button
-                  type="button"
-                  className={kind === "matchup" ? "selected" : ""}
-                  onClick={() => setKind("matchup")}
-                >
-                  <Trophy size={16} /> Matchup
-                </button>
-              </div>
-              <label htmlFor="arena-body">
-                {kind === "take"
-                  ? "Your take"
-                  : kind === "debate"
-                    ? "Debate question or position"
-                    : "Two contenders"}
-              </label>
-              <textarea
-                id="arena-body"
-                className="note-input"
-                value={body}
-                maxLength={11000}
-                placeholder={
-                  kind === "take"
-                    ? "A popular book deserves more criticism because…"
-                    : kind === "debate"
-                      ? "Is a memorable ending more important than a perfect beginning?"
-                      : "A: Book or character one\nB: Book or character two\nWhy should yours win?"
-                }
-                onChange={(e) => setBody(e.target.value)}
-              />
-              <label htmlFor="arena-book">Related Cove book (optional)</label>
-              <input
-                id="arena-book"
-                className="note-input"
-                value={bookRef}
-                maxLength={240}
-                placeholder="Book ID or Cove book link"
-                onChange={(e) => setBookRef(e.target.value)}
-              />
-              <label className="check-row">
-                <input
-                  type="checkbox"
-                  checked={spoiler}
-                  onChange={(e) => setSpoiler(e.target.checked)}
-                />
-                Hide behind a spoiler warning
-              </label>
-              <div className="cove-arena-publish-actions">
-                <button
-                  className="button gold"
-                  disabled={!!busy || body.trim().length < 10}
-                  onClick={publish}
-                >
-                  {busy === "publish" ? "Publishing…" : "Publish"}
-                </button>
-                <button
-                  className="text-link"
-                  disabled={!!busy}
-                  onClick={() => setComposerOpen(false)}
-                >
-                  Cancel
-                </button>
-              </div>
-            </>
-          )}
-          <p className="small muted">
-            Keep it about books. Mark spoilers and disagree with ideas, not people.
-          </p>
-        </section>
-        <section className="cove-arena-feed">
-          <div className="cove-arena-feed-heading">
-            <h2>Explore</h2>
-            <div className="cove-arena-kind" role="group" aria-label="Community post categories">
-              {(
-                [
-                  ["all", "All"],
-                  ["take", "Hot Takes"],
-                  ["debate", "Debates"],
-                  ["matchup", "Tournaments"],
-                ] as const
-              ).map(([key, label]) => (
-                <button
-                  type="button"
-                  key={key}
-                  aria-pressed={kindFilter === key}
-                  className={kindFilter === key ? "selected" : ""}
-                  onClick={() => setKindFilter(key)}
-                >
-                  {label}
+        <div className="cove-arena-main">
+          <section className="cove-arena-prompts" aria-labelledby="cove-prompt-heading">
+            <div className="cove-arena-section-top">
+              <h2 id="cove-prompt-heading"><Flame size={18} /> CONVERSATION STARTERS</h2>
+              <button type="button" className="cove-arena-minor-action" onClick={() => setPromptOffset((n) => (n + 5) % PROMPTS.length)}>
+                <RefreshCw size={14} /> Shuffle prompts
+              </button>
+            </div>
+            <div className="cove-arena-prompt-grid">
+              {prompts.map((prompt, index) => (
+                <button type="button" key={prompt.title} className={"cove-arena-prompt cove-arena-prompt-" + prompt.tint}
+                  onClick={() => openComposer(prompt.kind, prompt.question)}>
+                  <span className="cove-arena-prompt-kicker">0{index + 1} / {prompt.title}</span>
+                  <strong>{prompt.question}</strong>
+                  <span className="cove-arena-prompt-arrow">Add your voice <ArrowRight size={17} /></span>
                 </button>
               ))}
             </div>
-            <label>
-              Sort
-              <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}>
-                <option value="recent">Newest</option>
-                <option value="trending">Trending (recent posts)</option>
-              </select>
-            </label>
-          </div>
-          {feed.isLoading && (
-            <p className="muted" role="status">
-              Loading Community posts…
-            </p>
-          )}
-          {feed.isError && (
-            <p role="alert">
-              The Community feed could not load.{" "}
-              <button onClick={() => feed.refetch()}>Retry</button>
-            </p>
-          )}
-          {items.map((post) => {
-            const fireName =
-              post.kind === "matchup" ? "A" : post.kind === "debate" ? "Agree" : "🔥 Fire";
-            const clownName =
-              post.kind === "matchup" ? "B" : post.kind === "debate" ? "Disagree" : "🤡 Clown";
-            const total = post.fire + post.clown;
-            const balance =
-              total >= 12 ? Math.round(100 * (1 - Math.abs(post.fire - post.clown) / total)) : null;
-            return (
-              <article className="cove-arena-card" key={post.id}>
-                <header>
-                  <span className="small-label">{ARENA_KINDS[post.kind]}</span>
-                  <a
-                    href={`/community?profile=${encodeURIComponent(post.user?.username || post.user?.id || "")}`}
-                  >
-                    {post.user?.name || "Reader"}
-                  </a>
-                  <time dateTime={post.createdAt}>
-                    {new Date(post.createdAt).toLocaleDateString()}
-                  </time>
-                </header>
-                {post.spoiler ? (
-                  <details className="spoiler-disclosure">
-                    <summary>Contains spoilers · reveal post</summary>
-                    <p className="cove-arena-body">{post.body}</p>
-                  </details>
-                ) : (
-                  <p className="cove-arena-body">{post.body}</p>
-                )}
-                {post.bookId && (
-                  <a className="feed-book" href={`/books/${encodeURIComponent(post.bookId)}`}>
-                    <BookOpen size={17} /> Related book
-                  </a>
-                )}
-                <div className="cove-arena-votes" aria-label="Community reactions">
-                  <button
-                    type="button"
-                    aria-pressed={(post.myReactions || []).includes("agree")}
-                    className={(post.myReactions || []).includes("agree") ? "selected" : ""}
-                    disabled={!!busy}
-                    onClick={() => vote(post, "agree")}
-                  >
-                    {fireName} · {post.fire}
+          </section>
+          <section className="cove-arena-feed" aria-labelledby="cove-takes-heading">
+            <div className="cove-arena-section-top cove-arena-takes-header">
+              <div>
+                <h2 id="cove-takes-heading"><Flame size={19} /> HOT TAKES <span className="cove-arena-title-glow">/</span> THE DISCOURSE</h2>
+                <p>Bookish arguments worth staying up for.</p>
+              </div>
+              <button type="button" className="cove-arena-minor-action" onClick={() => openComposer("debate")}>
+                <Plus size={16} /> Start a debate
+              </button>
+            </div>
+            <div className="cove-arena-feed-toolbar">
+              <div className="cove-arena-subtabs" role="tablist" aria-label="Hot Takes feed">
+                {([
+                  ["debates", "Active debates", "swords"],
+                  ["fire", "Fire takes", "fire"],
+                  ["clowns", "Clown court", "clown"],
+                ] as const).map(([tab, label, glyph]) => (
+                  <button role="tab" type="button" key={tab} aria-selected={takeTab === tab}
+                    className={takeTab === tab ? "selected" : ""}
+                    onClick={() => setTakeTab(tab)}>
+                    <span aria-hidden="true">{glyph === "clown" ? "🤡" : glyph === "fire" ? "🔥" : "⚔"}</span> {label}
                   </button>
-                  <button
-                    type="button"
-                    aria-pressed={(post.myReactions || []).includes("funny")}
-                    className={(post.myReactions || []).includes("funny") ? "selected" : ""}
-                    disabled={!!busy}
-                    onClick={() => vote(post, "funny")}
-                  >
-                    {clownName} · {post.clown}
-                  </button>
+                ))}
+              </div>
+              <label className="cove-arena-sort">
+                <span>Sort</span>
+                <select value={sort} onChange={(e) => setSort(e.target.value as TakeSort)}>
+                  <option value="trending">Trending · Most divisive</option>
+                  <option value="recent">Newest</option>
+                  <option value="fire">Most fire</option>
+                  <option value="clown">Most clowned</option>
+                </select>
+              </label>
+            </div>
+            {feed.isLoading && <p className="cove-arena-status" role="status">Gathering the latest opinions…</p>}
+            {feed.isError && (
+              <p className="cove-arena-status" role="alert">Community posts could not load.{" "}
+                <button className="text-link" onClick={() => feed.refetch()}>Retry</button>
+              </p>
+            )}
+            <div className="cove-arena-post-list" role="tabpanel" aria-label="Hot Takes posts">
+              {items.map((post) => {
+                const ratio = balancePercent(post);
+                const chosenFire = (post.myReactions || []).includes("agree");
+                const chosenClown = (post.myReactions || []).includes("funny");
+                return (
+                  <article className="cove-arena-card" key={post.id}>
+                    <div className="cove-arena-card-content">
+                      <header>
+                        <span className="cove-arena-avatar" aria-hidden="true">
+                          {(post.user?.name || "R").slice(0, 1).toUpperCase()}
+                        </span>
+                        <span className="cove-arena-byline">
+                          <a href={"/community?profile=" + encodeURIComponent(post.user?.username || post.user?.id || "")}>
+                            {post.user?.name || "Reader"}
+                          </a>
+                          <small>{timeAgo(post.createdAt)} · <span>{ARENA_KINDS[post.kind]}</span></small>
+                        </span>
+                        {ratio !== null && <span className="cove-arena-divisive-tag">{ratio}% DIVISIVE</span>}
+                      </header>
+                      {post.spoiler ? (
+                        <details className="spoiler-disclosure">
+                          <summary>Contains spoilers · reveal this take</summary>
+                          <p className="cove-arena-body">{post.body}</p>
+                        </details>
+                      ) : <p className="cove-arena-body">{post.body}</p>}
+                      <div className="cove-arena-card-bottom">
+                        <div className="cove-arena-votes" role="group" aria-label="React to this take">
+                          <button type="button" aria-pressed={chosenFire} className={chosenFire ? "selected fire" : "fire"}
+                            disabled={!!busy} onClick={() => vote(post, "agree")}>🔥 <b>{post.fire}</b> <span>Fire</span></button>
+                          <button type="button" aria-pressed={chosenClown} className={chosenClown ? "selected clown" : "clown"}
+                            disabled={!!busy} onClick={() => vote(post, "funny")}>🤡 <b>{post.clown}</b> <span>Clown</span></button>
+                          <a href={"/community?arenaPost=" + encodeURIComponent(post.id) + "&arenaOwner=" + encodeURIComponent(post.user?.id || "")}
+                            className="cove-arena-replies"><MessageCircle size={16} /> {post.replies} replies</a>
+                        </div>
+                        <div className="cove-arena-card-actions">
+                          {post.bookId && <a className="cove-arena-book-link" href={"/books/" + encodeURIComponent(post.bookId)}>
+                            <BookOpen size={14} /> Book
+                          </a>}
+                          {data.user?.id === post.user?.id ? (
+                            <button className="cove-arena-text-button" type="button" disabled={!!busy} onClick={() => remove(post)}>Delete</button>
+                          ) : data.user ? (
+                            <button className="cove-arena-text-button" type="button"
+                              onClick={() => setReporting(reporting === post.id ? "" : post.id)}>Report</button>
+                          ) : null}
+                        </div>
+                      </div>
+                      {reporting === post.id && (
+                        <div className="cove-arena-report">
+                          <label>Reason
+                            <select value={reportReason} onChange={(e) => setReportReason(e.target.value)}>
+                              <option value="spam">Spam</option>
+                              <option value="harassment">Harassment</option>
+                              <option value="scam">Scam</option>
+                              <option value="misleading">Misleading content</option>
+                              <option value="other">Other</option>
+                            </select>
+                          </label>
+                          <textarea className="note-input" value={reportDetails} maxLength={5000}
+                            aria-label="Report details" onChange={(e) => setReportDetails(e.target.value)} />
+                          <button className="button outline" disabled={!!busy || (reportReason === "other" && !reportDetails.trim())}
+                            onClick={() => report(post.id)}>Send report</button>
+                        </div>
+                      )}
+                    </div>
+                    {post.bookId && VERIFIED_COVER_IDS.has(post.bookId) && (
+                      <a className="cove-arena-card-book-image" href={"/books/" + encodeURIComponent(post.bookId)} aria-label="View related book">
+                        <img src={"/covers/" + post.bookId + ".jpg"} alt="" loading="lazy" onError={(e) => { e.currentTarget.hidden = true; }} />
+                      </a>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+            {!feed.isLoading && !feed.isError && !items.length && (
+              <div className="cove-arena-status">
+                No public posts in this feed yet. Got an opinion?{" "}
+                <button type="button" className="text-link" onClick={() => openComposer("take")}>Start the conversation.</button>
+              </div>
+            )}
+            {feed.hasNextPage && (
+              <button className="cove-arena-load" type="button" disabled={feed.isFetchingNextPage}
+                onClick={() => feed.fetchNextPage()}>
+                {feed.isFetchingNextPage ? "Loading…" : "More hot takes"} <ChevronRight size={16} />
+              </button>
+            )}
+          </section>
+        </div>
+        <aside className="cove-arena-rail" aria-label="Community matchups and posting">
+          <section className="cove-arena-tournament" aria-labelledby="cove-tournament-heading">
+            <div className="cove-arena-rail-head">
+              <h2 id="cove-tournament-heading"><Trophy size={18} /> TOURNAMENTS</h2>
+              <button type="button" onClick={() => setBracketOpen(true)}>VIEW BRACKET <ArrowRight size={15} /></button>
+            </div>
+            {bracket.isLoading && <p className="cove-arena-rail-state" role="status">Checking active matchups…</p>}
+            {bracket.isError && <p className="cove-arena-rail-state" role="alert">Bracket unavailable. <button onClick={() => bracket.refetch()}>Retry</button></p>}
+            {headlineMatch && matchNames ? (
+              <>
+                <div className="cove-arena-match-heading">
+                  <span>READER'S CHOICE</span>
+                  <h3>Which book wins?</h3>
+                  <p>Open matchup · Vote for your favorite</p>
                 </div>
-                {balance !== null && (
-                  <p className="small muted">{balance}% disagreement balance · 12+ reactions</p>
-                )}
-                <footer>
-                  <a
-                    className="text-link"
-                    href={`/community?arenaPost=${encodeURIComponent(post.id)}&arenaOwner=${encodeURIComponent(post.user?.id || "")}`}
-                  >
-                    <MessageCircle size={15} /> {post.replies} replies
-                  </a>
-                  {data.user?.id === post.user?.id ? (
-                    <button
-                      type="button"
-                      className="text-link"
-                      disabled={!!busy}
-                      onClick={() => remove(post)}
-                    >
-                      Delete
-                    </button>
-                  ) : (
-                    data.user && (
-                      <button
-                        type="button"
-                        className="text-link"
-                        onClick={() => setReporting(reporting === post.id ? "" : post.id)}
-                      >
-                        Report
+                <div className="cove-arena-contenders">
+                  {matchNames.map((name, index) => (
+                    <div className="cove-arena-contender" key={index}>
+                      <ReaderCover title={name} />
+                      <strong>{name}</strong>
+                      <button type="button" disabled={!!busy} aria-pressed={(headlineMatch.myReactions || []).includes(index === 0 ? "agree" : "funny")}
+                        onClick={() => vote(headlineMatch, index === 0 ? "agree" : "funny")}>
+                        Vote {index === 0 ? "A" : "B"}
                       </button>
-                    )
-                  )}
-                </footer>
-                {reporting === post.id && (
-                  <div className="cove-arena-report">
-                    <label>
-                      Reason
-                      <select
-                        value={reportReason}
-                        onChange={(e) => setReportReason(e.target.value)}
-                      >
-                        <option value="spam">Spam</option>
-                        <option value="harassment">Harassment</option>
-                        <option value="scam">Scam</option>
-                        <option value="misleading">Misleading content</option>
-                        <option value="other">Other</option>
-                      </select>
-                    </label>
-                    <textarea
-                      className="note-input"
-                      value={reportDetails}
-                      maxLength={5000}
-                      aria-label="Report details"
-                      onChange={(e) => setReportDetails(e.target.value)}
-                    />
-                    <button
-                      className="button outline"
-                      disabled={!!busy || (reportReason === "other" && !reportDetails.trim())}
-                      onClick={() => report(post.id)}
-                    >
-                      Send report
-                    </button>
-                  </div>
-                )}
-              </article>
-            );
-          })}
-          {!feed.isLoading && !feed.isError && !items.length && (
-            <p className="muted">
-              No public Arena posts in this window yet. Start the first one, or load older Community
-              activity.
-            </p>
-          )}
-          {feed.hasNextPage && (
-            <button
-              className="button outline"
-              disabled={feed.isFetchingNextPage}
-              onClick={() => feed.fetchNextPage()}
-            >
-              {feed.isFetchingNextPage ? "Loading…" : "Load more"}
-            </button>
-          )}
-        </section>
+                    </div>
+                  ))}
+                  <span className="cove-arena-versus" aria-hidden="true">VS</span>
+                </div>
+                <div className="cove-arena-tournament-score" aria-label="Matchup votes">
+                  {totalVotes > 0 ? (
+                    <>
+                      <div className="cove-arena-score-numbers"><strong>{aPercent}%</strong><span>{totalVotes} vote{totalVotes === 1 ? "" : "s"}</span><strong>{bPercent}%</strong></div>
+                      <div className="cove-arena-score-track">
+                        <span style={{ width: aPercent + "%" }} />
+                        <span style={{ width: bPercent + "%" }} />
+                      </div>
+                    </>
+                  ) : <p>Be the first reader to cast a vote.</p>}
+                </div>
+                <a className="cove-arena-match-discuss" href={"/community?arenaPost=" + encodeURIComponent(headlineMatch.id) + "&arenaOwner=" + encodeURIComponent(headlineMatch.user?.id || "")}>
+                  <MessageCircle size={15} /> Discuss this matchup <ArrowRight size={14} />
+                </a>
+              </>
+            ) : !bracket.isLoading && !bracket.isError && (
+              <div className="cove-arena-rail-state">
+                <BookOpen size={30} />
+                <p>No public matchups yet. Start a two-book showdown.</p>
+                <button type="button" className="cove-arena-rail-cta" onClick={() => openComposer("matchup", "A: \nB: \n\nWhich book should win, and why?")}>Create a matchup</button>
+              </div>
+            )}
+            <div className="cove-arena-activity">
+              <div className="cove-arena-activity-heading">
+                <h3><Flame size={15} /> BRACKET ACTIVITY</h3>
+                <small>Refreshes every 30s</small>
+              </div>
+              {matchups.length ? (
+                <ul>
+                  {matchups.slice(0, 3).map((post) => (
+                    <li key={post.id}>
+                      <span className="cove-arena-activity-dot" />
+                      <span><b>{post.user?.name || "A reader"}</b> opened <a href={"/community?arenaPost=" + encodeURIComponent(post.id) + "&arenaOwner=" + encodeURIComponent(post.user?.id || "")}>
+                        {matchupNames(post.body).join(" vs ")}
+                      </a>
+                        <small>{post.fire + post.clown} recorded votes · {timeAgo(post.createdAt)}</small>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : <p className="cove-arena-activity-empty">New public matchups will appear here.</p>}
+            </div>
+          </section>
+          <section className="cove-arena-composer" id="cove-arena-compose">
+            <div className="cove-arena-rail-head"><h2><Plus size={18} /> HAVE A TAKE?</h2></div>
+            <p className="cove-arena-compose-intro">The next great reading debate starts with a reader.</p>
+            {!data.user ? (
+              <button type="button" className="cove-arena-rail-cta" onClick={signIn}>Sign in to post</button>
+            ) : mine.isLoading ? (
+              <p className="cove-arena-rail-state">Checking Community privacy settings…</p>
+            ) : !publicProfile ? (
+              <div className="cove-arena-private-note">
+                <ShieldAlert size={18} />
+                <p>Public posts require a public reader profile and public activity visibility.
+                  <a href="/settings"> Adjust privacy settings</a>.
+                  Your private library, highlights, and reading position stay private.</p>
+              </div>
+            ) : !composerOpen ? (
+              <button type="button" className="cove-arena-rail-cta" onClick={() => openComposer()}>
+                <Plus size={16} /> Start a conversation
+              </button>
+            ) : (
+              <div className="cove-arena-compose-form">
+                <div className="cove-arena-kind" role="group" aria-label="Post format">
+                  {([
+                    ["take", "Hot Take"], ["debate", "Debate"], ["matchup", "Matchup"],
+                  ] as const).map(([value, title]) => (
+                    <button key={value} type="button" aria-pressed={kind === value}
+                      className={kind === value ? "selected" : ""} onClick={() => setKind(value)}>{title}</button>
+                  ))}
+                </div>
+                <label htmlFor="arena-body">{kind === "matchup" ? "Two contenders (A: / B:)" : "Your take"}</label>
+                <textarea id="arena-body" className="note-input" value={body} maxLength={11000}
+                  placeholder={kind === "matchup" ? "A: Book one\nB: Book two\n\nMake your case…" : "What is your most defensible book opinion?"}
+                  onChange={(e) => setBody(e.target.value)} />
+                <label htmlFor="arena-book">Related Cove book (optional)</label>
+                <input id="arena-book" className="note-input" value={bookRef} maxLength={240}
+                  placeholder="Book ID or /books/… link" onChange={(e) => setBookRef(e.target.value)} />
+                <label className="cove-arena-spoiler"><input type="checkbox" checked={spoiler}
+                  onChange={(e) => setSpoiler(e.target.checked)} /> Contains spoilers</label>
+                <div className="cove-arena-publish-actions">
+                  <button type="button" className="cove-arena-rail-cta" disabled={!!busy || body.trim().length < 10}
+                    onClick={publish}>{busy === "publish" ? "Publishing…" : "Publish take"}</button>
+                  <button type="button" className="cove-arena-text-button" disabled={!!busy}
+                    onClick={() => setComposerOpen(false)}>Cancel</button>
+                </div>
+              </div>
+            )}
+            <p className="cove-arena-compose-rule">Keep it about books. Mark spoilers. Challenge ideas, not people.</p>
+          </section>
+        </aside>
       </div>
+      <Dialog open={bracketOpen} onOpenChange={setBracketOpen}>
+        <DialogContent className="cove-arena-bracket-dialog">
+          <DialogTitle><Trophy size={20} /> Community tournament brackets</DialogTitle>
+          <DialogDescription>Each head-to-head reflects a public matchup and its real votes. Winners and later rounds are not declared automatically.</DialogDescription>
+          {matchups.length ? (
+            <div className="cove-arena-bracket-board">
+              {matchups.map((post) => {
+                const names = matchupNames(post.body);
+                const total = post.fire + post.clown;
+                return (
+                  <div className="cove-arena-bracket-entry" key={post.id}>
+                    <div className="cove-arena-bracket-pair">
+                      {names.map((name, index) => (
+                        <button type="button" key={index} disabled={!!busy}
+                          aria-pressed={(post.myReactions || []).includes(index === 0 ? "agree" : "funny")}
+                          onClick={() => vote(post, index === 0 ? "agree" : "funny")}>
+                          <ReaderCover title={name} className="cove-arena-bracket-cover" />
+                          <span>{name}</span>
+                          <b>{index === 0 ? post.fire : post.clown}</b>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="cove-arena-bracket-connector" aria-hidden="true" />
+                    <div className="cove-arena-bracket-next">
+                      <strong>Winner TBD</strong>
+                      <small>{total ? total + " votes so far" : "Awaiting votes"}</small>
+                    </div>
+                    <a href={"/community?arenaPost=" + encodeURIComponent(post.id) + "&arenaOwner=" + encodeURIComponent(post.user?.id || "")}>
+                      See matchup discussion <ArrowRight size={14} />
+                    </a>
+                  </div>
+                );
+              })}
+            </div>
+          ) : <p className="cove-arena-rail-state">No public matchups to show yet.</p>}
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
