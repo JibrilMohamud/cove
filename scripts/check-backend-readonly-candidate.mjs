@@ -35,19 +35,18 @@ assert.equal(
   "All five scheduled query scopes must use the independent primary reader",
 );
 assert.match(backend, /const firstMapPending = await db\.prepare\(/);
-assert.match(backend, /const schedulerOwnerDb = backendScheduledPrimaryReadDb\\(env\\);/);
+assert.match(backend, /const schedulerOwnerDb = backendScheduledPrimaryReadDb\(env\);/);
 assert.equal(
-  (backend.match(/contentPipelineOwner\\(schedulerOwnerDb,/g) || []).length,
+  (backend.match(/contentPipelineOwner\(schedulerOwnerDb,/g) || []).length,
   2,
   "Both scheduler ownership predicates must use the independent D1 Read service",
 );
 assert.equal(
-  (backend.match(/admitCatalogBatch\\(\\s*backendScheduledPrimaryReadDb\\(env\\)/g) || [])
+  (backend.match(/admitCatalogBatch\(\s*backendScheduledPrimaryReadDb\(env\)/g) || [])
     .length,
   3,
   "All three guarded background admission probes must use the independent reader",
 );
-
 
 const folder = mkdtempSync(path.join(tmpdir(), "cove-backend-readonly-"));
 try {
