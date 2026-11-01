@@ -80,8 +80,9 @@ for (const locale of locales) {
     await expect(sections.getByRole("link", { name: messages["My sharing"] })).toHaveCount(0);
     // Public Wild West content is visible before sign-in. Following alone
     // requires authentication, and personal sharing lives under My Account.
-    await expect(page.getByRole("heading", { name: "Hot Takes, Debates & Tournaments" }))
-      .toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Hot Takes, Debates & Tournaments" }),
+    ).toBeVisible();
     const results = await new AxeBuilder({ page })
       .include(".community-page")
       .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
