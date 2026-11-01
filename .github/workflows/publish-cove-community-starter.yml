@@ -3,7 +3,9 @@ name: Publish curated Cove Community starter posts
 on:
   push:
     branches: [qa/cove-community-publish-once]
-    paths: [.github/workflows/publish-cove-community-starter.yml]
+    paths:
+      - .github/workflows/publish-cove-community-starter.yml
+      - scripts/staging/publish-community-starter.mjs
   workflow_dispatch:
     inputs:
       target:
