@@ -38,6 +38,7 @@ jobs:
       - name: Confirm production authority is unrouteable, QA-ineligible, and disabled
         run: |
           node scripts/check-locked-production-legal-owner.mjs
+          node scripts/check-production-owner-binary-lock.mjs
           node scripts/check-production-disabled-owner-attestation.mjs
           node scripts/check-canonical-writer-closure.mjs --no-new-writers
           node scripts/check-legal-authority-owner.mjs

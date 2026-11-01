@@ -2,6 +2,16 @@ import { seedMusicProfiles } from "./features/fore/music-profiles.server";
 import { scopePublicationOwnerEnv } from "./storefront-strangler/publication-owner-routing.server";
 import { scopeExclusiveCanonicalD1 } from "./storefront-strangler/canonical-d1-write-fence";
 import { scopeCommerceProductionD1 } from "./storefront-strangler/commerce-d1-write-fence";
+import { backendScheduledPrimaryReadDb } from "./storefront-strangler/backend-scheduled-primary-reads";
+import { verifyIndependentBackendCredential } from "./storefront-strangler/backend-independent-credential";
+import {
+  reportAudioTriggerDiagnostic,
+  type BackendDiagnosticsEnv,
+} from "./storefront-strangler/backend-audio-trigger-diagnostics";
+import {
+  backendReadonlyCandidateRouteAllowed,
+  scopeBackendReadonlyCandidate,
+} from "./storefront-strangler/backend-readonly-candidate";
 import {
   attestDisabledOwnerFromBackend,
   DISABLED_OWNER_ATTEST_ROUTE,
@@ -52,9 +62,15 @@ import {
 type BackendEnv = CoveEnv &
   AudioComputeEnv & {
     COVE_OWNER_EXCLUSIVE_WRITER_FENCE?: string;
+    COVE_BACKEND_READONLY_CANDIDATE?: string;
+    COVE_CANONICAL_READONLY_RPC?: string;
+    COVE_BACKEND_SCHEDULED_READONLY_RPC?: string;
+    COVE_CANONICAL_READONLY?: import("./lib/canonical-readonly-d1.server").CanonicalReadService;
     COVE_COMMERCE_OWNER_D1_FENCE?: string;
     FORE_BACKEND_TOKEN?: string;
     FORE_BACKEND_TOKEN_SHA256?: string;
+    COVE_BACKEND_TOKEN_HASH_ONLY?: string;
+    BACKEND_DIAGNOSTICS?: BackendDiagnosticsEnv["BACKEND_DIAGNOSTICS"];
     FORE_PUBLIC_URL?: string;
     FORE_CATALOG_PAGES_PER_TICK?: string;
     FORE_CATALOG_EPUBS_PER_TICK?: string;
@@ -118,6 +134,11 @@ async function backendTokenHash(env: BackendEnv) {
 }
 
 async function authorized(request: Request, env: BackendEnv) {
+  // A deliberate no-D1 cutover must be independent of the legacy gateway
+  // token stored in cove_runtime_config. Never attempt fallback on failure.
+  if (env.COVE_BACKEND_TOKEN_HASH_ONLY !== undefined)
+    return verifyIndependentBackendCredential(request, env);
+
   const supplied = request.headers.get("x-cove-backend-token") || "";
   if (supplied.length < 24) return false;
 
@@ -245,7 +266,7 @@ async function catalogBatch(request: Request, env: BackendEnv) {
   let searchSync: { skipped: string; reason: string; probeMs: number } | undefined;
   if (Date.now() < deadline) {
     const admission = await admitCatalogBatch(
-      env.DB,
+      backendScheduledPrimaryReadDb(env),
       catalogAdmissionBudget(env.FORE_CATALOG_ADMISSION_MAX_MS),
     );
     if (admission.allowed) {
@@ -340,16 +361,7 @@ async function persistAudioTriggerDiagnostic(
   key: "audio_trigger_last_error" | "audio_trigger_last_success" | "audio_trigger_last_timeout",
   value: Record<string, unknown>,
 ) {
-  const at = new Date().toISOString();
-  try {
-    await env.DB.prepare(
-      "INSERT INTO cove_runtime_config(key,value,updated_at) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at",
-    )
-      .bind(key, JSON.stringify({ ...value, at }), at)
-      .run();
-  } catch (error) {
-    console.warn("Unable to persist Cove audio trigger diagnostic", error);
-  }
+  reportAudioTriggerDiagnostic(env, key, value);
 }
 
 async function triggerVercelAudio(env: BackendEnv, path: string) {
@@ -495,16 +507,16 @@ async function markD1QuotaBlocked() {
 }
 
 async function audioTrackTriggerSlots(env: BackendEnv) {
+  const db = backendScheduledPrimaryReadDb(env);
   const at = new Date().toISOString();
-  const row = await env.DB.prepare(
+  const statement = db.prepare(
     `SELECT
       SUM(CASE WHEN status='queued' AND next_attempt_at<=? THEN 1 ELSE 0 END) queued,
       SUM(CASE WHEN status='running' AND lease_until>? THEN 1 ELSE 0 END) running
     FROM audio_jobs
     WHERE kind='track'`,
-  )
-    .bind(at, at)
-    .first<{ queued?: number; running?: number }>();
+  );
+  const row = await statement.bind(at, at).first<{ queued?: number; running?: number }>();
   const queued = Number(row?.queued || 0);
   const running = Number(row?.running || 0);
   const targetConcurrency = queued >= 128 ? 2 : 1;
@@ -516,15 +528,17 @@ async function audioTrackTriggerSlots(env: BackendEnv) {
 }
 
 async function audioAlignmentTriggerSlots(env: BackendEnv) {
+  const db = backendScheduledPrimaryReadDb(env);
   const at = new Date().toISOString();
-  const row = await env.DB.prepare(
+  const statement = db.prepare(
     `SELECT
       SUM(CASE WHEN kind='align' AND status='queued' AND next_attempt_at<=? AND attempts<6 THEN 1 ELSE 0 END) queued,
       SUM(CASE WHEN kind='align' AND status='running' AND lease_until>? THEN 1 ELSE 0 END) running,
       SUM(CASE WHEN kind='track' AND status='running' AND lease_until>? THEN 1 ELSE 0 END) active_tracks
     FROM audio_jobs
     WHERE kind IN ('align','track')`,
-  )
+  );
+  const row = await statement
     .bind(at, at, at)
     .first<{ queued?: number; running?: number; active_tracks?: number }>();
   const queued = Number(row?.queued || 0);
@@ -539,11 +553,12 @@ async function audioAlignmentTriggerSlots(env: BackendEnv) {
 }
 
 async function warmOneShortBiosyncTranscript(env: BackendEnv) {
+  const db = backendScheduledPrimaryReadDb(env);
   // The first end-to-end map proved hosted Whisper works on short tracks.
   // Warm one independent ASR transcript per hour; the existing Vercel/GitHub
   // verifier still has to match the exact EPUB before publishing any map.
   if (!env.AI || !env.BUCKET) return;
-  const rows = await env.DB.prepare(
+  const statement = db.prepare(
     "SELECT e.id edition_id,json_extract(t.value,'$.id') track_id,json_extract(t.value,'$.sha256') audio_sha " +
       "FROM audio_jobs j JOIN audio_editions e ON e.id=json_extract(j.payload_json,'$.editionId') " +
       "JOIN json_each(e.tracks_json) t ON json_extract(t.value,'$.id')=json_extract(j.payload_json,'$.trackId') " +
@@ -551,7 +566,8 @@ async function warmOneShortBiosyncTranscript(env: BackendEnv) {
       "AND CAST(json_extract(t.value,'$.duration') AS REAL)>0 " +
       "AND CAST(json_extract(t.value,'$.duration') AS REAL)<=240 " +
       "AND json_extract(t.value,'$.sha256') IS NOT NULL ORDER BY j.updated_at,j.id LIMIT 40",
-  ).all<{ edition_id: string; track_id: string; audio_sha: string }>();
+  );
+  const rows = await statement.all<{ edition_id: string; track_id: string; audio_sha: string }>();
   const options = rows.results.filter((r) => /^[a-f0-9]{64}$/.test(r.audio_sha));
   // Rotate across short tracks so an unavailable or corrupt recording cannot
   // permanently block progress for every other eligible track.
@@ -595,9 +611,10 @@ async function runScheduled(cron: string, env: BackendEnv) {
       // All code paths read the same primary-D1 owner as external Workers.
       // During a drain neither side may start fresh work. The environment
       // switch alone is deliberately insufficient to claim ownership.
+      const schedulerOwnerDb = backendScheduledPrimaryReadDb(env);
       const [assetOwner, literaryOwner] = await Promise.all([
-        contentPipelineOwner(env.DB, "assets"),
-        contentPipelineOwner(env.DB, "literary"),
+        contentPipelineOwner(schedulerOwnerDb, "assets"),
+        contentPipelineOwner(schedulerOwnerDb, "literary"),
       ]);
       const work = [
         ...(!external && assetOwner === "legacy" ? [() => runStoredAssetTick(env)] : []),
@@ -637,14 +654,15 @@ async function runScheduled(cron: string, env: BackendEnv) {
       // Bootstrap one short real timing map before returning to alternating
       // acquisition windows. Keeps early BioSync health failures visible without
       // starving the long-running track backlog indefinitely.
-      const firstMapPending = await env.DB.prepare("SELECT 1 FROM audio_timing LIMIT 1").first();
-      const shortBootstrap = firstMapPending
-        ? null
-        : await env.DB.prepare(
-            "SELECT j.id FROM audio_jobs j JOIN audio_editions e ON e.id=json_extract(j.payload_json,'$.editionId') JOIN json_each(e.tracks_json) t ON json_extract(t.value,'$.id')=json_extract(j.payload_json,'$.trackId') WHERE j.kind='align' AND j.status='queued' AND j.attempts<3 AND j.next_attempt_at<=? AND CAST(json_extract(t.value,'$.duration') AS REAL)<=120 LIMIT 1",
-          )
-            .bind(new Date().toISOString())
-            .first();
+      const db = backendScheduledPrimaryReadDb(env);
+      const firstMapPending = await db.prepare("SELECT 1 FROM audio_timing LIMIT 1").first();
+      let shortBootstrap: unknown = null;
+      if (!firstMapPending) {
+        const statement = db.prepare(
+          "SELECT j.id FROM audio_jobs j JOIN audio_editions e ON e.id=json_extract(j.payload_json,'$.editionId') JOIN json_each(e.tracks_json) t ON json_extract(t.value,'$.id')=json_extract(j.payload_json,'$.trackId') WHERE j.kind='align' AND j.status='queued' AND j.attempts<3 AND j.next_attempt_at<=? AND CAST(json_extract(t.value,'$.duration') AS REAL)<=120 LIMIT 1",
+        );
+        shortBootstrap = await statement.bind(new Date().toISOString()).first();
+      }
       const alignmentWindow = new Date().getUTCMinutes() % 30 < 15 || Boolean(shortBootstrap);
       if (alignmentState.running > 0 || (alignmentWindow && alignmentState.queued > 0)) {
         const work: Promise<unknown>[] = [scheduledCatalog(env)];
@@ -724,9 +742,11 @@ async function runScheduled(cron: string, env: BackendEnv) {
           break;
         }
       }
-      const backlog = await env.DB.prepare(
+      const db = backendScheduledPrimaryReadDb(env);
+      const statement = db.prepare(
         "SELECT COUNT(*) count FROM audio_jobs WHERE kind='track' AND status IN ('queued','running')",
-      ).first<{ count?: number }>();
+      );
+      const backlog = await statement.first<{ count?: number }>();
       const pendingTracks = Number(backlog?.count || 0);
       if (pendingTracks >= 96) {
         console.info(`Cove audio discovery paused with ${pendingTracks} pending track jobs.`);
@@ -876,6 +896,10 @@ async function hostedBiosyncTranscript(
 
 export default {
   async scheduled(controller: { cron: string }, env: BackendEnv, ctx: ExecutionContextLike) {
+    // Never execute background jobs on a read-only candidate. A migration
+    // must explicitly rehome every job with private owner authorization.
+    if (env.COVE_BACKEND_READONLY_CANDIDATE !== undefined)
+      throw new Error("private_backend_readonly_candidate_cron_denied");
     env = scopeCommerceProductionD1(scopeExclusiveCanonicalD1(scopePublicationOwnerEnv(env)));
     if (
       controller.cron === "*/10 * * * *" ||
@@ -903,10 +927,26 @@ export default {
   },
 
   async fetch(request: Request, env: BackendEnv, ctx: ExecutionContextLike) {
+    // The isolated candidate exposes two health reads only. Protected
+    // customer routes, payment mutations, and background writer paths are
+    // intentionally absent until production owner parity is certified.
+    if (
+      env.COVE_BACKEND_READONLY_CANDIDATE !== undefined &&
+      !backendReadonlyCandidateRouteAllowed(request)
+    )
+      return json({ error: "Not found." }, 404);
     if (!(await authorized(request, env))) {
       return json({ error: "Persistence gateway authorization required." }, 401);
     }
-    env = scopeCommerceProductionD1(scopeExclusiveCanonicalD1(scopePublicationOwnerEnv(env)));
+    if (env.COVE_BACKEND_READONLY_CANDIDATE !== undefined) {
+      try {
+        env = scopeBackendReadonlyCandidate(env);
+      } catch {
+        return json({ error: "Canonical read unavailable." }, 503);
+      }
+    } else {
+      env = scopeCommerceProductionD1(scopeExclusiveCanonicalD1(scopePublicationOwnerEnv(env)));
+    }
 
     const path = new URL(request.url).pathname;
     // This endpoint runs only AFTER persistence gateway authentication.
@@ -972,7 +1012,7 @@ export default {
     if (path === "/__cove/ingestion/music-supply-handoff" && request.method === "POST")
       return handleCanonicalMusicHandoff(request, env, () =>
         admitCatalogBatch(
-          env.DB,
+          backendScheduledPrimaryReadDb(env),
           catalogAdmissionBudget(env.FORE_MUSIC_CANONICAL_HANDOFF_PROBE_MS),
         ),
       );
@@ -998,7 +1038,7 @@ export default {
       // A bulk repair is deferrable: never initiate it while the shared
       // primary D1 is unavailable or already showing substantial queue delay.
       const admission = await admitCatalogBatch(
-        env.DB,
+        backendScheduledPrimaryReadDb(env),
         catalogAdmissionBudget(env.FORE_REGIONAL_EPUB_REPAIR_PROBE_MS),
       );
       if (!admission.allowed)
