@@ -17,6 +17,28 @@ for (const [variable, expected] of [
     `Production deployment must reject alternate ${variable} identities`,
   );
 }
+assert.match(text, /^on:\n/m);
+assert.match(text, /^  workflow_dispatch:\n/m);
+assert.doesNotMatch(text, /^  push:\s*$/m);
+assert.match(
+  text,
+  /if: \$\{\{ github\.event_name == 'workflow_dispatch' && github\.ref == 'refs\/heads\/main' \}\}/,
+);
+const migrationInput = text.slice(
+  text.indexOf("      apply_migrations:"),
+  text.indexOf("\npermissions:"),
+);
+assert.match(migrationInput, /default: false/);
+assert.match(migrationInput, /type: boolean/);
+assert.match(text, /inputs\.apply_migrations == true/);
+assert.doesNotMatch(text, /github\.event_name == 'push' \|\| inputs\.apply_migrations/);
+const preflightIndex = text.indexOf(
+  "- name: Verify exact disabled production owner before binding",
+);
+const migrationIndex = text.indexOf("- name: Apply pending D1 migrations");
+const deployIndex = text.indexOf("- name: Deploy persistence Worker");
+assert.ok(preflightIndex >= 0 && preflightIndex < migrationIndex);
+assert.ok(migrationIndex > 0 && migrationIndex < deployIndex);
 assert.match(text, /- name: Validate deployment inputs/);
 for (const trustedOrigin of [
   "https://cove-puce-theta.vercel.app",
@@ -60,5 +82,5 @@ assert.match(
   /concurrency:\n  group: cove-persistence-production\n  cancel-in-progress: false/,
 );
 console.log(
-  "PASS: production backend deploy is fixed to one Worker/D1/bucket and owner verification cannot be skipped by input.",
+  "PASS: only explicit main-branch deploys can mutate production D1; owner preflight and target identity are mandatory.",
 );
