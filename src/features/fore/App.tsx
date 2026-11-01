@@ -344,7 +344,9 @@ function AccountButton() {
           title={data.user.name || data.user.username || store.t("account.mine", "My account")}
         >
           <span className="avatar" aria-hidden="true">
-            {(data.user.name || data.user.username || data.user.email || "R").slice(0, 1).toUpperCase()}
+            {(data.user.name || data.user.username || data.user.email || "R")
+              .slice(0, 1)
+              .toUpperCase()}
           </span>
         </button>
       </DropdownMenuTrigger>
@@ -355,20 +357,35 @@ function AccountButton() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link to="/profile" preload={false}><UserRound size={17} />{store.t("account.menuProfile", "Profile")}</Link>
+          <Link to="/profile" preload={false}>
+            <UserRound size={17} />
+            {store.t("account.menuProfile", "Profile")}
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link to="/profile" search={{ section: "received" }} preload={false}><Inbox size={17} />{store.t("account.menuInbox", "Shared inbox")}</Link>
+          <Link to="/profile" search={{ section: "received" }} preload={false}>
+            <Inbox size={17} />
+            {store.t("account.menuInbox", "Shared inbox")}
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link to="/notifications" preload={false}><Bell size={17} />{store.t("account.menuNotifications", "Notifications")}</Link>
+          <Link to="/notifications" preload={false}>
+            <Bell size={17} />
+            {store.t("account.menuNotifications", "Notifications")}
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link to="/following" preload={false}><Rss size={17} />{store.t("account.menuFollowing", "Following")}</Link>
+          <Link to="/following" preload={false}>
+            <Rss size={17} />
+            {store.t("account.menuFollowing", "Following")}
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link to="/settings" preload={false}><Settings size={17} />{store.t("account.menuSettings", "Settings")}</Link>
+          <Link to="/settings" preload={false}>
+            <Settings size={17} />
+            {store.t("account.menuSettings", "Settings")}
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuItem
           className="cove-account-signout"
