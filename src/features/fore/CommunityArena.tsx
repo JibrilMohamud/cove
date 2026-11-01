@@ -358,9 +358,7 @@ export function CommunityArena() {
                   </button>
                 </div>
                 {balance !== null && (
-                  <p className="small muted">
-                    {balance}% disagreement balance · 12+ reactions
-                  </p>
+                  <p className="small muted">{balance}% disagreement balance · 12+ reactions</p>
                 )}
                 <footer>
                   <a
