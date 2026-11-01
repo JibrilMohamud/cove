@@ -2150,7 +2150,12 @@ export async function handleSocial(
     // Fetch from the already-indexed public social-event timeline, NOT a global
     // table scan of social posts. The endpoint runs only on the Arena tab.
     const cursor = socialCursor(url.searchParams.get("cursor"));
-    const sort = z.enum(["recent", "trending"]).parse(url.searchParams.get("sort") || "recent");
+    const sort = z.enum(["recent", "trending", "top"]).parse(url.searchParams.get("sort") || "recent");
+    const search = z.string().trim().max(80).parse(url.searchParams.get("search") || "").toLowerCase();
+    const following = url.searchParams.get("following") === "1";
+    // The follow-only view must never fall back to showing everyone for guests.
+    if (following && !userId)
+      return json({ items: [], nextCursor: null, rankingWindow: "recent", activity: [] });
     const kind = z
       .enum(["all", "take", "debate", "matchup"])
       .parse(url.searchParams.get("kind") || "all");
@@ -2184,9 +2189,10 @@ export async function handleSocial(
               AND p.parent_id IS NULL AND p.user_id=p.context_id
               AND p.visibility='public' AND p.moderation_status='visible'
               AND p.deleted_at IS NULL AND p.body LIKE '[COVE-ARENA:%'
-              AND sp.profile_visibility='public' AND sp.activity_visibility='public'`,
+              AND sp.profile_visibility='public' AND sp.activity_visibility='public'
+              ${following ? "AND EXISTS(SELECT 1 FROM social_follows f WHERE f.follower_user_id=? AND f.followed_user_id=p.user_id)" : ""}`,
             )
-            .bind(...ids)
+            .bind(...ids, ...(following ? [userId] : []))
             .all<any>()
         ).results
       : [];
@@ -2227,9 +2233,35 @@ export async function handleSocial(
       if (v.reaction === "funny") record.clown = Number(v.total);
       counts.set(id, record);
     }
+    // Search is bounded to visible public discussions from this cursor window.
+    // Include visible public replies so searching a comment finds its debate,
+    // without leaking text from hidden, blocked, or moderated replies.
+    const replyMatches = new Set<string>();
+    if (search && reactIds.length) {
+      const replyRows = (
+        await db.prepare(
+          `SELECT r.* FROM social_posts r
+           WHERE r.parent_id IN (${reactIds.map(() => "?").join(",")})
+             AND r.visibility='public' AND r.deleted_at IS NULL
+             AND r.moderation_status='visible'
+           ORDER BY r.created_at DESC LIMIT 160`
+        ).bind(...reactIds).all<any>()
+      ).results;
+      const readable = await visiblePosts(db, userId, replyRows, 1, env);
+      for (const reply of readable)
+        if (!reply.locked && String(reply.body || "").toLowerCase().includes(search))
+          replyMatches.add(String(reply.parentId || reply.parent_id || ""));
+    }
     const items = visible.flatMap((p) => {
       const parsed = readArenaPost(String(p.body || ""));
       if (!parsed) return [];
+      if (search && ![
+        parsed.text,
+        parsed.bookId,
+        p.user?.username,
+        p.user?.name,
+      ].some((value) => String(value || "").toLowerCase().includes(search))
+        && !replyMatches.has(String(p.id))) return [];
       return [
         {
           ...p,
@@ -2240,6 +2272,8 @@ export async function handleSocial(
         },
       ];
     });
+    if (sort === "top")
+      items.sort((a, b) => (b.fire + b.clown + b.replies) - (a.fire + a.clown + a.replies));
     if (sort === "trending") {
       // Rank the bounded recent window by *balanced disagreement*, not raw
       // popularity. Confidence grows over the first 12 reactions so a 1:1
@@ -2256,9 +2290,22 @@ export async function handleSocial(
         return score(b) - score(a);
       });
     }
+    // Public matchup activity derives from stored, actual ballots. Keep voter
+    // identities private; a single reader may change their vote before closing.
+    // Only display events attached to matchups already visible to this viewer.
+    const matchupIds = items.filter((p) => p.kind === "matchup").map((p) => String(p.id));
+    const activity = kind === "matchup" && matchupIds.length
+      ? (await db.prepare(
+          `SELECT post_id,reaction,created_at FROM social_post_reactions
+           WHERE post_id IN (${matchupIds.map(() => "?").join(",")})
+             AND reaction IN ('agree','funny')
+           ORDER BY created_at DESC LIMIT 12`
+        ).bind(...matchupIds).all<{post_id:string;reaction:string;created_at:string}>()).results
+          .map((v) => ({ postId: v.post_id, side: v.reaction === "agree" ? "A" : "B", createdAt: v.created_at }))
+      : [];
     const last = candidates.length === 16 ? candidates[15].event : batch[batch.length - 1];
     return json({
-      items,
+      items, activity,
       nextCursor:
         last && (batch.length === 80 || candidates.length === 16) ? cursorFor(last) : null,
       rankingWindow: "recent",
