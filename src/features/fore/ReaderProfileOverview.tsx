@@ -6,7 +6,7 @@ import "./reader-profile.css";
 import "./reader-profile-cards.css";
 import "./reader-profile-shelves.css";
 
-type Result = {
+export type ReaderProfileData = {
   profile: { id: string; name?: string; username?: string; bio?: string };
   counts?: { followers?: number; following?: number; finished?: number; thisYear?: number };
   topBooks?: { position: number; book: import("./ReaderProfileBits").ProfileBook | null }[];
@@ -41,7 +41,7 @@ export function ReaderProfileOverview({
   discussion,
   tab,
 }: {
-  result: Result;
+  result: ReaderProfileData;
   owner: boolean;
   followLabel: string;
   follow: () => void;
