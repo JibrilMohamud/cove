@@ -3482,10 +3482,13 @@ export async function handleSocial(
       if (!target) throw new ApiError(404, "Reader not found.");
       const rel = await relationship(db, uidv, targetUserId),
         policy = target.repliesPolicy;
+      // The owner may always start a post on their own profile, regardless of
+      // the reply policy they apply to *other* readers.
       if (
-        policy === "none" ||
-        (policy === "following" && !rel.following) ||
-        (policy === "mutuals" && !rel.mutual)
+        uidv !== targetUserId &&
+        (policy === "none" ||
+          (policy === "following" && !rel.following) ||
+          (policy === "mutuals" && !rel.mutual))
       )
         throw new ApiError(403, "This reader is not accepting replies from your account.");
     }
