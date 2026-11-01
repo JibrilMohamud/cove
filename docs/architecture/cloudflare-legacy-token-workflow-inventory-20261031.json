@@ -5,10 +5,10 @@
   "productionExclusiveOwnerCertified": false,
   "credentialRevocationCertified": false,
   "previouslyGrantedPermissions": 385,
-  "description": "Manual complete scan of 103 GitHub Actions workflow files on the stacked scoped-production-deploy branch. Remaining references to secrets.CLOUDFLARE_API_TOKEN are unretired consumers, not permission to use the broad token for a production release.",
+  "description": "Manual complete scan of 103 GitHub Actions workflow files on the stacked scoped-production-deploy branch. Remaining references to secrets.CLOUDFLARE_API_TOKEN are unretired consumers, not permission to use the broad token for a production release. Three production read-only audit workflows moved to a separately scoped Workers/Token Read credential, without D1 Write or Workers Admin; this audit token is not yet provisioned.",
   "workflowFilesAudited": 103,
-  "maximumRemainingWorkflowConsumers": 40,
-  "maximumRemainingSecretReferences": 45,
+  "maximumRemainingWorkflowConsumers": 37,
+  "maximumRemainingSecretReferences": 42,
   "legacyConsumers": [
     {
       "path": ".github/workflows/backend-readonly-candidate.yml",
@@ -48,10 +48,6 @@
     },
     {
       "path": ".github/workflows/covereads-secure-ssr-gateway.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/deployed-canonical-d1-principal-audit.yml",
       "maxReferences": 1
     },
     {
@@ -136,14 +132,6 @@
     },
     {
       "path": ".github/workflows/paid-legal-full-schema-private-qa.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/production-cutover-topology-audit.yml",
-      "maxReferences": 1
-    },
-    {
-      "path": ".github/workflows/production-external-preflight.yml",
       "maxReferences": 1
     },
     {
