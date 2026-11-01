@@ -40,7 +40,9 @@ import { SharingPage, MemberPicker, type ShareMember } from "./Sharing";
 import { useStorefrontLocale } from "./localization";
 import { readArenaPost, ARENA_KINDS } from "./community-arena";
 
-const ArenaTab = lazy(() => import("./CommunityArena").then((m) => ({ default: m.CommunityArena })));
+const ArenaTab = lazy(() =>
+  import("./CommunityArena").then((m) => ({ default: m.CommunityArena })),
+);
 
 type Post = {
   id: string;
@@ -366,7 +368,11 @@ export function DiscussionThread({
                     <span>@{p.user?.username || "reader"}</span>
                   </a>
                   <span>
-                    {readArenaPost(p.body || "") ? ARENA_KINDS[readArenaPost(p.body || "")!.kind] : p.postType === "question" ? ui("Question") : ui("Discussion")}
+                    {readArenaPost(p.body || "")
+                      ? ARENA_KINDS[readArenaPost(p.body || "")!.kind]
+                      : p.postType === "question"
+                        ? ui("Question")
+                        : ui("Discussion")}
                     {p.chapter ? ` · ${p.chapter}` : ""}
                     {p.editedAt ? " · edited" : ""}
                   </span>
@@ -2727,18 +2733,29 @@ export function CommunityPage() {
       </main>
     );
   if (
-    arenaPost && arenaOwner &&
+    arenaPost &&
+    arenaOwner &&
     /^[a-zA-Z0-9_-]{1,240}$/.test(arenaPost) &&
     /^[a-zA-Z0-9_-]{1,240}$/.test(arenaOwner)
   )
     return (
       <main className="cove-book-thread-focus">
-        <a className="text-link" href="/community?tab=arena">{ui("← Back to the Reading Room")}</a>
+        <a className="text-link" href="/community?tab=arena">
+          {ui("← Back to the Reading Room")}
+        </a>
         <h1>{ui("Community conversation")}</h1>
-        <DiscussionThread contextType="profile" contextId={arenaOwner}
-          postId={arenaPost} title={ui("Original post")} />
-        <DiscussionThread contextType="profile" contextId={arenaOwner}
-          parentId={arenaPost} title={ui("Replies")} />
+        <DiscussionThread
+          contextType="profile"
+          contextId={arenaOwner}
+          postId={arenaPost}
+          title={ui("Original post")}
+        />
+        <DiscussionThread
+          contextType="profile"
+          contextId={arenaOwner}
+          parentId={arenaPost}
+          title={ui("Replies")}
+        />
       </main>
     );
   if (profile) return <PublicProfile ref={profile} />;
@@ -2781,7 +2798,13 @@ export function CommunityPage() {
         ))}
       </nav>
       {tab === "arena" ? (
-        <Suspense fallback={<p className="muted" role="status">Opening the Reading Room…</p>}>
+        <Suspense
+          fallback={
+            <p className="muted" role="status">
+              Opening the Reading Room…
+            </p>
+          }
+        >
           <ArenaTab />
         </Suspense>
       ) : tab === "sharing" ? (
