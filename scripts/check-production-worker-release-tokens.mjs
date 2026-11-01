@@ -19,7 +19,11 @@ const workflows = [
   },
 ];
 const tokens = new Set(workflows.map((x) => x.token));
-assert.equal(tokens.size, workflows.length, "Each production Worker needs distinct deploy credentials");
+assert.equal(
+  tokens.size,
+  workflows.length,
+  "Each production Worker needs distinct deploy credentials",
+);
 for (const { file, token, required } of workflows) {
   const source = readFileSync(file, "utf8");
   assert.match(source, /^  workflow_dispatch:\s*$/m);
@@ -50,4 +54,6 @@ assert.match(gateway, /No direct production D1 capability/);
 const persistence = readFileSync(".github/workflows/deploy-persistence-backend.yml", "utf8");
 assert.match(persistence, /CLOUDFLARE_COVE_RELEASE_D1_MIGRATIONS_TOKEN/);
 assert.match(persistence, /default: false/);
-console.log("PASS: all three production Worker workflows require manual main-only releases and distinct scoped credentials.");
+console.log(
+  "PASS: all three production Worker workflows require manual main-only releases and distinct scoped credentials.",
+);
