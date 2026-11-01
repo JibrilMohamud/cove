@@ -353,7 +353,7 @@ export function CommunityArena() {
           <span className="cove-arena-eyebrow">
             <Sparkles size={13} /> THE READING ROOM / COVE COMMUNITY
           </span>
-          <h1>
+          <h1 aria-label="Community">
             Good books. <em>Bold opinions.</em>
           </h1>
           <p>Make your case. Pick a side. Find your people.</p>
@@ -367,7 +367,7 @@ export function CommunityArena() {
           <section className="cove-arena-prompts" aria-labelledby="cove-prompt-heading">
             <div className="cove-arena-section-top">
               <h2 id="cove-prompt-heading">
-                <Flame size={18} /> CONVERSATION STARTERS
+                <Flame size={18} /> CONTROVERSY PROMPTS
               </h2>
               <button
                 type="button"
@@ -419,7 +419,7 @@ export function CommunityArena() {
                   [
                     ["debates", "Active debates", "swords"],
                     ["fire", "Fire takes", "fire"],
-                    ["clowns", "Clown court", "clown"],
+                    ["clowns", "Clowns", "clown"],
                   ] as const
                 ).map(([tab, label, glyph]) => (
                   <button

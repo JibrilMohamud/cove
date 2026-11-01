@@ -334,7 +334,7 @@ try {
   const arenaUi = fs.readFileSync("src/features/fore/CommunityArena.tsx", "utf8");
   const arenaStyle = fs.readFileSync("src/features/fore/community-arena-experience.css", "utf8");
   assert.match(arenaUi, /import ".\/community-arena-experience\.css"/);
-  assert.match(arenaUi, /CONVERSATION STARTERS/, "visible prompts strip");
+  assert.match(arenaUi, /CONTROVERSY PROMPTS/, "visible prompts strip");
   assert.match(arenaUi, /setPromptOffset/, "shuffle prompts must be interactive");
   assert.match(
     arenaUi,
