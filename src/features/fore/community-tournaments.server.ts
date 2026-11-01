@@ -416,16 +416,18 @@ async function advanceTournament(db: DB, id: string): Promise<boolean> {
     ),
   ];
   const results = await db.batch(writes);
-  const changed = Number((results as Array<{ meta?: { changes?: number } }>)[0]?.meta?.changes || 0);
+  const changed = Number(
+    (results as Array<{ meta?: { changes?: number } }>)[0]?.meta?.changes || 0,
+  );
   return changed > 0;
 }
 /** Run from the existing backend's social scheduled queue, never from a GET. */
 export async function advanceDueTournaments(db: DB, limit = 5): Promise<number> {
   // A deployment can precede its additive migration. Never introduce a
   // failing scheduled job solely because the bracket schema is not installed.
-  const installed = await db.prepare(
-    "SELECT 1 ok FROM sqlite_master WHERE type='table' AND name='community_tournaments'"
-  ).first<{ ok: number }>();
+  const installed = await db
+    .prepare("SELECT 1 ok FROM sqlite_master WHERE type='table' AND name='community_tournaments'")
+    .first<{ ok: number }>();
   if (!installed) return 0;
   const due = (
     await db
@@ -450,9 +452,9 @@ export async function handleCommunityTournaments(
   if (path !== "/social/tournaments" && !tournamentPath.test(path)) return null;
   const db = env.DB,
     method = request.method;
-  const installed = await db.prepare(
-    "SELECT 1 ok FROM sqlite_master WHERE type='table' AND name='community_tournaments'"
-  ).first<{ ok: number }>();
+  const installed = await db
+    .prepare("SELECT 1 ok FROM sqlite_master WHERE type='table' AND name='community_tournaments'")
+    .first<{ ok: number }>();
   if (!installed) {
     if (method === "GET" && path === "/social/tournaments")
       return json({ items: [], enabled: false });

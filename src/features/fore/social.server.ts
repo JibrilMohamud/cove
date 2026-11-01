@@ -4894,7 +4894,13 @@ export async function handleSocial(
   if (method === "POST" && path === "/social/report") {
     const x = z
       .object({
-        subjectType: z.enum(["social_post", "social_list", "social_profile", "reading_group", "community_tournament"]),
+        subjectType: z.enum([
+          "social_post",
+          "social_list",
+          "social_profile",
+          "reading_group",
+          "community_tournament",
+        ]),
         subjectId: z.string().min(1).max(240),
         reason: z.enum([
           "spam",
@@ -4928,12 +4934,15 @@ export async function handleSocial(
         throw new ApiError(404, "Discussion not found.");
       reportedUserId = String(p.user_id);
     } else if (x.subjectType === "community_tournament") {
-      const t = await db.prepare(
-        `SELECT t.host_user_id FROM community_tournaments t
+      const t = await db
+        .prepare(
+          `SELECT t.host_user_id FROM community_tournaments t
          JOIN social_profiles sp ON sp.user_id=t.host_user_id
          WHERE t.id=? AND t.status<>'cancelled'
-           AND sp.profile_visibility='public' AND sp.activity_visibility='public'`
-      ).bind(x.subjectId).first<{ host_user_id: string }>();
+           AND sp.profile_visibility='public' AND sp.activity_visibility='public'`,
+        )
+        .bind(x.subjectId)
+        .first<{ host_user_id: string }>();
       if (!t) throw new ApiError(404, "Tournament not found.");
       reportedUserId = String(t.host_user_id);
     } else if (x.subjectType === "social_list")

@@ -42,7 +42,20 @@ type OfficialBracket = {
   matches: Match[];
 };
 const verifiedCovers = new Set([
-  "1661", "2641", "2852", "2591", "74", "5200", "2600", "16", "4300", "120", "1400", "205", "1080", "46",
+  "1661",
+  "2641",
+  "2852",
+  "2591",
+  "74",
+  "5200",
+  "2600",
+  "16",
+  "4300",
+  "120",
+  "1400",
+  "205",
+  "1080",
+  "46",
   "1260",
   "1342",
   "84",
@@ -54,7 +67,6 @@ const verifiedCovers = new Set([
   "64317",
   "98",
 ]);
-
 
 function BookThumb({ book }: { book: Entry | undefined }) {
   if (!book)
@@ -92,8 +104,13 @@ function dateLabel(iso: string): string {
 }
 function roundLabel(tournament: OfficialBracket, round: number): string {
   const entrants = Math.pow(2, tournament.roundsTotal - round + 1);
-  return entrants >= 16 ? "Round of 16" : entrants === 8 ? "Quarterfinals" :
-    entrants === 4 ? "Semifinals" : "Final";
+  return entrants >= 16
+    ? "Round of 16"
+    : entrants === 8
+      ? "Quarterfinals"
+      : entrants === 4
+        ? "Semifinals"
+        : "Final";
 }
 function BookChoice({
   book,
@@ -336,8 +353,14 @@ export function OfficialTournament() {
             </>
           )}
           {data.user && (
-            <button type="button" className="cove-arena-text-button"
-              disabled={busy} onClick={reportTournament}>Report tournament</button>
+            <button
+              type="button"
+              className="cove-arena-text-button"
+              disabled={busy}
+              onClick={reportTournament}
+            >
+              Report tournament
+            </button>
           )}
           <div className="cove-tourney-activity">
             <h4>ROUND ACTIVITY</h4>
@@ -449,8 +472,8 @@ export function OfficialTournament() {
         <DialogContent className="cove-arena-bracket-dialog cove-tourney-dialog">
           <DialogTitle>Host an official tournament</DialogTitle>
           <DialogDescription>
-            Choose 4, 8, or 16 existing Cove books. The bracket is fixed at creation; readers vote in
-            timed rounds. Vote totals are finalized on the server, not by the host.
+            Choose 4, 8, or 16 existing Cove books. The bracket is fixed at creation; readers vote
+            in timed rounds. Vote totals are finalized on the server, not by the host.
           </DialogDescription>
           <div className="cove-tourney-form">
             <label>
