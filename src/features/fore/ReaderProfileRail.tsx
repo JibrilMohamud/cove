@@ -25,5 +25,12 @@ export function ReaderProfileRail({ counts, journeys, shelves, current, url }: {
       key={item.id} href={"/community?list="+encodeURIComponent(item.id)}>
       {item.title}<small>{item.item_count} books</small></a>)}
   </section>}
-  </aside>;
+  {journeys.length>0 && <section><ModuleHead title="Reading journal" href={url+"&profileTab=Journal"}/>
+    {journeys.slice(0,4).map(item=><a key={item.id} className="cove-reader-aside-link"
+      href={"/community?journey="+encodeURIComponent(item.id)}>
+      <small>{dateLabel(item.finished_at)}</small>{item.title_snapshot}</a>)}
+  </section>}
+  <a className="cove-reader-conversation" href={url+"&profileTab=Conversation"}>
+    Conversation <ArrowRight size={15}/></a>
+ </aside>;
 }
