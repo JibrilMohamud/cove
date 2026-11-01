@@ -48,7 +48,9 @@ const workerDeploy = text.slice(
 );
 assert.match(workerDeploy, /apiToken: \$\{\{ secrets\.CLOUDFLARE_COVE_RELEASE_DEPLOY_TOKEN \}\}/);
 assert.doesNotMatch(workerDeploy, /CLOUDFLARE_COVE_RELEASE_D1_MIGRATIONS_TOKEN/);
-const preflightIndex = text.indexOf("- name: Verify exact disabled production owner before binding");
+const preflightIndex = text.indexOf(
+  "- name: Verify exact disabled production owner before binding",
+);
 const migrationIndex = text.indexOf("- name: Apply pending D1 migrations");
 const deployIndex = text.indexOf("- name: Deploy persistence Worker");
 assert.ok(preflightIndex >= 0 && preflightIndex < migrationIndex);
