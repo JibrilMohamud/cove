@@ -166,6 +166,24 @@ export function OfficialTournament() {
       setBusy(false);
     }
   }
+  async function reportTournament() {
+    if (!data.user) return signIn();
+    if (!selected || busy) return;
+    setBusy(true);
+    try {
+      await api("/social/report", "POST", {
+        subjectType: "community_tournament",
+        subjectId: selected.id,
+        reason: "other",
+        details: "Reported public Community tournament for moderator review.",
+      });
+      toast.success("Tournament reported to moderation");
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   async function advance() {
     if (busy || !selected) return;
     setBusy(true);
@@ -316,6 +334,10 @@ export function OfficialTournament() {
                 </button>
               )}
             </>
+          )}
+          {data.user && (
+            <button type="button" className="cove-arena-text-button"
+              disabled={busy} onClick={reportTournament}>Report tournament</button>
           )}
           <div className="cove-tourney-activity">
             <h4>ROUND ACTIVITY</h4>
