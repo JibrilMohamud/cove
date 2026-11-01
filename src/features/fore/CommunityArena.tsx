@@ -1,8 +1,9 @@
 import { useState } from "react";
+import "./community-arena-experience.css";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import {
   ArrowRight, BookOpen, ChevronRight, Flame, MessageCircle,
-  Plus, RefreshCw, Swords, Trophy, Sparkles, ShieldAlert
+  Plus, RefreshCw, Trophy, Sparkles, ShieldAlert
 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -82,7 +83,7 @@ function divisiveScore(post: ArenaItem): number {
   // The first few votes cannot create an artificially high divisiveness rank.
   const confidence = Math.min(1, n / 12);
   const ageHours = Math.max(0, (Date.now() - Date.parse(post.createdAt)) / 3_600_000);
-  return (balance * confidence * 5 + Math.log1p(n) * 0.5 + Math.log1p(post.replies) * 0.2) / (1 + ageHours / 120);
+  return (balance * confidence * 6 + Math.log1p(n) * 0.3 + Math.log1p(post.replies) * 0.2) / (1 + ageHours / 120);
 }
 function ReaderCover({ title, className = "" }: { title: string; className?: string }) {
   const src = bookCover(title);
@@ -136,10 +137,15 @@ export function CommunityArena() {
   });
   const matchups = bracket.data?.items || [];
   const headlineMatch = matchups[0];
-  const allItems = (feed.data?.pages.flatMap((page) => page.items) || []).filter((post) => post.kind !== "matchup");
+  const allItems = (feed.data?.pages.flatMap((page) => page.items) || []).filter((post) => {
+    if (post.kind === "matchup") return false;
+    if (takeTab === "fire") return post.kind === "take" && post.fire >= post.clown;
+    if (takeTab === "clowns") return post.kind === "take" && post.clown > post.fire;
+    return true;
+  });
   const items = [...allItems].sort((a, b) => {
-    if (takeTab === "fire" || sort === "fire") return b.fire - a.fire || divisiveScore(b) - divisiveScore(a);
-    if (takeTab === "clowns" || sort === "clown") return b.clown - a.clown || divisiveScore(b) - divisiveScore(a);
+    if (sort === "fire") return b.fire - a.fire || divisiveScore(b) - divisiveScore(a);
+    if (sort === "clown") return b.clown - a.clown || divisiveScore(b) - divisiveScore(a);
     if (sort === "recent") return Date.parse(b.createdAt) - Date.parse(a.createdAt);
     return divisiveScore(b) - divisiveScore(a);
   });
