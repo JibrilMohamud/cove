@@ -321,6 +321,7 @@ import { useAccount } from "./client";
 function AccountButton() {
   const { data, signIn, signUp, reload } = useAccount();
   const store = useStorefrontLocale();
+  const ui = useUiText();
   const [signingOut, setSigningOut] = useState(false);
   async function signOut() {
     if (signingOut) return;
@@ -340,7 +341,7 @@ function AccountButton() {
         <button
           type="button"
           className="cove-avatar-trigger"
-          aria-label={store.t("account.openMenu", "Open account menu")}
+          aria-label={ui("Open account menu")}
           title={data.user.name || data.user.username || store.t("account.mine", "My account")}
         >
           <span className="avatar" aria-hidden="true">
@@ -359,32 +360,32 @@ function AccountButton() {
         <DropdownMenuItem asChild>
           <Link to="/profile" preload={false}>
             <UserRound size={17} />
-            {store.t("account.menuProfile", "Profile")}
+            {ui("Profile")}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link to="/profile" search={{ section: "received" }} preload={false}>
             <Inbox size={17} />
-            {store.t("account.menuInbox", "Shared inbox")}
+            {ui("Shared inbox")}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link to="/notifications" preload={false}>
             <Bell size={17} />
-            {store.t("account.menuNotifications", "Notifications")}
+            {ui("Notifications")}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link to="/following" preload={false}>
             <Rss size={17} />
-            {store.t("account.menuFollowing", "Following")}
+            {ui("Following")}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link to="/settings" preload={false}>
             <Settings size={17} />
-            {store.t("account.menuSettings", "Settings")}
+            {ui("Settings")}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem
@@ -394,8 +395,8 @@ function AccountButton() {
         >
           <LogOut size={17} />
           {signingOut
-            ? store.t("account.signingOut", "Signing out…")
-            : store.t("account.menuSignOut", "Sign out")}
+            ? ui("Signing out…")
+            : ui("Sign out")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
