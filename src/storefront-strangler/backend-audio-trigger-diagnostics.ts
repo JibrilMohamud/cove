@@ -7,17 +7,11 @@
  * A provider outage leaves a redacted Worker log; it never falls back to D1.
  */
 export type AudioDiagnosticKind =
-  | "audio_trigger_last_error"
-  | "audio_trigger_last_success"
-  | "audio_trigger_last_timeout";
+  "audio_trigger_last_error" | "audio_trigger_last_success" | "audio_trigger_last_timeout";
 
 export type BackendDiagnosticsEnv = {
   BACKEND_DIAGNOSTICS?: {
-    writeDataPoint(point: {
-      indexes: string[];
-      blobs: string[];
-      doubles: number[];
-    }): void;
+    writeDataPoint(point: { indexes: string[]; blobs: string[]; doubles: number[] }): void;
   };
 };
 
@@ -35,8 +29,10 @@ export function reportAudioTriggerDiagnostic(
     ? rawPath
     : "invalid_path";
   const status =
-    typeof value.status === "number" && Number.isSafeInteger(value.status) &&
-    value.status >= 100 && value.status <= 599
+    typeof value.status === "number" &&
+    Number.isSafeInteger(value.status) &&
+    value.status >= 100 &&
+    value.status <= 599
       ? value.status
       : 0;
   const disposition = value.disposition === "in-flight" ? "in-flight" : "completed";
