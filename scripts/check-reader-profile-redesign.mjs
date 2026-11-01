@@ -8,8 +8,17 @@ const rails = file("src/features/fore/ReaderProfileRail.tsx");
 const actions = file("src/features/fore/CommunityProfileRoute.tsx");
 assert.match(route, /CommunityProfileRoute/);
 assert.match(route, /CommunityPage/);
-for (const name of ["Profile","Activity","Library","Journal","Reviews","Shelves","Conversation","Stats"]) {
- assert.ok(profile.includes(name), name);
+for (const name of [
+  "Profile",
+  "Activity",
+  "Library",
+  "Journal",
+  "Reviews",
+  "Shelves",
+  "Conversation",
+  "Stats",
+]) {
+  assert.ok(profile.includes(name), name);
 }
 assert.match(profile, /toLocaleString/);
 assert.match(sections, /top\.filter/);
