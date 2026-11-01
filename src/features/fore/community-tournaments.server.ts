@@ -78,22 +78,29 @@ function safeTime(iso: string): number {
 function isOpen(t: TournamentRow): boolean {
   return t.status === "live" && safeTime(t.round_deadline) > Date.now();
 }
-async function publicTournament(db: DB, id: string): Promise<TournamentRow> {
+async function publicTournament(db: DB, id: string, viewer: string | null = null): Promise<TournamentRow> {
   const row = await db
     .prepare(
       `SELECT t.* FROM community_tournaments t
      JOIN social_profiles sp ON sp.user_id=t.host_user_id
      JOIN auth_accounts a ON a.app_id=t.host_user_id AND a.disabled_at IS NULL
      WHERE t.id=? AND t.status<>'cancelled'
-       AND sp.profile_visibility='public' AND sp.activity_visibility='public'`,
+       AND sp.profile_visibility='public' AND sp.activity_visibility='public'
+       AND (? IS NULL OR (
+         NOT EXISTS(SELECT 1 FROM social_blocks b
+           WHERE (b.blocker_user_id=? AND b.blocked_user_id=t.host_user_id)
+              OR (b.blocker_user_id=t.host_user_id AND b.blocked_user_id=?))
+         AND NOT EXISTS(SELECT 1 FROM social_mutes m
+           WHERE m.muter_user_id=? AND m.muted_user_id=t.host_user_id)
+       ))`,
     )
-    .bind(id)
+    .bind(id, viewer, viewer, viewer, viewer)
     .first<TournamentRow>();
   if (!row) throw new ApiError(404, "Tournament not found.");
   return row;
 }
 async function tournamentDetail(db: DB, id: string, viewer: string | null) {
-  const tournament = await publicTournament(db, id);
+  const tournament = await publicTournament(db, id, viewer);
   const [entryResult, matchResult] = await Promise.all([
     db
       .prepare("SELECT * FROM community_tournament_entries WHERE tournament_id=? ORDER BY seed")
@@ -256,7 +263,7 @@ async function createTournament(db: DB, actor: string, payload: z.infer<typeof c
   return tournamentDetail(db, id, actor);
 }
 async function castVote(db: DB, id: string, actor: string, input: z.infer<typeof voteSchema>) {
-  const tournament = await publicTournament(db, id);
+  const tournament = await publicTournament(db, id, actor);
   if (!isOpen(tournament)) throw new ApiError(409, "This round has closed.");
   const match = await db
     .prepare(
@@ -469,9 +476,17 @@ export async function handleCommunityTournaments(
        JOIN auth_accounts a ON a.app_id=t.host_user_id AND a.disabled_at IS NULL
        WHERE t.status<>'cancelled' AND sp.profile_visibility='public'
          AND sp.activity_visibility='public'
+         AND (? IS NULL OR (
+           NOT EXISTS(SELECT 1 FROM social_blocks b
+             WHERE (b.blocker_user_id=? AND b.blocked_user_id=t.host_user_id)
+                OR (b.blocker_user_id=t.host_user_id AND b.blocked_user_id=?))
+           AND NOT EXISTS(SELECT 1 FROM social_mutes m
+             WHERE m.muter_user_id=? AND m.muted_user_id=t.host_user_id)
+         ))
        ORDER BY CASE WHEN t.status='live' THEN 0 ELSE 1 END,t.created_at DESC
-       LIMIT 8`,
+       LIMIT 4`,
         )
+        .bind(userId, userId, userId, userId)
         .all<{ id: string }>()
     ).results;
     return json({ items: await Promise.all(ids.map((t) => tournamentDetail(db, t.id, userId))) });
@@ -493,7 +508,7 @@ export async function handleCommunityTournaments(
   }
   if (method === "POST" && action === "advance") {
     await rateLimit(env, "tournament-advance:" + tournamentId, 25);
-    await publicTournament(db, tournamentId);
+    await publicTournament(db, tournamentId, userId);
     const advanced = await advanceTournament(db, tournamentId);
     return json({ advanced, tournament: await tournamentDetail(db, tournamentId, userId) });
   }
