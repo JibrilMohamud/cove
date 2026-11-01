@@ -6,21 +6,22 @@ export const ARENA_KINDS = {
   matchup: "Tournament matchup",
 } as const;
 export type ArenaKind = keyof typeof ARENA_KINDS;
-const marker = /^\[COVE-ARENA:(take|debate|matchup)(?::([A-Za-z0-9_-]{1,100}))?\]\n/;
+const marker = /^\[COVE-ARENA:(take|debate|matchup)(?::([A-Za-z0-9_-]{1,100}))?(!open)?\]\n/;
 
-export function makeArenaPost(kind: ArenaKind, text: string, bookId = ""): string {
+export function makeArenaPost(kind: ArenaKind, text: string, bookId = "", allowPublicReplies = false): string {
   const safeBook = /^[A-Za-z0-9_-]{1,100}$/.test(bookId) ? bookId : "";
-  return `[COVE-ARENA:${kind}${safeBook ? ":" + safeBook : ""}]\n${text.trim()}`;
+  return `[COVE-ARENA:${kind}${safeBook ? ":" + safeBook : ""}${allowPublicReplies ? "!open" : ""}]\n${text.trim()}`;
 }
 
 export function readArenaPost(
   raw: string,
-): { kind: ArenaKind; bookId: string; text: string } | null {
+): { kind: ArenaKind; bookId: string; text: string; allowPublicReplies: boolean } | null {
   const match = marker.exec(raw);
   if (!match || !raw.slice(match[0].length).trim()) return null;
   return {
     kind: match[1] as ArenaKind,
     bookId: match[2] || "",
+    allowPublicReplies: match[3] === "!open",
     text: raw.slice(match[0].length),
   };
 }
