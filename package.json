@@ -58,6 +58,7 @@
     "test:browser": "playwright test",
     "test:compute-budget": "node scripts/check-compute-budget.mjs",
     "test:social-pagination": "node scripts/check-social-pagination.mjs",
+    "test:community-arena": "node scripts/check-community-arena.mjs",
     "test:journey-privacy-progress": "node scripts/check-journey-privacy-progress.mjs",
     "test:ui-localization": "node scripts/check-ui-localization.mjs && node scripts/check-auth-localization.mjs",
     "test:content-coverage": "node scripts/check-content-coverage.mjs",
