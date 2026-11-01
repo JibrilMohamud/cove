@@ -397,6 +397,7 @@ export function CommunityArena() {
             </div>
           </section>
           <section className="cove-arena-feed" aria-labelledby="cove-takes-heading">
+            <h2 className="small-label">Explore</h2>
             <div className="cove-arena-section-top cove-arena-takes-header">
               <div>
                 <h2 id="cove-takes-heading">
