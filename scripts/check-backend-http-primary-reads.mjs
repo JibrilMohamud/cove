@@ -6,6 +6,16 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const backend = readFileSync("src/persistence-backend.worker.ts", "utf8");
+for (const path of [
+  "wrangler.backend.production.toml",
+  ".github/workflows/deploy-persistence-backend.yml",
+]) {
+  const config = readFileSync(path, "utf8");
+  assert.match(config, /binding = "COVE_CANONICAL_READONLY"/);
+  assert.match(config, /service = "cove-canonical-d1-readonly"/);
+  assert.doesNotMatch(config, /COVE_BACKEND_HTTP_READONLY_RPC\s*=\s*"1"/);
+}
+
 assert.match(backend, /COVE_BACKEND_HTTP_READONLY_RPC\?: string/);
 assert.equal(
   (backend.match(/const primary = backendHttpPrimaryReadDb\(env\);/g) || []).length,
