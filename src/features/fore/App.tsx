@@ -17,7 +17,7 @@ import {
   Inbox,
   Settings,
   LogOut,
-  Rss,
+  Network,
   Users,
   LifeBuoy,
 } from "lucide-react";
@@ -65,9 +65,7 @@ const nav = [
   ["/audiobooks", "nav.audiobooks", "Audiobooks", Headphones],
   ["/sounds", "nav.sounds", "Cove Sounds", Music2],
   ["/library", "nav.library", "My library", Library],
-  ["/wishlist", "nav.wishlist", "Wishlist", Heart],
   ["/cart", "nav.cart", "Cart", ShoppingCart],
-  ["/orders", "nav.orders", "Orders", ReceiptText],
   ["/community", "nav.community", "Community", Users],
   ["/shelves", "nav.shelves", "Shelves", LibraryBig],
   ["/stats", "nav.stats", "Stats", BarChart3],
@@ -380,12 +378,18 @@ function AccountButton() {
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link to="/following" preload={false}>
-            <Rss size={17} />
-            {ui("Following")}
+          <Link to="/settings" search={{ tab: "network" }} preload={false}>
+            <Network size={17} />
+            {ui("Network")}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link to="/cart" preload={false}>
+            <ShoppingCart size={17} />
+            {ui("Cart")}
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link to="/settings" preload={false}>
             <Settings size={17} />
