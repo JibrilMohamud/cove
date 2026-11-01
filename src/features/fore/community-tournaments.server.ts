@@ -412,7 +412,7 @@ async function advanceTournament(db: DB, id: string): Promise<boolean> {
     ),
   ];
   const results = await db.batch(writes);
-  const changed = Number(results[0]?.meta?.changes || 0);
+  const changed = Number((results as Array<{ meta?: { changes?: number } }>)[0]?.meta?.changes || 0);
   return changed > 0;
 }
 /** Run from the existing backend's social scheduled queue, never from a GET. */
