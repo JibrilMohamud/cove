@@ -1332,6 +1332,22 @@ export function ProfilePage() {
         </div>
       </div>
       <AccountGuard>
+        <section className="recommendation-privacy-panel" aria-labelledby="account-community-tools">
+          <div>
+            <span className="small-label">YOUR COMMUNITY SETTINGS</span>
+            <h2 id="account-community-tools">Profile & sharing</h2>
+            <p className="muted">
+              Manage what readers can see and what is shared with you.
+              Public Hot Takes, debates, and tournaments are in Community.
+            </p>
+          </div>
+          <div className="recommendation-privacy-actions">
+            <a className="button outline" href="/profile?section=me">Reader profile & clubs</a>
+            <a className="button outline" href="/profile?section=received">Shared with me</a>
+            <a className="button outline" href="/profile?section=sharing">My sharing</a>
+            <a className="text-link" href="/community">Explore public Community</a>
+          </div>
+        </section>
         <div className="profile-panel">
           <span className="profile-avatar">{(data.user?.name || "R")[0].toUpperCase()}</span>
           <h2>{data.user?.registered ? data.user.name : "Welcome to Cove"}</h2>
