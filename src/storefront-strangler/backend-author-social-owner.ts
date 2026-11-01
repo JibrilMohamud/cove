@@ -54,3 +54,35 @@ export async function dispatchPrivateAuthorSocialFanout(
     failed: receipt.failed as number,
   };
 }
+
+/** A single private lease owns both release discovery and delivery. No
+ * canonical write, cursor or notification recipient is chosen by the cron. */
+export async function dispatchPrivateAuthorReleaseAlerts(
+  env: AuthorSocialOwnerEnv,
+  limit = 50,
+) {
+  if (
+    env.COVE_AUTHOR_SOCIAL_OWNER_QA !== "1" ||
+    env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1" ||
+    env.COVE_SSR_STAGING !== "1" ||
+    !QA_PRIMARY_IDS.has(env.COVE_LEGAL_WRITER_PRIMARY_ID || "") ||
+    !/^[a-f0-9]{64}$/.test(env.COVE_RIGHTS_OWNER_SECRET || "") ||
+    !env.LEGAL_AUTHORITY?.getByName ||
+    !Number.isSafeInteger(limit) ||
+    limit < 1 ||
+    limit > 50
+  )
+    throw Error("author_release_private_owner_not_enrolled");
+  const operationId = "author-release:" + crypto.randomUUID();
+  const receipt = await dispatchCanonicalOwnerCommand(
+    env.LEGAL_AUTHORITY.getByName("cove-staged-legal-global-v1"),
+    env.COVE_RIGHTS_OWNER_SECRET!,
+    "social.process-author-release-alerts",
+    { operationId, limit },
+  );
+  return {
+    queued: receipt.queued as number,
+    processed: receipt.processed as number,
+    notifications: receipt.notifications as number,
+  };
+}
