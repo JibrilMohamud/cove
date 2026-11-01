@@ -39,6 +39,7 @@ type OfficialBracket = {
   version: number;
   createdAt: string;
   entries: Entry[];
+  activity: { matchId: string; entryId: string; createdAt: string }[];
   matches: Match[];
 };
 const verifiedCovers = new Set([
@@ -375,6 +376,21 @@ export function OfficialTournament() {
                   liveMatches.reduce((sum, match) => sum + match.aVotes + match.bVotes, 0) +
                   " recorded votes"}
             </p>
+            {(selected.activity || []).length > 0 ? (
+              <ul className="cove-tourney-activity-events" aria-label="Recent bracket votes">
+                {selected.activity.slice(0, 5).map((event, index) => {
+                  const match = selected.matches.find((item) => item.id === event.matchId);
+                  const entry = entries.get(event.entryId);
+                  return (
+                    <li key={event.matchId + ":" + event.entryId + ":" + index}>
+                      <span aria-hidden="true">🔥</span>
+                      <span>A reader voted for <b>{entry?.title || "a contender"}</b>
+                        {" · "}Match {match?.slot || "?"} · {dateLabel(event.createdAt)}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : <p>No ballots yet. Be the first to vote.</p>}
             <p>Results are finalized after the deadline. Ties advance the lower seed.</p>
           </div>
         </>
