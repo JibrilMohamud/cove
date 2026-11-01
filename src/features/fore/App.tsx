@@ -358,7 +358,11 @@ function AccountButton() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link to="/community" search={{ profile: data.user.username || data.user.id }} preload={false}>
+          <Link
+            to="/community"
+            search={{ profile: data.user.username || data.user.id }}
+            preload={false}
+          >
             <UserRound size={17} />
             {ui("Profile")}
           </Link>
