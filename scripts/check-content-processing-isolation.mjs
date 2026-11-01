@@ -197,8 +197,9 @@ try {
 
   const backend = fs.readFileSync("src/persistence-backend.worker.ts", "utf8");
   assert.match(backend, /FORE_CONTENT_PIPELINE_EXTERNAL === "1"/);
-  assert.match(backend, /contentPipelineOwner\(env.DB, "assets"\)/);
-  assert.match(backend, /contentPipelineOwner\(env.DB, "literary"\)/);
+  assert.match(backend, /const schedulerOwnerDb = backendScheduledPrimaryReadDb\(env\);/);
+  assert.match(backend, /contentPipelineOwner\(schedulerOwnerDb, "assets"\)/);
+  assert.match(backend, /contentPipelineOwner\(schedulerOwnerDb, "literary"\)/);
   assert.match(backend, /\(\) => runStoredAssetTick\(env\)/);
   assert.match(backend, /\(\) => runLiteraryProfileTick\(env\)/);
   assert.ok(

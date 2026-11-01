@@ -32,7 +32,7 @@ const owner = await api("GET", "cove-legal-authority-production/settings");
 verifyProductionOwnerBinding(owner);
 const secret = randomBytes(32).toString("hex");
 const metadata = {
-  main_module: "legal-authority.mjs",
+  main_module: "legal-authority.production-locked.mjs",
   keep_bindings: ["secret_text"],
   bindings: owner.bindings.filter((b) => b.type !== "secret_text"),
 };
@@ -55,11 +55,11 @@ metadata.bindings.push({
 const form = new FormData();
 form.set("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
 form.set(
-  "legal-authority.mjs",
-  new Blob([readFileSync(".output/strangler/legal-authority.mjs", "utf8")], {
+  "legal-authority.production-locked.mjs",
+  new Blob([readFileSync(".output/strangler/legal-authority.production-locked.mjs", "utf8")], {
     type: "application/javascript+module",
   }),
-  "legal-authority.mjs",
+  "legal-authority.production-locked.mjs",
 );
 await api("PUT", "cove-legal-authority-production", form);
 verifyProductionOwnerBinding(await api("GET", "cove-legal-authority-production/settings"));

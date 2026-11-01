@@ -41,6 +41,10 @@ id = "544267f3cf604c1d8976f1b06d258e24"
 binding = "SOUNDS_ANALYTICS"
 dataset = "cove_sounds_funnel"
 
+[[analytics_engine_datasets]]
+binding = "BACKEND_DIAGNOSTICS"
+dataset = "cove_backend_audio_trigger_diagnostics"
+
 [vars]
 
 # Canonical verified Cove Vercel production origin.

@@ -13,7 +13,7 @@ export const REQUIRED_EVENTS=[
   "charge.dispute.created","charge.dispute.updated","charge.dispute.closed",
   "charge.dispute.funds_withdrawn","charge.dispute.funds_reinstated"
 ];
-export function assessExternalPrerequisites({ownerSettings,workerSettings,accountTokens,accountTokenInventoryComplete,webhooks,webhookUrl,ownerSource}){
+export function assessExternalPrerequisites({ownerSettings,workerSettings,accountTokens,accountTokenInventoryComplete,userTokens,userTokenInventoryComplete,webhooks,webhookUrl,ownerSource}){
   const problems=[];
   const bindings=ownerSettings?.bindings||[];
   const named=n=>bindings.find(x=>x.name===n);
@@ -64,6 +64,36 @@ export function assessExternalPrerequisites({ownerSettings,workerSettings,accoun
         problems.push("Active account API token permission metadata is incomplete: "+token.id);
       if(policy.permission_groups.some(p=>p&&(p.id==="09b2857d1c31407795e75e3fed8617a1"||/^D1 (Write|Edit)$/i.test(p.name||""))))
         problems.push("Active account API token retains D1 Write; database scope must be independently retired or certified: "+token.id);
+      if(policy.permission_groups.some(p=>p&&(p.id==="98d78cd2433d4c3687191bc0244ef948"||/^Workers Admin$/i.test(p.name||""))))
+        problems.push("Active account API token retains Workers Admin and can redeploy privileged Workers: "+token.id);
+    }
+  }
+  // User-owned API tokens are independent principals. A successful account-token
+  // audit cannot certify them; denied or partial reads must block readiness.
+  if(!Array.isArray(userTokens)||userTokenInventoryComplete!==true)
+    problems.push("Complete user API token privilege inventory is missing.");
+  else for(const token of userTokens){
+    if(!["active","disabled","expired"].includes(token.status)){
+      problems.push("User API token status is incomplete: "+token.id);
+      continue;
+    }
+    if(token.status!=="active")continue;
+    if(!Array.isArray(token.policies)){
+      problems.push("Active user API token policies are incomplete: "+token.id);
+      continue;
+    }
+    for(const policy of token.policies){
+      if(policy.effect==="deny")continue;
+      if(policy.effect!=="allow"||!Array.isArray(policy.permission_groups)){
+        problems.push("Active user API token permission inventory is incomplete: "+token.id);
+        continue;
+      }
+      if(policy.permission_groups.some(p=>!p||(!/^[a-f0-9]{32}$/.test(p.id||"")&&!(typeof p.name==="string"&&p.name.trim()))))
+        problems.push("Active user API token permission metadata is incomplete: "+token.id);
+      if(policy.permission_groups.some(p=>p&&(p.id==="09b2857d1c31407795e75e3fed8617a1"||/^D1 (Write|Edit)$/i.test(p.name||""))))
+        problems.push("Active user API token retains D1 Write: "+token.id);
+      if(policy.permission_groups.some(p=>p&&(p.id==="98d78cd2433d4c3687191bc0244ef948"||/^Workers Admin$/i.test(p.name||""))))
+        problems.push("Active user API token retains Workers Admin: "+token.id);
     }
   }
   let expected=null;
@@ -83,7 +113,7 @@ export function assessExternalPrerequisites({ownerSettings,workerSettings,accoun
     problems.push("Stripe LIVE webhook destination is missing critical payment/refund event types.");
   return {schema:"cove.external-production-preflight.v1",scope:"external-prerequisites-only",
     checkedScripts:workerSettings?.length??null,accountTokensChecked:accountTokens?.length??null,
-    userOwnedTokenPrivilegesCertified:false,webhookEndpoints:webhooks?.length??null,
+    userTokensChecked:userTokens?.length??null,userOwnedTokenPrivilegesCertified:Array.isArray(userTokens)&&userTokenInventoryComplete===true&&!problems.some(p=>/user API token/i.test(p)),webhookEndpoints:webhooks?.length??null,
     readyForExternalPrerequisites:problems.length===0,productionCertified:false,problems};
 }
 async function getJson(url,headers){
@@ -96,9 +126,9 @@ async function cf(url,token){
   if(data.success!==true||!Array.isArray(data.errors))throw Error("Cloudflare API verification failed");
   return data;
 }
-export async function readLiveEvidence({cloudflareToken,accountId,stripeRestrictedKey}){
-  if(!cloudflareToken||!accountId||!stripeRestrictedKey)
-    throw Error("Cloudflare token/account and Stripe LIVE restricted read-only key are all mandatory.");
+export async function readLiveEvidence({cloudflareToken,cloudflareUserAuditToken,accountId,stripeRestrictedKey}){
+  if(!cloudflareToken||!cloudflareUserAuditToken||!accountId||!stripeRestrictedKey)
+    throw Error("Cloudflare account audit key, separately permissioned user-token audit key, account ID and Stripe LIVE restricted read-only key are all mandatory.");
   const base="https://api.cloudflare.com/client/v4/accounts/"+encodeURIComponent(accountId)+"/workers/scripts";
   // List Worker Scripts is an unpaginated endpoint. Adding unsupported page
   // arguments repeats the entire account and falsely fails at >100 scripts.
@@ -135,6 +165,17 @@ export async function readLiveEvidence({cloudflareToken,accountId,stripeRestrict
     if(!data.result_info?.total_pages&&data.result.length<50)break;
     if(page===20)throw Error("Account API token inventory too large to certify");
   }
+  const userTokens=[];
+  // User-scoped credentials are not listed by /accounts/{id}/tokens.
+  // The auditing credential must have explicit API Tokens Read permission.
+  for(let page=1;page<=20;page++){
+    const data=await cf("https://api.cloudflare.com/client/v4/user/tokens?per_page=50&page="+page,cloudflareUserAuditToken);
+    if(!Array.isArray(data.result))throw Error("User API token privilege inventory incomplete");
+    userTokens.push(...data.result);
+    if(data.result_info?.total_pages&&page>=data.result_info.total_pages)break;
+    if(!data.result_info?.total_pages&&data.result.length<50)break;
+    if(page===20)throw Error("User API token inventory too large to certify");
+  }
   const webhooks=[];let starting_after;
   for(let page=1;page<=20;page++){
     const url=new URL("https://api.stripe.com/v1/webhook_endpoints");
@@ -147,7 +188,7 @@ export async function readLiveEvidence({cloudflareToken,accountId,stripeRestrict
     starting_after=data.data.at(-1)?.id;
     if(!starting_after||page===20)throw Error("Stripe webhook inventory incomplete");
   }
-  return {ownerSettings,workerSettings:workers,accountTokens,accountTokenInventoryComplete:true,webhooks};
+  return {ownerSettings,workerSettings:workers,accountTokens,accountTokenInventoryComplete:true,userTokens,userTokenInventoryComplete:true,webhooks};
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
   if(!process.argv.includes("--live")){
@@ -157,6 +198,7 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
     const ownerSource=readFileSync("src/storefront-strangler/legal-authority.worker.ts","utf8");
     const evidence=await readLiveEvidence({
       cloudflareToken:process.env.CLOUDFLARE_API_TOKEN,
+      cloudflareUserAuditToken:process.env.CLOUDFLARE_USER_TOKEN_AUDIT_KEY,
       accountId:process.env.CLOUDFLARE_ACCOUNT_ID,
       stripeRestrictedKey:process.env.STRIPE_LIVE_RESTRICTED_READ_KEY
     });
