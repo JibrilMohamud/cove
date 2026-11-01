@@ -1,29 +1,13 @@
 name: deploy-persistence-backend
 
 on:
-  # Dependency-lock or workflow-only changes must never silently execute
-  # production D1 migrations and backend deploys. Use workflow_dispatch for
-  # such releases after explicit validation.
-  push:
-    branches: [main]
-    paths:
-      - "src/persistence-backend.worker.ts"
-      - "src/persistence-backend-entry.worker.ts"
-      - "src/lib/catalog-ingestion-backpressure.ts"
-      - "scripts/check-catalog-ingestion-backpressure.mjs"
-      - "src/features/fore/**"
-      - "src/lib/persistence-backend.ts"
-      - "src/storefront-strangler/backend-owner-attestation-entrypoint.ts"
-      # src/server.ts is the Vercel frontend gateway, not persistence code.
-      # Frontend-only releases must not auto-run production D1 migrations.
-      - "scripts/build-persistence-backend.mjs"
-      - "drizzle/*.sql"
-      - "wrangler.backend.production.toml"
-      - "package.json"
+  # Production Worker code and D1 schema must NEVER be changed simply because
+  # a draft migration PR was merged into main. Releases require a deliberate,
+  # audited workflow_dispatch from the reviewed main commit.
   workflow_dispatch:
     inputs:
       worker_name:
-        description: "Cloudflare Worker name. Use the existing owner Worker name to preserve its other secrets."
+        description: "Must be the existing cove-persistence-backend; alternate Workers are prohibited from acquiring production D1."
         required: true
         default: "cove-persistence-backend"
         type: string
@@ -48,9 +32,9 @@ on:
         default: "https://cove-puce-theta.vercel.app"
         type: string
       apply_migrations:
-        description: "Apply pending Cove D1 migrations before deployment"
+        description: "Explicit opt-in to apply production D1 migrations (default: no mutation)"
         required: true
-        default: true
+        default: false
         type: boolean
 
 permissions:
@@ -62,6 +46,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -84,14 +69,22 @@ jobs:
           PUBLIC_URL: ${{ inputs.public_url || 'https://cove-puce-theta.vercel.app' }}
         run: |
           set -euo pipefail
-          [[ "$WORKER_NAME" =~ ^[a-zA-Z0-9_-]{1,63}$ ]] || { echo "Invalid Worker name"; exit 1; }
-          [[ "$D1_DATABASE_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || { echo "Invalid D1 database ID"; exit 1; }
-          [[ "$D1_DATABASE_NAME" =~ ^[a-zA-Z0-9_-]{1,64}$ ]] || { echo "Invalid D1 database name"; exit 1; }
-          [[ "$R2_BUCKET_NAME" =~ ^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$ ]] || { echo "Invalid R2 bucket name"; exit 1; }
+          [[ "$WORKER_NAME" == "cove-persistence-backend" ]] || { echo "::error::Only the existing cove-persistence-backend can receive this production D1 binding"; exit 1; }
+          [[ "$D1_DATABASE_ID" == "4bd657ac-8789-403e-a28c-93aba8d0a989" ]] || { echo "::error::Noncanonical production D1 database is forbidden"; exit 1; }
+          [[ "$D1_DATABASE_NAME" == "cove-production" ]] || { echo "::error::Noncanonical production D1 database name is forbidden"; exit 1; }
+          [[ "$R2_BUCKET_NAME" == "cove-production-media" ]] || { echo "::error::Noncanonical production media bucket is forbidden"; exit 1; }
           node -e '
             const u = new URL(process.env.PUBLIC_URL);
             if (u.protocol !== "https:" || u.username || u.password || u.pathname !== "/" || u.search || u.hash) {
               throw new Error("public_url must be an HTTPS origin with no path, credentials, query, or fragment");
+            }
+            const trusted = new Set([
+              "https://cove-puce-theta.vercel.app",
+              "https://covereads.com",
+              "https://www.covereads.com"
+            ]);
+            if (!trusted.has(u.origin)) {
+              throw new Error("public_url must be a reviewed Cove production origin");
             }
           '
 
@@ -140,6 +133,10 @@ jobs:
           binding = "SOUNDS_ANALYTICS"
           dataset = "cove_sounds_funnel"
 
+          [[analytics_engine_datasets]]
+          binding = "BACKEND_DIAGNOSTICS"
+          dataset = "cove_backend_audio_trigger_diagnostics"
+
           [ai]
           binding = "AI"
 
@@ -162,15 +159,15 @@ jobs:
           crons = ["* * * * *", "*/5 * * * *", "*/10 * * * *", "23 * * * *", "17 3 * * *", "41 4 * * *"]
           EOF
 
-          if [ "$WORKER_NAME" = "cove-persistence-backend" ] && [ "$D1_DATABASE_ID" = "4bd657ac-8789-403e-a28c-93aba8d0a989" ]; then
-            cat >> wrangler.backend.deploy.toml <<'EOF'
+          # The disabled legal owner is always bound to this exact production
+          # Worker; dispatch parameters can no longer bypass its handshake.
+          cat >> wrangler.backend.deploy.toml <<'EOF'
 
           [[durable_objects.bindings]]
           name = "LEGAL_AUTHORITY"
           class_name = "CoveLegalAuthority"
           script_name = "cove-legal-authority-production"
           EOF
-          fi
 
       # Worker secrets are owned by Cloudflare. Wrangler preserves them on deploy.
       # Keep dashboard-owned configuration (including existing audio URLs) intact.
@@ -187,20 +184,20 @@ jobs:
             echo "::warning::Cloudflare deployment skipped until CLOUDFLARE_API_TOKEN is configured in repository Actions secrets."
           fi
 
+      - name: Verify exact disabled production owner before binding
+        if: ${{ steps.deploy_auth.outputs.enabled == 'true' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
+        run: node scripts/check-production-owner-binding.mjs --before-deploy
+
       - name: Apply pending D1 migrations
-        if: ${{ steps.deploy_auth.outputs.enabled == 'true' && (github.event_name == 'push' || inputs.apply_migrations) }}
+        if: ${{ steps.deploy_auth.outputs.enabled == 'true' && inputs.apply_migrations == true }}
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: "d26430caa63ec55f6612e32f36aca5e9"
           command: d1 migrations apply DB --remote --config wrangler.backend.deploy.toml
-
-      - name: Verify exact disabled production owner before binding
-        if: ${{ steps.deploy_auth.outputs.enabled == 'true' && (inputs.worker_name == '' || inputs.worker_name == 'cove-persistence-backend') && (inputs.d1_database_id == '' || inputs.d1_database_id == '4bd657ac-8789-403e-a28c-93aba8d0a989') }}
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
-        run: node scripts/check-production-owner-binding.mjs --before-deploy
 
       - name: Deploy persistence Worker
         if: ${{ steps.deploy_auth.outputs.enabled == 'true' }}
@@ -212,14 +209,14 @@ jobs:
           command: deploy --config wrangler.backend.deploy.toml --keep-vars
 
       - name: Verify production persistence binding after deployment
-        if: ${{ steps.deploy_auth.outputs.enabled == 'true' && (inputs.worker_name == '' || inputs.worker_name == 'cove-persistence-backend') && (inputs.d1_database_id == '' || inputs.d1_database_id == '4bd657ac-8789-403e-a28c-93aba8d0a989') }}
+        if: ${{ steps.deploy_auth.outputs.enabled == 'true' }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
         run: node scripts/check-production-owner-binding.mjs --after-deploy
 
       - name: Prove live production backend credential and disabled owner handshake
-        if: ${{ steps.deploy_auth.outputs.enabled == 'true' && (inputs.worker_name == '' || inputs.worker_name == 'cove-persistence-backend') && (inputs.d1_database_id == '' || inputs.d1_database_id == '4bd657ac-8789-403e-a28c-93aba8d0a989') }}
+        if: ${{ steps.deploy_auth.outputs.enabled == 'true' }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
@@ -249,6 +246,6 @@ jobs:
             else
               echo '- Read the Wrangler deploy output above for the Worker URL and set it as Vercel `FORE_BACKEND_URL`.'
             fi
-            echo '- Vercel keeps `FORE_BACKEND_TOKEN`; Cloudflare validates its SHA-256 fingerprint from D1.'
+            echo '- Vercel keeps `FORE_BACKEND_TOKEN`; unless separately enabled, Cloudflare validates its SHA-256 fingerprint from D1.'
             echo '- Cloudflare keeps the private `FORE_INGESTION_SIGNING_KEY`; Vercel keeps the matching public `FORE_INGESTION_VERIFY_JWK`.'
           } >> "$GITHUB_STEP_SUMMARY"
