@@ -18,7 +18,10 @@ for (const config of [
   ".github/workflows/deploy-persistence-backend.yml",
   "wrangler.legal-authority.production-locked.jsonc",
 ]) {
-  assert.doesNotMatch(readFileSync(config, "utf8"), /COVE_AUTHOR_SOCIAL_OWNER_QA\s*[:=]\s*["']1["']/);
+  assert.doesNotMatch(
+    readFileSync(config, "utf8"),
+    /COVE_AUTHOR_SOCIAL_OWNER_QA\s*[:=]\s*["']1["']/,
+  );
 }
 
 const dir = mkdtempSync(path.join(tmpdir(), "cove-owner-author-alerts-"));
@@ -104,7 +107,9 @@ try {
     /author_release_private_owner_not_enrolled/,
   );
   assert.equal(requests, afterFailure, "A rejected enrollment must not contact the owner.");
-  console.log("PASS: author release scan/delivery executes only on QA private owner with bounded, verified receipts.");
+  console.log(
+    "PASS: author release scan/delivery executes only on QA private owner with bounded, verified receipts.",
+  );
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }
