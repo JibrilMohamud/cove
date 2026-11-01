@@ -125,6 +125,8 @@ jobs:
         run: node scripts/check-production-persistence-deploy-identity.mjs
       - name: Audio trigger diagnostic has no canonical D1 writer
         run: node scripts/check-backend-audio-diagnostics.mjs
+      - name: Backend HTTP primary reads fail closed without native D1 fallback
+        run: node scripts/check-backend-http-primary-reads.mjs
       - name: Soundtrack library rights and delivery regressions
         run: npm run test:soundtracks
       - name: Literary profiles, evidence and chapter-matching regressions
