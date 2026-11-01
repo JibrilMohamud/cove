@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SiteShell } from "@/features/fore/App";
+import { ShoppingNavigation } from "@/features/fore/ShoppingNavigation";
 import { WishlistPage } from "@/features/fore/Wishlist";
 export const Route = createFileRoute("/wishlist")({
   head: () => ({
@@ -7,6 +8,7 @@ export const Route = createFileRoute("/wishlist")({
   }),
   component: () => (
     <SiteShell active="/wishlist" title="Wishlist">
+      <ShoppingNavigation active="/wishlist" />
       <WishlistPage />
     </SiteShell>
   ),
