@@ -95,10 +95,17 @@ try {
     call("/social/tournaments/" + bracket.id + "/vote", "POST", { matchId, entryId }, user);
   const firstVote = await cast(first.id, first.entryAId);
   assert.equal(firstVote.body.matches[0].aVotes, 1);
+  assert.equal(firstVote.body.activity.length, 1, "One real ballot appears in Round Activity.");
+  assert.equal(firstVote.body.activity[0].entryId, first.entryAId);
+  assert.ok(!("userId" in firstVote.body.activity[0]),
+    "Tournament activity must never disclose the voter's identity.");
   await cast(first.id, first.entryBId);
   const swapped = await call("/social/tournaments/" + bracket.id);
   assert.equal(swapped.body.matches[0].aVotes, 0);
   assert.equal(swapped.body.matches[0].bVotes, 1, "One reader has one live ballot.");
+  assert.equal(swapped.body.activity.length, 1,
+    "A vote switch updates the current selection without fabricating another voter.");
+  assert.equal(swapped.body.activity[0].entryId, first.entryBId);
   await cast(first.id, first.entryBId, "another");
   await cast(second.id, second.entryAId);
   const early = await call("/social/tournaments/" + bracket.id + "/advance", "POST", {});
