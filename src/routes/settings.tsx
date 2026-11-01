@@ -26,8 +26,7 @@ const tabs: { id: SettingsTab; label: string }[] = [
 function SettingsRoute() {
   const searchStr = useRouterState({ select: (s) => s.location.searchStr || "" });
   const rawTab = new URLSearchParams(searchStr).get("tab");
-  const tab: SettingsTab =
-    rawTab === "account" || rawTab === "network" ? rawTab : "preferences";
+  const tab: SettingsTab = rawTab === "account" || rawTab === "network" ? rawTab : "preferences";
   return (
     <SiteShell active="/settings" title="Settings">
       <AccountGuard>
