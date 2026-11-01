@@ -117,6 +117,12 @@ jobs:
           database_id = "$D1_DATABASE_ID"
           migrations_dir = "drizzle"
 
+          # Independent D1 Read-only service binding, initially inert. The
+          # HTTP cutover flag is absent until separate regression certification.
+          [[services]]
+          binding = "COVE_CANONICAL_READONLY"
+          service = "cove-canonical-d1-readonly"
+
           [[r2_buckets]]
           binding = "BUCKET"
           bucket_name = "$R2_BUCKET_NAME"
