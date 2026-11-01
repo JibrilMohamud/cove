@@ -3,7 +3,7 @@ import type { CoveEnv } from "./api.server";
 import type { CatalogBook } from "./client";
 import { ApiError, bookIdSchema, json, now, rateLimit, readBody, requireIdentity } from "./service";
 import { countWords } from "./domain";
-import { REVIEW_TAG_KEYS, parseTaggedReview, serializeTaggedReview } from "./review-tags";
+import { REVIEW_TAG_KEYS, parseTaggedReview, serializeTaggedReview, type ReviewTag } from "./review-tags";
 import { getCanonicalBook, resolveProduct } from "./catalog-model.server";
 import { refreshSearchQualitySignals } from "./search.server";
 import { createModerationCase } from "./moderation.server";
@@ -53,7 +53,10 @@ const visibility = z.enum(["public", "private"]);
 const reviewInput = z.object({
   rating: z.number().min(0.5).max(5).multipleOf(0.5),
   body: z.string().trim().max(20000).default(""),
-  tags: z.array(z.enum(REVIEW_TAG_KEYS as [string, ...string[]])).max(3).default([]),
+  tags: z
+    .array(z.enum(REVIEW_TAG_KEYS as [string, ...string[]]))
+    .max(3)
+    .default([]),
   visibility: visibility.default("private"),
   spoiler: z.boolean().default(false),
 });
@@ -198,7 +201,11 @@ export async function handleCommunity(
       }
       if (url.searchParams.get("textOnly") === "true") where.push("r.body<>''");
       // The indexed book_id condition always bounds this optional read-only search.
-      const q = z.string().max(80).parse(url.searchParams.get("q") || "").trim();
+      const q = z
+        .string()
+        .max(80)
+        .parse(url.searchParams.get("q") || "")
+        .trim();
       const tag = url.searchParams.get("tag");
       if (q) {
         where.push("instr(lower(r.body),lower(?))>0");
@@ -270,7 +277,7 @@ export async function handleCommunity(
       const input = reviewInput.parse(await readBody(request));
       if ((resolvedBook as any).uploaded && input.visibility === "public")
         throw new ApiError(400, "Reviews of personal imports stay private.");
-      const taggedBody = serializeTaggedReview(input.body, input.tags as any);
+      const taggedBody = serializeTaggedReview(input.body, input.tags as ReviewTag[]);
       const at = now(),
         provenance = await deriveReviewProvenance(db, uid, id),
         proposedId = crypto.randomUUID();
