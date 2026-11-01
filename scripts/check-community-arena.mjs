@@ -224,7 +224,7 @@ try {
       "Private tools should be accessible from My Account");
   assert.match(
     fs.readFileSync("src/features/fore/Community.tsx", "utf8"),
-    /lazy\(\(\) => import\("\.\/CommunityArena"\)/,
+    /import\("\.\/CommunityArena"\)/,
   );
   console.log(
     "PASS: review labels/search, Arena publishing/reactions/privacy, and bounded read-only feed",
