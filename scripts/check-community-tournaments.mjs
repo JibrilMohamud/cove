@@ -221,6 +221,19 @@ try {
     "Seed-one tie breaker is deterministic across four rounds.",
   );
 
+  await db.prepare(
+    "INSERT INTO social_blocks(blocker_user_id,blocked_user_id,created_at) VALUES(?,?,?)"
+  ).bind("host", "reader", stamp).run();
+  await assert.rejects(
+    () => call("/social/tournaments/" + sixteen.body.id, "GET", undefined, "reader"),
+    /not found/,
+    "Blocked readers cannot access a host's bracket.",
+  );
+  assert.equal((await call("/social/tournaments", "GET", undefined, "reader")).body.items.length, 0);
+  await db.prepare(
+    "DELETE FROM social_blocks WHERE blocker_user_id='host' AND blocked_user_id='reader'"
+  ).run();
+
   await db
     .prepare("UPDATE social_profiles SET activity_visibility='private' WHERE user_id='host'")
     .run();
