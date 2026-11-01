@@ -123,7 +123,7 @@
 .cove-arena-composer textarea { min-height:135px; }
 .cove-arena-kind, .cove-arena-votes { display:flex; gap:.5rem; flex-wrap:wrap; }
 .cove-arena-kind button, .cove-arena-votes button { border:1px solid currentColor; border-radius:999px; padding:.5rem .8rem; display:inline-flex; align-items:center; justify-content:center; gap:.4rem; background:transparent; color:inherit; font:inherit; cursor:pointer; }
-.cove-arena-kind button.selected, .cove-arena-votes button.selected { background:var(--accent, #b99261); color:var(--background, #161616); }
+.cove-arena-kind button.selected, .cove-arena-votes button.selected { background:#263744; color:#fff; border-color:#c7a16b; }
 .cove-arena-kind button:disabled, .cove-arena-votes button:disabled { opacity:.6; cursor:not-allowed; }
 .cove-arena-feed { display:grid; gap:1rem; min-width:0; }
 .cove-arena-feed-heading { display:flex; justify-content:space-between; align-items:center; gap:.75rem; flex-wrap:wrap; }
