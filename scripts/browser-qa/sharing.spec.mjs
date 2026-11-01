@@ -116,7 +116,8 @@ test("signed-in avatar menu owns personal navigation outside public Community", 
       "Profile",
       "Shared inbox",
       "Notifications",
-      "Following",
+      "Network",
+      "Cart",
       "Settings",
       "Sign out",
     ])
@@ -124,6 +125,11 @@ test("signed-in avatar menu owns personal navigation outside public Community", 
     await menu.getByRole("menuitem", { name: "Settings" }).click();
     await expect(page).toHaveURL(/\/settings$/);
     await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "Network", exact: true }).click();
+    await expect(page).toHaveURL(/\/settings\?tab=network$/);
+    await expect(page.getByRole("button", { name: "Following", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Blocked", exact: true })).toBeVisible();
+    await expect(page.getByRole("searchbox", { name: "Search people to follow" })).toBeVisible();
     await noOverflow(page);
   } finally {
     await fixture.close();
