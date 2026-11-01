@@ -564,7 +564,7 @@ export function DiscussionThread({
     </section>
   );
 }
-function Feed() {
+export function FollowingFeed() {
   const ui = useUiText();
   const { data } = useAccount();
   const q = useInfiniteQuery({
@@ -2704,9 +2704,22 @@ function LegacyCommunityAccountRedirect({ section }: { section: "received" | "sh
   );
 }
 
+function LegacyCommunityFollowingRedirect() {
+  const ui = useUiText();
+  useEffect(() => {
+    window.location.replace("/following");
+  }, []);
+  return (
+    <main className="community-page">
+      <a className="text-link" href="/following">
+        {ui("Following")}
+      </a>
+    </main>
+  );
+}
+
 export function CommunityPage() {
   const ui = useUiText();
-  const { data, signIn } = useAccount();
   const searchString = useRouterState({ select: (state) => state.location.searchStr || "" });
   const params = new URLSearchParams(searchString),
     profile = params.get("profile"),
@@ -2781,6 +2794,7 @@ export function CommunityPage() {
   // Preserve old personal Community URLs while moving private tools to My Account.
   if (tab === "received" || tab === "sharing" || tab === "me")
     return <LegacyCommunityAccountRedirect section={tab} />;
+  if (tab === "feed") return <LegacyCommunityFollowingRedirect />;
   if (profile) return <PublicProfile ref={profile} />;
   if (journey) return <Journey id={journey} />;
   if (list) return <ListView id={list} />;
@@ -2788,23 +2802,10 @@ export function CommunityPage() {
   if (club) return <ClubView id={club} />;
   return (
     <main className="community-page">
-      <header className="community-banner">
-        <div>
-          <span className="small-label">{ui("COVE COMMUNITY")}</span>
-          <h1>{ui("The conversation starts here.")}</h1>
-          <p>
-            {ui(
-              "Explore literary hot takes, defend your favorite books, join debates, and vote in tournaments. Reading is personal; the conversation is open.",
-            )}
-          </p>
-        </div>
-        <Sparkles size={54} />
-      </header>
-      <nav className="community-tabs" aria-label={ui("Community sections")}>
+       <nav className="community-tabs" aria-label={ui("Community sections")}>
         {[
           ["arena", Flame, ui("Explore")],
           ["discover", Users, ui("Readers & clubs")],
-          ["feed", Activity, ui("Following")],
         ].map(([key, Icon, label]: any) => (
           <a
             className={tab === key ? "active" : ""}
@@ -2829,25 +2830,7 @@ export function CommunityPage() {
         </Suspense>
       ) : tab === "discover" ? (
         <Discover />
-      ) : tab === "feed" && data.user ? (
-        <Feed />
-      ) : tab === "feed" ? (
-        <section className="community-signin">
-          <Users size={42} />
-          <h2>{ui("Following is personal. Community is public.")}</h2>
-          <p>
-            {ui(
-              "Everyone can explore Hot Takes, debates, tournaments, readers, and clubs. Sign in only to see your personalized following feed.",
-            )}
-          </p>
-          <button className="button gold" onClick={signIn}>
-            {ui("Sign in to see Following")}
-          </button>
-          <a className="text-link" href="/community">
-            {ui("Explore public conversations")}
-          </a>
-        </section>
-      ) : (
+       ) : (
         <Suspense fallback={<p className="muted">{ui("Opening Community…")}</p>}>
           <ArenaTab />
         </Suspense>
