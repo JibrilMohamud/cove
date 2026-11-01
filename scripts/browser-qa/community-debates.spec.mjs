@@ -26,16 +26,7 @@ test("View debates navigates to full-page search and discovery filters", async (
   await expect(search).toBeVisible();
   await search.fill("favorite book");
   await expect(search).toHaveValue("favorite book");
-  // SSR controls can be visible before React attaches its event handlers.
-  // Prove this page is actually interactive before trying filter clicks.
-  await page.waitForFunction(
-    () => {
-      const button = document.querySelector(".cove-debates-filters button");
-      return Object.keys(button || {}).some((key) => key.startsWith("__reactProps$"));
-    },
-    undefined,
-    { timeout: 30_000 },
-  );
+  await expect(page.getByRole("button", { name: "Top", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "Top", exact: true }).click();
   await expect(page.getByRole("button", { name: "Top", exact: true })).toHaveAttribute(
     "aria-pressed",
