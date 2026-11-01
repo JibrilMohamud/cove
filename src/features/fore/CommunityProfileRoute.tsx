@@ -5,7 +5,14 @@ import { DiscussionThread } from "./Community";
 import { ReaderProfileOverview, type ReaderProfileData } from "./ReaderProfileOverview";
 import type { ProfileJourney } from "./ReaderProfileBits";
 
-type JourneyDetail = { id: string; book?: { productId?: string }; cover_url?: string; author_snapshot?: string; review_excerpt?: string | null; rating_steps?: number | null };
+type JourneyDetail = {
+  id: string;
+  book?: { productId?: string };
+  cover_url?: string;
+  author_snapshot?: string;
+  review_excerpt?: string | null;
+  rating_steps?: number | null;
+};
 
 export function CommunityProfileRoute({
   profileRef,
