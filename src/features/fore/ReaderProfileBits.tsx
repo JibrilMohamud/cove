@@ -14,8 +14,11 @@ export const dateLabel = (value?: string) =>
 
 export function ReaderCover({ book }: { book?: ProfileBook | null }) {
  const [broken, setBroken] = useState(false);
+ const source = book?.sourceExternalId;
+ const local = new Set(["1342","2701","1661","2641","11","345","1260","84","2852","64317","768","2591","74","98","174","5200","2600","16","4300","120","1400","205","1080","46"]);
+ const cover = book?.coverUrl || (source && local.has(source) ? "/covers/" + source + ".jpg" : "");
  return <span className="cove-reader-cover">
-  {book?.coverUrl && !broken ? <img src={book.coverUrl} alt={"Cover of "+(book.title||"book")}
+  {cover && !broken ? <img src={cover} alt={"Cover of "+(book.title||"book")}
     loading="lazy" decoding="async" onError={()=>setBroken(true)} /> :
    <span className="cove-reader-faux-cover" aria-label={book?.title||"Book"}>
     <BookOpen size={21}/><strong>{book?.title||"A story awaits"}</strong><small>{book?.authors||"COVE"}</small>
@@ -29,8 +32,8 @@ export function ModuleHead({ title, href }: { title: string; href?: string }) {
 export function JourneyEntry({ item }: { item: ProfileJourney }) {
  const book={productId:item.product_id,title:item.title_snapshot,authors:item.author_snapshot,coverUrl:item.cover_url};
  return <article className="cove-reader-journal">
-  <a href={bookLink(book)}><ReaderCover book={book}/></a>
-  <div><h3><a href={bookLink(book)}>{item.title_snapshot}</a></h3>
+  <a href={book.productId ? bookLink(book) : "/community?journey="+encodeURIComponent(item.id)}><ReaderCover book={book}/></a>
+  <div><h3><a href={book.productId ? bookLink(book) : "/community?journey="+encodeURIComponent(item.id)}>{item.title_snapshot}</a></h3>
    <small>{item.author_snapshot}</small>
    <p>{dateLabel(item.finished_at)}</p>
    {Number(item.rating_steps)>0&&<span className="cove-reader-rating"><Star size={13} fill="currentColor"/> {(Number(item.rating_steps)/2).toFixed(1)}</span>}
