@@ -3723,18 +3723,23 @@ export async function handleSocial(
       // replies beyond the profile-wall policy. Legacy posts, private posts,
       // blocks, moderation, and all other profile threads retain their rules.
       // Follow nested replies back to the original, still-visible public post.
-      const publicArenaRoot = x.parentId && x.postType === "reply"
-        ? await db.prepare(
-            `SELECT root.body FROM social_posts parent
+      const publicArenaRoot =
+        x.parentId && x.postType === "reply"
+          ? await db
+              .prepare(
+                `SELECT root.body FROM social_posts parent
              JOIN social_posts root ON root.id=COALESCE(parent.root_id,parent.id)
              WHERE parent.id=? AND root.context_type='profile'
                AND root.context_id=? AND root.user_id=?
                AND root.parent_id IS NULL AND root.post_type='prompt'
                AND root.visibility='public' AND root.moderation_status='visible'
-               AND root.deleted_at IS NULL`
-          ).bind(x.parentId, targetUserId, targetUserId).first<{ body: string }>()
-        : null;
-      const openArenaReplies = !!publicArenaRoot &&
+               AND root.deleted_at IS NULL`,
+              )
+              .bind(x.parentId, targetUserId, targetUserId)
+              .first<{ body: string }>()
+          : null;
+      const openArenaReplies =
+        !!publicArenaRoot &&
         readArenaPost(String(publicArenaRoot.body))?.allowPublicReplies === true;
       if (
         uidv !== targetUserId &&

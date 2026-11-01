@@ -8,7 +8,12 @@ export const ARENA_KINDS = {
 export type ArenaKind = keyof typeof ARENA_KINDS;
 const marker = /^\[COVE-ARENA:(take|debate|matchup)(?::([A-Za-z0-9_-]{1,100}))?(!open)?\]\n/;
 
-export function makeArenaPost(kind: ArenaKind, text: string, bookId = "", allowPublicReplies = false): string {
+export function makeArenaPost(
+  kind: ArenaKind,
+  text: string,
+  bookId = "",
+  allowPublicReplies = false,
+): string {
   const safeBook = /^[A-Za-z0-9_-]{1,100}$/.test(bookId) ? bookId : "";
   return `[COVE-ARENA:${kind}${safeBook ? ":" + safeBook : ""}${allowPublicReplies ? "!open" : ""}]\n${text.trim()}`;
 }

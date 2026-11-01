@@ -977,13 +977,16 @@ export function CommunityArena({ fullPage = false }: { fullPage?: boolean }) {
                   Contains spoilers
                 </label>
                 <label className="cove-arena-spoiler">
-                  <input type="checkbox" checked={publicReplies}
-                    onChange={(e) => setPublicReplies(e.target.checked)} />
+                  <input
+                    type="checkbox"
+                    checked={publicReplies}
+                    onChange={(e) => setPublicReplies(e.target.checked)}
+                  />
                   Allow anyone to reply to this public Community post
                 </label>
                 <p className="cove-arena-compose-rule">
-                  Open replies are opt-in. Unchecking uses your profile reply settings;
-                  blocked readers and moderated accounts cannot participate.
+                  Open replies are opt-in. Unchecking uses your profile reply settings; blocked
+                  readers and moderated accounts cannot participate.
                 </p>
                 <div className="cove-arena-publish-actions">
                   <button
