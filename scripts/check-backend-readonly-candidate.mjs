@@ -35,6 +35,17 @@ assert.equal(
   "All five scheduled query scopes must use the independent primary reader",
 );
 assert.match(backend, /const firstMapPending = await db\.prepare\(/);
+assert.match(backend, /const schedulerOwnerDb = backendScheduledPrimaryReadDb\(env\);/);
+assert.equal(
+  (backend.match(/contentPipelineOwner\(schedulerOwnerDb,/g) || []).length,
+  2,
+  "Both scheduler ownership predicates must use the independent D1 Read service",
+);
+assert.equal(
+  (backend.match(/admitCatalogBatch\(\s*backendScheduledPrimaryReadDb\(env\)/g) || []).length,
+  3,
+  "All three guarded background admission probes must use the independent reader",
+);
 
 const folder = mkdtempSync(path.join(tmpdir(), "cove-backend-readonly-"));
 try {
@@ -209,6 +220,45 @@ try {
       /scheduled_primary_read_owner_unavailable/,
     );
   assert.equal(backendScheduledPrimaryReadDb({ DB: privileged }), privileged);
+  const controlOwnerFile = path.join(folder, "content-owner.mjs");
+  const admissionFile = path.join(folder, "catalog-admission.mjs");
+  await build({
+    entryPoints: ["src/lib/content-processing-owner.server.ts"],
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    outfile: controlOwnerFile,
+  });
+  await build({
+    entryPoints: ["src/lib/catalog-ingestion-backpressure.ts"],
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    outfile: admissionFile,
+  });
+  const { contentPipelineOwner } = await import(pathToFileURL(controlOwnerFile).href);
+  const { admitCatalogBatch } = await import(pathToFileURL(admissionFile).href);
+  outage = false;
+  const beforeControls = queries.length;
+  assert.equal(await contentPipelineOwner(restricted, "assets"), "legacy");
+  assert.equal(await contentPipelineOwner(restricted, "literary"), "legacy");
+  assert.match(queries.at(-1)[0].sql, /cove_runtime_config/);
+  const admission = await admitCatalogBatch(restricted, 1000);
+  assert.equal(admission.allowed, true);
+  assert.equal(queries.length, beforeControls + 3);
+  assert.equal(privilegedReadCalls, 0);
+  outage = true;
+  await assert.rejects(
+    () => contentPipelineOwner(restricted, "assets"),
+    /provider_unavailable/,
+    "An unavailable primary reader must not activate legacy scheduler ownership",
+  );
+  const deniedAdmission = await admitCatalogBatch(restricted, 1000);
+  assert.deepEqual(
+    { allowed: deniedAdmission.allowed, reason: deniedAdmission.reason },
+    { allowed: false, reason: "primary_unavailable" },
+  );
+  assert.equal(privilegedReadCalls, 0, "Provider outages cannot fall back to native D1");
   const unchanged = { DB: { prepare() {} } };
   assert.equal(scopeBackendReadonlyCandidate(unchanged), unchanged);
   console.log(
