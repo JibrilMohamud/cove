@@ -22,10 +22,10 @@ for (const name of [
 }
 assert.match(profile, /toLocaleString/);
 assert.match(sections, /top\.filter/);
-assert.match(sections, /selected\.length>0/);
-assert.match(sections, /shelves\.length>0/);
-assert.match(sections, /reviews\.length>0/);
-assert.match(sections, /owner&&/);
+assert.match(sections, /selected\.length\s*>\s*0/);
+assert.match(sections, /shelves\.length\s*>\s*0/);
+assert.match(sections, /reviews\.length\s*>\s*0/);
+assert.match(sections, /owner\s*&&/);
 assert.match(rails, /current\?\.book/);
 assert.match(actions, /data\.user\?\.id \|\| "guest"/);
 console.log("Reader profile regression checks passed");
