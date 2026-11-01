@@ -57,10 +57,7 @@ export async function dispatchPrivateAuthorSocialFanout(
 
 /** A single private lease owns both release discovery and delivery. No
  * canonical write, cursor or notification recipient is chosen by the cron. */
-export async function dispatchPrivateAuthorReleaseAlerts(
-  env: AuthorSocialOwnerEnv,
-  limit = 50,
-) {
+export async function dispatchPrivateAuthorReleaseAlerts(env: AuthorSocialOwnerEnv, limit = 50) {
   if (
     env.COVE_AUTHOR_SOCIAL_OWNER_QA !== "1" ||
     env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1" ||
