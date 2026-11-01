@@ -41,7 +41,10 @@ const migrations = text.slice(
   text.indexOf("- name: Apply pending D1 migrations"),
   text.indexOf("- name: Deploy persistence Worker"),
 );
-assert.match(migrations, /apiToken: \$\{\{ secrets\.CLOUDFLARE_COVE_RELEASE_D1_MIGRATIONS_TOKEN \}\}/);
+assert.match(
+  migrations,
+  /apiToken: \$\{\{ secrets\.CLOUDFLARE_COVE_RELEASE_D1_MIGRATIONS_TOKEN \}\}/,
+);
 const workerDeploy = text.slice(
   text.indexOf("- name: Deploy persistence Worker"),
   text.indexOf("- name: Verify production persistence binding after deployment"),
@@ -73,7 +76,10 @@ assert.ok(text.indexOf('[[ "$WORKER_NAME" == "', validation) < build);
 const binding = 'script_name = "' + owner + '"';
 const configStep = text.indexOf("- name: Write deployment config");
 const ownerBinding = text.indexOf(binding, configStep);
-const credentials = text.indexOf("- name: Require independently scoped production release credentials", configStep);
+const credentials = text.indexOf(
+  "- name: Require independently scoped production release credentials",
+  configStep,
+);
 assert.ok(ownerBinding > configStep && ownerBinding < credentials);
 assert.doesNotMatch(
   text.slice(configStep, ownerBinding),
