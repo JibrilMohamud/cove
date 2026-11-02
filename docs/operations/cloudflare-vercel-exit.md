@@ -5,7 +5,7 @@
 - The Cloudflare zone for covereads.com is active, but apex and www DNS CNAMEs still point to Vercel. Do not modify them before release acceptance.
 - api.covereads.com already routes to the cove-persistence-backend Cloudflare Worker. This Worker still has a native production canonical D1 binding.
 - cove-legal-authority-production has COVE_RIGHTS_OWNER_ENABLED=0 and is not a certified production authority.
-- The proposed cove production SSR Worker is not deployed. Its wrangler.frontend.production.toml has no public routes, workers_dev=false and preview_urls=false.
+- The proposed cove production SSR Worker is not deployed. Its wrangler.frontend.production.toml has no public routes, workers_dev=false, preview_urls=false and **no native production D1 binding**. It uses the private cove-canonical-d1-readonly service plus COVE_CANONICAL_READONLY_RPC=1, so public SSR cannot acquire a canonical D1 write capability.
 - FastAPI audio processing still runs on Vercel. scripts/audio_pipeline/service.py uses Vercel Queues, and subscriber.py consumes those jobs. Simply moving HTML/SSR to Cloudflare does not complete the migration.
 - Frontend production secrets, customer payment entitlement/revocation, multi-geographic performance and protected rollback are not independently certified.
 
