@@ -1,0 +1,72 @@
+name: cloudflare-vercel-exit-precutover
+
+on:
+  pull_request:
+    paths:
+      - "wrangler.backend.production.toml"
+      - "wrangler.frontend.production.toml"
+      - "wrangler.storefront-strangler.production-shadow.jsonc"
+      - ".github/workflows/deploy-persistence-backend.yml"
+      - ".github/workflows/cloudflare-vercel-exit-precutover.yml"
+      - "scripts/check-cloudflare-vercel-exit.mjs"
+      - "docs/operations/cloudflare-vercel-exit.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cove-cloudflare-frontend-precutover
+  cancel-in-progress: false
+
+jobs:
+  candidate-static:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Audit owned canonical origin and Vercel dependencies
+        run: node scripts/check-cloudflare-vercel-exit.mjs
+      - name: Build Cloudflare SSR assets and dry-run route-free release candidate
+        run: |
+          npm run build
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.frontend.production.toml
+
+  deploy-private-candidate:
+    needs: candidate-static
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'JibrilMohamud/cove' && vars.COVE_CLOUDFLARE_PRECUTOVER_APPROVED == '1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: cloudflare-precutover
+    env:
+      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_COVE_PRODUCTION_FRONTEND_DEPLOY_TOKEN }}
+      CLOUDFLARE_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Require independently scoped Cloudflare deployment credential
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Dedicated frontend deploy credential missing"; exit 1; }
+          node scripts/check-cloudflare-vercel-exit.mjs
+      - name: Build reviewed SSR and static assets
+        run: npm run build
+      - name: Deploy unroutable Cloudflare frontend candidate ONLY
+        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.frontend.production.toml
+      - name: Reassert no public route or preview exposure
+        run: |
+          node scripts/check-cloudflare-vercel-exit.mjs
+          echo "No DNS cutover, Stripe LIVE activation, production-owner enablement or Vercel shutdown authorized."
