@@ -38,4 +38,6 @@ if (process.argv.includes("--after-build")) {
   assert.equal(existsSync("dist/.openai/drizzle"), true, "Migrations must still be staged");
   assert.equal(existsSync("dist/server/index.js"), true, "Worker entry must still be staged");
 }
-console.log("PASS: both root metadata folders absent, identities preserved, Sites package compatible");
+console.log(
+  "PASS: both root metadata folders absent, identities preserved, Sites package compatible",
+);
