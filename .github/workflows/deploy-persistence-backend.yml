@@ -27,9 +27,9 @@ on:
         default: "cove-production-media"
         type: string
       public_url:
-        description: "Canonical public Vercel origin"
+        description: "Cove-owned canonical HTTPS origin"
         required: true
-        default: "https://cove-puce-theta.vercel.app"
+        default: "https://www.covereads.com"
         type: string
       apply_migrations:
         description: "Explicit opt-in to apply production D1 migrations (default: no mutation)"
@@ -66,7 +66,7 @@ jobs:
           D1_DATABASE_ID: ${{ inputs.d1_database_id || '4bd657ac-8789-403e-a28c-93aba8d0a989' }}
           D1_DATABASE_NAME: ${{ inputs.d1_database_name || 'cove-production' }}
           R2_BUCKET_NAME: ${{ inputs.r2_bucket_name || 'cove-production-media' }}
-          PUBLIC_URL: ${{ inputs.public_url || 'https://cove-puce-theta.vercel.app' }}
+          PUBLIC_URL: ${{ inputs.public_url || 'https://www.covereads.com' }}
         run: |
           set -euo pipefail
           [[ "$WORKER_NAME" == "cove-persistence-backend" ]] || { echo "::error::Only the existing cove-persistence-backend can receive this production D1 binding"; exit 1; }
@@ -78,11 +78,7 @@ jobs:
             if (u.protocol !== "https:" || u.username || u.password || u.pathname !== "/" || u.search || u.hash) {
               throw new Error("public_url must be an HTTPS origin with no path, credentials, query, or fragment");
             }
-            const trusted = new Set([
-              "https://cove-puce-theta.vercel.app",
-              "https://covereads.com",
-              "https://www.covereads.com"
-            ]);
+            const trusted = new Set(["https://www.covereads.com"]);
             if (!trusted.has(u.origin)) {
               throw new Error("public_url must be a reviewed Cove production origin");
             }
@@ -98,7 +94,7 @@ jobs:
           D1_DATABASE_ID: ${{ inputs.d1_database_id || '4bd657ac-8789-403e-a28c-93aba8d0a989' }}
           D1_DATABASE_NAME: ${{ inputs.d1_database_name || 'cove-production' }}
           R2_BUCKET_NAME: ${{ inputs.r2_bucket_name || 'cove-production-media' }}
-          PUBLIC_URL: ${{ inputs.public_url || 'https://cove-puce-theta.vercel.app' }}
+          PUBLIC_URL: ${{ inputs.public_url || 'https://www.covereads.com' }}
         run: |
           set -euo pipefail
           cat > wrangler.backend.deploy.toml <<EOF

@@ -29,12 +29,14 @@ assert.match(production, /^main = "\.output\/server\/index\.mjs"$/m);
 assert.match(production, /^run_worker_first = true$/m);
 assert.match(production, /^binding = "ASSETS"$/m);
 for (const name of [
-  'binding = "DB"',
+  'binding = "COVE_CANONICAL_READONLY"',
+  'service = "cove-canonical-d1-readonly"',
   'binding = "BUCKET"',
   'name = "COVE_STOREFRONT_READ_LIMITER"',
 ])
-  assert.ok(production.includes(name), "Missing native binding " + name);
-assert.match(production, /^database_id = "4bd657ac-8789-403e-a28c-93aba8d0a989"$/m);
+  assert.ok(production.includes(name), "Missing authorized Cloudflare binding " + name);
+assert.match(production, /^COVE_CANONICAL_READONLY_RPC = "1"$/m);
+assert.doesNotMatch(production, /^\[\[d1_databases\]\]$|^binding = "DB"$|^database_id\s*=/m);
 assert.match(production, /^bucket_name = "cove-production-media"$/m);
 assert.match(stage, /^workers_dev = true$/m);
 assert.match(stage, /^COVE_SSR_STAGING = "1"$/m);
@@ -44,5 +46,5 @@ assert.match(gate, /Supabase/);
 assert.match(gate, /Stripe/);
 assert.match(gate, /offline/);
 console.log(
-  "PASS: production candidate is unroutable, owned canonical HTTPS origin correct; D1/R2/assets configured, release gate blocks traffic.",
+  "PASS: production candidate is unroutable, owned canonical HTTPS origin correct; read-only D1 RPC/R2/assets configured, release gate blocks traffic.",
 );

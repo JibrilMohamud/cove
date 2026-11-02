@@ -59,13 +59,9 @@ const deployIndex = text.indexOf("- name: Deploy persistence Worker");
 assert.ok(preflightIndex >= 0 && preflightIndex < migrationIndex);
 assert.ok(migrationIndex > 0 && migrationIndex < deployIndex);
 assert.match(text, /- name: Validate deployment inputs/);
-for (const trustedOrigin of [
-  "https://cove-puce-theta.vercel.app",
-  "https://covereads.com",
-  "https://www.covereads.com",
-]) {
-  assert.ok(text.includes(trustedOrigin), "Missing reviewed public origin " + trustedOrigin);
-}
+assert.ok(text.includes("https://www.covereads.com"), "Missing owned canonical HTTPS origin");
+assert.doesNotMatch(text, /https:\/\/[a-z0-9-]+\.vercel\.app/i);
+assert.doesNotMatch(text, /https:\/\/covereads\.com(?:["'])/);
 assert.match(text, /trusted\.has\(u\.origin\)/);
 assert.match(text, /public_url must be a reviewed Cove production origin/);
 const validation = text.indexOf("- name: Validate deployment inputs");
