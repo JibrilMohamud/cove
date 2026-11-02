@@ -51,6 +51,6 @@
     "COVE_PRESENTATION_PREFIX": "production/current/",
     "FORE_ENVIRONMENT": "production",
     "FORE_DEFAULT_TERRITORY": "US",
-    "FORE_PUBLIC_URL": "https://cove-puce-theta.vercel.app"
+    "FORE_PUBLIC_URL": "https://www.covereads.com"
   }
 }

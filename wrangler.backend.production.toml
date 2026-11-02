@@ -1,6 +1,6 @@
 # Cove production persistence backend.
 # Non-secret resource identifiers are intentionally committed.
-# Secrets remain in Cloudflare/Vercel secret stores and must never be added here.
+# Secrets remain in provider secret stores and must never be added here.
 name = "cove-persistence-backend"
 main = "backend-dist/worker.js"
 compatibility_date = "2026-10-09"
@@ -47,8 +47,8 @@ dataset = "cove_backend_audio_trigger_diagnostics"
 
 [vars]
 
-# Canonical verified Cove Vercel production origin.
-FORE_PUBLIC_URL = "https://cove-puce-theta.vercel.app"
+# Stable Cove-owned public origin; currently Vercel DNS, Cloudflare after certified migration.
+FORE_PUBLIC_URL = "https://www.covereads.com"
 FORE_ENVIRONMENT = "production"
 FORE_DEFAULT_TERRITORY = "US"
 FORE_CATALOG_PAGES_PER_TICK = "5"
@@ -66,11 +66,11 @@ crons = ["* * * * *", "*/5 * * * *", "*/10 * * * *", "23 * * * *", "17 3 * * *",
 #   backend origin: https://cove-persistence-backend.cove-jibrilmohamud.workers.dev
 #
 # Production authentication:
-#   - Vercel stores FORE_BACKEND_TOKEN; this Worker verifies its SHA-256 fingerprint
+#   - Current legacy frontend stores FORE_BACKEND_TOKEN; this Worker verifies its SHA-256 fingerprint
 #     from D1 cove_runtime_config (backend_token_sha256), so Cloudflare never needs
 #     the gateway token in plaintext.
 #   - Cloudflare stores FORE_INGESTION_SIGNING_KEY (P-256 private JWK).
-#   - Vercel stores the matching FORE_INGESTION_VERIFY_JWK public key.
-#   - Vercel stores the scoped FORE_SERVICE_TOKEN used by the audio pipeline; D1
+#   - Legacy frontend stores the matching FORE_INGESTION_VERIFY_JWK public key.
+#   - Legacy audio provider stores the scoped FORE_SERVICE_TOKEN used by the audio pipeline; D1
 #     stores only its service-principal credential digest and scopes.
 # Provider secrets (Supabase, Stripe, etc.) remain in their platform secret stores.
