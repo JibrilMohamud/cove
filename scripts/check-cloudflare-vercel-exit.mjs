@@ -21,6 +21,10 @@ assert.match(backendDeploy, /default: "https:\/\/www\.covereads\.com"/);
 assert.match(backendDeploy, /github\.ref == 'refs\/heads\/main'/);
 assert.match(frontend, /^workers_dev = false$/m);
 assert.match(frontend, /^preview_urls = false$/m);
+assert.match(frontend, /^COVE_CANONICAL_READONLY_RPC = "1"$/m);
+assert.match(frontend, /^binding = "COVE_CANONICAL_READONLY"$/m);
+assert.match(frontend, /^service = "cove-canonical-d1-readonly"$/m);
+assert.doesNotMatch(frontend, /^\[\[d1_databases\]\]$|^binding = "DB"$|^database_id\s*=/m);
 assert.doesNotMatch(frontend, /^\[\[routes\]\]|^route\s*=|^routes\s*=/m);
 assert.equal(shadow.vars.COVE_STRANGLER_RELEASE_CERTIFIED, "0");
 assert.equal(vercel.services?.app?.framework, "tanstack-start");
@@ -30,7 +34,7 @@ const stillUsesVercelAudio =
   audio.includes("from vercel.queue import QueueClient");
 
 console.log("PASS: production config uses www.covereads.com and backend deploy cannot automatically run.");
-console.log("PASS: Cloudflare frontend remains route-free, preview-disabled; shadow is release-disabled.");
+console.log("PASS: Cloudflare frontend is route-free and D1-read-only; shadow is release-disabled.");
 if (stillUsesVercelAudio) {
   console.log("BLOCKED: Vercel FastAPI and Vercel Queues are still required for audio processing.");
 }

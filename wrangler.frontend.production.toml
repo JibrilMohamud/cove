@@ -28,17 +28,18 @@ namespace_id = "731904"
 limit = 180
 period = 60
 
-[[d1_databases]]
-binding = "DB"
-database_name = "cove-production"
-database_id = "4bd657ac-8789-403e-a28c-93aba8d0a989"
-migrations_dir = "drizzle"
+# The public SSR Worker must not possess a native canonical D1 binding.
+# All SQL reads flow through the independently scoped D1-Read API token Worker.
+[[services]]
+binding = "COVE_CANONICAL_READONLY"
+service = "cove-canonical-d1-readonly"
 
 [[r2_buckets]]
 binding = "BUCKET"
 bucket_name = "cove-production-media"
 
 [vars]
+COVE_CANONICAL_READONLY_RPC = "1"
 FORE_PUBLIC_URL = "https://www.covereads.com"
 FORE_ENVIRONMENT = "production"
 FORE_DEFAULT_TERRITORY = "US"
