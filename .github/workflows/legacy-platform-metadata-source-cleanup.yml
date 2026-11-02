@@ -1,0 +1,44 @@
+name: legacy-platform-metadata-source-cleanup
+
+on:
+  pull_request:
+    paths:
+      - ".lovable/**"
+      - ".openai/**"
+      - "config/integrations/**"
+      - "scripts/stage-sites.mjs"
+      - "scripts/check-legacy-platform-metadata.mjs"
+      - "COVE_SETUP.md"
+      - "docs/operations/legacy-platform-metadata.md"
+      - ".github/workflows/legacy-platform-metadata-source-cleanup.yml"
+  push:
+    branches: [main]
+    paths:
+      - "config/integrations/**"
+      - "scripts/stage-sites.mjs"
+      - "scripts/check-legacy-platform-metadata.mjs"
+      - ".github/workflows/legacy-platform-metadata-source-cleanup.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  check-relocated-metadata-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install immutable dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Verify source folders removed with identities intact
+        run: node scripts/check-legacy-platform-metadata.mjs
+      - name: Build real app, stage Sites Worker and migrations
+        run: npm run build
+      - name: Verify generated deployment artifact preserves historical Sites identity
+        run: node scripts/check-legacy-platform-metadata.mjs --after-build

@@ -2,7 +2,7 @@
 
 ## Runtime and identity
 
-This checkout uses the existing Sites project recorded in `.openai/hosting.json`. Keep that identity when deploying updates. The configured bindings are `DB` (D1) and `BUCKET` (R2). `npm run build` builds TanStack Start and then stages the Worker and Drizzle migrations through `scripts/stage-sites.mjs`.
+This checkout preserves the existing Sites project identity in `config/integrations/openai-sites-hosting.json` (formerly `.openai/hosting.json`). `scripts/stage-sites.mjs` copies that preserved identity into the generated `dist/.openai/hosting.json` deployment artifact. Keep the existing project ID when deploying updates. The configured bindings are `DB` (D1) and `BUCKET` (R2). `npm run build` builds TanStack Start and then stages the Worker and Drizzle migrations through `scripts/stage-sites.mjs`.
 
 Production reader identity comes from a verified Supabase Auth user fetched by the Worker. Session cookies are HttpOnly, Secure in production, SameSite=Lax, and never used as an authorization claim without `auth.getUser()`. The existing trusted Sites identity is consulted only during a one-time migration when its independently authenticated email exactly matches the verified Supabase email.
 

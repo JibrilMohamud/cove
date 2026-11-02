@@ -29,7 +29,7 @@ if (process.env.VERCEL) {
   });
   await cp(".output/public", "dist/client", { recursive: true });
   await mkdir("dist/.openai", { recursive: true });
-  await cp(".openai/hosting.json", "dist/.openai/hosting.json");
+  await cp("config/integrations/openai-sites-hosting.json", "dist/.openai/hosting.json");
   await cp("drizzle", "dist/.openai/drizzle", { recursive: true });
   console.log("Cove Worker, assets, and D1 migrations staged.");
 }
