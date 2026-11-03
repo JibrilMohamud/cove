@@ -70,6 +70,9 @@ type BackendEnv = CoveEnv &
     FORE_REGIONAL_EPUB_REPAIR_PROBE_MS?: string;
     FORE_INGESTION_TRIGGER_TOKEN?: string;
     FORE_INGESTION_SIGNING_KEY?: string;
+    COVE_AUDIO_PROVIDER?: string;
+    COVE_AUDIO_DISPATCH_SECRET?: string;
+    COVE_AUDIO_DISPATCH?: { fetch(request: Request): Promise<Response> };
     AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
   };
 
@@ -353,26 +356,51 @@ async function persistAudioTriggerDiagnostic(
   }
 }
 
-async function triggerVercelAudio(env: BackendEnv, path: string) {
+async function triggerAudioProcessing(env: BackendEnv, path: string) {
   const admission = await audioComputeAdmission(env);
   if (!admission.allowed) {
     console.info("Cove audio compute deferred", admission.reason);
     return;
   }
-  if (!env.FORE_PUBLIC_URL) {
-    throw new Error("FORE_PUBLIC_URL is required for audio scheduling.");
-  }
 
-  const target = new URL(path, env.FORE_PUBLIC_URL);
-  const response = await fetch(target, {
-    method: "POST",
-    headers: new Headers(
-      Object.entries(await ingestionTriggerHeaders(env, target)).filter(
-        (entry): entry is [string, string] => typeof entry[1] === "string",
+  let response: Response;
+  if (env.COVE_AUDIO_PROVIDER === "cloudflare") {
+    // Production scheduler -> private service binding -> Cloudflare Queue.
+    // Never return to Vercel on missing credentials, binding or queue failure.
+    if (!env.COVE_AUDIO_DISPATCH || !env.COVE_AUDIO_DISPATCH_SECRET ||
+        env.COVE_AUDIO_DISPATCH_SECRET.length < 32) {
+      throw new Error("Cloudflare audio dispatch binding/credentials unavailable");
+    }
+    response = await env.COVE_AUDIO_DISPATCH.fetch(
+      new Request("https://cove-audio.internal/internal/dispatch", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-cove-audio-dispatch-secret": env.COVE_AUDIO_DISPATCH_SECRET,
+        },
+        body: JSON.stringify({ path }),
+        signal: AbortSignal.timeout(20_000),
+      }),
+    );
+  } else if (!env.COVE_AUDIO_PROVIDER || env.COVE_AUDIO_PROVIDER === "legacy") {
+    // Preserved rollback during certification. Never enable this mode for new
+    // Cloudflare-only customers after the old provider has been retired.
+    if (!env.FORE_PUBLIC_URL) {
+      throw new Error("FORE_PUBLIC_URL is required for legacy audio scheduling.");
+    }
+    const target = new URL(path, env.FORE_PUBLIC_URL);
+    response = await fetch(target, {
+      method: "POST",
+      headers: new Headers(
+        Object.entries(await ingestionTriggerHeaders(env, target)).filter(
+          (entry): entry is [string, string] => typeof entry[1] === "string",
+        ),
       ),
-    ),
-    signal: AbortSignal.timeout(290_000),
-  });
+      signal: AbortSignal.timeout(290_000),
+    });
+  } else {
+    throw new Error("Unknown audio processing provider: fail closed");
+  }
   if (!response.ok) {
     const body = (await response.text()).replace(/[\r\n\t]+/g, " ").slice(0, 900);
     if (response.status === 524) {
@@ -650,7 +678,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
       if (alignmentState.running > 0 || (alignmentWindow && alignmentState.queued > 0)) {
         const work: Promise<unknown>[] = [scheduledCatalog(env)];
         if (alignmentState.slots > 0) {
-          work.push(triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-align"));
+          work.push(triggerAudioProcessing(env, "/api/fore/internal/ingestion/audio-align"));
         }
         const [catalogResult, ...audioResults] = await Promise.allSettled(work);
         for (const result of audioResults) {
@@ -664,7 +692,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
       const trackState = await audioTrackTriggerSlots(env);
       const work: Promise<unknown>[] = [scheduledCatalog(env)];
       for (let index = 0; index < trackState.slots; index += 1) {
-        work.push(triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-track"));
+        work.push(triggerAudioProcessing(env, "/api/fore/internal/ingestion/audio-track"));
       }
       const [catalogResult, ...audioResults] = await Promise.allSettled(work);
       for (const result of audioResults) {
@@ -685,7 +713,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
     if (cron === "2-59/5 * * * *") {
       const alignmentState = await audioAlignmentTriggerSlots(env);
       if (alignmentState.slots > 0) {
-        await triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-align");
+        await triggerAudioProcessing(env, "/api/fore/internal/ingestion/audio-align");
       }
       return;
     }
@@ -733,18 +761,18 @@ async function runScheduled(cron: string, env: BackendEnv) {
         console.info(`Cove audio discovery paused with ${pendingTracks} pending track jobs.`);
         return;
       }
-      await triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-discover");
+      await triggerAudioProcessing(env, "/api/fore/internal/ingestion/audio-discover");
       return;
     }
     if (cron === "23 * * * *") {
       await Promise.allSettled([
         warmOneShortBiosyncTranscript(env),
-        triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-align"),
+        triggerAudioProcessing(env, "/api/fore/internal/ingestion/audio-align"),
       ]);
       return;
     }
     if (cron === "17 3 * * *") {
-      await triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-scan");
+      await triggerAudioProcessing(env, "/api/fore/internal/ingestion/audio-scan");
       return;
     }
     if (cron === "41 4 * * *") {
