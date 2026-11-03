@@ -4,7 +4,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { publishCoveSounds } from "../../.output/strangler/sounds-publication.mjs";
+import {
+  publishCoveSounds,
+  withTransientD1PublicationRetry,
+} from "../../.output/strangler/sounds-publication.mjs";
 
 const token = process.env.CLOUDFLARE_API_TOKEN || "";
 assert.ok(token.length >= 10, "Cloudflare deployment token missing");
@@ -63,7 +66,9 @@ function wrangler(args) {
   assert.equal(r.status, 0, "Private R2 publication failed: " + String(r.stderr).slice(-600));
 }
 try {
-  const output = await publishCoveSounds({
+  // A scheduled public refresh can overlap this isolated release. Retry only
+  // the known 10-second primary-D1 overload; never bypass publication checks.
+  const output = await withTransientD1PublicationRetry(() => publishCoveSounds({
     SOURCE_DB: { prepare: statement },
     COVE_SOUNDS_PUBLICATION_ENABLED: "1",
     COVE_SOUNDS_MARKETS: "US",
@@ -93,7 +98,9 @@ try {
         completed++;
       },
     },
-  });
+  }), undefined, (retry) =>
+    console.warn(JSON.stringify({ event: "seed_cove_sounds_d1_throttled", retry })),
+  );
   assert.equal(completed, 6, "All six private station snapshots must be published");
   assert.equal(output[0]?.stations, 6);
   assert.ok(output[0].recordings > 0, "No approved US music: refuse publication activation");
