@@ -47,8 +47,48 @@ jobs:
         run: |
           python -m pip install "fastapi[standard]>=0.141.1,<1"
           python -m unittest scripts.audio_pipeline.tests.test_cloudflare_service -v
+      - name: Build actual Python audio Container image
+        run: docker build --file scripts/Dockerfile.cloudflare-audio --tag cove-audio-cloudflare-ci:local .
+      - name: Smoke-test installed Python application inside Container image
+        run: |
+          docker run --rm cove-audio-cloudflare-ci:local python -c "from audio_pipeline.cloudflare_service import app; print('PASS: private audio application imports in Container')"
       - name: Build scheduled backend without deploying canonical D1
         run: npm run build:backend
 
-  # Deliberately no automatic Cloudflare API token, Queue subscription, image
-  # publication, backend deployment, or canonical D1 mutation from PR CI.
+  deploy-private-candidate:
+    needs: verify-source-and-runtime
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      github.repository == 'JibrilMohamud/cove' &&
+      vars.COVE_AUDIO_PRIVATE_DEPLOY_APPROVED == '1'
+    environment: cloudflare-audio-private
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_COVE_AUDIO_DEPLOY_TOKEN }}
+      CLOUDFLARE_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Confirm inactive configuration and dedicated credential
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Dedicated scoped audio deployment token unavailable"; exit 1; }
+          node scripts/check-cloudflare-audio-migration.mjs
+      - name: Deploy private Cloudflare Queue/Container candidate without DNS changes
+        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.audio.cloudflare.jsonc
+      - name: Verify no source release switch occurred
+        run: |
+          node scripts/check-cloudflare-audio-migration.mjs
+          echo "Private audio Container remains disabled; certification and provider switch not authorized."
+
+  # No automatic Cloudflare token, queue write, image publication, backend
+  # deployment or canonical D1 mutation from a pull request.
