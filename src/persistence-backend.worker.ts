@@ -367,8 +367,11 @@ async function triggerAudioProcessing(env: BackendEnv, path: string) {
   if (env.COVE_AUDIO_PROVIDER === "cloudflare") {
     // Production scheduler -> private service binding -> Cloudflare Queue.
     // Never return to Vercel on missing credentials, binding or queue failure.
-    if (!env.COVE_AUDIO_DISPATCH || !env.COVE_AUDIO_DISPATCH_SECRET ||
-        env.COVE_AUDIO_DISPATCH_SECRET.length < 32) {
+    if (
+      !env.COVE_AUDIO_DISPATCH ||
+      !env.COVE_AUDIO_DISPATCH_SECRET ||
+      env.COVE_AUDIO_DISPATCH_SECRET.length < 32
+    ) {
       throw new Error("Cloudflare audio dispatch binding/credentials unavailable");
     }
     response = await env.COVE_AUDIO_DISPATCH.fetch(
