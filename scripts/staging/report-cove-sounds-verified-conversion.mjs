@@ -62,6 +62,21 @@ function render(paid, funnel, at) {
   lines.push("", "**Interpretation:** Paid-order counts are exact canonical checkout-order counts for a browser-declared Cove Sounds referral, including refunded orders (shown separately). Browser events are sampled/possibly repeated, opt-out-aware and do not identify unique visitors. Stripe-backed paid orders were settled by verified server-side commerce processing; a referral is not independently proven causal. No order IDs, user IDs, book IDs, amounts, IP addresses or browsing sessions leave this report. A/B or holdout evidence and nonzero real visitors are required before claiming conversion *lift*.");
   return lines.join("\n") + "\n";
 }
+// D1 uses the Cloudflare v4 success/result envelope. Analytics Engine SQL
+// deliberately does not: its successful response is { data: [...], rows, ... }.
+// Never confuse that valid no-envelope result with a rejected D1 query.
+function decodeReportingResponse(value, contentType) {
+  assert.ok(value && typeof value === "object" && !Array.isArray(value),
+    "Cloudflare reporting returned an invalid JSON object");
+  if (contentType === "text/plain") {
+    assert.ok(value.success !== false && Array.isArray(value.data),
+      "Cloudflare Analytics Engine SQL rejected or malformed the result");
+    return value;
+  }
+  assert.ok(value.success === true && Array.isArray(value.result),
+    "Cloudflare D1 rejected or malformed the reporting result");
+  return value.result;
+}
 async function cloudflare(path, { method = "GET", body, contentType = "application/json" } = {}) {
   const token = process.env.CLOUDFLARE_API_TOKEN;
   assert.ok(token && token.length >= 10, "Cloudflare read-only reporting token not configured");
@@ -73,14 +88,23 @@ async function cloudflare(path, { method = "GET", body, contentType = "applicati
   });
   assert.ok(response.ok, "Cloudflare reporting HTTP failure: " + response.status);
   const value = await response.json();
-  assert.ok(value.success === true, "Cloudflare reporting API rejected query");
-  return value.result;
+  return decodeReportingResponse(value, contentType);
 }
 if (process.argv.includes("--self-test")) {
   const output = render([{ station: "gothic-hour", paid_orders: 2, stripe_paid_orders: 1, fully_refunded_orders: 1 }],
     [{ station: "gothic-hour", event: "station_view", sampled_events: 5 }], new Date("2026-10-25T00:00:00Z"));
   assert.match(output, /gothic-hour \| 5 \| 0 \| 0 \| 2 \| 1 \| 1/);
   assert.ok(!output.includes("ord_"));
+  assert.deepEqual(decodeReportingResponse({ success: true, result: [{ success: true, results: [] }] },
+    "application/json"), [{ success: true, results: [] }]);
+  assert.deepEqual(decodeReportingResponse({ data: [], rows: 0 }, "text/plain"),
+    { data: [], rows: 0 });
+  assert.throws(() => decodeReportingResponse({ success: false, errors: [] }, "text/plain"),
+    /rejected or malformed/);
+  assert.throws(() => decodeReportingResponse({ success: true, result: [] }, "text/plain"),
+    /rejected or malformed/);
+  assert.throws(() => decodeReportingResponse({ data: [] }, "application/json"),
+    /rejected or malformed/);
   console.log("PASS: read-only aggregate SQL, station allowlist and paid-order reporting");
 } else {
   const since = new Date(Date.now() - 7 * 86400_000).toISOString();
