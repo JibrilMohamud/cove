@@ -18,8 +18,13 @@ const COMPLETED_MS = 48 * ONE_HOUR;
 const containerName = "audio-executor-singleton";
 
 function compareSecret(provided, expected) {
-  if (typeof expected !== "string" || expected.length < 32 ||
-      typeof provided !== "string" || provided.length !== expected.length) return false;
+  if (
+    typeof expected !== "string" ||
+    expected.length < 32 ||
+    typeof provided !== "string" ||
+    provided.length !== expected.length
+  )
+    return false;
   let diff = 0;
   for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ provided.charCodeAt(i);
   return diff === 0;
@@ -82,7 +87,9 @@ export class CoveAudioContainer extends DurableObject {
     if (request.method !== "POST" || new URL(request.url).pathname !== "/run") {
       return json({ error: "unknown-container-operation" }, 404);
     }
-    this.starting ??= this.startAndWait().finally(() => { this.starting = undefined; });
+    this.starting ??= this.startAndWait().finally(() => {
+      this.starting = undefined;
+    });
     await this.starting;
     const url = new URL(request.url);
     url.protocol = "http:";
@@ -98,10 +105,15 @@ export class CoveAudioContainer extends DurableObject {
     if (!c) throw Error("Cloudflare Container capability unavailable");
     if (!c.running) {
       const env = this.env;
-      if (!env.FORE_BACKEND_URL?.startsWith("https://") ||
-          !env.FORE_BACKEND_TOKEN || env.FORE_BACKEND_TOKEN.length < 24 ||
-          !env.FORE_SERVICE_TOKEN || env.FORE_SERVICE_TOKEN.length < 24 ||
-          !env.COVE_AUDIO_EXECUTION_SECRET || env.COVE_AUDIO_EXECUTION_SECRET.length < 32) {
+      if (
+        !env.FORE_BACKEND_URL?.startsWith("https://") ||
+        !env.FORE_BACKEND_TOKEN ||
+        env.FORE_BACKEND_TOKEN.length < 24 ||
+        !env.FORE_SERVICE_TOKEN ||
+        env.FORE_SERVICE_TOKEN.length < 24 ||
+        !env.COVE_AUDIO_EXECUTION_SECRET ||
+        env.COVE_AUDIO_EXECUTION_SECRET.length < 32
+      ) {
         throw Error("Cloudflare audio container credentials unavailable");
       }
       c.start({
@@ -136,11 +148,15 @@ export class CoveAudioContainer extends DurableObject {
 
 export default {
   async fetch(request, env) {
-    if (request.method !== "POST" ||
-        new URL(request.url).pathname !== "/internal/dispatch") {
+    if (request.method !== "POST" || new URL(request.url).pathname !== "/internal/dispatch") {
       return json({ error: "not_found" }, 404);
     }
-    if (!compareSecret(request.headers.get("x-cove-audio-dispatch-secret"), env.COVE_AUDIO_DISPATCH_SECRET)) {
+    if (
+      !compareSecret(
+        request.headers.get("x-cove-audio-dispatch-secret"),
+        env.COVE_AUDIO_DISPATCH_SECRET,
+      )
+    ) {
       return json({ error: "unauthorized" }, 401);
     }
     if (!runtimeEnabled(env) || !env.AUDIO_QUEUE) {
