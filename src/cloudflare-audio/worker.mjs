@@ -219,9 +219,13 @@ export default {
         );
         if (!result.ok) throw Error("Audio Container returned HTTP " + result.status);
         const outcome = await result.json();
-        if (!outcome.ok || outcome.executed !== true) {
-          await ledger(env, key, "worker-release");
-          message.retry({ delaySeconds: 300 });
+        if (!outcome.ok) throw Error("Audio Container returned unsuccessful payload");
+        // No work was leased if compute admission denied the job. The backend's
+        // scheduler will retry in the next window; do not waste Queue retries
+        // or DLQ capacity for a legitimate budget deferral.
+        if (outcome.executed !== true) {
+          await ledger(env, key, "worker-complete");
+          message.ack();
           continue;
         }
         await ledger(env, key, "worker-complete");
