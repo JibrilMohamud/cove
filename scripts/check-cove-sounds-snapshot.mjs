@@ -18,7 +18,7 @@ async function load(entryPoint) {
 }
 const { SOUNDS_SCHEMA, soundsKey, validateSoundsSnapshot, getSoundsSnapshot, handleSoundsSnapshot } =
   await load("src/features/fore/cove-sounds-snapshot.server.ts");
-const { publishCoveSounds } = await load("src/storefront-strangler/sounds-publication.worker.ts");
+const { publishCoveSounds, withTransientD1PublicationRetry } = await load("src/storefront-strangler/sounds-publication.worker.ts");
 const at = Date.now();
 const recording = {
   id: "cm_7", title: "Gothic Nocturne", composer: "Composer", performer: "Performer",
@@ -115,6 +115,60 @@ const published = await publishCoveSounds({
     assert.equal(writes.get(key), body, "Durable R2 write must precede KV acceleration");
   } },
 }, at);
+// Production source DB is shared: never execute its independent publication
+// reads simultaneously or burst the ten-second resource-window budget.
+const fakeDBReads = [];
+let inFlightReads = 0;
+const checkOrder = await publishCoveSounds({
+  COVE_SOUNDS_PUBLICATION_ENABLED: "1",
+  COVE_SOUNDS_MARKETS: "US",
+  SOURCE_DB: { prepare(sql) {
+    return { bind() { return this; }, async all() {
+      inFlightReads++;
+      assert.equal(inFlightReads, 1, "Concurrent source-D1 queries risk quota overload");
+      fakeDBReads.push(sql.includes("storefront_markets") ? "market" :
+        sql.includes("FROM soundtrack_recordings") ? "commons" :
+        sql.includes("FROM soundtrack_external_recordings") ? "external" : "editions");
+      await Promise.resolve();
+      inFlightReads--;
+      if (sql.includes("FROM storefront_markets")) return { results: [{ currency: "USD" }] };
+      return { results: [] };
+    } };
+  } },
+  SOUNDS_PRESENTATION: { async put() {} },
+}, at);
+assert.equal(checkOrder.length, 1);
+assert.deepEqual(fakeDBReads, ["market", "commons", "external", "editions"],
+  "Source queries must run serially, with rights validation before any publication");
+let attempts = 0;
+const waited = [], reported = [];
+const retryResult = await withTransientD1PublicationRetry(
+  async () => { if (++attempts < 3) throw Error("D1_ERROR: D1 DB is overloaded. Too many resources consumed within a 10 second window"); return "published"; },
+  async (ms) => { waited.push(ms); },
+  (n) => reported.push(n),
+);
+assert.equal(retryResult, "published");
+assert.equal(attempts, 3);
+assert.deepEqual(waited, [12_000, 15_000], "D1 retries must wait beyond quota reset");
+assert.deepEqual(reported, [1, 2]);
+let forbiddenAttempts = 0;
+await assert.rejects(
+  () => withTransientD1PublicationRetry(
+    async () => { forbiddenAttempts++; throw Error("Unqualified Cove Sounds snapshot tracks"); },
+    async () => { throw Error("Must not retry legal denials"); },
+  ),
+  /Unqualified/,
+);
+assert.equal(forbiddenAttempts, 1, "Non-transient rights validation must fail immediately");
+let persistentAttempts = 0;
+await assert.rejects(
+  () => withTransientD1PublicationRetry(async () => {
+    persistentAttempts++;
+    throw Error("D1_ERROR: D1 DB is overloaded. Too many resources consumed within a 10 second window");
+  }, async () => {}),
+  /overloaded/,
+);
+assert.equal(persistentAttempts, 3, "Bounded retries must fail closed");
 assert.equal(published.length, 1);
 assert.equal(published[0].stations, 6);
 assert.equal(writes.size, 6);

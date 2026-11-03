@@ -166,8 +166,10 @@ assert.match(ui, /Printable invoice/);
 assert.match(ui, /Resume payment/);
 assert.match(ui, /Cancel order/);
 assert.match(book, /Buy now/);
+// The account dropdown links to Cart; Orders live inside Commerce's
+// consolidated cart/orders tabs, rather than being a separate App menu.
 assert.match(app, /Cart/);
-assert.match(app, /Orders/);
+assert.match(ui, /Orders/);
 assert.match(staff, /Commerce operations/);
 assert.match(staff, /Ledger balance warnings/);
 assert.match(staff, /Download accounting CSV/);

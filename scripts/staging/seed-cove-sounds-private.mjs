@@ -4,7 +4,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { publishCoveSounds } from "../../.output/strangler/sounds-publication.mjs";
+import {
+  publishCoveSounds,
+  withTransientD1PublicationRetry,
+} from "../../.output/strangler/sounds-publication.mjs";
 
 const token = process.env.CLOUDFLARE_API_TOKEN || "";
 assert.ok(token.length >= 10, "Cloudflare deployment token missing");
@@ -35,7 +38,18 @@ function query(sql, params) {
     body: JSON.stringify({ sql, params }),
   }).then(async (r) => {
     const result = await r.json();
-    assert.ok(result.success && result.result?.[0]?.success, "Read-only source query failed");
+    if (!(result.success && result.result?.[0]?.success)) {
+      // Only propagate this exact transient D1 quota signal into the bounded
+      // retry helper. Never treat unrelated source, auth or legal errors as
+      // transient; never echo D1 SQL or private API responses into CI logs.
+      const messages = [
+        ...(result.errors || []),
+        ...(result.result?.[0]?.errors || []),
+      ].map((x) => String(x?.message || x || ""));
+      if (messages.some((x) => /D1 DB is overloaded|Too many resources consumed within a 10 second window/i.test(x)))
+        throw Error("D1_ERROR: D1 DB is overloaded. Too many resources consumed within a 10 second window");
+      throw Error("Read-only source query failed");
+    }
     return result.result[0];
   });
 }
@@ -63,7 +77,9 @@ function wrangler(args) {
   assert.equal(r.status, 0, "Private R2 publication failed: " + String(r.stderr).slice(-600));
 }
 try {
-  const output = await publishCoveSounds({
+  // A scheduled public refresh can overlap this isolated release. Retry only
+  // the known 10-second primary-D1 overload; never bypass publication checks.
+  const output = await withTransientD1PublicationRetry(() => publishCoveSounds({
     SOURCE_DB: { prepare: statement },
     COVE_SOUNDS_PUBLICATION_ENABLED: "1",
     COVE_SOUNDS_MARKETS: "US",
@@ -93,7 +109,9 @@ try {
         completed++;
       },
     },
-  });
+  }), undefined, (retry) =>
+    console.warn(JSON.stringify({ event: "seed_cove_sounds_d1_throttled", retry })),
+  );
   assert.equal(completed, 6, "All six private station snapshots must be published");
   assert.equal(output[0]?.stations, 6);
   assert.ok(output[0].recordings > 0, "No approved US music: refuse publication activation");

@@ -4,11 +4,20 @@ updates:
     directory: /
     schedule: {interval: weekly}
     open-pull-requests-limit: 10
+    # Keep API-breaking major upgrades isolated and reviewable; Dependabot must
+    # never roll dozens of incompatible majors into one production change.
     groups:
       production-dependencies:
         dependency-type: production
+        update-types: ["minor", "patch"]
       development-dependencies:
         dependency-type: development
+        update-types: ["minor", "patch"]
+    # typescript-eslint@8 requires TS <6.1: do not propose TS 7 before the
+    # compiler, lint parser, router tooling and production build support it.
+    ignore:
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule: {interval: monthly}
