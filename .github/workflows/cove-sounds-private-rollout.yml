@@ -1,5 +1,13 @@
 name: cove-sounds-private-rollout
 on:
+  # Rebuild the isolated hourly producer when its verified source changes.
+  # This does not alter any public DNS route or canonical legal owner.
+  push:
+    branches: [main]
+    paths:
+      - "src/storefront-strangler/sounds-publication.worker.ts"
+      - "scripts/check-cove-sounds-snapshot.mjs"
+      - ".github/workflows/cove-sounds-private-rollout.yml"
   workflow_run:
     workflows: [deploy-persistence-backend]
     types: [completed]
@@ -16,6 +24,7 @@ jobs:
   private-sounds-release:
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       (github.event_name == 'workflow_run' &&
        github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_branch == 'main')
