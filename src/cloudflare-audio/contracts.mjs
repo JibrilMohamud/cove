@@ -40,11 +40,7 @@ export function payloadForAudioPath(path) {
 
 export function validAudioMessage(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  if (
-    value.v !== 1 ||
-    typeof value.key !== "string" ||
-    !/^[0-9a-f]{64}$/.test(value.key)
-  )
+  if (value.v !== 1 || typeof value.key !== "string" || !/^[0-9a-f]{64}$/.test(value.key))
     return false;
   if (typeof value.path !== "string" || !Object.hasOwn(profiles, value.path)) return false;
   const canonical = profiles[value.path];
