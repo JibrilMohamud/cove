@@ -71,7 +71,10 @@ export async function publishCoveSounds(env: Env, at = Date.now()) {
     ).bind(territory).all<{ currency: string }>();
     if (market.results.length !== 1 || !/^[A-Z]{3}$/.test(market.results[0].currency))
       throw Error("Cove Sounds market unavailable: " + territory);
-    const [commons, external, editions] = await Promise.all([
+    // Shared primary D1 enforces a rolling ten-second resource budget.
+    // Three simultaneous candidate scans can exhaust it during live catalog
+    // traffic, so run the rights-advisory producer queries one at a time.
+    const commons = await
       env.SOURCE_DB.prepare(
         `SELECT id,title,composer,performer,period,instruments_json,moods_json,energy,
            has_vocals,attribution_text,source_page_url,license_statement,license_url,
@@ -80,14 +83,14 @@ export async function publishCoveSounds(env: Env, at = Date.now()) {
          WHERE status='ready' AND quality_status='passed'
            AND storage_key IS NOT NULL AND source_snapshot_key IS NOT NULL
          ORDER BY title,id LIMIT 300`,
-      ).all<Row>(),
-      env.SOURCE_DB.prepare(
+      ).all<Row>();
+    const external = await env.SOURCE_DB.prepare(
         `SELECT id,title,composer,performer,period,instruments_json,moods_json,energy,
            has_vocals,attribution_text,source_page_url,license_statement,license_url,territories_json
          FROM soundtrack_external_recordings
          WHERE status='ready' AND storage_key IS NOT NULL ORDER BY title,id LIMIT 300`,
-      ).all<Row>(),
-      env.SOURCE_DB.prepare(
+      ).all<Row>();
+    const editions = await env.SOURCE_DB.prepare(
         `SELECT p.id, e.title,
            COALESCE((SELECT group_concat(c.name,' ') FROM edition_contributors ec
              JOIN contributors c ON c.id=ec.contributor_id
@@ -97,8 +100,7 @@ export async function publishCoveSounds(env: Env, at = Date.now()) {
            AND e.release_status IN ('available','preorder')
            AND lower(e.title) IN (SELECT lower(value) FROM json_each(?))
          ORDER BY p.id LIMIT 160`,
-      ).bind(JSON.stringify(titles)).all<BookRow>(),
-    ]);
+      ).bind(JSON.stringify(titles)).all<BookRow>();
     const recordings = [...commons.results, ...external.results]
       .filter((row) => parse(row.territories_json, 100).some((x) => x === territory || (x === "*" && row.id.startsWith("cm_"))))
       .map(present).filter((row): row is CoveSoundsRecording => row !== null);
@@ -148,10 +150,37 @@ export async function publishCoveSounds(env: Env, at = Date.now()) {
   }
   return publication;
 }
+/** Retry only D1's transient rolling resource-window rejection.
+ * This never retries legal, licensing, publishing or storage validation.
+ * Every attempt recomputes the producer hints from fresh primary D1 reads;
+ * playback and book purchases ALWAYS reauthorize independently. */
+export async function withTransientD1PublicationRetry<T>(
+  task: () => Promise<T>,
+  sleep: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  report: (retry: number) => void = () => {},
+): Promise<T> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try { return await task(); }
+    catch (error) {
+      if (attempt === 2 ||
+          !(error instanceof Error) ||
+          !/D1_(?:ERROR|DB).*overloaded|D1 DB is overloaded|Too many resources consumed within a 10 second window/i.test(error.message))
+        throw error;
+      report(attempt + 1);
+      // Wait past D1's rolling 10s resource window; do not hammer primary.
+      await sleep(12_000 + attempt * 3_000);
+    }
+  }
+  throw Error("Unreachable sounds publication retry state");
+}
 export default {
   async fetch(): Promise<Response> { return new Response(null, { status: 404 }); },
   scheduled(_controller: unknown, env: Env, ctx: { waitUntil(work: Promise<unknown>): void }) {
-    ctx.waitUntil(publishCoveSounds(env).then((publication) =>
+    ctx.waitUntil(withTransientD1PublicationRetry(
+      () => publishCoveSounds(env),
+      undefined,
+      (retry) => console.warn(JSON.stringify({ event: "sounds_publication_d1_throttled", retry })),
+    ).then((publication) =>
       console.info(JSON.stringify({ event: "sounds_publication", publication })),
     ));
   },
