@@ -1,0 +1,54 @@
+name: cloudflare-audio-native-migration
+
+on:
+  pull_request:
+    paths:
+      - "src/cloudflare-audio/**"
+      - "src/persistence-backend.worker.ts"
+      - "wrangler.audio.cloudflare.jsonc"
+      - "wrangler.backend.production.toml"
+      - "scripts/Dockerfile.cloudflare-audio"
+      - "scripts/requirements.cloudflare-audio.txt"
+      - "scripts/audio_pipeline/cloudflare_service.py"
+      - "scripts/audio_pipeline/tests/test_cloudflare_service.py"
+      - "scripts/check-cloudflare-audio-migration.mjs"
+      - "docs/operations/cloudflare-audio-migration.md"
+      - ".github/workflows/cloudflare-audio-native-migration.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cove-cloudflare-audio-migration-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify-source-and-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: npm ci --no-audit --no-fund
+      - name: Bundle Cloudflare Worker and verify queue, Container and auth boundaries
+        run: node scripts/check-cloudflare-audio-migration.mjs
+      - name: Compile Python Container entry point
+        run: python -m py_compile scripts/audio_pipeline/cloudflare_service.py
+      - name: Test Python execution with mocked backend and no model downloads
+        run: |
+          python -m pip install "fastapi[standard]>=0.141.1,<1"
+          python -m unittest scripts.audio_pipeline.tests.test_cloudflare_service -v
+      - name: Build scheduled backend without deploying canonical D1
+        run: npm run build:backend
+
+  # Deliberately no automatic Cloudflare API token, Queue subscription, image
+  # publication, backend deployment, or canonical D1 mutation from PR CI.
