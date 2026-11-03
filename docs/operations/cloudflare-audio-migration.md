@@ -21,7 +21,10 @@ idempotency ledger → private Python 3.12 Cloudflare Container running
 
 Queue failure, unavailable credentials, budget deferral and Container failure
 do not silently route back to Vercel. The worker has per-delivery backoff,
-36 retries and a `cove-audio-pipeline-v3-dlq` dead-letter queue. Jobs are
+36 retries and a `cove-audio-pipeline-v3-dlq` dead-letter queue. A valid
+backend budget deferral is acknowledged rather than repeatedly delivered:
+the next scheduled scan will retry the still-pending canonical audio jobs.
+Jobs are
 deduplicated at enqueue and delivery using a 5-minute path/payload digest
 and durable ledger. The existing backend's D1 job-lease/fingerprint model
 remains authoritative, which also protects retries after an interrupted
@@ -51,11 +54,22 @@ required by existing `track`, `align`, `discover`, and `scan` work.
 - Cloudflare Containers can incur billable compute/disk and Queues operations.
   Confirm plan and budgets before initial deployment.
 
+## Cloudflare resources created November 2, 2026
+
+- Queue `cove-audio-pipeline-v3` — Cloudflare ID
+  `89d309e9db2a4341a71c8e28ed94ba23`, US jurisdiction.
+- Queue `cove-audio-pipeline-v3-dlq` — Cloudflare ID
+  `1e2ff20712ff41439e583fbcfa354fbf`, US jurisdiction.
+
+Both were independently read back. Queue creation alone does not attach a
+consumer, deploy a Python Container or authorize any live processing.
+
 ## Provisioning and live acceptance still required
 
-1. Create `cove-audio-pipeline-v3` and
-   `cove-audio-pipeline-v3-dlq` as isolated Cloudflare Queues,
-   and confirm that the account supports Cloudflare Containers (Workers Paid).
+1. Queues created and independently verified (see above). Confirm that
+   the account supports Cloudflare Containers (Workers Paid) and that
+   each queue has the intended producer/consumer policy; do not submit
+   production messages before certification.
 2. Provision appropriately scoped Cloudflare deployment credentials, then
    securely install `COVE_AUDIO_DISPATCH_SECRET` in both backend and
    audio Worker (same fresh random secret, 32+ chars).
