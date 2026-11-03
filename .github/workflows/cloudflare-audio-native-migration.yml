@@ -12,6 +12,7 @@ on:
       - "scripts/audio_pipeline/cloudflare_service.py"
       - "scripts/audio_pipeline/tests/test_cloudflare_service.py"
       - "scripts/check-cloudflare-audio-migration.mjs"
+      - "scripts/check-cloudflare-audio-runtime.mjs"
       - "docs/operations/cloudflare-audio-migration.md"
       - ".github/workflows/cloudflare-audio-native-migration.yml"
   workflow_dispatch:
@@ -41,6 +42,8 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Bundle Cloudflare Worker and verify queue, Container and auth boundaries
         run: node scripts/check-cloudflare-audio-migration.mjs
+      - name: Exercise private dispatch, Durable Object dedupe and Queue redelivery without Cloudflare credentials
+        run: node scripts/check-cloudflare-audio-runtime.mjs
       - name: Compile Python Container entry point
         run: python -m py_compile scripts/audio_pipeline/cloudflare_service.py
       - name: Test Python execution with mocked backend and no model downloads
