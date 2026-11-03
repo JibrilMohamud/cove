@@ -38,7 +38,18 @@ function query(sql, params) {
     body: JSON.stringify({ sql, params }),
   }).then(async (r) => {
     const result = await r.json();
-    assert.ok(result.success && result.result?.[0]?.success, "Read-only source query failed");
+    if (!(result.success && result.result?.[0]?.success)) {
+      // Only propagate this exact transient D1 quota signal into the bounded
+      // retry helper. Never treat unrelated source, auth or legal errors as
+      // transient; never echo D1 SQL or private API responses into CI logs.
+      const messages = [
+        ...(result.errors || []),
+        ...(result.result?.[0]?.errors || []),
+      ].map((x) => String(x?.message || x || ""));
+      if (messages.some((x) => /D1 DB is overloaded|Too many resources consumed within a 10 second window/i.test(x)))
+        throw Error("D1_ERROR: D1 DB is overloaded. Too many resources consumed within a 10 second window");
+      throw Error("Read-only source query failed");
+    }
     return result.result[0];
   });
 }
