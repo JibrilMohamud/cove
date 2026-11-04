@@ -25,6 +25,47 @@ def page():
                                 slots=dict(main=dict(content="{{Information|source=Own work}}")))])
 
 class OpenverseIsolatedDiscovery(unittest.TestCase):
+    def test_bounded_retry_of_the_same_json_source_after_transport_timeouts(self):
+        attempts=[]
+        delays=[]
+        class Reply:
+            status=200
+            def __enter__(self): return self
+            def __exit__(self,*_): return False
+            def read(self,maximum): return b'{"results":[]}'
+        class Client:
+            def open(self,req,timeout):
+                attempts.append((req.full_url,timeout))
+                if len(attempts)<3: raise TimeoutError("temporary read timeout")
+                return Reply()
+        client=Client()
+        self.assertEqual(module.read_json(module.API,opener=client,pause=delays.append),
+                         {"results":[]})
+        self.assertEqual(len(attempts),3)
+        self.assertEqual({url for url,_ in attempts},{module.API})
+        self.assertEqual([seconds for _,seconds in attempts],[25,25,25])
+        self.assertEqual(delays,[2,4])
+
+    def test_retry_exhaustion_and_4xx_rejection_remain_fail_closed(self):
+        attempts=[]
+        delays=[]
+        class Timeout:
+            def open(self,req,timeout):
+                attempts.append(req.full_url)
+                raise TimeoutError("still unavailable")
+        with self.assertRaises(TimeoutError):
+            module.read_json(module.API,opener=Timeout(),pause=delays.append)
+        self.assertEqual(len(attempts),3)
+        self.assertEqual(delays,[2,4])
+        rejected=[]
+        class Forbidden:
+            def open(self,req,timeout):
+                rejected.append(req.full_url)
+                raise module.urllib.error.HTTPError(req.full_url,403,"forbidden",{},None)
+        with self.assertRaises(module.urllib.error.HTTPError):
+            module.read_json(module.API,opener=Forbidden(),pause=lambda _:self.fail("No 403 retries"))
+        self.assertEqual(len(rejected),1)
+
     def test_rechecks_exact_commons_file_instead_of_trusting_openverse_license(self):
         c=module.exact_candidate(result(),page())
         self.assertEqual(c["id"],"cm_98760")
