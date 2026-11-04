@@ -66,6 +66,44 @@ class OpenverseIsolatedDiscovery(unittest.TestCase):
             module.read_json(module.API,opener=Forbidden(),pause=lambda _:self.fail("No 403 retries"))
         self.assertEqual(len(rejected),1)
 
+    def test_openverse_timeout_uses_only_verified_native_commons_source(self):
+        contacted=[]
+        def source(url,opener=None,size=500000):
+            contacted.append(url)
+            if "api.openverse.org" in url:
+                raise TimeoutError("Index unavailable after retries")
+            return {"query":{"pages":[page()]}}
+        with patch.object(module,"read_json",side_effect=source):
+            report=module.discover(queries=1,max_verifications=2,
+                                   commons_categories=1,pause=lambda _:None)
+        self.assertEqual(report["openverseOutages"],1)
+        self.assertEqual(report["openverseSearches"],0)
+        self.assertEqual(report["commonsCategoryQueries"],1)
+        self.assertEqual(report["openverseVerified"],0)
+        self.assertEqual(report["commonsVerified"],1)
+        self.assertEqual(len(report["candidates"]),1)
+        self.assertEqual(report["candidates"][0]["discoveryProvider"],"commons")
+        self.assertEqual(report["candidates"][0]["evidence"]["rightsStatus"],
+                         "DISCOVERY_ONLY_NEEDS_RECORDING_VERIFICATION")
+        self.assertEqual(len(contacted),2)
+
+    def test_openverse_only_or_both_sources_unavailable_fail_closed(self):
+        def offline(url,opener=None,size=500000):
+            raise TimeoutError("Source offline")
+        with patch.object(module,"read_json",side_effect=offline):
+            with self.assertRaises(TimeoutError):
+                module.discover(queries=1,max_verifications=2,
+                                commons_categories=0,pause=lambda _:None)
+            with self.assertRaises(TimeoutError):
+                module.discover(queries=1,max_verifications=2,
+                                commons_categories=1,pause=lambda _:None)
+        def forbidden(url,opener=None,size=500000):
+            raise module.urllib.error.HTTPError(url,403,"forbidden",{},None)
+        with patch.object(module,"read_json",side_effect=forbidden):
+            with self.assertRaises(module.urllib.error.HTTPError):
+                module.discover(queries=1,max_verifications=2,
+                                commons_categories=1,pause=lambda _:None)
+
     def test_rechecks_exact_commons_file_instead_of_trusting_openverse_license(self):
         c=module.exact_candidate(result(),page())
         self.assertEqual(c["id"],"cm_98760")
