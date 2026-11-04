@@ -282,6 +282,7 @@ def discover(queries=2, max_verifications=12, opener=OPENER, pause=time.sleep,
     indexed_results=0
     rejected_non_commons=0
     held_after_commons_check=0
+    openverse_outages=0
     if not 0 <= commons_categories <= 3:
         raise ValueError("Unbounded Commons category count")
     start_search = int(time.time() // 86400) % len(SEARCHES)
@@ -298,7 +299,20 @@ def discover(queries=2, max_verifications=12, opener=OPENER, pause=time.sleep,
         params=urllib.parse.urlencode({"q":query,"source":"wikimedia_audio",
                                         "license":"by,by-sa,cc0",
                                         "page":1,"page_size":20,"mature":"false"})
-        response=read_json(API+"?"+params,opener)
+        try:
+            response=read_json(API+"?"+params,opener)
+        except (TimeoutError, urllib.error.URLError) as error:
+            # Openverse is only an index, never the rights authority.
+            # After bounded same-page retries, its temporary unavailability
+            # may fall back ONLY to independent native Commons discovery.
+            # Unavailable Commons or an explicitly Openverse-only campaign
+            # still fails closed; never infer approval or advance a cursor.
+            if isinstance(error, urllib.error.HTTPError) and error.code not in (500,502,503,504):
+                raise
+            if not commons_categories:
+                raise
+            openverse_outages+=1
+            continue
         searched+=1
         results=response.get("results",[])
         if not isinstance(results,list):
@@ -336,6 +350,7 @@ def discover(queries=2, max_verifications=12, opener=OPENER, pause=time.sleep,
     return {"policy":"cove-openverse-commons-discovery-v1",
             "searches":searched+from_commons["searches"],
             "openverseSearches":searched,
+            "openverseOutages":openverse_outages,
             "commonsCategoryQueries":from_commons["searches"],
             "openverseVerified":verified,
             "commonsVerified":from_commons["verified"],
@@ -446,9 +461,14 @@ def main():
     pathlib.Path(args.output).write_text(json.dumps(result,indent=2,ensure_ascii=False)+"\n")
     if args.apply_isolated:
         record_isolated(result,os.environ.get("CLOUDFLARE_API_TOKEN",""))
+    if result["openverseOutages"]:
+        print("::warning::Openverse indexed discovery temporarily unavailable; "+
+              "continuing only with independently validated Commons source pages")
     if result["verified"] == 0:
-        print("::warning::Openverse returned no matching Commons originals; no rights decisions made")
-    print(json.dumps({"searched":result["searches"],"indexedResults":result["indexedResults"],
+        print("::warning::No verified Commons originals; no rights decisions made")
+    print(json.dumps({"searched":result["searches"],
+                      "openverseOutages":result["openverseOutages"],
+                      "indexedResults":result["indexedResults"],
                       "nonCommonsResults":result["nonCommonsResults"],
                       "checkedOriginalPages":result["verified"],
                       "commonsCategoryQueries":result["commonsCategoryQueries"],
