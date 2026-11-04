@@ -13,6 +13,7 @@ import os
 import pathlib
 import re
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
@@ -60,16 +61,28 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 OPENER = urllib.request.build_opener(NoRedirect)
 
-def read_json(url, opener=OPENER, size=500000):
+def read_json(url, opener=OPENER, size=500000, pause=time.sleep):
     req = urllib.request.Request(url,headers={"User-Agent":AGENT,"Api-User-Agent":AGENT,
                                               "Accept":"application/json"})
-    with opener.open(req, timeout=25) as response:
-        if response.status != 200:
-            raise ValueError("Remote source request rejected")
-        payload=response.read(size+1)
-        if len(payload)>size:
-            raise ValueError("Unbounded remote API response")
-    return json.loads(payload)
+    # Retry the SAME permitted Openverse/Commons GET only on transport timeouts
+    # or temporary 5xx. Never switch sources, advance a cursor, retry 429/4xx,
+    # or treat incomplete Commons rights evidence as verified.
+    for attempt in range(3):
+        try:
+            with opener.open(req, timeout=25) as response:
+                if response.status != 200:
+                    raise ValueError("Remote source request rejected")
+                payload=response.read(size+1)
+                if len(payload)>size:
+                    raise ValueError("Unbounded remote API response")
+            return json.loads(payload)
+        except (TimeoutError, urllib.error.URLError) as error:
+            if isinstance(error, urllib.error.HTTPError) and error.code not in (500, 502, 503, 504):
+                raise
+            if attempt == 2:
+                raise
+            pause(2 ** (attempt + 1))
+    raise AssertionError("Unreachable remote source retry state")
 
 def commons_title(record):
     # Only verified Wikimedia-hosted Commons original file page links. Never
