@@ -48,6 +48,16 @@ on:
       - "scripts/check-cove-sounds-discovery.mjs"
       - "scripts/staging/check-cove-sounds-public.mjs"
       - ".github/workflows/cove-sounds-discovery-qa.yml"
+  # Public acceptance must run AFTER the private R2/KV publication has
+  # completed, not concurrently with the main-branch deployment transition.
+  workflow_run:
+    workflows: ["cove-sounds-private-rollout"]
+    types: [completed]
+    branches: [main]
+  # Independently detect expired/missing scheduled publications between releases.
+  schedule:
+    - cron: "29 */3 * * *"
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
@@ -55,6 +65,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   rights-boundaries-and-build:
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -73,5 +84,25 @@ jobs:
           node scripts/staging/report-cove-sounds-verified-conversion.mjs --self-test
       - name: Compile and verify all route and client imports
         run: npm run build
-      - name: Verify live public Cove Sounds station and authorized isolated data
+  live-public-acceptance:
+    # The activation workflow publishes six verified private snapshots before
+    # enabling US reads. Only then check the user-visible routes. Never mark
+    # a failed release as healthy, and retain an independent scheduled check.
+    if: >-
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main') ||
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Verify public Cove Sounds and separately authorized live music/book reads
         run: node scripts/staging/check-cove-sounds-public.mjs
