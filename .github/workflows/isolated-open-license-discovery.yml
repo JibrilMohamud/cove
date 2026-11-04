@@ -61,7 +61,7 @@ jobs:
       - uses: actions/setup-python@v6
         with: { python-version: "3.12" }
       - name: Test live Commons API as unprivileged original source
-        run: python scripts/soundtracks/discover-openverse-commons.py --queries 1 --commons-categories 1 --max-verifications 8 --output commons-source-smoke.json
+        run: python scripts/soundtracks/discover-openverse-commons.py --queries 0 --commons-categories 1 --max-verifications 8 --output commons-source-smoke.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -89,7 +89,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          args=(--queries 2 --commons-categories 2 --max-verifications 32 --output openverse-commons-candidates.json)
+          # The independent Commons API provides original/revision/license
+          # evidence. Keep optional Openverse index outages from blocking the
+          # authoritative discovery cycle. Never substitute unverified indexed
+          # metadata for an actual file page.
+          args=(--queries 0 --commons-categories 2 --max-verifications 32 --output openverse-commons-candidates.json)
           if [[ "${COVE_MUSIC_OPEN_DISCOVERY_ENABLED:-0}" == "1" && -n "${CLOUDFLARE_API_TOKEN:-}" ]]; then
             args+=(--apply-isolated)
           else
