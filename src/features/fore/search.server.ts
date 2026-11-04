@@ -1763,7 +1763,9 @@ export async function searchCatalog(
   // Preserve the exact existing personalization and ranking behavior for
   // explicit relevance searches; canonical rights are still checked below.
   const wantsPersonalization = !!input.query && input.sort === "relevance";
-  const recommendations = wantsPersonalization ? await import("./recommendations.server") : null;
+  const recommendations = wantsPersonalization
+    ? await import("./recommendations.server")
+    : null;
   const personalizeWindow =
     wantsPersonalization &&
     recommendations !== null &&
