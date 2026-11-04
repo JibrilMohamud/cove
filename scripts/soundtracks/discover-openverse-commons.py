@@ -301,14 +301,11 @@ def discover(queries=2, max_verifications=12, opener=OPENER, pause=time.sleep,
                                         "page":1,"page_size":20,"mature":"false"})
         try:
             response=read_json(API+"?"+params,opener)
-        except (TimeoutError, urllib.error.URLError) as error:
-            # Openverse is only an index, never the rights authority.
-            # After bounded same-page retries, its temporary unavailability
-            # may fall back ONLY to independent native Commons discovery.
-            # Unavailable Commons or an explicitly Openverse-only campaign
-            # still fails closed; never infer approval or advance a cursor.
-            if isinstance(error, urllib.error.HTTPError) and error.code not in (500,502,503,504):
-                raise
+        except TimeoutError:
+            # Only an exhausted transport *timeout* can bypass the optional
+            # Openverse index. Never suppress TLS, DNS, HTTP authentication,
+            # malformed JSON, rights conflicts, or arbitrary URLError failures.
+            # Direct Commons file/revision checks remain mandatory.
             if not commons_categories:
                 raise
             openverse_outages+=1
