@@ -1,0 +1,38 @@
+name: Cloudflare exact-throttle retry contracts
+on:
+  pull_request:
+    paths:
+      - "scripts/staging/cf-api-429-retry.mjs"
+      - "scripts/staging/cf-api-429-retry.test.mjs"
+      - "scripts/staging/retry-production-d1-migrations.mjs"
+      - "scripts/staging/retry-production-d1-migrations.test.mjs"
+      - "scripts/staging/seed-cove-sounds-private.mjs"
+      - ".github/workflows/cove-sounds-private-rollout.yml"
+      - ".github/workflows/deploy-persistence-backend.yml"
+      - ".github/workflows/deployed-canonical-d1-principal-audit.yml"
+      - ".github/workflows/cloudflare-throttle-contracts.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/staging/cf-api-429-retry.mjs"
+      - "scripts/staging/retry-production-d1-migrations.mjs"
+      - ".github/workflows/cloudflare-throttle-contracts.yml"
+permissions:
+  contents: read
+jobs:
+  retry-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Verify transient 429 and D1 7429 retries, bounded and fail-closed
+        run: |
+          node --check scripts/staging/cf-api-429-retry.mjs
+          node --check scripts/staging/seed-cove-sounds-private.mjs
+          node --check scripts/staging/retry-production-d1-migrations.mjs
+          node --test scripts/staging/cf-api-429-retry.test.mjs scripts/staging/retry-production-d1-migrations.test.mjs

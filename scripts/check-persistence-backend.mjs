@@ -19,6 +19,7 @@ const [
   packageRaw,
   wrangler,
   deployWorkflow,
+  d1MigrationRunner,
   audioDockerfile,
 ] = await Promise.all([
   read("src/server.ts"),
@@ -36,6 +37,7 @@ const [
   read("package.json"),
   read("wrangler.backend.example.toml"),
   read(".github/workflows/deploy-persistence-backend.yml"),
+  read("scripts/staging/retry-production-d1-migrations.mjs"),
   read("scripts/Dockerfile.vercel"),
 ]);
 
@@ -198,7 +200,11 @@ assert.match(wrangler, /FORE_INGESTION_SIGNING_KEY/);
 assert.doesNotMatch(wrangler, /FORE_BACKEND_TOKEN\s*$/m);
 
 assert.match(deployWorkflow, /cloudflare\/wrangler-action@v4/);
-assert.match(deployWorkflow, /d1 migrations apply DB --remote/);
+assert.match(deployWorkflow, /run: node scripts\/staging\/retry-production-d1-migrations\.mjs/);
+assert.match(d1MigrationRunner, /"d1",\s*"migrations",\s*"apply",\s*"DB"/);
+assert.match(d1MigrationRunner, /"--remote",\s*"--config",\s*"wrangler\.backend\.deploy\.toml"/);
+assert.match(d1MigrationRunner, /isD1ResourceThrottle/);
+assert.match(d1MigrationRunner, /assert\.equal\(id, productionD1/);
 assert.match(deployWorkflow, /FORE_INGESTION_SIGNING_KEY/);
 assert.doesNotMatch(deployWorkflow, /^\s*FORE_BACKEND_TOKEN\s*$/m);
 assert.doesNotMatch(deployWorkflow, /^\s*FORE_INGESTION_TRIGGER_TOKEN\s*$/m);
