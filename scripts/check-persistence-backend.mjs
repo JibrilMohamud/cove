@@ -205,12 +205,12 @@ assert.match(deployWorkflow, /cloudflare\/wrangler-action@v4/);
 assert.match(deployWorkflow, /run: node scripts\/staging\/retry-production-d1-migrations\.mjs/);
 assert.match(
   deployWorkflow,
-  /deploy:\s*\n\s*concurrency:\s*\n\s*group: cove-exclusive-real-primary-cold-acceptance/,
+  /deploy:\s*\n(?:\s*#[^\n]*\n)*\s*concurrency:\s*\n\s*group: cove-exclusive-real-primary-cold-acceptance/,
   "Production D1 migrations must not race real-primary cold SSR acceptance",
 );
 assert.match(
   soundsRolloutWorkflow,
-  /private-sounds-release:\s*\n\s*concurrency:\s*\n\s*group: cove-exclusive-real-primary-cold-acceptance/,
+  /private-sounds-release:\s*\n(?:\s*#[^\n]*\n)*\s*concurrency:\s*\n\s*group: cove-exclusive-real-primary-cold-acceptance/,
   "Snapshot source reads must not race production D1 migration or cold capacity trials",
 );
 assert.match(d1MigrationRunner, /"d1",\s*"migrations",\s*"apply",\s*"DB"/);
