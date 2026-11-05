@@ -72,10 +72,15 @@ test("guest navigation stays private and fits the device", async ({ page }, test
     // anonymous feed polls as an access-control pageerror during a full
     // navigation. Ignore only these exact, abandoned GETs while leaving
     // Community. Never ignore 401/403/500 replies or any other pageerror.
+    const abortedCommunityPoll = [
+      "/api/fore/social/tournaments",
+      "/api/fore/social/arena?sort=trending&kind=all",
+      "/api/fore/social/arena?sort=recent&kind=matchup",
+    ].some((path) => e.message.endsWith(path + " due to access control checks."));
     if (
       leavingCommunity &&
       ["iphone-safari", "ipad-safari", "webkit-desktop"].includes(testInfo.project.name) &&
-      /^\\/[^\\s]*\\/api\\/fore\\/social\\/(?:tournaments|arena\\?sort=(?:trending|recent)&kind=(?:all|matchup)) due to access control checks\\.$/.test(e.message)
+      abortedCommunityPoll
     )
       return;
     errors.push(e.message);
