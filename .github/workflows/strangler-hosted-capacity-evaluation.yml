@@ -133,7 +133,7 @@ jobs:
           if [ -f ".output/strangler/index.mjs" ]; then
             npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.storefront-strangler.stage.jsonc
           fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: strangler-protected-stage-capacity

@@ -54,7 +54,7 @@ jobs:
       - name: Restore legacy ownership and remove private crons on failure
         if: failure() || cancelled()
         run: node scripts/staging/rollback-literary-drain.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: literary-owner-drain-${{ github.sha }}

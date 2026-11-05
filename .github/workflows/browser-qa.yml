@@ -76,7 +76,7 @@ jobs:
         if: failure()
         run: |
           find artifacts/browser-qa/runs -name error-context.md -print -exec sed -n '1,110p' {} \; || true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: browser-device-qa-${{ matrix.project }}

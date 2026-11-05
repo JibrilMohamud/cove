@@ -195,7 +195,7 @@ jobs:
           node scripts/performance/cloudflare-browser.mjs
       - name: Upload owned canary performance evidence even after a failed hard gate
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: covereads-owned-ssr-performance
           path: |
