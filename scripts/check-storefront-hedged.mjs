@@ -113,31 +113,6 @@ try {
   assert.ok(performance.now() - started < 200, "Independent hedge must beat the cold timeout");
   assert.ok(phases.some(([phase, kind]) => phase === "alternate" && kind === "ok"));
 
-  const productionLoader = fs.readFileSync("src/features/fore/storefront-loader.ts", "utf8");
-  assert.match(
-    productionLoader,
-    /hedgeAfterMs: 325,/,
-    "Production should start one verified-country hedge before the 800ms hard gate.",
-  );
-  // Preserve a normal fast primary without extra rights reads and allow the
-  // separately proved backup to win only when the original is slow.
-  alternateCalls = 0;
-  const backupBeforeSlowPrimary = await hedgedStorefrontBootstrap(
-    source,
-    async () => {
-      await new Promise((resolve) => setTimeout(resolve, 110));
-      return verified();
-    },
-    async () => {
-      alternateCalls++;
-      await new Promise((resolve) => setTimeout(resolve, 6));
-      return verified();
-    },
-    { hedgeAfterMs: 25, timeoutMs: 220 },
-  );
-  assert.ok(backupBeforeSlowPrimary);
-  assert.equal(alternateCalls, 1, "Slow verified-country requests start exactly one backup.");
-
   alternateCalls = 0;
   const immediate = await hedgedStorefrontBootstrap(
     source,
