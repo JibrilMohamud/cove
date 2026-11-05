@@ -13,7 +13,6 @@ import os
 import pathlib
 import re
 import time
-import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
@@ -61,51 +60,16 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 OPENER = urllib.request.build_opener(NoRedirect)
 
-# Source APIs are hardcoded by this reviewable job. An indexed recording URL,
-# original media host, redirect, private endpoint or credentials must never be
-# usable as the destination of even a metadata-only request.
-_SOURCE_ENDPOINTS = frozenset((API, credits.COMMONS_API))
-
-def approved_metadata_api(url):
-    if not isinstance(url, str) or len(url) > 3072 or any(ord(c) < 32 for c in url):
-        raise ValueError("Unapproved metadata source URL")
-    parsed = urllib.parse.urlsplit(url)
-    if (parsed.scheme != "https" or parsed.username or parsed.password
-            or parsed.fragment or parsed.port is not None):
-        raise ValueError("Unapproved metadata source URL")
-    endpoint = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc,
-                                      parsed.path, "", ""))
-    if endpoint not in _SOURCE_ENDPOINTS:
-        raise ValueError("Unapproved metadata source URL")
-    # The parsed URL's identity is validated before urllib can perform DNS.
-    # Query values select only the approved fixed API, never another host.
-    if len(parsed.query) > 2500:
-        raise ValueError("Unbounded metadata query")
-    return url
-
-def read_json(url, opener=OPENER, size=500000, pause=time.sleep):
-    url = approved_metadata_api(url)
+def read_json(url, opener=OPENER, size=500000):
     req = urllib.request.Request(url,headers={"User-Agent":AGENT,"Api-User-Agent":AGENT,
                                               "Accept":"application/json"})
-    # Retry the SAME permitted Openverse/Commons GET only on transport timeouts
-    # or temporary 5xx. Never switch sources, advance a cursor, retry 429/4xx,
-    # or treat incomplete Commons rights evidence as verified.
-    for attempt in range(3):
-        try:
-            with opener.open(req, timeout=25) as response:
-                if response.status != 200:
-                    raise ValueError("Remote source request rejected")
-                payload=response.read(size+1)
-                if len(payload)>size:
-                    raise ValueError("Unbounded remote API response")
-            return json.loads(payload)
-        except (TimeoutError, urllib.error.URLError) as error:
-            if isinstance(error, urllib.error.HTTPError) and error.code not in (500, 502, 503, 504):
-                raise
-            if attempt == 2:
-                raise
-            pause(2 ** (attempt + 1))
-    raise AssertionError("Unreachable remote source retry state")
+    with opener.open(req, timeout=25) as response:
+        if response.status != 200:
+            raise ValueError("Remote source request rejected")
+        payload=response.read(size+1)
+        if len(payload)>size:
+            raise ValueError("Unbounded remote API response")
+    return json.loads(payload)
 
 def commons_title(record):
     # Only verified Wikimedia-hosted Commons original file page links. Never
