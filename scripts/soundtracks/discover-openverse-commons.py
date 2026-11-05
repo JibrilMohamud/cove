@@ -416,6 +416,14 @@ def record_isolated(summary, token, opener=OPENER):
             [category,continuation,at,str(uuid.uuid4())])
     return len(summary["candidates"])
 
+def safe_report_path(output):
+    # Reports are working-directory artifacts, never arbitrary absolute paths.
+    # No API response, query or CLI argument may traverse into secrets/files.
+    if not isinstance(output,str) or len(output)>128 or not re.fullmatch(
+            r"[a-zA-Z0-9][a-zA-Z0-9_.-]{0,120}\\.json",output) or ".." in output:
+        raise ValueError("Only a bounded local JSON artifact filename is allowed")
+    return pathlib.Path.cwd() / output
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument("--queries",type=int,default=2)
@@ -430,7 +438,7 @@ def main():
              if args.apply_isolated else None)
     result=discover(args.queries,args.max_verifications,
                     commons_categories=args.commons_categories,commons_cursors=cursors)
-    pathlib.Path(args.output).write_text(json.dumps(result,indent=2,ensure_ascii=False)+"\n")
+    safe_report_path(args.output).write_text(json.dumps(result,indent=2,ensure_ascii=False)+"\n")
     if args.apply_isolated:
         record_isolated(result,os.environ.get("CLOUDFLARE_API_TOKEN",""))
     if result["verified"] == 0:
