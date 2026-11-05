@@ -420,7 +420,7 @@ def safe_report_path(output):
     # Reports are working-directory artifacts, never arbitrary absolute paths.
     # No API response, query or CLI argument may traverse into secrets/files.
     if not isinstance(output,str) or len(output)>128 or not re.fullmatch(
-            r"[a-zA-Z0-9][a-zA-Z0-9_.-]{0,120}\\.json",output) or ".." in output:
+            r"[a-zA-Z0-9][a-zA-Z0-9_.-]{0,120}\.json",output) or ".." in output:
         raise ValueError("Only a bounded local JSON artifact filename is allowed")
     return pathlib.Path.cwd() / output
 
