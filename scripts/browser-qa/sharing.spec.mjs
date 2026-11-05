@@ -66,7 +66,20 @@ async function noOverflow(page) {
 
 test("guest navigation stays private and fits the device", async ({ page }, testInfo) => {
   const errors = [];
-  page.on("pageerror", (e) => errors.push(e.message));
+  let leavingCommunity = false;
+  page.on("pageerror", (e) => {
+    // WebKit may report cancellation of the previous Community document's
+    // anonymous feed polls as an access-control pageerror during a full
+    // navigation. Ignore only these exact, abandoned GETs while leaving
+    // Community. Never ignore 401/403/500 replies or any other pageerror.
+    if (
+      leavingCommunity &&
+      ["iphone-safari", "ipad-safari", "webkit-desktop"].includes(testInfo.project.name) &&
+      /^\\/[^\\s]*\\/api\\/fore\\/social\\/(?:tournaments|arena\\?sort=(?:trending|recent)&kind=(?:all|matchup)) due to access control checks\\.$/.test(e.message)
+    )
+      return;
+    errors.push(e.message);
+  });
   const documentResponse = await page.goto("/community?tab=received");
   expect(documentResponse?.headers()["content-security-policy"]).not.toContain(
     "upgrade-insecure-requests",
@@ -85,6 +98,7 @@ test("guest navigation stays private and fits the device", async ({ page }, test
   await expect(publicTabs.getByRole("link", { name: "Following", exact: true })).toHaveCount(0);
   for (const name of ["Shared with me", "My sharing", "My profile"])
     await expect(publicTabs.getByRole("link", { name, exact: true })).toHaveCount(0);
+  leavingCommunity = true;
   await page.goto("/profile?section=sharing");
   await expect(page.getByRole("heading", { name: "Make yourself at home." })).toBeVisible();
   await expect(page.getByText(note)).toHaveCount(0);
