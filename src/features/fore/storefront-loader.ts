@@ -134,7 +134,12 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
       } | null,
     };
     const result = await hedgedStorefrontBootstrap(source, primary, alternate, {
-      hedgeAfterMs: 1_650,
+      // Cold Vercel backend tails previously spent 0.5–0.7s on the first
+      // outbound call before React could render. A verified-country anonymous
+      // request may start ONE independent rights-checked backup at 325ms.
+      // All fallback proof, fail-closed territory checks, and the eight-second
+      // hard deadline stay unchanged; this does not cache or invent grants.
+      hedgeAfterMs: 325,
       timeoutMs: 8_000,
       onDeadline: (state) => {
         deadline.expired = state;
