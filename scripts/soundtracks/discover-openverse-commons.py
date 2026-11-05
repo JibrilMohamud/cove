@@ -416,6 +416,14 @@ def record_isolated(summary, token, opener=OPENER):
             [category,continuation,at,str(uuid.uuid4())])
     return len(summary["candidates"])
 
+def safe_report_path(output):
+    # Reports are working-directory artifacts, never arbitrary absolute paths.
+    # No API response, query or CLI argument may traverse into secrets/files.
+    if not isinstance(output,str) or len(output)>128 or not re.fullmatch(
+            r"[a-zA-Z0-9][a-zA-Z0-9_.-]{0,120}\.json",output) or ".." in output:
+        raise ValueError("Only a bounded local JSON artifact filename is allowed")
+    return pathlib.Path.cwd() / output
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument("--queries",type=int,default=2)
@@ -424,13 +432,13 @@ def main():
     p.add_argument("--output",default="openverse-commons-candidates.json")
     p.add_argument("--apply-isolated",action="store_true")
     args=p.parse_args()
-    if not 1<=args.queries<=3 or not 0<=args.commons_categories<=3 or not 1<=args.max_verifications<=32:
-        p.error("Rate-bounded one-page Openverse/Commons discovery required")
+    if not 0<=args.queries<=3 or not 0<=args.commons_categories<=3 or not 1<=args.max_verifications<=32 or (args.queries==0 and args.commons_categories==0):
+        p.error("At least one bounded Openverse or native Commons discovery source is required")
     cursors=(load_isolated_cursors(os.environ.get("CLOUDFLARE_API_TOKEN",""))
              if args.apply_isolated else None)
     result=discover(args.queries,args.max_verifications,
                     commons_categories=args.commons_categories,commons_cursors=cursors)
-    pathlib.Path(args.output).write_text(json.dumps(result,indent=2,ensure_ascii=False)+"\n")
+    safe_report_path(args.output).write_text(json.dumps(result,indent=2,ensure_ascii=False)+"\n")
     if args.apply_isolated:
         record_isolated(result,os.environ.get("CLOUDFLARE_API_TOKEN",""))
     if result["verified"] == 0:

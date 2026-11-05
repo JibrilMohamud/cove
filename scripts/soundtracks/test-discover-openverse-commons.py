@@ -25,6 +25,35 @@ def page():
                                 slots=dict(main=dict(content="{{Information|source=Own work}}")))])
 
 class OpenverseIsolatedDiscovery(unittest.TestCase):
+    def test_report_filename_cannot_escape_artifacts_directory(self):
+        for good in ("openverse-commons-candidates.json","commons-source-smoke.json","daily.1.json"):
+            self.assertEqual(module.safe_report_path(good).name,good)
+        for bad in ("/tmp/private.json","../private.json","a/../b.json",
+                    "report.json/../../secret",".env","hidden.txt","my\\\\secret.json",
+                    "report\\n.json","foo.json?token=secret","a"*150+".json"):
+            with self.subTest(value=bad):
+                with self.assertRaises(ValueError):
+                    module.safe_report_path(bad)
+
+    def test_explicit_commons_only_discovery_does_not_contact_optional_index(self):
+        contacted=[]
+        def source(url,opener=None,size=500000):
+            contacted.append(url)
+            if "api.openverse.org" in url:
+                self.fail("Explicit Commons-only discovery contacted optional Openverse index")
+            return {"query":{"pages":[page()]}}
+        with patch.object(module,"read_json",side_effect=source):
+            report=module.discover(queries=0,max_verifications=2,
+                                   commons_categories=1,pause=lambda _:None)
+        self.assertEqual(report["openverseSearches"],0)
+        self.assertEqual(report["commonsCategoryQueries"],1)
+        self.assertEqual(report["commonsVerified"],1)
+        self.assertEqual(len(report["candidates"]),1)
+        self.assertEqual(report["candidates"][0]["discoveryProvider"],"commons")
+        self.assertEqual(report["candidates"][0]["evidence"]["rightsStatus"],
+                         "DISCOVERY_ONLY_NEEDS_RECORDING_VERIFICATION")
+        self.assertEqual(len(contacted),1)
+
     def test_rechecks_exact_commons_file_instead_of_trusting_openverse_license(self):
         c=module.exact_candidate(result(),page())
         self.assertEqual(c["id"],"cm_98760")
