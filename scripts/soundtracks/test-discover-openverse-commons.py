@@ -25,6 +25,33 @@ def page():
                                 slots=dict(main=dict(content="{{Information|source=Own work}}")))])
 
 class OpenverseIsolatedDiscovery(unittest.TestCase):
+    def test_only_exact_https_source_api_destinations_are_permitted(self):
+        allowed = (
+            module.API,
+            module.API + "?q=piano&page=1",
+            module.credits.COMMONS_API,
+            module.credits.COMMONS_API + "?action=query&titles=File%3AExample.ogg",
+        )
+        for value in allowed:
+            self.assertEqual(module.approved_metadata_api(value), value)
+        blocked = (
+            "http://api.openverse.org/v1/audio/",
+            "https://evil.example/v1/audio/",
+            "https://api.openverse.org.evil.example/v1/audio/",
+            "https://api.openverse.org:443/v1/audio/",
+            "https://user:pass@api.openverse.org/v1/audio/",
+            "https://api.openverse.org/v1/audio/#fragment",
+            "https://api.openverse.org/v1/audio/../admin",
+            "https://commons.wikimedia.org/w/api.php/../Special:Export",
+            "https://upload.wikimedia.org/wikipedia/commons/original.mp3",
+            "https://127.0.0.1/metadata",
+            "https://api.openverse.org/v1/audio/?q=" + "x" * 3000,
+        )
+        for value in blocked:
+            with self.subTest(value=value[:64]):
+                with self.assertRaises(ValueError):
+                    module.approved_metadata_api(value)
+
     def test_bounded_retry_of_the_same_json_source_after_transport_timeouts(self):
         attempts=[]
         delays=[]
