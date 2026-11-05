@@ -134,7 +134,11 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
       } | null,
     };
     const result = await hedgedStorefrontBootstrap(source, primary, alternate, {
-      hedgeAfterMs: 1_650,
+      // Cold remote bootstrap stalls can exceed the entire 800ms SSR gate.
+      // Start at most one independently rights-verified backup after 325ms
+      // when the trusted platform-country assertion is available. The hedge
+      // implementation still denies mismatched/unauthorized responses.
+      hedgeAfterMs: 325,
       timeoutMs: 8_000,
       onDeadline: (state) => {
         deadline.expired = state;
