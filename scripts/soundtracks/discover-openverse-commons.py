@@ -61,7 +61,30 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 OPENER = urllib.request.build_opener(NoRedirect)
 
+# Source APIs are hardcoded by this reviewable job. An indexed recording URL,
+# original media host, redirect, private endpoint or credentials must never be
+# usable as the destination of even a metadata-only request.
+_SOURCE_ENDPOINTS = frozenset((API, credits.COMMONS_API))
+
+def approved_metadata_api(url):
+    if not isinstance(url, str) or len(url) > 3072 or any(ord(c) < 32 for c in url):
+        raise ValueError("Unapproved metadata source URL")
+    parsed = urllib.parse.urlsplit(url)
+    if (parsed.scheme != "https" or parsed.username or parsed.password
+            or parsed.fragment or parsed.port is not None):
+        raise ValueError("Unapproved metadata source URL")
+    endpoint = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc,
+                                      parsed.path, "", ""))
+    if endpoint not in _SOURCE_ENDPOINTS:
+        raise ValueError("Unapproved metadata source URL")
+    # The parsed URL's identity is validated before urllib can perform DNS.
+    # Query values select only the approved fixed API, never another host.
+    if len(parsed.query) > 2500:
+        raise ValueError("Unbounded metadata query")
+    return url
+
 def read_json(url, opener=OPENER, size=500000, pause=time.sleep):
+    url = approved_metadata_api(url)
     req = urllib.request.Request(url,headers={"User-Agent":AGENT,"Api-User-Agent":AGENT,
                                               "Accept":"application/json"})
     # Retry the SAME permitted Openverse/Commons GET only on transport timeouts
