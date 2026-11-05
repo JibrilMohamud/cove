@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { withSoundsCloudflare429Retry } from "./cf-api-429-retry.mjs";
 import {
   publishCoveSounds,
   withTransientD1PublicationRetry,
@@ -18,15 +19,21 @@ const namespace = "544267f3cf604c1d8976f1b06d258e24";
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "cove-sounds-seed-"));
 let completed = 0;
 const api = async (resource, options = {}) => {
-  const r = await fetch("https://api.cloudflare.com/client/v4/" + resource, {
-    ...options,
-    headers: {
-      Authorization: "Bearer " + token,
-      "content-type": "application/json",
-      ...(options.headers || {}),
+  const r = await withSoundsCloudflare429Retry(
+    () => fetch("https://api.cloudflare.com/client/v4/" + resource, {
+      ...options,
+      headers: {
+        Authorization: "Bearer " + token,
+        "content-type": "application/json",
+        ...(options.headers || {}),
+      },
+      signal: AbortSignal.timeout(45_000),
+    }),
+    { resource, method: options.method || "GET",
+      onRetry: ({ retry, delayMs }) =>
+        console.warn(JSON.stringify({ event: "sounds_publication_cloudflare_429", retry, delayMs })),
     },
-    signal: AbortSignal.timeout(45_000),
-  });
+  );
   if (!r.ok) throw Error("Cloudflare seed API request failed: " + r.status);
   return r;
 };

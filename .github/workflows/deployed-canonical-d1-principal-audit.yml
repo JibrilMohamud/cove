@@ -12,6 +12,7 @@ on:
       - "wrangler.content-literary-handoff.prod-disabled.jsonc"
       - "wrangler.content-literary-prepare.prod-disabled.jsonc"
       - ".github/workflows/deployed-canonical-d1-principal-audit.yml"
+      - ".github/workflows/covereads-secure-ssr-gateway.yml"
   push:
     branches: [main]
   schedule:
@@ -51,6 +52,13 @@ jobs:
 
   live:
     needs: regression
+    # The secure SSR and staging workflows temporarily attach canonical D1 to
+    # authenticated test Workers. Do not audit mid-deploy, and never suppress
+    # evidence if a failed cleanup leaves their privileges behind.
+    concurrency:
+      group: cove-exclusive-real-primary-cold-acceptance
+      queue: max
+      cancel-in-progress: false
     # Secrets must not be shared with pull requests.
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest

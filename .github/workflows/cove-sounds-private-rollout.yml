@@ -7,6 +7,9 @@ on:
     paths:
       - "src/storefront-strangler/sounds-publication.worker.ts"
       - "scripts/check-cove-sounds-snapshot.mjs"
+      - "scripts/staging/seed-cove-sounds-private.mjs"
+      - "scripts/staging/cf-api-429-retry.mjs"
+      - "scripts/staging/cf-api-429-retry.test.mjs"
       - ".github/workflows/cove-sounds-private-rollout.yml"
   workflow_run:
     workflows: [deploy-persistence-backend]
@@ -45,6 +48,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Require private publication and rights authorization unit proofs
         run: |
+          node --test scripts/staging/cf-api-429-retry.test.mjs
           node scripts/check-cove-sounds-discovery.mjs
           node scripts/check-cove-sounds-snapshot.mjs
       - name: Build isolated private publisher
