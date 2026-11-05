@@ -25,6 +25,16 @@ def page():
                                 slots=dict(main=dict(content="{{Information|source=Own work}}")))])
 
 class OpenverseIsolatedDiscovery(unittest.TestCase):
+    def test_report_filename_cannot_escape_artifacts_directory(self):
+        for good in ("openverse-commons-candidates.json","commons-source-smoke.json","daily.1.json"):
+            self.assertEqual(module.safe_report_path(good).name,good)
+        for bad in ("/tmp/private.json","../private.json","a/../b.json",
+                    "report.json/../../secret",".env","hidden.txt","my\\\\secret.json",
+                    "report\\n.json","foo.json?token=secret","a"*150+".json"):
+            with self.subTest(value=bad):
+                with self.assertRaises(ValueError):
+                    module.safe_report_path(bad)
+
     def test_explicit_commons_only_discovery_does_not_contact_optional_index(self):
         contacted=[]
         def source(url,opener=None,size=500000):
