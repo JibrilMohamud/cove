@@ -62,6 +62,13 @@ concurrency:
 
 jobs:
   deploy:
+    # Do not apply production D1 migrations while synthetic cold/100-RPS
+    # acceptance or a live principal audit is using the same primary D1.
+    # Keep the existing workflow-level deployment serialization too.
+    concurrency:
+      group: cove-exclusive-real-primary-cold-acceptance
+      queue: max
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

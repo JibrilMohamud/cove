@@ -25,6 +25,13 @@ concurrency:
   cancel-in-progress: false
 jobs:
   private-sounds-release:
+    # Private source reads and snapshot publication share primary D1 capacity
+    # with release migrations and isolated SSR acceptance. Avoid CI-induced
+    # overload without reducing any strict storefront throughput criteria.
+    concurrency:
+      group: cove-exclusive-real-primary-cold-acceptance
+      queue: max
+      cancel-in-progress: false
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||

@@ -19,6 +19,7 @@ const [
   packageRaw,
   wrangler,
   deployWorkflow,
+  soundsRolloutWorkflow,
   d1MigrationRunner,
   audioDockerfile,
 ] = await Promise.all([
@@ -37,6 +38,7 @@ const [
   read("package.json"),
   read("wrangler.backend.example.toml"),
   read(".github/workflows/deploy-persistence-backend.yml"),
+  read(".github/workflows/cove-sounds-private-rollout.yml"),
   read("scripts/staging/retry-production-d1-migrations.mjs"),
   read("scripts/Dockerfile.vercel"),
 ]);
@@ -201,6 +203,16 @@ assert.doesNotMatch(wrangler, /FORE_BACKEND_TOKEN\s*$/m);
 
 assert.match(deployWorkflow, /cloudflare\/wrangler-action@v4/);
 assert.match(deployWorkflow, /run: node scripts\/staging\/retry-production-d1-migrations\.mjs/);
+assert.match(
+  deployWorkflow,
+  /deploy:\s*\n\s*concurrency:\s*\n\s*group: cove-exclusive-real-primary-cold-acceptance/,
+  "Production D1 migrations must not race real-primary cold SSR acceptance",
+);
+assert.match(
+  soundsRolloutWorkflow,
+  /private-sounds-release:\s*\n\s*concurrency:\s*\n\s*group: cove-exclusive-real-primary-cold-acceptance/,
+  "Snapshot source reads must not race production D1 migration or cold capacity trials",
+);
 assert.match(d1MigrationRunner, /"d1",\s*"migrations",\s*"apply",\s*"DB"/);
 assert.match(d1MigrationRunner, /"--remote",\s*"--config",\s*"wrangler\.backend\.deploy\.toml"/);
 assert.match(d1MigrationRunner, /isD1ResourceThrottle/);
