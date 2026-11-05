@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with: { persist-credentials: false }
       - uses: actions/setup-node@v6
         with: { node-version: "22", cache: npm }
@@ -83,7 +83,7 @@ jobs:
       # Private KV replaces repeated presentation R2 reads, not D1 authority.
       COVE_CAPACITY_PLACEMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.placement || 'primary-pinned' }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with: { persist-credentials: false }
       - uses: actions/setup-node@v6
         with: { node-version: "22", cache: npm }
@@ -109,7 +109,7 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
       CLOUDFLARE_SEND_METRICS: "false"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with: { persist-credentials: false }
       - uses: actions/setup-node@v6
         with: { node-version: "22", cache: npm }
