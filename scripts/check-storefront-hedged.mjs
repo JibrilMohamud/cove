@@ -114,8 +114,11 @@ try {
   assert.ok(phases.some(([phase, kind]) => phase === "alternate" && kind === "ok"));
 
   const productionLoader = fs.readFileSync("src/features/fore/storefront-loader.ts", "utf8");
-  assert.match(productionLoader, /hedgeAfterMs: 325,/,
-    "Production should start one verified-country hedge before the 800ms hard gate.");
+  assert.match(
+    productionLoader,
+    /hedgeAfterMs: 325,/,
+    "Production should start one verified-country hedge before the 800ms hard gate.",
+  );
   // Preserve a normal fast primary without extra rights reads and allow the
   // separately proved backup to win only when the original is slow.
   alternateCalls = 0;
