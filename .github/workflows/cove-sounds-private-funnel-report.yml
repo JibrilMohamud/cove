@@ -1,0 +1,50 @@
+name: cove-sounds-private-funnel-report
+on:
+  pull_request:
+    paths:
+      - "scripts/check-cove-sounds-funnel-report.mjs"
+      - "scripts/staging/report-cove-sounds-funnel.mjs"
+      - "scripts/staging/cove-sounds-funnel-report-lib.mjs"
+      - ".github/workflows/cove-sounds-private-funnel-report.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/check-cove-sounds-funnel-report.mjs"
+      - "scripts/staging/report-cove-sounds-funnel.mjs"
+      - "scripts/staging/cove-sounds-funnel-report-lib.mjs"
+      - ".github/workflows/cove-sounds-private-funnel-report.yml"
+  schedule:
+    - cron: "17 12 * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cove-sounds-funnel-report
+  cancel-in-progress: false
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22" }
+      - run: node scripts/check-cove-sounds-funnel-report.mjs
+  private-aggregate-report:
+    needs: static
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      COVE_SOUNDS_REPORT_DAYS: "7"
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22" }
+      - name: Print private aggregate report, with no personal identifiers
+        run: node scripts/staging/report-cove-sounds-funnel.mjs
