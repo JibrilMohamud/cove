@@ -1,4 +1,5 @@
 /* eslint-disable prettier/prettier -- Audited private delivery-owner facades retain source lineage. */
+import { dispatchPrivateEntitlementDevice } from "../../storefront-strangler/publication-owner-routing.server";
 import { dispatchNegativeDeliveryOwner } from "../../storefront-strangler/publication-owner-routing.server";
 import JSZip from "jszip";
 import { z } from "zod/v3";
@@ -304,45 +305,13 @@ async function assertDevice(
     .bind(deviceId, userId)
     .first<any>();
   if (!d) throw new ApiError(403, "This device is not registered or has been revoked.");
-  const existing = await db
-      .prepare(
-        "SELECT 1 ok FROM commercial_entitlement_devices WHERE entitlement_id=? AND device_id=?",
-      )
-      .bind(entitlementId, deviceId)
-      .first<any>(),
-    at = now();
-  if (existing) {
-    await db
-      .prepare(
-        "UPDATE commercial_entitlement_devices SET last_used_at=? WHERE entitlement_id=? AND device_id=?",
-      )
-      .bind(at, entitlementId, deviceId)
-      .run();
-    return d;
-  }
-  const count = Number(
-    (
-      await db
-        .prepare(
-          `SELECT COUNT(*) c FROM commercial_entitlement_devices ced JOIN devices d ON d.id=ced.device_id WHERE ced.entitlement_id=? AND d.user_id=? AND d.revoked_at IS NULL`,
-        )
-        .bind(entitlementId, userId)
-        .first<any>()
-    )?.c || 0,
-  );
-  if (count >= Number(policy.max_active_devices || 6))
-    throw new ApiError(
-      403,
-      "This entitlement has reached the publisher's active-device limit. Revoke an old device before adding another.",
-    );
-  await db
-    .prepare(
-      "INSERT INTO commercial_entitlement_devices(entitlement_id,product_id,device_id,activated_at,last_used_at) VALUES(?,?,?,?,?)",
-    )
-    .bind(entitlementId, productId, deviceId, at, at)
-    .run();
+  await dispatchPrivateEntitlementDevice(db, {
+    userId, entitlementId, productId, deviceId,
+    maxActiveDevices: Math.max(1, Math.min(100, Math.trunc(Number(policy.max_active_devices || 6)))),
+  });
   return d;
 }
+
 async function audit(
   db: DB,
   x: {

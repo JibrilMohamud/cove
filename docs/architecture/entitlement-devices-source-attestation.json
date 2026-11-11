@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "retirementEvidence": "docs/architecture/retired-entitlement-devices-owner-lineage.json",
+  "rationale": "Two shared entitlement-device mutation sites are moved to a bounded QA-only private legal owner. The owner independently verifies the buyer's active exact product entitlement, current nonrevoked registered device, publisher maximum active devices and the stricter caller policy. It conditionally writes last-use activity or creates a new entitlement-device association without granting an entitlement or licensed download. Seven remaining delivery SQL candidates have unchanged literal text, table, operation, containing function and disposition; new full-source SHA and site identities are independently re-attested. All production release approvals remain denied.",
+  "files": [
+    {
+      "path": "src/features/fore/delivery.server.ts",
+      "sha256": "8a48bd2bacf3cc4ed41b04416de8f076e7b341ac2b0214e5e4f0069e9a672e04",
+      "review": "Both direct entitlement-device update and insert SQL sites retired into typed private QA owner with independent canonical scope checks; seven remaining protected delivery SQL sites source-fingerprinted."
+    }
+  ]
+}
