@@ -354,3 +354,4 @@ try {
 
 // Preserve exact ordered literary candidates after all rights and revocation filters.
 await import("./check-literary-genre-rights-query.mjs");
+await import("./check-literary-feature-rights-query.mjs");
