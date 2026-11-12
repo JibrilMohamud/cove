@@ -145,6 +145,34 @@ try {
   );
   assert.equal(denied, null);
   assert.equal(alternateCalls, 0, "Explicit 403 must never fall back to a different edition");
+  // Public diagnostics only carry bounded status categories. Real denial
+  // remains terminal and cannot be upgraded to a rights-bearing alternate.
+  for (const [status, kind, mayHedge] of [
+    [401, "denied", false],
+    [403, "denied", false],
+    [429, "throttled", true],
+    [503, "upstream_error", true],
+  ]) {
+    alternateCalls = 0;
+    const seen = [];
+    const value = await hedgedStorefrontBootstrap(
+      source,
+      async () => new Response(null, { status }),
+      async () => {
+        alternateCalls++;
+        return verified();
+      },
+      {
+        hedgeAfterMs: 40,
+        timeoutMs: 200,
+        onHttpFailure: (phase, category) => seen.push([phase, category]),
+      },
+    );
+    assert.deepEqual(seen, [["primary", kind]]);
+    assert.equal(alternateCalls, mayHedge ? 1 : 0);
+    assert.equal(Boolean(value), mayHedge);
+  }
+
   alternateCalls = 0;
   const denialWithBadCleanup = await hedgedStorefrontBootstrap(
     source,

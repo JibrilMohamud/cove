@@ -117,10 +117,14 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
     const started = performance.now();
     const phase: {
       primaryFailureMs: number | null;
+      primaryFailureKind: "denied" | "invalid" | "unavailable" | "timeout" | null;
+      primaryHttpFailure: "denied" | "throttled" | "upstream_error" | "other" | null;
       alternateMs: number | null;
       alternateSucceeded: boolean;
     } = {
       primaryFailureMs: null,
+      primaryFailureKind: null,
+      primaryHttpFailure: null,
       alternateMs: null,
       alternateSucceeded: false,
     };
@@ -148,9 +152,16 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
         // names from a territory-validated result reach Server-Timing.
         backendTimings.splice(0, backendTimings.length, ...values);
       },
+      onHttpFailure: (channel, category) => {
+        // Pure allowlisted categories; no upstream status text, body, headers or identity.
+        if (channel === "primary") phase.primaryHttpFailure = category;
+      },
       onPhase: (channel, outcome, durationMs) => {
         // Aggregate timings/status ONLY: no locale, location, cookies, book data or IP.
-        if (channel === "primary" && outcome !== "ok") phase.primaryFailureMs = durationMs;
+        if (channel === "primary" && outcome !== "ok") {
+          phase.primaryFailureMs = durationMs;
+          phase.primaryFailureKind = outcome;
+        }
         if (channel === "alternate") {
           phase.alternateMs = durationMs;
           phase.alternateSucceeded = outcome === "ok";
@@ -159,8 +170,15 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
     });
     const timing = [`cove_ssr_bootstrap;dur=${(performance.now() - started).toFixed(1)}`];
     if (localRightsAuthority) timing.push("cove_ssr_local_rights;dur=0");
-    if (phase.primaryFailureMs !== null)
+    if (phase.primaryFailureMs !== null) {
       timing.push(`cove_ssr_primary_failure;dur=${phase.primaryFailureMs.toFixed(1)}`);
+      // Keep public diagnostics category-only; never carry upstream URLs, bodies,
+      // tokens or country into Server-Timing.
+      const reason =
+        phase.primaryHttpFailure ||
+        (phase.primaryFailureKind === "timeout" ? "timeout" : "transport_or_invalid");
+      timing.push(`cove_ssr_primary_${reason};dur=0`);
+    }
     if (phase.alternateMs !== null) {
       timing.push(`cove_ssr_split;dur=${phase.alternateMs.toFixed(1)}`);
       if (phase.alternateSucceeded) timing.push("cove_ssr_split_success;dur=0");
