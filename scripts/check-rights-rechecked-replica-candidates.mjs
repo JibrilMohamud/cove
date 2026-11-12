@@ -9,7 +9,12 @@ const { rightsRecheckedReplicaCandidates } = await import(
   "data:text/javascript;base64," + Buffer.from(code).toString("base64")
 );
 
-const replica = { results: [{ product_id: "prd_a", score: 9 }, { product_id: "prd_b", score: 3 }] };
+const replica = {
+  results: [
+    { product_id: "prd_a", score: 9 },
+    { product_id: "prd_b", score: 3 },
+  ],
+};
 const primary = { results: [{ product_id: "prd_b", score: 20 }] };
 const calls = [];
 const setup = (overrides = {}) => ({
@@ -50,11 +55,7 @@ assert.equal(
   ),
   primary,
 );
-assert.deepEqual(calls, [
-  "replica-rank",
-  "primary-rights:prd_a,prd_b",
-  "primary-rank",
-]);
+assert.deepEqual(calls, ["replica-rank", "primary-rights:prd_a,prd_b", "primary-rank"]);
 
 for (const results of [
   [],
@@ -65,7 +66,12 @@ for (const results of [
 ]) {
   calls.length = 0;
   const result = await rightsRecheckedReplicaCandidates(
-    setup({ async selectReplica() { calls.push("replica-rank"); return { results }; } }),
+    setup({
+      async selectReplica() {
+        calls.push("replica-rank");
+        return { results };
+      },
+    }),
   );
   assert.equal(result, primary);
   assert.deepEqual(calls, ["replica-rank", "primary-rank"]);
@@ -110,4 +116,6 @@ assert.match(search, /const scoped = rightsScopedCachedPageQuery\(part, ids\)/);
 assert.match(search, /await env\.DB\.prepare\(scoped\.sql\)/);
 assert.match(search, /selectPrimary: \(\) => execute\(env\.DB\)/);
 assert.match(search, /searchD1\(env, searchInputForBackend, userId\)/);
-console.log("PASS: replica candidate pages are presentation-only; current primary rights are mandatory; stale, empty, invalid and failed snapshots never authorize books");
+console.log(
+  "PASS: replica candidate pages are presentation-only; current primary rights are mandatory; stale, empty, invalid and failed snapshots never authorize books",
+);
