@@ -12,6 +12,10 @@ on:
       - "src/lib/catalog-ingestion-backpressure.ts"
       - "scripts/check-catalog-ingestion-backpressure.mjs"
       - "src/features/fore/**"
+      # Store.tsx changes only the browser/SSR presentation. Its source is
+      # absent from the persistence Worker's backend bundle: do not redeploy
+      # and rerun primary D1 migrations for this optional UI enhancement.
+      - "!src/features/fore/Store.tsx"
       # Vercel-only gateway proxy changes never require D1 migrations or a
       # persistence Worker redeployment. Backend changes are listed above.
       - "src/storefront-strangler/backend-owner-attestation-entrypoint.ts"

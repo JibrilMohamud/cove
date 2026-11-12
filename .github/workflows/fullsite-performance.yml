@@ -9,6 +9,8 @@ on:
         "scripts/wait-persistence-backend-production*.mjs",
         ".github/workflows/fullsite-performance.yml",
         "src/features/fore/App.tsx",
+        "src/features/fore/Store.tsx",
+        "scripts/check-secondary-home-discovery-admission.mjs",
         "src/features/fore/Audio.tsx",
         "src/features/fore/service-worker.ts",
         "src/features/fore/Book.tsx",
@@ -19,7 +21,11 @@ on:
         "drizzle/*.sql",
       ]
   pull_request:
-    paths: ["scripts/performance/**", ".github/workflows/fullsite-performance.yml"]
+    paths:
+      - "scripts/performance/**"
+      - "src/features/fore/Store.tsx"
+      - "scripts/check-secondary-home-discovery-admission.mjs"
+      - ".github/workflows/fullsite-performance.yml"
   workflow_dispatch:
 permissions:
   contents: read
@@ -37,6 +43,7 @@ jobs:
       - uses: actions/setup-node@v6
         with: { node-version: 22, cache: npm }
       - run: npm ci
+      - run: node scripts/check-secondary-home-discovery-admission.mjs
       - run: node --test scripts/wait-live-storefront-catalog.test.mjs scripts/wait-persistence-backend-production.test.mjs
       - run: npx playwright install --with-deps chromium
       - name: Wait for this production deployment
