@@ -73,89 +73,12 @@ function cleanup() {
       }
     }
     for (const name of names) {
-      // These are the only script identities this immutable run created.
-      // Never delete a customer Worker, unrelated run, or production script.
-      if (!new RegExp(`^cove-arch-${runId}-[1-3]// Protected synthetic-only ABBA campaign. All failures and arrivals are retained.
-import assert from "node:assert/strict";
-import fs from "node:fs";
-import { randomBytes } from "node:crypto";
-import { monitorEventLoopDelay } from "node:perf_hooks";
-import { spawnSync } from "node:child_process";
-import { produceHomepagePresentation } from "../../.output/strangler/presentation.mjs";
-import {
-  closeStageTransport,
-  setStageTransportOrigin,
-  stageFetch,
-  stageTransport,
-  stageTransportSpan,
-  stageTransportCounters,
-} from "../staging/strangler-http-transport.mjs";
-import { projectedRequestFailure, strictProjectionPhasePass } from "./capacity-release-gate.mjs";
-
-const account = "d26430caa63ec55f6612e32f36aca5e9";
-const primary = "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
-const discovery = "cc842ee5-c526-431e-96ee-5e093fb45e6d";
-const content = "7a26c27d-966c-468a-a3ad-d06cfff68010";
-const production = "4bd657ac-8789-403e-a28c-93aba8d0a989";
-const bucket = "cove-strangler-private-presentation-stage";
-// Same private QA-only namespace as the real-catalog presentation accelerator.
-// Every key is isolated by the unique GitHub run ID and expires after 30 min.
-const presentationKv = "8245d5f2116a445d9571405b41b7c8c3";
-const token = process.env.CLOUDFLARE_API_TOKEN;
-const runId = process.env.GITHUB_RUN_ID;
-assert.ok(token && /^\d+$/.test(runId));
-assert.equal(new Set([primary, discovery, content, production]).size, 4);
-const directory = "artifacts/isolated-data-plane";
-// Only an explicit diagnostic rerun collects all phases after an irreversible
-// projected arrival failure. Neither mode may reclassify a failure as a pass.
-const failFast = process.env.COVE_CAPACITY_FAIL_FAST !== "0";
-// Compare pinned-primary execution with ingress-local execution on the SAME
-// isolated DB, offered load and strict absolute gates. Never alter production.
-const stagePlacement = process.env.COVE_CAPACITY_PLACEMENT || "primary-pinned";
-assert.ok(["primary-pinned", "ingress-local"].includes(stagePlacement));
-fs.mkdirSync(directory, { recursive: true });
-const evidence = {
-  sha: process.env.GITHUB_SHA,
-  primary,
-  discovery,
-  content,
-  productionRouted: false,
-  cold: [],
-  bursts: [],
-  controls: [],
-  phases: [],
-  pass: false,
-  transport: stageTransport,
-  failFastEnabled: failFast,
-  stagePlacement,
-  presentationAccelerator: "private-stage-kv-with-r2-fallback",
-};
-const save = () => fs.writeFileSync(directory + "/results.json", JSON.stringify(evidence, null, 2));
-const names = [];
-const kvKeys = [];
-let origin, gate;
-evidence.workers = names;
-let shutdown;
-function cleanup() {
-  return (shutdown ||= (async () => {
-    closeStageTransport();
-    for (const key of kvKeys) {
-      try {
-        await api(
-          "DELETE",
-          `/accounts/${account}/storage/kv/namespaces/${presentationKv}/values/${encodeURIComponent(key)}`,
-        );
-      } catch {
-        evidence.cleanupFailed = true;
-      }
-    }
-).test(name)) {
+      // Delete ONLY scripts created by this immutable run.
+      if (!new RegExp(`^cove-arch-${runId}-[1-3]$`).test(name)) {
         evidence.cleanupFailed = true;
         continue;
       }
       try {
-        // Workers Scripts is the canonical deletion endpoint. The old
-        // /workers/workers path did not clean up these temporary scripts.
         await api("DELETE", `/accounts/${account}/workers/scripts/${name}?force=true`);
       } catch {
         evidence.cleanupFailed = true;
