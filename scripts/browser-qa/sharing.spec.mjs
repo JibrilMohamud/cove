@@ -96,6 +96,10 @@ test("guest navigation stays private and fits the device", async ({ page }, test
   await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
   await noOverflow(page);
   await page.goto("/community");
+  // Do not navigate away while the lazy Community root is still hydrating.
+  // WebKit can otherwise interrupt a suspended concurrent render and report
+  // a recoverable React root error unrelated to the page being tested.
+  await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
   await expect(page.getByRole("heading", { name: "Community", exact: true })).toBeVisible();
   const publicTabs = page.locator(".community-tabs");
   for (const name of ["Explore", "Readers & clubs"])
@@ -105,6 +109,7 @@ test("guest navigation stays private and fits the device", async ({ page }, test
     await expect(publicTabs.getByRole("link", { name, exact: true })).toHaveCount(0);
   leavingCommunity = true;
   await page.goto("/profile?section=sharing");
+  await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
   await expect(page.getByRole("heading", { name: "Make yourself at home." })).toBeVisible();
   await expect(page.getByText(note)).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("guest-account.png"), fullPage: true });
