@@ -58,11 +58,32 @@ assert.match(batch, /searchSync = \{/);
 assert.match(batch, /skipped: "primary_busy"/);
 assert.match(batch, /\.\.\.\(searchSync \? \{ searchSync \} : \{\}\)/);
 assert.doesNotMatch(batch, /checkPrimaryBeforeBulkWork/);
+// Bounded primary pressure gates may defer ONLY genuinely retryable work.
+const minuteStart = workerSource.indexOf('if (cron === "* * * * *")');
+const minuteEnd = workerSource.indexOf('if (cron === "*/5 * * * *")', minuteStart);
+assert.ok(minuteStart >= 0 && minuteEnd > minuteStart);
+const minute = workerSource.slice(minuteStart, minuteEnd);
+assert.ok(minute.indexOf("const admission = await admitCatalogBatch(") >= 0);
+assert.ok(minute.indexOf("if (!admission.allowed)") > minute.indexOf("const admission ="));
+for (const retryable of [
+  "runStoredAssetTick(env)",
+  "verifyAudioStorage(env)",
+  "runLiteraryProfileTick(env)",
+  "seedMusicProfiles(env)",
+])
+  assert.ok(minute.indexOf(retryable) > minute.indexOf("if (!admission.allowed)"));
+assert.ok(minute.includes("optional_minute_maintenance_deferred"));
+const canonicalStart = workerSource.indexOf('if (cron === "*/5 * * * *")');
+const canonicalEnd = workerSource.indexOf('if (cron === "2-59/5 * * * *")', canonicalStart);
+assert.ok(canonicalStart >= 0 && canonicalEnd > canonicalStart);
+const canonical = workerSource.slice(canonicalStart, canonicalEnd);
+assert.ok(canonical.includes("scheduledCatalog(env)"));
+assert.doesNotMatch(canonical, /admitCatalogBatch\(/);
 assert.equal(
   (workerSource.match(/await admitCatalogBatch\(/g) || []).length,
-  2,
-  "Only derived search-index sync and disabled-by-default operator EPUB repair may probe D1",
+  3,
+  "Only derived search sync, operator-only EPUB repair and deferrable minute work may probe D1",
 );
 console.log(
-  "Derived-search admission: bounded latency, safe rights-stage ordering, retryable deferral PASS",
+  "Derived-search and minute maintenance admission: safe canonical rights ingestion, bounded retryable deferral PASS",
 );

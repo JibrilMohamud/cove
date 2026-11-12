@@ -587,6 +587,26 @@ async function runScheduled(cron: string, env: BackendEnv) {
   }
   try {
     if (cron === "* * * * *") {
+      // This minute tick contains only retryable asset verification, audio
+      // hygiene, music-profile seeding, and literary-profile preparation.
+      // Never pile these nonauthoritative jobs onto a primary D1 read queue
+      // that is already stalled. The five-minute canonical catalog/regional
+      // rights ingestion, legal withdrawals, revocations, and customer paths
+      // below have NO such admission gate and continue independently.
+      const admission = await admitCatalogBatch(
+        env.DB,
+        catalogAdmissionBudget(env.FORE_CATALOG_ADMISSION_MAX_MS),
+      );
+      if (!admission.allowed) {
+        console.warn(
+          JSON.stringify({
+            event: "optional_minute_maintenance_deferred",
+            reason: admission.reason,
+            probeMs: admission.probeMs,
+          }),
+        );
+        return;
+      }
       // EPUB preparation shares the Worker's memory with asset ingestion.
       // Keep these bounded jobs sequential while isolating individual failures.
       // Opt-in externalization only after both dedicated Workers have been
