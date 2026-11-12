@@ -52,7 +52,33 @@ class OpenverseIsolatedDiscovery(unittest.TestCase):
         self.assertEqual(report["candidates"][0]["discoveryProvider"],"commons")
         self.assertEqual(report["candidates"][0]["evidence"]["rightsStatus"],
                          "DISCOVERY_ONLY_NEEDS_RECORDING_VERIFICATION")
-        self.assertEqual(len(contacted),1)
+        self.assertEqual(len(contacted),2)
+        self.assertIn("generator=categorymembers",contacted[0])
+        self.assertIn("prop=info",contacted[0],
+                      "Generator may not embed unbounded original revision text")
+        self.assertIn("titles=",contacted[1],
+                      "Original rights metadata must be fetched independently")
+
+    def test_oversized_individual_commons_original_is_held_without_losing_page_cursor(self):
+        cursor="file|next|123"
+        urls=[]
+        def source(url,opener=None,size=500000):
+            urls.append(url)
+            if "generator=categorymembers" in url:
+                return {"query":{"pages":[{"title":page()["title"],"pageid":98760}]},
+                        "continue":{"gcmcontinue":cursor}}
+            raise ValueError("Unbounded remote API response")
+        with patch.object(module,"read_json",side_effect=source):
+            report=module.commons_category_candidates(
+                categories=1,max_verifications=4,pause=lambda _:None)
+        self.assertEqual(report["verified"],1)
+        self.assertEqual(report["held"],1)
+        self.assertEqual(report["candidates"],[])
+        self.assertEqual(report["holdReasons"]["original_verification_unavailable"],1)
+        self.assertIn(cursor,report["nextCursors"].values())
+        self.assertEqual(len(urls),2)
+        self.assertIn("prop=info",urls[0])
+        self.assertIn("titles=",urls[1])
 
     def test_rechecks_exact_commons_file_instead_of_trusting_openverse_license(self):
         c=module.exact_candidate(result(),page())
