@@ -3,6 +3,7 @@ import { networkCountry, resolveStorefrontContext } from "./localization.server"
 import { projectedAnonymousHomePage, resolveStorefrontPage } from "./taxonomy.server";
 import { firstPaintStorefrontShelf } from "./search.server";
 import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server";
+import { withInFlightAnonymousMarketReads } from "./storefront-inflight-public-metadata";
 import type { CoveEnv } from "./api.server";
 
 /**
@@ -72,7 +73,16 @@ export async function serveLeanAnonymousBootstrap(
   // authoritative market/translation view. A primary binding avoids the
   // cross-replica bootstrap/session path and is testable independently.
   // No cross-request cache or stale legal grants are introduced.
-  const readMetadata = () => rawDb;
+  // Staging experiment only. Join concurrent, identical public presentation
+  // metadata requests for at most 300ms within one Worker isolate. Each
+  // request still performs its own live PRIMARY-D1 legal-rights query.
+  const metadataDb =
+    env.COVE_SSR_STAGING === "1"
+      ? withInFlightAnonymousMarketReads(rawDb, () => {
+          timings.context_joined = 0;
+        })
+      : rawDb;
+  const readMetadata = () => metadataDb;
   const ip = request.headers.get("cf-connecting-ip")!.trim();
   // No cookie/account data is present. This same canonical resolver also
   // drives resolveStorefrontContext's country for anonymous visitors.

@@ -14,6 +14,7 @@ export function sanitizedStorefrontBackendTiming(value: string | null): string[]
   const known = new Set([
     "auth",
     "context",
+    "context_joined",
     "page",
     "catalog",
     "catalog_sql",
