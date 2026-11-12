@@ -22,7 +22,6 @@ export function stagingHomeNeedsUnavailableStatus(
   );
 }
 
-
 /**
  * The protected canary converts an empty, unverified homepage to HTTP 503.
  * Do not lose the safe phase evidence needed to distinguish a D1 7429 overload
@@ -52,7 +51,7 @@ export function sanitizedStagingCatalogFailureTiming(raw: string | null): string
   const evidence = ["cove_ssr_empty;dur=0"];
   const seen = new Set(["cove_ssr_empty"]);
   for (const part of (raw || "").split(",")) {
-    const match = /^([a-z_]+);dur=(\d+(?:\.\d{1,3})?)$/.exec(part.trim());
+    const match = /^([a-z0-9_]+);dur=(\d+(?:\.\d{1,3})?)$/.exec(part.trim());
     if (!match || seen.has(match[1])) continue;
     const [_, name, rawDuration] = match;
     const duration = Number(rawDuration);
