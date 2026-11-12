@@ -71,7 +71,10 @@ test("failed, skipped or mismatched backend releases block performance certifica
   for (const kind of ["failed", "skipped", "mismatched"]) {
     const fetcher = async (url) => {
       if (url.includes("/workflows/")) return ok({ workflow_runs: [run] });
-      if (url.includes("/jobs?")) return ok({ jobs: kind === "skipped" ? [{ ...jobs[0], steps: [] }] : jobs });
+      if (url.includes("/jobs?")) {
+        const matchingJobs = kind === "skipped" ? [{ ...jobs[0], steps: [] }] : jobs;
+        return ok({ jobs: matchingJobs });
+      }
       if (url.endsWith("/actions/runs/100"))
         return ok(
           kind === "failed"
