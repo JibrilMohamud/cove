@@ -186,9 +186,12 @@ def commons_category_candidates(categories=2, max_verifications=16, opener=OPENE
                                 pause=time.sleep, continuations=None):
     """One rate-bounded generator page per Commons category, no scraping.
 
-    The generator supplies the actual Commons revision, imageinfo, license
-    and checksum in the same authoritative API response. No audio bytes
-    are fetched. A Commons CC label is only discovery evidence.
+    The category generator returns only bounded page identities. Fetch
+    each eligible original's authoritative revision, imageinfo, license and
+    checksum separately: 24 embedded wiki revision texts can exceed the
+    remote response cap even when the source is otherwise healthy. An
+    oversized individual record is held, never accepted without evidence.
+    No audio bytes are fetched. A Commons CC label is only discovery evidence.
     """
     if not 0 <= categories <= 3 or not 0 <= max_verifications <= 32:
         raise ValueError("Commons discovery quota exceeded")
@@ -210,9 +213,9 @@ def commons_category_candidates(categories=2, max_verifications=16, opener=OPENE
             "action":"query","format":"json","formatversion":"2","maxlag":"5",
             "generator":"categorymembers","gcmtitle":"Category:"+category,
             "gcmtype":"file","gcmlimit":str(min(24,max_verifications-checked)),
-            "prop":"imageinfo|revisions",
-            "iiprop":"url|sha1|size|mime|extmetadata|metadata",
-            "rvprop":"ids|timestamp|content","rvslots":"main",
+            # Do not embed up to 24 original revision texts in one API
+            # response. The 1.2MB bound must remain a security invariant.
+            "prop":"info",
         }
         cursor=continuations.get(category,"")
         if cursor:
@@ -248,11 +251,21 @@ def commons_category_candidates(categories=2, max_verifications=16, opener=OPENE
             if not commons_title(identity):
                 continue
             checked+=1
-            result=exact_candidate(identity,page,"commons",category,rejection_reasons)
+            try:
+                # Each original is independently corroborated. A Commons
+                # file page that exceeds its separate bounded response limit
+                # is held, not treated as an eligible publication source.
+                original=verified_commons_title(title,opener=opener)
+                result=exact_candidate(identity,original or {},"commons",category,rejection_reasons)
+            except (OSError,ValueError,KeyError,TypeError):
+                rejection_reasons["original_verification_unavailable"]=(
+                    rejection_reasons.get("original_verification_unavailable",0)+1)
+                result=None
             if result:
                 found.append(result)
             else:
                 held+=1
+            pause(.5)
         next_cursors[category]=continuation
         pause(.5)
     return {"candidates":found,"verified":checked,"searches":category_queries,
