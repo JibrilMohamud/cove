@@ -21,9 +21,10 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, Math.max(0, ms
 export function parseOwnedSsrTimings(header) {
   const values = Object.create(null);
   for (const entry of (header || "").split(",")) {
-    const match = /^(cove_(?:ssr|backend)_[a-z0-9_]{2,64}|cove_(?:gateway|entry|render|total));dur=(\d+(?:\.\d{1,3})?)$/.exec(
-      entry.trim(),
-    );
+    const match =
+      /^(cove_(?:ssr|backend)_[a-z0-9_]{2,64}|cove_(?:gateway|entry|render|total));dur=(\d+(?:\.\d{1,3})?)$/.exec(
+        entry.trim(),
+      );
     if (!match || Object.keys(values).length >= 32) continue;
     const duration = Number(match[2]);
     if (!Number.isFinite(duration) || duration < 0 || duration > 12000) continue;
@@ -31,7 +32,6 @@ export function parseOwnedSsrTimings(header) {
   }
   return values;
 }
-
 
 // A failure, missing response or late scheduler arrival is retained and fails
 // the phase. Percentiles never filter down to successful/favorable requests.
