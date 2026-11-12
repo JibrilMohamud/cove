@@ -102,6 +102,9 @@ jobs:
             }
           '
 
+      - name: Verify strict production guest-catalog release probe behavior
+        run: node --test scripts/wait-live-storefront-catalog.test.mjs
+
       - name: Build persistence Worker
         run: npm run build:backend
 
@@ -243,6 +246,18 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
         run: node scripts/prove-production-owner-handshake.mjs
 
+      - name: Require consecutive live catalog responses after backend deployment
+        # Credential/DO handshake alone did not catch the burst of 5xx during
+        # the next production storefront probe. Keep release red until actual
+        # live rights-filtered public catalog reads succeed twice in a row.
+        # No cached or invented book data is accepted.
+        if: ${{ steps.deploy_auth.outputs.enabled == 'true' && (inputs.worker_name == '' || inputs.worker_name == 'cove-persistence-backend') && (inputs.d1_database_id == '' || inputs.d1_database_id == '4bd657ac-8789-403e-a28c-93aba8d0a989') }}
+        env:
+          COVE_PUBLIC_URL: ${{ inputs.public_url || 'https://cove-puce-theta.vercel.app' }}
+          COVE_CATALOG_CONSECUTIVE_SUCCESSES: "2"
+          COVE_CATALOG_READINESS_ATTEMPTS: "8"
+        run: node scripts/wait-live-storefront-catalog.mjs
+
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -267,6 +282,6 @@ jobs:
             else
               echo '- Read the Wrangler deploy output above for the Worker URL and set it as Vercel `FORE_BACKEND_URL`.'
             fi
-            echo '- Vercel keeps `FORE_BACKEND_TOKEN`; Cloudflare validates its SHA-256 fingerprint from D1.'
+            echo '- Vercel keeps `FORE_BACKEND_TOKEN`; Cloudflare checks the matching protected `FORE_BACKEND_TOKEN_SHA256` Worker secret.'
             echo '- Cloudflare keeps the private `FORE_INGESTION_SIGNING_KEY`; Vercel keeps the matching public `FORE_INGESTION_VERIFY_JWK`.'
           } >> "$GITHUB_STEP_SUMMARY"
