@@ -54,10 +54,13 @@ const end = api.indexOf("\nfunction libraryRow(", start);
 assert.ok(start >= 0 && end > start, "Missing production catalog handler");
 const handler = api.slice(start, end);
 assert.ok(
-  handler.indexOf("await searchCatalog(") < handler.indexOf("await optionalCatalogIngestionSummary("),
+  handler.indexOf("await searchCatalog(") <
+    handler.indexOf("await optionalCatalogIngestionSummary("),
   "Never substitute ingestion metadata for canonical authorization",
 );
 assert.ok(handler.includes("results: result.books"), "Preserve original rights-checked books");
 assert.ok(handler.includes("ingestion,"), "Preserve optional ingestion response contract");
 assert.doesNotMatch(handler, /\.prepare\(["']SELECT status,page,last_success_at/);
-console.log("PASS: production catalog avoids optional D1, preserves rights-checked books, and fails open ONLY for nonauthoritative ingestion status");
+console.log(
+  "PASS: production catalog avoids optional D1, preserves rights-checked books, and fails open ONLY for nonauthoritative ingestion status",
+);
