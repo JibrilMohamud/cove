@@ -33,7 +33,15 @@ concurrency:
   cancel-in-progress: false
 jobs:
   protected-real-catalog-acceptance:
-    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+    # Compare the current projected real-D1 preview in this one protected
+    # same-repository recovery PR. No synthetic 100-RPS load hits live D1.
+    if: >-
+      ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+       github.ref == 'refs/heads/main') ||
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       github.event.pull_request.base.ref == 'main' &&
+       github.event.pull_request.head.ref == 'perf/verify-projected-real-primary-20261112')
     runs-on: ubuntu-latest
     # Identical pinned runtime successfully certified all six browsers on
     # 39927023349 and 39931555965. Avoid apt-mirror stalls on Chromium too.
