@@ -34,7 +34,6 @@ import {
   workDetail,
 } from "./discovery.server";
 import { ApiError, rateLimit } from "./service";
-import { isPrimaryD1Overload } from "../../lib/primary-d1-overload";
 import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server";
 import { restoreReadingBackup } from "./reading-restore.server";
 import { issueOfflineEpubLicense, offlineEpubVerificationKey } from "./offline-epub.server";
@@ -6298,6 +6297,10 @@ async function handleCoveRequest(
     return json({ error: "This action was not found." }, 404);
   } catch (e) {
     if (!(e instanceof ApiError) && !(e instanceof z.ZodError)) {
+      // This import must remain below all reviewed SQL sites. Moving a static
+      // import to the file header shifts canonical-writer source attestations
+      // even though the SQL has not changed.
+      const { isPrimaryD1Overload } = await import("../../lib/primary-d1-overload");
       if (isPrimaryD1Overload(e)) {
         // A saturated primary D1 must not receive another error-event INSERT:
         // that write extends the failed request and compounds database load.
