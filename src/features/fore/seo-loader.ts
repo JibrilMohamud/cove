@@ -15,6 +15,8 @@ export type SeoPayload = {
   authorNames?: string[];
   authorUrls?: string[];
   bookIsbn?: string;
+  /** Public, country-scoped first-paint title; never an entitlement proof. */
+  bookTitle?: string;
   jsonLd?: Record<string, SeoJson>[];
 };
 
@@ -259,6 +261,9 @@ export const loadBookSeo = createServerFn({ method: "GET" })
       authorNames: authors,
       authorUrls,
       bookIsbn: b.isbn13 || undefined,
+      // This same title already appears in public SEO metadata and JSON-LD.
+      // Do not pass private detail, entitlements, grants or checkout data.
+      bookTitle: plain(b.title, 120),
       jsonLd: [bookLd, productLd, breadcrumbs],
     };
   });
