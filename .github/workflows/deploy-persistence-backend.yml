@@ -125,6 +125,16 @@ jobs:
           [limits]
           cpu_ms = 300_000
 
+          # Public anonymous first-paint admission only, never customer or
+          # commerce authorization. The independent staging namespace is 731903.
+          [[ratelimits]]
+          name = "COVE_STOREFRONT_READ_LIMITER"
+          namespace_id = "991731904"
+
+          [ratelimits.simple]
+          limit = 180
+          period = 60
+
           [[d1_databases]]
           binding = "DB"
           database_name = "$D1_DATABASE_NAME"
@@ -163,7 +173,7 @@ jobs:
           FORE_AUDIO_MIN_INTERVAL_SECONDS = "86400"
 
           [secrets]
-          required = ["FORE_INGESTION_SIGNING_KEY"]
+          required = ["FORE_INGESTION_SIGNING_KEY", "FORE_BACKEND_TOKEN_SHA256"]
 
           [triggers]
           crons = ["* * * * *", "*/5 * * * *", "*/10 * * * *", "23 * * * *", "17 3 * * *", "41 4 * * *"]
