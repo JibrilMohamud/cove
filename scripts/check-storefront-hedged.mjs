@@ -296,6 +296,44 @@ try {
     ),
     null,
   );
+  // Identify only a proven D1 7429, not a guessed slowdown or opaque
+  // exception message; rights still require the independent valid response.
+  let overloadMarkers = 0;
+  const overloaded = await hedgedStorefrontBootstrap(
+    source,
+    async () => {
+      const error = new Error("must never enter response timing");
+      error.code = 7429;
+      throw error;
+    },
+    async () => verified(),
+    {
+      hedgeAfterMs: 10,
+      timeoutMs: 200,
+      onPrimaryD1Overload: () => {
+        overloadMarkers++;
+      },
+    },
+  );
+  assert.ok(overloaded && JSON.parse(overloaded).catalog.results.length === 1);
+  assert.equal(overloadMarkers, 1);
+  const unrelatedFailure = await hedgedStorefrontBootstrap(
+    source,
+    async () => {
+      throw new Error("private unknown transport failure");
+    },
+    async () => verified(),
+    {
+      hedgeAfterMs: 10,
+      timeoutMs: 200,
+      onPrimaryD1Overload: () => {
+        overloadMarkers++;
+      },
+    },
+  );
+  assert.ok(unrelatedFailure);
+  assert.equal(overloadMarkers, 1, "Only verified 7429 may produce the overload marker");
+  assert.match(productionLoader, /cove_ssr_primary_d1_overload;dur=0/);
   console.log("Live-rights hedged SSR, 403, region and provenance regressions passed.");
 } finally {
   fs.rmSync(dir, { recursive: true, force: true });

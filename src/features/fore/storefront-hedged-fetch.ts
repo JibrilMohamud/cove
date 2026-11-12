@@ -1,4 +1,5 @@
 import type { StorefrontBootstrap } from "./storefront-bootstrap";
+import { isPrimaryD1Overload } from "../../lib/primary-d1-overload";
 
 export type HedgedStorefrontPhase = "primary" | "alternate";
 export type HedgedStorefrontOutcome = "ok" | "denied" | "invalid" | "unavailable" | "timeout";
@@ -59,6 +60,8 @@ export async function hedgedStorefrontBootstrap(
     onVerifiedTimings?: (phase: HedgedStorefrontPhase, values: string[]) => void;
     /** Fixed status categories only: never expose backend URLs, responses or secrets. */
     onHttpFailure?: (phase: HedgedStorefrontPhase, category: HedgedStorefrontHttpFailure) => void;
+    /** Only a fixed boolean for a proven Cloudflare 7429, never exception data. */
+    onPrimaryD1Overload?: () => void;
     onDeadline?: (state: {
       countryAsserted: boolean;
       primaryCompleted: boolean;
@@ -159,7 +162,10 @@ export async function hedgedStorefrontBootstrap(
         sanitizedStorefrontBackendTiming(response.headers.get("server-timing")),
       );
       return { phase, kind: "ok", value: JSON.stringify(value) };
-    } catch {
+    } catch (error) {
+      if (phase === "primary" && isPrimaryD1Overload(error)) {
+        options.onPrimaryD1Overload?.();
+      }
       outcome = signal.aborted ? "timeout" : "unavailable";
       return { phase, kind: "unavailable" };
     } finally {

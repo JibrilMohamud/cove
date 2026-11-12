@@ -119,12 +119,14 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
       primaryFailureMs: number | null;
       primaryFailureKind: "denied" | "invalid" | "unavailable" | "timeout" | null;
       primaryHttpFailure: "denied" | "throttled" | "upstream_error" | "other" | null;
+      primaryD1Overloaded: boolean;
       alternateMs: number | null;
       alternateSucceeded: boolean;
     } = {
       primaryFailureMs: null,
       primaryFailureKind: null,
       primaryHttpFailure: null,
+      primaryD1Overloaded: false,
       alternateMs: null,
       alternateSucceeded: false,
     };
@@ -156,6 +158,9 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
         // Pure allowlisted categories; no upstream status text, body, headers or identity.
         if (channel === "primary") phase.primaryHttpFailure = category;
       },
+      onPrimaryD1Overload: () => {
+        phase.primaryD1Overloaded = true;
+      },
       onPhase: (channel, outcome, durationMs) => {
         // Aggregate timings/status ONLY: no locale, location, cookies, book data or IP.
         if (channel === "primary" && outcome !== "ok") {
@@ -170,6 +175,8 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
     });
     const timing = [`cove_ssr_bootstrap;dur=${(performance.now() - started).toFixed(1)}`];
     if (localRightsAuthority) timing.push("cove_ssr_local_rights;dur=0");
+    // Proven D1 service code only, never exception text, SQL or user context.
+    if (phase.primaryD1Overloaded) timing.push("cove_ssr_primary_d1_overload;dur=0");
     if (phase.primaryFailureMs !== null) {
       timing.push(`cove_ssr_primary_failure;dur=${phase.primaryFailureMs.toFixed(1)}`);
       // Keep public diagnostics category-only; never carry upstream URLs, bodies,
