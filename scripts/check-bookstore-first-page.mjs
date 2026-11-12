@@ -56,9 +56,11 @@ try {
   assert.match(store, /landingPath === "\/store"/);
   assert.match(store, /setTimeout\(\(\) => setCatalogFallbackReady\(true\), 800\)/);
   assert.match(store, /sort === "popular"/);
+  const optionalReadChecks = store.match(
+    /enabled: home && homeDiscoveryReady && !!visitor && books\.length > 0/g,
+  );
   assert.equal(
-    (store.match(/enabled: home && homeDiscoveryReady && !!visitor && books\.length > 0/g) || [])
-      .length,
+    optionalReadChecks?.length,
     2,
     "Optional merchandising and recommendations must wait until books have painted.",
   );
