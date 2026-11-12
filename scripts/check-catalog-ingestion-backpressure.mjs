@@ -122,7 +122,10 @@ for (const configPath of [
 }
 // Production cron-only and backend code pushes must never silently re-run
 // primary D1 migrations. Schema migration remains an explicit dispatch.
-const migrationWorkflow = fs.readFileSync(".github/workflows/deploy-persistence-backend.yml", "utf8");
+const migrationWorkflow = fs.readFileSync(
+  ".github/workflows/deploy-persistence-backend.yml",
+  "utf8",
+);
 const migrationGuard = migrationWorkflow.slice(
   migrationWorkflow.indexOf("- name: Apply pending D1 migrations"),
   migrationWorkflow.indexOf("- name: Verify exact disabled production owner"),
