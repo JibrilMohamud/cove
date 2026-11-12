@@ -33,6 +33,7 @@ export function sanitizedStagingCatalogFailureTiming(raw: string | null): string
     "cove_ssr_primary_d1_overload",
     "cove_ssr_primary_denied",
     "cove_ssr_primary_throttled",
+    "cove_ssr_primary_limiter_unavailable",
     "cove_ssr_primary_upstream_error",
     "cove_ssr_primary_timeout",
     "cove_ssr_primary_transport_or_invalid",
