@@ -4,6 +4,7 @@ import {randomBytes} from "node:crypto";
 import {mkdirSync,writeFileSync} from "node:fs";
 import {verifyProductionOwnerBinding,PRODUCTION_OWNER_SCRIPT} from "./check-production-owner-binding.mjs";
 import {requireWorkerCredentialDenial} from "./staging/strict-credential-denial.mjs";
+import {requirePrivateVerifierNotFound} from "./staging/strict-ephemeral-route-denial.mjs";
 
 const account=process.env.CLOUDFLARE_ACCOUNT_ID;
 const token=process.env.CLOUDFLARE_API_TOKEN;
@@ -68,8 +69,8 @@ try {
   evidence.receipt=await response.json();
   assert.deepEqual(evidence.receipt,{attested:true,ownerEnabled:false,authorizing:false});
   await requireWorkerCredentialDenial(()=>probe("forged"));
-  assert.equal((await probe(gate,"GET")).status,404);
-  assert.equal((await probe(gate,"POST","/commercial/publish-verified")).status,404);
+  await requirePrivateVerifierNotFound(()=>probe(gate,"GET"));
+  await requirePrivateVerifierNotFound(()=>probe(gate,"POST","/commercial/publish-verified"));
   // The existing production HTTP ingress must not expose the RPC method.
   const publicAttempt=await fetch("https://api.covereads.com/__cove/legal-owner/attest-disabled",{
     method:"POST",headers:{"content-type":"application/json"},body:"{}",signal:AbortSignal.timeout(15_000)});
