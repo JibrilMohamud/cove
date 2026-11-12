@@ -53,12 +53,7 @@ assert.match(hedged, /if \(admission\) options\.onPrimaryAdmissionFailure\?\.\(a
 assert.match(hedged, /if \(isPrimaryD1Overload\(error\)\) options\.onPrimaryD1Overload\?\.\(\)/);
 const loader = fs.readFileSync("src/features/fore/storefront-loader.ts", "utf8");
 assert.match(loader, /phase\.primaryAdmissionFailure = kind/);
-assert.match(
-  loader,
-  /phase\.primaryAdmissionFailure \|\|\s*phase\.primaryHttpFailure/,
-);
+assert.match(loader, /phase\.primaryAdmissionFailure \|\|\s*phase\.primaryHttpFailure/);
 assert.match(loader, /cove_ssr_primary_\$\{reason\};dur=0/);
 // No retry, quota, authority, API handler, database or entitlement changes.
-console.log(
-  "Protected SSR classifies only exact thrown edge quota/outage vs D1 7429: PASS",
-);
+console.log("Protected SSR classifies only exact thrown edge quota/outage vs D1 7429: PASS");
