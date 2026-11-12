@@ -1,6 +1,7 @@
 import { z } from "zod/v3";
 import { ApiError, now } from "./service";
 import { resolvePricingDecision } from "./pricing.server";
+import { isPrimaryD1Overload } from "../../lib/primary-d1-overload";
 
 export type OpsDB = {
   prepare(sql: string): {
@@ -185,6 +186,13 @@ export async function recordErrorEvent(
   error: unknown,
   context: unknown = {},
 ) {
+  // The failing primary database cannot also persist its own overload event.
+  // Avoid recursively extending the D1 7429 queue. A category-only runtime
+  // log remains available without disclosing the exception, SQL or identities.
+  if (isPrimaryD1Overload(error)) {
+    console.error(JSON.stringify({ level: "error", event: "primary_d1_overload" }));
+    return;
+  }
   const e = error instanceof Error ? error : new Error(String(error)),
     route = new URL(request.url).pathname,
     safeMessage = redactDiagnostic(String(e.message || "Unknown error")).slice(0, 1200),
