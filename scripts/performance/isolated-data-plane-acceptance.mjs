@@ -204,6 +204,23 @@ function summary(rows) {
     colos: [...new Set(rows.map((x) => x.colo).filter(Boolean))],
   };
 }
+const allowedStageFailureKinds = new Set([
+  "limiter-unavailable",
+  "presentation-absent",
+  "presentation-invalid",
+  "presentation-binding",
+  "rate-limited",
+  "service-overloaded",
+  "transient-service",
+  "database",
+  "territory-mismatch",
+  "market-projection",
+  "unclassified",
+]);
+const allowedStageSubphases = new Set(["presentation", "context", "catalog", "limit", "unknown"]);
+function stageDiagnostic(header, vocabulary) {
+  return vocabulary.has(header) ? header : null;
+}
 async function sample(model = "projection", path = "/") {
   const started = performance.now();
   try {
@@ -253,6 +270,16 @@ async function sample(model = "projection", path = "/") {
       outsideHandlerMs: handlerMs ? Math.max(0, ms - Number(handlerMs[1])) : null,
       timing: serverTiming,
       failure: r.headers.get("x-cove-stage-failure"),
+      // Only fixed, non-sensitive source-verified categories may enter
+      // artifacts; never persist raw Worker exception text or SQL.
+      failureKind: stageDiagnostic(
+        r.headers.get("x-cove-stage-failure-kind"),
+        allowedStageFailureKinds,
+      ),
+      failureSubphase: stageDiagnostic(
+        r.headers.get("x-cove-stage-failure-subphase"),
+        allowedStageSubphases,
+      ),
       placement: r.headers.get("x-cove-stage-placement"),
     };
   } catch (e) {
