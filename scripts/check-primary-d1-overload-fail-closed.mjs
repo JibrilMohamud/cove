@@ -29,13 +29,15 @@ for (const error of [
   assert.equal(isPrimaryD1Overload(error), false);
 }
 
+const operations = readFileSync("src/features/fore/operations.server.ts", "utf8");
+const overload = operations.indexOf("if (isPrimaryD1Overload(error))");
+const record = operations.indexOf("await db", overload);
+assert.ok(overload >= 0 && record > overload);
+const overloadedPath = operations.slice(overload, record);
+assert.match(overloadedPath, /event: "primary_d1_overload"/);
+assert.match(overloadedPath, /return;/);
+assert.doesNotMatch(overloadedPath, /\.prepare\(|recordErrorEvent\(/);
 const handler = readFileSync("src/features/fore/api.server.ts", "utf8");
-const overload = handler.indexOf("if (isPrimaryD1Overload(e))");
-const other = handler.indexOf("} else {", overload);
-const record = handler.indexOf("await recordErrorEvent(", overload);
-assert.ok(overload >= 0 && other > overload && record > other);
-assert.ok(handler.slice(overload, other).includes("execution?.waitUntil"));
-assert.ok(handler.slice(overload, other).includes("reportExternalError"));
-assert.doesNotMatch(handler.slice(overload, other), /recordErrorEvent\(/);
-assert.match(handler.slice(record), /return json\(/);
+assert.match(handler, /await recordErrorEvent\(env\.DB as any/);
+assert.match(handler, /return json\(/);
 console.log("Cloudflare D1 7429 skips recursive error writes; API still fails closed: PASS");
