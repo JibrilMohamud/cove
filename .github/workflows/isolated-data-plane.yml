@@ -25,6 +25,8 @@ on:
       - "scripts/staging/check-publication-feed-live.mjs"
       - "infra/discovery/**"
       - "scripts/performance/isolated-data-plane-acceptance.mjs"
+      - "scripts/performance/response-completion-diagnostics.mjs"
+      - "scripts/check-capacity-release-gate.mjs"
       - "scripts/performance/capacity-release-gate.mjs"
       - "scripts/check-capacity-release-gate.mjs"
       - "scripts/staging/strangler-http-transport.mjs"
