@@ -8,6 +8,8 @@ on:
       - "scripts/check-covereads-canary-deny.mjs"
       - "scripts/check-staging-auth-gateway.mjs"
       - "scripts/check-covereads-owned-canary-live.mjs"
+      - "scripts/test-staging-empty-catalog-response.mjs"
+      - "src/lib/staging-empty-catalog-response.ts"
       - "scripts/staging/strict-owned-canary-denial*.mjs"
       - "scripts/covereads-owned-canary-domain.mjs"
       - "src/cloudflare/staging-auth-gateway.mjs"
@@ -64,6 +66,8 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Verify strict owned canary edge-denial retry contract
         run: node --test scripts/staging/strict-owned-canary-denial.test.mjs
+      - name: Reject HTTP 200 for staging home without live rights shelf
+        run: node scripts/test-staging-empty-catalog-response.mjs
       - name: Verify gate source and production remains disabled
         run: |
           node scripts/check-cloudflare-production-candidate.mjs
