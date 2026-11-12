@@ -1,67 +1,111 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { transform } from "esbuild";
+import os from "node:os";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { build } from "esbuild";
 
-const source = fs.readFileSync("src/features/fore/anonymous-catalog-rate-limit-policy.ts", "utf8");
-const { code } = await transform(source, { loader: "ts", format: "esm" });
-const { canEdgeLimitAnonymousCatalog: eligible } = await import(
-  "data:text/javascript;base64," + Buffer.from(code).toString("base64")
-);
-const origin = "https://cove-persistence-backend.workers.dev";
-const url = origin + "/api/fore/catalog?search=&sort=popular&page=1&currency=USD";
-const edge = { limit: async () => ({ success: true }) };
-const guest = new Request(url, {
-  headers: { "cf-connecting-ip": "192.0.2.15" },
-});
-assert.equal(eligible(guest, null, "catalog", edge), true);
-assert.equal(eligible(guest, "signed-in", "catalog", edge), false);
-assert.equal(eligible(guest, null, "suggest", edge), false);
-assert.equal(eligible(guest, null, "click", edge), false);
-assert.equal(eligible(guest, null, "catalog", null), false);
-assert.equal(eligible(guest, null, "catalog", {}), false);
-assert.equal(eligible(guest, null, "catalog", { limit: true }), false);
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cove-catalog-admission-"));
+try {
+  const bundle = path.join(dir, "admission.mjs");
+  await build({
+    entryPoints: ["src/features/fore/service.ts"],
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    outfile: bundle,
+    logLevel: "silent",
+  });
+  const { rateLimitGuestCatalog, ApiError } = await import(pathToFileURL(bundle).href);
+  const edgeKey = "search:catalog:ip:192.0.2.33";
+  let writes = 0;
+  let edgeCalls = 0;
+  let edgeResult = { success: true };
+  let edgeFailure = false;
+  let durableCount = 1;
+  const env = {
+    COVE_STOREFRONT_READ_LIMITER: {
+      limit: async ({ key }) => {
+        edgeCalls++;
+        assert.equal(key, edgeKey);
+        if (edgeFailure) throw new Error("private failure must never be returned");
+        return edgeResult;
+      },
+    },
+    DB: {
+      prepare: (sql) => {
+        writes++;
+        assert.match(sql, /^INSERT INTO rate_limits/);
+        return {
+          bind: () => ({
+            first: async () => ({ count: durableCount }),
+          }),
+        };
+      },
+    },
+  };
+  await rateLimitGuestCatalog(env, edgeKey, 180);
+  assert.equal(edgeCalls, 1);
+  assert.equal(writes, 0, "Guest catalog cannot write a rate counter to primary D1");
 
-for (const header of [
-  "authorization",
-  "cookie",
-  "oai-authenticated-user-id",
-  "oai-authenticated-user-email",
-  "x-fore-authenticated-user-id",
-]) {
-  const request = new Request(guest);
-  request.headers.set(header, "placeholder-not-a-real-secret");
-  assert.equal(eligible(request, null, "catalog", edge), false, header);
+  edgeResult = { success: false };
+  await assert.rejects(rateLimitGuestCatalog(env, edgeKey, 180), (error) => {
+    assert.ok(error instanceof ApiError);
+    return error.status === 429;
+  });
+  assert.equal(writes, 0, "Edge quota denial must not initiate D1 work");
+
+  edgeResult = { success: undefined };
+  await assert.rejects(rateLimitGuestCatalog(env, edgeKey, 180), (error) => {
+    assert.ok(error instanceof ApiError);
+    return error.status === 503;
+  });
+  assert.equal(writes, 0, "Unknown edge quota verdict must fail closed");
+
+  edgeFailure = true;
+  await assert.rejects(rateLimitGuestCatalog(env, edgeKey, 180), (error) => {
+    assert.ok(error instanceof ApiError);
+    return error.status === 503 && !error.message.includes("private failure");
+  });
+  edgeFailure = false;
+  edgeResult = { success: true };
+  assert.equal(writes, 0);
+
+  // User-based, unrelated search and a missing edge binding all keep
+  // durable admission and are never granted by an anonymous edge verdict.
+  for (const key of [
+    "search:catalog:user:reader",
+    "search:suggest:ip:192.0.2.33",
+    "search:click:ip:192.0.2.33",
+    "search:catalog:ip:",
+  ]) {
+    const before = writes;
+    await rateLimitGuestCatalog(env, key, 180);
+    assert.equal(writes, before + 1, key);
+  }
+  const noEdge = { ...env, COVE_STOREFRONT_READ_LIMITER: undefined };
+  const before = writes;
+  await rateLimitGuestCatalog(noEdge, edgeKey, 180);
+  assert.equal(writes, before + 1, "Missing edge binding must use D1, not bypass admission");
+  durableCount = 181;
+  await assert.rejects(rateLimitGuestCatalog(noEdge, edgeKey, 180), (error) => {
+    assert.ok(error instanceof ApiError);
+    return error.status === 429;
+  });
+
+  const api = fs.readFileSync("src/features/fore/api.server.ts", "utf8");
+  const start = api.indexOf("export async function rateLimitSearchRequest(");
+  const end = api.indexOf("/** First-paint", start);
+  assert.ok(start > 0 && end > start);
+  assert.match(api.slice(start, end), /if \(actor\) await rateLimitGuestCatalog\(env, `search:\$\{bucket\}:\$\{actor\}`, limit\);/);
+  assert.match(api, /rateLimitSearchRequest\(request, env, searchUserId, "catalog", 180\)/);
+  assert.match(api, /const actor = userId \? `user:\$\{userId\}` : ip \? `ip:\$\{ip\}` : null;/);
+  const deployment = fs.readFileSync("wrangler.backend.production.toml", "utf8");
+  assert.match(deployment, /name = "COVE_STOREFRONT_READ_LIMITER"/);
+  const service = fs.readFileSync("src/features/fore/service.ts", "utf8");
+  assert.match(service, /export async function rateLimitGuestCatalog/);
+  assert.match(service, /key\.startsWith\("search:catalog:ip:"\)/);
+  console.log("Anonymous catalog edge admission and protected D1 fallback: PASS");
+} finally {
+  fs.rmSync(dir, { recursive: true, force: true });
 }
-for (const [path, method] of [
-  ["/api/fore/catalog-extra", "GET"],
-  ["/api/fore/search/suggest", "GET"],
-  ["/api/fore/catalog", "POST"],
-  ["/api/fore/catalog", "DELETE"],
-]) {
-  const request = new Request(origin + path, { method });
-  assert.equal(eligible(request, null, "catalog", edge), false);
-}
-
-// Every successful guest admission actually consumes the bound rate limit.
-// No code path substitutes an unchecked return or silently treats a failed
-// edge invocation as an approved request.
-const api = fs.readFileSync("src/features/fore/api.server.ts", "utf8");
-const index = api.indexOf("export async function rateLimitSearchRequest(");
-const finish = api.indexOf("/** First-paint", index);
-assert.ok(index > 0 && finish > index);
-const admission = api.slice(index, finish);
-assert.match(admission, /canEdgeLimitAnonymousCatalog\(request, userId, bucket, env\.COVE_STOREFRONT_READ_LIMITER\)/);
-assert.match(admission, /await enforceFirstPaintRateLimit\(env, key, limit\);\s*return;/);
-assert.match(admission, /await rateLimit\(env, key, limit\)/);
-assert.match(api, /rateLimitSearchRequest\(request, env, searchUserId, "catalog", 180\)/);
-
-const limiter = fs.readFileSync("src/features/fore/storefront-read-rate-limit.server.ts", "utf8");
-assert.match(limiter, /if \(verdict\?\.success === false\)/);
-assert.match(limiter, /if \(verdict\?\.success !== true\)/);
-assert.match(limiter, /throw new ApiError\(503, "Native storefront read limiter is unavailable\."\)/);
-
-const deployment = fs.readFileSync("wrangler.backend.production.toml", "utf8");
-assert.match(deployment, /name = "COVE_STOREFRONT_READ_LIMITER"/);
-console.log(
-  "Guest catalog uses bounded edge admission only; authenticated, other routes, missing bindings and failures remain protected.",
-);
