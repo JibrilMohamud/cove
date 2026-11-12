@@ -233,11 +233,7 @@ export default {
             },
           })
         : normalized;
-      const secured = applySecurityHeaders(
-        request,
-        cachePublicDocument(request, guarded),
-        foreEnv,
-      );
+      const secured = applySecurityHeaders(request, cachePublicDocument(request, guarded), foreEnv);
       // Server Timing exposes aggregate durations only, never cookies, paths,
       // visitor data, catalog contents or backend credentials. These timings
       // distinguish Vercel cold module loading from backend/SSR render work.
