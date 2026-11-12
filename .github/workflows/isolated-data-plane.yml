@@ -90,7 +90,11 @@ jobs:
       # Pinned primary remains the default after ingress-local SJC worsened
       # network tails; the alternative remains selectable for diagnostics.
       # Private KV replaces repeated presentation R2 reads, not D1 authority.
-      COVE_CAPACITY_PLACEMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.placement || 'primary-pinned' }}
+      # The first protected branch run kept historical primary-pinned compute,
+      # but a 1,442ms TTFB was 1,411ms OUTSIDE a 31ms Worker handler.
+      # Repeat identical immutable synthetic rights work with edge-local
+      # placement for this diagnostic branch only. No gate thresholds change.
+      COVE_CAPACITY_PLACEMENT: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'perf/restore-projected-home-20261112' && 'ingress-local' || github.event_name == 'workflow_dispatch' && inputs.placement || 'primary-pinned' }}
     steps:
       - uses: actions/checkout@v6
         with: { persist-credentials: false }
