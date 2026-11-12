@@ -52,7 +52,6 @@ test("sustained p95/p99 thresholds are strict and do not apply to bursts", () =>
   );
 });
 
-
 test("protected 503 preserves numeric D1 overload and safe catalog failure timing", () => {
   const phases = parseOwnedSsrTimings(
     "cove_ssr_empty;dur=0, cove_ssr_primary_d1_overload;dur=0, " +
@@ -84,10 +83,7 @@ test("arbitrary server timing, descriptions, malformed durations and duplicates 
       "cove_ssr_empty;dur=0, cove_ssr_empty;dur=400, " +
       "cove_ssr_primary_failure;dur=14.2",
   );
-  assert.deepEqual(Object.keys(phases).sort(), [
-    "cove_ssr_empty",
-    "cove_ssr_primary_failure",
-  ]);
+  assert.deepEqual(Object.keys(phases).sort(), ["cove_ssr_empty", "cove_ssr_primary_failure"]);
   assert.equal(phases.cove_ssr_empty, 0);
   assert.equal(phases.cove_ssr_primary_failure, 14.2);
   assert.ok(!JSON.stringify(phases).includes("private"));
