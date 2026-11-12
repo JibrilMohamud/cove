@@ -80,7 +80,15 @@ function coalesceMarketRead<T>(
  * query and fallback uses the same raw D1 binding without any interception.
  * The binding, not request IP/account, scopes the bounded in-flight map.
  */
-export function withInFlightAnonymousMarketReads<T extends { prepare: (sql: string) => any }>(
+type PublicMetadataDatabase = {
+  prepare: (sql: string) => {
+    bind: (...args: unknown[]) => {
+      all: () => Promise<unknown>;
+    };
+  };
+};
+
+export function withInFlightAnonymousMarketReads<T extends object>(
   db: T,
   onJoined?: () => void,
 ): T {
@@ -91,7 +99,7 @@ export function withInFlightAnonymousMarketReads<T extends { prepare: (sql: stri
         return typeof value === "function" ? value.bind(target) : value;
       }
       return (sql: string) => {
-        const statement = target.prepare(sql);
+        const statement = (target as PublicMetadataDatabase).prepare(sql);
         if (!sql.includes("active_market AS MATERIALIZED")) return statement;
         return new Proxy(statement, {
           get(prepared, method) {
