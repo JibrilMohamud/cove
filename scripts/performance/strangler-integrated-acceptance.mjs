@@ -101,6 +101,28 @@ function summarize(results) {
     max: values.length ? Math.max(...values) : null,
   };
 }
+const allowedStageKinds = new Set([
+  "limiter-unavailable",
+  "presentation-absent",
+  "presentation-invalid",
+  "presentation-binding",
+  "rate-limited",
+  "service-overloaded",
+  "transient-service",
+  "database",
+  "territory-mismatch",
+  "market-projection",
+  "unclassified",
+]);
+const allowedStagePhases = new Set(["presentation", "context", "catalog", "limit", "unknown"]);
+function countBy(rows, field) {
+  const result = {};
+  for (const row of rows) {
+    const value = row[field] ?? "unknown";
+    result[value] = (result[value] || 0) + 1;
+  }
+  return result;
+}
 let client = 0;
 async function sample() {
   const start = performance.now();
@@ -114,6 +136,8 @@ async function sample() {
     });
     const ms = performance.now() - start;
     const html = await response.text();
+    const kind = response.headers.get("x-cove-stage-failure-kind");
+    const subphase = response.headers.get("x-cove-stage-failure-subphase");
     const ok =
       response.status === 200 &&
       html.includes('id="thin-discovery-form"') &&
@@ -126,6 +150,8 @@ async function sample() {
       ms,
       status: response.status,
       failure: response.headers.get("x-cove-stage-failure") || null,
+      failureKind: allowedStageKinds.has(kind) ? kind : null,
+      failureSubphase: allowedStagePhases.has(subphase) ? subphase : null,
       observedCountry: /data-rights-country="([^"]+)"/.exec(html)?.[1] || null,
       renderer: response.headers.get("x-cove-renderer"),
     };
@@ -245,6 +271,20 @@ try {
     maxSchedulerLagMs,
     maxOutstanding,
     ...summary,
+    // Fixed-category counts diagnose why an HTTP 200 or error was rejected.
+    // No response bodies, SQL, tokens, IP addresses or book identities.
+    failureStatuses: countBy(
+      results.filter((result) => !result.ok),
+      "status",
+    ),
+    failureKinds: countBy(
+      results.filter((result) => !result.ok),
+      "failureKind",
+    ),
+    failureSubphases: countBy(
+      results.filter((result) => !result.ok),
+      "failureSubphase",
+    ),
   };
   console.log("SUSTAINED_RESULT", JSON.stringify(evidence.sustained));
   save();
