@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { summarizeOwnedPhase } from "./check-owned-ssr-capacity.mjs";
+import { parseOwnedSsrTimings, summarizeOwnedPhase } from "./check-owned-ssr-capacity.mjs";
 const row = (ttfbMs = 100, extra = {}) => ({
   ttfbMs,
   launchDelayMs: 0,
@@ -50,4 +50,45 @@ test("sustained p95/p99 thresholds are strict and do not apply to bursts", () =>
     ).pass,
     true,
   );
+});
+
+
+test("protected 503 preserves numeric D1 overload and safe catalog failure timing", () => {
+  const phases = parseOwnedSsrTimings(
+    "cove_ssr_empty;dur=0, cove_ssr_primary_d1_overload;dur=0, " +
+      "cove_ssr_deadline;dur=0, cove_ssr_primary_failure;dur=163.4, " +
+      "cove_backend_context;dur=290.2, cove_backend_catalog_sql;dur=22.9",
+  );
+  assert.equal(phases.cove_ssr_primary_d1_overload, 0);
+  assert.equal(phases.cove_ssr_primary_failure, 163.4);
+  assert.equal(phases.cove_backend_catalog_sql, 22.9);
+  assert.equal(phases.cove_ssr_empty, 0);
+  assert.equal(phases.cove_ssr_deadline, 0);
+  // A 503 remains invalid even if the protected worker proves D1 overload.
+  const rejected = summarizeOwnedPhase(
+    "100-rps-20s-phase-1",
+    1,
+    [row(120, { valid: false, status: 503, serverTiming: phases })],
+    0,
+    true,
+  );
+  assert.equal(rejected.valid, 0);
+  assert.equal(rejected.pass, false);
+});
+
+test("arbitrary server timing, descriptions, malformed durations and duplicates cannot leak", () => {
+  const phases = parseOwnedSsrTimings(
+    'token;desc="private", user_ip;dur=42, cove_unknown;dur=13, ' +
+      'cove_ssr_primary_d1_overload;dur=0;desc="private", ' +
+      "cove_backend_catalog;dur=13000, cove_backend_context;dur=-2, " +
+      "cove_ssr_empty;dur=0, cove_ssr_empty;dur=400, " +
+      "cove_ssr_primary_failure;dur=14.2",
+  );
+  assert.deepEqual(Object.keys(phases).sort(), [
+    "cove_ssr_empty",
+    "cove_ssr_primary_failure",
+  ]);
+  assert.equal(phases.cove_ssr_empty, 0);
+  assert.equal(phases.cove_ssr_primary_failure, 14.2);
+  assert.ok(!JSON.stringify(phases).includes("private"));
 });
