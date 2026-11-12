@@ -12,6 +12,8 @@ on:
       - "src/lib/catalog-ingestion-backpressure.ts"
       - "scripts/check-catalog-ingestion-backpressure.mjs"
       - "src/features/fore/**"
+      - "scripts/check-isolated-http-metric.mjs"
+      - "scripts/check-production-http-metric-wiring.mjs"
       # Store.tsx changes only the browser/SSR presentation. Its source is
       # absent from the persistence Worker's backend bundle: do not redeploy
       # and rerun primary D1 migrations for this optional UI enhancement.
@@ -110,6 +112,11 @@ jobs:
       - name: Verify strict production guest-catalog release probe behavior
         run: node --test scripts/wait-live-storefront-catalog.test.mjs
 
+      - name: Verify private HTTP metrics isolation before production deployment
+        run: |
+          node scripts/check-isolated-http-metric.mjs
+          node scripts/check-production-http-metric-wiring.mjs
+
       - name: Build persistence Worker
         run: npm run build:backend
 
@@ -123,6 +130,13 @@ jobs:
           PUBLIC_URL: ${{ inputs.public_url || 'https://cove-puce-theta.vercel.app' }}
         run: |
           set -euo pipefail
+          # Only the exact canonical Worker+primary-D1 pair may move
+          # non-identifying SUCCESSFUL public GET metrics off D1. Staging,
+          # clone deployments and arbitrary Worker names remain opted out.
+          ANON_METRICS="0"
+          if [ "$WORKER_NAME" = "cove-persistence-backend" ] && [ "$D1_DATABASE_ID" = "4bd657ac-8789-403e-a28c-93aba8d0a989" ]; then
+            ANON_METRICS="1"
+          fi
           cat > wrangler.backend.deploy.toml <<EOF
           name = "$WORKER_NAME"
           main = "backend-dist/worker.js"
@@ -165,6 +179,12 @@ jobs:
           binding = "SOUNDS_ANALYTICS"
           dataset = "cove_sounds_funnel"
 
+          # Performance aggregates only: method, allowlisted route, status,
+          # numeric duration; no identity, URL query, IP, token or book IDs.
+          [[analytics_engine_datasets]]
+          binding = "OPS_ANALYTICS"
+          dataset = "cove_public_http_ops"
+
           [ai]
           binding = "AI"
 
@@ -172,6 +192,8 @@ jobs:
           FORE_PUBLIC_URL = "$PUBLIC_URL"
           FORE_ENVIRONMENT = "production"
           FORE_AUTH_MODE = "supabase"
+          COVE_PUBLIC_ANON_HTTP_TELEMETRY = "$ANON_METRICS"
+          COVE_OPS_TELEMETRY_MODE = "analytics-engine"
           FORE_DEFAULT_TERRITORY = "US"
           FORE_CATALOG_PAGES_PER_TICK = "5"
           FORE_CATALOG_EPUBS_PER_TICK = "0"

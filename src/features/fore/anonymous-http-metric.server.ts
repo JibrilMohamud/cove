@@ -4,6 +4,8 @@
  */
 export type IsolatedMetricsEnv = {
   COVE_SSR_STAGING?: string;
+  FORE_ENVIRONMENT?: string;
+  COVE_PUBLIC_ANON_HTTP_TELEMETRY?: string;
   COVE_OPS_TELEMETRY_MODE?: string;
   OPS_ANALYTICS?: {
     writeDataPoint(point: { blobs: string[]; doubles: number[]; indexes: string[] }): void;
@@ -21,7 +23,9 @@ const PUBLIC_READ_PATHS = new Set([
 
 /** True means a best-effort, non-PII metric was handled by independent
  * analytics; it MUST NOT cause a synchronous write to primary D1.
- * The sink is opt-in, stage-only, with no PII, query, IP or product IDs.
+ * The sink is opt-in for isolated staging or the exact canonical production
+ * backend, with no PII, query, IP or product IDs. A missing/failed sink does
+ * not redirect eligible performance aggregates back into the D1 hot path.
  */
 export function emitIsolatedAnonymousHttpMetric(
   env: IsolatedMetricsEnv,
@@ -30,8 +34,13 @@ export function emitIsolatedAnonymousHttpMetric(
   actorKind: string,
   durationMs: number,
 ): boolean {
+  // Production must explicitly opt in independently from staging, and may
+  // never send identity-bearing, failed, commercial or rights audit events.
+  const allowedEnvironment =
+    env.COVE_SSR_STAGING === "1" ||
+    (env.FORE_ENVIRONMENT === "production" && env.COVE_PUBLIC_ANON_HTTP_TELEMETRY === "1");
   if (
-    env.COVE_SSR_STAGING !== "1" ||
+    !allowedEnvironment ||
     env.COVE_OPS_TELEMETRY_MODE !== "analytics-engine" ||
     typeof env.OPS_ANALYTICS?.writeDataPoint !== "function" ||
     request.method !== "GET" ||
