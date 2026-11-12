@@ -102,7 +102,10 @@ try {
   const start = api.indexOf("export async function rateLimitSearchRequest(");
   const end = api.indexOf("/** First-paint", start);
   assert.ok(start > 0 && end > start);
-  assert.match(api.slice(start, end), /if \(actor\) await rateLimit\(env, `search:\$\{bucket\}:\$\{actor\}`, limit\);/);
+  assert.match(
+    api.slice(start, end),
+    /if \(actor\) await rateLimit\(env, `search:\$\{bucket\}:\$\{actor\}`, limit\);/,
+  );
   assert.match(api, /rateLimitSearchRequest\(request, env, searchUserId, "catalog", 180\)/);
   assert.match(api, /const actor = userId \? `user:\$\{userId\}` : ip \? `ip:\$\{ip\}` : null;/);
   const deployment = fs.readFileSync("wrangler.backend.production.toml", "utf8");
