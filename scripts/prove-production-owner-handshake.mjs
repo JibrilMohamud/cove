@@ -66,7 +66,17 @@ try {
   assert.equal(response.status,200,"Actual backend-to-production-DO handshake must succeed");
   evidence.receipt=await response.json();
   assert.deepEqual(evidence.receipt,{attested:true,ownerEnabled:false,authorizing:false});
-  assert.equal((await probe("forged")).status,401);
+  // The ephemeral workers.dev route may briefly return an edge 404 even
+  // after the authorized 200. Never accept an edge denial as proof of
+  // credential enforcement: require the named Worker's exact 401.
+  let forged;
+  for(let attempt=0;attempt<8;attempt++) {
+    forged=await probe("forged");
+    if(forged.status===401)break;
+    if(![404,503].includes(forged.status))break;
+    await new Promise(resolve=>setTimeout(resolve,750));
+  }
+  assert.equal(forged.status,401,"A forged credential must receive Worker-issued 401");
   assert.equal((await probe(gate,"GET")).status,404);
   assert.equal((await probe(gate,"POST","/commercial/publish-verified")).status,404);
   // The existing production HTTP ingress must not expose the RPC method.
