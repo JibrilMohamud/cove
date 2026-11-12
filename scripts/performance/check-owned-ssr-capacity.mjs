@@ -12,6 +12,27 @@ const origin = "https://ssr-canary.covereads.com";
 const concurrencyLevels = [1, 4, 8, 16, 32];
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
 
+/**
+ * Server-Timing is emitted by Cove's protected SSR worker, but its name
+ * parser must not discard numeric phase names such as D1 overload (7429).
+ * Only bounded durations from known Cove namespaces enter the run artifact.
+ * Unknown descriptions and response headers never enter the results.
+ */
+export function parseOwnedSsrTimings(header) {
+  const values = Object.create(null);
+  for (const entry of (header || "").split(",")) {
+    const match = /^(cove_(?:ssr|backend)_[a-z0-9_]{2,64}|cove_(?:gateway|entry|render|total));dur=(\d+(?:\.\d{1,3})?)$/.exec(
+      entry.trim(),
+    );
+    if (!match || Object.keys(values).length >= 32) continue;
+    const duration = Number(match[2]);
+    if (!Number.isFinite(duration) || duration < 0 || duration > 12000) continue;
+    if (values[match[1]] === undefined) values[match[1]] = duration;
+  }
+  return values;
+}
+
+
 // A failure, missing response or late scheduler arrival is retained and fails
 // the phase. Percentiles never filter down to successful/favorable requests.
 export function summarizeOwnedPhase(name, offered, rows, dropped = 0, sustained = false) {
@@ -83,10 +104,7 @@ async function main() {
       ttfbMs = performance.now() - scheduledAt;
       status = response.status;
       edgeRay = safeCloudflareRay(response.headers);
-      for (const match of (response.headers.get("server-timing") || "").matchAll(
-        /\b(cove_[a-z_]+);dur=([0-9]+(?:\.[0-9]+)?)/g,
-      ))
-        serverTiming[match[1]] = Number(match[2]);
+      serverTiming = parseOwnedSsrTimings(response.headers.get("server-timing"));
       const html = await response.text();
       const cards = validateHtml(status, response.headers.get("content-type") || "", html);
       assert.ok(cards > 0, "Full native SSR cards required");
