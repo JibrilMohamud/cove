@@ -30,7 +30,7 @@ assert.equal(
   classify({
     "x-cove-persistence": "d1-r2",
     "x-cove-backend-cache": "HIT",
-    "server-timing": "cove_api;dur=2, private_header;desc=\"secret\"",
+    "server-timing": 'cove_api;dur=2, private_header;desc="secret"',
   }),
   "worker-api",
 );
