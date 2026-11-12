@@ -31,4 +31,6 @@ const payload = code.slice(sinkStart, sinkEnd);
 assert.match(payload, /blobs: \["public-api-read", path, "GET"\]/);
 assert.match(payload, /doubles: \[response\.status,/);
 assert.doesNotMatch(payload, /\b(query|productId|email|ipAddress|userId|cookie|request)\b/);
-console.log("PASS: only canonical production anonymous GET success metrics may bypass D1, with independently bound AE and retained error/security logging");
+console.log(
+  "PASS: only canonical production anonymous GET success metrics may bypass D1, with independently bound AE and retained error/security logging",
+);
