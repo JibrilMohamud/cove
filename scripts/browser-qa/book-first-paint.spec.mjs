@@ -3,9 +3,7 @@ import { test, expect } from "@playwright/test";
 // Public book metadata is already fetched for SEO. It should produce
 // meaningful, screen-reader-visible HTML before the second, account-scoped
 // client query loads current rights/commerce detail.
-test("book detail paints publicly authorized title in initial server HTML", async ({
-  page,
-}) => {
+test("book detail paints publicly authorized title in initial server HTML", async ({ page }) => {
   const response = await page.goto("/book/1342", { waitUntil: "domcontentloaded" });
   expect(response?.status()).toBe(200);
   const html = await response.text();
