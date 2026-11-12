@@ -11,6 +11,7 @@ import { writeCatalogCache } from "./catalog-cache.server";
 import { presentationSearchCount } from "./search-counts-cache.server";
 import { replicaEligiblePresentationRead } from "./presentation-replica.server";
 import { rightsScopedCachedPageQuery } from "./rights-scoped-cache-page";
+import { rightsRecheckedReplicaCandidates } from "./rights-rechecked-replica-candidates";
 import { searchOutboxAcknowledgement } from "./search-outbox-ack";
 import { countAvailableCandidatesFromFacet } from "./count-from-availability-facet";
 
@@ -22,6 +23,7 @@ type SearchEnv = {
   FORE_SEARCH_ADMIN_KEY?: string;
   FORE_SEARCH_INDEX?: string;
   FORE_SEARCH_EMBEDDER?: string;
+  FORE_SEARCH_REPLICA_CANDIDATES?: string;
 };
 
 type FacetValue = { value: string; count: number };
@@ -925,7 +927,7 @@ async function typoCorrection(db: CatalogDB, query: string) {
   return changed ? corrected.join(" ") : null;
 }
 
-async function searchD1(env: SearchEnv, input: SearchInput) {
+async function searchD1(env: SearchEnv, input: SearchInput, userId: string | null) {
   const started = Date.now();
   const cacheId = [
     ...new Uint8Array(
@@ -996,9 +998,18 @@ async function searchD1(env: SearchEnv, input: SearchInput) {
   let correctedQuery: string | undefined;
   let expression = await ftsExpression(env.DB, input);
   let part = candidateParts(input, expression);
+  // Search ranking is presentation, not authorization. Opt in only for
+  // anonymous public discovery when a real replica session exists.
+  // Every proposed ID is independently rechecked against CURRENT primary D1.
+  const replicaRanking =
+    !userId &&
+    input.subscription === undefined &&
+    input.library === undefined &&
+    env.FORE_SEARCH_REPLICA_CANDIDATES === "1" &&
+    presentationDb !== env.DB;
   const runIds = async () => {
     const clause = part.where.join(" AND ");
-    const plan = await rankedCandidatePlan(env.DB, input, part);
+    const plan = await rankedCandidatePlan(replicaRanking ? presentationDb : env.DB, input, part);
     const sql = `${plan.prefix} SELECT d.product_id,${part.rank} FROM ${plan.from} WHERE ${clause} ORDER BY ${d1Sort(input, part.hasFts)},d.product_id ASC LIMIT ? OFFSET ?`;
     const orderedBinds = part.hasFts
       ? [
@@ -1015,9 +1026,26 @@ async function searchD1(env: SearchEnv, input: SearchInput) {
           input.limit,
           (input.page - 1) * input.limit,
         ];
-    return env.DB.prepare(sql)
-      .bind(...orderedBinds)
-      .all<any>();
+    const execute = (db: CatalogDB) =>
+      db
+        .prepare(sql)
+        .bind(...orderedBinds)
+        .all<{
+          product_id: string;
+        }>();
+    return rightsRecheckedReplicaCandidates({
+      enabled: replicaRanking,
+      maxPageSize: input.limit,
+      selectPrimary: () => execute(env.DB),
+      selectReplica: () => execute(presentationDb),
+      recheckPrimary: async (ids) => {
+        const scoped = rightsScopedCachedPageQuery(part, ids);
+        const verified = await env.DB.prepare(scoped.sql)
+          .bind(...scoped.binds)
+          .all<{ product_id: string }>();
+        return verified.results.map((row) => row.product_id);
+      },
+    });
   };
   const runCount = async () => {
     const countLive = async () => {
@@ -1780,7 +1808,7 @@ export async function searchCatalog(
     } catch (error) {
       console.warn("Meilisearch query failed; using D1 FTS5 fallback", error);
       backend = "d1";
-      result = await searchD1(env, searchInputForBackend);
+      result = await searchD1(env, searchInputForBackend, userId);
       await env.DB.prepare("UPDATE search_index_state SET last_error=? WHERE id=1")
         .bind(error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500))
         .run()
@@ -1788,7 +1816,7 @@ export async function searchCatalog(
           console.warn("Search fallback diagnostics unavailable", failure),
         );
     }
-  } else result = await searchD1(env, searchInputForBackend);
+  } else result = await searchD1(env, searchInputForBackend, userId);
   const backendName = backend === "meilisearch" ? "meilisearch" : "d1-fts5";
   const personalized =
     input.sort === "relevance" && input.query

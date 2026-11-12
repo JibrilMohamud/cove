@@ -1,0 +1,12 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Byte-exact review of the seven changed source hunks in search.server.ts confirmed no change to the sole existing protected SQL statement: the catalog_search_documents UPDATE remains a non-authorizing ranking-quality projection. Added replica candidate ranking is strictly opt-in and limited to anonymous public searches without subscription or library filters; it requires a fresh primary-D1 check using the original current territorial-rights and availability predicates before returning IDs, and falls back to primary ranking on stale or invalid candidates. Failed primary rights checks propagate errors instead of leaking a replica page. No production variable is enabled; review does not certify legal owner, commercial actions, exclusive writer control or production release.",
+  "files": [
+    {
+      "path": "src/features/fore/search.server.ts",
+      "sha256": "8313d53c7ac724bba744a12269a6bfe9a9762627128fa0bf5e2898848fed9be6",
+      "review": "Reviewed the complete import/config signature, anonymous guard, ranked select, primary rights revalidation and two call-site hunks against main; no legal-rights SQL text, conditions, mutation literals, or owner boundary was altered. The existing ranking-only UPDATE retains the same statement fingerprint, disposition, and productionOwnerGuarded=false."
+    }
+  ]
+}

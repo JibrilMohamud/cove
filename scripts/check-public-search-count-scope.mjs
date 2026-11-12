@@ -13,7 +13,8 @@ assert.match(search, /retail_product_availability_rows/);
 assert.match(search, /const runIds = async/);
 assert.match(search, /const presentationDb = replicaEligiblePresentationRead\(env.DB\)/);
 assert.match(search, /const row = await presentationDb\s+\.prepare\(/);
-assert.match(search, /return env.DB\.prepare\(sql\)/);
+assert.match(search, /selectPrimary: \(\) => execute\(env\.DB\)/);
+assert.match(search, /await env\.DB\.prepare\(scoped\.sql\)/);
 assert.match(search, /canonicalBooksByProductIds\(env.DB, ids\)/);
 // Large facet GROUP BY reads are presentation-only; the cached result is
 // never a right to show, sell, deliver, or grant a product.
