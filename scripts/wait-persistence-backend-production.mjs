@@ -3,13 +3,18 @@ import { pathToFileURL } from "node:url";
 import path from "node:path";
 
 const workflow = "deploy-persistence-backend.yml";
-const requiredSteps = ["Deploy persistence Worker", "Verify production persistence binding after deployment"];
+const requiredSteps = [
+  "Deploy persistence Worker",
+  "Verify production persistence binding after deployment",
+];
 
 export function deployedBackendRun(runs, sha) {
   if (!Array.isArray(runs)) throw new Error("GitHub backend run list is malformed.");
-  return runs
-    .filter((run) => run?.head_sha === sha && run?.event === "push")
-    .sort((a, b) => Number(b.id || 0) - Number(a.id || 0))[0] || null;
+  return (
+    runs
+      .filter((run) => run?.head_sha === sha && run?.event === "push")
+      .sort((a, b) => Number(b.id || 0) - Number(a.id || 0))[0] || null
+  );
 }
 
 export function verifiedBackendDeployment(run, jobs) {
@@ -96,9 +101,11 @@ async function main() {
     sha: process.env.GITHUB_SHA,
     token: process.env.GITHUB_TOKEN,
   });
-  console.log(outcome === "verified"
-    ? "Exact commit's production persistence Worker was deployed and verified."
-    : "Frontend-only push; no persistence backend deployment required.");
+  console.log(
+    outcome === "verified"
+      ? "Exact commit's production persistence Worker was deployed and verified."
+      : "Frontend-only push; no persistence backend deployment required.",
+  );
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href)
