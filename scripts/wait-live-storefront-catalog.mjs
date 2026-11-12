@@ -4,7 +4,14 @@ import path from "node:path";
 import { productionOrigin } from "./check-production-storefront-performance.mjs";
 
 export async function catalogReadinessFailure(response) {
-  if (response.status !== 200) return "http-unavailable";
+  if (response.status !== 200) {
+    // Fixed numeric status vocabulary only. A 429 from anonymous abuse
+    // admission is operationally distinct from a 503 backend/D1 outage.
+    // Neither status is a valid licensed catalog, and neither may pass.
+    return [401, 403, 404, 429, 500, 502, 503, 504, 522].includes(response.status)
+      ? `http-${response.status}`
+      : "http-unavailable";
+  }
   if (!response.headers.get("content-type")?.toLowerCase().includes("application/json"))
     return "non-json-response";
   if (response.headers.get("x-cove-persistence") !== "remote-d1-r2")
