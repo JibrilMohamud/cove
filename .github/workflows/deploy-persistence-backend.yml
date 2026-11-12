@@ -12,7 +12,8 @@ on:
       - "src/lib/catalog-ingestion-backpressure.ts"
       - "scripts/check-catalog-ingestion-backpressure.mjs"
       - "src/features/fore/**"
-      - "src/lib/persistence-backend.ts"
+      # Vercel-only gateway proxy changes never require D1 migrations or a
+      # persistence Worker redeployment. Backend changes are listed above.
       - "src/storefront-strangler/backend-owner-attestation-entrypoint.ts"
       # src/server.ts is the Vercel frontend gateway, not persistence code.
       # Frontend-only releases must not auto-run production D1 migrations.
