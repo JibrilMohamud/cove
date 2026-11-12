@@ -1,5 +1,9 @@
 import { isPublicSeoDocumentPath } from "./public-seo-document-path";
-import { backendFailureSource } from "./persistence-backend-failure";
+import {
+  backendFailureCategory,
+  backendFailurePhase,
+  backendFailureSource,
+} from "./persistence-backend-failure";
 
 type PersistenceEnv = {
   FORE_BACKEND_URL?: string;
@@ -220,6 +224,8 @@ export async function proxyPersistenceApi(
           "Persistent backend unavailable; production catalog fails closed",
           response.status,
           backendFailureSource(response.headers),
+          backendFailurePhase(response.headers),
+          await backendFailureCategory(response),
         );
         await response.body?.cancel();
         return unavailablePersistenceResponse();
