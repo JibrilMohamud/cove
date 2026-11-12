@@ -8,7 +8,7 @@ test("exact authenticated HTML and book cards remain mandatory", () => {
   assert.equal(capacityHtmlFailureKind(200, "text/html; charset=utf-8", good), null);
   assert.equal(validateHtml(200, "text/html", good), 1);
   assert.equal(
-    capacityHtmlFailureKind(200, "text/html", '<html><main>Loading</main></html>'),
+    capacityHtmlFailureKind(200, "text/html", "<html><main>Loading</main></html>"),
     "missing-ssr-book-cards",
   );
   assert.throws(() => validateHtml(200, "text/html", "<html></html>"), /no server-rendered/);
@@ -16,7 +16,10 @@ test("exact authenticated HTML and book cards remain mandatory", () => {
   assert.equal(capacityHtmlFailureKind(429, "text/html", good), "unexpected-http-status");
   assert.equal(capacityHtmlFailureKind(503, "text/html", good), "unexpected-http-status");
   assert.equal(capacityHtmlFailureKind(200, "application/json", good), "unexpected-media-type");
-  assert.equal(capacityHtmlFailureKind(200, "text/html", "x".repeat(4_000_001)), "html-safety-limit");
+  assert.equal(
+    capacityHtmlFailureKind(200, "text/html", "x".repeat(4_000_001)),
+    "html-safety-limit",
+  );
 });
 
 test("classification emits no arbitrary response or credential material", () => {
