@@ -26,6 +26,11 @@ test("View debates navigates to full-page search and discovery filters", async (
   await expect(search).toBeVisible();
   await search.fill("favorite book");
   await expect(search).toHaveValue("favorite book");
+  // On iPhone Safari the software keyboard can consume the first outside tap
+  // merely to dismiss editing. Finish search editing before asserting a
+  // separate discovery-filter tap; do not suppress any failed filter action.
+  await search.evaluate((input) => input.blur());
+  await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
   await expect(page.getByRole("button", { name: "Top", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "Top", exact: true }).click();
   await expect(page.getByRole("button", { name: "Top", exact: true })).toHaveAttribute(
