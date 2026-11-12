@@ -8,6 +8,9 @@ on:
       - "src/persistence-backend.worker.ts"
       - "src/lib/catalog-ingestion-backpressure.ts"
       - "src/lib/primary-d1-overload.ts"
+      - "scripts/check-isolated-http-metric.mjs"
+      - "scripts/check-production-http-metric-wiring.mjs"
+      - ".github/workflows/deploy-persistence-backend.yml"
       - "scripts/check-primary-d1-overload-fail-closed.mjs"
       - "src/lib/catalog-ingestion-idempotency.ts"
       - "scripts/check-catalog-ingestion-idempotency.mjs"
@@ -133,6 +136,10 @@ jobs:
         run: npx eslint src/lib/persistence-backend.ts src/persistence-backend.worker.ts
       - name: Primary D1 overload does not trigger recursive error writes
         run: node scripts/check-primary-d1-overload-fail-closed.mjs
+      - name: Anonymous production metric isolation cannot bypass rights or security audit
+        run: |
+          node scripts/check-isolated-http-metric.mjs
+          node scripts/check-production-http-metric-wiring.mjs
       - name: Persistence architecture
         run: npm run test:persistence-backend
       - name: Soundtrack library rights and delivery regressions
