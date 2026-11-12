@@ -16,4 +16,6 @@ assert.equal(
 );
 assert.match(source, /const result = useQuery<CatalogResponse>\(\{/);
 assert.match(source, /const catalogDisplay = result\.data \?\? fastPreview;/);
-console.log("Nonessential home queries defer until after rights-checked book first paint: PASS");
+const backendWorkflow = readFileSync(".github/workflows/deploy-persistence-backend.yml", "utf8");
+assert.match(backendWorkflow, /- "!src\/features\/fore\/Store\.tsx"/);
+console.log("Optional reads deferred; UI-only Store changes do not redeploy primary D1: PASS");
