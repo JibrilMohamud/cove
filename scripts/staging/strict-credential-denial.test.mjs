@@ -7,7 +7,9 @@ function sequence(statuses) {
   let pauses = 0;
   return {
     probe: async () => ({ status: statuses[Math.min(calls++, statuses.length - 1)] }),
-    pause: async () => { pauses++; },
+    pause: async () => {
+      pauses++;
+    },
     counts: () => ({ calls, pauses }),
   };
 }
