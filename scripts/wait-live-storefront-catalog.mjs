@@ -73,8 +73,7 @@ export async function waitForLiveCatalog({
       last = await catalogReadinessFailure(response);
       if (last === null) {
         verifiedStreak += 1;
-        if (verifiedStreak === consecutiveSuccesses)
-          return { ready: true, attempts: attempt + 1 };
+        if (verifiedStreak === consecutiveSuccesses) return { ready: true, attempts: attempt + 1 };
       } else {
         verifiedStreak = 0;
       }
