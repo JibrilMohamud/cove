@@ -112,6 +112,9 @@ jobs:
       - name: Verify strict production guest-catalog release probe behavior
         run: node --test scripts/wait-live-storefront-catalog.test.mjs
 
+      - name: Strict ephemeral Worker denied-token readiness contract
+        run: node --test scripts/staging/strict-credential-denial.test.mjs
+
       - name: Verify private HTTP metrics isolation before production deployment
         run: |
           node scripts/check-isolated-http-metric.mjs
