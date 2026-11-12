@@ -1333,17 +1333,28 @@ export function StorePage({
   const catalogDisplay = result.data ?? fastPreview;
   const books = catalogDisplay?.results || [];
   const home = ["/", "/store"].includes(landingPath) && !filtered && page === 1;
+  // Merchandising and recommendations are optional enrichment, not the live
+  // legal-rights shelf. Starting both read-heavy requests during hydration
+  // increases primary D1 pressure precisely when the real catalog must paint.
+  // Defer them briefly until a verified first-page shelf is already visible.
+  // Returning to the homepage during this session can reuse loaded query data.
+  const [homeDiscoveryReady, setHomeDiscoveryReady] = useState(false);
+  useEffect(() => {
+    if (!home || books.length === 0 || homeDiscoveryReady) return;
+    const timer = window.setTimeout(() => setHomeDiscoveryReady(true), 1_400);
+    return () => window.clearTimeout(timer);
+  }, [home, books.length, homeDiscoveryReady]);
   const merch = useQuery<MerchResponse>({
     queryKey: ["merchandising", visitor, !!data.user],
     queryFn: () => api(`/merchandising?visitor=${encodeURIComponent(visitor)}`),
-    enabled: home && !!visitor && books.length > 0,
+    enabled: home && homeDiscoveryReady && !!visitor && books.length > 0,
     staleTime: 60_000,
     retry: 1,
   });
   const recommendations = useQuery<RecommendationResponse>({
     queryKey: ["recommendations-home", visitor, data.user?.id || "anonymous"],
     queryFn: () => api(`/recommendations/home?visitor=${encodeURIComponent(visitor)}&limit=12`),
-    enabled: home && !!visitor && books.length > 0,
+    enabled: home && homeDiscoveryReady && !!visitor && books.length > 0,
     staleTime: 5 * 60_000,
     retry: 1,
   });
