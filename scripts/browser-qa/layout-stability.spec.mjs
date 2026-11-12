@@ -2,9 +2,7 @@ import { test, expect } from "@playwright/test";
 
 // Previously the footer started inside the viewport while a short guest
 // shell loaded, then jumped past the fold after book details hydrated.
-test("short guest and book shells keep the footer below the initial viewport", async ({
-  page,
-}) => {
+test("short guest and book shells keep the footer below the initial viewport", async ({ page }) => {
   for (const pathname of ["/library", "/book/1342"]) {
     await page.goto(pathname, { waitUntil: "domcontentloaded" });
 
