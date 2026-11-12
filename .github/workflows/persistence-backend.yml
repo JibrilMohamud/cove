@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "src/lib/persistence-backend.ts"
+      - "src/lib/persistence-backend-failure.ts"
       - "src/persistence-backend.worker.ts"
       - "src/lib/catalog-ingestion-backpressure.ts"
       - "src/lib/catalog-ingestion-idempotency.ts"
@@ -24,6 +25,7 @@ on:
       - "scripts/audio_pipeline/**"
       - "scripts/build-persistence-backend.mjs"
       - "scripts/check-persistence-backend.mjs"
+      - "scripts/check-persistence-backend-failure.mjs"
       - "scripts/check-hosted-biosync-chunks.mjs"
       - "scripts/check-catalog-fetch.mjs"
       - "scripts/check-auth.mjs"
@@ -53,6 +55,7 @@ on:
     branches: [main]
     paths:
       - "src/lib/persistence-backend.ts"
+      - "src/lib/persistence-backend-failure.ts"
       - "src/persistence-backend.worker.ts"
       - "src/lib/catalog-ingestion-backpressure.ts"
       - "src/lib/catalog-ingestion-idempotency.ts"
@@ -72,6 +75,7 @@ on:
       - "scripts/audio_pipeline/**"
       - "scripts/build-persistence-backend.mjs"
       - "scripts/check-persistence-backend.mjs"
+      - "scripts/check-persistence-backend-failure.mjs"
       - "scripts/check-hosted-biosync-chunks.mjs"
       - "scripts/check-catalog-fetch.mjs"
       - "scripts/check-auth.mjs"

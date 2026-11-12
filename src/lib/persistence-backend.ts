@@ -1,4 +1,5 @@
 import { isPublicSeoDocumentPath } from "./public-seo-document-path";
+import { backendFailureSource } from "./persistence-backend-failure";
 
 type PersistenceEnv = {
   FORE_BACKEND_URL?: string;
@@ -27,6 +28,7 @@ function safePublicFallback(request: Request) {
     path === "/api/fore/taxonomy" ||
     path === "/api/fore/storefront/context" ||
     path === "/api/fore/storefront/page" ||
+    path === "/api/fore/storefront/bootstrap" ||
     path === "/api/fore/search/suggest" ||
     path === "/api/fore/audiobooks" ||
     /^\/api\/fore\/books\/[1-9][0-9]{0,8}(?:\/(?:detail|epub|download\/epub))?$/.test(path) ||
@@ -217,6 +219,7 @@ export async function proxyPersistenceApi(
         console.warn(
           "Persistent backend unavailable; production catalog fails closed",
           response.status,
+          backendFailureSource(response.headers),
         );
         await response.body?.cancel();
         return unavailablePersistenceResponse();
@@ -254,7 +257,12 @@ export async function proxyPersistenceApi(
     if (request.signal.aborted) return unavailablePersistenceResponse();
     if (safePublicFallback(request)) {
       if (productionFallbackDenied(env)) {
-        console.warn("Persistent backend request failed; production catalog fails closed");
+        // A bootstrap transport exception is a real upstream error, not a
+        // cancelled losing hedge. Preserve its separate error signal while
+        // the public response remains denied, without logging exception text.
+        if (requestUrl.pathname === "/api/fore/storefront/bootstrap")
+          console.error("Persistent backend request failed; production bootstrap fails closed");
+        else console.warn("Persistent backend request failed; production catalog fails closed");
         return unavailablePersistenceResponse();
       }
       console.warn("Persistent backend request failed; using development fallback", error);

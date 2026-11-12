@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import "./check-persistence-backend-failure.mjs";
 import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL("../" + path, import.meta.url), "utf8");
