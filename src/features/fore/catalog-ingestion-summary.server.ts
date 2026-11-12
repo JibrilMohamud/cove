@@ -34,7 +34,9 @@ export async function optionalCatalogIngestionSummary(
   if (environment === "production") return unavailable();
   try {
     const state = await db
-      .prepare("SELECT status,page,last_success_at,total_catalog_count FROM catalog_state WHERE id=1")
+      .prepare(
+        "SELECT status,page,last_success_at,total_catalog_count FROM catalog_state WHERE id=1",
+      )
       .first<{
         status: string;
         page: number;
