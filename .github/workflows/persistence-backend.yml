@@ -136,6 +136,8 @@ jobs:
         run: npx eslint src/lib/persistence-backend.ts src/persistence-backend.worker.ts
       - name: Primary D1 overload does not trigger recursive error writes
         run: node scripts/check-primary-d1-overload-fail-closed.mjs
+      - name: Separate optional soundtrack ingest from canonical D1 rights work
+        run: node scripts/check-catalog-ingestion-backpressure.mjs
       - name: Anonymous production metric isolation cannot bypass rights or security audit
         run: |
           node scripts/check-isolated-http-metric.mjs
