@@ -123,6 +123,13 @@ jobs:
           PUBLIC_URL: ${{ inputs.public_url || 'https://cove-puce-theta.vercel.app' }}
         run: |
           set -euo pipefail
+          # Only the exact canonical Worker+primary-D1 pair may move
+          # non-identifying SUCCESSFUL public GET metrics off D1. Staging,
+          # clone deployments and arbitrary Worker names remain opted out.
+          ANON_METRICS="0"
+          if [ "$WORKER_NAME" = "cove-persistence-backend" ] && [ "$D1_DATABASE_ID" = "4bd657ac-8789-403e-a28c-93aba8d0a989" ]; then
+            ANON_METRICS="1"
+          fi
           cat > wrangler.backend.deploy.toml <<EOF
           name = "$WORKER_NAME"
           main = "backend-dist/worker.js"
@@ -165,6 +172,12 @@ jobs:
           binding = "SOUNDS_ANALYTICS"
           dataset = "cove_sounds_funnel"
 
+          # Performance aggregates only: method, allowlisted route, status,
+          # numeric duration; no identity, URL query, IP, token or book IDs.
+          [[analytics_engine_datasets]]
+          binding = "OPS_ANALYTICS"
+          dataset = "cove_public_http_ops"
+
           [ai]
           binding = "AI"
 
@@ -172,6 +185,8 @@ jobs:
           FORE_PUBLIC_URL = "$PUBLIC_URL"
           FORE_ENVIRONMENT = "production"
           FORE_AUTH_MODE = "supabase"
+          COVE_PUBLIC_ANON_HTTP_TELEMETRY = "$ANON_METRICS"
+          COVE_OPS_TELEMETRY_MODE = "analytics-engine"
           FORE_DEFAULT_TERRITORY = "US"
           FORE_CATALOG_PAGES_PER_TICK = "5"
           FORE_CATALOG_EPUBS_PER_TICK = "0"
