@@ -20,6 +20,7 @@ on:
 
 permissions:
   contents: read
+  statuses: read
 
 concurrency:
   group: source-license-soundtrack-curation
@@ -41,6 +42,18 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Wait for the exact Vercel production deployment
+        # Direct pushes can start protected review calls before the same
+        # commit reaches its canonical Vercel API; fail closed instead of
+        # mistaking a transient backend/alias 401 for invalid source rights.
+        if: github.event_name == 'push' || github.event_name == 'workflow_run'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+        run: node scripts/wait-vercel-production.mjs
       - name: Test fail-closed rights-review boundaries
         run: |
           python scripts/soundtracks/test-curate-source-license.py -q
