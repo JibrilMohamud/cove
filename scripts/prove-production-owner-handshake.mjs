@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {randomBytes} from "node:crypto";
 import {mkdirSync,writeFileSync} from "node:fs";
 import {verifyProductionOwnerBinding,PRODUCTION_OWNER_SCRIPT} from "./check-production-owner-binding.mjs";
+import {requireWorkerCredentialDenial} from "./staging/strict-credential-denial.mjs";
 
 const account=process.env.CLOUDFLARE_ACCOUNT_ID;
 const token=process.env.CLOUDFLARE_API_TOKEN;
@@ -66,7 +67,7 @@ try {
   assert.equal(response.status,200,"Actual backend-to-production-DO handshake must succeed");
   evidence.receipt=await response.json();
   assert.deepEqual(evidence.receipt,{attested:true,ownerEnabled:false,authorizing:false});
-  assert.equal((await probe("forged")).status,401);
+  await requireWorkerCredentialDenial(()=>probe("forged"));
   assert.equal((await probe(gate,"GET")).status,404);
   assert.equal((await probe(gate,"POST","/commercial/publish-verified")).status,404);
   // The existing production HTTP ingress must not expose the RPC method.
