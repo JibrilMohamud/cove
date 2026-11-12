@@ -10,7 +10,12 @@ on:
     paths:
       - ".github/workflows/literary-isolated-utc-budget.yml"
   schedule:
+    # GitHub's scheduled Actions can be delayed for hours or skipped. Retry
+    # the exact protected, idempotent budget-fence rollover during the day.
+    # The operator script refuses activation without an active prior UTC day,
+    # independent domain proof, valid budget carry and absence of leases.
     - cron: "25 0 * * *"
+    - cron: "25 6,12,18 * * *"
   workflow_dispatch:
 permissions:
   contents: read
