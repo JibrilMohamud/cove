@@ -16,6 +16,7 @@ on:
       - "src/cloudflare/staging-auth-gateway.mjs"
       - "src/server.ts"
       - "src/lib/persistence-backend.ts"
+      - "scripts/check-storefront-inflight-metadata.mjs"
       - "src/features/fore/storefront-*.ts"
       - "src/features/fore/localization.server.ts"
       - "src/features/fore/search.server.ts"
@@ -69,6 +70,8 @@ jobs:
         run: node --test scripts/staging/strict-owned-canary-denial.test.mjs
       - name: Reject HTTP 200 for staging home without live rights shelf
         run: node scripts/test-staging-empty-catalog-response.mjs
+      - name: Prove bounded anonymous presentation coalescing never caches legal rights
+        run: node scripts/check-storefront-inflight-metadata.mjs
       - name: Classify only verified D1 7429 without exposing exception data
         run: node scripts/check-storefront-hedged.mjs
       - name: Verify gate source and production remains disabled
