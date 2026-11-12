@@ -299,6 +299,10 @@ a svg {
   max-width: 1600px;
   margin: auto;
   padding: 38px 46px 0;
+  /* A short guest/loading shell must not briefly place its footer in the
+     viewport and then move it as async book details or Community hydrate. */
+  min-height: calc(100vh - 88px);
+  min-height: calc(100dvh - 88px);
 }
 .page-eyebrow {
   font-size: 11px;
