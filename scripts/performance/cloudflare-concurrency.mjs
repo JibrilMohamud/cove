@@ -104,11 +104,8 @@ async function fetchOne(concurrency) {
     // Preserve every failure, including successful HTTP 200 with missing
     // live rights or missing cards. Classification changes only diagnostics.
     failureKind =
-      capacityHtmlFailureKind(
-        response.status,
-        response.headers.get("content-type") || "",
-        html,
-      ) || "html-validation-failed";
+      capacityHtmlFailureKind(response.status, response.headers.get("content-type") || "", html) ||
+      "html-validation-failed";
     const cards = validateHtml(response.status, response.headers.get("content-type") || "", html);
     assert.ok(cards >= 1);
     failureKind = "private-cache-policy-missing";
