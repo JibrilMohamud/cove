@@ -25,6 +25,8 @@ on:
       - "scripts/staging/check-publication-feed-live.mjs"
       - "infra/discovery/**"
       - "scripts/performance/isolated-data-plane-acceptance.mjs"
+      - "scripts/performance/response-completion-diagnostics.mjs"
+      - "scripts/check-capacity-release-gate.mjs"
       - "scripts/performance/capacity-release-gate.mjs"
       - "scripts/check-capacity-release-gate.mjs"
       - "scripts/staging/strangler-http-transport.mjs"
@@ -70,7 +72,15 @@ jobs:
     concurrency:
       group: cove-isolated-data-plane-hosted-synthetic
       cancel-in-progress: false
-    if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/arch/isolated-data-plane-20261022')
+    # Explicit test-only branch, same-repo PR only. The legal owner and
+    # customer routes stay unchanged; no production D1 read/load.
+    if: >-
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       (github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022' ||
+        github.event.pull_request.head.ref == 'perf/measure-payload-drain-without-latency-waivers-20261112')) ||
+      (github.event_name == 'workflow_dispatch' &&
+       github.ref == 'refs/heads/arch/isolated-data-plane-20261022')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -84,7 +94,10 @@ jobs:
       COVE_STAGE_HTTP2: "1"
       # Strict mode stops when a required projection request cannot pass.
       # For archived ABBA diagnostics only, manually set this to "0".
-      COVE_CAPACITY_FAIL_FAST: ${{ github.event_name == 'workflow_dispatch' && inputs.diagnostic_full && '0' || '1' }}
+      # Only this pinned diagnostic branch collects every ABBA phase; no
+      # early abort means complete body-backpressure evidence, not a waiver.
+      # Release assessment still fails on any invalid, late, or dropped row.
+      COVE_CAPACITY_FAIL_FAST: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'perf/measure-payload-drain-without-latency-waivers-20261112' && '0' || github.event_name == 'workflow_dispatch' && inputs.diagnostic_full && '0' || '1' }}
       # Pinned primary remains the default after ingress-local SJC worsened
       # network tails; the alternative remains selectable for diagnostics.
       # Private KV replaces repeated presentation R2 reads, not D1 authority.
