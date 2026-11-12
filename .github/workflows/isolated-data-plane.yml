@@ -32,8 +32,10 @@ on:
       - ".github/workflows/isolated-data-plane.yml"
 permissions:
   contents: read
+# Updating a source-only PR must not cancel an unrelated full hosted
+# 24,000-request campaign. Hosted runs themselves are serialized separately.
 concurrency:
-  group: cove-isolated-data-plane
+  group: ${{ github.event_name == 'pull_request' && format('cove-isolated-data-plane-pr-{0}', github.event.pull_request.number) || 'cove-isolated-data-plane-manual' }}
   cancel-in-progress: true
 jobs:
   correctness:
@@ -63,6 +65,11 @@ jobs:
     secrets: inherit
   hosted-capacity:
     needs: correctness
+    # Only one full synthetic campaign may contend with the common staging
+    # candidate D1 at a time; do not cancel and strand a published Worker.
+    concurrency:
+      group: cove-isolated-data-plane-hosted-synthetic
+      cancel-in-progress: false
     # Branch-restricted current-code recreation of October's synthetic
     # projected storefront campaign. Never run on forks or prod D1.
     if: >-
