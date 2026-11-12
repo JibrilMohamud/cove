@@ -228,7 +228,9 @@ jobs:
       group: cove-exclusive-real-primary-cold-acceptance
       queue: max
       cancel-in-progress: false
-    runs-on: ubuntu-latest
+    # Use a stable hosted runner with published Playwright system dependencies.
+    # The moving ubuntu-latest 26.04 image hit Ubuntu repository DNS failures.
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
       COVE_CLOUDFLARE_SSR_PILOT: "1"
