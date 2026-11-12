@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { requireOwnedCanaryDenial } from "./staging/strict-owned-canary-denial.mjs";
 
 // Only test ephemeral owned-domain staging; every request is read-only except
 // an expected 405 mutation. No retries or excluded samples for latency data.
@@ -44,9 +45,13 @@ for (const path of [
   "/api/fore/account",
 ]) {
   for (const credentials of [undefined, "Bearer " + "0".repeat(64)]) {
-    const res = await query(path, {
-      headers: credentials ? { authorization: credentials } : undefined,
-    });
+    const res = await requireOwnedCanaryDenial(
+      () =>
+        query(path, {
+          headers: credentials ? { authorization: credentials } : undefined,
+        }),
+      { pause: () => pause(750) },
+    );
     observations.push({ path, status: res.status, credentialValid: false });
     assert.equal(res.status, 401, "Unprotected owned-canary path: " + path);
     assert.match(res.headers.get("cache-control") || "", /no-store/);
