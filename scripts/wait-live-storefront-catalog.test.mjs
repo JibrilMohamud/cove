@@ -18,25 +18,17 @@ test("guest catalog acceptance is exact and fails closed without backend proof",
   assert.equal(await catalogReadinessFailure(response()), null);
   assert.equal(await catalogReadinessFailure(response(503)), "http-unavailable");
   assert.equal(await catalogReadinessFailure(response(401)), "http-unavailable");
-  assert.equal(await catalogReadinessFailure(response(200, { results: [] })), "missing-authorized-books");
-  assert.equal(
-    await catalogReadinessFailure(response(200, { results: [{ title: "No product" }] })),
-    "missing-authorized-books",
-  );
-  assert.equal(
-    await catalogReadinessFailure(response(200, { results: [{ productId: "id", title: "T" }] }, {
-      ...headers,
-      "x-cove-persistence": "stale-seed",
-    })),
-    "missing-live-backend-proof",
-  );
-  assert.equal(
-    await catalogReadinessFailure(response(200, { results: [{ productId: "id", title: "T" }] }, {
-      ...headers,
-      "cache-control": "public, max-age=300",
-    })),
-    "unsafe-cache-policy",
-  );
+
+  const empty = response(200, { results: [] });
+  const missingId = response(200, { results: [{ title: "No product" }] });
+  assert.equal(await catalogReadinessFailure(empty), "missing-authorized-books");
+  assert.equal(await catalogReadinessFailure(missingId), "missing-authorized-books");
+
+  const valid = { results: [{ productId: "id", title: "T" }] };
+  const untrusted = response(200, valid, { ...headers, "x-cove-persistence": "stale-seed" });
+  const cacheable = response(200, valid, { ...headers, "cache-control": "public, max-age=300" });
+  assert.equal(await catalogReadinessFailure(untrusted), "missing-live-backend-proof");
+  assert.equal(await catalogReadinessFailure(cacheable), "unsafe-cache-policy");
 });
 
 test("one transient 503 can recover, but real catalog is always required", async () => {
@@ -58,10 +50,12 @@ test("one transient 503 can recover, but real catalog is always required", async
     waitForLiveCatalog({ ...opts, fetcher: async () => response(503), attempts: 2 }),
     /http-unavailable/,
   );
-  await assert.rejects(
-    waitForLiveCatalog({ ...opts, fetcher: async () => response(200, { results: [] }), attempts: 2 }),
-    /missing-authorized-books/,
-  );
+  const noBooks = waitForLiveCatalog({
+    ...opts,
+    fetcher: async () => response(200, { results: [] }),
+    attempts: 2,
+  });
+  await assert.rejects(noBooks, /missing-authorized-books/);
 });
 
 test("network errors are bounded and never print secret exception text", async () => {
