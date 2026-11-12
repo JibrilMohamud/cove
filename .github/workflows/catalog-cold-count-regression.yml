@@ -4,6 +4,9 @@ on:
     paths:
       - "src/features/fore/search.server.ts"
       - "src/features/fore/count-from-availability-facet.ts"
+      - "src/features/fore/catalog-ingestion-summary.server.ts"
+      - "src/features/fore/api.server.ts"
+      - "scripts/check-catalog-ingestion-summary.mjs"
       - "scripts/check-catalog-shared-facet-count.mjs"
       - ".github/workflows/catalog-cold-count-regression.yml"
   workflow_dispatch:
@@ -21,5 +24,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: node scripts/check-catalog-shared-facet-count.mjs
+      - name: Production catalog must not require an unrelated D1 ingestion read
+        run: node scripts/check-catalog-ingestion-summary.mjs
       - name: Existing public scoped counts and catalog-fetch regressions
         run: node scripts/check-public-search-count-scope.mjs && node scripts/check-catalog-fetch.mjs

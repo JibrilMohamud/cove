@@ -35,6 +35,7 @@ import {
 } from "./discovery.server";
 import { ApiError, rateLimit } from "./service";
 import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server";
+import { optionalCatalogIngestionSummary } from "./catalog-ingestion-summary.server";
 import { restoreReadingBackup } from "./reading-restore.server";
 import { issueOfflineEpubLicense, offlineEpubVerificationKey } from "./offline-epub.server";
 import { handleCommunity, migrateLegacy } from "./community.server";
@@ -1094,17 +1095,10 @@ async function catalog(
     if (env.FORE_ENVIRONMENT !== "production") await seedCatalog(env);
     const input = { ...parseSearchInput(url), territory: storefrontTerritory };
     const result = await searchCatalog(env, input, userId);
-    // Operations counters do not belong on every search request.
-    const state = await database(env)
-      .prepare(
-        "SELECT status,page,last_success_at,total_catalog_count FROM catalog_state WHERE id=1",
-      )
-      .first<{
-        status: string;
-        page: number;
-        last_success_at: string | null;
-        total_catalog_count: number;
-      }>();
+    // Never let non-authoritative ingestion progress delay or fail a
+    // successful primary-rights catalog. Production skips this D1 read;
+    // operator endpoints still expose independent ingestion health.
+    const ingestion = await optionalCatalogIngestionSummary(database(env), env.FORE_ENVIRONMENT);
     const next =
       input.page * result.limit < result.count
         ? "/api/fore/catalog?" +
@@ -1127,12 +1121,7 @@ async function catalog(
         correctedQuery: result.correctedQuery || null,
         pageSize: result.limit,
       },
-      ingestion: {
-        status: state?.status || "idle",
-        page: state?.page || 1,
-        lastSuccessAt: state?.last_success_at || null,
-        totalCatalogCount: state?.total_catalog_count || 0,
-      },
+      ingestion,
       // Updater health is reported by /ingestion and /service-status. A failed
       // background attempt does not make this successful indexed search fail.
     };
