@@ -19,6 +19,7 @@ on:
       - "scripts/wait-live-storefront-catalog*.mjs"
       - "scripts/prove-production-owner-handshake.mjs"
       - "scripts/staging/strict-credential-denial*.mjs"
+      - "scripts/staging/strict-ephemeral-route-denial*.mjs"
       - "src/server.ts"
       - "src/features/fore/**"
       - "scripts/check-d1-pending-search-outbox-noop.py"
@@ -137,6 +138,8 @@ jobs:
         run: node --test scripts/wait-live-storefront-catalog.test.mjs
       - name: Strict ephemeral Worker credential denial and edge retry contract
         run: node --test scripts/staging/strict-credential-denial.test.mjs
+      - name: Require exact private verifier 404 across transient Worker edge responses
+        run: node --test scripts/staging/strict-ephemeral-route-denial.test.mjs
       - name: Persistence TypeScript lint
         run: npx eslint src/lib/persistence-backend.ts src/persistence-backend.worker.ts
       - name: Primary D1 overload does not trigger recursive error writes
