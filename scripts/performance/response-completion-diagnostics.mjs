@@ -17,8 +17,7 @@ export function responseCompletionSummary(rows) {
     values[Math.max(0, Math.ceil(values.length * fraction) - 1)] ?? null;
   const total = (field) =>
     rows.reduce(
-      (sum, row) =>
-        sum + (Number.isFinite(row[field]) && row[field] >= 0 ? row[field] : 0),
+      (sum, row) => sum + (Number.isFinite(row[field]) && row[field] >= 0 ? row[field] : 0),
       0,
     );
   return {
