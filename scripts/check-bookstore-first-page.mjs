@@ -56,7 +56,12 @@ try {
   assert.match(store, /landingPath === "\/store"/);
   assert.match(store, /setTimeout\(\(\) => setCatalogFallbackReady\(true\), 800\)/);
   assert.match(store, /sort === "popular"/);
-  assert.match(store, /enabled: home && !!visitor && books\.length > 0/);
+  assert.equal(
+    (store.match(/enabled: home && homeDiscoveryReady && !!visitor && books\.length > 0/g) || [])
+      .length,
+    2,
+    "Optional merchandising and recommendations must wait until books have painted.",
+  );
   assert.match(store, /queryFn: \(\{ signal \}\) => api\("\/catalog\?" \+ params/);
   // Fast preview cannot authorize purchases. Existing retail and media
   // handlers must remain separate, and the full catalog is still requested.
