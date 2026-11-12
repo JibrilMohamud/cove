@@ -27,7 +27,12 @@ assert.match(selector, /CROSS JOIN editions e/);
 const idsStart = source.indexOf("const runIds = async () =>");
 const countStart = source.indexOf("const runCount = async ()", idsStart);
 assert.ok(idsStart >= 0 && countStart > idsStart);
-assert.match(source.slice(idsStart, countStart), /rankedCandidatePlan\(env\.DB, input, part\)/);
+assert.match(
+  source.slice(idsStart, countStart),
+  /rankedCandidatePlan\(replicaRanking \? presentationDb : env\.DB, input, part\)/,
+);
+assert.match(source.slice(idsStart, countStart), /selectPrimary: \(\) => execute\(env\.DB\)/);
+assert.match(source.slice(idsStart, countStart), /rightsScopedCachedPageQuery\(part, ids\)/);
 assert.match(source.slice(idsStart, countStart), /\.\.\.plan\.preBinds/);
 assert.doesNotMatch(
   source.slice(countStart, countStart + 450),
