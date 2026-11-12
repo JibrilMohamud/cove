@@ -95,14 +95,23 @@ assert.ok(publishedStart >= 0 && optionalStart > publishedStart && hourlyStart >
 const rightsAudit = scheduler.slice(publishedStart, optionalStart);
 const optionalDiscovery = scheduler.slice(optionalStart, hourlyStart);
 assert.match(rightsAudit, /recheckOnePublishedSoundtrack\(env\)/);
-assert.doesNotMatch(rightsAudit, /discoverSoundtrackCandidates|importOneReviewedSoundtrack|audio-discover/);
+assert.doesNotMatch(
+  rightsAudit,
+  /discoverSoundtrackCandidates|importOneReviewedSoundtrack|audio-discover/,
+);
 assert.match(optionalDiscovery, /discoverSoundtrackCandidates\(env\)/);
 assert.match(optionalDiscovery, /importOneReviewedSoundtrack\(env\)/);
 assert.match(optionalDiscovery, /audio-discover/);
 assert.doesNotMatch(optionalDiscovery, /recheckOnePublishedSoundtrack\(env\)/);
-const commercial = workerSource.slice(workerSource.indexOf("async function runCommercialQueues("), workerSource.indexOf("async function scheduledMaintenance("));
+const commercial = workerSource.slice(
+  workerSource.indexOf("async function runCommercialQueues("),
+  workerSource.indexOf("async function scheduledMaintenance("),
+);
 assert.match(commercial, /if \(cron === "\*\/10 \* \* \* \*"\)/);
-const entrypoint = workerSource.slice(workerSource.indexOf("  async scheduled("), workerSource.indexOf("  async fetch(", workerSource.indexOf("  async scheduled(")));
+const entrypoint = workerSource.slice(
+  workerSource.indexOf("  async scheduled("),
+  workerSource.indexOf("  async fetch(", workerSource.indexOf("  async scheduled(")),
+);
 assert.match(entrypoint, /controller\.cron === "\*\/10 \* \* \* \*"/);
 for (const configPath of [
   "wrangler.backend.production.toml",
