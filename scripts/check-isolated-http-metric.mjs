@@ -74,8 +74,18 @@ try {
     [prod, request("/api/fore/catalog"), status(200), "user"],
     [prod, request("/api/fore/catalog", { cookie: "session=private" }), status(200), "anonymous"],
     [prod, request("/api/fore/catalog", { authorization: "Bearer x" }), status(200), "anonymous"],
-    [{ ...prod, COVE_PUBLIC_ANON_HTTP_TELEMETRY: "0" }, request("/api/fore/catalog"), status(200), "anonymous"],
-    [{ ...prod, FORE_ENVIRONMENT: "staging" }, request("/api/fore/catalog"), status(200), "anonymous"],
+    [
+      { ...prod, COVE_PUBLIC_ANON_HTTP_TELEMETRY: "0" },
+      request("/api/fore/catalog"),
+      status(200),
+      "anonymous",
+    ],
+    [
+      { ...prod, FORE_ENVIRONMENT: "staging" },
+      request("/api/fore/catalog"),
+      status(200),
+      "anonymous",
+    ],
     [{ ...env, COVE_SSR_STAGING: "0" }, request("/api/fore/catalog"), status(200), "anonymous"],
     [
       { ...env, COVE_OPS_TELEMETRY_MODE: "off" },
