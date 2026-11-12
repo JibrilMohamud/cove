@@ -33,7 +33,7 @@ import {
   seriesDetail,
   workDetail,
 } from "./discovery.server";
-import { ApiError, rateLimit, rateLimitGuestCatalog } from "./service";
+import { ApiError, rateLimit } from "./service";
 import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server";
 import { optionalCatalogIngestionSummary } from "./catalog-ingestion-summary.server";
 import { restoreReadingBackup } from "./reading-restore.server";
@@ -2804,7 +2804,7 @@ export async function rateLimitSearchRequest(
 ) {
   const ip = clientIp(request);
   const actor = userId ? `user:${userId}` : ip ? `ip:${ip}` : null;
-  if (actor) await rateLimitGuestCatalog(env, `search:${bucket}:${actor}`, limit);
+  if (actor) await rateLimit(env, `search:${bucket}:${actor}`, limit);
 }
 
 /** First-paint native reads avoid the global D1 write lock. User actions,
