@@ -14,6 +14,7 @@ import {
   stageTransportCounters,
 } from "../staging/strangler-http-transport.mjs";
 import { projectedRequestFailure, strictProjectionPhasePass } from "./capacity-release-gate.mjs";
+import { responseCompletionSummary } from "./response-completion-diagnostics.mjs";
 
 const account = "d26430caa63ec55f6612e32f36aca5e9";
 const primary = "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
@@ -225,7 +226,12 @@ async function sample(model = "projection", path = "/") {
     const serverTiming = r.headers.get("server-timing") || "";
     const handlerMs = /(?:^|, )cove_handler;dur=(\d+(?:\.\d+)?)/.exec(serverTiming);
     const catalogMs = /(?:^|, )cove_catalog;dur=(\d+(?:\.\d+)?)/.exec(serverTiming);
+    // Header TTFB remains the exact release latency metric. A request
+    // occupies an in-flight load-generator slot until the full HTML body
+    // finishes; record that delay independently without hiding failures.
     const body = await r.text();
+    const completeMs = performance.now() - started;
+    const bodyDrainMs = Math.max(0, completeMs - ms);
     const ok =
       r.status === 200 &&
       (path.endsWith("transport")
@@ -239,6 +245,11 @@ async function sample(model = "projection", path = "/") {
     return {
       ok,
       ms,
+      completeMs,
+      bodyDrainMs,
+      wireBytes: Number.isFinite(transportSpan?.wireBytes) ? transportSpan.wireBytes : null,
+      decodedBytes: Number.isFinite(transportSpan?.decodedBytes)
+        ? transportSpan.decodedBytes : null,
       status: r.status,
       transportSpan: transportSpan
         ? {
@@ -264,6 +275,10 @@ async function sample(model = "projection", path = "/") {
     return {
       ok: false,
       ms: performance.now() - started,
+      completeMs: performance.now() - started,
+      bodyDrainMs: null,
+      wireBytes: null,
+      decodedBytes: null,
       error: e.name,
       transportCode: typeof e.code === "string" && /^[A-Z0-9_]{3,60}$/.test(e.code) ? e.code : null,
     };
@@ -339,6 +354,7 @@ async function phase(model) {
   let dropped = 0,
     maxSchedulerLagMs = 0,
     stopped = false,
+    peakInflight = 0,
     scheduled = 0,
     cancelledUnsent = 0,
     irreversibleFailure = null;
@@ -435,6 +451,7 @@ async function phase(model) {
               resolve();
             });
             inflight.add(task);
+            peakInflight = Math.max(peakInflight, inflight.size);
           }, i * 10);
           pendingTimers.set(timer, resolve);
         }),
@@ -457,6 +474,8 @@ async function phase(model) {
     elapsedSeconds: (performance.now() - start) / 1000,
     dropped,
     maxSchedulerLagMs,
+    peakInflight,
+    bodyCompletion: responseCompletionSummary(rows),
     ...summary(rows),
     background,
     transportControls: { ...summary(transportControls), rows: transportControls },
@@ -485,6 +504,10 @@ async function phase(model) {
         .slice(0, 8)
         .map((row) => ({
           ms: row.ms,
+          completeMs: row.completeMs,
+          bodyDrainMs: row.bodyDrainMs,
+          wireBytes: row.wireBytes,
+          decodedBytes: row.decodedBytes,
           ok: row.ok,
           status: row.status,
           colo: row.colo,
