@@ -7,6 +7,8 @@ on:
       - "src/lib/persistence-backend-failure.ts"
       - "src/persistence-backend.worker.ts"
       - "src/lib/catalog-ingestion-backpressure.ts"
+      - "src/lib/primary-d1-overload.ts"
+      - "scripts/check-primary-d1-overload-fail-closed.mjs"
       - "src/lib/catalog-ingestion-idempotency.ts"
       - "scripts/check-catalog-ingestion-idempotency.mjs"
       - "scripts/check-catalog-ingestion-backpressure.mjs"
@@ -58,6 +60,8 @@ on:
       - "src/lib/persistence-backend-failure.ts"
       - "src/persistence-backend.worker.ts"
       - "src/lib/catalog-ingestion-backpressure.ts"
+      - "src/lib/primary-d1-overload.ts"
+      - "scripts/check-primary-d1-overload-fail-closed.mjs"
       - "src/lib/catalog-ingestion-idempotency.ts"
       - "scripts/check-catalog-ingestion-idempotency.mjs"
       - "scripts/check-catalog-ingestion-backpressure.mjs"
@@ -127,6 +131,8 @@ jobs:
         run: node --test scripts/wait-live-storefront-catalog.test.mjs
       - name: Persistence TypeScript lint
         run: npx eslint src/lib/persistence-backend.ts src/persistence-backend.worker.ts
+      - name: Primary D1 overload does not trigger recursive error writes
+        run: node scripts/check-primary-d1-overload-fail-closed.mjs
       - name: Persistence architecture
         run: npm run test:persistence-backend
       - name: Soundtrack library rights and delivery regressions
