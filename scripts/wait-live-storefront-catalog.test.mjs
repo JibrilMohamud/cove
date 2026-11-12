@@ -58,6 +58,34 @@ test("one transient 503 can recover, but real catalog is always required", async
   await assert.rejects(noBooks, /missing-authorized-books/);
 });
 
+test("backend deployment requires two consecutive live catalog responses", async () => {
+  let calls = 0;
+  const statuses = [503, 200, 503, 200, 200];
+  const actual = await waitForLiveCatalog({
+    ...opts,
+    attempts: 8,
+    consecutiveSuccesses: 2,
+    fetcher: async () => response(statuses[calls++]),
+  });
+  assert.deepEqual(actual, { ready: true, attempts: 5 });
+  assert.equal(calls, 5);
+  await assert.rejects(
+    waitForLiveCatalog({
+      ...opts,
+      attempts: 3,
+      consecutiveSuccesses: 2,
+      fetcher: async () => response(503),
+    }),
+    /http-unavailable/,
+  );
+  for (const value of [0, 4, 1.5]) {
+    await assert.rejects(
+      waitForLiveCatalog({ ...opts, attempts: 5, consecutiveSuccesses: value }),
+      (error) => error?.name === "AssertionError",
+    );
+  }
+});
+
 test("network errors are bounded and never print secret exception text", async () => {
   await assert.rejects(
     waitForLiveCatalog({

@@ -9,6 +9,7 @@ on:
       - "src/lib/catalog-ingestion-idempotency.ts"
       - "scripts/check-catalog-ingestion-idempotency.mjs"
       - "scripts/check-catalog-ingestion-backpressure.mjs"
+      - "scripts/wait-live-storefront-catalog*.mjs"
       - "src/server.ts"
       - "src/features/fore/**"
       - "scripts/check-d1-pending-search-outbox-noop.py"
@@ -57,6 +58,7 @@ on:
       - "src/lib/catalog-ingestion-idempotency.ts"
       - "scripts/check-catalog-ingestion-idempotency.mjs"
       - "scripts/check-catalog-ingestion-backpressure.mjs"
+      - "scripts/wait-live-storefront-catalog*.mjs"
       - "src/server.ts"
       - "src/features/fore/**"
       - "scripts/check-d1-pending-search-outbox-noop.py"
@@ -117,6 +119,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: npm ci
+      - name: Verify live-catalog release readiness without network access
+        run: node --test scripts/wait-live-storefront-catalog.test.mjs
       - name: Persistence TypeScript lint
         run: npx eslint src/lib/persistence-backend.ts src/persistence-backend.worker.ts
       - name: Persistence architecture

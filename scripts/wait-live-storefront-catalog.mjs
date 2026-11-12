@@ -48,11 +48,19 @@ export async function waitForLiveCatalog({
   fetcher = fetch,
   pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   attempts = 5,
+  consecutiveSuccesses = 1,
 }) {
   const base = productionOrigin(origin);
   assert.ok(Number.isSafeInteger(attempts) && attempts >= 1 && attempts <= 8);
+  assert.ok(
+    Number.isSafeInteger(consecutiveSuccesses) &&
+      consecutiveSuccesses >= 1 &&
+      consecutiveSuccesses <= 3 &&
+      consecutiveSuccesses <= attempts,
+  );
   const url = base + "/api/fore/catalog?search=&sort=popular&page=1&currency=USD";
   let last = "network-unavailable";
+  let verifiedStreak = 0;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
       const response = await fetcher(url, {
@@ -63,10 +71,16 @@ export async function waitForLiveCatalog({
         signal: AbortSignal.timeout(12_000),
       });
       last = await catalogReadinessFailure(response);
-      if (last === null) return { ready: true, attempts: attempt + 1 };
+      if (last === null) {
+        verifiedStreak += 1;
+        if (verifiedStreak === consecutiveSuccesses) return { ready: true, attempts: attempt + 1 };
+      } else {
+        verifiedStreak = 0;
+      }
     } catch {
       // Do not print arbitrary network exception text or URL.
       last = "network-unavailable";
+      verifiedStreak = 0;
     }
     if (attempt < attempts - 1) await pause(Math.min(5_000, 1_000 * (attempt + 1)));
   }
@@ -75,7 +89,13 @@ export async function waitForLiveCatalog({
 
 async function main() {
   const origin = process.env.COVE_PUBLIC_URL || "https://cove-puce-theta.vercel.app";
-  const result = await waitForLiveCatalog({ origin });
+  const requiredStreak = Number(process.env.COVE_CATALOG_CONSECUTIVE_SUCCESSES || "1");
+  const attempts = Number(process.env.COVE_CATALOG_READINESS_ATTEMPTS || "5");
+  const result = await waitForLiveCatalog({
+    origin,
+    consecutiveSuccesses: requiredStreak,
+    attempts,
+  });
   console.log(
     "Live production guest catalog, backend provenance and no-store gate: PASS (" +
       result.attempts +
