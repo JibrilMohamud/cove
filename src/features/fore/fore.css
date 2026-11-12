@@ -812,6 +812,8 @@ a svg {
   }
   .content {
     padding: 28px 23px 0;
+    min-height: calc(100vh - 76px);
+    min-height: calc(100dvh - 76px);
   }
   .topbar {
     padding: 0 23px;
@@ -858,6 +860,8 @@ a svg {
   }
   .content {
     padding: 26px 20px 0;
+    min-height: calc(100vh - 68px);
+    min-height: calc(100dvh - 68px);
   }
   .breadcrumb {
     gap: 5px;
