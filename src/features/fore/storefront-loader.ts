@@ -120,6 +120,7 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
       primaryFailureKind: "denied" | "invalid" | "unavailable" | "timeout" | null;
       primaryHttpFailure: "denied" | "throttled" | "upstream_error" | "other" | null;
       primaryD1Overloaded: boolean;
+      primaryAdmissionFailure: "throttled" | "limiter_unavailable" | null;
       alternateMs: number | null;
       alternateSucceeded: boolean;
     } = {
@@ -127,6 +128,7 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
       primaryFailureKind: null,
       primaryHttpFailure: null,
       primaryD1Overloaded: false,
+      primaryAdmissionFailure: null,
       alternateMs: null,
       alternateSucceeded: false,
     };
@@ -161,6 +163,9 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
       onPrimaryD1Overload: () => {
         phase.primaryD1Overloaded = true;
       },
+      onPrimaryAdmissionFailure: (kind) => {
+        phase.primaryAdmissionFailure = kind;
+      },
       onPhase: (channel, outcome, durationMs) => {
         // Aggregate timings/status ONLY: no locale, location, cookies, book data or IP.
         if (channel === "primary" && outcome !== "ok") {
@@ -182,6 +187,7 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
       // Keep public diagnostics category-only; never carry upstream URLs, bodies,
       // tokens or country into Server-Timing.
       const reason =
+        phase.primaryAdmissionFailure ||
         phase.primaryHttpFailure ||
         (phase.primaryFailureKind === "timeout" ? "timeout" : "transport_or_invalid");
       timing.push(`cove_ssr_primary_${reason};dur=0`);
