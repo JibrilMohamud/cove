@@ -28,14 +28,8 @@ assert.equal(
   classify(new Request("https://ssr-canary.covereads.com/search"), empty(), true),
   false,
 );
-assert.equal(
-  classify(new Request(homepage, { method: "HEAD" }), empty(), true),
-  false,
-);
-assert.equal(
-  classify(new Request(homepage, { method: "POST" }), empty(), true),
-  false,
-);
+assert.equal(classify(new Request(homepage, { method: "HEAD" }), empty(), true), false);
+assert.equal(classify(new Request(homepage, { method: "POST" }), empty(), true), false);
 assert.equal(classify(homepage, new Response(null, { status: 503 }), true), false);
 assert.equal(
   classify(
@@ -65,4 +59,6 @@ assert.match(server, /const guarded = stagingHomeNeedsUnavailableStatus/);
 assert.match(server, /status: 503,/);
 assert.match(server, /"cache-control": "no-store"/);
 assert.match(server, /"server-timing": "cove_ssr_empty;dur=0"/);
-console.log("Protected SSR staging empty-catalog responses are explicit 503; no live book rights fallback.");
+console.log(
+  "Protected SSR staging empty-catalog responses are explicit 503; no live book rights fallback.",
+);
