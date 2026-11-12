@@ -257,7 +257,12 @@ export async function proxyPersistenceApi(
     if (request.signal.aborted) return unavailablePersistenceResponse();
     if (safePublicFallback(request)) {
       if (productionFallbackDenied(env)) {
-        console.warn("Persistent backend request failed; production catalog fails closed");
+        // A bootstrap transport exception is a real upstream error, not a
+        // cancelled losing hedge. Preserve its separate error signal while
+        // the public response remains denied, without logging exception text.
+        if (requestUrl.pathname === "/api/fore/storefront/bootstrap")
+          console.error("Persistent backend request failed; production bootstrap fails closed");
+        else console.warn("Persistent backend request failed; production catalog fails closed");
         return unavailablePersistenceResponse();
       }
       console.warn("Persistent backend request failed; using development fallback", error);
