@@ -1098,10 +1098,7 @@ async function catalog(
     // Never let non-authoritative ingestion progress delay or fail a
     // successful primary-rights catalog. Production skips this D1 read;
     // operator endpoints still expose independent ingestion health.
-    const ingestion = await optionalCatalogIngestionSummary(
-      database(env),
-      env.FORE_ENVIRONMENT,
-    );
+    const ingestion = await optionalCatalogIngestionSummary(database(env), env.FORE_ENVIRONMENT);
     const next =
       input.page * result.limit < result.count
         ? "/api/fore/catalog?" +
