@@ -10,8 +10,7 @@ export function isPrimaryD1Overload(error: unknown): boolean {
     outer.cause && typeof outer.cause === "object"
       ? (outer.cause as { message?: unknown; code?: unknown })
       : null;
-  if ([outer.code, cause?.code].some((value) => value === 7429 || value === "7429"))
-    return true;
+  if ([outer.code, cause?.code].some((value) => value === 7429 || value === "7429")) return true;
   return [outer.message, cause?.message].some(
     (value) =>
       typeof value === "string" &&
