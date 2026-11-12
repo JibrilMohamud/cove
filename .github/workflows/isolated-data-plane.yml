@@ -58,7 +58,17 @@ jobs:
       - run: npm run typecheck
       - run: node scripts/build-storefront-strangler.mjs && npm run build:content-processing
   restore-private-core:
-    if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/arch/isolated-data-plane-20261022')
+    # Reproduce the October projected (R2/KV presentation + fresh D1 rights)
+    # 2x12k, 100-RPS certified fixture on this one approved same-repo PR.
+    # No production D1, no public customer route, no rights/limits waivers.
+    if: >-
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       github.event.pull_request.base.ref == 'main' &&
+       (github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022' ||
+        github.event.pull_request.head.ref == 'perf/restore-projected-home-20261112')) ||
+      (github.event_name == 'workflow_dispatch' &&
+       github.ref == 'refs/heads/arch/isolated-data-plane-20261022')
     uses: ./.github/workflows/strangler-stage-core-deploy.yml
     secrets: inherit
   hosted-capacity:
