@@ -184,7 +184,7 @@ jobs:
           required = ["FORE_INGESTION_SIGNING_KEY", "FORE_BACKEND_TOKEN_SHA256"]
 
           [triggers]
-          crons = ["* * * * *", "*/5 * * * *", "*/10 * * * *", "23 * * * *", "17 3 * * *", "41 4 * * *"]
+          crons = ["* * * * *", "*/5 * * * *", "*/10 * * * *", "7-57/10 * * * *", "23 * * * *", "17 3 * * *", "41 4 * * *"]
           EOF
 
           if [ "$WORKER_NAME" = "cove-persistence-backend" ] && [ "$D1_DATABASE_ID" = "4bd657ac-8789-403e-a28c-93aba8d0a989" ]; then
