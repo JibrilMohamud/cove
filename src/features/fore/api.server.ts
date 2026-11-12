@@ -34,6 +34,7 @@ import {
   workDetail,
 } from "./discovery.server";
 import { ApiError, rateLimit } from "./service";
+import { isPrimaryD1Overload } from "../../lib/primary-d1-overload";
 import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server";
 import { restoreReadingBackup } from "./reading-restore.server";
 import { issueOfflineEpubLicense, offlineEpubVerificationKey } from "./offline-epub.server";
@@ -6297,9 +6298,19 @@ async function handleCoveRequest(
     return json({ error: "This action was not found." }, 404);
   } catch (e) {
     if (!(e instanceof ApiError) && !(e instanceof z.ZodError)) {
-      if (env.DB)
-        await recordErrorEvent(env.DB as any, undefined, request, e, { method: request.method });
-      await reportExternalError(env, request, e);
+      if (isPrimaryD1Overload(e)) {
+        // A saturated primary D1 must not receive another error-event INSERT:
+        // that write extends the failed request and compounds database load.
+        // Keep fail-closed 503 semantics, with category-only runtime evidence.
+        console.warn("Cove primary D1 overloaded; recursive error write suppressed");
+        const report = reportExternalError(env, request, e).catch(() => {});
+        if (execution?.waitUntil) execution.waitUntil(report);
+        else await report;
+      } else {
+        if (env.DB)
+          await recordErrorEvent(env.DB as any, undefined, request, e, { method: request.method });
+        await reportExternalError(env, request, e);
+      }
     }
     if (e instanceof ApiError) return json({ error: e.message }, e.status);
     if (e instanceof z.ZodError)
