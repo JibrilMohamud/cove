@@ -299,6 +299,10 @@ a svg {
   max-width: 1600px;
   margin: auto;
   padding: 38px 46px 0;
+  /* A short guest/loading shell must not briefly place its footer in the
+     viewport and then move it as async book details or Community hydrate. */
+  min-height: calc(100vh - 88px);
+  min-height: calc(100dvh - 88px);
 }
 .page-eyebrow {
   font-size: 11px;
@@ -808,6 +812,8 @@ a svg {
   }
   .content {
     padding: 28px 23px 0;
+    min-height: calc(100vh - 76px);
+    min-height: calc(100dvh - 76px);
   }
   .topbar {
     padding: 0 23px;
@@ -854,6 +860,8 @@ a svg {
   }
   .content {
     padding: 26px 20px 0;
+    min-height: calc(100vh - 68px);
+    min-height: calc(100dvh - 68px);
   }
   .breadcrumb {
     gap: 5px;
