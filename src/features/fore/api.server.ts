@@ -35,6 +35,7 @@ import {
 } from "./discovery.server";
 import { ApiError, rateLimit } from "./service";
 import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server";
+import { canEdgeLimitAnonymousCatalog } from "./anonymous-catalog-rate-limit-policy";
 import { optionalCatalogIngestionSummary } from "./catalog-ingestion-summary.server";
 import { restoreReadingBackup } from "./reading-restore.server";
 import { issueOfflineEpubLicense, offlineEpubVerificationKey } from "./offline-epub.server";
@@ -2804,7 +2805,17 @@ export async function rateLimitSearchRequest(
 ) {
   const ip = clientIp(request);
   const actor = userId ? `user:${userId}` : ip ? `ip:${ip}` : null;
-  if (actor) await rateLimit(env, `search:${bucket}:${actor}`, limit);
+  if (!actor) return;
+  const key = `search:${bucket}:${actor}`;
+  // The bound per-colo limiter avoids a primary-D1 write on every public
+  // guest catalog read. An unavailable edge limiter fails closed. Missing
+  // bindings keep the previous durable admission path; signed-in users,
+  // search suggestions and click attribution always retain D1 limits.
+  if (canEdgeLimitAnonymousCatalog(request, userId, bucket, env.COVE_STOREFRONT_READ_LIMITER)) {
+    await enforceFirstPaintRateLimit(env, key, limit);
+    return;
+  }
+  await rateLimit(env, key, limit);
 }
 
 /** First-paint native reads avoid the global D1 write lock. User actions,
