@@ -31,15 +31,19 @@ test("View debates navigates to full-page search and discovery filters", async (
   // separate discovery-filter tap; do not suppress any failed filter action.
   await search.evaluate((input) => input.blur());
   await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
-  await expect(page.getByRole("button", { name: "Top", exact: true })).toBeEnabled();
-  await page.getByRole("button", { name: "Top", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Top", exact: true })).toHaveAttribute(
-    "aria-pressed",
-    "true",
+  const touchProject = ["iphone-safari", "ipad-safari", "android-chrome"].includes(
+    test.info().project.name,
   );
-  await page.getByRole("button", { name: "Following", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Following", exact: true })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  const top = page.getByRole("button", { name: "Top", exact: true });
+  const following = page.getByRole("button", { name: "Following", exact: true });
+  await expect(top).toBeEnabled();
+  // Device QA should exercise the actual touch event sequence, rather than a
+  // synthetic mouse click while Safari has just dismissed a search keyboard.
+  // Keep the same required React state assertions: no swallowed interactions.
+  if (touchProject) await top.tap();
+  else await top.click();
+  await expect(top).toHaveAttribute("aria-pressed", "true");
+  if (touchProject) await following.tap();
+  else await following.click();
+  await expect(following).toHaveAttribute("aria-pressed", "true");
 });
