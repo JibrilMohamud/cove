@@ -85,7 +85,9 @@ assert.equal(
   "other",
 );
 assert.equal(
-  await backendFailureCategory(Response.json({ error: "private" }, { status: 200, headers: apiHeaders })),
+  await backendFailureCategory(
+    Response.json({ error: "private" }, { status: 200, headers: apiHeaders }),
+  ),
   "other",
 );
 const gateway = fs.readFileSync("src/lib/persistence-backend.ts", "utf8");
