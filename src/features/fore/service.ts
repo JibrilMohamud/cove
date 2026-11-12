@@ -69,3 +69,34 @@ export function requireIdentity(userId?: string | null) {
   if (!userId) throw new ApiError(401, "Sign in to save your reading life.");
   return userId;
 }
+
+/**
+ * An anonymous public catalog GET already has a trusted IP-based bucket,
+ * but an unconditional INSERT into D1 for every browse request competes
+ * with the canonical retail-rights read. The production Worker supplies
+ * a per-colo 180/minute edge limiter for this non-account operation.
+ *
+ * Only the exact catalog IP namespace uses the edge. Account-bound limits,
+ * suggestions, clicks and every missing-binding fallback preserve D1.
+ * A failed limiter never grants access: fail closed without writing D1.
+ * The calling handler still performs all original live legal-rights SQL.
+ */
+export async function rateLimitGuestCatalog(env: CoveEnv, key: string, limit: number) {
+  const edge = env.COVE_STOREFRONT_READ_LIMITER;
+  if (
+    !key.startsWith("search:catalog:ip:") ||
+    key.length <= "search:catalog:ip:".length ||
+    typeof edge?.limit !== "function"
+  )
+    return rateLimit(env, key, limit);
+  let result: { success: boolean };
+  try {
+    result = await edge.limit({ key });
+  } catch {
+    throw new ApiError(503, "Native storefront read limiter is unavailable.");
+  }
+  if (result?.success === false)
+    throw new ApiError(429, "Please wait a minute before trying again.");
+  if (result?.success !== true)
+    throw new ApiError(503, "Native storefront read limiter is unavailable.");
+}
