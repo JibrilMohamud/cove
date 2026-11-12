@@ -13,6 +13,7 @@ import {
   stageNoStore,
 } from "./lib/cloudflare-ssr-stage-gate.server";
 import { renderErrorPage } from "./lib/error-page";
+import { stagingHomeNeedsUnavailableStatus } from "./lib/staging-empty-catalog-response";
 import { scopeStageLegalWriterEnv } from "./storefront-strangler/legal-primary-write-lock";
 import { scopePublicationOwnerEnv } from "./storefront-strangler/publication-owner-routing.server";
 import { cachePublicDocument } from "./lib/public-document-cache";
@@ -217,9 +218,24 @@ export default {
         execution,
       );
       const renderDurationMs = performance.now() - renderStarted;
+      const normalized = await normalizeCatastrophicSsrResponse(response);
+      // This is a staging-only correctness gate. A failed live-rights
+      // bootstrap must never produce a misleading HTTP 200 empty homepage.
+      // Query-filtered, authenticated and production customer flows stay
+      // unchanged. The latency/capacity gates remain strict.
+      const guarded = stagingHomeNeedsUnavailableStatus(request, normalized, staging)
+        ? new Response(renderErrorPage(), {
+            status: 503,
+            headers: {
+              "content-type": "text/html; charset=utf-8",
+              "cache-control": "no-store",
+              "server-timing": "cove_ssr_empty;dur=0",
+            },
+          })
+        : normalized;
       const secured = applySecurityHeaders(
         request,
-        cachePublicDocument(request, await normalizeCatastrophicSsrResponse(response)),
+        cachePublicDocument(request, guarded),
         foreEnv,
       );
       // Server Timing exposes aggregate durations only, never cookies, paths,
