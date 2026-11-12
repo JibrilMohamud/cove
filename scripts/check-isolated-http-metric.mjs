@@ -40,6 +40,22 @@ try {
     indexes: ["public-read"],
   });
   assert.equal(JSON.stringify(written).includes("private-query"), false);
+  const prod = {
+    ...env,
+    COVE_SSR_STAGING: "0",
+    FORE_ENVIRONMENT: "production",
+    COVE_PUBLIC_ANON_HTTP_TELEMETRY: "1",
+  };
+  assert.equal(
+    route(prod, request("/api/fore/catalog?q=private-value"), status(200), "anonymous", 8),
+    true,
+  );
+  assert.deepEqual(written[1], {
+    blobs: ["public-api-read", "/api/fore/catalog", "GET"],
+    doubles: [200, 8],
+    indexes: ["public-read"],
+  });
+  assert.equal(JSON.stringify(written).includes("private-value"), false);
   const refused = [
     [env, request("/api/fore/checkout"), status(200), "anonymous"],
     [env, request("/api/fore/books/secret"), status(200), "anonymous"],
@@ -53,6 +69,13 @@ try {
     [env, request("/api/fore/catalog"), status(401), "anonymous"],
     [env, request("/api/fore/catalog"), status(500), "anonymous"],
     [env, request("/api/fore/catalog"), status(200), "user"],
+    [prod, request("/api/fore/catalog"), status(500), "anonymous"],
+    [prod, request("/api/fore/catalog"), status(403), "anonymous"],
+    [prod, request("/api/fore/catalog"), status(200), "user"],
+    [prod, request("/api/fore/catalog", { cookie: "session=private" }), status(200), "anonymous"],
+    [prod, request("/api/fore/catalog", { authorization: "Bearer x" }), status(200), "anonymous"],
+    [{ ...prod, COVE_PUBLIC_ANON_HTTP_TELEMETRY: "0" }, request("/api/fore/catalog"), status(200), "anonymous"],
+    [{ ...prod, FORE_ENVIRONMENT: "staging" }, request("/api/fore/catalog"), status(200), "anonymous"],
     [{ ...env, COVE_SSR_STAGING: "0" }, request("/api/fore/catalog"), status(200), "anonymous"],
     [
       { ...env, COVE_OPS_TELEMETRY_MODE: "off" },
@@ -65,7 +88,7 @@ try {
   for (const item of refused) {
     assert.equal(route(...item, 1), false);
   }
-  assert.equal(written.length, 1, "Rejected telemetry cannot be written");
+  assert.equal(written.length, 2, "Rejected telemetry cannot be written");
   const broken = {
     ...env,
     OPS_ANALYTICS: {
