@@ -2,6 +2,7 @@ import type { StorefrontBootstrap } from "./storefront-bootstrap";
 
 export type HedgedStorefrontPhase = "primary" | "alternate";
 export type HedgedStorefrontOutcome = "ok" | "denied" | "invalid" | "unavailable" | "timeout";
+export type HedgedStorefrontHttpFailure = "denied" | "throttled" | "upstream_error" | "other";
 
 type Result = { kind: "ok"; value: string } | { kind: "denied" } | { kind: "unavailable" };
 
@@ -56,6 +57,11 @@ export async function hedgedStorefrontBootstrap(
     ) => void;
     /** Phase metrics only from a validated live-rights response, never arbitrary headers. */
     onVerifiedTimings?: (phase: HedgedStorefrontPhase, values: string[]) => void;
+    /** Fixed status categories only: never expose backend URLs, responses or secrets. */
+    onHttpFailure?: (
+      phase: HedgedStorefrontPhase,
+      category: HedgedStorefrontHttpFailure,
+    ) => void;
     onDeadline?: (state: {
       countryAsserted: boolean;
       primaryCompleted: boolean;
@@ -102,6 +108,14 @@ export async function hedgedStorefrontBootstrap(
         new Request(url, { headers: source.headers, signal, redirect: "manual" }),
       );
       if (!response.ok) {
+        const category: HedgedStorefrontHttpFailure = [401, 403, 404].includes(response.status)
+          ? "denied"
+          : response.status === 429
+            ? "throttled"
+            : response.status >= 500
+              ? "upstream_error"
+              : "other";
+        options.onHttpFailure?.(phase, category);
         const denied = phase === "primary" && [401, 403, 404].includes(response.status);
         // A stream-cancellation failure must never reclassify a 403 denial
         // as a transient error that can be overridden by the alternate.
