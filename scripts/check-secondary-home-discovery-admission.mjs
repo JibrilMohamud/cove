@@ -6,8 +6,11 @@ assert.match(source, /const \[homeDiscoveryReady, setHomeDiscoveryReady\] = useS
 assert.match(source, /if \(!home \|\| books\.length === 0 \|\| homeDiscoveryReady\) return/);
 assert.match(source, /window\.setTimeout\(\(\) => setHomeDiscoveryReady\(true\), 1_400\)/);
 assert.match(source, /window\.clearTimeout\(timer\)/);
+const deferredReadChecks = source.match(
+  /enabled: home && homeDiscoveryReady && !!visitor && books\.length > 0/g,
+);
 assert.equal(
-  (source.match(/enabled: home && homeDiscoveryReady && !!visitor && books\.length > 0/g) || []).length,
+  deferredReadChecks?.length,
   2,
   "Both nonessential home discovery queries must wait for visible rights-checked books.",
 );
