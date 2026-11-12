@@ -120,6 +120,17 @@ for (const configPath of [
   const config = fs.readFileSync(configPath, "utf8");
   assert.match(config, /"\*\/5 \* \* \* \*", "\*\/10 \* \* \* \*", "7-57\/10 \* \* \* \*"/);
 }
+// Production cron-only and backend code pushes must never silently re-run
+// primary D1 migrations. Schema migration remains an explicit dispatch.
+const migrationWorkflow = fs.readFileSync(".github/workflows/deploy-persistence-backend.yml", "utf8");
+const migrationGuard = migrationWorkflow.slice(
+  migrationWorkflow.indexOf("- name: Apply pending D1 migrations"),
+  migrationWorkflow.indexOf("- name: Verify exact disabled production owner"),
+);
+assert.ok(migrationGuard.startsWith("- name: Apply pending D1 migrations"));
+assert.match(migrationGuard, /github\.event_name == 'workflow_dispatch'/);
+assert.match(migrationGuard, /inputs\.apply_migrations == true/);
+assert.doesNotMatch(migrationGuard, /github\.event_name == 'push'/);
 console.log(
   "Derived-search and minute maintenance admission: safe canonical rights ingestion, bounded retryable deferral PASS",
 );
