@@ -1,0 +1,70 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "cove-audio-pipeline-cloudflare",
+  "main": "src/cloudflare-audio/worker.mjs",
+  "compatibility_date": "2026-11-02",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": false,
+  "preview_urls": false,
+  "containers": [
+    {
+      "class_name": "CoveAudioContainer",
+      "scheduling_policy": "durable_object",
+      "images": {
+        "base": {
+          "dockerfile": "./scripts/Dockerfile.cloudflare-audio"
+        }
+      }
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "AUDIO_CONTAINER",
+        "class_name": "CoveAudioContainer"
+      },
+      {
+        "name": "AUDIO_IDEMPOTENCY",
+        "class_name": "CoveAudioIdempotency"
+      }
+    ]
+  },
+  "exports": {
+    "CoveAudioContainer": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    },
+    "CoveAudioIdempotency": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    }
+  },
+  "queues": {
+    "producers": [
+      {
+        "binding": "AUDIO_QUEUE",
+        "queue": "cove-audio-pipeline-v3"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "cove-audio-pipeline-v3",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        "max_retries": 36,
+        "dead_letter_queue": "cove-audio-pipeline-v3-dlq",
+        "max_concurrency": 1,
+        "retry_delay": 90
+      }
+    ]
+  },
+  "vars": {
+    "COVE_AUDIO_QUEUE_ENABLED": "0",
+    "FORE_BACKEND_URL": "https://api.covereads.com"
+  },
+  "observability": {
+    "enabled": true
+  }
+}
