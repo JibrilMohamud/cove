@@ -109,9 +109,9 @@ try {
   assert.match(deployment, /name = "COVE_STOREFRONT_READ_LIMITER"/);
   const service = fs.readFileSync("src/features/fore/service.ts", "utf8");
   assert.match(service, /async function tryGuestCatalogEdgeLimit/);
-  assert.match(service, /if \\(await tryGuestCatalogEdgeLimit\\(env, key, limit\\)\\) return;/);
+  assert.match(service, /if \(await tryGuestCatalogEdgeLimit\(env, key, limit\)\) return;/);
   assert.match(service, /limit !== 180/);
-  assert.match(service, /INSERT INTO rate_limits\\(key,window_start,count\\)/);
+  assert.match(service, /INSERT INTO rate_limits\(key,window_start,count\)/);
   assert.match(service, /key\.startsWith\("search:catalog:ip:"\)/);
   console.log("Anonymous catalog edge admission and protected D1 fallback: PASS");
 } finally {
