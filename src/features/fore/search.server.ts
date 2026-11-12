@@ -1026,9 +1026,13 @@ async function searchD1(env: SearchEnv, input: SearchInput, userId: string | nul
           input.limit,
           (input.page - 1) * input.limit,
         ];
-    const execute = (db: CatalogDB) => db.prepare(sql).bind(...orderedBinds).all<{
-      product_id: string;
-    }>();
+    const execute = (db: CatalogDB) =>
+      db
+        .prepare(sql)
+        .bind(...orderedBinds)
+        .all<{
+          product_id: string;
+        }>();
     return rightsRecheckedReplicaCandidates({
       enabled: replicaRanking,
       maxPageSize: input.limit,
