@@ -7,8 +7,11 @@ const headers = {
   "cache-control": "no-store",
   "x-cove-persistence": "remote-d1-r2",
 };
-const response = (status = 200, data = { results: [{ productId: "prd_test", title: "Title" }] }, h = headers) =>
-  new Response(JSON.stringify(data), { status, headers: h });
+const response = (
+  status = 200,
+  data = { results: [{ productId: "prd_test", title: "Title" }] },
+  h = headers,
+) => new Response(JSON.stringify(data), { status, headers: h });
 const opts = { origin: "https://cove-puce-theta.vercel.app", pause: async () => {} };
 
 test("guest catalog acceptance is exact and fails closed without backend proof", async () => {
@@ -42,7 +45,7 @@ test("one transient 503 can recover, but real catalog is always required", async
     ...opts,
     fetcher: async (url, init) => {
       calls += 1;
-      assert.match(url, /\\/api\\/fore\\/catalog\\?/);
+      assert.match(url, /\/api\/fore\/catalog\?/);
       assert.equal(init.method, "GET");
       assert.equal(init.redirect, "manual");
       assert.ok(!init.headers.Authorization);
