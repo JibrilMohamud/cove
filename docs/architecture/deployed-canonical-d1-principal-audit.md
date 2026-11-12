@@ -17,7 +17,9 @@ Audit date: October 29, 2026. This is a **read-only capability inventory**, not 
 
 ## Pinned unsafe baseline (no blanket exemption)
 
-`docs/architecture/deployed-canonical-d1-baseline.json` stores the **observed** 57 direct D1 script/binding pairs and six Worker cron schedules. It is explicitly marked `certified:false` and does **not** mean any legacy writer is authorized or safe.
+`docs/architecture/deployed-canonical-d1-baseline.json` stores the **historically observed** 57 direct D1 script/binding pairs and the original six persistence Worker cron schedules. On November 12, 2026, the single reviewed optional discovery trigger `7-57/10 * * * *` was added after actual Cloudflare deployment readback; the mandatory five-minute ingestion and ten-minute rights audits remain separate. It is explicitly marked `certified:false` and does **not** mean any legacy writer is authorized or safe.
+
+The November 12 schedule addition does **not** approve any direct D1 writer, retire an unsafe principal, activate legal authority, waive new cron drift, or certify production.
 
 Every protected live audit compares the currently deployed bindings and schedules with this snapshot. A **new** canonical D1 principal/binding or a **new** schedule on an existing canonically bound Worker fails CI. Removing bindings or schedules is permitted as progress, but production owner activation still fails until separate security and authorization certification. Changes to this baseline require an independently reviewed source change and an updated account-wide read-only capture.
 

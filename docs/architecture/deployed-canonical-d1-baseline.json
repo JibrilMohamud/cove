@@ -1,6 +1,6 @@
 {
   "schema": "cove.canonical-d1-unsafe-principal-baseline.v1",
-  "observedOn": "2026-10-30 (live 450-Worker independent readback after dormant infer retirement)",
+  "observedOn": "2026-10-30 initial unsafe fleet; 2026-11-12 reviewed optional backend cron deployed and independently read back",
   "reason": "9 historically unsafe production D1 bindings remain: 8 non-owner, 1 disabled legal authority. The historical dormant inference Worker no longer has a production D1 binding; restoration is denied. 48 non-owner canonical D1 capabilities were removed in total; none of the remaining non-owner bindings is an approved production writer.",
   "canonicalD1": "4bd657ac-8789-403e-a28c-93aba8d0a989",
   "knownDirectBindingScripts": [
@@ -28,6 +28,7 @@
       "* * * * *",
       "*/10 * * * *",
       "*/5 * * * *",
+      "7-57/10 * * * *",
       "17 3 * * *",
       "23 * * * *",
       "41 4 * * *"

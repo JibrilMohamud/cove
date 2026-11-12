@@ -60,6 +60,40 @@ test("no synthetic or source-only configuration can self-certify deployment",()=
   assert.equal(clean.productionAuthorized,false);
   assert.equal(clean.independentDeploymentAuthorizationRequired,true);
 });
+test("reviewed isolated optional cron is pinned without authorizing further D1 capabilities",()=>{
+  const baseline=JSON.parse(readFileSync("docs/architecture/deployed-canonical-d1-baseline.json","utf8"));
+  const expected=[
+    "* * * * *","*/10 * * * *","*/5 * * * *","7-57/10 * * * *",
+    "17 3 * * *","23 * * * *","41 4 * * *"
+  ];
+  assert.deepEqual(baseline.knownSchedules["cove-persistence-backend"],expected);
+  assert.equal(baseline.certified,false);
+  assert.equal(baseline.knownDirectBindings.length,9);
+  const deployment=assessDeployedCanonicalD1Principals({
+    scripts:[{id:OWNER_SCRIPT},{id:"cove-persistence-backend"}],
+    settingsByName:{
+      [OWNER_SCRIPT]:owner,
+      "cove-persistence-backend":{bindings:[{type:"d1",name:"DB",id:CANONICAL_D1}]}
+    },
+    schedulesByName:{[OWNER_SCRIPT]:[],"cove-persistence-backend":expected},
+    subdomainsByName:{[OWNER_SCRIPT]:{enabled:false},"cove-persistence-backend":{enabled:false}}
+  });
+  const reviewed=compareKnownUnsafeFleet(deployment,baseline);
+  assert.deepEqual(reviewed.newBindings,[]);
+  assert.deepEqual(reviewed.newSchedules,[]);
+  assert.equal(reviewed.productionAuthorized,false);
+  assert.equal(deployment.releaseEligible,false);
+  // No blanket cron exemption: every unknown job remains a release-blocking drift.
+  const future=compareKnownUnsafeFleet({
+    ...deployment,
+    principals:deployment.principals.map(p=>p.script==="cove-persistence-backend"
+      ? {...p,crons:[...p.crons,"8-58/10 * * * *"]}:p)
+  },baseline);
+  assert.deepEqual(future.newSchedules,[{
+    script:"cove-persistence-backend",cron:"8-58/10 * * * *"
+  }]);
+  assert.equal(future.strictDriftPass,false);
+});
 test("48 retired direct D1 capabilities cannot return and the nine-binding unsafe baseline stays pinned",()=>{
   const retired=JSON.parse(readFileSync("docs/architecture/historical-publication-capture-d1-isolation-20261029.json","utf8"));
   const baseline=JSON.parse(readFileSync("docs/architecture/deployed-canonical-d1-baseline.json","utf8"));
