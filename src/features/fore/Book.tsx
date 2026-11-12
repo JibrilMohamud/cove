@@ -1,4 +1,5 @@
 import { formatMinorCurrency } from "./currency";
+import type { SeoPayload } from "./seo-loader";
 import { useStorefrontLocale } from "./localization";
 import { useUiText } from "./ui-text";
 import { Reviews } from "./Reviews";
@@ -399,7 +400,7 @@ function BookFormatSupport({ book }: { book: CatalogBook }) {
   );
 }
 
-export function BookPage({ id }: { id: string }) {
+export function BookPage({ id, initialSeo }: { id: string; initialSeo?: SeoPayload | null }) {
   const { data, reload, signIn } = useAccount();
   const { rightsCountry, locale, currency } = useStorefrontLocale();
   const ui = useUiText();
@@ -484,13 +485,32 @@ export function BookPage({ id }: { id: string }) {
         <div className="back-link" aria-hidden="true">
           &nbsp;
         </div>
-        <div className="book-detail" aria-hidden="true">
+        <div className="book-detail" aria-hidden={!initialSeo?.bookTitle}>
           <div className="detail-art">
-            <div className="book-art" />
+            <div className="book-art">
+              {initialSeo?.image && !initialSeo.image.endsWith("/icons/cove-512.png") && (
+                <img
+                  src={initialSeo.image}
+                  alt={initialSeo.imageAlt || ""}
+                  width={240}
+                  height={360}
+                  loading="eager"
+                  fetchPriority="high"
+                />
+              )}
+            </div>
           </div>
           <div className="book-loading-lines">
-            <i />
-            <i />
+            {initialSeo?.bookTitle ? (
+              <h1 className="book-ssr-preview-title">{initialSeo.bookTitle}</h1>
+            ) : (
+              <i />
+            )}
+            {initialSeo?.authorNames?.length ? (
+              <p className="book-ssr-preview-authors">{initialSeo.authorNames.join(", ")}</p>
+            ) : (
+              <i />
+            )}
             <i />
           </div>
         </div>
