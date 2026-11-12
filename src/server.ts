@@ -13,7 +13,10 @@ import {
   stageNoStore,
 } from "./lib/cloudflare-ssr-stage-gate.server";
 import { renderErrorPage } from "./lib/error-page";
-import { stagingHomeNeedsUnavailableStatus } from "./lib/staging-empty-catalog-response";
+import {
+  sanitizedStagingCatalogFailureTiming,
+  stagingHomeNeedsUnavailableStatus,
+} from "./lib/staging-empty-catalog-response";
 import { scopeStageLegalWriterEnv } from "./storefront-strangler/legal-primary-write-lock";
 import { scopePublicationOwnerEnv } from "./storefront-strangler/publication-owner-routing.server";
 import { cachePublicDocument } from "./lib/public-document-cache";
@@ -229,7 +232,9 @@ export default {
             headers: {
               "content-type": "text/html; charset=utf-8",
               "cache-control": "no-store",
-              "server-timing": "cove_ssr_empty;dur=0",
+              "server-timing": sanitizedStagingCatalogFailureTiming(
+                normalized.headers.get("server-timing"),
+              ),
             },
           })
         : normalized;
