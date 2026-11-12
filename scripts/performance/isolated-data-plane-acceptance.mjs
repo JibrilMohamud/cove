@@ -276,7 +276,9 @@ async function sample(model = "projection", path = "/") {
     return {
       ok: false,
       ms: performance.now() - started,
-      completeMs: performance.now() - started,
+      // No complete body was received; do not count a network exception as
+      // successful payload completion in diagnostic percentiles.
+      completeMs: null,
       bodyDrainMs: null,
       wireBytes: null,
       decodedBytes: null,
