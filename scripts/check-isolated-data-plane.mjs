@@ -359,6 +359,14 @@ try {
   await assert.rejects(() =>
     consume({ messages: [msg] }, { ...qe, FORE_CONTENT_PROCESSOR_ENABLED: "0" }),
   );
+  // Static guard: cleanup must target only the exact stage-run scripts.
+  const capacityHarness = fs.readFileSync(
+    "scripts/performance/isolated-data-plane-acceptance.mjs",
+    "utf8",
+  );
+  assert.ok(capacityHarness.includes("/workers/scripts/${name}?force=true"));
+  assert.ok(!capacityHarness.includes("/workers/workers/${name}"));
+  assert.ok(capacityHarness.includes("cove-arch-${runId}-[1-3]"));
   const producer = config("wrangler.discovery-isolated.stage.jsonc");
   assert.equal(producer.d1_databases.length, 1);
   assert.equal(producer.d1_databases[0].binding, "DISCOVERY_DB");

@@ -73,8 +73,13 @@ function cleanup() {
       }
     }
     for (const name of names) {
+      // Delete ONLY scripts created by this immutable run.
+      if (!new RegExp(`^cove-arch-${runId}-[1-3]$`).test(name)) {
+        evidence.cleanupFailed = true;
+        continue;
+      }
       try {
-        await api("DELETE", `/accounts/${account}/workers/workers/${name}`);
+        await api("DELETE", `/accounts/${account}/workers/scripts/${name}?force=true`);
       } catch {
         evidence.cleanupFailed = true;
       }

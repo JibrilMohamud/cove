@@ -32,8 +32,10 @@ on:
       - ".github/workflows/isolated-data-plane.yml"
 permissions:
   contents: read
+# Different PR source checks must not cancel another PR's long-running
+# synthetic campaign; never silently discard an incomplete release failure.
 concurrency:
-  group: cove-isolated-data-plane
+  group: ${{ github.event_name == 'pull_request' && format('cove-isolated-data-plane-pr-{0}', github.event.pull_request.number) || 'cove-isolated-data-plane-manual' }}
   cancel-in-progress: true
 jobs:
   correctness:
@@ -63,6 +65,11 @@ jobs:
     secrets: inherit
   hosted-capacity:
     needs: correctness
+    # This is the only synthetic 120-second stress job across branches.
+    # Serialize it without discarding previously scheduled requests.
+    concurrency:
+      group: cove-isolated-data-plane-hosted-synthetic
+      cancel-in-progress: false
     if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/arch/isolated-data-plane-20261022')
     runs-on: ubuntu-latest
     timeout-minutes: 30
