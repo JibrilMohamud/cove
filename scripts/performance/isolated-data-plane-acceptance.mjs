@@ -249,7 +249,8 @@ async function sample(model = "projection", path = "/") {
       bodyDrainMs,
       wireBytes: Number.isFinite(transportSpan?.wireBytes) ? transportSpan.wireBytes : null,
       decodedBytes: Number.isFinite(transportSpan?.decodedBytes)
-        ? transportSpan.decodedBytes : null,
+        ? transportSpan.decodedBytes
+        : null,
       status: r.status,
       transportSpan: transportSpan
         ? {
