@@ -58,10 +58,7 @@ export async function hedgedStorefrontBootstrap(
     /** Phase metrics only from a validated live-rights response, never arbitrary headers. */
     onVerifiedTimings?: (phase: HedgedStorefrontPhase, values: string[]) => void;
     /** Fixed status categories only: never expose backend URLs, responses or secrets. */
-    onHttpFailure?: (
-      phase: HedgedStorefrontPhase,
-      category: HedgedStorefrontHttpFailure,
-    ) => void;
+    onHttpFailure?: (phase: HedgedStorefrontPhase, category: HedgedStorefrontHttpFailure) => void;
     onDeadline?: (state: {
       countryAsserted: boolean;
       primaryCompleted: boolean;
