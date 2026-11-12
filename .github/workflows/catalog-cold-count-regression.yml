@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - "src/features/fore/search.server.ts"
+      - "src/features/fore/rights-rechecked-replica-candidates.ts"
+      - "scripts/check-rights-rechecked-replica-candidates.mjs"
       - "src/features/fore/count-from-availability-facet.ts"
       - "src/features/fore/catalog-ingestion-summary.server.ts"
       - "src/features/fore/api.server.ts"
@@ -24,6 +26,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: node scripts/check-catalog-shared-facet-count.mjs
+      - name: Replica ranking must always reauthorize on current primary D1
+        run: node scripts/check-rights-rechecked-replica-candidates.mjs
       - name: Production catalog must not require an unrelated D1 ingestion read
         run: node scripts/check-catalog-ingestion-summary.mjs
       - name: Existing public scoped counts and catalog-fetch regressions
