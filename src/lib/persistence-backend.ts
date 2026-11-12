@@ -1,4 +1,5 @@
 import { isPublicSeoDocumentPath } from "./public-seo-document-path";
+import { backendFailureSource } from "./persistence-backend-failure";
 
 type PersistenceEnv = {
   FORE_BACKEND_URL?: string;
@@ -27,6 +28,7 @@ function safePublicFallback(request: Request) {
     path === "/api/fore/taxonomy" ||
     path === "/api/fore/storefront/context" ||
     path === "/api/fore/storefront/page" ||
+    path === "/api/fore/storefront/bootstrap" ||
     path === "/api/fore/search/suggest" ||
     path === "/api/fore/audiobooks" ||
     /^\/api\/fore\/books\/[1-9][0-9]{0,8}(?:\/(?:detail|epub|download\/epub))?$/.test(path) ||
@@ -217,6 +219,7 @@ export async function proxyPersistenceApi(
         console.warn(
           "Persistent backend unavailable; production catalog fails closed",
           response.status,
+          backendFailureSource(response.headers),
         );
         await response.body?.cancel();
         return unavailablePersistenceResponse();
