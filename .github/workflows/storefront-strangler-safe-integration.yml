@@ -81,7 +81,15 @@ jobs:
     needs: isolated-evaluation-only
     # Only the reviewed same-repository release candidate may receive a
     # scoped Cloudflare token. Forked PRs and other branches cannot deploy.
-    if: github.event_name == 'pull_request' && github.event.pull_request.number == 253 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'release/fast-storefront-live-parity-20261021'
+    # One deliberately enumerated, same-repository diagnostic branch can rerun
+    # the historic synthetic fixture on CURRENT code. The hosted test uses only
+    # the fixed synthetic D1 UUID and temporary protected Workers; it cannot
+    # deploy the production database or attach customer routes.
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      ((github.event.pull_request.number == 253 && github.event.pull_request.head.ref == 'release/fast-storefront-live-parity-20261021') ||
+      github.event.pull_request.head.ref == 'perf/reproduce-historical-thin-20261112')
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
