@@ -9,10 +9,16 @@ function sequence(statuses) {
   return {
     probe: async () => ({
       status: statuses[Math.min(calls++, statuses.length - 1)],
-      body: { cancel: async () => { cancellations++; } },
+      body: {
+        cancel: async () => {
+          cancellations++;
+        },
+      },
       headers: new Headers({ "cache-control": "no-store" }),
     }),
-    pause: async () => { pauses++; },
+    pause: async () => {
+      pauses++;
+    },
     stats: () => ({ calls, cancellations, pauses }),
   };
 }
@@ -53,14 +59,23 @@ test("persistent 522 fails closed after bounded retry budget", async () => {
 
 test("failed network probes and invalid budgets cannot pass security", async () => {
   let called = 0;
-  await assert.rejects(requireOwnedCanaryDenial(async () => {
-    called++;
-    throw Error("private error");
-  }), /failed before receiving/);
+  await assert.rejects(
+    requireOwnedCanaryDenial(async () => {
+      called++;
+      throw Error("private error");
+    }),
+    /failed before receiving/,
+  );
   assert.equal(called, 1);
   for (const attempts of [0, -1, 7, 1.2]) {
     await assert.rejects(
-      requireOwnedCanaryDenial(async () => { called++; return { status: 401 }; }, { attempts }),
+      requireOwnedCanaryDenial(
+        async () => {
+          called++;
+          return { status: 401 };
+        },
+        { attempts },
+      ),
       /Invalid bounded/,
     );
   }
