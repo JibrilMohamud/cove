@@ -9,7 +9,7 @@ export async function catalogReadinessFailure(response) {
     return "non-json-response";
   if (response.headers.get("x-cove-persistence") !== "remote-d1-r2")
     return "missing-live-backend-proof";
-  if (!/\\bno-store\\b/i.test(response.headers.get("cache-control") || ""))
+  if (!/\bno-store\b/i.test(response.headers.get("cache-control") || ""))
     return "unsafe-cache-policy";
 
   let data;
