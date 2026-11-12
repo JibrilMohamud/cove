@@ -114,6 +114,8 @@ jobs:
 
       - name: Strict ephemeral Worker denied-token readiness contract
         run: node --test scripts/staging/strict-credential-denial.test.mjs
+      - name: Strict ephemeral verifier method and route denial
+        run: node --test scripts/staging/strict-ephemeral-route-denial.test.mjs
 
       - name: Verify private HTTP metrics isolation before production deployment
         run: |
