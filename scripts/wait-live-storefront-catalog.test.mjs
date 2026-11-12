@@ -81,7 +81,7 @@ test("backend deployment requires two consecutive live catalog responses", async
   for (const value of [0, 4, 1.5]) {
     await assert.rejects(
       waitForLiveCatalog({ ...opts, attempts: 5, consecutiveSuccesses: value }),
-      /AssertionError/,
+      (error) => error?.name === "AssertionError",
     );
   }
 });
