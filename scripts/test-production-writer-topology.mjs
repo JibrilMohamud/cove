@@ -15,7 +15,10 @@ const others=[
 const result=inspect(backend,owner,others);
 assert.equal(result.schema,"cove.production-writer-topology.v1");
 assert.deepEqual(result.persistenceCanonicalBindings,["DB"]);
-assert.equal(result.scheduledJobs.length,6);
+assert.equal(result.scheduledJobs.length,7);
+assert.ok(result.scheduledJobs.includes("7-57/10 * * * *"));
+assert.ok(result.scheduledJobs.includes("*/5 * * * *"));
+assert.ok(result.scheduledJobs.includes("*/10 * * * *"));
 assert.deepEqual(result.additionalCanonicalBindings.map(x=>[x.worker,x.binding]),[
   ["cove-sounds-publication","SOURCE_DB"],
   ["cove-storefront-ssr-staging","DB"]
@@ -39,4 +42,4 @@ assert.equal(future.releaseEligible,false,"Even an apparently clean source confi
 const resultGate=spawnSync(process.execPath,["scripts/check-production-writer-topology.mjs","--release-gate"],{encoding:"utf8"});
 assert.notEqual(resultGate.status,0);
 assert.match(resultGate.stderr,/BLOCKED/);
-console.log("PASS: all 6 production cron triggers and unfenced D1 binding reported; synthetic clean TOML cannot self-certify production; release gate remains closed");
+console.log("PASS: all 7 production cron triggers and unfenced D1 binding reported; synthetic clean TOML cannot self-certify production; release gate remains closed");
