@@ -300,6 +300,14 @@ const report = [
   ),
   `Edge control protection **${controlsSecure ? "pass" : "FAIL"}** — no authorization bypass; not included in 60 licensed samples.`,
   "",
+  "Failed licensed samples (numeric HTTP status and bounded failure category only; no headers, response bodies or credentials):",
+  ...results
+    .filter((r) => r.error)
+    .map(
+      (r) =>
+        `sample ${r.sequence}, in-flight ${r.concurrency}, HTTP ${r.status}, kind ${r.error}, TTFB ${r.ttfbMs}ms, colo ${r.cfColo}`,
+    ),
+  "",
   "Slowest five samples (validated CF Ray ID, numeric edge vs client diagnostics):",
   ...results
     .filter((r) => !r.error)
