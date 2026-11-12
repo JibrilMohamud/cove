@@ -9,6 +9,18 @@ workers_dev = true
 [limits]
 cpu_ms = 300_000
 
+# Anonymous public first-paint read admission only. This Cloudflare per-colo
+# abuse limiter avoids writing a shared D1 counter before every live rights
+# query. It is approximate, not a global customer or commerce rate limit.
+# Separate from protected SSR staging's 731903 namespace.
+[[ratelimits]]
+name = "COVE_STOREFRONT_READ_LIMITER"
+namespace_id = "991731904"
+
+[ratelimits.simple]
+limit = 180
+period = 60
+
 [[d1_databases]]
 binding = "DB"
 database_name = "cove-production"
@@ -62,9 +74,11 @@ crons = ["* * * * *", "*/5 * * * *", "*/10 * * * *", "23 * * * *", "17 3 * * *",
 #   backend origin: https://cove-persistence-backend.cove-jibrilmohamud.workers.dev
 #
 # Production authentication:
-#   - Vercel stores FORE_BACKEND_TOKEN; this Worker verifies its SHA-256 fingerprint
-#     from D1 cove_runtime_config (backend_token_sha256), so Cloudflare never needs
-#     the gateway token in plaintext.
+#   - Vercel stores FORE_BACKEND_TOKEN. The Worker verifies the matching
+#     SHA-256 fingerprint from its private FORE_BACKEND_TOKEN_SHA256 secret, not
+#     a per-request D1 lookup. The authoritative digest is maintained in D1
+#     cove_runtime_config and must be securely resynchronized on rotation.
+#     Neither Worker nor Git stores the plaintext gateway credential.
 #   - Cloudflare stores FORE_INGESTION_SIGNING_KEY (P-256 private JWK).
 #   - Vercel stores the matching FORE_INGESTION_VERIFY_JWK public key.
 #   - Vercel stores the scoped FORE_SERVICE_TOKEN used by the audio pipeline; D1
