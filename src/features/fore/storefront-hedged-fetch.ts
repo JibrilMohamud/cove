@@ -1,5 +1,6 @@
 import type { StorefrontBootstrap } from "./storefront-bootstrap";
 import { isPrimaryD1Overload } from "../../lib/primary-d1-overload";
+import { classifyThrownStorefrontAdmission } from "./storefront-thrown-admission";
 
 export type HedgedStorefrontPhase = "primary" | "alternate";
 export type HedgedStorefrontOutcome = "ok" | "denied" | "invalid" | "unavailable" | "timeout";
@@ -62,6 +63,8 @@ export async function hedgedStorefrontBootstrap(
     onHttpFailure?: (phase: HedgedStorefrontPhase, category: HedgedStorefrontHttpFailure) => void;
     /** Only a fixed boolean for a proven Cloudflare 7429, never exception data. */
     onPrimaryD1Overload?: () => void;
+    /** Only an exact source-controlled limiter outcome; never the thrown Error. */
+    onPrimaryAdmissionFailure?: (kind: "throttled" | "limiter_unavailable") => void;
     onDeadline?: (state: {
       countryAsserted: boolean;
       primaryCompleted: boolean;
@@ -163,8 +166,10 @@ export async function hedgedStorefrontBootstrap(
       );
       return { phase, kind: "ok", value: JSON.stringify(value) };
     } catch (error) {
-      if (phase === "primary" && isPrimaryD1Overload(error)) {
-        options.onPrimaryD1Overload?.();
+      if (phase === "primary") {
+        if (isPrimaryD1Overload(error)) options.onPrimaryD1Overload?.();
+        const admission = classifyThrownStorefrontAdmission(error);
+        if (admission) options.onPrimaryAdmissionFailure?.(admission);
       }
       outcome = signal.aborted ? "timeout" : "unavailable";
       return { phase, kind: "unavailable" };
