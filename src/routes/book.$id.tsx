@@ -9,9 +9,12 @@ export const Route = createFileRoute("/book/$id")({
 });
 function Page() {
   const { id } = Route.useParams();
+  // The route has already fetched authorized public metadata for its SEO head.
+  // Use only that title/cover to paint while private purchase/detail state loads.
+  const initialSeo = Route.useLoaderData();
   return (
     <SiteShell title="Book details">
-      <BookPage id={id} />
+      <BookPage id={id} initialSeo={initialSeo} />
     </SiteShell>
   );
 }
