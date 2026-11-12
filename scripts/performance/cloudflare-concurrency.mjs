@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { capacityHtmlFailureKind } from "./strict-capacity-response-diagnostics.mjs";
 import fs from "node:fs";
 import { performance } from "node:perf_hooks";
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -74,6 +75,10 @@ async function fetchOne(concurrency) {
   const sequence = ++ordinal;
   const begin = performance.now();
   let httpStatus = 0;
+  let firstByteMs = null;
+  let cfRay = null;
+  let observedWorkerMs = null;
+  let failureKind = "network-or-timeout";
   const span = {};
   try {
     const response = await probeContext.run(span, () =>
@@ -90,31 +95,40 @@ async function fetchOne(concurrency) {
       }),
     );
     httpStatus = response.status;
-    const ttfbMs = Math.round(performance.now() - begin);
+    firstByteMs = Math.round(performance.now() - begin);
+    cfRay = safeCloudflareRay(response.headers);
+    observedWorkerMs = workerDuration(response.headers);
+    failureKind = "response-body-unavailable";
     const html = await response.text();
     const totalMs = Math.round(performance.now() - begin);
-    // Fully rendered HTML, not a 200 fallback, empty catalogue or 401 asset.
+    // Preserve every failure, including successful HTTP 200 with missing
+    // live rights or missing cards. Classification changes only diagnostics.
+    failureKind =
+      capacityHtmlFailureKind(response.status, response.headers.get("content-type") || "", html) ||
+      "html-validation-failed";
     const cards = validateHtml(response.status, response.headers.get("content-type") || "", html);
     assert.ok(cards >= 1);
+    failureKind = "private-cache-policy-missing";
     assert.match(response.headers.get("cache-control") || "", /no-store/);
+    failureKind = "live-primary-rights-proof-missing";
     assert.match(
       response.headers.get("server-timing") || "",
       /cove_ssr_local_rights;dur=0(?:\.0)?(?:,|$)/,
       "Must query live primary D1 territorial rights; no cached rights/fallback",
     );
-    const timing = safeProbeTelemetry(response.headers, ttfbMs, totalMs);
-    const workerMs = workerDuration(response.headers);
+    failureKind = "diagnostic-processing-unavailable";
+    const timing = safeProbeTelemetry(response.headers, firstByteMs, totalMs);
+    const workerMs = observedWorkerMs;
     const clientQueueMs = elapsed(span.sentAt, span.createdAt);
     const sentToHeadersMs = elapsed(span.headersAt, span.sentAt);
-    const residualMs = workerMs === null ? null : Math.max(0, Math.round(ttfbMs - workerMs));
-    const cfRay = safeCloudflareRay(response.headers);
+    const residualMs = workerMs === null ? null : Math.max(0, Math.round(firstByteMs - workerMs));
     const cfColo = cfRay?.split("-")[1] || "unknown";
     return {
       sequence,
       concurrency,
       status: httpStatus,
       cards,
-      ttfbMs,
+      ttfbMs: firstByteMs,
       totalMs,
       cfColo,
       cfRay,
@@ -132,19 +146,19 @@ async function fetchOne(concurrency) {
       concurrency,
       status: httpStatus,
       cards: 0,
-      ttfbMs: Math.round(performance.now() - begin),
+      ttfbMs: firstByteMs ?? Math.round(performance.now() - begin),
       totalMs: null,
-      cfColo: "unknown",
-      cfRay: null,
+      cfColo: cfRay?.split("-")[1] || "unknown",
+      cfRay,
       timing: null,
-      workerMs: null,
+      workerMs: observedWorkerMs,
       clientQueueMs: elapsed(span.sentAt, span.createdAt),
       sentToHeadersMs: elapsed(span.headersAt, span.sentAt),
-      residualMs: null,
-      error:
-        httpStatus && httpStatus !== 200
-          ? "http-or-render-failed"
-          : "request-or-rights-check-failed",
+      residualMs:
+        observedWorkerMs === null || firstByteMs === null
+          ? null
+          : Math.max(0, Math.round(firstByteMs - observedWorkerMs)),
+      error: failureKind,
     };
   }
 }
