@@ -75,7 +75,7 @@ test("reviewed isolated optional cron is pinned without authorizing further D1 c
       [OWNER_SCRIPT]:owner,
       "cove-persistence-backend":{bindings:[{type:"d1",name:"DB",id:CANONICAL_D1}]}
     },
-    schedulesByName:{"cove-persistence-backend":expected},
+    schedulesByName:{[OWNER_SCRIPT]:[],"cove-persistence-backend":expected},
     subdomainsByName:{[OWNER_SCRIPT]:{enabled:false},"cove-persistence-backend":{enabled:false}}
   });
   const reviewed=compareKnownUnsafeFleet(deployment,baseline);
