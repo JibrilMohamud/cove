@@ -733,8 +733,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
       // Stagger optional discovery and ingest off the five-minute mandatory
       // catalog/regional-rights ingest, reducing simultaneous primary D1 load.
       // This must not defer withdrawals, grants, or customer operations.
- This is independent
-      // of the public storefront and never copies an unreviewed sound recording.
+      // Metadata discovery never copies an unreviewed sound recording.
       await discoverSoundtrackCandidates(env).catch((error) =>
         console.warn("Soundtrack discovery failed", String(error).slice(0, 160)),
       );
