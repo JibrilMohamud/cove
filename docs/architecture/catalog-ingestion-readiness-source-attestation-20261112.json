@@ -1,0 +1,12 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Separate source-bound engineering review of Cove's catalog readiness change compared the complete api.server.ts source against the unchanged main baseline, verified exactly three localized changes (one non-mutating helper import, replacement of a read-only operational ingestion-status query after the authoritative rights-checked catalog, and response metadata mapping). All 33 existing protected canonical SQL literals and their containing functions were preserved with original dispositions. This is NOT an independent production writer-ownership or cutover certification; all unresolved protected writes remain release blockers.",
+  "files": [
+    {
+      "path": "src/features/fore/api.server.ts",
+      "sha256": "c8f1164e8601162c49ae7d6c049f1f9c46a5506e2a86ae445c74ed11f6379c20",
+      "review": "Byte-exact three-hunk comparison confirmed only optional ingestion-status SELECT was moved to a helper; all 33 protected SQL mutation literals, DB bindings, caller identities, and production owner fences remained unchanged. Each existing site retains owner-command-required classification and productionOwnerGuarded=false. No legal authorizations, payment grants, revocations, prices, or rollback gates were modified."
+    }
+  ]
+}
