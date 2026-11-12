@@ -113,6 +113,13 @@ try {
   assert.ok(performance.now() - started < 200, "Independent hedge must beat the cold timeout");
   assert.ok(phases.some(([phase, kind]) => phase === "alternate" && kind === "ok"));
 
+  const productionLoader = fs.readFileSync("src/features/fore/storefront-loader.ts", "utf8");
+  assert.match(
+    productionLoader,
+    /hedgeAfterMs: 325,/,
+    "Cold SSR must start the independently rights-verified backup before the 800ms gate.",
+  );
+
   alternateCalls = 0;
   const immediate = await hedgedStorefrontBootstrap(
     source,
