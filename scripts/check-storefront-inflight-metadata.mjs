@@ -80,7 +80,10 @@ try {
   const countries = [
     db1.prepare(marketSql).bind("US", locales).all(),
     db1.prepare(marketSql).bind("CA", locales).all(),
-    db1.prepare(marketSql).bind("US", JSON.stringify(["fr-CA", "fr"])).all(),
+    db1
+      .prepare(marketSql)
+      .bind("US", JSON.stringify(["fr-CA", "fr"]))
+      .all(),
     dbB.prepare(marketSql).bind("US", locales).all(),
   ];
   await Promise.resolve();
@@ -94,8 +97,14 @@ try {
   // malformed locale parameters—even when the attacker repeats a key.
   const other = [
     db1.prepare("SELECT * FROM rights_grants").bind("US", locales).all(),
-    db1.prepare(marketSql).bind("US", JSON.stringify(["invalid_locale"])).all(),
-    db1.prepare(marketSql).bind("US", JSON.stringify(Array(11).fill("en-US"))).all(),
+    db1
+      .prepare(marketSql)
+      .bind("US", JSON.stringify(["invalid_locale"]))
+      .all(),
+    db1
+      .prepare(marketSql)
+      .bind("US", JSON.stringify(Array(11).fill("en-US")))
+      .all(),
     db1.prepare(marketSql).bind("US", "{invalid-json").all(),
   ];
   await Promise.resolve();
