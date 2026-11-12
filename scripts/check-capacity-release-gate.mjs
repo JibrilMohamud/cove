@@ -7,12 +7,12 @@ import { responseCompletionSummary } from "./performance/response-completion-dia
 const drains = responseCompletionSummary([
   { ok: true, ms: 40, completeMs: 90, bodyDrainMs: 50, wireBytes: 100, decodedBytes: 200 },
   { ok: true, ms: 40, completeMs: 1200, bodyDrainMs: 1160, wireBytes: 500, decodedBytes: 1000 },
-  { ok: false, ms: 55, completeMs: 80, bodyDrainMs: null, wireBytes: null, decodedBytes: null },
+  { ok: false, ms: 55, completeMs: null, bodyDrainMs: null, wireBytes: null, decodedBytes: null },
 ]);
 assert.equal(drains.received, 3);
-assert.equal(drains.completed, 3);
+assert.equal(drains.completed, 2);
 assert.equal(drains.drained, 2);
-assert.equal(drains.incomplete, 0);
+assert.equal(drains.incomplete, 1);
 assert.equal(drains.completionMaxMs, 1200);
 assert.equal(drains.bodyDrainP95Ms, 1160);
 assert.equal(drains.slowBodyOver500Ms, 1);
