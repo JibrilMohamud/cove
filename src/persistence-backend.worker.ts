@@ -710,8 +710,30 @@ async function runScheduled(cron: string, env: BackendEnv) {
       return;
     }
     if (cron === "*/10 * * * *") {
-      // Small metadata-only Commons batch every ten minutes. This is independent
-      // of the public storefront and never copies an unreviewed sound recording.
+      // Preserve the original frequency of published-license withdrawal audits.
+      // These are rights-sensitive and never depend on optional import work.
+      // Auditing two already-published originals per tick rechecks approximately
+      // 288 recordings/day. A verified license/master mismatch removes access
+      // before R2 deletion; temporary Commons failures are retried later.
+      for (let index = 0; index < 2; index++) {
+        try {
+          const rights = await recheckOnePublishedSoundtrack(env);
+          if ("revoked" in rights || "held" in rights) {
+            console.warn("Cove published soundtrack rights audit", JSON.stringify(rights));
+          }
+          if ("skipped" in rights) break;
+        } catch (error) {
+          console.warn("Published soundtrack rights audit failed", String(error).slice(0, 160));
+          break;
+        }
+      }
+      return;
+    }
+    if (cron === "7-57/10 * * * *") {
+      // Stagger optional discovery and ingest off the five-minute mandatory
+      // catalog/regional-rights ingest, reducing simultaneous primary D1 load.
+      // This must not defer withdrawals, grants, or customer operations.
+      // Metadata discovery never copies an unreviewed sound recording.
       await discoverSoundtrackCandidates(env).catch((error) =>
         console.warn("Soundtrack discovery failed", String(error).slice(0, 160)),
       );
@@ -727,21 +749,6 @@ async function runScheduled(cron: string, env: BackendEnv) {
           if ("skipped" in result || "canceled" in result) break;
         } catch (error) {
           console.warn("Soundtrack import failed", String(error).slice(0, 160));
-          break;
-        }
-      }
-      // Auditing two already-published originals per tick rechecks approximately
-      // 288 recordings/day. A verified license/master mismatch removes access
-      // before R2 deletion; temporary Commons failures are retried later.
-      for (let index = 0; index < 2; index++) {
-        try {
-          const rights = await recheckOnePublishedSoundtrack(env);
-          if ("revoked" in rights || "held" in rights) {
-            console.warn("Cove published soundtrack rights audit", JSON.stringify(rights));
-          }
-          if ("skipped" in rights) break;
-        } catch (error) {
-          console.warn("Published soundtrack rights audit failed", String(error).slice(0, 160));
           break;
         }
       }
