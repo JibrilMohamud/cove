@@ -84,6 +84,33 @@ assert.equal(
   3,
   "Only derived search sync, operator-only EPUB repair and deferrable minute work may probe D1",
 );
+// The ten-minute published-rights audit remains prompt. Only deferrable
+// soundtrack acquisition and audio discovery move away from required five-minute
+// rights/catalog ingestion. Customer queues and tournament advancement stay put.
+const scheduler = workerSource.slice(workerSource.indexOf("async function runScheduled("));
+const publishedStart = scheduler.indexOf('if (cron === "*/10 * * * *")');
+const optionalStart = scheduler.indexOf('if (cron === "7-57/10 * * * *")');
+const hourlyStart = scheduler.indexOf('if (cron === "23 * * * *")');
+assert.ok(publishedStart >= 0 && optionalStart > publishedStart && hourlyStart > optionalStart);
+const rightsAudit = scheduler.slice(publishedStart, optionalStart);
+const optionalDiscovery = scheduler.slice(optionalStart, hourlyStart);
+assert.match(rightsAudit, /recheckOnePublishedSoundtrack\(env\)/);
+assert.doesNotMatch(rightsAudit, /discoverSoundtrackCandidates|importOneReviewedSoundtrack|audio-discover/);
+assert.match(optionalDiscovery, /discoverSoundtrackCandidates\(env\)/);
+assert.match(optionalDiscovery, /importOneReviewedSoundtrack\(env\)/);
+assert.match(optionalDiscovery, /audio-discover/);
+assert.doesNotMatch(optionalDiscovery, /recheckOnePublishedSoundtrack\(env\)/);
+const commercial = workerSource.slice(workerSource.indexOf("async function runCommercialQueues("), workerSource.indexOf("async function scheduledMaintenance("));
+assert.match(commercial, /if \(cron === "\*\/10 \* \* \* \*"\)/);
+const entrypoint = workerSource.slice(workerSource.indexOf("  async scheduled("), workerSource.indexOf("  async fetch(", workerSource.indexOf("  async scheduled(")));
+assert.match(entrypoint, /controller\.cron === "\*\/10 \* \* \* \*"/);
+for (const configPath of [
+  "wrangler.backend.production.toml",
+  ".github/workflows/deploy-persistence-backend.yml",
+]) {
+  const config = fs.readFileSync(configPath, "utf8");
+  assert.match(config, /"\*\/5 \* \* \* \*", "\*\/10 \* \* \* \*", "7-57\/10 \* \* \* \*"/);
+}
 console.log(
   "Derived-search and minute maintenance admission: safe canonical rights ingestion, bounded retryable deferral PASS",
 );
