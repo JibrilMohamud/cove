@@ -12,6 +12,8 @@ on:
       - "src/lib/catalog-ingestion-backpressure.ts"
       - "scripts/check-catalog-ingestion-backpressure.mjs"
       - "src/features/fore/**"
+      - "scripts/check-isolated-http-metric.mjs"
+      - "scripts/check-production-http-metric-wiring.mjs"
       # Store.tsx changes only the browser/SSR presentation. Its source is
       # absent from the persistence Worker's backend bundle: do not redeploy
       # and rerun primary D1 migrations for this optional UI enhancement.
@@ -109,6 +111,11 @@ jobs:
 
       - name: Verify strict production guest-catalog release probe behavior
         run: node --test scripts/wait-live-storefront-catalog.test.mjs
+
+      - name: Verify private HTTP metrics isolation before production deployment
+        run: |
+          node scripts/check-isolated-http-metric.mjs
+          node scripts/check-production-http-metric-wiring.mjs
 
       - name: Build persistence Worker
         run: npm run build:backend
