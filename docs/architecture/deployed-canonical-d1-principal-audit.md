@@ -1,5 +1,15 @@
 # Deployed canonical D1 principal isolation — independent release blocker
 
+## Latest deployed binding retirement (November 13, 2026)
+
+The [independent complete-fleet audit](https://github.com/JibrilMohamud/cove/actions/runs/43472648145) inspected **455 deployed Worker scripts** after the provider-enforced D1 Read migrations. It found **exactly two** active native canonical production D1 bindings: the **disabled** `cove-legal-authority-production` legal owner (`PRIMARY_DB`) and the still-privileged `cove-persistence-backend` (`DB`). Thus exactly **one non-owner** Worker retains canonical D1; that Worker also has production HTTP ingress and scheduled mutation jobs. `releaseEligible=false` and `productionAuthorized=false` remain mandatory.
+
+The protected [SSR staging migration #653](https://github.com/JibrilMohamud/cove/pull/653) and [Sounds private publisher migration #654](https://github.com/JibrilMohamud/cove/pull/654) (repaired by [#655](https://github.com/JibrilMohamud/cove/pull/655)) now serve immutable active versions with **zero native D1 bindings** and private `cove-canonical-d1-readonly` service bindings. The [Sounds rollout](https://github.com/JibrilMohamud/cove/actions/runs/43472647801) passed with private US hourly publication enabled and no public Sounds route.
+
+The known-unsafe drift baseline is **now pinned to only those two still-deployed direct binding pairs**; regranting any of seven previously pinned non-owner D1 bindings (including Sounds, SSR staging, literary and publication QA) fails both the exact allowlist and a hard **two total / one non-owner ceiling**. This is a *regression lock*, not production owner certification. Full removal of the backend's last non-owner D1 capability is **blocked** until its authenticated API and seven cron schedules complete owner-command migration, positive legal evidence and paid settlement/refund/revocation certification. Do not strip its native D1 or enable the owner on a live customer route to force a green result.
+
+### Prior historical snapshots
+
 Audit date: October 29, 2026. This is a **read-only capability inventory**, not an exploit report or proof of authorization.
 
 ## Verified Cloudflare account facts

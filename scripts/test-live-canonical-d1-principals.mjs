@@ -68,7 +68,7 @@ test("reviewed isolated optional cron is pinned without authorizing further D1 c
   ];
   assert.deepEqual(baseline.knownSchedules["cove-persistence-backend"],expected);
   assert.equal(baseline.certified,false);
-  assert.equal(baseline.knownDirectBindings.length,9);
+  assert.equal(baseline.knownDirectBindings.length,2);
   const deployment=assessDeployedCanonicalD1Principals({
     scripts:[{id:OWNER_SCRIPT},{id:"cove-persistence-backend"}],
     settingsByName:{
@@ -94,13 +94,13 @@ test("reviewed isolated optional cron is pinned without authorizing further D1 c
   }]);
   assert.equal(future.strictDriftPass,false);
 });
-test("48 retired direct D1 capabilities cannot return and the nine-binding unsafe baseline stays pinned",()=>{
+test("55 retired direct D1 capabilities cannot return and the two-binding unsafe baseline stays pinned",()=>{
   const retired=JSON.parse(readFileSync("docs/architecture/historical-publication-capture-d1-isolation-20261029.json","utf8"));
   const baseline=JSON.parse(readFileSync("docs/architecture/deployed-canonical-d1-baseline.json","utf8"));
   assert.equal(retired.scripts.length,43);
-  assert.equal(baseline.knownDirectBindings.length,9);
-  assert.equal(baseline.retirementEvidence.totalBindingsRemoved,48);
-  assert.equal(baseline.retirementEvidence.remainingNonOwnerBindings,8);
+  assert.equal(baseline.knownDirectBindings.length,2);
+  assert.equal(baseline.retirementEvidence.totalBindingsRemoved,55);
+  assert.equal(baseline.retirementEvidence.remainingNonOwnerBindings,1);
   for(const n of ["cove-fast-architecture-qa","cove-fast-customer-gateway"])
     assert.ok(!baseline.knownDirectBindings.some(x=>x.script===n),
       "Retired fast gateway cannot be an unsafe legacy binding: "+n);
@@ -448,5 +448,42 @@ test("still-listed disappearing handshake, arbitrary 404 and authorization failu
     ()=>attempt(vanished,403,true),
     /HTTP 403/
   );
+});
+test("retired Sounds, SSR and literary direct D1 bindings cannot be regranted by baseline edits",()=>{
+  const baseline=JSON.parse(readFileSync("docs/architecture/deployed-canonical-d1-baseline.json","utf8"));
+  const remaining=[
+    {script:OWNER_SCRIPT,binding:"PRIMARY_DB",owner:true,crons:[]},
+    {script:"cove-persistence-backend",binding:"DB",owner:false,crons:baseline.knownSchedules["cove-persistence-backend"]}
+  ];
+  assert.deepEqual(baseline.knownDirectBindings,remaining.map(({script,binding})=>({script,binding})));
+  const safe={
+    ownerEnabled:false,principals:remaining,directCanonicalBindings:2,nonOwnerBindings:1,
+    unsafeLegacyDriverIngress:0,retiredCaptureReactivations:[],
+    unsafeFastArchitectureQAIngress:0,retiredDisabledLiteraryReactivations:[],
+    retiredFastWorkerViolations:[]
+  };
+  assert.equal(compareKnownUnsafeFleet(safe,baseline).strictDriftPass,true);
+  const retired=[
+    ["cove-literary-handoff-draining-20261025","DB"],
+    ["cove-literary-infer-isolated-disabled","DB"],
+    ["cove-literary-prepare-draining-20261025","DB"],
+    ["cove-literary-publisher-isolated-disabled","DB"],
+    ["cove-pub-qa-continuous-capture","SOURCE_DB"],
+    ["cove-sounds-publication","SOURCE_DB"],
+    ["cove-storefront-ssr-staging","DB"]
+  ];
+  assert.equal(baseline.retirementEvidence.totalBindingsRemoved,55);
+  assert.equal(baseline.retirementEvidence.remainingNonOwnerBindings,1);
+  assert.equal(new Set(retired.map(([name])=>name)).size,7);
+  for(const [script,binding] of retired) {
+    const rebound={...safe,directCanonicalBindings:3,nonOwnerBindings:2,
+      principals:[...remaining,{script,binding,owner:false,crons:[]}]};
+    const verdict=compareKnownUnsafeFleet(rebound,baseline);
+    assert.deepEqual(verdict.newBindings,[{script,binding}]);
+    assert.equal(verdict.strictDriftPass,false,"Native D1 regrant cannot be grandfathered: "+script);
+    const forged={...baseline,knownDirectBindings:[...baseline.knownDirectBindings,{script,binding}]};
+    assert.equal(compareKnownUnsafeFleet(rebound,forged).strictDriftPass,false,
+      "The hard two-principal ceiling must survive a forged expanded baseline");
+  }
 });
 console.log("PASS: deployed principal account-wide audit is read-only, fail-closed, and cannot self-certify production authorization");
