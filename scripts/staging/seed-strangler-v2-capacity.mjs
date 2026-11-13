@@ -109,6 +109,7 @@ async function writeCountry(country) {
       const file = path.join(directory, country + ".json");
       fs.writeFileSync(file, body, { mode: 0o600 });
       const objectKey = prefix + key;
+      manifest.push({ country, objectKey });
       wrangler([
         "r2", "object", "put", bucket + "/" + objectKey,
         "--remote", "--file", file, "--content-type", "application/json",
@@ -149,7 +150,7 @@ async function writeCountry(country) {
 }
 const manifest = [];
 try {
-  for (const country of countries) manifest.push(await writeCountry(country));
+  for (const country of countries) await writeCountry(country);
 } finally {
   fs.writeFileSync(
     path.join(directory, "manifest.json"),
