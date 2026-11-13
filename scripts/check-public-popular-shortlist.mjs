@@ -12,8 +12,14 @@ assert.match(source, /input\.limit <= 24 &&/);
 assert.match(source, /input\.subscription === undefined &&/);
 assert.match(source, /input\.library === undefined &&/);
 assert.match(source, /input\.availability === "available" &&/);
-assert.match(source, /firstPagePopularRightsShortlist\(env\.DB, part, input\.limit\)/);
-assert.match(source, /if \(verified\) return \{ results: verified\.map/);
+assert.match(
+  source,
+  /firstPagePopularRightsShortlist\(\s*env\.DB,\s*part,\s*progressive \? input\.limit \+ 1 : input\.limit/,
+);
+assert.match(
+  source,
+  /if \(verified\) \{\s*hasVerifiedNextPageWitness = progressive;\s*return \{ results: verified\.slice\(0, input\.limit\)/,
+);
 assert.match(source, /const plan = await rankedCandidatePlan/);
 assert.match(source, /const scoped = rightsScopedCachedPageQuery\(part, ids\)/);
 
