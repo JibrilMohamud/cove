@@ -80,6 +80,27 @@ assert.equal(
 );
 
 const server = fs.readFileSync("src/server.ts", "utf8");
+const failureSource = fs.readFileSync("src/storefront-strangler/failure.ts", "utf8");
+const failureCode = await transform(failureSource, { loader: "ts", format: "esm" });
+const { bootstrapFailureKind } = await import(
+  "data:text/javascript;base64," + Buffer.from(failureCode.code).toString("base64")
+);
+for (const [message, kind] of [
+  [
+    "D1 DB is overloaded. Too many resources consumed within a 10 second window",
+    "d1-resource-window",
+  ],
+  ["D1 DB is overloaded. Too many requests queued.", "d1-queue-full"],
+  ["D1 DB is overloaded. Requests queued for too long.", "d1-queue-wait"],
+  ["Unrelated service overloaded", "service-overloaded"],
+]) {
+  const error = new Error("D1 wrapper", { cause: new Error(message + " private SQL and TOKEN") });
+  assert.equal(bootstrapFailureKind(error), kind);
+  const label = "cove_ssr_read_" + kind.replaceAll("-", "_");
+  assert.equal(safeTiming(label + ";dur=0"), "cove_ssr_empty;dur=0, " + label + ";dur=0");
+  assert.equal(safeTiming(label + ';dur=0;desc="TOKEN"'), "cove_ssr_empty;dur=0");
+}
+assert.equal(bootstrapFailureKind(new Error("private SQL and TOKEN")), "unclassified");
 assert.match(server, /stagingHomeNeedsUnavailableStatus\(request, normalized, staging\)/);
 assert.match(server, /const guarded = stagingHomeNeedsUnavailableStatus/);
 assert.match(server, /status: 503,/);
