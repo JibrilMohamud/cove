@@ -15,9 +15,15 @@ while (Date.now() < deadline) {
     });
     if (response.ok && response.headers.get("cache-control")?.includes("no-store")) {
       const data = await response.json();
-      if (data.stage === "bootstrap" && data.ok === true && data.books > 0) {
+      const timing = response.headers.get("server-timing") || "";
+      // The old candidate-only model and the canonical fallback cannot emit
+      // this v2-only presentation marker. Never certify an unmeasured model.
+      const verifiedV2 = /(?:^|,\\s*)cove_presentation;dur=[0-9]+(?:\\.[0-9]+)?/.test(
+        timing,
+      );
+      if (data.stage === "bootstrap" && data.ok === true && data.books > 0 && verifiedV2) {
         console.log(
-          "COVE_PRIVATE_MODEL_STAGE_READY: prepared candidates, primary rights, stage auth",
+          "COVE_PRIVATE_MODEL_STAGE_READY: v2 R2/KV presentation, fresh primary rights, stage auth",
         );
         process.exit(0);
       }
