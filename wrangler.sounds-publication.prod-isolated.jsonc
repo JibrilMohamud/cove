@@ -7,10 +7,9 @@
   "workers_dev": false,
   "preview_urls": false,
   "observability": { "enabled": true },
-  "d1_databases": [{
-    "binding": "SOURCE_DB",
-    "database_name": "cove-production",
-    "database_id": "4bd657ac-8789-403e-a28c-93aba8d0a989"
+  "services": [{
+    "binding": "COVE_CANONICAL_READONLY",
+    "service": "cove-canonical-d1-readonly"
   }],
   "r2_buckets": [{
     "binding": "SOUNDS_PRESENTATION",
@@ -18,6 +17,7 @@
   }],
   "kv_namespaces": [{ "binding": "SOUNDS_PRESENTATION_KV", "id": "544267f3cf604c1d8976f1b06d258e24" }],
   "vars": {
+    "COVE_CANONICAL_READONLY_RPC": "1",
     "COVE_SOUNDS_PUBLICATION_ENABLED": "1",
     "COVE_SOUNDS_MARKETS": "US"
   },
