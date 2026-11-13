@@ -16,8 +16,18 @@ const opts = { origin: "https://cove-puce-theta.vercel.app", pause: async () => 
 
 test("guest catalog acceptance is exact and fails closed without backend proof", async () => {
   assert.equal(await catalogReadinessFailure(response()), null);
-  assert.equal(await catalogReadinessFailure(response(503)), "http-unavailable");
-  assert.equal(await catalogReadinessFailure(response(401)), "http-unavailable");
+  assert.equal(await catalogReadinessFailure(response(503)), "http-503");
+  assert.equal(await catalogReadinessFailure(response(401)), "http-401");
+
+  // The gate remains strict: a fast 429 is a quota denial, never a valid
+  // retail-rights response. Never include response text or raw headers.
+  for (const status of [403, 404, 429, 500, 502, 503, 504, 522])
+    assert.equal(await catalogReadinessFailure(response(status)), `http-${status}`);
+  assert.equal(await catalogReadinessFailure(response(418)), "http-unavailable");
+  await assert.rejects(
+    waitForLiveCatalog({ ...opts, fetcher: async () => response(429), attempts: 2 }),
+    /http-429/,
+  );
 
   const empty = response(200, { results: [] });
   const missingId = response(200, { results: [{ title: "No product" }] });
@@ -48,7 +58,7 @@ test("one transient 503 can recover, but real catalog is always required", async
   assert.deepEqual(out, { ready: true, attempts: 2 });
   await assert.rejects(
     waitForLiveCatalog({ ...opts, fetcher: async () => response(503), attempts: 2 }),
-    /http-unavailable/,
+    /http-503/,
   );
   const noBooks = waitForLiveCatalog({
     ...opts,
@@ -76,7 +86,7 @@ test("backend deployment requires two consecutive live catalog responses", async
       consecutiveSuccesses: 2,
       fetcher: async () => response(503),
     }),
-    /http-unavailable/,
+    /http-503/,
   );
   for (const value of [0, 4, 1.5]) {
     await assert.rejects(
