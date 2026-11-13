@@ -611,6 +611,41 @@ try {
       desktopCandidate.goto(origin, { waitUntil: "domcontentloaded", timeout: 30000 }),
     ]);
     assert.equal(desktopBaselineResponse?.status(), 200);
+    if (desktopStageResponse?.status() !== 200) {
+      // Record the failed *stage* response before the strict assertion.
+      // Numeric times and a fixed classification only: no SQL, body,
+      // raw headers, signed token, user identity, or product identifier.
+      const headers = (await desktopStageResponse?.allHeaders()) || {};
+      const rawKind = headers["x-cove-stage-failure-kind"] || "";
+      const rawPhase = headers["x-cove-stage-failure-subphase"] || "";
+      const ray = headers["cf-ray"] || "";
+      const kind =
+        /^(?:d1-resource-window|d1-queue-full|d1-queue-wait|service-overloaded|database|transient-service|presentation-absent|presentation-invalid|presentation-binding|limiter-unavailable|rate-limited|territory-mismatch|market-projection|unclassified)$/.test(
+          rawKind,
+        )
+          ? rawKind
+          : "unclassified";
+      const phase = /^(?:presentation|context|catalog|limit|unknown)$/.test(rawPhase)
+        ? rawPhase
+        : "unknown";
+      const durations = {};
+      for (const match of (headers["server-timing"] || "").matchAll(
+        /(?:^|,\s*)(cove_[a-z0-9_]+);dur=([0-9]+(?:\.[0-9]+)?)/g,
+      ))
+        durations[match[1]] = Number(match[2]);
+      evidence.desktopStageFailure = {
+        status: desktopStageResponse?.status() ?? null,
+        kind,
+        phase,
+        ray: /^[a-f0-9]{12,32}-[A-Z]{3}$/.test(ray) ? ray : null,
+        durations,
+      };
+      console.log(
+        "REAL_CATALOG_DESKTOP_STAGE_FAILURE",
+        JSON.stringify(evidence.desktopStageFailure),
+      );
+      save();
+    }
     assert.equal(desktopStageResponse?.status(), 200);
     let [desktopLivePaint, desktopStagePaint] = await Promise.all([
       settleCatalog(desktopLive),

@@ -24,7 +24,13 @@ async function query(database, sql) {
       signal: AbortSignal.timeout(30000),
     },
   );
-  assert.ok(response.ok);
+  assert.ok(
+    response.ok,
+    "Read-only literary publication preflight " +
+      (database === primary ? "primary" : "isolated-content") +
+      " HTTP " +
+      response.status,
+  );
   const result = await response.json();
   assert.equal(result.success, true);
   return result.result[0]?.results || [];
