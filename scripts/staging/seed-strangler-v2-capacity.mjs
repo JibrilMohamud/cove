@@ -106,8 +106,7 @@ async function writeCountry(country) {
       assert.ok(
         document.displayBooks.every(
           (book) =>
-            !("offer" in book) && !("subscriptionEligible" in book) &&
-            !("libraryEligible" in book),
+            !("offer" in book) && !("subscriptionEligible" in book) && !("libraryEligible" in book),
         ),
         "A presentation must never contain cached offers or grants",
       );
