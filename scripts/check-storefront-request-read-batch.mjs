@@ -121,7 +121,10 @@ try {
       if (key === "batch")
         return (statements) => {
           counts.batches++;
-          assert.equal(statements.length, 2, "Exactly the two original independent reads");
+          assert.ok(
+            statements.length === 1 || statements.length === 2,
+            "A cached public market may omit only the metadata statement; every request retains primary rights",
+          );
           return target.batch(statements);
         };
       const value = Reflect.get(target, key, target);
