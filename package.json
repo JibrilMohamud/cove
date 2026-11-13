@@ -171,6 +171,7 @@
     "workerd": "1.20260730.1"
   },
   "overrides": {
+    "@xmldom/xmldom": "0.8.15",
     "zod": "^4.6.7"
   }
 }
