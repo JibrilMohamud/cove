@@ -104,7 +104,11 @@ try {
       .map((row) => row.product_id);
   const fast = await shortlist(db, scope, 24);
   assert.ok(fast, "Dense legal market must produce complete verified first page");
-  assert.deepEqual(fast, full(), "Bounded current-rights shortlist must preserve exact SQL ranking");
+  assert.deepEqual(
+    fast,
+    full(),
+    "Bounded current-rights shortlist must preserve exact SQL ranking",
+  );
   assert.deepEqual(await shortlist(db, scope, 24), fast, "Warm reads remain exact");
   assert.equal(await shortlist(db, { ...scope, hasFts: true }, 24), null);
   assert.equal(await shortlist(db, scope, 25), null);
@@ -138,10 +142,7 @@ try {
       return db.prepare(statement);
     },
   };
-  await assert.rejects(
-    shortlist(broken, scope, 24),
-    /Primary territorial rights are unavailable/,
-  );
+  await assert.rejects(shortlist(broken, scope, 24), /Primary territorial rights are unavailable/);
   console.log(
     "PASS: real bounded popularity shortlist equals full ranked SQL, withdraws rights immediately, rejects sparse and failed primary checks",
   );
