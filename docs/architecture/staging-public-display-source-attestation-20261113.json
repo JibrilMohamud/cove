@@ -1,0 +1,12 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Separate complete-diff source review confirmed exactly two read-only firstPaintStorefrontShelf changes: an optional display-cache scope parameter and forwarding that parameter to the existing authoritative shelf reader. The lean bootstrap supplies the original D1 binding as scope only in isolated staging. Candidate ranking, market currency, current primary territorial retail rights and all existing writer callers and guards remain unchanged. All protected mutation literals retain their original functions, hashes and dispositions; this review grants no production owner or release approval.",
+  "files": [
+    {
+      "path": "src/features/fore/search.server.ts",
+      "sha256": "b4a435335c8b8009a27288931aea94082ba1785930636e1101958955a4c881fa",
+      "review": "Reviewed both source hunks and the full firstPaintStorefrontShelf caller: only a display-only data scope is forwarded after unchanged primary rights selection. No canonical mutation, writer caller, owner fence or authorization branch changes. Existing ranking-quality UPDATE and append-only analytics retain their exact SQL and nonauthorizing classifications."
+    }
+  ]
+}

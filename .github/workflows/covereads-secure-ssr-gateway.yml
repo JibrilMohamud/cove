@@ -20,6 +20,7 @@ on:
       - "scripts/check-storefront-inflight-metadata.mjs"
       - "scripts/check-storefront-metadata-request-lifetime.mjs"
       - "scripts/check-storefront-request-read-batch.mjs"
+      - "scripts/check-storefront-public-display-cache.mjs"
       - "src/features/fore/storefront-*.ts"
       - "src/features/fore/localization.server.ts"
       - "src/features/fore/search.server.ts"
@@ -80,6 +81,7 @@ jobs:
           node scripts/check-storefront-inflight-metadata.mjs
           node scripts/check-storefront-metadata-request-lifetime.mjs
           node scripts/check-storefront-request-read-batch.mjs
+          node scripts/check-storefront-public-display-cache.mjs
       - name: Classify only verified D1 7429 without exposing exception data
         run: node scripts/check-storefront-hedged.mjs
       - name: Verify gate source and production remains disabled

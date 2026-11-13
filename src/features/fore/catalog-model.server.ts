@@ -1,5 +1,11 @@
 import type { CatalogBook } from "./client";
 import { ApiError } from "./service";
+import {
+  hasCompletedPublicDisplay,
+  readCompletedPublicDisplay,
+  rememberCompletedPublicDisplay,
+  PUBLIC_DISPLAY_TTL_MS,
+} from "./storefront-public-display-cache";
 
 type Statement = {
   bind(...v: unknown[]): Statement;
@@ -290,6 +296,27 @@ const firstPaintLiveCandidateProjectionSql = firstPaintBookProjectionSql.replace
   ", (SELECT COUNT(*) FROM eligible) AS candidate_total FROM products p",
 );
 
+// This projection omits display-only text/aggregations. Every field that can
+// affect IDs, prices or access UI still comes from THIS fresh primary read.
+const firstPaintLiveAuthorityProjectionSql = `SELECT
+  p.id product_id,p.public_id product_public_id,p.source_name,p.source_external_id,
+  e.id edition_id,e.public_id edition_public_id,e.work_id,w.public_id work_public_id,
+  e.release_status,e.drm_status,e.downloadable,d.download_count,
+  gc.epub_status epub_storage_status,
+  epub_version.source_url epub_source_url,epub_version.object_key epub_object_key,
+  (SELECT json_object('type',o.offer_type,'currency',o.currency,'amountMinor',o.amount_minor)
+   FROM offers o WHERE o.product_id=p.id AND o.sales_channel='retail' AND o.active=1
+   AND (o.starts_at IS NULL OR o.starts_at<=datetime('now'))
+   AND (o.ends_at IS NULL OR o.ends_at>datetime('now'))
+   ORDER BY o.created_at DESC LIMIT 1) offer_json,
+  (SELECT COUNT(*) FROM eligible) AS candidate_total
+  FROM products p JOIN editions e ON e.id=p.edition_id
+  JOIN works w ON w.id=e.work_id
+  LEFT JOIN catalog_search_documents d ON d.product_id=p.id
+  LEFT JOIN gutenberg_source_cache gc ON gc.id=p.source_external_id AND p.source_name='gutenberg'
+  LEFT JOIN digital_assets epub ON epub.edition_id=e.id AND epub.kind='epub'
+  LEFT JOIN asset_versions epub_version ON epub_version.id=epub.current_version_id`;
+
 export async function canonicalFirstPaintBooksByProductIds(db: DB, productIds: string[]) {
   if (!productIds.length) return [] as CatalogBook[];
   if (productIds.length > 100)
@@ -391,6 +418,7 @@ export type FirstPaintD1QueryMetrics = {
   attempts?: number;
   servedByRegion?: string;
   servedByPrimary?: boolean;
+  publicDisplay?: "cold" | "hit" | "miss";
 };
 
 export type PrimaryStorefrontAuthorityRow = {
@@ -492,6 +520,7 @@ export async function canonicalFirstPaintShelfByRightsQuery(
     currencyCountry?: string;
   },
   diagnostics?: FirstPaintD1QueryMetrics,
+  publicDisplayScope?: object,
 ): Promise<{ books: CatalogBook[]; hasMore: boolean }> {
   if (!Number.isInteger(selection.limit) || selection.limit < 1 || selection.limit > 100)
     throw new ApiError(400, "Invalid storefront shelf limit.");
@@ -518,27 +547,75 @@ export async function canonicalFirstPaintShelfByRightsQuery(
   const bindings = selection.currencyCountry
     ? [selection.currencyCountry, ...selection.binds, selection.limit + 1]
     : [...selection.binds, selection.limit + 1];
-  const rows = await db
-    .prepare(
-      `${currencyPrelude}
+  const startedAt = Date.now();
+  const useDisplay = publicDisplayScope && hasCompletedPublicDisplay(publicDisplayScope, startedAt);
+  const execute = (projection: string) =>
+    db
+      .prepare(
+        `${currencyPrelude}
          SELECT d.product_id,d.fore_bestseller_score AS sort_score,
            d.external_book_id AS sort_source
          FROM ${selection.from}
          WHERE ${selection.where}
          ORDER BY ${selection.order},d.product_id ASC LIMIT ?
        )
-       ${firstPaintLiveCandidateProjectionSql}
+       ${projection}
        JOIN eligible selected ON selected.product_id=p.id
        ORDER BY selected.sort_score DESC,selected.sort_source ASC,selected.product_id ASC`,
-    )
-    .bind(...bindings)
-    .all<Record<string, unknown>>();
-  if (diagnostics) recordFirstPaintD1Metrics(rows, diagnostics);
-  const distinct = new Map<string, CatalogBook>();
-  for (const row of rows.results) {
-    const id = String(row.product_id);
-    if (!distinct.has(id)) distinct.set(id, canonicalRowBook(row));
+      )
+      .bind(...bindings)
+      .all<Record<string, unknown>>();
+  let rows = await execute(
+    useDisplay ? firstPaintLiveAuthorityProjectionSql : firstPaintLiveCandidateProjectionSql,
+  );
+  let displayMode: "cold" | "hit" | "miss" = "cold";
+  let priorMetrics: FirstPaintD1QueryMetrics | undefined;
+  let books: CatalogBook[] | null = null;
+  if (useDisplay && publicDisplayScope) {
+    const hydrated: CatalogBook[] = [];
+    let missing = false;
+    for (const row of rows.results) {
+      const display = readCompletedPublicDisplay(
+        publicDisplayScope,
+        String(row.product_id),
+        String(row.edition_id),
+      );
+      if (!display) {
+        missing = true;
+        break;
+      }
+      const fresh = canonicalRowBook(row);
+      hydrated.push({ ...fresh, ...display, formats: { ...display.formats, ...fresh.formats } });
+    }
+    if (missing) {
+      // A new/moved/expired edition must use the unchanged full live query,
+      // never lose a current book or reuse another edition's presentation.
+      priorMetrics = {};
+      recordFirstPaintD1Metrics(rows, priorMetrics);
+      rows = await execute(firstPaintLiveCandidateProjectionSql);
+      displayMode = "miss";
+    } else {
+      books = hydrated;
+      displayMode = "hit";
+    }
   }
+  if (diagnostics) {
+    recordFirstPaintD1Metrics(rows, diagnostics);
+    if (priorMetrics)
+      for (const field of ["sqlDurationMs", "rowsRead", "attempts"] as const) {
+        const prior = priorMetrics[field],
+          last = diagnostics[field];
+        if (prior !== undefined && last !== undefined) diagnostics[field] = prior + last;
+        else delete diagnostics[field];
+      }
+    if (publicDisplayScope) diagnostics.publicDisplay = displayMode;
+  }
+  if (books === null) books = rows.results.map(canonicalRowBook);
+  const distinct = new Map<string, CatalogBook>();
+  for (const book of books) if (!distinct.has(book.productId!)) distinct.set(book.productId!, book);
+  if (publicDisplayScope && displayMode !== "hit")
+    for (const book of distinct.values())
+      rememberCompletedPublicDisplay(publicDisplayScope, book, startedAt + PUBLIC_DISPLAY_TTL_MS);
   return {
     books: [...distinct.values()].slice(0, selection.limit),
     hasMore: Number(rows.results[0]?.candidate_total || 0) > selection.limit,

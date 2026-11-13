@@ -136,7 +136,10 @@ try {
   );
   assert.match(bootstrap, /env\.COVE_SSR_STAGING === "1"/);
   assert.match(bootstrap, /withInFlightAnonymousMarketReads\(rawDb/);
-  assert.match(bootstrap, /firstPaintStorefrontShelf\(readEnv, null, trustedCountry, d1Metrics\)/);
+  assert.match(
+    bootstrap,
+    /firstPaintStorefrontShelf\(readEnv, null, trustedCountry, d1Metrics,\s*env\.COVE_SSR_STAGING === "1" \? env\.DB : undefined\)/,
+  );
   assert.match(bootstrap, /context\.rightsCountry !== trustedCountry/);
   assert.match(bootstrap, /await timed\("limit", enforceFirstPaintRateLimit/);
   const timing = fs.readFileSync("src/features/fore/storefront-hedged-fetch.ts", "utf8");

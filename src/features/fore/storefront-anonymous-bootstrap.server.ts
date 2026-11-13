@@ -6,6 +6,7 @@ import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server"
 import { withInFlightAnonymousMarketReads } from "./storefront-inflight-public-metadata";
 import { withRequestFirstPaintReadBatch } from "./storefront-request-read-batch";
 import type { CoveEnv } from "./api.server";
+import type { FirstPaintD1QueryMetrics } from "./catalog-model.server";
 
 /**
  * Cloudflare Worker-only, read-only bootstrap for a *provably anonymous*
@@ -100,7 +101,7 @@ export async function serveLeanAnonymousBootstrap(
   // Admission precedes every primary read. Rejected requests cannot launch
   // catalog/translation work merely by abandoning their eventual response.
   await timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180));
-  const d1Metrics: { sqlDurationMs?: number; rowsRead?: number; attempts?: number } = {};
+  const d1Metrics: FirstPaintD1QueryMetrics = {};
   let homepageRows: Record<string, unknown>[] | null = null;
   // Launch the authoritative primary-rights query *before* waiting for
   // fresh primary presentation reads. No book leaves the Worker until
@@ -144,7 +145,8 @@ export async function serveLeanAnonymousBootstrap(
       "catalog",
       preparedShelf
         ? preparedShelf(trustedCountry)
-        : firstPaintStorefrontShelf(readEnv, null, trustedCountry, d1Metrics),
+        : firstPaintStorefrontShelf(readEnv, null, trustedCountry, d1Metrics,
+            env.COVE_SSR_STAGING === "1" ? env.DB : undefined),
     ),
     pagePromise,
   ]);
@@ -169,6 +171,7 @@ export async function serveLeanAnonymousBootstrap(
   // Keep measured actual primary SQL duration, rows read and retries separate
   // from the full D1 service/network request duration.
   if (d1Metrics.sqlDurationMs !== undefined) timings.catalog_sql = d1Metrics.sqlDurationMs;
+  if (d1Metrics.publicDisplay) timings[`catalog_display_${d1Metrics.publicDisplay}`] = 0;
 
   timings.bootstrap = performance.now() - started;
   timings.lean = 0;
