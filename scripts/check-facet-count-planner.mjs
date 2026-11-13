@@ -52,7 +52,10 @@ for (const from of [
 
 // The only two call sites are the unsorted disjunctive facet candidate and
 // the shared facet-population CTE. No product-ID ranking path is changed.
-const body = source.slice(source.indexOf("function d1FacetCandidate("), source.indexOf("function meiliBase("));
+const body = source.slice(
+  source.indexOf("function d1FacetCandidate("),
+  source.indexOf("function meiliBase("),
+);
 assert.match(
   body,
   /const part = facetScanCandidateParts\(withoutFacet\(input, facet\), expression\)/,
@@ -60,8 +63,11 @@ assert.match(
 assert.match(body, /const base = facetScanCandidateParts\(input, expression\)/);
 assert.match(body, /const shared = commonCandidates/);
 assert.match(body, /candidate AS MATERIALIZED/);
-assert.match(source, /const plan = await rankedCandidatePlan\(replicaRanking \? presentationDb : env.DB, input, part\)/);
-assert.match(source, /const recheck = rightsScopedCachedPageQuery\(part, cached.ids\)/);
+assert.match(
+  source,
+  /const plan = await rankedCandidatePlan\(replicaRanking \? presentationDb : env.DB, input, part\)/,
+);
+assert.match(source, /rightsScopedCachedPageQuery\(part, cached.ids\)/);
 assert.match(source, /recheckPrimary: async \(ids\)/);
 
 // The production D1 EXPLAIN checks were independently confirmed before this
@@ -122,4 +128,6 @@ print("Production-compatible SQLite facet planner fixture and withdrawal checks:
 const test = spawnSync("python3", ["-c", python], { encoding: "utf8", timeout: 10_000 });
 assert.equal(test.status, 0, (test.stderr || "").slice(0, 1500));
 assert.match(test.stdout, /withdrawal checks: PASS/);
-console.log("Facet-only planner hint removal retains current primary-D1 rights and ranking behavior: PASS");
+console.log(
+  "Facet-only planner hint removal retains current primary-D1 rights and ranking behavior: PASS",
+);
