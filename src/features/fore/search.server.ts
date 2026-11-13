@@ -2242,9 +2242,6 @@ function facetScanCandidateParts(input: SearchInput, expression: string) {
   const forced = "catalog_search_documents d INDEXED BY idx_search_popular_stable CROSS JOIN";
   return {
     ...part,
-    from: part.from.replace(
-      forced,
-      "catalog_search_documents d CROSS JOIN",
-    ),
+    from: part.from.replace(forced, "catalog_search_documents d CROSS JOIN"),
   };
 }
