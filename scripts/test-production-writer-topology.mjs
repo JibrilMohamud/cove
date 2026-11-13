@@ -16,9 +16,10 @@ const result=inspect(backend,owner,others);
 assert.equal(result.schema,"cove.production-writer-topology.v1");
 assert.deepEqual(result.persistenceCanonicalBindings,["DB"]);
 assert.equal(result.scheduledJobs.length,7);
-assert.deepEqual(result.additionalCanonicalBindings.map(x=>[x.worker,x.binding]),[["cove-sounds-publication","SOURCE_DB"]]);
-assert.ok(result.bypassRisks.includes("other_deployed_workers_have_direct_canonical_D1_bindings"));
+assert.deepEqual(result.additionalCanonicalBindings,[]);
+assert.ok(!result.bypassRisks.includes("other_deployed_workers_have_direct_canonical_D1_bindings"));
 assert.match(others[1].config,/service = "cove-canonical-d1-readonly"/);
+assert.match(others[0].config,/"service": "cove-canonical-d1-readonly"/);
 assert.equal(result.legalAuthorityEnabledInCommittedConfig,false);
 assert.equal(result.productionAuthorizationCertified,false);
 assert.equal(result.releaseEligible,false);
@@ -28,7 +29,7 @@ const future=inspect(backend.replace(/\[\[d1_databases\]\][\s\S]*?(?=\n\[)/,"")
   .replace(/^crons\s*=.*$/m,"crons = []"),
   owner.replace('"COVE_RIGHTS_OWNER_ENABLED": "0"','"COVE_RIGHTS_OWNER_ENABLED": "1"'),others);
 assert.equal(future.persistenceCanonicalBindings.length,0);
-assert.equal(future.additionalCanonicalBindings.length,1);
+assert.equal(future.additionalCanonicalBindings.length,0);
 assert.equal(future.scheduledJobs.length,0);
 assert.equal(future.legalAuthorityEnabledInCommittedConfig,true);
 assert.equal(future.releaseEligible,false,"Even an apparently clean source config must not constitute deployed attestation");
@@ -41,4 +42,11 @@ assert.ok(regression.bypassRisks.includes("other_deployed_workers_have_direct_ca
 const resultGate=spawnSync(process.execPath,["scripts/check-production-writer-topology.mjs","--release-gate"],{encoding:"utf8"});
 assert.notEqual(resultGate.status,0);
 assert.match(resultGate.stderr,/BLOCKED/);
-console.log("PASS: all 6 production cron triggers and unfenced D1 binding reported; synthetic clean TOML cannot self-certify production; release gate remains closed");
+const soundsRegressed=JSON.parse(others[0].config);
+soundsRegressed.d1_databases=[{binding:"SOURCE_DB",database_name:"cove-production",database_id:result.productionDatabaseId}];
+const soundsReview=inspect(backend,owner,[{name:"cove-sounds-publication",config:JSON.stringify(soundsRegressed)}]);
+assert.deepEqual(soundsReview.additionalCanonicalBindings.map(x=>[x.worker,x.binding]),[
+  ["cove-sounds-publication","SOURCE_DB"]
+]);
+assert.ok(soundsReview.bypassRisks.includes("other_deployed_workers_have_direct_canonical_D1_bindings"));
+console.log("PASS: seven production backend crons and persistence D1 correctly remain blocked; both retired SSR/Sounds binding regressions denied");

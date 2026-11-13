@@ -92,12 +92,24 @@ const cached = await getSoundsSnapshot({
   SOUNDS_PRESENTATION: store,
 }, "US", sample.slug, at);
 assert.equal(cached.generatedAt, at);
+// The publisher has no native D1 binding. Mock the actual private Worker
+// RPC contract so publication tests still exercise the same four SQL reads.
+const testedReadService = (db) => ({
+  async query(statements) {
+    assert.equal(statements.length, 1, "Every advisory read uses bounded primary-only RPC");
+    return await Promise.all(statements.map(async ({ sql, params }) => {
+      const result = await db.prepare(sql).bind(...params).all();
+      return { ...result, success: true, meta: { served_by_primary: true } };
+    }));
+  },
+});
 // Producer guarantees per-station, bounded, rights-*advisory* publication.
 const writes = new Map();
 const published = await publishCoveSounds({
   COVE_SOUNDS_PUBLICATION_ENABLED: "1",
   COVE_SOUNDS_MARKETS: "US",
-  SOURCE_DB: { prepare(sql) {
+  COVE_CANONICAL_READONLY_RPC: "1",
+  COVE_CANONICAL_READONLY: testedReadService({ prepare(sql) {
     return { bind() { return this; }, async all() {
       if (sql.includes("FROM storefront_markets")) return { results: [{ currency: "USD" }] };
       if (sql.includes("FROM soundtrack_recordings")) return { results: [{
@@ -109,7 +121,7 @@ const published = await publishCoveSounds({
       }] };
       return { results: [] };
     } };
-  } },
+  } }),
   SOUNDS_PRESENTATION: { async put(key, body) { writes.set(key, body); } },
   SOUNDS_PRESENTATION_KV: { async put(key, body) {
     assert.equal(writes.get(key), body, "Durable R2 write must precede KV acceleration");
@@ -122,7 +134,8 @@ let inFlightReads = 0;
 const checkOrder = await publishCoveSounds({
   COVE_SOUNDS_PUBLICATION_ENABLED: "1",
   COVE_SOUNDS_MARKETS: "US",
-  SOURCE_DB: { prepare(sql) {
+  COVE_CANONICAL_READONLY_RPC: "1",
+  COVE_CANONICAL_READONLY: testedReadService({ prepare(sql) {
     return { bind() { return this; }, async all() {
       inFlightReads++;
       assert.equal(inFlightReads, 1, "Concurrent source-D1 queries risk quota overload");
@@ -134,7 +147,7 @@ const checkOrder = await publishCoveSounds({
       if (sql.includes("FROM storefront_markets")) return { results: [{ currency: "USD" }] };
       return { results: [] };
     } };
-  } },
+  } }),
   SOUNDS_PRESENTATION: { async put() {} },
 }, at);
 assert.equal(checkOrder.length, 1);
@@ -179,15 +192,39 @@ const overseasWrites = [];
 await assert.rejects(() => publishCoveSounds({
   COVE_SOUNDS_PUBLICATION_ENABLED: "1",
   COVE_SOUNDS_MARKETS: "GB",
-  SOURCE_DB: { prepare(sql) {
+  COVE_CANONICAL_READONLY_RPC: "1",
+  COVE_CANONICAL_READONLY: testedReadService({ prepare(sql) {
     return { bind() { return this; }, async all() {
       if (sql.includes("FROM storefront_markets")) return { results: [{ currency: "GBP" }] };
       return { results: [] };
     } };
-  } },
+  } }),
   SOUNDS_PRESENTATION: { async put(key) { overseasWrites.push(key); } },
 }, at), /territory not publication-ready: GB/);
 assert.deepEqual(overseasWrites, [], "No empty overseas edition snapshot may be published");
+await assert.rejects(
+  () => publishCoveSounds({
+    COVE_SOUNDS_PUBLICATION_ENABLED: "1",
+    SOURCE_DB: { prepare() { throw Error("Forbidden raw D1"); } },
+    COVE_CANONICAL_READONLY_RPC: "1",
+    COVE_CANONICAL_READONLY: { async query() { return []; } },
+    SOUNDS_PRESENTATION: { async put() { throw Error("Must not publish"); } },
+  }),
+  /sounds_publication_readonly_binding_required/,
+  "Native production D1 must be rejected even when a read service exists",
+);
+const failClosedKeys = [];
+await assert.rejects(
+  () => publishCoveSounds({
+    COVE_SOUNDS_PUBLICATION_ENABLED: "1",
+    COVE_SOUNDS_MARKETS: "US",
+    COVE_CANONICAL_READONLY_RPC: "1",
+    COVE_CANONICAL_READONLY: { async query() { throw Error("Provider read unavailable"); } },
+    SOUNDS_PRESENTATION: { async put(key) { failClosedKeys.push(key); } },
+  }),
+  /Provider read unavailable/,
+);
+assert.deepEqual(failClosedKeys, [], "A read-service outage cannot publish stale or guessed data");
 await assert.rejects(() => publishCoveSounds({ COVE_SOUNDS_PUBLICATION_ENABLED: "0" }), /disabled/);
 const analytics = readFileSync("src/features/fore/cove-sounds-analytics.server.ts", "utf8");
 assert.ok(analytics.includes("writeDataPoint"));

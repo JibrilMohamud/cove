@@ -64,3 +64,38 @@ if (process.argv.includes("--ssr")) {
     "PASS: SSR binding has provider-enforced read-only capability and retains staging authentication",
   );
 }
+
+if (process.argv.includes("--sounds")) {
+  // Inspect active immutable versions; /settings alone can describe an
+  // unserved upload and hide a mixed 50/50 production-D1 deployment.
+  const soundsBase = "workers/scripts/cove-sounds-publication";
+  const active = await readActiveWorkerVersions(get, soundsBase);
+  assert.equal(active.length, 1, "Sounds may only serve one pinned private version");
+  const sound = active[0];
+  assert.equal(sound.percentage, 100);
+  assert.ok(!sound.bindings.some((b) => b.type === "d1"), "Sounds must not retain native D1");
+  assert.ok(
+    sound.bindings.some(
+      (b) =>
+        b.name === "COVE_CANONICAL_READONLY" &&
+        b.type === "service" &&
+        b.service === "cove-canonical-d1-readonly",
+    ),
+    "Sounds must use the provider D1 Read service",
+  );
+  assert.ok(
+    sound.bindings.some((b) => b.name === "COVE_CANONICAL_READONLY_RPC" && b.text === "1"),
+    "Sounds read-only mode must be enabled",
+  );
+  assert.ok(
+    sound.bindings.some((b) => b.name === "COVE_SOUNDS_PUBLICATION_ENABLED" && b.text === "1"),
+    "Hourly Sounds publication must remain enabled after successful deployment",
+  );
+  const ingress = await get(soundsBase + "/subdomain");
+  assert.equal(ingress.enabled, false);
+  assert.equal(ingress.previews_enabled, false);
+  assert.ok(!domains.some((d) => d.service === "cove-sounds-publication"));
+  console.log(
+    "PASS: active private Sounds publisher has zero native D1; one provider D1 Read RPC, publication enabled and no public ingress",
+  );
+}

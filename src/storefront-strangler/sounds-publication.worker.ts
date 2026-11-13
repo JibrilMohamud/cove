@@ -5,6 +5,7 @@ import {
 import {
   SOUNDS_SCHEMA, soundsKey, validateSoundsSnapshot, type SoundsSnapshot,
 } from "../features/fore/cove-sounds-snapshot.server";
+import { canonicalReadonlyD1, type CanonicalReadService } from "../lib/canonical-readonly-d1.server";
 
 type Statement = {
   bind(...args: unknown[]): Statement;
@@ -14,7 +15,10 @@ type D1 = { prepare(sql: string): Statement };
 type Bucket = { put(key: string, value: string, options: { httpMetadata: { contentType: string } }): Promise<unknown> };
 type KV = { put(key: string, value: string, options: { expirationTtl: number }): Promise<unknown> };
 type Env = {
-  SOURCE_DB: D1;
+  // Native production D1 must NEVER be attached to an advisory publisher.
+  SOURCE_DB?: unknown;
+  COVE_CANONICAL_READONLY_RPC?: string;
+  COVE_CANONICAL_READONLY?: CanonicalReadService;
   SOUNDS_PRESENTATION: Bucket;
   SOUNDS_PRESENTATION_KV?: KV;
   COVE_SOUNDS_PUBLICATION_ENABLED: string;
@@ -59,14 +63,20 @@ type BookRow = { id: string; title: string; author: string };
 /** Every SELECT is an advisory producer hint. Authorization stays at serving time. */
 export async function publishCoveSounds(env: Env, at = Date.now()) {
   if (env.COVE_SOUNDS_PUBLICATION_ENABLED !== "1") throw Error("sounds_publication_disabled");
-  if (!env.SOUNDS_PRESENTATION || !env.SOURCE_DB) throw Error("sounds_publication_binding_missing");
+  if (!env.SOUNDS_PRESENTATION || env.SOURCE_DB ||
+      env.COVE_CANONICAL_READONLY_RPC !== "1" ||
+      typeof env.COVE_CANONICAL_READONLY?.query !== "function")
+    throw Error("sounds_publication_readonly_binding_required");
+  // Cloudflare provider enforces D1 Read and each result must come from
+  // primary. This request-local facade has no D1 Write, raw or exec path.
+  const source = canonicalReadonlyD1(env.COVE_CANONICAL_READONLY) as unknown as D1;
   const markets = (env.COVE_SOUNDS_MARKETS || "US").split(",").map((x) => x.trim());
   if (!markets.length || markets.length > 8 || new Set(markets).size !== markets.length ||
       markets.some((x) => !/^[A-Z]{2}$/.test(x))) throw Error("Invalid bounded sounds markets");
   const titles = [...new Set(COVE_SOUNDS_STATIONS.flatMap((s) => s.books.map((b) => b.title)))];
   const publication: { territory: string; stations: number; recordings: number; candidates: number }[] = [];
   for (const territory of markets) {
-    const market = await env.SOURCE_DB.prepare(
+    const market = await source.prepare(
       "SELECT default_currency currency FROM storefront_markets WHERE country_code=? AND market_status='active'",
     ).bind(territory).all<{ currency: string }>();
     if (market.results.length !== 1 || !/^[A-Z]{3}$/.test(market.results[0].currency))
@@ -75,7 +85,7 @@ export async function publishCoveSounds(env: Env, at = Date.now()) {
     // Three simultaneous candidate scans can exhaust it during live catalog
     // traffic, so run the rights-advisory producer queries one at a time.
     const commons = await
-      env.SOURCE_DB.prepare(
+      source.prepare(
         `SELECT id,title,composer,performer,period,instruments_json,moods_json,energy,
            has_vocals,attribution_text,source_page_url,license_statement,license_url,
            allowed_territories_json territories_json
@@ -84,13 +94,13 @@ export async function publishCoveSounds(env: Env, at = Date.now()) {
            AND storage_key IS NOT NULL AND source_snapshot_key IS NOT NULL
          ORDER BY title,id LIMIT 300`,
       ).all<Row>();
-    const external = await env.SOURCE_DB.prepare(
+    const external = await source.prepare(
         `SELECT id,title,composer,performer,period,instruments_json,moods_json,energy,
            has_vocals,attribution_text,source_page_url,license_statement,license_url,territories_json
          FROM soundtrack_external_recordings
          WHERE status='ready' AND storage_key IS NOT NULL ORDER BY title,id LIMIT 300`,
       ).all<Row>();
-    const editions = await env.SOURCE_DB.prepare(
+    const editions = await source.prepare(
         `SELECT p.id, e.title,
            COALESCE((SELECT group_concat(c.name,' ') FROM edition_contributors ec
              JOIN contributors c ON c.id=ec.contributor_id
