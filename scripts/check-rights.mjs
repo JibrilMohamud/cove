@@ -48,6 +48,15 @@ const views = new Set(
     .map((x) => x.name),
 );
 assert(views.has("retail_product_availability"), "missing fail-closed retail rights view");
+const uniqueDrmIndex = db.prepare("PRAGMA index_list(digital_assets)").all().find(
+  (row) => row.name === "idx_digital_assets_edition_kind" && Number(row.unique) === 1,
+);
+assert(uniqueDrmIndex, "Retail DRM lookup requires unique edition/kind asset index");
+assert.deepEqual(
+  db.prepare("PRAGMA index_info(idx_digital_assets_edition_kind)").all().map((row) => row.name),
+  ["edition_id", "kind"],
+  "Retail DRM lookup index must cover exactly edition_id and kind",
+);
 assert(views.has("product_channel_availability"), "missing unified channel rights view");
 const grantCols = new Set(
   db
