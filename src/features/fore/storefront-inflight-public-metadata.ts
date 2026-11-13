@@ -204,8 +204,7 @@ export function withCompletedAnonymousMarketReads<T extends object>(
                       results?: unknown;
                       success?: boolean;
                     };
-                    if (result?.success === false || !Array.isArray(result?.results))
-                      return result;
+                    if (result?.success === false || !Array.isArray(result?.results)) return result;
                     // An absent market is never remembered: new activations
                     // must be visible on their next first-paint request.
                     if (result.results.length !== 1) return result;
@@ -228,9 +227,7 @@ export function withCompletedAnonymousMarketReads<T extends object>(
                           current.entries.size >= MARKET_COMPLETED_MAX_ITEMS ||
                           current.bytes + bytes > MARKET_COMPLETED_MAX_BYTES
                         ) {
-                          const oldest = current.entries.entries().next().value as
-                            | [string, CompletedMarketEntry]
-                            | undefined;
+                          const oldest = current.entries.entries().next().value;
                           if (!oldest) break;
                           current.entries.delete(oldest[0]);
                           current.bytes -= oldest[1].bytes;
