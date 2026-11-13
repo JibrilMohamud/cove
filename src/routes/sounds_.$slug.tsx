@@ -4,7 +4,7 @@ import { SiteShell } from "@/features/fore/App";
 import { CoveSoundsPage } from "@/features/fore/CoveSounds";
 import { stationBySlug } from "@/features/fore/cove-sounds-stations";
 
-export const Route = createFileRoute("/sounds_/$slug")({
+export const Route = createFileRoute("/sounds/$slug")({
   head: ({ params }) => {
     const station = stationBySlug(params.slug);
     const title = station ? station.title + " — Cove Sounds" : "Cove Sounds";
