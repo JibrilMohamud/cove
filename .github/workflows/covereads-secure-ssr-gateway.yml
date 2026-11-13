@@ -12,6 +12,7 @@ on:
       - "scripts/check-storefront-thrown-admission.mjs"
       - "scripts/check-storefront-hedged.mjs"
       - "src/lib/staging-empty-catalog-response.ts"
+      - "src/storefront-strangler/failure.ts"
       - "scripts/staging/strict-owned-canary-denial*.mjs"
       - "scripts/covereads-owned-canary-domain.mjs"
       - "src/cloudflare/staging-auth-gateway.mjs"
@@ -48,6 +49,7 @@ on:
       - "src/features/fore/search.server.ts"
       - "src/features/fore/catalog-model.server.ts"
       - "src/features/fore/Store.tsx"
+      - "src/storefront-strangler/failure.ts"
   workflow_dispatch:
 
 permissions:

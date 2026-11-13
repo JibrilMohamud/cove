@@ -54,3 +54,10 @@ Rollback is an ordinary source revert of this staging-only path. No binding,
 quota, payment behavior, rights gate or customer routing change is required.
 A fresh protected canary campaign must still establish any hosted improvement;
 all strict response validity, zero-drop and latency requirements remain intact.
+
+The protected failure diagnostics also distinguish Cloudflare's documented
+D1 ten-second resource-window limit, full request queue and excessive queue
+wait using fixed labels. Generic overloads keep their existing label; raw
+provider messages never enter headers. This changes no retry behavior. See
+https://developers.cloudflare.com/d1/observability/debug-d1/ . The prior
+campaign's generic label cannot establish which subtype occurred.

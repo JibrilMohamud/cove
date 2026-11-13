@@ -18,6 +18,12 @@ export function bootstrapFailureKind(error: unknown): string {
     return "presentation-invalid";
   if (/private presentation binding required/i.test(message)) return "presentation-binding";
   if (/Please wait a minute/i.test(message)) return "rate-limited";
+  // Distinguish documented D1 resource-window shedding from queue pressure.
+  // Only fixed labels leave this function; never propagate provider text.
+  if (/D1 DB is overloaded\. Too many resources consumed within a 10 second window/i.test(message))
+    return "d1-resource-window";
+  if (/D1 DB is overloaded\. Too many requests queued/i.test(message)) return "d1-queue-full";
+  if (/D1 DB is overloaded\. Requests queued for too long/i.test(message)) return "d1-queue-wait";
   if (/overloaded|too many requests|queue.*full/i.test(message)) return "service-overloaded";
   if (/reset|restart|disconnected|transient|network|temporarily unavailable/i.test(message))
     return "transient-service";
