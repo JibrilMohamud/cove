@@ -14,7 +14,10 @@ import { rightsScopedCachedPageQuery } from "./rights-scoped-cache-page";
 import { rightsRecheckedReplicaCandidates } from "./rights-rechecked-replica-candidates";
 import { searchOutboxAcknowledgement } from "./search-outbox-ack";
 import { countAvailableCandidatesFromFacet } from "./count-from-availability-facet";
-import { refreshLeasedSearchFacets, type FacetRefreshGuard } from "./search-facet-refresh-lease.server";
+import {
+  refreshLeasedSearchFacets,
+  type FacetRefreshGuard,
+} from "./search-facet-refresh-lease.server";
 
 type SearchEnv = {
   DB: CatalogDB;
@@ -673,7 +676,15 @@ function facetCacheIdentity(input: SearchInput, expression: string) {
 type DeferredFacetWork = Array<() => Promise<void>>;
 
 function pendingFacetLabels(): SearchFacets {
-  return { categories: [], languages: [], formats: [], publishers: [], series: [], availability: [], price: null };
+  return {
+    categories: [],
+    languages: [],
+    formats: [],
+    publishers: [],
+    series: [],
+    availability: [],
+    price: null,
+  };
 }
 
 async function d1Facets(
@@ -1135,14 +1146,20 @@ async function searchD1(
   // Pending labels cannot be persisted as a ten-minute search-page result.
   if (!facetState.pending) {
     try {
-    await writeCatalogCache(
-      env.DB,
-      cacheKey,
-      JSON.stringify({ ids, count: Number(count?.count || 0), facets, expression, correctedQuery }),
-      Date.now() + 600_000,
-      "search-page:v1:",
-      256,
-    );
+      await writeCatalogCache(
+        env.DB,
+        cacheKey,
+        JSON.stringify({
+          ids,
+          count: Number(count?.count || 0),
+          facets,
+          expression,
+          correctedQuery,
+        }),
+        Date.now() + 600_000,
+        "search-page:v1:",
+        256,
+      );
     } catch {
       /* Search remains available without cache writes. */
     }
@@ -1843,19 +1860,40 @@ export async function searchCatalog(
   // Conservative opt-in only: anonymous unfiltered first-page popular books.
   // No private/account facet, alternate ordering or active filter may defer.
   const deferredFacets: DeferredFacetWork | undefined =
-    defer && env.FORE_ASYNC_CATALOG_FACETS === "1" && !userId &&
-    !input.query && input.sort === "popular" && input.page === 1 &&
-    input.taxonomy.length === 0 && input.categories.length === 0 &&
-    input.languages.length === 0 && input.formats.length === 0 &&
-    input.publishers.length === 0 && input.series.length === 0 &&
-    input.contributorIds.length === 0 && input.seriesIds.length === 0 &&
-    input.publisherIds.length === 0 && input.imprintIds.length === 0 &&
-    input.subscription === undefined && input.library === undefined &&
-    input.minPrice === undefined && input.maxPrice === undefined &&
-    input.minRating === undefined && input.minReviews === undefined &&
-    !input.publishedAfter && !input.publishedBefore &&
-    input.preorder === undefined && input.newRelease === undefined &&
-    input.deals === undefined ? [] : undefined;
+    defer &&
+    env.FORE_ASYNC_CATALOG_FACETS === "1" &&
+    !userId &&
+    !input.query &&
+    input.sort === "popular" &&
+    input.page === 1 &&
+    input.taxonomy.length === 0 &&
+    input.categories.length === 0 &&
+    input.languages.length === 0 &&
+    input.formats.length === 0 &&
+    input.publishers.length === 0 &&
+    input.series.length === 0 &&
+    input.contributorIds.length === 0 &&
+    input.seriesIds.length === 0 &&
+    input.publisherIds.length === 0 &&
+    input.imprintIds.length === 0 &&
+    input.subscription === undefined &&
+    input.library === undefined &&
+    input.minPrice === undefined &&
+    input.maxPrice === undefined &&
+    input.minRating === undefined &&
+    input.minReviews === undefined &&
+    !input.publishedAfter &&
+    !input.publishedBefore &&
+    input.preorder === undefined &&
+    input.newRelease === undefined &&
+    input.deals === undefined
+      ? []
+      : undefined;
+  // Preserve the reviewed unmodified call path for every nonopted-in request.
+  const runD1Search = () =>
+    deferredFacets
+      ? searchD1(env, searchInputForBackend, userId, deferredFacets)
+      : searchD1(env, searchInputForBackend, userId);
   let result: Awaited<ReturnType<typeof searchD1>> | Awaited<ReturnType<typeof searchMeili>>;
   if (backend === "meilisearch") {
     try {
@@ -1863,7 +1901,7 @@ export async function searchCatalog(
     } catch (error) {
       console.warn("Meilisearch query failed; using D1 FTS5 fallback", error);
       backend = "d1";
-      result = await searchD1(env, searchInputForBackend, userId, deferredFacets);
+      result = await runD1Search();
       await env.DB.prepare("UPDATE search_index_state SET last_error=? WHERE id=1")
         .bind(error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500))
         .run()
@@ -1871,7 +1909,7 @@ export async function searchCatalog(
           console.warn("Search fallback diagnostics unavailable", failure),
         );
     }
-  } else result = await searchD1(env, searchInputForBackend, userId, deferredFacets);
+  } else result = await runD1Search();
   const backendName = backend === "meilisearch" ? "meilisearch" : "d1-fts5";
   const personalized =
     input.sort === "relevance" && input.query
