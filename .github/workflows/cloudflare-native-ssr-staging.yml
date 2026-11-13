@@ -26,6 +26,7 @@ on:
       - "src/features/fore/search-popular-shortlist.server.ts"
       - "scripts/check-public-facet-defer.mjs"
       - "scripts/check-public-popular-shortlist.mjs"
+      - "scripts/check-progressive-guest-catalog-total.mjs"
       - "src/features/fore/taxonomy.server.ts"
       - "src/features/fore/taxonomy-counts-cache.server.ts"
       - "src/features/fore/taxonomy-count-query.ts"
@@ -113,6 +114,7 @@ on:
       - "src/features/fore/search-popular-shortlist.server.ts"
       - "scripts/check-public-facet-defer.mjs"
       - "scripts/check-public-popular-shortlist.mjs"
+      - "scripts/check-progressive-guest-catalog-total.mjs"
       - "src/features/fore/taxonomy.server.ts"
       - "src/features/fore/taxonomy-counts-cache.server.ts"
       - "src/features/fore/taxonomy-count-query.ts"
@@ -229,6 +231,7 @@ jobs:
           node scripts/check-public-search-count-scope.mjs
           node scripts/check-public-facet-defer.mjs
           node scripts/check-public-popular-shortlist.mjs
+          node scripts/check-progressive-guest-catalog-total.mjs
           node scripts/check-taxonomy-presentation-count-cache.mjs
           node scripts/check-taxonomy-count-refresh-lease.mjs
           node scripts/check-sparse-taxonomy-rights-counts.mjs
