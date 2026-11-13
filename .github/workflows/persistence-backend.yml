@@ -44,6 +44,7 @@ on:
       - "scripts/check-commercial-experience.mjs"
       - "scripts/check-search-updater-cache.mjs"
       - "scripts/check-facet-count-planner.mjs"
+      - "scripts/check-book-detail-read-fanout.mjs"
       - "scripts/check-reader-sharing-offline.mjs"
       - "scripts/check-sharing-erasure.mjs"
       - "scripts/check-journey-privacy-progress.mjs"
@@ -204,6 +205,7 @@ jobs:
           node scripts/check-bounded-cached-rights-recheck.mjs
           node scripts/check-facet-cache-identity.mjs
           node scripts/check-facet-count-planner.mjs
+          node scripts/check-book-detail-read-fanout.mjs
           npm run test:recommendations
           node scripts/check-literary-genre-rights-query.mjs
       - name: Indexed FTS trigger identity, suppression, deletion and bounded work
