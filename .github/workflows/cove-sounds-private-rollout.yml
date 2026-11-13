@@ -1,5 +1,16 @@
 name: cove-sounds-private-rollout
 on:
+  pull_request:
+    paths:
+      - "src/storefront-strangler/sounds-publication.worker.ts"
+      - "src/lib/canonical-readonly-d1.server.ts"
+      - "wrangler.sounds-publication.prod-isolated.jsonc"
+      - "wrangler.sounds-publication.prod-disabled.jsonc"
+      - "scripts/staging/verify-canonical-readonly-service.mjs"
+      - "scripts/check-sounds-readonly-principal.mjs"
+      - "scripts/check-cove-sounds-snapshot.mjs"
+      - "scripts/test-production-writer-topology.mjs"
+      - ".github/workflows/cove-sounds-private-rollout.yml"
   # Rebuild the isolated hourly producer when its verified source changes.
   # This does not alter any public DNS route or canonical legal owner.
   push:
@@ -29,6 +40,29 @@ concurrency:
   group: cove-persistence-production
   cancel-in-progress: false
 jobs:
+  source-sounds-readonly:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Refuse native production D1 and verify unchanged publication semantics
+        run: |
+          node scripts/check-sounds-readonly-principal.mjs
+          node scripts/check-cove-sounds-snapshot.mjs
+          node scripts/test-production-writer-topology.mjs
+      - name: Prove active and disabled private publisher build without native D1
+        run: |
+          node scripts/build-storefront-strangler.mjs
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.sounds-publication.prod-isolated.jsonc
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.sounds-publication.prod-disabled.jsonc
   private-sounds-release:
     # Private source reads and snapshot publication share primary D1 capacity
     # with release migrations and isolated SSR acceptance. Avoid CI-induced
