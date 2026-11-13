@@ -50,6 +50,18 @@ export async function catalogReadinessFailure(response) {
  * This is a readiness prerequisite, not a cached shelf, performance sample
  * or replacement for geographic cold/100-RPS acceptance.
  */
+/** Fixed categories only; never return exception messages, URLs, headers or credentials. */
+export function catalogTransportFailureKind(error) {
+  const code = error?.cause?.code ?? error?.code;
+  const name = error?.name;
+  if (name === "TimeoutError" || name === "AbortError") return "network-timeout";
+  if (code === "ETIMEDOUT" || code === "UND_ERR_CONNECT_TIMEOUT") return "network-timeout";
+  if (code === "ENOTFOUND" || code === "EAI_AGAIN") return "dns-unavailable";
+  if (code === "ECONNRESET") return "connection-reset";
+  if (code === "ECONNREFUSED") return "connection-refused";
+  return "network-unavailable";
+}
+
 export async function waitForLiveCatalog({
   origin,
   fetcher = fetch,
@@ -84,9 +96,9 @@ export async function waitForLiveCatalog({
       } else {
         verifiedStreak = 0;
       }
-    } catch {
-      // Do not print arbitrary network exception text or URL.
-      last = "network-unavailable";
+    } catch (error) {
+      // Only bounded, privacy-safe categories; never log raw provider text.
+      last = catalogTransportFailureKind(error);
       verifiedStreak = 0;
     }
     if (attempt < attempts - 1) await pause(Math.min(5_000, 1_000 * (attempt + 1)));

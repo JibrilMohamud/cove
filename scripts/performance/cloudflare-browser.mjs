@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { chromium, devices } from "@playwright/test";
+import { classifyProtectedSsrNavigation } from "./cloudflare-browser-failure-kind.mjs";
 import {
   percentile,
   productionOrigin,
@@ -109,7 +110,17 @@ try {
       });
       try {
         const response = await page.goto(origin, { waitUntil: "load", timeout: 45000 });
-        status = response.status();
+        status = response?.status() ?? null;
+        if (status !== 200) {
+          // The status still fails the strict gate. Only a fixed, redacted
+          // class may reach the artifact, never the raw response headers.
+          responseTelemetry = {
+            failureKind: classifyProtectedSsrNavigation(
+              status,
+              response?.headers()["server-timing"] ?? null,
+            ),
+          };
+        }
         assert.equal(status, 200);
         failurePhase = "catalog";
         // Playwright's flattened response header object is not guaranteed to
