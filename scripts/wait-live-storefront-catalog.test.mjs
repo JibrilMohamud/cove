@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { catalogReadinessFailure, catalogTransportFailureKind, waitForLiveCatalog } from "./wait-live-storefront-catalog.mjs";
+import {
+  catalogReadinessFailure,
+  catalogTransportFailureKind,
+  waitForLiveCatalog,
+} from "./wait-live-storefront-catalog.mjs";
 
 const headers = {
   "content-type": "application/json",
@@ -125,7 +129,13 @@ test("readiness timeouts and DNS resets retain only fixed, nonsecret categories"
     [reset, "connection-reset"],
   ]) {
     await assert.rejects(
-      waitForLiveCatalog({ ...opts, attempts: 1, fetcher: async () => { throw error; } }),
+      waitForLiveCatalog({
+        ...opts,
+        attempts: 1,
+        fetcher: async () => {
+          throw error;
+        },
+      }),
       (failure) => failure.message.includes(expected) && !failure.message.includes(secret),
     );
   }
