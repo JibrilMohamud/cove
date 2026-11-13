@@ -3,7 +3,10 @@ import fs from "node:fs";
 import { transform } from "esbuild";
 
 const source = fs.readFileSync("src/features/fore/storefront-inflight-public-metadata.ts", "utf8");
-const bootstrap = fs.readFileSync("src/features/fore/storefront-anonymous-bootstrap.server.ts", "utf8");
+const bootstrap = fs.readFileSync(
+  "src/features/fore/storefront-anonymous-bootstrap.server.ts",
+  "utf8",
+);
 assert.match(bootstrap, /withCompletedAnonymousMarketReads\(/);
 assert.match(bootstrap, /env\.COVE_SSR_STAGING === "1"/);
 assert.match(bootstrap, /firstPaintStorefrontShelf\(readEnv, null, trustedCountry, d1Metrics/);
@@ -15,10 +18,7 @@ const { withCompletedAnonymousMarketReads: completed, safeMarketKey } = await im
 const sql = `WITH RECURSIVE active_market AS MATERIALIZED (SELECT 1),
 chosen_locale AS MATERIALIZED (SELECT 1)
 SELECT m.*,l.locale FROM active_market m LEFT JOIN chosen_locale l ON 1=1`;
-const parameters = (country = "US", locales = ["en-US"]) => [
-  country,
-  JSON.stringify(locales),
-];
+const parameters = (country = "US", locales = ["en-US"]) => [country, JSON.stringify(locales)];
 assert.equal(safeMarketKey(sql, parameters()), 'US:["en-US"]');
 assert.equal(safeMarketKey("SELECT 1", parameters()), null);
 
@@ -53,7 +53,10 @@ const scope = {};
 let hits = 0;
 const read = async (country = "US", locales = ["en-US"], bindingScope = scope) => {
   const reader = completed(db, bindingScope, () => hits++);
-  return reader.prepare(sql).bind(...parameters(country, locales)).all();
+  return reader
+    .prepare(sql)
+    .bind(...parameters(country, locales))
+    .all();
 };
 const first = await read();
 assert.equal(reads, 1);
@@ -91,14 +94,24 @@ const slowDb = {
   },
 };
 const slowScope = {};
-const a = completed(slowDb, slowScope).prepare(sql).bind(...parameters()).all();
-const b = completed(slowDb, slowScope).prepare(sql).bind(...parameters()).all();
+const a = completed(slowDb, slowScope)
+  .prepare(sql)
+  .bind(...parameters())
+  .all();
+const b = completed(slowDb, slowScope)
+  .prepare(sql)
+  .bind(...parameters())
+  .all();
 assert.equal(concurrent, 2, "Each concurrent miss must own its D1 I/O");
 unblock();
 await Promise.all([a, b]);
 assert.equal(
-  (await completed(slowDb, slowScope).prepare(sql).bind(...parameters()).all()).results[0]
-    .publicTitle,
+  (
+    await completed(slowDb, slowScope)
+      .prepare(sql)
+      .bind(...parameters())
+      .all()
+  ).results[0].publicTitle,
   "completed",
 );
 assert.equal(concurrent, 2);
@@ -127,8 +140,20 @@ const broken = {
   },
 };
 const invalid = completed(broken, {});
-await assert.rejects(invalid.prepare(sql).bind(...parameters()).all(), /private provider failure/);
-await assert.rejects(invalid.prepare(sql).bind(...parameters()).all(), /private provider failure/);
+await assert.rejects(
+  invalid
+    .prepare(sql)
+    .bind(...parameters())
+    .all(),
+  /private provider failure/,
+);
+await assert.rejects(
+  invalid
+    .prepare(sql)
+    .bind(...parameters())
+    .all(),
+  /private provider failure/,
+);
 assert.equal(failures, 2, "Failed public reads never populate cache");
 
 let largeReads = 0;
@@ -147,9 +172,20 @@ const large = {
   },
 };
 const bounded = completed(large, {});
-await bounded.prepare(sql).bind(...parameters()).all();
-await bounded.prepare(sql).bind(...parameters()).all();
+await bounded
+  .prepare(sql)
+  .bind(...parameters())
+  .all();
+await bounded
+  .prepare(sql)
+  .bind(...parameters())
+  .all();
 assert.equal(largeReads, 2, "Oversized public payload must be re-read");
-await completed(db, scope).prepare("SELECT 1").bind(...parameters()).all();
+await completed(db, scope)
+  .prepare("SELECT 1")
+  .bind(...parameters())
+  .all();
 assert.equal(reads, 6, "Unrecognized SQL must bypass completed cache");
-console.log("Completed public market cache: cloned short TTL, no pending I/O, country/locale/scope, failure and limits PASS");
+console.log(
+  "Completed public market cache: cloned short TTL, no pending I/O, country/locale/scope, failure and limits PASS",
+);
