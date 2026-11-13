@@ -1,0 +1,18 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "The catalog facet opt-in is confined to anonymous presentation queries after live primary rights-backed product selection, current exact totals, hydration and audited analytics. The 34 existing writer SQL fingerprints, function owners, table targets, dispositions and deny-first security guards are unchanged. This source-only rebase updates file-bound site IDs and shifted line locations without promoting owner authority or approving any new writer; independent release and cutover certification remain mandatory.",
+  "files": [
+    {
+      "path": "src/features/fore/api.server.ts",
+      "sha256": "13179d3a2257de77eb85838c8bdb86ef06b538af426b6210ca996fdda38ad1ee",
+      "review": "Only catalog GET forwards its existing request-owned waitUntil after authentication; the 33 already reviewed writer functions, SQL literals and caller permissions stay unchanged."
+    },
+    {
+      "path": "src/features/fore/search.server.ts",
+      "sha256": "3b7931e2f114b730cf34e665677e465f1fce20aed7c1800f2bdf97f1bcdf9c6d",
+      "review": "Anonymous popular-page catalog facets alone gain optional leased background presentation refresh. Existing catalog projection UPDATE remains scoped to non-authorizing ranking, and all live-rights selection/checkout guards are untouched."
+    }
+  ],
+  "retirementEvidence": null
+}
