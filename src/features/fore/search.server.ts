@@ -14,6 +14,7 @@ import { rightsScopedCachedPageQuery } from "./rights-scoped-cache-page";
 import { rightsRecheckedReplicaCandidates } from "./rights-rechecked-replica-candidates";
 import { searchOutboxAcknowledgement } from "./search-outbox-ack";
 import { countAvailableCandidatesFromFacet } from "./count-from-availability-facet";
+import { firstPagePopularRightsShortlist } from "./search-popular-shortlist.server";
 import {
   refreshLeasedSearchFacets,
   type FacetRefreshGuard,
@@ -29,6 +30,7 @@ type SearchEnv = {
   FORE_SEARCH_EMBEDDER?: string;
   FORE_SEARCH_REPLICA_CANDIDATES?: string;
   FORE_ASYNC_CATALOG_FACETS?: string;
+  FORE_POPULAR_RIGHTS_SHORTLIST?: string;
 };
 
 type FacetValue = { value: string; count: number };
@@ -1048,6 +1050,49 @@ async function searchD1(
     env.FORE_SEARCH_REPLICA_CANDIDATES === "1" &&
     presentationDb !== env.DB;
   const runIds = async () => {
+    // Optional, bounded first-page fast path. A full primary-D1 legal
+    // recheck proves all 24 results against the existing WHERE clauses.
+    // If the shortlist cannot prove the complete ranked page, fall back to
+    // the unchanged full popularity scan without returning partial rights.
+    const guestDefaultPopular =
+      env.FORE_POPULAR_RIGHTS_SHORTLIST === "1" &&
+      !userId &&
+      !input.query &&
+      !part.hasFts &&
+      input.sort === "popular" &&
+      input.page === 1 &&
+      input.limit <= 24 &&
+      input.availability === "available" &&
+      input.taxonomy.length === 0 &&
+      input.categories.length === 0 &&
+      input.languages.length === 0 &&
+      input.formats.length === 0 &&
+      input.publishers.length === 0 &&
+      input.series.length === 0 &&
+      input.contributorIds.length === 0 &&
+      input.seriesIds.length === 0 &&
+      input.publisherIds.length === 0 &&
+      input.imprintIds.length === 0 &&
+      input.subscription === undefined &&
+      input.library === undefined &&
+      input.minPrice === undefined &&
+      input.maxPrice === undefined &&
+      input.minRating === undefined &&
+      input.minReviews === undefined &&
+      !input.publishedAfter &&
+      !input.publishedBefore &&
+      input.preorder === undefined &&
+      input.newRelease === undefined &&
+      input.deals === undefined;
+    if (guestDefaultPopular) {
+      try {
+        const verified = await firstPagePopularRightsShortlist(env.DB, part, input.limit);
+        if (verified) return { results: verified.map((product_id) => ({ product_id })) };
+      } catch {
+        // Primary-D1 failures NEVER produce unverified IDs: use the ordinary
+        // fully scoped query, which may also deny the request if unavailable.
+      }
+    }
     const clause = part.where.join(" AND ");
     const plan = await rankedCandidatePlan(replicaRanking ? presentationDb : env.DB, input, part);
     const sql = `${plan.prefix} SELECT d.product_id,${part.rank} FROM ${plan.from} WHERE ${clause} ORDER BY ${d1Sort(input, part.hasFts)},d.product_id ASC LIMIT ? OFFSET ?`;
