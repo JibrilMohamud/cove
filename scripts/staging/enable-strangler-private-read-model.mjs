@@ -19,8 +19,6 @@ const prefix = `campaign/${run}/synthetic/`;
 config.vars.COVE_STRANGLER_READ_MODEL = "2";
 config.vars.COVE_PRESENTATION_KV_ACCELERATE = "1";
 config.vars.COVE_PRESENTATION_PREFIX = prefix;
-config.kv_namespaces = [
-  { binding: "PRESENTATION_KV", id: "8245d5f2116a445d9571405b41b7c8c3" },
-];
+config.kv_namespaces = [{ binding: "PRESENTATION_KV", id: "8245d5f2116a445d9571405b41b7c8c3" }];
 fs.writeFileSync(file, JSON.stringify(config, null, 2));
 console.log("COVE_READ_MODEL_STAGE_ENABLED: run-scoped v2 R2/KV, fresh primary rights per request");
