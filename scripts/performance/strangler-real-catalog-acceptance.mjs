@@ -619,9 +619,12 @@ try {
       const rawKind = headers["x-cove-stage-failure-kind"] || "";
       const rawPhase = headers["x-cove-stage-failure-subphase"] || "";
       const ray = headers["cf-ray"] || "";
-      const kind = /^(?:d1-resource-window|d1-queue-full|d1-queue-wait|service-overloaded|database|transient-service|presentation-absent|presentation-invalid|presentation-binding|limiter-unavailable|rate-limited|territory-mismatch|market-projection|unclassified)$/.test(rawKind)
-        ? rawKind
-        : "unclassified";
+      const kind =
+        /^(?:d1-resource-window|d1-queue-full|d1-queue-wait|service-overloaded|database|transient-service|presentation-absent|presentation-invalid|presentation-binding|limiter-unavailable|rate-limited|territory-mismatch|market-projection|unclassified)$/.test(
+          rawKind,
+        )
+          ? rawKind
+          : "unclassified";
       const phase = /^(?:presentation|context|catalog|limit|unknown)$/.test(rawPhase)
         ? rawPhase
         : "unknown";
@@ -637,7 +640,10 @@ try {
         ray: /^[a-f0-9]{12,32}-[A-Z]{3}$/.test(ray) ? ray : null,
         durations,
       };
-      console.log("REAL_CATALOG_DESKTOP_STAGE_FAILURE", JSON.stringify(evidence.desktopStageFailure));
+      console.log(
+        "REAL_CATALOG_DESKTOP_STAGE_FAILURE",
+        JSON.stringify(evidence.desktopStageFailure),
+      );
       save();
     }
     assert.equal(desktopStageResponse?.status(), 200);
