@@ -76,6 +76,7 @@ on:
       - "scripts/check-cloudflare-ssr-pilot.mjs"
       - "scripts/performance/cloudflare-browser.mjs"
       - "scripts/performance/cloudflare-browser-failure-kind*.mjs"
+      - "scripts/wait-live-storefront-catalog*.mjs"
       - "scripts/performance/cloudflare-concurrency.mjs"
       - "scripts/performance/strict-capacity-response-diagnostics*.mjs"
       - "scripts/check-cloudflare-ssr-staging.mjs"
@@ -160,6 +161,7 @@ on:
       - "scripts/check-cloudflare-ssr-pilot.mjs"
       - "scripts/performance/cloudflare-browser.mjs"
       - "scripts/performance/cloudflare-browser-failure-kind*.mjs"
+      - "scripts/wait-live-storefront-catalog*.mjs"
       - "scripts/performance/cloudflare-concurrency.mjs"
       - "scripts/performance/strict-capacity-response-diagnostics*.mjs"
       - "scripts/check-cloudflare-ssr-staging.mjs"
@@ -231,6 +233,7 @@ jobs:
           node --test scripts/check-production-storefront-performance.test.mjs
           node --test scripts/performance/strict-capacity-response-diagnostics.test.mjs
           node --test scripts/performance/cloudflare-browser-failure-kind.test.mjs
+          node --test scripts/wait-live-storefront-catalog.test.mjs
           node scripts/check-cove-request-context.mjs
           node scripts/check-storefront-hedged.mjs
       - name: Build Cloudflare-native frontend
