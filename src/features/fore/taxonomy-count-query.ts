@@ -4,11 +4,12 @@
  * numbers. No cached count authorizes a book, sale, download or reading,
  * and there is no cached eligibility or cross-request Worker I/O.
  *
- * With <=1000 potential active retail territorial grants, seed only those
- * products before executing the UNCHANGED retail availability view. At
- * >1000 grants, the primary-D1 optimizer uses the established catalog scan.
- * The count is exact because products.id and the (edition_id,node_id) pair
- * in edition_taxonomy_nodes are primary keys.
+ * Seed from indexed territorial retail grants before executing the
+ * UNCHANGED retail availability view. This avoids a full-products scan on
+ * dense markets (the old >1000-grant fallback), while preserving current
+ * revocations, denials, market/language restrictions and exact counts.
+ * The legacy full scan remains available to correctness/parity tests.
+ * Products and (edition_id,node_id) pairs are independently unique.
  */
 export type TaxonomyCountPlan = { sql: string; binds: (string | number)[] };
 const eligibleWhere = `
