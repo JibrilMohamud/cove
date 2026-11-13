@@ -19,6 +19,7 @@ import { Route as CopyrightRouteImport } from './routes/copyright'
 import { Route as DealsRouteImport } from './routes/deals'
 import { Route as DefinitionsRouteImport } from './routes/definitions'
 import { Route as DownloadsRouteImport } from './routes/downloads'
+import { Route as FollowingRouteImport } from './routes/following'
 import { Route as HelpRouteImport } from './routes/help'
 import { Route as HighlightsRouteImport } from './routes/highlights'
 import { Route as LibraryRouteImport } from './routes/library'
@@ -30,16 +31,14 @@ import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as OrdersRouteImport } from './routes/orders'
 import { Route as PreordersRouteImport } from './routes/preorders'
 import { Route as PrivacyRouteImport } from './routes/privacy'
-import { Route as FollowingRouteImport } from './routes/following'
 import { Route as ProfileRouteImport } from './routes/profile'
-import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as PublishingRouteImport } from './routes/publishing'
 import { Route as PublishingPolicyRouteImport } from './routes/publishing-policy'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SecurityRouteImport } from './routes/security'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ShelvesRouteImport } from './routes/shelves'
 import { Route as SoundsRouteImport } from './routes/sounds'
-import { Route as SoundsSlugRouteImport } from './routes/sounds_.$slug'
 import { Route as SoundtracksRouteImport } from './routes/soundtracks'
 import { Route as StatsRouteImport } from './routes/stats'
 import { Route as StatusRouteImport } from './routes/status'
@@ -60,6 +59,7 @@ import { Route as PublisherIdRouteImport } from './routes/publisher/$id'
 import { Route as ReadIdRouteImport } from './routes/read.$id'
 import { Route as SeriesIdRouteImport } from './routes/series/$id'
 import { Route as ShelfIdRouteImport } from './routes/shelf.$id'
+import { Route as SoundsSlugRouteImport } from './routes/sounds_.$slug'
 import { Route as StaffPublishingRouteImport } from './routes/staff/publishing'
 import { Route as StaffSoundtracksRouteImport } from './routes/staff/soundtracks'
 import { Route as StaffStorefrontRouteImport } from './routes/staff/storefront'
@@ -119,6 +119,11 @@ const DownloadsRoute = DownloadsRouteImport.update({
   path: '/downloads',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FollowingRoute = FollowingRouteImport.update({
+  id: '/following',
+  path: '/following',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HelpRoute = HelpRouteImport.update({
   id: '/help',
   path: '/help',
@@ -174,19 +179,9 @@ const PrivacyRoute = PrivacyRouteImport.update({
   path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
-const FollowingRoute = FollowingRouteImport.update({
-  id: '/following',
-  path: '/following',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PublishingRoute = PublishingRouteImport.update({
@@ -209,6 +204,11 @@ const SecurityRoute = SecurityRouteImport.update({
   path: '/security',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ShelvesRoute = ShelvesRouteImport.update({
   id: '/shelves',
   path: '/shelves',
@@ -217,11 +217,6 @@ const ShelvesRoute = ShelvesRouteImport.update({
 const SoundsRoute = SoundsRouteImport.update({
   id: '/sounds',
   path: '/sounds',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SoundsSlugRoute = SoundsSlugRouteImport.update({
-  id: '/sounds/$slug',
-  path: '/sounds/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SoundtracksRoute = SoundtracksRouteImport.update({
@@ -324,6 +319,11 @@ const ShelfIdRoute = ShelfIdRouteImport.update({
   path: '/shelf/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SoundsSlugRoute = SoundsSlugRouteImport.update({
+  id: '/sounds_/$slug',
+  path: '/sounds/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const StaffPublishingRoute = StaffPublishingRouteImport.update({
   id: '/staff/publishing',
   path: '/staff/publishing',
@@ -376,6 +376,7 @@ export interface FileRoutesByFullPath {
   '/deals': typeof DealsRoute
   '/definitions': typeof DefinitionsRoute
   '/downloads': typeof DownloadsRoute
+  '/following': typeof FollowingRoute
   '/help': typeof HelpRoute
   '/highlights': typeof HighlightsRoute
   '/library': typeof LibraryRoute
@@ -387,16 +388,14 @@ export interface FileRoutesByFullPath {
   '/orders': typeof OrdersRoute
   '/preorders': typeof PreordersRoute
   '/privacy': typeof PrivacyRoute
-  '/following': typeof FollowingRoute
   '/profile': typeof ProfileRoute
-  '/settings': typeof SettingsRoute
   '/publishing': typeof PublishingRoute
   '/publishing-policy': typeof PublishingPolicyRoute
   '/search': typeof SearchRoute
   '/security': typeof SecurityRoute
+  '/settings': typeof SettingsRoute
   '/shelves': typeof ShelvesRoute
   '/sounds': typeof SoundsRoute
-  '/sounds/$slug': typeof SoundsSlugRoute
   '/soundtracks': typeof SoundtracksRoute
   '/stats': typeof StatsRoute
   '/status': typeof StatusRoute
@@ -417,6 +416,7 @@ export interface FileRoutesByFullPath {
   '/read/$id': typeof ReadIdRoute
   '/series/$id': typeof SeriesIdRoute
   '/shelf/$id': typeof ShelfIdRoute
+  '/sounds/$slug': typeof SoundsSlugRoute
   '/staff/publishing': typeof StaffPublishingRoute
   '/staff/soundtracks': typeof StaffSoundtracksRoute
   '/staff/storefront': typeof StaffStorefrontRoute
@@ -437,6 +437,7 @@ export interface FileRoutesByTo {
   '/deals': typeof DealsRoute
   '/definitions': typeof DefinitionsRoute
   '/downloads': typeof DownloadsRoute
+  '/following': typeof FollowingRoute
   '/help': typeof HelpRoute
   '/highlights': typeof HighlightsRoute
   '/library': typeof LibraryRoute
@@ -448,16 +449,14 @@ export interface FileRoutesByTo {
   '/orders': typeof OrdersRoute
   '/preorders': typeof PreordersRoute
   '/privacy': typeof PrivacyRoute
-  '/following': typeof FollowingRoute
   '/profile': typeof ProfileRoute
-  '/settings': typeof SettingsRoute
   '/publishing': typeof PublishingRoute
   '/publishing-policy': typeof PublishingPolicyRoute
   '/search': typeof SearchRoute
   '/security': typeof SecurityRoute
+  '/settings': typeof SettingsRoute
   '/shelves': typeof ShelvesRoute
   '/sounds': typeof SoundsRoute
-  '/sounds/$slug': typeof SoundsSlugRoute
   '/soundtracks': typeof SoundtracksRoute
   '/stats': typeof StatsRoute
   '/status': typeof StatusRoute
@@ -478,6 +477,7 @@ export interface FileRoutesByTo {
   '/read/$id': typeof ReadIdRoute
   '/series/$id': typeof SeriesIdRoute
   '/shelf/$id': typeof ShelfIdRoute
+  '/sounds/$slug': typeof SoundsSlugRoute
   '/staff/publishing': typeof StaffPublishingRoute
   '/staff/soundtracks': typeof StaffSoundtracksRoute
   '/staff/storefront': typeof StaffStorefrontRoute
@@ -499,6 +499,7 @@ export interface FileRoutesById {
   '/deals': typeof DealsRoute
   '/definitions': typeof DefinitionsRoute
   '/downloads': typeof DownloadsRoute
+  '/following': typeof FollowingRoute
   '/help': typeof HelpRoute
   '/highlights': typeof HighlightsRoute
   '/library': typeof LibraryRoute
@@ -510,16 +511,14 @@ export interface FileRoutesById {
   '/orders': typeof OrdersRoute
   '/preorders': typeof PreordersRoute
   '/privacy': typeof PrivacyRoute
-  '/following': typeof FollowingRoute
   '/profile': typeof ProfileRoute
-  '/settings': typeof SettingsRoute
   '/publishing': typeof PublishingRoute
   '/publishing-policy': typeof PublishingPolicyRoute
   '/search': typeof SearchRoute
   '/security': typeof SecurityRoute
+  '/settings': typeof SettingsRoute
   '/shelves': typeof ShelvesRoute
   '/sounds': typeof SoundsRoute
-  '/sounds/$slug': typeof SoundsSlugRoute
   '/soundtracks': typeof SoundtracksRoute
   '/stats': typeof StatsRoute
   '/status': typeof StatusRoute
@@ -540,6 +539,7 @@ export interface FileRoutesById {
   '/read/$id': typeof ReadIdRoute
   '/series/$id': typeof SeriesIdRoute
   '/shelf/$id': typeof ShelfIdRoute
+  '/sounds_/$slug': typeof SoundsSlugRoute
   '/staff/publishing': typeof StaffPublishingRoute
   '/staff/soundtracks': typeof StaffSoundtracksRoute
   '/staff/storefront': typeof StaffStorefrontRoute
@@ -562,6 +562,7 @@ export interface FileRouteTypes {
     | '/deals'
     | '/definitions'
     | '/downloads'
+    | '/following'
     | '/help'
     | '/highlights'
     | '/library'
@@ -573,16 +574,14 @@ export interface FileRouteTypes {
     | '/orders'
     | '/preorders'
     | '/privacy'
-    | '/following'
     | '/profile'
-    | '/settings'
     | '/publishing'
     | '/publishing-policy'
     | '/search'
     | '/security'
+    | '/settings'
     | '/shelves'
     | '/sounds'
-    | '/sounds/$slug'
     | '/soundtracks'
     | '/stats'
     | '/status'
@@ -603,6 +602,7 @@ export interface FileRouteTypes {
     | '/read/$id'
     | '/series/$id'
     | '/shelf/$id'
+    | '/sounds/$slug'
     | '/staff/publishing'
     | '/staff/soundtracks'
     | '/staff/storefront'
@@ -623,6 +623,7 @@ export interface FileRouteTypes {
     | '/deals'
     | '/definitions'
     | '/downloads'
+    | '/following'
     | '/help'
     | '/highlights'
     | '/library'
@@ -634,16 +635,14 @@ export interface FileRouteTypes {
     | '/orders'
     | '/preorders'
     | '/privacy'
-    | '/following'
     | '/profile'
-    | '/settings'
     | '/publishing'
     | '/publishing-policy'
     | '/search'
     | '/security'
+    | '/settings'
     | '/shelves'
     | '/sounds'
-    | '/sounds/$slug'
     | '/soundtracks'
     | '/stats'
     | '/status'
@@ -664,6 +663,7 @@ export interface FileRouteTypes {
     | '/read/$id'
     | '/series/$id'
     | '/shelf/$id'
+    | '/sounds/$slug'
     | '/staff/publishing'
     | '/staff/soundtracks'
     | '/staff/storefront'
@@ -684,6 +684,7 @@ export interface FileRouteTypes {
     | '/deals'
     | '/definitions'
     | '/downloads'
+    | '/following'
     | '/help'
     | '/highlights'
     | '/library'
@@ -695,16 +696,14 @@ export interface FileRouteTypes {
     | '/orders'
     | '/preorders'
     | '/privacy'
-    | '/following'
     | '/profile'
-    | '/settings'
     | '/publishing'
     | '/publishing-policy'
     | '/search'
     | '/security'
+    | '/settings'
     | '/shelves'
     | '/sounds'
-    | '/sounds/$slug'
     | '/soundtracks'
     | '/stats'
     | '/status'
@@ -725,6 +724,7 @@ export interface FileRouteTypes {
     | '/read/$id'
     | '/series/$id'
     | '/shelf/$id'
+    | '/sounds_/$slug'
     | '/staff/publishing'
     | '/staff/soundtracks'
     | '/staff/storefront'
@@ -746,6 +746,7 @@ export interface RootRouteChildren {
   DealsRoute: typeof DealsRoute
   DefinitionsRoute: typeof DefinitionsRoute
   DownloadsRoute: typeof DownloadsRoute
+  FollowingRoute: typeof FollowingRoute
   HelpRoute: typeof HelpRoute
   HighlightsRoute: typeof HighlightsRoute
   LibraryRoute: typeof LibraryRoute
@@ -757,16 +758,14 @@ export interface RootRouteChildren {
   OrdersRoute: typeof OrdersRoute
   PreordersRoute: typeof PreordersRoute
   PrivacyRoute: typeof PrivacyRoute
-  FollowingRoute: typeof FollowingRoute
   ProfileRoute: typeof ProfileRoute
-  SettingsRoute: typeof SettingsRoute
   PublishingRoute: typeof PublishingRoute
   PublishingPolicyRoute: typeof PublishingPolicyRoute
   SearchRoute: typeof SearchRoute
   SecurityRoute: typeof SecurityRoute
+  SettingsRoute: typeof SettingsRoute
   ShelvesRoute: typeof ShelvesRoute
   SoundsRoute: typeof SoundsRoute
-  SoundsSlugRoute: typeof SoundsSlugRoute
   SoundtracksRoute: typeof SoundtracksRoute
   StatsRoute: typeof StatsRoute
   StatusRoute: typeof StatusRoute
@@ -787,6 +786,7 @@ export interface RootRouteChildren {
   ReadIdRoute: typeof ReadIdRoute
   SeriesIdRoute: typeof SeriesIdRoute
   ShelfIdRoute: typeof ShelfIdRoute
+  SoundsSlugRoute: typeof SoundsSlugRoute
   StaffPublishingRoute: typeof StaffPublishingRoute
   StaffSoundtracksRoute: typeof StaffSoundtracksRoute
   StaffStorefrontRoute: typeof StaffStorefrontRoute
@@ -868,6 +868,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DownloadsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/following': {
+      id: '/following'
+      path: '/following'
+      fullPath: '/following'
+      preLoaderRoute: typeof FollowingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/help': {
       id: '/help'
       path: '/help'
@@ -945,25 +952,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/following': {
-      id: '/following'
-      path: '/following'
-      fullPath: '/following'
-      preLoaderRoute: typeof FollowingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/profile': {
       id: '/profile'
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/publishing': {
@@ -994,6 +987,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SecurityRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/shelves': {
       id: '/shelves'
       path: '/shelves'
@@ -1006,13 +1006,6 @@ declare module '@tanstack/react-router' {
       path: '/sounds'
       fullPath: '/sounds'
       preLoaderRoute: typeof SoundsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sounds/$slug': {
-      id: '/sounds/$slug'
-      path: '/sounds/$slug'
-      fullPath: '/sounds/$slug'
-      preLoaderRoute: typeof SoundsSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/soundtracks': {
@@ -1155,6 +1148,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShelfIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sounds_/$slug': {
+      id: '/sounds_/$slug'
+      path: '/sounds/$slug'
+      fullPath: '/sounds/$slug'
+      preLoaderRoute: typeof SoundsSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/staff/publishing': {
       id: '/staff/publishing'
       path: '/staff/publishing'
@@ -1237,6 +1237,7 @@ const rootRouteChildren: RootRouteChildren = {
   DealsRoute: DealsRoute,
   DefinitionsRoute: DefinitionsRoute,
   DownloadsRoute: DownloadsRoute,
+  FollowingRoute: FollowingRoute,
   HelpRoute: HelpRoute,
   HighlightsRoute: HighlightsRoute,
   LibraryRoute: LibraryRoute,
@@ -1248,16 +1249,14 @@ const rootRouteChildren: RootRouteChildren = {
   OrdersRoute: OrdersRoute,
   PreordersRoute: PreordersRoute,
   PrivacyRoute: PrivacyRoute,
-  FollowingRoute: FollowingRoute,
   ProfileRoute: ProfileRoute,
-  SettingsRoute: SettingsRoute,
   PublishingRoute: PublishingRoute,
   PublishingPolicyRoute: PublishingPolicyRoute,
   SearchRoute: SearchRoute,
   SecurityRoute: SecurityRoute,
+  SettingsRoute: SettingsRoute,
   ShelvesRoute: ShelvesRoute,
   SoundsRoute: SoundsRoute,
-  SoundsSlugRoute: SoundsSlugRoute,
   SoundtracksRoute: SoundtracksRoute,
   StatsRoute: StatsRoute,
   StatusRoute: StatusRoute,
@@ -1278,6 +1277,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReadIdRoute: ReadIdRoute,
   SeriesIdRoute: SeriesIdRoute,
   ShelfIdRoute: ShelfIdRoute,
+  SoundsSlugRoute: SoundsSlugRoute,
   StaffPublishingRoute: StaffPublishingRoute,
   StaffSoundtracksRoute: StaffSoundtracksRoute,
   StaffStorefrontRoute: StaffStorefrontRoute,
