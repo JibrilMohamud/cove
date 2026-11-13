@@ -4,12 +4,10 @@
  * numbers. No cached count authorizes a book, sale, download or reading,
  * and there is no cached eligibility or cross-request Worker I/O.
  *
- * Seed from indexed territorial retail grants before executing the
- * UNCHANGED retail availability view. This avoids a full-products scan on
- * dense markets (the old >1000-grant fallback), while preserving current
- * revocations, denials, market/language restrictions and exact counts.
- * The legacy full scan remains available to correctness/parity tests.
- * Products and (edition_id,node_id) pairs are independently unique.
+ * The runtime always seeds indexed territorial retail grants before executing
+ * the UNCHANGED live retail availability view, even for dense markets. The
+ * previous full-catalog plan remains available only for parity testing.
+ * The count is exact because products.id and (edition_id,node_id) are unique.
  */
 export type TaxonomyCountPlan = { sql: string; binds: (string | number)[] };
 const eligibleWhere = `
@@ -24,10 +22,11 @@ const eligibleWhere = `
       WHERE rpa.product_id=p.id AND rpa.territory_code=upper(?)
     )`;
 
-export function taxonomyCountPlan(
+/** Legacy dense full-catalog scan retained only for exact parity tests. */
+export function legacyDenseTaxonomyCountPlan(
   territory: string,
   language: string,
-  sparse: boolean,
+
 ): TaxonomyCountPlan {
   const normal = `WITH eligible AS MATERIALIZED (
     SELECT p.id,p.edition_id FROM products p
@@ -37,8 +36,20 @@ export function taxonomyCountPlan(
   SELECT et.taxonomy_node_id node_id,COUNT(*) product_count
   FROM eligible p JOIN edition_taxonomy_nodes et ON et.edition_id=p.edition_id
   GROUP BY et.taxonomy_node_id`;
-  if (!sparse) return { sql: normal, binds: [language, language, territory] };
+  return { sql: normal, binds: [language, language, territory] };
 
+
+/**
+ * The runtime always starts from indexed, active territory grants and then
+ * applies the SAME live retail availability predicate. The old >1,000-grant
+ * fallback scanned the full product catalog and read 1.7M+ rows on primary D1.
+ * Keep the legacy sparse argument to avoid touching reviewed writer modules.
+ */
+export function taxonomyCountPlan(
+  territory: string,
+  language: string,
+  _sparse: boolean,
+): TaxonomyCountPlan {
   const seeded = `WITH territory_seed AS MATERIALIZED (
     SELECT DISTINCT seed_product.id,seed_product.edition_id
     FROM rights_grant_territories rgt
