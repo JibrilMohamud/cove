@@ -19,6 +19,7 @@ on:
       - "src/server.ts"
       - "src/lib/persistence-backend.ts"
       - "scripts/check-storefront-inflight-metadata.mjs"
+      - "scripts/check-storefront-completed-public-metadata.mjs"
       - "scripts/check-storefront-metadata-request-lifetime.mjs"
       - "scripts/check-storefront-request-read-batch.mjs"
       - "scripts/check-storefront-public-display-cache.mjs"
@@ -81,6 +82,7 @@ jobs:
       - name: Prove metadata reads stay owned by each Worker request
         run: |
           node scripts/check-storefront-inflight-metadata.mjs
+          node scripts/check-storefront-completed-public-metadata.mjs
           node scripts/check-storefront-metadata-request-lifetime.mjs
           node scripts/check-storefront-request-read-batch.mjs
           node scripts/check-storefront-public-display-cache.mjs
