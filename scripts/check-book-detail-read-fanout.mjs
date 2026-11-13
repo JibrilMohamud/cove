@@ -83,19 +83,21 @@ const { outputFiles } = await build({
   format: "esm",
   bundle: true,
   write: false,
-  plugins: [{
-    name: "read-fanout-deps",
-    setup(build) {
-      build.onResolve({ filter: /^\.\// }, (args) => {
-        if (!args.importer.endsWith("retail.server.ts") || !(args.path in stubs)) return;
-        return { path: args.path, namespace: "retail-read-probe" };
-      });
-      build.onLoad({ filter: /.*/, namespace: "retail-read-probe" }, (args) => ({
-        contents: stubs[args.path],
-        loader: "js",
-      }));
+  plugins: [
+    {
+      name: "read-fanout-deps",
+      setup(build) {
+        build.onResolve({ filter: /^\.\// }, (args) => {
+          if (!args.importer.endsWith("retail.server.ts") || !(args.path in stubs)) return;
+          return { path: args.path, namespace: "retail-read-probe" };
+        });
+        build.onLoad({ filter: /.*/, namespace: "retail-read-probe" }, (args) => ({
+          contents: stubs[args.path],
+          loader: "js",
+        }));
+      },
     },
-  }],
+  ],
 });
 const { productDetail } = await import(
   "data:text/javascript;base64," + Buffer.from(outputFiles[0].text).toString("base64")
@@ -103,7 +105,11 @@ const { productDetail } = await import(
 
 function probe(allowed, failRights = false) {
   return {
-    allowed, failRights, active:0, maxActive:0, events:[],
+    allowed,
+    failRights,
+    active: 0,
+    maxActive: 0,
+    events: [],
     async run(label, value) {
       this.active++;
       this.maxActive = Math.max(this.maxActive, this.active);
@@ -119,18 +125,29 @@ const db = {
   prepare(sql) {
     const value = () => {
       if (sql.includes("FROM entitlements")) return null;
-      if (sql.includes("FROM reviews")) return { review_count:2, average_rating:4.5, five_star:1 };
-      if (sql.includes("FROM wishlist_items")) return { alert_price_drop:1 };
-      if (sql.includes("FROM preview_policies")) return { mode:"percent",limit_value:10,max_percentage:20,version:1 };
-      if (sql.includes("FROM digital_assets")) return {drm_status:"none",downloadable:1};
-      if (sql.includes("FROM publishing_publications")) return {policy_version:"v1", public_badges_json:"[]"};
+      if (sql.includes("FROM reviews"))
+        return { review_count: 2, average_rating: 4.5, five_star: 1 };
+      if (sql.includes("FROM wishlist_items")) return { alert_price_drop: 1 };
+      if (sql.includes("FROM preview_policies"))
+        return { mode: "percent", limit_value: 10, max_percentage: 20, version: 1 };
+      if (sql.includes("FROM digital_assets")) return { drm_status: "none", downloadable: 1 };
+      if (sql.includes("FROM publishing_publications"))
+        return { policy_version: "v1", public_badges_json: "[]" };
       if (sql.includes("FROM product_rankings")) return [];
       if (sql.includes("FROM edition_taxonomy_nodes")) return [];
-      if (sql.includes("FROM product_channel_availability")) return [{sales_channel:"subscription"}];
-      if (sql.includes("FROM editions e JOIN products p")) return [{
-        product_id:"p1",edition_id:"e1",edition_public_id:"e1",source_external_id:"1342",
-        language:"en",format:"ebook"
-      }];
+      if (sql.includes("FROM product_channel_availability"))
+        return [{ sales_channel: "subscription" }];
+      if (sql.includes("FROM editions e JOIN products p"))
+        return [
+          {
+            product_id: "p1",
+            edition_id: "e1",
+            edition_public_id: "e1",
+            source_external_id: "1342",
+            language: "en",
+            format: "ebook",
+          },
+        ];
       throw new Error("Unexpected SQL read " + sql.slice(0, 75));
     };
     const label = () => {
@@ -142,9 +159,17 @@ const db = {
     };
     const execute = async () => globalThis.__detailProbe.run(label(), value());
     return {
-      bind() { return this; },
-      async first() {const x=await execute();return Array.isArray(x)?x[0]||null:x;},
-      async all() {const x=await execute();return {results:Array.isArray(x)?x:[]};},
+      bind() {
+        return this;
+      },
+      async first() {
+        const x = await execute();
+        return Array.isArray(x) ? x[0] || null : x;
+      },
+      async all() {
+        const x = await execute();
+        return { results: Array.isArray(x) ? x : [] };
+      },
     };
   },
 };
@@ -175,4 +200,6 @@ assert.equal(denied.preview.available, false);
 globalThis.__detailProbe = probe(true, true);
 await assert.rejects(productDetail(db, "1342", null, "US"), /rights unavailable/);
 delete globalThis.__detailProbe;
-console.log("PASS: real product detail overlaps independent reads, preserves offers, denies withdrawn rights, and fails closed");
+console.log(
+  "PASS: real product detail overlaps independent reads, preserves offers, denies withdrawn rights, and fails closed",
+);
