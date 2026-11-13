@@ -98,9 +98,10 @@ function report(name, offered, rows, dropped = 0) {
   const invalidFailureKinds = {};
   for (const row of rows) {
     if (row.valid) continue;
-    const status = Number.isInteger(row.status) && row.status >= 100 && row.status <= 599
-      ? String(row.status)
-      : "request-failed";
+    const status =
+      Number.isInteger(row.status) && row.status >= 100 && row.status <= 599
+        ? String(row.status)
+        : "request-failed";
     invalidStatusCounts[status] = (invalidStatusCounts[status] || 0) + 1;
     const kind = fixedFailureKinds.has(row.failureKind) ? row.failureKind : "unclassified";
     invalidFailureKinds[kind] = (invalidFailureKinds[kind] || 0) + 1;
