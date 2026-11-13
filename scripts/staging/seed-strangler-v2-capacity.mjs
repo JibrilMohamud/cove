@@ -78,9 +78,13 @@ const markets = (
   )
 ).results;
 assert.ok(markets.length > 0 && markets.length <= 32);
-const countries = markets.map((item) => String(item.country_code));
-assert.ok(countries.includes("US"));
-assert.ok(countries.every((country) => /^[A-Z]{2}$/.test(country)));
+const activeCountries = markets.map((item) => String(item.country_code));
+assert.ok(activeCountries.includes("US"));
+assert.ok(activeCountries.every((country) => /^[A-Z]{2}$/.test(country)));
+// This protected 100-RPS campaign is US-only. Publishing all 23 active
+// countries would add unrelated expensive staging-D1 work before the cold
+// trial. Multi-market rights parity is checked by the independent fixtures.
+const countries = ["US"];
 
 function wrangler(args) {
   const result = spawnSync(
