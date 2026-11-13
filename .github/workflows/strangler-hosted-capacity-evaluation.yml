@@ -15,6 +15,8 @@ on:
       - "scripts/staging/cleanup-strangler-v2-capacity.mjs"
       - "scripts/staging/enable-strangler-private-read-model.mjs"
       - "scripts/staging/check-strangler-v2-capacity-config.mjs"
+      - "src/storefront-strangler/homepage-presentation.server.ts"
+      - "scripts/check-storefront-v2-primary-prefix.mjs"
   push:
     branches: [main]
     # Main-only review of either the measured renderer or the acceptance
@@ -31,6 +33,8 @@ on:
       - "scripts/staging/cleanup-strangler-v2-capacity.mjs"
       - "scripts/staging/enable-strangler-private-read-model.mjs"
       - "scripts/staging/check-strangler-v2-capacity-config.mjs"
+      - "src/storefront-strangler/homepage-presentation.server.ts"
+      - "scripts/check-storefront-v2-primary-prefix.mjs"
   workflow_dispatch:
 
 permissions:
@@ -63,6 +67,7 @@ jobs:
         run: |
           node scripts/check-storefront-strangler.mjs
           node scripts/check-storefront-prepared-catalog.mjs
+          node scripts/check-storefront-v2-primary-prefix.mjs
 
   protected-staging-only:
     if: >-
@@ -87,6 +92,7 @@ jobs:
         run: |
           node scripts/check-storefront-strangler.mjs
           node scripts/check-storefront-prepared-catalog.mjs
+          node scripts/check-storefront-v2-primary-prefix.mjs
           node scripts/staging/check-strangler-core-stage.mjs
       - name: Confirm production literary owner and rights-guarded publication before staged capacity
         run: node scripts/staging/verify-literary-postpublication-readonly.mjs

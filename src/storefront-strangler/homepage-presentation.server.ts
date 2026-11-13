@@ -211,13 +211,37 @@ export async function authorizeHomepagePresentation(
   presentation: Awaited<ReturnType<typeof readHomepagePresentation>>,
   metrics?: FirstPaintD1QueryMetrics,
 ) {
-  const rows = await authorizeStorefrontPresentationIds(
+  const { productIds, country, currency } = presentation.candidates;
+  // The live primary statement returns at most 25 ranked eligible IDs:
+  // 24 cards plus one more to prove the existing next-page signal.
+  // Checking all 128 advisory candidates when the first 25 are still
+  // authorized unnecessarily multiplies D1 rows read at 100 RPS.
+  //
+  // Never trust the private ranking as an authorization. EVERY request
+  // performs this fresh SQL read against current primary territorial
+  // rights, active state, market currency and offers. A withdrawn or
+  // mismatched item triggers the full 128-ID primary authorization,
+  // preserving the old stable ordering and replacement candidates.
+  const prefix = productIds.slice(0, 25);
+  const authorizedPrefix = await authorizeStorefrontPresentationIds(
     primary,
-    presentation.candidates.productIds,
-    presentation.candidates.country,
-    presentation.candidates.currency,
+    prefix,
+    country,
+    currency,
     metrics,
   );
+  const displayById = new Map(presentation.displayBooks.map((b) => [b.productId, b]));
+  const completePrefix =
+    authorizedPrefix.length === 25 &&
+    authorizedPrefix.every(
+      (row, i) =>
+        row.product_id === prefix[i] &&
+        displayById.get(row.product_id)?.editionId === row.edition_id,
+    );
+  const rows =
+    productIds.length <= 25 || completePrefix
+      ? authorizedPrefix
+      : await authorizeStorefrontPresentationIds(primary, productIds, country, currency, metrics);
   return assembleAuthorizedHomepagePresentation(presentation, rows);
 }
 
