@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { summarizeOwnedPhase, ownedServerTiming, ownedStageFailureKind } from "./check-owned-ssr-capacity.mjs";
+import {
+  summarizeOwnedPhase,
+  ownedServerTiming,
+  ownedStageFailureKind,
+} from "./check-owned-ssr-capacity.mjs";
 const row = (ttfbMs = 100, extra = {}) => ({
   ttfbMs,
   launchDelayMs: 0,
