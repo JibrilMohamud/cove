@@ -3,7 +3,10 @@ import { networkCountry, resolveStorefrontContext } from "./localization.server"
 import { projectedAnonymousHomePage, resolveStorefrontPage } from "./taxonomy.server";
 import { firstPaintStorefrontShelf } from "./search.server";
 import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server";
-import { withInFlightAnonymousMarketReads } from "./storefront-inflight-public-metadata";
+import {
+  withInFlightAnonymousMarketReads,
+  withCompletedAnonymousMarketReads,
+} from "./storefront-inflight-public-metadata";
 import { withRequestFirstPaintReadBatch } from "./storefront-request-read-batch";
 import type { CoveEnv } from "./api.server";
 import type { FirstPaintD1QueryMetrics } from "./catalog-model.server";
@@ -89,9 +92,15 @@ export async function serveLeanAnonymousBootstrap(
   // independently reads both public metadata and PRIMARY-D1 legal rights.
   const metadataDb =
     env.COVE_SSR_STAGING === "1"
-      ? withInFlightAnonymousMarketReads(rawDb, () => {
-          timings.context_joined = 0;
-        })
+      ? withCompletedAnonymousMarketReads(
+          withInFlightAnonymousMarketReads(rawDb, () => {
+            timings.context_joined = 0;
+          }),
+          env.DB!,
+          () => {
+            timings.context_completed_hit = 0;
+          },
+        )
       : rawDb;
   const readMetadata = () => metadataDb;
   const ip = request.headers.get("cf-connecting-ip")!.trim();

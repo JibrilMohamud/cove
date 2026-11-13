@@ -13,7 +13,7 @@ type MarketFlight = { startedAt: number; promise: Promise<unknown> };
 const MAX_FLIGHTS_PER_BINDING = 8;
 const MAX_JOIN_AGE_MS = 300;
 
-function safeMarketKey(sql: string, parameters: unknown[]): string | null {
+export function safeMarketKey(sql: string, parameters: unknown[]): string | null {
   // Match the one source-verified localization query, not a general SQL API.
   if (
     !sql.includes("active_market AS MATERIALIZED") ||
@@ -115,6 +115,132 @@ export function withInFlightAnonymousMarketReads<T extends object>(
                       coalesceMarketRead(active, sql, parameters, () => query.all(), onJoined);
                   const value = Reflect.get(query, operation, query);
                   return typeof value === "function" ? value.bind(query) : value;
+                },
+              });
+            };
+          },
+        });
+      };
+    },
+  });
+}
+
+/**
+ * STAGING ONLY: reuse completed public locale/market/translation/page data
+ * for at most two seconds from read start. This reduces repeated primary-D1
+ * metadata work under sustained load. Every visitor still executes fresh
+ * primary-D1 territorial retail rights, availability and pricing queries.
+ *
+ * An in-flight D1 read, promise, Response, D1 statement or user identity is
+ * NEVER stored across requests. Cache hits are deeply copied; a cold miss,
+ * malformed/oversized result, failed read or expired entry invokes D1.
+ * This public presentation optimization is not a legal authority or a
+ * production rollout. Callers must enforce anonymous identity first.
+ */
+type CompletedMarketEntry = { body: string; bytes: number; until: number };
+type CompletedMarketCache = { entries: Map<string, CompletedMarketEntry>; bytes: number };
+const completedMarketByD1 = new WeakMap<object, CompletedMarketCache>();
+const MARKET_COMPLETED_TTL_MS = 2_000;
+const MARKET_COMPLETED_MAX_ITEMS = 32;
+const MARKET_COMPLETED_MAX_BYTES = 1024 * 1024;
+const MARKET_COMPLETED_MAX_ITEM_BYTES = 128 * 1024;
+
+function liveMarketCache(scope: object, now: number): CompletedMarketCache {
+  let cache = completedMarketByD1.get(scope);
+  if (!cache) {
+    cache = { entries: new Map(), bytes: 0 };
+    completedMarketByD1.set(scope, cache);
+  }
+  for (const [key, entry] of cache.entries)
+    if (entry.until <= now) {
+      cache.entries.delete(key);
+      cache.bytes -= entry.bytes;
+    }
+  return cache;
+}
+
+export function withCompletedAnonymousMarketReads<T extends object>(
+  db: T,
+  bindingScope: object,
+  onHit?: () => void,
+): T {
+  return new Proxy(db, {
+    get(target, property) {
+      if (property !== "prepare") {
+        const value = Reflect.get(target, property, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      }
+      return (sql: string) => {
+        const prepared = (target as PublicMetadataDatabase).prepare(sql);
+        if (!sql.includes("active_market AS MATERIALIZED")) return prepared;
+        return new Proxy(prepared, {
+          get(statement, method) {
+            if (method !== "bind") {
+              const value = Reflect.get(statement, method, statement);
+              return typeof value === "function" ? value.bind(statement) : value;
+            }
+            return (...parameters: unknown[]) => {
+              const bound = statement.bind(...parameters);
+              const key = safeMarketKey(sql, parameters);
+              if (!key) return bound;
+              return new Proxy(bound, {
+                get(query, operation) {
+                  if (operation !== "all") {
+                    const value = Reflect.get(query, operation, query);
+                    return typeof value === "function" ? value.bind(query) : value;
+                  }
+                  return async () => {
+                    const startedAt = Date.now();
+                    const cache = liveMarketCache(bindingScope, startedAt);
+                    const hit = cache.entries.get(key);
+                    if (hit) {
+                      onHit?.();
+                      // Only cloned JSON presentation rows leave the cache.
+                      return { results: JSON.parse(hit.body), success: true };
+                    }
+                    // Do not coalesce pending I/O: workerd owns every read
+                    // until its original request completes.
+                    const result = (await query.all()) as {
+                      results?: unknown;
+                      success?: boolean;
+                    };
+                    if (result?.success === false || !Array.isArray(result?.results)) return result;
+                    // An absent market is never remembered: new activations
+                    // must be visible on their next first-paint request.
+                    if (result.results.length !== 1) return result;
+                    try {
+                      const body = JSON.stringify(result.results);
+                      const bytes = new TextEncoder().encode(body).byteLength;
+                      const until = startedAt + MARKET_COMPLETED_TTL_MS;
+                      if (
+                        bytes > 0 &&
+                        bytes <= MARKET_COMPLETED_MAX_ITEM_BYTES &&
+                        until > Date.now()
+                      ) {
+                        const current = liveMarketCache(bindingScope, Date.now());
+                        const previous = current.entries.get(key);
+                        if (previous) {
+                          current.bytes -= previous.bytes;
+                          current.entries.delete(key);
+                        }
+                        while (
+                          current.entries.size >= MARKET_COMPLETED_MAX_ITEMS ||
+                          current.bytes + bytes > MARKET_COMPLETED_MAX_BYTES
+                        ) {
+                          const oldest = current.entries.entries().next().value;
+                          if (!oldest) break;
+                          current.entries.delete(oldest[0]);
+                          current.bytes -= oldest[1].bytes;
+                        }
+                        current.entries.set(key, { body, bytes, until });
+                        current.bytes += bytes;
+                      }
+                    } catch {
+                      // An unserializable presentation row is not cacheable;
+                      // it must never turn a successful D1 read into a 503.
+                    }
+                    return result;
+                  };
                 },
               });
             };

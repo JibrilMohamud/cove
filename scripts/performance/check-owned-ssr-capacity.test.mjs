@@ -77,6 +77,21 @@ test("protected stage failure breakdown remains bounded and cannot hide invalid 
   assert.equal(ownedStageFailureKind("d1-queue-full"), "d1-queue-full");
   assert.equal(ownedStageFailureKind("d1-queue-wait"), "d1-queue-wait");
   assert.equal(ownedStageFailureKind("service-overloaded"), "service-overloaded");
+  assert.equal(
+    ownedStageFailureKind(null, { cove_ssr_read_d1_resource_window: 0 }),
+    "d1-resource-window",
+  );
+  assert.equal(ownedStageFailureKind(null, { cove_ssr_read_d1_queue_full: 0 }), "d1-queue-full");
+  assert.equal(ownedStageFailureKind(null, { cove_ssr_read_d1_queue_wait: 0 }), "d1-queue-wait");
+  assert.equal(
+    ownedStageFailureKind(null, { cove_ssr_primary_d1_overload: 0 }),
+    "service-overloaded",
+  );
+  assert.equal(
+    ownedStageFailureKind("private token", { cove_ssr_read_d1_resource_window: 12 }),
+    null,
+    "Never infer an overload subtype from a nonzero or arbitrary marker",
+  );
   assert.equal(ownedStageFailureKind("sensitive D1 error or SQL"), null);
   assert.equal(ownedStageFailureKind(null), null);
   const rows = [
@@ -84,6 +99,11 @@ test("protected stage failure breakdown remains bounded and cannot hide invalid 
     row(90, { valid: false, status: 503, failureKind: "d1-resource-window" }),
     row(90, { valid: false, status: 503, failureKind: "d1-queue-full" }),
     row(90, { valid: false, status: 503, failureKind: "private token" }),
+    row(90, {
+      valid: false,
+      status: 503,
+      failureKind: ownedStageFailureKind(null, { cove_ssr_read_d1_resource_window: 0 }),
+    }),
     row(90, { valid: false, status: 429, failureKind: "rate-limited" }),
     row(90, { valid: false, status: 0, failureKind: null }),
   ];
@@ -91,9 +111,9 @@ test("protected stage failure breakdown remains bounded and cannot hide invalid 
   assert.equal(result.pass, false);
   assert.equal(result.valid, 1);
   assert.equal(result.rows.length, rows.length);
-  assert.deepEqual(result.httpFailures, { 429: 1, 503: 3 });
+  assert.deepEqual(result.httpFailures, { 429: 1, 503: 4 });
   assert.deepEqual(result.failureKinds, {
-    "d1-resource-window": 1,
+    "d1-resource-window": 2,
     "d1-queue-full": 1,
     "unclassified-503": 1,
     "rate-limited": 1,
