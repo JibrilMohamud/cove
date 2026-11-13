@@ -126,7 +126,11 @@ try {
   const replaced = await authorizeHomepagePresentation(primary, stale);
   assert.deepEqual(calls, [25, 128]);
   assert.equal(replaced.results[0].productId, ids[1]);
-  assert.ok(replaced.next);
+  assert.equal(
+    replaced.next,
+    null,
+    "A stale edition cannot count as the 25th authorized display book",
+  );
   calls.length = 0;
 
   // Sparse markets and mass withdrawals remain empty/short, with no
