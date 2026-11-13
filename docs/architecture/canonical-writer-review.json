@@ -3564,7 +3564,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "124add082d061ed9472e4c3a67b3be7e1a7607ea07e683a7a36f5cce5a74e744",
+      "siteId": "6b81b008a48ea346b31f607e6fcddd705ccc733a895259ddc9cbfb275257264d",
       "file": "src/features/fore/search.server.ts",
       "line": 2092,
       "functionName": "refreshSearchQualitySignals",
@@ -3573,7 +3573,7 @@
       "sqlSha256": "b44b6a38f0afbbebca207293beeb8f920a9ab2f4d9429e3735fd6df1735d4846",
       "disposition": "non-authorizing-write",
       "productionOwnerGuarded": false,
-      "reason": "This exact projection UPDATE changes ratings, ranking scores or taxonomy text only. It does not change rights, offers, suppression or permission; candidate delivery still needs current legal authorization."
+      "reason": "This exact projection UPDATE changes ratings, ranking scores or taxonomy text only. It does not change rights, offers, suppression or permission; candidate delivery still needs current legal authorization. Re-reviewed 2026-11-13 after the same-file facet SELECT-only planner change. This SQL digest, table, write scope, and non-authorizing classification remain unchanged."
     },
     {
       "siteId": "5419ff9f014ba6273be37a2b8aeec07feaa54a32eaa4d0d55bf7588c8fb69600",
