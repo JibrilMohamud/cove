@@ -29,10 +29,7 @@ assert.equal(ephemeral.d1_databases?.[0]?.database_id, stage);
 assert.notEqual(ephemeral.d1_databases?.[0]?.database_id, production);
 assert.equal(ephemeral.r2_buckets?.length, 1);
 assert.equal(ephemeral.r2_buckets?.[0]?.binding, "PRESENTATION");
-assert.equal(
-  ephemeral.r2_buckets?.[0]?.bucket_name,
-  "cove-strangler-private-presentation-stage",
-);
+assert.equal(ephemeral.r2_buckets?.[0]?.bucket_name, "cove-strangler-private-presentation-stage");
 assert.deepEqual(ephemeral.kv_namespaces, [
   { binding: "PRESENTATION_KV", id: "8245d5f2116a445d9571405b41b7c8c3" },
 ]);
