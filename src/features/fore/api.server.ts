@@ -1121,6 +1121,8 @@ async function catalog(
       cached: true,
       facets: result.facets,
       facetsPending: result.facetsPending === true,
+      // The first-page lower bound is not an exact total until leased facets settle.
+      countPending: result.countPending === true,
       search: {
         queryId: result.queryId,
         backend: result.backend,

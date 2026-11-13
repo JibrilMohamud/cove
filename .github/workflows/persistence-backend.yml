@@ -30,6 +30,7 @@ on:
       - "scripts/check-search-outbox-atomic-ack.mjs"
       - "scripts/check-public-facet-defer.mjs"
       - "scripts/check-public-popular-shortlist.mjs"
+      - "scripts/check-progressive-guest-catalog-total.mjs"
       - "scripts/check-gutendex-popularity-only.mjs"
       - "scripts/check-gutendex-popularity-cas.py"
       - "scripts/check-literary-genre-rights-query.mjs"
@@ -86,6 +87,7 @@ on:
       - "scripts/check-search-outbox-atomic-ack.mjs"
       - "scripts/check-public-facet-defer.mjs"
       - "scripts/check-public-popular-shortlist.mjs"
+      - "scripts/check-progressive-guest-catalog-total.mjs"
       - "scripts/check-gutendex-popularity-only.mjs"
       - "scripts/check-gutendex-popularity-cas.py"
       - "scripts/audio_pipeline/**"
@@ -190,6 +192,7 @@ jobs:
           node scripts/check-public-search-count-scope.mjs
           node scripts/check-public-facet-defer.mjs
           node scripts/check-public-popular-shortlist.mjs
+          node scripts/check-progressive-guest-catalog-total.mjs
           node scripts/check-catalog-ingestion-backpressure.mjs
           node scripts/check-catalog-ingestion-idempotency.mjs
           node scripts/check-gutendex-popularity-only.mjs

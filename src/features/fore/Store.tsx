@@ -657,6 +657,8 @@ export type CatalogResponse = {
   warning?: string;
   ingestion?: { status: string; cachedBooks: number; totalCatalogCount: number };
   facetsPending?: boolean;
+  /** Count is only a proven lower bound while the exact catalog total refreshes. */
+  countPending?: boolean;
   facets?: {
     categories: FacetValue[];
     languages: FacetValue[];
@@ -1251,7 +1253,8 @@ export function StorePage({
     // The limited public facet projection may legitimately return pending
     // while one background lease refreshes labels. Retry the real catalog
     // until complete; never cache or treat an empty shell as definitive.
-    refetchInterval: (query) => (query.state.data?.facetsPending ? 5_000 : false),
+    refetchInterval: (query) =>
+      query.state.data?.facetsPending || query.state.data?.countPending ? 5_000 : false,
     gcTime: typeof window === "undefined" ? Infinity : 60 * 60_000,
     refetchOnWindowFocus: false,
     retry: false,

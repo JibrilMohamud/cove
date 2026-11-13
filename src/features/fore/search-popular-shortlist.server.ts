@@ -14,7 +14,8 @@ const MAX_RANKED_CANDIDATES = 96;
  * proposed product ID is then rechecked in ONE query against the ORIGINAL
  * caller-supplied primary-D1 retail eligibility predicates.
  *
- * If at least "limit" IDs pass, they are provably the same first page as
+ * If at least "limit" IDs pass (up to 25 for a 24-book page plus a
+ * proven next-page witness), they are provably the same first page as
  * the full catalog scan: no ID after the first N can outrank one of them.
  * Otherwise return null and let the untouched full authoritative SQL run.
  * Never cache a shortlist as an authorization decision.
@@ -24,7 +25,7 @@ export async function firstPagePopularRightsShortlist(
   scope: RightsRecheckCandidate,
   limit: number,
 ): Promise<string[] | null> {
-  if (scope.hasFts || !Number.isSafeInteger(limit) || limit < 1 || limit > 24) return null;
+  if (scope.hasFts || !Number.isSafeInteger(limit) || limit < 1 || limit > 25) return null;
   const ranked = await db
     .prepare(
       `SELECT d.product_id FROM catalog_search_documents d

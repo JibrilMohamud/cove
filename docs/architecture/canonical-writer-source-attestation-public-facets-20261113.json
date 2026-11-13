@@ -1,17 +1,17 @@
 {
   "schema": "cove.canonical-writer-source-attestation.v1",
   "releaseApproval": false,
-  "rationale": "Read-only, opt-in popular shortlist uses original current primary D1 eligibility SQL and never caches unauthorized IDs or bypasses the full-query fallback on insufficient eligible candidates. The reviewed non-authorizing popularity-projection UPDATE retains its unchanged SQL digest, owner guard and legal disposition; only source SHA-bound identity and location changed. No production activation or release approval is conferred. Independently certify live speed and geographic 100RPS before merging.",
+  "rationale": "Stacked guarded guest-only progressive catalog total: when a current primary D1 rights-checked 25th product proves a second page and a leased display-only facet is pending, send count=25 explicitly marked countPending=true and do not run an additional 50k+ exact COUNT synchronously. The existing background facet refresh supplies the exact total; clients poll until settled, and no pending response can be shared-cached. All other paths use their original exact-rights, counting and fallback. Source-bound writer SQL digests, dispositions and legal-owner guards are unchanged; releaseApproval remains false, no runtime flag is enabled.",
   "files": [
     {
       "path": "src/features/fore/api.server.ts",
-      "sha256": "13179d3a2257de77eb85838c8bdb86ef06b538af426b6210ca996fdda38ad1ee",
-      "review": "Only catalog GET forwards its existing request-owned waitUntil after authentication; the 33 already reviewed writer functions, SQL literals and caller permissions stay unchanged."
+      "sha256": "422045a3e667645964d952154c90b93c9c54bec8556a276850cbe5c0dc288c9f",
+      "review": "Guest catalog's optional countPending boolean transparently labels the first page's 25-book lower bound; next remains proven by current primary territorial rights. No authority, fulfillment, payment, or writer SQL call changed."
     },
     {
       "path": "src/features/fore/search.server.ts",
-      "sha256": "df6102ad8be0cfb919b87017f4e6e52a9186e79146304d636aa46d0465516f22",
-      "review": "Stacked PR adds an opt-in, read-only, first-page popular candidate shortlist with exact score/tie ordering and one current primary D1 SQL territorial-rights recheck for every proposed ID. If fewer than the requested page passes, original complete ranked SQL runs. No rights, offer, grant, entitlement, preorders, payment or writer SQL literals change."
+      "sha256": "a2dd4df06bdd8e9dad73318ef04f729d1ccf0db1e9dd1235aac7754216e8d1ae",
+      "review": "Opt-in progressive anonymous first-page total may return a proven 25-book lower bound only while existing display-only facets refresh under a cross-colo lease. A 25th current-primary-rights-checked book proves Next; exact counts then replace the lower bound. Sparse, filtered, authenticated and failed reads retain full original live count and ranking. Unchanged projection SQL writer fingerprint/disposition."
     }
   ],
   "retirementEvidence": null
