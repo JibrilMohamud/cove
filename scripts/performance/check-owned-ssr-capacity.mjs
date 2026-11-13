@@ -12,6 +12,17 @@ const origin = "https://ssr-canary.covereads.com";
 const concurrencyLevels = [1, 4, 8, 16, 32];
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
 
+// Diagnostic names include provider abbreviations such as d1. Parse complete
+// numeric-only tokens so descriptions and arbitrary header text are excluded.
+export function ownedServerTiming(raw) {
+  const timings = {};
+  for (const part of (raw || "").split(",")) {
+    const match = /^\s*(cove_[a-z0-9_]+);dur=([0-9]+(?:\.[0-9]+)?)\s*$/.exec(part);
+    if (match && Number.isFinite(Number(match[2]))) timings[match[1]] = Number(match[2]);
+  }
+  return timings;
+}
+
 // A failure, missing response or late scheduler arrival is retained and fails
 // the phase. Percentiles never filter down to successful/favorable requests.
 export function summarizeOwnedPhase(name, offered, rows, dropped = 0, sustained = false) {
@@ -83,10 +94,7 @@ async function main() {
       ttfbMs = performance.now() - scheduledAt;
       status = response.status;
       edgeRay = safeCloudflareRay(response.headers);
-      for (const match of (response.headers.get("server-timing") || "").matchAll(
-        /\b(cove_[a-z_]+);dur=([0-9]+(?:\.[0-9]+)?)/g,
-      ))
-        serverTiming[match[1]] = Number(match[2]);
+      serverTiming = ownedServerTiming(response.headers.get("server-timing"));
       const html = await response.text();
       const cards = validateHtml(status, response.headers.get("content-type") || "", html);
       assert.ok(cards > 0, "Full native SSR cards required");
