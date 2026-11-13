@@ -647,7 +647,7 @@ function d1FacetCandidate(
   expression: string,
   facet: "categories" | "languages" | "formats" | "publishers" | "series" | "price",
 ) {
-  const part = candidateParts(withoutFacet(input, facet), expression);
+  const part = facetScanCandidateParts(withoutFacet(input, facet), expression);
   const clause = part.where.join(" AND ");
   const cte = `${part.prefix}${part.prefix ? "," : "WITH "}candidate AS (SELECT d.product_id,e.id edition_id,p.format,pub.name publisher_name,d.currency,d.price_minor,d.availability FROM ${part.from} WHERE ${clause})`;
   return { cte, binds: part.binds };
@@ -719,7 +719,7 @@ async function d1Facets(
   const publisherCandidate = d1FacetCandidate(input, expression, "publishers");
   const seriesCandidate = d1FacetCandidate(input, expression, "series");
   const priceCandidate = d1FacetCandidate(input, expression, "price");
-  const base = candidateParts(input, expression);
+  const base = facetScanCandidateParts(input, expression);
   const baseClause = base.where.join(" AND ");
   const baseCte = `${base.prefix}${base.prefix ? "," : "WITH "}candidate AS (SELECT d.product_id,e.id edition_id,p.format,pub.name publisher_name,d.currency,d.price_minor,d.availability FROM ${base.from} WHERE ${baseClause})`;
   // With no active facet filters (including the home page), all seven facets
@@ -2220,5 +2220,31 @@ export async function searchStatus(env: SearchEnv) {
     lastSyncedAt: state?.last_synced_at || null,
     lastError: state?.last_error || "",
     settingsVersion: Number(state?.settings_version || 0),
+  };
+}
+
+/**
+ * A ranking hint is useful for the first 25 ordered book IDs, but it forces
+ * SQLite to scan the whole popularity index when it instead needs an
+ * unsorted, rights-scoped candidate POPULATION for category/price facets.
+ * On the production schema, EXPLAIN QUERY PLAN selects idx_search_price
+ * after removing that hint instead of SCAN idx_search_popular_stable.
+ *
+ * Preserve the identical WHERE predicates, bind sequence, legal-rights
+ * subquery and candidate JOINs. This only chooses the read planner's index;
+ * no snapshot, negative rights cache or unauthorized book is introduced.
+ *
+ * Kept after the existing audited SQL site inventory to avoid moving the
+ * source locations of independent canonical-write statements.
+ */
+function facetScanCandidateParts(input: SearchInput, expression: string) {
+  const part = candidateParts(input, expression);
+  const forced = "catalog_search_documents d INDEXED BY idx_search_popular_stable CROSS JOIN";
+  return {
+    ...part,
+    from: part.from.replace(
+      forced,
+      "catalog_search_documents d CROSS JOIN",
+    ),
   };
 }
