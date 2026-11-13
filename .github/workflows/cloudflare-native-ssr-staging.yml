@@ -31,6 +31,8 @@ on:
       - "src/features/fore/rights-scoped-cache-page.ts"
       - "scripts/check-bounded-cached-rights-recheck.mjs"
       - "src/features/fore/catalog-model.server.ts"
+      - "src/features/fore/retail.server.ts"
+      - "scripts/check-book-detail-read-fanout.mjs"
       - "src/features/fore/soundtracks.server.ts"
       - "src/features/fore/quiet-music-inventory.server.ts"
       - "scripts/check-quiet-music-inventory.mjs"
@@ -114,6 +116,8 @@ on:
       - "src/features/fore/rights-scoped-cache-page.ts"
       - "scripts/check-bounded-cached-rights-recheck.mjs"
       - "src/features/fore/catalog-model.server.ts"
+      - "src/features/fore/retail.server.ts"
+      - "scripts/check-book-detail-read-fanout.mjs"
       - "src/features/fore/soundtracks.server.ts"
       - "src/features/fore/quiet-music-inventory.server.ts"
       - "scripts/check-quiet-music-inventory.mjs"
@@ -216,6 +220,7 @@ jobs:
           node scripts/check-storefront-firstpaint-rate-limit.mjs
           node scripts/check-storefront-bootstrap.mjs
           node scripts/check-rights.mjs
+          node scripts/check-book-detail-read-fanout.mjs
           python3 scripts/check-fts-trigger-lookup.py
           node scripts/check-catalog-added-sort-index.mjs
           node scripts/check-public-search-count-scope.mjs
