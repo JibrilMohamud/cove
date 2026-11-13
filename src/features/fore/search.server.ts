@@ -2237,7 +2237,7 @@ export async function searchStatus(env: SearchEnv) {
  * Kept after the existing audited SQL site inventory to avoid moving the
  * source locations of independent canonical-write statements.
  */
-function facetScanCandidateParts(input: SearchInput, expression: string) {
+export function facetScanCandidateParts(input: SearchInput, expression: string) {
   const part = candidateParts(input, expression);
   const forced = "catalog_search_documents d INDEXED BY idx_search_popular_stable CROSS JOIN";
   return {
