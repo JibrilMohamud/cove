@@ -656,6 +656,7 @@ export type CatalogResponse = {
   preview?: boolean;
   warning?: string;
   ingestion?: { status: string; cachedBooks: number; totalCatalogCount: number };
+  facetsPending?: boolean;
   facets?: {
     categories: FacetValue[];
     languages: FacetValue[];
@@ -1247,6 +1248,10 @@ export function StorePage({
     // from competing with the very next server request for D1 capacity.
     // A bounded background refresh follows once the visual path has settled.
     staleTime: initialPreview ? 4_000 : 5 * 60_000,
+    // The limited public facet projection may legitimately return pending
+    // while one background lease refreshes labels. Retry the real catalog
+    // until complete; never cache or treat an empty shell as definitive.
+    refetchInterval: (query) => (query.state.data?.facetsPending ? 5_000 : false),
     gcTime: typeof window === "undefined" ? Infinity : 60 * 60_000,
     refetchOnWindowFocus: false,
     retry: false,

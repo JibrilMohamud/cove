@@ -14,6 +14,10 @@ import { rightsScopedCachedPageQuery } from "./rights-scoped-cache-page";
 import { rightsRecheckedReplicaCandidates } from "./rights-rechecked-replica-candidates";
 import { searchOutboxAcknowledgement } from "./search-outbox-ack";
 import { countAvailableCandidatesFromFacet } from "./count-from-availability-facet";
+import {
+  refreshLeasedSearchFacets,
+  type FacetRefreshGuard,
+} from "./search-facet-refresh-lease.server";
 
 type SearchEnv = {
   DB: CatalogDB;
@@ -24,6 +28,7 @@ type SearchEnv = {
   FORE_SEARCH_INDEX?: string;
   FORE_SEARCH_EMBEDDER?: string;
   FORE_SEARCH_REPLICA_CANDIDATES?: string;
+  FORE_ASYNC_CATALOG_FACETS?: string;
 };
 
 type FacetValue = { value: string; count: number };
@@ -71,6 +76,7 @@ export type SearchResult = {
   books: CatalogBook[];
   count: number;
   facets: SearchFacets;
+  facetsPending?: boolean;
   queryId: string | null;
   backend: "meilisearch" | "d1-fts5";
   processingTimeMs: number;
@@ -667,10 +673,27 @@ function facetCacheIdentity(input: SearchInput, expression: string) {
   return { ...filters, population, page: 1, limit: 1, expression };
 }
 
+type DeferredFacetWork = Array<() => Promise<void>>;
+
+function pendingFacetLabels(): SearchFacets {
+  return {
+    categories: [],
+    languages: [],
+    formats: [],
+    publishers: [],
+    series: [],
+    availability: [],
+    price: null,
+  };
+}
+
 async function d1Facets(
   db: CatalogDB,
   input: SearchInput,
   expression: string,
+  deferred?: DeferredFacetWork,
+  state?: { pending: boolean },
+  guard?: FacetRefreshGuard,
 ): Promise<SearchFacets> {
   // Facets are independent of pagination and personalization. Cache their
   // public projection briefly while every result page still checks live rights.
@@ -706,6 +729,17 @@ async function d1Facets(
     }
   } catch {
     /* Cache availability never decides search availability. */
+  }
+  // Do not start expensive display-only SQL while authoritative books/counts
+  // are in flight. The refresh lease fences stale owners across colos.
+  if (deferred) {
+    if (state) state.pending = true;
+    deferred.push(async () => {
+      await refreshLeasedSearchFacets(db, cacheKey, async (lease) => {
+        await d1Facets(db, input, expression, undefined, undefined, lease);
+      });
+    });
+    return pendingFacetLabels();
   }
   // Ten-minute cached facets are display-only. Query misses on a replica
   // eligible session, never replacing the primary rights checks for books,
@@ -853,6 +887,7 @@ async function d1Facets(
       Date.now() + 600_000,
       "search-facets:v2:",
       128,
+      guard ? { ...guard, nowMs: Date.now() } : undefined,
     );
   } catch {
     /* Cache writes are best effort. */
@@ -927,7 +962,12 @@ async function typoCorrection(db: CatalogDB, query: string) {
   return changed ? corrected.join(" ") : null;
 }
 
-async function searchD1(env: SearchEnv, input: SearchInput, userId: string | null) {
+async function searchD1(
+  env: SearchEnv,
+  input: SearchInput,
+  userId: string | null,
+  deferred?: DeferredFacetWork,
+) {
   const started = Date.now();
   const cacheId = [
     ...new Uint8Array(
@@ -1049,11 +1089,16 @@ async function searchD1(env: SearchEnv, input: SearchInput, userId: string | nul
   };
   const runCount = async () => {
     const countLive = async () => {
+      // Counting does not rank. Preserve EVERY territorial and product
+      // eligibility predicate, but never force a popularity index scan for
+      // a query that has no ORDER BY. This lets SQLite choose the selective
+      // currency index (including a zero-row market) on D1 read replicas.
+      const countPart = facetScanCandidateParts(input, expression);
       const row = await presentationDb
         .prepare(
-          `${part.prefix} SELECT COUNT(*) count FROM ${part.from} WHERE ${part.where.join(" AND ")}`,
+          `${countPart.prefix} SELECT COUNT(*) count FROM ${countPart.from} WHERE ${countPart.where.join(" AND ")}`,
         )
-        .bind(...part.binds)
+        .bind(...countPart.binds)
         .first<{ count: number }>();
       return Number(row?.count || 0);
     };
@@ -1072,18 +1117,21 @@ async function searchD1(env: SearchEnv, input: SearchInput, userId: string | nul
   // rights-scoped candidate population as the separate COUNT query.
   // On a cache miss, avoid scanning the expensive legal view twice.
   // If the facet contract changes, fall back to the original COUNT.
+  const facetState = { pending: false };
   const sharedFacetCount = !input.query && !part.hasFts && input.availability === "available";
   const [initialRows, initialCount, sharedFacets] = await Promise.all([
     runIds(),
     sharedFacetCount ? Promise.resolve<{ count: number } | null>(null) : runCount(),
     sharedFacetCount
-      ? d1Facets(env.DB, input, expression)
+      ? d1Facets(env.DB, input, expression, deferred, facetState)
       : Promise.resolve<SearchFacets | null>(null),
   ]);
   let rows = initialRows;
   let count = initialCount;
   if (sharedFacets) {
-    const exact = countAvailableCandidatesFromFacet(input, part.hasFts, sharedFacets);
+    const exact = facetState.pending
+      ? null
+      : countAvailableCandidatesFromFacet(input, part.hasFts, sharedFacets);
     count = exact === null ? await runCount() : { count: exact };
   }
   if (!count?.count && input.query) {
@@ -1098,24 +1146,34 @@ async function searchD1(env: SearchEnv, input: SearchInput, userId: string | nul
   const ids = rows.results.map((r: any) => String(r.product_id));
   const [books, facets] = await Promise.all([
     canonicalBooksByProductIds(env.DB, ids),
-    sharedFacets || d1Facets(env.DB, input, expression),
+    sharedFacets || d1Facets(env.DB, input, expression, deferred, facetState),
   ]);
-  try {
-    await writeCatalogCache(
-      env.DB,
-      cacheKey,
-      JSON.stringify({ ids, count: Number(count?.count || 0), facets, expression, correctedQuery }),
-      Date.now() + 600_000,
-      "search-page:v1:",
-      256,
-    );
-  } catch {
-    /* Search remains available without cache writes. */
+  // Pending labels cannot be persisted as a ten-minute search-page result.
+  if (!facetState.pending) {
+    try {
+      await writeCatalogCache(
+        env.DB,
+        cacheKey,
+        JSON.stringify({
+          ids,
+          count: Number(count?.count || 0),
+          facets,
+          expression,
+          correctedQuery,
+        }),
+        Date.now() + 600_000,
+        "search-page:v1:",
+        256,
+      );
+    } catch {
+      /* Search remains available without cache writes. */
+    }
   }
   return {
     books,
     count: Number(count?.count || 0),
     facets,
+    facetsPending: facetState.pending,
     correctedQuery,
     duration: Date.now() - started,
   };
@@ -1768,6 +1826,7 @@ export async function searchCatalog(
   env: SearchEnv,
   input: SearchInput,
   userId: string | null,
+  defer?: (work: Promise<unknown>) => void,
 ): Promise<SearchResult> {
   if (input.query && !queryTokens(input.query).length)
     return {
@@ -1803,6 +1862,43 @@ export async function searchCatalog(
   // Subscription/library eligibility is date- and territory-sensitive legal state; D1 is the
   // authoritative projection until those channels have independent external indexes.
   if (input.subscription !== undefined || input.library !== undefined) backend = "d1";
+  // Conservative opt-in only: anonymous unfiltered first-page popular books.
+  // No private/account facet, alternate ordering or active filter may defer.
+  const deferredFacets: DeferredFacetWork | undefined =
+    defer &&
+    env.FORE_ASYNC_CATALOG_FACETS === "1" &&
+    !userId &&
+    !input.query &&
+    input.sort === "popular" &&
+    input.page === 1 &&
+    input.taxonomy.length === 0 &&
+    input.categories.length === 0 &&
+    input.languages.length === 0 &&
+    input.formats.length === 0 &&
+    input.publishers.length === 0 &&
+    input.series.length === 0 &&
+    input.contributorIds.length === 0 &&
+    input.seriesIds.length === 0 &&
+    input.publisherIds.length === 0 &&
+    input.imprintIds.length === 0 &&
+    input.subscription === undefined &&
+    input.library === undefined &&
+    input.minPrice === undefined &&
+    input.maxPrice === undefined &&
+    input.minRating === undefined &&
+    input.minReviews === undefined &&
+    !input.publishedAfter &&
+    !input.publishedBefore &&
+    input.preorder === undefined &&
+    input.newRelease === undefined &&
+    input.deals === undefined
+      ? []
+      : undefined;
+  // Preserve the reviewed unmodified call path for every nonopted-in request.
+  const runD1Search = () =>
+    deferredFacets
+      ? searchD1(env, searchInputForBackend, userId, deferredFacets)
+      : searchD1(env, searchInputForBackend, userId);
   let result: Awaited<ReturnType<typeof searchD1>> | Awaited<ReturnType<typeof searchMeili>>;
   if (backend === "meilisearch") {
     try {
@@ -1810,7 +1906,7 @@ export async function searchCatalog(
     } catch (error) {
       console.warn("Meilisearch query failed; using D1 FTS5 fallback", error);
       backend = "d1";
-      result = await searchD1(env, searchInputForBackend, userId);
+      result = await runD1Search();
       await env.DB.prepare("UPDATE search_index_state SET last_error=? WHERE id=1")
         .bind(error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500))
         .run()
@@ -1818,7 +1914,7 @@ export async function searchCatalog(
           console.warn("Search fallback diagnostics unavailable", failure),
         );
     }
-  } else result = await searchD1(env, searchInputForBackend, userId);
+  } else result = await runD1Search();
   const backendName = backend === "meilisearch" ? "meilisearch" : "d1-fts5";
   const personalized =
     input.sort === "relevance" && input.query
@@ -1839,10 +1935,15 @@ export async function searchCatalog(
     console.warn("Search analytics unavailable", error);
     return null;
   });
+  // Fire once after ALL foreground legal/book/analytics reads have finished.
+  for (const work of deferredFacets || []) {
+    defer?.(work().catch(() => console.warn("Public catalog facet refresh unavailable")));
+  }
   return {
     books: visibleBooks,
     count: result.count,
     facets: result.facets,
+    facetsPending: "facetsPending" in result && result.facetsPending === true,
     queryId,
     backend: backendName,
     processingTimeMs: result.duration,

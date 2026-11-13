@@ -1,0 +1,18 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "An independent catalog count-plan review verifies that the existing ranking-index hint was removed only from a read-only COUNT statement. All count filters and D1 rights/territory/currency predicates remain unchanged, and the actual product-ID ranking query is unchanged. The existing SQL mutation literal, owning function, legal review disposition, and its source-bound SQL digest remain exactly as previously reviewed; this rebase only reflects the modified source file digest and five inserted lines. It is not permission to activate the production legal owner, payments, or roll out any performance feature, and strict release acceptance remains denied pending tests.",
+  "files": [
+    {
+      "path": "src/features/fore/api.server.ts",
+      "sha256": "13179d3a2257de77eb85838c8bdb86ef06b538af426b6210ca996fdda38ad1ee",
+      "review": "Only catalog GET forwards its existing request-owned waitUntil after authentication; the 33 already reviewed writer functions, SQL literals and caller permissions stay unchanged."
+    },
+    {
+      "path": "src/features/fore/search.server.ts",
+      "sha256": "d2dcc6a5846b4e02eb024e80e23ca333a2d53a90eddb6fed799c0d8959581f99",
+      "review": "The unchanged nonauthorizing projection UPDATE remains the sole reviewed writer site in this source. A strictly read-only exact COUNT now omits the forced popularity ranking index while preserving the identical SQL filters, live rights eligibility and bound territory/currency. Hosted isolated database tests confirmed exact parity across four markets and a benefit for sparse currencies; no authorizing SQL or owner status changed."
+    }
+  ],
+  "retirementEvidence": null
+}

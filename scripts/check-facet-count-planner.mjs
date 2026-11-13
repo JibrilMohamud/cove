@@ -50,8 +50,10 @@ for (const from of [
   assert.equal(plan({ part: { ...input.part, from } }, "").from, from);
 }
 
-// The only two call sites are the unsorted disjunctive facet candidate and
-// the shared facet-population CTE. No product-ID ranking path is changed.
+// The unranked helper is used by disjunctive facets, shared facets, and
+// the exact catalog COUNT only; ranked result IDs retain their index. No product-ID ranking path is changed.
+// Browse-page exact COUNT and disjunctive facets share an unranked
+// candidate helper; the ranked result IDs must remain unchanged.
 const body = source.slice(
   source.indexOf("function d1FacetCandidate("),
   source.indexOf("function meiliBase("),
@@ -61,6 +63,9 @@ assert.match(
   /const part = facetScanCandidateParts\(withoutFacet\(input, facet\), expression\)/,
 );
 assert.match(body, /const base = facetScanCandidateParts\(input, expression\)/);
+assert.match(body, /const countPart = facetScanCandidateParts\(input, expression\)/);
+assert.match(body, /SELECT COUNT\(\*\) count FROM \$\{countPart.from\}/);
+assert.match(body, /\.bind\(\.\.\.countPart.binds\)/);
 assert.match(body, /const shared = commonCandidates/);
 assert.match(body, /candidate AS MATERIALIZED/);
 assert.match(
@@ -108,11 +113,16 @@ AND d.currency=?"""
 forced = query.format(index="INDEXED BY idx_search_popular_stable")
 optimized = query.format(index="")
 for territory in ["US","GB","FR"]:
-  for currency in ["USD","EUR","CAD"]:
+  for currency in ["USD","EUR","CAD","JPY"]:
     params=(territory,currency)
     actual = sorted(v[0] for v in c.execute(optimized,params))
     original = sorted(v[0] for v in c.execute(forced,params))
     assert actual==original, f"Unauthorized or missing book after {territory}/{currency} plan change"
+    # The exact COUNT must use identical rights filters, not ranking order.
+    count_forced = forced.replace("SELECT d.product_id", "SELECT COUNT(*)")
+    count_optimized = optimized.replace("SELECT d.product_id", "SELECT COUNT(*)")
+    assert c.execute(count_forced,params).fetchone() == c.execute(count_optimized,params).fetchone()
+    assert c.execute(count_optimized,params).fetchone()[0] == len(actual)
 before = [v[3] for v in c.execute("EXPLAIN QUERY PLAN "+forced,("US","USD"))]
 after = [v[3] for v in c.execute("EXPLAIN QUERY PLAN "+optimized,("US","USD"))]
 assert any("SCAN d USING INDEX idx_search_popular_stable" in d for d in before)
@@ -129,5 +139,5 @@ const test = spawnSync("python3", ["-c", python], { encoding: "utf8", timeout: 1
 assert.equal(test.status, 0, (test.stderr || "").slice(0, 1500));
 assert.match(test.stdout, /withdrawal checks: PASS/);
 console.log(
-  "Facet-only planner hint removal retains current primary-D1 rights and ranking behavior: PASS",
+  "Facet and exact-COUNT planner hint removal retains rights and ranked ID behavior: PASS",
 );

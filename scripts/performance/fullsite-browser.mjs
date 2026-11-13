@@ -104,16 +104,33 @@ try {
         }
       });
       let requests = [],
-        errors = [];
+        errors = [],
+        apiResponses = [];
       context.on("request", (request) => {
         const url = new URL(request.url());
         if (["http:", "https:"].includes(url.protocol))
           requests.push({ path: url.pathname, host: url.hostname });
       });
+      const safeApiPaths = new Set([
+        "/api/fore/catalog",
+        "/api/fore/storefront/bootstrap",
+        "/api/fore/storefront/page",
+        "/api/fore/storefront/context",
+        "/api/fore/taxonomy",
+        "/api/fore/account",
+      ]);
+      // Record only numeric HTTP status and exact public endpoint classes:
+      // never log response bodies, book IDs, query strings, tokens, or cookies.
+      context.on("response", (response) => {
+        const url = new URL(response.url());
+        if (url.origin === origin && safeApiPaths.has(url.pathname) && apiResponses.length < 64)
+          apiResponses.push({ path: url.pathname, status: response.status() });
+      });
       page.on("pageerror", (error) => errors.push(error.name));
       for (const phase of ["fresh-context", "repeat"]) {
         requests = [];
         errors = [];
+        apiResponses = [];
         const started = Date.now();
         const captureCpu = route === "/" && phase === "fresh-context";
         if (captureCpu) {
@@ -239,6 +256,7 @@ try {
           pageErrors: errors,
           requests: requests.length,
           apiRequests: requests.filter((r) => r.path.startsWith("/api/")).length,
+          apiResponses,
           offlineAssetRequests: requests.filter((r) => r.path.startsWith("/offline-assets/"))
             .length,
           requestPaths: [...new Set(requests.map((r) => r.path))].sort(),
