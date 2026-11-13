@@ -9,6 +9,22 @@ assert.match(key, /^[a-f0-9]{64}$/);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
 const maxInflight = 128;
 const strictMaximumMs = 800;
+const fixedFailureKinds = new Set([
+  "limiter-unavailable",
+  "presentation-absent",
+  "presentation-invalid",
+  "presentation-binding",
+  "rate-limited",
+  "d1-resource-window",
+  "d1-queue-full",
+  "d1-queue-wait",
+  "service-overloaded",
+  "transient-service",
+  "database",
+  "territory-mismatch",
+  "market-projection",
+  "unclassified",
+]);
 const p95MaximumMs = 600;
 const p99MaximumMs = 750;
 const results = {
@@ -49,12 +65,14 @@ async function requestOne(route = "/") {
     // request authorization, or page content. All responses still count.
     const ray = resp.headers.get("cf-ray") || "";
     const edgeRay = /^[a-f0-9]{12,32}-[A-Z]{3}$/.test(ray) ? ray : null;
+    const declaredKind = resp.headers.get("x-cove-stage-failure-kind");
     return {
       ttfbMs: Math.round(headersAt - start),
       valid: Boolean(valid),
       status: resp.status,
       edgeRay,
       serverTiming,
+      failureKind: !valid && fixedFailureKinds.has(declaredKind) ? declaredKind : null,
     };
   } catch (error) {
     return {
@@ -73,6 +91,20 @@ function report(name, offered, rows, dropped = 0) {
   const valid = rows.filter((row) => row.valid).length;
   const all = rows.map((row) => row.ttfbMs);
   const maxMs = Math.max(0, ...all);
+  // Preserve only numeric HTTP statuses and fixed error categories. The
+  // old report hid fast invalid responses from worst-TTFB evidence and
+  // made a D1 resource-window failure look like a renderer latency win.
+  const invalidStatusCounts = {};
+  const invalidFailureKinds = {};
+  for (const row of rows) {
+    if (row.valid) continue;
+    const status = Number.isInteger(row.status) && row.status >= 100 && row.status <= 599
+      ? String(row.status)
+      : "request-failed";
+    invalidStatusCounts[status] = (invalidStatusCounts[status] || 0) + 1;
+    const kind = fixedFailureKinds.has(row.failureKind) ? row.failureKind : "unclassified";
+    invalidFailureKinds[kind] = (invalidFailureKinds[kind] || 0) + 1;
+  }
   const p95Ms = percentile(all, 0.95);
   const p99Ms = percentile(all, 0.99);
   // Bursts/cold rounds have an 800 ms hard maximum. The p95/p99 tail
@@ -115,6 +147,8 @@ function report(name, offered, rows, dropped = 0) {
     delivered: rows.length,
     valid,
     dropped,
+    invalidStatusCounts,
+    invalidFailureKinds,
     p95Ms,
     p99Ms,
     maxMs,
