@@ -111,7 +111,12 @@ try {
   );
   assert.deepEqual(await shortlist(db, scope, 24), fast, "Warm reads remain exact");
   assert.equal(await shortlist(db, { ...scope, hasFts: true }, 24), null);
-  assert.equal(await shortlist(db, scope, 25), null);
+  assert.deepEqual(
+    (await shortlist(db, scope, 25))?.slice(0, 24),
+    full(),
+    "The 25th rights-verified book may prove Next without a catalog-wide COUNT",
+  );
+  assert.equal(await shortlist(db, scope, 26), null);
 
   // Revoke high-ranked products: every resulting page must immediately
   // exclude them; neither a cached shortlist nor a stale right can grant.
