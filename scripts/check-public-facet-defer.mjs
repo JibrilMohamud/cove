@@ -19,7 +19,10 @@ assert.match(search, /refreshLeasedSearchFacets\(db, cacheKey/);
 assert.match(api, /catalog\(env, url, searchUserId, storefrontTerritory, execution\)/);
 assert.match(api, /facetsPending: result\.facetsPending === true/);
 assert.match(publicCache, /path === "\/api\/fore\/catalog" && data\.facetsPending === true/);
-assert.match(store, /refetchInterval: \(query\) => \(query\.state\.data\?\.facetsPending \? 5_000 : false\)/);
+assert.match(
+  store,
+  /refetchInterval: \(query\) => \(query\.state\.data\?\.facetsPending \? 5_000 : false\)/,
+);
 
 // Execute the real distributed D1 lease under concurrent visitor traffic.
 const bundle = await build({
@@ -33,7 +36,9 @@ const { refreshLeasedSearchFacets } = await import(
   "data:text/javascript;base64," + Buffer.from(bundle.outputFiles[0].text).toString("base64")
 );
 const sqlite = new DatabaseSync(":memory:");
-sqlite.exec("CREATE TABLE api_cache(key TEXT PRIMARY KEY,body TEXT NOT NULL,expires_at INTEGER NOT NULL)");
+sqlite.exec(
+  "CREATE TABLE api_cache(key TEXT PRIMARY KEY,body TEXT NOT NULL,expires_at INTEGER NOT NULL)",
+);
 const db = {
   prepare(sql) {
     return {
