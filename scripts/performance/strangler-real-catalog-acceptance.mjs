@@ -630,7 +630,7 @@ try {
         : "unknown";
       const durations = {};
       for (const match of (headers["server-timing"] || "").matchAll(
-        /(?:^|,\\s*)(cove_[a-z0-9_]+);dur=([0-9]+(?:\\.[0-9]+)?)/g,
+        /(?:^|,\s*)(cove_[a-z0-9_]+);dur=([0-9]+(?:\.[0-9]+)?)/g,
       ))
         durations[match[1]] = Number(match[2]);
       evidence.desktopStageFailure = {
