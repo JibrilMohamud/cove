@@ -1,12 +1,28 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { summarizeOwnedPhase } from "./check-owned-ssr-capacity.mjs";
+import { summarizeOwnedPhase, ownedServerTiming } from "./check-owned-ssr-capacity.mjs";
 const row = (ttfbMs = 100, extra = {}) => ({
   ttfbMs,
   launchDelayMs: 0,
   valid: true,
   colo: "IAD",
   ...extra,
+});
+test("numeric D1 diagnostic names survive without copying descriptions or private text", () => {
+  assert.deepEqual(
+    ownedServerTiming(
+      'cove_ssr_read_catalog;dur=0, cove_ssr_read_d1_resource_window;dur=0, cove_ssr_read_d1_queue_full;dur=0, cove_ssr_read_d1_queue_wait;dur=0, cove_ssr_primary_d1_overload;dur=0, cove_gateway;dur=42.5, cove_secret;dur=7;desc="TOKEN", cookie;desc="TOKEN", cove_bad;dur=NaN, cove_bad;dur=-1',
+    ),
+    {
+      cove_ssr_read_catalog: 0,
+      cove_ssr_read_d1_resource_window: 0,
+      cove_ssr_read_d1_queue_full: 0,
+      cove_ssr_read_d1_queue_wait: 0,
+      cove_ssr_primary_d1_overload: 0,
+      cove_gateway: 42.5,
+    },
+  );
+  assert.deepEqual(ownedServerTiming(null), {});
 });
 test("both full 100-RPS phases require exactly 2000 actual valid responses", () => {
   const rows = Array.from({ length: 2000 }, () => row());
