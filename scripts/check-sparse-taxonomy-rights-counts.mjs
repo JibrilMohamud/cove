@@ -118,8 +118,9 @@ try {
       `Count must preserve current legal rights for ${territory}/${lang}`,
     );
     const otherPlan = taxonomyCountPlan(territory, lang, !sparse);
-    assert.match(plan.sql, /territory_seed AS MATERIALIZED/);
-    assert.match(otherPlan.sql, /territory_seed AS MATERIALIZED/);
+    assert.match(plan.sql, /taxonomy_seed AS MATERIALIZED/);
+    assert.match(otherPlan.sql, /taxonomy_seed AS MATERIALIZED/);
+    assert.match(plan.sql, /retail_product_availability_rows rpa/);
     assert.deepEqual(
       normalize(db.prepare(otherPlan.sql).all(...otherPlan.binds)),
       originalRows,
@@ -155,15 +156,32 @@ try {
     .prepare("EXPLAIN QUERY PLAN " + taxonomyCountPlan("CA", "", true).sql)
     .all(...taxonomyCountPlan("CA", "", true).binds);
   assert.ok(
-    sqlPlan.some((row) => String(row.detail).includes("idx_rights_grant_territories_lookup")),
-    "Sparse market must use the indexed territory seed",
+    sqlPlan.some((row) => String(row.detail).includes("edition_taxonomy_nodes")),
+    "Read model must seed from actual taxonomy membership",
+  );
+  assert.ok(
+    sqlPlan.some((row) => String(row.detail).includes("products_edition")),
+    "Taxonomy seed must look up product by indexed edition",
   );
   assert.ok(
     sqlPlan.some((row) => String(row.detail).includes("retail_product_availability")),
     "Always preserve the authoritative legal view",
   );
+  // No taxonomy assignments means zero counts, no legal-grant scan.
+  // Restore fixture via rollback; never persist changes from this test.
+  db.exec("SAVEPOINT empty_taxonomy");
+  db.exec("DELETE FROM edition_taxonomy_nodes");
+  for (const territory of ["US", "CA", "GB"]) {
+    const fresh = taxonomyCountPlan(territory, "", false);
+    const old = legacyDenseTaxonomyCountPlan(territory, "");
+    assert.deepEqual(db.prepare(fresh.sql).all(...fresh.binds), []);
+    assert.deepEqual(db.prepare(old.sql).all(...old.binds), []);
+  }
+  db.exec("ROLLBACK TO empty_taxonomy");
+  db.exec("RELEASE empty_taxonomy");
+  verify("US", "");
   console.log(
-    "Taxonomy counts: dense/sparse rights parity; locale, duplicates, revocations, denials, active grants PASS",
+    "Taxonomy counts: indexed edition seed, dense/sparse rights parity, empty taxonomy, locale, duplicate grants, revocations and denials PASS",
   );
 } finally {
   db.close();
