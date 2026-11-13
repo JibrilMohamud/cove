@@ -42,6 +42,9 @@ sqlite.exec(
 const db = {
   prepare(sql) {
     return {
+      async first() {
+        return sqlite.prepare(sql).get() || null;
+      },
       bind(...params) {
         return {
           async first() {
@@ -139,11 +142,46 @@ releaseSecond();
 await currentOwner;
 assert.equal(sqlite.prepare("SELECT COUNT(*) n FROM api_cache").get().n, 0);
 
+// A slow primary probe must shed display-only work without leaving a lock,
+// returning stale/empty authoritative product IDs, or retrying the big scan.
+let skippedQueries = 0;
+let ticks = 0;
+const busy = await refreshLeasedSearchFacets(
+  db,
+  key,
+  async () => {
+    skippedQueries++;
+  },
+  clock,
+  () => (ticks++ === 0 ? 0 : 301),
+);
+assert.equal(busy, false);
+assert.equal(skippedQueries, 0, "Busy primary must reject the heavy facet scan");
+assert.equal(sqlite.prepare("SELECT COUNT(*) n FROM api_cache").get().n, 0);
+
+// A failed D1 SELECT is likewise a display-only deferral, never authorization.
+const unavailable = await refreshLeasedSearchFacets(
+  {
+    prepare(sql) {
+      if (sql === "SELECT 1 AS ok") throw new Error("Primary probe failed");
+      return db.prepare(sql);
+    },
+  },
+  key,
+  async () => {
+    skippedQueries++;
+  },
+  clock,
+);
+assert.equal(unavailable, false);
+assert.equal(skippedQueries, 0);
+assert.equal(sqlite.prepare("SELECT COUNT(*) n FROM api_cache").get().n, 0);
+
 await assert.rejects(
   refreshLeasedSearchFacets(db, "private:secret", async () => {}, clock),
   /Invalid public facet cache key/,
 );
 sqlite.close();
 console.log(
-  "PASS: public facet deferral is opt-in and display-only; 16-way lease, takeover and noncacheable shells preserve live rights and totals",
+  "PASS: public facet deferral is opt-in and display-only; 16-way lease, takeover, D1 backpressure, and noncacheable shells preserve live rights and totals",
 );
