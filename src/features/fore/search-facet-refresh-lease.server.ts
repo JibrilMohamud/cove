@@ -43,8 +43,7 @@ export async function refreshLeasedSearchFacets(
     const probeStarted = probeClock();
     try {
       const probe = await db.prepare("SELECT 1 AS ok").first<{ ok: number }>();
-      if (probe?.ok !== 1 || probeClock() - probeStarted > MAX_PRIMARY_PROBE_MS)
-        return false;
+      if (probe?.ok !== 1 || probeClock() - probeStarted > MAX_PRIMARY_PROBE_MS) return false;
     } catch {
       return false;
     }
