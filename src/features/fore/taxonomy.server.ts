@@ -6,7 +6,7 @@ import {
   presentationTaxonomyCounts,
   taxonomyPresentationReadDb,
 } from "./taxonomy-counts-cache.server";
-import { taxonomyCountPlan, taxonomySparseRightsProbe } from "./taxonomy-count-query";
+import { taxonomyCountPlan } from "./taxonomy-count-query";
 
 export type TaxonomyNode = {
   id: string;
@@ -224,15 +224,13 @@ export async function taxonomyTree(
         // Every cache MISS is still calculated from current grant rows and the
         // authoritative retail view. All book delivery/checkout/reader decisions
         // remain independently authorized against primary D1 on every request.
-        const grants = await countDb
-          .prepare(taxonomySparseRightsProbe)
-          .bind(territory)
-          .first<{ grant_count: number }>();
-        const plan = taxonomyCountPlan(
-          territory,
-          language,
-          Number(grants?.grant_count || 0) <= 1000,
-        );
+        // The dense fallback re-scanned the entire product catalog and
+        // evaluated the retail rights view per product. On primary D1 this
+        // consumed 1.7M+ rows for one display-only aggregation. Seed from
+        // active territorial grants using the already indexed rights path,
+        // then recheck the SAME authoritative retail availability view.
+        // Never use this count as a grant or an entitlement decision.
+        const plan = taxonomyCountPlan(territory, language, true);
         const current = await countDb
           .prepare(plan.sql)
           .bind(...plan.binds)
