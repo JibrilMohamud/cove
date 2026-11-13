@@ -18,8 +18,8 @@ try {
     external: ["node:*", "cloudflare:*"],
     logLevel: "silent",
   });
-  const { authorizeHomepagePresentation, assembleAuthorizedHomepagePresentation } =
-    await import(pathToFileURL(moduleFile).href);
+  const presenter = await import(pathToFileURL(moduleFile).href);
+  const { authorizeHomepagePresentation, assembleAuthorizedHomepagePresentation } = presenter;
   const ids = Array.from({ length: 128 }, (_, i) => "prod_" + String(i).padStart(3, "0"));
   const snapshot = () => ({
     candidates: { productIds: [...ids], country: "US", currency: "USD" },
