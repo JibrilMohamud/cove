@@ -1,9 +1,17 @@
 import assert from "node:assert/strict";
 import { build } from "esbuild";
-import { Miniflare } from "miniflare";
+import { spawn } from "node:child_process";
+import { once } from "node:events";
+import fs from "node:fs";
+import http from "node:http";
+import os from "node:os";
+import path from "node:path";
+import workerd from "workerd";
+import readline from "node:readline";
 
 // Real workerd request lifetimes, synthetic I/O only. The owner returns before
-// its pending read completes. A separate visitor must retain its OWN read.
+// its pending read completes, after the visitor starts. The visitor must
+// retain its OWN read; a handshake avoids timer/scheduler races in CI.
 // Node-only Promise tests cannot reproduce workerd's cancellation semantics.
 const sql =
   "WITH RECURSIVE active_market AS MATERIALIZED (SELECT 1), " +
@@ -13,7 +21,7 @@ const { outputFiles } = await build({
   stdin: {
     contents: `
       import { withInFlightAnonymousMarketReads as wrap } from "./src/features/fore/storefront-inflight-public-metadata";
-      let binding;
+      let binding, finishOwner;
       export default { async fetch(request, env) {
         binding ??= { prepare: () => ({ bind: () => ({
           all: async () => (await env.SLOW.fetch("https://synthetic.invalid")).json()
@@ -22,12 +30,18 @@ const { outputFiles } = await build({
         // even though Cloudflare reuses the native binding across invocations.
         const db = wrap(binding);
         const task = db.prepare(${JSON.stringify(sql)}).bind("US", '["en-US"]').all();
-        const owner = request.url.endsWith("/owner");
+        if (request.url.endsWith("/owner")) {
+          void task.catch(() => {});
+          await new Promise(resolve => { finishOwner = resolve; });
+          return new Response("owner-exited", { status: 504 });
+        }
+        // The visitor has obtained its metadata promise before the owner ends.
+        finishOwner();
         return Promise.race([
           task.then(value => Response.json(value)),
           new Promise(resolve => setTimeout(() => resolve(
-            new Response(owner ? "owner-exited" : "visitor-timeout", { status: 504 })
-          ), owner ? 100 : 1500))
+            new Response("visitor-timeout", { status: 504 })
+          ), 1500))
         ]);
       }};
     `,
@@ -41,25 +55,80 @@ const { outputFiles } = await build({
 let begin;
 const began = new Promise((resolve) => (begin = resolve));
 let reads = 0;
-const runtime = new Miniflare({
-  modules: true,
-  script: outputFiles[0].text,
-  // The pinned local binary's latest date. The relevant cross-request
-  // continuation rule has been the default since 2024-10-14, as in staging.
-  compatibilityDate: "2026-08-06",
-  serviceBindings: {
-    SLOW: async () => {
-      reads++;
-      begin();
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      return Response.json({ results: [{ presentation: "synthetic" }] });
-    },
-  },
+const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cove-worker-lifetime-"));
+const slow = http.createServer((_request, response) => {
+  reads++;
+  begin();
+  setTimeout(() => {
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({ results: [{ presentation: "synthetic" }] }));
+  }, 500);
+});
+slow.listen(0, "127.0.0.1");
+await once(slow, "listening");
+const slowPort = slow.address().port;
+fs.writeFileSync(path.join(directory, "worker.mjs"), outputFiles[0].text);
+fs.writeFileSync(
+  path.join(directory, "config.capnp"),
+  `
+using Workerd = import "/workerd/workerd.capnp";
+const config :Workerd.Config = (
+  services = [
+    (name = "main", worker = (
+      modules = [(name = "worker.mjs", esModule = embed "worker.mjs")],
+      compatibilityDate = "${workerd.compatibilityDate}",
+      bindings = [(name = "SLOW", service = "slow")]
+    )),
+    (name = "slow", external = (address = "127.0.0.1:${slowPort}", http = ()))
+  ],
+  sockets = [(name = "http", address = "127.0.0.1:0", http = (), service = "main")]
+);
+`,
+);
+// Direct pinned workerd avoids bringing an entire emulator/toolchain into
+// the application dependency graph. Both sockets are loopback-only.
+const runtime = spawn(
+  workerd.default,
+  ["serve", path.join(directory, "config.capnp"), "--control-fd=1"],
+  { stdio: ["ignore", "pipe", "pipe"] },
+);
+let stderr = "";
+runtime.stderr.on("data", (data) => {
+  stderr = (stderr + data).slice(-2000);
 });
 try {
-  const owner = runtime.dispatchFetch("https://synthetic.invalid/owner");
-  await began;
-  const visitor = runtime.dispatchFetch("https://synthetic.invalid/visitor");
+  const port = await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("workerd startup timeout")), 10000);
+    const fail = () => {
+      clearTimeout(timer);
+      reject(new Error("workerd startup failed: " + stderr));
+    };
+    runtime.once("error", fail);
+    runtime.once("exit", fail);
+    const lines = readline.createInterface({ input: runtime.stdout });
+    lines.on("line", (line) => {
+      const message = JSON.parse(line);
+      if (message.event === "listen" && message.socket === "http") {
+        clearTimeout(timer);
+        runtime.off("error", fail);
+        runtime.off("exit", fail);
+        lines.close();
+        resolve(message.port);
+      }
+    });
+  });
+  const fetchWorker = (suffix) =>
+    fetch(`http://127.0.0.1:${port}/${suffix}`, {
+      signal: AbortSignal.timeout(5000),
+    });
+  const owner = fetchWorker("owner");
+  await Promise.race([
+    began,
+    owner.then(() => {
+      throw new Error("Owner exited before starting the synthetic metadata read");
+    }),
+  ]);
+  const visitor = fetchWorker("visitor");
   const first = await owner;
   assert.equal(first.status, 504);
   assert.equal(await first.text(), "owner-exited");
@@ -71,5 +140,9 @@ try {
     "Worker metadata request-lifetime isolation: PASS (owner timeout cannot strand visitor)",
   );
 } finally {
-  await runtime.dispose();
+  runtime.kill();
+  await once(runtime, "exit");
+  slow.closeAllConnections();
+  await new Promise((resolve) => slow.close(resolve));
+  fs.rmSync(directory, { recursive: true, force: true });
 }
