@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { catalogReadinessFailure, waitForLiveCatalog } from "./wait-live-storefront-catalog.mjs";
+import { catalogReadinessFailure, catalogTransportFailureKind, waitForLiveCatalog } from "./wait-live-storefront-catalog.mjs";
 
 const headers = {
   "content-type": "application/json",
@@ -109,4 +109,24 @@ test("network errors are bounded and never print secret exception text", async (
       /network-unavailable/.test(error.message) &&
       !error.message.includes("private-credential-should-not-be-emitted"),
   );
+});
+
+test("readiness timeouts and DNS resets retain only fixed, nonsecret categories", async () => {
+  const secret = "PRIVATE_CATALOG_CREDENTIAL";
+  const timed = Object.assign(new Error(secret), { name: "TimeoutError" });
+  const dns = Object.assign(new Error(secret), { cause: { code: "EAI_AGAIN", secret } });
+  const reset = Object.assign(new Error(secret), { cause: { code: "ECONNRESET", secret } });
+  assert.equal(catalogTransportFailureKind(timed), "network-timeout");
+  assert.equal(catalogTransportFailureKind(dns), "dns-unavailable");
+  assert.equal(catalogTransportFailureKind(reset), "connection-reset");
+  for (const [error, expected] of [
+    [timed, "network-timeout"],
+    [dns, "dns-unavailable"],
+    [reset, "connection-reset"],
+  ]) {
+    await assert.rejects(
+      waitForLiveCatalog({ ...opts, attempts: 1, fetcher: async () => { throw error; } }),
+      (failure) => failure.message.includes(expected) && !failure.message.includes(secret),
+    );
+  }
 });
