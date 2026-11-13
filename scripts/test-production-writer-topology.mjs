@@ -15,7 +15,7 @@ const others=[
 const result=inspect(backend,owner,others);
 assert.equal(result.schema,"cove.production-writer-topology.v1");
 assert.deepEqual(result.persistenceCanonicalBindings,["DB"]);
-assert.equal(result.scheduledJobs.length,6);
+assert.equal(result.scheduledJobs.length,7);
 assert.deepEqual(result.additionalCanonicalBindings.map(x=>[x.worker,x.binding]),[["cove-sounds-publication","SOURCE_DB"]]);
 assert.ok(result.bypassRisks.includes("other_deployed_workers_have_direct_canonical_D1_bindings"));
 assert.match(others[1].config,/service = "cove-canonical-d1-readonly"/);
