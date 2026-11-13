@@ -115,8 +115,23 @@ export async function productDetail(
     throw new ApiError(404, "This edition is unavailable.");
   const product = await resolveProduct(db, externalId, userId || undefined),
     at = now();
-  const [offer, entitled, ratings, rankingRows, taxonomyRows, policy, wishlist] = await Promise.all(
-    [
+  // All reads here are independent after the canonical product has resolved.
+  // Start public presentation metadata together; no offer, rights decision,
+  // content, or account state is released until the later primary rights
+  // decision and the entire detail projection have also completed.
+  const [
+    offer,
+    entitled,
+    ratings,
+    rankingRows,
+    taxonomyRows,
+    policy,
+    wishlist,
+    distribution,
+    editionRows,
+    disclosure,
+  ] = await Promise.all([
+
       effectiveOffer(db, product.id, territory),
       activeEntitlement(db, userId, product.id),
       db
@@ -149,8 +164,27 @@ export async function productDetail(
             .bind(userId, product.id)
             .first<any>()
         : Promise.resolve(null),
-    ],
-  );
+      db
+        .prepare(
+          `SELECT da.drm_status,da.downloadable,av.size_bytes,av.epub_version,av.version_number FROM digital_assets da LEFT JOIN asset_versions av ON av.id=da.current_version_id WHERE da.edition_id=? AND da.kind='epub' LIMIT 1`,
+        )
+        .bind(book.editionId)
+        .first<any>(),
+      db
+        .prepare(
+          `SELECT p.id product_id,p.public_id product_public_id,p.source_external_id,e.id edition_id,e.public_id edition_public_id,e.language,e.edition_number,e.publication_date,e.release_date,p.format,pub.name publisher,imp.name imprint
+      FROM editions e JOIN products p ON p.edition_id=e.id LEFT JOIN publishers pub ON pub.id=e.publisher_id LEFT JOIN imprints imp ON imp.id=e.imprint_id
+      WHERE e.work_id=? AND p.storefront_status='active' ORDER BY CASE WHEN e.id=? THEN 0 ELSE 1 END,COALESCE(e.release_date,e.publication_date,'9999') DESC LIMIT 25`,
+        )
+        .bind(book.workId, book.editionId)
+        .all<any>(),
+      db
+        .prepare(
+          `SELECT d.* FROM publishing_publications pp JOIN publishing_publication_versions pv ON pv.publication_id=pp.id JOIN publishing_release_lifecycles l ON l.id=pv.lifecycle_id AND l.current_publication_version_id=pv.id JOIN publishing_publication_disclosures d ON d.publication_version_id=pv.id WHERE pp.product_id=? ORDER BY d.created_at DESC LIMIT 1`,
+        )
+        .bind(product.id)
+        .first<any>(),
+  ]);
   const source = String(product.source_name),
     publicDomain = source === "gutenberg";
   const [rights, channelFlags, preorder] = await Promise.all([
@@ -173,20 +207,8 @@ export async function productDetail(
   book.subscriptionEligible = channelFlags.subscriptionEligible;
   book.libraryEligible = channelFlags.libraryEligible;
   const canReadFull = source === "upload" || entitled || (publicDomain && !!rights?.allowed);
-  const distribution = await db
-    .prepare(
-      `SELECT da.drm_status,da.downloadable,av.size_bytes,av.epub_version,av.version_number FROM digital_assets da LEFT JOIN asset_versions av ON av.id=da.current_version_id WHERE da.edition_id=? AND da.kind='epub' LIMIT 1`,
-    )
-    .bind(book.editionId)
-    .first<any>();
-  const editionRows = await db
-    .prepare(
-      `SELECT p.id product_id,p.public_id product_public_id,p.source_external_id,e.id edition_id,e.public_id edition_public_id,e.language,e.edition_number,e.publication_date,e.release_date,p.format,pub.name publisher,imp.name imprint
-    FROM editions e JOIN products p ON p.edition_id=e.id LEFT JOIN publishers pub ON pub.id=e.publisher_id LEFT JOIN imprints imp ON imp.id=e.imprint_id
-    WHERE e.work_id=? AND p.storefront_status='active' ORDER BY CASE WHEN e.id=? THEN 0 ELSE 1 END,COALESCE(e.release_date,e.publication_date,'9999') DESC LIMIT 25`,
-    )
-    .bind(book.workId, book.editionId)
-    .all<any>();
+
+
   const editionOffers = await Promise.all(
     editionRows.results.map((r: any) => effectiveOffer(db, String(r.product_id), territory)),
   );
@@ -206,12 +228,7 @@ export async function productDetail(
     offer: editionOffers[i],
     current: String(r.edition_id) === String(book.editionId),
   }));
-  const disclosure = await db
-    .prepare(
-      `SELECT d.* FROM publishing_publications pp JOIN publishing_publication_versions pv ON pv.publication_id=pp.id JOIN publishing_release_lifecycles l ON l.id=pv.lifecycle_id AND l.current_publication_version_id=pv.id JOIN publishing_publication_disclosures d ON d.publication_version_id=pv.id WHERE pp.product_id=? ORDER BY d.created_at DESC LIMIT 1`,
-    )
-    .bind(product.id)
-    .first<any>();
+
   let publicBadges: any[] = [];
   try {
     publicBadges = disclosure ? JSON.parse(String(disclosure.public_badges_json || "[]")) : [];
