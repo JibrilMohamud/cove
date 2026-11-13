@@ -29,6 +29,7 @@ on:
       - "scripts/check-taxonomy-queued-outbox-noop.py"
       - "scripts/check-search-outbox-atomic-ack.mjs"
       - "scripts/check-public-facet-defer.mjs"
+      - "scripts/check-public-popular-shortlist.mjs"
       - "scripts/check-gutendex-popularity-only.mjs"
       - "scripts/check-gutendex-popularity-cas.py"
       - "scripts/check-literary-genre-rights-query.mjs"
@@ -84,6 +85,7 @@ on:
       - "scripts/check-taxonomy-queued-outbox-noop.py"
       - "scripts/check-search-outbox-atomic-ack.mjs"
       - "scripts/check-public-facet-defer.mjs"
+      - "scripts/check-public-popular-shortlist.mjs"
       - "scripts/check-gutendex-popularity-only.mjs"
       - "scripts/check-gutendex-popularity-cas.py"
       - "scripts/audio_pipeline/**"
@@ -187,6 +189,7 @@ jobs:
           npm run test:search-updater-cache
           node scripts/check-public-search-count-scope.mjs
           node scripts/check-public-facet-defer.mjs
+          node scripts/check-public-popular-shortlist.mjs
           node scripts/check-catalog-ingestion-backpressure.mjs
           node scripts/check-catalog-ingestion-idempotency.mjs
           node scripts/check-gutendex-popularity-only.mjs
