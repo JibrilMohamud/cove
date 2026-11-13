@@ -11,6 +11,10 @@ on:
       - "src/storefront-strangler/worker.ts"
       - "scripts/staging/wait-strangler-secret-deployment.mjs"
       - ".github/workflows/strangler-hosted-capacity-evaluation.yml"
+      - "scripts/staging/seed-strangler-v2-capacity.mjs"
+      - "scripts/staging/cleanup-strangler-v2-capacity.mjs"
+      - "scripts/staging/enable-strangler-private-read-model.mjs"
+      - "scripts/staging/check-strangler-v2-capacity-config.mjs"
   push:
     branches: [main]
     # Main-only review of either the measured renderer or the acceptance
@@ -23,6 +27,10 @@ on:
       - "src/storefront-strangler/worker.ts"
       - "src/storefront-strangler/bootstrap-optimized.server.ts"
       - "src/storefront-strangler/prepared-catalog.server.ts"
+      - "scripts/staging/seed-strangler-v2-capacity.mjs"
+      - "scripts/staging/cleanup-strangler-v2-capacity.mjs"
+      - "scripts/staging/enable-strangler-private-read-model.mjs"
+      - "scripts/staging/check-strangler-v2-capacity-config.mjs"
   workflow_dispatch:
 
 permissions:
@@ -36,6 +44,26 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  source-v2-safety:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Prove v2 experiment uses only ephemeral synthetic staging resources
+        run: node scripts/staging/check-strangler-v2-capacity-config.mjs
+      - name: Verify independent display projection never authorizes rights
+        run: |
+          node scripts/check-storefront-strangler.mjs
+          node scripts/check-storefront-prepared-catalog.mjs
+
   protected-staging-only:
     if: >-
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
@@ -88,8 +116,8 @@ jobs:
           unset CORE_GATE INGRESS_GATE
       - name: Verify producer access path against isolated stage data only
         run: node scripts/staging/check-strangler-synthetic-producer-sql.mjs
-      - name: Seed isolated R2 presentation without depending on new cron propagation
-        run: node scripts/staging/seed-strangler-private-stage.mjs
+      - name: Publish isolated v2 R2/KV presentation without public cron or production D1
+        run: node scripts/staging/seed-strangler-v2-capacity.mjs
       - name: Enable private read model on ephemeral ingress only
         run: |
           node scripts/staging/enable-strangler-private-read-model.mjs
@@ -133,6 +161,9 @@ jobs:
           if [ -f ".output/strangler/index.mjs" ]; then
             npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.storefront-strangler.stage.jsonc
           fi
+      - name: Remove run-scoped private synthetic R2/KV publication
+        if: always()
+        run: node scripts/staging/cleanup-strangler-v2-capacity.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
