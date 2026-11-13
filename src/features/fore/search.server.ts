@@ -1089,11 +1089,16 @@ async function searchD1(
   };
   const runCount = async () => {
     const countLive = async () => {
+      // Counting does not rank. Preserve EVERY territorial and product
+      // eligibility predicate, but never force a popularity index scan for
+      // a query that has no ORDER BY. This lets SQLite choose the selective
+      // currency index (including a zero-row market) on D1 read replicas.
+      const countPart = facetScanCandidateParts(input, expression);
       const row = await presentationDb
         .prepare(
-          `${part.prefix} SELECT COUNT(*) count FROM ${part.from} WHERE ${part.where.join(" AND ")}`,
+          `${countPart.prefix} SELECT COUNT(*) count FROM ${countPart.from} WHERE ${countPart.where.join(" AND ")}`,
         )
-        .bind(...part.binds)
+        .bind(...countPart.binds)
         .first<{ count: number }>();
       return Number(row?.count || 0);
     };
