@@ -1,3 +1,4 @@
+import { canonicalReadonlyD1, type CanonicalReadService } from "./canonical-readonly-d1.server";
 import { trustedWorkerCountry } from "./cloudflare-country.server";
 
 /**
@@ -20,6 +21,18 @@ export async function resolveNativeWorkerBindings(
 ): Promise<Record<string, unknown>> {
   const current =
     provided && typeof provided === "object" ? (provided as Record<string, unknown>) : {};
+  function readonly(worker: Record<string, unknown>) {
+    if (worker.COVE_CANONICAL_READONLY_RPC !== "1") return worker;
+    const service = worker.COVE_CANONICAL_READONLY as CanonicalReadService | undefined;
+    // A mixed native/read-only topology is a deployment error, never a fallback.
+    if (worker.DB || typeof service?.query !== "function")
+      throw new Error("Invalid canonical read-only bindings");
+    return { ...worker, DB: canonicalReadonlyD1(service) };
+  }
+  if (current.COVE_CANONICAL_READONLY_RPC === "1" && current.DB)
+    throw new Error("Mixed canonical database privileges");
+  if (current.COVE_CANONICAL_READONLY_RPC === "1" && current.COVE_CANONICAL_READONLY)
+    return readonly(current);
   const existingDb = current.DB as { prepare?: unknown } | undefined;
   if (typeof existingDb?.prepare === "function") return current;
 
@@ -32,7 +45,7 @@ export async function resolveNativeWorkerBindings(
   try {
     const bindings = await loadBindings();
     if (!bindings || typeof bindings !== "object") return current;
-    const worker = bindings as Record<string, unknown>;
+    const worker = readonly(bindings as Record<string, unknown>);
     const db = worker.DB as { prepare?: unknown } | undefined;
     if (typeof db?.prepare !== "function") return current;
     // Preserve the native binding object's variables, especially the
