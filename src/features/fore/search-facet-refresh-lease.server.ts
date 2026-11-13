@@ -1,6 +1,7 @@
 import type { CatalogDB } from "./catalog-model.server";
 
 const LEASE_MS = 45_000;
+const MAX_PRIMARY_PROBE_MS = 300;
 const PREFIX = "search-facets-refresh:v2:";
 
 export type FacetRefreshGuard = { key: string; owner: string; nowMs: number };
@@ -16,6 +17,7 @@ export async function refreshLeasedSearchFacets(
   displayKey: string,
   compute: (guard: FacetRefreshGuard) => Promise<void>,
   nowMs = () => Date.now(),
+  probeClock = () => performance.now(),
 ): Promise<boolean> {
   if (!/^search-facets:v2:[a-f0-9]{64}$/.test(displayKey))
     throw new Error("Invalid public facet cache key");
@@ -33,6 +35,19 @@ export async function refreshLeasedSearchFacets(
     .first<{ body: string }>();
   if (lease?.body !== owner) return false;
   try {
+    // A multi-million-row presentation scan must not pile onto a D1 queue
+    // that is already delaying small canonical reads. The probe is read-only,
+    // bounded by an observed time budget, and does not grant any rights.
+    // A busy or unavailable primary simply leaves display labels pending;
+    // the next UI refresh may retry after its old lease is released.
+    const probeStarted = probeClock();
+    try {
+      const probe = await db.prepare("SELECT 1 AS ok").first<{ ok: number }>();
+      if (probe?.ok !== 1 || probeClock() - probeStarted > MAX_PRIMARY_PROBE_MS)
+        return false;
+    } catch {
+      return false;
+    }
     await compute({ key: refreshKey, owner, nowMs: nowMs() });
     return true;
   } finally {
