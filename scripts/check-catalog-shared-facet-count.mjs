@@ -42,7 +42,12 @@ try {
     assert.equal(exact(...bad), null, "Unproven total must use the original live COUNT");
   const source = readFileSync("src/features/fore/search.server.ts", "utf8");
   assert.match(source, /sharedFacetCount \? d1Facets|sharedFacetCount\s*\?\s*d1Facets/);
-  assert.match(source, /exact === null \? await runCount\(\) : \{ count: exact \}/);
+  assert.match(source, /exact === null\\s*\\? await runCount\\(\\)\\s*:\\s*\\{ count: exact \\}/);
+  assert.match(source, /count = countPending\\s*\\? \\{ count: input\\.limit \\+ 1 \\}/);
+  assert.match(
+    source,
+    /const countPending = !!\\(sharedFacets && facetState\\.pending && hasVerifiedNextPageWitness\\)/,
+  );
   assert.match(source, /sharedFacets \|\| d1Facets/);
   assert.match(
     source,
