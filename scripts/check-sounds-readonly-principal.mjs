@@ -32,6 +32,13 @@ assert.match(source, /canonicalReadonlyD1\(env\.COVE_CANONICAL_READONLY\)/);
 assert.match(source, /env\.SOURCE_DB\s*\|\|/);
 assert.match(source, /COVE_CANONICAL_READONLY_RPC\s*!==\s*"1"/);
 assert.doesNotMatch(source, /env\.SOURCE_DB\.prepare\(/);
+const seed = fs.readFileSync("scripts/staging/seed-cove-sounds-private.mjs", "utf8");
+assert.match(seed, /COVE_CANONICAL_READONLY_RPC:\s*"1"/);
+assert.match(seed, /COVE_CANONICAL_READONLY:\s*seedReadService/);
+assert.match(seed, /served_by_primary !== true/);
+assert.match(seed, /rows_written !== 0/);
+assert.doesNotMatch(seed, /SOURCE_DB:\s*\{/);
+
 console.log(
   "PASS: active/disabled Sounds config has no native D1 or public route, preserves US hourly cron and private R2/KV, read service required",
 );
