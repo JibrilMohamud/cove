@@ -4,6 +4,7 @@ import { projectedAnonymousHomePage, resolveStorefrontPage } from "./taxonomy.se
 import { firstPaintStorefrontShelf } from "./search.server";
 import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server";
 import { withInFlightAnonymousMarketReads } from "./storefront-inflight-public-metadata";
+import { withRequestFirstPaintReadBatch } from "./storefront-request-read-batch";
 import type { CoveEnv } from "./api.server";
 
 /**
@@ -53,20 +54,29 @@ export async function serveLeanAnonymousBootstrap(
   request: Request,
   env: CoveEnv,
   preparedShelf?: (territory: string) => ReturnType<typeof firstPaintStorefrontShelf>,
+  onFailure?: (phase: "limit" | "context" | "catalog" | "page", error: unknown) => void,
 ): Promise<Response> {
   if (!canUseLeanAnonymousBootstrap(request, env))
     return new Response(null, { status: 403, headers: { "cache-control": "no-store" } });
   const started = performance.now();
   const timings: Record<string, number> = {};
-  const timed = async <T>(name: string, task: Promise<T>): Promise<T> => {
+  const timed = async <T>(name: "limit" | "context" | "catalog" | "page", task: Promise<T>): Promise<T> => {
     const began = performance.now();
     try {
       return await task;
+    } catch (error) {
+      onFailure?.(name, error);
+      throw error;
     } finally {
       timings[name] = performance.now() - began;
     }
   };
-  const rawDb = env.DB!;
+  // Staging-only transport experiment: preserve both live primary SELECTs,
+  // but pay the database-service request overhead once per visitor.
+  const readEnv = env.COVE_SSR_STAGING === "1"
+    ? { ...env, DB: withRequestFirstPaintReadBatch(env.DB!) }
+    : env;
+  const rawDb = readEnv.DB!;
   // Stage evidence: geo-replica metadata sessions stalled for 1.5-5.8s
   // while the concurrently executed primary rights SQL finished in ~90ms.
   // This is PUBLIC presentation data only, but each request needs a fresh
@@ -134,7 +144,7 @@ export async function serveLeanAnonymousBootstrap(
       "catalog",
       preparedShelf
         ? preparedShelf(trustedCountry)
-        : firstPaintStorefrontShelf(env, null, trustedCountry, d1Metrics),
+        : firstPaintStorefrontShelf(readEnv, null, trustedCountry, d1Metrics),
     ),
     pagePromise,
   ]);

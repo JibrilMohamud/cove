@@ -57,3 +57,16 @@ assert.match(loader, /phase\.primaryAdmissionFailure \|\|\s*phase\.primaryHttpFa
 assert.match(loader, /cove_ssr_primary_\$\{reason\};dur=0/);
 // No retry, quota, authority, API handler, database or entitlement changes.
 console.log("Protected SSR classifies only exact thrown edge quota/outage vs D1 7429: PASS");
+
+assert.equal(
+  safeTiming(
+    "cove_ssr_read_catalog;dur=0, cove_ssr_read_transient_service;dur=0, cove_ssr_primary_invalid_bootstrap;dur=0",
+  ),
+  "cove_ssr_empty;dur=0, cove_ssr_read_catalog;dur=0, cove_ssr_read_transient_service;dur=0, cove_ssr_primary_invalid_bootstrap;dur=0",
+);
+assert.equal(
+  safeTiming(
+    'cove_ssr_read_private_sql;dur=0, cove_ssr_read_catalog;dur=1, cove_ssr_read_database;dur=0;desc="private"',
+  ),
+  "cove_ssr_empty;dur=0",
+);
