@@ -30,8 +30,20 @@ const allowedFailureKinds = new Set([
   "market-projection",
   "unclassified",
 ]);
-export function ownedStageFailureKind(value) {
-  return allowedFailureKinds.has(value) ? value : null;
+export function ownedStageFailureKind(value, serverTiming = {}) {
+  if (allowedFailureKinds.has(value)) return value;
+  // The protected Nitro SSR handler communicates fixed overload subtypes in
+  // Server-Timing, not x-cove-stage-failure-kind. Preserve these exact markers
+  // rather than reporting a proven D1 resource-window 503 as unclassified.
+  for (const [marker, kind] of [
+    ["cove_ssr_read_d1_resource_window", "d1-resource-window"],
+    ["cove_ssr_read_d1_queue_full", "d1-queue-full"],
+    ["cove_ssr_read_d1_queue_wait", "d1-queue-wait"],
+    ["cove_ssr_primary_d1_overload", "service-overloaded"],
+  ]) {
+    if (Object.hasOwn(serverTiming, marker) && serverTiming[marker] === 0) return kind;
+  }
+  return null;
 }
 
 // Diagnostic names include provider abbreviations such as d1. Parse complete
@@ -136,7 +148,10 @@ async function main() {
       status = response.status;
       edgeRay = safeCloudflareRay(response.headers);
       serverTiming = ownedServerTiming(response.headers.get("server-timing"));
-      failureKind = ownedStageFailureKind(response.headers.get("x-cove-stage-failure-kind"));
+      failureKind = ownedStageFailureKind(
+        response.headers.get("x-cove-stage-failure-kind"),
+        serverTiming,
+      );
       const html = await response.text();
       const cards = validateHtml(status, response.headers.get("content-type") || "", html);
       assert.ok(cards > 0, "Full native SSR cards required");
