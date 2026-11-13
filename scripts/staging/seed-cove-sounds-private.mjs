@@ -57,15 +57,31 @@ function query(sql, params) {
         throw Error("D1_ERROR: D1 DB is overloaded. Too many resources consumed within a 10 second window");
       throw Error("Read-only source query failed");
     }
-    return result.result[0];
+    const primary = result.result[0];
+    // This workflow's out-of-band seed uses only guarded SELECTs. It is not
+    // the runtime provider-enforced D1 Read credential, so assert the actual
+    // REST response is primary-only and performed zero writes.
+    if (primary.meta?.served_by_primary !== true ||
+        primary.meta?.changed_db !== false ||
+        primary.meta?.rows_written !== 0)
+      throw Error("Sounds seed primary-only zero-write D1 proof missing");
+    return primary;
   });
 }
-function statement(sql, params = []) {
-  return {
-    bind(...values) { return statement(sql, values); },
-    all() { return query(sql, params); },
-  };
-}
+// The deployed hourly Worker uses its private provider-enforced D1 Read
+// service. The out-of-band staging seed invokes the SAME one-query
+// request-local interface, but still uses this workflow's guarded REST SELECT
+// calls. Neither mode may reintroduce a native SOURCE_DB binding.
+const seedReadService = {
+  async query(statements) {
+    assert.ok(Array.isArray(statements) && statements.length === 1,
+      "Sounds seed only permits one bounded primary read per RPC");
+    const [{ sql, params }] = statements;
+    assert.ok(typeof sql === "string" && sql.length < 100_000);
+    assert.ok(Array.isArray(params) && params.length <= 100);
+    return [await query(sql, params)];
+  },
+};
 function wrangler(args) {
   const r = spawnSync(
     "npm",
@@ -87,7 +103,8 @@ try {
   // A scheduled public refresh can overlap this isolated release. Retry only
   // the known 10-second primary-D1 overload; never bypass publication checks.
   const output = await withTransientD1PublicationRetry(() => publishCoveSounds({
-    SOURCE_DB: { prepare: statement },
+    COVE_CANONICAL_READONLY_RPC: "1",
+    COVE_CANONICAL_READONLY: seedReadService,
     COVE_SOUNDS_PUBLICATION_ENABLED: "1",
     COVE_SOUNDS_MARKETS: "US",
     SOUNDS_PRESENTATION: {
