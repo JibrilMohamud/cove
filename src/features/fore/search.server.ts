@@ -31,6 +31,7 @@ type SearchEnv = {
   FORE_SEARCH_REPLICA_CANDIDATES?: string;
   FORE_ASYNC_CATALOG_FACETS?: string;
   FORE_POPULAR_RIGHTS_SHORTLIST?: string;
+  FORE_GUEST_CATALOG_PROGRESSIVE_COUNT?: string;
 };
 
 type FacetValue = { value: string; count: number };
@@ -79,6 +80,8 @@ export type SearchResult = {
   count: number;
   facets: SearchFacets;
   facetsPending?: boolean;
+  /** When true, count is a proven lower bound, not the eventual exact total. */
+  countPending?: boolean;
   queryId: string | null;
   backend: "meilisearch" | "d1-fts5";
   processingTimeMs: number;
@@ -1049,6 +1052,7 @@ async function searchD1(
     input.library === undefined &&
     env.FORE_SEARCH_REPLICA_CANDIDATES === "1" &&
     presentationDb !== env.DB;
+  let hasVerifiedNextPageWitness = false;
   const runIds = async () => {
     // Optional, bounded first-page fast path. A full primary-D1 legal
     // recheck proves all 24 results against the existing WHERE clauses.
@@ -1086,8 +1090,22 @@ async function searchD1(
       input.deals === undefined;
     if (guestDefaultPopular) {
       try {
-        const verified = await firstPagePopularRightsShortlist(env.DB, part, input.limit);
-        if (verified) return { results: verified.map((product_id) => ({ product_id })) };
+        // A 25th independently rights-checked book proves Next without a
+        // catalog-wide COUNT, but only on the narrow progressive guest path.
+        // If fewer than 25 pass, use the original full scan/count instead.
+        const progressive =
+          env.FORE_GUEST_CATALOG_PROGRESSIVE_COUNT === "1" &&
+          deferred !== undefined &&
+          input.limit === 24;
+        const verified = await firstPagePopularRightsShortlist(
+          env.DB,
+          part,
+          progressive ? input.limit + 1 : input.limit,
+        );
+        if (verified) {
+          hasVerifiedNextPageWitness = progressive;
+          return { results: verified.slice(0, input.limit).map((product_id) => ({ product_id })) };
+        }
       } catch {
         // Primary-D1 failures NEVER produce unverified IDs: use the ordinary
         // fully scoped query, which may also deny the request if unavailable.
@@ -1173,11 +1191,19 @@ async function searchD1(
   ]);
   let rows = initialRows;
   let count = initialCount;
+  // No approximate total is ever used as an authorization decision.
+  // The 25th *primary-rights-checked* book proves only that page 2 exists.
+  // The leased facet refresh subsequently supplies the exact total.
+  const countPending = !!(sharedFacets && facetState.pending && hasVerifiedNextPageWitness);
   if (sharedFacets) {
     const exact = facetState.pending
       ? null
       : countAvailableCandidatesFromFacet(input, part.hasFts, sharedFacets);
-    count = exact === null ? await runCount() : { count: exact };
+    count = countPending
+      ? { count: input.limit + 1 }
+      : exact === null
+        ? await runCount()
+        : { count: exact };
   }
   if (!count?.count && input.query) {
     const correction = await typoCorrection(env.DB, input.query);
@@ -1219,6 +1245,7 @@ async function searchD1(
     count: Number(count?.count || 0),
     facets,
     facetsPending: facetState.pending,
+    countPending,
     correctedQuery,
     duration: Date.now() - started,
   };
@@ -1989,6 +2016,7 @@ export async function searchCatalog(
     count: result.count,
     facets: result.facets,
     facetsPending: "facetsPending" in result && result.facetsPending === true,
+    countPending: "countPending" in result && result.countPending === true,
     queryId,
     backend: backendName,
     processingTimeMs: result.duration,
