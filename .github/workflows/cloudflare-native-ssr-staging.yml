@@ -46,6 +46,7 @@ on:
       - "src/features/fore/taxonomy.server.ts"
       - "src/features/fore/merchandising.server.ts"
       - "scripts/check-rights.mjs"
+      - "scripts/check-retail-drm-unique-index.mjs"
       - "drizzle/**"
       - "drizzle/0075_catalog_fts_indexed_deletes.sql"
       - "drizzle/0076_catalog_added_expression_sort.sql"
@@ -129,6 +130,7 @@ on:
       - "src/features/fore/taxonomy.server.ts"
       - "src/features/fore/merchandising.server.ts"
       - "scripts/check-rights.mjs"
+      - "scripts/check-retail-drm-unique-index.mjs"
       - "drizzle/**"
       - "drizzle/0075_catalog_fts_indexed_deletes.sql"
       - "drizzle/0076_catalog_added_expression_sort.sql"
@@ -216,6 +218,7 @@ jobs:
           node scripts/check-storefront-firstpaint-rate-limit.mjs
           node scripts/check-storefront-bootstrap.mjs
           node scripts/check-rights.mjs
+          node scripts/check-retail-drm-unique-index.mjs
           python3 scripts/check-fts-trigger-lookup.py
           node scripts/check-catalog-added-sort-index.mjs
           node scripts/check-public-search-count-scope.mjs
