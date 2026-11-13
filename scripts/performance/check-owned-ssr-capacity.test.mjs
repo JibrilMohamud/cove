@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { summarizeOwnedPhase, ownedServerTiming } from "./check-owned-ssr-capacity.mjs";
+import { summarizeOwnedPhase, ownedServerTiming, ownedStageFailureKind } from "./check-owned-ssr-capacity.mjs";
 const row = (ttfbMs = 100, extra = {}) => ({
   ttfbMs,
   launchDelayMs: 0,
@@ -66,4 +66,33 @@ test("sustained p95/p99 thresholds are strict and do not apply to bursts", () =>
     ).pass,
     true,
   );
+});
+
+test("protected stage failure breakdown remains bounded and cannot hide invalid responses", () => {
+  assert.equal(ownedStageFailureKind("d1-resource-window"), "d1-resource-window");
+  assert.equal(ownedStageFailureKind("d1-queue-full"), "d1-queue-full");
+  assert.equal(ownedStageFailureKind("d1-queue-wait"), "d1-queue-wait");
+  assert.equal(ownedStageFailureKind("service-overloaded"), "service-overloaded");
+  assert.equal(ownedStageFailureKind("sensitive D1 error or SQL"), null);
+  assert.equal(ownedStageFailureKind(null), null);
+  const rows = [
+    row(100, { status: 200 }),
+    row(90, { valid: false, status: 503, failureKind: "d1-resource-window" }),
+    row(90, { valid: false, status: 503, failureKind: "d1-queue-full" }),
+    row(90, { valid: false, status: 503, failureKind: "private token" }),
+    row(90, { valid: false, status: 429, failureKind: "rate-limited" }),
+    row(90, { valid: false, status: 0, failureKind: null }),
+  ];
+  const result = summarizeOwnedPhase("burst", rows.length, rows);
+  assert.equal(result.pass, false);
+  assert.equal(result.valid, 1);
+  assert.equal(result.rows.length, rows.length);
+  assert.deepEqual(result.httpFailures, { 429: 1, 503: 3 });
+  assert.deepEqual(result.failureKinds, {
+    "d1-resource-window": 1,
+    "d1-queue-full": 1,
+    "unclassified-503": 1,
+    "rate-limited": 1,
+    "request-failed": 1,
+  });
 });
