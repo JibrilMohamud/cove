@@ -10,7 +10,7 @@ const store = fs.readFileSync("src/features/fore/Store.tsx", "utf8");
 assert.match(search, /FORE_ASYNC_CATALOG_FACETS === "1"/);
 assert.match(search, /!userId &&/);
 assert.match(search, /input\.sort === "popular" &&\s*input\.page === 1/);
-assert.match(search, /input\.subscription === undefined && input\.library === undefined/);
+assert.match(search, /input\.subscription === undefined &&\s*input\.library === undefined/);
 assert.match(search, /facetsPending: facetState\.pending/);
 assert.match(search, /facetState\.pending\s*\?\s*null/);
 assert.match(search, /if \(!facetState\.pending\) \{/);
