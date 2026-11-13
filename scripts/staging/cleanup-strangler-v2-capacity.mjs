@@ -34,8 +34,16 @@ for (const { country, objectKey } of manifest.objects) {
   const wrangler = spawnSync(
     "npm",
     [
-      "exec", "--yes", "--package=wrangler@4.151.0", "--", "wrangler",
-      "r2", "object", "delete", bucket + "/" + objectKey, "--remote",
+      "exec",
+      "--yes",
+      "--package=wrangler@4.151.0",
+      "--",
+      "wrangler",
+      "r2",
+      "object",
+      "delete",
+      bucket + "/" + objectKey,
+      "--remote",
     ],
     {
       encoding: "utf8",
@@ -59,7 +67,5 @@ for (const { country, objectKey } of manifest.objects) {
     failures++;
   }
 }
-console.log(
-  "COVE_STAGE_V2_CLEANUP " + JSON.stringify({ targets: seen.size, failures }),
-);
+console.log("COVE_STAGE_V2_CLEANUP " + JSON.stringify({ targets: seen.size, failures }));
 assert.equal(failures, 0, "Private synthetic R2/KV cleanup failed");
