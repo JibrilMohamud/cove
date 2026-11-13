@@ -6,6 +6,7 @@ import {
   currentCoveRequestExecutionContext,
 } from "@/lib/cove-request-env.server";
 import { hedgedStorefrontBootstrap } from "./storefront-hedged-fetch";
+import { bootstrapFailureKind } from "../../storefront-strangler/failure";
 
 // Only parameters that change catalog selection, ordering, pagination or the
 // rights/locale context may suppress the verified first-page SSR shelf.
@@ -67,6 +68,7 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
     const localEnvironment = currentCoveRequestEnvironment();
     const localDatabase = localEnvironment?.DB as { prepare?: unknown } | undefined;
     const localRightsAuthority = typeof localDatabase?.prepare === "function";
+    const localReadFailure = { phase: "", kind: "" };
     const primary = async (forwarded: Request): Promise<Response> => {
       if (localRightsAuthority) {
         // A public, cookie-free Worker homepage can use the much smaller
@@ -91,6 +93,21 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
             return serveLeanAnonymousBootstrap(
               forwarded,
               localEnvironment as Parameters<typeof serveLeanAnonymousBootstrap>[1],
+              undefined,
+              (name, error) => {
+                if (localEnvironment?.COVE_SSR_STAGING !== "1" || localReadFailure.phase) return;
+                localReadFailure.phase = name;
+                const kinds: Record<string, string> = {
+                  "limiter-unavailable": "limiter_unavailable",
+                  "rate-limited": "throttled",
+                  "service-overloaded": "service_overloaded",
+                  "transient-service": "transient_service",
+                  database: "database",
+                  "territory-mismatch": "territory_mismatch",
+                  "market-projection": "market_projection",
+                };
+                localReadFailure.kind = kinds[bootstrapFailureKind(error)] || "unclassified";
+              },
             );
         }
         // Cloudflare SSR and the live rights database share one Worker invocation.
@@ -189,7 +206,11 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
       const reason =
         phase.primaryAdmissionFailure ||
         phase.primaryHttpFailure ||
-        (phase.primaryFailureKind === "timeout" ? "timeout" : "transport_or_invalid");
+        (phase.primaryFailureKind === "timeout"
+          ? "timeout"
+          : phase.primaryFailureKind === "invalid"
+            ? "invalid_bootstrap"
+            : "transport_or_invalid");
       timing.push(`cove_ssr_primary_${reason};dur=0`);
     }
     if (phase.alternateMs !== null) {
@@ -203,6 +224,10 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
       if (!deadline.expired.alternateStarted) timing.push("cove_ssr_alternate_not_started;dur=0");
       else if (!deadline.expired.alternateCompleted)
         timing.push("cove_ssr_alternate_pending;dur=0");
+    }
+    if (result === null && localReadFailure.phase) {
+      timing.push(`cove_ssr_read_${localReadFailure.phase};dur=0`);
+      timing.push(`cove_ssr_read_${localReadFailure.kind};dur=0`);
     }
     if (result !== null) timing.push(...backendTimings);
     if (result === null) timing.push("cove_ssr_empty;dur=0");
