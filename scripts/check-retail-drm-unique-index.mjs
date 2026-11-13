@@ -17,10 +17,12 @@ const from = migration.indexOf("-- Keep the public DISTINCT contract");
 assert.ok(from >= 0, "Migration must re-create original full legal view");
 assert.equal(
   migration.slice(from),
-  prior.replace(
-    "DROP VIEW retail_product_availability;\n",
-    "DROP VIEW retail_product_availability;\nDROP VIEW retail_product_availability_rows;\n",
-  ).replaceAll(oldLookup, indexedLookup),
+  prior
+    .replace(
+      "DROP VIEW retail_product_availability;\n",
+      "DROP VIEW retail_product_availability;\nDROP VIEW retail_product_availability_rows;\n",
+    )
+    .replaceAll(oldLookup, indexedLookup),
   "No legal predicate, status, territory, contract or deny clause may change",
 );
 
@@ -60,20 +62,29 @@ try {
   }
   for (const status of ["none", "lcp", "adobe", "watermark", "social-drm", null]) {
     db.prepare("UPDATE digital_assets SET drm_status=? WHERE id='a1'").run(status);
-    assert.deepEqual(indexed.get("edition-1", "ebook", "ebook"), old.get("edition-1", "ebook", "ebook"));
+    assert.deepEqual(
+      indexed.get("edition-1", "ebook", "ebook"),
+      old.get("edition-1", "ebook", "ebook"),
+    );
   }
-  const oldPlan = db.prepare(
-    "EXPLAIN QUERY PLAN SELECT da.drm_status FROM digital_assets da WHERE da.edition_id=? AND ((?='ebook' AND da.kind='epub') OR (?='audiobook' AND da.kind='audio')) ORDER BY da.updated_at DESC LIMIT 1",
-  ).all("edition-1", "ebook", "ebook");
-  const newPlan = db.prepare(
-    "EXPLAIN QUERY PLAN SELECT da.drm_status FROM digital_assets da WHERE da.edition_id=? AND da.kind=(CASE WHEN ?='ebook' THEN 'epub' WHEN ?='audiobook' THEN 'audio' ELSE NULL END) LIMIT 1",
-  ).all("edition-1", "ebook", "ebook");
+  const oldPlan = db
+    .prepare(
+      "EXPLAIN QUERY PLAN SELECT da.drm_status FROM digital_assets da WHERE da.edition_id=? AND ((?='ebook' AND da.kind='epub') OR (?='audiobook' AND da.kind='audio')) ORDER BY da.updated_at DESC LIMIT 1",
+    )
+    .all("edition-1", "ebook", "ebook");
+  const newPlan = db
+    .prepare(
+      "EXPLAIN QUERY PLAN SELECT da.drm_status FROM digital_assets da WHERE da.edition_id=? AND da.kind=(CASE WHEN ?='ebook' THEN 'epub' WHEN ?='audiobook' THEN 'audio' ELSE NULL END) LIMIT 1",
+    )
+    .all("edition-1", "ebook", "ebook");
   assert.ok(oldPlan.some((row) => /TEMP B-TREE FOR ORDER BY/.test(String(row.detail))));
   assert.ok(newPlan.some((row) => /idx_digital_assets_edition_kind/.test(String(row.detail))));
   assert.ok(!newPlan.some((row) => /TEMP B-TREE|MULTI-INDEX OR/.test(String(row.detail))));
   // The full migration is then exercised by scripts/check-rights.mjs,
   // which applies every checked-in D1 migration and tests deny/revoke flows.
-  console.log("Retail DRM view: exact source-only rewrite, indexed lookup parity, missing assets, unusual formats and all DRM statuses PASS");
+  console.log(
+    "Retail DRM view: exact source-only rewrite, indexed lookup parity, missing assets, unusual formats and all DRM statuses PASS",
+  );
 } finally {
   db.close();
 }
