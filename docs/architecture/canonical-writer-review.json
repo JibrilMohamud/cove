@@ -3564,9 +3564,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "946b878687e3c1f2242a67de874edce7ec5aefe3df1069836fa1e6a0e01e670e",
+      "siteId": "8e1e14b56657d88b40fe23d9c2b8a639ef92c0bb31e69648c1f67a7938a6a081",
       "file": "src/features/fore/search.server.ts",
-      "line": 2195,
+      "line": 2240,
       "functionName": "refreshSearchQualitySignals",
       "table": "catalog_search_documents",
       "operation": "UPDATE",

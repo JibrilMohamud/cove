@@ -1,7 +1,7 @@
 {
   "schema": "cove.canonical-writer-source-attestation.v1",
   "releaseApproval": false,
-  "rationale": "An independent catalog count-plan review verifies that the existing ranking-index hint was removed only from a read-only COUNT statement. All count filters and D1 rights/territory/currency predicates remain unchanged, and the actual product-ID ranking query is unchanged. The existing SQL mutation literal, owning function, legal review disposition, and its source-bound SQL digest remain exactly as previously reviewed; this rebase only reflects the modified source file digest and five inserted lines. It is not permission to activate the production legal owner, payments, or roll out any performance feature, and strict release acceptance remains denied pending tests.",
+  "rationale": "Read-only, opt-in popular shortlist uses original current primary D1 eligibility SQL and never caches unauthorized IDs or bypasses the full-query fallback on insufficient eligible candidates. The reviewed non-authorizing popularity-projection UPDATE retains its unchanged SQL digest, owner guard and legal disposition; only source SHA-bound identity and location changed. No production activation or release approval is conferred. Independently certify live speed and geographic 100RPS before merging.",
   "files": [
     {
       "path": "src/features/fore/api.server.ts",
@@ -10,8 +10,8 @@
     },
     {
       "path": "src/features/fore/search.server.ts",
-      "sha256": "d2dcc6a5846b4e02eb024e80e23ca333a2d53a90eddb6fed799c0d8959581f99",
-      "review": "The unchanged nonauthorizing projection UPDATE remains the sole reviewed writer site in this source. A strictly read-only exact COUNT now omits the forced popularity ranking index while preserving the identical SQL filters, live rights eligibility and bound territory/currency. Hosted isolated database tests confirmed exact parity across four markets and a benefit for sparse currencies; no authorizing SQL or owner status changed."
+      "sha256": "df6102ad8be0cfb919b87017f4e6e52a9186e79146304d636aa46d0465516f22",
+      "review": "Stacked PR adds an opt-in, read-only, first-page popular candidate shortlist with exact score/tie ordering and one current primary D1 SQL territorial-rights recheck for every proposed ID. If fewer than the requested page passes, original complete ranked SQL runs. No rights, offer, grant, entitlement, preorders, payment or writer SQL literals change."
     }
   ],
   "retirementEvidence": null
