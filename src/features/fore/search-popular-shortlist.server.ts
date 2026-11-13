@@ -1,5 +1,8 @@
 import type { CatalogDB } from "./catalog-model.server";
-import { rightsScopedCachedPageQuery, type RightsRecheckCandidate } from "./rights-scoped-cache-page";
+import {
+  rightsScopedCachedPageQuery,
+  type RightsRecheckCandidate,
+} from "./rights-scoped-cache-page";
 
 const MAX_RANKED_CANDIDATES = 96;
 
@@ -21,13 +24,7 @@ export async function firstPagePopularRightsShortlist(
   scope: RightsRecheckCandidate,
   limit: number,
 ): Promise<string[] | null> {
-  if (
-    scope.hasFts ||
-    !Number.isSafeInteger(limit) ||
-    limit < 1 ||
-    limit > 24
-  )
-    return null;
+  if (scope.hasFts || !Number.isSafeInteger(limit) || limit < 1 || limit > 24) return null;
   const ranked = await db
     .prepare(
       `SELECT d.product_id FROM catalog_search_documents d
