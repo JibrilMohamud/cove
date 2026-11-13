@@ -33,7 +33,10 @@ fs.mkdirSync(directory, { recursive: true });
 
 async function readOnly(sql, params = []) {
   assert.match(sql.trim(), /^(?:SELECT|WITH)\b/i);
-  assert.doesNotMatch(sql, /;\s*\S|\b(?:INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER|ATTACH|DETACH|PRAGMA|VACUUM)\b/i);
+  assert.doesNotMatch(
+    sql,
+    /;\s*\S|\b(?:INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER|ATTACH|DETACH|PRAGMA|VACUUM)\b/i,
+  );
   const response = await fetch(
     `https://api.cloudflare.com/client/v4/accounts/${account}/d1/database/${databaseId}/query`,
     {
@@ -101,8 +104,11 @@ async function writeCountry(country) {
       assert.equal(document.schema, "cove.home.presentation.v2");
       assert.equal(document.candidates.country, country);
       assert.ok(
-        document.displayBooks.every((book) =>
-          !("offer" in book) && !("subscriptionEligible" in book) && !("libraryEligible" in book),
+        document.displayBooks.every(
+          (book) =>
+            !("offer" in book) &&
+            !("subscriptionEligible" in book) &&
+            !("libraryEligible" in book),
         ),
         "A presentation must never contain cached offers or grants",
       );
@@ -111,8 +117,15 @@ async function writeCountry(country) {
       const objectKey = prefix + key;
       manifest.push({ country, objectKey });
       wrangler([
-        "r2", "object", "put", bucket + "/" + objectKey,
-        "--remote", "--file", file, "--content-type", "application/json",
+        "r2",
+        "object",
+        "put",
+        bucket + "/" + objectKey,
+        "--remote",
+        "--file",
+        file,
+        "--content-type",
+        "application/json",
       ]);
       const response = await fetch(
         `https://api.cloudflare.com/client/v4/accounts/${account}/storage/kv/namespaces/${kvId}/values/${encodeURIComponent(objectKey)}?expiration_ttl=1800`,
@@ -142,10 +155,15 @@ async function writeCountry(country) {
   assert.equal(generated.country, country);
   assert.ok(generated.expiresAt > Date.now());
   // No book, private product identifier or grant is ever printed.
-  console.log("COVE_STAGE_V2_SEEDED " + JSON.stringify({
-    country, candidates: generated.candidates, locales: generated.locales,
-    authority: "fresh-primary-per-request",
-  }));
+  console.log(
+    "COVE_STAGE_V2_SEEDED " +
+      JSON.stringify({
+        country,
+        candidates: generated.candidates,
+        locales: generated.locales,
+        authority: "fresh-primary-per-request",
+      }),
+  );
   return written[0];
 }
 const manifest = [];
