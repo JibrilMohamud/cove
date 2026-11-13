@@ -1,0 +1,11 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "cove-canonical-d1-readonly",
+  "main": "infra/canonical-readonly/worker.ts",
+  "compatibility_date": "2026-10-17",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [],
+  "vars": { "D1_READ_TOKEN_ID": "dc53c51b97e94d76349814c428a12f76" },
+  "observability": { "enabled": true, "logs": { "enabled": true, "invocation_logs": true } },
+}
