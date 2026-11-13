@@ -117,7 +117,6 @@ function probe(allowed, failRights = false) {
 }
 const db = {
   prepare(sql) {
-    let args = [];
     const value = () => {
       if (sql.includes("FROM entitlements")) return null;
       if (sql.includes("FROM reviews")) return { review_count:2, average_rating:4.5, five_star:1 };
@@ -143,7 +142,7 @@ const db = {
     };
     const execute = async () => globalThis.__detailProbe.run(label(), value());
     return {
-      bind(...binds) { args=binds;return this; },
+      bind() { return this; },
       async first() {const x=await execute();return Array.isArray(x)?x[0]||null:x;},
       async all() {const x=await execute();return {results:Array.isArray(x)?x:[]};},
     };
