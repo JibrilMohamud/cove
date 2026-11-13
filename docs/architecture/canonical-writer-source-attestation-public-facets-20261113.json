@@ -1,7 +1,7 @@
 {
   "schema": "cove.canonical-writer-source-attestation.v1",
   "releaseApproval": false,
-  "rationale": "The catalog facet opt-in is confined to anonymous presentation queries after live primary rights-backed product selection, current exact totals, hydration and audited analytics. The 34 existing writer SQL fingerprints, function owners, table targets, dispositions and deny-first security guards are unchanged. This source-only rebase updates file-bound site IDs and shifted line locations without promoting owner authority or approving any new writer; independent release and cutover certification remain mandatory.",
+  "rationale": "An independent catalog count-plan review verifies that the existing ranking-index hint was removed only from a read-only COUNT statement. All count filters and D1 rights/territory/currency predicates remain unchanged, and the actual product-ID ranking query is unchanged. The existing SQL mutation literal, owning function, legal review disposition, and its source-bound SQL digest remain exactly as previously reviewed; this rebase only reflects the modified source file digest and five inserted lines. It is not permission to activate the production legal owner, payments, or roll out any performance feature, and strict release acceptance remains denied pending tests.",
   "files": [
     {
       "path": "src/features/fore/api.server.ts",
@@ -10,8 +10,8 @@
     },
     {
       "path": "src/features/fore/search.server.ts",
-      "sha256": "3b7931e2f114b730cf34e665677e465f1fce20aed7c1800f2bdf97f1bcdf9c6d",
-      "review": "Anonymous popular-page catalog facets alone gain optional leased background presentation refresh. Existing catalog projection UPDATE remains scoped to non-authorizing ranking, and all live-rights selection/checkout guards are untouched."
+      "sha256": "d2dcc6a5846b4e02eb024e80e23ca333a2d53a90eddb6fed799c0d8959581f99",
+      "review": "The unchanged nonauthorizing projection UPDATE remains the sole reviewed writer site in this source. A strictly read-only exact COUNT now omits the forced popularity ranking index while preserving the identical SQL filters, live rights eligibility and bound territory/currency. Hosted isolated database tests confirmed exact parity across four markets and a benefit for sparse currencies; no authorizing SQL or owner status changed."
     }
   ],
   "retirementEvidence": null
