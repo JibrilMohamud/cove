@@ -7,15 +7,15 @@ const production = fs.readFileSync("src/features/fore/taxonomy-count-query.ts", 
 const caller = fs.readFileSync("src/features/fore/taxonomy.server.ts", "utf8");
 assert.match(caller, /presentationTaxonomyCounts\(\s*db,\s*territory,\s*language/);
 assert.match(caller, /taxonomyPresentationReadDb\(db\)/);
-assert.doesNotMatch(caller, /\.prepare\(taxonomySparseRightsProbe\)/);
-assert.match(caller, /taxonomyCountPlan\(\s*territory,\s*language,\s*true\)/);
+assert.match(caller, /\.prepare\(taxonomySparseRightsProbe\)/);
+assert.match(caller, /taxonomyCountPlan\(\s*territory,\s*language,/);
 assert.match(production, /retail_product_availability rpa/);
 assert.match(production, /retail_product_availability_rows rpa/);
 assert.match(production, /g\.sales_channel='retail' AND g\.status='active'/);
 assert.match(production, /COUNT\(\*\) product_count/);
 
 const { code } = await transform(production, { loader: "ts", format: "esm" });
-const { taxonomyCountPlan, taxonomySparseRightsProbe } = await import(
+const { taxonomyCountPlan, taxonomySparseRightsProbe, legacyDenseTaxonomyCountPlan } = await import(
   "data:text/javascript;base64," + Buffer.from(code).toString("base64")
 );
 
@@ -118,10 +118,18 @@ try {
       `Count must preserve current legal rights for ${territory}/${lang}`,
     );
     const otherPlan = taxonomyCountPlan(territory, lang, !sparse);
+    assert.match(plan.sql, /territory_seed AS MATERIALIZED/);
+    assert.match(otherPlan.sql, /territory_seed AS MATERIALIZED/);
     assert.deepEqual(
       normalize(db.prepare(otherPlan.sql).all(...otherPlan.binds)),
       originalRows,
-      `Both candidate plans must be fully legally equivalent: ${territory}/${lang}`,
+      `Dense and sparse runtime paths must both use the same indexed rights seed: ${territory}/${lang}`,
+    );
+    const oldDense = legacyDenseTaxonomyCountPlan(territory, lang);
+    assert.deepEqual(
+      normalize(db.prepare(oldDense.sql).all(...oldDense.binds)),
+      originalRows,
+      `Legacy dense reference must stay rights-equivalent: ${territory}/${lang}`,
     );
     return { probe, sparse };
   };
