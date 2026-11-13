@@ -1,0 +1,107 @@
+{
+  "schema": "cove.retired-unowned-trust-restoration.v1",
+  "originalSourceSha256": "f87f805849dd48767c5c249ecabb38a5a1ee1ae6bdd6036297f67a4e6d3719b2",
+  "updatedSourceSha256": "005a41726dda1ec55d44b468aff3a54744190af8ea3dd587ae111cdeaba26595",
+  "retiredCount": 11,
+  "retired": [
+    {
+      "siteId": "7652345abd9833abd41763eec24c8bb8023a2ba52f4dc8bd80e0a41ffb112a44",
+      "functionName": "releaseHolds",
+      "line": 1431,
+      "table": "royalty_holds",
+      "operation": "UPDATE",
+      "sqlSha256": "ee248962935053b1e1e387050d7d44956f814e71d179dc4dd0b08604bf6c0924",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "7554d1f79b1267d963fa9964c3523a0c40e876a8034609d75350ddbdb2f40a0e",
+      "functionName": "releaseHolds",
+      "line": 1438,
+      "table": "finance_royalty_events",
+      "operation": "UPDATE",
+      "sqlSha256": "bab7da9149869a3f6dd894f164ea385ad1b2a453099225a7bc231f7e4f662621",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "372241bbaaebb01c6eaf5cdd7cc0875e9d4373751f14e75c91de8ec572cc42b8",
+      "functionName": "releaseHolds",
+      "line": 1444,
+      "table": "finance_royalty_allocations",
+      "operation": "UPDATE",
+      "sqlSha256": "6764cadf9370036b25d1f5f903409a8a23855d37dc74f53025b308a8a1c29e64",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "a5eea52918e5366acf9bb33afa50229afb8fd0ed16ab1c2e3924764501e71619",
+      "functionName": "restore",
+      "line": 1478,
+      "table": "publishing_release_lifecycles",
+      "operation": "UPDATE",
+      "sqlSha256": "f72f05305baff9ec5959b61e5fa53a08d76e8e3c6f5826d96ab9796db962b351",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "8674cbe5b264cc6cd7cdd7011316a1eefbf4b93765cd591bcbdd003d0adf4a26",
+      "functionName": "restore",
+      "line": 1483,
+      "table": "publishing_lifecycle_events",
+      "operation": "INSERT INTO",
+      "sqlSha256": "e4a9a33c52bbc926e76a906f366bcf44ab1d823a6eac0e0c006f58e9a6abbfd9",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "9968ba7f6fc18b782f7c21ccb23b41fe5e08879f8a895c020be4a6b3254f9a63",
+      "functionName": "restore",
+      "line": 1503,
+      "table": "products",
+      "operation": "UPDATE",
+      "sqlSha256": "fbd8433da4954b51b2be594d30fe5786004801f8fb37a173b850a41d9c7c9464",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "4f6b65b73548c3525b0116209496e0fa588c2f5eaa3bb510b35d4b23fadee025",
+      "functionName": "restore",
+      "line": 1531,
+      "table": "products",
+      "operation": "UPDATE",
+      "sqlSha256": "fbd8433da4954b51b2be594d30fe5786004801f8fb37a173b850a41d9c7c9464",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "2813ebbc1841e109bc56008d35cd095894972d02e879ce09584aee23b9cc4d45",
+      "functionName": "restore",
+      "line": 1536,
+      "table": "rights_disputes",
+      "operation": "UPDATE",
+      "sqlSha256": "f1b4a963a2cdb62fbdbe26d2e1b6c3f0a52f4dcd8d83426f554f9af4aed2d1b6",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "65b2e313952a1c0d89dfd6d505751a4ef7284a9dd27393122fc9f69072550339",
+      "functionName": "restore",
+      "line": 1540,
+      "table": "copyright_notices",
+      "operation": "UPDATE",
+      "sqlSha256": "adb27668d4fd51e477f283bac1314e318e701d281f3a4a121c16170a64baa6df",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "69f6d07013906bb5c5fde8a6e8f18b697d71b5f8e277d4ee5fec3a46805db75b",
+      "functionName": "restore",
+      "line": 1545,
+      "table": "copyright_counter_notices",
+      "operation": "UPDATE",
+      "sqlSha256": "7ec497966d548fe3fd5bf7ffb38e2550ae8b605214c60a5757187d8bacb6ce5d",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "41dd00609f32309d7637680bb6188d4fabe78da3b8a66624cf0aa84eb25b6447",
+      "functionName": "advanceRightsDisputeDeadlines",
+      "line": 2266,
+      "table": "rights_disputes",
+      "operation": "UPDATE",
+      "sqlSha256": "57483b14f92643d30be58434a5c8d099ec0ce6856951a560352e6ff5881118bf",
+      "disposition": "owner-command-required"
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "schema": "cove.owner-commercial-audio-upload-lineage.v1",
+  "releaseApproval": false,
+  "sourceFile": "src/features/fore/commercial-audio.server.ts",
+  "updatedSourceSha256": "fdc81ae026d2159b0fd2cec92f500b16e52f7bb250927c8e766065bf49e9ceba",
+  "retiredCount": 6,
+  "rows": [
+    {
+      "siteId": "73b14faa8d20c9676312be047cbc18dc856c38257ef48f48210e0891b3b4ec83",
+      "operation": "INSERT INTO",
+      "functionName": "queueCommercialAudioQc",
+      "table": "commercial_audio_qc_jobs",
+      "line": 459,
+      "sqlSha256": "e28a03ced0569d0370f7e9705503e027a9d165efef683e995e389839687929ba",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "f12e2c985acdcb7c47e24a6bbce59f5670fe0d517cc82911ec0854c8b1a458c5",
+      "operation": "INSERT INTO",
+      "functionName": "uploadCommercialAudioFile",
+      "table": "commercial_audio_files",
+      "line": 607,
+      "sqlSha256": "f9bae316480ff86083442b392cdb012498e8771adb43c35d7d0dd32ec8853762",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "16555923e07547cfd1593a8eb2750a0f04d63c0f823981a40fa5afb423909c27",
+      "operation": "UPDATE",
+      "functionName": "uploadCommercialAudioFile",
+      "table": "commercial_audio_profiles",
+      "line": 632,
+      "sqlSha256": "cb82a462894efbce586aa53761149ef7aa91b996fc8154dfa344b7db97f58f32",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "db4fa38d37898cc80620fa523c252ecdeb487f37d0f20fe862adfddd0d449f0d",
+      "operation": "UPDATE",
+      "functionName": "uploadCommercialAudioFile",
+      "table": "commercial_audio_chapters",
+      "line": 647,
+      "sqlSha256": "f1f2c847d031dbf8bc8c882b4a21b8cfc4b15a6219515750e6d13d740299e653",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "a90639115ca5fddf883a0f10553feb41b56d705262fca35a0c98a34a89a77352",
+      "operation": "INSERT INTO",
+      "functionName": "uploadCommercialAudioFile",
+      "table": "commercial_audio_chapters",
+      "line": 667,
+      "sqlSha256": "d77e12d3e84934759777b3535eb730c4c2d1685f3231af091c1f7acb446a1ac2",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "334d67aac165db0a37dc203c9e294a12a8d42fa449938540e45a6f340ffd3ca3",
+      "operation": "UPDATE",
+      "functionName": "uploadCommercialAudioFile",
+      "table": "commercial_audio_profiles",
+      "line": 689,
+      "sqlSha256": "21e3d3accaf3f3dd8866c55090a13f4ff9507c1051f3b0c00c7e0e6e2e41d61f",
+      "disposition": "owner-command-required"
+    }
+  ]
+}
