@@ -1088,13 +1088,19 @@ async function catalog(
   url: URL,
   userId: string | null = null,
   storefrontTerritory = "US",
+  execution?: ApiExecutionContext,
 ) {
   try {
     // Production catalog initialization belongs to the ingestion scheduler.
     // Avoid an INSERT OR IGNORE and a source-cache probe on every public read.
     if (env.FORE_ENVIRONMENT !== "production") await seedCatalog(env);
     const input = { ...parseSearchInput(url), territory: storefrontTerritory };
-    const result = await searchCatalog(env, input, userId);
+    const result = await searchCatalog(
+      env,
+      input,
+      userId,
+      execution?.waitUntil ? (work) => execution.waitUntil?.(work) : undefined,
+    );
     // Never let non-authoritative ingestion progress delay or fail a
     // successful primary-rights catalog. Production skips this D1 read;
     // operator endpoints still expose independent ingestion health.
@@ -1114,6 +1120,7 @@ async function catalog(
       next,
       cached: true,
       facets: result.facets,
+      facetsPending: result.facetsPending === true,
       search: {
         queryId: result.queryId,
         backend: result.backend,
@@ -4359,7 +4366,7 @@ async function handleCoveRequest(
     if (request.method === "GET" && path === "/catalog") {
       const searchUserId = identity(request)?.id || null;
       await rateLimitSearchRequest(request, env, searchUserId, "catalog", 180);
-      const result = await catalog(env, url, searchUserId, storefrontTerritory);
+      const result = await catalog(env, url, searchUserId, storefrontTerritory, execution);
       return json(result);
     }
     if (request.method === "GET" && path === "/search/suggest") {
