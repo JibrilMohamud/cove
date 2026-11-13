@@ -5,6 +5,7 @@ on:
       [
         "src/storefront-strangler/**",
         "scripts/performance/strangler-real-catalog-acceptance.mjs",
+        "scripts/check-storefront-v2-primary-prefix.mjs",
         ".github/workflows/fast-storefront-real-catalog-acceptance.yml",
       ]
   push:
@@ -12,6 +13,10 @@ on:
     paths:
       - ".github/workflows/fast-storefront-real-catalog-acceptance.yml"
       - "src/storefront-strangler/worker.ts"
+      - "src/storefront-strangler/homepage-presentation.server.ts"
+      - "src/storefront-strangler/bootstrap-optimized.server.ts"
+      - "src/features/fore/catalog-model.server.ts"
+      - "scripts/check-storefront-v2-primary-prefix.mjs"
       - "scripts/performance/strangler-real-catalog-acceptance.mjs"
       - "scripts/staging/verify-geo-edge-ingress.mjs"
       - "src/features/fore/Book.tsx"
@@ -106,6 +111,8 @@ jobs:
           NODE
       - run: node scripts/check-geo-edge-ingress.mjs
       - run: node scripts/check-storefront-strangler.mjs
+      - name: Prove 25-ID live rights prefix and full withdrawal-safe fallback
+        run: node scripts/check-storefront-v2-primary-prefix.mjs
       - run: node scripts/build-storefront-strangler.mjs
       - name: Require actual isolated literary canonical publication before postcutover capacity testing
         run: node scripts/staging/verify-literary-postpublication-readonly.mjs
