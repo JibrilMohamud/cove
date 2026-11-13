@@ -131,59 +131,58 @@ export async function productDetail(
     editionRows,
     disclosure,
   ] = await Promise.all([
-
-      effectiveOffer(db, product.id, territory),
-      activeEntitlement(db, userId, product.id),
-      db
-        .prepare(
-          `SELECT COUNT(*) review_count,AVG(rating_steps)/2.0 average_rating,SUM(CASE WHEN rating_steps=10 THEN 1 ELSE 0 END) five_star,SUM(CASE WHEN rating_steps=8 THEN 1 ELSE 0 END) four_star,SUM(CASE WHEN rating_steps=6 THEN 1 ELSE 0 END) three_star,SUM(CASE WHEN rating_steps=4 THEN 1 ELSE 0 END) two_star,SUM(CASE WHEN rating_steps=2 THEN 1 ELSE 0 END) one_star FROM reviews WHERE book_id=? AND visibility='public' AND moderation='visible' AND rating_steps IS NOT NULL`,
-        )
-        .bind(String(book.sourceExternalId || book.id))
-        .first<any>(),
-      db
-        .prepare(
-          "SELECT ranking_scope,ranking_key,rank,window,updated_at FROM product_rankings WHERE product_id=? ORDER BY ranking_scope,rank LIMIT 12",
-        )
-        .bind(product.id)
-        .all<any>(),
-      db
-        .prepare(
-          `SELECT n.id,n.name,n.path,n.depth,etn.is_primary FROM edition_taxonomy_nodes etn JOIN storefront_taxonomy_nodes n ON n.id=etn.taxonomy_node_id WHERE etn.edition_id=? AND n.visible=1 ORDER BY etn.is_primary DESC,n.depth DESC LIMIT 20`,
-        )
-        .bind(book.editionId)
-        .all<any>(),
-      db
-        .prepare(
-          `SELECT * FROM preview_policies WHERE edition_id=? AND enabled=1 AND (starts_at IS NULL OR starts_at<=?) AND (ends_at IS NULL OR ends_at>?)`,
-        )
-        .bind(book.editionId, at, at)
-        .first<any>(),
-      userId
-        ? db
-            .prepare("SELECT * FROM wishlist_items WHERE user_id=? AND product_id=?")
-            .bind(userId, product.id)
-            .first<any>()
-        : Promise.resolve(null),
-      db
-        .prepare(
-          `SELECT da.drm_status,da.downloadable,av.size_bytes,av.epub_version,av.version_number FROM digital_assets da LEFT JOIN asset_versions av ON av.id=da.current_version_id WHERE da.edition_id=? AND da.kind='epub' LIMIT 1`,
-        )
-        .bind(book.editionId)
-        .first<any>(),
-      db
-        .prepare(
-          `SELECT p.id product_id,p.public_id product_public_id,p.source_external_id,e.id edition_id,e.public_id edition_public_id,e.language,e.edition_number,e.publication_date,e.release_date,p.format,pub.name publisher,imp.name imprint
-      FROM editions e JOIN products p ON p.edition_id=e.id LEFT JOIN publishers pub ON pub.id=e.publisher_id LEFT JOIN imprints imp ON imp.id=e.imprint_id
-      WHERE e.work_id=? AND p.storefront_status='active' ORDER BY CASE WHEN e.id=? THEN 0 ELSE 1 END,COALESCE(e.release_date,e.publication_date,'9999') DESC LIMIT 25`,
-        )
-        .bind(book.workId, book.editionId)
-        .all<any>(),
-      db
-        .prepare(
-          `SELECT d.* FROM publishing_publications pp JOIN publishing_publication_versions pv ON pv.publication_id=pp.id JOIN publishing_release_lifecycles l ON l.id=pv.lifecycle_id AND l.current_publication_version_id=pv.id JOIN publishing_publication_disclosures d ON d.publication_version_id=pv.id WHERE pp.product_id=? ORDER BY d.created_at DESC LIMIT 1`,
-        )
-        .bind(product.id)
-        .first<any>(),
+    effectiveOffer(db, product.id, territory),
+    activeEntitlement(db, userId, product.id),
+    db
+      .prepare(
+        `SELECT COUNT(*) review_count,AVG(rating_steps)/2.0 average_rating,SUM(CASE WHEN rating_steps=10 THEN 1 ELSE 0 END) five_star,SUM(CASE WHEN rating_steps=8 THEN 1 ELSE 0 END) four_star,SUM(CASE WHEN rating_steps=6 THEN 1 ELSE 0 END) three_star,SUM(CASE WHEN rating_steps=4 THEN 1 ELSE 0 END) two_star,SUM(CASE WHEN rating_steps=2 THEN 1 ELSE 0 END) one_star FROM reviews WHERE book_id=? AND visibility='public' AND moderation='visible' AND rating_steps IS NOT NULL`,
+      )
+      .bind(String(book.sourceExternalId || book.id))
+      .first<any>(),
+    db
+      .prepare(
+        "SELECT ranking_scope,ranking_key,rank,window,updated_at FROM product_rankings WHERE product_id=? ORDER BY ranking_scope,rank LIMIT 12",
+      )
+      .bind(product.id)
+      .all<any>(),
+    db
+      .prepare(
+        `SELECT n.id,n.name,n.path,n.depth,etn.is_primary FROM edition_taxonomy_nodes etn JOIN storefront_taxonomy_nodes n ON n.id=etn.taxonomy_node_id WHERE etn.edition_id=? AND n.visible=1 ORDER BY etn.is_primary DESC,n.depth DESC LIMIT 20`,
+      )
+      .bind(book.editionId)
+      .all<any>(),
+    db
+      .prepare(
+        `SELECT * FROM preview_policies WHERE edition_id=? AND enabled=1 AND (starts_at IS NULL OR starts_at<=?) AND (ends_at IS NULL OR ends_at>?)`,
+      )
+      .bind(book.editionId, at, at)
+      .first<any>(),
+    userId
+      ? db
+          .prepare("SELECT * FROM wishlist_items WHERE user_id=? AND product_id=?")
+          .bind(userId, product.id)
+          .first<any>()
+      : Promise.resolve(null),
+    db
+      .prepare(
+        `SELECT da.drm_status,da.downloadable,av.size_bytes,av.epub_version,av.version_number FROM digital_assets da LEFT JOIN asset_versions av ON av.id=da.current_version_id WHERE da.edition_id=? AND da.kind='epub' LIMIT 1`,
+      )
+      .bind(book.editionId)
+      .first<any>(),
+    db
+      .prepare(
+        `SELECT p.id product_id,p.public_id product_public_id,p.source_external_id,e.id edition_id,e.public_id edition_public_id,e.language,e.edition_number,e.publication_date,e.release_date,p.format,pub.name publisher,imp.name imprint
+    FROM editions e JOIN products p ON p.edition_id=e.id LEFT JOIN publishers pub ON pub.id=e.publisher_id LEFT JOIN imprints imp ON imp.id=e.imprint_id
+    WHERE e.work_id=? AND p.storefront_status='active' ORDER BY CASE WHEN e.id=? THEN 0 ELSE 1 END,COALESCE(e.release_date,e.publication_date,'9999') DESC LIMIT 25`,
+      )
+      .bind(book.workId, book.editionId)
+      .all<any>(),
+    db
+      .prepare(
+        `SELECT d.* FROM publishing_publications pp JOIN publishing_publication_versions pv ON pv.publication_id=pp.id JOIN publishing_release_lifecycles l ON l.id=pv.lifecycle_id AND l.current_publication_version_id=pv.id JOIN publishing_publication_disclosures d ON d.publication_version_id=pv.id WHERE pp.product_id=? ORDER BY d.created_at DESC LIMIT 1`,
+      )
+      .bind(product.id)
+      .first<any>(),
   ]);
   const source = String(product.source_name),
     publicDomain = source === "gutenberg";
@@ -207,8 +206,6 @@ export async function productDetail(
   book.subscriptionEligible = channelFlags.subscriptionEligible;
   book.libraryEligible = channelFlags.libraryEligible;
   const canReadFull = source === "upload" || entitled || (publicDomain && !!rights?.allowed);
-
-
   const editionOffers = await Promise.all(
     editionRows.results.map((r: any) => effectiveOffer(db, String(r.product_id), territory)),
   );
@@ -228,7 +225,6 @@ export async function productDetail(
     offer: editionOffers[i],
     current: String(r.edition_id) === String(book.editionId),
   }));
-
   let publicBadges: any[] = [];
   try {
     publicBadges = disclosure ? JSON.parse(String(disclosure.public_badges_json || "[]")) : [];
