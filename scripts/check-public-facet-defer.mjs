@@ -18,10 +18,11 @@ assert.match(search, /for \(const work of deferredFacets \|\| \[\]\)/);
 assert.match(search, /refreshLeasedSearchFacets\(db, cacheKey/);
 assert.match(api, /catalog\(env, url, searchUserId, storefrontTerritory, execution\)/);
 assert.match(api, /facetsPending: result\.facetsPending === true/);
-assert.match(publicCache, /path === "\/api\/fore\/catalog" && data\.facetsPending === true/);
+assert.match(publicCache, /path === "\/api\/fore\/catalog"/);
+assert.match(publicCache, /data\.facetsPending === true \|\| data\.countPending === true/);
 assert.match(
   store,
-  /refetchInterval: \(query\) => \(query\.state\.data\?\.facetsPending \? 5_000 : false\)/,
+  /refetchInterval: \(query\) =>\s*query\.state\.data\?\.facetsPending \|\| query\.state\.data\?\.countPending \? 5_000 : false/,
 );
 
 // Execute the real distributed D1 lease under concurrent visitor traffic.
