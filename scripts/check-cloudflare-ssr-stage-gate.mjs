@@ -105,6 +105,10 @@ try {
   assert.doesNotMatch(wrangler, /^\[placement\]\s*$/m);
   assert.doesNotMatch(wrangler, /^region\s*=|^host\s*=|^hostname\s*=/m);
   assert.match(wrangler, /^COVE_SSR_STAGING\s*=\s*"1"$/m);
+  assert.doesNotMatch(wrangler, /\[\[d1_databases\]\]/);
+  assert.match(wrangler, /binding = "COVE_CANONICAL_READONLY"/);
+  assert.match(wrangler, /service = "cove-canonical-d1-readonly"/);
+  assert.match(wrangler, /^COVE_CANONICAL_READONLY_RPC\s*=\s*"1"$/m);
   assert.doesNotMatch(wrangler, /COVE_SSR_STAGING_GATE_KEY\s*=/);
   assert.doesNotMatch(wrangler, /^routes?\s*=/m);
   console.log("Cloudflare staging auth, read-only route and asset gate: PASS");
