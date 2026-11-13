@@ -26,7 +26,6 @@ const eligibleWhere = `
 export function legacyDenseTaxonomyCountPlan(
   territory: string,
   language: string,
-
 ): TaxonomyCountPlan {
   const normal = `WITH eligible AS MATERIALIZED (
     SELECT p.id,p.edition_id FROM products p
@@ -37,7 +36,7 @@ export function legacyDenseTaxonomyCountPlan(
   FROM eligible p JOIN edition_taxonomy_nodes et ON et.edition_id=p.edition_id
   GROUP BY et.taxonomy_node_id`;
   return { sql: normal, binds: [language, language, territory] };
-
+}
 
 /**
  * The runtime always starts from indexed, active territory grants and then
