@@ -18,6 +18,7 @@ on:
       - "src/server.ts"
       - "src/lib/persistence-backend.ts"
       - "scripts/check-storefront-inflight-metadata.mjs"
+      - "scripts/check-storefront-metadata-request-lifetime.mjs"
       - "src/features/fore/storefront-*.ts"
       - "src/features/fore/localization.server.ts"
       - "src/features/fore/search.server.ts"
@@ -73,8 +74,10 @@ jobs:
         run: node scripts/test-staging-empty-catalog-response.mjs
       - name: Distinguish thrown edge quota from genuine D1 7429 overload
         run: node scripts/check-storefront-thrown-admission.mjs
-      - name: Prove bounded anonymous presentation coalescing never caches legal rights
-        run: node scripts/check-storefront-inflight-metadata.mjs
+      - name: Prove metadata reads stay owned by each Worker request
+        run: |
+          node scripts/check-storefront-inflight-metadata.mjs
+          node scripts/check-storefront-metadata-request-lifetime.mjs
       - name: Classify only verified D1 7429 without exposing exception data
         run: node scripts/check-storefront-hedged.mjs
       - name: Verify gate source and production remains disabled

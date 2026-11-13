@@ -1,14 +1,15 @@
 /**
- * Single-isolate, staging-only in-flight deduplication of the exact anonymous
+ * Request-local, staging-only in-flight deduplication of the exact anonymous
  * market/locale/translation SELECT. This is PUBLIC presentation metadata.
  * No legal rights, grants, offers, entitlements or catalog rows are shared.
  *
- * A late arrival may share a read started <=300ms ago, but completed reads
- * are removed immediately and NEVER cached. In all cases, the independent
+ * Only calls made through the SAME request-owned wrapper may join. Never
+ * share a promise between Worker invocations: ending the originating request
+ * cancels its I/O and can leave other visitors waiting until their deadline.
+ * Completed reads are removed immediately and NEVER cached. The independent
  * authoritative D1 retail-availability query still runs for each request.
  */
 type MarketFlight = { startedAt: number; promise: Promise<unknown> };
-const flights = new WeakMap<object, Map<string, MarketFlight>>();
 const MAX_FLIGHTS_PER_BINDING = 8;
 const MAX_JOIN_AGE_MS = 300;
 
@@ -45,7 +46,7 @@ function safeMarketKey(sql: string, parameters: unknown[]): string | null {
 }
 
 function coalesceMarketRead<T>(
-  db: object,
+  active: Map<string, MarketFlight>,
   sql: string,
   parameters: unknown[],
   read: () => Promise<T>,
@@ -53,11 +54,6 @@ function coalesceMarketRead<T>(
 ): Promise<T> {
   const key = safeMarketKey(sql, parameters);
   if (key === null) return read();
-  let active = flights.get(db);
-  if (!active) {
-    active = new Map();
-    flights.set(db, active);
-  }
   const previous = active.get(key);
   const now = Date.now();
   if (previous && now - previous.startedAt <= MAX_JOIN_AGE_MS) {
@@ -78,7 +74,8 @@ function coalesceMarketRead<T>(
 /**
  * Proxy only the exact market SELECT's all() invocation. Every other method,
  * query and fallback uses the same raw D1 binding without any interception.
- * The binding, not request IP/account, scopes the bounded in-flight map.
+ * Each wrapper owns its bounded map. Callers must create it inside their
+ * request, never retain it in module state. The DB binding itself is unchanged.
  */
 type PublicMetadataDatabase = {
   prepare: (sql: string) => {
@@ -92,6 +89,7 @@ export function withInFlightAnonymousMarketReads<T extends object>(
   db: T,
   onJoined?: () => void,
 ): T {
+  const active = new Map<string, MarketFlight>();
   return new Proxy(db, {
     get(target, property) {
       if (property !== "prepare") {
@@ -114,7 +112,7 @@ export function withInFlightAnonymousMarketReads<T extends object>(
                 get(query, operation) {
                   if (operation === "all")
                     return () =>
-                      coalesceMarketRead(target, sql, parameters, () => query.all(), onJoined);
+                      coalesceMarketRead(active, sql, parameters, () => query.all(), onJoined);
                   const value = Reflect.get(query, operation, query);
                   return typeof value === "function" ? value.bind(query) : value;
                 },

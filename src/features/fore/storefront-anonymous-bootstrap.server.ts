@@ -73,9 +73,9 @@ export async function serveLeanAnonymousBootstrap(
   // authoritative market/translation view. A primary binding avoids the
   // cross-replica bootstrap/session path and is testable independently.
   // No cross-request cache or stale legal grants are introduced.
-  // Staging experiment only. Join concurrent, identical public presentation
-  // metadata requests for at most 300ms within one Worker isolate. Each
-  // request still performs its own live PRIMARY-D1 legal-rights query.
+  // Request-owned staging wrapper only. Never join another invocation's
+  // promise: its I/O is canceled when that invocation ends. Each request
+  // independently reads both public metadata and PRIMARY-D1 legal rights.
   const metadataDb =
     env.COVE_SSR_STAGING === "1"
       ? withInFlightAnonymousMarketReads(rawDb, () => {

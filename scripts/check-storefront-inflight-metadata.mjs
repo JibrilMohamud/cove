@@ -50,15 +50,15 @@ try {
     return { db, invocations, outstanding };
   }
 
-  // The same live SELECT, DB binding, country and language negotiation may
-  // share a single unresolved promise. Every caller independently receives it.
+  // Repeated reads through one request-owned wrapper may share a promise.
+  // A separate wrapper MUST issue independent I/O even for the same binding.
   const a = fakeDb();
   let joined = 0;
   const db1 = join(a.db, () => joined++);
   const db2 = join(a.db, () => joined++);
   assert.equal(db1.batch(), "original-batch");
   const p1 = db1.prepare(marketSql).bind("US", locales).all();
-  const p2 = db2.prepare(marketSql).bind("US", locales).all();
+  const p2 = db1.prepare(marketSql).bind("US", locales).all();
   await Promise.resolve();
   assert.equal(a.invocations.length, 1);
   assert.equal(joined, 1);
@@ -72,6 +72,12 @@ try {
   assert.equal(a.invocations.length, 2, "Completed metadata is never cached");
   a.outstanding[1].resolve({ results: [] });
   await fresh;
+
+  const independent = db2.prepare(marketSql).bind("US", locales).all();
+  await Promise.resolve();
+  assert.equal(a.invocations.length, 3, "A separate request wrapper must start its own read");
+  a.outstanding[2].resolve({ results: [] });
+  await independent;
 
   // Country, language and binding are isolation boundaries; never merge
   // different market data or signals between independent database targets.
@@ -87,9 +93,9 @@ try {
     dbB.prepare(marketSql).bind("US", locales).all(),
   ];
   await Promise.resolve();
-  assert.equal(a.invocations.length, 5);
+  assert.equal(a.invocations.length, 6);
   assert.equal(b.invocations.length, 1);
-  a.outstanding.slice(2).forEach((x) => x.resolve({ results: [] }));
+  a.outstanding.slice(3).forEach((x) => x.resolve({ results: [] }));
   b.outstanding[0].resolve({ results: [] });
   await Promise.all(countries);
 
@@ -108,19 +114,19 @@ try {
     db1.prepare(marketSql).bind("US", "{invalid-json").all(),
   ];
   await Promise.resolve();
-  assert.equal(a.invocations.length, 9);
-  a.outstanding.slice(5).forEach((x) => x.resolve({ results: [] }));
+  assert.equal(a.invocations.length, 10);
+  a.outstanding.slice(6).forEach((x) => x.resolve({ results: [] }));
   await Promise.all(other);
 
   // A rejected in-flight read must be evicted; no stale fallback is invented.
   const failure = db1.prepare(marketSql).bind("GB", locales).all();
   await Promise.resolve();
-  a.outstanding[9].reject(new Error("D1 unavailable"));
+  a.outstanding[10].reject(new Error("D1 unavailable"));
   await assert.rejects(failure, /D1 unavailable/);
   const retry = db1.prepare(marketSql).bind("GB", locales).all();
   await Promise.resolve();
-  assert.equal(a.invocations.length, 11, "Failure must never be replayed");
-  a.outstanding[10].resolve({ results: [{ active_locale: "en-GB" }] });
+  assert.equal(a.invocations.length, 12, "Failure must never be replayed");
+  a.outstanding[11].resolve({ results: [{ active_locale: "en-GB" }] });
   await retry;
 
   // Safe staging-only wiring, and a separate live D1 legal-rights path.
@@ -135,9 +141,7 @@ try {
   assert.match(bootstrap, /await timed\("limit", enforceFirstPaintRateLimit/);
   const timing = fs.readFileSync("src/features/fore/storefront-hedged-fetch.ts", "utf8");
   assert.match(timing, /"context_joined"/);
-  console.log(
-    "Bounded in-flight anonymous presentation joins: PASS; rights remain separately authoritative.",
-  );
+  console.log("Request-owned anonymous presentation joins: PASS; no I/O crosses request wrappers.");
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }
