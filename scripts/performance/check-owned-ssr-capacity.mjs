@@ -12,6 +12,28 @@ const origin = "https://ssr-canary.covereads.com";
 const concurrencyLevels = [1, 4, 8, 16, 32];
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
 
+// Only stable Worker-classified failure labels enter performance evidence.
+// Never persist the original provider error, SQL, headers or a dynamic value.
+const allowedFailureKinds = new Set([
+  "d1-resource-window",
+  "d1-queue-full",
+  "d1-queue-wait",
+  "service-overloaded",
+  "database",
+  "transient-service",
+  "limiter-unavailable",
+  "presentation-absent",
+  "presentation-invalid",
+  "presentation-binding",
+  "rate-limited",
+  "territory-mismatch",
+  "market-projection",
+  "unclassified",
+]);
+export function ownedStageFailureKind(value) {
+  return allowedFailureKinds.has(value) ? value : null;
+}
+
 // Diagnostic names include provider abbreviations such as d1. Parse complete
 // numeric-only tokens so descriptions and arbitrary header text are excluded.
 export function ownedServerTiming(raw) {
@@ -32,7 +54,25 @@ export function summarizeOwnedPhase(name, offered, rows, dropped = 0, sustained 
   const p95Ms = percentile(times, 0.95);
   const p99Ms = percentile(times, 0.99);
   const lateArrivals = rows.filter((row) => row.launchDelayMs >= 100).length;
+  const httpFailures = {};
+  const failureKinds = {};
+  for (const row of rows) {
+    if (Number.isInteger(row.status) && row.status > 0 && row.status !== 200)
+      httpFailures[row.status] = (httpFailures[row.status] || 0) + 1;
+    if (!row.valid) {
+      const kind =
+        ownedStageFailureKind(row.failureKind) ||
+        (row.status === 503
+          ? "unclassified-503"
+          : row.status === 0
+            ? "request-failed"
+            : "other-invalid-response");
+      failureKinds[kind] = (failureKinds[kind] || 0) + 1;
+    }
+  }
   return {
+    httpFailures,
+    failureKinds,
     name,
     offered,
     responses: rows.length,
@@ -78,6 +118,7 @@ async function main() {
     let ttfbMs = 0;
     let edgeRay = null;
     let serverTiming = {};
+    let failureKind = null;
     try {
       const response = await fetch(origin + "/", {
         method: "GET",
@@ -95,6 +136,7 @@ async function main() {
       status = response.status;
       edgeRay = safeCloudflareRay(response.headers);
       serverTiming = ownedServerTiming(response.headers.get("server-timing"));
+      failureKind = ownedStageFailureKind(response.headers.get("x-cove-stage-failure-kind"));
       const html = await response.text();
       const cards = validateHtml(status, response.headers.get("content-type") || "", html);
       assert.ok(cards > 0, "Full native SSR cards required");
@@ -115,6 +157,7 @@ async function main() {
         edgeRay,
         colo: edgeRay?.split("-")[1] || null,
         serverTiming,
+        failureKind,
       };
     } catch {
       return {
@@ -128,6 +171,7 @@ async function main() {
         edgeRay,
         colo: edgeRay?.split("-")[1] || null,
         serverTiming,
+        failureKind,
         error: status ? "invalid-http-or-rights-response" : "request-failed",
       };
     }
