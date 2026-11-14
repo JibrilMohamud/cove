@@ -4,7 +4,8 @@
 const STAGE_DB = "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
 const CANDIDATE = "cove-presentation-r2-candidate-stage";
 const MAX_OUTSTANDING = 64;
-const CATALOG_URL = "https://cove-presentation-r2-proof-20261114.cove-jibrilmohamud.workers.dev/api/fore/catalog";
+const CATALOG_URL =
+  "https://cove-presentation-r2-proof-20261114.cove-jibrilmohamud.workers.dev/api/fore/catalog";
 const MODES = ["noop", "rights", "catalog"];
 const RIGHTS_SQL = `WITH ranked AS MATERIALIZED (
  SELECT d.product_id,d.fore_bestseller_score sort_score,d.external_book_id sort_source
@@ -57,16 +58,27 @@ export function summarizeTriad(mode, kind, offered, rows, durationMs) {
   const timed = rows.map((x) => x.ms).filter(Number.isFinite);
   const outside = rows.map((x) => x.outsideSqlMs).filter(Number.isFinite);
   return {
-    mode, kind, offered, launched: rows.filter((x) => x.launched).length,
-    completed: rows.length, valid, failed: offered - valid,
+    mode,
+    kind,
+    offered,
+    launched: rows.filter((x) => x.launched).length,
+    completed: rows.length,
+    valid,
+    failed: offered - valid,
     dropped: rows.filter((x) => x.dropped).length,
     delayed100ms: rows.filter((x) => x.launchDelayMs >= 100).length,
-    achievedRps: durationMs > 0 ? Number((valid * 1000 / durationMs).toFixed(2)) : null,
-    p50Ms: nearestRank(timed, .5), p95Ms: nearestRank(timed, .95),
-    p99Ms: nearestRank(timed, .99), maxMs: nearestRank(timed, 1),
-    outsideSqlP95Ms: nearestRank(outside, .95),
-    sqlP95Ms: nearestRank(rows.map((x) => x.sqlMs).filter(Number.isFinite), .95),
-    statusCounts: rows.reduce((a, r) => {const k = String(r.status || 0); a[k] = (a[k] || 0) + 1; return a;}, {}),
+    achievedRps: durationMs > 0 ? Number(((valid * 1000) / durationMs).toFixed(2)) : null,
+    p50Ms: nearestRank(timed, 0.5),
+    p95Ms: nearestRank(timed, 0.95),
+    p99Ms: nearestRank(timed, 0.99),
+    maxMs: nearestRank(timed, 1),
+    outsideSqlP95Ms: nearestRank(outside, 0.95),
+    sqlP95Ms: nearestRank(rows.map((x) => x.sqlMs).filter(Number.isFinite), 0.95),
+    statusCounts: rows.reduce((a, r) => {
+      const k = String(r.status || 0);
+      a[k] = (a[k] || 0) + 1;
+      return a;
+    }, {}),
     releaseCertified: false,
   };
 }
@@ -82,54 +94,89 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
       const sqlMs = Number(result.meta?.duration);
       const ms = performance.now() - started;
       return {
-        status: 200, valid: ids.length === 25 && new Set(ids).size === 25 &&
+        status: 200,
+        valid:
+          ids.length === 25 &&
+          new Set(ids).size === 25 &&
           ids.every((id) => typeof id === "string" && id.startsWith("perf-synth-")),
-        ms, sqlMs: Number.isFinite(sqlMs) ? sqlMs : null,
+        ms,
+        sqlMs: Number.isFinite(sqlMs) ? sqlMs : null,
         outsideSqlMs: Number.isFinite(sqlMs) && sqlMs <= ms ? ms - sqlMs : null,
       };
     }
-    const url = CATALOG_URL + "?sort=popular&page=1&currency=USD&__proof=" +
+    const url =
+      CATALOG_URL +
+      "?sort=popular&page=1&currency=USD&__proof=" +
       encodeURIComponent(runId + "-" + ordinal);
     const ip = stageSyntheticIp(ordinal);
     const headers = {
-      accept: "application/json", "x-cove-backend-token": env.BACKEND,
-      "x-cove-client-country": "US", "x-cove-client-ip": ip,
+      accept: "application/json",
+      "x-cove-backend-token": env.BACKEND,
+      "x-cove-client-country": "US",
+      "x-cove-client-ip": ip,
       "cf-connecting-ip": ip,
     };
-    const resp = await env.CANDIDATE.fetch(new Request(url, {
-      method: "GET", headers, signal: AbortSignal.timeout(10000),
-    }));
+    const resp = await env.CANDIDATE.fetch(
+      new Request(url, {
+        method: "GET",
+        headers,
+        signal: AbortSignal.timeout(10000),
+      }),
+    );
     const firstByteMs = performance.now() - started;
     const data = await resp.json();
     const ms = performance.now() - started;
     const ids = Array.isArray(data?.results) ? data.results.map((b) => b.productId) : [];
     return {
-      status: resp.status, firstByteMs, ms,
-      valid: resp.status === 200 && ids.length === 24 && new Set(ids).size === 24 &&
+      status: resp.status,
+      firstByteMs,
+      ms,
+      valid:
+        resp.status === 200 &&
+        ids.length === 24 &&
+        new Set(ids).size === 24 &&
         ids.every((id) => typeof id === "string" && id.startsWith("perf-synth-")) &&
         resp.headers.get("x-cove-persistence") === "d1-r2",
     };
   } catch (error) {
-    return { status: 0, valid: false, ms: performance.now() - started,
-      errorKind: error?.name === "TimeoutError" ? "timeout" : "request-or-database-failure" };
+    return {
+      status: 0,
+      valid: false,
+      ms: performance.now() - started,
+      errorKind: error?.name === "TimeoutError" ? "timeout" : "request-or-database-failure",
+    };
   }
 }
 export async function runTriadPhase(mode, kind, offered, arrivalSpacingMs, env, runId) {
-  if (!Number.isSafeInteger(offered) || offered < 1 || offered > 100) throw new RangeError("offered");
+  if (!Number.isSafeInteger(offered) || offered < 1 || offered > 100)
+    throw new RangeError("offered");
   if (!Number.isFinite(arrivalSpacingMs) || arrivalSpacingMs < 0) throw new RangeError("spacing");
-  const began = performance.now(), rows = [], pending = new Set();
+  const began = performance.now(),
+    rows = [],
+    pending = new Set();
   for (let i = 0; i < offered; i++) {
     const scheduledAt = began + i * arrivalSpacingMs;
     await sleep(scheduledAt - performance.now());
     const launchDelayMs = performance.now() - scheduledAt;
     if (pending.size >= MAX_OUTSTANDING || launchDelayMs >= 100) {
-      rows.push({ status: 0, valid: false, launched: false, dropped: true,
-        ms: performance.now() - scheduledAt, launchDelayMs });
+      rows.push({
+        status: 0,
+        valid: false,
+        launched: false,
+        dropped: true,
+        ms: performance.now() - scheduledAt,
+        launchDelayMs,
+      });
       continue;
     }
     const task = singleTriadProbe(mode, env, i, runId).then((result) => {
-      rows.push({ ...result, launched: true, dropped: false, launchDelayMs,
-        ms: result.ms + launchDelayMs });
+      rows.push({
+        ...result,
+        launched: true,
+        dropped: false,
+        launchDelayMs,
+        ms: result.ms + launchDelayMs,
+      });
     });
     pending.add(task);
     task.finally(() => pending.delete(task));
@@ -152,24 +199,36 @@ export async function runTriadCampaign(env) {
   }
   for (const rate of [10, 25]) {
     for (const mode of MODES) {
-      const s = await runTriadPhase(mode, "scheduled-" + rate + "-rps", rate * 2, 1000 / rate, env, runId);
+      const s = await runTriadPhase(
+        mode,
+        "scheduled-" + rate + "-rps",
+        rate * 2,
+        1000 / rate,
+        env,
+        runId,
+      );
       samples.push(s);
       console.log(JSON.stringify({ schema: "cove.triad-stage-phase.v1", ...s }));
     }
   }
   const safe25 = samples.find((s) => s.kind === "scheduled-25-rps" && s.mode === "catalog");
-  if (safe25 && safe25.valid === safe25.offered && safe25.dropped === 0 &&
-      safe25.p95Ms < 2000) {
+  if (safe25 && safe25.valid === safe25.offered && safe25.dropped === 0 && safe25.p95Ms < 2000) {
     for (const mode of MODES) {
       const s = await runTriadPhase(mode, "scheduled-50-rps", 50, 20, env, runId);
       samples.push(s);
       console.log(JSON.stringify({ schema: "cove.triad-stage-phase.v1", ...s }));
     }
   }
-  return { schema: "cove.triad-stage-campaign.v1", releaseCertified: false,
-    syntheticD1: true, publicIngress: false, campaignCount: samples.length,
-    rps50Eligible: Boolean(safe25 && safe25.valid === safe25.offered &&
-      safe25.dropped === 0 && safe25.p95Ms < 2000) };
+  return {
+    schema: "cove.triad-stage-campaign.v1",
+    releaseCertified: false,
+    syntheticD1: true,
+    publicIngress: false,
+    campaignCount: samples.length,
+    rps50Eligible: Boolean(
+      safe25 && safe25.valid === safe25.offered && safe25.dropped === 0 && safe25.p95Ms < 2000,
+    ),
+  };
 }
 export default {
   async fetch(request, env) {
