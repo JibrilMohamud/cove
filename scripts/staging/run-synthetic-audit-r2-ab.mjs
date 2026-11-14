@@ -57,8 +57,17 @@ async function api(path, { method = "GET", body } = {}) {
   });
   const envelope = await response.json();
   if (!response.ok || !envelope.success)
-    throw new Error("Cloudflare API " + method + " " + path.split("?")[0] + " returned " +
-      response.status + " (" + (envelope.errors || []).map((x) => x.code).join(",") + ")");
+    throw new Error(
+      "Cloudflare API " +
+        method +
+        " " +
+        path.split("?")[0] +
+        " returned " +
+        response.status +
+        " (" +
+        (envelope.errors || []).map((x) => x.code).join(",") +
+        ")",
+    );
   return envelope.result;
 }
 
@@ -88,12 +97,13 @@ function assertIsolated(state) {
   assert.equal(db.length, 1, "Only one D1 binding allowed in the experiment");
   assert.equal(db[0].database_id, DB, "Production D1 must never be attached");
   assert.deepEqual(
-    state.bindings.filter((b) => b.name === "COVE_PUBLIC_PRESENTATION_CACHE")
+    state.bindings
+      .filter((b) => b.name === "COVE_PUBLIC_PRESENTATION_CACHE")
       .map((b) => b.bucket_name),
     [CACHE_BUCKET],
   );
-  const unsafe = state.bindings.filter(
-    (b) => /LEGAL_AUTHORITY|PAYMENT|STRIPE|OWNER|PRODUCTION_MEDIA/i.test(b.name),
+  const unsafe = state.bindings.filter((b) =>
+    /LEGAL_AUTHORITY|PAYMENT|STRIPE|OWNER|PRODUCTION_MEDIA/i.test(b.name),
   );
   assert.deepEqual(unsafe, [], "Never inherit production owner or commerce bindings");
 }
@@ -122,7 +132,8 @@ async function rollback() {
         strategy: "percentage",
         versions: [{ version_id: ORIGINAL, percentage: 100 }],
         annotations: {
-          "workers/message": "Rollback synthetic R2 audit experiment to exact original stage candidate",
+          "workers/message":
+            "Rollback synthetic R2 audit experiment to exact original stage candidate",
         },
       }),
     });
@@ -171,7 +182,10 @@ async function deployArm(enabled) {
   assertIsolated(state);
   assert.notEqual(state.version, ORIGINAL);
   assert.equal(state.bindings.length, EXPECTED_BINDINGS.length + 4);
-  assert.equal(state.bindings.find((b) => b.name === "COVE_SYNTHETIC_FAILURE_AUDIT_R2")?.text, enabled ? "1" : "0");
+  assert.equal(
+    state.bindings.find((b) => b.name === "COVE_SYNTHETIC_FAILURE_AUDIT_R2")?.text,
+    enabled ? "1" : "0",
+  );
   assert.equal(state.runtime?.limits?.cpu_ms, 300000);
   EVIDENCE.variant.push({ mode: enabled ? "r2" : "baseline", version: state.version });
   return state.version;
@@ -179,8 +193,13 @@ async function deployArm(enabled) {
 
 async function countR2Objects() {
   const prefix = "synthetic-catalog-failures/";
-  const result = await api("/r2/buckets/" + AUDIT_BUCKET + "/objects?prefix=" +
-    encodeURIComponent(prefix) + "&per_page=1000");
+  const result = await api(
+    "/r2/buckets/" +
+      AUDIT_BUCKET +
+      "/objects?prefix=" +
+      encodeURIComponent(prefix) +
+      "&per_page=1000",
+  );
   // The test sends at most 1000 requests per sustained phase. Require
   // an unpaginated count or explicitly fail rather than silently truncate.
   assert.ok(Array.isArray(result));
@@ -189,7 +208,12 @@ async function countR2Objects() {
 }
 
 function loadEvidence() {
-  const path = join("stage-driver", "artifacts", "causal-triad-stage", "controlled-worker-runs.json");
+  const path = join(
+    "stage-driver",
+    "artifacts",
+    "causal-triad-stage",
+    "controlled-worker-runs.json",
+  );
   assert.ok(existsSync(path), "No stage evidence: cannot claim a valid comparison");
   return JSON.parse(readFileSync(path, "utf8"));
 }
@@ -266,14 +290,12 @@ async function main() {
     // R2 evidence must be at least as numerous as all 503s reported by the
     // completed 50-RPS phase. Earlier warmup/burst failures may add objects.
     const failures = Number(EVIDENCE.r2.statusCounts?.["503"] || 0);
-    assert.ok(persisted >= failures,
-      "Missing independently persisted synthetic 503 audit objects");
+    assert.ok(persisted >= failures, "Missing independently persisted synthetic 503 audit objects");
     EVIDENCE.syntheticEvidenceCovered = true;
     EVIDENCE.completed = true;
   } catch (error) {
     EVIDENCE.completed = false;
-    EVIDENCE.failureKind =
-      error instanceof Error ? error.message.slice(0,230) : "unknown";
+    EVIDENCE.failureKind = error instanceof Error ? error.message.slice(0, 230) : "unknown";
     throw error;
   } finally {
     if (armed || process.env.COVE_ALLOW_SAFE_RESTORE === "1")
@@ -285,6 +307,9 @@ async function main() {
 
 if (import.meta.url === new URL("file://" + process.argv[1]).href)
   main().catch((error) => {
-    console.error("Synthetic R2 503 comparison blocked:", error instanceof Error ? error.message : "unknown");
+    console.error(
+      "Synthetic R2 503 comparison blocked:",
+      error instanceof Error ? error.message : "unknown",
+    );
     process.exitCode = 1;
   });
