@@ -8,16 +8,20 @@ import { transform } from "esbuild";
 const source = readFileSync("src/features/fore/search.server.ts", "utf8");
 const digest = (value) => createHash("sha256").update(value).digest("hex");
 const sourceSha256 = digest(source);
-const projectionSiteId = digest(JSON.stringify([
-  "src/features/fore/search.server.ts",
-  sourceSha256,
-  "refreshSearchQualitySignals",
-  "catalog_search_documents",
-  "UPDATE",
-  "b44b6a38f0afbbebca207293beeb8f920a9ab2f4d9429e3735fd6df1735d4846",
-  1,
-]));
-console.log("__COVE_SYNONYM_WRITER_SOURCE__" + sourceSha256 + "__SITE__" + projectionSiteId + "__END__");
+const projectionSiteId = digest(
+  JSON.stringify([
+    "src/features/fore/search.server.ts",
+    sourceSha256,
+    "refreshSearchQualitySignals",
+    "catalog_search_documents",
+    "UPDATE",
+    "b44b6a38f0afbbebca207293beeb8f920a9ab2f4d9429e3735fd6df1735d4846",
+    1,
+  ]),
+);
+console.log(
+  "__COVE_SYNONYM_WRITER_SOURCE__" + sourceSha256 + "__SITE__" + projectionSiteId + "__END__",
+);
 const start = source.indexOf("async function ftsExpression(");
 const end = source.indexOf("\nfunction buildSqlFilters(", start);
 assert.ok(start >= 0 && end > start, "Locate the real FTS expression function");
@@ -49,10 +53,15 @@ const db = {
 };
 assert.equal(await ftsExpression(db, { query: "", topic: undefined }), "");
 assert.equal(calls, 0, "Anonymous empty query must perform zero synonym D1 reads");
-assert.equal(await ftsExpression(db, { query: "   ", topic: "science" }), 'categories_text : "science"*');
+assert.equal(
+  await ftsExpression(db, { query: "   ", topic: "science" }),
+  'categories_text : "science"*',
+);
 assert.equal(calls, 0, "Topic-only query must not fetch synonyms for absent query tokens");
 const withTerms = await ftsExpression(db, { query: "hello" });
 assert.match(withTerms, /"hello"/);
 assert.match(withTerms, /"hi"/);
 assert.equal(calls, 1, "Real text query must still expand synonyms as before");
-console.log("PASS: guest and topic-only browse eliminate optional D1 synonym read; typed text retains expansion");
+console.log(
+  "PASS: guest and topic-only browse eliminate optional D1 synonym read; typed text retains expansion",
+);
