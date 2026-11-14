@@ -1243,10 +1243,7 @@ export function StorePage({
     enabled:
       !fastAnonymousHome ||
       (typeof window !== "undefined" &&
-        (!!matchingInitial?.catalog ||
-          !!fastPreview ||
-          fastShelf.isError ||
-          catalogFallbackReady)),
+        (!!matchingInitial?.catalog || !!fastPreview || fastShelf.isError || catalogFallbackReady)),
     placeholderData: fastAnonymousHome ? fastPreview : undefined,
     // A brief first-paint grace period prevents 24-card preview hydration
     // from competing with the very next server request for D1 capacity.
