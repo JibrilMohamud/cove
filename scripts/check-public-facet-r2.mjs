@@ -10,7 +10,7 @@ assert.match(search, /d1Facets\(db, input, expression, undefined, undefined, pre
 assert.match(search, /if \(!facetState\.pending && !presentationStore\)/);
 assert.match(search, /if \(!presentationStore\) \{\s*try \{\s*await writeCatalogCache/);
 assert.doesNotMatch(search, /refreshLeasedSearchFacets\(/);
-assert.match(api, /COVE_PUBLIC_PRESENTATION_CACHE\?: import/);
+assert.match(search, /COVE_PUBLIC_PRESENTATION_CACHE\?: PresentationR2Bucket/);
 
 const bundle = await build({
   entryPoints: ["src/features/fore/search-presentation-r2.server.ts"],
