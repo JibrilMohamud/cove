@@ -15,7 +15,7 @@ import {
 import { renderErrorPage } from "./lib/error-page";
 import {
   sanitizedStagingCatalogFailureTiming,
-  stagingHomeNeedsUnavailableStatus,
+  liveHomeNeedsUnavailableStatus,
 } from "./lib/staging-empty-catalog-response";
 import type { scopePublicationOwnerEnv as PublicationScope } from "./storefront-strangler/publication-owner-routing.server";
 import { cachePublicDocument } from "./lib/public-document-cache";
@@ -231,11 +231,21 @@ export default {
       );
       const renderDurationMs = performance.now() - renderStarted;
       const normalized = await normalizeCatastrophicSsrResponse(response);
-      // This is a staging-only correctness gate. A failed live-rights
-      // bootstrap must never produce a misleading HTTP 200 empty homepage.
-      // Query-filtered, authenticated and production customer flows stay
-      // unchanged. The latency/capacity gates remain strict.
-      const guarded = stagingHomeNeedsUnavailableStatus(request, normalized, staging)
+      // A required live-rights bootstrap that failed must not masquerade as
+      // HTTP 200 with zero books. Keep ordinary filtered navigation unaffected:
+      // the classifier requires the explicit failed-bootstrap timing marker.
+      // Production and configured remote previews are subject to the same
+      // first-paint correctness gate as the protected staging Worker.
+      const requireVerifiedBootstrap =
+        staging ||
+        foreEnv.FORE_ENVIRONMENT === "production" ||
+        foreEnv.VERCEL_ENV === "production" ||
+        Boolean(foreEnv.FORE_BACKEND_URL && foreEnv.FORE_BACKEND_TOKEN);
+      const guarded = liveHomeNeedsUnavailableStatus(
+        request,
+        normalized,
+        requireVerifiedBootstrap,
+      )
         ? new Response(renderErrorPage(), {
             status: 503,
             headers: {
