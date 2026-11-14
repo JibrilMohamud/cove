@@ -1,0 +1,107 @@
+{
+  "schema": "cove.staging-d1-api-controlled-bursts.v1",
+  "date": "2026-11-14",
+  "releaseCertified": false,
+  "environment": "Cloudflare management API using dedicated synthetic D1 cove-perf-isolated-candidate-20261019",
+  "syntheticDbId": "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
+  "queries": {
+    "trivial-d1": "SELECT 1 ok; 0 rows read, no catalog work",
+    "rights-only": "PR #665 top-96 ranked shortlist; current primary active/product/release/territorial rights with US/USD/available filters; 25 unique synthetic IDs; 346 rows read"
+  },
+  "importantLimit": "Single wave per concurrency, no Worker service-binding or browser TTFB. The API-client/network and management endpoint may serialize or queue requests. SQL p95 and API wall p95 are independent distributions, not subtracted.",
+  "totalOffered": 170,
+  "totalValid": 170,
+  "totalWrites": 0,
+  "results": [
+    {
+      "concurrency": 1,
+      "trivial": {
+        "valid": 1,
+        "p95Ms": 626,
+        "maxMs": 626,
+        "meanSqlMs": 0.09
+      },
+      "rights": {
+        "valid": 1,
+        "p95Ms": 883,
+        "maxMs": 883,
+        "meanSqlMs": 3.05
+      }
+    },
+    {
+      "concurrency": 4,
+      "trivial": {
+        "valid": 4,
+        "p95Ms": 756,
+        "maxMs": 756,
+        "meanSqlMs": 0.13
+      },
+      "rights": {
+        "valid": 4,
+        "p95Ms": 790,
+        "maxMs": 790,
+        "meanSqlMs": 2.97
+      }
+    },
+    {
+      "concurrency": 8,
+      "trivial": {
+        "valid": 8,
+        "p95Ms": 1505,
+        "maxMs": 1505,
+        "meanSqlMs": 0.11
+      },
+      "rights": {
+        "valid": 8,
+        "p95Ms": 1608,
+        "maxMs": 1608,
+        "meanSqlMs": 3.38
+      }
+    },
+    {
+      "concurrency": 16,
+      "trivial": {
+        "valid": 16,
+        "p95Ms": 2807,
+        "maxMs": 2807,
+        "meanSqlMs": 0.12
+      },
+      "rights": {
+        "valid": 16,
+        "p95Ms": 2821,
+        "maxMs": 2821,
+        "meanSqlMs": 3.18
+      }
+    },
+    {
+      "concurrency": 24,
+      "trivial": {
+        "valid": 24,
+        "p95Ms": 3386,
+        "maxMs": 3436,
+        "meanSqlMs": 0.12
+      },
+      "rights": {
+        "valid": 24,
+        "p95Ms": 3696,
+        "maxMs": 3722,
+        "meanSqlMs": 3.14
+      }
+    },
+    {
+      "concurrency": 32,
+      "trivial": {
+        "valid": 32,
+        "p95Ms": 4638,
+        "maxMs": 5085,
+        "meanSqlMs": 0.12
+      },
+      "rights": {
+        "valid": 32,
+        "p95Ms": 4329,
+        "maxMs": 4883,
+        "meanSqlMs": 2.99
+      }
+    }
+  ]
+}
