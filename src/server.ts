@@ -76,9 +76,9 @@ export default {
       // When disabled this branch has no effect on the production D1 binding.
       const runtimeEnv = scopePublicationOwnerEnv(
         (nativeEnv.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1"
-          ? (await import("./storefront-strangler/legal-primary-write-lock")).scopeStageLegalWriterEnv(
-              nativeEnv as any,
-            )
+          ? (
+              await import("./storefront-strangler/legal-primary-write-lock")
+            ).scopeStageLegalWriterEnv(nativeEnv as any)
           : nativeEnv) as Parameters<typeof scopePublicationOwnerEnv>[0],
       );
       const foreEnv = runtimeEnv as {
