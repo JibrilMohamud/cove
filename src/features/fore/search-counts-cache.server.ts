@@ -1,5 +1,6 @@
 import type { CatalogDB } from "./catalog-model.server";
 import { writeCatalogCache } from "./catalog-cache.server";
+import { isPrimaryD1Overload } from "../../lib/primary-d1-overload";
 
 const PREFIX = "search-counts:v1:";
 const TTL_MS = 600_000;
@@ -57,7 +58,10 @@ export async function presentationSearchCount<
       const value: unknown = JSON.parse(cached.body);
       if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value;
     }
-  } catch {
+  } catch (error) {
+    // A saturated D1 cache service will not recover by initiating a
+    // substantially larger live COUNT against that same database.
+    if (isPrimaryD1Overload(error)) throw error;
     // Missing/corrupt cache may never cause a rights or search decision.
   }
   const liveCount = await countLive();
