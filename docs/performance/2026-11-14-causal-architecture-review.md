@@ -67,3 +67,17 @@ The independent Cloudflare event query retrieved *individual* stage D1 span even
 | 20:31:30–20:33:30 | 115 | 489.82 ms | 1,727.93 ms | 1,728.68 ms |
 
 The earlier interval returned 60 total trace events, but only 32 included both valid numeric durations; 28 were excluded rather than assigned zero SQL. The later interval returned 115/115 valid paired spans. These results **confirm substantial outside-SQL delay in sampled stage D1 operations**, not a specific provider queue, connection pool wait, or CPU bottleneck. The two intervals contain different query mixes and must not be treated as a controlled A/B comparison. Future measurements must capture Worker CPU and a generator noop control.
+
+## Concurrency shape from the final 61-sample synthetic campaign
+
+The full, ordered samples on PR #665 permit per-wave nearest-rank statistics. These are **application durations only**, with one wave at each load and no 24-request wave:
+
+| Offered concurrency | n | Mean app ms | p50 app ms | p95 app ms | Max app ms |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | 1 | 321 | 321 | 321 | 321 |
+| 4 | 4 | 299 | 282 | 327 | 327 |
+| 8 | 8 | 227 | 227 | 275 | 275 |
+| 16 | 16 | 422 | 407 | 491 | 491 |
+| 32 | 32 | 463 | 459 | 637 | 639 |
+
+This pattern is **not linearly increasing** across the recorded waves. There is an elevated 16-request distribution relative to eight, with a wider 32-request tail; however a saturation cliff at 16/24/32 is **not established** without repeated randomized waves and 24-request measurements. These runs cannot distinguish queueing from changing per-operation latency, actual throughput plateau, or load-generator scheduling. Do not infer provider CPU percentage, connection-pool occupancy, or achieved RPS from application samples alone.
