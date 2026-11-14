@@ -410,16 +410,19 @@ async function activeCandidateIds(db: CatalogDB, territory: string, limit = 400)
     if (fast.results.length === wanted) {
       const ids = fast.results.map((x) => String(x.id));
       if (presentationDb === db) return ids; // Non-replicated fixture/engine.
+      // The home pool contains up to 500 IDs; D1 permits only 100 bound
+      // parameters. One JSON array keeps the whole CURRENT primary rights
+      // check in one statement without truncating the pool or adding trips.
       const current = await db
         .prepare(
           `SELECT COUNT(*) eligible FROM products p JOIN editions e ON e.id=p.edition_id
-          WHERE p.id IN (${ids.map(() => "?").join(",")})
+          WHERE p.id IN (SELECT value FROM json_each(?))
             AND p.storefront_status='active' AND p.source_name<>'upload'
             AND e.release_status IN ('available','preorder')
             AND EXISTS(SELECT 1 FROM retail_product_availability_rows rpa
               WHERE rpa.product_id=p.id AND rpa.territory_code=upper(?))`,
         )
-        .bind(...ids, territory)
+        .bind(JSON.stringify(ids), territory)
         .first<{ eligible: number }>();
       if (Number(current?.eligible || 0) === ids.length) return ids;
     }
