@@ -251,10 +251,19 @@ async function phase(mode, shape, offered, spacingMs, run, secret) {
 }
 
 async function warmup(run, secret) {
-  const unauth = await fetch(ORIGIN + PREFIX + "noop?run=" + run + "&ordinal=0", {
-    signal: AbortSignal.timeout(3000),
-  });
-  assert.equal(unauth.status, 404, "Public client cannot run stage diagnostics");
+  // The version API can become active before workers.dev propagation finishes.
+  // The old gated driver returns 403; the new private diagnostic returns 404.
+  // Do not mistake deployment propagation for a failed security assertion.
+  let unauthorizedStatus = 0;
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const unauth = await fetch(ORIGIN + PREFIX + "noop?run=" + run + "&ordinal=0", {
+      signal: AbortSignal.timeout(3000),
+    });
+    unauthorizedStatus = unauth.status;
+    if (unauthorizedStatus === 404) break;
+    await sleep(1000);
+  }
+  assert.equal(unauthorizedStatus, 404, "Private staging route did not propagate safely");
   for (const mode of MODES) {
     let result;
     for (let retry = 0; retry < 5; retry++) {
