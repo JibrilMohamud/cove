@@ -87,6 +87,10 @@ test("all paths validate stage identity and independent rights provenance", asyn
   const context = await singleTriadProbe("context", env, 2, "probe");
   assert.equal(context.valid, true);
   assert.equal(context.status, 200);
+  const contextStats = summarizeTriad("context", "single", 1, [{ ...context, launched: true }], 50);
+  assert.equal(contextStats.transportLayer, "candidate-service-binding");
+  assert.ok(Number.isFinite(contextStats.firstByteP95Ms));
+  assert.ok(contextStats.responseBodyP95Ms >= 0);
   const full = await singleTriadProbe("catalog", env, 3, "probe");
   assert.equal(full.valid, true);
   assert.equal(full.status, 200);
@@ -116,6 +120,10 @@ test("summarization counts every failure and does not imply a release pass", () 
   assert.equal(s.failed, 2);
   assert.equal(s.dropped, 1);
   assert.equal(s.p95Ms, 300);
+  assert.equal(s.firstByteP95Ms, null);
+  assert.equal(s.responseBodyP95Ms, null);
+  assert.equal(s.transportLayer, "candidate-service-binding");
+  assert.equal(s.externalTtfbCertified, false);
   assert.equal(s.releaseCertified, false);
   assert.equal(s.statusCounts["503"], 1);
 });
