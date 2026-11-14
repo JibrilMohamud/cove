@@ -165,11 +165,9 @@ export async function refreshPublicFacetProjection(
     if (!completed) {
       // A stale lease owner cannot replace another colo's newer lease/result.
       await bucket
-        .put(
-          name,
-          JSON.stringify({ version: 1, kind: "lease", expiresAt: now() - 1 }),
-          { onlyIf: { etagMatches: lease.etag } },
-        )
+        .put(name, JSON.stringify({ version: 1, kind: "lease", expiresAt: now() - 1 }), {
+          onlyIf: { etagMatches: lease.etag },
+        })
         .catch(() => null);
     }
   }
