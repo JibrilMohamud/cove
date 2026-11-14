@@ -15,10 +15,9 @@ import {
 import { renderErrorPage } from "./lib/error-page";
 import {
   sanitizedStagingCatalogFailureTiming,
-  stagingHomeNeedsUnavailableStatus,
+  liveHomeNeedsUnavailableStatus,
 } from "./lib/staging-empty-catalog-response";
-import { scopeStageLegalWriterEnv } from "./storefront-strangler/legal-primary-write-lock";
-import { scopePublicationOwnerEnv } from "./storefront-strangler/publication-owner-routing.server";
+import type { scopePublicationOwnerEnv as PublicationScope } from "./storefront-strangler/publication-owner-routing.server";
 import { cachePublicDocument } from "./lib/public-document-cache";
 import { applySecurityHeaders, securityTxt } from "./lib/security-headers";
 import { handleVercelIngestionControl, proxyPersistenceApi } from "./lib/persistence-backend";
@@ -75,11 +74,21 @@ export default {
       // A production attempt to turn this on without verified owner-first
       // writers fails closed rather than silently changing legal authority.
       // When disabled this branch has no effect on the production D1 binding.
-      const runtimeEnv = scopePublicationOwnerEnv(
-        (nativeEnv.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1"
-          ? scopeStageLegalWriterEnv(nativeEnv as any)
-          : nativeEnv) as Parameters<typeof scopePublicationOwnerEnv>[0],
-      );
+      const fencedEnv =
+        nativeEnv.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1"
+          ? (
+              await import("./storefront-strangler/legal-primary-write-lock")
+            ).scopeStageLegalWriterEnv(nativeEnv as any)
+          : nativeEnv;
+      // Private publication owner commands cannot run in the ordinary anonymous
+      // public request path. Keep the binding/receipt module out of cold SSR;
+      // an explicit opt-in still exercises its complete fail-closed gate.
+      const runtimeEnv =
+        fencedEnv.COVE_PUBLICATION_COMMANDS_ENABLED === "1"
+          ? (
+              await import("./storefront-strangler/publication-owner-routing.server")
+            ).scopePublicationOwnerEnv(fencedEnv as Parameters<typeof PublicationScope>[0])
+          : fencedEnv;
       const foreEnv = runtimeEnv as {
         DB?: any;
         BUCKET?: any;
@@ -222,11 +231,17 @@ export default {
       );
       const renderDurationMs = performance.now() - renderStarted;
       const normalized = await normalizeCatastrophicSsrResponse(response);
-      // This is a staging-only correctness gate. A failed live-rights
-      // bootstrap must never produce a misleading HTTP 200 empty homepage.
-      // Query-filtered, authenticated and production customer flows stay
-      // unchanged. The latency/capacity gates remain strict.
-      const guarded = stagingHomeNeedsUnavailableStatus(request, normalized, staging)
+      // A required live-rights bootstrap that failed must not masquerade as
+      // HTTP 200 with zero books. Keep ordinary filtered navigation unaffected:
+      // the classifier requires the explicit failed-bootstrap timing marker.
+      // Production and configured remote previews are subject to the same
+      // first-paint correctness gate as the protected staging Worker.
+      const requireVerifiedBootstrap =
+        staging ||
+        foreEnv.FORE_ENVIRONMENT === "production" ||
+        foreEnv.VERCEL_ENV === "production" ||
+        Boolean(foreEnv.FORE_BACKEND_URL && foreEnv.FORE_BACKEND_TOKEN);
+      const guarded = liveHomeNeedsUnavailableStatus(request, normalized, requireVerifiedBootstrap)
         ? new Response(renderErrorPage(), {
             status: 503,
             headers: {

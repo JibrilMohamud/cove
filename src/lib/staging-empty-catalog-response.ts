@@ -1,18 +1,21 @@
 /**
- * A protected native-Worker canary must not report a successful homepage when
- * its live primary-D1 rights bootstrap was unavailable. In ordinary browser
- * catalog-filter navigations an empty SSR bootstrap is intentional, so apply
- * this contract only to the exact staging GET / document.
+ * A real-rights storefront must not report HTTP 200 when its required live
+ * rights bootstrap was unavailable. The source must have emitted the explicit
+ * cove_ssr_empty marker; filtered browsing intentionally renders without
+ * this initial shelf and remains unaffected.
+ *
+ * Applies to protected staging and configured live/preview remote backends.
+ * The synthetic local test site retains its existing development behavior.
  *
  * Classification is header-only. Never inspect or log book data, IP, tokens,
  * SQL or the error response body.
  */
-export function stagingHomeNeedsUnavailableStatus(
+export function liveHomeNeedsUnavailableStatus(
   request: Request,
   response: Response,
-  staging: boolean,
+  requireVerifiedBootstrap: boolean,
 ): boolean {
-  if (!staging || request.method !== "GET") return false;
+  if (!requireVerifiedBootstrap || request.method !== "GET") return false;
   const url = new URL(request.url);
   if (url.pathname !== "/" || url.search) return false;
   if (response.status !== 200) return false;
@@ -23,7 +26,7 @@ export function stagingHomeNeedsUnavailableStatus(
 }
 
 /**
- * The protected canary converts an empty, unverified homepage to HTTP 503.
+ * Configured live and protected canary origins convert an unverified home to HTTP 503.
  * Do not lose the safe phase evidence needed to distinguish a D1 7429 overload
  * from transport, denial and deadline failures. Never copy arbitrary headers,
  * timing descriptions, exception text, SQL, identity or request attributes.

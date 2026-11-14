@@ -1,0 +1,17 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Separate source-bound engineering review compared the performance edits against commit 3cb14330. All 34 protected SQL literals and containing functions (33 API, one search) are byte-identical by AST fingerprint. Changes replace a bounded read-only shortlist with one primary snapshot, remove legacy D1 presentation caching only on the existing guest R2 opt-in, and reuse the existing validated cookie-free locale snapshot. Canonical mutation callers, paid/account paths, owner fences, dispositions and release denials remain unchanged. This is not independent production writer-ownership, rights or cutover certification.",
+  "files": [
+    {
+      "path": "src/features/fore/api.server.ts",
+      "sha256": "33c86ccf1b29f51ceb8191db77bc6bd11f3934316396cd16259ba11c0649fd85",
+      "review": "Reviewed the complete changed caller: only cookie-free, identity-free GET /catalog with the existing R2 feature/binding enabled may choose the existing fresh metadata snapshot. Locale/payment validation and subsequent current-primary rights remain mandatory. Cookie/account/admin/commerce mutation callers and all 33 protected SQL literals are unchanged."
+    },
+    {
+      "path": "src/features/fore/search.server.ts",
+      "sha256": "6058f067527184f817f2759c0385129a344c67ea995d4fe46a58e53ea561f356",
+      "review": "Reviewed the complete read/cache changes and exported predicate: it retains exactly the prior guest/public/unfiltered feature boundary. Fresh primary product eligibility, territorial rights, sparse fallback and hydration remain mandatory. The protected refreshSearchQualitySignals mutation and its caller/owner guard are byte-identical; its reviewed disposition is preserved."
+    }
+  ]
+}

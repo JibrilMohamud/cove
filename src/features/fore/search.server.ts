@@ -14,6 +14,12 @@ import { rightsScopedCachedPageQuery } from "./rights-scoped-cache-page";
 import { rightsRecheckedReplicaCandidates } from "./rights-rechecked-replica-candidates";
 import { searchOutboxAcknowledgement } from "./search-outbox-ack";
 import { countAvailableCandidatesFromFacet } from "./count-from-availability-facet";
+import { firstPagePopularRightsShortlist } from "./search-popular-shortlist.server";
+import {
+  readPublicFacetProjection,
+  refreshPublicFacetProjection,
+  type PresentationR2Bucket,
+} from "./search-presentation-r2.server";
 
 type SearchEnv = {
   DB: CatalogDB;
@@ -24,6 +30,10 @@ type SearchEnv = {
   FORE_SEARCH_INDEX?: string;
   FORE_SEARCH_EMBEDDER?: string;
   FORE_SEARCH_REPLICA_CANDIDATES?: string;
+  FORE_ASYNC_CATALOG_FACETS?: string;
+  FORE_POPULAR_RIGHTS_SHORTLIST?: string;
+  FORE_GUEST_CATALOG_PROGRESSIVE_COUNT?: string;
+  COVE_PUBLIC_PRESENTATION_CACHE?: PresentationR2Bucket;
 };
 
 type FacetValue = { value: string; count: number };
@@ -71,6 +81,9 @@ export type SearchResult = {
   books: CatalogBook[];
   count: number;
   facets: SearchFacets;
+  facetsPending?: boolean;
+  /** When true, count is a proven lower bound, not the eventual exact total. */
+  countPending?: boolean;
   queryId: string | null;
   backend: "meilisearch" | "d1-fts5";
   processingTimeMs: number;
@@ -667,10 +680,27 @@ function facetCacheIdentity(input: SearchInput, expression: string) {
   return { ...filters, population, page: 1, limit: 1, expression };
 }
 
+type DeferredFacetWork = Array<() => Promise<void>>;
+
+function pendingFacetLabels(): SearchFacets {
+  return {
+    categories: [],
+    languages: [],
+    formats: [],
+    publishers: [],
+    series: [],
+    availability: [],
+    price: null,
+  };
+}
+
 async function d1Facets(
   db: CatalogDB,
   input: SearchInput,
   expression: string,
+  deferred?: DeferredFacetWork,
+  state?: { pending: boolean },
+  presentationStore?: PresentationR2Bucket,
 ): Promise<SearchFacets> {
   // Facets are independent of pagination and personalization. Cache their
   // public projection briefly while every result page still checks live rights.
@@ -685,27 +715,56 @@ async function d1Facets(
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
   const cacheKey = `search-facets:v2:${cacheId}`;
-  try {
-    const cached = await db
-      .prepare("SELECT body FROM api_cache WHERE key=? AND expires_at>?")
-      .bind(cacheKey, Date.now())
-      .first<{ body: string }>();
-    if (cached) {
-      const value = JSON.parse(cached.body) as SearchFacets;
-      if (
-        [
-          value.categories,
-          value.languages,
-          value.formats,
-          value.publishers,
-          value.series,
-          value.availability,
-        ].every(Array.isArray)
-      )
-        return value;
+  if (presentationStore) {
+    // Opt-in deferred facets have their own R2-only data plane. Never use a
+    // primary-D1 api_cache lease or write on this path.
+    try {
+      const cached = await readPublicFacetProjection(presentationStore, cacheKey);
+      if (cached) return cached;
+    } catch {
+      // Cache storage cannot confer rights or make books unavailable.
     }
-  } catch {
-    /* Cache availability never decides search availability. */
+  } else {
+    try {
+      const cached = await db
+        .prepare("SELECT body FROM api_cache WHERE key=? AND expires_at>?")
+        .bind(cacheKey, Date.now())
+        .first<{ body: string }>();
+      if (cached) {
+        const value = JSON.parse(cached.body) as SearchFacets;
+        if (
+          [
+            value.categories,
+            value.languages,
+            value.formats,
+            value.publishers,
+            value.series,
+            value.availability,
+          ].every(Array.isArray)
+        )
+          return value;
+      }
+    } catch {
+      /* Cache availability never decides search availability. */
+    }
+  }
+  // All new deferred work requires an explicitly bound, independent R2
+  // presentation cache, not a canonical-D1 write capability.
+  if (deferred) {
+    if (!presentationStore) throw new Error("Independent facet cache binding required");
+    if (state) state.pending = true;
+    deferred.push(async () => {
+      await refreshPublicFacetProjection(presentationStore, cacheKey, async () => {
+        // Skip this expensive presentation scan when primary D1 is already
+        // struggling to answer even a trivial, read-only probe.
+        const before = performance.now();
+        const health = await db.prepare("SELECT 1 AS ok").first<{ ok: number }>();
+        if (health?.ok !== 1 || performance.now() - before > 300)
+          throw new Error("Primary D1 is not ready for facet presentation work");
+        return d1Facets(db, input, expression, undefined, undefined, presentationStore);
+      });
+    });
+    return pendingFacetLabels();
   }
   // Ten-minute cached facets are display-only. Query misses on a replica
   // eligible session, never replacing the primary rights checks for books,
@@ -845,17 +904,19 @@ async function d1Facets(
           }
         : null,
   };
-  try {
-    await writeCatalogCache(
-      db,
-      cacheKey,
-      JSON.stringify(result),
-      Date.now() + 600_000,
-      "search-facets:v2:",
-      128,
-    );
-  } catch {
-    /* Cache writes are best effort. */
+  if (!presentationStore) {
+    try {
+      await writeCatalogCache(
+        db,
+        cacheKey,
+        JSON.stringify(result),
+        Date.now() + 600_000,
+        "search-facets:v2:",
+        128,
+      );
+    } catch {
+      /* Existing non-deferred cache writes remain best effort. */
+    }
   }
   return result;
 }
@@ -927,8 +988,17 @@ async function typoCorrection(db: CatalogDB, query: string) {
   return changed ? corrected.join(" ") : null;
 }
 
-async function searchD1(env: SearchEnv, input: SearchInput, userId: string | null) {
+async function searchD1(
+  env: SearchEnv,
+  input: SearchInput,
+  userId: string | null,
+  deferred?: DeferredFacetWork,
+) {
   const started = Date.now();
+  // The independent R2 candidate already computes a bounded primary-rights
+  // page. Do not pay for a legacy D1 page-cache lookup which this path never
+  // populates. All non-opted-in searches retain that cache and its recheck.
+  const presentationStore = deferred ? env.COVE_PUBLIC_PRESENTATION_CACHE : undefined;
   const cacheId = [
     ...new Uint8Array(
       await crypto.subtle.digest(
@@ -941,9 +1011,11 @@ async function searchD1(env: SearchEnv, input: SearchInput, userId: string | nul
     .join("");
   const cacheKey = `search-page:v1:${cacheId}`;
   try {
-    const row = await env.DB.prepare("SELECT body FROM api_cache WHERE key=? AND expires_at>?")
-      .bind(cacheKey, Date.now())
-      .first<{ body: string }>();
+    const row = presentationStore
+      ? null
+      : await env.DB.prepare("SELECT body FROM api_cache WHERE key=? AND expires_at>?")
+          .bind(cacheKey, Date.now())
+          .first<{ body: string }>();
     if (row) {
       const cached = JSON.parse(row.body) as {
         ids: string[];
@@ -1007,7 +1079,65 @@ async function searchD1(env: SearchEnv, input: SearchInput, userId: string | nul
     input.library === undefined &&
     env.FORE_SEARCH_REPLICA_CANDIDATES === "1" &&
     presentationDb !== env.DB;
+  let hasVerifiedNextPageWitness = false;
   const runIds = async () => {
+    // Optional, bounded first-page fast path. A full primary-D1 legal
+    // recheck proves all 24 results against the existing WHERE clauses.
+    // If the shortlist cannot prove the complete ranked page, fall back to
+    // the unchanged full popularity scan without returning partial rights.
+    const guestDefaultPopular =
+      env.FORE_POPULAR_RIGHTS_SHORTLIST === "1" &&
+      !userId &&
+      !input.query &&
+      !part.hasFts &&
+      input.sort === "popular" &&
+      input.page === 1 &&
+      input.limit <= 24 &&
+      input.availability === "available" &&
+      input.taxonomy.length === 0 &&
+      input.categories.length === 0 &&
+      input.languages.length === 0 &&
+      input.formats.length === 0 &&
+      input.publishers.length === 0 &&
+      input.series.length === 0 &&
+      input.contributorIds.length === 0 &&
+      input.seriesIds.length === 0 &&
+      input.publisherIds.length === 0 &&
+      input.imprintIds.length === 0 &&
+      input.subscription === undefined &&
+      input.library === undefined &&
+      input.minPrice === undefined &&
+      input.maxPrice === undefined &&
+      input.minRating === undefined &&
+      input.minReviews === undefined &&
+      !input.publishedAfter &&
+      !input.publishedBefore &&
+      input.preorder === undefined &&
+      input.newRelease === undefined &&
+      input.deals === undefined;
+    if (guestDefaultPopular) {
+      try {
+        // A 25th independently rights-checked book proves Next without a
+        // catalog-wide COUNT, but only on the narrow progressive guest path.
+        // If fewer than 25 pass, use the original full scan/count instead.
+        const progressive =
+          env.FORE_GUEST_CATALOG_PROGRESSIVE_COUNT === "1" &&
+          deferred !== undefined &&
+          input.limit === 24;
+        const verified = await firstPagePopularRightsShortlist(
+          env.DB,
+          part,
+          progressive ? input.limit + 1 : input.limit,
+        );
+        if (verified) {
+          hasVerifiedNextPageWitness = progressive;
+          return { results: verified.slice(0, input.limit).map((product_id) => ({ product_id })) };
+        }
+      } catch {
+        // Primary-D1 failures NEVER produce unverified IDs: use the ordinary
+        // fully scoped query, which may also deny the request if unavailable.
+      }
+    }
     const clause = part.where.join(" AND ");
     const plan = await rankedCandidatePlan(replicaRanking ? presentationDb : env.DB, input, part);
     const sql = `${plan.prefix} SELECT d.product_id,${part.rank} FROM ${plan.from} WHERE ${clause} ORDER BY ${d1Sort(input, part.hasFts)},d.product_id ASC LIMIT ? OFFSET ?`;
@@ -1049,11 +1179,16 @@ async function searchD1(env: SearchEnv, input: SearchInput, userId: string | nul
   };
   const runCount = async () => {
     const countLive = async () => {
+      // Counting does not rank. Preserve EVERY territorial and product
+      // eligibility predicate, but never force a popularity index scan for
+      // a query that has no ORDER BY. This lets SQLite choose the selective
+      // currency index (including a zero-row market) on D1 read replicas.
+      const countPart = facetScanCandidateParts(input, expression);
       const row = await presentationDb
         .prepare(
-          `${part.prefix} SELECT COUNT(*) count FROM ${part.from} WHERE ${part.where.join(" AND ")}`,
+          `${countPart.prefix} SELECT COUNT(*) count FROM ${countPart.from} WHERE ${countPart.where.join(" AND ")}`,
         )
-        .bind(...part.binds)
+        .bind(...countPart.binds)
         .first<{ count: number }>();
       return Number(row?.count || 0);
     };
@@ -1072,19 +1207,30 @@ async function searchD1(env: SearchEnv, input: SearchInput, userId: string | nul
   // rights-scoped candidate population as the separate COUNT query.
   // On a cache miss, avoid scanning the expensive legal view twice.
   // If the facet contract changes, fall back to the original COUNT.
+  const facetState = { pending: false };
   const sharedFacetCount = !input.query && !part.hasFts && input.availability === "available";
   const [initialRows, initialCount, sharedFacets] = await Promise.all([
     runIds(),
     sharedFacetCount ? Promise.resolve<{ count: number } | null>(null) : runCount(),
     sharedFacetCount
-      ? d1Facets(env.DB, input, expression)
+      ? d1Facets(env.DB, input, expression, deferred, facetState, presentationStore)
       : Promise.resolve<SearchFacets | null>(null),
   ]);
   let rows = initialRows;
   let count = initialCount;
+  // No approximate total is ever used as an authorization decision.
+  // The 25th *primary-rights-checked* book proves only that page 2 exists.
+  // The leased facet refresh subsequently supplies the exact total.
+  const countPending = !!(sharedFacets && facetState.pending && hasVerifiedNextPageWitness);
   if (sharedFacets) {
-    const exact = countAvailableCandidatesFromFacet(input, part.hasFts, sharedFacets);
-    count = exact === null ? await runCount() : { count: exact };
+    const exact = facetState.pending
+      ? null
+      : countAvailableCandidatesFromFacet(input, part.hasFts, sharedFacets);
+    count = countPending
+      ? { count: input.limit + 1 }
+      : exact === null
+        ? await runCount()
+        : { count: exact };
   }
   if (!count?.count && input.query) {
     const correction = await typoCorrection(env.DB, input.query);
@@ -1098,24 +1244,35 @@ async function searchD1(env: SearchEnv, input: SearchInput, userId: string | nul
   const ids = rows.results.map((r: any) => String(r.product_id));
   const [books, facets] = await Promise.all([
     canonicalBooksByProductIds(env.DB, ids),
-    sharedFacets || d1Facets(env.DB, input, expression),
+    sharedFacets || d1Facets(env.DB, input, expression, deferred, facetState, presentationStore),
   ]);
-  try {
-    await writeCatalogCache(
-      env.DB,
-      cacheKey,
-      JSON.stringify({ ids, count: Number(count?.count || 0), facets, expression, correctedQuery }),
-      Date.now() + 600_000,
-      "search-page:v1:",
-      256,
-    );
-  } catch {
-    /* Search remains available without cache writes. */
+  // Pending labels cannot be persisted as a ten-minute search-page result.
+  if (!facetState.pending && !presentationStore) {
+    try {
+      await writeCatalogCache(
+        env.DB,
+        cacheKey,
+        JSON.stringify({
+          ids,
+          count: Number(count?.count || 0),
+          facets,
+          expression,
+          correctedQuery,
+        }),
+        Date.now() + 600_000,
+        "search-page:v1:",
+        256,
+      );
+    } catch {
+      /* Search remains available without cache writes. */
+    }
   }
   return {
     books,
     count: Number(count?.count || 0),
     facets,
+    facetsPending: facetState.pending,
+    countPending,
     correctedQuery,
     duration: Date.now() - started,
   };
@@ -1764,10 +1921,48 @@ export async function firstPaintStorefrontShelf(
   };
 }
 
+/** Shared opt-in boundary for independent public presentation storage. */
+export function canDeferGuestCatalogFacets(
+  env: Pick<SearchEnv, "DB" | "FORE_ASYNC_CATALOG_FACETS" | "COVE_PUBLIC_PRESENTATION_CACHE">,
+  input: SearchInput,
+  userId: string | null,
+) {
+  return (
+    env.FORE_ASYNC_CATALOG_FACETS === "1" &&
+    !!env.COVE_PUBLIC_PRESENTATION_CACHE &&
+    !userId &&
+    !input.query &&
+    input.sort === "popular" &&
+    input.page === 1 &&
+    input.taxonomy.length === 0 &&
+    input.categories.length === 0 &&
+    input.languages.length === 0 &&
+    input.formats.length === 0 &&
+    input.publishers.length === 0 &&
+    input.series.length === 0 &&
+    input.contributorIds.length === 0 &&
+    input.seriesIds.length === 0 &&
+    input.publisherIds.length === 0 &&
+    input.imprintIds.length === 0 &&
+    input.subscription === undefined &&
+    input.library === undefined &&
+    input.minPrice === undefined &&
+    input.maxPrice === undefined &&
+    input.minRating === undefined &&
+    input.minReviews === undefined &&
+    !input.publishedAfter &&
+    !input.publishedBefore &&
+    input.preorder === undefined &&
+    input.newRelease === undefined &&
+    input.deals === undefined
+  );
+}
+
 export async function searchCatalog(
   env: SearchEnv,
   input: SearchInput,
   userId: string | null,
+  defer?: (work: Promise<unknown>) => void,
 ): Promise<SearchResult> {
   if (input.query && !queryTokens(input.query).length)
     return {
@@ -1787,14 +1982,14 @@ export async function searchCatalog(
       processingTimeMs: 0,
       limit: input.limit,
     };
-  // The primary-rights first-paint shelf also imports this module, but does
-  // not use account personalization or its ingestion/ZIP dependencies.
-  const { personalizeSearchBooks, personalizedSearchEnabled } =
-    await import("./recommendations.server");
+  // The primary-rights first-paint shelf and guest catalog never use
+  // account personalization. Loading the full recommendations module for
+  // every unfiltered anonymous browse adds avoidable cold-start work.
+  // Signed-in relevance searches retain exactly the existing privacy gate.
+  const mayPersonalize = Boolean(userId && input.query && input.sort === "relevance");
+  const personalization = mayPersonalize ? await import("./recommendations.server") : null;
   const personalizeWindow =
-    !!input.query &&
-    input.sort === "relevance" &&
-    (await personalizedSearchEnabled(env.DB, userId));
+    !!personalization && (await personalization.personalizedSearchEnabled(env.DB, userId));
   const start = (input.page - 1) * input.limit,
     windowLimit = Math.min(200, Math.max(input.limit * 5, start + input.limit));
   const searchInputForBackend =
@@ -1803,6 +1998,15 @@ export async function searchCatalog(
   // Subscription/library eligibility is date- and territory-sensitive legal state; D1 is the
   // authoritative projection until those channels have independent external indexes.
   if (input.subscription !== undefined || input.library !== undefined) backend = "d1";
+  // Conservative opt-in only: anonymous unfiltered first-page popular books.
+  // No private/account facet, alternate ordering or active filter may defer.
+  const deferredFacets: DeferredFacetWork | undefined =
+    defer && canDeferGuestCatalogFacets(env, input, userId) ? [] : undefined;
+  // Preserve the reviewed unmodified call path for every nonopted-in request.
+  const runD1Search = () =>
+    deferredFacets
+      ? searchD1(env, searchInputForBackend, userId, deferredFacets)
+      : searchD1(env, searchInputForBackend, userId);
   let result: Awaited<ReturnType<typeof searchD1>> | Awaited<ReturnType<typeof searchMeili>>;
   if (backend === "meilisearch") {
     try {
@@ -1810,7 +2014,7 @@ export async function searchCatalog(
     } catch (error) {
       console.warn("Meilisearch query failed; using D1 FTS5 fallback", error);
       backend = "d1";
-      result = await searchD1(env, searchInputForBackend, userId);
+      result = await runD1Search();
       await env.DB.prepare("UPDATE search_index_state SET last_error=? WHERE id=1")
         .bind(error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500))
         .run()
@@ -1818,12 +2022,11 @@ export async function searchCatalog(
           console.warn("Search fallback diagnostics unavailable", failure),
         );
     }
-  } else result = await searchD1(env, searchInputForBackend, userId);
+  } else result = await runD1Search();
   const backendName = backend === "meilisearch" ? "meilisearch" : "d1-fts5";
-  const personalized =
-    input.sort === "relevance" && input.query
-      ? await personalizeSearchBooks(env.DB, userId, result.books)
-      : { books: result.books, applied: false };
+  const personalized = personalization
+    ? await personalization.personalizeSearchBooks(env.DB, userId, result.books)
+    : { books: result.books, applied: false };
   const pageBooks =
     personalizeWindow && start < 200
       ? personalized.books.slice(start, start + input.limit)
@@ -1839,10 +2042,16 @@ export async function searchCatalog(
     console.warn("Search analytics unavailable", error);
     return null;
   });
+  // Fire once after ALL foreground legal/book/analytics reads have finished.
+  for (const work of deferredFacets || []) {
+    defer?.(work().catch(() => console.warn("Public catalog facet refresh unavailable")));
+  }
   return {
     books: visibleBooks,
     count: result.count,
     facets: result.facets,
+    facetsPending: "facetsPending" in result && result.facetsPending === true,
+    countPending: "countPending" in result && result.countPending === true,
     queryId,
     backend: backendName,
     processingTimeMs: result.duration,

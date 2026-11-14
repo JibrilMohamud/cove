@@ -33,7 +33,10 @@ permissions:
   actions: read
 concurrency:
   group: cove-fullsite-performance-${{ github.ref }}
-  cancel-in-progress: false
+  # Superseded PR commits must not queue repeated 20-second primary-D1
+  # guest catalog probes. The newest PR still runs every unchanged gate.
+  # Main-branch release baselines are never canceled by a newer push.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   public-browser-baseline:
     runs-on: ubuntu-latest

@@ -75,6 +75,7 @@ function adapter(calls) {
     prepare(statement) {
       return {
         bind(...params) {
+          assert.ok(params.length <= 100, "Candidate query exceeds D1's 100 bound-parameter limit");
           return {
             async all() {
               calls.push(statement);
@@ -143,6 +144,17 @@ assert.ok(
   replicaReads.some((statement) => statement.includes("WITH ranked AS MATERIALIZED")),
   "The expensive ranking query must run on the replica-eligible read session",
 );
+
+// Real home discovery requests 450 candidates. SQLite's permissive local
+// variable limit previously hid a hosted-only failure in the primary recheck.
+// Exercise both valid and withdrawn replica windows at production pool sizes.
+for (const limit of [99, 100, 160, 450, 500]) {
+  const primary = adapter([]);
+  primary.withSession = () => adapter([]);
+  const expected = reference.all("US", "US", limit).map((row) => row.id);
+  assert.deepEqual(await activeCandidateIds(primary, "US", limit), expected);
+  assert.deepEqual(await activeCandidateIds(base, "US", limit), expected);
+}
 
 assert.match(source.slice(start, end), /retail_product_availability_rows/);
 assert.match(source.slice(start, end), /rights_grant_territories/);
