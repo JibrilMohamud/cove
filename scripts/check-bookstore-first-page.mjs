@@ -48,9 +48,12 @@ try {
   const store = readFileSync("src/features/fore/Store.tsx", "utf8");
   assert.match(
     store,
-    /enabled:\s*!fastAnonymousHome \|\|\s*!!matchingInitial\?\.catalog \|\|\s*!!fastPreview \|\|\s*fastShelf\.isError \|\|\s*catalogFallbackReady/,
+    /enabled:\s*!fastAnonymousHome \|\|\s*\(typeof window !== "undefined" &&\s*\(\s*!!matchingInitial\?\.catalog \|\|\s*!!fastPreview \|\|\s*fastShelf\.isError \|\|\s*catalogFallbackReady\)\)/,
   );
   assert.match(store, /placeholderData: fastAnonymousHome \? fastPreview : undefined/);
+  // Server-side verified first paint must never trigger an additional full
+  // COUNT/facet query; existing client fallback still runs after hydration.
+  assert.match(store, /typeof window !== "undefined" &&/);
   assert.match(store, /fastAnonymousHome && !matchingInitial\?\.catalog/);
   assert.match(store, /landingPath === "\/"/);
   assert.match(store, /landingPath === "\/store"/);
