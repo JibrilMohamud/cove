@@ -6,6 +6,7 @@ const GATE = "a".repeat(64);
 const URL = "https://cove-presentation-capacity-driver-stage.cove-jibrilmohamud.workers.dev";
 let d1Calls = 0;
 let serviceCalls = 0;
+let serviceFailure = null;
 const env = {
   COVE_TRIAD_STAGE: "1",
   COVE_TRIAD_ONDEMAND: "1",
@@ -34,18 +35,23 @@ const env = {
   CANDIDATE: {
     async fetch(request) {
       serviceCalls += 1;
-      assert.equal(request.headers.get("x-cove-backend-token"), "b".repeat(64));
-      assert.equal(request.headers.has("cookie"), false);
-      return Response.json(
-        new URL(request.url).pathname.endsWith("/context")
-          ? { rightsCountry: "US", currency: "USD" }
-          : {
-              results: Array.from({ length: 24 }, (_, i) => ({
-                productId: "perf-synth-" + i,
-              })),
-            },
-        { headers: { "x-cove-persistence": "d1-r2" } },
-      );
+      try {
+        assert.equal(request.headers.get("x-cove-backend-token"), "b".repeat(64));
+        assert.equal(request.headers.has("cookie"), false);
+        return Response.json(
+          new URL(request.url).pathname.endsWith("/context")
+            ? { rightsCountry: "US", currency: "USD" }
+            : {
+                results: Array.from({ length: 24 }, (_, i) => ({
+                  productId: "perf-synth-" + i,
+                })),
+              },
+          { headers: { "x-cove-persistence": "d1-r2" } },
+        );
+      } catch (error) {
+        serviceFailure = (error?.name || "unknown") + ":" + (error?.message || "unknown");
+        throw error;
+      }
     },
   },
 };
@@ -78,7 +84,7 @@ test("one authenticated ingress tests noop, rights, context and catalog without 
   for (const mode of ["noop", "rights", "context", "catalog"]) {
     const response = await worker.fetch(makeRequest(mode), env);
     const result = await response.json();
-    assert.equal(response.status, 200, mode + " " + JSON.stringify(result));
+    assert.equal(response.status, 200, mode + " " + JSON.stringify({ result, serviceCalls, serviceFailure }));
     assert.match(response.headers.get("server-timing") || "", /cove_stage_worker;dur=/);
     assert.equal(result.mode, mode);
     assert.equal(result.valid, true);
