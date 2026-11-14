@@ -266,7 +266,19 @@ export default {
   },
   async scheduled(event, env, ctx) {
     const expires = Date.parse(env.COVE_TRIAD_EXPIRES_AT || "");
-    if (!triadStageBindingGuard(env) || !Number.isFinite(expires) || Date.now() > expires) return;
+    const singleMinute = Number(env.COVE_TRIAD_RUN_MINUTE);
+    const scheduledMinute = Math.floor(Number(event?.scheduledTime) / 60_000);
+    // Only a deliberately provisioned one-minute staging cron is eligible.
+    // The committed config has no trigger and a permanently expired deadline.
+    if (
+      !triadStageBindingGuard(env) ||
+      !Number.isFinite(expires) ||
+      Date.now() > expires ||
+      !Number.isSafeInteger(singleMinute) ||
+      singleMinute <= 0 ||
+      scheduledMinute !== singleMinute
+    )
+      return;
     ctx.waitUntil(runTriadCampaign(env).then((out) => console.log(JSON.stringify(out))));
   },
 };
