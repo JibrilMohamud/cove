@@ -345,7 +345,10 @@ async function ftsExpression(db: CatalogDB, input: SearchInput, queryOverride?: 
   if (/^(?:\d{1,9}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,100})$/.test(normalized))
     return `external_book_id : ${quoteFts(normalized)}`;
   const tokenGroups = queryTokens(query);
-  const syns = await synonyms(db);
+  // No search terms means there is nothing to expand. On cold Workers,
+  // this avoids an entire D1 service operation for ordinary guest browsing.
+  // Topic-only discovery still adds its original category expression.
+  const syns = tokenGroups.length ? await synonyms(db) : new Map<string, string[]>();
   const groups = tokenGroups.map((token, i) => {
     const variants = [token, ...(syns.get(token) || [])].slice(0, 5);
     const isLast = i === tokenGroups.length - 1;
