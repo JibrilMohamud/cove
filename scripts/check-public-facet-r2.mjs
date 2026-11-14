@@ -27,16 +27,13 @@ class FakeR2 {
   sequence = 0;
   async get(key) {
     const item = this.data.get(key);
-    return item
-      ? { etag: item.etag, size: item.body.length, text: async () => item.body }
-      : null;
+    return item ? { etag: item.etag, size: item.body.length, text: async () => item.body } : null;
   }
   async put(key, value, options) {
     const current = this.data.get(key);
     const condition = options?.onlyIf || {};
     if (condition.etagDoesNotMatch === "*" && current) return null;
-    if (condition.etagMatches !== undefined && current?.etag !== condition.etagMatches)
-      return null;
+    if (condition.etagMatches !== undefined && current?.etag !== condition.etagMatches) return null;
     const item = { etag: "etag-" + ++this.sequence, body: value };
     this.data.set(key, item);
     return { etag: item.etag };
@@ -120,9 +117,14 @@ assert.equal((await readPublicFacetProjection(r2, key, now)).categories[0].value
 
 // Failure must unlock without publishing an unverified facet response.
 await assert.rejects(
-  refreshPublicFacetProjection(r2, otherKey, async () => {
-    throw new Error("primary D1 unhealthy");
-  }, clock),
+  refreshPublicFacetProjection(
+    r2,
+    otherKey,
+    async () => {
+      throw new Error("primary D1 unhealthy");
+    },
+    clock,
+  ),
   /primary D1 unhealthy/,
 );
 assert.equal(await readPublicFacetProjection(r2, otherKey, now), null);
