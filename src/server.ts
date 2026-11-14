@@ -17,7 +17,7 @@ import {
   sanitizedStagingCatalogFailureTiming,
   stagingHomeNeedsUnavailableStatus,
 } from "./lib/staging-empty-catalog-response";
-import { scopePublicationOwnerEnv } from "./storefront-strangler/publication-owner-routing.server";
+import type { scopePublicationOwnerEnv as PublicationScope } from "./storefront-strangler/publication-owner-routing.server";
 import { cachePublicDocument } from "./lib/public-document-cache";
 import { applySecurityHeaders, securityTxt } from "./lib/security-headers";
 import { handleVercelIngestionControl, proxyPersistenceApi } from "./lib/persistence-backend";
@@ -74,13 +74,21 @@ export default {
       // A production attempt to turn this on without verified owner-first
       // writers fails closed rather than silently changing legal authority.
       // When disabled this branch has no effect on the production D1 binding.
-      const runtimeEnv = scopePublicationOwnerEnv(
-        (nativeEnv.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1"
+      const fencedEnv =
+        nativeEnv.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1"
           ? (
               await import("./storefront-strangler/legal-primary-write-lock")
             ).scopeStageLegalWriterEnv(nativeEnv as any)
-          : nativeEnv) as Parameters<typeof scopePublicationOwnerEnv>[0],
-      );
+          : nativeEnv;
+      // Private publication owner commands cannot run in the ordinary anonymous
+      // public request path. Keep the binding/receipt module out of cold SSR;
+      // an explicit opt-in still exercises its complete fail-closed gate.
+      const runtimeEnv =
+        fencedEnv.COVE_PUBLICATION_COMMANDS_ENABLED === "1"
+          ? (await import("./storefront-strangler/publication-owner-routing.server")).scopePublicationOwnerEnv(
+              fencedEnv as Parameters<typeof PublicationScope>[0],
+            )
+          : fencedEnv;
       const foreEnv = runtimeEnv as {
         DB?: any;
         BUCKET?: any;
