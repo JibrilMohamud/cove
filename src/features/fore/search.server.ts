@@ -15,6 +15,7 @@ import { rightsRecheckedReplicaCandidates } from "./rights-rechecked-replica-can
 import { searchOutboxAcknowledgement } from "./search-outbox-ack";
 import { countAvailableCandidatesFromFacet } from "./count-from-availability-facet";
 import { firstPagePopularRightsShortlist } from "./search-popular-shortlist.server";
+import { isPrimaryD1Overload } from "../../lib/primary-d1-overload";
 import {
   readPublicFacetProjection,
   refreshPublicFacetProjection,
@@ -344,7 +345,10 @@ async function ftsExpression(db: CatalogDB, input: SearchInput, queryOverride?: 
   if (/^(?:\d{1,9}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,100})$/.test(normalized))
     return `external_book_id : ${quoteFts(normalized)}`;
   const tokenGroups = queryTokens(query);
-  const syns = await synonyms(db);
+  // No search terms means there is nothing to expand. On cold Workers,
+  // this avoids an entire D1 service operation for ordinary guest browsing.
+  // Topic-only discovery still adds its original category expression.
+  const syns = tokenGroups.length ? await synonyms(db) : new Map<string, string[]>();
   const groups = tokenGroups.map((token, i) => {
     const variants = [token, ...(syns.get(token) || [])].slice(0, 5);
     const isLast = i === tokenGroups.length - 1;
@@ -744,7 +748,8 @@ async function d1Facets(
         )
           return value;
       }
-    } catch {
+    } catch (error) {
+      if (isPrimaryD1Overload(error)) throw error;
       /* Cache availability never decides search availability. */
     }
   }
@@ -1061,8 +1066,10 @@ async function searchD1(
           duration: Date.now() - started,
         };
     }
-  } catch {
-    // Corrupt/unavailable cache or changed rights always return to live search.
+  } catch (error) {
+    // A failed D1 service cannot be rescued by a larger live legal scan.
+    // Preserve the normal cache-corruption/rights-change fallback otherwise.
+    if (isPrimaryD1Overload(error)) throw error;
   }
   // Count totals are non-authoritative presentation metadata. Results,
   // book hydration and retail-rights selection still use primary env.DB.
@@ -1133,9 +1140,13 @@ async function searchD1(
           hasVerifiedNextPageWitness = progressive;
           return { results: verified.slice(0, input.limit).map((product_id) => ({ product_id })) };
         }
-      } catch {
-        // Primary-D1 failures NEVER produce unverified IDs: use the ordinary
-        // fully scoped query, which may also deny the request if unavailable.
+      } catch (error) {
+        // D1 resource-window/7429 failures are service saturation, not an
+        // incomplete shortlist. Never amplify them with the full catalog scan.
+        // No cached or unverified ID is returned; the API fails closed 503.
+        if (isPrimaryD1Overload(error)) throw error;
+        // A non-overload failure may still use the original current-rights
+        // fallback; this preserves sparse-market and migration compatibility.
       }
     }
     const clause = part.where.join(" AND ");

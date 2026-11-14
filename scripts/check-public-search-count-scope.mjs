@@ -216,6 +216,20 @@ try {
     presentationSearchCount(brokenDb, scope, "", live(-5), clock),
     /Invalid public search count/,
   );
+  // D1 resource-window exhaustion must NOT initiate a large live count after
+  // even a tiny presentation-cache lookup fails on the same shared service.
+  const overloadedDb = {
+    prepare() {
+      throw new Error("D1 DB is overloaded. Too many resources consumed within a 10 second window");
+    },
+  };
+  const beforeOverload = liveCalls;
+  await assert.rejects(
+    presentationSearchCount(overloadedDb, scope, "", live(9999), clock),
+    /resources consumed within a 10 second window/,
+  );
+  assert.equal(liveCalls, beforeOverload, "D1 overload cannot trigger a replacement full COUNT");
+
   console.log(
     "Public count presentation cache: market/isolation, paging/sort, TTL, stale-count safety, invalid cache PASS",
   );

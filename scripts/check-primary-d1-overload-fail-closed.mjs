@@ -13,6 +13,8 @@ for (const error of [
   { message: "D1_ERROR: overload while reading" },
   { code: 7429 },
   { cause: { code: "7429" } },
+  new Error("D1 DB is overloaded. Too many resources consumed within a 10 second window"),
+  { cause: { message: "Too many resources consumed within a 10 second window" } },
 ]) {
   assert.equal(isPrimaryD1Overload(error), true);
 }
@@ -21,6 +23,7 @@ for (const error of [
   new Error("HTTP 503 from upstream"),
   new Error("Rate limit exceeded 429"),
   { message: "An unrelated service overloaded" },
+  new Error("Other system resources were unavailable"),
   { code: 503 },
   { cause: { code: "SQLITE_CONSTRAINT" } },
   "7429",
@@ -40,4 +43,22 @@ assert.doesNotMatch(overloadedPath, /\.prepare\(|recordErrorEvent\(/);
 const handler = readFileSync("src/features/fore/api.server.ts", "utf8");
 assert.match(handler, /await recordErrorEvent\(env\.DB as any/);
 assert.match(handler, /return json\(/);
-console.log("Cloudflare D1 7429 skips recursive error writes; API still fails closed: PASS");
+
+const searchSource = readFileSync("src/features/fore/search.server.ts", "utf8");
+const shortlistStart = searchSource.indexOf(
+  "const verified = await firstPagePopularRightsShortlist(",
+);
+const fullFallbackStart = searchSource.indexOf(
+  "const plan = await rankedCandidatePlan",
+  shortlistStart,
+);
+assert.ok(shortlistStart >= 0 && fullFallbackStart > shortlistStart);
+const recovery = searchSource.slice(shortlistStart, fullFallbackStart);
+assert.match(
+  recovery,
+  /catch \(error\) \{[\s\S]*?if \(isPrimaryD1Overload\(error\)\) throw error;/,
+);
+
+console.log(
+  "D1 resource-window overload fails closed without expanding to full catalog scan: PASS",
+);
