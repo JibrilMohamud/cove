@@ -1236,12 +1236,17 @@ export function StorePage({
     queryFn: ({ signal }) => api("/catalog?" + params, "GET", undefined, { signal }),
     // Wait for the small live-rights shelf (or its explicit failure) before
     // starting the 20s cold COUNT/facet request on an unbootstrapped homepage.
+    // A server-rendered anonymous shelf already supplies verified books.
+    // Never launch a second, expensive count/facet query on the SERVER as
+    // that initial payload ages during a slow cold render. Browser hydration
+    // preserves the existing fallback and full-catalog refresh behavior.
     enabled:
       !fastAnonymousHome ||
-      !!matchingInitial?.catalog ||
-      !!fastPreview ||
-      fastShelf.isError ||
-      catalogFallbackReady,
+      (typeof window !== "undefined" &&
+        (!!matchingInitial?.catalog ||
+          !!fastPreview ||
+          fastShelf.isError ||
+          catalogFallbackReady)),
     placeholderData: fastAnonymousHome ? fastPreview : undefined,
     // A brief first-paint grace period prevents 24-card preview hydration
     // from competing with the very next server request for D1 capacity.
