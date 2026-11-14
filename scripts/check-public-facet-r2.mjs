@@ -17,9 +17,15 @@ for (const flag of [
   "FORE_POPULAR_RIGHTS_SHORTLIST",
   "FORE_GUEST_CATALOG_PROGRESSIVE_COUNT",
 ]) {
-  assert.ok(candidate.includes(flag + ' = "1"'), flag + " must be enabled only on the private test candidate");
+  assert.ok(
+    candidate.includes(flag + ' = "1"'),
+    flag + " must be enabled only on the private test candidate",
+  );
 }
-assert.doesNotMatch(candidate, /cove-production-media|cove-production"|4bd657ac-8789-403e-a28c-93aba8d0a989|LEGAL_AUTHORITY|\[triggers\]/);
+assert.doesNotMatch(
+  candidate,
+  /cove-production-media|cove-production"|4bd657ac-8789-403e-a28c-93aba8d0a989|LEGAL_AUTHORITY|\[triggers\]/,
+);
 
 const api = fs.readFileSync("src/features/fore/api.server.ts", "utf8");
 assert.match(search, /!!env\.COVE_PUBLIC_PRESENTATION_CACHE/);
