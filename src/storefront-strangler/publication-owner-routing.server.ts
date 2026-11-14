@@ -1,6 +1,16 @@
 /* eslint-disable prettier/prettier -- A typed publication command, never a delegated SQL executor. */
 import {ApiError} from "../features/fore/service";
-import {dispatchCanonicalOwnerCommand} from "./canonical-owner-command-gateway";
+import type {CanonicalCommandKind} from "./canonical-owner-command-gateway";
+
+// Keep the full typed owner-command schema/receipt validator out of the
+// cold anonymous SSR module graph. Every actual private command still loads
+// and awaits the exact same authoritative validator before sending anything.
+async function dispatchCanonicalOwnerCommand(
+  port:OwnerPort,secret:string,kind:CanonicalCommandKind,raw:unknown
+):Promise<Record<string,unknown>> {
+  const {dispatchCanonicalOwnerCommand:invoke}=await import("./canonical-owner-command-gateway");
+  return invoke(port,secret,kind,raw);
+}
 import type {CatalogDB} from "../features/fore/catalog-model.server";
 type OwnerPort={fetch(request:Request):Promise<Response>};
 type Context={owner:OwnerPort;secret:string;territory:string;currency:string};
