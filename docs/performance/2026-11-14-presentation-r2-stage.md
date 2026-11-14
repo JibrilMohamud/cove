@@ -28,7 +28,7 @@ the JSON form in 0.83 ms SQL with zero writes (nonexistent probe IDs only).
 Candidate source is PR #665 commit `88cf8040` plus PR #666's recommendation fix.
 Backend bundle SHA-256 is
 `ae212a4e11a82fbf1fdaf7a7e63de594ef7774cbd31a1273615fdc7b3dea35d8`.
-The active candidate version is `c2ec1ffa-a3e9-49aa-8c14-57ebedf7aed0`.
+The final active candidate version is `55b7a151-fcfe-4d35-8bd7-ad50f31b4860`.
 
 Only synthetic D1 `e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3` and dedicated
 `cove-public-presentation-stage-20261114` R2 are bound. No production DB,
@@ -59,36 +59,46 @@ then restored and verified. No production right was changed.
 
 ## Forced outer-cache misses and remaining latency
 
+The first deployment omitted production's existing guest edge-admission
+binding and fell back to durable D1 rate counters. This staging parity gap was
+corrected with a separate 180-request/60-second limiter in namespace `731905`;
+production's `991731904` and native staging's `731903` counters are not shared.
+Source checks now prevent that omission. Both campaigns are retained, with the
+parity-corrected campaign used as the final functional result below.
+
 Each request used a unique ignored query parameter to prevent the existing
 outer public-response cache from substituting a cached page. Parsed search
 filters, the facet partition and current-rights predicates stayed identical.
 All offered requests were counted; no failures were removed.
 
-| Concurrency | Valid / offered | Maximum application time |
-| --- | ---: | ---: |
-| 1 | 1 / 1 | 374 ms |
-| 4 | 4 / 4 | 410 ms |
-| 8 | 8 / 8 | 533 ms |
-| 16 | 16 / 16 | 793 ms |
-| 32 | 32 / 32 | 1,250 ms |
+| Concurrency | Valid / offered | Initial, missing limiter | Corrected admission parity |
+| --- | ---: | ---: | ---: |
+| 1 | 1 / 1 | 374 ms | 522 ms |
+| 4 | 4 / 4 | 410 ms | 765 ms |
+| 8 | 8 / 8 | 533 ms | 546 ms |
+| 16 | 16 / 16 | 793 ms | 781 ms |
+| 32 | 32 / 32 | 1,250 ms | 1,140 ms |
 
 These are `cove_api` application durations, **not external TTFB**. Workspace
 proxy TTFB is retained separately and cannot certify the geographic release
 budget. This 61-request functional campaign is not sustained 100-RPS testing.
-Existing public-response caching and durable abuse counters still use D1;
-the opt-in migration removes facet-cache writes only. Canonical writer
-exclusivity remains independently blocked.
+Existing public-response caching and non-guest abuse counters still use D1;
+the opt-in migration removes facet-cache writes only. Production already uses
+edge admission for these anonymous catalog reads. Canonical writer exclusivity
+remains independently blocked.
 
 A candidate-only experiment overlapped admitted catalog reads with fresh locale
 context. It preserved all denial checks but still reached 1,244 ms at 32 and
 1,321 ms at 8. It did not establish a latency improvement and was **removed**.
-The remaining bottleneck requires reducing database work and round trips,
-including durable counter/cache overhead, rather than merely overlapping them.
+That experiment preceded the admission binding correction. The remaining
+bottleneck requires reducing foreground database work and round trips; this
+campaign has not established a strict capacity pass.
 
 The original version was restored through Cloudflare's deployment API; a fresh
 post-rollback request returned 200 and 24 books, including the restored fixture
 book. This is an isolated code rollback check, not a production rollback
-certificate. D1 and R2 were not rolled back with code. Both gateway and backend
+certificate. That rollback preceded the final admission binding correction.
+D1 and R2 were not rolled back with code. Both gateway and backend
 workers.dev and preview ingress were explicitly disabled after the campaign.
 
 True cold SSR across three fresh deployments, strict external <800 ms at every

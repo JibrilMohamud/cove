@@ -19,6 +19,10 @@ assert.doesNotMatch(
 // A complete end-to-end staging candidate must bind the R2 bucket where
 // searchCatalog actually executes (the backend Worker), not just the SSR edge.
 assert.match(candidate, /name = "cove-presentation-r2-candidate-stage"/);
+assert.match(candidate, /name = "COVE_STOREFRONT_READ_LIMITER"/);
+assert.match(candidate, /namespace_id = "731905"/);
+assert.match(candidate, /limit = 180\s+period = 60/);
+assert.doesNotMatch(candidate, /namespace_id = "(?:731903|991731904)"/);
 assert.match(candidate, /workers_dev = false/);
 assert.match(candidate, /preview_urls = false/);
 assert.match(candidate, /binding = "COVE_PUBLIC_PRESENTATION_CACHE"/);

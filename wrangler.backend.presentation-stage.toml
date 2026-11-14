@@ -10,6 +10,16 @@ preview_urls = false
 [limits]
 cpu_ms = 300_000
 
+# Match production's anonymous catalog admission without sharing its counters.
+# Native SSR staging uses 731903; production uses 991731904.
+[[ratelimits]]
+name = "COVE_STOREFRONT_READ_LIMITER"
+namespace_id = "731905"
+
+[ratelimits.simple]
+limit = 180
+period = 60
+
 # Use only the seeded synthetic/isolated D1 built for catalog performance tests.
 # Every book delivered by this candidate is still checked against this D1,
 # which cannot authorize a book in the real production storefront.
