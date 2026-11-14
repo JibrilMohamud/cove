@@ -8,20 +8,25 @@ import { pathToFileURL } from "node:url";
 const source = readFileSync("src/storefront-strangler/publication-owner-routing.server.ts", "utf8");
 const server = readFileSync("src/server.ts", "utf8");
 const clientShell = readFileSync("src/features/fore/App.tsx", "utf8");
-for (const specifier of ["./Auth", "./reading-activity", "./offline-reader-mutations", "./webmcp"]) {
+const browserOnlyModules = ["./Auth", "./reading-activity", "./offline-reader-mutations", "./webmcp"];
+for (const specifier of browserOnlyModules) {
   assert.equal(
-    clientShell.split("\\n").some((line) => line.startsWith("import ") && !line.startsWith("import type ") && line.includes(`from "${specifier}"`)),
+    clientShell
+      .split(String.fromCharCode(10))
+      .some(
+        (line) =>
+          line.startsWith("import ") &&
+          !line.startsWith("import type ") &&
+          line.includes(`from "${specifier}"`),
+      ),
     false,
     "Browser-only modules must not enter the anonymous SSR static import graph",
   );
-}
-for (const specifier of ["./Auth", "./reading-activity", "./offline-reader-mutations", "./webmcp"]) {
   assert.ok(
     clientShell.includes(`import("${specifier}")`),
     "Browser-only modules must retain an on-demand client import: " + specifier,
   );
 }
-
 
 // Public homepage SSR never needs to evaluate the 28KB command route and
 // validation registry, or the staging-only legal writer lock.
