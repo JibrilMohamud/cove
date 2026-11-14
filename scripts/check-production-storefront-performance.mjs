@@ -76,7 +76,7 @@ export function estimatedOutsideAppTtfbMs(headers, ttfbMs) {
   if (!Number.isFinite(ttfbMs) || ttfbMs < 0) return null;
   const timing = (headers.get("server-timing") || "")
     .split(",")
-    .map((part) => part.trim().match(/^cove_total;dur=([0-9]+(?:\\.[0-9]+)?)$/))
+    .map((part) => part.trim().match(/^cove_total;dur=([0-9]+(?:\.[0-9]+)?)$/))
     .find(Boolean);
   if (!timing) return null;
   const appMs = Number(timing[1]);
