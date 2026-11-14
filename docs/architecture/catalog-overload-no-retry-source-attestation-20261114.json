@@ -1,0 +1,12 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Independent comparison of PR #669 against the reviewed PR #665 source confirms the only protected source SQL in search.server.ts is the unchanged refreshSearchQualitySignals UPDATE (SQL digest b44b6a38f0afbbebca207293beeb8f920a9ab2f4d9429e3735fd6df1735d4846). The source modifications add conservative handling of recognized D1 resource-window overload in anonymous catalog cache, facet cache and bounded shortlist fallback catches; they do not alter this SQL literal, its operation, containing function, caller, safety guard or disposition. No rights predicate, payment permission, product suppression, publisher authority, owner binding or production routing is modified. This is strictly a source-bound re-attestation and not production owner or release approval.",
+  "files": [
+    {
+      "path": "src/features/fore/search.server.ts",
+      "sha256": "b3e441dbcb085e49fca5d09fc02533a1cfe1af942f9cc63d0b9270822476e1a3",
+      "review": "Compared original reviewed search source with PR #669: only extra catch guards rethrow D1 resource-window overload before expensive SQL retries. RefreshSearchQualitySignals's exact catalog_search_documents UPDATE and containing function remain identical, retaining non-authorizing-write classification and productionOwnerGuarded=false. Current live rights must still be verified on primary D1, and no 503 can become a 200 or cached book permission. Owner-only production release remains blocked."
+    }
+  ]
+}
