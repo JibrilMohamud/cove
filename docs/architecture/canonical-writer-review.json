@@ -3564,16 +3564,16 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "0a7911527e8c3405baded6e715b3419ec2f057753e6b354dc08c92898413c8f7",
+      "siteId": "f72fbc7167e29f4223f1a2509cd3a76358e69f4a957785282e9c719eeb4ae337",
       "file": "src/features/fore/search.server.ts",
-      "line": 2094,
+      "line": 2093,
       "functionName": "refreshSearchQualitySignals",
       "table": "catalog_search_documents",
       "operation": "UPDATE",
       "sqlSha256": "b44b6a38f0afbbebca207293beeb8f920a9ab2f4d9429e3735fd6df1735d4846",
       "disposition": "non-authorizing-write",
       "productionOwnerGuarded": false,
-      "reason": "This exact projection UPDATE changes ratings, ranking scores or taxonomy text only. It does not change rights, offers, suppression or permission; candidate delivery still needs current legal authorization. Re-reviewed 2026-11-13 after the same-file facet SELECT-only planner change. This SQL digest, table, write scope, and non-authorizing classification remain unchanged."
+      "reason": "This exact projection UPDATE changes ratings, ranking scores or taxonomy text only. It does not change rights, offers, suppression or permission; candidate delivery still needs current legal authorization. Re-reviewed 2026-11-13 after the same-file facet SELECT-only planner change. This SQL digest, table, write scope, and non-authorizing classification remain unchanged. Source re-reviewed 2026-11-14 after a guest-only personalization import optimization: the UPDATE SQL bytes, SQL SHA256, protected-table scope and non-authorizing disposition are unchanged. This is source attestation only, not production owner release approval."
     },
     {
       "siteId": "5419ff9f014ba6273be37a2b8aeec07feaa54a32eaa4d0d55bf7588c8fb69600",
