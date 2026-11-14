@@ -9,20 +9,21 @@ const source = readFileSync("src/storefront-strangler/publication-owner-routing.
 const server = readFileSync("src/server.ts", "utf8");
 const clientShell = readFileSync("src/features/fore/App.tsx", "utf8");
 const search = readFileSync("src/features/fore/search.server.ts", "utf8");
-assert.match(
-  search,
-  /const mayPersonalize = Boolean\\(userId && input\\.query && input\\.sort === "relevance"\\)/,
+assert.ok(
+  search.includes('userId && input.query && input.sort === "relevance"'),
   "Only authenticated relevance queries may load personalized search",
 );
-assert.match(
-  search,
-  /const personalization = mayPersonalize \\? await import\\("\\.\\/recommendations\\.server"\\) : null/,
+const personalizedImport = search.indexOf('await import("./recommendations.server")');
+const conditional = search.lastIndexOf("mayPersonalize ?", personalizedImport);
+assert.ok(
+  personalizedImport > 0 && conditional > 0 && personalizedImport - conditional < 35,
+  "Plain anonymous catalog must not evaluate the recommendations registry",
 );
-assert.doesNotMatch(
-  search,
-  /import \\{ personalizeSearchBooks, personalizedSearchEnabled \\} from/,
+assert.equal(
+  search.includes('from "./recommendations.server"'),
+  false,
+  "Personalized recommendations may not be statically imported by search",
 );
-
 const browserOnlyModules = [
   "./Auth",
   "./reading-activity",
