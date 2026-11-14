@@ -22,7 +22,10 @@ test("paired wall-minus-SQL attribution retains long service waits", () => {
 });
 
 test("rejects malformed and nonpaired spans without silently inventing data", () => {
-  const res = attributePairedD1Spans([{ spanMs: 2, sqlMs: 3 }, { spanMs: 15, sqlMs: 4 }]);
+  const res = attributePairedD1Spans([
+    { spanMs: 2, sqlMs: 3 },
+    { spanMs: 15, sqlMs: 4 },
+  ]);
   assert.equal(res.evidence, "limited");
   assert.equal(res.sampleCount, 1);
   assert.equal(res.rejected, 1);
@@ -45,16 +48,32 @@ test("two ineffective iterations on the same subsystem trigger a redesign review
 
 test("three ineffective iterations across subsystems require review; evidence of real review resets", () => {
   const attempts = ["primary-d1", "r2", "worker-runtime"].map((subsystem) => ({
-    type: "optimization", subsystem, outcome: "no-meaningful-improvement",
+    type: "optimization",
+    subsystem,
+    outcome: "no-meaningful-improvement",
   }));
   assert.equal(architectureReviewCheckpoint(attempts).reason, "three-ineffective-iterations");
-  assert.equal(architectureReviewCheckpoint([...attempts, { type: "architecture-review" }]).architectureReviewRequired, true);
-  const reviewed = [...attempts, {
-    type: "architecture-review",
-    alternatives: ["optimize", "restructure", "replace"],
-    decision: "Test fewer primary service round trips under identical load before rollout",
-    evidence: "docs/performance/2026-11-14-causal-architecture-review.md",
-  }];
+  assert.equal(
+    architectureReviewCheckpoint([...attempts, { type: "architecture-review" }])
+      .architectureReviewRequired,
+    true,
+  );
+  const reviewed = [
+    ...attempts,
+    {
+      type: "architecture-review",
+      alternatives: ["optimize", "restructure", "replace"],
+      decision: "Test fewer primary service round trips under identical load before rollout",
+      evidence: "docs/performance/2026-11-14-causal-architecture-review.md",
+    },
+  ];
   assert.equal(architectureReviewCheckpoint(reviewed).architectureReviewRequired, false);
-  assert.equal(architectureReviewCheckpoint([...attempts.slice(0, 2), {type:"optimization",subsystem:"r2",outcome:"meaningful-improvement"},attempts[2]]).architectureReviewRequired,false);
+  assert.equal(
+    architectureReviewCheckpoint([
+      ...attempts.slice(0, 2),
+      { type: "optimization", subsystem: "r2", outcome: "meaningful-improvement" },
+      attempts[2],
+    ]).architectureReviewRequired,
+    false,
+  );
 });
