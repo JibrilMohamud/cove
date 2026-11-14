@@ -1239,12 +1239,13 @@ export function StorePage({
     queryFn: ({ signal }) => api("/catalog?" + params, "GET", undefined, { signal }),
     // Wait for the small live-rights shelf (or its explicit failure) before
     // starting the 20s cold COUNT/facet request on an unbootstrapped homepage.
+    // During SSR, never duplicate the verified first-paint bootstrap with
+    // an expensive exact COUNT/facet catalog request. Browser hydration
+    // retains its existing fallback and progressive count/facet refresh.
     enabled:
       !fastAnonymousHome ||
-      !!matchingInitial?.catalog ||
-      !!fastPreview ||
-      fastShelf.isError ||
-      catalogFallbackReady,
+      (typeof window !== "undefined" &&
+        (!!matchingInitial?.catalog || !!fastPreview || fastShelf.isError || catalogFallbackReady)),
     placeholderData: fastAnonymousHome ? fastPreview : undefined,
     // A brief first-paint grace period prevents 24-card preview hydration
     // from competing with the very next server request for D1 capacity.
