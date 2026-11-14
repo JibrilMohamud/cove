@@ -1,0 +1,12 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Independent source review against the prior approved PR #669 context confirms that 33 preexisting owner-command-required SQL writer literals in src/features/fore/api.server.ts remain byte-for-byte identical and retain their original call sites, permission checks, owner fences and classification. The only additions are a read-only optional type for a synthetic private R2 bucket and a guarded, stage-only 503 telemetry diversion after the request's original authorization/rights evaluation. It never modifies legal rights, payment or other SQL, never applies to authenticated requests or any response except anonymous, cookie-free GET /api/fore/catalog 503, and falls back to the existing D1 audit if R2 persistence fails. This is not production legal authority or permission to retire production auditing.",
+  "files": [
+    {
+      "path": "src/features/fore/api.server.ts",
+      "sha256": "e19fe85599a6854f1c798a897c68541fc5089a9049c056df7353e01c82870215",
+      "review": "Reviewed diff from PR #669: new synthetic audit module import, four stage-specific type properties and a post-response call to persistSyntheticFailureAudit. All 33 protected SQL sites have exactly the same source literals and writer functions; no entitlement/rights/commerce logic changes. The synthetic audit preconditions enforce the fixture D1 ID, private synthetic R2 bucket, anonymous/no-auth/no-cookie, GET catalog path and 503 only. Failed R2 writes return false to preserve original D1 audit. This stage-only variant is not production audit-retention certification."
+    }
+  ]
+}
