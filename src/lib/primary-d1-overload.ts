@@ -15,6 +15,8 @@ export function isPrimaryD1Overload(error: unknown): boolean {
     (value) =>
       typeof value === "string" &&
       (/\b7429\b/.test(value) ||
+        /\bD1 DB is overloaded\b/i.test(value) ||
+        /\btoo many resources consumed within a 10 second window\b/i.test(value) ||
         /\btoo many requests to the same database\b/i.test(value) ||
         /\bD1_ERROR\b.{0,90}\boverload(?:ed)?\b/i.test(value)),
   );
