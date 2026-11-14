@@ -87,9 +87,7 @@ export default {
         fencedEnv.COVE_PUBLICATION_COMMANDS_ENABLED === "1"
           ? (
               await import("./storefront-strangler/publication-owner-routing.server")
-            ).scopePublicationOwnerEnv(
-              fencedEnv as Parameters<typeof PublicationScope>[0],
-            )
+            ).scopePublicationOwnerEnv(fencedEnv as Parameters<typeof PublicationScope>[0])
           : fencedEnv;
       const foreEnv = runtimeEnv as {
         DB?: any;
