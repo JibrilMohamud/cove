@@ -18,6 +18,7 @@
     "COVE_TRIAD_STAGE": "1",
     "COVE_TRIAD_SYNTHETIC_D1_ID": "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
     "COVE_TRIAD_CANDIDATE": "cove-presentation-r2-candidate-stage",
+    "COVE_TRIAD_RUN_MINUTE": "0",
     "COVE_TRIAD_EXPIRES_AT": "1970-01-01T00:00:00Z"
   },
   "observability": {
