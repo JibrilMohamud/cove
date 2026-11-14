@@ -8,6 +8,21 @@ import { pathToFileURL } from "node:url";
 const source = readFileSync("src/storefront-strangler/publication-owner-routing.server.ts", "utf8");
 const server = readFileSync("src/server.ts", "utf8");
 const clientShell = readFileSync("src/features/fore/App.tsx", "utf8");
+const search = readFileSync("src/features/fore/search.server.ts", "utf8");
+assert.match(
+  search,
+  /const mayPersonalize = Boolean\\(userId && input\\.query && input\\.sort === "relevance"\\)/,
+  "Only authenticated relevance queries may load personalized search",
+);
+assert.match(
+  search,
+  /const personalization = mayPersonalize \\? await import\\("\\.\\/recommendations\\.server"\\) : null/,
+);
+assert.doesNotMatch(
+  search,
+  /import \\{ personalizeSearchBooks, personalizedSearchEnabled \\} from/,
+);
+
 const browserOnlyModules = [
   "./Auth",
   "./reading-activity",
