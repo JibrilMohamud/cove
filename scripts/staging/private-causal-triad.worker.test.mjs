@@ -77,9 +77,9 @@ test("one authenticated ingress tests noop, rights, context and catalog without 
   serviceCalls = 0;
   for (const mode of ["noop", "rights", "context", "catalog"]) {
     const response = await worker.fetch(makeRequest(mode), env);
-    assert.equal(response.status, 200, mode);
-    assert.match(response.headers.get("server-timing") || "", /cove_stage_worker;dur=/);
     const result = await response.json();
+    assert.equal(response.status, 200, mode + " " + JSON.stringify(result));
+    assert.match(response.headers.get("server-timing") || "", /cove_stage_worker;dur=/);
     assert.equal(result.mode, mode);
     assert.equal(result.valid, true);
     assert.equal(result.releaseCertified, false);
