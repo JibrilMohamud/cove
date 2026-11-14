@@ -1,12 +1,14 @@
 // Diagnostic-only, non-public stage Worker. Never bind production D1.
-// The three controls share one caller, schedule, region and synthetic identity distribution.
+// All controls share one caller, schedule, region and synthetic identity distribution.
 // In deployed use BACKEND and GATE are inherited from the existing private stage driver.
 const STAGE_DB = "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
 const CANDIDATE = "cove-presentation-r2-candidate-stage";
 const MAX_OUTSTANDING = 64;
 const CATALOG_URL =
   "https://cove-presentation-r2-proof-20261114.cove-jibrilmohamud.workers.dev/api/fore/catalog";
-const MODES = ["noop", "rights", "catalog"];
+const CONTEXT_URL =
+  "https://cove-presentation-r2-proof-20261114.cove-jibrilmohamud.workers.dev/api/fore/storefront/context";
+const MODES = ["noop", "context", "rights", "catalog"];
 const RIGHTS_SQL = `WITH ranked AS MATERIALIZED (
  SELECT d.product_id,d.fore_bestseller_score sort_score,d.external_book_id sort_source
  FROM catalog_search_documents d INDEXED BY idx_search_popular_stable
@@ -105,8 +107,8 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
       };
     }
     const url =
-      CATALOG_URL +
-      "?sort=popular&page=1&currency=USD&__proof=" +
+      (mode === "catalog" ? CATALOG_URL + "?sort=popular&page=1&currency=USD" : CONTEXT_URL) +
+      (mode === "catalog" ? "&__proof=" : "?__proof=") +
       encodeURIComponent(runId + "-" + ordinal);
     const ip = stageSyntheticIp(ordinal);
     const headers = {
@@ -126,6 +128,18 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
     const firstByteMs = performance.now() - started;
     const data = await resp.json();
     const ms = performance.now() - started;
+    if (mode === "context") {
+      return {
+        status: resp.status,
+        firstByteMs,
+        ms,
+        valid:
+          resp.status === 200 &&
+          data?.rightsCountry === "US" &&
+          data?.currency === "USD" &&
+          resp.headers.get("x-cove-persistence") === "d1-r2",
+      };
+    }
     const ids = Array.isArray(data?.results) ? data.results.map((b) => b.productId) : [];
     return {
       status: resp.status,
