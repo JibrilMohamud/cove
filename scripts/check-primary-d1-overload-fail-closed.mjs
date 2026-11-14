@@ -45,10 +45,20 @@ assert.match(handler, /await recordErrorEvent\(env\.DB as any/);
 assert.match(handler, /return json\(/);
 
 const searchSource = readFileSync("src/features/fore/search.server.ts", "utf8");
-const shortlistStart = searchSource.indexOf("const verified = await firstPagePopularRightsShortlist(");
-const fullFallbackStart = searchSource.indexOf("const plan = await rankedCandidatePlan", shortlistStart);
+const shortlistStart = searchSource.indexOf(
+  "const verified = await firstPagePopularRightsShortlist(",
+);
+const fullFallbackStart = searchSource.indexOf(
+  "const plan = await rankedCandidatePlan",
+  shortlistStart,
+);
 assert.ok(shortlistStart >= 0 && fullFallbackStart > shortlistStart);
 const recovery = searchSource.slice(shortlistStart, fullFallbackStart);
-assert.match(recovery, /catch \(error\) \{[\s\S]*?if \(isPrimaryD1Overload\(error\)\) throw error;/);
+assert.match(
+  recovery,
+  /catch \(error\) \{[\s\S]*?if \(isPrimaryD1Overload\(error\)\) throw error;/,
+);
 
-console.log("D1 resource-window overload fails closed without expanding to full catalog scan: PASS");
+console.log(
+  "D1 resource-window overload fails closed without expanding to full catalog scan: PASS",
+);
