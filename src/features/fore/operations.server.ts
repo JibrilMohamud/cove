@@ -161,7 +161,18 @@ export async function recordHttpRequest(
           endedAt,
         ),
     ]);
-  } catch {}
+  } catch (error) {
+    // The audit DB may be the component that just failed. Do not recursively
+    // write an audit-of-the-audit to D1, but never hide failed persistence.
+    // This diagnostic contains no request/trace ID, URL, SQL or exception text.
+    console.warn(
+      JSON.stringify({
+        event: "ops_http_audit_write_failed",
+        statusClass: `${Math.floor(response.status / 100)}xx`,
+        primaryD1Overload: isPrimaryD1Overload(error),
+      }),
+    );
+  }
   console.log(
     JSON.stringify({
       level: response.status >= 500 ? "error" : "info",
