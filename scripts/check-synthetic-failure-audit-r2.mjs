@@ -101,6 +101,14 @@ try {
   } finally {
     console.warn = originalWarn;
   }
+  for (const config of ["wrangler.backend.production.toml", "wrangler.backend.presentation-stage.toml"]) {
+    const wiring = fs.readFileSync(config, "utf8");
+    assert.doesNotMatch(
+      wiring,
+      /COVE_SYNTHETIC_FAILURE_AUDIT|SYNTHETIC_FAILURE_AUDIT_R2/,
+      config + " must never enable the experimental failure-audit override by default",
+    );
+  }
   const handler = fs.readFileSync("src/features/fore/api.server.ts", "utf8");
   assert.match(handler, /persistSyntheticFailureAudit\(/);
   assert.match(handler, /else if \(syntheticFailureAuditPersisted\)/);
