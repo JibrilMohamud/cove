@@ -287,8 +287,31 @@ async function campaign(secret) {
   }
   for (const mode of MODES) {
     const res = await phase(mode, "50-rps", 50, 20, run, secret);
-    if (res.failed >= STOP_AFTER_FAILURES) break;
+    if (res.failed >= STOP_AFTER_FAILURES)
+      throw new Error("Short 50-RPS stage path failed; refuse sustained escalation");
   }
+  // Sustain the real synthetic catalog before offering a 100-RPS stage phase.
+  // Two 100-RPS x 20-second phases are diagnostic only; the user-facing
+  // whole-site and four-colo acceptance remains a separate hard release gate.
+  const sustained50 = await phase("catalog", "50-rps-20s", 1000, 20, run, secret);
+  const meetsLatencyGate = (result, requests) =>
+    result.valid === requests &&
+    result.dropped === 0 &&
+    result.ttfbP95Ms !== null &&
+    result.ttfbP95Ms < 600 &&
+    result.ttfbP99Ms < 750 &&
+    result.ttfbMaxMs < 800;
+  evidence.sustained50Passed = meetsLatencyGate(sustained50, 1000);
+  if (!evidence.sustained50Passed) {
+    evidence.skipped100Rps = "sustained-50-rps-catalog-gate-failed";
+    throw new Error("20-second 50-RPS synthetic catalog tail or validity gate failed; do not offer 100 RPS");
+  }
+  for (let trial = 1; trial <= 2; trial++) {
+    const result = await phase("catalog", "100-rps-20s-phase-" + trial, 2000, 10, run, secret);
+    if (!meetsLatencyGate(result, 2000))
+      throw new Error("Synthetic 100-RPS stage phase failed; retain full release blockade");
+  }
+  evidence.syntheticRps100TwoPhasePassed = true;
 }
 
 function save() {
