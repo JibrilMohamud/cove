@@ -485,8 +485,6 @@ type Statement = {
 export type CoveEnv = {
   AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
   DB: { prepare(sql: string): Statement; batch(s: Statement[]): Promise<unknown> };
-  /** Optional independent public facets ONLY; never a rights or offers authority. */
-  COVE_PUBLIC_PRESENTATION_CACHE?: import("./search-presentation-r2.server").PresentationR2Bucket;
   // Optional production-disabled read-model: R2/KV is never a rights authority.
   COVE_SOUNDS_SNAPSHOT_ENABLED?: string;
   COVE_SOUNDS_SNAPSHOT_MARKETS?: string;
