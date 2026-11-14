@@ -85,7 +85,9 @@ export default {
       // an explicit opt-in still exercises its complete fail-closed gate.
       const runtimeEnv =
         fencedEnv.COVE_PUBLICATION_COMMANDS_ENABLED === "1"
-          ? (await import("./storefront-strangler/publication-owner-routing.server")).scopePublicationOwnerEnv(
+          ? (
+              await import("./storefront-strangler/publication-owner-routing.server")
+            ).scopePublicationOwnerEnv(
               fencedEnv as Parameters<typeof PublicationScope>[0],
             )
           : fencedEnv;
