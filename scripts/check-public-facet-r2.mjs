@@ -3,6 +3,24 @@ import fs from "node:fs";
 import { build } from "esbuild";
 
 const search = fs.readFileSync("src/features/fore/search.server.ts", "utf8");
+const candidate = fs.readFileSync("wrangler.backend.presentation-stage.toml", "utf8");
+// A complete end-to-end staging candidate must bind the R2 bucket where
+// searchCatalog actually executes (the backend Worker), not just the SSR edge.
+assert.match(candidate, /name = "cove-presentation-r2-candidate-stage"/);
+assert.match(candidate, /workers_dev = false/);
+assert.match(candidate, /preview_urls = false/);
+assert.match(candidate, /binding = "COVE_PUBLIC_PRESENTATION_CACHE"/);
+assert.match(candidate, /bucket_name = "cove-public-presentation-stage-20261114"/);
+assert.match(candidate, /database_name = "cove-perf-isolated-candidate-20261019"/);
+for (const flag of [
+  "FORE_ASYNC_CATALOG_FACETS",
+  "FORE_POPULAR_RIGHTS_SHORTLIST",
+  "FORE_GUEST_CATALOG_PROGRESSIVE_COUNT",
+]) {
+  assert.ok(candidate.includes(flag + ' = "1"'), flag + " must be enabled only on the private test candidate");
+}
+assert.doesNotMatch(candidate, /cove-production-media|cove-production"|4bd657ac-8789-403e-a28c-93aba8d0a989|LEGAL_AUTHORITY|\[triggers\]/);
+
 const api = fs.readFileSync("src/features/fore/api.server.ts", "utf8");
 assert.match(search, /!!env\.COVE_PUBLIC_PRESENTATION_CACHE/);
 assert.match(search, /refreshPublicFacetProjection\(presentationStore, cacheKey/);
