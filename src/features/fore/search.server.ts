@@ -1049,11 +1049,15 @@ async function searchD1(env: SearchEnv, input: SearchInput, userId: string | nul
   };
   const runCount = async () => {
     const countLive = async () => {
+      // COUNT is unordered presentation metadata. Preserve every exact
+      // territorial eligibility predicate, but do not force SQLite to
+      // scan the popularity-order index instead of a selective market index.
+      const countPart = facetScanCandidateParts(input, expression);
       const row = await presentationDb
         .prepare(
-          `${part.prefix} SELECT COUNT(*) count FROM ${part.from} WHERE ${part.where.join(" AND ")}`,
+          `${countPart.prefix} SELECT COUNT(*) count FROM ${countPart.from} WHERE ${countPart.where.join(" AND ")}`,
         )
-        .bind(...part.binds)
+        .bind(...countPart.binds)
         .first<{ count: number }>();
       return Number(row?.count || 0);
     };
