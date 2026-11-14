@@ -3564,16 +3564,16 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "75d5988c28adc9d20ff6a1a443411c1551d6d6f8df19e5492b962aa912eab6ee",
+      "siteId": "401ca61588ca9a18e5fd8efc649457e6dd2e07e9c0100c3a76af9c6b164a6e48",
       "file": "src/features/fore/search.server.ts",
-      "line": 2267,
+      "line": 2290,
       "functionName": "refreshSearchQualitySignals",
       "table": "catalog_search_documents",
       "operation": "UPDATE",
       "sqlSha256": "b44b6a38f0afbbebca207293beeb8f920a9ab2f4d9429e3735fd6df1735d4846",
       "disposition": "non-authorizing-write",
       "productionOwnerGuarded": false,
-      "reason": "This exact projection UPDATE changes ratings, ranking scores or taxonomy text only. It does not change rights, offers, suppression or permission; candidate delivery still needs current legal authorization. Re-reviewed 2026-11-13 after the same-file facet SELECT-only planner change. This SQL digest, table, write scope, and non-authorizing classification remain unchanged. Re-reviewed combined 2026-11-14 opt-in guest catalog and cold SSR integration. The exact original UPDATE SQL SHA256 is unchanged; only the enclosing source location shifted. No production owner authority is certified."
+      "reason": "This exact projection UPDATE changes ratings, ranking scores or taxonomy text only. It does not change rights, offers, suppression or permission; candidate delivery still needs current legal authorization. Re-reviewed 2026-11-13 after the same-file facet SELECT-only planner change. This SQL digest, table, write scope, and non-authorizing classification remain unchanged. Re-reviewed combined 2026-11-14 opt-in guest catalog and cold SSR integration. The exact original UPDATE SQL SHA256 is unchanged; only the enclosing source location shifted. No production owner authority is certified. Re-reviewed independent R2 display-only cache integration 2026-11-14; byte-identical SQL digest, protected table and non-authorizing projection-only scope. No production owner approval."
     },
     {
       "siteId": "5419ff9f014ba6273be37a2b8aeec07feaa54a32eaa4d0d55bf7588c8fb69600",
