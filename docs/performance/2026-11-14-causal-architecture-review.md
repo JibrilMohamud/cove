@@ -56,3 +56,14 @@ D. **Replace the rights-serving datastore/topology** — only after comparing B/
 5. Continue to fail release if: production real catalog 503 persists; external cold/warm 1/4/8/16/32 TTFB max >=800 ms; either of two 20-second 100-RPS phases lacks all 2,000 valid results, has p95 >=600 ms, p99 >=750 ms, max >=800 ms or drops; ORD/LAX/IAD/DFW not certified; protected rollback, production legal owner, writer exclusivity or Stripe LIVE certification remains incomplete.
 
 This audit changes no customer routing, live rights, canonical writer privileges, payments or production resource binding.
+
+## Follow-up: actual paired D1 span attribution
+
+The independent Cloudflare event query retrieved *individual* stage D1 span events (not only per-window aggregate percentiles), matched each operation's wall time with its own SQL duration, and calculated a separate difference for each valid pair. No SQL text, request identity or authorization header was retained.
+
+| Stage UTC interval | Valid paired spans | Mean outside SQL | p95 outside SQL | p99 outside SQL |
+| --- | ---: | ---: | ---: | ---: |
+| 20:27:30–20:29:30 | 32 | 763.78 ms | 4,229.94 ms | 4,297.41 ms |
+| 20:31:30–20:33:30 | 115 | 489.82 ms | 1,727.93 ms | 1,728.68 ms |
+
+The earlier interval returned 60 total trace events, but only 32 included both valid numeric durations; 28 were excluded rather than assigned zero SQL. The later interval returned 115/115 valid paired spans. These results **confirm substantial outside-SQL delay in sampled stage D1 operations**, not a specific provider queue, connection pool wait, or CPU bottleneck. The two intervals contain different query mixes and must not be treated as a controlled A/B comparison. Future measurements must capture Worker CPU and a generator noop control.
