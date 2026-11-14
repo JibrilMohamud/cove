@@ -1,0 +1,33 @@
+{
+  "schema": "cove.performance-architecture-checkpoint.v1",
+  "date": "2026-11-14",
+  "releaseCertified": false,
+  "policy": "Two ineffective optimization iterations in one subsystem or three total without a meaningful comparable improvement require a fresh architecture review, including three alternatives and a decision.",
+  "iterations": [
+    {
+      "type": "optimization",
+      "subsystem": "primary-d1",
+      "change": "Materialized rights shortlist",
+      "outcome": "inconclusive",
+      "reason": "32-request application improvement measured; sustained 100-RPS user-facing acceptance not achieved"
+    },
+    {
+      "type": "optimization",
+      "subsystem": "primary-d1",
+      "change": "Bypass unused D1 guest caches; R2 presentation projection",
+      "outcome": "inconclusive",
+      "reason": "32-request application tail improved; sustained 50-RPS still showed severe application latency and dropped offered requests"
+    },
+    {
+      "type": "architecture-review",
+      "alternatives": [
+        "Incremental SQL/cache tuning with measured plan constraints",
+        "Single bounded primary-authoritative service call plus independent R2 presentation",
+        "Sharded strongly consistent rights-read service with withdrawal fence",
+        "Replace datastore/topology after independent service-capacity measurement"
+      ],
+      "decision": "Stop SQL-only tuning. First run noop versus rights-only versus full-catalog stage comparisons with paired D1 SQL and operation latency; prefer one authoritative round trip if rights safety and sustained RPS are proved.",
+      "evidence": "docs/performance/2026-11-14-causal-architecture-review.md"
+    }
+  ]
+}
