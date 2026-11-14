@@ -28,6 +28,31 @@
       ],
       "decision": "Stop SQL-only tuning. First run noop versus rights-only versus full-catalog stage comparisons with paired D1 SQL and operation latency; prefer one authoritative round trip if rights safety and sustained RPS are proved.",
       "evidence": "docs/performance/2026-11-14-causal-architecture-review.md"
+    },
+    {
+      "type": "optimization",
+      "subsystem": "primary-d1",
+      "change": "Stop failed D1 shortlist/cache reads from amplifying into more expensive full-catalog/COUNT queries (draft PR #669)",
+      "outcome": "inconclusive",
+      "reason": "Mechanism is established by source and D1 overload records, but no controlled end-to-end 100-RPS candidate improvement has been measured; no production activation"
+    },
+    {
+      "type": "optimization",
+      "subsystem": "primary-d1",
+      "change": "Eliminate synonym D1 read when search tokens are absent (draft PR #669)",
+      "outcome": "inconclusive",
+      "reason": "Staging recorded 23 avoidable synonym spans averaging 100.96 ms wall; local integration validates zero read after change, but hosted p99/max and throughput effects not measured"
+    },
+    {
+      "type": "architecture-review",
+      "alternatives": [
+        "Further SQL micro-tuning with existing primary-D1 call count unchanged; reject without matched evidence",
+        "Remove entire nonauthorizing service operations and collapse rights/metadata to the minimum number of synchronous primary D1 calls while retaining exact current withdrawal checks",
+        "Repartition rights read-serving into independently scalable strongly consistent authoritative services or sharded storage with tested revocation fence",
+        "Replace the D1 rights-serving topology with a dedicated low-latency consistency-certified authority if rights-only capacity experiment demonstrates D1 service saturation"
+      ],
+      "decision": "The paired right-query traces still show p95 D1 operation wall 1731 ms against 2.68 ms average SQL execution. Stop incremental query/index work after these two inconclusive revisions. Next run no-DB, rights-only and full-catalog tests in the isolated environment; retry live stage only with correctly scoped access to synthetic D1. Do not use cached R2/KV display totals as positive legal authority or weaken any release gate.",
+      "evidence": "docs/performance/2026-11-14-causal-architecture-review.md"
     }
   ]
 }
