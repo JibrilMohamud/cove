@@ -59,8 +59,18 @@ export function summarizeTriad(mode, kind, offered, rows, durationMs) {
   const valid = rows.filter((x) => x.valid).length;
   const timed = rows.map((x) => x.ms).filter(Number.isFinite);
   const outside = rows.map((x) => x.outsideSqlMs).filter(Number.isFinite);
+  const firstByte = rows.map((x) => x.firstByteMs).filter(Number.isFinite);
+  const bodyTime = rows
+    .filter((x) => Number.isFinite(x.firstByteMs) && Number.isFinite(x.ms))
+    .map((x) => Math.max(0, x.ms - x.firstByteMs));
   return {
     mode,
+    // The noop is a GENERATOR control, not a no-DB target Worker endpoint.
+    // Rights-only uses driver-bound D1; context/catalog add a service binding.
+    // These path differences forbid a cross-mode TTFB or queue attribution.
+    transportLayer:
+      mode === "noop" ? "driver-only" : mode === "rights" ? "driver-d1" : "candidate-service-binding",
+    externalTtfbCertified: false,
     kind,
     offered,
     launched: rows.filter((x) => x.launched).length,
@@ -74,6 +84,10 @@ export function summarizeTriad(mode, kind, offered, rows, durationMs) {
     p95Ms: nearestRank(timed, 0.95),
     p99Ms: nearestRank(timed, 0.99),
     maxMs: nearestRank(timed, 1),
+    firstByteP95Ms: nearestRank(firstByte, 0.95),
+    firstByteP99Ms: nearestRank(firstByte, 0.99),
+    firstByteMaxMs: nearestRank(firstByte, 1),
+    responseBodyP95Ms: nearestRank(bodyTime, 0.95),
     outsideSqlP95Ms: nearestRank(outside, 0.95),
     sqlP95Ms: nearestRank(rows.map((x) => x.sqlMs).filter(Number.isFinite), 0.95),
     statusCounts: rows.reduce((a, r) => {
