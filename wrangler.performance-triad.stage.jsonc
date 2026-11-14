@@ -1,0 +1,29 @@
+{
+  "name": "cove-presentation-capacity-driver-stage",
+  "main": "scripts/staging/causal-triad-stage.worker.mjs",
+  "compatibility_date": "2026-11-14",
+  "workers_dev": false,
+  "preview_urls": false,
+  "services": [
+    { "binding": "CANDIDATE", "service": "cove-presentation-r2-candidate-stage" }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cove-perf-isolated-candidate-20261019",
+      "database_id": "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3"
+    }
+  ],
+  "vars": {
+    "COVE_TRIAD_STAGE": "1",
+    "COVE_TRIAD_SYNTHETIC_D1_ID": "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
+    "COVE_TRIAD_CANDIDATE": "cove-presentation-r2-candidate-stage",
+    "COVE_TRIAD_EXPIRES_AT": "1970-01-01T00:00:00Z"
+  },
+  "observability": {
+    "enabled": true,
+    "redact_query_string": true,
+    "logs": { "enabled": true, "head_sampling_rate": 1, "persist": true, "invocation_logs": false },
+    "traces": { "enabled": true, "head_sampling_rate": 0.1, "persist": true }
+  }
+}
