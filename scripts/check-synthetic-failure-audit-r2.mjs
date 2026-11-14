@@ -33,7 +33,10 @@ try {
   const response = (status) => new Response(null, { status });
   const safe = request("/api/fore/catalog?private=do-not-persist");
   assert.equal(syntheticFailureAuditEligible(env, safe, response(503), "anonymous"), true);
-  assert.equal(await persistSyntheticFailureAudit(env, safe, response(503), "anonymous", 153), true);
+  assert.equal(
+    await persistSyntheticFailureAudit(env, safe, response(503), "anonymous", 153),
+    true,
+  );
   assert.equal(records.length, 1);
   assert.match(records[0].key, /^synthetic-catalog-failures\/\d{4}-\d\d-\d\d\/[0-9a-f-]+\.json$/);
   assert.deepEqual(records[0].json, {
@@ -63,12 +66,7 @@ try {
       response(503),
       "anonymous",
     ],
-    [
-      { ...env, COVE_SYNTHETIC_FAILURE_AUDIT_R2: "0" },
-      request(),
-      response(503),
-      "anonymous",
-    ],
+    [{ ...env, COVE_SYNTHETIC_FAILURE_AUDIT_R2: "0" }, request(), response(503), "anonymous"],
     [
       {
         ...env,
@@ -90,9 +88,16 @@ try {
     console.warn = () => {};
     const broken = {
       ...env,
-      SYNTHETIC_FAILURE_AUDIT_R2: { async put() { throw Error("unavailable"); } },
+      SYNTHETIC_FAILURE_AUDIT_R2: {
+        async put() {
+          throw Error("unavailable");
+        },
+      },
     };
-    assert.equal(await persistSyntheticFailureAudit(broken, safe, response(503), "anonymous", 1), false);
+    assert.equal(
+      await persistSyntheticFailureAudit(broken, safe, response(503), "anonymous", 1),
+      false,
+    );
   } finally {
     console.warn = originalWarn;
   }
@@ -101,7 +106,9 @@ try {
   assert.match(handler, /else if \(syntheticFailureAuditPersisted\)/);
   assert.match(handler, /else if \(env\.DB\)/);
   assert.match(handler, /recordHttpRequest\(env\.DB/);
-  console.log("PASS: isolated synthetic 503 R2 evidence, production/identity exclusions, and durable-failure D1 fallback");
+  console.log(
+    "PASS: isolated synthetic 503 R2 evidence, production/identity exclusions, and durable-failure D1 fallback",
+  );
 } finally {
   fs.rmSync(directory, { recursive: true, force: true });
 }
