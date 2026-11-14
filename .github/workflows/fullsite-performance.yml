@@ -47,6 +47,8 @@ jobs:
         with: { node-version: 22, cache: npm }
       - run: npm ci
       - run: node --test scripts/performance/check-owned-ssr-capacity.test.mjs
+      - run: node --test scripts/performance/d1-span-attribution.test.mjs
+      - run: node scripts/performance/check-architecture-review-ledger.mjs
       - run: node scripts/check-secondary-home-discovery-admission.mjs
       - run: node --test scripts/wait-live-storefront-catalog.test.mjs scripts/wait-persistence-backend-production.test.mjs
       - run: npx playwright install --with-deps chromium
