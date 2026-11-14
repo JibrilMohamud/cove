@@ -81,3 +81,19 @@ The full, ordered samples on PR #665 permit per-wave nearest-rank statistics. Th
 | 32 | 32 | 463 | 459 | 637 | 639 |
 
 This pattern is **not linearly increasing** across the recorded waves. There is an elevated 16-request distribution relative to eight, with a wider 32-request tail; however a saturation cliff at 16/24/32 is **not established** without repeated randomized waves and 24-request measurements. These runs cannot distinguish queueing from changing per-operation latency, actual throughput plateau, or load-generator scheduling. Do not infer provider CPU percentage, connection-pool occupancy, or achieved RPS from application samples alone.
+
+## Follow-up: SQL-class attribution and mandatory next architecture decision
+
+The same Cloudflare staging span data was classified by the **known query shape** rather than by individual SQL text or an invented per-request queue metric:
+
+| UTC window | D1 all() operation class | Paired spans | Mean wall | Mean SQL | p95 wall |
+| --- | --- | ---: | ---: | ---: | ---: |
+| 20:31:30–20:33:30 | Bounded primary popularity/current-rights query | 57 | 610 ms | 2.68 ms | 1,731 ms |
+| 20:31:30–20:33:30 | Other SQL | 58 | 377 ms | 2.10 ms | 1,054 ms |
+| 20:27:30–20:29:30 | Other catalog search | 7 | 1,929 ms | 70.35 ms | 4,369 ms |
+
+Across 20:15–20:40 UTC, 23 actual `search_synonyms` D1 spans averaged 100.96 ms wall, 0.1283 ms SQL, p95 wall 208 ms. Reading the source revealed that `ftsExpression()` calls `synonyms(db)` even on zero-token guest browsing; draft PR #669 contains a guarded elimination plus runtime test. **This is evidence of an avoidable database operation, not measured end-to-end improvement from the patch.**
+
+After the overload-fallback change and the zero-token synonym-read elimination, **stop tuning this subsystem until controlled stage measurement proves a meaningful gain.** The latest full rights-query span p95 was still 1,731 ms despite SQL mean 2.68 ms. Therefore the next architectural decision must compare no-D1, rights-only and full catalog at identical offered arrival rates, including transport and CPU controls. If rights-only alone collapses, prefer an alternative authorization-serving topology or a drastically smaller primary round-trip count over another index/rewrite. Never use eventually consistent R2/KV presentation to authorize withdrawn rights.
+
+Draft PR #668 implements these isolated controls and passed its functional/source CI, but live stage use was blocked: the Cloudflare connection could list synthetic D1 `e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3` and inspect its existing Worker binding yet could not GET, query or attach it through the D1 API. The attempted stage Worker upload failed; the existing stage driver code/deployment, credentials and no-cron state remained unchanged, and its original ingress state was restored. No production resources were substituted. This is an access blocker, not a passing test.
