@@ -36,7 +36,11 @@ async function api(path, { method = "GET", body } = {}) {
   assert.ok(ACCOUNT && CF_TOKEN, "Cloudflare account and deployment token required");
   const res = await fetch(apiRoot + path, {
     method,
-    headers: { authorization: "Bearer " + CF_TOKEN, accept: "application/json" },
+    headers: {
+      authorization: "Bearer " + CF_TOKEN,
+      accept: "application/json",
+      ...(typeof body === "string" ? { "content-type": "application/json" } : {}),
+    },
     body,
     signal: AbortSignal.timeout(30000),
   });
