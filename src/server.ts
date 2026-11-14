@@ -17,7 +17,6 @@ import {
   sanitizedStagingCatalogFailureTiming,
   stagingHomeNeedsUnavailableStatus,
 } from "./lib/staging-empty-catalog-response";
-import { scopeStageLegalWriterEnv } from "./storefront-strangler/legal-primary-write-lock";
 import { scopePublicationOwnerEnv } from "./storefront-strangler/publication-owner-routing.server";
 import { cachePublicDocument } from "./lib/public-document-cache";
 import { applySecurityHeaders, securityTxt } from "./lib/security-headers";
@@ -77,7 +76,9 @@ export default {
       // When disabled this branch has no effect on the production D1 binding.
       const runtimeEnv = scopePublicationOwnerEnv(
         (nativeEnv.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1"
-          ? scopeStageLegalWriterEnv(nativeEnv as any)
+          ? (await import("./storefront-strangler/legal-primary-write-lock")).scopeStageLegalWriterEnv(
+              nativeEnv as any,
+            )
           : nativeEnv) as Parameters<typeof scopePublicationOwnerEnv>[0],
       );
       const foreEnv = runtimeEnv as {
