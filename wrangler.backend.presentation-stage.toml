@@ -1,0 +1,39 @@
+# Opt-in, non-routable TEST CANDIDATE for the public R2 presentation cache.
+# No production primary D1, no live media, no owner binding and no cron.
+# Do not deploy as cove-persistence-backend or route real traffic here.
+name = "cove-presentation-r2-candidate-stage"
+main = "backend-dist/worker.js"
+compatibility_date = "2026-10-09"
+workers_dev = false
+preview_urls = false
+
+[limits]
+cpu_ms = 300_000
+
+# Use only the seeded synthetic/isolated D1 built for catalog performance tests.
+# Every book delivered by this candidate is still checked against this D1,
+# which cannot authorize a book in the real production storefront.
+[[d1_databases]]
+binding = "DB"
+database_name = "cove-perf-isolated-candidate-20261019"
+database_id = "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3"
+
+# Dedicated display-only R2 bucket, NOT the production media bucket.
+[[r2_buckets]]
+binding = "COVE_PUBLIC_PRESENTATION_CACHE"
+bucket_name = "cove-public-presentation-stage-20261114"
+
+[vars]
+FORE_ENVIRONMENT = "staging"
+FORE_PUBLIC_URL = "https://cove-storefront-ssr-staging.cove-jibrilmohamud.workers.dev"
+FORE_DEFAULT_TERRITORY = "US"
+FORE_SEARCH_BACKEND = "d1"
+FORE_ASYNC_CATALOG_FACETS = "1"
+FORE_POPULAR_RIGHTS_SHORTLIST = "1"
+FORE_GUEST_CATALOG_PROGRESSIVE_COUNT = "1"
+FORE_CATALOG_EPUBS_PER_TICK = "0"
+FORE_AUDIO_COMPUTE_MODE = "paused"
+
+# Worker is private; only an explicitly configured staging service binding and
+# matching nonproduction gateway credentials should access its API.
+# No admin token, DNS route, queue or production Stripe secret is inherited.
