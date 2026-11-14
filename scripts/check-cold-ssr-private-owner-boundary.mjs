@@ -13,6 +13,16 @@ const server = readFileSync("src/server.ts", "utf8");
 assert.doesNotMatch(source, /import\s*\{\s*dispatchCanonicalOwnerCommand\s*\}\s*from/);
 assert.match(source, /await import\("\.\/canonical-owner-command-gateway"\)/);
 assert.doesNotMatch(server, /import\s*\{\s*scopeStageLegalWriterEnv\s*\}\s*from/);
+assert.doesNotMatch(
+  server,
+  /import\\s*\\{\\s*scopePublicationOwnerEnv\\s*\\}\\s*from/,
+  "Cold SSR must not eagerly evaluate publication owner routing",
+);
+assert.match(
+  server,
+  /COVE_PUBLICATION_COMMANDS_ENABLED === "1"[\\s\\S]{0,130}await import\\("\\.\\/storefront-strangler\\/publication-owner-routing\\.server"\\)/,
+  "Only an explicit publication command opt-in may load the owner facade",
+);
 assert.match(
   server,
   /COVE_CANONICAL_LEGAL_WRITE_LOCK === "1"[\s\S]{0,130}await import\("\.\/storefront-strangler\/legal-primary-write-lock"\)/,
