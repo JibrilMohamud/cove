@@ -36,9 +36,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # The stage-only guard may be statically imported or loaded lazily.
+          # The stage-only guard must be loaded lazily (not skipped).
           # In either case the invocation is restricted to the existing lock flag.
-          grep -Eq 'import \\{ scopeStageLegalWriterEnv \\}|await import\\("\\./storefront-strangler/legal-primary-write-lock"\\)' src/server.ts
+          grep -Fq 'await import("./storefront-strangler/legal-primary-write-lock")' src/server.ts
           grep -q 'nativeEnv.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1"' src/server.ts
           grep -q 'production_legal_writer_cutover_not_certified' src/storefront-strangler/legal-primary-write-lock.ts
       - name: Exercise all protected SQL, comments and D1 binding batch guards
