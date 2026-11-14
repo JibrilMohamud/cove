@@ -40,6 +40,12 @@ period = 60
 binding = "COVE_CANONICAL_READONLY"
 service = "cove-canonical-d1-readonly"
 
+# Isolated display-only facets; never grants books or shares production media.
+# This staging bucket is not a canonical rights, offer or D1 writer.
+[[r2_buckets]]
+binding = "COVE_PUBLIC_PRESENTATION_CACHE"
+bucket_name = "cove-public-presentation-stage-20261114"
+
 [[r2_buckets]]
 binding = "BUCKET"
 bucket_name = "cove-production-media"
