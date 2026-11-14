@@ -47,7 +47,7 @@ assert.match(
   search,
   /const \[books, facets\] = await Promise\.all\(\[\s*canonicalBooksByProductIds\(env\.DB, ids\)/,
 );
-assert.match(search, /if \(!facetState\.pending\) \{[\s\S]*?await writeCatalogCache/);
+assert.match(search, /if \(!facetState\.pending && !presentationStore\) \{[\s\S]*?await writeCatalogCache/);
 assert.match(search, /countPending: "countPending" in result && result\.countPending === true/);
 assert.match(api, /countPending: result\.countPending === true/);
 assert.match(cache, /data\.facetsPending === true \|\| data\.countPending === true/);
