@@ -1918,14 +1918,14 @@ export async function searchCatalog(
       processingTimeMs: 0,
       limit: input.limit,
     };
-  // The primary-rights first-paint shelf also imports this module, but does
-  // not use account personalization or its ingestion/ZIP dependencies.
-  const { personalizeSearchBooks, personalizedSearchEnabled } =
-    await import("./recommendations.server");
+  // The primary-rights first-paint shelf and guest catalog never use
+  // account personalization. Loading the full recommendations module for
+  // every unfiltered anonymous browse adds avoidable cold-start work.
+  // Signed-in relevance searches retain exactly the existing privacy gate.
+  const mayPersonalize = Boolean(userId && input.query && input.sort === "relevance");
+  const personalization = mayPersonalize ? await import("./recommendations.server") : null;
   const personalizeWindow =
-    !!input.query &&
-    input.sort === "relevance" &&
-    (await personalizedSearchEnabled(env.DB, userId));
+    !!personalization && (await personalization.personalizedSearchEnabled(env.DB, userId));
   const start = (input.page - 1) * input.limit,
     windowLimit = Math.min(200, Math.max(input.limit * 5, start + input.limit));
   const searchInputForBackend =
@@ -1988,10 +1988,9 @@ export async function searchCatalog(
     }
   } else result = await runD1Search();
   const backendName = backend === "meilisearch" ? "meilisearch" : "d1-fts5";
-  const personalized =
-    input.sort === "relevance" && input.query
-      ? await personalizeSearchBooks(env.DB, userId, result.books)
-      : { books: result.books, applied: false };
+  const personalized = personalization
+    ? await personalization.personalizeSearchBooks(env.DB, userId, result.books)
+    : { books: result.books, applied: false };
   const pageBooks =
     personalizeWindow && start < 200
       ? personalized.books.slice(start, start + input.limit)
