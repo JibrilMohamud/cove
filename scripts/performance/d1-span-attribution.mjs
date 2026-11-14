@@ -47,7 +47,8 @@ export function attributePairedD1Spans(spans, { minimumSamples = 30 } = {}) {
     }
     pairs.push({ wallMs, sqlMs, outsideSqlMs: wallMs - sqlMs });
   }
-  if (!pairs.length) return { evidence: "insufficient", reason: "no-valid-pairs", sampleCount: 0, rejected };
+  if (!pairs.length)
+    return { evidence: "insufficient", reason: "no-valid-pairs", sampleCount: 0, rejected };
   const wall = summary(pairs.map((p) => p.wallMs));
   const sql = summary(pairs.map((p) => p.sqlMs));
   const outsideSql = summary(pairs.map((p) => p.outsideSqlMs));
@@ -61,7 +62,8 @@ export function attributePairedD1Spans(spans, { minimumSamples = 30 } = {}) {
     sql,
     outsideSql,
     outsideSqlShare: Number.isFinite(outsideSqlShare) ? outsideSqlShare : null,
-    interpretation: "Outside-SQL time includes transport, service scheduling, queueing and other non-SQL overhead; this cannot identify one of them as the cause.",
+    interpretation:
+      "Outside-SQL time includes transport, service scheduling, queueing and other non-SQL overhead; this cannot identify one of them as the cause.",
     releaseCertified: false,
   };
 }
@@ -76,10 +78,14 @@ export function architectureReviewCheckpoint(iterations) {
     if (iteration?.type === "architecture-review") {
       // A genuine review compares alternatives, cites evidence and records the decision.
       if (
-        Array.isArray(iteration.alternatives) && iteration.alternatives.length >= 3 &&
-        typeof iteration.decision === "string" && iteration.decision.trim() &&
-        typeof iteration.evidence === "string" && iteration.evidence.trim()
-      ) sinceReview = [];
+        Array.isArray(iteration.alternatives) &&
+        iteration.alternatives.length >= 3 &&
+        typeof iteration.decision === "string" &&
+        iteration.decision.trim() &&
+        typeof iteration.evidence === "string" &&
+        iteration.evidence.trim()
+      )
+        sinceReview = [];
       continue;
     }
     if (iteration?.type === "optimization") sinceReview.push(iteration);
@@ -89,13 +95,18 @@ export function architectureReviewCheckpoint(iterations) {
     if (sinceReview[i].outcome === "meaningful-improvement") break;
     trailing.push(sinceReview[i]);
   }
-  const sameSubsystem = trailing.length >= 2 && trailing[0].subsystem &&
+  const sameSubsystem =
+    trailing.length >= 2 &&
+    trailing[0].subsystem &&
     trailing[0].subsystem === trailing[1].subsystem;
   return {
     architectureReviewRequired: sameSubsystem || trailing.length >= 3,
     ineffectiveSinceReview: trailing.length,
-    reason: sameSubsystem ? "two-ineffective-iterations-same-subsystem" :
-      trailing.length >= 3 ? "three-ineffective-iterations" : null,
+    reason: sameSubsystem
+      ? "two-ineffective-iterations-same-subsystem"
+      : trailing.length >= 3
+        ? "three-ineffective-iterations"
+        : null,
     // No automated p95 improvement claim: reviewers must provide comparable
     // baseline/candidate evidence and account for p99, max, failures and drops.
   };
@@ -111,7 +122,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       const spans = JSON.parse(readFileSync(file, "utf8"));
       console.log(JSON.stringify(attributePairedD1Spans(spans), null, 2));
     } catch (error) {
-      console.error("Invalid D1 span evidence:", error instanceof SyntaxError ? "invalid-json" : "unreadable-or-invalid-file");
+      console.error(
+        "Invalid D1 span evidence:",
+        error instanceof SyntaxError ? "invalid-json" : "unreadable-or-invalid-file",
+      );
       process.exitCode = 1;
     }
   }
