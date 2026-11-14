@@ -67,7 +67,9 @@ try {
     /Publication owner is not configured/,
     "Unbound private callers must still fail closed",
   );
-  console.log("PASS: cold SSR excludes private schemas; owner activation and dispatch remain fenced");
+  console.log(
+    "PASS: cold SSR excludes private schemas; owner activation and dispatch remain fenced",
+  );
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }
