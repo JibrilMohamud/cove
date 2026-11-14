@@ -103,11 +103,11 @@ for (const [message, kind] of [
 assert.equal(bootstrapFailureKind(new Error("private SQL and TOKEN")), "unclassified");
 assert.match(
   server,
-  /const requireVerifiedBootstrap =\\s*staging \\|\\|\\s*foreEnv\\.FORE_ENVIRONMENT === "production" \\|\\|\\s*foreEnv\\.VERCEL_ENV === "production" \\|\\|/,
+  /const requireVerifiedBootstrap =\s*staging \|\|\s*foreEnv\.FORE_ENVIRONMENT === "production" \|\|\s*foreEnv\.VERCEL_ENV === "production" \|\|/,
 );
 assert.match(
   server,
-  /liveHomeNeedsUnavailableStatus\\(\\s*request,\\s*normalized,\\s*requireVerifiedBootstrap/,
+  /liveHomeNeedsUnavailableStatus\(\s*request,\s*normalized,\s*requireVerifiedBootstrap/,
 );
 assert.match(server, /const guarded = liveHomeNeedsUnavailableStatus/);
 assert.match(server, /status: 503,/);
