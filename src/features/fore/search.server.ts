@@ -745,7 +745,8 @@ async function d1Facets(
         )
           return value;
       }
-    } catch {
+    } catch (error) {
+      if (isPrimaryD1Overload(error)) throw error;
       /* Cache availability never decides search availability. */
     }
   }
@@ -1062,8 +1063,10 @@ async function searchD1(
           duration: Date.now() - started,
         };
     }
-  } catch {
-    // Corrupt/unavailable cache or changed rights always return to live search.
+  } catch (error) {
+    // A failed D1 service cannot be rescued by a larger live legal scan.
+    // Preserve the normal cache-corruption/rights-change fallback otherwise.
+    if (isPrimaryD1Overload(error)) throw error;
   }
   // Count totals are non-authoritative presentation metadata. Results,
   // book hydration and retail-rights selection still use primary env.DB.
