@@ -130,10 +130,7 @@ test("TTFB outside handler isolates platform/network overhead without weakening 
     89,
   );
   for (const timing of ["", "cove_total;dur=secret", "cove_total;dur=13001"]) {
-    assert.equal(
-      estimatedOutsideAppTtfbMs(new Headers({ "Server-Timing": timing }), 1300),
-      null,
-    );
+    assert.equal(estimatedOutsideAppTtfbMs(new Headers({ "Server-Timing": timing }), 1300), null);
   }
   assert.equal(
     estimatedOutsideAppTtfbMs(new Headers({ "Server-Timing": "cove_total;dur=1350" }), 100),
