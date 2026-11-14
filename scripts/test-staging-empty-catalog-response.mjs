@@ -5,7 +5,7 @@ import { transform } from "esbuild";
 const source = fs.readFileSync("src/lib/staging-empty-catalog-response.ts", "utf8");
 const { code } = await transform(source, { loader: "ts", format: "esm" });
 const {
-  stagingHomeNeedsUnavailableStatus: classify,
+  liveHomeNeedsUnavailableStatus: classify,
   sanitizedStagingCatalogFailureTiming: safeTiming,
 } = await import("data:text/javascript;base64," + Buffer.from(code).toString("base64"));
 
@@ -101,11 +101,18 @@ for (const [message, kind] of [
   assert.equal(safeTiming(label + ';dur=0;desc="TOKEN"'), "cove_ssr_empty;dur=0");
 }
 assert.equal(bootstrapFailureKind(new Error("private SQL and TOKEN")), "unclassified");
-assert.match(server, /stagingHomeNeedsUnavailableStatus\(request, normalized, staging\)/);
-assert.match(server, /const guarded = stagingHomeNeedsUnavailableStatus/);
+assert.match(
+  server,
+  /const requireVerifiedBootstrap =\\s*staging \\|\\|\\s*foreEnv\\.FORE_ENVIRONMENT === "production" \\|\\|\\s*foreEnv\\.VERCEL_ENV === "production" \\|\\|/,
+);
+assert.match(
+  server,
+  /liveHomeNeedsUnavailableStatus\\(\\s*request,\\s*normalized,\\s*requireVerifiedBootstrap/,
+);
+assert.match(server, /const guarded = liveHomeNeedsUnavailableStatus/);
 assert.match(server, /status: 503,/);
 assert.match(server, /"cache-control": "no-store"/);
 assert.match(server, /"server-timing": sanitizedStagingCatalogFailureTiming\(/);
 console.log(
-  "Protected SSR staging empty-catalog responses are explicit 503; no live book rights fallback.",
+  "Protected staging and configured remote home failures are explicit 503; no live-rights fallback.",
 );
