@@ -36,7 +36,11 @@ let prepared = [];
 const makeDb = (failure) => ({
   prepare(sql) {
     prepared.push(sql);
-    return { bind(...args) { return { sql, args }; } };
+    return {
+      bind(...args) {
+        return { sql, args };
+      },
+    };
   },
   async batch(statements) {
     batchCalls++;
@@ -63,7 +67,10 @@ try {
   assert.equal(warnings[0].includes("test-request-id"), false);
   assert.equal(stdout.length, 1, "Existing request log remains emitted");
   for (const table of ["ops_http_requests", "ops_trace_spans", "ops_metric_points"])
-    assert.ok(prepared.some((sql) => sql.includes(table)), table);
+    assert.ok(
+      prepared.some((sql) => sql.includes(table)),
+      table,
+    );
   prepared = [];
   await recordHttpRequest(makeDb(new Error("not 7429")), trace, request, response);
   assert.deepEqual(JSON.parse(warnings[1]), {
@@ -78,4 +85,6 @@ try {
   console.warn = priorWarn;
   console.log = priorLog;
 }
-console.log("PASS: failing D1 HTTP audits emit safe, low-cardinality signal, never retry or expose SQL/identity");
+console.log(
+  "PASS: failing D1 HTTP audits emit safe, low-cardinality signal, never retry or expose SQL/identity",
+);
