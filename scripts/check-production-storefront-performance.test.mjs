@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   evaluateProbes,
+  estimatedOutsideAppTtfbMs,
   percentile,
   probeHomepage,
   probeSequence,
@@ -102,6 +103,7 @@ test("failure diagnostics retain only aggregate numeric timings and safe cache l
   assert.deepEqual(telemetry, {
     ttfbMs: 1900,
     totalMs: 1920,
+    outsideAppMs: 157,
     timing: "cove_entry;dur=12.3, cove_render;dur=1712, cove_total;dur=1743.2",
     vercelCache: "MISS",
   });
@@ -113,6 +115,29 @@ test("failure diagnostics retain only aggregate numeric timings and safe cache l
     ),
     { ttfbMs: 250, totalMs: 260, timing: "", vercelCache: "unknown" },
   );
+});
+
+test("TTFB outside handler isolates platform/network overhead without weakening strict budget", () => {
+  assert.equal(
+    estimatedOutsideAppTtfbMs(
+      new Headers({ "Server-Timing": "cove_entry;dur=39.8, cove_total;dur=594.9" }),
+      1300,
+    ),
+    705,
+  );
+  assert.equal(
+    estimatedOutsideAppTtfbMs(new Headers({ "Server-Timing": "cove_total;dur=85.0" }), 174),
+    89,
+  );
+  for (const timing of ["", "cove_total;dur=secret", "cove_total;dur=13001"]) {
+    assert.equal(estimatedOutsideAppTtfbMs(new Headers({ "Server-Timing": timing }), 1300), null);
+  }
+  assert.equal(
+    estimatedOutsideAppTtfbMs(new Headers({ "Server-Timing": "cove_total;dur=1350" }), 100),
+    null,
+    "A fake server phase longer than externally measured TTFB is not meaningful",
+  );
+  assert.equal(strictTtfbTargetMs, 800);
 });
 
 test("Cloudflare request Ray identifiers are tightly validated before provider logging", () => {

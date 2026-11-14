@@ -69,6 +69,21 @@ export function safeCloudflareRay(headers) {
   return /^[a-f0-9]{16,32}-[A-Z]{3}$/.test(value) ? value : null;
 }
 
+/** Estimate the time outside Cove's in-handler timer, including network,
+ * platform routing and cold module initialization. Diagnostic only: it is
+ * NOT an exact provider CPU/cold-start measurement or a new passing gate. */
+export function estimatedOutsideAppTtfbMs(headers, ttfbMs) {
+  if (!Number.isFinite(ttfbMs) || ttfbMs < 0) return null;
+  const timing = (headers.get("server-timing") || "")
+    .split(",")
+    .map((part) => part.trim().match(/^cove_total;dur=([0-9]+(?:\.[0-9]+)?)$/))
+    .find(Boolean);
+  if (!timing) return null;
+  const appMs = Number(timing[1]);
+  if (!Number.isFinite(appMs) || appMs > 12_000 || appMs > ttfbMs) return null;
+  return Math.round(ttfbMs - appMs);
+}
+
 /** Only allow numeric server timing and known CDN cache labels into diagnostics. */
 export function safeProbeTelemetry(headers, ttfbMs, totalMs) {
   const counters = {};
@@ -88,9 +103,11 @@ export function safeProbeTelemetry(headers, ttfbMs, totalMs) {
     // Retain only sanitized numeric names, with an explicit 650-byte cap.
     .slice(0, 650);
   const cache = (headers.get("x-vercel-cache") || "").toUpperCase();
+  const outsideAppMs = estimatedOutsideAppTtfbMs(headers, ttfbMs);
   return {
     ttfbMs,
     totalMs,
+    ...(outsideAppMs !== null ? { outsideAppMs } : {}),
     ...counters,
     timing,
     vercelCache: ["HIT", "MISS", "BYPASS", "STALE", "PRERENDER"].includes(cache)
@@ -194,13 +211,14 @@ async function main() {
     "## Production Bookstore performance canary",
     "",
     "This measures synthetic runner time to first response byte, not field LCP/INP/CLS.",
+    "Outside-app TTFB includes network, platform and cold init; it does not measure provider CPU.",
     "The request does not forge a storefront rights territory or read customer data.",
     "",
-    "| Order | Language request | Sample | TTFB | Total HTML | SSR books | Vercel cache | Safe server phases |",
-    "| ---: | --- | ---: | ---: | ---: | ---: | --- | --- |",
+    "| Order | Language request | Sample | TTFB | Outside app (estimate) | Total HTML | SSR books | Vercel cache | Safe server phases |",
+    "| ---: | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |",
     ...results.map(
       (r) =>
-        `| ${r.sequence} | ${r.language} | ${r.sample} | ${r.ttfbMs} ms | ${r.totalMs} ms | ${r.cards} | ${r.vercelCache} | ${r.timing || "none"} |`,
+        `| ${r.sequence} | ${r.language} | ${r.sample} | ${r.ttfbMs} ms | ${r.outsideAppMs === undefined ? "n/a" : r.outsideAppMs + " ms"} | ${r.totalMs} ms | ${r.cards} | ${r.vercelCache} | ${r.timing || "none"} |`,
     ),
     "",
     `Result: **${assessment.status}** — strict <${assessment.targetMs} ms per response, ${assessment.slowSamples} slow samples; TTFB p75 ${assessment.p75 ?? "n/a"} ms, p95 ${assessment.p95 ?? "n/a"} ms; ${failures.length} errors.`,
