@@ -8,7 +8,12 @@ import { pathToFileURL } from "node:url";
 const source = readFileSync("src/storefront-strangler/publication-owner-routing.server.ts", "utf8");
 const server = readFileSync("src/server.ts", "utf8");
 const clientShell = readFileSync("src/features/fore/App.tsx", "utf8");
-const browserOnlyModules = ["./Auth", "./reading-activity", "./offline-reader-mutations", "./webmcp"];
+const browserOnlyModules = [
+  "./Auth",
+  "./reading-activity",
+  "./offline-reader-mutations",
+  "./webmcp",
+];
 for (const specifier of browserOnlyModules) {
   assert.equal(
     clientShell
