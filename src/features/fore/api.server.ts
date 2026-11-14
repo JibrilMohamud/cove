@@ -441,6 +441,7 @@ import {
   runTrackedWorker,
 } from "./operations.server";
 import { emitIsolatedAnonymousHttpMetric } from "./anonymous-http-metric.server";
+import { persistSyntheticFailureAudit } from "./synthetic-failure-audit-r2.stage";
 import {
   securityOperationsSnapshot,
   saveThreatModel,
@@ -505,6 +506,18 @@ export type CoveEnv = {
     limit(input: { key: string }): Promise<{ success: boolean }>;
   };
   COVE_SSR_STAGING?: string;
+  // Synthetic stage-only HTTP-audit isolation experiment; no production rights,
+  // user, legal, security or payment audit routing can enable this R2 path.
+  COVE_SYNTHETIC_FAILURE_AUDIT_R2?: string;
+  COVE_SYNTHETIC_FAILURE_AUDIT_D1_ID?: string;
+  COVE_SYNTHETIC_FAILURE_AUDIT_BUCKET?: string;
+  SYNTHETIC_FAILURE_AUDIT_R2?: {
+    put(
+      key: string,
+      value: string,
+      options?: { httpMetadata?: { contentType: string } },
+    ): Promise<unknown>;
+  };
   // Isolated QA ONLY: never deploy a positive/negative canonical writer
   // service binding or enable a production rights-owner cutover by default.
   COVE_CANONICAL_LEGAL_WRITE_LOCK?: string;
@@ -2969,10 +2982,25 @@ export async function handleCoveApi(
     actorKind,
     Date.now() - trace.startedMs,
   );
+  // The synthetic 503 A/B tests a private R2 sink instead of writing three
+  // nonauthorizing HTTP audit records to the SAME overloaded synthetic D1.
+  // R2 must confirm the write; otherwise this retains the original D1 path.
+  // This is not a production audit replacement or a legal authorization.
+  const syntheticFailureAuditPersisted = !isolated
+    ? await persistSyntheticFailureAudit(
+        env,
+        tracedRequest,
+        response,
+        actorKind,
+        Date.now() - trace.startedMs,
+      )
+    : false;
   if (isSoundsAnalyticsAck(tracedRequest, response)) {
     // Aggregate-only music interaction. No per-click primary-D1 log writes.
     timings.log_isolated = performance.now() - logStarted;
   } else if (isolated) {
+    timings.log_isolated = performance.now() - logStarted;
+  } else if (syntheticFailureAuditPersisted) {
     timings.log_isolated = performance.now() - logStarted;
   } else if (env.DB) {
     const work = recordHttpRequest(env.DB as any, trace, tracedRequest, response, {
