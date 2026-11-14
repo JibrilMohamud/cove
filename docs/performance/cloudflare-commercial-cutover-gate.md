@@ -4,6 +4,24 @@ Status: **DO NOT ROUTE CUSTOMERS TO CLOUDFLARE YET.** This is a release gate,
 not an approved cutover. Update this checklist with verifiable evidence before
 the owner promotes the Cloudflare frontend.
 
+## Verified performance evidence (November 13, 2026)
+
+**Synthetic hosted v2 performance: PASS for the specified isolated campaign, not a production routing approval.** The reviewed `main` commit `80d8ad48024cccb73d3635ac308256eb105a2ce9` was exercised in [protected hosted campaign 43441279547](https://github.com/JibrilMohamud/cove/actions/runs/43441279547). Its serving model uses independent run-scoped private R2/KV public presentation plus a **fresh primary-D1 rights, current offers, and territorial authorization read on every visitor**. An exact-ranked 25-candidate live-rights prefix is accepted only when all 25 IDs and edition IDs match; any denial, revocation, missing candidate, or stale edition forces the original full 128-candidate D1 authorization.
+
+- Three independently rotated new deployments: 20/20 valid each; cold maxima **319, 418, 370 ms**, all strictly below 800 ms.
+- Native 1/4/8/16/32-concurrent and HTTP/2 1/4/8/16/32-concurrent: every phase valid, zero drops, hard maxima below 800 ms. The 32-request native maximum was **321 ms**; HTTP/2 was **247 ms**.
+- Native 100-RPS / 20 seconds: **2,000/2,000 valid**, zero drops/invalid, **p95 87 ms**, **p99 172 ms**, **maximum 390 ms**.
+- HTTP/2 100-RPS / 20 seconds: **2,000/2,000 valid**, zero drops/invalid, **p95 87 ms**, **p99 143 ms**, **maximum 261 ms**. Both phases retained the strict p95 <600, p99 <750, and maximum <800 ms limits, with no relaxed thresholds.
+- R2/KV test-run synthetic cleanup: all objects deleted, zero failures. Read-only Cloudflare D1 sampled query telemetry showed **352 rows read** per first-paint authorization read on average, down from **1,588** for the earlier 128-ID rights read. Telemetry is sampled, not an exact request census.
+
+**Low-volume real production-catalog preview: PASS, without 100 RPS against real primary.** [Real-catalog acceptance run 43446319429](https://github.com/JibrilMohamud/cove/actions/runs/43446319429), on `main` commit `218e84c4fc804d064aabf2eec9f139e6b8ef4d11`, passed three independently rotated **read-only production D1** cold requests (**521 / 548 / 525 ms**), mobile Chromium **LCP p75 456 ms** (five responses with HTTP 200 and no page errors), **24/24 matching live edition links**, mobile **9.81%** and desktop **5.28%** mismatch to independently approved immutable, checksum-verified visual reference images (both below the existing <10% bound). The clean successful run followed an earlier **staged desktop HTTP 503** failure and a separate intermittent preflight Cloudflare API refusal; those failures were not silently marked green. `main` preserves their failure diagnostics via PR #651.
+
+**Geography limitation:** The real-catalog run independently verified ingress from **LAX / LHR / FRA / NRT** using content-free probes, but **did not measure catalog authorization TTFB at those locations**. It also did not certify repeatable ORD/LAX/IAD/DFW 1/4/8/16/32 and 100-RPS regional cohorts. Geographic performance remains a distinct release blocker. Neither capacity workflow certifies real customer payment-to-entitlement, a production legal-owner activation, account/media/offline migration, or a protected rollback rehearsal.
+
+**Production NO-GO (verified).** Cloudflare read-only owner settings still have `COVE_RIGHTS_OWNER_ENABLED=0`. The [production canonical-D1 principal audit run 43443134551](https://github.com/JibrilMohamud/cove/actions/runs/43443134551) passes only *no-new-drift* while reporting **four direct canonical-D1 bindings in total (including the legal owner), three on non-owner Workers**, `releaseEligible: false` and `productionAuthorized: false`. Production Stripe LIVE entitlement and refund/revocation acceptance, exclusive legal-owner write capabilities, independently repeated geographic catalog performance, and actual protected rollback are not certified. Keep Vercel customer routing unchanged until those separate gates close.
+
+The October 28 snapshot immediately below is retained as **historical baseline**, not current November performance status.
+
 ## Verified state (October 28, 2026)
 
 - Read-only operational snapshot is based on `main` at `254eb2b6e53e47b8e90996deb163697a103e5f92`. The canonical source-review inventory is independently pinned to its reviewed commit, not silently reapproved by this document.
