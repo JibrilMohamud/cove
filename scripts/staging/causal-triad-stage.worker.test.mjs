@@ -40,9 +40,13 @@ const env = {
       assert.match(request.headers.get("x-cove-client-ip"), /^192\.0\.2\.\d+$/);
       assert.equal(request.headers.get("cookie"), null);
       return Response.json(
-        {
-          results: Array.from({ length: 24 }, (_, i) => ({ productId: "perf-synth-" + i })),
-        },
+        request.url.includes("/storefront/context")
+          ? { rightsCountry: "US", currency: "USD", language: "en", availableMarkets: ["US"] }
+          : {
+              results: Array.from({ length: 24 }, (_, i) => ({
+                productId: "perf-synth-" + i,
+              })),
+            },
         { headers: { "x-cove-persistence": "d1-r2" } },
       );
     },
@@ -71,7 +75,7 @@ test("staging is private, read-only, and not bound to production", () => {
     }),
     false,
   );
-  assert.deepEqual(triadModes, ["noop", "rights", "catalog"]);
+  assert.deepEqual(triadModes, ["noop", "context", "rights", "catalog"]);
   assert.match(triadSql, /retail_product_availability_rows/);
   assert.match(triadSql, /INDEXED BY idx_search_popular_stable/);
 });
@@ -80,7 +84,10 @@ test("all paths validate stage identity and independent rights provenance", asyn
   const rights = await singleTriadProbe("rights", env, 1, "probe");
   assert.equal(rights.valid, true);
   assert.equal(rights.sqlMs, 1);
-  const full = await singleTriadProbe("catalog", env, 2, "probe");
+  const context = await singleTriadProbe("context", env, 2, "probe");
+  assert.equal(context.valid, true);
+  assert.equal(context.status, 200);
+  const full = await singleTriadProbe("catalog", env, 3, "probe");
   assert.equal(full.valid, true);
   assert.equal(full.status, 200);
   const den = await worker.fetch(new Request("https://triad.invalid/api/fore/catalog"), env);
