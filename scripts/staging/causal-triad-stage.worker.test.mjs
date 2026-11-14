@@ -66,6 +66,7 @@ test("staging is private, read-only, and not bound to production", () => {
   for (const denied of ["routes", "r2_buckets", "kv_namespaces", "durable_objects", "triggers"])
     assert.equal(config[denied], undefined);
   assert.equal(config.vars.COVE_TRIAD_EXPIRES_AT, "1970-01-01T00:00:00Z");
+  assert.equal(config.vars.COVE_TRIAD_RUN_MINUTE, "0");
   assert.equal(triadStageBindingGuard(env), true);
   assert.equal(triadStageBindingGuard({ ...env, COVE_TRIAD_STAGE: "0" }), false);
   assert.equal(
