@@ -101,7 +101,10 @@ try {
   } finally {
     console.warn = originalWarn;
   }
-  for (const config of ["wrangler.backend.production.toml", "wrangler.backend.presentation-stage.toml"]) {
+  for (const config of [
+    "wrangler.backend.production.toml",
+    "wrangler.backend.presentation-stage.toml",
+  ]) {
     const wiring = fs.readFileSync(config, "utf8");
     assert.doesNotMatch(
       wiring,
