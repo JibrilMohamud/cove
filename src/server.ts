@@ -241,11 +241,7 @@ export default {
         foreEnv.FORE_ENVIRONMENT === "production" ||
         foreEnv.VERCEL_ENV === "production" ||
         Boolean(foreEnv.FORE_BACKEND_URL && foreEnv.FORE_BACKEND_TOKEN);
-      const guarded = liveHomeNeedsUnavailableStatus(
-        request,
-        normalized,
-        requireVerifiedBootstrap,
-      )
+      const guarded = liveHomeNeedsUnavailableStatus(request, normalized, requireVerifiedBootstrap)
         ? new Response(renderErrorPage(), {
             status: 503,
             headers: {
