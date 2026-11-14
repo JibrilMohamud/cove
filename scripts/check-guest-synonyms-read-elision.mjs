@@ -1,10 +1,23 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { transform } from "esbuild";
 
 // Exercise the actual TypeScript function body in a minimal isolated fixture:
 // this avoids a synthetic DB masking an unnecessary service operation.
 const source = readFileSync("src/features/fore/search.server.ts", "utf8");
+const digest = (value) => createHash("sha256").update(value).digest("hex");
+const sourceSha256 = digest(source);
+const projectionSiteId = digest(JSON.stringify([
+  "src/features/fore/search.server.ts",
+  sourceSha256,
+  "refreshSearchQualitySignals",
+  "catalog_search_documents",
+  "UPDATE",
+  "b44b6a38f0afbbebca207293beeb8f920a9ab2f4d9429e3735fd6df1735d4846",
+  1,
+]));
+console.log("__COVE_SYNONYM_WRITER_SOURCE__" + sourceSha256 + "__SITE__" + projectionSiteId + "__END__");
 const start = source.indexOf("async function ftsExpression(");
 const end = source.indexOf("\nfunction buildSqlFilters(", start);
 assert.ok(start >= 0 && end > start, "Locate the real FTS expression function");
