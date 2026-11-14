@@ -1,0 +1,29 @@
+name: cove-stage-audit-format-only
+on:
+  push:
+    branches:
+      - perf/stage-synthetic-audit-r2-20261114
+    paths:
+      - .github/workflows/cove-format-synthetic-audit-orchestrator.yml
+permissions:
+  contents: read
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci
+      - name: Format only the new stage A/B orchestrator in ephemeral checkout
+        run: npx prettier --write scripts/staging/run-synthetic-audit-r2-ab.mjs
+      - name: Emit formatted source for exact PR update
+        run: |
+          node --input-type=module - <<'NODE'
+          import { readFileSync } from "node:fs";
+          const name="scripts/staging/run-synthetic-audit-r2-ab.mjs";
+          console.log("__COVE_AUDIT_AB_FORMAT_START__"+Buffer.from(readFileSync(name)).toString("base64")+"__COVE_AUDIT_AB_FORMAT_END__");
+          NODE
