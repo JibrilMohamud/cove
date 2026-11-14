@@ -15,6 +15,7 @@ import { rightsRecheckedReplicaCandidates } from "./rights-rechecked-replica-can
 import { searchOutboxAcknowledgement } from "./search-outbox-ack";
 import { countAvailableCandidatesFromFacet } from "./count-from-availability-facet";
 import { firstPagePopularRightsShortlist } from "./search-popular-shortlist.server";
+import { isPrimaryD1Overload } from "../../lib/primary-d1-overload";
 import {
   readPublicFacetProjection,
   refreshPublicFacetProjection,
@@ -1133,9 +1134,13 @@ async function searchD1(
           hasVerifiedNextPageWitness = progressive;
           return { results: verified.slice(0, input.limit).map((product_id) => ({ product_id })) };
         }
-      } catch {
-        // Primary-D1 failures NEVER produce unverified IDs: use the ordinary
-        // fully scoped query, which may also deny the request if unavailable.
+      } catch (error) {
+        // D1 resource-window/7429 failures are service saturation, not an
+        // incomplete shortlist. Never amplify them with the full catalog scan.
+        // No cached or unverified ID is returned; the API fails closed 503.
+        if (isPrimaryD1Overload(error)) throw error;
+        // A non-overload failure may still use the original current-rights
+        // fallback; this preserves sparse-market and migration compatibility.
       }
     }
     const clause = part.where.join(" AND ");
