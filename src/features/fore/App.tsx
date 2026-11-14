@@ -161,9 +161,13 @@ export function CoveProvider({
   useEffect(() => {
     let disposed = false;
     let unregister: (() => void) | undefined;
-    void import("./webmcp").then(({ registerReadingTools }) => {
-      if (!disposed) unregister = registerReadingTools(reload);
-    });
+    void import("./webmcp")
+      .then(({ registerReadingTools }) => {
+        if (!disposed) unregister = registerReadingTools(reload);
+      })
+      .catch(() => {
+        // A missing optional browser tool must not interrupt the bookstore.
+      });
     return () => {
       disposed = true;
       unregister?.();
@@ -177,13 +181,15 @@ export function CoveProvider({
       // Only signed-in browsers need offline mutation replay. A logout can
       // unmount this effect while the chunks are loading: never replay for
       // that stale account after cleanup.
-      void Promise.all([import("./reading-activity"), import("./offline-reader-mutations")]).then(
-        ([sessions, mutations]) => {
+      void Promise.all([import("./reading-activity"), import("./offline-reader-mutations")])
+        .then(([sessions, mutations]) => {
           if (disposed) return;
           void sessions.flushSessions(userId).catch(() => {});
           void mutations.flushReaderMutations(userId).catch(() => {});
-        },
-      );
+        })
+        .catch(() => {
+          // Preserve queued offline writes; a later online event retries them.
+        });
     };
     flush();
     window.addEventListener("online", flush);
