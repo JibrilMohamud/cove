@@ -1,0 +1,26 @@
+name: causal-catalog-triad-stage-check
+on:
+  pull_request:
+    paths:
+      - scripts/staging/causal-triad-stage.worker.mjs
+      - scripts/staging/causal-triad-stage.worker.test.mjs
+      - wrangler.performance-triad.stage.jsonc
+      - .github/workflows/causal-catalog-triad-stage-check.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-isolated-triad:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Validate stage-only bindings and protected workload accounting
+        run: node --test scripts/staging/causal-triad-stage.worker.test.mjs
+      - name: Validate attributable paired D1 spans and architecture reset policy
+        run: node --test scripts/performance/d1-span-attribution.test.mjs
+      - name: Require architecture decision ledger
+        run: node scripts/performance/check-architecture-review-ledger.mjs
