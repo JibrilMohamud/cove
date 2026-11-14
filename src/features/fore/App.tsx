@@ -1,4 +1,4 @@
-import { AuthDialog, type AuthMode } from "./Auth";
+import type { AuthMode } from "./Auth";
 import type { StorefrontBootstrap } from "./storefront-bootstrap";
 import { ConnectionNotice } from "./ConnectionNotice";
 import { CoveRequestError } from "./api-transport";
@@ -19,10 +19,8 @@ import {
   Users,
   LifeBuoy,
 } from "lucide-react";
-import { flushSessions } from "./reading-activity";
-import { flushReaderMutations } from "./offline-reader-mutations";
 import { setOfflineAccount } from "./offline-account";
-import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
+import { lazy, Suspense, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import {
   BookOpen,
   Library,
@@ -51,13 +49,16 @@ import {
 import "./fore.css";
 import "./legal.css";
 import "./account-menu.css";
-import { registerReadingTools } from "./webmcp";
 import {
   StorefrontLocaleControl,
   StorefrontLocaleProvider,
   useStorefrontLocale,
 } from "./localization";
 import { useUiText } from "./ui-text";
+// Auth and offline/reader mutation tools are never rendered or invoked during SSR.
+// Leave them in client-only chunks instead of evaluating them on a cold homepage.
+const AuthDialog = lazy(() => import("./Auth").then((module) => ({ default: module.AuthDialog })));
+
 const nav = [
   ["/", "nav.bookstore", "Bookstore", BookOpen],
   ["/audiobooks", "nav.audiobooks", "Audiobooks", Headphones],
@@ -157,16 +158,39 @@ export function CoveProvider({
     window.addEventListener("storage", changed);
     return () => window.removeEventListener("storage", changed);
   }, [reload]);
-  useEffect(() => registerReadingTools(reload), [reload]);
+  useEffect(() => {
+    let disposed = false;
+    let unregister: (() => void) | undefined;
+    void import("./webmcp").then(({ registerReadingTools }) => {
+      if (!disposed) unregister = registerReadingTools(reload);
+    });
+    return () => {
+      disposed = true;
+      unregister?.();
+    };
+  }, [reload]);
   useEffect(() => {
     if (!data.user) return;
+    let disposed = false;
+    const userId = data.user.id;
     const flush = () => {
-      void flushSessions(data.user!.id).catch(() => {});
-      void flushReaderMutations(data.user!.id).catch(() => {});
+      // Only signed-in browsers need offline mutation replay. A logout can
+      // unmount this effect while the chunks are loading: never replay for
+      // that stale account after cleanup.
+      void Promise.all([import("./reading-activity"), import("./offline-reader-mutations")]).then(
+        ([sessions, mutations]) => {
+          if (disposed) return;
+          void sessions.flushSessions(userId).catch(() => {});
+          void mutations.flushReaderMutations(userId).catch(() => {});
+        },
+      );
     };
     flush();
     window.addEventListener("online", flush);
-    return () => window.removeEventListener("online", flush);
+    return () => {
+      disposed = true;
+      window.removeEventListener("online", flush);
+    };
   }, [data.user]);
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
@@ -199,7 +223,11 @@ export function CoveProvider({
     >
       <StorefrontLocaleProvider key={data.user?.id || "guest"} initialContext={initialStorefront}>
         {children}
-        <AuthDialog mode={auth} onChange={setAuth} onSuccess={reload} />
+        {auth && (
+          <Suspense fallback={null}>
+            <AuthDialog mode={auth} onChange={setAuth} onSuccess={reload} />
+          </Suspense>
+        )}
         <Toaster theme="dark" position="bottom-right" richColors />
       </StorefrontLocaleProvider>
     </AccountContext.Provider>
