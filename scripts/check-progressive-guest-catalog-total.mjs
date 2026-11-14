@@ -24,7 +24,9 @@ assert.match(
 assert.match(search, /hasVerifiedNextPageWitness = progressive/);
 assert.match(search, /verified\.slice\(0, input\.limit\)/);
 assert.match(shortlist, /limit < 1 \|\| limit > 25/);
-assert.match(shortlist, /rightsScopedCachedPageQuery\(scope, ids\)/);
+assert.match(shortlist, /WITH ranked AS MATERIALIZED/);
+assert.match(shortlist, /WHERE \$\{scope\.where\.join\(" AND "\)\}/);
+assert.match(shortlist, /\.bind\(\.\.\.scope\.binds, limit\)/);
 assert.match(
   publicRights,
   /FROM selected wanted[\s\S]*CROSS JOIN catalog_search_documents d ON d\.product_id=wanted\.product_id/,

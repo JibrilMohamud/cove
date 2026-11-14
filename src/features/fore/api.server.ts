@@ -115,7 +115,9 @@ import {
 import JSZip from "jszip";
 import seed from "./catalog-seed.json";
 import type { CatalogBook } from "./client";
+import type { PresentationR2Bucket } from "./search-presentation-r2.server";
 import {
+  canDeferGuestCatalogFacets,
   firstPaintStorefrontShelf,
   parseSearchInput,
   recordSearchClick,
@@ -485,6 +487,8 @@ type Statement = {
 export type CoveEnv = {
   AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
   DB: { prepare(sql: string): Statement; batch(s: Statement[]): Promise<unknown> };
+  FORE_ASYNC_CATALOG_FACETS?: string;
+  COVE_PUBLIC_PRESENTATION_CACHE?: PresentationR2Bucket;
   // Optional production-disabled read-model: R2/KV is never a rights authority.
   COVE_SOUNDS_SNAPSHOT_ENABLED?: string;
   COVE_SOUNDS_SNAPSHOT_MARKETS?: string;
@@ -3228,6 +3232,17 @@ async function handleCoveRequest(
       withSession?: (constraint: "first-primary" | "first-unconstrained") => typeof machineDb;
     };
     const anonymousFirstPaint = firstPaint && !currentIdentity?.id;
+    // Reuse the verified anonymous metadata snapshot for the opt-in R2 guest
+    // catalog too. Cookies/accounts retain the preference-aware resolver.
+    const anonymousCatalogContext =
+      request.method === "GET" &&
+      path === "/catalog" &&
+      !currentIdentity?.id &&
+      !request.headers.has("cookie") &&
+      !request.headers.has("authorization") &&
+      env.FORE_ASYNC_CATALOG_FACETS === "1" &&
+      !!env.COVE_PUBLIC_PRESENTATION_CACHE &&
+      canDeferGuestCatalogFacets(env, parseSearchInput(url), null);
     const configConstraint = "first-primary" as const;
     const dbForContext =
       firstPaint && !anonymousFirstPaint && typeof configDb.withSession === "function"
@@ -3279,7 +3294,7 @@ async function handleCoveRequest(
           request,
           currentIdentity?.id || null,
           env.FORE_DEFAULT_TERRITORY || "US",
-          anonymousFirstPaint,
+          anonymousFirstPaint || anonymousCatalogContext,
           (rows) => {
             homepageProjection.rows = rows;
           },

@@ -1,5 +1,9 @@
 # Isolated R2 catalog runtime validation — November 14, 2026
 
+Follow-up: the [single-snapshot catalog campaign](2026-11-14-catalog-single-snapshot.md)
+records the subsequent query/cache/context improvements. This file preserves
+the earlier deployment and measurements.
+
 **Release remains blocked.** These are functional backend measurements against
 the existing isolated 50,000-document D1 fixture, not production catalog or SSR
 performance certification. Full samples are in
@@ -28,7 +32,8 @@ the JSON form in 0.83 ms SQL with zero writes (nonexistent probe IDs only).
 Candidate source is PR #665 commit `88cf8040` plus PR #666's recommendation fix.
 Backend bundle SHA-256 is
 `ae212a4e11a82fbf1fdaf7a7e63de594ef7774cbd31a1273615fdc7b3dea35d8`.
-The final active candidate version is `55b7a151-fcfe-4d35-8bd7-ad50f31b4860`.
+At the end of this campaign the candidate version was
+`55b7a151-fcfe-4d35-8bd7-ad50f31b4860`.
 
 Only synthetic D1 `e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3` and dedicated
 `cove-public-presentation-stage-20261114` R2 are bound. No production DB,

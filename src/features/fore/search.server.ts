@@ -995,6 +995,10 @@ async function searchD1(
   deferred?: DeferredFacetWork,
 ) {
   const started = Date.now();
+  // The independent R2 candidate already computes a bounded primary-rights
+  // page. Do not pay for a legacy D1 page-cache lookup which this path never
+  // populates. All non-opted-in searches retain that cache and its recheck.
+  const presentationStore = deferred ? env.COVE_PUBLIC_PRESENTATION_CACHE : undefined;
   const cacheId = [
     ...new Uint8Array(
       await crypto.subtle.digest(
@@ -1007,9 +1011,11 @@ async function searchD1(
     .join("");
   const cacheKey = `search-page:v1:${cacheId}`;
   try {
-    const row = await env.DB.prepare("SELECT body FROM api_cache WHERE key=? AND expires_at>?")
-      .bind(cacheKey, Date.now())
-      .first<{ body: string }>();
+    const row = presentationStore
+      ? null
+      : await env.DB.prepare("SELECT body FROM api_cache WHERE key=? AND expires_at>?")
+          .bind(cacheKey, Date.now())
+          .first<{ body: string }>();
     if (row) {
       const cached = JSON.parse(row.body) as {
         ids: string[];
@@ -1202,7 +1208,6 @@ async function searchD1(
   // On a cache miss, avoid scanning the expensive legal view twice.
   // If the facet contract changes, fall back to the original COUNT.
   const facetState = { pending: false };
-  const presentationStore = deferred ? env.COVE_PUBLIC_PRESENTATION_CACHE : undefined;
   const sharedFacetCount = !input.query && !part.hasFts && input.availability === "available";
   const [initialRows, initialCount, sharedFacets] = await Promise.all([
     runIds(),
@@ -1916,6 +1921,43 @@ export async function firstPaintStorefrontShelf(
   };
 }
 
+/** Shared opt-in boundary for independent public presentation storage. */
+export function canDeferGuestCatalogFacets(
+  env: Pick<SearchEnv, "DB" | "FORE_ASYNC_CATALOG_FACETS" | "COVE_PUBLIC_PRESENTATION_CACHE">,
+  input: SearchInput,
+  userId: string | null,
+) {
+  return (
+    env.FORE_ASYNC_CATALOG_FACETS === "1" &&
+    !!env.COVE_PUBLIC_PRESENTATION_CACHE &&
+    !userId &&
+    !input.query &&
+    input.sort === "popular" &&
+    input.page === 1 &&
+    input.taxonomy.length === 0 &&
+    input.categories.length === 0 &&
+    input.languages.length === 0 &&
+    input.formats.length === 0 &&
+    input.publishers.length === 0 &&
+    input.series.length === 0 &&
+    input.contributorIds.length === 0 &&
+    input.seriesIds.length === 0 &&
+    input.publisherIds.length === 0 &&
+    input.imprintIds.length === 0 &&
+    input.subscription === undefined &&
+    input.library === undefined &&
+    input.minPrice === undefined &&
+    input.maxPrice === undefined &&
+    input.minRating === undefined &&
+    input.minReviews === undefined &&
+    !input.publishedAfter &&
+    !input.publishedBefore &&
+    input.preorder === undefined &&
+    input.newRelease === undefined &&
+    input.deals === undefined
+  );
+}
+
 export async function searchCatalog(
   env: SearchEnv,
   input: SearchInput,
@@ -1959,36 +2001,7 @@ export async function searchCatalog(
   // Conservative opt-in only: anonymous unfiltered first-page popular books.
   // No private/account facet, alternate ordering or active filter may defer.
   const deferredFacets: DeferredFacetWork | undefined =
-    defer &&
-    env.FORE_ASYNC_CATALOG_FACETS === "1" &&
-    !!env.COVE_PUBLIC_PRESENTATION_CACHE &&
-    !userId &&
-    !input.query &&
-    input.sort === "popular" &&
-    input.page === 1 &&
-    input.taxonomy.length === 0 &&
-    input.categories.length === 0 &&
-    input.languages.length === 0 &&
-    input.formats.length === 0 &&
-    input.publishers.length === 0 &&
-    input.series.length === 0 &&
-    input.contributorIds.length === 0 &&
-    input.seriesIds.length === 0 &&
-    input.publisherIds.length === 0 &&
-    input.imprintIds.length === 0 &&
-    input.subscription === undefined &&
-    input.library === undefined &&
-    input.minPrice === undefined &&
-    input.maxPrice === undefined &&
-    input.minRating === undefined &&
-    input.minReviews === undefined &&
-    !input.publishedAfter &&
-    !input.publishedBefore &&
-    input.preorder === undefined &&
-    input.newRelease === undefined &&
-    input.deals === undefined
-      ? []
-      : undefined;
+    defer && canDeferGuestCatalogFacets(env, input, userId) ? [] : undefined;
   // Preserve the reviewed unmodified call path for every nonopted-in request.
   const runD1Search = () =>
     deferredFacets

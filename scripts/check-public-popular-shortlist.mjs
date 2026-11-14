@@ -65,6 +65,7 @@ try {
     insert.e.run("e" + id, null, "available");
     if (i % 11 !== 0) insert.rights.run(id, "US");
   }
+  const calls = [];
   const db = {
     prepare(statement) {
       let args = [];
@@ -74,6 +75,7 @@ try {
           return this;
         },
         async all() {
+          calls.push({ statement, args });
           return { results: sql.prepare(statement).all(...args) };
         },
       };
@@ -109,6 +111,15 @@ try {
       .all("available", territory, currency)
       .map((row) => row.product_id);
   const fast = await shortlist(db, scope, 24);
+  assert.equal(calls.length, 1, "Ranking seed and current rights must share one D1 statement");
+  assert.equal(calls[0].args.length, 4, "Do not bind 96 ranked IDs in a second round trip");
+  const plan = sql.prepare("EXPLAIN QUERY PLAN " + calls[0].statement).all(...calls[0].args);
+  assert.ok(plan.some((row) => row.detail.includes("MATERIALIZE ranked")));
+  assert.ok(plan.some((row) => row.detail.includes("idx_search_popular_stable")));
+  assert.ok(
+    plan.some((row) => /SEARCH d USING INDEX/.test(row.detail)),
+    "The rights check must use bounded ID lookups, not a full catalog scan",
+  );
   assert.ok(fast, "Dense legal market must produce complete verified first page");
   assert.deepEqual(
     fast,
@@ -148,7 +159,7 @@ try {
   // No results from a failed primary rights recheck may be returned.
   const broken = {
     prepare(statement) {
-      if (statement.includes("WITH selected(product_id)"))
+      if (statement.includes("WITH ranked AS MATERIALIZED"))
         throw new Error("Primary territorial rights are unavailable");
       return db.prepare(statement);
     },

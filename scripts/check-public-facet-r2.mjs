@@ -190,3 +190,4 @@ console.log(
   "PASS: isolated R2 public facets CAS, 16-way cold lease, stale-owner fencing, expiry, market partition and zero primary-D1 cache writes",
 );
 await import("./check-presentation-candidate-gateway.mjs");
+await import("./check-r2-catalog-cache-bypass.mjs");

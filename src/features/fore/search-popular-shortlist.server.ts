@@ -1,8 +1,5 @@
 import type { CatalogDB } from "./catalog-model.server";
-import {
-  rightsScopedCachedPageQuery,
-  type RightsRecheckCandidate,
-} from "./rights-scoped-cache-page";
+import type { RightsRecheckCandidate } from "./rights-scoped-cache-page";
 
 const MAX_RANKED_CANDIDATES = 96;
 
@@ -25,34 +22,37 @@ export async function firstPagePopularRightsShortlist(
   scope: RightsRecheckCandidate,
   limit: number,
 ): Promise<string[] | null> {
-  if (scope.hasFts || !Number.isSafeInteger(limit) || limit < 1 || limit > 25) return null;
-  const ranked = await db
+  if (scope.hasFts || scope.prefix || !Number.isSafeInteger(limit) || limit < 1 || limit > 25)
+    return null;
+  // Materialize the same top-96 ranking seed inside the CURRENT primary
+  // statement. This removes an entire D1 service round trip and the 96 ID
+  // bindings while keeping selection and rights in one read snapshot.
+  const eligible = await db
     .prepare(
-      `SELECT d.product_id FROM catalog_search_documents d
-       INDEXED BY idx_search_popular_stable
-       ORDER BY d.fore_bestseller_score DESC,d.external_book_id ASC,d.product_id ASC
-       LIMIT 96`,
+      `WITH ranked AS MATERIALIZED (
+        SELECT d.product_id,d.fore_bestseller_score sort_score,d.external_book_id sort_source
+        FROM catalog_search_documents d INDEXED BY idx_search_popular_stable
+        ORDER BY d.fore_bestseller_score DESC,d.external_book_id ASC,d.product_id ASC
+        LIMIT ${MAX_RANKED_CANDIDATES}
+      )
+      SELECT d.product_id FROM ranked wanted
+      CROSS JOIN catalog_search_documents d ON d.product_id=wanted.product_id
+      CROSS JOIN products p ON p.id=d.product_id
+      CROSS JOIN editions e ON e.id=p.edition_id
+      LEFT JOIN publishers pub ON pub.id=e.publisher_id
+      WHERE ${scope.where.join(" AND ")}
+      ORDER BY wanted.sort_score DESC,wanted.sort_source ASC,wanted.product_id ASC
+      LIMIT ?`,
     )
+    .bind(...scope.binds, limit)
     .all<{ product_id: string }>();
-  const ids = ranked.results.map((row) => row.product_id);
+  const ids = eligible.results.map((row) => row.product_id);
   if (
-    !ids.length ||
-    ids.length > MAX_RANKED_CANDIDATES ||
+    ids.length !== limit ||
     ids.some((id) => typeof id !== "string" || !id) ||
     new Set(ids).size !== ids.length
   )
     return null;
 
-  // These are EXACTLY the same canonical product-status, storefront scope,
-  // currency, language and current retail-rights SQL filters as runIds().
-  // The recheck helper forces a bounded selected-ID seed so SQLite cannot
-  // accidentally run a 50k-row popularity scan while verifying 96 IDs.
-  const check = rightsScopedCachedPageQuery(scope, ids);
-  const eligible = await db
-    .prepare(check.sql)
-    .bind(...check.binds)
-    .all<{ product_id: string }>();
-  const allowed = new Set(eligible.results.map((row) => row.product_id));
-  const verified = ids.filter((id) => allowed.has(id));
-  return verified.length >= limit ? verified.slice(0, limit) : null;
+  return ids;
 }
