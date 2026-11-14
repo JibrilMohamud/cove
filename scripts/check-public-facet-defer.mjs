@@ -13,9 +13,9 @@ assert.match(search, /input\.sort === "popular" &&\s*input\.page === 1/);
 assert.match(search, /input\.subscription === undefined &&\s*input\.library === undefined/);
 assert.match(search, /facetsPending: facetState\.pending/);
 assert.match(search, /facetState\.pending\s*\?\s*null/);
-assert.match(search, /if \(!facetState\.pending\) \{/);
+assert.match(search, /if \(!facetState\.pending && !presentationStore\) \{/);
 assert.match(search, /for \(const work of deferredFacets \|\| \[\]\)/);
-assert.match(search, /refreshLeasedSearchFacets\(db, cacheKey/);
+assert.match(search, /refreshPublicFacetProjection\(presentationStore, cacheKey/);
 assert.match(api, /catalog\(env, url, searchUserId, storefrontTerritory, execution\)/);
 assert.match(api, /facetsPending: result\.facetsPending === true/);
 assert.match(publicCache, /path === "\/api\/fore\/catalog"/);
@@ -25,7 +25,7 @@ assert.match(
   /refetchInterval: \(query\) =>\s*query\.state\.data\?\.facetsPending \|\| query\.state\.data\?\.countPending \? 5_000 : false/,
 );
 
-// Execute the real distributed D1 lease under concurrent visitor traffic.
+// Preserve old D1-lease unit coverage only to prove it stays isolated from the\n// new opt-in path; the integration no longer calls it for public facets.
 const bundle = await build({
   entryPoints: ["src/features/fore/search-facet-refresh-lease.server.ts"],
   platform: "neutral",
