@@ -12,6 +12,8 @@ on:
       - "scripts/check-production-http-metric-wiring.mjs"
       - ".github/workflows/deploy-persistence-backend.yml"
       - "scripts/check-primary-d1-overload-fail-closed.mjs"
+      - "scripts/check-http-audit-write-failure-signal.mjs"
+      - "src/features/fore/operations.server.ts"
       - "src/lib/catalog-ingestion-idempotency.ts"
       - "scripts/check-catalog-ingestion-idempotency.mjs"
       - "scripts/check-catalog-ingestion-backpressure.mjs"
@@ -70,6 +72,8 @@ on:
       - "src/lib/catalog-ingestion-backpressure.ts"
       - "src/lib/primary-d1-overload.ts"
       - "scripts/check-primary-d1-overload-fail-closed.mjs"
+      - "scripts/check-http-audit-write-failure-signal.mjs"
+      - "src/features/fore/operations.server.ts"
       - "src/lib/catalog-ingestion-idempotency.ts"
       - "scripts/check-catalog-ingestion-idempotency.mjs"
       - "scripts/check-catalog-ingestion-backpressure.mjs"
@@ -145,6 +149,8 @@ jobs:
         run: npx eslint src/lib/persistence-backend.ts src/persistence-backend.worker.ts
       - name: Primary D1 overload does not trigger recursive error writes
         run: node scripts/check-primary-d1-overload-fail-closed.mjs
+      - name: Failed public HTTP audit records cannot disappear silently
+        run: node scripts/check-http-audit-write-failure-signal.mjs
       - name: Separate optional soundtrack ingest from canonical D1 rights work
         run: node scripts/check-catalog-ingestion-backpressure.mjs
       - name: Public guest catalog edge admission keeps D1 rights and account limits
