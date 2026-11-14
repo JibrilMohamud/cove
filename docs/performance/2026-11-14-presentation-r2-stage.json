@@ -1,0 +1,1838 @@
+{
+  "schema": "cove.isolated-presentation-r2-campaign.v1",
+  "date": "2026-11-14",
+  "releaseCertified": false,
+  "baselineSourceCommit": "88cf8040472bf155b30153d7a7c8e9cb991c2991",
+  "additionalSourceChange": "recommendation parameter fix e0f66db729f7436b1d7a14f08e136e6b9bbaf10b",
+  "backendBundleSha256": "ae212a4e11a82fbf1fdaf7a7e63de594ef7774cbd31a1273615fdc7b3dea35d8",
+  "isolatedD1": "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
+  "documents": 50000,
+  "presentationBucket": "cove-public-presentation-stage-20261114",
+  "backendVersion": "c2ec1ffa-a3e9-49aa-8c14-57ebedf7aed0",
+  "authentication": {
+    "missing": 401,
+    "forged": 401,
+    "valid": 200
+  },
+  "firstR2Miss": {
+    "books": 24,
+    "displayCount": 25,
+    "facetsPending": true,
+    "countPending": true,
+    "apiMs": 644
+  },
+  "completedR2Read": {
+    "books": 24,
+    "displayCount": 46564,
+    "facetsPending": false,
+    "countPending": false,
+    "apiMs": 685
+  },
+  "withdrawal": {
+    "syntheticProduct": "perf-synth-000001",
+    "syntheticGrant": "perf-grant-1",
+    "status": 200,
+    "books": 24,
+    "withdrawnBookAbsent": true,
+    "nextRankedBookIncluded": true,
+    "cachedDisplayCount": 46564,
+    "fixtureRestored": true
+  },
+  "forcedOuterCacheMissCampaign": {
+    "schema": "cove.presentation-candidate-functional.v1",
+    "capturedAt": "2026-11-14",
+    "syntheticDatabase": true,
+    "realR2": true,
+    "uniqueOuterCacheIdentity": true,
+    "workspaceProxyTransport": true,
+    "strictReleaseCertified": false,
+    "waves": [
+      {
+        "concurrency": 1,
+        "offered": 1,
+        "completed": 1,
+        "valid": 1,
+        "failures": 0,
+        "apiMaxMs": 374.0,
+        "apiP95Ms": 374.0,
+        "allRestoredBookPresent": true
+      },
+      {
+        "concurrency": 4,
+        "offered": 4,
+        "completed": 4,
+        "valid": 4,
+        "failures": 0,
+        "apiMaxMs": 410.0,
+        "apiP95Ms": 410.0,
+        "allRestoredBookPresent": true
+      },
+      {
+        "concurrency": 8,
+        "offered": 8,
+        "completed": 8,
+        "valid": 8,
+        "failures": 0,
+        "apiMaxMs": 533.0,
+        "apiP95Ms": 533.0,
+        "allRestoredBookPresent": true
+      },
+      {
+        "concurrency": 16,
+        "offered": 16,
+        "completed": 16,
+        "valid": 16,
+        "failures": 0,
+        "apiMaxMs": 793.0,
+        "apiP95Ms": 793.0,
+        "allRestoredBookPresent": true
+      },
+      {
+        "concurrency": 32,
+        "offered": 32,
+        "completed": 32,
+        "valid": 32,
+        "failures": 0,
+        "apiMaxMs": 1250.0,
+        "apiP95Ms": 1228.0,
+        "allRestoredBookPresent": true
+      }
+    ],
+    "samples": [
+      {
+        "index": 0,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4545,
+        "apiMs": 374.0,
+        "searchMs": 197,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 0,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3947,
+        "apiMs": 371.0,
+        "searchMs": 170,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 1,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3990,
+        "apiMs": 376.0,
+        "searchMs": 197,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 2,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4031,
+        "apiMs": 410.0,
+        "searchMs": 200,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 3,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3971,
+        "apiMs": 392.0,
+        "searchMs": 205,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 0,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3294,
+        "apiMs": 455.0,
+        "searchMs": 247,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 1,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3292,
+        "apiMs": 433.0,
+        "searchMs": 205,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 2,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3333,
+        "apiMs": 533.0,
+        "searchMs": 324,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 3,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3171,
+        "apiMs": 380.0,
+        "searchMs": 164,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 4,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3216,
+        "apiMs": 411.0,
+        "searchMs": 209,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 5,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3301,
+        "apiMs": 462.0,
+        "searchMs": 235,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 6,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3296,
+        "apiMs": 448.0,
+        "searchMs": 229,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 7,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3194,
+        "apiMs": 385.0,
+        "searchMs": 198,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 0,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3365,
+        "apiMs": 629.0,
+        "searchMs": 329,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 1,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3412,
+        "apiMs": 629.0,
+        "searchMs": 330,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 2,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3315,
+        "apiMs": 554.0,
+        "searchMs": 235,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 3,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3425,
+        "apiMs": 662.0,
+        "searchMs": 333,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 4,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3322,
+        "apiMs": 532.0,
+        "searchMs": 237,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 5,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3262,
+        "apiMs": 488.0,
+        "searchMs": 232,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 6,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3313,
+        "apiMs": 545.0,
+        "searchMs": 290,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 7,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3269,
+        "apiMs": 534.0,
+        "searchMs": 294,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 8,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3205,
+        "apiMs": 454.0,
+        "searchMs": 195,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 9,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3668,
+        "apiMs": 713.0,
+        "searchMs": 433,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 10,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3297,
+        "apiMs": 571.0,
+        "searchMs": 304,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 11,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3268,
+        "apiMs": 536.0,
+        "searchMs": 254,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 12,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3190,
+        "apiMs": 469.0,
+        "searchMs": 217,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 13,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3111,
+        "apiMs": 405.0,
+        "searchMs": 208,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 14,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3527,
+        "apiMs": 793.0,
+        "searchMs": 596,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 15,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3302,
+        "apiMs": 557.0,
+        "searchMs": 300,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 0,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3652,
+        "apiMs": 693.0,
+        "searchMs": 434,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 1,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3860,
+        "apiMs": 969.0,
+        "searchMs": 506,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 2,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3896,
+        "apiMs": 984.0,
+        "searchMs": 567,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 3,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3872,
+        "apiMs": 945.0,
+        "searchMs": 438,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 4,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3840,
+        "apiMs": 1027.0,
+        "searchMs": 559,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 5,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3687,
+        "apiMs": 924.0,
+        "searchMs": 537,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 6,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4045,
+        "apiMs": 1172.0,
+        "searchMs": 676,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 7,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4100,
+        "apiMs": 1160.0,
+        "searchMs": 708,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 8,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3642,
+        "apiMs": 802.0,
+        "searchMs": 357,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 9,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4038,
+        "apiMs": 1158.0,
+        "searchMs": 670,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 10,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3843,
+        "apiMs": 1064.0,
+        "searchMs": 561,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 11,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4086,
+        "apiMs": 1160.0,
+        "searchMs": 720,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 12,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3802,
+        "apiMs": 930.0,
+        "searchMs": 512,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 13,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3659,
+        "apiMs": 834.0,
+        "searchMs": 363,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 14,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3806,
+        "apiMs": 937.0,
+        "searchMs": 509,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 15,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3832,
+        "apiMs": 1000.0,
+        "searchMs": 555,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 16,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4165,
+        "apiMs": 1250.0,
+        "searchMs": 729,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 17,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3657,
+        "apiMs": 796.0,
+        "searchMs": 378,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 18,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3871,
+        "apiMs": 998.0,
+        "searchMs": 443,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 19,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3952,
+        "apiMs": 1146.0,
+        "searchMs": 669,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 20,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4009,
+        "apiMs": 1192.0,
+        "searchMs": 673,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 21,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3937,
+        "apiMs": 1115.0,
+        "searchMs": 695,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 22,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3941,
+        "apiMs": 1117.0,
+        "searchMs": 643,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 23,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3589,
+        "apiMs": 835.0,
+        "searchMs": 453,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 24,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4005,
+        "apiMs": 1190.0,
+        "searchMs": 662,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 25,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4028,
+        "apiMs": 1228.0,
+        "searchMs": 654,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 26,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4018,
+        "apiMs": 1199.0,
+        "searchMs": 644,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 27,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3974,
+        "apiMs": 1106.0,
+        "searchMs": 665,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 28,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3992,
+        "apiMs": 1136.0,
+        "searchMs": 625,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 29,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3831,
+        "apiMs": 999.0,
+        "searchMs": 501,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 30,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4014,
+        "apiMs": 1133.0,
+        "searchMs": 693,
+        "restoredBookPresent": true
+      },
+      {
+        "index": 31,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3833,
+        "apiMs": 935.0,
+        "searchMs": 525,
+        "restoredBookPresent": true
+      }
+    ]
+  },
+  "rejectedParallelContextCampaign": {
+    "schema": "cove.presentation-candidate-functional.v1",
+    "capturedAt": "2026-11-14",
+    "syntheticDatabase": true,
+    "realR2": true,
+    "uniqueOuterCacheIdentity": true,
+    "workspaceProxyTransport": true,
+    "strictReleaseCertified": false,
+    "waves": [
+      {
+        "concurrency": 1,
+        "offered": 1,
+        "completed": 1,
+        "valid": 1,
+        "failures": 0,
+        "apiMaxMs": 385.0,
+        "apiP95Ms": 385.0,
+        "allRestoredBookPresent": true
+      },
+      {
+        "concurrency": 4,
+        "offered": 4,
+        "completed": 4,
+        "valid": 4,
+        "failures": 0,
+        "apiMaxMs": 627.0,
+        "apiP95Ms": 627.0,
+        "allRestoredBookPresent": true
+      },
+      {
+        "concurrency": 8,
+        "offered": 8,
+        "completed": 8,
+        "valid": 8,
+        "failures": 0,
+        "apiMaxMs": 1321.0,
+        "apiP95Ms": 1321.0,
+        "allRestoredBookPresent": true
+      },
+      {
+        "concurrency": 16,
+        "offered": 16,
+        "completed": 16,
+        "valid": 16,
+        "failures": 0,
+        "apiMaxMs": 861.0,
+        "apiP95Ms": 861.0,
+        "allRestoredBookPresent": true
+      },
+      {
+        "concurrency": 32,
+        "offered": 32,
+        "completed": 32,
+        "valid": 32,
+        "failures": 0,
+        "apiMaxMs": 1244.0,
+        "apiP95Ms": 1189.0,
+        "allRestoredBookPresent": true
+      }
+    ],
+    "samples": [
+      {
+        "index": 0,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 6688,
+        "apiMs": 385.0,
+        "searchMs": 278,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 60.0,
+          "cove_context": 88.0,
+          "cove_catalog": 325.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 385.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 0,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3971,
+        "apiMs": 627.0,
+        "searchMs": 456,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 104.0,
+          "cove_context": 372.0,
+          "cove_catalog": 523.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 627.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 1,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3910,
+        "apiMs": 615.0,
+        "searchMs": 227,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 330.0,
+          "cove_context": 338.0,
+          "cove_catalog": 285.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 615.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 2,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3915,
+        "apiMs": 607.0,
+        "searchMs": 473,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 65.0,
+          "cove_context": 347.0,
+          "cove_catalog": 542.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 607.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 3,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3857,
+        "apiMs": 531.0,
+        "searchMs": 400,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 58.0,
+          "cove_context": 97.0,
+          "cove_catalog": 473.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 531.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 0,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3544,
+        "apiMs": 505.0,
+        "searchMs": 373,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 65.0,
+          "cove_context": 129.0,
+          "cove_catalog": 440.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 505.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 1,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4422,
+        "apiMs": 1321.0,
+        "searchMs": 399,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 72.0,
+          "cove_catalog": 456.0,
+          "cove_context": 1321.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 1321.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 2,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3588,
+        "apiMs": 498.0,
+        "searchMs": 321,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 116.0,
+          "cove_context": 179.0,
+          "cove_catalog": 382.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 498.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 3,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3151,
+        "apiMs": 369.0,
+        "searchMs": 240,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 73.0,
+          "cove_context": 117.0,
+          "cove_catalog": 296.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 369.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 4,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3173,
+        "apiMs": 358.0,
+        "searchMs": 245,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 59.0,
+          "cove_context": 137.0,
+          "cove_catalog": 299.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 358.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 5,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3130,
+        "apiMs": 350.0,
+        "searchMs": 220,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 72.0,
+          "cove_context": 136.0,
+          "cove_catalog": 278.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 350.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 6,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3039,
+        "apiMs": 353.0,
+        "searchMs": 247,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 58.0,
+          "cove_context": 122.0,
+          "cove_catalog": 295.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 353.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 7,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3103,
+        "apiMs": 367.0,
+        "searchMs": 251,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 61.0,
+          "cove_context": 113.0,
+          "cove_catalog": 306.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 367.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 0,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3467,
+        "apiMs": 666.0,
+        "searchMs": 376,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 198.0,
+          "cove_context": 298.0,
+          "cove_catalog": 468.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 666.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 1,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3350,
+        "apiMs": 593.0,
+        "searchMs": 452,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 68.0,
+          "cove_context": 194.0,
+          "cove_catalog": 525.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 593.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 2,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3321,
+        "apiMs": 517.0,
+        "searchMs": 347,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 101.0,
+          "cove_context": 195.0,
+          "cove_catalog": 416.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 517.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 3,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3160,
+        "apiMs": 458.0,
+        "searchMs": 318,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 60.0,
+          "cove_context": 145.0,
+          "cove_catalog": 398.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 458.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 4,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3241,
+        "apiMs": 491.0,
+        "searchMs": 354,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 65.0,
+          "cove_context": 185.0,
+          "cove_catalog": 426.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 491.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 5,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3350,
+        "apiMs": 605.0,
+        "searchMs": 447,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 73.0,
+          "cove_context": 201.0,
+          "cove_catalog": 532.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 605.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 6,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3297,
+        "apiMs": 382.0,
+        "searchMs": 248,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 64.0,
+          "cove_context": 105.0,
+          "cove_catalog": 318.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 382.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 7,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3261,
+        "apiMs": 547.0,
+        "searchMs": 391,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 73.0,
+          "cove_context": 129.0,
+          "cove_catalog": 474.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 547.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 8,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3274,
+        "apiMs": 528.0,
+        "searchMs": 386,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 64.0,
+          "cove_context": 97.0,
+          "cove_catalog": 464.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 528.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 9,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3404,
+        "apiMs": 605.0,
+        "searchMs": 436,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 63.0,
+          "cove_context": 247.0,
+          "cove_catalog": 542.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 605.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 10,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3633,
+        "apiMs": 698.0,
+        "searchMs": 452,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 135.0,
+          "cove_context": 260.0,
+          "cove_catalog": 563.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 698.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 11,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3589,
+        "apiMs": 651.0,
+        "searchMs": 479,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 89.0,
+          "cove_context": 201.0,
+          "cove_catalog": 562.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 651.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 12,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3340,
+        "apiMs": 638.0,
+        "searchMs": 428,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 64.0,
+          "cove_context": 237.0,
+          "cove_catalog": 574.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 638.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 13,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3330,
+        "apiMs": 598.0,
+        "searchMs": 356,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 97.0,
+          "cove_context": 193.0,
+          "cove_catalog": 501.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 598.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 14,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3398,
+        "apiMs": 652.0,
+        "searchMs": 439,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 78.0,
+          "cove_context": 253.0,
+          "cove_catalog": 574.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 652.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 15,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3587,
+        "apiMs": 861.0,
+        "searchMs": 582,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 198.0,
+          "cove_context": 304.0,
+          "cove_catalog": 663.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 861.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 0,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4066,
+        "apiMs": 497.0,
+        "searchMs": 337,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 59.0,
+          "cove_context": 112.0,
+          "cove_catalog": 438.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 497.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 1,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4021,
+        "apiMs": 522.0,
+        "searchMs": 374,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 60.0,
+          "cove_context": 139.0,
+          "cove_catalog": 462.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 522.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 2,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4748,
+        "apiMs": 960.0,
+        "searchMs": 564,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 253.0,
+          "cove_context": 386.0,
+          "cove_catalog": 707.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 960.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 3,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4804,
+        "apiMs": 1063.0,
+        "searchMs": 721,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 226.0,
+          "cove_context": 358.0,
+          "cove_catalog": 837.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 1063.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 4,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4852,
+        "apiMs": 1120.0,
+        "searchMs": 702,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 284.0,
+          "cove_context": 541.0,
+          "cove_catalog": 836.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 1120.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 5,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4461,
+        "apiMs": 726.0,
+        "searchMs": 552,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 105.0,
+          "cove_context": 236.0,
+          "cove_catalog": 621.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 726.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 6,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4792,
+        "apiMs": 1017.0,
+        "searchMs": 615,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 275.0,
+          "cove_context": 567.0,
+          "cove_catalog": 742.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 1017.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 7,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4059,
+        "apiMs": 460.0,
+        "searchMs": 320,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 63.0,
+          "cove_context": 116.0,
+          "cove_catalog": 397.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 460.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 8,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4898,
+        "apiMs": 1104.0,
+        "searchMs": 727,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 252.0,
+          "cove_context": 514.0,
+          "cove_catalog": 852.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 1104.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 9,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4240,
+        "apiMs": 652.0,
+        "searchMs": 404,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 67.0,
+          "cove_context": 100.0,
+          "cove_catalog": 585.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 652.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 10,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4006,
+        "apiMs": 492.0,
+        "searchMs": 340,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 66.0,
+          "cove_context": 84.0,
+          "cove_catalog": 426.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 492.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 11,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4056,
+        "apiMs": 460.0,
+        "searchMs": 345,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 66.0,
+          "cove_context": 90.0,
+          "cove_catalog": 394.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 460.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 12,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4726,
+        "apiMs": 933.0,
+        "searchMs": 535,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 220.0,
+          "cove_context": 333.0,
+          "cove_catalog": 713.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 933.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 13,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4365,
+        "apiMs": 650.0,
+        "searchMs": 491,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 104.0,
+          "cove_context": 283.0,
+          "cove_catalog": 546.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 650.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 14,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4901,
+        "apiMs": 1189.0,
+        "searchMs": 963,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 107.0,
+          "cove_context": 288.0,
+          "cove_catalog": 1082.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 1189.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 15,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4850,
+        "apiMs": 1124.0,
+        "searchMs": 714,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 262.0,
+          "cove_context": 504.0,
+          "cove_catalog": 862.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 1124.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 16,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4570,
+        "apiMs": 991.0,
+        "searchMs": 622,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 245.0,
+          "cove_context": 407.0,
+          "cove_catalog": 746.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 991.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 17,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4671,
+        "apiMs": 953.0,
+        "searchMs": 555,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 217.0,
+          "cove_context": 546.0,
+          "cove_catalog": 736.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 953.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 18,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4047,
+        "apiMs": 516.0,
+        "searchMs": 344,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 66.0,
+          "cove_context": 97.0,
+          "cove_catalog": 450.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 516.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 19,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4220,
+        "apiMs": 627.0,
+        "searchMs": 385,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 58.0,
+          "cove_context": 108.0,
+          "cove_catalog": 569.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 627.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 20,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 3993,
+        "apiMs": 524.0,
+        "searchMs": 362,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 70.0,
+          "cove_context": 106.0,
+          "cove_catalog": 454.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 524.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 21,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4010,
+        "apiMs": 497.0,
+        "searchMs": 331,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 69.0,
+          "cove_context": 110.0,
+          "cove_catalog": 428.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 497.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 22,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4725,
+        "apiMs": 1017.0,
+        "searchMs": 648,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 268.0,
+          "cove_context": 513.0,
+          "cove_catalog": 749.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 1017.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 23,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4674,
+        "apiMs": 1004.0,
+        "searchMs": 583,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 293.0,
+          "cove_context": 556.0,
+          "cove_catalog": 711.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 1004.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 24,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4534,
+        "apiMs": 883.0,
+        "searchMs": 627,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 104.0,
+          "cove_context": 251.0,
+          "cove_catalog": 779.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 883.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 25,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4970,
+        "apiMs": 1244.0,
+        "searchMs": 884,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 284.0,
+          "cove_context": 570.0,
+          "cove_catalog": 960.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 1244.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 26,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4638,
+        "apiMs": 976.0,
+        "searchMs": 634,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 228.0,
+          "cove_context": 562.0,
+          "cove_catalog": 748.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 976.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 27,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4585,
+        "apiMs": 882.0,
+        "searchMs": 654,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 109.0,
+          "cove_context": 308.0,
+          "cove_catalog": 773.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 882.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 28,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4787,
+        "apiMs": 1066.0,
+        "searchMs": 667,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 292.0,
+          "cove_context": 488.0,
+          "cove_catalog": 774.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 1066.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 29,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4791,
+        "apiMs": 1113.0,
+        "searchMs": 673,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 296.0,
+          "cove_context": 544.0,
+          "cove_catalog": 817.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 1113.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 30,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4822,
+        "apiMs": 1090.0,
+        "searchMs": 689,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 281.0,
+          "cove_context": 566.0,
+          "cove_catalog": 809.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 1090.0
+        },
+        "restoredBookPresent": true
+      },
+      {
+        "index": 31,
+        "status": 200,
+        "valid": true,
+        "workspaceProxyTtfbMs": 4628,
+        "apiMs": 918.0,
+        "searchMs": 572,
+        "phases": {
+          "cove_auth": 0.0,
+          "cove_identity": 0.0,
+          "cove_limit": 255.0,
+          "cove_context": 394.0,
+          "cove_catalog": 663.0,
+          "cove_log_queued": 0.0,
+          "cove_api": 918.0
+        },
+        "restoredBookPresent": true
+      }
+    ]
+  },
+  "parallelContextChangeRetained": false,
+  "rollback": {
+    "deployment": "8502f18d-41aa-461d-a191-638112afccdf",
+    "restoredVersion": "c2ec1ffa-a3e9-49aa-8c14-57ebedf7aed0",
+    "status": 200,
+    "books": 24,
+    "restoredSyntheticBookPresent": true
+  },
+  "cleanup": {
+    "backendWorkersDev": false,
+    "backendPreviews": false,
+    "gatewayWorkersDev": false,
+    "gatewayPreviews": false,
+    "productionDiagnosticsRestored": true
+  },
+  "remainingGates": [
+    "production catalog availability",
+    "60 true cold requests across three fresh deployments",
+    "external TTFB below 800ms at 1/4/8/16/32 concurrency",
+    "ORD/LAX/IAD/DFW repeatability",
+    "two 2000-response phases at 100 RPS",
+    "production owner and payment certification",
+    "production protected rollback"
+  ]
+}

@@ -5,6 +5,11 @@ import { build } from "esbuild";
 const search = fs.readFileSync("src/features/fore/search.server.ts", "utf8");
 const candidate = fs.readFileSync("wrangler.backend.presentation-stage.toml", "utf8");
 const frontendStaging = fs.readFileSync("wrangler.frontend.staging.toml", "utf8");
+assert.match(
+  candidate,
+  /FORE_ENVIRONMENT = "production"/,
+  "The isolated candidate must exercise production reads without development seeding",
+);
 assert.doesNotMatch(
   frontendStaging,
   /binding = "COVE_PUBLIC_PRESENTATION_CACHE"/,
@@ -180,3 +185,4 @@ assert.equal(
 console.log(
   "PASS: isolated R2 public facets CAS, 16-way cold lease, stale-owner fencing, expiry, market partition and zero primary-D1 cache writes",
 );
+await import("./check-presentation-candidate-gateway.mjs");

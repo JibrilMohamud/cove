@@ -24,8 +24,10 @@ binding = "COVE_PUBLIC_PRESENTATION_CACHE"
 bucket_name = "cove-public-presentation-stage-20261114"
 
 [vars]
-FORE_ENVIRONMENT = "staging"
-FORE_PUBLIC_URL = "https://cove-storefront-ssr-staging.cove-jibrilmohamud.workers.dev"
+# Exercise production serving behavior against ONLY the synthetic D1 above.
+# "staging" would seed the catalog on each read and invalidate capacity data.
+FORE_ENVIRONMENT = "production"
+FORE_PUBLIC_URL = "https://cove-presentation-r2-proof-20261114.cove-jibrilmohamud.workers.dev"
 FORE_DEFAULT_TERRITORY = "US"
 FORE_SEARCH_BACKEND = "d1"
 FORE_ASYNC_CATALOG_FACETS = "1"
