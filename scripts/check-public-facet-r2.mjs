@@ -4,6 +4,13 @@ import { build } from "esbuild";
 
 const search = fs.readFileSync("src/features/fore/search.server.ts", "utf8");
 const candidate = fs.readFileSync("wrangler.backend.presentation-stage.toml", "utf8");
+const frontendStaging = fs.readFileSync("wrangler.frontend.staging.toml", "utf8");
+assert.doesNotMatch(
+  frontendStaging,
+  /binding = "COVE_PUBLIC_PRESENTATION_CACHE"/,
+  "Presentation R2 writes belong to the private API backend, never the SSR gateway",
+);
+
 // A complete end-to-end staging candidate must bind the R2 bucket where
 // searchCatalog actually executes (the backend Worker), not just the SSR edge.
 assert.match(candidate, /name = "cove-presentation-r2-candidate-stage"/);
