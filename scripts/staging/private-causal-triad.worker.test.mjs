@@ -39,7 +39,7 @@ const env = {
         assert.equal(request.headers.get("x-cove-backend-token"), "b".repeat(64));
         assert.equal(request.headers.has("cookie"), false);
         return Response.json(
-          new URL(request.url).pathname.endsWith("/context")
+          new globalThis.URL(request.url).pathname.endsWith("/context")
             ? { rightsCountry: "US", currency: "USD" }
             : {
                 results: Array.from({ length: 24 }, (_, i) => ({
