@@ -122,3 +122,20 @@ On November 14, the isolated recommendation parameter-limit repair (#666) was me
 In the 21:58:58–22:18:58 UTC Vercel log sample, 75 catalog-related backend-unavailable warnings were categorized as 54 pre-context handler exceptions and 21 post-context catalog-rights errors. The sample does not establish 75 distinct requests or their underlying exception classes. Because most recorded failures are before completion of context initialization, a later-stage popularity SQL change cannot be the complete explanation.
 
 A bounded production D1 audit query inspected `ops_http_requests` using the existing `(route, occurred_at)` index, scoped to `/api/fore/catalog` after 21:58 UTC. It returned zero rows (2 rows read, zero written, 0.6349 ms SQL) despite those Vercel warnings. This demonstrates an **evidence gap**, not conclusively that all failed audit batches were attempted or rejected. The current `recordHttpRequest()` source attempts a three-statement D1 batch even for 503 responses and silently catches batch failures; this can make shared-D1 outage diagnostics disappear and may increase load when the same service is saturated. Draft PR #670 only adds a safe, low-cardinality log signal on failed audit batches and leaves the existing audit writes and release gates intact. The potential load feedback loop still requires a controlled stage experiment and an independently durable audit design decision before production modification.
+
+## Matched query classes through Cloudflare D1 management API: 170/170 valid
+
+The earlier synthetic-D1 API permission error resolved without granting production access or binding the diagnostic driver. A bounded, read-only single-wave experiment sent 1/4/8/16/24/32 concurrent `SELECT 1` and rights-shortlist operations against the same isolated D1 using the same **Cloudflare management API**. Every operation returned valid results, with no writes; 170 total. Exact preserved aggregates: [D1 API controlled bursts](2026-11-14-d1-api-controlled-bursts.json).
+
+| Concurrent calls | Trivial D1 API wall p95 | Rights-only D1 API wall p95 | Trivial mean SQL | Rights mean SQL |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 626 ms | 883 ms | 0.09 ms | 3.05 ms |
+| 4 | 756 ms | 790 ms | 0.13 ms | 2.97 ms |
+| 8 | 1,505 ms | 1,608 ms | 0.11 ms | 3.38 ms |
+| 16 | 2,807 ms | 2,821 ms | 0.12 ms | 3.18 ms |
+| 24 | 3,386 ms | 3,696 ms | 0.12 ms | 3.14 ms |
+| 32 | 4,638 ms | 4,329 ms | 0.12 ms | 2.99 ms |
+
+The **two API wall-time curves increase similarly** despite the trivial query reading 0 rows and the rights query reading 346. These measurements disfavor SQL runtime as the cause **within this API test path**; they do *not* prove a D1 provider queue, CPU saturation, Worker delay, or externally observable TTFB. The management API, tool client and its scheduling can themselves serialize operations; one wave at each level cannot establish stable throughput plateaus or an exact threshold. This experiment is not release acceptance and does not replace the missing same-Worker no-D1/context/rights/catalog trial. In particular, PR #668's current no-op runs in the **driver only**, not the target Worker, and must remain labeled a generator control rather than a matched no-database HTTP endpoint.
+
+**Architecture checkpoint:** Do not conclude that migrating database SQL or adding a connection pool will fix the Worker path from these API curves. A true candidate-Worker no-DB endpoint and independent external generator remain required; the next meaningful step is to run the private synthetic D1 service-binding campaign, record CPU and per-stage timings, and compare to this API control. If the no-DB Worker path also rises with offered concurrency, first investigate load generator/runtime/transport. If only the rights-only Worker path rises, examine D1 service scheduling and a different authority-serving topology, preserving immediate withdrawal and deny-first legal semantics.
