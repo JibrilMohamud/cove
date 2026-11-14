@@ -168,7 +168,7 @@ export async function runTriadCampaign(env) {
   }
   return { schema: "cove.triad-stage-campaign.v1", releaseCertified: false,
     syntheticD1: true, publicIngress: false, campaignCount: samples.length,
-    50RpsEligible: Boolean(safe25 && safe25.valid === safe25.offered &&
+    rps50Eligible: Boolean(safe25 && safe25.valid === safe25.offered &&
       safe25.dropped === 0 && safe25.p95Ms < 2000) };
 }
 export default {
