@@ -16,9 +16,10 @@ import { searchOutboxAcknowledgement } from "./search-outbox-ack";
 import { countAvailableCandidatesFromFacet } from "./count-from-availability-facet";
 import { firstPagePopularRightsShortlist } from "./search-popular-shortlist.server";
 import {
-  refreshLeasedSearchFacets,
-  type FacetRefreshGuard,
-} from "./search-facet-refresh-lease.server";
+  readPublicFacetProjection,
+  refreshPublicFacetProjection,
+  type PresentationR2Bucket,
+} from "./search-presentation-r2.server";
 
 type SearchEnv = {
   DB: CatalogDB;
@@ -32,6 +33,7 @@ type SearchEnv = {
   FORE_ASYNC_CATALOG_FACETS?: string;
   FORE_POPULAR_RIGHTS_SHORTLIST?: string;
   FORE_GUEST_CATALOG_PROGRESSIVE_COUNT?: string;
+  COVE_PUBLIC_PRESENTATION_CACHE?: PresentationR2Bucket;
 };
 
 type FacetValue = { value: string; count: number };
@@ -698,7 +700,7 @@ async function d1Facets(
   expression: string,
   deferred?: DeferredFacetWork,
   state?: { pending: boolean },
-  guard?: FacetRefreshGuard,
+  presentationStore?: PresentationR2Bucket,
 ): Promise<SearchFacets> {
   // Facets are independent of pagination and personalization. Cache their
   // public projection briefly while every result page still checks live rights.
@@ -713,35 +715,53 @@ async function d1Facets(
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
   const cacheKey = `search-facets:v2:${cacheId}`;
-  try {
-    const cached = await db
-      .prepare("SELECT body FROM api_cache WHERE key=? AND expires_at>?")
-      .bind(cacheKey, Date.now())
-      .first<{ body: string }>();
-    if (cached) {
-      const value = JSON.parse(cached.body) as SearchFacets;
-      if (
-        [
-          value.categories,
-          value.languages,
-          value.formats,
-          value.publishers,
-          value.series,
-          value.availability,
-        ].every(Array.isArray)
-      )
-        return value;
+  if (presentationStore) {
+    // Opt-in deferred facets have their own R2-only data plane. Never use a
+    // primary-D1 api_cache lease or write on this path.
+    try {
+      const cached = await readPublicFacetProjection(presentationStore, cacheKey);
+      if (cached) return cached;
+    } catch {
+      // Cache storage cannot confer rights or make books unavailable.
     }
-  } catch {
-    /* Cache availability never decides search availability. */
+  } else {
+    try {
+      const cached = await db
+        .prepare("SELECT body FROM api_cache WHERE key=? AND expires_at>?")
+        .bind(cacheKey, Date.now())
+        .first<{ body: string }>();
+      if (cached) {
+        const value = JSON.parse(cached.body) as SearchFacets;
+        if (
+          [
+            value.categories,
+            value.languages,
+            value.formats,
+            value.publishers,
+            value.series,
+            value.availability,
+          ].every(Array.isArray)
+        )
+          return value;
+      }
+    } catch {
+      /* Cache availability never decides search availability. */
+    }
   }
-  // Do not start expensive display-only SQL while authoritative books/counts
-  // are in flight. The refresh lease fences stale owners across colos.
+  // All new deferred work requires an explicitly bound, independent R2
+  // presentation cache, not a canonical-D1 write capability.
   if (deferred) {
+    if (!presentationStore) throw new Error("Independent facet cache binding required");
     if (state) state.pending = true;
     deferred.push(async () => {
-      await refreshLeasedSearchFacets(db, cacheKey, async (lease) => {
-        await d1Facets(db, input, expression, undefined, undefined, lease);
+      await refreshPublicFacetProjection(presentationStore, cacheKey, async () => {
+        // Skip this expensive presentation scan when primary D1 is already
+        // struggling to answer even a trivial, read-only probe.
+        const before = performance.now();
+        const health = await db.prepare("SELECT 1 AS ok").first<{ ok: number }>();
+        if (health?.ok !== 1 || performance.now() - before > 300)
+          throw new Error("Primary D1 is not ready for facet presentation work");
+        return d1Facets(db, input, expression, undefined, undefined, presentationStore);
       });
     });
     return pendingFacetLabels();
@@ -884,18 +904,19 @@ async function d1Facets(
           }
         : null,
   };
-  try {
-    await writeCatalogCache(
-      db,
-      cacheKey,
-      JSON.stringify(result),
-      Date.now() + 600_000,
-      "search-facets:v2:",
-      128,
-      guard ? { ...guard, nowMs: Date.now() } : undefined,
-    );
-  } catch {
-    /* Cache writes are best effort. */
+  if (!presentationStore) {
+    try {
+      await writeCatalogCache(
+        db,
+        cacheKey,
+        JSON.stringify(result),
+        Date.now() + 600_000,
+        "search-facets:v2:",
+        128,
+      );
+    } catch {
+      /* Existing non-deferred cache writes remain best effort. */
+    }
   }
   return result;
 }
@@ -1181,12 +1202,13 @@ async function searchD1(
   // On a cache miss, avoid scanning the expensive legal view twice.
   // If the facet contract changes, fall back to the original COUNT.
   const facetState = { pending: false };
+  const presentationStore = deferred ? env.COVE_PUBLIC_PRESENTATION_CACHE : undefined;
   const sharedFacetCount = !input.query && !part.hasFts && input.availability === "available";
   const [initialRows, initialCount, sharedFacets] = await Promise.all([
     runIds(),
     sharedFacetCount ? Promise.resolve<{ count: number } | null>(null) : runCount(),
     sharedFacetCount
-      ? d1Facets(env.DB, input, expression, deferred, facetState)
+      ? d1Facets(env.DB, input, expression, deferred, facetState, presentationStore)
       : Promise.resolve<SearchFacets | null>(null),
   ]);
   let rows = initialRows;
@@ -1217,10 +1239,10 @@ async function searchD1(
   const ids = rows.results.map((r: any) => String(r.product_id));
   const [books, facets] = await Promise.all([
     canonicalBooksByProductIds(env.DB, ids),
-    sharedFacets || d1Facets(env.DB, input, expression, deferred, facetState),
+    sharedFacets || d1Facets(env.DB, input, expression, deferred, facetState, presentationStore),
   ]);
   // Pending labels cannot be persisted as a ten-minute search-page result.
-  if (!facetState.pending) {
+  if (!facetState.pending && !presentationStore) {
     try {
       await writeCatalogCache(
         env.DB,
@@ -1939,6 +1961,7 @@ export async function searchCatalog(
   const deferredFacets: DeferredFacetWork | undefined =
     defer &&
     env.FORE_ASYNC_CATALOG_FACETS === "1" &&
+    !!env.COVE_PUBLIC_PRESENTATION_CACHE &&
     !userId &&
     !input.query &&
     input.sort === "popular" &&
