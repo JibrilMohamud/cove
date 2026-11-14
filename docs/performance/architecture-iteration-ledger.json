@@ -53,6 +53,24 @@
       ],
       "decision": "The paired right-query traces still show p95 D1 operation wall 1731 ms against 2.68 ms average SQL execution. Stop incremental query/index work after these two inconclusive revisions. Next run no-DB, rights-only and full-catalog tests in the isolated environment; retry live stage only with correctly scoped access to synthetic D1. Do not use cached R2/KV display totals as positive legal authority or weaken any release gate.",
       "evidence": "docs/performance/2026-11-14-causal-architecture-review.md"
+    },
+    {
+      "type": "optimization",
+      "subsystem": "primary-d1",
+      "change": "20-second sustained synthetic catalog 50-RPS gate after fast rights-shortlist and presentation R2 changes",
+      "outcome": "ineffective",
+      "reason": "1000 offered, 754 valid, 246 D1-overload 503, zero client drops, 2392ms maximum; full service budget exhausted despite per-query SQL mean 0.34–3.36ms."
+    },
+    {
+      "type": "architecture-review",
+      "alternatives": [
+        "Continue optimizing SQL query plans and indexes; reject because measured SQL is only a few milliseconds and both context/audit spans overload",
+        "Reduce synchronous legal-primary D1 service operations per guest request while retaining fresh positive rights and deny-first withdrawal; stage with one-authority-call constraints",
+        "Move nonauthorizing request audits to independently durable, idempotent Queue→private audit store with retries/dead-letter; stage-only R2 503 A/B to measure feedback but NOT certify production audit retention",
+        "Repartition or replace the primary rights-serving storage/topology after independent single-authority capacity measurements, with proven revocation fence and rollback"
+      ],
+      "decision": "Reject more SQL-only tuning. Actual 50-RPS 20s 754/1000 and 28/28 sampled 503 trace-linked D1 resource-window failures require a stage A/B of nonauthorizing audit isolation, then reduced legal-primary round-trip count. Use independently durable audit storage for production, never drop protected events or allow cached R2 to grant rights.",
+      "evidence": "docs/performance/2026-11-14-causal-architecture-review.md"
     }
   ]
 }
