@@ -134,6 +134,7 @@ try {
 
   const GATE = "a".repeat(64);
   let dbCalls = 0;
+  const candidateCounts = [];
   let returned = [];
   let primaryError = null;
   let failFallbackD1 = false;
@@ -177,6 +178,7 @@ try {
             );
             assert.equal(params[0], "US");
             const candidates = JSON.parse(params[1]);
+            candidateCounts.push(candidates.length);
             assert.ok(
               candidates.length >= 25 && candidates.length <= 96,
               "Only bounded 25-96 candidate live authorization reads are permitted",
@@ -421,6 +423,7 @@ try {
     assert.match(stageLive.headers.get("x-cove-stage-" + part + "-ms"), /^[0-9]+\.[0-9]{2}$/);
   const stageBody = await stageLive.json();
   assert.equal(stageBody.results.length, 24);
+  assert.equal(candidateCounts.at(-1), 25, "First-page fast path must read only 25 live rights");
   assert.equal(stageBody.releaseCertified, false);
   assert.equal(stageBody.mode, "r2-live-retail");
 
@@ -432,7 +435,8 @@ try {
   returned = rows(Array.from({ length: 25 }, (_, i) => i + 24));
   const cursorStartCalls = dbCalls;
   const continued = await syntheticR2PageWithLiveRights(cursorRequest, liveRouteEnv);
-  assert.equal(dbCalls - cursorStartCalls, 1, "Cursor page needs one 32-ID live D1 read");
+  assert.equal(dbCalls - cursorStartCalls, 1, "Cursor page needs one 25-ID live D1 read");
+  assert.equal(candidateCounts.at(-1), 25, "Cursor fast path must avoid seven excess grants");
   assert.equal(continued?.books.length, 24);
   assert.equal(continued.books[0].productId, "perf-synth-24");
   assert.equal(continued.books[23].productId, "perf-synth-47");
@@ -451,7 +455,7 @@ try {
   assert.equal(shiftedCursor?.books[0].productId, "perf-synth-25");
   assert.equal(shiftedCursor.books[23].productId, "perf-synth-48");
 
-  // Withdraw eight from the 32-ID cursor prefix; a fresh remainder-only
+  // Withdraw candidates from the 25-ID cursor prefix; a fresh remainder-only
   // query must replace it, never stitching older positive rights witnesses.
   returned = rows(Array.from({ length: 25 }, (_, i) => i + 32));
   const cursorFallbackStart = dbCalls;
@@ -564,14 +568,15 @@ try {
   assert.equal(Object.hasOwn(secondJson, "facets"), false, "Never fabricate canonical facets");
   returned = rows(Array.from({ length: 25 }, (_, i) => i));
 
-  // Sparse rights/offer loss beyond the 32-ID window must trigger exactly
+  // Sparse rights/offer loss beyond the 25-ID window must trigger exactly
   // one fresh full-list primary read. Never combine old positive witnesses.
   returned = rows(Array.from({ length: 25 }, (_, i) => i + 8));
   const beforeFallback = dbCalls;
   const fallback = await syntheticR2PageWithLiveRights(request, env, () => now);
   assert.equal(fallback?.books.length, 24);
   assert.equal(fallback.books[0].productId, "perf-synth-8");
-  assert.equal(dbCalls - beforeFallback, 2, "Sparse page requires fresh 32+96 live D1 reads");
+  assert.equal(dbCalls - beforeFallback, 2, "Sparse page requires fresh 25+96 live D1 reads");
+  assert.deepEqual(candidateCounts.slice(-2), [25, 96], "Sparse fallback is a fresh full-window authorization");
   failFallbackD1 = true;
   await assert.rejects(
     () => syntheticR2PageWithLiveRights(request, env, () => now),
