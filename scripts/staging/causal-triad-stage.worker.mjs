@@ -146,7 +146,7 @@ export async function singleTriadProbe(mode, env, ordinal, runId, cursorToken = 
       const ms = performance.now() - started;
       return {
         status: 200,
-        valid: query.results?.length === 1 && /^[1-9]\\d{0,18}$/.test(String(revision)),
+        valid: query.results?.length === 1 && /^[1-9]\d{0,18}$/.test(String(revision)),
         ms,
         sqlMs: Number.isFinite(sqlMs) ? sqlMs : null,
         outsideSqlMs: Number.isFinite(sqlMs) && sqlMs <= ms ? ms - sqlMs : null,
