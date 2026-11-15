@@ -20,6 +20,7 @@ const OBJECT_KEY = "public-presentation/synthetic-ranked-books-v1/US/USD/popular
 const TTL_MS = 120_000;
 const MAX_BYTES = 256 * 1024;
 const ITEM_COUNT = 96;
+const FAST_CANDIDATE_COUNT = 32;
 const PAGE_COUNT = 24;
 
 export type SyntheticDisplayRow = {
@@ -360,7 +361,7 @@ export async function authorizeOfferBearingSyntheticPage(
   ids: string[],
 ): Promise<SyntheticExtendedAuthorityRow[]> {
   if (
-    ids.length !== ITEM_COUNT ||
+    (ids.length !== FAST_CANDIDATE_COUNT && ids.length !== ITEM_COUNT) ||
     ids.some((id) => !identifier(id)) ||
     new Set(ids).size !== ids.length
   )
@@ -442,10 +443,18 @@ export async function syntheticR2PageWithLiveRights(
 
   // D1 exceptions deliberately propagate: a primary outage cannot be rescued
   // by presentation content, and cannot ever be considered authorization.
-  const current = await authorizeOfferBearingSyntheticPage(
+  const rankedIds = snapshot.items.map((item) => item.productId);
+  // Most pages need at most 25 fresh live witnesses. D1 scans every input
+  // candidate in the authorized materialized CTE: 96 candidates cost ~1,437
+  // rows read on the isolated fixture; 32 cost ~549. On withdrawal/sparse
+  // rights, recheck all 96 in ONE NEW primary-D1 statement and use ONLY its
+  // results. Never combine an old positive decision with a newer fallback.
+  let current = await authorizeOfferBearingSyntheticPage(
     env.DB,
-    snapshot.items.map((item) => item.productId),
+    rankedIds.slice(0, FAST_CANDIDATE_COUNT),
   );
+  if (current.length < PAGE_COUNT + 1)
+    current = await authorizeOfferBearingSyntheticPage(env.DB, rankedIds);
   if (
     current.length !== PAGE_COUNT + 1 ||
     new Set(current.map((row) => row.product_id)).size !== PAGE_COUNT + 1
