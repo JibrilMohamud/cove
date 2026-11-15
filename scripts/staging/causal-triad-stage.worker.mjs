@@ -242,7 +242,7 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
                 b.readingAvailability?.state,
               ) &&
               (b.formats?.["application/epub+zip"] === undefined ||
-                /^\\/api\\/fore\\/books\\/[A-Za-z0-9_%.-]+\\/epub$/.test(
+                /^\/api\/fore\/books\/[A-Za-z0-9_%.-]+\/epub$/.test(
                   b.formats["application/epub+zip"],
                 )) &&
               (b.readingAvailability.state !== "unavailable" ||
