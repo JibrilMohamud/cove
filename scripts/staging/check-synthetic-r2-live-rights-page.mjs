@@ -576,7 +576,11 @@ try {
   assert.equal(fallback?.books.length, 24);
   assert.equal(fallback.books[0].productId, "perf-synth-8");
   assert.equal(dbCalls - beforeFallback, 2, "Sparse page requires fresh 25+96 live D1 reads");
-  assert.deepEqual(candidateCounts.slice(-2), [25, 96], "Sparse fallback is a fresh full-window authorization");
+  assert.deepEqual(
+    candidateCounts.slice(-2),
+    [25, 96],
+    "Sparse fallback is a fresh full-window authorization",
+  );
   failFallbackD1 = true;
   await assert.rejects(
     () => syntheticR2PageWithLiveRights(request, env, () => now),
