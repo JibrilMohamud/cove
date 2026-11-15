@@ -488,6 +488,9 @@ export type CoveEnv = {
   AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
   DB: { prepare(sql: string): Statement; batch(s: Statement[]): Promise<unknown> };
   FORE_ASYNC_CATALOG_FACETS?: string;
+  // Synthetic D1-only A/B: cannot be enabled by default production configuration.
+  FORE_GUEST_COMPACT_STAGE?: string;
+  FORE_GUEST_COMPACT_SYNTHETIC_D1_ID?: string;
   COVE_PUBLIC_PRESENTATION_CACHE?: PresentationR2Bucket;
   // Optional production-disabled read-model: R2/KV is never a rights authority.
   COVE_SOUNDS_SNAPSHOT_ENABLED?: string;
