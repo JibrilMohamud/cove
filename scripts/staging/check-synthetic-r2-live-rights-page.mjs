@@ -123,6 +123,9 @@ try {
         assert.match(sql, /JOIN works w ON w.id=e.work_id/);
         assert.match(sql, /a.subscription_eligible/);
         assert.match(sql, /a.downloadable/);
+        assert.match(sql, /has_epub_object/);
+        assert.match(sql, /has_epub_source/);
+        assert.match(sql, /gutenberg_source_cache/);
         assert.match(sql, /FROM offers o/);
         assert.match(sql, /EXISTS \(SELECT 1 FROM offers offer_exists/);
         assert.doesNotMatch(sql, /\\b(?:INSERT|UPDATE|DELETE|REPLACE)\\b/i);
@@ -167,6 +170,9 @@ try {
       subscription_eligible: 0,
       library_eligible: 0,
       download_count: 17,
+      epub_storage_status: null,
+      has_epub_object: 0,
+      has_epub_source: 0,
       offer_json: JSON.stringify({ type: "retail", currency: "USD", amountMinor: price }),
     }));
   returned = rows(Array.from({ length: 25 }, (_, i) => i));
@@ -362,11 +368,52 @@ try {
     assert.equal(book.drmStatus, "none");
     assert.equal(book.download_count, 17, "Download tally is from the current primary");
     assert.match(book.workId, /^work-synth-/);
-    assert.equal(book.readingAvailability, undefined);
+    assert.deepEqual(book.readingAvailability, { state: "processing" });
     assert.equal(book.formats["application/epub+zip"], undefined);
   }
 
-  // If the top candidate loses its retail offer, the live SELECT itself
+  // Reader availability must be derived from LIVE primary assets. A safe
+  // public API route is never an entitlement and R2 stores no private EPUB
+  // object key or signed origin. Preserve canonicalRowBook behavior for
+  // stored, on-demand, source-only and unavailable assets.
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  returned[0].has_epub_object = 1;
+  returned[0].epub_storage_status = "failed";
+  let reading = (await syntheticR2PageWithLiveRights(request, env, () => now)).books[0];
+  assert.equal(reading.readingAvailability.state, "stored");
+  assert.equal(reading.formats["application/epub+zip"], "/api/fore/books/public-0/epub");
+  assert.equal(JSON.stringify(reading).includes("synthetic/private/epub-key"), false);
+
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  returned[0].has_epub_source = 1;
+  reading = (await syntheticR2PageWithLiveRights(request, env, () => now)).books[0];
+  assert.equal(reading.readingAvailability.state, "on-demand");
+  assert.equal(reading.formats["application/epub+zip"], "/api/fore/books/public-0/epub");
+
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  returned[0].has_epub_source = 1;
+  returned[0].source_external_id = "pgca_synthetic";
+  reading = (await syntheticR2PageWithLiveRights(request, env, () => now)).books[0];
+  assert.equal(reading.readingAvailability.state, "processing");
+  assert.equal(reading.formats["application/epub+zip"], "/api/fore/books/public-0/epub");
+
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  returned[0].epub_storage_status = "unavailable";
+  returned[0].has_epub_source = 1;
+  reading = (await syntheticR2PageWithLiveRights(request, env, () => now)).books[0];
+  assert.equal(reading.readingAvailability.state, "unavailable");
+  assert.equal(reading.formats["application/epub+zip"], undefined);
+
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  returned[0].has_epub_object = null;
+  assert.equal(
+    await syntheticR2PageWithLiveRights(request, env, () => now),
+    null,
+    "Missing primary asset evidence must never imply a stored or readable edition",
+  );
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+
+    // If the top candidate loses its retail offer, the live SELECT itself
   // must exclude it so candidate 26 fills the 25th witness slot; the R2
   // ranking is unchanged and cannot confer price or availability.
   returned = rows(Array.from({ length: 25 }, (_, i) => i + 1));
