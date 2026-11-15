@@ -130,9 +130,10 @@ const ALLOWED_KEYS = new Set([
 ]);
 
 const optionalText = (value: unknown, max: number) =>
-  value === undefined || shortText(value, max);
+  value === undefined || value === null || shortText(value, max);
 const optionalInt = (value: unknown) =>
   value === undefined ||
+  value === null ||
   (Number.isSafeInteger(value) && (value as number) >= 0 && (value as number) <= 1_000_000_000);
 const strictKeys = (value: object, fields: string[]) =>
   Object.keys(value).every((field) => fields.includes(field));
@@ -311,9 +312,7 @@ export function buildSyntheticDisplayObject(books: CatalogBook[], now = Date.now
       ...(book.publisherDescription !== undefined
         ? { publisherDescription: book.publisherDescription }
         : {}),
-      ...(book.editorialReviews !== undefined
-        ? { editorialReviews: book.editorialReviews }
-        : {}),
+      ...(book.editorialReviews !== undefined ? { editorialReviews: book.editorialReviews } : {}),
       ...(book.series !== undefined ? { series: book.series } : {}),
     };
   });
@@ -416,7 +415,9 @@ export async function seedSyntheticR2Display(
     books.some(
       (book, index) =>
         book.productId !== result.results[index].product_id ||
-        book.editionId !== result.results[index].edition_id,
+        book.editionId !== result.results[index].edition_id ||
+        book.sourceName === "upload" ||
+        book.uploaded === true,
     )
   )
     return false;
