@@ -5,6 +5,7 @@ import worker, {
   triadStageBindingGuard,
   triadModes,
   triadSql,
+  triadRevisionSql,
   stageSyntheticIp,
   singleTriadProbe,
   summarizeTriad,
@@ -22,6 +23,14 @@ const env = {
   GATE: "a".repeat(64),
   DB: {
     prepare: (sql) => ({
+      ...(sql === triadRevisionSql
+        ? {
+            all: async () => ({
+              results: [{ current_revision: "12" }],
+              meta: { duration: 0.1 },
+            }),
+          }
+        : {}),
       bind: (...args) => {
         assert.equal(sql, triadSql);
         assert.deepEqual(args, ["available", "US", "USD", 25]);
@@ -81,6 +90,7 @@ test("staging is private, read-only, and not bound to production", () => {
     "noop",
     "context",
     "rights",
+    "revision",
     "catalog",
     "single",
     "r2live",
@@ -97,6 +107,25 @@ test("all paths validate stage identity and independent rights provenance", asyn
   const rights = await singleTriadProbe("rights", env, 1, "probe");
   assert.equal(rights.valid, true);
   assert.equal(rights.sqlMs, 1);
+  const revision = await singleTriadProbe("revision", env, 1, "probe");
+  assert.equal(revision.status, 200);
+  assert.equal(revision.valid, true);
+  assert.equal(revision.sqlMs, 0.1);
+  const missingAuthority = await singleTriadProbe(
+    "revision",
+    {
+      ...env,
+      DB: {
+        prepare: (sql) => {
+          assert.equal(sql, triadRevisionSql);
+          return { all: async () => ({ results: [{ current_revision: "0" }] }) };
+        },
+      },
+    },
+    1,
+    "probe",
+  );
+  assert.equal(missingAuthority.valid, false, "Missing generation is not an authority grant");
   const context = await singleTriadProbe("context", env, 2, "probe");
   assert.equal(context.valid, true);
   assert.equal(context.status, 200);
