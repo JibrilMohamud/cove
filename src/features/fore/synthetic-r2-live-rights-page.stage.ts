@@ -540,7 +540,7 @@ export async function handleSyntheticR2LiveRightsStage(
   const seed = url.pathname === STAGE_PATH + "/seed";
   if (
     !authorizedSyntheticRequest(request, env) ||
-    (seed && (request.method !== "POST" || request.body !== null)) ||
+    (seed && (request.method !== "POST" || request.body !== null || url.search !== "")) ||
     (!seed && request.method !== "GET")
   )
     return new Response(null, { status: 404, headers: { "cache-control": "no-store" } });
