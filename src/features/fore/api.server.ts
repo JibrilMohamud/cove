@@ -493,6 +493,7 @@ export type CoveEnv = {
   // Synthetic D1-only A/B: cannot be enabled by default production configuration.
   FORE_GUEST_COMPACT_STAGE?: string;
   FORE_GUEST_CONTEXT_R2_STAGE?: string;
+  COVE_SYNTHETIC_STAGING_ONLY?: string;
   FORE_GUEST_COMPACT_SYNTHETIC_D1_ID?: string;
   COVE_PUBLIC_PRESENTATION_CACHE?: PresentationR2Bucket;
   // Optional production-disabled read-model: R2/KV is never a rights authority.
