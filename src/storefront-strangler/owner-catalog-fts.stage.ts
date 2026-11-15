@@ -15,6 +15,10 @@ export function createStageOwnerFtsSchema(sql:AuthoritySql){
   )`);
   sql.exec(`CREATE VIRTUAL TABLE IF NOT EXISTS cove_stage_owner_fts
     USING fts5(product_id UNINDEXED,title,publisher,format,tokenize='unicode61')`);
+  // Read-only inverted-index document frequencies. On 82k rows this lets
+  // owner SQLite avoid an expensive rank-index walk for rare keywords.
+  sql.exec(`CREATE VIRTUAL TABLE IF NOT EXISTS cove_stage_owner_fts_vocab
+    USING fts5vocab(cove_stage_owner_fts,'row')`);
   sql.exec(`CREATE TABLE IF NOT EXISTS cove_stage_owner_fts_ready(
     id INTEGER PRIMARY KEY CHECK(id=1),ready INTEGER NOT NULL CHECK(ready IN (0,1))
   )`);
@@ -72,4 +76,31 @@ export function stageOwnerLiteralFtsExpression(raw:string|undefined){
   if(tokens.length>8||tokens.some(t=>t.length>35))
     throw Error('stage_owner_fts_invalid_query');
   return tokens.map(t=>'"'+t+'"').join(' AND ');
+}
+
+/**
+ * Upper bound for an AND-combined literal FTS query. The smallest single
+ * token document frequency is >= intersection size, so selecting FTS-first
+ * from this bound is conservative and CANNOT change search authorization.
+ * Only page query planning uses it; count/facets remain identical.
+ *
+ * A missing word means zero matches, not permission to serve all books.
+ */
+export function stageOwnerFtsPreferMatchesFirst(sql:AuthoritySql,expression:string){
+  if(!expression)return false;
+  const tokens=[...expression.matchAll(/"([^"]+)"/g)].map(m=>m[1]);
+  if(!tokens.length||tokens.length>8)
+    throw Error('stage_owner_fts_unreviewed_expression');
+  let upperBound=Number.POSITIVE_INFINITY;
+  for(const token of tokens){
+    const row=sql.exec<{doc:number}>(`SELECT doc FROM cove_stage_owner_fts_vocab
+      WHERE term=?`,token).toArray()[0];
+    const documents=row?.doc??0;
+    if(!Number.isSafeInteger(documents)||documents<0)
+      throw Error('stage_owner_fts_untrusted_frequency');
+    upperBound=Math.min(upperBound,documents);
+  }
+  // Conservative stage cutover threshold, measured on an 82,249-row
+  // synthetic fixture. Hosted real-corpus planner calibration is required.
+  return upperBound<=128;
 }
