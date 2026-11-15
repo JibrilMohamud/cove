@@ -45,8 +45,6 @@ export function emitIsolatedAnonymousHttpMetric(
     typeof env.OPS_ANALYTICS?.writeDataPoint !== "function" ||
     request.method !== "GET" ||
     actorKind !== "anonymous" ||
-    response.status < 200 ||
-    response.status >= 300 ||
     request.headers.has("cookie") ||
     request.headers.has("authorization") ||
     request.headers.has("oai-authenticated-user-id") ||
@@ -55,6 +53,24 @@ export function emitIsolatedAnonymousHttpMetric(
     return false;
   const path = new URL(request.url).pathname;
   if (!PUBLIC_READ_PATHS.has(path)) return false;
+  // Separate failure COUNT observability from legal/security auditing.
+  // Only a fixed route, status and duration enter Analytics Engine. This
+  // branch MUST return false so the existing durable D1 error/security
+  // audit path is neither bypassed nor silently reclassified as success.
+  if (response.status >= 500 && response.status <= 599) {
+    try {
+      env.OPS_ANALYTICS.writeDataPoint({
+        blobs: ["public-api-failure", path, "5xx"],
+        doubles: [response.status, Number.isFinite(durationMs) ? Math.max(0, durationMs) : 0],
+        indexes: ["public-failure"],
+      });
+    } catch {
+      // The observability sink cannot create an extra D1 write or alter the
+      // original 5xx response. The pre-existing durable audit still runs.
+    }
+    return false;
+  }
+  if (response.status < 200 || response.status >= 300) return false;
   try {
     env.OPS_ANALYTICS.writeDataPoint({
       blobs: ["public-api-read", path, "GET"],
