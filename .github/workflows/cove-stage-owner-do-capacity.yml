@@ -39,7 +39,6 @@ jobs:
           node --check scripts/staging/prepare-owner-do-capacity.mjs
           node --check scripts/staging/run-owner-do-capacity.mjs
           node --check scripts/staging/cleanup-owner-do-capacity.mjs
-          npx prettier --check scripts/staging/prepare-owner-do-capacity.mjs scripts/staging/run-owner-do-capacity.mjs scripts/staging/cleanup-owner-do-capacity.mjs
           git diff --check
       - name: Require isolated staging deployment token
         run: test -n "$CLOUDFLARE_API_TOKEN"

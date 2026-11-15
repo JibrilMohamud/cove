@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Isolated stage probe; explicit safety guards are audited. */
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";

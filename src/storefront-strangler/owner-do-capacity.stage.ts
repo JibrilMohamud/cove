@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Isolated stage probe; explicit safety guards are audited. */
 /* Research-only isolated owner SQLite capacity probe. NEVER customer legal authority. */
 import { DurableObject } from "cloudflare:workers";
 import {

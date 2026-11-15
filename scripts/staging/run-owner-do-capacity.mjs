@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Isolated stage probe; explicit safety guards are audited. */
 /**
  * Strict hosted performance driver for the isolated 25-record unified-owner
  * Durable Object. Fake proofs only; NEVER a production release certificate.

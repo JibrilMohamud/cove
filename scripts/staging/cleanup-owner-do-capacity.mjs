@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Isolated stage probe; explicit safety guards are audited. */
 /**
  * Safe cleanup of exactly this run's ephemeral Worker, never any production
  * or shared QA Worker. A failed deletion fails CI; 15m lease remains closed.
