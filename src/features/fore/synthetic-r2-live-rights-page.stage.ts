@@ -172,15 +172,13 @@ function constantTimeGate(value: string | null, expected: string | undefined) {
   return difference === 0;
 }
 
-export function eligibleSyntheticR2Page(
+function authorizedSyntheticRequest(
   request: Request,
   env: SyntheticRightsPresentationEnv,
 ): boolean {
   const url = new URL(request.url);
   return (
     url.hostname === STAGE_HOST &&
-    url.pathname === STAGE_PATH &&
-    request.method === "GET" &&
     url.search === "" &&
     !request.headers.has("cookie") &&
     !request.headers.has("authorization") &&
@@ -194,6 +192,121 @@ export function eligibleSyntheticR2Page(
     !!env.COVE_PUBLIC_PRESENTATION_CACHE &&
     typeof env.DB?.prepare === "function"
   );
+}
+
+export function eligibleSyntheticR2Page(
+  request: Request,
+  env: SyntheticRightsPresentationEnv,
+): boolean {
+  return (
+    new URL(request.url).pathname === STAGE_PATH &&
+    request.method === "GET" &&
+    authorizedSyntheticRequest(request, env)
+  );
+}
+
+/**
+ * One explicit, isolated candidate warm-up, never a per-request hydration or
+ * background refresh. The source is existing nonauthorizing synthetic public
+ * metadata. No real customers, rights, offers, auth or protected data are
+ * exported to R2.
+ */
+export async function seedSyntheticR2Display(
+  env: SyntheticRightsPresentationEnv,
+  now = () => Date.now(),
+): Promise<boolean> {
+  if (!env.COVE_PUBLIC_PRESENTATION_CACHE) return false;
+  const result = await env.DB.prepare(
+    `SELECT p.id product_id,e.id edition_id,e.title,e.subtitle,e.language
+     FROM catalog_search_documents d INDEXED BY idx_search_popular_stable
+     JOIN products p ON p.id=d.product_id
+     JOIN editions e ON e.id=p.edition_id
+     ORDER BY d.fore_bestseller_score DESC,d.external_book_id ASC,d.product_id ASC
+     LIMIT 96`,
+  ).all<{
+    product_id: string;
+    edition_id: string;
+    title: string;
+    subtitle: string | null;
+    language: string;
+  }>();
+  if (
+    result.results.length !== ITEM_COUNT ||
+    result.results.some(
+      (row) =>
+        !row.product_id.startsWith("perf-synth-") ||
+        !row.edition_id.startsWith("perf-synth-"),
+    )
+  )
+    return false;
+  const books = result.results.map(
+    (row): CatalogBook => ({
+      id: row.product_id,
+      productId: row.product_id,
+      editionId: row.edition_id,
+      title: row.title,
+      subtitle: row.subtitle || "",
+      authors: [{ name: "Synthetic author" }],
+      subjects: [],
+      bookshelves: [],
+      languages: [row.language || "en"],
+      formats: {},
+      download_count: 0,
+    }),
+  );
+  const body = buildSyntheticDisplayObject(books, now());
+  const bucket = env.COVE_PUBLIC_PRESENTATION_CACHE;
+  const old = await bucket.get(OBJECT_KEY);
+  const saved = await bucket.put(OBJECT_KEY, body, {
+    onlyIf: old ? { etagMatches: old.etag } : { etagDoesNotMatch: "*" },
+  });
+  return !!saved;
+}
+
+export async function handleSyntheticR2LiveRightsStage(
+  request: Request,
+  env: SyntheticRightsPresentationEnv,
+): Promise<Response | null> {
+  const url = new URL(request.url);
+  if (url.pathname !== STAGE_PATH && url.pathname !== STAGE_PATH + "/seed") return null;
+  const seed = url.pathname === STAGE_PATH + "/seed";
+  if (
+    !authorizedSyntheticRequest(request, env) ||
+    (seed && (request.method !== "POST" || request.body !== null)) ||
+    (!seed && request.method !== "GET")
+  )
+    return new Response(null, { status: 404, headers: { "cache-control": "no-store" } });
+  try {
+    if (seed) {
+      const written = await seedSyntheticR2Display(env);
+      return Response.json(
+        { seeded: written, releaseCertified: false },
+        { status: written ? 200 : 503, headers: { "cache-control": "no-store" } },
+      );
+    }
+    const result = await syntheticR2PageWithLiveRights(request, env);
+    if (!result)
+      return new Response(null, { status: 503, headers: { "cache-control": "no-store" } });
+    return Response.json(
+      {
+        results: result.books,
+        hasMore: result.hasMore,
+        mode: "r2-live-retail",
+        releaseCertified: false,
+      },
+      {
+        status: 200,
+        headers: {
+          "cache-control": "no-store",
+          "x-cove-persistence": "d1-live-retail-r2-display-synthetic",
+        },
+      },
+    );
+  } catch {
+    // Never turn a D1 or R2 outage into an authorization; no raw SQL,
+    // metadata, customer identifiers or credentials are returned.
+    return new Response(null, { status: 503, headers: { "cache-control": "no-store" } });
+  }
 }
 
 function currentOffer(row: PrimaryStorefrontAuthorityRow): CatalogBook["offer"] | null {
