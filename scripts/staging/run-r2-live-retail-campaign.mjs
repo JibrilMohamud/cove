@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import {
+  singleCandidateVersion,
+  attestedCandidateSettings,
+} from "./candidate-deployment-verification.mjs";
 import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
@@ -110,15 +114,36 @@ async function activeCandidate() {
     api("/workers/scripts/" + SCRIPT + "/subdomain"),
     api("/workers/scripts/" + SCRIPT + "/schedules"),
   ]);
-  const version = deployments.deployments?.[0]?.versions?.[0]?.version_id;
-  assert.ok(version, "Candidate must have one deployed version");
-  const details = await api("/workers/scripts/" + SCRIPT + "/versions/" + version);
+  const version = singleCandidateVersion(deployments);
+  let inspected;
+  try {
+    const details = await api("/workers/scripts/" + SCRIPT + "/versions/" + version);
+    const readback = await api("/workers/scripts/" + SCRIPT + "/deployments");
+    assert.equal(
+      singleCandidateVersion(readback),
+      version,
+      "Candidate changed during version-detail inspection",
+    );
+    inspected = {
+      version,
+      bindings: details.resources?.bindings || [],
+      runtime: details.resources?.script_runtime,
+    };
+  } catch (error) {
+    // Cloudflare may expose a newly uploaded deployment before the version
+    // detail endpoint becomes readable (observed 404 / code 100146).
+    // Never skip binding isolation: inspect the ACTIVE version settings,
+    // bracket that read with two matching deployment snapshots, and allow
+    // only this exact transient 404 class to use the fallback.
+    if (!(error instanceof Error) || !error.message.includes("returned 404 (100146)")) throw error;
+    const settings = await api("/workers/scripts/" + SCRIPT + "/settings");
+    const readback = await api("/workers/scripts/" + SCRIPT + "/deployments");
+    inspected = attestedCandidateSettings(deployments, readback, settings);
+  }
   return {
-    version,
+    ...inspected,
     ingress,
     cron: cron.schedules || [],
-    bindings: details.resources?.bindings || [],
-    runtime: details.resources?.script_runtime,
   };
 }
 

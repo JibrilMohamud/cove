@@ -31,7 +31,7 @@ const OBJECT_KEY = "public-presentation/synthetic-ranked-books-v1/US/USD/popular
 const TTL_MS = 120_000;
 const MAX_BYTES = 256 * 1024;
 const ITEM_COUNT = 96;
-const FAST_CANDIDATE_COUNT = 32;
+const FAST_CANDIDATE_COUNT = 25;
 const SECOND_PAGE_FAST_CANDIDATES = 56;
 const PAGE_COUNT = 24;
 const SECOND_PAGE_WITNESSES = 49; // Two 24-book pages plus a live next-page witness.
@@ -827,18 +827,18 @@ export async function syntheticR2PageWithLiveRights(
       return null;
   }
   const cursorMs = performance.now() - cursorStart;
-  // Most page-one requests need at most 25 fresh live witnesses. D1 scans every input
-  // candidate in the authorized materialized CTE: 96 candidates cost ~1,437
-  // rows read on the isolated fixture; 32 cost ~549. On withdrawal/sparse
-  // rights, recheck all 96 in ONE NEW primary-D1 statement and use ONLY its
-  // results. Never combine an old positive decision with a newer fallback.
+  // The fast cursor and page-one path verify exactly 25 current rights-and-offer
+  // witnesses (24 visible and one fresh next-page witness). In the normal
+  // all-eligible case a 32-ID query wasted seven full legal-view evaluations.
+  // Any withdrawn/missing right or current offer causes a NEW full-remaining
+  // primary-D1 SELECT. Never stitch older positive results into the fallback.
   // Page two still authorizes 49 CURRENT rights-and-offer witnesses, but
   // hydrates only the 24 visible items after an authoritative ranked OFFSET.
   // Its 49th witness is counted in the SAME primary D1 statement. Check the
   // first 56 candidates, then perform a NEW full-96 statement on sparse
   // withdrawal; never join permissions from two different D1 snapshots.
   // No global count is inferred from this bounded rank window.
-  // Page one retains the measured 32-ID/96-ID fallback, unchanged.
+  // Page one now probes 25 IDs, then a new full-96 query if sparse.
   const primaryStart = performance.now();
   let current: SyntheticExtendedAuthorityRow[];
   if (page === "cursor") {
