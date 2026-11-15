@@ -37,7 +37,8 @@ jobs:
           python3 scripts/staging/check-owner-current-retail-invalidation.py
           python3 scripts/staging/check-owner-positive-retail-cas.py
       - name: Compile and gate the real canonical TypeScript rights adapter
-        run: node scripts/staging/check-owner-positive-retail-adapter.mjs
+        run: |
+          node scripts/staging/check-owner-positive-retail-adapter.mjs
           python3 scripts/staging/check-owner-retail-source-dependencies.py
       - name: Deny accidental stage proof edits or whitespace errors
         run: git diff --check
