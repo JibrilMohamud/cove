@@ -30,7 +30,7 @@ on:
   workflow_dispatch:
     inputs:
       worker_name:
-        description: "Cloudflare Worker name. Use the existing owner Worker name to preserve its other secrets."
+        description: "Production ONLY: exactly cove-persistence-backend. Use isolated staging workflow for clone Workers."
         required: true
         default: "cove-persistence-backend"
         type: string
@@ -55,9 +55,9 @@ on:
         default: "https://cove-puce-theta.vercel.app"
         type: string
       apply_migrations:
-        description: "Apply pending Cove D1 migrations before deployment"
+        description: "DANGEROUS: explicitly opt in to production D1 migrations (off by default)"
         required: true
-        default: true
+        default: false
         type: boolean
 
 permissions:
@@ -102,6 +102,14 @@ jobs:
           [[ "$D1_DATABASE_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || { echo "Invalid D1 database ID"; exit 1; }
           [[ "$D1_DATABASE_NAME" =~ ^[a-zA-Z0-9_-]{1,64}$ ]] || { echo "Invalid D1 database name"; exit 1; }
           [[ "$R2_BUCKET_NAME" =~ ^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$ ]] || { echo "Invalid R2 bucket name"; exit 1; }
+          # This workflow owns LIVE production exclusively. A staging clone
+          # binding primary D1/R2 would reintroduce competing production
+          # writers and undermine canonical rights. Never permit it here.
+          [[ "$WORKER_NAME" == "cove-persistence-backend" ]] || { echo "::error::Noncanonical Worker forbidden in production deployment"; exit 1; }
+          [[ "$D1_DATABASE_ID" == "4bd657ac-8789-403e-a28c-93aba8d0a989" ]] || { echo "::error::Production D1 ID mismatch"; exit 1; }
+          [[ "$D1_DATABASE_NAME" == "cove-production" ]] || { echo "::error::Production D1 name mismatch"; exit 1; }
+          [[ "$R2_BUCKET_NAME" == "cove-production-media" ]] || { echo "::error::Production media bucket mismatch"; exit 1; }
+          [[ "$PUBLIC_URL" == "https://cove-puce-theta.vercel.app" ]] || { echo "::error::Production canonical origin mismatch"; exit 1; }
           node -e '
             const u = new URL(process.env.PUBLIC_URL);
             if (u.protocol !== "https:" || u.username || u.password || u.pathname !== "/" || u.search || u.hash) {
