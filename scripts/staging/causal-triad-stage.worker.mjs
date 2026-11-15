@@ -19,6 +19,7 @@ const MODES = [
   "context",
   "rights",
   "revision",
+  "pointbench",
   "catalog",
   "single",
   "r2live",
@@ -53,6 +54,35 @@ LIMIT ?`;
 const REVISION_SQL =
   "SELECT CAST(revision AS TEXT) current_revision FROM cove_synthetic_public_metadata_revision WHERE id=1";
 
+// Synthetic-only *shape* benchmark. The 25 records carry fake offer IDs and
+// constant placeholder hashes: NEVER real rights/settlement/entitlements.
+const POINT_BENCH_IDS = Array.from(
+  { length: 25 },
+  (_, i) => "perf-synth-" + String(i + 1).padStart(6, "0"),
+);
+const POINT_BENCH_SQL = `WITH requested(product_id,rank_position) AS MATERIALIZED (
+ SELECT value,CAST(key AS INTEGER) FROM json_each(?)
+)
+SELECT p.product_id,p.current_offer_id,p.amount_minor,p.evidence_digest,
+ p.valid_until,requested.rank_position
+FROM requested
+CROSS JOIN cove_stage_perf_retail_authority p ON p.product_id=requested.product_id
+ AND p.territory_code=? AND p.currency=?
+JOIN cove_stage_perf_source_revision source_version
+ ON source_version.product_id=p.product_id
+JOIN cove_stage_perf_territory_revision territory_version
+ ON territory_version.territory_code=p.territory_code
+LEFT JOIN cove_stage_perf_market_revision market_version
+ ON market_version.territory_code=p.territory_code
+CROSS JOIN cove_stage_perf_owner_state owner
+WHERE owner.id=1 AND owner.enabled=1 AND p.owner_epoch=owner.epoch
+ AND p.source_revision=source_version.revision
+ AND p.territory_revision=territory_version.revision
+ AND p.market_revision=COALESCE(market_version.revision,0)
+ AND p.us_fallback_revision=owner.us_fallback_revision
+ AND p.valid_until>datetime('now')
+ORDER BY requested.rank_position LIMIT 25`;
+
 export function triadStageBindingGuard(env) {
   return (
     env?.COVE_TRIAD_STAGE === "1" &&
@@ -67,6 +97,7 @@ export function triadStageBindingGuard(env) {
 export const triadModes = Object.freeze([...MODES]);
 export const triadSql = RIGHTS_SQL;
 export const triadRevisionSql = REVISION_SQL;
+export const triadPointBenchmarkSql = POINT_BENCH_SQL;
 
 // TEST-NET IPv4 addresses, unique by request ordinal. Never use real identities.
 export function stageSyntheticIp(i) {
@@ -95,7 +126,7 @@ export function summarizeTriad(mode, kind, offered, rows, durationMs) {
     transportLayer:
       mode === "noop"
         ? "driver-only"
-        : mode === "rights"
+        : mode === "rights" || mode === "revision" || mode === "pointbench"
           ? "driver-d1"
           : "candidate-service-binding",
     externalTtfbCertified: false,
@@ -150,6 +181,35 @@ export async function singleTriadProbe(mode, env, ordinal, runId, cursorToken = 
         ms,
         sqlMs: Number.isFinite(sqlMs) ? sqlMs : null,
         outsideSqlMs: Number.isFinite(sqlMs) && sqlMs <= ms ? ms - sqlMs : null,
+      };
+    }
+    if (mode === "pointbench") {
+      // No real positive-grant metadata may enter this experimental mode.
+      // This proves ONLY D1's indexed 25-row query queue under load.
+      if (env.COVE_SYNTHETIC_POINT_BENCH !== "1")
+        return { status: 403, valid: false, errorKind: "point-bench-not-explicitly-bound" };
+      const result = await env.DB.prepare(POINT_BENCH_SQL)
+        .bind(JSON.stringify(POINT_BENCH_IDS), "US", "USD")
+        .all();
+      const rows = result.results || [];
+      const sqlMs = Number(result.meta?.duration);
+      const ms = performance.now() - started;
+      return {
+        status: 200,
+        valid:
+          rows.length === 25 &&
+          rows.every(
+            (r, i) =>
+              r.product_id === POINT_BENCH_IDS[i] &&
+              r.rank_position === i &&
+              r.current_offer_id === "BENCH-NOT-A-GRANT" &&
+              r.amount_minor === 599 &&
+              r.evidence_digest === "b".repeat(64),
+          ),
+        ms,
+        sqlMs: Number.isFinite(sqlMs) ? sqlMs : null,
+        outsideSqlMs: Number.isFinite(sqlMs) && sqlMs <= ms ? ms - sqlMs : null,
+        rowsRead: Number.isFinite(result.meta?.rows_read) ? result.meta.rows_read : null,
       };
     }
     if (mode === "rights") {
