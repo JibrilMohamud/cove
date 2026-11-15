@@ -30,7 +30,6 @@ try {
     bundle: true,
     platform: "node",
     format: "esm",
-    packages: "external",
     logLevel: "silent",
   });
   const { stageRecomputeOwnerPositiveRetail } = await import(pathToFileURL(outfile).href);
