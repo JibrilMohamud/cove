@@ -1,10 +1,12 @@
 name: cove-stage-owner-current-retail-projection-proof
 on:
   push:
-    branches: [perf/stage-owner-transactional-retail-projection-20261115]
+    branches: [perf/stage-owner-transactional-retail-projection-20261115, perf/stage-owner-cas-positive-writer-20261115]
     paths:
       - scripts/staging/owner-current-retail-invalidation.stage.py
       - scripts/staging/check-owner-current-retail-invalidation.py
+      - scripts/staging/owner-positive-retail-writer.stage.py
+      - scripts/staging/check-owner-positive-retail-cas.py
       - scripts/staging/check-owner-retail-source-dependencies.py
       - src/features/fore/rights.server.ts
       - .github/workflows/cove-stage-owner-retail-projection-proof.yml
@@ -24,8 +26,9 @@ jobs:
           python-version: "3.12"
       - name: Prove affected-product invalidation, deny-first revocation and atomic repricing
         run: |
-          python3 -m py_compile scripts/staging/owner-current-retail-invalidation.stage.py scripts/staging/check-owner-current-retail-invalidation.py
+          python3 -m py_compile scripts/staging/owner-current-retail-invalidation.stage.py scripts/staging/check-owner-current-retail-invalidation.py scripts/staging/owner-positive-retail-writer.stage.py scripts/staging/check-owner-positive-retail-cas.py
           python3 scripts/staging/check-owner-current-retail-invalidation.py
+          python3 scripts/staging/check-owner-positive-retail-cas.py
           python3 scripts/staging/check-owner-retail-source-dependencies.py
       - name: Deny accidental stage proof edits or whitespace errors
         run: git diff --check
