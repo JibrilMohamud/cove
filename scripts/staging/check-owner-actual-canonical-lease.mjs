@@ -227,7 +227,7 @@ try{
   let boundCount=0;
   const crossingDB={
     prepare:(sql)=>{
-      assert.match(sql,/julianday\\(at\\)>=julianday\\(\\?\\)/);
+      assert.match(sql,/julianday\(at\)>=julianday\(\?\)/);
       return {bind:(productId,start)=>{
         assert.equal(productId,"prd_fixture_001");
         assert.equal(start,new Date(evaluationStart).toISOString());
