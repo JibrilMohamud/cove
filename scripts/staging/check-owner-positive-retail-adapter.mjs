@@ -48,10 +48,10 @@ try {
     COVE_STAGE_OWNER_CAS_ONLY: "1",
     COVE_STAGE_OWNER_DB_ID: "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
   };
-  assert.deepEqual(
-    await stageRecomputeOwnerPositiveRetail(guarded, "perf-synth-000001", "US"),
-    { published: false, reason: "owner-or-source-unavailable" },
-  );
+  assert.deepEqual(await stageRecomputeOwnerPositiveRetail(guarded, "perf-synth-000001", "US"), {
+    published: false,
+    reason: "owner-or-source-unavailable",
+  });
   await assert.rejects(
     () => stageRecomputeOwnerPositiveRetail(guarded, "invalid/book", "US"),
     /Invalid owner projection identity/,
