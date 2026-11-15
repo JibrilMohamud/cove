@@ -182,7 +182,11 @@ async function deployArm(enabled) {
     enabled ? "1" : "0",
   );
   assert.equal(state.runtime?.limits?.cpu_ms, 300000);
-  EVIDENCE.variant.push({ mode: enabled ? "compact" : "baseline", version: state.version, at: new Date().toISOString() });
+  EVIDENCE.variant.push({
+    mode: enabled ? "compact" : "baseline",
+    version: state.version,
+    at: new Date().toISOString(),
+  });
   return state.version;
 }
 
@@ -231,7 +235,16 @@ function runArm(name) {
   };
   concise.catalogPhases = raw.results
     .filter((x) => x.mode === "catalog" && x.shape.includes("rps"))
-    .map((x) => ({ shape: x.shape, offered: x.offered, valid: x.valid, failed: x.failed, dropped: x.dropped, p95: x.ttfbP95Ms, p99: x.ttfbP99Ms, max: x.ttfbMaxMs }));
+    .map((x) => ({
+      shape: x.shape,
+      offered: x.offered,
+      valid: x.valid,
+      failed: x.failed,
+      dropped: x.dropped,
+      p95: x.ttfbP95Ms,
+      p99: x.ttfbP99Ms,
+      max: x.ttfbMaxMs,
+    }));
   console.log(JSON.stringify({ event: "cove_compact_primary_d1_ab", ...concise }));
   return concise;
 }
