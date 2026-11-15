@@ -3,6 +3,7 @@ import {
   backendFailureCategory,
   backendFailurePhase,
   backendFailureSource,
+  backendFailureStage,
 } from "./persistence-backend-failure";
 
 type PersistenceEnv = {
@@ -225,6 +226,7 @@ export async function proxyPersistenceApi(
           response.status,
           backendFailureSource(response.headers),
           backendFailurePhase(response.headers),
+          backendFailureStage(response.headers),
           await backendFailureCategory(response),
         );
         await response.body?.cancel();

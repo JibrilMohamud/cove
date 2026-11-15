@@ -23,6 +23,26 @@ export function backendFailurePhase(headers: Headers): "post-context" | "pre-con
   return "untraced";
 }
 
+/** An enum of failed timed stages, never an upstream exception message. */
+export type BackendFailureStage =
+  | "context"
+  | "catalog"
+  | "markets"
+  | "limit"
+  | "page"
+  | "multiple"
+  | "unknown";
+
+export function backendFailureStage(headers: Headers): BackendFailureStage {
+  if (backendFailureSource(headers) !== "worker-api") return "unknown";
+  const timing = headers.get("server-timing") || "";
+  const phases = ["context", "catalog", "markets", "limit", "page"] as const;
+  const found = phases.filter((phase) =>
+    new RegExp(`(?:^|,)\\s*cove_fault_${phase};dur=1(?:\\.0)?(?:,|$)`).test(timing),
+  );
+  return found.length === 1 ? found[0] : found.length > 1 ? "multiple" : "unknown";
+}
+
 export type BackendFailureCategory =
   | "catalog-rights"
   | "market-configuration"
