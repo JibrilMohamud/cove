@@ -11,10 +11,17 @@ CREATE TABLE IF NOT EXISTS cove_synthetic_public_metadata_revision (
 INSERT OR IGNORE INTO cove_synthetic_public_metadata_revision(id,revision) VALUES(1,1);
 
 CREATE TRIGGER IF NOT EXISTS cove_syn_metadata_gutenberg_attr_update
-AFTER UPDATE OF source_project,source_url,source_license_url ON gutenberg_source_cache
-WHEN OLD.source_project IS NOT NEW.source_project
+AFTER UPDATE OF id,source_project,source_url,source_license_url ON gutenberg_source_cache
+WHEN OLD.id IS NOT NEW.id
+  OR OLD.source_project IS NOT NEW.source_project
   OR OLD.source_url IS NOT NEW.source_url
   OR OLD.source_license_url IS NOT NEW.source_license_url
+BEGIN
+  UPDATE cove_synthetic_public_metadata_revision SET revision=revision+1 WHERE id=1;
+END;
+
+CREATE TRIGGER IF NOT EXISTS cove_syn_metadata_gutenberg_insert
+AFTER INSERT ON gutenberg_source_cache
 BEGIN
   UPDATE cove_synthetic_public_metadata_revision SET revision=revision+1 WHERE id=1;
 END;
