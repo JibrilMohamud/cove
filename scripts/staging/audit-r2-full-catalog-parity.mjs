@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 // CatalogBook field is added, its storage/authority classification must be
 // explicitly reviewed. A green audit here NEVER certifies parity by itself.
 const CANONICAL = "src/features/fore/client.ts";
+const API = "src/features/fore/api.server.ts";
 const STAGE = "src/features/fore/synthetic-r2-live-rights-page.stage.ts";
 
 const FRESH_PRIMARY = [
@@ -78,6 +79,7 @@ const NEEDS_POLICY_REVIEW = [
 ];
 
 const source = readFileSync(CANONICAL, "utf8");
+const api = readFileSync(API, "utf8");
 const stage = readFileSync(STAGE, "utf8");
 const start = source.indexOf("export type CatalogBook = {");
 const end = source.indexOf("export type LibraryBook = {", start);
@@ -110,8 +112,35 @@ for (const forbidden of FRESH_PRIMARY.filter(
 }
 assert.doesNotMatch(stage, /releaseCertified:\s*true/);
 const missing = canonicalFields.filter((field) => !stageFields.includes(field));
+const catalogStart = api.indexOf("async function catalog(");
+const catalogEnd = api.indexOf("function libraryRow(", catalogStart);
+assert.ok(catalogStart !== -1 && catalogEnd > catalogStart);
+const canonicalEnvelope = api.slice(catalogStart, catalogEnd);
+const envelopeBlock = canonicalEnvelope.match(/return \{\s*results:\s*result\.books,([\s\S]*?)\n    \};/);
+assert.ok(envelopeBlock, "Production catalog payload structure changed");
+const envelopeFields = ["results", ...[
+  ...envelopeBlock[1].matchAll(/^      ([a-zA-Z_]\w*)(?:\s*[:,])/gm),
+].map((match) => match[1])];
+const probeStart = stage.indexOf("const result = await syntheticR2PageWithLiveRights");
+const probeReturn = stage.slice(probeStart).match(/return Response\.json\(\s*\{([\s\S]*?)\n      \},/);
+assert.ok(probeReturn, "Synthetic endpoint contract could not be read");
+const stagedEnvelopeFields = [
+  ...probeReturn[1].matchAll(/^        ([a-zA-Z_]\w*)\s*:/gm),
+].map((match) => match[1]);
+assert.deepEqual(
+  [...envelopeFields].sort(),
+  ["results", "count", "next", "cached", "facets", "facetsPending",
+    "countPending", "search", "ingestion"].sort(),
+  "Canonical catalog envelope changed; review pagination and facet parity",
+);
+const missingEnvelope = envelopeFields.filter(
+  (field) => !stagedEnvelopeFields.includes(field),
+);
 const audit = {
-  schema: "cove.synthetic-r2-full-catalog-parity-inventory.v1",
+  schema: "cove.synthetic-r2-full-catalog-parity-inventory.v2",
+  canonicalEnvelopeFields: envelopeFields,
+  stageEnvelopeFields: stagedEnvelopeFields,
+  missingEnvelopeFields: missingEnvelope,
   releaseCertified: false,
   canonicalFieldCount: canonicalFields.length,
   stageReturnedFieldCount: stageFields.length,
@@ -122,8 +151,12 @@ const audit = {
   unreviewedR2PolicyFields: NEEDS_POLICY_REVIEW,
   r2SnapshotAllowlistedKeys: r2Keys,
   note:
-    "All 59 canonical DTO fields are assigned a prospective owner, but many are not implemented, " +
-    "measured or legally certified. Production full-catalog parity is BLOCKED.",
+    "Book DTO and catalog envelope both have unimplemented fields. " +
+    "Even when first paint is fast, count/next/facets/search/ingestion and detailed " +
+    "legal metadata require independently verified parity. Production release is BLOCKED.",
 };
-assert.ok(missing.length > 0, "Audit certificate must be redesigned before claiming parity");
+assert.ok(
+  missing.length > 0 || missingEnvelope.length > 0,
+  "Audit certificate must be redesigned before claiming parity",
+);
 console.log(JSON.stringify(audit));
