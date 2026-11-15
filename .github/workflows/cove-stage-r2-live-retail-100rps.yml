@@ -1,7 +1,7 @@
 name: cove-stage-r2-current-retail-100rps
 on:
   push:
-    branches: [perf/stage-r2-display-current-rights-20261115]
+    branches: [perf/stage-r2-display-current-rights-20261115, perf/stage-live-epub-readiness-20261115]
     paths:
       - src/features/fore/synthetic-r2-live-rights-page.stage.ts
       - src/persistence-backend-entry.worker.ts
@@ -51,6 +51,8 @@ jobs:
           node --check scripts/staging/run-r2-live-retail-campaign.mjs
           npx prettier --write scripts/staging/causal-triad-stage.worker.mjs scripts/staging/private-causal-triad.worker.mjs scripts/staging/run-private-causal-triad.mjs scripts/staging/run-r2-live-retail-campaign.mjs scripts/staging/causal-triad-stage.worker.test.mjs
           git diff --exit-code -- scripts/staging/causal-triad-stage.worker.mjs scripts/staging/private-causal-triad.worker.mjs scripts/staging/run-private-causal-triad.mjs scripts/staging/run-r2-live-retail-campaign.mjs scripts/staging/causal-triad-stage.worker.test.mjs
+      - name: Reject TypeScript contract divergence before staging
+        run: npm run typecheck
       - name: Build production-shaped backend with stage flags absent
         run: npm run build:backend
       - name: Require protected staging deployment token

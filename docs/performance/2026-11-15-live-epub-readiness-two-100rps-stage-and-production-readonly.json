@@ -1,0 +1,187 @@
+{
+  "schema": "cove.live-epub-readiness-isolated-stage.v1",
+  "dateUTC": "2026-11-15",
+  "branch": "perf/stage-live-epub-readiness-20261115",
+  "productionModified": false,
+  "releaseCertified": false,
+  "syntheticStageAccepted": true,
+  "architecture": {
+    "cachedPublicPresentationBookFields": 49,
+    "canonicalCatalogBookTopLevelFields": 59,
+    "remainingUnimplemented": [
+      "externalIdentifiers",
+      "sourceProject",
+      "sourceUrl",
+      "sourceLicenseUrl",
+      "fileSizeBytes",
+      "epubVersion",
+      "layout",
+      "accessibility",
+      "formatProfile",
+      "aiDisclosure"
+    ],
+    "catalogNineFieldEnvelopeParity": false,
+    "r2RankedCandidates": 96,
+    "d1FastAuthorityCandidates": 32,
+    "d1RightsFallbackCandidates": 96,
+    "authorityIncludes": [
+      "market currency and territory",
+      "current active retail offer",
+      "edition/version matching",
+      "release/DRM/edition flags",
+      "live EPUB asset existence and source cache state"
+    ],
+    "publicEpupRouteIsNotEntitlement": true,
+    "cachedProtectedObjectKeys": false,
+    "cachedOffers": false,
+    "cachedEntitlements": false
+  },
+  "syntheticSqlProbe": {
+    "database": "cove-perf-isolated-candidate-20261019",
+    "candidates": 32,
+    "baselineRowsRead": 549,
+    "epubAssetStateRowsRead": 599,
+    "queryReadOnly": true,
+    "notLoadProof": true
+  },
+  "hostedCampaigns": [
+    {
+      "url": "https://github.com/JibrilMohamud/cove/actions/runs/43677207390",
+      "sourceCommit": "3972799b3b6959f14a23bc052906cf471e7ef69d",
+      "warmup50Rps20s": {
+        "offered": 1000,
+        "valid": 1000,
+        "failed": 0,
+        "dropped": 0,
+        "p95Ms": 142.14,
+        "p99Ms": 231.74,
+        "maxMs": 296.59
+      },
+      "phase1": {
+        "offered": 2000,
+        "valid": 2000,
+        "failed": 0,
+        "dropped": 0,
+        "p95Ms": 125.87,
+        "p99Ms": 204.12,
+        "maxMs": 519.72
+      },
+      "phase2": {
+        "offered": 2000,
+        "valid": 2000,
+        "failed": 0,
+        "dropped": 0,
+        "p95Ms": 103.4,
+        "p99Ms": 171.32,
+        "maxMs": 223.7
+      },
+      "originalWorkersRestored": true
+    },
+    {
+      "url": "https://github.com/JibrilMohamud/cove/actions/runs/43677587600",
+      "sourceCommit": "832471eb7fac9fcf98ab4d0e1d9a55abec6eaf01",
+      "warmup50Rps20s": {
+        "offered": 1000,
+        "valid": 1000,
+        "failed": 0,
+        "dropped": 0,
+        "p95Ms": 194.17,
+        "p99Ms": 287.37,
+        "maxMs": 423.83
+      },
+      "phase1": {
+        "offered": 2000,
+        "valid": 2000,
+        "failed": 0,
+        "dropped": 0,
+        "p95Ms": 208.34,
+        "p99Ms": 286.55,
+        "maxMs": 361.4
+      },
+      "phase2": {
+        "offered": 2000,
+        "valid": 2000,
+        "failed": 0,
+        "dropped": 0,
+        "p95Ms": 190.25,
+        "p99Ms": 248.72,
+        "maxMs": 310.02
+      },
+      "strictTypecheckPassed": true,
+      "originalWorkersRestored": true
+    }
+  ],
+  "syntheticTotals": {
+    "twoCampaign100RpsOffered": 8000,
+    "valid": 8000,
+    "failed": 0,
+    "dropped": 0,
+    "runPatternTwoPhasesPerCampaign": true,
+    "geographicCertified": false,
+    "homePageSSRTested": false
+  },
+  "restoredVersionVerification": {
+    "candidate": "60d1924f-2917-42be-acf7-496e84cb55e7",
+    "driver": "4c25df92-5f4d-4b57-ac8c-c7b80d8a34c2",
+    "cronCount": 0,
+    "candidateWorkersDevDisabled": true
+  },
+  "productionDatabaseReadOnlySampling": {
+    "database": "cove-production",
+    "databaseId": "4bd657ac-8789-403e-a28c-93aba8d0a989",
+    "topRankedProductIds": 96,
+    "first32": {
+      "activeRetailWitnessCount": 25,
+      "rowsRead": 675,
+      "sqlDurationMs": 31.5399
+    },
+    "first96": {
+      "activeRetailWitnessCount": 25,
+      "rowsRead": 1571,
+      "sqlDurationMs": 32.733
+    },
+    "publicDescriptionAggregate": {
+      "bookCount": 96,
+      "scalarTextCharacters": 112376,
+      "descriptionCharacters": 107538,
+      "largestDescriptionCharacters": 2006
+    },
+    "noCustomerRoutedRequests": true,
+    "proofOfProductionCapacity": false
+  },
+  "productionOwnerReadOnlyAudit": {
+    "nonhistoricalWorkerScriptsExamined": 34,
+    "productionDirectD1Bindings": [
+      {
+        "worker": "cove-legal-authority-production",
+        "binding": "PRIMARY_DB"
+      },
+      {
+        "worker": "cove-persistence-backend",
+        "binding": "DB"
+      }
+    ],
+    "ownerEnabledFlag": "0",
+    "excludedHistoricalWorkerScripts": 424,
+    "tokenWritePrivilegeNotAudited": true,
+    "productionOwnerExclusiveWritesCertified": false
+  },
+  "releaseBlockers": [
+    "Full 59-field Book DTO semantic parity, not just shape",
+    "Full 9-field catalog envelope including pagination/count/facets/search/ingestion",
+    "Production customer-routed catalog 503 elimination",
+    "Production cold/warm 1/4/8/16/32 SSR under 800ms",
+    "Geographic ORD/LAX/IAD/DFW",
+    "Production 2×100RPS and protected delivery",
+    "Exclusive owner with no competing D1 writers and token privileges",
+    "Stripe LIVE settlement, issuance, refunds/revocation",
+    "Protected rollback and production route acceptance"
+  ],
+  "notes": [
+    "The 49-field synthetic path does not imply real-catalog detail or legal correctness",
+    "Storage state derives from primary-D1 booleans; no protected object key, private signed asset URL or entitlement is cached",
+    "Safe canonical public /epub route is not a grant; authorization remains downstream",
+    "Only a limited read-only sample of production D1 was executed, not a hosted load test",
+    "Do not activate production owner, change routing or merge draft stages based on these results"
+  ]
+}
