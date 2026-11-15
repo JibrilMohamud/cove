@@ -24,7 +24,7 @@ jobs:
         with: { persist-credentials: false }
       - uses: actions/checkout@v6
         with:
-          ref: 8ef42c04b01706545c2b36106c6fe90899ec322a
+          ref: d22ef137e3b153adf36b4532f36e053dd19666bd
           path: stage-driver
           persist-credentials: false
       - uses: actions/setup-node@v6
@@ -39,6 +39,7 @@ jobs:
         run: |
           node --check scripts/staging/run-single-authority-catalog-ab.mjs
           npx prettier --check scripts/staging/run-single-authority-catalog-ab.mjs
+          node --test stage-driver/scripts/staging/private-causal-triad.worker.test.mjs
           node --check stage-driver/scripts/staging/run-private-causal-triad.mjs
       - name: Build actual candidate Worker without altering customer routing
         run: npm run build:backend
