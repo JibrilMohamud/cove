@@ -79,9 +79,24 @@ def fixture():
 
 def publish(db, product="p1", price=599, epoch=7, valid_until="2026-11-15 14:00:00",
             territory="US", currency="USD"):
+    observed = db.execute(
+        """SELECT sv.revision,tv.revision,COALESCE(mv.revision,0),
+                  owner.us_fallback_revision
+           FROM cove_stage_owner_product_source_version sv
+           JOIN cove_stage_owner_territory_version tv ON tv.territory_code=?
+           LEFT JOIN cove_stage_owner_market_version mv ON mv.territory_code=?
+           CROSS JOIN cove_stage_owner_authority_state owner
+           WHERE sv.product_id=? AND owner.id=1""",
+        (territory, territory, product),
+    ).fetchone()
+    check(observed is not None, "Missing versioned source or territory in staging fixture")
     db.execute(
-        "INSERT OR REPLACE INTO cove_stage_owner_retail_authority VALUES(?,?,?,?,?,?,?,?)",
-        (product, territory, currency, price, "o" + product[1:], epoch, "a" * 64, valid_until),
+        "INSERT OR REPLACE INTO cove_stage_owner_retail_authority VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+        (
+            product, territory, currency, price, "o" + product[1:], epoch,
+            observed[0], observed[1], observed[2], observed[3],
+            "a" * 64, valid_until,
+        ),
     )
 
 
