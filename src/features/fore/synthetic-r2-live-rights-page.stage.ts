@@ -1,4 +1,5 @@
 import type { CatalogBook } from "./client";
+import { isPrimaryD1Overload } from "../../lib/primary-d1-overload";
 import { type CatalogDB, type PrimaryStorefrontAuthorityRow } from "./catalog-model.server";
 import type { PresentationR2Bucket } from "./search-presentation-r2.server";
 
@@ -277,7 +278,13 @@ export async function handleSyntheticR2LiveRightsStage(
     }
     const result = await syntheticR2PageWithLiveRights(request, env);
     if (!result)
-      return new Response(null, { status: 503, headers: { "cache-control": "no-store" } });
+      return new Response(null, {
+        status: 503,
+        headers: {
+          "cache-control": "no-store",
+          "x-cove-stage-failure-class": "invalid-snapshot-or-authority-witness",
+        },
+      });
     return Response.json(
       {
         results: result.books,
@@ -293,10 +300,19 @@ export async function handleSyntheticR2LiveRightsStage(
         },
       },
     );
-  } catch {
-    // Never turn a D1 or R2 outage into an authorization; no raw SQL,
-    // metadata, customer identifiers or credentials are returned.
-    return new Response(null, { status: 503, headers: { "cache-control": "no-store" } });
+  } catch (error) {
+    // Only a low-cardinality failure class leaves the explicitly guarded
+    // synthetic host. Never leak SQL, exceptions, identities or credentials.
+    // Production has no route/binding that can enable this diagnostic.
+    return new Response(null, {
+      status: 503,
+      headers: {
+        "cache-control": "no-store",
+        "x-cove-stage-failure-class": isPrimaryD1Overload(error)
+          ? "d1-7429-resource-window"
+          : "primary-or-stage-failure",
+      },
+    });
   }
 }
 
