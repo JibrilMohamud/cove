@@ -67,18 +67,13 @@ function normalizedList(values: unknown): string[] {
   if (!Array.isArray(values) || values.length > 20)
     throw new Error("Unreviewed catalog projection list");
   if (
-    !values.every(
-      (value) => typeof value === "string" && value.length > 0 && value.length <= 300,
-    )
+    !values.every((value) => typeof value === "string" && value.length > 0 && value.length <= 300)
   )
     throw new Error("Invalid catalog projection list element");
   return [...new Set(values)].sort();
 }
 
-function normalizedNumber(
-  value: number | undefined,
-  maximum: number,
-): number | null {
+function normalizedNumber(value: number | undefined, maximum: number): number | null {
   if (value === undefined) return null;
   if (!Number.isFinite(value) || value < 0 || value > maximum)
     throw new Error("Invalid catalog projection numeric filter");
@@ -87,8 +82,7 @@ function normalizedNumber(
 
 function normalizedBoolean(value: boolean | undefined): boolean | null {
   if (value === undefined) return null;
-  if (typeof value !== "boolean")
-    throw new Error("Invalid catalog projection boolean filter");
+  if (typeof value !== "boolean") throw new Error("Invalid catalog projection boolean filter");
   return value;
 }
 
@@ -123,13 +117,11 @@ export async function catalogPresentationScope(
   if (!SORTS.has(input.sort) || !/^[A-Z]{2}$/.test(input.territory))
     throw new Error("Unreviewed catalog territory or sort");
   const currency = input.currency ?? "USD";
-  if (!/^[A-Z]{3}$/.test(currency))
-    throw new Error("Invalid public catalog currency");
+  if (!/^[A-Z]{3}$/.test(currency)) throw new Error("Invalid public catalog currency");
   if (
     typeof input.query !== "string" ||
     input.query.length > 160 ||
-    (input.topic !== undefined &&
-      (typeof input.topic !== "string" || input.topic.length > 100))
+    (input.topic !== undefined && (typeof input.topic !== "string" || input.topic.length > 100))
   )
     throw new Error("Invalid public search terms");
   const facets = Object.fromEntries(LIST_FIELDS.map((key) => [key, normalizedList(input[key])]));
@@ -158,14 +150,10 @@ export async function catalogPresentationScope(
     sort: input.sort,
     limit: input.limit,
   };
-  if (
-    typeof normalized.availability !== "string" ||
-    normalized.availability.length > 30
-  )
+  if (typeof normalized.availability !== "string" || normalized.availability.length > 30)
     throw new Error("Invalid catalog availability filter");
   const encoded = new TextEncoder().encode(JSON.stringify(normalized));
-  if (encoded.byteLength > 8192)
-    throw new Error("Oversized catalog projection scope");
+  if (encoded.byteLength > 8192) throw new Error("Oversized catalog projection scope");
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", encoded));
   return {
     key:
