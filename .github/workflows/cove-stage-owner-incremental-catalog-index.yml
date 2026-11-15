@@ -6,6 +6,7 @@ on:
       - src/storefront-strangler/owner-catalog-authorized-set.stage.ts
       - src/storefront-strangler/owner-catalog-incremental-index.stage.ts
       - scripts/staging/check-owner-catalog-incremental-index.mjs
+      - scripts/staging/benchmark-owner-catalog-index.mjs
       - .github/workflows/cove-stage-owner-incremental-catalog-index.yml
 permissions:
   contents: read
@@ -30,4 +31,6 @@ jobs:
           node scripts/check-market-authority-closure.mjs
       - name: Verify owner SQL indexed catalog, counted facets, pagination, denial
         run: node scripts/staging/check-owner-catalog-incremental-index.mjs
+      - name: Informational LOCAL 82k index-only benchmark (not hosted acceptance)
+        run: node scripts/staging/benchmark-owner-catalog-index.mjs
       - run: git diff --check
