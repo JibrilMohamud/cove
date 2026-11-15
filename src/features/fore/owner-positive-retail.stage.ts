@@ -95,6 +95,10 @@ const CONDITIONAL_INSERT = `INSERT OR REPLACE INTO cove_stage_owner_retail_autho
  AND (o.ends_at IS NULL OR datetime(o.ends_at)>datetime(?))
  AND (o.ends_at IS NULL OR datetime(o.ends_at)>=datetime(?))
  AND datetime(?)>datetime('now')
+ -- Reject future/old resolver snapshots even if their lease is still active.
+ -- Both freshness bounds are verified by PRIMARY D1 at the atomic write.
+ AND julianday(?)<=julianday('now')
+ AND julianday(?)>julianday('now','-2 seconds')
  AND EXISTS (SELECT 1 FROM retail_product_availability_rows rights
    WHERE rights.product_id=p.id AND rights.territory_code=?)
  AND NOT EXISTS (SELECT 1 FROM offers future_offer
@@ -127,8 +131,9 @@ export async function stageRecomputeOwnerPositiveRetail(
   productId: string,
   territory: string,
   currency = "USD",
-  now = new Date(),
 ): Promise<{ published: boolean; reason: string }> {
+  // No caller-controlled policy time: capture a fresh UTC decision for this attempt.
+  const now = new Date();
   if (env.COVE_STAGE_OWNER_CAS_ONLY !== "1" || env.COVE_STAGE_OWNER_DB_ID !== EXPECTED_STAGE_DB)
     throw new Error("Stage-only canonical owner DB binding is not certified");
   if (
@@ -235,6 +240,8 @@ export async function stageRecomputeOwnerPositiveRetail(
       evaluatedAt,
       expiresAt,
       expiresAt,
+      evaluatedAt,
+      evaluatedAt,
       territory,
       evaluatedAt,
       expiresAt,
