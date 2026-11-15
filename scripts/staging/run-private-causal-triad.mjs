@@ -507,8 +507,7 @@ async function main() {
   try {
     // Rights-only is a narrow capacity floor. Every full-catalog campaign
     // requires a real synthetic commercial-offer fixture before deployment.
-    if (!process.argv.includes("--rights-only-100rps"))
-      await requireSyntheticRetailOffers();
+    if (!process.argv.includes("--rights-only-100rps")) await requireSyntheticRetailOffers();
     const deployed = await deployPrivateStage(secret);
     attempted = true;
     evidence.testVersion = deployed.version;
