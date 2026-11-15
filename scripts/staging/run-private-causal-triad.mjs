@@ -283,6 +283,7 @@ async function requestProbe(mode, ordinal, run, secret) {
       stageHandlerMs: Number.isFinite(payload?.stageHandlerMs) ? payload.stageHandlerMs : null,
       sqlMs: Number.isFinite(payload?.d1SqlMs) ? payload.d1SqlMs : null,
       outsideSqlMs: Number.isFinite(payload?.d1OutsideSqlMs) ? payload.d1OutsideSqlMs : null,
+      rowsRead: Number.isFinite(payload?.d1RowsRead) ? payload.d1RowsRead : null,
       downstreamStatus: payload?.downstreamStatus ?? null,
       resultKind: typeof payload?.resultKind === "string" ? payload.resultKind : null,
     };
@@ -316,6 +317,7 @@ async function summarize(mode, shape, offered, rows, elapsed) {
     workerP95Ms: rounded(pct(f("workerMs"), 0.95)),
     tailAttribution: strictTtfbTailAttribution(rows),
     sqlP95Ms: rounded(pct(f("sqlMs"), 0.95)),
+    rowsReadP95: rounded(pct(f("rowsRead"), 0.95)),
     outsideSqlP95Ms: rounded(pct(f("outsideSqlMs"), 0.95)),
     fullBodyP95Ms: rounded(pct(f("fullMs"), 0.95)),
     statusCounts: rows.reduce((o, r) => {
