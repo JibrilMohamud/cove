@@ -8,6 +8,7 @@ on:
       - src/storefront-strangler/owner-catalog-incremental-index.stage.ts
       - scripts/staging/prepare-owner-do-capacity.mjs
       - scripts/staging/run-owner-index-do-capacity.mjs
+      - scripts/staging/deploy-owner-index-do-capacity.mjs
       - scripts/staging/cleanup-owner-do-capacity.mjs
       - .github/workflows/cove-stage-owner-index-do-capacity.yml
 permissions:
@@ -40,6 +41,8 @@ jobs:
           node scripts/check-market-authority-closure.mjs
           node --check scripts/staging/prepare-owner-do-capacity.mjs
           node --check scripts/staging/run-owner-index-do-capacity.mjs
+          node --check scripts/staging/deploy-owner-index-do-capacity.mjs
+          node scripts/staging/deploy-owner-index-do-capacity.mjs --self-test
           node --check scripts/staging/cleanup-owner-do-capacity.mjs
           git diff --check
       - name: Require isolated staging deployment token
@@ -63,7 +66,7 @@ jobs:
           console.log("PASS: synthetic owner DO has no production database, customer route or persistent gate");
           '
       - name: Deploy fresh expiring, gated, isolated Durable Object
-        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.owner-do-capacity.generated.jsonc --secrets-file .output/stage-owner-do/secrets.json
+        run: node scripts/staging/deploy-owner-index-do-capacity.mjs
       - name: Strict hosted 1/4/8/16/32, 50RPS and two 100RPS mixed paid/free owner read campaigns
         run: node scripts/staging/run-owner-index-do-capacity.mjs
       - name: Delete run-specific Worker and verify absence even when tests fail
