@@ -668,7 +668,7 @@ try {
     ...env,
     COVE_PUBLIC_PRESENTATION_CACHE: {
       get: async () => ({
-        text: async () => buildSyntheticDisplayObject(books, Date.now()),
+        text: async () => buildSyntheticDisplayObject(books, Date.now(), "1"),
       }),
     },
   };
@@ -749,6 +749,7 @@ try {
     buildSyntheticDisplayObject(
       [{ ...books[0], formats: { "image/jpeg": "javascript:attack" } }, ...books.slice(1)],
       now,
+      "1",
     ),
     /javascript:attack/,
     "An unsafe cover URL is filtered rather than stored in the display cache",
