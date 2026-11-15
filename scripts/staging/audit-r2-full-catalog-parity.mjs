@@ -86,6 +86,10 @@ const source = readFileSync(CANONICAL, "utf8");
 const api = readFileSync(API, "utf8");
 const sharedEnvelope = readFileSync(ENVELOPE, "utf8");
 const stage = readFileSync(STAGE, "utf8");
+const metadataSql = readFileSync(
+  "scripts/staging/sql/synthetic-public-metadata-revision-fence.sql",
+  "utf8",
+);
 const start = source.indexOf("export type CatalogBook = {");
 const end = source.indexOf("export type LibraryBook = {", start);
 assert.ok(start !== -1 && end > start, "Canonical catalog contract could not be read");
@@ -116,6 +120,17 @@ for (const forbidden of FRESH_PRIMARY.filter(
   assert.equal(r2Keys.includes(forbidden), false, "Authorizing field cached in R2: " + forbidden);
 }
 assert.doesNotMatch(stage, /releaseCertified:\s*true/);
+assert.match(stage, /metadata_revision AS MATERIALIZED/);
+assert.match(stage, /cove_synthetic_public_metadata_revision/);
+assert.match(stage, /public_metadata_revision !== snapshot\.publicMetadataRevision/);
+assert.match(stage, /after\?\.public_metadata_revision !== before\.public_metadata_revision/);
+assert.equal(
+  [...metadataSql.matchAll(/CREATE TRIGGER IF NOT EXISTS/g)].length,
+  14,
+  "All metadata mutation writers require an independently verified generation trigger",
+);
+assert.doesNotMatch(metadataSql, /4bd657ac-8789-403e-a28c-93aba8d0a989/);
+
 const missing = canonicalFields.filter((field) => !stageFields.includes(field));
 const catalogStart = api.indexOf("async function catalog(");
 const catalogEnd = api.indexOf("function libraryRow(", catalogStart);
@@ -183,10 +198,11 @@ const audit = {
   unreviewedR2PolicyFields: NEEDS_POLICY_REVIEW,
   r2SnapshotAllowlistedKeys: r2Keys,
   note:
-    "Catalog envelope parity remains incomplete even if all 59 book DTO field names " +
-    "are present. Fresh primary projection is not proof of semantic/access/rights " +
-    "equivalence. count/next/facets/search/ingestion, customer SSR/503, geographic " +
-    "performance and production legal/payment/rollback certification are BLOCKED.",
+    "The synthetic R2 public metadata now has a live generation check in the same " +
+    "D1 statement as current rights. Production deployment, writer trigger inventory " +
+    "and fail-closed reseeding are NOT certified. Actual count/next/facets/search/" +
+    "ingestion, customer SSR/503, geographic performance, legal/payment and rollback " +
+    "certification remain BLOCKED.",
 };
 assert.ok(
   missing.length > 0 || missingEnvelope.length > 0,
