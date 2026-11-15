@@ -149,6 +149,39 @@ WHERE owner.id=1 AND owner.enabled=1 AND p.owner_epoch=owner.epoch
  AND p.valid_until>?
 """
 
+# Public/hosted stage read MUST use the database's own current clock. The
+# parameterized historical READ_SQL above exists ONLY for deterministic
+# offline transition tests; never accept an API caller's `at` as lease proof.
+POINT_READ_NOW_SQL = READ_SQL.replace(
+    "AND p.valid_until>?", "AND p.valid_until>datetime('now')"
+)
+
+# A batch of exactly 25 unique public synthetic candidates must pass one
+# indexed point lookup each, in the original immutable rank order. Empty /
+# withdrawn / changed-source rows are omitted, never turned into grants.
+BATCH_READ_NOW_SQL = f"""
+WITH requested(product_id,rank_position) AS MATERIALIZED (
+ SELECT value,CAST(key AS INTEGER) FROM json_each(?)
+)
+SELECT p.product_id,p.current_offer_id,p.amount_minor,p.evidence_digest,
+       p.valid_until,requested.rank_position
+FROM requested
+CROSS JOIN {PROJECTION} p ON p.product_id=requested.product_id
+ AND p.territory_code=? AND p.currency=?
+JOIN {SOURCE_VERSION} source_version ON source_version.product_id=p.product_id
+JOIN {TERRITORY_VERSION} territory_version ON territory_version.territory_code=p.territory_code
+LEFT JOIN {MARKET_VERSION} market_version ON market_version.territory_code=p.territory_code
+CROSS JOIN {AUTHORITY_STATE} owner
+WHERE owner.id=1 AND owner.enabled=1 AND p.owner_epoch=owner.epoch
+ AND p.source_revision=source_version.revision
+ AND p.territory_revision=territory_version.revision
+ AND p.market_revision=COALESCE(market_version.revision,0)
+ AND p.us_fallback_revision=owner.us_fallback_revision
+ AND p.valid_until>datetime('now')
+ORDER BY requested.rank_position
+LIMIT 25
+"""
+
 
 def invalidation_triggers() -> str:
     statements = []
