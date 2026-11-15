@@ -542,7 +542,9 @@ async function campaign(secret) {
       part.ttfbP95Ms < 600 &&
       part.ttfbP99Ms < 750 &&
       part.ttfbMaxMs < 800 &&
-      (!pointShadow || part.offered !== 2000 || part.mode !== "pointbench" ||
+      (!pointShadow ||
+        part.offered !== 2000 ||
+        part.mode !== "pointbench" ||
         part.ingressShadow?.passed === true);
     for (const concurrency of [1, 4, 8, 16, 32]) {
       const tested = await phase("pointbench", "burst-" + concurrency, concurrency, 0, run, secret);
