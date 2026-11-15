@@ -9,7 +9,7 @@ on:
       - scripts/staging/prepare-owner-do-capacity.mjs
       - scripts/staging/run-owner-do-capacity.mjs
       - scripts/staging/cleanup-owner-do-capacity.mjs
-      - .github/workflows/cove-stage-owner-do-capacity.yml
+      - .github/workflows/cove-stage-owner-index-do-capacity.yml
 permissions:
   contents: read
 concurrency:
