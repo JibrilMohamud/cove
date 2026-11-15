@@ -1,0 +1,194 @@
+{
+  "schema": "cove.synthetic-public-metadata-revision-fence-proof.v1",
+  "dateUTC": "2026-11-15",
+  "repository": "JibrilMohamud/cove",
+  "draftPr": 681,
+  "releaseCertified": false,
+  "productionChanged": false,
+  "syntheticD1": "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
+  "productionD1NotModified": "4bd657ac-8789-403e-a28c-93aba8d0a989",
+  "architecture": "96 public R2 display IDs (short TTL), live primary D1 retail/right/EPUB eligibility + same-statement immutable-decimal metadata revision; seed before-and-after generation check",
+  "fence": {
+    "globalGenerationTable": "cove_synthetic_public_metadata_revision",
+    "mutationTriggers": 15,
+    "sourceInsertCovered": true,
+    "sourceLicenseUpdateCovered": true,
+    "sourceDeleteCovered": true,
+    "aiDisclosureChangesCovered": true,
+    "publicationVersionSwitchCovered": true,
+    "legacyUnversionedSnapshotsRejected": true,
+    "missingOrChangedLiveRevisionDenied": true,
+    "priceOrRightsCached": false,
+    "possibleStaleSnapshot503UntilReseed": true,
+    "productionWriterInventoryCertified": false
+  },
+  "liveSyntheticMutationSmoke": {
+    "dateUTC": "2026-11-15",
+    "fixtureRowCleaned": true,
+    "initialRevision": 1,
+    "finalRevision": 4,
+    "operations": [
+      {
+        "operation": "insert-source",
+        "increment": 1
+      },
+      {
+        "operation": "change-source-license",
+        "increment": 1
+      },
+      {
+        "operation": "no-op-license-update",
+        "increment": 0
+      },
+      {
+        "operation": "unrelated-timestamp-update",
+        "increment": 0
+      },
+      {
+        "operation": "delete-source",
+        "increment": 1
+      }
+    ],
+    "productionWrites": 0
+  },
+  "preflight": {
+    "candidates": 32,
+    "authorized": 25,
+    "primaryD1RowsRead": 601,
+    "primaryD1SqlMs": 14.0932,
+    "metadataRevision": "1",
+    "fallbackCandidates": 96,
+    "fallbackAuthorized": 25,
+    "fallbackRowsRead": 1489
+  },
+  "campaigns": [
+    {
+      "runId": 43681667603,
+      "attempt": 1,
+      "sourceCommit": "8ce4773a8ce3f8c1ea2c55076629996b2485e062",
+      "note": "Generation-fenced run; source INSERT trigger added afterward as final correctness repair",
+      "warmup50": {
+        "offered": 1000,
+        "valid": 1000,
+        "failed": 0,
+        "dropped": 0,
+        "p95Ms": 313.45,
+        "p99Ms": 349.38,
+        "maxMs": 608.35
+      },
+      "first100": {
+        "offered": 2000,
+        "valid": 2000,
+        "failed": 0,
+        "dropped": 0,
+        "p95Ms": 287.2,
+        "p99Ms": 346.54,
+        "maxMs": 525.63
+      },
+      "second100": {
+        "offered": 2000,
+        "valid": 2000,
+        "failed": 0,
+        "dropped": 0,
+        "p95Ms": 240.27,
+        "p99Ms": 331.94,
+        "maxMs": 494.17
+      },
+      "originalWorkersRestored": true
+    },
+    {
+      "runId": 43681844651,
+      "attempt": 1,
+      "sourceCommit": "67176d7b156c8680d3e27d081340176748c31829",
+      "note": "All 15 source and publishing triggers present in isolated D1",
+      "warmup50": {
+        "offered": 1000,
+        "valid": 1000,
+        "failed": 0,
+        "dropped": 0,
+        "p95Ms": 180.27,
+        "p99Ms": 235.61,
+        "maxMs": 485.13
+      },
+      "first100": {
+        "offered": 2000,
+        "valid": 2000,
+        "failed": 0,
+        "dropped": 0,
+        "p95Ms": 193.09,
+        "p99Ms": 267.68,
+        "maxMs": 509.72
+      },
+      "second100": {
+        "offered": 2000,
+        "valid": 2000,
+        "failed": 0,
+        "dropped": 0,
+        "p95Ms": 145.37,
+        "p99Ms": 191.16,
+        "maxMs": 260.17
+      },
+      "originalWorkersRestored": true
+    },
+    {
+      "runId": 43681844651,
+      "attempt": 2,
+      "sourceCommit": "67176d7b156c8680d3e27d081340176748c31829",
+      "note": "Rerun following actual D1 source insert/license edit/delete; revision now 4, R2 reseeded from canonical books",
+      "warmup50": {
+        "offered": 1000,
+        "valid": 1000,
+        "failed": 0,
+        "dropped": 0,
+        "p95Ms": 127.3,
+        "p99Ms": 189.24,
+        "maxMs": 296.84
+      },
+      "first100": {
+        "offered": 2000,
+        "valid": 2000,
+        "failed": 0,
+        "dropped": 0,
+        "p95Ms": 128.49,
+        "p99Ms": 186.91,
+        "maxMs": 335.95
+      },
+      "second100": {
+        "offered": 2000,
+        "valid": 2000,
+        "failed": 0,
+        "dropped": 0,
+        "p95Ms": 99.09,
+        "p99Ms": 160.81,
+        "maxMs": 294.2
+      },
+      "originalWorkersRestored": true
+    }
+  ],
+  "combined100": {
+    "offered": 12000,
+    "valid": 12000,
+    "failed": 0,
+    "dropped": 0,
+    "worstCampaignP95Ms": 287.2,
+    "worstCampaignP99Ms": 346.54,
+    "worstCampaignMaxMs": 525.63
+  },
+  "corrected15TriggerCampaigns100": {
+    "offered": 8000,
+    "valid": 8000,
+    "failed": 0,
+    "dropped": 0
+  },
+  "releaseBlockers": [
+    "Only synthetic D1 has generation table/triggers; production writer inventory and authority certification outstanding",
+    "Global metadata generation can over-invalidate on unrelated catalog ingest; needs scoped invalidation or prepublished snapshots and zero-503 refresh test",
+    "Real customer catalog has unverified 503/cutover; 9-field envelope/search/count/facet/page parity incomplete",
+    "Real production Vercel SSR failed strict <800ms TTFB gate (run 43649127535: 1363ms and 855ms cold reads despite 24 SSR books, zero HTTP errors)",
+    "Production legal owner and competing D1 writer retirement not certified",
+    "Stripe LIVE settlement-to-entitlement/protected-media/refund/revocation unverified",
+    "Geographic 1/4/8/16/32 cold/warm and 100-RPS live production not certified",
+    "Protected rollback unrehearsed"
+  ],
+  "evidenceMeaning": "Synthetic-only performance and revision semantics PASS; production release explicitly BLOCKED; no customer traffic, production D1 mutations, legal owner activation, LIVE payments or routing cutover."
+}
