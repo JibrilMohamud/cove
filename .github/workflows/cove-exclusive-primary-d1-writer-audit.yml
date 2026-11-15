@@ -1,0 +1,40 @@
+name: cove-exclusive-primary-d1-writer-audit
+on:
+  push:
+    branches: [audit/release-exclusive-primary-d1-20261115]
+    paths:
+      - scripts/release/certify-exclusive-primary-d1.mjs
+      - .github/workflows/cove-exclusive-primary-d1-writer-audit.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-source-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: node --check scripts/release/certify-exclusive-primary-d1.mjs
+      - run: node scripts/release/certify-exclusive-primary-d1.mjs --self-test
+  live-physical-audit:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    needs: [offline-source-contract]
+    runs-on: ubuntu-latest
+    environment: cove-production-release-audit
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Certify physical Cloudflare writer exclusivity (READ-ONLY)
+        run: node scripts/release/certify-exclusive-primary-d1.mjs
+        env:
+          CF_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+          CF_API_TOKEN: ${{ secrets.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN }}
