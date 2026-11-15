@@ -31,10 +31,10 @@ const EVIDENCE = {
   schema: "cove.synthetic-r2-display-current-retail-rights-100rps.v1",
   releaseCertified: false,
   productionModified: false,
-  sourceBranch: "perf/stage-public-metadata-r2-20261115",
+  sourceBranch: "perf/stage-all-public-details-r2-20261115",
   originalCandidateVersion: ORIGINAL,
   testedChange:
-    "Full book DTO shape with public identifiers, EPUB packaging and accessibility in bounded R2; current D1 for rights, offers, license attribution and AI disclosures",
+    "Synthetic-only full public book DTO from short-lived R2; current primary-D1 only rights, market, live offers, DRM and asset existence; source attribution and AI freshness NOT certified",
   syntheticD1: DB,
   variant: [],
 };
