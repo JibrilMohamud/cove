@@ -170,6 +170,11 @@ try {
         assert.doesNotMatch(sql, /\\b(?:INSERT|UPDATE|DELETE|REPLACE)\\b/i);
         return {
           bind(...params) {
+            assert.ok(
+              sql.includes("ORDER BY c.position LIMIT 25") ||
+                sql.includes("ORDER BY c.position LIMIT 49"),
+              "Only bounded, static D1 witness limits are permitted",
+            );
             assert.equal(params[0], "US");
             const candidates = JSON.parse(params[1]);
             assert.ok(
@@ -184,7 +189,9 @@ try {
                 if (failFallbackD1 && candidates.length === 96)
                   throw Object.assign(new Error("D1 overload during fallback"), { code: 7429 });
                 return {
-                  results: returned.filter((row) => inWindow.has(row.product_id)).slice(0, 25),
+                  results: returned
+                    .filter((row) => inWindow.has(row.product_id))
+                    .slice(0, sql.includes("LIMIT 49") ? 49 : 25),
                 };
               },
             };
@@ -409,6 +416,58 @@ try {
   assert.equal(stageBody.results.length, 24);
   assert.equal(stageBody.releaseCertified, false);
   assert.equal(stageBody.mode, "r2-live-retail");
+
+  // Real staged page-two selection requires 49 current D1 witnesses:
+  // the first 24 are skipped only AFTER current rights filtering, and the
+  // 49th proves a third page. This is not an exact global count or facet set.
+  const secondPageRequest = req({}, request.url + "?page=2");
+  assert.equal(eligibleSyntheticR2Page(secondPageRequest, env), true);
+  returned = rows(Array.from({ length: 49 }, (_, i) => i));
+  const beforePage2 = dbCalls;
+  const secondPage = await syntheticR2PageWithLiveRights(secondPageRequest, env, () => now);
+  assert.equal(dbCalls - beforePage2, 1, "Page two uses ONE fresh 96-candidate primary read");
+  assert.equal(secondPage?.books.length, 24);
+  assert.equal(secondPage?.books[0].productId, "perf-synth-24");
+  assert.equal(secondPage.books[23].productId, "perf-synth-47");
+  assert.equal(secondPage.hasMore, true);
+  assert.equal(
+    secondPage.books.some((book) => book.productId === "perf-synth-48"),
+    false,
+  );
+  // Withdrawal of rank #1 shifts the page boundary rather than leaking an
+  // old rank or charging the next candidate's current price to a stale book.
+  returned = rows(Array.from({ length: 49 }, (_, i) => i + 1));
+  const afterWithdrawal = await syntheticR2PageWithLiveRights(secondPageRequest, env, () => now);
+  assert.equal(afterWithdrawal?.books[0].productId, "perf-synth-25");
+  assert.equal(afterWithdrawal?.books[23].productId, "perf-synth-48");
+  returned = rows(Array.from({ length: 48 }, (_, i) => i));
+  assert.equal(
+    await syntheticR2PageWithLiveRights(secondPageRequest, env, () => now),
+    null,
+    "No 49th live witness: cannot claim a proven next page or global exhaustion",
+  );
+  returned = rows(Array.from({ length: 49 }, (_, i) => i));
+  returned[48].public_metadata_revision = "2";
+  assert.equal(
+    await syntheticR2PageWithLiveRights(secondPageRequest, env, () => now),
+    null,
+    "Even the non-displayed next-page witness must share the current metadata generation",
+  );
+  returned = rows(Array.from({ length: 49 }, (_, i) => i));
+  const secondStage = await handleSyntheticR2LiveRightsStage(secondPageRequest, {
+    ...env,
+    COVE_PUBLIC_PRESENTATION_CACHE: {
+      get: async () => ({ text: async () => buildSyntheticDisplayObject(books, Date.now(), "1") }),
+    },
+  });
+  assert.equal(secondStage.status, 200);
+  const secondJson = await secondStage.json();
+  assert.equal(secondJson.results.length, 24);
+  assert.equal(secondJson.results[0].productId, "perf-synth-24");
+  assert.equal(secondJson.releaseCertified, false);
+  assert.equal(Object.hasOwn(secondJson, "count"), false, "Never fabricate global catalog counts");
+  assert.equal(Object.hasOwn(secondJson, "facets"), false, "Never fabricate canonical facets");
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
 
   // Sparse rights/offer loss beyond the 32-ID window must trigger exactly
   // one fresh full-list primary read. Never combine old positive witnesses.
@@ -690,6 +749,10 @@ try {
     req({ "x-cove-client-country": "CA" }),
     req({ "x-cove-backend-token": "b".repeat(64) }),
     req({}, "https://covereads.com/api/fore/__perf/private-r2-live-rights"),
+    req({}, request.url + "?page=1"),
+    req({}, request.url + "?page=02"),
+    req({}, request.url + "?page=3"),
+    req({}, request.url + "?page=2&sort=popular"),
     req(
       {},
       "https://cove-presentation-r2-proof-20261114.cove-jibrilmohamud.workers.dev/api/fore/__perf/private-r2-live-rights?sort=popular",
@@ -754,7 +817,7 @@ try {
     "An unsafe cover URL is filtered rather than stored in the display cache",
   );
   console.log(
-    "PASS: stage-only R2 display gate, fresh D1 market/territory/retail offer, withdrawal, 25th witness, no cached grants",
+    "PASS: stage-only R2 display gate, page-one 25th and page-two 49th live witnesses, withdrawal, no invented count/facets or cached grants",
   );
 } finally {
   fs.rmSync(dir, { recursive: true, force: true });
