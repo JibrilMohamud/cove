@@ -133,15 +133,11 @@ const envelopeFields = [
     (match) => match[1],
   ),
 ];
-const sharedBlock = sharedEnvelope.match(
-  /return \{\s*results:\s*result\.books,([\s\S]*?)\n  \};/,
-);
+const sharedBlock = sharedEnvelope.match(/return \{\s*results:\s*result\.books,([\s\S]*?)\n  \};/);
 assert.ok(sharedBlock, "Shared canonical catalog payload structure changed");
 const sharedFields = [
   "results",
-  ...[...sharedBlock[1].matchAll(/^    ([a-zA-Z_]\w*)(?:\s*[:,])/gm)].map(
-    (match) => match[1],
-  ),
+  ...[...sharedBlock[1].matchAll(/^    ([a-zA-Z_]\w*)(?:\s*[:,])/gm)].map((match) => match[1]),
 ];
 assert.deepEqual(
   sharedFields,
