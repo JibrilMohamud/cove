@@ -25,16 +25,21 @@ writer = load(WRITER, "stage_owner_cas_writer")
 
 CURRENT_LEGAL_VIEW = """
 CREATE VIEW retail_product_availability_rows AS
-SELECT p.id product_id,rg.territory_code territory_code
+SELECT p.id product_id,rgt.territory_code territory_code
 FROM products p
 JOIN rights_grants rg ON rg.edition_id=p.edition_id
+JOIN rights_grant_territories rgt ON rgt.grant_id=rg.id
 WHERE p.storefront_status='active'
   AND rg.status='active'
   AND rg.decision='allow'
   AND NOT EXISTS (
       SELECT 1 FROM rights_grants denied
       WHERE denied.edition_id=rg.edition_id AND denied.status='active'
-        AND denied.decision='deny' AND denied.territory_code=rg.territory_code
+        AND denied.decision='deny' AND EXISTS (
+          SELECT 1 FROM rights_grant_territories denied_territory
+          WHERE denied_territory.grant_id=denied.id
+            AND denied_territory.territory_code=rgt.territory_code
+        )
   );
 """
 
