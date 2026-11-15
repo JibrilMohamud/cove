@@ -1,6 +1,7 @@
-/** Anonymous aggregate request performance is not a transactional event.
- * Never use this for recommendations attribution, orders, rights decisions,
- * error/security logs, identity requests or content grants.
+/** Anonymous aggregate request telemetry is not a transactional event.
+ * Never use this for recommendations, orders, rights decisions, detailed
+ * error/security logs, identity requests or content grants. A public 5xx
+ * emits a fixed category counter ONLY; D1 security/error auditing remains.
  */
 export type IsolatedMetricsEnv = {
   COVE_SSR_STAGING?: string;
@@ -34,8 +35,10 @@ export function emitIsolatedAnonymousHttpMetric(
   actorKind: string,
   durationMs: number,
 ): boolean {
-  // Production must explicitly opt in independently from staging, and may
-  // never send identity-bearing, failed, commercial or rights audit events.
+  // Production must opt in independently from staging. Identity-bearing,
+  // commercial, detailed failure and rights audit events are never sent; a
+  // 5xx only emits a nonidentifying fixed-category metric and is audited
+  // through the existing D1 path.
   const allowedEnvironment =
     env.COVE_SSR_STAGING === "1" ||
     (env.FORE_ENVIRONMENT === "production" && env.COVE_PUBLIC_ANON_HTTP_TELEMETRY === "1");
