@@ -4,9 +4,8 @@ import { transform } from "esbuild";
 
 const source = fs.readFileSync("src/lib/persistence-backend-failure.ts", "utf8");
 const { code } = await transform(source, { loader: "ts", format: "esm" });
-const { backendFailureSource, backendFailurePhase, backendFailureStage, backendFailureCategory } = await import(
-  "data:text/javascript;base64," + Buffer.from(code).toString("base64")
-);
+const { backendFailureSource, backendFailurePhase, backendFailureStage, backendFailureCategory } =
+  await import("data:text/javascript;base64," + Buffer.from(code).toString("base64");
 
 function classify(headers) {
   return backendFailureSource(new Headers(headers));
@@ -70,22 +69,47 @@ assert.equal(
 // guess which one was first. Reject foreign provenance and forged values.
 const flagged = (timing, extra = {}) =>
   new Headers({ ...apiHeaders, ...extra, "server-timing": timing });
-assert.equal(backendFailureStage(flagged("cove_fault_context;dur=1.0, cove_api;dur=34")), "context");
-assert.equal(backendFailureStage(flagged("cove_fault_catalog;dur=1.0, cove_api;dur=34")), "catalog");
-assert.equal(backendFailureStage(flagged("cove_fault_markets;dur=1.0, cove_api;dur=34")), "markets");
-assert.equal(backendFailureStage(flagged("cove_fault_limit;dur=1.0, cove_api;dur=34")), "limit");
-assert.equal(backendFailureStage(flagged("cove_fault_page;dur=1.0, cove_api;dur=34")), "page");
 assert.equal(
-  backendFailureStage(flagged("cove_fault_catalog;dur=1.0, cove_fault_context;dur=1.0, cove_api;dur=34")),
+  backendFailureStage(flagged("cove_fault_context;dur=1.0, cove_api;dur=34")),
+  "context",
+);
+assert.equal(
+  backendFailureStage(flagged("cove_fault_catalog;dur=1.0, cove_api;dur=34")),
+  "catalog",
+);
+assert.equal(
+  backendFailureStage(flagged("cove_fault_markets;dur=1.0, cove_api;dur=34")),
+  "markets",
+);
+assert.equal(
+  backendFailureStage(flagged("cove_fault_limit;dur=1.0, cove_api;dur=34")),
+  "limit",
+);
+assert.equal(
+  backendFailureStage(flagged("cove_fault_page;dur=1.0, cove_api;dur=34")),
+  "page",
+);
+assert.equal(
+  backendFailureStage(
+    flagged("cove_fault_catalog;dur=1.0, cove_fault_context;dur=1.0, cove_api;dur=34"),
+  ),
   "multiple",
 );
-assert.equal(backendFailureStage(flagged("cove_fault_catalog;dur=10.0, cove_api;dur=34")), "unknown");
-assert.equal(backendFailureStage(flagged("cove_fault_strange;dur=1.0, cove_api;dur=34")), "unknown");
+assert.equal(
+  backendFailureStage(flagged("cove_fault_catalog;dur=10.0, cove_api;dur=34")),
+  "unknown",
+);
+assert.equal(
+  backendFailureStage(flagged("cove_fault_strange;dur=1.0, cove_api;dur=34")),
+  "unknown",
+);
 assert.equal(backendFailureStage(flagged("cove_api;dur=34")), "unknown");
 assert.equal(
-  backendFailureStage(flagged("cove_fault_catalog;dur=1.0, cove_api;dur=34", {
-    "x-cove-persistence": "not-from-backend",
-  })),
+  backendFailureStage(
+    flagged("cove_fault_catalog;dur=1.0, cove_api;dur=34", {
+      "x-cove-persistence": "not-from-backend",
+    }),
+  ),
   "unknown",
 );
 const apiSource = fs.readFileSync("src/features/fore/api.server.ts", "utf8");
