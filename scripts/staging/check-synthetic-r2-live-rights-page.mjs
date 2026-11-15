@@ -64,6 +64,7 @@ try {
   let dbCalls = 0;
   let returned = [];
   let primaryError = null;
+  let failFallbackD1 = false;
   const env = {
     COVE_SYNTHETIC_STAGING_ONLY: "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
     FORE_GUEST_COMPACT_STAGE: "1",
@@ -87,12 +88,21 @@ try {
         return {
           bind(...params) {
             assert.equal(params[0], "US");
-            assert.equal(JSON.parse(params[1]).length, 96);
+            const candidates = JSON.parse(params[1]);
+            assert.ok(
+              [32, 96].includes(candidates.length),
+              "Stage D1 must select bounded fast candidates or the full fallback",
+            );
             assert.deepEqual(params.slice(2), ["USD", "USD", "US"]);
+            const inWindow = new Set(candidates);
             return {
               async all() {
                 if (primaryError) throw primaryError;
-                return { results: returned };
+                if (failFallbackD1 && candidates.length === 96)
+                  throw Object.assign(new Error("D1 overload during fallback"), { code: 7429 });
+                return {
+                  results: returned.filter((row) => inWindow.has(row.product_id)).slice(0, 25),
+                };
               },
             };
           },
@@ -196,11 +206,27 @@ try {
   assert.equal(stageBody.releaseCertified, false);
   assert.equal(stageBody.mode, "r2-live-retail");
 
-  const good = await syntheticR2PageWithLiveRights(request, env, () => now);
+  // Sparse rights/offer loss beyond the 32-ID window must trigger exactly
+  // one fresh full-list primary read. Never combine old positive witnesses.
+  returned = rows(Array.from({ length: 25 }, (_, i) => i + 8));
+  const beforeFallback = dbCalls;
+  const fallback = await syntheticR2PageWithLiveRights(request, env, () => now);
+  assert.equal(fallback?.books.length, 24);
+  assert.equal(fallback.books[0].productId, "perf-synth-8");
+  assert.equal(dbCalls - beforeFallback, 2, "Sparse page requires fresh 32+96 live D1 reads");
+  failFallbackD1 = true;
+  await assert.rejects(
+    () => syntheticR2PageWithLiveRights(request, env, () => now),
+    /fallback/,
+    "D1 7429 on fallback must deny every positive presentation",
+  );
+  failFallbackD1 = false;
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+    const good = await syntheticR2PageWithLiveRights(request, env, () => now);
   assert.equal(
     dbCalls,
-    2,
-    "Both the private API and direct helper must recheck current primary D1",
+    beforeFallback + 5,
+    "Sparse fallback uses two fresh reads, failed fallback two, normal one",
   );
   assert.equal(good?.books.length, 24);
   assert.equal(good?.hasMore, true);
