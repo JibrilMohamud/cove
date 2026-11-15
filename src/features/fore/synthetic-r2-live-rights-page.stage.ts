@@ -590,6 +590,12 @@ export async function handleSyntheticR2LiveRightsStage(
         headers: {
           "cache-control": "no-store",
           "x-cove-persistence": "d1-live-retail-r2-display-synthetic",
+          // Explicitly guarded isolated stage only. These are low-cardinality
+          // durations, never request IDs, SQL, product IDs or bearer tokens.
+          "x-cove-stage-r2-ms": result.timing.r2Ms.toFixed(2),
+          "x-cove-stage-cursor-ms": result.timing.cursorMs.toFixed(2),
+          "x-cove-stage-primary-ms": result.timing.primaryMs.toFixed(2),
+          "x-cove-stage-assembly-ms": result.timing.assemblyMs.toFixed(2),
         },
       },
     );
@@ -765,10 +771,12 @@ export async function syntheticR2PageWithLiveRights(
   hasMore: true;
   cursorAnchor: SyntheticCursorAnchor;
   cursorScope: SyntheticCursorScope;
+  timing: { r2Ms: number; cursorMs: number; primaryMs: number; assemblyMs: number };
 } | null> {
   if (!eligibleSyntheticR2Page(request, env)) return null;
   let snapshot: Snapshot;
   let rawSnapshot: string;
+  const r2Start = performance.now();
   try {
     const object = await env.COVE_PUBLIC_PRESENTATION_CACHE!.get(OBJECT_KEY);
     if (!object || (object.size !== undefined && object.size > MAX_BYTES)) return null;
@@ -783,11 +791,14 @@ export async function syntheticR2PageWithLiveRights(
     return null;
   }
 
+  const r2Ms = performance.now() - r2Start;
+
   // D1 exceptions deliberately propagate: a primary outage cannot be rescued
   // by presentation content, and cannot ever be considered authorization.
   const rankedIds = snapshot.items.map((item) => item.productId);
   const page = syntheticPage(request);
   if (!page) return null;
+  const cursorStart = performance.now();
   const cursorScope: SyntheticCursorScope = {
     digest: await syntheticSnapshotSha256(rawSnapshot),
     revision: snapshot.publicMetadataRevision,
@@ -810,6 +821,7 @@ export async function syntheticR2PageWithLiveRights(
     )
       return null;
   }
+  const cursorMs = performance.now() - cursorStart;
   // Most page-one requests need at most 25 fresh live witnesses. D1 scans every input
   // candidate in the authorized materialized CTE: 96 candidates cost ~1,437
   // rows read on the isolated fixture; 32 cost ~549. On withdrawal/sparse
@@ -822,6 +834,7 @@ export async function syntheticR2PageWithLiveRights(
   // withdrawal; never join permissions from two different D1 snapshots.
   // No global count is inferred from this bounded rank window.
   // Page one retains the measured 32-ID/96-ID fallback, unchanged.
+  const primaryStart = performance.now();
   let current: SyntheticExtendedAuthorityRow[];
   if (page === "cursor") {
     // A verified rank anchor lets the next request check just 25 live rights
@@ -854,6 +867,8 @@ export async function syntheticR2PageWithLiveRights(
     if (page === 1 && current.length < PAGE_COUNT + 1)
       current = await authorizeOfferBearingSyntheticPage(env.DB, rankedIds);
   }
+  const primaryMs = performance.now() - primaryStart;
+  const assemblyStart = performance.now();
   const requiredWitnesses = page === 2 ? PAGE_COUNT : PAGE_COUNT + 1;
   if (
     current.length !== requiredWitnesses ||
@@ -997,5 +1012,11 @@ export async function syntheticR2PageWithLiveRights(
     hasMore: true,
     cursorAnchor: { position: lastRank, productId: lastVisibleProductId },
     cursorScope,
+    timing: {
+      r2Ms,
+      cursorMs,
+      primaryMs,
+      assemblyMs: performance.now() - assemblyStart,
+    },
   };
 }
