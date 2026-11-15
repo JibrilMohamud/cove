@@ -178,6 +178,24 @@ try{
   }
   const ftsDocs=db.prepare('SELECT COUNT(*) n FROM cove_stage_owner_fts').get().n;
   assert.equal(ftsDocs,25,'FTS must index every owner-authorized catalog row');
+  const sampleFtsRow=db.prepare(`SELECT fts_rowid FROM cove_stage_owner_fts_ids
+    WHERE product_id=?`).get(all[0])?.fts_rowid;
+  assert.ok(Number.isSafeInteger(sampleFtsRow));
+  // Equal row COUNTS cannot prove correct searchable identities or content.
+  // A deliberate counterfeit row must block the migration seal.
+  db.prepare('UPDATE cove_stage_owner_fts SET product_id=? WHERE rowid=?')
+    .run('prd_stage_forged_wrong_identity',sampleFtsRow);
+  assert.throws(()=>fts.sealStageOwnerFts(sql),/partial_index_rejected/,
+    'FTS sealing must reject a swapped product ID with identical row counts');
+  db.prepare('UPDATE cove_stage_owner_fts SET product_id=?,title=? WHERE rowid=?')
+    .run(all[0],'Fake catalog 0',sampleFtsRow);
+  db.prepare('UPDATE cove_stage_owner_fts SET title=? WHERE rowid=?')
+    .run('Poisoned text',sampleFtsRow);
+  assert.throws(()=>fts.sealStageOwnerFts(sql),/partial_index_rejected/,
+    'FTS sealing must reject a forged title with identical row counts');
+  db.prepare('UPDATE cove_stage_owner_fts SET title=? WHERE rowid=?')
+    .run('Fake catalog 0',sampleFtsRow);
+  assert.doesNotThrow(()=>fts.sealStageOwnerFts(sql));
   assert.equal(idx.readStageOwnerFilteredIndex(sql,{...scope,query:'12'}).count,1);
   assert.equal(idx.readStageOwnerFilteredIndex(sql,{...scope,query:'0'}).count,1);
   assert.throws(()=>idx.readStageOwnerFilteredIndex(sql,{...scope,query:'" OR 1=1'}),
