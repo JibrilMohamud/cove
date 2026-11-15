@@ -100,7 +100,7 @@ export class StageUnifiedOwner extends DurableObject<StageEnv> {
     const valid=projection.count===25 && queried.count===1 &&
       queried.pageIds.length===1 && queried.pageIds[0]===freeIds[0] &&
       queried.facets.availability[0]?.count===1 &&
-      queried.facets.categories[0]?.count===25;
+      queried.facets.categories[0]?.count===1;
     return {valid,count:queried.count,releaseCertified:false,
       fingerprint:valid?"verified-rare-fts-owner-index":"incomplete"};
   }
