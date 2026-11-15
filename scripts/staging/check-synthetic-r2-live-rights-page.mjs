@@ -167,7 +167,10 @@ try {
   const stageLive = await handleSyntheticR2LiveRightsStage(request, {
     ...env,
     COVE_PUBLIC_PRESENTATION_CACHE: {
-      get: async () => ({ etag: "saved", text: async () => snapshot }),
+      get: async () => ({
+        etag: "saved",
+        text: async () => buildSyntheticDisplayObject(books, Date.now()),
+      }),
     },
   });
   assert.equal(stageLive.status, 200);
