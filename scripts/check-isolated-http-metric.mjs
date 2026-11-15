@@ -98,7 +98,28 @@ try {
   for (const item of refused) {
     assert.equal(route(...item, 1), false);
   }
-  assert.equal(written.length, 2, "Rejected telemetry cannot be written");
+  assert.equal(
+    written.length,
+    4,
+    "Only 2xx aggregates and two anonymous public 5xx counters are emitted",
+  );
+  assert.deepEqual(written.slice(2), [
+    {
+      blobs: ["public-api-failure", "/api/fore/catalog", "5xx"],
+      doubles: [500, 1],
+      indexes: ["public-failure"],
+    },
+    {
+      blobs: ["public-api-failure", "/api/fore/catalog", "5xx"],
+      doubles: [500, 1],
+      indexes: ["public-failure"],
+    },
+  ]);
+  assert.equal(
+    JSON.stringify(written).includes("private"),
+    false,
+    "No search text, query string, identity, or error body may reach independent AE",
+  );
   const broken = {
     ...env,
     OPS_ANALYTICS: {
@@ -115,7 +136,7 @@ try {
     console.warn = originalWarn;
   }
   console.log(
-    "PASS: isolated anonymous API metrics; PII exclusions, errors and authenticated requests preserved on existing D1 path.",
+    "PASS: anonymous 5xx category counters in AE, no PII; durable D1 error/security audit remains enabled.",
   );
 } finally {
   fs.rmSync(directory, { recursive: true, force: true });

@@ -4,9 +4,8 @@ import { transform } from "esbuild";
 
 const source = fs.readFileSync("src/lib/persistence-backend-failure.ts", "utf8");
 const { code } = await transform(source, { loader: "ts", format: "esm" });
-const { backendFailureSource, backendFailurePhase, backendFailureCategory } = await import(
-  "data:text/javascript;base64," + Buffer.from(code).toString("base64")
-);
+const { backendFailureSource, backendFailurePhase, backendFailureStage, backendFailureCategory } =
+  await import("data:text/javascript;base64," + Buffer.from(code).toString("base64"));
 
 function classify(headers) {
   return backendFailureSource(new Headers(headers));
@@ -65,6 +64,74 @@ assert.equal(
   backendFailurePhase(new Headers({ "server-timing": "cove_context;dur=4" })),
   "untraced",
 );
+// The upstream Worker emits only fixed, numeric, phase-specific failure flags.
+// On concurrent promise rejection, both phases can report failed; do not
+// guess which one was first. Reject foreign provenance and forged values.
+const flagged = (timing, extra = {}) =>
+  new Headers({ ...apiHeaders, ...extra, "server-timing": timing });
+assert.equal(
+  backendFailureStage(flagged("cove_fault_context;dur=1.0, cove_api;dur=34")),
+  "context",
+);
+assert.equal(
+  backendFailureStage(flagged("cove_fault_catalog;dur=1.0, cove_api;dur=34")),
+  "catalog",
+);
+assert.equal(
+  backendFailureStage(flagged("cove_fault_markets;dur=1.0, cove_api;dur=34")),
+  "markets",
+);
+assert.equal(backendFailureStage(flagged("cove_fault_limit;dur=1.0, cove_api;dur=34")), "limit");
+assert.equal(backendFailureStage(flagged("cove_fault_page;dur=1.0, cove_api;dur=34")), "page");
+assert.equal(
+  backendFailureStage(
+    flagged("cove_fault_catalog;dur=1.0, cove_fault_context;dur=1.0, cove_api;dur=34"),
+  ),
+  "multiple",
+);
+assert.equal(
+  backendFailureStage(flagged("cove_fault_catalog;dur=10.0, cove_api;dur=34")),
+  "unknown",
+);
+assert.equal(
+  backendFailureStage(flagged("cove_fault_strange;dur=1.0, cove_api;dur=34")),
+  "unknown",
+);
+assert.equal(backendFailureStage(flagged("cove_api;dur=34")), "unknown");
+assert.equal(
+  backendFailureStage(
+    flagged("cove_fault_catalog;dur=1.0, cove_api;dur=34", {
+      "x-cove-persistence": "not-from-backend",
+    }),
+  ),
+  "unknown",
+);
+const apiSource = fs.readFileSync("src/features/fore/api.server.ts", "utf8");
+// The actual Worker annotates ONLY rejected, enumerated first-paint phases.
+// Do not weaken the fail-closed exception path or emit raw exception details.
+assert.match(
+  apiSource,
+  /type FirstPaintPhase = "context" \| "catalog" \| "markets" \| "limit" \| "page"/,
+);
+assert.match(apiSource, /timings\[`fault_\$\{name\}`\] = 1/);
+assert.match(apiSource, /catch \(error\) \{\s*timings\[`fault_\$\{name\}`\] = 1;\s*throw error;/);
+assert.equal((apiSource.match(/timings\[`fault_\$\{name\}`\] = 1/g) || []).length, 1);
+// Isolated regression of the same propagation and numeric-only marker contract.
+const signalSource = fs.readFileSync("src/lib/fore-phase-failure-signal.stage.ts", "utf8");
+const { code: signalCode } = await transform(signalSource, { loader: "ts", format: "esm" });
+const { markFailedTimedPhase } = await import(
+  "data:text/javascript;base64," + Buffer.from(signalCode).toString("base64")
+);
+const metrics = {};
+assert.equal(await markFailedTimedPhase("context", Promise.resolve("ready"), metrics), "ready");
+assert.equal(metrics.fault_context, undefined, "Successful context must not register a fault");
+const originalFault = new Error("sensitive-upstream-error-value");
+await assert.rejects(
+  markFailedTimedPhase("catalog", Promise.reject(originalFault), metrics),
+  (error) => error === originalFault,
+);
+assert.equal(metrics.fault_catalog, 1, "A catalog rejection marks its fixed numeric phase");
+assert.doesNotMatch(JSON.stringify(metrics), /sensitive-upstream-error-value/);
 const errorResponse = (error, headers = apiHeaders) =>
   Response.json({ error }, { status: 503, headers });
 for (const [error, category] of [
@@ -94,6 +161,7 @@ const gateway = fs.readFileSync("src/lib/persistence-backend.ts", "utf8");
 assert.match(gateway, /path === "\/api\/fore\/storefront\/bootstrap"/);
 assert.match(gateway, /backendFailureSource\(response\.headers\)/);
 assert.match(gateway, /backendFailurePhase\(response\.headers\)/);
+assert.match(gateway, /backendFailureStage\(response\.headers\)/);
 assert.match(gateway, /await backendFailureCategory\(response\)/);
 assert.match(gateway, /if \(productionFallbackDenied\(env\)\)/);
 console.log("Read-only persistence 5xx attribution and fail-closed bootstrap: PASS");
