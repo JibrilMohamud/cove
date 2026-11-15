@@ -1132,8 +1132,7 @@ async function searchD1(
       // Real production has no flag or fixture binding for this experiment.
       const compactStage =
         env.FORE_GUEST_COMPACT_STAGE === "1" &&
-        env.FORE_GUEST_COMPACT_SYNTHETIC_D1_ID ===
-          "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3" &&
+        env.FORE_GUEST_COMPACT_SYNTHETIC_D1_ID === "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3" &&
         !!presentationStore &&
         deferred !== undefined &&
         input.limit === 24 &&
@@ -1150,7 +1149,9 @@ async function searchD1(
         } catch (error) {
           // Never mistake D1 exhaustion for a sparse/invalid shortlist.
           if (isPrimaryD1Overload(error)) throw error;
-          console.warn("Synthetic compact catalog read unavailable; retaining live-rights fallback");
+          console.warn(
+            "Synthetic compact catalog read unavailable; retaining live-rights fallback",
+          );
         }
       }
       try {
