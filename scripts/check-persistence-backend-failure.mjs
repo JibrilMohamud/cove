@@ -107,9 +107,13 @@ assert.equal(
   "unknown",
 );
 const apiSource = fs.readFileSync("src/features/fore/api.server.ts", "utf8");
-assert.doesNotMatch(apiSource, /timings\["fault_" \+ name\] = 1/);
-// This intentionally tests a STAGE-ONLY module. The audited production API
-// remains byte-identical until its 33 SQL-writer sites receive fresh review.
+// The actual Worker annotates ONLY rejected, enumerated first-paint phases.
+// Do not weaken the fail-closed exception path or emit raw exception details.
+assert.match(apiSource, /type FirstPaintPhase = "context" \| "catalog" \| "markets" \| "limit" \| "page"/);
+assert.match(apiSource, /timings\[`fault_\$\{name\}`\] = 1/);
+assert.match(apiSource, /catch \(error\) \{\s*timings\[`fault_\$\{name\}`\] = 1;\s*throw error;/);
+assert.equal((apiSource.match(/timings\[`fault_\$\{name\}`\] = 1/g) || []).length, 1);
+// Isolated regression of the same propagation and numeric-only marker contract.
 const signalSource = fs.readFileSync("src/lib/fore-phase-failure-signal.stage.ts", "utf8");
 const { code: signalCode } = await transform(signalSource, { loader: "ts", format: "esm" });
 const { markFailedTimedPhase } = await import(
