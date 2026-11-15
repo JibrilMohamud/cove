@@ -44,7 +44,7 @@ CREATE TABLE territory_aliases (alias_code TEXT PRIMARY KEY,territory_code TEXT)
 
 def fixture():
     db = sqlite3.connect(":memory:", isolation_level=None)
-    db.executescript(FIXTURE + module.stage_schema())
+    db.executescript(FIXTURE + module.stage_schema(include_replace_guards=False))
     db.execute("INSERT INTO cove_stage_owner_authority_state(id,enabled,epoch) VALUES(1,1,7)")
     for i in (1, 2):
         product, edition, grant = f"p{i}", f"e{i}", f"g{i}"
