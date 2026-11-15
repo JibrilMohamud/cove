@@ -13,8 +13,8 @@ assert.match(source, /import \{ resolveProductRights \} from "\.\/rights\.server
 assert.match(source, /await resolveProductRights\(env\.DB, productId, territory,/);
 assert.match(source, /salesChannel: "retail"/);
 assert.match(source, /COVE_STAGE_OWNER_DB_ID !== EXPECTED_STAGE_DB/);
-assert.match(source, /source_revision=\?/);
-assert.match(source, /territory_revision=\?/);
+assert.match(source, /src\.revision=\?/);
+assert.match(source, /t\.revision=\?/);
 assert.match(source, /owner\.epoch=\?/);
 assert.match(source, /EXISTS \(SELECT 1 FROM retail_product_availability_rows rights/);
 assert.match(source, /future_offer\.starts_at/);
