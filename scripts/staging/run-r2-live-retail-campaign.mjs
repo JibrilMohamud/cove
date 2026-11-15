@@ -343,8 +343,7 @@ function runArm(name, candidateMode = "r2live") {
   const passed =
     result.status === 0 &&
     raw.restoredOriginal === true &&
-    (candidateMode === "r2page2" ? raw.r2Page2100RpsPassed : raw.r2Retail100RpsPassed) ===
-      true &&
+    (candidateMode === "r2page2" ? raw.r2Page2100RpsPassed : raw.r2Retail100RpsPassed) === true &&
     strict(fifty, 1000) &&
     strict(phase1, 2000) &&
     strict(phase2, 2000);
@@ -352,9 +351,10 @@ function runArm(name, candidateMode = "r2live") {
   else concise.r2FullSyntheticTwoPhasePassed = passed;
   console.log(
     JSON.stringify({
-      event: candidateMode === "r2page2"
-        ? "cove_r2_page_two_current_rights_stage"
-        : "cove_r2_retail_current_rights_stage",
+      event:
+        candidateMode === "r2page2"
+          ? "cove_r2_page_two_current_rights_stage"
+          : "cove_r2_retail_current_rights_stage",
       ...concise,
     }),
   );
