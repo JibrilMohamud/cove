@@ -14,7 +14,7 @@ import type {AuthoritySql} from './legal-authority-core';
 
 const PRODUCT=/^prd_[a-zA-Z0-9_-]{3,120}$/;
 const CODE=/^[A-Z]{2,3}$/;
-const TEXT=/^[^\u0000-\u001f]{1,160}$/;
+const TEXT=/^[^\p{Cc}]{1,160}$/u;
 
 export function createStageOwnerCatalogSchema(sql:AuthoritySql){
   sql.exec(`CREATE TABLE IF NOT EXISTS cove_stage_owner_catalog(
