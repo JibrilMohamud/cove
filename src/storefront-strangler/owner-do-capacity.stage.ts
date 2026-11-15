@@ -17,7 +17,9 @@ import {
 import { createMarketAuthoritySchema, denyMarket, marketIsWithdrawn } from "./market-authority-core";
 import {createStageOwnerCatalogSchema,stageStorePresentation} from "./owner-catalog-authorized-set.stage";
 import {createStageOwnerIncrementalIndex,bootstrapStageOwnerIndex,
-  readStageOwnerIncrementalIndex,reconcileStageOwnerDirty} from "./owner-catalog-incremental-index.stage";
+  readStageOwnerIncrementalIndex,readStageOwnerFilteredIndex,
+  reconcileStageOwnerDirty,refreshStageOwnerExpired}
+  from "./owner-catalog-incremental-index.stage";
 
 type StageEnv = {
   COVE_OWNER_DO_STAGE: string;
@@ -64,10 +66,27 @@ export class StageUnifiedOwner extends DurableObject<StageEnv> {
   }
 
   private indexed() {
-    return readStageOwnerIncrementalIndex(
-      this.ctx.storage.sql as unknown as AuthoritySql,
-      { territory:"US",currency:"USD",sort:"rank",page:1,limit:25 },
-    );
+    const sql=this.ctx.storage.sql as unknown as AuthoritySql;
+    // A book's paid lease can end without a new canonical event. Refresh
+    // expired owner-local rows inside the one strongly consistent DO before
+    // serving ANY page, facet or count. Never infer new authorization.
+    this.transaction(()=>refreshStageOwnerExpired(sql));
+    return readStageOwnerIncrementalIndex(sql,
+      { territory:"US",currency:"USD",sort:"rank",page:1,limit:25 });
+  }
+
+  private search() {
+    const sql=this.ctx.storage.sql as unknown as AuthoritySql;
+    const projection=this.indexed();
+    const queried=readStageOwnerFilteredIndex(sql,
+      { territory:"US",currency:"USD",sort:"rank",page:1,limit:25,
+        query:"book",categories:["Fiction"] });
+    const valid=queried.count===projection.count &&
+      queried.pageIds.every((id,i)=>id===projection.pageIds[i]) &&
+      queried.facets.availability[0]?.count===queried.count &&
+      queried.facets.categories[0]?.count===queried.count;
+    return {valid,count:queried.count,releaseCertified:false,
+      fingerprint:valid?"verified-fts-owner-index":"incomplete"};
   }
 
   private read() {
@@ -104,7 +123,11 @@ export class StageUnifiedOwner extends DurableObject<StageEnv> {
       projection.pageIds.length===expected.length &&
       projection.pageIds.every((id,i)=>id===expected[i]) &&
       projection.facets.availability[0]?.count===expected.length;
-    return { valid:valid&&indexedMatches, count:projection.count, contractDenied };
+    const revokedKeyword=readStageOwnerFilteredIndex(sql,
+      {territory:"US",currency:"USD",sort:"rank",page:1,limit:25,query:"12"});
+    const ftsMatches=revokedKeyword.count===(contractDenied?0:1);
+    return { valid:valid&&indexedMatches&&ftsMatches,
+      count:projection.count,contractDenied };
   }
 
   async fetch(request: Request) {
@@ -161,6 +184,13 @@ export class StageUnifiedOwner extends DurableObject<StageEnv> {
         });
         return Response.json({ schema: "cove.stage-owner-do.v1", ...this.read(), releaseCertified: false }, { headers });
       }
+      if (route === "/read-search") {
+        const result=this.search();
+        return Response.json(
+          {schema:"cove.stage-owner-do.v1",...result,releaseCertified:false},
+          {status:result.valid?200:503,headers},
+        );
+      }
       if (route === "/read") {
         const result = this.read();
         return Response.json(
@@ -212,6 +242,30 @@ export class StageUnifiedOwner extends DurableObject<StageEnv> {
         return Response.json({ stalePositiveRejected: denied, count: this.read().count, releaseCertified: false },
           { status: denied ? 200 : 503, headers });
       }
+      if (route === "/short-paid-lease") {
+        this.transaction(()=>{
+          // Controlled stage-only expiry edge case. These are fake fixture
+          // proofs, never a production positive rights command.
+          const until=new Date(Date.now()+2500).toISOString();
+          sql.exec(`UPDATE cove_commercial_scope_proofs SET valid_until=?
+            WHERE product_id=? AND territory='US' AND channel='retail'`,
+            until,paidIds[1]);
+          sql.exec(`UPDATE cove_commercial_storefront_proofs SET valid_until=?
+            WHERE product_id=? AND territory='US' AND currency='USD'`,
+            until,paidIds[1]);
+          reconcileStageOwnerDirty(sql);
+        });
+        return Response.json({count:this.indexed().count,releaseCertified:false},{headers});
+      }
+      if (route === "/expire-check") {
+        const projection=this.indexed();
+        const result=readStageOwnerFilteredIndex(sql,
+          {territory:"US",currency:"USD",sort:"rank",page:1,limit:25,query:"13"});
+        const valid=projection.count===22&&!projection.pageIds.includes(paidIds[1])&&
+          result.count===0;
+        return Response.json({valid,count:projection.count,expiredSearchCount:result.count,
+          releaseCertified:false},{status:valid?200:503,headers});
+      }
       if (route === "/market-deny") {
         this.transaction(() => denyMarket(sql, {
           territory: "US", operationId: "stage:market:deny:1",
@@ -238,11 +292,14 @@ export default {
     const paths: Record<string, string> = {
       "/__cove/owner-do/seed": "/seed",
       "/__cove/owner-do/read": "/read",
+      "/__cove/owner-do/read-search": "/read-search",
       "/__cove/owner-do/read-fence": "/read-fence",
       "/__cove/owner-do/deny-contract": "/deny-contract",
       "/__cove/owner-do/deny-free": "/deny-free",
       "/__cove/owner-do/stale-regrant": "/stale-regrant",
       "/__cove/owner-do/market-deny": "/market-deny",
+      "/__cove/owner-do/short-paid-lease": "/short-paid-lease",
+      "/__cove/owner-do/expire-check": "/expire-check",
     };
     const target = paths[url.pathname];
     if (!target) return new Response(null, { status: 404 });
