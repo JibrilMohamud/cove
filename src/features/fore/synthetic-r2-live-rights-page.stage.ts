@@ -58,8 +58,15 @@ export type SyntheticRightsPresentationEnv = {
 
 const identifier = (x: unknown): x is string =>
   typeof x === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]{1,159}$/.test(x);
+function hasControlCharacter(value: string): boolean {
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if (code < 32 || code === 127) return true;
+  }
+  return false;
+}
 const shortText = (x: unknown, max: number): x is string =>
-  typeof x === "string" && x.length <= max && !/[\u0000-\u001f\u007f]/.test(x);
+  typeof x === "string" && x.length <= max && !hasControlCharacter(x);
 const strings = (x: unknown, max: number) =>
   Array.isArray(x) && x.length <= max && x.every((v) => shortText(v, 240));
 const IMAGE_TYPES = ["image/jpeg", "image/png"];
