@@ -1,0 +1,116 @@
+{
+  "schema": "cove.synthetic-bounded-live-retail-100rps-acceptance.v1",
+  "dateUTC": "2026-11-15",
+  "releaseCertified": false,
+  "syntheticStageAccepted": true,
+  "productionChanged": false,
+  "workflowUrl": "https://github.com/JibrilMohamud/cove/actions/runs/43674107335",
+  "sourceCommit": "76614873c4ceaeafb90f645e7afab95ac922e7c3",
+  "transport": "Private Cloudflare Worker capacity driver -> private synthetic candidate Worker service binding",
+  "database": {
+    "name": "cove-perf-isolated-candidate-20261019",
+    "id": "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
+    "syntheticProducts": 50000,
+    "currentRetailOffers": 96,
+    "inactiveRetailOffers": 12,
+    "expiredRetailOffers": 12
+  },
+  "architecture": {
+    "rankedCandidatesInR2": 96,
+    "primaryD1FastCandidates": 32,
+    "primaryD1FallbackCandidates": 96,
+    "primaryRightsFreshOnEveryRequest": true,
+    "neverReusePartialAuthorizationsOnFallback": true,
+    "retailOfferPreselectedWithinD1": true,
+    "canonicalBookFieldsReturned": 26,
+    "canonicalBookFieldsTotal": 59,
+    "fullCatalogResponseEnvelopeParity": false,
+    "protectedEPUBOrEntitlementGranted": false,
+    "realProductionHostEnabled": false
+  },
+  "oneShotSyntheticD1Measured": {
+    "first32": {
+      "rowsRead": 549,
+      "durationMs": 4.25,
+      "authorizedWithCurrentRetailOffers": 25
+    },
+    "full96": {
+      "rowsRead": 1437,
+      "durationMs": 4.86,
+      "authorizedWithCurrentRetailOffers": 25
+    },
+    "note": "Single isolated D1 executions, not a server-side CPU or 100-RPS quantile"
+  },
+  "acceptanceLimits": {
+    "offeredRps": 100,
+    "secondsPerPhase": 20,
+    "offeredPerPhase": 2000,
+    "validAll": true,
+    "dropped": 0,
+    "p95TtfbMsStrictlyBelow": 600,
+    "p99TtfbMsStrictlyBelow": 750,
+    "maxTtfbMsStrictlyBelow": 800,
+    "phasesRequired": 2
+  },
+  "observed": [
+    {
+      "phase": "50-rps-20s",
+      "offered": 1000,
+      "valid": 1000,
+      "failed": 0,
+      "dropped": 0,
+      "achievedRps": 49.76,
+      "p95TtfbMs": 203.8,
+      "p99TtfbMs": 262.86,
+      "maxTtfbMs": 388.62,
+      "status200": 1000
+    },
+    {
+      "phase": "100-rps-20s-phase-1",
+      "offered": 2000,
+      "valid": 2000,
+      "failed": 0,
+      "dropped": 0,
+      "p95TtfbMs": 181.23,
+      "p99TtfbMs": 262.11,
+      "maxTtfbMs": 384.74,
+      "status200": 2000
+    },
+    {
+      "phase": "100-rps-20s-phase-2",
+      "offered": 2000,
+      "valid": 2000,
+      "failed": 0,
+      "dropped": 0,
+      "p95TtfbMs": 154.46,
+      "p99TtfbMs": 208.35,
+      "maxTtfbMs": 412.66,
+      "status200": 2000
+    }
+  ],
+  "stageWorkersRestored": {
+    "candidatePinnedVersion": "60d1924f-2917-42be-acf7-496e84cb55e7",
+    "capacityDriverPinnedVersion": "4c25df92-5f4d-4b57-ac8c-c7b80d8a34c2",
+    "rollbackStepsPassed": true,
+    "scheduledTriggers": 0
+  },
+  "earlierRegression": {
+    "workflowUrl": "https://github.com/JibrilMohamud/cove/actions/runs/43673649692",
+    "candidatesReadPerRequest": 96,
+    "phase1Valid": 1896,
+    "phase1Offered": 2000,
+    "phase1CloudflareD1ResourceWindow7429Failures": 104,
+    "runFailedAndRolledBack": true
+  },
+  "blockedReleaseGates": [
+    "Exact 59-field catalog DTO parity and 9-field public search/pagination envelope",
+    "Production customer-routed catalog and homepage no-503 correctness/availability",
+    "Production cold/warm 1/4/8/16/32 latency <800ms",
+    "2x100RPS full production storefront",
+    "ORD/LAX/IAD/DFW repeatability",
+    "Production legal owner, deny-first withdrawal, exclusive primary writer privileges",
+    "Stripe LIVE settlement -> entitlement -> protected access -> refund/revocation",
+    "Protected production rollout and rollback rehearsal"
+  ],
+  "interpretation": "The isolated bounded live market/territory/edition/retail-offer projection passed the strict synthetic load pattern. It does not authorize production release, rights-owner activation or payment changes."
+}
