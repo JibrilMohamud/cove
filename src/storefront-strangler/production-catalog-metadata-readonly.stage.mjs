@@ -9,6 +9,9 @@
  */
 import {createHash} from 'node:crypto';
 import {DatabaseSync} from 'node:sqlite';
+import {createStageProductionFtsMirror,writeStageProductionSearchMetadata,
+  sealStageProductionFtsMirror,readStageProductionFtsMirror}
+  from './owner-production-fts-mirror.stage.mjs';
 
 export const PRODUCTION_ACCOUNT='d26430caa63ec55f6612e32f36aca5e9';
 export const PRODUCTION_DB='4bd657ac-8789-403e-a28c-93aba8d0a989';
@@ -128,7 +131,21 @@ function makeSqlite(){
   const statement=`INSERT INTO %TABLE% (product_id,${TEXT_FIELDS.join(',')}) VALUES(${Array(11).fill('?').join(',')})`;
   const global=db.prepare(statement.replace('%TABLE%','cove_audit_fts'));
   const english=db.prepare(statement.replace('%TABLE%','cove_audit_fts_en'));
-  return {db,doc,global,english};
+  // This is an EMPTY legal-owner index, intentionally. Real metadata may be
+  // imported into a stage presentation source, but it MUST NOT produce a
+  // positive grant. Only a separately verified canonical owner writer may
+  // ever populate this table. The source audit never executes that writer.
+  db.exec(`CREATE TABLE cove_stage_owner_index_items(
+    product_id TEXT NOT NULL,territory TEXT NOT NULL,currency TEXT NOT NULL,
+    PRIMARY KEY(territory,currency,product_id)) WITHOUT ROWID`);
+  const sql={exec:(query,...args)=>{
+    const prepared=db.prepare(query);
+    const rows=/^\s*(SELECT|WITH|PRAGMA)\b/i.test(query)?
+      prepared.all(...args):(prepared.run(...args),[]);
+    return {toArray:()=>rows};
+  }};
+  createStageProductionFtsMirror(sql);
+  return {db,doc,global,english,sql};
 }
 
 /**
@@ -148,7 +165,7 @@ export async function verifyProductionMetadata({read,batchSize=250,maxRows=25000
     throw Error('catalog_readonly_invalid_queries');
   const before=(await read(META_SQL))[0];validMeta(before);
   if(before.documents>maxRows)throw Error('catalog_readonly_refuse_large_inventory');
-  const {db,doc,global,english}=makeSqlite();
+  const {db,doc,global,english,sql}=makeSqlite();
   const hash=createHash('sha256');
   let rowCount=0,suppressedCount=0,englishCount=0,visibilityCount=0;
   let previous='';let batches=0;
@@ -170,6 +187,15 @@ export async function verifyProductionMetadata({read,batchSize=250,maxRows=25000
         doc.run(row.product_id,row.language_code,row.suppressed,
           row.storefront_status,row.source_name,row.release_status,
           row.currency,row.price_minor,row.updated_at);
+        // Metadata is copied into an isolated stage PRESENTATION table,
+        // never the authoritative owner-authorization index. Its triggers
+        // must keep BOTH owner-serving FTS5 indices EMPTY without grants.
+        writeStageProductionSearchMetadata(sql,{
+          product_id:row.product_id,...Object.fromEntries(TEXT_FIELDS.map(k=>[k,row[k]])),
+          language_code:row.language_code,suppressed:row.suppressed===1,
+          storefront_status:row.storefront_status,source_name:row.source_name,
+          release_status:row.release_status,
+        });
         const visible=row.suppressed===0&&row.storefront_status==='active'&&
           row.source_name!=='upload'&&['available','preorder'].includes(row.release_status);
         if(visible)visibilityCount++;
@@ -191,6 +217,18 @@ export async function verifyProductionMetadata({read,batchSize=250,maxRows=25000
     const localEnglish=db.prepare('SELECT COUNT(*) n FROM cove_audit_fts_en').get().n;
     if(localGlobal!==before.documents-before.suppressed||localEnglish!==before.english)
       throw Error('catalog_readonly_local_fts_incomplete');
+    const stageSource=db.prepare('SELECT COUNT(*) n FROM cove_stage_owner_prod_search_source').get().n;
+    const stageOwner=db.prepare('SELECT COUNT(*) n FROM cove_stage_owner_index_items').get().n;
+    const noGrants=sealStageProductionFtsMirror(sql);
+    if(stageSource!==before.documents||stageOwner!==0||
+      noGrants.global_count!==0||noGrants.english_count!==0||noGrants.mapped!==0)
+      throw Error('catalog_readonly_metadata_must_not_grant_rights');
+    const inaccessible=readStageProductionFtsMirror(sql,{
+      query:'river',territory:'US',currency:'USD',language:'all',
+      sort:'relevance',page:1,limit:24,
+    },()=>({count:0,pageIds:[],releaseCertified:false}));
+    if(inaccessible.count!==0||inaccessible.pageIds.length!==0)
+      throw Error('catalog_readonly_unauthorized_search_visible');
     const parity=[];
     for(const phrase of phrases){
       for(const language of ['global','english']){
@@ -209,7 +247,8 @@ export async function verifyProductionMetadata({read,batchSize=250,maxRows=25000
         edition:after.edition_watermark},
       sha256:hash.digest('hex'),batches,phraseChecks:parity,
       // Rows in metadata-only mirrors are NEVER positive owner authorization.
-      authorizedProducts:0,atomicPrimarySnapshot:false,
+      authorizedProducts:0,stageMetadataRows:stageSource,
+      stageAuthorizedFtsDocuments:0,atomicPrimarySnapshot:false,
       productionOwnerEvidence:false,fullSearchInputParity:false,
       releaseCertified:false};
   }finally{db.close();}
