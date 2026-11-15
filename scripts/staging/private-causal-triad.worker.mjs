@@ -49,7 +49,13 @@ export default {
     )
       return new Response(null, { status: 400 });
     const started = performance.now();
-    const result = await singleTriadProbe(mode, env, ordinal, runId);
+    const result = await singleTriadProbe(
+      mode,
+      env,
+      ordinal,
+      runId,
+      mode === "r2cursor" ? request.headers.get("x-cove-stage-cursor") : null,
+    );
     const duration = performance.now() - started;
     const payload = {
       mode,
@@ -60,6 +66,9 @@ export default {
       d1OutsideSqlMs: Number.isFinite(result.outsideSqlMs) ? result.outsideSqlMs : null,
       downstreamFirstByteMs: Number.isFinite(result.firstByteMs) ? result.firstByteMs : null,
       resultKind: result.errorKind || null,
+      ...(mode === "r2cursorseed" && result.valid && typeof result.cursorToken === "string"
+        ? { cursorToken: result.cursorToken }
+        : {}),
       releaseCertified: false,
     };
     return new Response(JSON.stringify(payload), {
