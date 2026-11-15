@@ -56,7 +56,10 @@ assert.match(search, /FORE_GUEST_COMPACT_SYNTHETIC_D1_ID ===/);
 assert.match(search, /canonicalBoundedPopularPageByLiveRights\(env\.DB, part, 24\)/);
 assert.match(search, /hasVerifiedNextPageWitness = true/);
 assert.match(search, /compactGuestBooks \|\| canonicalBooksByProductIds\(env\.DB, ids\)/);
-assert.match(search, /: await contextualizeChannelEligibility\(env\.DB, pageBooks, input\.territory\)/);
+assert.match(
+  search,
+  /: await contextualizeChannelEligibility\(env\.DB, pageBooks, input\.territory\)/,
+);
 assert.match(
   search,
   /if \(!facetState\.pending && !presentationStore\) \{[\s\S]*?await writeCatalogCache/,
