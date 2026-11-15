@@ -103,7 +103,7 @@ try{
   function filteredGold(input){
     const ids=stage.stageOwnerCatalogRead(sql,{...scope,page:1,limit:25}).pageIds;
     const books=ids.map(id=>{
-      const meta=db.prepare('SELECT rank_score,format,publisher FROM cove_stage_owner_catalog WHERE product_id=?').get(id);
+      const meta=db.prepare('SELECT title,rank_score,format,publisher FROM cove_stage_owner_catalog WHERE product_id=?').get(id);
       const tags={};
       for(const [facet,table] of [['categories','category'],['languages','language'],['series','series']]){
         tags[facet]=db.prepare(`SELECT value FROM cove_stage_owner_catalog_${table} WHERE product_id=?`)
@@ -113,10 +113,14 @@ try{
       const proof=db.prepare(id.startsWith('prd_gutenberg_')?
         `SELECT offer_json FROM cove_authorized_offer_proofs WHERE product_id=? AND territory='US' AND currency='USD'`:
         `SELECT offer_json FROM cove_commercial_storefront_proofs WHERE product_id=? AND territory='US' AND currency='USD'`).get(id);
-      return {id,tags,rank:meta.rank_score,price:JSON.parse(proof.offer_json).amountMinor};
+      return {id,tags,rank:meta.rank_score,price:JSON.parse(proof.offer_json).amountMinor,
+        words:new Set([meta.title,meta.format,meta.publisher].join(' ').toLowerCase()
+          .split(/[^a-z0-9]+/).filter(Boolean))};
     });
     const facets=['categories','languages','formats','publishers','series'];
-    const selected=(book,omit)=>facets.every(f=>f===omit||!input[f]?.length||
+    const queryWords=String(input.query||'').trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const selected=(book,omit)=>queryWords.every(term=>book.words.has(term))&&
+      facets.every(f=>f===omit||!input[f]?.length||
       input[f].some(x=>book.tags[f].includes(x)))&&
       (omit==='price'||(
         (input.minPrice===undefined||book.price>=input.minPrice)&&
@@ -153,12 +157,35 @@ try{
     {categories:['Classics'],minPrice:500},
     {categories:['Classics'],minPrice:600},
     {formats:['audio','ebook'],series:['Stage Series'],page:2,limit:1},
+    {query:'fake'},
+    {query:'FAKE CATALOG'},
+    {query:'ebook'},
+    {query:'audio',publishers:['Stage Publishing A']},
+    {query:'12'},
+    {query:'13',minPrice:500},
+    {query:'fake 0'},
+    {query:'notfound'},
+    {query:'stage publishing b',categories:['Classics']},
+    {query:'audio',page:2,limit:3},
+    {query:'ebook',maxPrice:0,languages:['en']},
   ];
   for(const part of filterSamples){
     const input={...scope,...part};
     assert.deepEqual(idx.readStageOwnerFilteredIndex(sql,input),filteredGold(input),
       'Every filtered count/page and self-excluding facet must match independent owner SQL');
   }
+  const ftsDocs=db.prepare('SELECT COUNT(*) n FROM cove_stage_owner_fts').get().n;
+  assert.equal(ftsDocs,25,'FTS must index every owner-authorized catalog row');
+  assert.equal(idx.readStageOwnerFilteredIndex(sql,{...scope,query:'12'}).count,1);
+  assert.equal(idx.readStageOwnerFilteredIndex(sql,{...scope,query:'0'}).count,1);
+  assert.throws(()=>idx.readStageOwnerFilteredIndex(sql,{...scope,query:'" OR 1=1'}),
+    /stage_owner_fts_invalid_query/,'Reject raw FTS operators and unsafe grammar');
+  assert.throws(()=>idx.readStageOwnerFilteredIndex(sql,{...scope,query:' '}),
+    /stage_owner_fts_invalid_query/);
+  const ftsPlan=db.prepare(`EXPLAIN QUERY PLAN SELECT product_id
+    FROM cove_stage_owner_fts WHERE cove_stage_owner_fts MATCH ?`).all('"ebook"');
+  assert.ok(ftsPlan.some(x=>/VIRTUAL TABLE INDEX/i.test(String(x.detail))),
+    'Keyword lookups must use FTS5, not full table scans');
   const firstQueryCache=db.prepare('SELECT COUNT(*) n FROM cove_stage_owner_index_query_cache').get().n;
   assert.ok(firstQueryCache>0,'Filtered query materialization must happen in owner SQLite');
   const firstEpoch=db.prepare('SELECT epoch FROM cove_stage_owner_index_epoch WHERE id=1').get().epoch;
@@ -212,6 +239,8 @@ try{
     assert.deepEqual(idx.readStageOwnerFilteredIndex(sql,input),filteredGold(input));}
   assert.ok(db.prepare('SELECT epoch FROM cove_stage_owner_index_epoch WHERE id=1').get().epoch>firstEpoch,
     'Contract withdrawal must transactionally invalidate all cached filtered scopes');
+  assert.equal(idx.readStageOwnerFilteredIndex(sql,{...scope,query:'12'}).count,0,
+    'Revoked contract keyword must be removed from FTS in owner transaction');
   assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,24);
   assert.ok(!stage.readStageOwnerCatalogSnapshot(sql,scope).pageIds.includes(paidIds[0]));
   assert.equal(paid.readCommercialStorefront(sql,paidIds,'US','USD').length,12);
@@ -226,6 +255,8 @@ try{
   assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope),stage.stageOwnerCatalogRead(sql,scope));
   for(const part of filterSamples){const input={...scope,...part};
     assert.deepEqual(idx.readStageOwnerFilteredIndex(sql,input),filteredGold(input));}
+  assert.equal(idx.readStageOwnerFilteredIndex(sql,{...scope,query:'0'}).count,0,
+    'Revoked free source cannot remain searchable');
   assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,23);
   assert.equal(free.readAuthorizedPresentations(sql,freeIds,'US','USD').length,11);
 
@@ -256,6 +287,8 @@ try{
     // global expiry lock; keep the old snapshot unavailable, not falsified.
   });
   assert.equal(idx.readStageOwnerIncrementalIndex(sql,scope).count,22);
+  assert.equal(idx.readStageOwnerFilteredIndex(sql,{...scope,query:'13'}).count,0,
+    'Expired paid proof must leave FTS and its cache after owner refresh');
   assert.ok(!idx.readStageOwnerIncrementalIndex(sql,scope).pageIds.includes(expiring));
   assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope),
     stage.stageOwnerCatalogRead(sql,scope),'Expiry rebuild must equal canonical owner SQL');
@@ -287,7 +320,8 @@ try{
   assert.throws(()=>stage.stageOwnerCatalogRead(sql,{...scope,query:'war'}),/unsupported_scope/);
   for(const bad of [{...scope,query:'War'},{...scope,sort:'popular'},{...scope,filter:'category'}])
     assert.throws(()=>idx.readStageOwnerIncrementalIndex(sql,bad),/unreviewed_scope/);
-  console.log('PASS: generation-fenced filtered query cache and exact filter/price/count/page parity across '+filterSamples.length+' cases and withdrawals');
+  console.log('PASS: owner-transactional FTS5 keyword matching and '+filterSamples.length+
+    ' filtered+keyword cases, expiry/contract/source/market withdrawal, disjunctive facets');
   console.log('PASS: owner-index exact default count/facets/page 25/24/23/22/0; 250 indexed hot reads, source/contract/market denial, dirty fail-close, disallowed scopes rejected');
 }finally{
   db.close();rmSync(root,{recursive:true,force:true});
