@@ -83,6 +83,7 @@ test("staging is private, read-only, and not bound to production", () => {
     "catalog",
     "single",
     "r2live",
+    "r2page2",
     "r2seed",
   ]);
   assert.match(triadSql, /retail_product_availability_rows/);
@@ -110,6 +111,30 @@ test("all paths validate stage identity and independent rights provenance", asyn
       .status,
     503,
   );
+});
+test("guarded second-page driver preserves fixed query and denies unverified payload", async () => {
+  let captured = null;
+  const result = await singleTriadProbe(
+    "r2page2",
+    {
+      ...env,
+      CANDIDATE: {
+        fetch: async (request) => {
+          captured = new URL(request.url);
+          return Response.json(
+            { releaseCertified: false, hasMore: true, mode: "r2-live-retail", results: [] },
+            { headers: { "x-cove-persistence": "d1-live-retail-r2-display-synthetic" } },
+          );
+        },
+      },
+    },
+    4,
+    "proof",
+  );
+  assert.equal(captured?.search, "?page=2");
+  assert.equal(result.status, 200);
+  assert.equal(result.valid, false, "Never accept incomplete page two despite HTTP 200");
+  assert.equal(result.errorKind, "unexpected-result-count");
 });
 test("synthetic 503 retains HTTP status and only allowlisted failure class", async () => {
   const overload = await singleTriadProbe(
