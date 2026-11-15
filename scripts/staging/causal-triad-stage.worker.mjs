@@ -314,6 +314,7 @@ export async function singleTriadProbe(mode, env, ordinal, runId, cursorToken = 
             stageCursorMs: stageMs("x-cove-stage-cursor-ms"),
             stagePrimaryMs: stageMs("x-cove-stage-primary-ms"),
             stageAssemblyMs: stageMs("x-cove-stage-assembly-ms"),
+            stageHandlerMs: stageMs("x-cove-stage-handler-ms"),
           }
         : {}),
       // Only the private seed probe exposes an opaque nonauthorizing cursor

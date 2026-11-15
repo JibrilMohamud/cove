@@ -17,8 +17,9 @@ test("outlier is attributed using paired request timing without secrets", () => 
       downstreamFirstByteMs: 195,
       stageR2Ms: 12.3,
       stageCursorMs: 1.2,
-      stagePrimaryMs: 189.15,
+      stagePrimaryMs: 159.15,
       stageAssemblyMs: 3.75,
+      stageHandlerMs: 186.45,
       valid: true,
       cursorToken: "must-not-be-recorded",
     },
@@ -44,16 +45,19 @@ test("outlier is attributed using paired request timing without secrets", () => 
   assert.equal(result.maxCandidateFirstByteMs, 800);
   assert.equal(result.maxStageR2Ms, 12.3);
   assert.equal(result.maxStageCursorMs, 1.2);
-  assert.equal(result.maxStagePrimaryMs, 189.15);
+  assert.equal(result.maxStagePrimaryMs, 159.15);
   assert.equal(result.maxStageAssemblyMs, 3.75);
+  assert.equal(result.maxStageHandlerMs, 186.45);
   assert.deepEqual(result.slowestRequestPaired, {
     externalFirstByteMs: 4344.16,
     driverWorkerMs: 210,
     candidateFirstByteMs: 195,
     stageR2Ms: 12.3,
     stageCursorMs: 1.2,
-    stagePrimaryMs: 189.15,
+    stagePrimaryMs: 159.15,
     stageAssemblyMs: 3.75,
+    stageHandlerMs: 186.45,
+    candidateMinusHandlerMs: 8.55,
     externalMinusDriverMs: 4134.16,
     validResponse: true,
   });
@@ -72,6 +76,7 @@ test("slow requests with no driver timing are classified as unknown, not transpo
   assert.equal(result.candidateTimingObservedCount, 0);
   assert.equal(result.slowestRequestPaired.externalMinusDriverMs, null);
   assert.equal(result.slowestRequestPaired.stagePrimaryMs, null);
+  assert.equal(result.slowestRequestPaired.candidateMinusHandlerMs, null);
 });
 
 test("the hard ceiling counts 800ms as failure and handles no measured timing", () => {

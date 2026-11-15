@@ -279,6 +279,7 @@ async function requestProbe(mode, ordinal, run, secret) {
       stageCursorMs: Number.isFinite(payload?.stageCursorMs) ? payload.stageCursorMs : null,
       stagePrimaryMs: Number.isFinite(payload?.stagePrimaryMs) ? payload.stagePrimaryMs : null,
       stageAssemblyMs: Number.isFinite(payload?.stageAssemblyMs) ? payload.stageAssemblyMs : null,
+      stageHandlerMs: Number.isFinite(payload?.stageHandlerMs) ? payload.stageHandlerMs : null,
       sqlMs: Number.isFinite(payload?.d1SqlMs) ? payload.d1SqlMs : null,
       outsideSqlMs: Number.isFinite(payload?.d1OutsideSqlMs) ? payload.d1OutsideSqlMs : null,
       downstreamStatus: payload?.downstreamStatus ?? null,

@@ -546,6 +546,7 @@ export async function handleSyntheticR2LiveRightsStage(
   request: Request,
   env: SyntheticRightsPresentationEnv,
 ): Promise<Response | null> {
+  const handlerStart = performance.now();
   const url = new URL(request.url);
   if (url.pathname !== STAGE_PATH && url.pathname !== STAGE_PATH + "/seed") return null;
   const seed = url.pathname === STAGE_PATH + "/seed";
@@ -577,7 +578,7 @@ export async function handleSyntheticR2LiveRightsStage(
       result.cursorScope,
       env.FORE_BACKEND_TOKEN!,
     );
-    return Response.json(
+    const response = Response.json(
       {
         results: result.books,
         hasMore: result.hasMore,
@@ -599,6 +600,10 @@ export async function handleSyntheticR2LiveRightsStage(
         },
       },
     );
+    // Total includes JSON serialization and signing but not pending
+    // pre-invocation service-binding dispatch/queue time.
+    response.headers.set("x-cove-stage-handler-ms", (performance.now() - handlerStart).toFixed(2));
+    return response;
   } catch (error) {
     // Only a low-cardinality failure class leaves the explicitly guarded
     // synthetic host. Never leak SQL, exceptions, identities or credentials.

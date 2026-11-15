@@ -69,6 +69,7 @@ export default {
       stageCursorMs: Number.isFinite(result.stageCursorMs) ? result.stageCursorMs : null,
       stagePrimaryMs: Number.isFinite(result.stagePrimaryMs) ? result.stagePrimaryMs : null,
       stageAssemblyMs: Number.isFinite(result.stageAssemblyMs) ? result.stageAssemblyMs : null,
+      stageHandlerMs: Number.isFinite(result.stageHandlerMs) ? result.stageHandlerMs : null,
       resultKind: result.errorKind || null,
       ...(mode === "r2cursorseed" && result.valid && typeof result.cursorToken === "string"
         ? { cursorToken: result.cursorToken }
