@@ -126,8 +126,8 @@ assert.match(stage, /public_metadata_revision !== snapshot\.publicMetadataRevisi
 assert.match(stage, /after\?\.public_metadata_revision !== before\.public_metadata_revision/);
 assert.equal(
   [...metadataSql.matchAll(/CREATE TRIGGER IF NOT EXISTS/g)].length,
-  14,
-  "All metadata mutation writers require an independently verified generation trigger",
+  15,
+  "All metadata mutation writers, including source INSERT, require an independently verified generation trigger",
 );
 assert.doesNotMatch(metadataSql, /4bd657ac-8789-403e-a28c-93aba8d0a989/);
 
