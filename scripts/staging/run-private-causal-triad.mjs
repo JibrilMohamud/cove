@@ -183,7 +183,8 @@ async function requestProbe(mode, ordinal, run, secret) {
       workerMs: Number.isFinite(payload?.workerDurationMs) ? payload.workerDurationMs : null,
       sqlMs: Number.isFinite(payload?.d1SqlMs) ? payload.d1SqlMs : null,
       outsideSqlMs: Number.isFinite(payload?.d1OutsideSqlMs) ? payload.d1OutsideSqlMs : null,
-      downstreamStatus: payload?.downstreamStatus || null,
+      downstreamStatus: payload?.downstreamStatus ?? null,
+      resultKind: typeof payload?.resultKind === "string" ? payload.resultKind : null,
     };
   } catch (error) {
     return {
@@ -221,6 +222,21 @@ async function summarize(mode, shape, offered, rows, elapsed) {
       o[key] = (o[key] || 0) + 1;
       return o;
     }, {}),
+    downstreamStatusCounts: rows
+      .filter((r) => r.launched)
+      .reduce((o, r) => {
+        const key = String(r.downstreamStatus ?? 0);
+        o[key] = (o[key] || 0) + 1;
+        return o;
+      }, {}),
+    failureKindCounts: rows
+      .filter((r) => !r.valid)
+      .reduce((o, r) => {
+        const key = r.resultKind || r.errorKind || (r.dropped ? "generator-drop" : "unclassified");
+        o[key] = (o[key] || 0) + 1;
+        return o;
+      }, {}),
+    invalidUpstream200: rows.filter((r) => !r.valid && r.downstreamStatus === 200).length,
     releaseCertified: false,
   };
   evidence.results.push(sample);
@@ -279,6 +295,14 @@ async function warmup(run, secret) {
 async function campaign(secret) {
   const run = randomUUID().replaceAll("-", "").slice(0,24);
   await warmup(run, secret);
+  if (process.argv.includes("--catalog-only")) {
+    const diagnostic = await phase("catalog", "50-rps-20s", 1000, 20, run, secret);
+    evidence.diagnosticOnly = true;
+    evidence.unresolvedFailures = diagnostic.failed;
+    // Collect classification even when validity fails. No escalation to
+    // sustained 100-RPS or authorization to change production routing.
+    return;
+  }
   for (const count of [1, 4, 8, 16, 24, 32]) {
     // Rotate mode order to avoid every rights test following no-DB warm cache.
     for (const mode of MODES.slice(count % 4).concat(MODES.slice(0, count % 4))) {
