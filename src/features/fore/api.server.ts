@@ -3301,21 +3301,17 @@ async function handleCoveRequest(
     const [storefront, bootstrapPreflight, prefetchedShelf] = await Promise.all([
       timed(
         "context",
-        resolveStagePublicContext(
-          env,
-          request,
-          currentIdentity?.id || null,
-          () =>
-            resolveStorefrontContext(
-              dbForContext,
-              request,
-              currentIdentity?.id || null,
-              env.FORE_DEFAULT_TERRITORY || "US",
-              anonymousFirstPaint || anonymousCatalogContext,
-              (rows) => {
-                homepageProjection.rows = rows;
-              },
-            ),
+        resolveStagePublicContext(env, request, currentIdentity?.id || null, () =>
+          resolveStorefrontContext(
+            dbForContext,
+            request,
+            currentIdentity?.id || null,
+            env.FORE_DEFAULT_TERRITORY || "US",
+            anonymousFirstPaint || anonymousCatalogContext,
+            (rows) => {
+              homepageProjection.rows = rows;
+            },
+          ),
         ),
       ),
       firstPaint
