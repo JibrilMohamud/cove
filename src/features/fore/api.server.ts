@@ -115,6 +115,7 @@ import {
 import JSZip from "jszip";
 import seed from "./catalog-seed.json";
 import type { CatalogBook } from "./client";
+import { canonicalCatalogEnvelope } from "./catalog-envelope.server";
 import type { PresentationR2Bucket } from "./search-presentation-r2.server";
 import { handlePrivateAuthorityStageProbe } from "./single-authority-probe.stage";
 import {
@@ -1116,35 +1117,10 @@ async function catalog(
     // successful primary-rights catalog. Production skips this D1 read;
     // operator endpoints still expose independent ingestion health.
     const ingestion = await optionalCatalogIngestionSummary(database(env), env.FORE_ENVIRONMENT);
-    const next =
-      input.page * result.limit < result.count
-        ? "/api/fore/catalog?" +
-          (() => {
-            const nextParams = new URLSearchParams(url.searchParams);
-            nextParams.set("page", String(input.page + 1));
-            return nextParams.toString();
-          })()
-        : null;
-    return {
-      results: result.books,
-      count: result.count,
-      next,
-      cached: true,
-      facets: result.facets,
-      facetsPending: result.facetsPending === true,
-      // The first-page lower bound is not an exact total until leased facets settle.
-      countPending: result.countPending === true,
-      search: {
-        queryId: result.queryId,
-        backend: result.backend,
-        processingTimeMs: result.processingTimeMs,
-        correctedQuery: result.correctedQuery || null,
-        pageSize: result.limit,
-      },
-      ingestion,
-      // Updater health is reported by /ingestion and /service-status. A failed
-      // background attempt does not make this successful indexed search fail.
-    };
+    // Do not synthesize counts, facets or next-page links from a cached
+    // presentation row list. The canonical search produces those semantics;
+    // this shared envelope only preserves the existing nine-field wire shape.
+    return canonicalCatalogEnvelope(url, input.page, result, ingestion);
   } catch (error) {
     if (error instanceof ApiError) throw error;
     console.warn("Commercial catalog search failed closed", error);
