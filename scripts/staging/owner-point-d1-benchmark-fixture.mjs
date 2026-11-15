@@ -20,8 +20,9 @@ const TABLES = [
 ];
 // 25 deterministic point reads scattered across the entire 50k-record
 // benchmark B-tree. IDs are all synthetic; no catalog ranking is inferred.
-const ids = Array.from({ length: 25 }, (_, i) =>
-  "perf-synth-" + String(1 + i * 1999).padStart(6, "0"),
+const ids = Array.from(
+  { length: 25 },
+  (_, i) => "perf-synth-" + String(1 + i * 1999).padStart(6, "0"),
 );
 const TOTAL_SYNTHETIC_PRODUCTS = 50000;
 if (
@@ -78,11 +79,12 @@ const ddl = [
 ];
 
 async function verify() {
-  const full = await d1(
-    "SELECT count(*) total FROM cove_stage_perf_retail_authority",
+  const full = await d1("SELECT count(*) total FROM cove_stage_perf_retail_authority");
+  assert.equal(
+    full.results?.[0]?.total,
+    TOTAL_SYNTHETIC_PRODUCTS,
+    "Benchmark must measure an actual 50k indexed authorization-shaped table",
   );
-  assert.equal(full.results?.[0]?.total, TOTAL_SYNTHETIC_PRODUCTS,
-    "Benchmark must measure an actual 50k indexed authorization-shaped table");
   const result = await d1(
     `SELECT product_id,valid_until FROM cove_stage_perf_retail_authority
      WHERE product_id IN (SELECT value FROM json_each(?))
@@ -96,7 +98,11 @@ async function verify() {
     ids,
   );
   assert.ok(rows.every((row) => Date.parse(row.valid_until + "Z") > Date.now()));
-  return { current: rows.length, tableCardinality: full.results[0].total, sqlMs: result.meta?.duration };
+  return {
+    current: rows.length,
+    tableCardinality: full.results[0].total,
+    sqlMs: result.meta?.duration,
+  };
 }
 
 async function install() {
@@ -105,11 +111,12 @@ async function install() {
   // production legal or catalog schemas, and the Worker never reads these
   // benchmark tables outside explicit private-driver mode.
   for (const table of TABLES) await d1("DELETE FROM " + table);
-  const count = await d1(
-    "SELECT COUNT(*) n FROM products WHERE id LIKE 'perf-synth-%'",
+  const count = await d1("SELECT COUNT(*) n FROM products WHERE id LIKE 'perf-synth-%'");
+  assert.equal(
+    count.results?.[0]?.n,
+    TOTAL_SYNTHETIC_PRODUCTS,
+    "Stage products must match exactly the pinned 50k synthetic corpus",
   );
-  assert.equal(count.results?.[0]?.n, TOTAL_SYNTHETIC_PRODUCTS,
-    "Stage products must match exactly the pinned 50k synthetic corpus");
   const scattered = await d1(
     `SELECT COUNT(*) n FROM products WHERE id IN
      (SELECT value FROM json_each(?))`,
@@ -132,8 +139,11 @@ async function install() {
     FROM products WHERE id LIKE 'perf-synth-%'`,
     [],
   );
-  assert.equal(seeded.meta?.changes, TOTAL_SYNTHETIC_PRODUCTS,
-    "Benchmark fixture must seed all 50k fake positive-shaped entries");
+  assert.equal(
+    seeded.meta?.changes,
+    TOTAL_SYNTHETIC_PRODUCTS,
+    "Benchmark fixture must seed all 50k fake positive-shaped entries",
+  );
   const result = await verify();
   console.log(
     JSON.stringify({
