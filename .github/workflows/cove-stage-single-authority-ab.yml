@@ -1,0 +1,63 @@
+name: cove-stage-single-authority-50-100rps-ab
+on:
+  push:
+    branches: [perf/stage-single-authority-catalog-20261114]
+    paths:
+      - scripts/staging/run-single-authority-catalog-ab.mjs
+      - .github/workflows/cove-stage-single-authority-ab.yml
+permissions:
+  contents: read
+concurrency:
+  group: cove-isolated-causal-catalog-stage-driver
+  cancel-in-progress: false
+jobs:
+  controlled-synthetic-ab:
+    if: github.repository == 'JibrilMohamud/cove'
+    runs-on: ubuntu-latest
+    timeout-minutes: 27
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      COVE_ALLOW_SAFE_RESTORE: "1"
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/checkout@v6
+        with:
+          ref: 8ef42c04b01706545c2b36106c6fe90899ec322a
+          path: stage-driver
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci
+      - name: Protect legal rights, SQL mutation review and denial of production feature enablement
+        run: |
+          node scripts/staging/check-single-authority-catalog-stage.mjs
+          node scripts/reconcile-canonical-writers.mjs
+          node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/2026-11-14-compact-catalog-source-attestation.json
+      - name: Verify exact stage orchestrator syntax, formatting and rollback guards
+        run: |
+          node --check scripts/staging/run-single-authority-catalog-ab.mjs
+          npx prettier --check scripts/staging/run-single-authority-catalog-ab.mjs
+          node --check stage-driver/scripts/staging/run-private-causal-triad.mjs
+      - name: Build actual candidate Worker without altering customer routing
+        run: npm run build:backend
+      - name: Require private stage deployment token
+        run: test -n "$CLOUDFLARE_API_TOKEN"
+      - name: Same-source baseline and compact guest full-shape primary D1 comparisons
+        run: node scripts/staging/run-single-authority-catalog-ab.mjs
+      - name: Restore private driver even if campaign fails
+        if: always()
+        working-directory: stage-driver
+        run: node scripts/staging/run-private-causal-triad.mjs --restore-only
+      - name: Restore synthetic candidate even if campaign fails
+        if: always()
+        run: node scripts/staging/run-single-authority-catalog-ab.mjs --restore-only
+      - name: Archive safe summary including offered and dropped requests
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cove-compact-current-rights-ab-${{ github.run_id }}
+          path: artifacts/single-authority-ab/
+          retention-days: 14
+          if-no-files-found: ignore
