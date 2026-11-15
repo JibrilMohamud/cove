@@ -66,6 +66,10 @@ export type SyntheticDisplayRow = {
   layout?: string;
   accessibility?: CatalogBook["accessibility"];
   formatProfile?: CatalogBook["formatProfile"];
+  sourceProject?: string;
+  sourceUrl?: string;
+  sourceLicenseUrl?: string;
+  aiDisclosure?: CatalogBook["aiDisclosure"];
 };
 
 type Snapshot = {
@@ -139,6 +143,10 @@ const ALLOWED_KEYS = new Set([
   "layout",
   "accessibility",
   "formatProfile",
+  "sourceProject",
+  "sourceUrl",
+  "sourceLicenseUrl",
+  "aiDisclosure",
 ]);
 
 const optionalText = (value: unknown, max: number) =>
@@ -282,7 +290,11 @@ function validRow(x: unknown): x is SyntheticDisplayRow {
     optionalText(v.epubVersion, 80) &&
     optionalText(v.layout, 80) &&
     validPublicObject(v.accessibility, 24000) &&
-    validPublicObject(v.formatProfile, 16000)
+    validPublicObject(v.formatProfile, 16000) &&
+    optionalText(v.sourceProject, 200) &&
+    optionalText(v.sourceUrl, 2048) &&
+    optionalText(v.sourceLicenseUrl, 2048) &&
+    validPublicObject(v.aiDisclosure, 8000)
   );
 }
 
@@ -361,6 +373,12 @@ export function buildSyntheticDisplayObject(books: CatalogBook[], now = Date.now
       ...(book.layout !== undefined ? { layout: book.layout } : {}),
       ...(book.accessibility !== undefined ? { accessibility: book.accessibility } : {}),
       ...(book.formatProfile !== undefined ? { formatProfile: book.formatProfile } : {}),
+      ...(book.sourceProject !== undefined ? { sourceProject: book.sourceProject } : {}),
+      ...(book.sourceUrl !== undefined ? { sourceUrl: book.sourceUrl } : {}),
+      ...(book.sourceLicenseUrl !== undefined
+        ? { sourceLicenseUrl: book.sourceLicenseUrl }
+        : {}),
+      ...(book.aiDisclosure !== undefined ? { aiDisclosure: book.aiDisclosure } : {}),
     };
   });
   const state: Snapshot = {
@@ -560,18 +578,6 @@ function currentOffer(row: PrimaryStorefrontAuthorityRow): CatalogBook["offer"] 
  * treating corrupt metadata as public approval. No asset origin, secret key,
  * customer, entitlement or commercial right is ever included in this parser.
  */
-function currentPublicObject(
-  raw: string | null,
-  maxBytes: number,
-): Record<string, unknown> | undefined {
-  if (raw === null) return undefined;
-  if (typeof raw !== "string" || raw.length > maxBytes) throw new Error("Unsafe current detail");
-  const value: unknown = JSON.parse(raw);
-  if (!value || typeof value !== "object" || Array.isArray(value))
-    throw new Error("Invalid current detail");
-  return value as Record<string, unknown>;
-}
-
 /**
  * Synthetic-only live retail SELECT. The former prototype selected 25
  * territorial candidates BEFORE checking current offers. If one of those
@@ -596,10 +602,6 @@ type SyntheticExtendedAuthorityRow = PrimaryStorefrontAuthorityRow & {
   epub_storage_status: string | null;
   has_epub_object: number;
   has_epub_source: number;
-  source_project: string | null;
-  source_page_url: string | null;
-  source_license_url: string | null;
-  ai_disclosure_json: string | null;
 };
 
 export async function authorizeOfferBearingSyntheticPage(
@@ -670,11 +672,7 @@ export async function authorizeOfferBearingSyntheticPage(
         EXISTS (SELECT 1 FROM digital_assets da JOIN asset_versions av
           ON av.id=da.current_version_id WHERE da.edition_id=a.edition_id
           AND da.kind='epub' AND av.source_url IS NOT NULL
-          AND av.source_url<>'') has_epub_source,
-        (SELECT source_project FROM gutenberg_source_cache gc WHERE a.source_name='gutenberg' AND gc.id=a.source_external_id LIMIT 1) source_project,
-        (SELECT source_url FROM gutenberg_source_cache gc WHERE a.source_name='gutenberg' AND gc.id=a.source_external_id LIMIT 1) source_page_url,
-        (SELECT source_license_url FROM gutenberg_source_cache gc WHERE a.source_name='gutenberg' AND gc.id=a.source_external_id LIMIT 1) source_license_url,
-        (SELECT json_object('policyVersion',pd.policy_version,'textOrigin',pd.text_origin,'coverOrigin',pd.cover_origin,'narrationOrigin',pd.narration_origin,'translationOrigin',pd.translation_origin,'syntheticVoiceLabel',pd.synthetic_voice_label,'publicBadges',json(pd.public_badges_json)) FROM publishing_release_lifecycles l JOIN publishing_publication_versions pv ON pv.id=l.current_publication_version_id JOIN publishing_publications pp ON pp.id=pv.publication_id JOIN publishing_publication_disclosures pd ON pd.publication_version_id=pv.id WHERE pp.product_id=a.product_id LIMIT 1) ai_disclosure_json
+          AND av.source_url<>'') has_epub_source
       FROM authorized a ORDER BY a.position`,
     )
     .bind("US", JSON.stringify(ids), "USD", "USD", "US")
@@ -749,10 +747,7 @@ export async function syntheticR2PageWithLiveRights(
       ![0, 1].includes(row.has_epub_source) ||
       (row.epub_storage_status !== null && !shortText(row.epub_storage_status, 80)) ||
       (row.download_count !== null &&
-        (!Number.isSafeInteger(row.download_count) || row.download_count < 0)) ||
-      !optionalText(row.source_project, 200) ||
-      !optionalText(row.source_page_url, 2048) ||
-      !optionalText(row.source_license_url, 2048)
+        (!Number.isSafeInteger(row.download_count) || row.download_count < 0))
     )
       return null;
     // EXACT canonicalRowBook reading-availability semantics, but with
@@ -776,7 +771,6 @@ export async function syntheticR2PageWithLiveRights(
     if (readingState !== "unavailable" && (objectStored || sourceAvailable))
       formats["application/epub+zip"] =
         `/api/fore/books/${encodeURIComponent(row.product_public_id || row.source_external_id)}/epub`;
-    const aiDisclosure = currentPublicObject(row.ai_disclosure_json, 8000);
     books.push({
       id: row.product_public_id || row.product_id,
       productId: row.product_id,
@@ -792,9 +786,9 @@ export async function syntheticR2PageWithLiveRights(
         edition: {},
         work: {},
       },
-      sourceProject: row.source_project || undefined,
-      sourceUrl: row.source_page_url || undefined,
-      sourceLicenseUrl: row.source_license_url || undefined,
+      sourceProject: display.sourceProject,
+      sourceUrl: display.sourceUrl,
+      sourceLicenseUrl: display.sourceLicenseUrl,
       copyright: row.source_name === "gutenberg" ? false : undefined,
       uploaded: row.source_name === "upload",
       releaseStatus: row.release_status,
@@ -817,7 +811,7 @@ export async function syntheticR2PageWithLiveRights(
       layout: display.layout || "reflowable",
       accessibility: display.accessibility,
       formatProfile: display.formatProfile,
-      aiDisclosure,
+      aiDisclosure: display.aiDisclosure,
       download_count: row.download_count ?? 0,
       publisher: display.publisher,
       publisherId: display.publisherId,
