@@ -136,6 +136,19 @@ async function rollback() {
         },
       }),
     });
+    // Cloudflare may acknowledge a deployment before version reads converge.
+    // Only the pinned original or our known diagnostic version is acceptable.
+    for (let attempt = 0; attempt < 12; attempt++) {
+      const state = await activeCandidate();
+      if (state.version === ORIGINAL) {
+        assertOriginal(state);
+        return true;
+      }
+      if (state.version !== current.version)
+        throw new Error("Unexpected third-party candidate deployment during rollback");
+      await sleep(500);
+    }
+    throw new Error("Pinned candidate rollback was not verified after bounded polls");
   }
   assertOriginal(await activeCandidate());
   return true;
@@ -314,10 +327,13 @@ async function main() {
     EVIDENCE.failureKind = error instanceof Error ? error.message.slice(0, 230) : "unknown";
     throw error;
   } finally {
-    if (armed || process.env.COVE_ALLOW_SAFE_RESTORE === "1")
-      EVIDENCE.candidateRestored = await rollback();
-    EVIDENCE.endedAt = new Date().toISOString();
-    save();
+    try {
+      if (armed || process.env.COVE_ALLOW_SAFE_RESTORE === "1")
+        EVIDENCE.candidateRestored = await rollback();
+    } finally {
+      EVIDENCE.endedAt = new Date().toISOString();
+      save();
+    }
   }
 }
 
