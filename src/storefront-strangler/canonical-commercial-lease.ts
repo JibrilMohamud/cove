@@ -15,6 +15,9 @@ const CLOCK_BOUNDARY_MARGIN_MS = 2500;
  * small, bounded, indexed reads with four and two UNION terms respectively,
  * rather than a dozen-term UNION that fails to compile on live primary D1.
  * json_each(json_array(start,end)) folds both time columns into one stream.
+ * Compare EVERY date against the start of the canonical evaluation, not the
+ * time at which the later D1 schedule read begins: a transition that fires
+ * during an async resolver lookup must still cause a positive to be rejected.
  * NULL date fields are ignored; a malformed NON-NULL date fails closed.
  */
 export const CANONICAL_PAID_NEXT_BOUNDARY_SQL = `WITH target AS MATERIALIZED (
@@ -38,7 +41,7 @@ export const CANONICAL_PAID_NEXT_BOUNDARY_SQL = `WITH target AS MATERIALIZED (
 ) SELECT
   (SELECT COUNT(*) FROM target) product_count,
   strftime('%Y-%m-%dT%H:%M:%fZ','now') primary_now,
-  MIN(CASE WHEN julianday(at)>julianday('now')
+  MIN(CASE WHEN julianday(at)>=julianday(?)
       THEN strftime('%Y-%m-%dT%H:%M:%fZ',at) END) next_transition,
   SUM(CASE WHEN at IS NOT NULL AND julianday(at) IS NULL THEN 1 ELSE 0 END) invalid_times
   FROM times`;
@@ -53,7 +56,7 @@ export const CANONICAL_PAID_OFFER_NEXT_BOUNDARY_SQL = `WITH target AS MATERIALIZ
 ) SELECT
   (SELECT COUNT(*) FROM target) product_count,
   strftime('%Y-%m-%dT%H:%M:%fZ','now') primary_now,
-  MIN(CASE WHEN julianday(at)>julianday('now')
+  MIN(CASE WHEN julianday(at)>=julianday(?)
       THEN strftime('%Y-%m-%dT%H:%M:%fZ',at) END) next_transition,
   SUM(CASE WHEN at IS NOT NULL AND julianday(at) IS NULL THEN 1 ELSE 0 END) invalid_times
   FROM times`;
@@ -82,11 +85,15 @@ export async function canonicalCommercialLeaseUntil(
      Math.abs(Date.now()-evaluatedAtMs)>FRESH_EVALUATION_MS)
     throw Error("canonical_lease_unfresh_evaluation");
 
+  // Use a captured, privately established resolver start. A future
+  // withdrawal that becomes effective while the resolver or D1 is awaiting
+  // I/O must NOT disappear from the upcoming-boundary result.
+  const evaluationStart=new Date(evaluatedAtMs).toISOString();
   const rows=await Promise.all([
     db.prepare(CANONICAL_PAID_NEXT_BOUNDARY_SQL)
-      .bind(productId).first<BoundaryRow>(),
+      .bind(productId,evaluationStart).first<BoundaryRow>(),
     db.prepare(CANONICAL_PAID_OFFER_NEXT_BOUNDARY_SQL)
-      .bind(productId).first<BoundaryRow>(),
+      .bind(productId,evaluationStart).first<BoundaryRow>(),
   ]);
   const now=Date.now();
   const primaryTimes=rows.map(row=>Date.parse(row?.primary_now||""));
