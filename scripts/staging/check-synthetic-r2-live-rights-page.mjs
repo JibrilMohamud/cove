@@ -422,7 +422,7 @@ try {
 
   // A signed continuation resumes AFTER the last displayed rank, rather
   // than rescanning 49 live authorization candidates from the start.
-  assert.match(stageBody.nextCursor, /^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$/);
+  assert.match(stageBody.nextCursor, /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
   const cursorRequest = req({}, request.url + "?cursor=" + stageBody.nextCursor);
   assert.equal(eligibleSyntheticR2Page(cursorRequest, env), true);
   returned = rows(Array.from({ length: 25 }, (_, i) => i + 24));
@@ -436,7 +436,7 @@ try {
   assert.equal(liveCursorResponse.status, 200);
   const liveCursorBody = await liveCursorResponse.json();
   assert.equal(liveCursorBody.results[0].productId, "perf-synth-24");
-  assert.match(liveCursorBody.nextCursor, /^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$/);
+  assert.match(liveCursorBody.nextCursor, /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
   assert.equal(Object.hasOwn(liveCursorBody, "count"), false);
   assert.equal(Object.hasOwn(liveCursorBody, "facets"), false);
 
