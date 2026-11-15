@@ -115,6 +115,9 @@ export function writeStageProductionSearchMetadata(sql, raw) {
 }
 
 export function sealStageProductionFtsMirror(sql){
+  // A failed re-seal MUST revoke a prior readiness bit. Never leave an old
+  // successful population certificate active after detecting corruption.
+  exec(sql,`UPDATE ${READY} SET ready=0 WHERE id=1`);
   const metrics=exec(sql,`SELECT
     (SELECT COUNT(*) FROM ${OWNER_DB_INDEX} i JOIN ${SOURCE} d
       ON d.product_id=i.product_id WHERE i.territory='US' AND i.currency='USD'
