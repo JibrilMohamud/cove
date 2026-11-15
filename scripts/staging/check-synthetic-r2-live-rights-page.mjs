@@ -300,6 +300,16 @@ try {
   returned = rows(Array.from({ length: 25 }, (_, i) => i));
   primaryError = new Error("primary D1 resource window overload");
   await assert.rejects(() => syntheticR2PageWithLiveRights(request, env, () => now), /overload/);
+  primaryError = Object.assign(new Error("D1_ERROR: 7429 too many resources"), { code: 7429 });
+  const overloaded = await handleSyntheticR2LiveRightsStage(request, env);
+  assert.equal(overloaded.status, 503);
+  assert.equal(overloaded.headers.get("x-cove-stage-failure-class"), "d1-7429-resource-window");
+  assert.equal(await overloaded.text(), "", "Never return upstream D1 exception details");
+  primaryError = new Error("secret SQL data must never leak");
+  const masked = await handleSyntheticR2LiveRightsStage(request, env);
+  assert.equal(masked.status, 503);
+  assert.equal(masked.headers.get("x-cove-stage-failure-class"), "primary-or-stage-failure");
+  assert.equal(await masked.text(), "", "Private trace classes exclude sensitive data");
   primaryError = null;
 
   const prev = dbCalls;
