@@ -132,6 +132,28 @@ async function requireSyntheticRetailOffers() {
   );
 }
 
+// Only a BENCHMARK-FIXTURE lease refresh. These 25 rows intentionally contain
+// fake offers and MUST NEVER serve customers, grant entitlements or become
+// positive production legal-authority evidence.
+async function refreshSyntheticPointBenchmark() {
+  assert.ok(process.argv.includes("--point-only-100rps"));
+  assert.equal(process.env.COVE_SYNTHETIC_POINT_BENCH, "1");
+  const updated = await api("/d1/database/" + DB + "/query", {
+    method: "POST",
+    body: JSON.stringify({
+      sql: "UPDATE cove_stage_perf_retail_authority SET valid_until=datetime('now','+30 seconds') WHERE territory_code='US' AND currency='USD' AND current_offer_id='BENCH-NOT-A-GRANT'",
+    }),
+  });
+  assert.equal(updated?.[0]?.meta?.changes, 25, "All 25 temporary benchmark leases must refresh");
+  const checked = await api("/d1/database/" + DB + "/query", {
+    method: "POST",
+    body: JSON.stringify({
+      sql: "SELECT count(*) AS ready FROM cove_stage_perf_retail_authority WHERE territory_code='US' AND currency='USD' AND current_offer_id='BENCH-NOT-A-GRANT' AND valid_until>datetime('now')",
+    }),
+  });
+  assert.equal(checked?.[0]?.results?.[0]?.ready, 25, "Only current synthetic point rows may be load tested");
+}
+
 async function rollbackIfDiagnostic() {
   const state = await scriptState();
   if (state.version === OLD_VERSION) {
@@ -193,6 +215,9 @@ async function deployPrivateStage(secret) {
       { name: "COVE_TRIAD_ONDEMAND", type: "plain_text", text: "1" },
       { name: "COVE_TRIAD_SYNTHETIC_D1_ID", type: "plain_text", text: DB },
       { name: "COVE_TRIAD_CANDIDATE", type: "plain_text", text: SERVICE },
+      ...(process.argv.includes("--point-only-100rps")
+        ? [{ name: "COVE_SYNTHETIC_POINT_BENCH", type: "plain_text", text: "1" }]
+        : []),
       { name: "COVE_TRIAD_EXPIRES_AT", type: "plain_text", text: expiration },
       { name: "COVE_TRIAD_PROBE_GATE", type: "secret_text", text: secret },
     ],
@@ -418,8 +443,10 @@ async function warmup(run, secret) {
   assert.equal(unauthorizedStatus, 404, "Private staging route did not propagate safely");
   // The rights-only experiment must never depend on a separately deployed
   // candidate endpoint. The same private driver verifies no-DB and live D1.
-  const warmModes = process.argv.includes("--revision-only-100rps")
-    ? ["noop", "revision"]
+  const warmModes = process.argv.includes("--point-only-100rps")
+    ? ["noop", "pointbench"]
+    : process.argv.includes("--revision-only-100rps")
+      ? ["noop", "revision"]
     : process.argv.includes("--r2-cursor-100rps")
       ? ["noop", "r2seed", "r2cursorseed", "r2cursor"]
       : process.argv.includes("--r2-page2-100rps")
@@ -446,7 +473,54 @@ async function warmup(run, secret) {
 
 async function campaign(secret) {
   const run = randomUUID().replaceAll("-", "").slice(0, 24);
+  if (process.argv.includes("--point-only-100rps")) await refreshSyntheticPointBenchmark();
   await warmup(run, secret);
+  if (process.argv.includes("--point-only-100rps")) {
+    evidence.syntheticPointBenchmarkOnly = true;
+    evidence.positiveOffersAreFake = true;
+    evidence.ownerCanonicalDecisionsIncluded = false;
+    evidence.productCatalogIncluded = false;
+    evidence.productionReleaseEligible = false;
+    const strict = (part, offered) =>
+      part.valid === offered &&
+      part.dropped === 0 &&
+      part.ttfbP95Ms !== null &&
+      part.ttfbP95Ms < 600 &&
+      part.ttfbP99Ms < 750 &&
+      part.ttfbMaxMs < 800;
+    for (const concurrency of [1, 4, 8, 16, 32]) {
+      const tested = await phase("pointbench", "burst-" + concurrency, concurrency, 0, run, secret);
+      if (!strict(tested, concurrency)) {
+        evidence.stopReason = "synthetic-point-burst-failed-" + concurrency;
+        throw Error("25-point indexed D1 benchmark did not meet strict burst thresholds");
+      }
+    }
+    const baseline = await phase("noop", "100-rps-no-db-control-20s", 2000, 10, run, secret);
+    evidence.noDbControlPassed = strict(baseline, 2000);
+    if (!evidence.noDbControlPassed) {
+      evidence.stopReason = "synthetic-point-no-db-control-failed";
+      throw Error("No-DB baseline failed before D1 projected point benchmark");
+    }
+    await refreshSyntheticPointBenchmark();
+    const half = await phase("pointbench", "50-rps-20s", 1000, 20, run, secret);
+    evidence.point50Passed = strict(half, 1000);
+    if (!evidence.point50Passed) {
+      evidence.stopReason = "synthetic-point-50-rps-failed";
+      throw Error("Indexed D1 point lookup failed strict 50RPS");
+    }
+    for (let i = 1; i <= 2; i++) {
+      await refreshSyntheticPointBenchmark();
+      const full = await phase("pointbench", "100-rps-20s-phase-" + i, 2000, 10, run, secret);
+      evidence.point100RpsPhases = i;
+      if (!strict(full, 2000)) {
+        evidence.stopReason = "synthetic-point-100-rps-phase-" + i + "-failed";
+        evidence.point100RpsPassed = false;
+        throw Error("Indexed 25-witness current D1 point read failed strict 100RPS");
+      }
+    }
+    evidence.point100RpsPassed = true;
+    return;
+  }
   if (process.argv.includes("--revision-only-100rps")) {
     // One D1 generation row measures the platform's basic read queue.
     // It does NOT certify owner rights, commercial offers, user entitlements
@@ -716,7 +790,13 @@ async function main() {
   try {
     // Rights-only is a narrow capacity floor. Every full-catalog campaign
     // requires a real synthetic commercial-offer fixture before deployment.
-    if (!process.argv.includes("--rights-only-100rps")) await requireSyntheticRetailOffers();
+    if (process.argv.includes("--point-only-100rps"))
+      assert.equal(process.env.COVE_SYNTHETIC_POINT_BENCH, "1");
+    if (
+      !process.argv.includes("--rights-only-100rps") &&
+      !process.argv.includes("--point-only-100rps")
+    )
+      await requireSyntheticRetailOffers();
     const deployed = await deployPrivateStage(secret);
     attempted = true;
     evidence.testVersion = deployed.version;
