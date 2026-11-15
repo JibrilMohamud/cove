@@ -181,7 +181,7 @@ try {
   assert.equal(stageBody.mode, "r2-live-retail");
 
   const good = await syntheticR2PageWithLiveRights(request, env, () => now);
-  assert.equal(dbCalls, 1, "Every successful response must reach current primary D1");
+  assert.equal(dbCalls, 2, "Both the private API and direct helper must recheck current primary D1");
   assert.equal(good?.books.length, 24);
   assert.equal(good?.hasMore, true);
   assert.equal(good.books[0].offer.amountMinor, 599, "Price comes exclusively from D1");
