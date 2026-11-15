@@ -5,12 +5,12 @@
   "files": [
     {
       "path": "src/features/fore/api.server.ts",
-      "sha256": "66595195061a4de5a6660352f3fc8ba7d1187011958b4efe07da33cdad43b707",
+      "sha256": "6fcd78b97f61bfded4da8522631f2edbcfc866ae0f1534367410217d427c08bd",
       "review": "Added only synthetic compact-stage environment typings near existing staging settings, leaving all 33 owner-required writer statements and their original callers, guards, execution and owner classifications unchanged. No new production route, automatic feature enablement, entitlement authority or user principal mutation."
     },
     {
       "path": "src/features/fore/search.server.ts",
-      "sha256": "2881163fb51c622895f6943edc7b7b5a407553e999392707fe51496430302b3d",
+      "sha256": "22796d992bac26b3542bfb1ee6917b26f6b0ca0a35a45d7ca47a48925f9cfde0",
       "review": "Added a synthetic-only top-96 bounded live-rights SELECT path and a conditional skip of optional secondary-channel eligibility for anonymous, unfiltered popular page one. Full current retail rights are required before returning each book; the original logic remains for authenticated and filtered searches. The existing single UPDATE SQL mutation site remains byte-for-byte unchanged, in the original function and with original permission conditions."
     },
     {
