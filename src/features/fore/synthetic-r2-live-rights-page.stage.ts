@@ -26,7 +26,7 @@ const MAX_BYTES = 256 * 1024;
 const ITEM_COUNT = 96;
 const FAST_CANDIDATE_COUNT = 32;
 const PAGE_COUNT = 24;
-const SECOND_PAGE_WITNESSES = PAGE_COUNT * 2 + 1;
+const SECOND_PAGE_WITNESSES = 49; // Two 24-book pages plus a live next-page witness.
 
 export type SyntheticDisplayRow = {
   productId: string;
