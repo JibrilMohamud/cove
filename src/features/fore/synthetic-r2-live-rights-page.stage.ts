@@ -326,10 +326,23 @@ function currentOffer(row: PrimaryStorefrontAuthorityRow): CatalogBook["offer"] 
  * pricing. R2 supplies neither eligibility nor price. No production handler
  * calls this function.
  */
+type SyntheticExtendedAuthorityRow = PrimaryStorefrontAuthorityRow & {
+  work_id: string;
+  work_public_id: string | null;
+  source_name: string;
+  source_external_id: string;
+  release_status: string;
+  drm_status: string | null;
+  downloadable: number;
+  subscription_eligible: number;
+  library_eligible: number;
+  download_count: number | null;
+};
+
 export async function authorizeOfferBearingSyntheticPage(
   db: CatalogDB,
   ids: string[],
-): Promise<PrimaryStorefrontAuthorityRow[]> {
+): Promise<SyntheticExtendedAuthorityRow[]> {
   if (
     ids.length !== ITEM_COUNT ||
     ids.some((id) => !identifier(id)) ||
@@ -348,9 +361,13 @@ export async function authorizeOfferBearingSyntheticPage(
         SELECT value product_id,CAST(key AS INTEGER) position FROM json_each(?)
       ), authorized AS MATERIALIZED (
         SELECT p.id product_id,p.public_id product_public_id,p.edition_id,
-          e.public_id edition_public_id,c.position,d.currency
+          e.public_id edition_public_id,p.source_name,p.source_external_id,
+          e.work_id,w.public_id work_public_id,e.release_status,e.drm_status,
+          e.downloadable,e.subscription_eligible,e.library_eligible,
+          d.download_count,c.position,d.currency
         FROM candidates c CROSS JOIN products p ON p.id=c.product_id
         JOIN editions e ON e.id=p.edition_id
+        JOIN works w ON w.id=e.work_id
         JOIN catalog_search_documents d ON d.product_id=p.id
         WHERE p.storefront_status='active' AND p.source_name<>'upload'
           AND e.release_status IN ('available','preorder')
@@ -370,6 +387,9 @@ export async function authorizeOfferBearingSyntheticPage(
         ORDER BY c.position LIMIT 25
       )
       SELECT a.product_id,a.product_public_id,a.edition_id,a.edition_public_id,
+        a.source_name,a.source_external_id,a.work_id,a.work_public_id,
+        a.release_status,a.drm_status,a.downloadable,
+        a.subscription_eligible,a.library_eligible,a.download_count,
         (SELECT json_object('type',o.offer_type,'currency',o.currency,
           'amountMinor',o.amount_minor)
          FROM offers o WHERE o.product_id=a.product_id
@@ -380,7 +400,7 @@ export async function authorizeOfferBearingSyntheticPage(
       FROM authorized a ORDER BY a.position`,
     )
     .bind("US", JSON.stringify(ids), "USD", "USD", "US")
-    .all<PrimaryStorefrontAuthorityRow>();
+    .all<SyntheticExtendedAuthorityRow>();
   return result.results;
 }
 
@@ -424,14 +444,42 @@ export async function syntheticR2PageWithLiveRights(
   for (const row of current) {
     const display = byId.get(row.product_id);
     const offer = currentOffer(row);
-    // Changes to product edition or offers must not borrow old display data.
-    if (!display || display.editionId !== row.edition_id || !offer) return null;
+    // An edition, offer, primary-state or work identity mismatch always
+    // denies the page. These flags come from CURRENT D1, not from R2.
+    if (
+      !display ||
+      display.editionId !== row.edition_id ||
+      !offer ||
+      !identifier(row.work_id) ||
+      (row.work_public_id !== null && !identifier(row.work_public_id)) ||
+      !shortText(row.source_name, 80) ||
+      !shortText(row.source_external_id, 160) ||
+      !["available", "preorder"].includes(row.release_status) ||
+      (row.drm_status !== null && !shortText(row.drm_status, 80)) ||
+      ![0, 1].includes(row.downloadable) ||
+      ![0, 1].includes(row.subscription_eligible) ||
+      ![0, 1].includes(row.library_eligible) ||
+      (row.download_count !== null &&
+        (!Number.isSafeInteger(row.download_count) || row.download_count < 0))
+    )
+      return null;
     books.push({
       id: row.product_public_id || row.product_id,
       productId: row.product_id,
       editionId: row.edition_id,
       publicProductId: row.product_public_id || undefined,
       publicEditionId: row.edition_public_id || undefined,
+      workId: row.work_id,
+      publicWorkId: row.work_public_id || undefined,
+      sourceName: row.source_name,
+      sourceExternalId: row.source_external_id,
+      copyright: row.source_name === "gutenberg" ? false : undefined,
+      uploaded: row.source_name === "upload",
+      releaseStatus: row.release_status,
+      drmStatus: row.drm_status || "none",
+      downloadable: row.downloadable === 1,
+      subscriptionEligible: row.subscription_eligible === 1,
+      libraryEligible: row.library_eligible === 1,
       title: display.title,
       subtitle: display.subtitle,
       authors: display.authors,
@@ -441,10 +489,11 @@ export async function syntheticR2PageWithLiveRights(
       formats: display.imageUrl
         ? { [display.imageUrl.endsWith(".png") ? "image/png" : "image/jpeg"]: display.imageUrl }
         : {},
-      download_count: 0,
+      download_count: row.download_count ?? 0,
       publisher: display.publisher,
       offer,
-      // NO cached subscription grants, DRM, downloadable flags or EPUB URLs.
+      // Edition display flags are live-primary metadata, NOT entitlement
+      // grants. No protected EPUB URL is cached or delivered by this probe.
     });
   }
   return { books: books.slice(0, PAGE_COUNT), hasMore: true };
