@@ -78,6 +78,9 @@ try {
         dbCalls++;
         assert.match(sql, /storefront_markets/);
         assert.match(sql, /retail_product_availability_rows/);
+        assert.match(sql, /JOIN works w ON w.id=e.work_id/);
+        assert.match(sql, /a.subscription_eligible/);
+        assert.match(sql, /a.downloadable/);
         assert.match(sql, /FROM offers o/);
         assert.match(sql, /EXISTS \(SELECT 1 FROM offers offer_exists/);
         assert.doesNotMatch(sql, /\\b(?:INSERT|UPDATE|DELETE|REPLACE)\\b/i);
@@ -103,6 +106,16 @@ try {
       edition_id: "edition-synth-" + i,
       product_public_id: "public-" + i,
       edition_public_id: "pub-ed-" + i,
+      work_id: "work-synth-" + i,
+      work_public_id: "wrk_" + i,
+      source_name: "gutenberg",
+      source_external_id: "gutenberg-synth-" + i,
+      release_status: "available",
+      drm_status: "none",
+      downloadable: 1,
+      subscription_eligible: 0,
+      library_eligible: 0,
+      download_count: 17,
       offer_json: JSON.stringify({ type: "retail", currency: "USD", amountMinor: price }),
     }));
   returned = rows(Array.from({ length: 25 }, (_, i) => i));
@@ -194,9 +207,13 @@ try {
   assert.equal(good.books[0].offer.amountMinor, 599, "Price comes exclusively from D1");
   assert.equal(good.books[0].formats["image/jpeg"], books[0].formats["image/jpeg"]);
   for (const book of good.books) {
-    assert.equal(book.subscriptionEligible, undefined);
-    assert.equal(book.libraryEligible, undefined);
-    assert.equal(book.downloadable, undefined);
+    assert.equal(book.subscriptionEligible, false, "Live primary supersedes cached book flag");
+    assert.equal(book.libraryEligible, false, "Live primary supersedes cached library flag");
+    assert.equal(book.downloadable, true, "Live primary sets edition display metadata only");
+    assert.equal(book.releaseStatus, "available");
+    assert.equal(book.drmStatus, "none");
+    assert.equal(book.download_count, 17, "Download tally is from the current primary");
+    assert.match(book.workId, /^work-synth-/);
     assert.equal(book.readingAvailability, undefined);
     assert.equal(book.formats["application/epub+zip"], undefined);
   }
@@ -213,6 +230,20 @@ try {
     false,
   );
   returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  returned[0].subscription_eligible = 2;
+  assert.equal(
+    await syntheticR2PageWithLiveRights(request, env, () => now),
+    null,
+    "Malformed primary subscription metadata must fail closed",
+  );
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  returned[0].downloadable = null;
+  assert.equal(
+    await syntheticR2PageWithLiveRights(request, env, () => now),
+    null,
+    "Absent primary download metadata must fail closed",
+  );
+    returned = rows(Array.from({ length: 25 }, (_, i) => i));
   returned[0].offer_json = null;
   assert.equal(
     await syntheticR2PageWithLiveRights(request, env, () => now),
