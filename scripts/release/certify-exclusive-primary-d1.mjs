@@ -88,9 +88,10 @@ function selfTest(){
   console.log("PASS: physical primary-D1 owner inventory self-test is fail-closed");
 }
 
-async function cloudflareRead(path){
+async function cloudflareRead(path,token=process.env.CF_API_TOKEN){
+  if(!token||token.length<20)throw Error("Protected inventory credential missing");
   const response=await fetch("https://api.cloudflare.com/client/v4"+path,{
-    headers:{authorization:"Bearer "+process.env.CF_API_TOKEN},
+    headers:{authorization:"Bearer "+token},
     signal:AbortSignal.timeout(15000),
   });
   if(!response.ok)throw Error("Cloudflare inventory unavailable: HTTP "+response.status);
@@ -131,7 +132,7 @@ async function main(){
   // BLOCK the physical exclusivity certificate, not silently claim zero.
   let userTokensVerified=false;
   try{
-    const users=await cloudflareRead("/user/tokens");
+    const users=await cloudflareRead("/user/tokens",process.env.CF_USER_AUDIT_TOKEN);
     userTokensVerified=Array.isArray(users.result) &&
       users.result.filter(x=>x.status==="active").every(t=>
         !(t.policies||[]).some(p=>(p.permission_groups||[]).some(g=>
