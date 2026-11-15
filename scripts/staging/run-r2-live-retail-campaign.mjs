@@ -293,6 +293,9 @@ function runArm(name) {
       p95: x.ttfbP95Ms,
       p99: x.ttfbP99Ms,
       max: x.ttfbMaxMs,
+      statusCounts: x.statusCounts || {},
+      failureKindCounts: x.failureKindCounts || {},
+      downstreamStatusCounts: x.downstreamStatusCounts || {},
     }));
   const strict = (x, offered) =>
     x &&
