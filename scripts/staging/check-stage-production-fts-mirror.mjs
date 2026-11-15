@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Isolated stage-only SQL contract fixture; mirrors existing owner-stage source conventions. */
 /** Offline exact-schema FTS5 stage contract and revocation checks. */
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
