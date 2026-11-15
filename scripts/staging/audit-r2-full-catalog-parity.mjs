@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 // explicitly reviewed. A green audit here NEVER certifies parity by itself.
 const CANONICAL = "src/features/fore/client.ts";
 const API = "src/features/fore/api.server.ts";
+const ENVELOPE = "src/features/fore/catalog-envelope.server.ts";
 const STAGE = "src/features/fore/synthetic-r2-live-rights-page.stage.ts";
 
 const FRESH_PRIMARY = [
@@ -83,6 +84,7 @@ const NEEDS_POLICY_REVIEW = [];
 
 const source = readFileSync(CANONICAL, "utf8");
 const api = readFileSync(API, "utf8");
+const sharedEnvelope = readFileSync(ENVELOPE, "utf8");
 const stage = readFileSync(STAGE, "utf8");
 const start = source.indexOf("export type CatalogBook = {");
 const end = source.indexOf("export type LibraryBook = {", start);
@@ -119,14 +121,29 @@ const catalogStart = api.indexOf("async function catalog(");
 const catalogEnd = api.indexOf("function libraryRow(", catalogStart);
 assert.ok(catalogStart !== -1 && catalogEnd > catalogStart);
 const canonicalEnvelope = api.slice(catalogStart, catalogEnd);
-const envelopeBlock = canonicalEnvelope.match(
+// Keep the existing production handler byte-for-byte intact until the
+// canonical-writer source-bound attestation is independently reconciled.
+const productionBlock = canonicalEnvelope.match(
   /return \{\s*results:\s*result\.books,([\s\S]*?)\n    \};/,
 );
-assert.ok(envelopeBlock, "Production catalog payload structure changed");
+assert.ok(productionBlock, "Original production catalog payload structure changed");
 const envelopeFields = [
   "results",
-  ...[...envelopeBlock[1].matchAll(/^      ([a-zA-Z_]\w*)(?:\s*[:,])/gm)].map((match) => match[1]),
+  ...[...productionBlock[1].matchAll(/^      ([a-zA-Z_]\w*)(?:\s*[:,])/gm)].map(
+    (match) => match[1],
+  ),
 ];
+const sharedBlock = sharedEnvelope.match(/return \{\s*results:\s*result\.books,([\s\S]*?)\n  \};/);
+assert.ok(sharedBlock, "Shared canonical catalog payload structure changed");
+const sharedFields = [
+  "results",
+  ...[...sharedBlock[1].matchAll(/^    ([a-zA-Z_]\w*)(?:\s*[:,])/gm)].map((match) => match[1]),
+];
+assert.deepEqual(
+  sharedFields,
+  envelopeFields,
+  "Shared contract must preserve exact current production envelope field order",
+);
 const probeStart = stage.indexOf("const result = await syntheticR2PageWithLiveRights");
 const probeReturn = stage
   .slice(probeStart)
