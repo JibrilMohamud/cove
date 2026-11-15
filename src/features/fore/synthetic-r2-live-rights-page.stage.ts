@@ -26,6 +26,7 @@ const MAX_BYTES = 256 * 1024;
 const ITEM_COUNT = 96;
 const FAST_CANDIDATE_COUNT = 32;
 const PAGE_COUNT = 24;
+const SECOND_PAGE_WITNESSES = PAGE_COUNT * 2 + 1;
 
 export type SyntheticDisplayRow = {
   productId: string;
@@ -418,6 +419,13 @@ function constantTimeGate(value: string | null, expected: string | undefined) {
   return difference === 0;
 }
 
+// Stage-only page 2 proof: no arbitrary queries, cursors or customer inputs.
+// The snapshot covers only the top 96 candidates and is not a full catalog.
+function syntheticPage(request: Request): 1 | 2 | null {
+  const search = new URL(request.url).search;
+  return search === "" ? 1 : search === "?page=2" ? 2 : null;
+}
+
 function authorizedSyntheticRequest(
   request: Request,
   env: SyntheticRightsPresentationEnv,
@@ -425,7 +433,7 @@ function authorizedSyntheticRequest(
   const url = new URL(request.url);
   return (
     url.hostname === STAGE_HOST &&
-    url.search === "" &&
+    syntheticPage(request) !== null &&
     !request.headers.has("cookie") &&
     !request.headers.has("authorization") &&
     !request.headers.has("x-fore-authenticated-user-id") &&
@@ -636,9 +644,11 @@ type SyntheticExtendedAuthorityRow = PrimaryStorefrontAuthorityRow & {
 export async function authorizeOfferBearingSyntheticPage(
   db: CatalogDB,
   ids: string[],
+  witnessCount: 25 | 49 = 25,
 ): Promise<SyntheticExtendedAuthorityRow[]> {
   if (
     (ids.length !== FAST_CANDIDATE_COUNT && ids.length !== ITEM_COUNT) ||
+    (witnessCount === SECOND_PAGE_WITNESSES && ids.length !== ITEM_COUNT) ||
     ids.some((id) => !identifier(id)) ||
     new Set(ids).size !== ids.length
   )
@@ -681,7 +691,7 @@ export async function authorizeOfferBearingSyntheticPage(
                 OR offer_exists.starts_at<=datetime('now'))
               AND (offer_exists.ends_at IS NULL
                 OR offer_exists.ends_at>datetime('now')))
-        ORDER BY c.position LIMIT 25
+        ORDER BY c.position LIMIT ${witnessCount}
       )
       SELECT a.product_id,a.product_public_id,a.edition_id,a.edition_public_id,
         a.source_name,a.source_external_id,a.work_id,a.work_public_id,
@@ -736,20 +746,30 @@ export async function syntheticR2PageWithLiveRights(
   // D1 exceptions deliberately propagate: a primary outage cannot be rescued
   // by presentation content, and cannot ever be considered authorization.
   const rankedIds = snapshot.items.map((item) => item.productId);
-  // Most pages need at most 25 fresh live witnesses. D1 scans every input
+  const page = syntheticPage(request);
+  if (!page) return null;
+  // Most page-one requests need at most 25 fresh live witnesses. D1 scans every input
   // candidate in the authorized materialized CTE: 96 candidates cost ~1,437
   // rows read on the isolated fixture; 32 cost ~549. On withdrawal/sparse
   // rights, recheck all 96 in ONE NEW primary-D1 statement and use ONLY its
   // results. Never combine an old positive decision with a newer fallback.
-  let current = await authorizeOfferBearingSyntheticPage(
-    env.DB,
-    rankedIds.slice(0, FAST_CANDIDATE_COUNT),
-  );
-  if (current.length < PAGE_COUNT + 1)
+  // Page two needs 49 CURRENT rights-and-offer witnesses, not 25. The 49th
+  // proves a third page exists for this snapshot, while a sparse or exhausted
+  // 96-item shortlist cannot establish the full-catalog end and must deny.
+  // Page one retains the measured 32-ID/96-ID fallback, unchanged.
+  let current =
+    page === 2
+      ? await authorizeOfferBearingSyntheticPage(env.DB, rankedIds, SECOND_PAGE_WITNESSES)
+      : await authorizeOfferBearingSyntheticPage(
+          env.DB,
+          rankedIds.slice(0, FAST_CANDIDATE_COUNT),
+        );
+  if (page === 1 && current.length < PAGE_COUNT + 1)
     current = await authorizeOfferBearingSyntheticPage(env.DB, rankedIds);
+  const requiredWitnesses = page === 2 ? SECOND_PAGE_WITNESSES : PAGE_COUNT + 1;
   if (
-    current.length !== PAGE_COUNT + 1 ||
-    new Set(current.map((row) => row.product_id)).size !== PAGE_COUNT + 1 ||
+    current.length !== requiredWitnesses ||
+    new Set(current.map((row) => row.product_id)).size !== requiredWitnesses ||
     current.some(
       (row) =>
         !validPublicMetadataRevision(row.public_metadata_revision) ||
@@ -878,5 +898,8 @@ export async function syntheticR2PageWithLiveRights(
       // offline licenses are not cached or returned by this probe.
     });
   }
-  return { books: books.slice(0, PAGE_COUNT), hasMore: true };
+  return {
+    books: books.slice((page - 1) * PAGE_COUNT, page * PAGE_COUNT),
+    hasMore: true,
+  };
 }
