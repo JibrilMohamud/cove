@@ -430,7 +430,10 @@ try {
   assert.equal(secondPage?.books[0].productId, "perf-synth-24");
   assert.equal(secondPage.books[23].productId, "perf-synth-47");
   assert.equal(secondPage.hasMore, true);
-  assert.equal(secondPage.books.some((book) => book.productId === "perf-synth-48"), false);
+  assert.equal(
+    secondPage.books.some((book) => book.productId === "perf-synth-48"),
+    false,
+  );
   // Withdrawal of rank #1 shifts the page boundary rather than leaking an
   // old rank or charging the next candidate's current price to a stale book.
   returned = rows(Array.from({ length: 49 }, (_, i) => i + 1));
