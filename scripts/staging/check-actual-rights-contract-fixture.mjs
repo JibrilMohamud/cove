@@ -145,7 +145,6 @@ try {
       "p_fixture",
       "US",
       "USD",
-      new Date(),
     );
     const publicationExpected = allowed && scenario !== "invalid-legal-time";
     assert.equal(
@@ -179,6 +178,43 @@ try {
         "Positive cannot outlive nearest grant/contract/offer boundary: " + scenario,
       );
     }
+  }
+  // Simulate an incorrectly skewed Worker clock without giving the public
+  // writer a caller-controlled evaluation-time parameter. Primary D1 is the
+  // authority on whether the current decision is fresh enough to publish.
+  for (const shiftMs of [60_000, -3_000]) {
+    await rpc({ op: "scenario", name: "baseline" });
+    const OriginalDate = globalThis.Date;
+    class SkewedDate extends OriginalDate {
+      constructor(...args) {
+        super(...(args.length ? args : [OriginalDate.now() + shiftMs]));
+      }
+      static now() {
+        return OriginalDate.now() + shiftMs;
+      }
+    }
+    let result;
+    try {
+      globalThis.Date = SkewedDate;
+      result = await stageRecomputeOwnerPositiveRetail(
+        {
+          DB: ownerDb,
+          COVE_STAGE_OWNER_CAS_ONLY: "1",
+          COVE_STAGE_OWNER_DB_ID: "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
+        },
+        "p_fixture",
+        "US",
+      );
+    } finally {
+      globalThis.Date = OriginalDate;
+    }
+    assert.equal(result.published, false, "Skewed canonical policy time must be fenced by D1");
+    assert.equal(
+      await db.prepare("SELECT COUNT(*) AS n FROM cove_stage_owner_retail_authority").first()
+        .then((row) => row.n),
+      0,
+      "No positive survives future/stale evaluation time",
+    );
   }
   console.log(
     "PASS: actual resolveProductRights and guarded owner CAS writer preserve contract/version, explicit-deny, territory, format, channel, DRM, language and future grant/contract/offer time boundaries in isolated SQLite. No production parity claimed.",
