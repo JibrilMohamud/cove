@@ -81,14 +81,8 @@ assert.equal(
   backendFailureStage(flagged("cove_fault_markets;dur=1.0, cove_api;dur=34")),
   "markets",
 );
-assert.equal(
-  backendFailureStage(flagged("cove_fault_limit;dur=1.0, cove_api;dur=34")),
-  "limit",
-);
-assert.equal(
-  backendFailureStage(flagged("cove_fault_page;dur=1.0, cove_api;dur=34")),
-  "page",
-);
+assert.equal(backendFailureStage(flagged("cove_fault_limit;dur=1.0, cove_api;dur=34")), "limit");
+assert.equal(backendFailureStage(flagged("cove_fault_page;dur=1.0, cove_api;dur=34")), "page");
 assert.equal(
   backendFailureStage(
     flagged("cove_fault_catalog;dur=1.0, cove_fault_context;dur=1.0, cove_api;dur=34"),
