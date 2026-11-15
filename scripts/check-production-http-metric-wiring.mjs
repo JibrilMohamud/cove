@@ -24,7 +24,7 @@ assert.match(deploy, /ANON_METRICS="1"/);
 assert.match(deploy, /binding = "OPS_ANALYTICS"\s+dataset = "cove_public_http_ops"/);
 assert.match(deploy, /COVE_PUBLIC_ANON_HTTP_TELEMETRY = "\$ANON_METRICS"/);
 assert.match(deploy, /COVE_OPS_TELEMETRY_MODE = "analytics-engine"/);
-const sinkStart = code.indexOf("env.OPS_ANALYTICS.writeDataPoint({");
+const sinkStart = code.indexOf('blobs: ["public-api-read", path, "GET"]');
 const sinkEnd = code.indexOf("});", sinkStart);
 assert.ok(sinkStart >= 0 && sinkEnd > sinkStart);
 const payload = code.slice(sinkStart, sinkEnd);
