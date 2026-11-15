@@ -43,4 +43,14 @@ assert.match(source,
   /github\.event_name == 'workflow_dispatch' && inputs\.apply_migrations == true/,
   "Production migrations require exact manual opt-in");
 assert.match(source,/branches: \[main\]/);
-console.log("PASS: production Worker manual deploy denies all clones/resource drift; D1 migration default off");
+assert.match(
+  source,
+  /if: \$\{\{ github\.event_name == 'workflow_dispatch' \|\| \(github\.ref == 'refs\/heads\/main' && vars\.COVE_PRODUCTION_PERSISTENCE_AUTO_DEPLOY == '1'\) \}\}/,
+  "Production deployment must be locked on main unless explicit repository variable is 1",
+);
+assert.doesNotMatch(
+  source,
+  /if: \$\{\{ github\.event_name == 'push' \}\}/,
+  "Push-only Worker deploy bypass must not exist",
+);
+console.log("PASS: production main auto-deploy OFF by default; exact resource guard and explicit migration opt-in");
