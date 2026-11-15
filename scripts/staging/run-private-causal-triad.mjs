@@ -46,8 +46,16 @@ async function api(path, { method = "GET", body } = {}) {
   });
   const json = await res.json();
   if (!res.ok || !json.success)
-    throw new Error("Cloudflare " + method + " " + path.split("?")[0] + " failed HTTP " + res.status +
-      ": " + (json.errors || []).map((e) => e.code).join(","));
+    throw new Error(
+      "Cloudflare " +
+        method +
+        " " +
+        path.split("?")[0] +
+        " failed HTTP " +
+        res.status +
+        ": " +
+        (json.errors || []).map((e) => e.code).join(","),
+    );
   return json.result;
 }
 
@@ -58,9 +66,7 @@ async function scriptState() {
     api("/workers/scripts/" + SCRIPT + "/subdomain"),
   ]);
   const version = d.deployments?.[0]?.versions?.[0]?.version_id;
-  const details = version
-    ? await api("/workers/scripts/" + SCRIPT + "/versions/" + version)
-    : null;
+  const details = version ? await api("/workers/scripts/" + SCRIPT + "/versions/" + version) : null;
   return {
     version,
     bindings: details?.resources?.bindings || [],
@@ -80,6 +86,42 @@ function assertOriginal(state) {
   assert.equal(state.cronCount, 0, "Do not run alongside a scheduled job");
   assert.equal(state.ingress, true, "Preserve original public ingress setting");
   assert.equal(state.previews, false, "Private preview URLs must stay disabled");
+}
+
+// The synthetic 50k-product fixture can prove D1 territorial-read capacity,
+// but MUST NOT be used to claim full commercial catalog capacity unless the
+// same top-96 ranked seed has at least 25 CURRENT eligible retail offers.
+// The preflight runs before touching either private Worker deployment.
+async function requireSyntheticRetailOffers() {
+  const statement = `WITH ranked AS MATERIALIZED (
+    SELECT product_id FROM catalog_search_documents INDEXED BY idx_search_popular_stable
+    ORDER BY fore_bestseller_score DESC,external_book_id ASC,product_id ASC LIMIT 96
+  )
+  SELECT COUNT(*) AS eligible_offer_count FROM ranked r
+  JOIN products p ON p.id=r.product_id
+  JOIN editions e ON e.id=p.edition_id
+  JOIN catalog_search_documents d ON d.product_id=p.id
+  WHERE p.storefront_status='active' AND p.source_name<>'upload'
+    AND e.release_status IN ('available','preorder')
+    AND d.suppressed=0 AND d.availability='available' AND d.currency='USD'
+    AND EXISTS (SELECT 1 FROM retail_product_availability_rows rpa
+      WHERE rpa.product_id=p.id AND rpa.territory_code='US')
+    AND EXISTS (SELECT 1 FROM offers o
+      WHERE o.product_id=p.id AND o.sales_channel='retail' AND o.currency='USD'
+        AND o.active=1
+        AND (o.starts_at IS NULL OR o.starts_at<=datetime('now'))
+        AND (o.ends_at IS NULL OR o.ends_at>datetime('now')))`;
+  const result = await api("/d1/database/" + DB + "/query", {
+    method: "POST",
+    body: JSON.stringify({ sql: statement }),
+  });
+  const eligible = Number(result?.[0]?.results?.[0]?.eligible_offer_count);
+  evidence.syntheticLiveOfferWitnessCount = Number.isSafeInteger(eligible) ? eligible : null;
+  evidence.syntheticRetailOfferParityProved = Number.isSafeInteger(eligible) && eligible >= 25;
+  assert.ok(
+    evidence.syntheticRetailOfferParityProved,
+    "Synthetic top-96 has fewer than 25 current eligible retail offers; refuse commercial catalog load/certification",
+  );
 }
 
 async function rollbackIfDiagnostic() {
@@ -103,7 +145,8 @@ async function rollbackIfDiagnostic() {
       strategy: "percentage",
       versions: [{ version_id: OLD_VERSION, percentage: 100 }],
       annotations: {
-        "workers/message": "Restore pinned original capacity driver after isolated synthetic performance test",
+        "workers/message":
+          "Restore pinned original capacity driver after isolated synthetic performance test",
       },
     }),
   });
@@ -155,7 +198,11 @@ async function deployPrivateStage(secret) {
   const data = new FormData();
   data.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
   for (const [filename, file] of modules)
-    data.append(filename, new Blob([readFileSync(file)], { type: "application/javascript+module" }), filename);
+    data.append(
+      filename,
+      new Blob([readFileSync(file)], { type: "application/javascript+module" }),
+      filename,
+    );
   const result = await api("/workers/scripts/" + SCRIPT + "?bindings_inherit=strict", {
     method: "PUT",
     body: data,
@@ -168,7 +215,9 @@ async function deployPrivateStage(secret) {
   const db = after.bindings.filter((x) => x.type === "d1");
   assert.equal(db.length, 1);
   assert.equal(db[0].database_id, DB);
-  assert.ok(after.bindings.some((x) => x.name === "COVE_TRIAD_PROBE_GATE" && x.type === "secret_text"));
+  assert.ok(
+    after.bindings.some((x) => x.name === "COVE_TRIAD_PROBE_GATE" && x.type === "secret_text"),
+  );
   assert.ok(after.bindings.some((x) => x.name === "CANDIDATE" && x.service === SERVICE));
   return { version: after.version, expiration, uploadSuccess: Boolean(result) };
 }
@@ -292,21 +341,67 @@ async function warmup(run, secret) {
     await sleep(1000);
   }
   assert.equal(unauthorizedStatus, 404, "Private staging route did not propagate safely");
-  for (const mode of MODES) {
+  // The rights-only experiment must never depend on a separately deployed
+  // candidate endpoint. The same private driver verifies no-DB and live D1.
+  const warmModes = process.argv.includes("--rights-only-100rps") ? ["noop", "rights"] : MODES;
+  for (const mode of warmModes) {
     let result;
     for (let retry = 0; retry < 5; retry++) {
       result = await requestProbe(mode, retry, run, secret);
       if (result.valid) break;
       await sleep(1500);
     }
-    assert.equal(result.valid, true, "Failed stage single-path warmup for " + mode +
-      " (" + result.status + ")");
+    assert.equal(
+      result.valid,
+      true,
+      "Failed stage single-path warmup for " + mode + " (" + result.status + ")",
+    );
   }
 }
 
 async function campaign(secret) {
-  const run = randomUUID().replaceAll("-", "").slice(0,24);
+  const run = randomUUID().replaceAll("-", "").slice(0, 24);
   await warmup(run, secret);
+  if (process.argv.includes("--rights-only-100rps")) {
+    // This capacity floor intentionally excludes retail offer verification.
+    evidence.syntheticRetailOfferParityProved = false;
+    evidence.rightsOnlyCurrentD1 = true;
+    evidence.catalogHydrationIncluded = false;
+    evidence.marketContextIncluded = false;
+    evidence.productionReleaseEligible = false;
+    const meets = (phase, offered) =>
+      phase.valid === offered &&
+      phase.dropped === 0 &&
+      phase.ttfbP95Ms !== null &&
+      phase.ttfbP95Ms < 600 &&
+      phase.ttfbP99Ms < 750 &&
+      phase.ttfbMaxMs < 800;
+    const noDb = await phase("noop", "100-rps-no-db-control-20s", 2000, 10, run, secret);
+    evidence.noDbControlPassed = meets(noDb, 2000);
+    if (!evidence.noDbControlPassed) {
+      evidence.rights100RpsTwoPhasePassed = false;
+      evidence.stopReason = "no-db-offered-rate-control-failed";
+      return;
+    }
+    const fifty = await phase("rights", "50-rps-20s", 1000, 20, run, secret);
+    evidence.rights50Passed = meets(fifty, 1000);
+    if (!evidence.rights50Passed) {
+      evidence.rights100RpsTwoPhasePassed = false;
+      evidence.stopReason = "sustained-rights-50-rps-failed";
+      return;
+    }
+    for (let trial = 1; trial <= 2; trial++) {
+      const hundred = await phase("rights", "100-rps-20s-phase-" + trial, 2000, 10, run, secret);
+      evidence.rights100RpsPhases = trial;
+      if (!meets(hundred, 2000)) {
+        evidence.rights100RpsTwoPhasePassed = false;
+        evidence.stopReason = "authoritative-rights-100-rps-phase-failed";
+        return;
+      }
+    }
+    evidence.rights100RpsTwoPhasePassed = true;
+    return;
+  }
   if (process.argv.includes("--single-only")) {
     evidence.referenceOnly = true;
     evidence.noMarketContextOrSecondaryChannel = true;
@@ -324,14 +419,7 @@ async function campaign(secret) {
       return;
     }
     for (let trial = 1; trial <= 2; trial++) {
-      const hundred = await phase(
-        "single",
-        "100-rps-20s-phase-" + trial,
-        2000,
-        10,
-        run,
-        secret,
-      );
+      const hundred = await phase("single", "100-rps-20s-phase-" + trial, 2000, 10, run, secret);
       evidence.reference100RpsPhases = trial;
       if (!meets(hundred, 2000)) {
         evidence.reference100RpsTwoPhasePassed = false;
@@ -354,14 +442,18 @@ async function campaign(secret) {
     for (const mode of MODES.slice(count % 4).concat(MODES.slice(0, count % 4))) {
       const res = await phase(mode, "burst-" + count, count, 0, run, secret);
       if (res.failed >= STOP_AFTER_FAILURES)
-        throw new Error("Stage test failed; stop offering additional load at " + mode + "/" + count);
+        throw new Error(
+          "Stage test failed; stop offering additional load at " + mode + "/" + count,
+        );
     }
   }
   for (const rate of [10, 25]) {
     for (const mode of MODES) {
       const res = await phase(mode, rate + "-rps", rate * 2, 1000 / rate, run, secret);
       if (res.failed >= STOP_AFTER_FAILURES)
-        throw new Error("Scheduled stage test failed; stop before higher rate at " + mode + "/" + rate);
+        throw new Error(
+          "Scheduled stage test failed; stop before higher rate at " + mode + "/" + rate,
+        );
     }
   }
   for (const mode of MODES) {
@@ -383,7 +475,9 @@ async function campaign(secret) {
   evidence.sustained50Passed = meetsLatencyGate(sustained50, 1000);
   if (!evidence.sustained50Passed) {
     evidence.skipped100Rps = "sustained-50-rps-catalog-gate-failed";
-    throw new Error("20-second 50-RPS synthetic catalog tail or validity gate failed; do not offer 100 RPS");
+    throw new Error(
+      "20-second 50-RPS synthetic catalog tail or validity gate failed; do not offer 100 RPS",
+    );
   }
   for (let trial = 1; trial <= 2; trial++) {
     const result = await phase("catalog", "100-rps-20s-phase-" + trial, 2000, 10, run, secret);
@@ -403,12 +497,17 @@ function save() {
 
 async function main() {
   if (process.argv.includes("--restore-only")) {
-    console.log(JSON.stringify({ event: "cove_stage_restore", clean: await rollbackIfDiagnostic() }));
+    console.log(
+      JSON.stringify({ event: "cove_stage_restore", clean: await rollbackIfDiagnostic() }),
+    );
     return;
   }
   const secret = randomBytes(32).toString("hex");
   let attempted = false;
   try {
+    // Rights-only is a narrow capacity floor. Every full-catalog campaign
+    // requires a real synthetic commercial-offer fixture before deployment.
+    if (!process.argv.includes("--rights-only-100rps")) await requireSyntheticRetailOffers();
     const deployed = await deployPrivateStage(secret);
     attempted = true;
     evidence.testVersion = deployed.version;
@@ -417,7 +516,7 @@ async function main() {
     evidence.campaignCompleted = true;
   } catch (error) {
     evidence.campaignCompleted = false;
-    evidence.failure = (error instanceof Error ? error.message : "unknown").slice(0,240);
+    evidence.failure = (error instanceof Error ? error.message : "unknown").slice(0, 240);
     throw error;
   } finally {
     try {
@@ -440,6 +539,9 @@ async function main() {
 
 if (import.meta.url === new URL("file://" + process.argv[1]).href)
   main().catch((error) => {
-    console.error("Private staging control failed:", error instanceof Error ? error.message : "unknown");
+    console.error(
+      "Private staging control failed:",
+      error instanceof Error ? error.message : "unknown",
+    );
     process.exitCode = 1;
   });
