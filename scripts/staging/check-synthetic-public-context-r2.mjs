@@ -47,8 +47,10 @@ try {
     FORE_GUEST_COMPACT_SYNTHETIC_D1_ID: "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
     COVE_PUBLIC_PRESENTATION_CACHE: bucket,
   };
-  const request = (headers = {}, url = "https://cove.invalid/api/fore/catalog?sort=popular&page=1&currency=USD") =>
-    new Request(url, { headers: { "x-cove-client-country": "US", ...headers } });
+  const request = (
+    headers = {},
+    url = "https://cove.invalid/api/fore/catalog?sort=popular&page=1&currency=USD",
+  ) => new Request(url, { headers: { "x-cove-client-country": "US", ...headers } });
   const context = {
     storefrontCountry: "US",
     rightsCountry: "US",
@@ -63,12 +65,26 @@ try {
     checkoutEnabled: true,
     source: { country: "network", locale: "negotiated", currency: "market" },
     paymentMethods: [
-      { paymentMethod: "card", provider: "stripe", currency: "USD", availability: "available", priority: 1 },
+      {
+        paymentMethod: "card",
+        provider: "stripe",
+        currency: "USD",
+        availability: "available",
+        priority: 1,
+      },
     ],
     messages: { "catalog.title": "Catalog" },
     uiMessages: { greeting: "Hello" },
     availableMarkets: [
-      { countryCode: "US", displayName: "United States", defaultLocale: "en-US", defaultCurrency: "USD", locales: ["en-US"], checkoutEnabled: true, taxInclusive: false },
+      {
+        countryCode: "US",
+        displayName: "United States",
+        defaultLocale: "en-US",
+        defaultCurrency: "USD",
+        locales: ["en-US"],
+        checkoutEnabled: true,
+        taxInclusive: false,
+      },
     ],
   };
   let now = 500000;
@@ -93,12 +109,20 @@ try {
     [{ ...env, COVE_SYNTHETIC_STAGING_ONLY: undefined }, req, null],
     [{ ...env, FORE_GUEST_CONTEXT_R2_STAGE: "0" }, req, null],
     [{ ...env, FORE_GUEST_COMPACT_STAGE: "0" }, req, null],
-    [{ ...env, FORE_GUEST_COMPACT_SYNTHETIC_D1_ID: "4bd657ac-8789-403e-a28c-93aba8d0a989" }, req, null],
+    [
+      { ...env, FORE_GUEST_COMPACT_SYNTHETIC_D1_ID: "4bd657ac-8789-403e-a28c-93aba8d0a989" },
+      req,
+      null,
+    ],
     [env, request({ cookie: "user=private" }), null],
     [env, request({ authorization: "Bearer secret" }), null],
     [env, request({ "accept-language": "es-ES" }), null],
     [env, request({ "x-cove-client-country": "GB" }), null],
-    [env, request({}, "https://cove.invalid/api/fore/catalog?sort=recent&page=1&currency=USD"), null],
+    [
+      env,
+      request({}, "https://cove.invalid/api/fore/catalog?sort=recent&page=1&currency=USD"),
+      null,
+    ],
     [env, req, "authenticated-user"],
   ];
   const before = gets;
@@ -121,16 +145,30 @@ try {
   assert.match(search, /canonicalBoundedPopularPageByLiveRights\(env\.DB, part, 24\)/);
   const sql = new DatabaseSync(":memory:");
   try {
-    sql.exec("CREATE TABLE storefront_markets(country_code TEXT,market_status TEXT,default_currency TEXT)");
+    sql.exec(
+      "CREATE TABLE storefront_markets(country_code TEXT,market_status TEXT,default_currency TEXT)",
+    );
     sql.prepare("INSERT INTO storefront_markets VALUES (?,?,?)").run("US", "active", "USD");
     const gate = sql.prepare(
       "SELECT EXISTS(SELECT 1 FROM storefront_markets sm WHERE sm.country_code=upper(?) AND sm.market_status='active' AND upper(sm.default_currency)=upper(?)) valid",
     );
     assert.equal(gate.get("US", "USD").valid, 1);
-    sql.prepare("UPDATE storefront_markets SET market_status='paused' WHERE country_code='US'").run();
-    assert.equal(gate.get("US", "USD").valid, 0, "A paused market must immediately lose live authority");
-    sql.prepare("UPDATE storefront_markets SET market_status='active',default_currency='CAD'").run();
-    assert.equal(gate.get("US", "USD").valid, 0, "Currency changes cannot borrow prior catalog rights");
+    sql
+      .prepare("UPDATE storefront_markets SET market_status='paused' WHERE country_code='US'")
+      .run();
+    assert.equal(
+      gate.get("US", "USD").valid,
+      0,
+      "A paused market must immediately lose live authority",
+    );
+    sql
+      .prepare("UPDATE storefront_markets SET market_status='active',default_currency='CAD'")
+      .run();
+    assert.equal(
+      gate.get("US", "USD").valid,
+      0,
+      "Currency changes cannot borrow prior catalog rights",
+    );
   } finally {
     sql.close();
   }
