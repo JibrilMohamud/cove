@@ -20,7 +20,7 @@ type StageEnv = {
   COVE_OWNER_DO_STAGE: string;
   COVE_OWNER_DO_EXPIRES_AT: string;
   COVE_OWNER_DO_GATE: string;
-  OWNER_DO: DurableObjectNamespace<StageUnifiedOwner>;
+  OWNER_DO: { getByName(name: string): { fetch(request: Request): Promise<Response> } };
 };
 const freeIds = Array.from({ length: 12 }, (_, i) => "prd_gutenberg_" + (900000001 + i));
 const paidIds = Array.from({ length: 13 }, (_, i) => "prd_stage_owner_" + String(i + 1).padStart(3, "0"));
@@ -40,7 +40,7 @@ function stageLive(env: StageEnv) {
 }
 
 export class StageUnifiedOwner extends DurableObject<StageEnv> {
-  constructor(ctx: DurableObjectState, env: StageEnv) {
+  constructor(ctx: { storage: { sql: unknown } }, env: StageEnv) {
     super(ctx, env);
     const sql = ctx.storage.sql as unknown as AuthoritySql;
     createAuthoritySchema(sql);
@@ -48,7 +48,14 @@ export class StageUnifiedOwner extends DurableObject<StageEnv> {
     createCommercialAuthoritySchema(sql);
     createCommercialStorefrontSchema(sql);
     createMarketAuthoritySchema(sql);
-    ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS stage_owner_fixture (id INTEGER PRIMARY KEY CHECK(id=1), seeded_at TEXT NOT NULL)");
+    sql.exec("CREATE TABLE IF NOT EXISTS stage_owner_fixture (id INTEGER PRIMARY KEY CHECK(id=1), seeded_at TEXT NOT NULL)");
+  }
+
+  private transaction<T>(fn: () => T): T {
+    const storage = this.ctx.storage as typeof this.ctx.storage & {
+      transactionSync<T>(callback: () => T): T;
+    };
+    return storage.transactionSync(fn);
   }
 
   private read() {
@@ -74,7 +81,7 @@ export class StageUnifiedOwner extends DurableObject<StageEnv> {
     const sql = this.ctx.storage.sql as unknown as AuthoritySql;
     try {
       if (route === "/seed") {
-        this.ctx.storage.transactionSync(() => {
+        this.transaction(() => {
           if (sql.exec("SELECT 1 AS ready FROM stage_owner_fixture WHERE id=1").toArray().length)
             throw Error("stage_owner_already_seeded");
           for (const id of freeIds) {
@@ -122,7 +129,7 @@ export class StageUnifiedOwner extends DurableObject<StageEnv> {
         );
       }
       if (route === "/deny-contract") {
-        this.ctx.storage.transactionSync(() => denyCommercialSubject(sql, {
+        this.transaction(() => denyCommercialSubject(sql, {
           subjectKind: "contract",
           subjectId: "contract_stage_owner_001",
           operationId: "stage:contract:deny:1",
@@ -130,7 +137,7 @@ export class StageUnifiedOwner extends DurableObject<StageEnv> {
         return Response.json({ count: this.read().count, releaseCertified: false }, { headers });
       }
       if (route === "/deny-free") {
-        this.ctx.storage.transactionSync(() => {
+        this.transaction(() => {
           if (!applyAuthorityCommand(sql, {
             sourceId: freeSource(freeIds[0]), territory: "*", revision: 2, action: "deny",
           }).applied) throw Error("stage_free_denial_failed");
@@ -139,7 +146,7 @@ export class StageUnifiedOwner extends DurableObject<StageEnv> {
       }
       if (route === "/stale-regrant") {
         let denied = false;
-        this.ctx.storage.transactionSync(() => {
+        this.transaction(() => {
           try {
             storeAuthorizedPresentationProof(sql, {
               sourceId: freeSource(freeIds[0]), territory: "US", revision: 1, action: "allow",
@@ -156,7 +163,7 @@ export class StageUnifiedOwner extends DurableObject<StageEnv> {
           { status: denied ? 200 : 503, headers });
       }
       if (route === "/market-deny") {
-        this.ctx.storage.transactionSync(() => denyMarket(sql, {
+        this.transaction(() => denyMarket(sql, {
           territory: "US", operationId: "stage:market:deny:1",
         }));
         return Response.json({ marketDenied: marketIsWithdrawn(sql, "US"), count: this.read().count, releaseCertified: false }, { headers });
