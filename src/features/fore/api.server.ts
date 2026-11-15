@@ -2229,8 +2229,7 @@ export async function runCatalogIngestion(
       ),
     );
     if (statements.length) await db.batch(statements);
-    for (const book of changed)
-      await dispatchCatalogFreeNormalization(db, String(book.id), at);
+    for (const book of changed) await dispatchCatalogFreeNormalization(db, String(book.id), at);
     // This must run even when the source and canonical rows were unchanged:
     // a previous run may have failed *after* canonical normalization but
     // before taxonomy/outbox publication, and mapping rules may have changed.
