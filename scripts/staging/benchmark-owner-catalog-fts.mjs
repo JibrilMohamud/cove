@@ -12,7 +12,7 @@ const N=82_249, tmp=mkdtempSync(path.join(tmpdir(),'cove-fts82k-'));
 const db=new DatabaseSync(':memory:');
 const sql={exec:(query,...args)=>{
   const p=db.prepare(query);
-  return {toArray:()=>/^\\s*(SELECT|WITH|PRAGMA)\\b/i.test(query)?
+  return {toArray:()=>/^\s*(SELECT|WITH|PRAGMA)\b/i.test(query)?
     p.all(...args):(p.run(...args),[])};
 }};
 const fmt=n=>Math.round(n*100)/100;
