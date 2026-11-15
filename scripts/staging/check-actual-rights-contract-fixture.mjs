@@ -210,7 +210,9 @@ try {
     }
     assert.equal(result.published, false, "Skewed canonical policy time must be fenced by D1");
     assert.equal(
-      await db.prepare("SELECT COUNT(*) AS n FROM cove_stage_owner_retail_authority").first()
+      await db
+        .prepare("SELECT COUNT(*) AS n FROM cove_stage_owner_retail_authority")
+        .first()
         .then((row) => row.n),
       0,
       "No positive survives future/stale evaluation time",
