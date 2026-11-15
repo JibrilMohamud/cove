@@ -135,11 +135,7 @@ async function activeCandidate() {
     // Never skip binding isolation: inspect the ACTIVE version settings,
     // bracket that read with two matching deployment snapshots, and allow
     // only this exact transient 404 class to use the fallback.
-    if (
-      !(error instanceof Error) ||
-      !error.message.includes("returned 404 (100146)")
-    )
-      throw error;
+    if (!(error instanceof Error) || !error.message.includes("returned 404 (100146)")) throw error;
     const settings = await api("/workers/scripts/" + SCRIPT + "/settings");
     const readback = await api("/workers/scripts/" + SCRIPT + "/deployments");
     inspected = attestedCandidateSettings(deployments, readback, settings);

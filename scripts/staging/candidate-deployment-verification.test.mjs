@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { singleCandidateVersion, attestedCandidateSettings } from "./candidate-deployment-verification.mjs";
+import {
+  singleCandidateVersion,
+  attestedCandidateSettings,
+} from "./candidate-deployment-verification.mjs";
 
 const stageVersion = "e7c0563d-0681-437c-9add-4f25a1ca3428";
 const pinnedVersion = "60d1924f-2917-42be-acf7-496e84cb55e7";
@@ -23,10 +26,12 @@ test("readback verifies exactly one deployed 100% version", () => {
     () =>
       singleCandidateVersion({
         deployments: [
-          { versions: [
-            { version_id: stageVersion, percentage: 50 },
-            { version_id: pinnedVersion, percentage: 50 },
-          ] },
+          {
+            versions: [
+              { version_id: stageVersion, percentage: 50 },
+              { version_id: pinnedVersion, percentage: 50 },
+            ],
+          },
         ],
       }),
     /100-percent/,
@@ -44,7 +49,8 @@ test("version 404 fallback requires same active deployment on both sides of sett
   assert.deepEqual(attested.bindings, settings.bindings);
   assert.equal(attested.runtime.limits.cpu_ms, 300000);
   assert.throws(
-    () => attestedCandidateSettings(deployments(stageVersion), deployments(pinnedVersion), settings),
+    () =>
+      attestedCandidateSettings(deployments(stageVersion), deployments(pinnedVersion), settings),
     /changed/,
   );
   assert.throws(
