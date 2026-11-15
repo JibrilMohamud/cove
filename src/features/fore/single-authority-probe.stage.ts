@@ -3,8 +3,7 @@ import { canonicalBoundedPopularPageByLiveRights } from "./catalog-model.server"
 // An isolated capacity reference, NOT a storefront response. It intentionally
 // bypasses localization and presentation for a single genuine primary-D1
 // full-shape current-rights query; it does not authorize real delivery.
-const PRIVATE_STAGE_HOST =
-  "cove-presentation-r2-proof-20261114.cove-jibrilmohamud.workers.dev";
+const PRIVATE_STAGE_HOST = "cove-presentation-r2-proof-20261114.cove-jibrilmohamud.workers.dev";
 const SYNTHETIC_DB = "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
 const PROBE_PATH = "/api/fore/__perf/private-authority";
 
