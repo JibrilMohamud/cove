@@ -246,6 +246,34 @@ export function reconcileStageOwnerDirty(sql:AuthoritySql,limit=25){
   const remaining=sql.exec<{n:number}>(`SELECT COUNT(*) n FROM cove_stage_owner_dirty`).toArray()[0]?.n;
   return {processed:ids.length,remaining:remaining??0};
 }
+/**
+ * Refresh ONLY owner-local paid leases that have actually expired. The
+ * expiry covering index bounds the scan; real authorization is recalculated
+ * through readCommercialStorefront(), not guessed from the cached offer.
+ *
+ * A caller MUST invoke this inside the owner Durable Object transactionSync
+ * before returning a page, count or facet. If the current lease population
+ * cannot be reconciled, the unchanged public read guard will fail closed.
+ * Never extend a lease here: future positives require a new canonical proof.
+ */
+export function refreshStageOwnerExpired(sql:AuthoritySql,limit=25){
+  if(!Number.isSafeInteger(limit)||limit<1||limit>25)
+    throw Error('stage_owner_index_invalid_expiry_batch');
+  const now=new Date().toISOString();
+  const expired=sql.exec<{product_id:string}>(`SELECT product_id FROM
+    cove_stage_owner_index_items INDEXED BY cove_stage_owner_index_expiry
+    WHERE territory=? AND currency=? AND expires_at<=?
+    ORDER BY expires_at,product_id LIMIT ?`,
+    DEFAULT.territory,DEFAULT.currency,now,limit).toArray();
+  if(!expired.length)return {processed:0,remaining:0};
+  for(const row of expired){
+    if(!GOOD_ID.test(row.product_id))throw Error('stage_owner_index_invalid_expired_product');
+    sql.exec('INSERT OR IGNORE INTO cove_stage_owner_dirty(product_id) VALUES(?)',row.product_id);
+  }
+  // The genuine owner SQL reader rejects expired paid leases. Every removed
+  // product decrements its own dimensions, aggregate counts and index epoch.
+  return reconcileStageOwnerDirty(sql,limit);
+}
 /** Stage bootstrapping must start from complete, verified authoritative owner
  * metadata/proofs. Call once inside owner transaction, after backfilling the
  * whole population. Never mark ready with a partial migration. */
