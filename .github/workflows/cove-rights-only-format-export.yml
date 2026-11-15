@@ -1,0 +1,24 @@
+name: cove-private-rights-only-format-export
+on:
+  push:
+    branches: [diag/primary-rights-only-100rps-20261115]
+    paths: [.github/workflows/cove-rights-only-format-export.yml]
+permissions: { contents: read }
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci
+      - name: Capture exact source formatting patch
+        run: |
+          npx prettier --write scripts/staging/run-private-causal-triad.mjs
+          node --input-type=module - <<'NODE'
+          import { execFileSync } from "node:child_process";
+          const patch = execFileSync("git", ["diff", "--", "scripts/staging/run-private-causal-triad.mjs"], { encoding: "utf8" });
+          console.log("__COVE_RIGHTS_ONLY_FORMAT_START__" + Buffer.from(patch).toString("base64") + "__COVE_RIGHTS_ONLY_FORMAT_END__");
+          NODE
