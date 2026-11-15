@@ -6,6 +6,13 @@ import {
   type PrimaryStorefrontAuthorityRow,
 } from "./catalog-model.server";
 import type { PresentationR2Bucket } from "./search-presentation-r2.server";
+import {
+  signSyntheticStageCursor,
+  syntheticSnapshotSha256,
+  verifySyntheticStageCursor,
+  type SyntheticCursorAnchor,
+  type SyntheticCursorScope,
+} from "./synthetic-stage-rights-cursor";
 
 /**
  * EXPERIMENTAL SYNTHETIC STAGING ONLY. R2 holds public display strings and a
@@ -420,11 +427,14 @@ function constantTimeGate(value: string | null, expected: string | undefined) {
   return difference === 0;
 }
 
-// Stage-only page 2 proof: no arbitrary queries, cursors or customer inputs.
-// The snapshot covers only the top 96 candidates and is not a full catalog.
-function syntheticPage(request: Request): 1 | 2 | null {
+// Explicitly stage-only: page-number proof remains separate from cursor
+// continuation. Neither is the production full-catalog route.
+function syntheticPage(request: Request): 1 | 2 | "cursor" | null {
   const search = new URL(request.url).search;
-  return search === "" ? 1 : search === "?page=2" ? 2 : null;
+  if (search === "") return 1;
+  if (search === "?page=2") return 2;
+  if (/^\\?cursor=[A-Za-z0-9_.-]{40,768}$/.test(search)) return "cursor";
+  return null;
 }
 
 function authorizedSyntheticRequest(
@@ -562,10 +572,16 @@ export async function handleSyntheticR2LiveRightsStage(
           "x-cove-stage-failure-class": "invalid-snapshot-or-authority-witness",
         },
       });
+    const nextCursor = await signSyntheticStageCursor(
+      result.cursorAnchor,
+      result.cursorScope,
+      env.FORE_BACKEND_TOKEN!,
+    );
     return Response.json(
       {
         results: result.books,
         hasMore: result.hasMore,
+        nextCursor,
         mode: "r2-live-retail",
         releaseCertified: false,
       },
@@ -647,9 +663,12 @@ export async function authorizeOfferBearingSyntheticPage(
   db: CatalogDB,
   ids: string[],
   witnessCount: 25 | 49 = 25,
+  continuation = false,
 ): Promise<SyntheticExtendedAuthorityRow[]> {
   if (
-    ![FAST_CANDIDATE_COUNT, SECOND_PAGE_FAST_CANDIDATES, ITEM_COUNT].includes(ids.length) ||
+    (continuation
+      ? witnessCount !== 25 || ids.length < PAGE_COUNT + 1 || ids.length > ITEM_COUNT
+      : ![FAST_CANDIDATE_COUNT, SECOND_PAGE_FAST_CANDIDATES, ITEM_COUNT].includes(ids.length)) ||
     (witnessCount === SECOND_PAGE_WITNESSES && ids.length === FAST_CANDIDATE_COUNT) ||
     ids.some((id) => !identifier(id)) ||
     new Set(ids).size !== ids.length
@@ -741,9 +760,18 @@ export async function syntheticR2PageWithLiveRights(
   request: Request,
   env: SyntheticRightsPresentationEnv,
   now = () => Date.now(),
-): Promise<{ books: CatalogBook[]; hasMore: true } | null> {
+): Promise<
+  | {
+      books: CatalogBook[];
+      hasMore: true;
+      cursorAnchor: SyntheticCursorAnchor;
+      cursorScope: SyntheticCursorScope;
+    }
+  | null
+> {
   if (!eligibleSyntheticR2Page(request, env)) return null;
   let snapshot: Snapshot;
+  let rawSnapshot: string;
   try {
     const object = await env.COVE_PUBLIC_PRESENTATION_CACHE!.get(OBJECT_KEY);
     if (!object || (object.size !== undefined && object.size > MAX_BYTES)) return null;
@@ -752,6 +780,7 @@ export async function syntheticR2PageWithLiveRights(
     const decoded: unknown = JSON.parse(text);
     if (!validSnapshot(decoded, now())) return null;
     snapshot = decoded;
+    rawSnapshot = text;
   } catch {
     // R2 failure cannot result in any cached positive rights decision.
     return null;
@@ -762,6 +791,25 @@ export async function syntheticR2PageWithLiveRights(
   const rankedIds = snapshot.items.map((item) => item.productId);
   const page = syntheticPage(request);
   if (!page) return null;
+  const cursorScope: SyntheticCursorScope = {
+    digest: await syntheticSnapshotSha256(rawSnapshot),
+    revision: snapshot.publicMetadataRevision,
+    expiresAt: snapshot.expiresAt,
+  };
+  let cursorAnchor: SyntheticCursorAnchor | null = null;
+  if (page === "cursor") {
+    const token = new URL(request.url).search.slice("?cursor=".length);
+    cursorAnchor = await verifySyntheticStageCursor(
+      token,
+      cursorScope,
+      env.FORE_BACKEND_TOKEN!,
+      now(),
+    );
+    // A replay against a reseeded snapshot or an altered last-rank identity
+    // must not reach D1, even if the signature was valid for an older cursor.
+    if (!cursorAnchor || snapshot.items[cursorAnchor.position]?.productId !== cursorAnchor.productId)
+      return null;
+  }
   // Most page-one requests need at most 25 fresh live witnesses. D1 scans every input
   // candidate in the authorized materialized CTE: 96 candidates cost ~1,437
   // rows read on the isolated fixture; 32 cost ~549. On withdrawal/sparse
@@ -774,22 +822,35 @@ export async function syntheticR2PageWithLiveRights(
   // withdrawal; never join permissions from two different D1 snapshots.
   // No global count is inferred from this bounded rank window.
   // Page one retains the measured 32-ID/96-ID fallback, unchanged.
-  let current =
-    page === 2
-      ? await authorizeOfferBearingSyntheticPage(
-          env.DB,
-          rankedIds.slice(0, SECOND_PAGE_FAST_CANDIDATES),
-          SECOND_PAGE_WITNESSES,
-        )
-      : await authorizeOfferBearingSyntheticPage(env.DB, rankedIds.slice(0, FAST_CANDIDATE_COUNT));
-  if (
-    page === 2 &&
-    (current.length !== PAGE_COUNT ||
-      current.some((row) => row.live_witness_count !== SECOND_PAGE_WITNESSES))
-  )
-    current = await authorizeOfferBearingSyntheticPage(env.DB, rankedIds, SECOND_PAGE_WITNESSES);
-  if (page === 1 && current.length < PAGE_COUNT + 1)
-    current = await authorizeOfferBearingSyntheticPage(env.DB, rankedIds);
+  let current: SyntheticExtendedAuthorityRow[];
+  if (page === "cursor") {
+    // A verified rank anchor lets the next request check just 25 live rights
+    // witnesses, not the 49 repeated offset witnesses that overloaded D1.
+    // Never authorize from the signed token; it grants only a start position.
+    const remainder = rankedIds.slice(cursorAnchor!.position + 1);
+    if (remainder.length < PAGE_COUNT + 1) return null;
+    const fast = remainder.slice(0, FAST_CANDIDATE_COUNT);
+    current = await authorizeOfferBearingSyntheticPage(env.DB, fast, 25, true);
+    if (current.length < PAGE_COUNT + 1 && fast.length < remainder.length)
+      current = await authorizeOfferBearingSyntheticPage(env.DB, remainder, 25, true);
+  } else {
+    current =
+      page === 2
+        ? await authorizeOfferBearingSyntheticPage(
+            env.DB,
+            rankedIds.slice(0, SECOND_PAGE_FAST_CANDIDATES),
+            SECOND_PAGE_WITNESSES,
+          )
+        : await authorizeOfferBearingSyntheticPage(env.DB, rankedIds.slice(0, FAST_CANDIDATE_COUNT));
+    if (
+      page === 2 &&
+      (current.length !== PAGE_COUNT ||
+        current.some((row) => row.live_witness_count !== SECOND_PAGE_WITNESSES))
+    )
+      current = await authorizeOfferBearingSyntheticPage(env.DB, rankedIds, SECOND_PAGE_WITNESSES);
+    if (page === 1 && current.length < PAGE_COUNT + 1)
+      current = await authorizeOfferBearingSyntheticPage(env.DB, rankedIds);
+  }
   const requiredWitnesses = page === 2 ? PAGE_COUNT : PAGE_COUNT + 1;
   if (
     current.length !== requiredWitnesses ||
@@ -923,8 +984,14 @@ export async function syntheticR2PageWithLiveRights(
       // offline licenses are not cached or returned by this probe.
     });
   }
+  const visibleBooks = books.slice(0, PAGE_COUNT);
+  const lastVisible = visibleBooks.at(-1);
+  const lastRank = lastVisible ? rank.get(lastVisible.productId) : undefined;
+  if (lastRank === undefined || lastRank >= ITEM_COUNT - 1) return null;
   return {
-    books: books.slice(0, PAGE_COUNT),
+    books: visibleBooks,
     hasMore: true,
+    cursorAnchor: { position: lastRank, productId: lastVisible!.productId },
+    cursorScope,
   };
 }
