@@ -109,7 +109,10 @@ assert.equal(
 const apiSource = fs.readFileSync("src/features/fore/api.server.ts", "utf8");
 // The actual Worker annotates ONLY rejected, enumerated first-paint phases.
 // Do not weaken the fail-closed exception path or emit raw exception details.
-assert.match(apiSource, /type FirstPaintPhase = "context" \| "catalog" \| "markets" \| "limit" \| "page"/);
+assert.match(
+  apiSource,
+  /type FirstPaintPhase = "context" \| "catalog" \| "markets" \| "limit" \| "page"/,
+);
 assert.match(apiSource, /timings\[`fault_\$\{name\}`\] = 1/);
 assert.match(apiSource, /catch \(error\) \{\s*timings\[`fault_\$\{name\}`\] = 1;\s*throw error;/);
 assert.equal((apiSource.match(/timings\[`fault_\$\{name\}`\] = 1/g) || []).length, 1);
