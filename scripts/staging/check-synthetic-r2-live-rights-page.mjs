@@ -86,6 +86,10 @@ try {
     "drmStatus",
     "downloadable",
     "readingAvailability",
+    "externalIdentifiers",
+    "sourceLicenseUrl",
+    "formatProfile",
+    "aiDisclosure",
     "amountMinor",
     "offer",
   ]) {
@@ -126,6 +130,10 @@ try {
         assert.match(sql, /has_epub_object/);
         assert.match(sql, /has_epub_source/);
         assert.match(sql, /gutenberg_source_cache/);
+        assert.match(sql, /product_external_ids_json/);
+        assert.match(sql, /accessibility_json/);
+        assert.match(sql, /format_profile_json/);
+        assert.match(sql, /ai_disclosure_json/);
         assert.match(sql, /FROM offers o/);
         assert.match(sql, /EXISTS \(SELECT 1 FROM offers offer_exists/);
         assert.doesNotMatch(sql, /\\b(?:INSERT|UPDATE|DELETE|REPLACE)\\b/i);
@@ -173,6 +181,22 @@ try {
       epub_storage_status: null,
       has_epub_object: 0,
       has_epub_source: 0,
+      file_size_bytes: 12345,
+      epub_version: "3.0",
+      layout: "reflowable",
+      source_project: "gutenberg",
+      source_page_url: "https://www.gutenberg.org/ebooks/1",
+      source_license_url: "https://www.gutenberg.org/policy/license.html",
+      product_external_ids_json: JSON.stringify({ gutenberg: "1" }),
+      edition_external_ids_json: JSON.stringify({ edition: "edition-v2" }),
+      work_external_ids_json: JSON.stringify({ work: "work-v3" }),
+      accessibility_json: JSON.stringify({ screenReaderCompatible: 1, accessModes: ["textual"] }),
+      format_profile_json: JSON.stringify({ epubVersion: "3", compatibilityClass: "reflowable" }),
+      ai_disclosure_json: JSON.stringify({
+        policyVersion: "2026.1",
+        textOrigin: "human",
+        publicBadges: [{ key: "human", label: "Human written" }],
+      }),
       offer_json: JSON.stringify({ type: "retail", currency: "USD", amountMinor: price }),
     }));
   returned = rows(Array.from({ length: 25 }, (_, i) => i));
@@ -360,6 +384,30 @@ try {
   assert.equal(good.books[0].publisherDescription, "Sample descriptive publisher text");
   assert.equal(good.books[0].series[0].name, "Synthetic Series");
   assert.equal(good.books[0].pageEstimate, 244);
+  assert.deepEqual(good.books[0].externalIdentifiers, {
+    product: { gutenberg: "1" },
+    edition: { edition: "edition-v2" },
+    work: { work: "work-v3" },
+  });
+  assert.equal(good.books[0].sourceProject, "gutenberg");
+  assert.equal(good.books[0].sourceUrl, "https://www.gutenberg.org/ebooks/1");
+  assert.equal(good.books[0].sourceLicenseUrl, "https://www.gutenberg.org/policy/license.html");
+  assert.equal(good.books[0].fileSizeBytes, 12345);
+  assert.equal(good.books[0].epubVersion, "3.0");
+  assert.equal(good.books[0].layout, "reflowable");
+  assert.deepEqual(good.books[0].accessibility, {
+    screenReaderCompatible: 1,
+    accessModes: ["textual"],
+  });
+  assert.deepEqual(good.books[0].formatProfile, {
+    epubVersion: "3",
+    compatibilityClass: "reflowable",
+  });
+  assert.deepEqual(good.books[0].aiDisclosure, {
+    policyVersion: "2026.1",
+    textOrigin: "human",
+    publicBadges: [{ key: "human", label: "Human written" }],
+  });
   for (const book of good.books) {
     assert.equal(book.subscriptionEligible, false, "Live primary supersedes cached book flag");
     assert.equal(book.libraryEligible, false, "Live primary supersedes cached library flag");
@@ -411,6 +459,23 @@ try {
     null,
     "Missing primary asset evidence must never imply a stored or readable edition",
   );
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+
+  // The full book-detail projection is fresh-primary-only. A corrupt nested
+  // disclosure or identifier map must deny the entire page, never leak raw SQL,
+  // never silently reconstruct an old authorization from presentation cache.
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  returned[0].product_external_ids_json = '["not", "a", "map"]';
+  await assert.rejects(
+    syntheticR2PageWithLiveRights(request, env, () => now),
+    /Invalid current detail/,
+  );
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  returned[0].ai_disclosure_json = '{"policyVersion":';
+  await assert.rejects(syntheticR2PageWithLiveRights(request, env, () => now));
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  returned[0].file_size_bytes = -1;
+  assert.equal(await syntheticR2PageWithLiveRights(request, env, () => now), null);
   returned = rows(Array.from({ length: 25 }, (_, i) => i));
 
   // If the top candidate loses its retail offer, the live SELECT itself
