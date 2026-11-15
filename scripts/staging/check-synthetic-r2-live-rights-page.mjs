@@ -170,7 +170,11 @@ try {
         assert.doesNotMatch(sql, /\\b(?:INSERT|UPDATE|DELETE|REPLACE)\\b/i);
         return {
           bind(...params) {
-            assert.match(sql, /ORDER BY c.position LIMIT (?:25|49)\\b/);
+            assert.ok(
+              sql.includes("ORDER BY c.position LIMIT 25") ||
+                sql.includes("ORDER BY c.position LIMIT 49"),
+              "Only bounded, static D1 witness limits are permitted",
+            );
             assert.equal(params[0], "US");
             const candidates = JSON.parse(params[1]);
             assert.ok(
@@ -187,7 +191,7 @@ try {
                 return {
                   results: returned
                     .filter((row) => inWindow.has(row.product_id))
-                    .slice(0, /LIMIT 49\\b/.test(sql) ? 49 : 25),
+                    .slice(0, sql.includes("LIMIT 49") ? 49 : 25),
                 };
               },
             };
