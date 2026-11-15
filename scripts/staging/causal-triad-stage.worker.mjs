@@ -14,7 +14,7 @@ const R2_LIVE_RETAIL_URL =
   "https://cove-presentation-r2-proof-20261114.cove-jibrilmohamud.workers.dev/api/fore/__perf/private-r2-live-rights";
 // The original four-path campaign remains unchanged; single is a separate
 // opt-in differential capacity proof, never a storefront certification.
-const MODES = ["noop", "context", "rights", "catalog", "single", "r2live", "r2seed"];
+const MODES = ["noop", "context", "rights", "catalog", "single", "r2live", "r2page2", "r2seed"];
 const RIGHTS_SQL = `WITH ranked AS MATERIALIZED (
  SELECT d.product_id,d.fore_bestseller_score sort_score,d.external_book_id sort_source
  FROM catalog_search_documents d INDEXED BY idx_search_popular_stable
@@ -133,7 +133,9 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
     const url =
       mode === "r2live"
         ? R2_LIVE_RETAIL_URL
-        : mode === "r2seed"
+        : mode === "r2page2"
+          ? R2_LIVE_RETAIL_URL + "?page=2"
+          : mode === "r2seed"
           ? R2_LIVE_RETAIL_URL + "/seed"
           : (mode === "catalog"
               ? CATALOG_URL + "?sort=popular&page=1&currency=USD"
@@ -173,7 +175,7 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
         firstByteMs,
         ms: performance.now() - started,
         valid: false,
-        errorKind: mode === "r2live" && known.includes(failure) ? failure : "upstream-http-status",
+        errorKind: (mode === "r2live" || mode === "r2page2") && known.includes(failure) ? failure : "upstream-http-status",
       };
     }
     const data = await resp.json();
@@ -216,13 +218,15 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
       resp.headers.get("x-cove-persistence") ===
         (mode === "single"
           ? "d1-only-synthetic"
-          : mode === "r2live"
+          : mode === "r2live" || mode === "r2page2"
             ? "d1-live-retail-r2-display-synthetic"
             : "d1-r2") &&
       (mode !== "single" ||
         (data?.releaseCertified === false && data?.mode === "single-primary-rights-only")) &&
-      (mode !== "r2live" ||
+      (mode !== "r2live" && mode !== "r2page2" ||
         (data?.releaseCertified === false &&
+          (mode !== "r2page2" ||
+            (!Object.hasOwn(data, "count") && !Object.hasOwn(data, "facets"))) &&
           data?.mode === "r2-live-retail" &&
           data?.hasMore === true &&
           data.results.every(
