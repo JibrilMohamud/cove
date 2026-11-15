@@ -1,12 +1,13 @@
 name: cove-stage-owner-current-retail-projection-proof
 on:
   push:
-    branches: [perf/stage-owner-transactional-retail-projection-20261115, perf/stage-owner-cas-positive-writer-20261115]
+    branches: [perf/stage-owner-transactional-retail-projection-20261115, perf/stage-owner-cas-positive-writer-20261115, perf/stage-owner-batched-point-read-20261115]
     paths:
       - scripts/staging/owner-current-retail-invalidation.stage.py
       - scripts/staging/check-owner-current-retail-invalidation.py
       - scripts/staging/owner-positive-retail-writer.stage.py
       - scripts/staging/check-owner-positive-retail-cas.py
+      - scripts/staging/check-owner-batched-point-read.py
       - src/features/fore/owner-positive-retail.stage.ts
       - scripts/staging/check-owner-positive-retail-adapter.mjs
       - scripts/staging/check-owner-retail-source-dependencies.py
@@ -37,7 +38,10 @@ jobs:
           python3 scripts/staging/check-owner-current-retail-invalidation.py
           python3 scripts/staging/check-owner-positive-retail-cas.py
       - name: Compile and gate the real canonical TypeScript rights adapter
-        run: node scripts/staging/check-owner-positive-retail-adapter.mjs
+        run: |
+          node scripts/staging/check-owner-positive-retail-adapter.mjs
           python3 scripts/staging/check-owner-retail-source-dependencies.py
+      - name: Verify 25 current indexed owner witnesses and D1-clock expiry
+        run: python3 scripts/staging/check-owner-batched-point-read.py
       - name: Deny accidental stage proof edits or whitespace errors
         run: git diff --check
