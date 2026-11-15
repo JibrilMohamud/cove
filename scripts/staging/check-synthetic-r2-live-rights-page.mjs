@@ -178,15 +178,15 @@ try {
             assert.equal(params[0], "US");
             const candidates = JSON.parse(params[1]);
             assert.ok(
-              [32, 56, 96].includes(candidates.length),
-              "Stage D1 must use the bounded page-one/page-two window or full fallback",
+              candidates.length >= 25 && candidates.length <= 96,
+              "Only bounded 25-96 candidate live authorization reads are permitted",
             );
             assert.deepEqual(params.slice(2), ["USD", "USD", "US"]);
             const inWindow = new Set(candidates);
             return {
               async all() {
                 if (primaryError) throw primaryError;
-                if (failFallbackD1 && candidates.length === 96)
+                if (failFallbackD1 && candidates.length > 56)
                   throw Object.assign(new Error("D1 overload during fallback"), { code: 7429 });
                 const eligible = returned.filter((row) => inWindow.has(row.product_id));
                 return {
@@ -405,21 +405,85 @@ try {
   );
   assert.equal(badBodySeed.status, 404);
   returned = rows(Array.from({ length: 25 }, (_, i) => i));
-  const stageLive = await handleSyntheticR2LiveRightsStage(request, {
+  const liveRouteSnapshot = buildSyntheticDisplayObject(books, Date.now(), "1");
+  const liveRouteEnv = {
     ...env,
     COVE_PUBLIC_PRESENTATION_CACHE: {
-      get: async () => ({
-        etag: "saved",
-        text: async () => buildSyntheticDisplayObject(books, Date.now(), "1"),
-      }),
+      get: async () => ({ etag: "saved", text: async () => liveRouteSnapshot }),
     },
-  });
+  };
+  const stageLive = await handleSyntheticR2LiveRightsStage(request, liveRouteEnv);
   assert.equal(stageLive.status, 200);
   assert.equal(stageLive.headers.get("x-cove-persistence"), "d1-live-retail-r2-display-synthetic");
   const stageBody = await stageLive.json();
   assert.equal(stageBody.results.length, 24);
   assert.equal(stageBody.releaseCertified, false);
   assert.equal(stageBody.mode, "r2-live-retail");
+
+  // A signed continuation resumes AFTER the last displayed rank, rather
+  // than rescanning 49 live authorization candidates from the start.
+  assert.match(stageBody.nextCursor, /^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$/);
+  const cursorRequest = req({}, request.url + "?cursor=" + stageBody.nextCursor);
+  assert.equal(eligibleSyntheticR2Page(cursorRequest, env), true);
+  returned = rows(Array.from({ length: 25 }, (_, i) => i + 24));
+  const cursorStartCalls = dbCalls;
+  const continued = await syntheticR2PageWithLiveRights(cursorRequest, liveRouteEnv);
+  assert.equal(dbCalls - cursorStartCalls, 1, "Cursor page needs one 32-ID live D1 read");
+  assert.equal(continued?.books.length, 24);
+  assert.equal(continued.books[0].productId, "perf-synth-24");
+  assert.equal(continued.books[23].productId, "perf-synth-47");
+  const liveCursorResponse = await handleSyntheticR2LiveRightsStage(cursorRequest, liveRouteEnv);
+  assert.equal(liveCursorResponse.status, 200);
+  const liveCursorBody = await liveCursorResponse.json();
+  assert.equal(liveCursorBody.results[0].productId, "perf-synth-24");
+  assert.match(liveCursorBody.nextCursor, /^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$/);
+  assert.equal(Object.hasOwn(liveCursorBody, "count"), false);
+  assert.equal(Object.hasOwn(liveCursorBody, "facets"), false);
+
+  // A withdrawal BEFORE the signed anchor may shift offset page 2, but must
+  // not repeat a previously seen book in cursor page 2.
+  returned = rows(Array.from({ length: 25 }, (_, i) => i + 25));
+  const shiftedCursor = await syntheticR2PageWithLiveRights(cursorRequest, liveRouteEnv);
+  assert.equal(shiftedCursor?.books[0].productId, "perf-synth-25");
+  assert.equal(shiftedCursor.books[23].productId, "perf-synth-48");
+
+  // Withdraw eight from the 32-ID cursor prefix; a fresh remainder-only
+  // query must replace it, never stitching older positive rights witnesses.
+  returned = rows(Array.from({ length: 25 }, (_, i) => i + 32));
+  const cursorFallbackStart = dbCalls;
+  const fallbackCursor = await syntheticR2PageWithLiveRights(cursorRequest, liveRouteEnv);
+  assert.equal(dbCalls - cursorFallbackStart, 2);
+  assert.equal(fallbackCursor?.books[0].productId, "perf-synth-32");
+  assert.equal(fallbackCursor.books[23].productId, "perf-synth-55");
+  failFallbackD1 = true;
+  await assert.rejects(
+    () => syntheticR2PageWithLiveRights(cursorRequest, liveRouteEnv),
+    /fallback/,
+    "Failed fresh cursor fallback must never reuse prior primary results",
+  );
+  failFallbackD1 = false;
+
+  // Forgery and immutable-snapshot reseed are rejected BEFORE any D1 read.
+  const forgedCursor =
+    stageBody.nextCursor.slice(0, -1) +
+    (stageBody.nextCursor.endsWith("A") ? "B" : "A");
+  const forgedRequest = req({}, request.url + "?cursor=" + forgedCursor);
+  const beforeForged = dbCalls;
+  assert.equal(await syntheticR2PageWithLiveRights(forgedRequest, liveRouteEnv), null);
+  const forgedResponse = await handleSyntheticR2LiveRightsStage(forgedRequest, liveRouteEnv);
+  assert.equal(forgedResponse.status, 503);
+  assert.equal(dbCalls, beforeForged, "A forged token cannot authorize a D1 query");
+  const reseeded = JSON.parse(liveRouteSnapshot);
+  reseeded.items[0].title = "Revised stage-only public display";
+  const changedEnv = {
+    ...liveRouteEnv,
+    COVE_PUBLIC_PRESENTATION_CACHE: {
+      get: async () => ({ text: async () => JSON.stringify(reseeded) }),
+    },
+  };
+  assert.equal(await syntheticR2PageWithLiveRights(cursorRequest, changedEnv), null);
+  assert.equal(dbCalls, beforeForged, "Replayed cursor must be bound to immutable R2 bytes");
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
 
   // Real staged page-two selection requires 49 current D1 witnesses:
   // the first 24 are skipped only AFTER current rights filtering, and the
@@ -781,6 +845,7 @@ try {
     req({}, request.url + "?page=02"),
     req({}, request.url + "?page=3"),
     req({}, request.url + "?page=2&sort=popular"),
+    req({}, request.url + "?cursor=" + stageBody.nextCursor + "&sort=popular"),
     req(
       {},
       "https://cove-presentation-r2-proof-20261114.cove-jibrilmohamud.workers.dev/api/fore/__perf/private-r2-live-rights?sort=popular",
