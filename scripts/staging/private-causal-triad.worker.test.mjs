@@ -153,7 +153,7 @@ test("single full-shape current-rights reference is separate from public catalog
     ...env,
     CANDIDATE: {
       async fetch(request) {
-        assert.equal(new URL(request.url).pathname, "/api/fore/__perf/private-authority");
+        assert.equal(new globalThis.URL(request.url).pathname, "/api/fore/__perf/private-authority");
         assert.equal(request.headers.get("x-cove-backend-token"), "b".repeat(64));
         assert.equal(request.headers.get("x-cove-client-country"), "US");
         return Response.json(
