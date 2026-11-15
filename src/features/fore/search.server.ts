@@ -1087,8 +1087,7 @@ async function searchD1(
   const stagePublicContext =
     env.FORE_GUEST_COMPACT_STAGE === "1" &&
     env.FORE_GUEST_CONTEXT_R2_STAGE === "1" &&
-    env.FORE_GUEST_COMPACT_SYNTHETIC_D1_ID ===
-      "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3" &&
+    env.FORE_GUEST_COMPACT_SYNTHETIC_D1_ID === "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3" &&
     !!presentationStore &&
     !userId &&
     !input.query &&
