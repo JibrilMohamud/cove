@@ -133,6 +133,24 @@ MUTATIONS = {
   "UPDATE rights_contract_languages SET language_code='fr' WHERE decision='allow'",
  ],
  "product-disabled": ["UPDATE products SET storefront_status='hidden'"],
+ "future-explicit-deny": [
+  """INSERT INTO rights_grants
+     SELECT 'g_future',edition_id,rightsholder_party_id,rightsholder_id,format,status,
+     'deny',sales_channel,strftime('%Y-%m-%dT%H:%M:%fZ','now','+5 seconds'),
+     ends_at,drm_requirement,contract_id,contract_version_id,created_at,
+     subscription_permitted,library_permitted,promotion_restrictions_json,license_type,
+     source_evidence_id,exclusivity,scope_summary,contract_reference
+     FROM rights_grants WHERE id='g_fixture'""",
+  "INSERT INTO rights_grant_territories VALUES('g_future','US')",
+ ],
+ "contract-expiry-soon": [
+  "UPDATE rights_contracts SET effective_to=strftime('%Y-%m-%dT%H:%M:%fZ','now','+5 seconds')"
+ ],
+ "future-competitive-offer": [
+  """INSERT INTO offers VALUES('o_future','p_fixture',399,'USD','retail',1,
+      strftime('%Y-%m-%dT%H:%M:%fZ','now','+5 seconds'),NULL,'2026-11-15')"""
+ ],
+ "invalid-legal-time": ["UPDATE rights_contract_versions SET effective_to='unparseable-value'"],
 }
 
 
