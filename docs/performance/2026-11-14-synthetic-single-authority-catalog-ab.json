@@ -133,5 +133,61 @@
     "Catalog response parity, revocation/withdrawal, eligibility and offer detail page semantics",
     "Production catalog 503 and context availability",
     "Production legal owner, writer exclusivity, Stripe LIVE and protected rollback"
-  ]
+  ],
+  "repeatCampaign": {
+    "sourceRun": "https://github.com/JibrilMohamud/cove/actions/runs/43660793929",
+    "control": {
+      "offered": 1000,
+      "valid": 644,
+      "http503": 356,
+      "dropped": 0,
+      "achievedRps": 31.68,
+      "ttfbP95Ms": 448.5,
+      "ttfbP99Ms": 559.95,
+      "ttfbMaxMs": 1538.57,
+      "upstream503": 356,
+      "invalidUpstream200": 0
+    },
+    "compact": {
+      "offered": 1000,
+      "valid": 988,
+      "http503": 12,
+      "dropped": 0,
+      "achievedRps": 49.18,
+      "ttfbP95Ms": 176.69,
+      "ttfbP99Ms": 260.9,
+      "ttfbMaxMs": 921.07,
+      "upstream503": 12,
+      "invalidUpstream200": 0
+    },
+    "reasonToContinue": "One-repeat convergence on ~98.5% valid, but persistent authentic HTTP 503 and max >800ms; reject release certification.",
+    "traceComparison": {
+      "baseline": {
+        "sampledEvents": 767,
+        "sampledHttp200": 96,
+        "sampledHttp503": 29,
+        "traceMatchedD1Overload503": 29,
+        "legacyShortlist": 94,
+        "canonicalHydration": 93,
+        "secondaryEligibility": 88,
+        "marketContext": 120
+      },
+      "compact": {
+        "sampledEvents": 758,
+        "sampledHttp200": 158,
+        "sampledHttp503": 1,
+        "traceMatchedD1Overload503": 1,
+        "combinedFullHydration": 133,
+        "legacyShortlist": 0,
+        "secondaryEligibility": 0,
+        "marketContext": 150,
+        "combinedMeanSqlMs": 5.39,
+        "combinedD1Overload": 0,
+        "marketContextD1Overload": 1
+      },
+      "note": "Worker Observability is sampled; one compact sampled 503 is correctly linked to a market/context D1 resource overload; full runner counts 12 compact errors. This strongly motivates isolating the remaining market context operation."
+    },
+    "rollbackVerified": true,
+    "releaseCertified": false
+  }
 }
