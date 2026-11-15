@@ -125,7 +125,7 @@ def abort_replace_triggers() -> str:
             f"SELECT 1 FROM {table} prior WHERE {comparisons}"
             ") BEGIN SELECT RAISE(ABORT,'cove_owner_requires_explicit_update'); END;"
         )
-    return "\\n".join(generated) + "\\n"
+    return "\n".join(generated) + "\n"
 
 
 # US market is an existing fallback for markets with missing local currency.
