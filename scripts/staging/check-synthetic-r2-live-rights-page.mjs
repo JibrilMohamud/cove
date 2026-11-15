@@ -243,7 +243,7 @@ try {
     null,
     "Absent primary download metadata must fail closed",
   );
-    returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
   returned[0].offer_json = null;
   assert.equal(
     await syntheticR2PageWithLiveRights(request, env, () => now),
