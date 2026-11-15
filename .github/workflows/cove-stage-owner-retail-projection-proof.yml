@@ -1,0 +1,31 @@
+name: cove-stage-owner-current-retail-projection-proof
+on:
+  push:
+    branches: [perf/stage-owner-transactional-retail-projection-20261115]
+    paths:
+      - scripts/staging/owner-current-retail-invalidation.stage.py
+      - scripts/staging/check-owner-current-retail-invalidation.py
+      - scripts/staging/check-owner-retail-source-dependencies.py
+      - src/features/fore/rights.server.ts
+      - .github/workflows/cove-stage-owner-retail-projection-proof.yml
+permissions:
+  contents: read
+jobs:
+  isolated-transactional-projection:
+    if: github.repository == 'JibrilMohamud/cove'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Prove affected-product invalidation, deny-first revocation and atomic repricing
+        run: |
+          python3 -m py_compile scripts/staging/owner-current-retail-invalidation.stage.py scripts/staging/check-owner-current-retail-invalidation.py
+          python3 scripts/staging/check-owner-current-retail-invalidation.py
+          python3 scripts/staging/check-owner-retail-source-dependencies.py
+      - name: Deny accidental stage proof edits or whitespace errors
+        run: git diff --check
