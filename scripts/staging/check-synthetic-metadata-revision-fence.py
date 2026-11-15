@@ -6,7 +6,7 @@ SCHEMA = Path("scripts/staging/sql/synthetic-public-metadata-revision-fence.sql"
 assert "SYNTHETIC FIXTURE ONLY" in SCHEMA
 assert "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3" in SCHEMA
 assert "4bd657ac-8789-403e-a28c-93aba8d0a989" not in SCHEMA
-assert SCHEMA.count("CREATE TRIGGER IF NOT EXISTS ") == 14
+assert SCHEMA.count("CREATE TRIGGER IF NOT EXISTS ") == 15
 
 db = sqlite3.connect(":memory:")
 db.executescript(
@@ -51,7 +51,6 @@ assert revision() == 1
 changed(
     "INSERT INTO gutenberg_source_cache VALUES (?,?,?,?,?)",
     ("synthetic-1", "Gutenberg", "https://source.test/1", "https://license.test/1", "2026-11-15"),
-    expected=False,
 )
 changed(
     "UPDATE gutenberg_source_cache SET updated_at=? WHERE id='synthetic-1'",
@@ -130,4 +129,4 @@ assert revision() == prior + 1
 db.rollback()
 assert revision() == prior, "Aborted metadata publication must not advance committed revision"
 
-print("PASS: 14 isolated D1 metadata triggers deny stale source/license/AI cache generations; unchanged and rolled-back writes do not invalidate")
+print("PASS: 15 isolated D1 metadata triggers deny stale source/license/AI cache generations; new sources, unchanged and rolled-back writes handled")
