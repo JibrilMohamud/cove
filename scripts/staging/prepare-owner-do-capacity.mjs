@@ -9,7 +9,9 @@ const run = process.env.GITHUB_RUN_ID;
 assert.match(run || "", /^[0-9]{8,15}$/);
 assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, ACCOUNT);
 assert.ok(process.env.CLOUDFLARE_API_TOKEN, "Isolated Cloudflare deploy token required");
-const name = "cove-owner-do-capacity-" + run;
+const attempt = process.env.GITHUB_RUN_ATTEMPT;
+assert.match(attempt || "", /^[1-9][0-9]{0,2}$/);
+const name = "cove-owner-do-capacity-" + run + "-a" + attempt;
 const gate = randomBytes(32).toString("hex");
 mkdirSync(".output/stage-owner-do", { recursive: true });
 await build({

@@ -9,7 +9,9 @@ import { performance } from "node:perf_hooks";
 
 const run = process.env.GITHUB_RUN_ID;
 assert.match(run || "", /^[0-9]{8,15}$/);
-const name = "cove-owner-do-capacity-" + run;
+const attempt = process.env.GITHUB_RUN_ATTEMPT;
+assert.match(attempt || "", /^[1-9][0-9]{0,2}$/);
+const name = "cove-owner-do-capacity-" + run + "-a" + attempt;
 const origin = "https://" + name + ".cove-jibrilmohamud.workers.dev";
 const secret = JSON.parse(readFileSync(".output/stage-owner-do/secrets.json", "utf8")).COVE_OWNER_DO_GATE;
 assert.match(secret, /^[a-f0-9]{64}$/);
