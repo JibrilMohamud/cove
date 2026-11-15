@@ -320,7 +320,8 @@ async function main() {
     EVIDENCE.reference = runReference();
     EVIDENCE.completed = true;
     EVIDENCE.reference50Passed =
-      EVIDENCE.reference.valid === 1000 && EVIDENCE.reference.dropped === 0 &&
+      EVIDENCE.reference.valid === 1000 &&
+      EVIDENCE.reference.dropped === 0 &&
       EVIDENCE.reference.ttfbP95Ms < 600 &&
       EVIDENCE.reference.ttfbP99Ms < 750 &&
       EVIDENCE.reference.ttfbMaxMs < 800;
