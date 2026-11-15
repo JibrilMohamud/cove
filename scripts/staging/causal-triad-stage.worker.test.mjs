@@ -111,6 +111,44 @@ test("all paths validate stage identity and independent rights provenance", asyn
     503,
   );
 });
+test("synthetic 503 retains HTTP status and only allowlisted failure class", async () => {
+  const overload = await singleTriadProbe(
+    "r2live",
+    {
+      ...env,
+      CANDIDATE: {
+        fetch: async () =>
+          new Response(null, {
+            status: 503,
+            headers: { "x-cove-stage-failure-class": "d1-7429-resource-window" },
+          }),
+      },
+    },
+    0,
+    "proof",
+  );
+  assert.equal(overload.status, 503);
+  assert.equal(overload.valid, false);
+  assert.equal(overload.errorKind, "d1-7429-resource-window");
+  assert.ok(overload.ms >= 0);
+  const unknown = await singleTriadProbe(
+    "r2live",
+    {
+      ...env,
+      CANDIDATE: {
+        fetch: async () =>
+          new Response(null, {
+            status: 503,
+            headers: { "x-cove-stage-failure-class": "private SQL secret" },
+          }),
+      },
+    },
+    0,
+    "proof",
+  );
+  assert.equal(unknown.status, 503);
+  assert.equal(unknown.errorKind, "upstream-http-status");
+});
 test("summarization counts every failure and does not imply a release pass", () => {
   const s = summarizeTriad(
     "catalog",
