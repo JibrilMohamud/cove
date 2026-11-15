@@ -86,6 +86,39 @@ A future controlled release must verify independent AE category
 counts, Worker phase markers and actual 503 rate before and after
 deploying, with no automatic fallback to stale catalog rights.
 
+## Actual FORE API response-path failure injection — PASSED
+
+The diagnostic now includes a **real production-source handler** regression,
+`scripts/staging/check-real-fore-fault-marker.mjs`, bundled with the same
+conditions and aliases as the backend build. It invokes
+`handleCoveApi` against an in-memory D1 substitute that intentionally
+rejects all SQL. No production D1 binding or customer requests are used.
+The resulting HTTP 503 response is run through the **actual Vercel
+failure-stage parser** (with the Worker-origin provenance headers supplied
+by the test, as the production gateway normally does).
+
+[GitHub persistence CI #43773980069](https://github.com/JibrilMohamud/cove/actions/runs/43773980069)
+executed this new test and passed. Actual five route results:
+
+| Synthetic D1 outage request | Response | Attributed marker |
+| --- | --- | --- |
+| GET /api/fore/storefront/context | 503 | context |
+| GET /api/fore/catalog | 503 | context |
+| GET /api/fore/storefront/bootstrap | 503 | multiple |
+| GET /api/fore/taxonomy | 503 | context |
+| GET /api/fore/storefront/page | 503 | context |
+
+The bootstrap `multiple` value is expected: with concurrent first-paint
+queries, several independent tasks can reject. The parser declines to
+assign a single inaccurate cause. All responses retained numeric-only
+`Server-Timing` metrics and excluded the synthetic upstream exception
+text. The test performed **zero primary-D1 writes and zero customer
+requests**.
+
+This is stronger than static instrumentation checks but **not a live
+production failure trace**. The real cause of Vercel's present
+`pre-context handler-exception` warnings remains unverified.
+
 ## Independent validation and deployment boundary
 
 PR #705 was retargeted to `main` and GitHub reported
