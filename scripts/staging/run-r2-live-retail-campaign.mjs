@@ -198,10 +198,7 @@ async function deployArm() {
   assert.notEqual(state.version, ORIGINAL);
   assert.equal(state.bindings.length, EXPECTED_BINDINGS.length + 5);
   assert.equal(state.bindings.find((b) => b.name === "FORE_GUEST_COMPACT_STAGE")?.text, "1");
-  assert.equal(
-    state.bindings.find((b) => b.name === "FORE_GUEST_CONTEXT_R2_STAGE")?.text,
-    "0",
-  );
+  assert.equal(state.bindings.find((b) => b.name === "FORE_GUEST_CONTEXT_R2_STAGE")?.text, "0");
   assert.equal(state.bindings.find((b) => b.name === "FORE_GUEST_R2_DISPLAY_STAGE")?.text, "1");
   assert.equal(state.bindings.find((b) => b.name === "COVE_SYNTHETIC_STAGING_ONLY")?.text, DB);
   assert.equal(state.runtime?.limits?.cpu_ms, 300000);
@@ -298,14 +295,24 @@ function runArm(name) {
       max: x.ttfbMaxMs,
     }));
   const strict = (x, offered) =>
-    x && x.offered === offered && x.valid === offered && x.dropped === 0 &&
-    x.ttfbP95Ms !== null && x.ttfbP95Ms < 600 && x.ttfbP99Ms < 750 && x.ttfbMaxMs < 800;
+    x &&
+    x.offered === offered &&
+    x.valid === offered &&
+    x.dropped === 0 &&
+    x.ttfbP95Ms !== null &&
+    x.ttfbP95Ms < 600 &&
+    x.ttfbP99Ms < 750 &&
+    x.ttfbMaxMs < 800;
   const fifty = raw.results.find((x) => x.mode === "r2live" && x.shape === "50-rps-20s");
   const phase1 = raw.results.find((x) => x.mode === "r2live" && x.shape === "100-rps-20s-phase-1");
   const phase2 = raw.results.find((x) => x.mode === "r2live" && x.shape === "100-rps-20s-phase-2");
   concise.r2FullSyntheticTwoPhasePassed =
-    result.status === 0 && raw.restoredOriginal === true && raw.r2Retail100RpsPassed === true &&
-    strict(fifty, 1000) && strict(phase1, 2000) && strict(phase2, 2000);
+    result.status === 0 &&
+    raw.restoredOriginal === true &&
+    raw.r2Retail100RpsPassed === true &&
+    strict(fifty, 1000) &&
+    strict(phase1, 2000) &&
+    strict(phase2, 2000);
   console.log(JSON.stringify({ event: "cove_r2_retail_current_rights_stage", ...concise }));
   if (!concise.r2FullSyntheticTwoPhasePassed)
     throw Error("R2 retail synthetic strict two-phase 100-RPS gate failed; do not release");
