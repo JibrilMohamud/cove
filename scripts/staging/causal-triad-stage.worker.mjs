@@ -154,16 +154,16 @@ export async function singleTriadProbe(mode, env, ordinal, runId, cursorToken = 
         : mode === "r2cursor"
           ? R2_LIVE_RETAIL_URL + "?cursor=" + cursorToken
           : mode === "r2page2"
-          ? R2_LIVE_RETAIL_URL + "?page=2"
-          : mode === "r2seed"
-            ? R2_LIVE_RETAIL_URL + "/seed"
-            : (mode === "catalog"
-                ? CATALOG_URL + "?sort=popular&page=1&currency=USD"
-                : mode === "single"
-                  ? SINGLE_AUTHORITY_URL
-                  : CONTEXT_URL) +
-              (mode === "catalog" ? "&__proof=" : "?__proof=") +
-              encodeURIComponent(runId + "-" + ordinal);
+            ? R2_LIVE_RETAIL_URL + "?page=2"
+            : mode === "r2seed"
+              ? R2_LIVE_RETAIL_URL + "/seed"
+              : (mode === "catalog"
+                  ? CATALOG_URL + "?sort=popular&page=1&currency=USD"
+                  : mode === "single"
+                    ? SINGLE_AUTHORITY_URL
+                    : CONTEXT_URL) +
+                (mode === "catalog" ? "&__proof=" : "?__proof=") +
+                encodeURIComponent(runId + "-" + ordinal);
     const ip = stageSyntheticIp(ordinal);
     const headers = {
       accept: "application/json",
@@ -196,7 +196,10 @@ export async function singleTriadProbe(mode, env, ordinal, runId, cursorToken = 
         ms: performance.now() - started,
         valid: false,
         errorKind:
-          (mode === "r2live" || mode === "r2page2" || mode === "r2cursor" || mode === "r2cursorseed") &&
+          (mode === "r2live" ||
+            mode === "r2page2" ||
+            mode === "r2cursor" ||
+            mode === "r2cursorseed") &&
           known.includes(failure)
             ? failure
             : "upstream-http-status",
@@ -249,7 +252,7 @@ export async function singleTriadProbe(mode, env, ordinal, runId, cursorToken = 
         (data?.releaseCertified === false && data?.mode === "single-primary-rights-only")) &&
       (!["r2live", "r2page2", "r2cursor", "r2cursorseed"].includes(mode) ||
         (data?.releaseCertified === false &&
-          (mode !== "r2page2" && mode !== "r2cursor" ||
+          ((mode !== "r2page2" && mode !== "r2cursor") ||
             (!Object.hasOwn(data, "count") && !Object.hasOwn(data, "facets"))) &&
           data?.mode === (mode === "r2cursor" ? "r2-live-retail-cursor" : "r2-live-retail") &&
           (mode !== "r2cursorseed" ||

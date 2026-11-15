@@ -31,14 +31,22 @@ const validId = (value: unknown): value is string =>
   typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]{1,159}$/.test(value);
 
 function base64Url(bytes: Uint8Array): string {
-  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
 }
 
 function decodeBase64Url(value: string): Uint8Array | null {
   if (!/^[A-Za-z0-9_-]+$/.test(value) || value.length > MAX_TOKEN) return null;
   try {
     const decoded = Uint8Array.from(
-      atob(value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=")),
+      atob(
+        value
+          .replace(/-/g, "+")
+          .replace(/_/g, "/")
+          .padEnd(Math.ceil(value.length / 4) * 4, "="),
+      ),
       (c) => c.charCodeAt(0),
     );
     return base64Url(decoded) === value ? decoded : null;
@@ -127,8 +135,7 @@ export async function verifySyntheticStageCursor(
   secret: string,
   now = Date.now(),
 ): Promise<SyntheticCursorAnchor | null> {
-  if (typeof token !== "string" || token.length > MAX_TOKEN || !validScope(scope, now))
-    return null;
+  if (typeof token !== "string" || token.length > MAX_TOKEN || !validScope(scope, now)) return null;
   const fragments = token.split(".");
   if (fragments.length !== 2) return null;
   const body = decodeBase64Url(fragments[0]);

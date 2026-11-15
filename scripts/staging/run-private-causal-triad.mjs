@@ -376,11 +376,11 @@ async function warmup(run, secret) {
     ? ["noop", "r2seed", "r2cursorseed", "r2cursor"]
     : process.argv.includes("--r2-page2-100rps")
       ? ["noop", "r2seed", "r2page2"]
-    : process.argv.includes("--r2-retail-100rps")
-      ? ["noop", "r2seed", "r2live"]
-      : process.argv.includes("--rights-only-100rps")
-        ? ["noop", "rights"]
-        : MODES;
+      : process.argv.includes("--r2-retail-100rps")
+        ? ["noop", "r2seed", "r2live"]
+        : process.argv.includes("--rights-only-100rps")
+          ? ["noop", "rights"]
+          : MODES;
   for (const mode of warmModes) {
     let result;
     for (let retry = 0; retry < 5; retry++) {
@@ -404,7 +404,11 @@ async function campaign(secret) {
   if (cursorCampaign || page2Campaign || process.argv.includes("--r2-retail-100rps")) {
     const stageMode = cursorCampaign ? "r2cursor" : page2Campaign ? "r2page2" : "r2live";
     const metricPrefix = cursorCampaign ? "r2Cursor" : page2Campaign ? "r2Page2" : "r2Retail";
-    const failurePrefix = cursorCampaign ? "r2-cursor" : page2Campaign ? "r2-page-two" : "r2-retail";
+    const failurePrefix = cursorCampaign
+      ? "r2-cursor"
+      : page2Campaign
+        ? "r2-page-two"
+        : "r2-retail";
     // This experiment isolates live primary-D1 rights + retail offer validation
     // from R2 display-only books. It cannot certify full bookstore parity.
     evidence.r2RetailPresentationOnly = true;

@@ -14,11 +14,8 @@ try {
     platform: "node",
     logLevel: "silent",
   });
-  const {
-    signSyntheticStageCursor,
-    verifySyntheticStageCursor,
-    syntheticSnapshotSha256,
-  } = await import(path.join(folder, "cursor.mjs"));
+  const { signSyntheticStageCursor, verifySyntheticStageCursor, syntheticSnapshotSha256 } =
+    await import(path.join(folder, "cursor.mjs"));
 
   const now = 2_000_000_000_000;
   const gate = "a".repeat(64);
@@ -55,13 +52,15 @@ try {
     null,
   );
   assert.equal(
-    await verifySyntheticStageCursor(cursor, { ...scope, expiresAt: scope.expiresAt + 1 }, gate, now),
+    await verifySyntheticStageCursor(
+      cursor,
+      { ...scope, expiresAt: scope.expiresAt + 1 },
+      gate,
+      now,
+    ),
     null,
   );
-  assert.equal(
-    await verifySyntheticStageCursor(cursor, scope, gate, scope.expiresAt),
-    null,
-  );
+  assert.equal(await verifySyntheticStageCursor(cursor, scope, gate, scope.expiresAt), null);
   await assert.rejects(
     () => signSyntheticStageCursor({ ...anchor, position: -1 }, scope, gate, now),
     /Unsafe/,
@@ -78,7 +77,9 @@ try {
     () => signSyntheticStageCursor(anchor, scope, "not-a-hex-secret", now),
     /cursor key/,
   );
-  console.log("PASS: isolated HMAC cursor signature, expiry, immutable manifest digest, metadata revision, tampering and strict anchors");
+  console.log(
+    "PASS: isolated HMAC cursor signature, expiry, immutable manifest digest, metadata revision, tampering and strict anchors",
+  );
 } finally {
   fs.rmSync(folder, { recursive: true, force: true });
 }

@@ -760,15 +760,12 @@ export async function syntheticR2PageWithLiveRights(
   request: Request,
   env: SyntheticRightsPresentationEnv,
   now = () => Date.now(),
-): Promise<
-  | {
-      books: CatalogBook[];
-      hasMore: true;
-      cursorAnchor: SyntheticCursorAnchor;
-      cursorScope: SyntheticCursorScope;
-    }
-  | null
-> {
+): Promise<{
+  books: CatalogBook[];
+  hasMore: true;
+  cursorAnchor: SyntheticCursorAnchor;
+  cursorScope: SyntheticCursorScope;
+} | null> {
   if (!eligibleSyntheticR2Page(request, env)) return null;
   let snapshot: Snapshot;
   let rawSnapshot: string;
@@ -807,7 +804,10 @@ export async function syntheticR2PageWithLiveRights(
     );
     // A replay against a reseeded snapshot or an altered last-rank identity
     // must not reach D1, even if the signature was valid for an older cursor.
-    if (!cursorAnchor || snapshot.items[cursorAnchor.position]?.productId !== cursorAnchor.productId)
+    if (
+      !cursorAnchor ||
+      snapshot.items[cursorAnchor.position]?.productId !== cursorAnchor.productId
+    )
       return null;
   }
   // Most page-one requests need at most 25 fresh live witnesses. D1 scans every input
@@ -841,7 +841,10 @@ export async function syntheticR2PageWithLiveRights(
             rankedIds.slice(0, SECOND_PAGE_FAST_CANDIDATES),
             SECOND_PAGE_WITNESSES,
           )
-        : await authorizeOfferBearingSyntheticPage(env.DB, rankedIds.slice(0, FAST_CANDIDATE_COUNT));
+        : await authorizeOfferBearingSyntheticPage(
+            env.DB,
+            rankedIds.slice(0, FAST_CANDIDATE_COUNT),
+          );
     if (
       page === 2 &&
       (current.length !== PAGE_COUNT ||

@@ -465,8 +465,7 @@ try {
 
   // Forgery and immutable-snapshot reseed are rejected BEFORE any D1 read.
   const forgedCursor =
-    stageBody.nextCursor.slice(0, -1) +
-    (stageBody.nextCursor.endsWith("A") ? "B" : "A");
+    stageBody.nextCursor.slice(0, -1) + (stageBody.nextCursor.endsWith("A") ? "B" : "A");
   const forgedRequest = req({}, request.url + "?cursor=" + forgedCursor);
   const beforeForged = dbCalls;
   assert.equal(await syntheticR2PageWithLiveRights(forgedRequest, liveRouteEnv), null);

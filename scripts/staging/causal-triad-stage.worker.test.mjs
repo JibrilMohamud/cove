@@ -193,7 +193,10 @@ test("private cursor carrier isolates one signed anchor from measured page-two D
   const seeded = await seed.json();
   assert.equal(seeded.valid, true);
   assert.equal(seeded.cursorToken, token);
-  const cursor = await privateWorker.fetch(make("r2cursor", { "x-cove-stage-cursor": token }), stageEnv);
+  const cursor = await privateWorker.fetch(
+    make("r2cursor", { "x-cove-stage-cursor": token }),
+    stageEnv,
+  );
   assert.equal(cursor.status, 200);
   const result = await cursor.json();
   assert.equal(result.valid, true);
