@@ -17,6 +17,8 @@ import type {AuthoritySql} from './legal-authority-core';
 import {readAuthorizedPresentations} from './legal-authority-core';
 import {readCommercialStorefront} from './commercial-storefront-authority';
 import {marketIsWithdrawn} from './market-authority-core';
+import {createStageOwnerFtsSchema,sealStageOwnerFts,assertStageOwnerFtsReady,
+  stageOwnerLiteralFtsExpression} from './owner-catalog-fts.stage';
 
 const GOOD_ID=/^prd_[a-zA-Z0-9_-]{3,120}$/;
 const DEFAULT={territory:'US',currency:'USD',sort:'rank'} as const;
@@ -131,6 +133,7 @@ export function createStageOwnerIncrementalIndex(sql:AuthoritySql){
         END`);
     }
   }
+  createStageOwnerFtsSchema(sql);
 }
 
 function changeFacet(sql:AuthoritySql,kind:string,value:string,delta:1|-1){
@@ -289,6 +292,8 @@ export function bootstrapStageOwnerIndex(sql:AuthoritySql){
     if(result.remaining===0)break;
     if(++loops>20_000)throw Error('stage_owner_index_unbounded_bootstrap');
   }
+  // A partially migrated FTS table must never look like a complete index.
+  sealStageOwnerFts(sql);
   sql.exec('UPDATE cove_stage_owner_index_state SET bootstrapped=1 WHERE id=1');
 }
 
@@ -363,6 +368,7 @@ function validatedFilters(input:FilteredInput){
     ...FILTER_FIELDS,'minPrice','maxPrice']);
   if(!input||Object.keys(input).some(k=>!allowed.has(k)))
     throw Error('stage_owner_filtered_unreviewed_scope');
+  stageOwnerLiteralFtsExpression(input.query);
   const filters={} as Record<FilterField,string[]>;
   for(const field of FILTER_FIELDS){
     const raw=input[field]??[];
@@ -383,6 +389,12 @@ function validatedFilters(input:FilteredInput){
 function scopedIndexWhere(input:FilteredInput,filters:Record<FilterField,string[]>,omit?:FilterField|'price'){
   const parts=['i.territory=?','i.currency=?'];
   const args:(string|number)[]=[input.territory,input.currency];
+  const fts=stageOwnerLiteralFtsExpression(input.query);
+  if(fts){
+    parts.push(`i.product_id IN (SELECT product_id FROM cove_stage_owner_fts
+      WHERE cove_stage_owner_fts MATCH ?)`);
+    args.push(fts);
+  }
   for(const kind of FILTER_FIELDS){
     if(kind===omit||!filters[kind].length)continue;
     const values=filters[kind];
@@ -400,19 +412,22 @@ function scopedIndexWhere(input:FilteredInput,filters:Record<FilterField,string[
 }
 export function readStageOwnerFilteredIndex(sql:AuthoritySql,input:FilteredInput){
   const filters=validatedFilters(input);
+  const ftsExpression=stageOwnerLiteralFtsExpression(input.query);
   const bare={territory:input.territory,currency:input.currency,sort:input.sort,
-    page:input.page,limit:input.limit,query:input.query};
+    page:input.page,limit:input.limit,query:''};
   // The default path verifies initialization, dirty queue, lease freshness
   // and market tombstone before any facet or page read is allowed.
   const defaultPage=readStageOwnerIncrementalIndex(sql,bare);
+  if(ftsExpression)assertStageOwnerFtsReady(sql);
   if(defaultPage.count===0 ||
-    (FILTER_FIELDS.every(x=>!filters[x].length)&&input.minPrice===undefined&&
-      input.maxPrice===undefined))return defaultPage;
+    (!ftsExpression&&FILTER_FIELDS.every(x=>!filters[x].length)&&
+      input.minPrice===undefined&&input.maxPrice===undefined))return defaultPage;
   const epoch=sql.exec<{epoch:number}>(
     'SELECT epoch FROM cove_stage_owner_index_epoch WHERE id=1').toArray()[0]?.epoch;
   if(!Number.isSafeInteger(epoch))throw Error('stage_owner_filter_cache_unfenced');
   const cacheKey=JSON.stringify([input.territory,input.currency,input.sort,input.page,
-    input.limit,FILTER_FIELDS.map(f=>filters[f]),input.minPrice??null,input.maxPrice??null]);
+    input.limit,ftsExpression,FILTER_FIELDS.map(f=>filters[f]),
+    input.minPrice??null,input.maxPrice??null]);
   const now=new Date().toISOString();
   const hit=sql.exec<{body:string}>(`SELECT body FROM cove_stage_owner_index_query_cache
     WHERE scope_key=? AND epoch=? AND expires_at>?`,cacheKey,epoch!,now).toArray()[0];
