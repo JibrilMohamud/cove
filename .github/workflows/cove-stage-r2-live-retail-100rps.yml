@@ -1,7 +1,7 @@
 name: cove-stage-r2-current-retail-100rps
 on:
   push:
-    branches: [perf/stage-r2-display-current-rights-20261115, perf/stage-live-epub-readiness-20261115, perf/stage-full-book-shape-fresh-20261115, perf/stage-public-metadata-r2-20261115, perf/stage-all-public-details-r2-20261115, perf/stage-disclosure-revision-fence-20261115, perf/stage-source-attribution-fence-20261115, perf/stage-page2-live-rights-20261115, perf/stage-page2-hosted-capacity-20261115]
+    branches: [perf/stage-r2-display-current-rights-20261115, perf/stage-live-epub-readiness-20261115, perf/stage-full-book-shape-fresh-20261115, perf/stage-public-metadata-r2-20261115, perf/stage-all-public-details-r2-20261115, perf/stage-disclosure-revision-fence-20261115, perf/stage-source-attribution-fence-20261115, perf/stage-page2-live-rights-20261115, perf/stage-page2-hosted-capacity-20261115, perf/stage-page2-bounded-56-20261115]
     paths:
       - src/features/fore/synthetic-r2-live-rights-page.stage.ts
       - src/persistence-backend-entry.worker.ts
@@ -63,7 +63,7 @@ jobs:
         run: test -n "$CLOUDFLARE_API_TOKEN"
       - name: Private synthetic R2/live-retail 1-32 bursts, 50-RPS and two 100-RPS phases
         run: |
-          if [ "$GITHUB_REF_NAME" = "perf/stage-page2-hosted-capacity-20261115" ]; then
+          if [ "$GITHUB_REF_NAME" = "perf/stage-page2-hosted-capacity-20261115" ] || [ "$GITHUB_REF_NAME" = "perf/stage-page2-bounded-56-20261115" ]; then
             node scripts/staging/run-r2-live-retail-campaign.mjs --page-two-only
           else
             node scripts/staging/run-r2-live-retail-campaign.mjs
