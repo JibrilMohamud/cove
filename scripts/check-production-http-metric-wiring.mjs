@@ -35,16 +35,16 @@ const failureStart = code.indexOf('blobs: ["public-api-failure", path, "5xx"]');
 const failureEnd = code.indexOf("});", failureStart);
 assert.ok(failureStart >= 0 && failureEnd > failureStart);
 const failurePayload = code.slice(failureStart, failureEnd);
-assert.match(failurePayload, /indexes: \\["public-failure"\\]/);
+assert.match(failurePayload, /indexes: \["public-failure"\]/);
 assert.doesNotMatch(
   failurePayload,
-  /\\b(query|productId|email|ipAddress|userId|cookie|request|message|exception)\\b/,
+  /\b(query|productId|email|ipAddress|userId|cookie|request|message|exception)\b/,
 );
-assert.match(code, /response\\.status >= 500 && response\\.status <= 599/);
-assert.match(code, /response\\.status < 200 \\|\\| response\\.status >= 300/);
+assert.match(code, /response\.status >= 500 && response\.status <= 599/);
+assert.match(code, /response\.status < 200 \|\| response\.status >= 300/);
 // A 5xx AE counter must return false so handleCoveApi still executes the
 // original durable D1 error/security audit logic.
-assert.match(code, /indexes: \\["public-failure"\\][\\s\\S]*?return false;/);
+assert.match(code, /indexes: \["public-failure"\][\s\S]*?return false;/);
 console.log(
   "PASS: only canonical production anonymous GET success metrics may bypass D1, with independently bound AE and retained error/security logging",
 );
