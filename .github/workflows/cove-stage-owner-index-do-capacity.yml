@@ -6,6 +6,7 @@ on:
       - src/storefront-strangler/owner-do-capacity.stage.ts
       - src/storefront-strangler/owner-catalog-authorized-set.stage.ts
       - src/storefront-strangler/owner-catalog-incremental-index.stage.ts
+      - src/storefront-strangler/owner-catalog-fts.stage.ts
       - scripts/staging/prepare-owner-do-capacity.mjs
       - scripts/staging/run-owner-index-do-capacity.mjs
       - scripts/staging/deploy-owner-index-do-capacity.mjs
