@@ -128,7 +128,7 @@ export async function singleTriadProbe(mode, env, ordinal, runId, cursorToken = 
       mode === "r2cursor" &&
       (typeof cursorToken !== "string" ||
         cursorToken.length > 768 ||
-        !/^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$/.test(cursorToken))
+        !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(cursorToken))
     )
       return { status: 400, valid: false, errorKind: "missing-or-invalid-signed-cursor" };
     if (mode === "noop") return { status: 200, valid: true, ms: performance.now() - started };
@@ -255,7 +255,7 @@ export async function singleTriadProbe(mode, env, ordinal, runId, cursorToken = 
           (mode !== "r2cursorseed" ||
             (typeof data?.nextCursor === "string" &&
               data.nextCursor.length <= 768 &&
-              /^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$/.test(data.nextCursor))) &&
+              /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(data.nextCursor))) &&
           data?.hasMore === true &&
           data.results.every(
             (b) =>
