@@ -28,7 +28,29 @@ try {
     editionId: "edition-synth-" + i,
     title: "Stage book " + i,
     subtitle: "Only public description",
-    authors: [{ name: "Synthetic author" }],
+    authors: [{ id: "author-" + i, slug: "synthetic-author", name: "Synthetic author" }],
+    contributors: [{ id: "author-" + i, slug: "synthetic-author", name: "Synthetic author", role: "author", position: 0 }],
+    summaries: ["Public canonical summary"],
+    publisher: "Synthetic Press",
+    publisherId: "pub-" + i,
+    publisherSlug: "synthetic-press",
+    imprint: "Synthetic Books",
+    imprintId: "imp-" + i,
+    imprintSlug: "synthetic-books",
+    isbn13: "9780000000000",
+    publicationDate: "2026-01-15",
+    originalPublicationDate: "2024-02-01",
+    releaseDate: "2026-01-15",
+    editionNumber: "1",
+    originalLanguage: "en",
+    ageRange: { min: 12, max: 18 },
+    contentWarnings: ["Nonviolent synthetic sample"],
+    pageEstimate: 244,
+    wordCount: 54321,
+    readingTimeMinutes: 300,
+    publisherDescription: "Sample descriptive publisher text",
+    editorialReviews: "Sample editorial review",
+    series: [{ id: "series-" + i, slug: "synthetic-series", name: "Synthetic Series", position: 1 }],
     subjects: ["fiction"],
     bookshelves: [],
     languages: ["en"],
@@ -60,7 +82,16 @@ try {
     assert.equal(snapshot.includes(field), false, "R2 must exclude " + field);
   }
 
-  const GATE = "a".repeat(64);
+  const cleanSnapshot = JSON.parse(snapshot);
+  assert.equal(cleanSnapshot.items[0].authors[0].id, "author-0");
+  assert.equal(cleanSnapshot.items[0].contributors[0].role, "author");
+  assert.equal(cleanSnapshot.items[0].publisher, "Synthetic Press");
+  assert.equal(cleanSnapshot.items[0].summaries[0], "Public canonical summary");
+  assert.equal(cleanSnapshot.items[0].series[0].name, "Synthetic Series");
+  assert.equal(cleanSnapshot.items[0].pageEstimate, 244);
+  assert.equal(cleanSnapshot.items[0].publisherDescription, "Sample descriptive publisher text");
+
+    const GATE = "a".repeat(64);
   let dbCalls = 0;
   let returned = [];
   let primaryError = null;
@@ -148,17 +179,69 @@ try {
     ...env,
     DB: {
       prepare(sql) {
-        assert.match(sql, /idx_search_popular_stable/);
+        if (sql.includes("idx_search_popular_stable")) {
+          return {
+            all: async () => ({
+              results: books.map((b) => ({
+                product_id: b.productId,
+                edition_id: b.editionId.replace("edition-synth-", "perf-synth-"),
+              })),
+            }),
+          };
+        }
+        assert.match(sql, /FROM products p JOIN editions e ON e.id=p.edition_id/);
+        assert.match(sql, /contributors_json/);
         return {
-          all: async () => ({
-            results: books.map((b) => ({
-              product_id: b.productId,
-              edition_id: b.editionId.replace("edition-synth-", "perf-synth-"),
-              title: b.title,
-              subtitle: b.subtitle,
-              language: "en",
-            })),
-          }),
+          bind(...ids) {
+            assert.deepEqual(ids, books.map((b) => b.productId));
+            return {
+              all: async () => ({
+                results: books.map((b, i) => ({
+                  product_id: b.productId,
+                  product_public_id: String(b.id),
+                  edition_id: "perf-synth-" + i,
+                  edition_public_id: "ed-public-" + i,
+                  work_id: "work-" + i,
+                  work_public_id: "work-public-" + i,
+                  source_name: "gutenberg",
+                  source_external_id: "gutenberg-" + i,
+                  title: b.title,
+                  subtitle: b.subtitle,
+                  description: "Canonical source description " + i,
+                  contributors_json: JSON.stringify([
+                    { id: "source-author-" + i, slug: "real-author", name: "Verified Source Author", role: "author", position: 0 },
+                  ]),
+                  subjects_json: JSON.stringify(["actual subject"]),
+                  bookshelves_json: JSON.stringify(["actual bookshelf"]),
+                  languages_json: JSON.stringify(["en"]),
+                  publisher_name: "Actual Publisher",
+                  publisher_id: "actual-pub-" + i,
+                  publisher_slug: "actual-publisher",
+                  imprint_name: "Actual Imprint",
+                  imprint_id: "actual-imp-" + i,
+                  imprint_slug: "actual-imprint",
+                  isbn13: "9780000000000",
+                  original_publication_date: "2024-02-01",
+                  publication_date: "2026-01-15",
+                  release_date: "2026-01-15",
+                  page_estimate: 244,
+                  word_count: 54321,
+                  reading_time_minutes: 300,
+                  publisher_description: "Verified source public description",
+                  editorial_reviews: "Verified source editorial notes",
+                  series_json: JSON.stringify([{ id: "serie-" + i, name: "Source Series", position: 1 }]),
+                  min_age: 12,
+                  max_age: 18,
+                  content_warnings: "Nonviolent synthetic sample",
+                  epub_object_key: "synthetic/private/epub-key",
+                  drm_status: "restricted",
+                  subscription_eligible: 1,
+                  downloadable: 1,
+                  offer_json: JSON.stringify({type:"retail",currency:"USD",amountMinor:99}),
+                })),
+              }),
+            };
+          },
         };
       },
     },
@@ -175,6 +258,18 @@ try {
   assert.equal(await seedSyntheticR2Display(stageSeedEnv, () => now), true);
   assert.equal(JSON.parse(prepared).items.length, 96);
   assert.equal(prepared.includes("amountMinor"), false);
+  assert.equal(prepared.includes("synthetic/private/epub-key"), false);
+  const seeded = JSON.parse(prepared).items[0];
+  assert.deepEqual(seeded.authors, [
+    { id: "source-author-0", slug: "real-author", name: "Verified Source Author" },
+  ]);
+  assert.equal(seeded.contributors[0].name, "Verified Source Author");
+  assert.deepEqual(seeded.subjects, ["actual subject"]);
+  assert.deepEqual(seeded.bookshelves, ["actual bookshelf"]);
+  assert.deepEqual(seeded.summaries, ["Canonical source description 0"]);
+  assert.equal(seeded.publisher, "Actual Publisher");
+  assert.equal(seeded.publisherDescription, "Verified source public description");
+  assert.equal(seeded.series[0].name, "Source Series");
   const seedReq = new Request(request.url + "/seed", {
     method: "POST",
     headers: request.headers,
@@ -232,6 +327,12 @@ try {
   assert.equal(good?.hasMore, true);
   assert.equal(good.books[0].offer.amountMinor, 599, "Price comes exclusively from D1");
   assert.equal(good.books[0].formats["image/jpeg"], books[0].formats["image/jpeg"]);
+  assert.equal(good.books[0].contributors[0].name, "Synthetic author");
+  assert.deepEqual(good.books[0].summaries, ["Public canonical summary"]);
+  assert.equal(good.books[0].isbn13, "9780000000000");
+  assert.equal(good.books[0].publisherDescription, "Sample descriptive publisher text");
+  assert.equal(good.books[0].series[0].name, "Synthetic Series");
+  assert.equal(good.books[0].pageEstimate, 244);
   for (const book of good.books) {
     assert.equal(book.subscriptionEligible, false, "Live primary supersedes cached book flag");
     assert.equal(book.libraryEligible, false, "Live primary supersedes cached library flag");
