@@ -15,6 +15,11 @@ const CLOCK_BOUNDARY_MARGIN_MS = 2500;
  * small, bounded, indexed reads with four and two UNION terms respectively,
  * rather than a dozen-term UNION that fails to compile on live primary D1.
  * json_each(json_array(start,end)) folds both time columns into one stream.
+ * Force the one-row target FIRST with CROSS JOIN in each legal branch.
+ * Read-only EXPLAIN on actual 82k-product production D1 showed that plain
+ * JOINs scanned the entire grants/languages indexes (164,502 rows read),
+ * whereas target-first CROSS JOIN read 15 rows, with identical results.
+ * This is ONLY for positive publication, not a per-request catalog cache.
  * Compare EVERY date against the start of the canonical evaluation, not the
  * time at which the later D1 schedule read begins: a transition that fires
  * during an async resolver lookup must still cause a positive to be rejected.
@@ -23,20 +28,20 @@ const CLOCK_BOUNDARY_MARGIN_MS = 2500;
 export const CANONICAL_PAID_NEXT_BOUNDARY_SQL = `WITH target AS MATERIALIZED (
   SELECT p.id product_id,p.edition_id FROM products p WHERE p.id=?
 ), times(at) AS MATERIALIZED (
-  SELECT dates.value FROM rights_grants rg
-    JOIN target t ON t.edition_id=rg.edition_id
+  SELECT dates.value FROM target t
+    CROSS JOIN rights_grants rg ON rg.edition_id=t.edition_id
     CROSS JOIN json_each(json_array(rg.starts_at,rg.ends_at)) dates
-  UNION ALL SELECT dates.value FROM rights_contracts rc
-    JOIN rights_grants rg ON rg.contract_id=rc.id
-    JOIN target t ON t.edition_id=rg.edition_id
+  UNION ALL SELECT dates.value FROM target t
+    CROSS JOIN rights_grants rg ON rg.edition_id=t.edition_id
+    CROSS JOIN rights_contracts rc ON rc.id=rg.contract_id
     CROSS JOIN json_each(json_array(rc.effective_from,rc.effective_to)) dates
-  UNION ALL SELECT dates.value FROM rights_contract_versions cv
-    JOIN rights_grants rg ON rg.contract_id=cv.contract_id
-    JOIN target t ON t.edition_id=rg.edition_id
+  UNION ALL SELECT dates.value FROM target t
+    CROSS JOIN rights_grants rg ON rg.edition_id=t.edition_id
+    CROSS JOIN rights_contract_versions cv ON cv.contract_id=rg.contract_id
     CROSS JOIN json_each(json_array(cv.effective_from,cv.effective_to)) dates
-  UNION ALL SELECT dates.value FROM rights_contract_languages cl
-    JOIN rights_grants rg ON rg.contract_id=cl.contract_id
-    JOIN target t ON t.edition_id=rg.edition_id
+  UNION ALL SELECT dates.value FROM target t
+    CROSS JOIN rights_grants rg ON rg.edition_id=t.edition_id
+    CROSS JOIN rights_contract_languages cl ON cl.contract_id=rg.contract_id
     CROSS JOIN json_each(json_array(cl.starts_at,cl.ends_at)) dates
 ) SELECT
   (SELECT COUNT(*) FROM target) product_count,
