@@ -18,7 +18,8 @@ import {readAuthorizedPresentations} from './legal-authority-core';
 import {readCommercialStorefront} from './commercial-storefront-authority';
 import {marketIsWithdrawn} from './market-authority-core';
 import {createStageOwnerFtsSchema,sealStageOwnerFts,assertStageOwnerFtsReady,
-  stageOwnerLiteralFtsExpression,stageOwnerFtsPreferMatchesFirst} from './owner-catalog-fts.stage';
+  stageOwnerLiteralFtsExpression,stageOwnerFtsPreferMatchesFirst,
+  stageOwnerFtsCoversAll} from './owner-catalog-fts.stage';
 
 const GOOD_ID=/^prd_[a-zA-Z0-9_-]{3,120}$/;
 const DEFAULT={territory:'US',currency:'USD',sort:'rank'} as const;
@@ -420,9 +421,15 @@ export function readStageOwnerFilteredIndex(sql:AuthoritySql,input:FilteredInput
   // and market tombstone before any facet or page read is allowed.
   const defaultPage=readStageOwnerIncrementalIndex(sql,bare);
   if(ftsExpression)assertStageOwnerFtsReady(sql);
+  // Exact (not estimated) all-documents FTS coverage: a ubiquitous term
+  // does not change the eligible population, even after source/contract
+  // withdrawal. Do not use this unless the index passed legal/expiry fences.
+  const universalFts=!!ftsExpression &&
+    stageOwnerFtsCoversAll(sql,ftsExpression,defaultPage.count);
   if(defaultPage.count===0 ||
-    (!ftsExpression&&FILTER_FIELDS.every(x=>!filters[x].length)&&
+    ((!ftsExpression||universalFts)&&FILTER_FIELDS.every(x=>!filters[x].length)&&
       input.minPrice===undefined&&input.maxPrice===undefined))return defaultPage;
+  const scopedInput=universalFts?{...input,query:''}:input;
   const epoch=sql.exec<{epoch:number}>(
     'SELECT epoch FROM cove_stage_owner_index_epoch WHERE id=1').toArray()[0]?.epoch;
   if(!Number.isSafeInteger(epoch))throw Error('stage_owner_filter_cache_unfenced');
@@ -439,7 +446,7 @@ export function readStageOwnerFilteredIndex(sql:AuthoritySql,input:FilteredInput
       throw Error('stage_owner_filter_cache_corrupt');
     return parsed as ReturnType<typeof readStageOwnerIncrementalIndex>;
   }
-  const where=scopedIndexWhere(input,filters);
+  const where=scopedIndexWhere(scopedInput,filters);
   const count=sql.exec<{total:number}>(`SELECT COUNT(*) total FROM
     cove_stage_owner_index_items i WHERE ${where.clause}`,...where.args).toArray()[0]?.total;
   if(!Number.isSafeInteger(count))throw Error('stage_owner_filtered_invalid_count');
@@ -447,9 +454,10 @@ export function readStageOwnerFilteredIndex(sql:AuthoritySql,input:FilteredInput
   // plan. A narrow match MUST lead the join: SQLite can otherwise iterate
   // thousands of ranked rows to find one matching document. CROSS JOIN
   // fixes the order; rank-index-first remains faster for broad keywords.
-  const matchFirst=!!ftsExpression && stageOwnerFtsPreferMatchesFirst(sql,ftsExpression);
+  const matchFirst=!!ftsExpression&&!universalFts &&
+    stageOwnerFtsPreferMatchesFirst(sql,ftsExpression);
   const pageIds=matchFirst?(()=>{
-    const narrowed=scopedIndexWhere(input,filters,undefined,true);
+    const narrowed=scopedIndexWhere(scopedInput,filters,undefined,true);
     return sql.exec<{product_id:string}>(`WITH matched AS MATERIALIZED (
       SELECT product_id FROM cove_stage_owner_fts
       WHERE cove_stage_owner_fts MATCH ?
@@ -465,7 +473,7 @@ export function readStageOwnerFilteredIndex(sql:AuthoritySql,input:FilteredInput
     ...where.args,input.limit,(input.page-1)*input.limit).toArray().map(x=>x.product_id);
   const facets={} as Record<FilterField,Array<{value:string;count:number}>>;
   for(const kind of FILTER_FIELDS){
-    const facetWhere=scopedIndexWhere(input,filters,kind);
+    const facetWhere=scopedIndexWhere(scopedInput,filters,kind);
     const rows=sql.exec<{value:string;num:number}>(`SELECT dim.value value,
       COUNT(DISTINCT i.product_id) num FROM cove_stage_owner_index_items i
       JOIN cove_stage_owner_index_dimensions dim ON
@@ -476,7 +484,7 @@ export function readStageOwnerFilteredIndex(sql:AuthoritySql,input:FilteredInput
       kind,...facetWhere.args,CAPS[kind]).toArray();
     facets[kind]=rows.map(x=>({value:x.value,count:x.num}));
   }
-  const priceWhere=scopedIndexWhere(input,filters,'price');
+  const priceWhere=scopedIndexWhere(scopedInput,filters,'price');
   const price=sql.exec<{minimum:number|null;maximum:number|null}>(`SELECT
     MIN(i.price_minor) minimum,MAX(i.price_minor) maximum FROM
     cove_stage_owner_index_items i WHERE ${priceWhere.clause}`,
