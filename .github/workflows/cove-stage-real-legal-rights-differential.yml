@@ -4,6 +4,8 @@ on:
     branches: [perf/stage-real-legal-differential-20261115]
     paths:
       - scripts/staging/check-owner-canonical-real-d1-differential.mjs
+      - scripts/staging/rights-resolver-sqlite-fixture.py
+      - scripts/staging/check-actual-rights-contract-fixture.mjs
       - src/features/fore/rights.server.ts
       - .github/workflows/cove-stage-real-legal-rights-differential.yml
 permissions:
@@ -32,5 +34,7 @@ jobs:
           node --check scripts/staging/check-owner-canonical-real-d1-differential.mjs
           test -n "$CLOUDFLARE_API_TOKEN"
           git diff --check
+      - name: Exercise full canonical rights resolver on local contract-version and DRM fixtures
+        run: node scripts/staging/check-actual-rights-contract-fixture.mjs
       - name: Compare real canonical TypeScript legal decisions against isolated primary D1
         run: node scripts/staging/check-owner-canonical-real-d1-differential.mjs
