@@ -192,6 +192,12 @@ try{
   // One title term is rare here, so SQLite should drive FROM FTS matches
   // rather than scan ranked rows until it finds the target book.
   assert.equal(fts.stageOwnerFtsPreferMatchesFirst(sql,'"12"'),true);
+  assert.equal(fts.stageOwnerFtsCoversAll(sql,'"fake" AND "catalog"',25),true);
+  assert.equal(fts.stageOwnerFtsCoversAll(sql,'"fake" AND "12"',25),false);
+  assert.equal(fts.stageOwnerFtsCoversAll(sql,'"nonexistent"',25),false);
+  assert.deepEqual(idx.readStageOwnerFilteredIndex(sql,{...scope,query:'fake catalog'}),
+    idx.readStageOwnerIncrementalIndex(sql,scope),
+    'All-book FTS words have EXACT canonical rank/count/facet page parity');
   assert.equal(fts.stageOwnerFtsPreferMatchesFirst(sql,'"missing-term"'),true);
   assert.equal(fts.stageOwnerFtsPreferMatchesFirst(sql,''),false);
   const narrowPlan=db.prepare(`EXPLAIN QUERY PLAN WITH matched AS MATERIALIZED (
@@ -261,6 +267,8 @@ try{
     'Contract withdrawal must transactionally invalidate all cached filtered scopes');
   assert.equal(idx.readStageOwnerFilteredIndex(sql,{...scope,query:'12'}).count,0,
     'Revoked contract keyword must be removed from FTS in owner transaction');
+  assert.equal(fts.stageOwnerFtsCoversAll(sql,'"fake" AND "catalog"',24),true,
+    'Contract withdrawal must update ubiquitous term frequency transactionally');
   assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,24);
   assert.ok(!stage.readStageOwnerCatalogSnapshot(sql,scope).pageIds.includes(paidIds[0]));
   assert.equal(paid.readCommercialStorefront(sql,paidIds,'US','USD').length,12);
@@ -277,6 +285,8 @@ try{
     assert.deepEqual(idx.readStageOwnerFilteredIndex(sql,input),filteredGold(input));}
   assert.equal(idx.readStageOwnerFilteredIndex(sql,{...scope,query:'0'}).count,0,
     'Revoked free source cannot remain searchable');
+  assert.equal(fts.stageOwnerFtsCoversAll(sql,'"fake" AND "catalog"',23),true,
+    'Source withdrawal must keep exact all-documents FTS invariants');
   assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,23);
   assert.equal(free.readAuthorizedPresentations(sql,freeIds,'US','USD').length,11);
 
