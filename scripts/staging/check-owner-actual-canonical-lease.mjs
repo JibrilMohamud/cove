@@ -76,7 +76,7 @@ try{
   });
   const load=async name=>import(pathToFileURL(path.join(folder,name+".js")).href);
   const {resolveProductRights}=await load("rights");
-  const {canonicalCommercialLeaseUntil,CANONICAL_PAID_NEXT_BOUNDARY_SQL}=await load("lease");
+  const {canonicalCommercialLeaseUntil,CANONICAL_PAID_NEXT_BOUNDARY_SQL,CANONICAL_PAID_OFFER_NEXT_BOUNDARY_SQL}=await load("lease");
   const {
     createCommercialAuthoritySchema,publishFreshCommercialProof,
     denyCommercialSubject,denyCommercialProduct,
@@ -91,8 +91,10 @@ try{
   assert.match(CANONICAL_PAID_NEXT_BOUNDARY_SQL,/rights_grants/);
   assert.match(CANONICAL_PAID_NEXT_BOUNDARY_SQL,/rights_contract_versions/);
   assert.match(CANONICAL_PAID_NEXT_BOUNDARY_SQL,/rights_contract_languages/);
-  assert.match(CANONICAL_PAID_NEXT_BOUNDARY_SQL,/offers/);
-  assert.match(CANONICAL_PAID_NEXT_BOUNDARY_SQL,/editions/);
+  assert.match(CANONICAL_PAID_OFFER_NEXT_BOUNDARY_SQL,/offers/);
+  assert.match(CANONICAL_PAID_OFFER_NEXT_BOUNDARY_SQL,/editions/);
+  assert.ok((CANONICAL_PAID_NEXT_BOUNDARY_SQL.match(/UNION ALL/g)||[]).length<=3);
+  assert.ok((CANONICAL_PAID_OFFER_NEXT_BOUNDARY_SQL.match(/UNION ALL/g)||[]).length<=1);
   assert.match(CANONICAL_PAID_NEXT_BOUNDARY_SQL,/julianday\(at\)/);
   assert.match(CANONICAL_PAID_NEXT_BOUNDARY_SQL,/primary_now/);
 
