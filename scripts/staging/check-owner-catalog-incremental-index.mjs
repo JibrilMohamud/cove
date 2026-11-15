@@ -121,6 +121,26 @@ try{
   assert.deepEqual(verifiedMirror('uniquejewel').pageIds,[paidIds[0]]);
   assert.deepEqual(verifiedMirror('uniquepearl').pageIds,[freeIds[0]]);
   assert.deepEqual(verifiedMirror('uniqueemerald').pageIds,[paidIds[1]]);
+  const mirrorFiltered=parts=>prodMirror.readStageProductionFtsFiltered(sql,{
+    query:'fake',territory:'US',currency:'USD',language:'all',
+    sort:'relevance',page:1,limit:24,...parts,
+  },()=>idx.readStageOwnerIncrementalIndex(sql,scope));
+  const selectedClassics=mirrorFiltered({categories:['Classics']});
+  assert.equal(selectedClassics.count,5);
+  assert.deepEqual(selectedClassics.facets.categories,[
+    {value:'Fiction',count:25},{value:'Classics',count:5},
+  ],'Selected category cannot reduce its own disjunctive values');
+  assert.deepEqual(selectedClassics.facets.price,{currency:'USD',min:0,max:0});
+  assert.equal(mirrorFiltered({minPrice:599}).count,13);
+  assert.deepEqual(mirrorFiltered({maxPrice:0}).facets.price,
+    {currency:'USD',min:0,max:599},
+    'Price facet ignores its own selection but retains legal owner scope');
+  assert.equal(mirrorFiltered({categories:['Classics'],minPrice:599}).count,0);
+  assert.equal(mirrorFiltered({languages:['en'],categories:['Classics']}).count,3);
+  assert.equal(mirrorFiltered({formats:['audio'],minPrice:599}).count,
+    stage.stageOwnerCatalogRead(sql,scope).pageIds.slice(12).filter((_,j)=>
+      (j+12)%3!==0).length);
+  assert.throws(()=>mirrorFiltered({contributorIds:['unknown']}),/unreviewed_scope/);
   const firstIndexed=idx.readStageOwnerIncrementalIndex(sql,scope);
   assert.deepEqual(firstIndexed,direct,'Indexed 25-book exact page/count/facets parity');
   assert.equal(idx.readStageOwnerIncrementalIndex(sql,{...scope,page:2,limit:10}).pageIds.length,10);
@@ -315,6 +335,7 @@ try{
   assert.equal(verifiedMirror('uniquejewel').count,0,
     'Real canonical contract denial must invalidate production-shaped FTS');
   assert.equal(prodMirror.sealStageProductionFtsMirror(sql).global_count,24);
+  assert.equal(mirrorFiltered({minPrice:599}).count,12);
   assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,24);
   assert.ok(!stage.readStageOwnerCatalogSnapshot(sql,scope).pageIds.includes(paidIds[0]));
   assert.equal(paid.readCommercialStorefront(sql,paidIds,'US','USD').length,12);
@@ -336,6 +357,7 @@ try{
   assert.equal(verifiedMirror('uniquepearl').count,0,
     'Real canonical free-source denial must invalidate production-shaped FTS');
   assert.equal(prodMirror.sealStageProductionFtsMirror(sql).global_count,23);
+  assert.equal(mirrorFiltered({maxPrice:0}).count,11);
   assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,23);
   assert.equal(free.readAuthorizedPresentations(sql,freeIds,'US','USD').length,11);
 
@@ -369,6 +391,7 @@ try{
   assert.equal(verifiedMirror('uniqueemerald').count,0,
     'Expired paid lease must disappear from production-shaped FTS');
   assert.equal(prodMirror.sealStageProductionFtsMirror(sql).global_count,22);
+  assert.equal(mirrorFiltered({minPrice:599}).count,11);
   assert.equal(idx.readStageOwnerFilteredIndex(sql,{...scope,query:'13'}).count,0,
     'Expired paid proof must leave FTS and its cache after owner refresh');
   assert.ok(!idx.readStageOwnerIncrementalIndex(sql,scope).pageIds.includes(expiring));
@@ -391,6 +414,7 @@ try{
   assert.throws(()=>stage.readStageOwnerCatalogSnapshot(sql,scope),/unavailable_or_revoked/);
   assert.equal(verifiedMirror('fake').count,0,
     'Market-wide legal veto must suppress all owner-FTS searches');
+  assert.equal(mirrorFiltered({categories:['Fiction']}).count,0);
   assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope),stage.stageOwnerCatalogRead(sql,scope));
   for(const part of filterSamples){const input={...scope,...part};
     assert.deepEqual(idx.readStageOwnerFilteredIndex(sql,input),filteredGold(input));}
