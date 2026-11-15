@@ -1,4 +1,8 @@
-import { singleTriadProbe, triadStageBindingGuard, triadModes } from "./causal-triad-stage.worker.mjs";
+import {
+  singleTriadProbe,
+  triadStageBindingGuard,
+  triadModes,
+} from "./causal-triad-stage.worker.mjs";
 
 const PREFIX = "/__cove/performance/triad/";
 const MODES = new Set(triadModes);
@@ -7,7 +11,8 @@ function equalSecret(supplied, expected) {
   if (typeof expected !== "string" || !/^[a-f0-9]{64}$/.test(expected)) return false;
   if (typeof supplied !== "string" || supplied.length !== expected.length) return false;
   let mismatch = 0;
-  for (let i = 0; i < expected.length; i++) mismatch |= supplied.charCodeAt(i) ^ expected.charCodeAt(i);
+  for (let i = 0; i < expected.length; i++)
+    mismatch |= supplied.charCodeAt(i) ^ expected.charCodeAt(i);
   return mismatch === 0;
 }
 
