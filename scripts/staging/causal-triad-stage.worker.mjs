@@ -136,14 +136,14 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
         : mode === "r2page2"
           ? R2_LIVE_RETAIL_URL + "?page=2"
           : mode === "r2seed"
-          ? R2_LIVE_RETAIL_URL + "/seed"
-          : (mode === "catalog"
-              ? CATALOG_URL + "?sort=popular&page=1&currency=USD"
-              : mode === "single"
-                ? SINGLE_AUTHORITY_URL
-                : CONTEXT_URL) +
-            (mode === "catalog" ? "&__proof=" : "?__proof=") +
-            encodeURIComponent(runId + "-" + ordinal);
+            ? R2_LIVE_RETAIL_URL + "/seed"
+            : (mode === "catalog"
+                ? CATALOG_URL + "?sort=popular&page=1&currency=USD"
+                : mode === "single"
+                  ? SINGLE_AUTHORITY_URL
+                  : CONTEXT_URL) +
+              (mode === "catalog" ? "&__proof=" : "?__proof=") +
+              encodeURIComponent(runId + "-" + ordinal);
     const ip = stageSyntheticIp(ordinal);
     const headers = {
       accept: "application/json",
@@ -175,7 +175,10 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
         firstByteMs,
         ms: performance.now() - started,
         valid: false,
-        errorKind: (mode === "r2live" || mode === "r2page2") && known.includes(failure) ? failure : "upstream-http-status",
+        errorKind:
+          (mode === "r2live" || mode === "r2page2") && known.includes(failure)
+            ? failure
+            : "upstream-http-status",
       };
     }
     const data = await resp.json();
@@ -223,7 +226,7 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
             : "d1-r2") &&
       (mode !== "single" ||
         (data?.releaseCertified === false && data?.mode === "single-primary-rights-only")) &&
-      (mode !== "r2live" && mode !== "r2page2" ||
+      ((mode !== "r2live" && mode !== "r2page2") ||
         (data?.releaseCertified === false &&
           (mode !== "r2page2" ||
             (!Object.hasOwn(data, "count") && !Object.hasOwn(data, "facets"))) &&
