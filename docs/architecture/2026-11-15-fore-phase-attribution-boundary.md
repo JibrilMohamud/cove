@@ -45,6 +45,47 @@ writer semantic change. Every one remains
 `releaseApproval=false`. The canonical writer closure audit must
 pass on the direct-to-main PR merge comparison.
 
+## Production telemetry and D1 write amplification review
+
+Read-only Cloudflare API check found that the **production persistence
+Worker has no `observability` settings**, no logpush and no tail
+consumers. Cloudflare Observability had records from the separate
+production legal owner, but none from the persistence Worker in the
+sampled 22:20–22:35 UTC window. That is a telemetry coverage gap,
+NOT proof that the backend did not run.
+
+The production Worker **already** has a purpose-scoped independent
+Analytics Engine binding `OPS_ANALYTICS` to `cove_public_http_ops`;
+its canonical production toggle is `analytics-engine` and public
+anonymous HTTP instrumentation is enabled. Previously that sink
+accepted ONLY successful anonymous GETs. The additional minimal
+diagnostic writes fixed `["public-api-failure", route, "5xx"]`,
+status code and elapsed milliseconds for failed anonymous GETs on
+six reviewed public read routes. It excludes cookies, authorization,
+identity headers, all non-GET routes, commerce, rights and user requests.
+**No URL query string, title, book ID, user ID, IP, error body, SQL,
+exception text, request ID or authentication secret is emitted.**
+
+Most importantly, the failure-metric branch **returns false** after
+its best-effort AE write, so `handleCoveApi` continues to call
+`recordHttpRequest` and retains existing primary-D1 operational/
+security/error audit behavior. This is not a substitute for certified
+legal records. If Analytics Engine fails, the original 503 and D1
+error audit behavior remain unchanged.
+
+The existing `recordHttpRequest` writes up to three ops D1 records
+per request (request, trace and histogram) in one batch. Read-only
+D1 audit sampling at 22:20–22:30 UTC had four successful recorded
+public requests and no recorded 503s, even though Vercel logged many
+503 warnings in the same period. This is a **cross-system signal gap**,
+not conclusive proof of a D1 auditing failure or of its root cause.
+Do not drop required legal/security logging or assume this stage
+instrumentation resolves D1 contention.
+
+A future controlled release must verify independent AE category
+counts, Worker phase markers and actual 503 rate before and after
+deploying, with no automatic fallback to stale catalog rights.
+
 ## Independent validation and deployment boundary
 
 PR #705 was retargeted to `main` and GitHub reported
