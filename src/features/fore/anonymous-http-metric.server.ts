@@ -64,10 +64,7 @@ export function emitIsolatedAnonymousHttpMetric(
     try {
       env.OPS_ANALYTICS.writeDataPoint({
         blobs: ["public-api-failure", path, "5xx"],
-        doubles: [
-          response.status,
-          Number.isFinite(durationMs) ? Math.max(0, durationMs) : 0,
-        ],
+        doubles: [response.status, Number.isFinite(durationMs) ? Math.max(0, durationMs) : 0],
         indexes: ["public-failure"],
       });
     } catch {
