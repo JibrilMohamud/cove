@@ -1,0 +1,82 @@
+{
+  "schema": "cove.synthetic-r2-display-current-primary-d1-retail-100rps.v1",
+  "measuredAtUTC": "2026-11-15",
+  "sourceWorkflow": "https://github.com/JibrilMohamud/cove/actions/runs/43671386970",
+  "sourceJobId": 132682157100,
+  "sourceBranch": "perf/stage-r2-display-current-rights-20261115",
+  "productionReleaseCertified": false,
+  "measurementScope": "A private, protected Worker driver over HTTPS -> nonpublic synthetic backend service. Existing synthetic 50,000-product D1 fixture with 96 current retail offers, 12 inactive and 12 expired. One bounded R2 display snapshot, one current primary-D1 market/territory/edition/retail-offer read per valid GET. Bypasses production legacy HTTP audit and does not include full production catalog DTO or purchase/entitlement/rights owner.",
+  "fixture": {
+    "databaseName": "cove-perf-isolated-candidate-20261019",
+    "databaseId": "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
+    "productCount": 50000,
+    "currentRetailOffers": 96,
+    "inactiveOffers": 12,
+    "expiredOffers": 12,
+    "eligibleCurrentTop96": 93,
+    "pricedCurrentWitnessesInStageQuery": 25,
+    "syntheticOfferAmountsMinor": {
+      "min": 0,
+      "max": 2399
+    }
+  },
+  "acceptanceTarget": {
+    "offeredPerPhase": 2000,
+    "phaseSeconds": 20,
+    "rps": 100,
+    "allValid": true,
+    "zeroDrops": true,
+    "p95TtfbMsBelow": 600,
+    "p99TtfbMsBelow": 750,
+    "maxTtfbMsBelow": 800
+  },
+  "sustained50Rps20s": {
+    "offered": 1000,
+    "valid": 1000,
+    "failed": 0,
+    "dropped": 0,
+    "achievedRps": 49.49,
+    "p95TtfbMs": 299.04,
+    "p99TtfbMs": 338.09,
+    "maxTtfbMs": 786.65
+  },
+  "phases100Rps20s": [
+    {
+      "phase": 1,
+      "offered": 2000,
+      "valid": 2000,
+      "failed": 0,
+      "dropped": 0,
+      "p95TtfbMs": 287.81,
+      "p99TtfbMs": 354.61,
+      "maxTtfbMs": 476.02
+    },
+    {
+      "phase": 2,
+      "offered": 2000,
+      "valid": 2000,
+      "failed": 0,
+      "dropped": 0,
+      "p95TtfbMs": 263.19,
+      "p99TtfbMs": 326.46,
+      "maxTtfbMs": 592.48
+    }
+  ],
+  "twoPhaseSyntheticPathPassed": true,
+  "releaseGatesStillBlocked": [
+    "Customer-routed production catalog 503s, exact full-book/retail offer details/marketing parity, current primary legal owner and immediate full-rights revocation",
+    "800-ms cold/warm production homepage across 1/4/8/16/32 users",
+    "Two 100-RPS phases for the complete production user-facing page, not isolated synthetic candidate",
+    "ORD/LAX/IAD/DFW geographic repeatability",
+    "Stripe LIVE settlement, entitlement, refund and download revocation",
+    "Production legal-owner activation and exclusion of competing direct D1 writer credentials",
+    "Protected production rollback rehearsal and legal data-plane certification"
+  ],
+  "rollbacks": {
+    "candidateOriginalVersion": "60d1924f-2917-42be-acf7-496e84cb55e7",
+    "driverOriginalVersion": "4c25df92-5f4d-4b57-ac8c-c7b80d8a34c2",
+    "bothVerifiedRestored": true,
+    "cronCountAfter": 0
+  },
+  "interpretation": "This is strong evidence that independent nonauthorizing book presentation plus live primary-D1 bounded territorial/retail offer proof can sustain the exact synthetic 2x100RPS workload. It does not establish production readiness or authorize switching routing, broad legal rights, payment activation or releasing the private synthetic feature flag."
+}

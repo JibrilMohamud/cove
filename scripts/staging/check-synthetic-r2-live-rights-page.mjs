@@ -1,0 +1,547 @@
+import assert from "node:assert/strict";
+import { build } from "esbuild";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cove-stage-r2-live-fence-"));
+try {
+  await build({
+    entryPoints: ["src/features/fore/synthetic-r2-live-rights-page.stage.ts"],
+    outfile: path.join(dir, "presentation.mjs"),
+    bundle: true,
+    format: "esm",
+    platform: "node",
+    alias: { jszip: "jszip/dist/jszip.min.js" },
+    logLevel: "silent",
+  });
+  const {
+    buildSyntheticDisplayObject,
+    eligibleSyntheticR2Page,
+    seedSyntheticR2Display,
+    handleSyntheticR2LiveRightsStage,
+    syntheticR2PageWithLiveRights,
+  } = await import(path.join(dir, "presentation.mjs"));
+  const books = Array.from({ length: 96 }, (_, i) => ({
+    id: "public-" + i,
+    productId: "perf-synth-" + i,
+    editionId: "edition-synth-" + i,
+    title: "Stage book " + i,
+    subtitle: "Only public description",
+    authors: [{ id: "author-" + i, slug: "synthetic-author", name: "Synthetic author" }],
+    contributors: [
+      {
+        id: "author-" + i,
+        slug: "synthetic-author",
+        name: "Synthetic author",
+        role: "author",
+        position: 0,
+      },
+    ],
+    summaries: ["Public canonical summary"],
+    publisher: "Synthetic Press",
+    publisherId: "pub-" + i,
+    publisherSlug: "synthetic-press",
+    imprint: "Synthetic Books",
+    imprintId: "imp-" + i,
+    imprintSlug: "synthetic-books",
+    isbn13: "9780000000000",
+    publicationDate: "2026-01-15",
+    originalPublicationDate: "2024-02-01",
+    releaseDate: "2026-01-15",
+    editionNumber: "1",
+    originalLanguage: "en",
+    ageRange: { min: 12, max: 18 },
+    contentWarnings: ["Nonviolent synthetic sample"],
+    pageEstimate: 244,
+    wordCount: 54321,
+    readingTimeMinutes: 300,
+    publisherDescription: "Sample descriptive publisher text",
+    editorialReviews: "Sample editorial review",
+    series: [
+      { id: "series-" + i, slug: "synthetic-series", name: "Synthetic Series", position: 1 },
+    ],
+    subjects: ["fiction"],
+    bookshelves: [],
+    languages: ["en"],
+    formats: {
+      "image/jpeg": "https://cdn.example.test/cover-" + i + ".jpg",
+      "application/epub+zip": "/api/fore/books/protected-" + i + "/epub",
+    },
+    download_count: 1000,
+    offer: { type: "retail", currency: "USD", amountMinor: 1 },
+    drmStatus: "restricted",
+    subscriptionEligible: true,
+    libraryEligible: true,
+    downloadable: true,
+    readingAvailability: { state: "stored" },
+  }));
+  const now = 2_000_000_000_000;
+  const snapshot = buildSyntheticDisplayObject(books, now);
+  for (const field of [
+    "application/epub+zip",
+    "protected-",
+    "subscriptionEligible",
+    "libraryEligible",
+    "drmStatus",
+    "downloadable",
+    "readingAvailability",
+    "amountMinor",
+    "offer",
+  ]) {
+    assert.equal(snapshot.includes(field), false, "R2 must exclude " + field);
+  }
+
+  const cleanSnapshot = JSON.parse(snapshot);
+  assert.equal(cleanSnapshot.items[0].authors[0].id, "author-0");
+  assert.equal(cleanSnapshot.items[0].contributors[0].role, "author");
+  assert.equal(cleanSnapshot.items[0].publisher, "Synthetic Press");
+  assert.equal(cleanSnapshot.items[0].summaries[0], "Public canonical summary");
+  assert.equal(cleanSnapshot.items[0].series[0].name, "Synthetic Series");
+  assert.equal(cleanSnapshot.items[0].pageEstimate, 244);
+  assert.equal(cleanSnapshot.items[0].publisherDescription, "Sample descriptive publisher text");
+
+  const GATE = "a".repeat(64);
+  let dbCalls = 0;
+  let returned = [];
+  let primaryError = null;
+  let failFallbackD1 = false;
+  const env = {
+    COVE_SYNTHETIC_STAGING_ONLY: "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
+    FORE_GUEST_COMPACT_STAGE: "1",
+    FORE_GUEST_R2_DISPLAY_STAGE: "1",
+    FORE_GUEST_COMPACT_SYNTHETIC_D1_ID: "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
+    FORE_BACKEND_TOKEN: GATE,
+    COVE_PUBLIC_PRESENTATION_CACHE: {
+      get: async () => ({ etag: "test", size: snapshot.length, text: async () => snapshot }),
+    },
+    DB: {
+      prepare(sql) {
+        dbCalls++;
+        assert.match(sql, /storefront_markets/);
+        assert.match(sql, /retail_product_availability_rows/);
+        assert.match(sql, /JOIN works w ON w.id=e.work_id/);
+        assert.match(sql, /a.subscription_eligible/);
+        assert.match(sql, /a.downloadable/);
+        assert.match(sql, /FROM offers o/);
+        assert.match(sql, /EXISTS \(SELECT 1 FROM offers offer_exists/);
+        assert.doesNotMatch(sql, /\\b(?:INSERT|UPDATE|DELETE|REPLACE)\\b/i);
+        return {
+          bind(...params) {
+            assert.equal(params[0], "US");
+            const candidates = JSON.parse(params[1]);
+            assert.ok(
+              [32, 96].includes(candidates.length),
+              "Stage D1 must select bounded fast candidates or the full fallback",
+            );
+            assert.deepEqual(params.slice(2), ["USD", "USD", "US"]);
+            const inWindow = new Set(candidates);
+            return {
+              async all() {
+                if (primaryError) throw primaryError;
+                if (failFallbackD1 && candidates.length === 96)
+                  throw Object.assign(new Error("D1 overload during fallback"), { code: 7429 });
+                return {
+                  results: returned.filter((row) => inWindow.has(row.product_id)).slice(0, 25),
+                };
+              },
+            };
+          },
+        };
+      },
+    },
+  };
+  const rows = (ids, price = 599) =>
+    ids.map((i) => ({
+      product_id: "perf-synth-" + i,
+      edition_id: "edition-synth-" + i,
+      product_public_id: "public-" + i,
+      edition_public_id: "pub-ed-" + i,
+      work_id: "work-synth-" + i,
+      work_public_id: "wrk_" + i,
+      source_name: "gutenberg",
+      source_external_id: "gutenberg-synth-" + i,
+      release_status: "available",
+      drm_status: "none",
+      downloadable: 1,
+      subscription_eligible: 0,
+      library_eligible: 0,
+      download_count: 17,
+      offer_json: JSON.stringify({ type: "retail", currency: "USD", amountMinor: price }),
+    }));
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  const req = (headers = {}, address = undefined) =>
+    new Request(
+      address ||
+        "https://cove-presentation-r2-proof-20261114.cove-jibrilmohamud.workers.dev/api/fore/__perf/private-r2-live-rights",
+      {
+        headers: {
+          "x-cove-backend-token": GATE,
+          "x-cove-client-country": "US",
+          ...headers,
+        },
+      },
+    );
+  const request = req();
+  assert.equal(eligibleSyntheticR2Page(request, env), true);
+  let prepared = "";
+  const stageSeedEnv = {
+    ...env,
+    DB: {
+      prepare(sql) {
+        if (sql.includes("idx_search_popular_stable")) {
+          return {
+            all: async () => ({
+              results: books.map((b) => ({
+                product_id: b.productId,
+                edition_id: b.editionId.replace("edition-synth-", "perf-synth-"),
+              })),
+            }),
+          };
+        }
+        assert.match(sql, /FROM products p JOIN editions e ON e.id=p.edition_id/);
+        assert.match(sql, /contributors_json/);
+        return {
+          bind(...ids) {
+            assert.deepEqual(
+              ids,
+              books.map((b) => b.productId),
+            );
+            return {
+              all: async () => ({
+                results: books.map((b, i) => ({
+                  product_id: b.productId,
+                  product_public_id: String(b.id),
+                  edition_id: "perf-synth-" + i,
+                  edition_public_id: "ed-public-" + i,
+                  work_id: "work-" + i,
+                  work_public_id: "work-public-" + i,
+                  source_name: "gutenberg",
+                  source_external_id: "gutenberg-" + i,
+                  title: b.title,
+                  subtitle: b.subtitle,
+                  description: "Canonical source description " + i,
+                  contributors_json: JSON.stringify([
+                    {
+                      id: "source-author-" + i,
+                      slug: "real-author",
+                      name: "Verified Source Author",
+                      role: "author",
+                      position: 0,
+                    },
+                  ]),
+                  subjects_json: JSON.stringify(["actual subject"]),
+                  bookshelves_json: JSON.stringify(["actual bookshelf"]),
+                  languages_json: JSON.stringify(["en"]),
+                  publisher_name: "Actual Publisher",
+                  publisher_id: "actual-pub-" + i,
+                  publisher_slug: "actual-publisher",
+                  imprint_name: "Actual Imprint",
+                  imprint_id: "actual-imp-" + i,
+                  imprint_slug: "actual-imprint",
+                  isbn13: "9780000000000",
+                  original_publication_date: "2024-02-01",
+                  publication_date: "2026-01-15",
+                  release_date: "2026-01-15",
+                  page_estimate: 244,
+                  word_count: 54321,
+                  reading_time_minutes: 300,
+                  publisher_description: "Verified source public description",
+                  editorial_reviews: "Verified source editorial notes",
+                  series_json: JSON.stringify([
+                    { id: "serie-" + i, name: "Source Series", position: 1 },
+                  ]),
+                  min_age: 12,
+                  max_age: 18,
+                  content_warnings: "Nonviolent synthetic sample",
+                  epub_object_key: "synthetic/private/epub-key",
+                  drm_status: "restricted",
+                  subscription_eligible: 1,
+                  downloadable: 1,
+                  offer_json: JSON.stringify({ type: "retail", currency: "USD", amountMinor: 99 }),
+                })),
+              }),
+            };
+          },
+        };
+      },
+    },
+    COVE_PUBLIC_PRESENTATION_CACHE: {
+      get: async () => (prepared ? { etag: "saved", text: async () => prepared } : null),
+      put: async (key, body, conditions) => {
+        assert.match(key, /synthetic-ranked-books-v1/);
+        assert.deepEqual(conditions, { onlyIf: { etagDoesNotMatch: "*" } });
+        prepared = body;
+        return { etag: "saved" };
+      },
+    },
+  };
+  assert.equal(await seedSyntheticR2Display(stageSeedEnv, () => now), true);
+  assert.equal(JSON.parse(prepared).items.length, 96);
+  assert.equal(prepared.includes("amountMinor"), false);
+  assert.equal(prepared.includes("synthetic/private/epub-key"), false);
+  const seeded = JSON.parse(prepared).items[0];
+  assert.deepEqual(seeded.authors, [
+    { id: "source-author-0", slug: "real-author", name: "Verified Source Author" },
+  ]);
+  assert.equal(seeded.contributors[0].name, "Verified Source Author");
+  assert.deepEqual(seeded.subjects, ["actual subject"]);
+  assert.deepEqual(seeded.bookshelves, ["actual bookshelf"]);
+  assert.deepEqual(seeded.summaries, ["Canonical source description 0"]);
+  assert.equal(seeded.publisher, "Actual Publisher");
+  assert.equal(seeded.publisherDescription, "Verified source public description");
+  assert.equal(seeded.series[0].name, "Source Series");
+  const seedReq = new Request(request.url + "/seed", {
+    method: "POST",
+    headers: request.headers,
+  });
+  const deniedSeed = await handleSyntheticR2LiveRightsStage(seedReq, {
+    ...stageSeedEnv,
+    FORE_GUEST_R2_DISPLAY_STAGE: "0",
+  });
+  assert.equal(deniedSeed.status, 404);
+  const badBodySeed = await handleSyntheticR2LiveRightsStage(
+    new Request(seedReq.url, { method: "POST", headers: request.headers, body: "unsafe" }),
+    stageSeedEnv,
+  );
+  assert.equal(badBodySeed.status, 404);
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  const stageLive = await handleSyntheticR2LiveRightsStage(request, {
+    ...env,
+    COVE_PUBLIC_PRESENTATION_CACHE: {
+      get: async () => ({
+        etag: "saved",
+        text: async () => buildSyntheticDisplayObject(books, Date.now()),
+      }),
+    },
+  });
+  assert.equal(stageLive.status, 200);
+  assert.equal(stageLive.headers.get("x-cove-persistence"), "d1-live-retail-r2-display-synthetic");
+  const stageBody = await stageLive.json();
+  assert.equal(stageBody.results.length, 24);
+  assert.equal(stageBody.releaseCertified, false);
+  assert.equal(stageBody.mode, "r2-live-retail");
+
+  // Sparse rights/offer loss beyond the 32-ID window must trigger exactly
+  // one fresh full-list primary read. Never combine old positive witnesses.
+  returned = rows(Array.from({ length: 25 }, (_, i) => i + 8));
+  const beforeFallback = dbCalls;
+  const fallback = await syntheticR2PageWithLiveRights(request, env, () => now);
+  assert.equal(fallback?.books.length, 24);
+  assert.equal(fallback.books[0].productId, "perf-synth-8");
+  assert.equal(dbCalls - beforeFallback, 2, "Sparse page requires fresh 32+96 live D1 reads");
+  failFallbackD1 = true;
+  await assert.rejects(
+    () => syntheticR2PageWithLiveRights(request, env, () => now),
+    /fallback/,
+    "D1 7429 on fallback must deny every positive presentation",
+  );
+  failFallbackD1 = false;
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  const good = await syntheticR2PageWithLiveRights(request, env, () => now);
+  assert.equal(
+    dbCalls,
+    beforeFallback + 5,
+    "Sparse fallback uses two fresh reads, failed fallback two, normal one",
+  );
+  assert.equal(good?.books.length, 24);
+  assert.equal(good?.hasMore, true);
+  assert.equal(good.books[0].offer.amountMinor, 599, "Price comes exclusively from D1");
+  assert.equal(good.books[0].formats["image/jpeg"], books[0].formats["image/jpeg"]);
+  assert.equal(good.books[0].contributors[0].name, "Synthetic author");
+  assert.deepEqual(good.books[0].summaries, ["Public canonical summary"]);
+  assert.equal(good.books[0].isbn13, "9780000000000");
+  assert.equal(good.books[0].publisherDescription, "Sample descriptive publisher text");
+  assert.equal(good.books[0].series[0].name, "Synthetic Series");
+  assert.equal(good.books[0].pageEstimate, 244);
+  for (const book of good.books) {
+    assert.equal(book.subscriptionEligible, false, "Live primary supersedes cached book flag");
+    assert.equal(book.libraryEligible, false, "Live primary supersedes cached library flag");
+    assert.equal(book.downloadable, true, "Live primary sets edition display metadata only");
+    assert.equal(book.releaseStatus, "available");
+    assert.equal(book.drmStatus, "none");
+    assert.equal(book.download_count, 17, "Download tally is from the current primary");
+    assert.match(book.workId, /^work-synth-/);
+    assert.equal(book.readingAvailability, undefined);
+    assert.equal(book.formats["application/epub+zip"], undefined);
+  }
+
+  // If the top candidate loses its retail offer, the live SELECT itself
+  // must exclude it so candidate 26 fills the 25th witness slot; the R2
+  // ranking is unchanged and cannot confer price or availability.
+  returned = rows(Array.from({ length: 25 }, (_, i) => i + 1));
+  const offerWithdrawn = await syntheticR2PageWithLiveRights(request, env, () => now);
+  assert.equal(offerWithdrawn.books.length, 24);
+  assert.equal(offerWithdrawn.books[0].productId, "perf-synth-1");
+  assert.equal(
+    offerWithdrawn.books.some((book) => book.productId === "perf-synth-0"),
+    false,
+  );
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  returned[0].subscription_eligible = 2;
+  assert.equal(
+    await syntheticR2PageWithLiveRights(request, env, () => now),
+    null,
+    "Malformed primary subscription metadata must fail closed",
+  );
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  returned[0].downloadable = null;
+  assert.equal(
+    await syntheticR2PageWithLiveRights(request, env, () => now),
+    null,
+    "Absent primary download metadata must fail closed",
+  );
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  returned[0].offer_json = null;
+  assert.equal(
+    await syntheticR2PageWithLiveRights(request, env, () => now),
+    null,
+    "A malformed primary offer witness must fail closed",
+  );
+  returned = rows(
+    Array.from({ length: 25 }, (_, i) => i),
+    0,
+  );
+  assert.equal(
+    (await syntheticR2PageWithLiveRights(request, env, () => now)).books[0].offer.amountMinor,
+    0,
+    "Current free price must never borrow the old amount",
+  );
+  // A revocation removes the retired ID, while a later current right-checked
+  // candidate fills the page without any cached positive grant.
+  returned = rows([
+    ...Array.from({ length: 3 }, (_, i) => i),
+    ...Array.from({ length: 22 }, (_, i) => i + 4),
+  ]);
+  const revoked = await syntheticR2PageWithLiveRights(request, env, () => now);
+  assert.equal(
+    revoked.books.some((b) => b.productId === "perf-synth-3"),
+    false,
+  );
+  assert.equal(revoked.books.length, 24);
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  returned[24] = { ...returned[23] };
+  assert.equal(
+    await syntheticR2PageWithLiveRights(request, env, () => now),
+    null,
+    "Duplicate D1 rows must never prove a 25th authorized item",
+  );
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  [returned[0], returned[1]] = [returned[1], returned[0]];
+  assert.equal(
+    await syntheticR2PageWithLiveRights(request, env, () => now),
+    null,
+    "D1 order must agree with the verified public ranking",
+  );
+  returned = rows(Array.from({ length: 24 }, (_, i) => i));
+  assert.equal(
+    await syntheticR2PageWithLiveRights(request, env, () => now),
+    null,
+    "No 25th live witness",
+  );
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  returned[0].offer_json = null;
+  assert.equal(await syntheticR2PageWithLiveRights(request, env, () => now), null, "No offer");
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  returned[0].edition_id = "changed-edition";
+  assert.equal(await syntheticR2PageWithLiveRights(request, env, () => now), null, "Stale edition");
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  primaryError = new Error("primary D1 resource window overload");
+  await assert.rejects(() => syntheticR2PageWithLiveRights(request, env, () => now), /overload/);
+  // The handler uses real Date.now(), unlike helper tests with a fixed
+  // future clock. Use a currently valid R2 object so the error reaches D1.
+  const currentRouteEnv = {
+    ...env,
+    COVE_PUBLIC_PRESENTATION_CACHE: {
+      get: async () => ({
+        text: async () => buildSyntheticDisplayObject(books, Date.now()),
+      }),
+    },
+  };
+  primaryError = Object.assign(new Error("D1_ERROR: 7429 too many resources"), { code: 7429 });
+  const overloaded = await handleSyntheticR2LiveRightsStage(request, currentRouteEnv);
+  assert.equal(overloaded.status, 503);
+  assert.equal(overloaded.headers.get("x-cove-stage-failure-class"), "d1-7429-resource-window");
+  assert.equal(await overloaded.text(), "", "Never return upstream D1 exception details");
+  primaryError = new Error("secret SQL data must never leak");
+  const masked = await handleSyntheticR2LiveRightsStage(request, currentRouteEnv);
+  assert.equal(masked.status, 503);
+  assert.equal(masked.headers.get("x-cove-stage-failure-class"), "primary-or-stage-failure");
+  assert.equal(await masked.text(), "", "Private trace classes exclude sensitive data");
+  primaryError = null;
+
+  const prev = dbCalls;
+  for (const denied of [
+    req({ cookie: "session=yes" }),
+    req({ authorization: "Bearer test" }),
+    req({ "x-cove-client-country": "CA" }),
+    req({ "x-cove-backend-token": "b".repeat(64) }),
+    req({}, "https://covereads.com/api/fore/__perf/private-r2-live-rights"),
+    req(
+      {},
+      "https://cove-presentation-r2-proof-20261114.cove-jibrilmohamud.workers.dev/api/fore/__perf/private-r2-live-rights?sort=popular",
+    ),
+  ])
+    assert.equal(await syntheticR2PageWithLiveRights(denied, env, () => now), null);
+  assert.equal(
+    await syntheticR2PageWithLiveRights(
+      request,
+      { ...env, FORE_GUEST_R2_DISPLAY_STAGE: "0" },
+      () => now,
+    ),
+    null,
+  );
+  assert.equal(
+    await syntheticR2PageWithLiveRights(
+      request,
+      { ...env, COVE_SYNTHETIC_STAGING_ONLY: "4bd657ac-8789-403e-a28c-93aba8d0a989" },
+      () => now,
+    ),
+    null,
+  );
+  assert.equal(dbCalls, prev, "No denied probe may touch D1");
+  assert.equal(
+    await syntheticR2PageWithLiveRights(
+      request,
+      {
+        ...env,
+        COVE_PUBLIC_PRESENTATION_CACHE: {
+          get: async () => ({ etag: "x", text: async () => snapshot }),
+        },
+      },
+      () => now + 120_001,
+    ),
+    null,
+    "Expired R2 cannot serve a positive grant",
+  );
+  const injected = JSON.parse(snapshot);
+  injected.items[0].offer = { amountMinor: 0 };
+  assert.equal(
+    await syntheticR2PageWithLiveRights(
+      request,
+      {
+        ...env,
+        COVE_PUBLIC_PRESENTATION_CACHE: {
+          get: async () => ({ etag: "x", text: async () => JSON.stringify(injected) }),
+        },
+      },
+      () => now,
+    ),
+    null,
+    "Unexpected offer/grant keys in R2 must invalidate object",
+  );
+  assert.equal(dbCalls, prev, "Invalid display object never authorizes via D1");
+  assert.doesNotMatch(
+    buildSyntheticDisplayObject(
+      [{ ...books[0], formats: { "image/jpeg": "javascript:attack" } }, ...books.slice(1)],
+      now,
+    ),
+    /javascript:attack/,
+    "An unsafe cover URL is filtered rather than stored in the display cache",
+  );
+  console.log(
+    "PASS: stage-only R2 display gate, fresh D1 market/territory/retail offer, withdrawal, 25th witness, no cached grants",
+  );
+} finally {
+  fs.rmSync(dir, { recursive: true, force: true });
+}
