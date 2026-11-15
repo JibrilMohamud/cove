@@ -294,8 +294,10 @@ def invalidation_triggers() -> str:
     return "\n".join(statements) + "\n"
 
 
-def stage_schema() -> str:
-    return SCHEMA + invalidation_triggers() + abort_replace_triggers()
+def stage_schema(*, include_replace_guards: bool = True) -> str:
+    return SCHEMA + invalidation_triggers() + (
+        abort_replace_triggers() if include_replace_guards else ""
+    )
 
 
 if __name__ == "__main__":
