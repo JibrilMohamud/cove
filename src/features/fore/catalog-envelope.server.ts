@@ -36,7 +36,12 @@ export function canonicalCatalogEnvelope(
 ): CanonicalCatalogEnvelope {
   // Input page and result.limit are already validated by parseSearchInput,
   // but never let a direct caller fabricate an overflowing page cursor.
-  if (!Number.isSafeInteger(page) || page < 1 || !Number.isSafeInteger(result.limit) || result.limit < 1)
+  if (
+    !Number.isSafeInteger(page) ||
+    page < 1 ||
+    !Number.isSafeInteger(result.limit) ||
+    result.limit < 1
+  )
     throw new Error("Invalid canonical catalog page");
   if (!Number.isSafeInteger(result.count) || result.count < 0)
     throw new Error("Invalid canonical catalog count");
