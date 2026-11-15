@@ -222,7 +222,7 @@ try {
   );
   failFallbackD1 = false;
   returned = rows(Array.from({ length: 25 }, (_, i) => i));
-    const good = await syntheticR2PageWithLiveRights(request, env, () => now);
+  const good = await syntheticR2PageWithLiveRights(request, env, () => now);
   assert.equal(
     dbCalls,
     beforeFallback + 5,
