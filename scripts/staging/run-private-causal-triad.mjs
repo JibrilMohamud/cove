@@ -68,7 +68,31 @@ async function scriptState() {
     api("/workers/scripts/" + SCRIPT + "/subdomain"),
   ]);
   const version = d.deployments?.[0]?.versions?.[0]?.version_id;
-  const details = version ? await api("/workers/scripts/" + SCRIPT + "/versions/" + version) : null;
+  let details = null;
+  if (version) {
+    try {
+      details = await api("/workers/scripts/" + SCRIPT + "/versions/" + version);
+    } catch (error) {
+      // A newly active deployment can precede the version-detail API
+      // propagation. Never skip checking actual binding isolation on 404.
+      if (
+        !(error instanceof Error) ||
+        !error.message.includes("failed HTTP 404: 100146")
+      )
+        throw error;
+      const [settings, second] = await Promise.all([
+        api("/workers/scripts/" + SCRIPT + "/settings"),
+        api("/workers/scripts/" + SCRIPT + "/deployments"),
+      ]);
+      assert.equal(
+        second.deployments?.[0]?.versions?.[0]?.version_id,
+        version,
+        "Private driver deployment changed during active-settings verification",
+      );
+      assert.ok(Array.isArray(settings.bindings), "Active private driver bindings missing");
+      details = { resources: { bindings: settings.bindings } };
+    }
+  }
   return {
     version,
     bindings: details?.resources?.bindings || [],
