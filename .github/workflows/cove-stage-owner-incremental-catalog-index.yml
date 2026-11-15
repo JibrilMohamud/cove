@@ -1,0 +1,33 @@
+name: cove-stage-owner-incremental-catalog-index
+on:
+  push:
+    branches: [perf/stage-transactional-owner-catalog-index-20261115]
+    paths:
+      - src/storefront-strangler/owner-catalog-authorized-set.stage.ts
+      - src/storefront-strangler/owner-catalog-incremental-index.stage.ts
+      - scripts/staging/check-owner-catalog-incremental-index.mjs
+      - .github/workflows/cove-stage-owner-incremental-catalog-index.yml
+permissions:
+  contents: read
+jobs:
+  transactional-index-reference:
+    if: github.repository == 'JibrilMohamud/cove'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Validate real canonical free/paid/market owner modules
+        run: |
+          node scripts/check-commercial-storefront-owner.mjs
+          node scripts/check-commercial-legal-authority.mjs
+          node scripts/check-market-authority-closure.mjs
+      - name: Verify owner SQL indexed catalog, counted facets, pagination, denial
+        run: node scripts/staging/check-owner-catalog-incremental-index.mjs
+      - run: git diff --check
