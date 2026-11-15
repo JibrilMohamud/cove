@@ -343,7 +343,11 @@ async function warmup(run, secret) {
   assert.equal(unauthorizedStatus, 404, "Private staging route did not propagate safely");
   // The rights-only experiment must never depend on a separately deployed
   // candidate endpoint. The same private driver verifies no-DB and live D1.
-  const warmModes = process.argv.includes("--rights-only-100rps") ? ["noop", "rights"] : MODES;
+  const warmModes = process.argv.includes("--r2-retail-100rps")
+    ? ["noop", "r2seed", "r2live"]
+    : process.argv.includes("--rights-only-100rps")
+      ? ["noop", "rights"]
+      : MODES;
   for (const mode of warmModes) {
     let result;
     for (let retry = 0; retry < 5; retry++) {
@@ -362,6 +366,59 @@ async function warmup(run, secret) {
 async function campaign(secret) {
   const run = randomUUID().replaceAll("-", "").slice(0, 24);
   await warmup(run, secret);
+  if (process.argv.includes("--r2-retail-100rps")) {
+    // This experiment isolates live primary-D1 rights + retail offer validation
+    // from R2 display-only books. It cannot certify full bookstore parity.
+    evidence.r2RetailPresentationOnly = true;
+    evidence.fullCatalogParityProved = false;
+    evidence.productionReleaseEligible = false;
+    const strict = (p, offered) =>
+      p.valid === offered &&
+      p.dropped === 0 &&
+      p.ttfbP95Ms !== null &&
+      p.ttfbP95Ms < 600 &&
+      p.ttfbP99Ms < 750 &&
+      p.ttfbMaxMs < 800;
+    for (const concurrency of [1, 4, 8, 16, 32]) {
+      const result = await phase("r2live", "burst-" + concurrency, concurrency, 0, run, secret);
+      if (result.valid !== concurrency || result.dropped !== 0 || result.ttfbMaxMs >= 800) {
+        evidence.stopReason = "r2-retail-burst-failed-" + concurrency;
+        throw Error("Private R2 retail candidate failed burst gate");
+      }
+    }
+    const noDb = await phase("noop", "100-rps-no-db-control-20s", 2000, 10, run, secret);
+    evidence.noDbControlPassed = strict(noDb, 2000);
+    if (!evidence.noDbControlPassed) {
+      evidence.stopReason = "no-db-control-failed";
+      throw Error("100-RPS no-database driver control failed");
+    }
+    const refresh = async () => {
+      const seed = await requestProbe("r2seed", 0, run, secret);
+      if (!seed.valid) {
+        evidence.stopReason = "r2-snapshot-refresh-failed";
+        throw Error("Private R2 display snapshot refresh failed");
+      }
+    };
+    await refresh();
+    const fifty = await phase("r2live", "50-rps-20s", 1000, 20, run, secret);
+    evidence.r2Retail50Passed = strict(fifty, 1000);
+    if (!evidence.r2Retail50Passed) {
+      evidence.stopReason = "r2-retail-50-rps-gate-failed";
+      throw Error("Private R2 retail catalog 50-RPS strict gate failed");
+    }
+    for (let trial = 1; trial <= 2; trial++) {
+      await refresh();
+      const hundred = await phase("r2live", "100-rps-20s-phase-" + trial, 2000, 10, run, secret);
+      evidence.r2Retail100RpsPhases = trial;
+      if (!strict(hundred, 2000)) {
+        evidence.stopReason = "r2-retail-100-rps-phase-" + trial + "-failed";
+        evidence.r2Retail100RpsPassed = false;
+        throw Error("Private R2 retail catalog 100-RPS strict phase failed");
+      }
+    }
+    evidence.r2Retail100RpsPassed = true;
+    return;
+  }
   if (process.argv.includes("--rights-only-100rps")) {
     // This capacity floor intentionally excludes retail offer verification.
     evidence.syntheticRetailOfferParityProved = false;
