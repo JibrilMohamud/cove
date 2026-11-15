@@ -236,6 +236,12 @@ try {
   const searched=await phase("read-search","100-rps-20s-owner-fts",2000,10,true);
   assert.ok(strict(searched,2000),
     "Authorized owner-local FTS5 search failed strict hosted 100RPS");
+  // Separate rare-term campaign: ensures the FTS-match-first planner and
+  // disjunctive facets are exercised rather than only an all-documents term.
+  const rare=await phase("read-search-rare","100-rps-20s-owner-fts-rare",
+    2000,10,true);
+  assert.ok(strict(rare,2000),
+    "Rare-term FTS-first owner SQLite failed strict hosted 100RPS");
   // Real concurrent owner SQL reads and an ACK-fenced contractual revocation:
   // cannot serve the previous price/rights after the legal owner commits.
   await withdrawalUnderLoad();
