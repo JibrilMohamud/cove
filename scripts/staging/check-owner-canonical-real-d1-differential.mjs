@@ -100,7 +100,10 @@ try {
        OR lower(rg.drm_requirement) NOT IN ('none','optional','any',''))
      ORDER BY p.id LIMIT 24`,
   );
-  const ids = [...new Set([...ranked, ...complex].map((x) => String(x.product_id)))].slice(0, BUDGET);
+  const ids = [...new Set([...ranked, ...complex].map((x) => String(x.product_id)))].slice(
+    0,
+    BUDGET,
+  );
   if (ids.length < 12 || ids.some((id) => !/^perf-synth-[A-Za-z0-9_-]{1,120}$/.test(id)))
     throw new Error("Only isolated synthetic product IDs may be evaluated");
   const now = new Date().toISOString();
@@ -151,7 +154,9 @@ try {
     throw new Error(
       "DIFFERENTIAL FAIL: actual canonical resolveProductRights disagrees with the stage D1 legal view",
     );
-  console.log("PASS: selected staging legal view matches canonical rights resolver; no production proof");
+  console.log(
+    "PASS: selected staging legal view matches canonical rights resolver; no production proof",
+  );
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }

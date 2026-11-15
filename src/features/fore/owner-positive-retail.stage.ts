@@ -1,5 +1,5 @@
 import { resolveProductRights } from "./rights.server";
-import type { CatalogDB, } from "./catalog-model.server";
+import type { CatalogDB } from "./catalog-model.server";
 
 /**
  * NOT PRODUCTION: isolated owner-positive materializer adapter.
@@ -129,10 +129,7 @@ export async function stageRecomputeOwnerPositiveRetail(
   currency = "USD",
   now = new Date(),
 ): Promise<{ published: boolean; reason: string }> {
-  if (
-    env.COVE_STAGE_OWNER_CAS_ONLY !== "1" ||
-    env.COVE_STAGE_OWNER_DB_ID !== EXPECTED_STAGE_DB
-  )
+  if (env.COVE_STAGE_OWNER_CAS_ONLY !== "1" || env.COVE_STAGE_OWNER_DB_ID !== EXPECTED_STAGE_DB)
     throw new Error("Stage-only canonical owner DB binding is not certified");
   if (
     !/^[A-Za-z0-9_-]{2,160}$/.test(productId) ||
@@ -168,8 +165,7 @@ export async function stageRecomputeOwnerPositiveRetail(
     return { published: false, reason: "canonical-rights-denied" };
   }
   const evaluatedAt = sqlTime(now);
-  const offer = await env.DB
-    .prepare(ACTIVE_OFFER)
+  const offer = await env.DB.prepare(ACTIVE_OFFER)
     .bind(productId, currency, evaluatedAt, evaluatedAt)
     .first<Offer>();
   if (
@@ -181,8 +177,7 @@ export async function stageRecomputeOwnerPositiveRetail(
     await denyStagePositive(env.DB, productId, territory, currency);
     return { published: false, reason: "current-retail-offer-unavailable" };
   }
-  const schedule = await env.DB
-    .prepare(NEXT_BOUNDARY)
+  const schedule = await env.DB.prepare(NEXT_BOUNDARY)
     .bind(productId, productId, productId, evaluatedAt)
     .first<Boundary>();
   if (!schedule || schedule.invalid_times !== 0) {
@@ -216,17 +211,33 @@ export async function stageRecomputeOwnerPositiveRetail(
     observed,
     expiresAt,
   });
-  const digestBytes = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(material)));
+  const digestBytes = new Uint8Array(
+    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(material)),
+  );
   const digest = [...digestBytes].map((b) => b.toString(16).padStart(2, "0")).join("");
-  const response = (await env.DB
-    .prepare(CONDITIONAL_INSERT)
+  const response = (await env.DB.prepare(CONDITIONAL_INSERT)
     .bind(
-      territory, currency, digest, expiresAt,
-      offer.id, territory, productId,
-      observed.owner_epoch, observed.us_fallback_revision,
-      observed.source_revision, observed.territory_revision, observed.market_revision,
-      offer.amount_minor, currency, evaluatedAt, evaluatedAt, expiresAt, expiresAt,
-      territory, evaluatedAt, expiresAt,
+      territory,
+      currency,
+      digest,
+      expiresAt,
+      offer.id,
+      territory,
+      productId,
+      observed.owner_epoch,
+      observed.us_fallback_revision,
+      observed.source_revision,
+      observed.territory_revision,
+      observed.market_revision,
+      offer.amount_minor,
+      currency,
+      evaluatedAt,
+      evaluatedAt,
+      expiresAt,
+      expiresAt,
+      territory,
+      evaluatedAt,
+      expiresAt,
     )
     .run()) as { meta?: { changes?: number } };
   if (response.meta?.changes !== 1)
