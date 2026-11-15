@@ -433,7 +433,7 @@ function syntheticPage(request: Request): 1 | 2 | "cursor" | null {
   const search = new URL(request.url).search;
   if (search === "") return 1;
   if (search === "?page=2") return 2;
-  if (/^\\?cursor=[A-Za-z0-9_.-]{40,768}$/.test(search)) return "cursor";
+  if (/^\?cursor=[A-Za-z0-9_.-]{40,768}$/.test(search)) return "cursor";
   return null;
 }
 
