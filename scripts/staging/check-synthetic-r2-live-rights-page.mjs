@@ -208,7 +208,10 @@ try {
   const offerWithdrawn = await syntheticR2PageWithLiveRights(request, env, () => now);
   assert.equal(offerWithdrawn.books.length, 24);
   assert.equal(offerWithdrawn.books[0].productId, "perf-synth-1");
-  assert.equal(offerWithdrawn.books.some((book) => book.productId === "perf-synth-0"), false);
+  assert.equal(
+    offerWithdrawn.books.some((book) => book.productId === "perf-synth-0"),
+    false,
+  );
   returned = rows(Array.from({ length: 25 }, (_, i) => i));
   returned[0].offer_json = null;
   assert.equal(
@@ -216,7 +219,7 @@ try {
     null,
     "A malformed primary offer witness must fail closed",
   );
-    returned = rows(
+  returned = rows(
     Array.from({ length: 25 }, (_, i) => i),
     0,
   );
