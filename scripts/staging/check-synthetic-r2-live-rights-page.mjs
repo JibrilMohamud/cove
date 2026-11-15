@@ -188,10 +188,14 @@ try {
                 if (primaryError) throw primaryError;
                 if (failFallbackD1 && candidates.length === 96)
                   throw Object.assign(new Error("D1 overload during fallback"), { code: 7429 });
+                const eligible = returned.filter((row) => inWindow.has(row.product_id));
                 return {
-                  results: returned
-                    .filter((row) => inWindow.has(row.product_id))
-                    .slice(0, sql.includes("LIMIT 49") ? 49 : 25),
+                  results: sql.includes("page_rows AS MATERIALIZED")
+                    ? eligible.slice(24, 48).map((row) => ({
+                        ...row,
+                        live_witness_count: Math.min(eligible.length, 49),
+                      }))
+                    : eligible.slice(0, 25),
                 };
               },
             };
@@ -466,12 +470,16 @@ try {
     null,
     "No 49th live witness: cannot claim a proven next page or global exhaustion",
   );
-  returned = rows(Array.from({ length: 49 }, (_, i) => i));
-  returned[48].public_metadata_revision = "2";
+  // The global metadata generation is read ONCE from primary D1 inside
+  // the same statement, and attached to all 24 visible rows. We deliberately
+  // do not hydrate the invisible 49th witness's public presentation.
+  const staleWitness = rows(Array.from({ length: 49 }, (_, i) => i));
+  staleWitness[24].public_metadata_revision = "2";
+  returned = staleWitness;
   assert.equal(
     await syntheticR2PageWithLiveRights(secondPageRequest, env, () => now),
     null,
-    "Even the non-displayed next-page witness must share the current metadata generation",
+    "Visible page-two license generation mismatch must deny publication",
   );
   returned = rows(Array.from({ length: 49 }, (_, i) => i));
   const secondStage = await handleSyntheticR2LiveRightsStage(secondPageRequest, {

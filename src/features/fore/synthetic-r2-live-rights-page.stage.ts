@@ -640,6 +640,7 @@ type SyntheticExtendedAuthorityRow = PrimaryStorefrontAuthorityRow & {
   has_epub_object: number;
   has_epub_source: number;
   public_metadata_revision: string | null;
+  live_witness_count?: number | null;
 };
 
 export async function authorizeOfferBearingSyntheticPage(
@@ -693,7 +694,13 @@ export async function authorizeOfferBearingSyntheticPage(
               AND (offer_exists.ends_at IS NULL
                 OR offer_exists.ends_at>datetime('now')))
         ORDER BY c.position LIMIT ${witnessCount}
-      )
+      )${
+        witnessCount === SECOND_PAGE_WITNESSES
+          ? `, page_rows AS MATERIALIZED (
+        SELECT * FROM authorized ORDER BY position LIMIT 24 OFFSET 24
+      )`
+          : ""
+      }
       SELECT a.product_id,a.product_public_id,a.edition_id,a.edition_public_id,
         a.source_name,a.source_external_id,a.work_id,a.work_public_id,
         a.release_status,a.drm_status,a.downloadable,
@@ -717,7 +724,13 @@ export async function authorizeOfferBearingSyntheticPage(
           AND da.kind='epub' AND av.source_url IS NOT NULL
           AND av.source_url<>'') has_epub_source,
         (SELECT current_revision FROM metadata_revision) public_metadata_revision
-      FROM authorized a ORDER BY a.position`,
+        ${
+          witnessCount === SECOND_PAGE_WITNESSES
+            ? ", (SELECT COUNT(*) FROM authorized) live_witness_count"
+            : ""
+        }
+      FROM ${witnessCount === SECOND_PAGE_WITNESSES ? "page_rows" : "authorized"} a
+      ORDER BY a.position`,
     )
     .bind("US", JSON.stringify(ids), "USD", "USD", "US")
     .all<SyntheticExtendedAuthorityRow>();
@@ -754,11 +767,12 @@ export async function syntheticR2PageWithLiveRights(
   // rows read on the isolated fixture; 32 cost ~549. On withdrawal/sparse
   // rights, recheck all 96 in ONE NEW primary-D1 statement and use ONLY its
   // results. Never combine an old positive decision with a newer fallback.
-  // Page two needs 49 CURRENT rights-and-offer witnesses. Check 56 ranked
-  // candidates first rather than forcing the expensive 96-candidate scan
-  // for every request. A sparse/withdrawn 56-candidate window ALWAYS falls
-  // back to a NEW full-96 primary statement, never stitched witnesses.
-  // The 49th witness proves a third page; no global count is inferred.
+  // Page two still authorizes 49 CURRENT rights-and-offer witnesses, but
+  // hydrates only the 24 visible items after an authoritative ranked OFFSET.
+  // Its 49th witness is counted in the SAME primary D1 statement. Check the
+  // first 56 candidates, then perform a NEW full-96 statement on sparse
+  // withdrawal; never join permissions from two different D1 snapshots.
+  // No global count is inferred from this bounded rank window.
   // Page one retains the measured 32-ID/96-ID fallback, unchanged.
   let current =
     page === 2
@@ -768,13 +782,18 @@ export async function syntheticR2PageWithLiveRights(
           SECOND_PAGE_WITNESSES,
         )
       : await authorizeOfferBearingSyntheticPage(env.DB, rankedIds.slice(0, FAST_CANDIDATE_COUNT));
-  if (page === 2 && current.length < SECOND_PAGE_WITNESSES)
+  if (
+    page === 2 &&
+    (current.length !== PAGE_COUNT ||
+      current.some((row) => row.live_witness_count !== SECOND_PAGE_WITNESSES))
+  )
     current = await authorizeOfferBearingSyntheticPage(env.DB, rankedIds, SECOND_PAGE_WITNESSES);
   if (page === 1 && current.length < PAGE_COUNT + 1)
     current = await authorizeOfferBearingSyntheticPage(env.DB, rankedIds);
-  const requiredWitnesses = page === 2 ? SECOND_PAGE_WITNESSES : PAGE_COUNT + 1;
+  const requiredWitnesses = page === 2 ? PAGE_COUNT : PAGE_COUNT + 1;
   if (
     current.length !== requiredWitnesses ||
+    (page === 2 && current.some((row) => row.live_witness_count !== SECOND_PAGE_WITNESSES)) ||
     new Set(current.map((row) => row.product_id)).size !== requiredWitnesses ||
     current.some(
       (row) =>
@@ -905,7 +924,7 @@ export async function syntheticR2PageWithLiveRights(
     });
   }
   return {
-    books: books.slice((page - 1) * PAGE_COUNT, page * PAGE_COUNT),
+    books: books.slice(0, PAGE_COUNT),
     hasMore: true,
   };
 }
