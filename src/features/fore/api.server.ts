@@ -3229,7 +3229,7 @@ async function handleCoveRequest(
     async function timed<T>(name: string, promise: Promise<T>): Promise<T> {
       const started = performance.now();
       try {
-        return await promise.catch((error) => ((timings["fault_" + name] = 1), Promise.reject(error)));
+        return await promise;
       } finally {
         phases[name] = performance.now() - started;
       }
