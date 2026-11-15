@@ -1,7 +1,7 @@
 name: cove-stage-r2-current-retail-100rps
 on:
   push:
-    branches: [perf/stage-r2-display-current-rights-20261115, perf/stage-live-epub-readiness-20261115, perf/stage-full-book-shape-fresh-20261115, perf/stage-public-metadata-r2-20261115, perf/stage-all-public-details-r2-20261115]
+    branches: [perf/stage-r2-display-current-rights-20261115, perf/stage-live-epub-readiness-20261115, perf/stage-full-book-shape-fresh-20261115, perf/stage-public-metadata-r2-20261115, perf/stage-all-public-details-r2-20261115, perf/stage-disclosure-revision-fence-20261115]
     paths:
       - src/features/fore/synthetic-r2-live-rights-page.stage.ts
       - src/persistence-backend-entry.worker.ts
@@ -10,6 +10,9 @@ on:
       - scripts/staging/run-private-causal-triad.mjs
       - scripts/staging/run-r2-live-retail-campaign.mjs
       - scripts/staging/synthetic-retail-offers-20261115.sql
+      - scripts/staging/sql/synthetic-public-metadata-revision-fence.sql
+      - scripts/staging/check-synthetic-metadata-revision-fence.py
+
       - wrangler.performance-triad.stage.jsonc
       - scripts/staging/check-synthetic-r2-live-rights-page.mjs
       - scripts/staging/private-causal-triad.worker.test.mjs
@@ -41,6 +44,7 @@ jobs:
       - name: Deny nonfixture rights, cached offers, unsafe synthetic presentation and new direct SQL writers
         run: |
           node scripts/staging/check-synthetic-r2-live-rights-page.mjs
+          python3 scripts/staging/check-synthetic-metadata-revision-fence.py
           node scripts/reconcile-canonical-writers.mjs
           node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/2026-11-15-context-r2-live-market-source-attestation.json
       - name: Validate restricted private driver and exact stage orchestrator syntax

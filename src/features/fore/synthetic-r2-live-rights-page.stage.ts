@@ -77,6 +77,7 @@ type Snapshot = {
   territory: "US";
   currency: "USD";
   expiresAt: number;
+  publicMetadataRevision: string;
   items: SyntheticDisplayRow[];
 };
 
@@ -89,6 +90,13 @@ export type SyntheticRightsPresentationEnv = {
   COVE_SYNTHETIC_STAGING_ONLY?: string;
   FORE_BACKEND_TOKEN?: string;
 };
+
+// Decimal TEXT avoids lossy JavaScript conversion of SQLite 64-bit revisions.
+const validPublicMetadataRevision = (v: unknown): v is string =>
+  typeof v === "string" && /^[1-9][0-9]{0,18}$/.test(v);
+
+const PUBLIC_METADATA_REVISION_SQL =
+  "SELECT CAST(revision AS TEXT) AS public_metadata_revision FROM cove_synthetic_public_metadata_revision WHERE id=1";
 
 const identifier = (x: unknown): x is string =>
   typeof x === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]{1,159}$/.test(x);
@@ -303,11 +311,14 @@ function validSnapshot(raw: unknown, now: number): raw is Snapshot {
   const v = raw as Partial<Snapshot>;
   return (
     Object.keys(v).every((key) =>
-      ["schema", "territory", "currency", "expiresAt", "items"].includes(key),
+      ["schema", "territory", "currency", "expiresAt", "publicMetadataRevision", "items"].includes(
+        key,
+      ),
     ) &&
     v.schema === "cove.synthetic-display-v1" &&
     v.territory === "US" &&
     v.currency === "USD" &&
+    validPublicMetadataRevision(v.publicMetadataRevision) &&
     Number.isSafeInteger(v.expiresAt) &&
     (v.expiresAt as number) > now &&
     (v.expiresAt as number) <= now + TTL_MS &&
@@ -318,7 +329,13 @@ function validSnapshot(raw: unknown, now: number): raw is Snapshot {
   );
 }
 
-export function buildSyntheticDisplayObject(books: CatalogBook[], now = Date.now()): string {
+export function buildSyntheticDisplayObject(
+  books: CatalogBook[],
+  now: number,
+  publicMetadataRevision: string,
+): string {
+  if (!validPublicMetadataRevision(publicMetadataRevision))
+    throw new Error("Missing trusted current public metadata revision");
   if (books.length !== ITEM_COUNT) throw new Error("Need exactly 96 ranked display candidates");
   const items = books.map((book): SyntheticDisplayRow => {
     const image = IMAGE_TYPES.map((type) => book.formats[type]).find(permittedImage);
@@ -384,6 +401,7 @@ export function buildSyntheticDisplayObject(books: CatalogBook[], now = Date.now
     territory: "US",
     currency: "USD",
     expiresAt: now + TTL_MS,
+    publicMetadataRevision,
     items,
   };
   if (!validSnapshot(state, now)) throw new Error("Unsafe display-only snapshot");
@@ -451,6 +469,14 @@ export async function seedSyntheticR2Display(
     env.FORE_GUEST_R2_DISPLAY_STAGE !== "1"
   )
     return false;
+  // Capture the metadata generation before and after canonical R2
+  // materialization. If a source license, attribution or public AI disclosure
+  // changes during the multi-query seed, NEVER publish a mixed-generation
+  // snapshot. This lookup is seed-only, not in the request hot path.
+  const before = await env.DB.prepare(PUBLIC_METADATA_REVISION_SQL).first<{
+    public_metadata_revision: string | null;
+  }>();
+  if (!validPublicMetadataRevision(before?.public_metadata_revision)) return false;
   const result = await env.DB.prepare(
     `SELECT p.id product_id,e.id edition_id
      FROM catalog_search_documents d INDEXED BY idx_search_popular_stable
@@ -484,7 +510,11 @@ export async function seedSyntheticR2Display(
     )
   )
     return false;
-  const body = buildSyntheticDisplayObject(books, now());
+  const after = await env.DB.prepare(PUBLIC_METADATA_REVISION_SQL).first<{
+    public_metadata_revision: string | null;
+  }>();
+  if (after?.public_metadata_revision !== before.public_metadata_revision) return false;
+  const body = buildSyntheticDisplayObject(books, now(), before.public_metadata_revision);
   const bucket = env.COVE_PUBLIC_PRESENTATION_CACHE;
   const old = await bucket.get(OBJECT_KEY);
   const saved = await bucket.put(OBJECT_KEY, body, {
@@ -600,6 +630,7 @@ type SyntheticExtendedAuthorityRow = PrimaryStorefrontAuthorityRow & {
   epub_storage_status: string | null;
   has_epub_object: number;
   has_epub_source: number;
+  public_metadata_revision: string | null;
 };
 
 export async function authorizeOfferBearingSyntheticPage(
@@ -620,6 +651,9 @@ export async function authorizeOfferBearingSyntheticPage(
            WHERE country_code=? AND market_status='active'),
           (SELECT default_currency FROM storefront_markets
            WHERE country_code='US' AND market_status='active'))
+      ), metadata_revision AS MATERIALIZED (
+        SELECT CAST(revision AS TEXT) current_revision
+        FROM cove_synthetic_public_metadata_revision WHERE id=1
       ), candidates AS MATERIALIZED (
         SELECT value product_id,CAST(key AS INTEGER) position FROM json_each(?)
       ), authorized AS MATERIALIZED (
@@ -670,7 +704,8 @@ export async function authorizeOfferBearingSyntheticPage(
         EXISTS (SELECT 1 FROM digital_assets da JOIN asset_versions av
           ON av.id=da.current_version_id WHERE da.edition_id=a.edition_id
           AND da.kind='epub' AND av.source_url IS NOT NULL
-          AND av.source_url<>'') has_epub_source
+          AND av.source_url<>'') has_epub_source,
+        (SELECT current_revision FROM metadata_revision) public_metadata_revision
       FROM authorized a ORDER BY a.position`,
     )
     .bind("US", JSON.stringify(ids), "USD", "USD", "US")
@@ -714,7 +749,12 @@ export async function syntheticR2PageWithLiveRights(
     current = await authorizeOfferBearingSyntheticPage(env.DB, rankedIds);
   if (
     current.length !== PAGE_COUNT + 1 ||
-    new Set(current.map((row) => row.product_id)).size !== PAGE_COUNT + 1
+    new Set(current.map((row) => row.product_id)).size !== PAGE_COUNT + 1 ||
+    current.some(
+      (row) =>
+        !validPublicMetadataRevision(row.public_metadata_revision) ||
+        row.public_metadata_revision !== snapshot.publicMetadataRevision,
+    )
   )
     return null;
   const byId = new Map(snapshot.items.map((item) => [item.productId, item]));

@@ -1,11 +1,13 @@
 name: cove-synthetic-r2-live-rights-page-check
 on:
   push:
-    branches: [perf/stage-r2-display-current-rights-20261115, perf/stage-live-epub-readiness-20261115, perf/stage-full-book-shape-fresh-20261115, perf/stage-public-metadata-r2-20261115, perf/stage-all-public-details-r2-20261115, perf/canonical-catalog-envelope-contract-20261115]
+    branches: [perf/stage-r2-display-current-rights-20261115, perf/stage-live-epub-readiness-20261115, perf/stage-full-book-shape-fresh-20261115, perf/stage-public-metadata-r2-20261115, perf/stage-all-public-details-r2-20261115, perf/canonical-catalog-envelope-contract-20261115, perf/stage-disclosure-revision-fence-20261115]
     paths:
       - src/features/fore/synthetic-r2-live-rights-page.stage.ts
       - scripts/staging/check-synthetic-r2-live-rights-page.mjs
       - scripts/staging/audit-r2-full-catalog-parity.mjs
+      - scripts/staging/check-synthetic-metadata-revision-fence.py
+      - scripts/staging/sql/synthetic-public-metadata-revision-fence.sql
       - src/features/fore/client.ts
       - src/features/fore/api.server.ts
       - src/features/fore/catalog-envelope.server.ts
@@ -26,6 +28,8 @@ jobs:
       - run: npm ci
       - name: Deny cached rights, offers and commercial presentation divergence
         run: node scripts/staging/check-synthetic-r2-live-rights-page.mjs
+      - name: Prove isolated source attribution and disclosure mutation triggers
+        run: python3 scripts/staging/check-synthetic-metadata-revision-fence.py
       - name: Verify canonical nine-field API envelope and truthful pagination
         run: node scripts/staging/check-canonical-catalog-envelope.mjs
       - name: Inventory entire canonical catalog contract; deny premature R2 release parity

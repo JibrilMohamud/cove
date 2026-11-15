@@ -95,7 +95,7 @@ try {
     readingAvailability: { state: "stored" },
   }));
   const now = 2_000_000_000_000;
-  const snapshot = buildSyntheticDisplayObject(books, now);
+  const snapshot = buildSyntheticDisplayObject(books, now, "1");
   for (const field of [
     "application/epub+zip",
     "protected-",
@@ -110,7 +110,10 @@ try {
     assert.equal(snapshot.includes(field), false, "R2 must exclude " + field);
   }
 
+  assert.throws(() => buildSyntheticDisplayObject(books, now, "0"), /revision/);
+  assert.throws(() => buildSyntheticDisplayObject(books, now, "1e1"), /revision/);
   const cleanSnapshot = JSON.parse(snapshot);
+  assert.equal(cleanSnapshot.publicMetadataRevision, "1");
   assert.equal(cleanSnapshot.items[0].authors[0].id, "author-0");
   assert.equal(cleanSnapshot.items[0].contributors[0].role, "author");
   assert.equal(cleanSnapshot.items[0].publisher, "Synthetic Press");
@@ -147,6 +150,9 @@ try {
       prepare(sql) {
         dbCalls++;
         assert.match(sql, /storefront_markets/);
+        assert.match(sql, /metadata_revision AS MATERIALIZED/);
+        assert.match(sql, /cove_synthetic_public_metadata_revision/);
+        assert.match(sql, /public_metadata_revision/);
         assert.match(sql, /retail_product_availability_rows/);
         assert.match(sql, /JOIN works w ON w.id=e.work_id/);
         assert.match(sql, /a.subscription_eligible/);
@@ -206,6 +212,7 @@ try {
       epub_storage_status: null,
       has_epub_object: 0,
       has_epub_source: 0,
+      public_metadata_revision: "1",
       offer_json: JSON.stringify({ type: "retail", currency: "USD", amountMinor: price }),
     }));
   returned = rows(Array.from({ length: 25 }, (_, i) => i));
@@ -224,10 +231,20 @@ try {
   const request = req();
   assert.equal(eligibleSyntheticR2Page(request, env), true);
   let prepared = "";
+  let changeDuringSeed = false;
+  let generationSeedReads = 0;
   const stageSeedEnv = {
     ...env,
     DB: {
       prepare(sql) {
+        if (sql.includes("cove_synthetic_public_metadata_revision")) {
+          assert.match(sql, /CAST\(revision AS TEXT\)/);
+          return {
+            first: async () => ({
+              public_metadata_revision: changeDuringSeed && ++generationSeedReads === 2 ? "2" : "1",
+            }),
+          };
+        }
         if (sql.includes("idx_search_popular_stable")) {
           return {
             all: async () => ({
@@ -331,8 +348,16 @@ try {
       },
     },
   };
+  // A mutation between the before/after generation reads invalidates the
+  // in-progress seed, rather than publishing a mixed license/AI snapshot.
+  changeDuringSeed = true;
+  assert.equal(await seedSyntheticR2Display(stageSeedEnv, () => now), false);
+  assert.equal(prepared, "");
+  changeDuringSeed = false;
+  generationSeedReads = 0;
   assert.equal(await seedSyntheticR2Display(stageSeedEnv, () => now), true);
   assert.equal(JSON.parse(prepared).items.length, 96);
+  assert.equal(JSON.parse(prepared).publicMetadataRevision, "1");
   assert.equal(prepared.includes("amountMinor"), false);
   assert.equal(prepared.includes("synthetic/private/epub-key"), false);
   const seeded = JSON.parse(prepared).items[0];
@@ -374,7 +399,7 @@ try {
     COVE_PUBLIC_PRESENTATION_CACHE: {
       get: async () => ({
         etag: "saved",
-        text: async () => buildSyntheticDisplayObject(books, Date.now()),
+        text: async () => buildSyntheticDisplayObject(books, Date.now(), "1"),
       }),
     },
   });
@@ -441,6 +466,34 @@ try {
     textOrigin: "human",
     publicBadges: [{ key: "human", label: "Human written" }],
   });
+  // A real metadata mutation advances a single primary D1 revision. R2
+  // may have seconds left on its TTL but must NOT supply the old public
+  // license or AI label. The current retail offer remains otherwise valid.
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  returned[0].public_metadata_revision = "2";
+  assert.equal(
+    await syntheticR2PageWithLiveRights(request, env, () => now),
+    null,
+    "Any mismatch must deny the entire old public R2 generation",
+  );
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  returned[0].public_metadata_revision = null;
+  assert.equal(
+    await syntheticR2PageWithLiveRights(request, env, () => now),
+    null,
+    "Missing D1 generation cannot authorize an R2 snapshot",
+  );
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  const oldSnapshot = JSON.parse(snapshot);
+  delete oldSnapshot.publicMetadataRevision;
+  const oldSnapshotBody = JSON.stringify(oldSnapshot);
+  const originalMetadataGet = env.COVE_PUBLIC_PRESENTATION_CACHE.get;
+  env.COVE_PUBLIC_PRESENTATION_CACHE.get = async () => ({
+    size: oldSnapshotBody.length,
+    text: async () => oldSnapshotBody,
+  });
+  assert.equal(await syntheticR2PageWithLiveRights(request, env, () => now), null);
+  env.COVE_PUBLIC_PRESENTATION_CACHE.get = originalMetadataGet;
   for (const book of good.books) {
     assert.equal(book.subscriptionEligible, false, "Live primary supersedes cached book flag");
     assert.equal(book.libraryEligible, false, "Live primary supersedes cached library flag");
@@ -614,7 +667,7 @@ try {
     ...env,
     COVE_PUBLIC_PRESENTATION_CACHE: {
       get: async () => ({
-        text: async () => buildSyntheticDisplayObject(books, Date.now()),
+        text: async () => buildSyntheticDisplayObject(books, Date.now(), "1"),
       }),
     },
   };
@@ -695,6 +748,7 @@ try {
     buildSyntheticDisplayObject(
       [{ ...books[0], formats: { "image/jpeg": "javascript:attack" } }, ...books.slice(1)],
       now,
+      "1",
     ),
     /javascript:attack/,
     "An unsafe cover URL is filtered rather than stored in the display cache",
