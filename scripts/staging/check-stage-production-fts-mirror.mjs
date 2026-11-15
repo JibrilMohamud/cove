@@ -17,7 +17,7 @@ const docs=[
   ['prd_owner_3','18','Private Redacted','a secret','Hidden','Hidden','Hidden','9781234567893','Private','secretword','Not available','en',true],
   ['prd_owner_4','19','Unauthorized Voyage','','Hidden','Hidden','Hidden','9781234567894','Private','outofscope','Never authorized','en',false],
 ];
-const make=(arr)=>Object.fromEntries(['product_id',...PRODUCTION_FTS_SCHEMA.searchableFields,'language_code','suppressed'].map((key,i)=>[key,i===12?arr[i]:arr[i]]));
+const make=(arr)=>({...Object.fromEntries(['product_id',...PRODUCTION_FTS_SCHEMA.searchableFields,'language_code','suppressed'].map((key,i)=>[key,arr[i]])),storefront_status:'active',source_name:'gutenberg',release_status:'available'});
 try{
   db.exec(`CREATE TABLE cove_stage_owner_index_items(
     product_id TEXT NOT NULL,territory TEXT NOT NULL,currency TEXT NOT NULL,
@@ -57,6 +57,22 @@ try{
   });
   const counts=sealStageProductionFtsMirror(sql);
   assert.deepEqual([counts.expected,counts.global_count,counts.english_count],[3,3,2]);
+  // Metadata eligibility must remain a second deny-first predicate, separate
+  // from legal authorization: inactive, uploads and unreleased products vanish
+  // from both FTS tables in the same transaction as their status transition.
+  for(const [i,changes] of [
+    [1,{source_name:'upload'}],[2,{storefront_status:'inactive'}],
+    [0,{release_status:'draft'}],
+  ]){
+    tx(()=>writeStageProductionSearchMetadata(sql,{...make(docs[i]),...changes}));
+    assert.equal(sealStageProductionFtsMirror(sql).global_count,2,
+      'Product search eligibility cannot be mistaken for legal authority');
+    tx(()=>writeStageProductionSearchMetadata(sql,make(docs[i])));
+    assert.equal(sealStageProductionFtsMirror(sql).global_count,3);
+  }
+  tx(()=>writeStageProductionSearchMetadata(sql,{...make(docs[2]),release_status:'preorder'}));
+  assert.equal(sealStageProductionFtsMirror(sql).global_count,3);
+  tx(()=>writeStageProductionSearchMetadata(sql,make(docs[2])));
   const legalGate=()=>({releaseCertified:false,count:db.prepare('SELECT COUNT(*) n FROM cove_stage_owner_index_items').get().n});
   const find=(q,l='all',topic='')=>readStageProductionFtsMirror(sql,input(q,l,topic),legalGate);
   assert.deepEqual(find('cafe').pageIds,[docs[0][0]],'Diacritics must match production global tokenizer');
