@@ -33,6 +33,8 @@ CREATE TABLE digital_assets (id TEXT PRIMARY KEY,edition_id TEXT,current_version
 CREATE TABLE asset_versions (id TEXT PRIMARY KEY,object_key TEXT);
 CREATE TABLE catalog_search_documents (product_id TEXT PRIMARY KEY,availability TEXT);
 CREATE TABLE storefront_markets (country_code TEXT PRIMARY KEY,currency TEXT);
+CREATE TABLE territories (code TEXT PRIMARY KEY,is_sellable INTEGER);
+CREATE TABLE territory_aliases (alias_code TEXT PRIMARY KEY,territory_code TEXT);
 """
 
 
@@ -63,6 +65,9 @@ def fixture():
         ("INSERT INTO rights_contract_version_channels VALUES(?,?,?)", ("rvc1", "rv1", "retail")),
         ("INSERT INTO publisher_contract_assignments VALUES(?,?,?)", ("pa1", "c1", "active")),
         ("INSERT INTO storefront_markets VALUES(?,?)", ("US", "USD")),
+        ("INSERT INTO territories VALUES(?,?)", ("US", 1)),
+        ("INSERT INTO territories VALUES(?,?)", ("CA", 1)),
+        ("INSERT INTO territory_aliases VALUES(?,?)", ("ZZ", "US")),
     ]:
         db.execute(sql, values)
     # A simulated owner has already obtained verified current evidence before
@@ -72,15 +77,16 @@ def fixture():
     return db
 
 
-def publish(db, product="p1", price=599, epoch=7, valid_until="2026-11-15 14:00:00"):
+def publish(db, product="p1", price=599, epoch=7, valid_until="2026-11-15 14:00:00",
+            territory="US", currency="USD"):
     db.execute(
         "INSERT OR REPLACE INTO cove_stage_owner_retail_authority VALUES(?,?,?,?,?,?,?,?)",
-        (product, "US", "USD", price, "o" + product[1:], epoch, "a" * 64, valid_until),
+        (product, territory, currency, price, "o" + product[1:], epoch, "a" * 64, valid_until),
     )
 
 
-def read(db, product="p1", at="2026-11-15 13:30:00"):
-    return db.execute(module.READ_SQL, (product, "US", "USD", at)).fetchone()
+def read(db, product="p1", at="2026-11-15 13:30:00", territory="US", currency="USD"):
+    return db.execute(module.READ_SQL, (product, territory, currency, at)).fetchone()
 
 
 def check(condition, message):
@@ -183,6 +189,42 @@ def check_insert_delete_and_key_migration():
     db.close()
 
 
+def check_territory_and_alias_mutations():
+    # Canonical territory sellability and alias mapping are live policy inputs.
+    # Their mutations must invalidate only the affected territory rows.
+    db = fixture()
+    publish(db, "p1", territory="CA", currency="CAD")
+    check(read(db, "p1", territory="CA", currency="CAD") is not None,
+          "Second territory fixture must be present")
+    db.execute("UPDATE territories SET is_sellable=0 WHERE code='US'")
+    check(read(db) is None and read(db, "p2") is None,
+          "Unsellable territory must synchronously deny previous positives")
+    check(read(db, "p1", territory="CA", currency="CAD") is not None,
+          "Unrelated territory must not be globally invalidated")
+    db.close()
+
+    db = fixture()
+    publish(db, "p1", territory="CA", currency="CAD")
+    db.execute("UPDATE territory_aliases SET territory_code='CA' WHERE alias_code='ZZ'")
+    check(read(db) is None, "Old aliased territory must be invalidated")
+    check(read(db, "p1", territory="CA", currency="CAD") is None,
+          "New aliased territory must be invalidated")
+    db.close()
+
+    db = fixture()
+    publish(db, "p1", territory="CA", currency="CAD")
+    db.execute("INSERT INTO territory_aliases VALUES('AA','CA')")
+    check(read(db) is not None, "Different territory alias must not invalidate US")
+    check(read(db, "p1", territory="CA", currency="CAD") is None,
+          "New alias must invalidate only target territory")
+    db.close()
+
+    db = fixture()
+    db.execute("DELETE FROM territory_aliases WHERE alias_code='ZZ'")
+    check(read(db) is None, "Removed alias must invalidate previous target")
+    db.close()
+
+
 def check_atomic_owner_mutations():
     db = fixture()
     # Invalidate within the SAME canonical transaction as a withdrawal.
@@ -229,7 +271,7 @@ def check_authority_boundaries():
         ("p1", "US", "USD", "2026-11-15 13:30:00"),
     ).fetchall()
     check(any("SEARCH p USING PRIMARY KEY" in r[3] for r in plan), "Primary-key point lookup must not scan legal joins")
-    expected = 3 * (len(module.PRODUCT_SCOPES) + 1)
+    expected = 3 * (len(module.PRODUCT_SCOPES) + len(module.TERRITORY_SCOPES) + 1)
     actual = db.execute(
         "SELECT count(*) FROM sqlite_master WHERE type='trigger' AND name LIKE 'cove_stage_owner_invalidate_%'"
     ).fetchone()[0]
@@ -240,11 +282,12 @@ def check_authority_boundaries():
 if __name__ == "__main__":
     check_triggers_and_targeting()
     check_insert_delete_and_key_migration()
+    check_territory_and_alias_mutations()
     check_atomic_owner_mutations()
     check_authority_boundaries()
     print(
         "PASS: isolated owner projection invalidation across "
-        f"{len(module.PRODUCT_SCOPES)+1} families, transactional withdrawal, "
+        f"{len(module.PRODUCT_SCOPES)+len(module.TERRITORY_SCOPES)+1} families, transactional withdrawal, "
         "offer repricing, rollbacks, owner fencing and point-indexed reads. "
         "NOT a canonical legal parity or production capacity certificate."
     )
