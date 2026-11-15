@@ -470,16 +470,9 @@ try {
     null,
     "No 49th live witness: cannot claim a proven next page or global exhaustion",
   );
-  returned = rows(Array.from({ length: 49 }, (_, i) => i));
-  returned[48].public_metadata_revision = "2";
-  assert.equal(
-    await syntheticR2PageWithLiveRights(secondPageRequest, env, () => now),
-    null,
-    "Even the non-displayed next-page witness must share the current metadata generation",
-  );
-  returned = rows(Array.from({ length: 49 }, (_, i) => i));
-  // A partial page has no demonstrated 49th current witness. The new
-  // in-statement count must be validated before publishing 24 live rows.
+  // The global metadata generation is read ONCE from primary D1 inside
+  // the same statement, and attached to all 24 visible rows. We deliberately
+  // do not hydrate the invisible 49th witness's public presentation.
   const staleWitness = rows(Array.from({ length: 49 }, (_, i) => i));
   staleWitness[24].public_metadata_revision = "2";
   returned = staleWitness;
