@@ -124,7 +124,11 @@ try{
     .get(docs[0][0]).fts_rowid;
   db.prepare('UPDATE cove_stage_owner_prod_fts SET title=? WHERE rowid=?').run('tampered',row);
   assert.throws(()=>sealStageProductionFtsMirror(sql),/incomplete_migration/);
+  assert.throws(()=>find('tampered'),/stage_production_fts_unsealed/,
+    'Failed integrity seal must revoke previous ready state');
   tx(()=>writeStageProductionSearchMetadata(sql,{...make(docs[0]),title:'A Different Valley',keywords_text:'additional metadata'}));
+  assert.throws(()=>find('different'),/stage_production_fts_unsealed/,
+    'Metadata repair alone cannot bypass explicit seal');
   assert.doesNotThrow(()=>sealStageProductionFtsMirror(sql));
   console.log('PASS: production 10-field / two-tokenizer stage mirror, exact IDs and field matching, suppression, English, revocation and tamper fail-close');
 }finally{db.close();}
