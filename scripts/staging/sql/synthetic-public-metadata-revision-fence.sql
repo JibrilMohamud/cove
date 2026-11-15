@@ -120,3 +120,27 @@ WHEN OLD.publication_id IS NOT NEW.publication_id
 BEGIN
   UPDATE cove_synthetic_public_metadata_revision SET revision=revision+1 WHERE id=1;
 END;
+
+-- Product/source pointer changes can alter the canonical source-license URL
+-- without touching gutenberg_source_cache. Invalidate the entire synthetic
+-- presentation generation on INSERT, DELETE and changed source bindings.
+-- Includes REPLACE INTO products, which otherwise can bypass an UPDATE trigger.
+CREATE TRIGGER IF NOT EXISTS cove_syn_metadata_product_insert
+AFTER INSERT ON products
+BEGIN
+  UPDATE cove_synthetic_public_metadata_revision SET revision=revision+1 WHERE id=1;
+END;
+
+CREATE TRIGGER IF NOT EXISTS cove_syn_metadata_product_delete
+AFTER DELETE ON products
+BEGIN
+  UPDATE cove_synthetic_public_metadata_revision SET revision=revision+1 WHERE id=1;
+END;
+
+CREATE TRIGGER IF NOT EXISTS cove_syn_metadata_product_source_update
+AFTER UPDATE OF source_name,source_external_id ON products
+WHEN OLD.source_name IS NOT NEW.source_name
+  OR OLD.source_external_id IS NOT NEW.source_external_id
+BEGIN
+  UPDATE cove_synthetic_public_metadata_revision SET revision=revision+1 WHERE id=1;
+END;

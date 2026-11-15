@@ -31,7 +31,7 @@ const EVIDENCE = {
   schema: "cove.synthetic-r2-display-current-retail-rights-100rps.v1",
   releaseCertified: false,
   productionModified: false,
-  sourceBranch: "perf/stage-disclosure-revision-fence-20261115",
+  sourceBranch: "perf/stage-source-attribution-fence-20261115",
   originalCandidateVersion: ORIGINAL,
   testedChange:
     "Synthetic-only full public book DTO from short-lived R2; live primary-D1 rights, offers, DRM and asset state + same-statement metadata generation fence; publication trigger coverage remains stage-only",
@@ -70,6 +70,29 @@ async function api(path, { method = "GET", body } = {}) {
         ")",
     );
   return envelope.result;
+}
+
+async function assertRemoteSyntheticMetadataFence() {
+  // A local SQLite fixture pass cannot prove that the REAL isolated D1
+  // contains the triggers. Refuse to deploy or score 100-RPS until it does.
+  // This is a SELECT against the pinned synthetic D1, not production D1.
+  const query = await api("/d1/database/" + DB + "/query", {
+    method: "POST",
+    body: JSON.stringify({
+      sql: "SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'cove_syn_metadata_%' ORDER BY name",
+    }),
+  });
+  const names = query?.[0]?.results?.map((row) => row.name);
+  assert.ok(Array.isArray(names), "Synthetic D1 trigger audit was not returned");
+  assert.equal(names.length, 18, "Remote synthetic D1 needs all 18 freshness triggers");
+  for (const name of [
+    "cove_syn_metadata_product_insert",
+    "cove_syn_metadata_product_delete",
+    "cove_syn_metadata_product_source_update",
+  ])
+    assert.ok(names.includes(name), "Missing synthetic source-binding trigger: " + name);
+  EVIDENCE.remoteSyntheticRevisionTriggerCount = names.length;
+  EVIDENCE.remoteSyntheticSourceBindingTriggersVerified = true;
 }
 
 async function activeCandidate() {
@@ -340,6 +363,7 @@ async function main() {
     assertOriginal(await activeCandidate());
     EVIDENCE.originalConfirmed = true;
     EVIDENCE.beganAt = new Date().toISOString();
+    await assertRemoteSyntheticMetadataFence();
     // Only the isolated non-routable candidate and pinned private driver.
     // Real production catalog/owner/payment paths are unchanged.
     await deployArm();

@@ -126,9 +126,16 @@ assert.match(stage, /public_metadata_revision !== snapshot\.publicMetadataRevisi
 assert.match(stage, /after\?\.public_metadata_revision !== before\.public_metadata_revision/);
 assert.equal(
   [...metadataSql.matchAll(/CREATE TRIGGER IF NOT EXISTS/g)].length,
-  15,
+  18,
   "All metadata mutation writers, including source INSERT, require an independently verified generation trigger",
 );
+for (const sourceMutationTrigger of [
+  "cove_syn_metadata_product_insert",
+  "cove_syn_metadata_product_delete",
+  "cove_syn_metadata_product_source_update",
+]) {
+  assert.ok(metadataSql.includes(sourceMutationTrigger), "Missing source-pointer invalidation");
+}
 assert.doesNotMatch(metadataSql, /4bd657ac-8789-403e-a28c-93aba8d0a989/);
 
 const missing = canonicalFields.filter((field) => !stageFields.includes(field));

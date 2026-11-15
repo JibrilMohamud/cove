@@ -6,7 +6,7 @@ SCHEMA = Path("scripts/staging/sql/synthetic-public-metadata-revision-fence.sql"
 assert "SYNTHETIC FIXTURE ONLY" in SCHEMA
 assert "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3" in SCHEMA
 assert "4bd657ac-8789-403e-a28c-93aba8d0a989" not in SCHEMA
-assert SCHEMA.count("CREATE TRIGGER IF NOT EXISTS ") == 15
+assert SCHEMA.count("CREATE TRIGGER IF NOT EXISTS ") == 18
 
 db = sqlite3.connect(":memory:")
 db.executescript(
@@ -30,6 +30,9 @@ CREATE TABLE publishing_publications (
 );
 CREATE TABLE publishing_publication_versions (
   id TEXT PRIMARY KEY, publication_id TEXT, lifecycle_id TEXT
+);
+CREATE TABLE products (
+  id TEXT PRIMARY KEY, source_name TEXT, source_external_id TEXT, updated_at TEXT
 );
 """
 )
@@ -71,6 +74,32 @@ changed(
     ("New Source",),
 )
 changed("DELETE FROM gutenberg_source_cache WHERE id='synthetic-1'")
+# A product can point to a NEW Gutenberg record without modifying either
+# source-cache row. No-op updates must not invalidate; inserts, source pointer
+# changes, and deletes must deny stale publication snapshots immediately.
+changed(
+    "INSERT INTO products VALUES (?,?,?,?)",
+    ("product-1", "gutenberg", "synthetic-1", "2026-11-15"),
+)
+changed(
+    "UPDATE products SET updated_at=? WHERE id='product-1'",
+    ("2026-11-16",),
+    expected=False,
+)
+changed(
+    "UPDATE products SET source_external_id=? WHERE id='product-1'",
+    ("synthetic-1",),
+    expected=False,
+)
+changed(
+    "UPDATE products SET source_external_id=? WHERE id='product-1'",
+    ("synthetic-2",),
+)
+changed(
+    "UPDATE products SET source_name=? WHERE id='product-1'",
+    ("publisher",),
+)
+changed("DELETE FROM products WHERE id='product-1'")
 changed(
     "INSERT INTO publishing_publication_disclosures VALUES (?,?,?,?,?,?,?,?,?)",
     ("version-1", "ai-1", "1", "human", "human", "human", "human", "", "[]"),
@@ -129,4 +158,4 @@ assert revision() == prior + 1
 db.rollback()
 assert revision() == prior, "Aborted metadata publication must not advance committed revision"
 
-print("PASS: 15 isolated D1 metadata triggers deny stale source/license/AI cache generations; new sources, unchanged and rolled-back writes handled")
+print("PASS: 18 isolated D1 triggers deny stale source pointers, license and AI generations; no-op and rolled-back writes handled")
