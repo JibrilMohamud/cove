@@ -143,35 +143,62 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
     const data = await resp.json();
     const ms = performance.now() - started;
     if (mode === "context") {
+      const valid =
+        resp.status === 200 &&
+        data?.rightsCountry === "US" &&
+        data?.currency === "USD" &&
+        resp.headers.get("x-cove-persistence") === "d1-r2";
       return {
         status: resp.status,
         firstByteMs,
         ms,
-        valid:
-          resp.status === 200 &&
-          data?.rightsCountry === "US" &&
-          data?.currency === "USD" &&
-          resp.headers.get("x-cove-persistence") === "d1-r2",
+        valid,
+        errorKind: valid
+          ? null
+          : resp.status !== 200
+            ? "upstream-http-status"
+            : "context-payload-or-provenance",
       };
     }
     const ids = Array.isArray(data?.results) ? data.results.map((b) => b.productId) : [];
+    const valid =
+      resp.status === 200 &&
+      ids.length === 24 &&
+      new Set(ids).size === 24 &&
+      ids.every((id) => typeof id === "string" && id.startsWith("perf-synth-")) &&
+      resp.headers.get("x-cove-persistence") === "d1-r2";
     return {
       status: resp.status,
       firstByteMs,
       ms,
-      valid:
-        resp.status === 200 &&
-        ids.length === 24 &&
-        new Set(ids).size === 24 &&
-        ids.every((id) => typeof id === "string" && id.startsWith("perf-synth-")) &&
-        resp.headers.get("x-cove-persistence") === "d1-r2",
+      valid,
+      // Safe enumerated categories only; never log IDs, payload, request
+      // headers, SQL, origin URLs, raw errors or anonymous client IPs.
+      errorKind: valid
+        ? null
+        : resp.status !== 200
+          ? "upstream-http-status"
+          : !Array.isArray(data?.results)
+            ? "invalid-result-array"
+            : ids.length !== 24
+              ? "unexpected-result-count"
+              : new Set(ids).size !== 24
+                ? "duplicate-result-id"
+                : !ids.every((id) => typeof id === "string" && id.startsWith("perf-synth-"))
+                  ? "invalid-synthetic-id"
+                  : "missing-persistence-proof",
     };
   } catch (error) {
     return {
       status: 0,
       valid: false,
       ms: performance.now() - started,
-      errorKind: error?.name === "TimeoutError" ? "timeout" : "request-or-database-failure",
+      errorKind:
+        error?.name === "TimeoutError"
+          ? "timeout"
+          : error?.name === "SyntaxError"
+            ? "invalid-upstream-json"
+            : "request-or-database-failure",
     };
   }
 }
