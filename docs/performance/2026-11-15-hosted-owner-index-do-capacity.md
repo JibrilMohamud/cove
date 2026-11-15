@@ -61,6 +61,47 @@ removed all remaining availability. The full stage run's capacity and
 revocation checks succeeded. Cleanup reported removed=true and the
 Worker was **independently verified absent** afterward.
 
+## Subsequent hosted owner FTS5 / expiry run — PASSED
+
+[GitHub run #43761449037](https://github.com/JibrilMohamud/cove/actions/runs/43761449037)
+deployed one **new** secret-gated ephemeral Worker, with the latest
+transactionally maintained owner-FTS5 implementation. The deployment
+attempt succeeded on its first try. The explicit retry wrapper permits a
+bounded reattempt ONLY for Cloudflare Worker-registration code 10007,
+rather than silently treating other deployment errors as transient.
+
+| Hosted workload | Valid/offered | Drops | p95 ms | p99 ms | max ms |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| burst 1/4/8/16/32 | 61/61 combined | 0 | varies | varies | 242.74 |
+| 50 RPS x 20s catalog | 1000/1000 | 0 | 54.62 | 97.74 | 182.43 |
+| 100 RPS x 20s catalog #1 | 2000/2000 | 0 | 55.64 | 103.99 | 205.71 |
+| 100 RPS x 20s catalog #2 | 2000/2000 | 0 | 61.74 | 88.26 | 176.91 |
+| 100 RPS x 20s owner keyword FTS5 | 2000/2000 | 0 | 55.03 | 98.75 | 198.67 |
+| 100-RPS concurrent contract withdrawal | 600/600 | 0 | 86.64 | 121.88 | 201.97 |
+
+The three 20-second 100-RPS phases each submitted 2,000 valid HTTP 200
+responses with no dropped requests; achieved rates were approximately
+99.83, 99.83 and 99.84 RPS. During concurrent contract revocation,
+288 requests began before acknowledgment, 312 after; **zero post-ACK
+search or paid-offer authorization remained visible**. The separate
+read-fence operation compares the indexed result plus the unique
+withdrawn title keyword against the actual owner legal SQL tables.
+An additional stage-only short paid-lease event then crossed its
+deadline: the owner-local bounded expiry reconciliation removed exactly
+one expired paid item, leaving 22 allowed books and **zero matches**
+for the expired title keyword. Finally a market tombstone returned zero.
+
+All tests passed. The standalone ephemeral Worker was deleted by
+`if: always()` cleanup and independently verified absent by read-only
+Cloudflare Worker settings GET (HTTP 404). The first failed run
+#43758727582 and its failed second-attempt 10007 deployment are still
+retained as failures; the later success does not erase them.
+
+**IMPORTANT:** This is a 25-product fake-authority hosted stress test,
+not the full production catalog or canonical customer-paid evidence.
+Even its FTS5 search uses restricted literal terms and stage rank order,
+not Cove's complete FTS synonyms/typo/relevance contract.
+
 ## Release status: BLOCKED
 
 This evidence supports the *mechanism* of a fast, strongly consistent
