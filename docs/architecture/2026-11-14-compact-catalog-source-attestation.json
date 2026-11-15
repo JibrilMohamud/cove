@@ -1,0 +1,22 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Independent source-bound review compares the anonymous staging compact-read experiment with the prior approved code base. The only executable SQL added is a SELECT that joins the existing fixed top-96 ranking seed to the existing live primary retail/territory eligibility predicates and the unchanged complete canonical book projection within one primary D1 statement. It is available only when the exact synthetic staging D1 fixture ID, a private presentation R2 binding, anonymous context, the default US/USD popular first-page, and explicit flags match. A verified 25th rights-approved book is mandatory or the original path remains. No authorization is derived from cached R2 and authenticated paths retain their original rights logic. Anonymous subscription/library flags are removed rather than treated as grants, and access/purchase handlers still independently authorize. All 34 protected original writer SQL literals and their functions/guards remain unchanged; this source attestation is not release approval, owner certification or permission to alter production configuration.",
+  "files": [
+    {
+      "path": "src/features/fore/api.server.ts",
+      "sha256": "66595195061a4de5a6660352f3fc8ba7d1187011958b4efe07da33cdad43b707",
+      "review": "Added only synthetic compact-stage environment typings near existing staging settings, leaving all 33 owner-required writer statements and their original callers, guards, execution and owner classifications unchanged. No new production route, automatic feature enablement, entitlement authority or user principal mutation."
+    },
+    {
+      "path": "src/features/fore/search.server.ts",
+      "sha256": "2881163fb51c622895f6943edc7b7b5a407553e999392707fe51496430302b3d",
+      "review": "Added a synthetic-only top-96 bounded live-rights SELECT path and a conditional skip of optional secondary-channel eligibility for anonymous, unfiltered popular page one. Full current retail rights are required before returning each book; the original logic remains for authenticated and filtered searches. The existing single UPDATE SQL mutation site remains byte-for-byte unchanged, in the original function and with original permission conditions."
+    },
+    {
+      "path": "src/features/fore/catalog-model.server.ts",
+      "sha256": "cf17d869eb22bb54f6e6e8a8d11f3ae14112265c964b8ce5166b74b32790bf10",
+      "review": "Added only a fully read-only canonical catalog hydration SELECT. Reuses the existing complete canonical projection without changing any original SQL mutation, authority, withdrawal, publishing, legal owner, payment or entitlement call sites. The function refuses unsafe scopes, duplicate IDs and incomplete witness pages before application selection."
+    }
+  ]
+}
