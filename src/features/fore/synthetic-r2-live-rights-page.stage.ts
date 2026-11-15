@@ -529,9 +529,7 @@ function currentIdentifiers(raw: string | null): Record<string, string> {
   if (!parsed) return {};
   if (
     Object.keys(parsed).length > 50 ||
-    !Object.entries(parsed).every(
-      ([key, value]) => shortText(key, 100) && shortText(value, 512),
-    )
+    !Object.entries(parsed).every(([key, value]) => shortText(key, 100) && shortText(value, 512))
   )
     throw new Error("Invalid current identifiers");
   return parsed as Record<string, string>;
