@@ -159,17 +159,25 @@ async function requireSyntheticRetailOffers() {
 async function refreshSyntheticPointBenchmark() {
   assert.ok(process.argv.includes("--point-only-100rps"));
   assert.equal(process.env.COVE_SYNTHETIC_POINT_BENCH, "1");
+  // Refresh ONLY the 25 distant points, not all 50k benchmark entries.
+  // Otherwise reseeding creates a needless write storm between phases.
+  const ids = Array.from(
+    { length: 25 },
+    (_, i) => "perf-synth-" + String(1 + i * 1999).padStart(6, "0"),
+  );
   const updated = await api("/d1/database/" + DB + "/query", {
     method: "POST",
     body: JSON.stringify({
-      sql: "UPDATE cove_stage_perf_retail_authority SET valid_until=datetime('now','+30 seconds') WHERE territory_code='US' AND currency='USD' AND current_offer_id='BENCH-NOT-A-GRANT'",
+      sql: "UPDATE cove_stage_perf_retail_authority SET valid_until=datetime('now','+30 seconds') WHERE territory_code='US' AND currency='USD' AND current_offer_id='BENCH-NOT-A-GRANT' AND product_id IN (SELECT value FROM json_each(?))",
+      params: [JSON.stringify(ids)],
     }),
   });
-  assert.equal(updated?.[0]?.meta?.changes, 25, "All 25 temporary benchmark leases must refresh");
+  assert.equal(updated?.[0]?.meta?.changes, 25, "All 25 dispersed benchmark leases must refresh");
   const checked = await api("/d1/database/" + DB + "/query", {
     method: "POST",
     body: JSON.stringify({
-      sql: "SELECT count(*) AS ready FROM cove_stage_perf_retail_authority WHERE territory_code='US' AND currency='USD' AND current_offer_id='BENCH-NOT-A-GRANT' AND valid_until>datetime('now')",
+      sql: "SELECT count(*) AS ready FROM cove_stage_perf_retail_authority WHERE territory_code='US' AND currency='USD' AND current_offer_id='BENCH-NOT-A-GRANT' AND valid_until>datetime('now') AND product_id IN (SELECT value FROM json_each(?))",
+      params: [JSON.stringify(ids)],
     }),
   });
   assert.equal(
