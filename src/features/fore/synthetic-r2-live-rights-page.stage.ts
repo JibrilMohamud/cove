@@ -80,8 +80,7 @@ function permittedImage(x: unknown): x is string {
   return (
     typeof x === "string" &&
     x.length <= 2048 &&
-    (x.startsWith("https://") ||
-      (x.startsWith("/") && !x.startsWith("//") && !x.includes("\\")))
+    (x.startsWith("https://") || (x.startsWith("/") && !x.startsWith("//") && !x.includes("\\")))
   );
 }
 
@@ -98,11 +97,7 @@ function validRow(x: unknown): x is SyntheticDisplayRow {
     Array.isArray(v.authors) &&
     v.authors.length <= 30 &&
     v.authors.every(
-      (a) =>
-        a &&
-        typeof a === "object" &&
-        Object.keys(a).length === 1 &&
-        shortText(a.name, 240),
+      (a) => a && typeof a === "object" && Object.keys(a).length === 1 && shortText(a.name, 240),
     ) &&
     strings(v.subjects, 30) &&
     strings(v.bookshelves, 30) &&
@@ -164,8 +159,7 @@ export function buildSyntheticDisplayObject(books: CatalogBook[], now = Date.now
 }
 
 function constantTimeGate(value: string | null, expected: string | undefined) {
-  if (!expected || !/^[a-f0-9]{64}$/.test(expected) || !value || value.length !== 64)
-    return false;
+  if (!expected || !/^[a-f0-9]{64}$/.test(expected) || !value || value.length !== 64) return false;
   let difference = 0;
   for (let i = 0; i < 64; i++) difference |= value.charCodeAt(i) ^ expected.charCodeAt(i);
   return difference === 0;
