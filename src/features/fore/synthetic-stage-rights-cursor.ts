@@ -147,10 +147,12 @@ export async function verifySyntheticStageCursor(
     if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) return null;
     const payload = decoded as SignedCursor;
     if (!shape(payload, scope, now) || JSON.stringify(payload) !== raw) return null;
+    const signature = new Uint8Array(32);
+    signature.set(mac);
     const authentic = await crypto.subtle.verify(
       "HMAC",
       await keyForStageGate(secret),
-      mac,
+      signature,
       text.encode(fragments[0]),
     );
     return authentic ? { position: payload.position, productId: payload.productId } : null;

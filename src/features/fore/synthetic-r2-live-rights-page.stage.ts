@@ -988,13 +988,14 @@ export async function syntheticR2PageWithLiveRights(
     });
   }
   const visibleBooks = books.slice(0, PAGE_COUNT);
-  const lastVisible = visibleBooks.at(-1);
-  const lastRank = lastVisible ? rank.get(lastVisible.productId) : undefined;
+  const lastVisibleProductId = visibleBooks.at(-1)?.productId;
+  if (!identifier(lastVisibleProductId)) return null;
+  const lastRank = rank.get(lastVisibleProductId);
   if (lastRank === undefined || lastRank >= ITEM_COUNT - 1) return null;
   return {
     books: visibleBooks,
     hasMore: true,
-    cursorAnchor: { position: lastRank, productId: lastVisible!.productId },
+    cursorAnchor: { position: lastRank, productId: lastVisibleProductId },
     cursorScope,
   };
 }
