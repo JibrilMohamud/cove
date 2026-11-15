@@ -28,7 +28,11 @@ CREATE TABLE rights_contract_version_formats (id TEXT PRIMARY KEY,contract_versi
 CREATE TABLE rights_contract_version_channels (id TEXT PRIMARY KEY,contract_version_id TEXT,sales_channel TEXT);
 CREATE TABLE publisher_contract_assignments (id TEXT PRIMARY KEY,contract_id TEXT,status TEXT);
 CREATE TABLE edition_languages (id TEXT PRIMARY KEY,edition_id TEXT,language_code TEXT);
-CREATE TABLE offers (id TEXT PRIMARY KEY,product_id TEXT,amount_minor INTEGER);
+CREATE TABLE offers (
+ id TEXT PRIMARY KEY,product_id TEXT,amount_minor INTEGER,
+ currency TEXT NOT NULL DEFAULT 'USD',active INTEGER NOT NULL DEFAULT 1,
+ sales_channel TEXT NOT NULL DEFAULT 'retail',starts_at TEXT,ends_at TEXT
+);
 CREATE TABLE digital_assets (id TEXT PRIMARY KEY,edition_id TEXT,current_version_id TEXT,kind TEXT);
 CREATE TABLE asset_versions (id TEXT PRIMARY KEY,object_key TEXT);
 CREATE TABLE catalog_search_documents (product_id TEXT PRIMARY KEY,availability TEXT);
@@ -51,7 +55,7 @@ def fixture():
             (grant, edition, "c1" if i == 1 else None, "active", "allow", "ebook", "retail", "none"),
         )
         db.execute("INSERT INTO rights_grant_territories VALUES(?,?,?)", (f"t{i}", grant, "US"))
-        db.execute("INSERT INTO offers VALUES(?,?,?)", (f"o{i}", product, 599))
+        db.execute("INSERT INTO offers(id,product_id,amount_minor) VALUES(?,?,?)", (f"o{i}", product, 599))
         db.execute("INSERT INTO digital_assets VALUES(?,?,?,?)", (f"a{i}", edition, f"v{i}", "epub"))
         db.execute("INSERT INTO asset_versions VALUES(?,?)", (f"v{i}", "synthetic-public-epub-key"))
         db.execute("INSERT INTO catalog_search_documents VALUES(?,?)", (product, "available"))
@@ -151,7 +155,7 @@ def check_insert_delete_and_key_migration():
          ("deny3", "e1", None, "active", "deny", "ebook", "retail", "none")),
         ("INSERT INTO rights_grant_territories VALUES(?,?,?)", ("t3", "g1", "CA")),
         ("INSERT INTO rights_contract_languages VALUES(?,?,?)", ("cl3", "c1", "fr")),
-        ("INSERT INTO offers VALUES(?,?,?)", ("o3", "p1", 799)),
+        ("INSERT INTO offers(id,product_id,amount_minor) VALUES(?,?,?)", ("o3", "p1", 799)),
         ("INSERT INTO digital_assets VALUES(?,?,?,?)", ("a3", "e1", "v1", "epub")),
         ("INSERT INTO rights_contract_versions VALUES(?,?,?)", ("rv3", "c1", "active")),
     )
