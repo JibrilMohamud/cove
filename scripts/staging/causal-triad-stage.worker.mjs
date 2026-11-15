@@ -8,7 +8,11 @@ const CATALOG_URL =
   "https://cove-presentation-r2-proof-20261114.cove-jibrilmohamud.workers.dev/api/fore/catalog";
 const CONTEXT_URL =
   "https://cove-presentation-r2-proof-20261114.cove-jibrilmohamud.workers.dev/api/fore/storefront/context";
-const MODES = ["noop", "context", "rights", "catalog"];
+const SINGLE_AUTHORITY_URL =
+  "https://cove-presentation-r2-proof-20261114.cove-jibrilmohamud.workers.dev/api/fore/__perf/private-authority";
+// The original four-path campaign remains unchanged; single is a separate
+// opt-in differential capacity proof, never a storefront certification.
+const MODES = ["noop", "context", "rights", "catalog", "single"];
 const RIGHTS_SQL = `WITH ranked AS MATERIALIZED (
  SELECT d.product_id,d.fore_bestseller_score sort_score,d.external_book_id sort_source
  FROM catalog_search_documents d INDEXED BY idx_search_popular_stable
@@ -121,7 +125,11 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
       };
     }
     const url =
-      (mode === "catalog" ? CATALOG_URL + "?sort=popular&page=1&currency=USD" : CONTEXT_URL) +
+      (mode === "catalog"
+        ? CATALOG_URL + "?sort=popular&page=1&currency=USD"
+        : mode === "single"
+          ? SINGLE_AUTHORITY_URL
+          : CONTEXT_URL) +
       (mode === "catalog" ? "&__proof=" : "?__proof=") +
       encodeURIComponent(runId + "-" + ordinal);
     const ip = stageSyntheticIp(ordinal);
@@ -166,7 +174,10 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
       ids.length === 24 &&
       new Set(ids).size === 24 &&
       ids.every((id) => typeof id === "string" && id.startsWith("perf-synth-")) &&
-      resp.headers.get("x-cove-persistence") === "d1-r2";
+      resp.headers.get("x-cove-persistence") ===
+        (mode === "single" ? "d1-only-synthetic" : "d1-r2") &&
+      (mode !== "single" ||
+        (data?.releaseCertified === false && data?.mode === "single-primary-rights-only"));
     return {
       status: resp.status,
       firstByteMs,
