@@ -1,6 +1,10 @@
 import type { CatalogBook } from "./client";
 import { isPrimaryD1Overload } from "../../lib/primary-d1-overload";
-import { type CatalogDB, type PrimaryStorefrontAuthorityRow } from "./catalog-model.server";
+import {
+  canonicalBooksByProductIds,
+  type CatalogDB,
+  type PrimaryStorefrontAuthorityRow,
+} from "./catalog-model.server";
 import type { PresentationR2Bucket } from "./search-presentation-r2.server";
 
 /**
@@ -34,6 +38,28 @@ export type SyntheticDisplayRow = {
   languages: string[];
   imageUrl?: string;
   publisher?: string;
+  contributors?: NonNullable<CatalogBook["contributors"]>;
+  summaries?: string[];
+  publisherId?: string;
+  publisherSlug?: string;
+  imprint?: string;
+  imprintId?: string;
+  imprintSlug?: string;
+  isbn13?: string;
+  publicationDate?: string;
+  originalPublicationDate?: string;
+  releaseDate?: string;
+  preorderDate?: string;
+  editionNumber?: string;
+  originalLanguage?: string;
+  ageRange?: { min?: number; max?: number };
+  contentWarnings?: string[];
+  pageEstimate?: number;
+  wordCount?: number;
+  readingTimeMinutes?: number;
+  publisherDescription?: string;
+  editorialReviews?: string;
+  series?: NonNullable<CatalogBook["series"]>;
 };
 
 type Snapshot = {
@@ -79,7 +105,71 @@ const ALLOWED_KEYS = new Set([
   "languages",
   "imageUrl",
   "publisher",
+  "contributors",
+  "summaries",
+  "publisherId",
+  "publisherSlug",
+  "imprint",
+  "imprintId",
+  "imprintSlug",
+  "isbn13",
+  "publicationDate",
+  "originalPublicationDate",
+  "releaseDate",
+  "preorderDate",
+  "editionNumber",
+  "originalLanguage",
+  "ageRange",
+  "contentWarnings",
+  "pageEstimate",
+  "wordCount",
+  "readingTimeMinutes",
+  "publisherDescription",
+  "editorialReviews",
+  "series",
 ]);
+
+const optionalText = (value: unknown, max: number) =>
+  value === undefined || shortText(value, max);
+const optionalInt = (value: unknown) =>
+  value === undefined ||
+  (Number.isSafeInteger(value) && (value as number) >= 0 && (value as number) <= 1_000_000_000);
+const strictKeys = (value: object, fields: string[]) =>
+  Object.keys(value).every((field) => fields.includes(field));
+function validContributor(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const c = value as NonNullable<CatalogBook["contributors"]>[number];
+  return (
+    strictKeys(c, ["id", "slug", "name", "role", "position"]) &&
+    shortText(c.name, 240) &&
+    optionalText(c.id, 160) &&
+    optionalText(c.slug, 160) &&
+    optionalText(c.role, 100) &&
+    optionalInt(c.position)
+  );
+}
+function validSeries(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const entry = value as NonNullable<CatalogBook["series"]>[number];
+  return (
+    strictKeys(entry, [
+      "id",
+      "slug",
+      "name",
+      "position",
+      "label",
+      "relationship",
+      "readingOrder",
+    ]) &&
+    identifier(entry.id) &&
+    shortText(entry.name, 400) &&
+    optionalText(entry.slug, 160) &&
+    optionalText(entry.label, 160) &&
+    optionalText(entry.relationship, 100) &&
+    optionalInt(entry.position) &&
+    optionalInt(entry.readingOrder)
+  );
+}
 
 function permittedImage(x: unknown): x is string {
   return (
@@ -102,13 +192,57 @@ function validRow(x: unknown): x is SyntheticDisplayRow {
     Array.isArray(v.authors) &&
     v.authors.length <= 30 &&
     v.authors.every(
-      (a) => a && typeof a === "object" && Object.keys(a).length === 1 && shortText(a.name, 240),
+      (a) =>
+        a &&
+        typeof a === "object" &&
+        strictKeys(a, ["name", "id", "slug"]) &&
+        shortText(a.name, 240) &&
+        optionalText(a.id, 160) &&
+        optionalText(a.slug, 160),
     ) &&
     strings(v.subjects, 30) &&
     strings(v.bookshelves, 30) &&
     strings(v.languages, 12) &&
     (v.imageUrl === undefined || permittedImage(v.imageUrl)) &&
-    (v.publisher === undefined || shortText(v.publisher, 240))
+    optionalText(v.publisher, 240) &&
+    (v.contributors === undefined ||
+      (Array.isArray(v.contributors) &&
+        v.contributors.length <= 30 &&
+        v.contributors.every(validContributor))) &&
+    (v.summaries === undefined ||
+      (Array.isArray(v.summaries) &&
+        v.summaries.length <= 6 &&
+        v.summaries.every((summary) => shortText(summary, 4000)))) &&
+    optionalText(v.publisherId, 160) &&
+    optionalText(v.publisherSlug, 160) &&
+    optionalText(v.imprint, 240) &&
+    optionalText(v.imprintId, 160) &&
+    optionalText(v.imprintSlug, 160) &&
+    optionalText(v.isbn13, 32) &&
+    optionalText(v.publicationDate, 50) &&
+    optionalText(v.originalPublicationDate, 50) &&
+    optionalText(v.releaseDate, 50) &&
+    optionalText(v.preorderDate, 50) &&
+    optionalText(v.editionNumber, 80) &&
+    optionalText(v.originalLanguage, 30) &&
+    (v.ageRange === undefined ||
+      (v.ageRange &&
+        typeof v.ageRange === "object" &&
+        !Array.isArray(v.ageRange) &&
+        strictKeys(v.ageRange, ["min", "max"]) &&
+        optionalInt(v.ageRange.min) &&
+        optionalInt(v.ageRange.max))) &&
+    (v.contentWarnings === undefined ||
+      (Array.isArray(v.contentWarnings) &&
+        v.contentWarnings.length <= 24 &&
+        v.contentWarnings.every((warning) => shortText(warning, 200)))) &&
+    optionalInt(v.pageEstimate) &&
+    optionalInt(v.wordCount) &&
+    optionalInt(v.readingTimeMinutes) &&
+    optionalText(v.publisherDescription, 6000) &&
+    optionalText(v.editorialReviews, 6000) &&
+    (v.series === undefined ||
+      (Array.isArray(v.series) && v.series.length <= 24 && v.series.every(validSeries)))
   );
 }
 
@@ -141,12 +275,46 @@ export function buildSyntheticDisplayObject(books: CatalogBook[], now = Date.now
       editionId: String(book.editionId || ""),
       title: book.title,
       subtitle: book.subtitle || "",
-      authors: book.authors.map(({ name }) => ({ name })),
+      authors: book.authors.map(({ id, slug, name }) => ({
+        ...(id !== undefined ? { id } : {}),
+        ...(slug !== undefined ? { slug } : {}),
+        name,
+      })),
       subjects: book.subjects,
       bookshelves: book.bookshelves,
       languages: book.languages,
       ...(image ? { imageUrl: image } : {}),
       ...(book.publisher ? { publisher: book.publisher } : {}),
+      ...(book.contributors !== undefined ? { contributors: book.contributors } : {}),
+      ...(book.summaries !== undefined ? { summaries: book.summaries } : {}),
+      ...(book.publisherId !== undefined ? { publisherId: book.publisherId } : {}),
+      ...(book.publisherSlug !== undefined ? { publisherSlug: book.publisherSlug } : {}),
+      ...(book.imprint !== undefined ? { imprint: book.imprint } : {}),
+      ...(book.imprintId !== undefined ? { imprintId: book.imprintId } : {}),
+      ...(book.imprintSlug !== undefined ? { imprintSlug: book.imprintSlug } : {}),
+      ...(book.isbn13 !== undefined ? { isbn13: book.isbn13 } : {}),
+      ...(book.publicationDate !== undefined ? { publicationDate: book.publicationDate } : {}),
+      ...(book.originalPublicationDate !== undefined
+        ? { originalPublicationDate: book.originalPublicationDate }
+        : {}),
+      ...(book.releaseDate !== undefined ? { releaseDate: book.releaseDate } : {}),
+      ...(book.preorderDate !== undefined ? { preorderDate: book.preorderDate } : {}),
+      ...(book.editionNumber !== undefined ? { editionNumber: book.editionNumber } : {}),
+      ...(book.originalLanguage !== undefined ? { originalLanguage: book.originalLanguage } : {}),
+      ...(book.ageRange !== undefined ? { ageRange: book.ageRange } : {}),
+      ...(book.contentWarnings !== undefined ? { contentWarnings: book.contentWarnings } : {}),
+      ...(book.pageEstimate !== undefined ? { pageEstimate: book.pageEstimate } : {}),
+      ...(book.wordCount !== undefined ? { wordCount: book.wordCount } : {}),
+      ...(book.readingTimeMinutes !== undefined
+        ? { readingTimeMinutes: book.readingTimeMinutes }
+        : {}),
+      ...(book.publisherDescription !== undefined
+        ? { publisherDescription: book.publisherDescription }
+        : {}),
+      ...(book.editorialReviews !== undefined
+        ? { editorialReviews: book.editorialReviews }
+        : {}),
+      ...(book.series !== undefined ? { series: book.series } : {}),
     };
   });
   const state: Snapshot = {
@@ -214,39 +382,44 @@ export async function seedSyntheticR2Display(
   now = () => Date.now(),
 ): Promise<boolean> {
   if (!env.COVE_PUBLIC_PRESENTATION_CACHE) return false;
+  if (
+    env.COVE_SYNTHETIC_STAGING_ONLY !== SYNTHETIC_DB ||
+    env.FORE_GUEST_COMPACT_SYNTHETIC_D1_ID !== SYNTHETIC_DB ||
+    env.FORE_GUEST_COMPACT_STAGE !== "1" ||
+    env.FORE_GUEST_R2_DISPLAY_STAGE !== "1"
+  )
+    return false;
   const result = await env.DB.prepare(
-    `SELECT p.id product_id,e.id edition_id,e.title,e.subtitle,e.language
+    `SELECT p.id product_id,e.id edition_id
      FROM catalog_search_documents d INDEXED BY idx_search_popular_stable
      JOIN products p ON p.id=d.product_id
      JOIN editions e ON e.id=p.edition_id
      ORDER BY d.fore_bestseller_score DESC,d.external_book_id ASC,d.product_id ASC
      LIMIT 96`,
-  ).all<{
-    product_id: string;
-    edition_id: string;
-    title: string;
-    subtitle: string | null;
-    language: string;
-  }>();
+  ).all<{ product_id: string; edition_id: string }>();
   if (
     result.results.length !== ITEM_COUNT ||
     result.results.some((row) => !row.product_id.startsWith("perf-synth-")) ||
     result.results.some((row) => !row.edition_id.startsWith("perf-synth-"))
   )
     return false;
-  const books = result.results.map((row): CatalogBook => ({
-    id: row.product_id,
-    productId: row.product_id,
-    editionId: row.edition_id,
-    title: row.title,
-    subtitle: row.subtitle || "",
-    authors: [{ name: "Synthetic author" }],
-    subjects: [],
-    bookshelves: [],
-    languages: [row.language || "en"],
-    formats: {},
-    download_count: 0,
-  }));
+  // Seed once, never on a customer request. Use Cove's EXACT full canonical
+  // mapper rather than invented author/summary placeholders. Only the narrow
+  // public display allowlist below is serialized to R2; even if the canonical
+  // read includes an active offer, EPUB link or DRM it is discarded.
+  const books = await canonicalBooksByProductIds(
+    env.DB,
+    result.results.map((row) => row.product_id),
+  );
+  if (
+    books.length !== ITEM_COUNT ||
+    books.some(
+      (book, index) =>
+        book.productId !== result.results[index].product_id ||
+        book.editionId !== result.results[index].edition_id,
+    )
+  )
+    return false;
   const body = buildSyntheticDisplayObject(books, now());
   const bucket = env.COVE_PUBLIC_PRESENTATION_CACHE;
   const old = await bucket.get(OBJECT_KEY);
@@ -508,6 +681,8 @@ export async function syntheticR2PageWithLiveRights(
       title: display.title,
       subtitle: display.subtitle,
       authors: display.authors,
+      contributors: display.contributors,
+      summaries: display.summaries,
       subjects: display.subjects,
       bookshelves: display.bookshelves,
       languages: display.languages,
@@ -516,6 +691,26 @@ export async function syntheticR2PageWithLiveRights(
         : {},
       download_count: row.download_count ?? 0,
       publisher: display.publisher,
+      publisherId: display.publisherId,
+      publisherSlug: display.publisherSlug,
+      imprint: display.imprint,
+      imprintId: display.imprintId,
+      imprintSlug: display.imprintSlug,
+      isbn13: display.isbn13,
+      publicationDate: display.publicationDate,
+      originalPublicationDate: display.originalPublicationDate,
+      releaseDate: display.releaseDate,
+      preorderDate: display.preorderDate,
+      editionNumber: display.editionNumber,
+      originalLanguage: display.originalLanguage,
+      ageRange: display.ageRange,
+      contentWarnings: display.contentWarnings,
+      pageEstimate: display.pageEstimate,
+      wordCount: display.wordCount,
+      readingTimeMinutes: display.readingTimeMinutes,
+      publisherDescription: display.publisherDescription,
+      editorialReviews: display.editorialReviews,
+      series: display.series,
       offer,
       // Edition display flags are live-primary metadata, NOT entitlement
       // grants. No protected EPUB URL is cached or delivered by this probe.
