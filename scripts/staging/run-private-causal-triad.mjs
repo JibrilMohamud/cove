@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { strictTtfbTailAttribution } from "./strict-ttfb-tail-attribution.mjs";
+import { pairedIngressShadowEvidence } from "./paired-ingress-shadow.mjs";
 import { randomBytes, randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { performance } from "node:perf_hooks";
@@ -348,6 +349,16 @@ async function phase(mode, shape, offered, spacingMs, run, secret) {
   const started = performance.now();
   const rows = [];
   const pending = new Set();
+  // 100 real cursor requests/s remains the test target. Five additional
+  // control requests/s hit the SAME private driver with no DB/service-binding.
+  // The controls never replace or reduce the scheduled cursor workload.
+  const shadowEnabled =
+    process.argv.includes("--shadow-no-db") &&
+    mode === "r2cursor" &&
+    offered === 2000 &&
+    spacingMs === 10;
+  const shadowRows = [];
+  const shadowPending = new Set();
   for (let i = 0; i < offered; i++) {
     const target = started + i * spacingMs;
     await sleep(target - performance.now());
@@ -357,13 +368,36 @@ async function phase(mode, shape, offered, spacingMs, run, secret) {
       continue;
     }
     const task = requestProbe(mode, i, run, secret).then((result) => {
-      rows.push({ ...result, launchDelayMs: delay, dropped: false });
+      rows.push({ ...result, launchDelayMs: delay, dropped: false, phaseOffsetMs: i * spacingMs });
     });
     pending.add(task);
     task.finally(() => pending.delete(task));
+    if (shadowEnabled && i % 20 === 0) {
+      const phaseOffsetMs = i * spacingMs;
+      if (shadowPending.size >= MAX_OUTSTANDING) {
+        shadowRows.push({ valid: false, dropped: true, phaseOffsetMs });
+      } else {
+        const control = requestProbe("noop", Math.floor(i / 20), run, secret).then((result) => {
+          shadowRows.push({ ...result, dropped: false, phaseOffsetMs });
+        });
+        shadowPending.add(control);
+        control.finally(() => shadowPending.delete(control));
+      }
+    }
   }
-  await Promise.allSettled([...pending]);
-  return summarize(mode, shape, offered, rows, performance.now() - started);
+  await Promise.allSettled([...pending, ...shadowPending]);
+  const sample = await summarize(mode, shape, offered, rows, performance.now() - started);
+  if (shadowEnabled) {
+    sample.ingressShadow = pairedIngressShadowEvidence(rows, shadowRows, 100);
+    console.log(
+      JSON.stringify({
+        event: "cove_private_ingress_shadow_control",
+        phase: shape,
+        ...sample.ingressShadow,
+      }),
+    );
+  }
+  return sample;
 }
 
 async function warmup(run, secret) {
@@ -411,6 +445,10 @@ async function campaign(secret) {
   await warmup(run, secret);
   const page2Campaign = process.argv.includes("--r2-page2-100rps");
   const cursorCampaign = process.argv.includes("--r2-cursor-100rps");
+  const shadowEnabled = process.argv.includes("--shadow-no-db");
+  if (shadowEnabled && !cursorCampaign)
+    throw Error("No-database ingress shadow is only valid for the signed cursor experiment");
+  evidence.ingressShadowConcurrent = shadowEnabled;
   if (cursorCampaign || page2Campaign || process.argv.includes("--r2-retail-100rps")) {
     const stageMode = cursorCampaign ? "r2cursor" : page2Campaign ? "r2page2" : "r2live";
     const metricPrefix = cursorCampaign ? "r2Cursor" : page2Campaign ? "r2Page2" : "r2Retail";
@@ -430,7 +468,11 @@ async function campaign(secret) {
       p.ttfbP95Ms !== null &&
       p.ttfbP95Ms < 600 &&
       p.ttfbP99Ms < 750 &&
-      p.ttfbMaxMs < 800;
+      p.ttfbMaxMs < 800 &&
+      (!shadowEnabled ||
+        p.mode !== "r2cursor" ||
+        p.offered !== 2000 ||
+        p.ingressShadow?.passed === true);
     for (const concurrency of [1, 4, 8, 16, 32]) {
       const result = await phase(stageMode, "burst-" + concurrency, concurrency, 0, run, secret);
       if (result.valid !== concurrency || result.dropped !== 0 || result.ttfbMaxMs >= 800) {

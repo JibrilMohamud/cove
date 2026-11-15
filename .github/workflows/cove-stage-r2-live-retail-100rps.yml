@@ -1,7 +1,7 @@
 name: cove-stage-r2-current-retail-100rps
 on:
   push:
-    branches: [perf/stage-r2-display-current-rights-20261115, perf/stage-live-epub-readiness-20261115, perf/stage-full-book-shape-fresh-20261115, perf/stage-public-metadata-r2-20261115, perf/stage-all-public-details-r2-20261115, perf/stage-disclosure-revision-fence-20261115, perf/stage-source-attribution-fence-20261115, perf/stage-page2-live-rights-20261115, perf/stage-page2-hosted-capacity-20261115, perf/stage-page2-bounded-56-20261115, perf/stage-page2-hydrate-visible-20261115, perf/stage-signed-rights-cursor-20261115, perf/stage-cursor-tail-attribution-20261115, perf/stage-cursor-stage-timing-20261115]
+    branches: [perf/stage-r2-display-current-rights-20261115, perf/stage-live-epub-readiness-20261115, perf/stage-full-book-shape-fresh-20261115, perf/stage-public-metadata-r2-20261115, perf/stage-all-public-details-r2-20261115, perf/stage-disclosure-revision-fence-20261115, perf/stage-source-attribution-fence-20261115, perf/stage-page2-live-rights-20261115, perf/stage-page2-hosted-capacity-20261115, perf/stage-page2-bounded-56-20261115, perf/stage-page2-hydrate-visible-20261115, perf/stage-signed-rights-cursor-20261115, perf/stage-cursor-tail-attribution-20261115, perf/stage-cursor-stage-timing-20261115, perf/stage-paired-ingress-control-20261115]
     paths:
       - src/features/fore/synthetic-r2-live-rights-page.stage.ts
       - src/features/fore/synthetic-stage-rights-cursor.ts
@@ -13,6 +13,8 @@ on:
       - scripts/staging/run-r2-live-retail-campaign.mjs
       - scripts/staging/strict-ttfb-tail-attribution.mjs
       - scripts/staging/strict-ttfb-tail-attribution.test.mjs
+      - scripts/staging/paired-ingress-shadow.mjs
+      - scripts/staging/paired-ingress-shadow.test.mjs
       - scripts/staging/synthetic-retail-offers-20261115.sql
       - scripts/staging/sql/synthetic-public-metadata-revision-fence.sql
       - scripts/staging/check-synthetic-metadata-revision-fence.py
@@ -54,13 +56,14 @@ jobs:
           node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/2026-11-15-context-r2-live-market-source-attestation.json
       - name: Validate restricted private driver and exact stage orchestrator syntax
         run: |
+          node --test scripts/staging/paired-ingress-shadow.test.mjs
           node --test scripts/staging/strict-ttfb-tail-attribution.test.mjs
           node --test scripts/staging/private-causal-triad.worker.test.mjs
           node scripts/staging/causal-triad-stage.worker.test.mjs
           node --check scripts/staging/run-private-causal-triad.mjs
           node --check scripts/staging/run-r2-live-retail-campaign.mjs
-          npx prettier --write scripts/staging/strict-ttfb-tail-attribution.mjs scripts/staging/strict-ttfb-tail-attribution.test.mjs scripts/staging/causal-triad-stage.worker.mjs scripts/staging/private-causal-triad.worker.mjs scripts/staging/run-private-causal-triad.mjs scripts/staging/run-r2-live-retail-campaign.mjs scripts/staging/causal-triad-stage.worker.test.mjs
-          git diff --exit-code -- scripts/staging/strict-ttfb-tail-attribution.mjs scripts/staging/strict-ttfb-tail-attribution.test.mjs scripts/staging/causal-triad-stage.worker.mjs scripts/staging/private-causal-triad.worker.mjs scripts/staging/run-private-causal-triad.mjs scripts/staging/run-r2-live-retail-campaign.mjs scripts/staging/causal-triad-stage.worker.test.mjs
+          npx prettier --write scripts/staging/paired-ingress-shadow.mjs scripts/staging/paired-ingress-shadow.test.mjs scripts/staging/strict-ttfb-tail-attribution.mjs scripts/staging/strict-ttfb-tail-attribution.test.mjs scripts/staging/causal-triad-stage.worker.mjs scripts/staging/private-causal-triad.worker.mjs scripts/staging/run-private-causal-triad.mjs scripts/staging/run-r2-live-retail-campaign.mjs scripts/staging/causal-triad-stage.worker.test.mjs
+          git diff --exit-code -- scripts/staging/paired-ingress-shadow.mjs scripts/staging/paired-ingress-shadow.test.mjs scripts/staging/strict-ttfb-tail-attribution.mjs scripts/staging/strict-ttfb-tail-attribution.test.mjs scripts/staging/causal-triad-stage.worker.mjs scripts/staging/private-causal-triad.worker.mjs scripts/staging/run-private-causal-triad.mjs scripts/staging/run-r2-live-retail-campaign.mjs scripts/staging/causal-triad-stage.worker.test.mjs
       - name: Reject TypeScript contract divergence before staging
         run: npm run typecheck
       - name: Build production-shaped backend with stage flags absent
@@ -69,7 +72,9 @@ jobs:
         run: test -n "$CLOUDFLARE_API_TOKEN"
       - name: Private synthetic R2/live-retail 1-32 bursts, 50-RPS and two 100-RPS phases
         run: |
-          if [ "$GITHUB_REF_NAME" = "perf/stage-signed-rights-cursor-20261115" ] || [ "$GITHUB_REF_NAME" = "perf/stage-cursor-tail-attribution-20261115" ] || [ "$GITHUB_REF_NAME" = "perf/stage-cursor-stage-timing-20261115" ]; then
+          if [ "$GITHUB_REF_NAME" = "perf/stage-paired-ingress-control-20261115" ]; then
+            node scripts/staging/run-r2-live-retail-campaign.mjs --cursor-only --shadow-no-db
+          elif [ "$GITHUB_REF_NAME" = "perf/stage-signed-rights-cursor-20261115" ] || [ "$GITHUB_REF_NAME" = "perf/stage-cursor-tail-attribution-20261115" ] || [ "$GITHUB_REF_NAME" = "perf/stage-cursor-stage-timing-20261115" ]; then
             node scripts/staging/run-r2-live-retail-campaign.mjs --cursor-only
           elif [ "$GITHUB_REF_NAME" = "perf/stage-page2-hosted-capacity-20261115" ] || [ "$GITHUB_REF_NAME" = "perf/stage-page2-bounded-56-20261115" ] || [ "$GITHUB_REF_NAME" = "perf/stage-page2-hydrate-visible-20261115" ]; then
             node scripts/staging/run-r2-live-retail-campaign.mjs --page-two-only
