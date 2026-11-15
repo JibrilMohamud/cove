@@ -40,7 +40,11 @@ and requires successful verification of user-level token inventory. Missing
 permissions, missing scripts, partial results, or failed requests BLOCK.
 
 Use the protected, manual cove-exclusive-primary-d1-writer-audit workflow
-once the audit credential and protected environment exist. Do not turn this
+once the two **independent read-only** audit credentials and protected environment
+exist: COVE_CF_PRODUCTION_AUDIT_READ_TOKEN for account/Worker inventory, and
+COVE_CF_USER_TOKENS_AUDIT_READ_TOKEN for user-scoped token inventory. The
+account-scoped token cannot be assumed to read user-scoped token permissions;
+the observed 403 is a hard release blocker. Never print or paste either token. Do not turn this
 into an automatic destructive token-rotation or Worker-binding removal job.
 
 This certifies only *physical Cloudflare owner exclusivity*, not source-level
