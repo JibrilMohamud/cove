@@ -28,7 +28,11 @@ CREATE TABLE rights_contract_version_formats (id TEXT PRIMARY KEY,contract_versi
 CREATE TABLE rights_contract_version_channels (id TEXT PRIMARY KEY,contract_version_id TEXT,sales_channel TEXT);
 CREATE TABLE publisher_contract_assignments (id TEXT PRIMARY KEY,contract_id TEXT,status TEXT);
 CREATE TABLE edition_languages (id TEXT PRIMARY KEY,edition_id TEXT,language_code TEXT);
-CREATE TABLE offers (id TEXT PRIMARY KEY,product_id TEXT,amount_minor INTEGER);
+CREATE TABLE offers (
+ id TEXT PRIMARY KEY,product_id TEXT,amount_minor INTEGER,
+ currency TEXT NOT NULL DEFAULT 'USD',active INTEGER NOT NULL DEFAULT 1,
+ sales_channel TEXT NOT NULL DEFAULT 'retail',starts_at TEXT,ends_at TEXT
+);
 CREATE TABLE digital_assets (id TEXT PRIMARY KEY,edition_id TEXT,current_version_id TEXT,kind TEXT);
 CREATE TABLE asset_versions (id TEXT PRIMARY KEY,object_key TEXT);
 CREATE TABLE catalog_search_documents (product_id TEXT PRIMARY KEY,availability TEXT);
@@ -41,7 +45,7 @@ CREATE TABLE territory_aliases (alias_code TEXT PRIMARY KEY,territory_code TEXT)
 def fixture():
     db = sqlite3.connect(":memory:", isolation_level=None)
     db.executescript(FIXTURE + module.stage_schema())
-    db.execute("INSERT INTO cove_stage_owner_authority_state VALUES(1,1,7)")
+    db.execute("INSERT INTO cove_stage_owner_authority_state(id,enabled,epoch) VALUES(1,1,7)")
     for i in (1, 2):
         product, edition, grant = f"p{i}", f"e{i}", f"g{i}"
         db.execute("INSERT INTO products VALUES(?,?,?,?)", (product, edition, "ebook", "active"))
@@ -51,7 +55,7 @@ def fixture():
             (grant, edition, "c1" if i == 1 else None, "active", "allow", "ebook", "retail", "none"),
         )
         db.execute("INSERT INTO rights_grant_territories VALUES(?,?,?)", (f"t{i}", grant, "US"))
-        db.execute("INSERT INTO offers VALUES(?,?,?)", (f"o{i}", product, 599))
+        db.execute("INSERT INTO offers(id,product_id,amount_minor) VALUES(?,?,?)", (f"o{i}", product, 599))
         db.execute("INSERT INTO digital_assets VALUES(?,?,?,?)", (f"a{i}", edition, f"v{i}", "epub"))
         db.execute("INSERT INTO asset_versions VALUES(?,?)", (f"v{i}", "synthetic-public-epub-key"))
         db.execute("INSERT INTO catalog_search_documents VALUES(?,?)", (product, "available"))
@@ -79,9 +83,24 @@ def fixture():
 
 def publish(db, product="p1", price=599, epoch=7, valid_until="2026-11-15 14:00:00",
             territory="US", currency="USD"):
+    observed = db.execute(
+        """SELECT sv.revision,tv.revision,COALESCE(mv.revision,0),
+                  owner.us_fallback_revision
+           FROM cove_stage_owner_product_source_version sv
+           JOIN cove_stage_owner_territory_version tv ON tv.territory_code=?
+           LEFT JOIN cove_stage_owner_market_version mv ON mv.territory_code=?
+           CROSS JOIN cove_stage_owner_authority_state owner
+           WHERE sv.product_id=? AND owner.id=1""",
+        (territory, territory, product),
+    ).fetchone()
+    check(observed is not None, "Missing versioned source or territory in staging fixture")
     db.execute(
-        "INSERT OR REPLACE INTO cove_stage_owner_retail_authority VALUES(?,?,?,?,?,?,?,?)",
-        (product, territory, currency, price, "o" + product[1:], epoch, "a" * 64, valid_until),
+        "INSERT OR REPLACE INTO cove_stage_owner_retail_authority VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+        (
+            product, territory, currency, price, "o" + product[1:], epoch,
+            observed[0], observed[1], observed[2], observed[3],
+            "a" * 64, valid_until,
+        ),
     )
 
 
@@ -136,7 +155,7 @@ def check_insert_delete_and_key_migration():
          ("deny3", "e1", None, "active", "deny", "ebook", "retail", "none")),
         ("INSERT INTO rights_grant_territories VALUES(?,?,?)", ("t3", "g1", "CA")),
         ("INSERT INTO rights_contract_languages VALUES(?,?,?)", ("cl3", "c1", "fr")),
-        ("INSERT INTO offers VALUES(?,?,?)", ("o3", "p1", 799)),
+        ("INSERT INTO offers(id,product_id,amount_minor) VALUES(?,?,?)", ("o3", "p1", 799)),
         ("INSERT INTO digital_assets VALUES(?,?,?,?)", ("a3", "e1", "v1", "epub")),
         ("INSERT INTO rights_contract_versions VALUES(?,?,?)", ("rv3", "c1", "active")),
     )
@@ -264,6 +283,19 @@ def check_authority_boundaries():
     check(read(db, at="2026-11-15 14:00:00") is None, "Scheduled boundary must fail closed")
     db.execute("UPDATE cove_stage_owner_authority_state SET enabled=0 WHERE id=1")
     check(read(db) is None, "Disabled owner must not serve the projection")
+    for invalid in (
+        "UPDATE cove_stage_owner_authority_state SET enabled=1 WHERE id=1",
+        "UPDATE cove_stage_owner_authority_state SET epoch=6 WHERE id=1",
+        "UPDATE cove_stage_owner_authority_state SET us_fallback_revision=0 WHERE id=1",
+        "DELETE FROM cove_stage_owner_authority_state WHERE id=1",
+    ):
+        try:
+            db.execute(invalid)
+        except sqlite3.DatabaseError:
+            pass
+        else:
+            raise AssertionError("Owner epoch regression or state deletion must abort: " + invalid)
+    check(read(db) is None, "Failed owner reactivation cannot resurrect old positive")
     db.execute("UPDATE cove_stage_owner_authority_state SET enabled=1,epoch=8 WHERE id=1")
     check(read(db) is None, "Old owner epoch must not authorize a new owner")
     plan = db.execute(
