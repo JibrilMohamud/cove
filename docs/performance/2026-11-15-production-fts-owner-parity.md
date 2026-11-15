@@ -47,7 +47,7 @@ the old FTS index from serving further stage reads until clean migration.
 ## Verified test scope
 
 - `scripts/staging/check-stage-production-fts-mirror.mjs`: standalone
-  Node SQLite test of tokenizer/diacritics, Porto stemming, identifier
+  Node SQLite test of tokenizer/diacritics, Porter stemming, identifier
   matching, English inclusion, full-text fields, suppression, unauthorized
   metadata, inactive/upload/draft exclusion, preorder acceptance, stable
   owner-bound deletion, tamper rejection, and fail-closed reseal.
