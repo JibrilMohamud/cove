@@ -82,14 +82,19 @@ try {
   assert.equal(last.countPending, true, "Pending flag is never silently converted to exact");
   const page2 = canonicalCatalogEnvelope(url, 2, { ...search, count: 48 }, ingestion);
   assert.equal(page2.next, null);
-  const empty = canonicalCatalogEnvelope(url, 1, {
-    ...search,
-    books: [],
-    count: 0,
-    facetsPending: undefined,
-    countPending: undefined,
-    correctedQuery: "corrected",
-  }, null);
+  const empty = canonicalCatalogEnvelope(
+    url,
+    1,
+    {
+      ...search,
+      books: [],
+      count: 0,
+      facetsPending: undefined,
+      countPending: undefined,
+      correctedQuery: "corrected",
+    },
+    null,
+  );
   assert.equal(empty.next, null);
   assert.equal(empty.countPending, false);
   assert.equal(empty.facetsPending, false);
@@ -103,7 +108,9 @@ try {
   ]) {
     assert.throws(invalid, /Invalid canonical catalog/);
   }
-  console.log("Canonical nine-field catalog envelope: exact shape, pending-state and cursor invariants PASS");
+  console.log(
+    "Canonical nine-field catalog envelope: exact shape, pending-state and cursor invariants PASS",
+  );
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }
