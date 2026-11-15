@@ -63,6 +63,8 @@ try{
         categories_text:i<5?'Fiction Classics':'Fiction',
         keywords_text:'reading sample',description:'A fictional journey',
         language_code:i%2===0?'en':'fr',suppressed:false,
+        storefront_status:'active',source_name:i<12?'gutenberg':'partner',
+        release_status:'available',
       });
     }
     for(const id of freeIds){
