@@ -1,0 +1,35 @@
+name: cove-stage-single-authority-catalog-check
+on:
+  push:
+    branches:
+      - perf/stage-single-authority-catalog-20261114
+    paths:
+      - src/features/fore/catalog-model.server.ts
+      - src/features/fore/search.server.ts
+      - src/features/fore/api.server.ts
+      - scripts/staging/check-single-authority-catalog-stage.mjs
+      - .github/workflows/cove-stage-single-authority-catalog.yml
+      - docs/architecture/canonical-writer-review.json
+      - docs/architecture/2026-11-14-compact-catalog-source-attestation.json
+permissions:
+  contents: read
+jobs:
+  safeguards:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci
+      - name: Test bounded current rights selection and full book projection
+        run: node scripts/staging/check-single-authority-catalog-stage.mjs
+      - name: Verify source formatting
+        run: npx prettier --check src/features/fore/catalog-model.server.ts src/features/fore/search.server.ts src/features/fore/api.server.ts scripts/staging/check-single-authority-catalog-stage.mjs
+      - name: Reconcile all protected canonical SQL sites and reviewed caller guards
+        run: |
+          node scripts/reconcile-canonical-writers.mjs
+          node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/2026-11-14-compact-catalog-source-attestation.json
+      - name: Build production-shaped code for isolated stage, without deploying
+        run: npm run build:backend
