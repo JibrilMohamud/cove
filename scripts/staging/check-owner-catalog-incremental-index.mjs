@@ -251,7 +251,9 @@ try{
     const swept=idx.refreshStageOwnerExpired(sql);
     assert.equal(swept.processed,1,'Only genuinely expired owner-local lease is reconciled');
     assert.equal(swept.remaining,0);
-    stage.rebuildStageOwnerCatalogSnapshot(sql);
+    // The OLD full snapshot is known to fail publication after ANY expired
+    // stored paid lease. This incremental index deliberately avoids that
+    // global expiry lock; keep the old snapshot unavailable, not falsified.
   });
   assert.equal(idx.readStageOwnerIncrementalIndex(sql,scope).count,22);
   assert.ok(!idx.readStageOwnerIncrementalIndex(sql,scope).pageIds.includes(expiring));
@@ -262,19 +264,21 @@ try{
     assert.deepEqual(idx.readStageOwnerFilteredIndex(sql,input),filteredGold(input),
       'Expired paid offers must disappear from every filtered count and facet');
   }
-  assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,22);
+  assert.throws(()=>stage.readStageOwnerCatalogSnapshot(sql,scope),
+    /unavailable_or_revoked/,'Expired prior snapshot must remain fail-closed');
   assert.equal(paid.readCommercialStorefront(sql,paidIds,'US','USD').length,11);
 
   inTransaction(()=>{
     market.denyMarket(sql,{territory:'US',operationId:'stage:catalog:market-deny:1'});
-    stage.rebuildStageOwnerCatalogSnapshot(sql);
+    // Old snapshot rebuild is intentionally broken by the stale paid proof;
+    // market veto in the incremental owner index must still return zero.
   });
-  assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,0);
+  assert.throws(()=>stage.readStageOwnerCatalogSnapshot(sql,scope),/unavailable_or_revoked/);
   assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope),stage.stageOwnerCatalogRead(sql,scope));
   for(const part of filterSamples){const input={...scope,...part};
     assert.deepEqual(idx.readStageOwnerFilteredIndex(sql,input),filteredGold(input));}
-  assert.deepEqual(stage.readStageOwnerCatalogSnapshot(sql,scope).pageIds,[]);
-  assert.deepEqual(stage.readStageOwnerCatalogSnapshot(sql,scope).facets.availability,[]);
+  assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope).pageIds,[]);
+  assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope).facets.availability,[]);
   for(const invalid of [
     {...scope,page:2},{...scope,limit:10},{...scope,query:'war'},
     {...scope,sort:'popular'},{...scope,territory:'GB'},
