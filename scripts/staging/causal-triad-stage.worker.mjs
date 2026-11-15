@@ -20,6 +20,7 @@ const MODES = [
   "rights",
   "revision",
   "pointbench",
+  "pagebench",
   "catalog",
   "single",
   "r2live",
@@ -97,7 +98,14 @@ export function triadStageBindingGuard(env) {
 export const triadModes = Object.freeze([...MODES]);
 export const triadSql = RIGHTS_SQL;
 export const triadRevisionSql = REVISION_SQL;
+// One database row for a synthetic page digest in a 50k-row page-index table.
+// This is a service-floor experiment only, never proof of 25 actual grants.
+const PAGE_BENCH_SQL = `SELECT page_id,candidate_count,rank_digest,current_offer_digest,
+ valid_until FROM cove_stage_perf_page_authority
+ WHERE page_id=? AND candidate_count=25 AND owner_epoch=1
+ AND valid_until>datetime('now')`;
 export const triadPointBenchmarkSql = POINT_BENCH_SQL;
+export const triadPageBenchmarkSql = PAGE_BENCH_SQL;
 
 // TEST-NET IPv4 addresses, unique by request ordinal. Never use real identities.
 export function stageSyntheticIp(i) {
@@ -126,7 +134,7 @@ export function summarizeTriad(mode, kind, offered, rows, durationMs) {
     transportLayer:
       mode === "noop"
         ? "driver-only"
-        : mode === "rights" || mode === "revision" || mode === "pointbench"
+        : mode === "rights" || mode === "revision" || mode === "pointbench" || mode === "pagebench"
           ? "driver-d1"
           : "candidate-service-binding",
     externalTtfbCertified: false,
@@ -206,6 +214,29 @@ export async function singleTriadProbe(mode, env, ordinal, runId, cursorToken = 
               r.amount_minor === 599 &&
               r.evidence_digest === "b".repeat(64),
           ),
+        ms,
+        sqlMs: Number.isFinite(sqlMs) ? sqlMs : null,
+        outsideSqlMs: Number.isFinite(sqlMs) && sqlMs <= ms ? ms - sqlMs : null,
+        rowsRead: Number.isFinite(result.meta?.rows_read) ? result.meta.rows_read : null,
+      };
+    }
+    if (mode === "pagebench") {
+      // A dummy single-page snapshot in a full 50k-key B-tree, NOT legal
+      // authority or real catalog pagination. Never read it outside stage.
+      if (env.COVE_SYNTHETIC_PAGE_BENCH !== "1")
+        return { status: 403, valid: false, errorKind: "page-bench-not-explicitly-bound" };
+      const result = await env.DB.prepare(PAGE_BENCH_SQL).bind("page-synth-000001").all();
+      const rows = result.results || [];
+      const sqlMs = Number(result.meta?.duration);
+      const ms = performance.now() - started;
+      return {
+        status: 200,
+        valid:
+          rows.length === 1 &&
+          rows[0].page_id === "page-synth-000001" &&
+          rows[0].candidate_count === 25 &&
+          rows[0].rank_digest === "c".repeat(64) &&
+          rows[0].current_offer_digest === "d".repeat(64),
         ms,
         sqlMs: Number.isFinite(sqlMs) ? sqlMs : null,
         outsideSqlMs: Number.isFinite(sqlMs) && sqlMs <= ms ? ms - sqlMs : null,
