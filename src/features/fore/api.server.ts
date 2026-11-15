@@ -117,7 +117,6 @@ import seed from "./catalog-seed.json";
 import type { CatalogBook } from "./client";
 import type { PresentationR2Bucket } from "./search-presentation-r2.server";
 import { handlePrivateAuthorityStageProbe } from "./single-authority-probe.stage";
-import { handleSyntheticR2LiveRightsStage } from "./synthetic-r2-live-rights-page.stage";
 import {
   canDeferGuestCatalogFacets,
   firstPaintStorefrontShelf,
@@ -494,7 +493,6 @@ export type CoveEnv = {
   // Synthetic D1-only A/B: cannot be enabled by default production configuration.
   FORE_GUEST_COMPACT_STAGE?: string;
   FORE_GUEST_CONTEXT_R2_STAGE?: string;
-  FORE_GUEST_R2_DISPLAY_STAGE?: string;
   COVE_SYNTHETIC_STAGING_ONLY?: string;
   FORE_GUEST_COMPACT_SYNTHETIC_D1_ID?: string;
   COVE_PUBLIC_PRESENTATION_CACHE?: PresentationR2Bucket;
@@ -2936,10 +2934,6 @@ export async function handleCoveApi(
   // exactly one full-shape current-rights primary-D1 service operation.
   const privateAuthorityProbe = await handlePrivateAuthorityStageProbe(request, env);
   if (privateAuthorityProbe) return privateAuthorityProbe;
-  // Separate synthetic-only display experiment. Fully gated before audit,
-  // context and auth, never eligible on covereads.com or customer routes.
-  const privateRetailDisplay = await handleSyntheticR2LiveRightsStage(request, env);
-  if (privateRetailDisplay) return privateRetailDisplay;
   // Aggregate-only interaction telemetry has no user, commerce or territorial
   // rights dependency. Handle it before auth/context/HTTP D1 logging.
   if (request.method === "POST" && new URL(request.url).pathname === "/api/fore/sounds/events") {
