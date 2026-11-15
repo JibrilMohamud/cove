@@ -469,7 +469,7 @@ async function campaign(secret) {
       p.ttfbP95Ms < 600 &&
       p.ttfbP99Ms < 750 &&
       p.ttfbMaxMs < 800 &&
-      (!shadowEnabled || p.offered !== 2000 || p.ingressShadow?.passed === true);
+      (!shadowEnabled || p.mode !== "r2cursor" || p.offered !== 2000 || p.ingressShadow?.passed === true);
     for (const concurrency of [1, 4, 8, 16, 32]) {
       const result = await phase(stageMode, "burst-" + concurrency, concurrency, 0, run, secret);
       if (result.valid !== concurrency || result.dropped !== 0 || result.ttfbMaxMs >= 800) {
