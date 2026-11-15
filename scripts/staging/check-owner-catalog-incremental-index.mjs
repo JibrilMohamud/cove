@@ -159,6 +159,19 @@ try{
     assert.deepEqual(idx.readStageOwnerFilteredIndex(sql,input),filteredGold(input),
       'Every filtered count/page and self-excluding facet must match independent owner SQL');
   }
+  const firstQueryCache=db.prepare('SELECT COUNT(*) n FROM cove_stage_owner_index_query_cache').get().n;
+  assert.ok(firstQueryCache>0,'Filtered query materialization must happen in owner SQLite');
+  const firstEpoch=db.prepare('SELECT epoch FROM cove_stage_owner_index_epoch WHERE id=1').get().epoch;
+  for(const part of filterSamples){
+    const input={...scope,...part};
+    assert.deepEqual(idx.readStageOwnerFilteredIndex(sql,input),filteredGold(input),
+      'Cached query must return exact verified disjunctive facets');
+  }
+  const rankPlan=db.prepare(`EXPLAIN QUERY PLAN SELECT product_id FROM cove_stage_owner_index_items
+    WHERE territory='US' AND currency='USD'
+    ORDER BY rank_score DESC,product_id LIMIT 24`).all();
+  assert.ok(rankPlan.some(x=>String(x.detail).includes('cove_stage_owner_index_rank')),
+    'Rank hot reads must use owner index, not 82k-row sort');
   const cached=stage.readStageOwnerCatalogSnapshot(sql,scope);
   assert.deepEqual(cached,direct);
   assert.equal(cached.releaseCertified,false);
@@ -197,6 +210,8 @@ try{
   assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope),stage.stageOwnerCatalogRead(sql,scope));
   for(const part of filterSamples){const input={...scope,...part};
     assert.deepEqual(idx.readStageOwnerFilteredIndex(sql,input),filteredGold(input));}
+  assert.ok(db.prepare('SELECT epoch FROM cove_stage_owner_index_epoch WHERE id=1').get().epoch>firstEpoch,
+    'Contract withdrawal must transactionally invalidate all cached filtered scopes');
   assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,24);
   assert.ok(!stage.readStageOwnerCatalogSnapshot(sql,scope).pageIds.includes(paidIds[0]));
   assert.equal(paid.readCommercialStorefront(sql,paidIds,'US','USD').length,12);
@@ -232,7 +247,7 @@ try{
   assert.throws(()=>stage.stageOwnerCatalogRead(sql,{...scope,query:'war'}),/unsupported_scope/);
   for(const bad of [{...scope,query:'War'},{...scope,sort:'popular'},{...scope,filter:'category'}])
     assert.throws(()=>idx.readStageOwnerIncrementalIndex(sql,bad),/unreviewed_scope/);
-  console.log('PASS: indexed disjunctive filter/price/count/page parity across '+filterSamples.length+' cases and withdrawals');
+  console.log('PASS: generation-fenced filtered query cache and exact filter/price/count/page parity across '+filterSamples.length+' cases and withdrawals');
   console.log('PASS: owner-index exact default count/facets/page 25/24/23/0; 250 indexed hot reads, source/contract/market denial, dirty fail-close, disallowed scopes rejected');
 }finally{
   db.close();rmSync(root,{recursive:true,force:true});
