@@ -1,6 +1,7 @@
 import type { CatalogBook } from "./client";
 import {
   canonicalBooksByProductIds,
+  canonicalBoundedPopularPageByLiveRights,
   canonicalFirstPaintShelfByRightsQuery,
   type CatalogDB,
   type FirstPaintD1QueryMetrics,
@@ -34,6 +35,8 @@ type SearchEnv = {
   FORE_ASYNC_CATALOG_FACETS?: string;
   FORE_POPULAR_RIGHTS_SHORTLIST?: string;
   FORE_GUEST_CATALOG_PROGRESSIVE_COUNT?: string;
+  FORE_GUEST_COMPACT_STAGE?: string;
+  FORE_GUEST_COMPACT_SYNTHETIC_D1_ID?: string;
   COVE_PUBLIC_PRESENTATION_CACHE?: PresentationR2Bucket;
 };
 
@@ -1087,6 +1090,7 @@ async function searchD1(
     env.FORE_SEARCH_REPLICA_CANDIDATES === "1" &&
     presentationDb !== env.DB;
   let hasVerifiedNextPageWitness = false;
+  let compactGuestBooks: CatalogBook[] | null = null;
   const runIds = async () => {
     // Optional, bounded first-page fast path. A full primary-D1 legal
     // recheck proves all 24 results against the existing WHERE clauses.
@@ -1123,6 +1127,32 @@ async function searchD1(
       input.newRelease === undefined &&
       input.deals === undefined;
     if (guestDefaultPopular) {
+      // Private synthetic A/B: the SAME current retail/territory predicates
+      // must authorize the top-96 seed before a full canonical hydration.
+      // Real production has no flag or fixture binding for this experiment.
+      const compactStage =
+        env.FORE_GUEST_COMPACT_STAGE === "1" &&
+        env.FORE_GUEST_COMPACT_SYNTHETIC_D1_ID ===
+          "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3" &&
+        !!presentationStore &&
+        deferred !== undefined &&
+        input.limit === 24 &&
+        input.currency === "USD" &&
+        input.territory === "US";
+      if (compactStage) {
+        try {
+          const books = await canonicalBoundedPopularPageByLiveRights(env.DB, part, 24);
+          if (books) {
+            compactGuestBooks = books;
+            hasVerifiedNextPageWitness = true;
+            return { results: books.map((book) => ({ product_id: String(book.productId) })) };
+          }
+        } catch (error) {
+          // Never mistake D1 exhaustion for a sparse/invalid shortlist.
+          if (isPrimaryD1Overload(error)) throw error;
+          console.warn("Synthetic compact catalog read unavailable; retaining live-rights fallback");
+        }
+      }
       try {
         // A 25th independently rights-checked book proves Next without a
         // catalog-wide COUNT, but only on the narrow progressive guest path.
@@ -1254,7 +1284,7 @@ async function searchD1(
   }
   const ids = rows.results.map((r: any) => String(r.product_id));
   const [books, facets] = await Promise.all([
-    canonicalBooksByProductIds(env.DB, ids),
+    compactGuestBooks || canonicalBooksByProductIds(env.DB, ids),
     sharedFacets || d1Facets(env.DB, input, expression, deferred, facetState, presentationStore),
   ]);
   // Pending labels cannot be persisted as a ten-minute search-page result.
@@ -1286,6 +1316,7 @@ async function searchD1(
     countPending,
     correctedQuery,
     duration: Date.now() - started,
+    guestCompactLiveRights: compactGuestBooks !== null,
   };
 }
 
@@ -2042,7 +2073,20 @@ export async function searchCatalog(
     personalizeWindow && start < 200
       ? personalized.books.slice(start, start + input.limit)
       : personalized.books;
-  const visibleBooks = await contextualizeChannelEligibility(env.DB, pageBooks, input.territory);
+  // The anonymous compact page is explicitly RETAIL-only. Secondary
+  // subscription/library availability is UNKNOWN on this browse response;
+  // never present a projected edition flag as current authorization.
+  // Personal and filtered searches retain the original live eligibility read.
+  const compactRetailOnly =
+    "guestCompactLiveRights" in result && result.guestCompactLiveRights === true;
+  const visibleBooks = compactRetailOnly
+    ? pageBooks.map((book) => {
+        const safe = { ...book };
+        delete safe.subscriptionEligible;
+        delete safe.libraryEligible;
+        return safe;
+      })
+    : await contextualizeChannelEligibility(env.DB, pageBooks, input.territory);
   const queryId = await logQuery(env.DB, input, userId, {
     count: result.count,
     backend: backendName,
