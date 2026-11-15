@@ -4,6 +4,7 @@ on:
     branches: [diag/primary-rights-only-100rps-20261115]
     paths:
       - scripts/staging/run-private-causal-triad.mjs
+      - scripts/staging/causal-triad-stage.worker.test.mjs
       - .github/workflows/cove-primary-rights-only-100rps.yml
 permissions:
   contents: read
