@@ -416,8 +416,10 @@ async function warmup(run, secret) {
   assert.equal(unauthorizedStatus, 404, "Private staging route did not propagate safely");
   // The rights-only experiment must never depend on a separately deployed
   // candidate endpoint. The same private driver verifies no-DB and live D1.
-  const warmModes = process.argv.includes("--r2-cursor-100rps")
-    ? ["noop", "r2seed", "r2cursorseed", "r2cursor"]
+  const warmModes = process.argv.includes("--revision-only-100rps")
+    ? ["noop", "revision"]
+    : process.argv.includes("--r2-cursor-100rps")
+      ? ["noop", "r2seed", "r2cursorseed", "r2cursor"]
     : process.argv.includes("--r2-page2-100rps")
       ? ["noop", "r2seed", "r2page2"]
       : process.argv.includes("--r2-retail-100rps")
@@ -443,6 +445,52 @@ async function warmup(run, secret) {
 async function campaign(secret) {
   const run = randomUUID().replaceAll("-", "").slice(0, 24);
   await warmup(run, secret);
+  if (process.argv.includes("--revision-only-100rps")) {
+    // One D1 generation row measures the platform's basic read queue.
+    // It does NOT certify owner rights, commercial offers, user entitlements
+    // or that the catalog snapshot is safe after a publication mutation.
+    evidence.revisionOnlyDiagnostic = true;
+    evidence.rightsAuthorizationIncluded = false;
+    evidence.publicCatalogIncluded = false;
+    evidence.productionReleaseEligible = false;
+    const strict = (phase, offered) =>
+      phase.valid === offered &&
+      phase.dropped === 0 &&
+      phase.ttfbP95Ms !== null &&
+      phase.ttfbP95Ms < 600 &&
+      phase.ttfbP99Ms < 750 &&
+      phase.ttfbMaxMs < 800;
+    for (const concurrent of [1, 4, 8, 16, 32]) {
+      const sample = await phase("revision", "burst-" + concurrent, concurrent, 0, run, secret);
+      if (!strict(sample, concurrent)) {
+        evidence.stopReason = "d1-revision-burst-failed-" + concurrent;
+        throw Error("Minimal D1 read failed hard synthetic burst gate");
+      }
+    }
+    const noDb = await phase("noop", "100-rps-no-db-control-20s", 2000, 10, run, secret);
+    evidence.noDbControlPassed = strict(noDb, 2000);
+    if (!evidence.noDbControlPassed) {
+      evidence.stopReason = "d1-revision-no-db-control-failed";
+      throw Error("No-DB ingress floor failed before minimal D1 capacity");
+    }
+    const fifty = await phase("revision", "50-rps-20s", 1000, 20, run, secret);
+    evidence.revision50Passed = strict(fifty, 1000);
+    if (!evidence.revision50Passed) {
+      evidence.stopReason = "d1-revision-50-rps-failed";
+      throw Error("One-row D1 floor failed 50RPS");
+    }
+    for (let i = 1; i <= 2; i++) {
+      const result = await phase("revision", "100-rps-20s-phase-" + i, 2000, 10, run, secret);
+      evidence.revision100RpsPhases = i;
+      if (!strict(result, 2000)) {
+        evidence.stopReason = "d1-revision-100-rps-phase-" + i + "-failed";
+        evidence.revision100RpsPassed = false;
+        throw Error("One-row D1 floor failed strict 100RPS");
+      }
+    }
+    evidence.revision100RpsPassed = true;
+    return;
+  }
   const page2Campaign = process.argv.includes("--r2-page2-100rps");
   const cursorCampaign = process.argv.includes("--r2-cursor-100rps");
   const shadowEnabled = process.argv.includes("--shadow-no-db");
