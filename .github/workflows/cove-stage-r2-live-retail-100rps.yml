@@ -1,7 +1,7 @@
 name: cove-stage-r2-current-retail-100rps
 on:
   push:
-    branches: [perf/stage-r2-display-current-rights-20261115, perf/stage-live-epub-readiness-20261115, perf/stage-full-book-shape-fresh-20261115, perf/stage-public-metadata-r2-20261115]
+    branches: [perf/stage-r2-display-current-rights-20261115, perf/stage-live-epub-readiness-20261115, perf/stage-full-book-shape-fresh-20261115, perf/stage-public-metadata-r2-20261115, perf/stage-all-public-details-r2-20261115]
     paths:
       - src/features/fore/synthetic-r2-live-rights-page.stage.ts
       - src/persistence-backend-entry.worker.ts
