@@ -98,6 +98,15 @@ try{
   assert.match(CANONICAL_PAID_NEXT_BOUNDARY_SQL,/julianday\(at\)>=julianday\(\?\)/);
   assert.match(CANONICAL_PAID_OFFER_NEXT_BOUNDARY_SQL,/julianday\(at\)>=julianday\(\?\)/);
   assert.match(CANONICAL_PAID_NEXT_BOUNDARY_SQL,/primary_now/);
+  assert.equal(
+    (CANONICAL_PAID_NEXT_BOUNDARY_SQL.match(/FROM target t\s+CROSS JOIN rights_grants rg/g)||[]).length,
+    4,
+    "All legal schedule branches must seed indexed one-book grants, never scan global rights",
+  );
+  assert.doesNotMatch(
+    CANONICAL_PAID_NEXT_BOUNDARY_SQL,
+    /FROM rights_grants rg\s+JOIN target t/,
+  );
 
   createCommercialAuthoritySchema(ownerSql);
   createCommercialStorefrontSchema(ownerSql);
