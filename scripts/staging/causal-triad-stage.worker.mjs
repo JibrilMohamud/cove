@@ -238,7 +238,15 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
               typeof b.workId === "string" &&
               Number.isSafeInteger(b.download_count) &&
               b.download_count >= 0 &&
-              !b.formats?.["application/epub+zip"],
+              ["stored", "on-demand", "processing", "unavailable"].includes(
+                b.readingAvailability?.state,
+              ) &&
+              (b.formats?.["application/epub+zip"] === undefined ||
+                /^\\/api\\/fore\\/books\\/[A-Za-z0-9_%.-]+\\/epub$/.test(
+                  b.formats["application/epub+zip"],
+                )) &&
+              (b.readingAvailability.state !== "unavailable" ||
+                b.formats?.["application/epub+zip"] === undefined),
           )));
     return {
       status: resp.status,
