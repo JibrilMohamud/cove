@@ -1,0 +1,140 @@
+{
+  "schema": "cove.synthetic-full-public-r2-minimal-rights-two-campaigns.v1",
+  "branch": "perf/stage-all-public-details-r2-20261115",
+  "dateUTC": "2026-11-15",
+  "releaseCertified": false,
+  "productionModified": false,
+  "stageBookShapeFieldCount": 59,
+  "stageEnvelopeComplete": false,
+  "stagedPublicDisplayR2TtlSeconds": 120,
+  "liveAuthorityInPrimaryD1": [
+    "current market/territory availability",
+    "product and edition release",
+    "active current retail offer and USD price",
+    "current DRM/edition eligibility flags",
+    "primary EPUB asset existence and source status"
+  ],
+  "cachedInR2": [
+    "public book description and contributor metadata",
+    "identifier maps",
+    "public accessibility/format profiles",
+    "public source-license attribution",
+    "public AI disclosure labels"
+  ],
+  "NEVERCache": [
+    "territorial rights",
+    "offer prices",
+    "entitlements",
+    "personal account data",
+    "signed asset URLs",
+    "protected EPUB object keys"
+  ],
+  "criticalStaleMetadataBlocker": "Source license attribution and AI disclosure public labels in R2 may be up to 120 seconds stale; no verified owner/version fence, event-driven invalidation or immutable publication evidence. Production release denied.",
+  "earlierFailedVariants": [
+    {
+      "pr": 677,
+      "reason": "all metadata subqueries on live D1 per-request",
+      "run": 43678431470,
+      "offered": 2000,
+      "valid": 1885,
+      "d1ResourceWindow503": 115
+    },
+    {
+      "pr": 677,
+      "run": 43678520007,
+      "offered": 2000,
+      "valid": 1912,
+      "d1ResourceWindow503": 88
+    },
+    {
+      "pr": 678,
+      "reason": "partial R2 with license/AI primary subqueries",
+      "run": 43678992123,
+      "offered": 2000,
+      "valid": 1931,
+      "d1ResourceWindow503": 69
+    }
+  ],
+  "twoSuccessfulCampaigns": [
+    {
+      "run": 43679361329,
+      "head": "c015f10e9db98c74535b58e76e41010141420a10",
+      "warmup50Rps": {
+        "offered": 1000,
+        "valid": 1000,
+        "failed": 0,
+        "dropped": 0,
+        "p95Ms": 206.63,
+        "p99Ms": 248.42,
+        "maxMs": 498.06
+      },
+      "phase1": {
+        "offered": 2000,
+        "valid": 2000,
+        "failed": 0,
+        "dropped": 0,
+        "p95Ms": 186.12,
+        "p99Ms": 238.57,
+        "maxMs": 346.03
+      },
+      "phase2": {
+        "offered": 2000,
+        "valid": 2000,
+        "failed": 0,
+        "dropped": 0,
+        "p95Ms": 165.86,
+        "p99Ms": 257.6,
+        "maxMs": 490.23
+      },
+      "pinnedWorkersRestored": true
+    },
+    {
+      "run": 43679462690,
+      "head": "25d174ed1d2eae620aff5d5cadddc11e7fe0c256",
+      "warmup50Rps": {
+        "offered": 1000,
+        "valid": 1000,
+        "failed": 0,
+        "dropped": 0,
+        "p95Ms": 294.71,
+        "p99Ms": 362.89,
+        "maxMs": 432.55
+      },
+      "phase1": {
+        "offered": 2000,
+        "valid": 2000,
+        "failed": 0,
+        "dropped": 0,
+        "p95Ms": 294.42,
+        "p99Ms": 339.12,
+        "maxMs": 559.49
+      },
+      "phase2": {
+        "offered": 2000,
+        "valid": 2000,
+        "failed": 0,
+        "dropped": 0,
+        "p95Ms": 254.95,
+        "p99Ms": 333.33,
+        "maxMs": 491.3
+      },
+      "pinnedWorkersRestored": true
+    }
+  ],
+  "combined100Rps": {
+    "offered": 8000,
+    "valid": 8000,
+    "failed": 0,
+    "dropped": 0
+  },
+  "stagedR2BytesLimit": 262144,
+  "realProductionR2PayloadSizeValidated": false,
+  "realCustomerSSRVerified": false,
+  "productionLegalOwnerEnabled": false,
+  "realProductionD1100RpsVerified": false,
+  "canonicalNineFieldEnvelopeVerified": false,
+  "geographicVerified": false,
+  "StripeLIVEVerified": false,
+  "protectedRollbackVerified": false,
+  "meaning": "Synthetic read-path performance and schema coverage only. Production release remains blocked."
+}
