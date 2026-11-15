@@ -23,11 +23,13 @@ try{
     market:'src/storefront-strangler/market-authority-core.ts',
     catalog:'src/storefront-strangler/owner-catalog-authorized-set.stage.ts',
     incremental:'src/storefront-strangler/owner-catalog-incremental-index.stage.ts',
+    fts:'src/storefront-strangler/owner-catalog-fts.stage.ts',
   },outdir:root,bundle:true,platform:'node',format:'esm',target:'node22',logLevel:'silent'});
   const load=async name=>import(pathToFileURL(path.join(root,name+'.js')).href);
   const free=await load('free'),commercial=await load('commercial');
   const paid=await load('paid'),market=await load('market');
   const stage=await load('catalog'),idx=await load('incremental');
+  const fts=await load('fts');
   free.createAuthoritySchema(sql);free.createAuthorityProofSchema(sql);
   commercial.createCommercialAuthoritySchema(sql);
   paid.createCommercialStorefrontSchema(sql);market.createMarketAuthoritySchema(sql);
@@ -186,6 +188,24 @@ try{
     FROM cove_stage_owner_fts WHERE cove_stage_owner_fts MATCH ?`).all('"ebook"');
   assert.ok(ftsPlan.some(x=>/VIRTUAL TABLE INDEX/i.test(String(x.detail))),
     'Keyword lookups must use FTS5, not full table scans');
+  // FTS-vocabulary planner must never change authorization or page order.
+  // One title term is rare here, so SQLite should drive FROM FTS matches
+  // rather than scan ranked rows until it finds the target book.
+  assert.equal(fts.stageOwnerFtsPreferMatchesFirst(sql,'"12"'),true);
+  assert.equal(fts.stageOwnerFtsPreferMatchesFirst(sql,'"missing-term"'),true);
+  assert.equal(fts.stageOwnerFtsPreferMatchesFirst(sql,''),false);
+  const narrowPlan=db.prepare(`EXPLAIN QUERY PLAN WITH matched AS MATERIALIZED (
+    SELECT product_id FROM cove_stage_owner_fts WHERE cove_stage_owner_fts MATCH ?
+  ) SELECT i.product_id FROM matched m CROSS JOIN cove_stage_owner_index_items i
+    WHERE i.product_id=m.product_id AND i.territory='US' AND i.currency='USD'
+    ORDER BY i.rank_score DESC,i.product_id ASC LIMIT 24`).all('"12"');
+  assert.ok(narrowPlan.some(x=>String(x.detail).includes('SEARCH i USING PRIMARY KEY')),
+    'Match-first plan should resolve products using primary-key point lookups');
+  assert.ok(narrowPlan.some(x=>String(x.detail).includes('SCAN m')),
+    'CROSS JOIN must keep match-set as outer loop');
+  assert.deepEqual(idx.readStageOwnerFilteredIndex(sql,{...scope,query:'12'}),
+    filteredGold({...scope,query:'12'}),
+    'The FTS-first page plan cannot alter facet/count/pagination semantics');
   const firstQueryCache=db.prepare('SELECT COUNT(*) n FROM cove_stage_owner_index_query_cache').get().n;
   assert.ok(firstQueryCache>0,'Filtered query materialization must happen in owner SQLite');
   const firstEpoch=db.prepare('SELECT epoch FROM cove_stage_owner_index_epoch WHERE id=1').get().epoch;
