@@ -74,7 +74,6 @@ jobs:
     # alter the customer persistence Worker. Opt in to push auto-deploy only
     # by setting the explicit repository variable to "1". Manual dispatch
     # remains possible with controlled pinned inputs and migrations OFF.
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && vars.COVE_PRODUCTION_PERSISTENCE_AUTO_DEPLOY == '1') }}
     # Do not apply production D1 migrations while synthetic cold/100-RPS
     # acceptance or a live principal audit is using the same primary D1.
     # Keep the existing workflow-level deployment serialization too.
@@ -82,6 +81,7 @@ jobs:
       group: cove-exclusive-real-primary-cold-acceptance
       queue: max
       cancel-in-progress: false
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && vars.COVE_PRODUCTION_PERSISTENCE_AUTO_DEPLOY == '1') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
