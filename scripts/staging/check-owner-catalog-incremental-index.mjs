@@ -6,6 +6,7 @@ import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
+import * as prodMirror from '../../src/storefront-strangler/owner-production-fts-mirror.stage.mjs';
 
 const root=mkdtempSync(path.join(tmpdir(),'cove-stage-catalog-owner-index-'));
 const db=new DatabaseSync(':memory:');
@@ -36,6 +37,7 @@ try{
   stage.createStageOwnerCatalogSchema(sql);
   stage.createStageOwnerCatalogSnapshotSchema(sql);
   idx.createStageOwnerIncrementalIndex(sql);
+  prodMirror.createStageProductionFtsMirror(sql);
   assert.doesNotMatch(stage.STAGE_OWNER_CATALOG_SQL,/retail_product_availability_rows|PRIMARY_DB|FROM offers|FROM rights_grants/);
   const scope={territory:'US',currency:'USD',page:1,limit:24,sort:'rank'};
   const freeIds=Array.from({length:12},(_,i)=>'prd_gutenberg_'+(900000001+i));
@@ -48,6 +50,19 @@ try{
         publisher:i%2===0?'Stage Publishing A':'Stage Publishing B',rank:1000-i,
         categories:i<5?['Fiction','Classics']:['Fiction'],
         languages:i%2===0?['en']:['fr'],series:i<2?['Stage Series']:[],
+      });
+      // Search metadata is PRESENTATION ONLY: the FTS mirror indexes it
+      // only after the real owner grants positive legal publication.
+      prodMirror.writeStageProductionSearchMetadata(sql,{
+        product_id:id,external_book_id:String(1000+i),
+        title:'Fake catalog '+i,subtitle:i===12?'uniquejewel':
+          i===0?'uniquepearl':i===13?'uniqueemerald':'Fixture subtitle',
+        contributors_text:'Elena Swan',series_text:i<2?'Stage Series':'',
+        publisher_text:i%2===0?'Stage Publishing A':'Stage Publishing B',
+        isbn13:'9780000'+String(100000+i).padStart(6,'0'),
+        categories_text:i<5?'Fiction Classics':'Fiction',
+        keywords_text:'reading sample',description:'A fictional journey',
+        language_code:i%2===0?'en':'fr',suppressed:false,
       });
     }
     for(const id of freeIds){
@@ -96,6 +111,16 @@ try{
   assert.throws(()=>stage.readStageOwnerCatalogSnapshot(sql,scope),/unavailable_or_revoked/);
   inTransaction(()=>stage.rebuildStageOwnerCatalogSnapshot(sql));
   inTransaction(()=>idx.bootstrapStageOwnerIndex(sql));
+  const mirrorSeal=prodMirror.sealStageProductionFtsMirror(sql);
+  assert.deepEqual([mirrorSeal.global_count,mirrorSeal.english_count],[25,13]);
+  const verifiedMirror=query=>prodMirror.readStageProductionFtsMirror(sql,{
+    query,territory:'US',currency:'USD',language:'all',sort:'relevance',
+    page:1,limit:24,
+  },()=>idx.readStageOwnerIncrementalIndex(sql,scope));
+  assert.equal(verifiedMirror('fake').count,25);
+  assert.deepEqual(verifiedMirror('uniquejewel').pageIds,[paidIds[0]]);
+  assert.deepEqual(verifiedMirror('uniquepearl').pageIds,[freeIds[0]]);
+  assert.deepEqual(verifiedMirror('uniqueemerald').pageIds,[paidIds[1]]);
   const firstIndexed=idx.readStageOwnerIncrementalIndex(sql,scope);
   assert.deepEqual(firstIndexed,direct,'Indexed 25-book exact page/count/facets parity');
   assert.equal(idx.readStageOwnerIncrementalIndex(sql,{...scope,page:2,limit:10}).pageIds.length,10);
@@ -287,6 +312,9 @@ try{
     'Revoked contract keyword must be removed from FTS in owner transaction');
   assert.equal(fts.stageOwnerFtsCoversAll(sql,'"fake" AND "catalog"',24),true,
     'Contract withdrawal must update ubiquitous term frequency transactionally');
+  assert.equal(verifiedMirror('uniquejewel').count,0,
+    'Real canonical contract denial must invalidate production-shaped FTS');
+  assert.equal(prodMirror.sealStageProductionFtsMirror(sql).global_count,24);
   assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,24);
   assert.ok(!stage.readStageOwnerCatalogSnapshot(sql,scope).pageIds.includes(paidIds[0]));
   assert.equal(paid.readCommercialStorefront(sql,paidIds,'US','USD').length,12);
@@ -305,6 +333,9 @@ try{
     'Revoked free source cannot remain searchable');
   assert.equal(fts.stageOwnerFtsCoversAll(sql,'"fake" AND "catalog"',23),true,
     'Source withdrawal must keep exact all-documents FTS invariants');
+  assert.equal(verifiedMirror('uniquepearl').count,0,
+    'Real canonical free-source denial must invalidate production-shaped FTS');
+  assert.equal(prodMirror.sealStageProductionFtsMirror(sql).global_count,23);
   assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,23);
   assert.equal(free.readAuthorizedPresentations(sql,freeIds,'US','USD').length,11);
 
@@ -335,6 +366,9 @@ try{
     // global expiry lock; keep the old snapshot unavailable, not falsified.
   });
   assert.equal(idx.readStageOwnerIncrementalIndex(sql,scope).count,22);
+  assert.equal(verifiedMirror('uniqueemerald').count,0,
+    'Expired paid lease must disappear from production-shaped FTS');
+  assert.equal(prodMirror.sealStageProductionFtsMirror(sql).global_count,22);
   assert.equal(idx.readStageOwnerFilteredIndex(sql,{...scope,query:'13'}).count,0,
     'Expired paid proof must leave FTS and its cache after owner refresh');
   assert.ok(!idx.readStageOwnerIncrementalIndex(sql,scope).pageIds.includes(expiring));
@@ -355,6 +389,8 @@ try{
     // market veto in the incremental owner index must still return zero.
   });
   assert.throws(()=>stage.readStageOwnerCatalogSnapshot(sql,scope),/unavailable_or_revoked/);
+  assert.equal(verifiedMirror('fake').count,0,
+    'Market-wide legal veto must suppress all owner-FTS searches');
   assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope),stage.stageOwnerCatalogRead(sql,scope));
   for(const part of filterSamples){const input={...scope,...part};
     assert.deepEqual(idx.readStageOwnerFilteredIndex(sql,input),filteredGold(input));}
