@@ -25,6 +25,7 @@ const TTL_MS = 120_000;
 const MAX_BYTES = 256 * 1024;
 const ITEM_COUNT = 96;
 const FAST_CANDIDATE_COUNT = 32;
+const SECOND_PAGE_FAST_CANDIDATES = 56;
 const PAGE_COUNT = 24;
 const SECOND_PAGE_WITNESSES = 49; // Two 24-book pages plus a live next-page witness.
 
@@ -647,8 +648,8 @@ export async function authorizeOfferBearingSyntheticPage(
   witnessCount: 25 | 49 = 25,
 ): Promise<SyntheticExtendedAuthorityRow[]> {
   if (
-    (ids.length !== FAST_CANDIDATE_COUNT && ids.length !== ITEM_COUNT) ||
-    (witnessCount === SECOND_PAGE_WITNESSES && ids.length !== ITEM_COUNT) ||
+    ![FAST_CANDIDATE_COUNT, SECOND_PAGE_FAST_CANDIDATES, ITEM_COUNT].includes(ids.length) ||
+    (witnessCount === SECOND_PAGE_WITNESSES && ids.length === FAST_CANDIDATE_COUNT) ||
     ids.some((id) => !identifier(id)) ||
     new Set(ids).size !== ids.length
   )
@@ -753,14 +754,22 @@ export async function syntheticR2PageWithLiveRights(
   // rows read on the isolated fixture; 32 cost ~549. On withdrawal/sparse
   // rights, recheck all 96 in ONE NEW primary-D1 statement and use ONLY its
   // results. Never combine an old positive decision with a newer fallback.
-  // Page two needs 49 CURRENT rights-and-offer witnesses, not 25. The 49th
-  // proves a third page exists for this snapshot, while a sparse or exhausted
-  // 96-item shortlist cannot establish the full-catalog end and must deny.
+  // Page two needs 49 CURRENT rights-and-offer witnesses. Check 56 ranked
+  // candidates first rather than forcing the expensive 96-candidate scan
+  // for every request. A sparse/withdrawn 56-candidate window ALWAYS falls
+  // back to a NEW full-96 primary statement, never stitched witnesses.
+  // The 49th witness proves a third page; no global count is inferred.
   // Page one retains the measured 32-ID/96-ID fallback, unchanged.
   let current =
     page === 2
-      ? await authorizeOfferBearingSyntheticPage(env.DB, rankedIds, SECOND_PAGE_WITNESSES)
+      ? await authorizeOfferBearingSyntheticPage(
+          env.DB,
+          rankedIds.slice(0, SECOND_PAGE_FAST_CANDIDATES),
+          SECOND_PAGE_WITNESSES,
+        )
       : await authorizeOfferBearingSyntheticPage(env.DB, rankedIds.slice(0, FAST_CANDIDATE_COUNT));
+  if (page === 2 && current.length < SECOND_PAGE_WITNESSES)
+    current = await authorizeOfferBearingSyntheticPage(env.DB, rankedIds, SECOND_PAGE_WITNESSES);
   if (page === 1 && current.length < PAGE_COUNT + 1)
     current = await authorizeOfferBearingSyntheticPage(env.DB, rankedIds);
   const requiredWitnesses = page === 2 ? SECOND_PAGE_WITNESSES : PAGE_COUNT + 1;
