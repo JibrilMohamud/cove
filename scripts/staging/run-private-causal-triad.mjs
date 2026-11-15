@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { strictTtfbTailAttribution } from "./strict-ttfb-tail-attribution.mjs";
 import { randomBytes, randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { performance } from "node:perf_hooks";
@@ -271,6 +272,9 @@ async function requestProbe(mode, ordinal, run, secret) {
       firstByteMs: rounded(firstByteMs),
       fullMs: rounded(fullMs),
       workerMs: Number.isFinite(payload?.workerDurationMs) ? payload.workerDurationMs : null,
+      downstreamFirstByteMs: Number.isFinite(payload?.downstreamFirstByteMs)
+        ? payload.downstreamFirstByteMs
+        : null,
       sqlMs: Number.isFinite(payload?.d1SqlMs) ? payload.d1SqlMs : null,
       outsideSqlMs: Number.isFinite(payload?.d1OutsideSqlMs) ? payload.d1OutsideSqlMs : null,
       downstreamStatus: payload?.downstreamStatus ?? null,
@@ -304,6 +308,7 @@ async function summarize(mode, shape, offered, rows, elapsed) {
     ttfbP99Ms: rounded(pct(f("firstByteMs"), 0.99)),
     ttfbMaxMs: rounded(pct(f("firstByteMs"), 1)),
     workerP95Ms: rounded(pct(f("workerMs"), 0.95)),
+    tailAttribution: strictTtfbTailAttribution(rows),
     sqlP95Ms: rounded(pct(f("sqlMs"), 0.95)),
     outsideSqlP95Ms: rounded(pct(f("outsideSqlMs"), 0.95)),
     fullBodyP95Ms: rounded(pct(f("fullMs"), 0.95)),
