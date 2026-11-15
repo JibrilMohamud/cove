@@ -3,8 +3,9 @@
 This module is intentionally NOT a production migration and NEVER grants rights.
 Only the future canonical legal owner may materialize positive rows after
 verifying the complete current legal/contract/language/DRM/offer policy.
-Any direct mutation of known source tables invalidates affected primary-D1 rows
-inside the SAME SQLite transaction. This is a fail-closed safety backstop, not
+Any mutation of known source tables invalidates affected primary-D1 rows
+inside the SAME SQLite transaction, BEFORE foreign-key cascades can erase
+referenced join paths. This is a fail-closed safety backstop, not
 a substitute for retiring all non-owner D1 writers.
 
 Do not bind it to production or put rights/offer eligibility in R2.
@@ -116,7 +117,7 @@ def invalidation_triggers() -> str:
             )
             statements.append(
                 f"CREATE TRIGGER cove_stage_owner_invalidate_{table}_{operation.lower()} "
-                f"AFTER {operation} ON {table} BEGIN "
+                f"BEFORE {operation} ON {table} BEGIN "
                 f"DELETE FROM {PROJECTION} WHERE {conditions}; END;"
             )
     for operation, aliases in (
@@ -128,7 +129,7 @@ def invalidation_triggers() -> str:
         statements.append(
             "CREATE TRIGGER cove_stage_owner_invalidate_storefront_markets_"
             + operation.lower()
-            + f" AFTER {operation} ON storefront_markets BEGIN {actions} END;"
+            + f" BEFORE {operation} ON storefront_markets BEGIN {actions} END;"
         )
     return "\n".join(statements) + "\n"
 
