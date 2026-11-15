@@ -178,8 +178,8 @@ try {
             assert.equal(params[0], "US");
             const candidates = JSON.parse(params[1]);
             assert.ok(
-              [32, 96].includes(candidates.length),
-              "Stage D1 must select bounded fast candidates or the full fallback",
+              [32, 56, 96].includes(candidates.length),
+              "Stage D1 must use the bounded page-one/page-two window or full fallback",
             );
             assert.deepEqual(params.slice(2), ["USD", "USD", "US"]);
             const inWindow = new Set(candidates);
@@ -425,7 +425,7 @@ try {
   returned = rows(Array.from({ length: 49 }, (_, i) => i));
   const beforePage2 = dbCalls;
   const secondPage = await syntheticR2PageWithLiveRights(secondPageRequest, env, () => now);
-  assert.equal(dbCalls - beforePage2, 1, "Page two uses ONE fresh 96-candidate primary read");
+  assert.equal(dbCalls - beforePage2, 1, "Page two normally uses one fresh 56-candidate primary read");
   assert.equal(secondPage?.books.length, 24);
   assert.equal(secondPage?.books[0].productId, "perf-synth-24");
   assert.equal(secondPage.books[23].productId, "perf-synth-47");
@@ -440,6 +440,22 @@ try {
   const afterWithdrawal = await syntheticR2PageWithLiveRights(secondPageRequest, env, () => now);
   assert.equal(afterWithdrawal?.books[0].productId, "perf-synth-25");
   assert.equal(afterWithdrawal?.books[23].productId, "perf-synth-48");
+  // Withdraw the first eight ranked titles: only 48 live candidates
+  // remain in the fast 56-ID prefix. A NEW 96-ID primary query must fill
+  // page two; never combine witnesses from different SQL statements.
+  returned = rows(Array.from({ length: 49 }, (_, i) => i + 8));
+  const beforeSparsePage2 = dbCalls;
+  const sparsePage2 = await syntheticR2PageWithLiveRights(secondPageRequest, env, () => now);
+  assert.equal(dbCalls - beforeSparsePage2, 2);
+  assert.equal(sparsePage2?.books[0].productId, "perf-synth-32");
+  assert.equal(sparsePage2?.books[23].productId, "perf-synth-55");
+  failFallbackD1 = true;
+  await assert.rejects(
+    () => syntheticR2PageWithLiveRights(secondPageRequest, env, () => now),
+    /fallback/,
+    "A primary outage during the full-list refresh must deny page-two publication",
+  );
+  failFallbackD1 = false;
   returned = rows(Array.from({ length: 48 }, (_, i) => i));
   assert.equal(
     await syntheticR2PageWithLiveRights(secondPageRequest, env, () => now),
