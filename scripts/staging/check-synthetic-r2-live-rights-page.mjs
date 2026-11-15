@@ -186,9 +186,16 @@ try {
     "Unexpected offer/grant keys in R2 must invalidate object",
   );
   assert.equal(dbCalls, prev, "Invalid display object never authorizes via D1");
-  assert.throws(
-    () => buildSyntheticDisplayObject([{ ...books[0], formats: { "image/jpeg": "javascript:attack" } }, ...books.slice(1)], now),
-    /Unsafe display-only snapshot/,
+  assert.doesNotMatch(
+    buildSyntheticDisplayObject(
+      [
+        { ...books[0], formats: { "image/jpeg": "javascript:attack" } },
+        ...books.slice(1),
+      ],
+      now,
+    ),
+    /javascript:attack/,
+    "An unsafe cover URL is filtered rather than stored in the display cache",
   );
   console.log(
     "PASS: stage-only R2 display gate, fresh D1 market/territory/retail offer, withdrawal, 25th witness, no cached grants",
