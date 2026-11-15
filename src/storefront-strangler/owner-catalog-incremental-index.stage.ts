@@ -67,6 +67,23 @@ export function createStageOwnerIncrementalIndex(sql:AuthoritySql){
     amount INTEGER NOT NULL CHECK(amount>=0),
     PRIMARY KEY(territory,currency)
   ) WITHOUT ROWID`);
+  // Filter snapshots are readable only at the EXACT committed owner-index
+  // epoch. Index-row changes bump the epoch in the same SQLite transaction
+  // that acknowledges the canonical legal mutation.
+  sql.exec(`CREATE TABLE IF NOT EXISTS cove_stage_owner_index_epoch(
+    id INTEGER PRIMARY KEY CHECK(id=1),epoch INTEGER NOT NULL CHECK(epoch>=0)
+  )`);
+  sql.exec('INSERT OR IGNORE INTO cove_stage_owner_index_epoch(id,epoch) VALUES(1,0)');
+  sql.exec(`CREATE TABLE IF NOT EXISTS cove_stage_owner_index_query_cache(
+    scope_key TEXT PRIMARY KEY,epoch INTEGER NOT NULL,
+    expires_at TEXT NOT NULL,body TEXT NOT NULL
+  ) WITHOUT ROWID`);
+  for(const verb of ['INSERT','UPDATE','DELETE'] as const){
+    sql.exec(`CREATE TRIGGER IF NOT EXISTS cove_stage_owner_index_epoch_${verb.toLowerCase()}
+      AFTER ${verb} ON cove_stage_owner_index_items BEGIN
+      UPDATE cove_stage_owner_index_epoch SET epoch=epoch+1 WHERE id=1;
+      END`);
+  }
   // Every legal/material change must enqueue the affected product(s), even
   // when a caller forgets to refresh. Missing reconciliation blocks ALL
   // indexed reads instead of silently exposing an old paid authorization.
@@ -363,6 +380,21 @@ export function readStageOwnerFilteredIndex(sql:AuthoritySql,input:FilteredInput
   if(defaultPage.count===0 ||
     (FILTER_FIELDS.every(x=>!filters[x].length)&&input.minPrice===undefined&&
       input.maxPrice===undefined))return defaultPage;
+  const epoch=sql.exec<{epoch:number}>(
+    'SELECT epoch FROM cove_stage_owner_index_epoch WHERE id=1').toArray()[0]?.epoch;
+  if(!Number.isSafeInteger(epoch))throw Error('stage_owner_filter_cache_unfenced');
+  const cacheKey=JSON.stringify([input.territory,input.currency,input.sort,input.page,
+    input.limit,FILTER_FIELDS.map(f=>filters[f]),input.minPrice??null,input.maxPrice??null]);
+  const now=new Date().toISOString();
+  const hit=sql.exec<{body:string}>(`SELECT body FROM cove_stage_owner_index_query_cache
+    WHERE scope_key=? AND epoch=? AND expires_at>?`,cacheKey,epoch!,now).toArray()[0];
+  if(hit){
+    const parsed=JSON.parse(hit.body);
+    if(parsed?.releaseCertified!==false||!Number.isSafeInteger(parsed.count)||
+      !Array.isArray(parsed.pageIds)||!parsed.facets)
+      throw Error('stage_owner_filter_cache_corrupt');
+    return parsed as ReturnType<typeof readStageOwnerIncrementalIndex>;
+  }
   const where=scopedIndexWhere(input,filters);
   const count=sql.exec<{total:number}>(`SELECT COUNT(*) total FROM
     cove_stage_owner_index_items i WHERE ${where.clause}`,...where.args).toArray()[0]?.total;
@@ -389,9 +421,20 @@ export function readStageOwnerFilteredIndex(sql:AuthoritySql,input:FilteredInput
     MIN(i.price_minor) minimum,MAX(i.price_minor) maximum FROM
     cove_stage_owner_index_items i WHERE ${priceWhere.clause}`,
     ...priceWhere.args).toArray()[0];
-  return {count,pageIds,facets:{...facets,
+  const result={count,pageIds,facets:{...facets,
     availability:count?[{value:'available',count}]:[],
     price:price?.minimum==null||price.maximum==null?null:
       {currency:input.currency,min:price.minimum,max:price.maximum}},
     releaseCertified:false as const};
+  // Cache writes do not grant any legal state: the calculation was checked
+  // against the owner-local index above, without async or a database replica.
+  // Readers verify dirty state, market and expiry BEFORE consulting this row.
+  sql.exec(`INSERT INTO cove_stage_owner_index_query_cache(
+    scope_key,epoch,expires_at,body) VALUES(?,?,?,?)
+    ON CONFLICT(scope_key) DO UPDATE SET epoch=excluded.epoch,
+    expires_at=excluded.expires_at,body=excluded.body`,
+    cacheKey,epoch!,new Date(Date.now()+30_000).toISOString(),JSON.stringify(result));
+  sql.exec(`DELETE FROM cove_stage_owner_index_query_cache
+    WHERE epoch<>? OR expires_at<=?`,epoch!,now);
+  return result;
 }
