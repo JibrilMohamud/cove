@@ -3226,10 +3226,18 @@ async function handleCoveRequest(
         : machineDb;
     const homepageProjection: { rows: Record<string, unknown>[] | null } = { rows: null };
     const phases: Record<string, number> = {};
-    async function timed<T>(name: string, promise: Promise<T>): Promise<T> {
+    // Only these five reviewed first-paint phases may emit a failure marker.
+    // Never put the rejection, SQL, request identity, or arbitrary phase names
+    // into Server-Timing. Promise.all can have more than one rejected task;
+    // each completed rejection retains its own fixed numeric marker.
+    type FirstPaintPhase = "context" | "catalog" | "markets" | "limit" | "page";
+    async function timed<T>(name: FirstPaintPhase, promise: Promise<T>): Promise<T> {
       const started = performance.now();
       try {
         return await promise;
+      } catch (error) {
+        timings[`fault_${name}`] = 1;
+        throw error;
       } finally {
         phases[name] = performance.now() - started;
       }
