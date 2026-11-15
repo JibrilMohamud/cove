@@ -241,8 +241,7 @@ try {
           assert.match(sql, /CAST\(revision AS TEXT\)/);
           return {
             first: async () => ({
-              public_metadata_revision:
-                changeDuringSeed && ++generationSeedReads === 2 ? "2" : "1",
+              public_metadata_revision: changeDuringSeed && ++generationSeedReads === 2 ? "2" : "1",
             }),
           };
         }
