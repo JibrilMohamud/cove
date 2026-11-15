@@ -94,9 +94,10 @@ export class StageUnifiedOwner extends DurableObject<StageEnv> {
             const grantId = "grant_stage_owner_" + suffix;
             const contractId = "contract_stage_owner_" + suffix;
             const contractVersionId = "contract_version_stage_owner_" + suffix;
+            const validUntil = expiry();
             const proof = {
               productId: id, editionId, territory: "US", channel: "retail" as const,
-              grantId, contractId, contractVersionId, validUntil: expiry(),
+              grantId, contractId, contractVersionId, validUntil,
             };
             const receipt = publishFreshCommercialProof(sql, proof, 0);
             if (!receipt.applied || receipt.epoch !== 1) throw Error("paid_fixture_denied");
@@ -106,7 +107,7 @@ export class StageUnifiedOwner extends DurableObject<StageEnv> {
               product_public_id: null, edition_public_id: null,
               territory: "US", currency: "USD", rights_epoch: 1,
               offer_json: JSON.stringify({ type: "retail", currency: "USD", amountMinor: 599 }),
-              valid_until: expiry(),
+              valid_until: validUntil,
             });
           }
           sql.exec("INSERT INTO stage_owner_fixture(id,seeded_at) VALUES(1,datetime('now'))");
