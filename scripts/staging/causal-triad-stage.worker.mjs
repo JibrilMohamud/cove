@@ -73,7 +73,11 @@ export function summarizeTriad(mode, kind, offered, rows, durationMs) {
     // Rights-only uses driver-bound D1; context/catalog add a service binding.
     // These path differences forbid a cross-mode TTFB or queue attribution.
     transportLayer:
-      mode === "noop" ? "driver-only" : mode === "rights" ? "driver-d1" : "candidate-service-binding",
+      mode === "noop"
+        ? "driver-only"
+        : mode === "rights"
+          ? "driver-d1"
+          : "candidate-service-binding",
     externalTtfbCertified: false,
     kind,
     offered,
