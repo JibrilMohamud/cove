@@ -49,7 +49,7 @@ on:
       - "scripts/check-nonauthorizing-owner-version-history.mjs"
       - "scripts/test-stage-distribution-owner.mjs"
       - "docs/architecture/canonical-writer-review.json"
-      - "docs/architecture/catalog-overload-no-retry-source-attestation-20261114.json"
+      - "docs/architecture/2026-11-14-compact-catalog-source-attestation.json"
       - ".github/workflows/canonical-writer-closure-audit.yml"
   push:
     branches: [main]
@@ -100,7 +100,7 @@ on:
       - "scripts/check-audio-playback-remaining-nonauthorizing.mjs"
       - "scripts/check-nonauthorizing-owner-version-history.mjs"
       - "docs/architecture/canonical-writer-review.json"
-      - "docs/architecture/catalog-overload-no-retry-source-attestation-20261114.json"
+      - "docs/architecture/2026-11-14-compact-catalog-source-attestation.json"
       - ".github/workflows/canonical-writer-closure-audit.yml"
   workflow_dispatch:
 permissions:
@@ -129,7 +129,7 @@ jobs:
       - name: Reconcile every candidate without approving production ownership
         run: |
           node scripts/reconcile-canonical-writers.mjs
-          node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/catalog-overload-no-retry-source-attestation-20261114.json
+          node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/2026-11-14-compact-catalog-source-attestation.json
           node scripts/test-canonical-writer-review.mjs
           node scripts/test-canonical-writer-rebase.mjs
           node scripts/test-canonical-owner-workflow-inventory.mjs

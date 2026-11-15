@@ -47,7 +47,18 @@ assert.match(search, /: countAvailableCandidatesFromFacet\(input, part\.hasFts, 
 assert.match(search, /const plan = await rankedCandidatePlan/);
 assert.match(
   search,
-  /const \[books, facets\] = await Promise\.all\(\[\s*canonicalBooksByProductIds\(env\.DB, ids\)/,
+  /const \[books, facets\] = await Promise\.all\(\[\s*(?:compactGuestBooks \|\| )?canonicalBooksByProductIds\(env\.DB, ids\)/,
+);
+// The compact path is narrower than the existing progressive fallback and
+// must preserve every current primary-rights predicate and page witness.
+assert.match(search, /FORE_GUEST_COMPACT_STAGE === "1"/);
+assert.match(search, /FORE_GUEST_COMPACT_SYNTHETIC_D1_ID ===/);
+assert.match(search, /canonicalBoundedPopularPageByLiveRights\(env\.DB, part, 24\)/);
+assert.match(search, /hasVerifiedNextPageWitness = true/);
+assert.match(search, /compactGuestBooks \|\| canonicalBooksByProductIds\(env\.DB, ids\)/);
+assert.match(
+  search,
+  /: await contextualizeChannelEligibility\(env\.DB, pageBooks, input\.territory\)/,
 );
 assert.match(
   search,

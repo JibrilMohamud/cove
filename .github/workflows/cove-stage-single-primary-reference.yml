@@ -1,0 +1,72 @@
+name: cove-stage-single-primary-reference-capacity
+on:
+  push:
+    branches: [perf/stage-single-authority-catalog-20261114]
+    paths:
+      - src/features/fore/single-authority-probe.stage.ts
+      - src/features/fore/api.server.ts
+      - scripts/staging/check-private-one-read-stage.mjs
+      - scripts/staging/run-one-read-authority-reference.mjs
+      - .github/workflows/cove-stage-single-primary-reference.yml
+      - docs/architecture/canonical-writer-review.json
+      - docs/architecture/2026-11-14-compact-catalog-source-attestation.json
+permissions:
+  contents: read
+concurrency:
+  group: cove-isolated-causal-catalog-stage-driver
+  cancel-in-progress: false
+jobs:
+  one-full-shape-rights-operation:
+    if: github.repository == 'JibrilMohamud/cove'
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      COVE_ALLOW_SAFE_RESTORE: "1"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          ref: 7e68f4223173c966e2390a382106a69ceea15c77
+          path: stage-driver
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci
+      - name: Strict privacy, hostname, synthetic D1, current rights and fifth-mode tests
+        run: |
+          node scripts/staging/check-private-one-read-stage.mjs
+          node --test stage-driver/scripts/staging/private-causal-triad.worker.test.mjs
+          node scripts/staging/check-single-authority-catalog-stage.mjs
+      - name: Keep protected SQL writer inventory and source fingerprints unchanged
+        run: |
+          node scripts/reconcile-canonical-writers.mjs
+          node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/2026-11-14-compact-catalog-source-attestation.json
+      - name: Validate exact stage runner formatting and syntax
+        run: |
+          node --check scripts/staging/run-one-read-authority-reference.mjs
+          npx prettier --check src/features/fore/single-authority-probe.stage.ts scripts/staging/check-private-one-read-stage.mjs scripts/staging/run-one-read-authority-reference.mjs
+      - name: Build actual candidate Worker without customer traffic
+        run: npm run build:backend
+      - name: Require private stage credential
+        run: test -n "$CLOUDFLARE_API_TOKEN"
+      - name: Real one-authoritative-D1 full-shape 50 and conditional two 100-RPS phases
+        run: node scripts/staging/run-one-read-authority-reference.mjs
+      - name: Independently restore diagnostic driver
+        if: always()
+        working-directory: stage-driver
+        run: node scripts/staging/run-private-causal-triad.mjs --restore-only
+      - name: Independently restore candidate to original version
+        if: always()
+        run: node scripts/staging/run-one-read-authority-reference.mjs --restore-only
+      - name: Preserve exact offered, valid, dropped, p95, p99, maximum and error counts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cove-single-rights-full-shape-reference-${{ github.run_id }}
+          path: artifacts/single-primary-reference/
+          retention-days: 14
+          if-no-files-found: ignore

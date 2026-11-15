@@ -245,6 +245,72 @@ export async function canonicalBooksByProductIds(db: DB, productIds: string[]) {
 }
 
 /**
+ * Experimental, full-shape, SINGLE PRIMARY D1 statement for the exact
+ * anonymous unfiltered popular first page. Materialize the same stable 96-ID
+ * ranking seed as the proven shortlist, recheck every CURRENT retail/territory
+ * predicate in the SAME statement, then hydrate the unchanged full canonical
+ * projection without a separate D1 round trip.
+ *
+ * Require the 25th fully authorized witness: sparse markets or altered
+ * rankings fail closed to the unchanged calling path, never return an
+ * incomplete page. This function is a read-only building block; only the
+ * synthetic staging flag may invoke it.
+ */
+export async function canonicalBoundedPopularPageByLiveRights(
+  db: DB,
+  scope: { where: string[]; binds: unknown[] },
+  limit = 24,
+): Promise<CatalogBook[] | null> {
+  if (
+    limit !== 24 ||
+    !Array.isArray(scope.where) ||
+    !scope.where.includes("p.storefront_status='active'") ||
+    !scope.where.includes("p.source_name<>'upload'") ||
+    !scope.where.includes("d.suppressed=0") ||
+    !scope.where.includes("e.release_status IN ('available','preorder')") ||
+    !scope.where.some((part) => part.includes("retail_product_availability_rows")) ||
+    !scope.where.includes("d.currency=?")
+  )
+    return null;
+  // Only the trusted static first-page caller supplies this scoped SQL.
+  const hydratedProjection = canonicalSelect.replace(
+    "FROM products p",
+    "FROM eligible selected CROSS JOIN products p ON p.id=selected.product_id",
+  );
+  const rows = await db
+    .prepare(
+      `WITH ranked AS MATERIALIZED (
+        SELECT d.product_id,d.fore_bestseller_score sort_score,d.external_book_id sort_source
+        FROM catalog_search_documents d INDEXED BY idx_search_popular_stable
+        ORDER BY d.fore_bestseller_score DESC,d.external_book_id ASC,d.product_id ASC
+        LIMIT 96
+      ), eligible AS MATERIALIZED (
+        SELECT d.product_id,wanted.sort_score,wanted.sort_source
+        FROM ranked wanted
+        CROSS JOIN catalog_search_documents d ON d.product_id=wanted.product_id
+        CROSS JOIN products p ON p.id=d.product_id
+        CROSS JOIN editions e ON e.id=p.edition_id
+        LEFT JOIN publishers pub ON pub.id=e.publisher_id
+        WHERE ${scope.where.join(" AND ")}
+        ORDER BY wanted.sort_score DESC,wanted.sort_source ASC,wanted.product_id ASC
+        LIMIT ?
+      )
+      ${hydratedProjection}
+      ORDER BY selected.sort_score DESC,selected.sort_source ASC,selected.product_id ASC`,
+    )
+    .bind(...scope.binds, limit + 1)
+    .all<Record<string, unknown>>();
+  if (rows.results.length !== limit + 1) return null;
+  const books = rows.results.map(canonicalRowBook);
+  if (
+    new Set(books.map((book) => book.productId)).size !== limit + 1 ||
+    books.some((book) => !book.productId || !book.editionId)
+  )
+    return null;
+  return books.slice(0, limit);
+}
+
+/**
  * A rights-checked first-page shelf needs covers, prices and bylines—not the
  * complete detail page's accessibility, editions, identifiers and provenance
  * aggregation. The caller MUST select current territory-eligible product IDs.

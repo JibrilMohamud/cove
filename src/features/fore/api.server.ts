@@ -116,6 +116,7 @@ import JSZip from "jszip";
 import seed from "./catalog-seed.json";
 import type { CatalogBook } from "./client";
 import type { PresentationR2Bucket } from "./search-presentation-r2.server";
+import { handlePrivateAuthorityStageProbe } from "./single-authority-probe.stage";
 import {
   canDeferGuestCatalogFacets,
   firstPaintStorefrontShelf,
@@ -488,6 +489,9 @@ export type CoveEnv = {
   AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
   DB: { prepare(sql: string): Statement; batch(s: Statement[]): Promise<unknown> };
   FORE_ASYNC_CATALOG_FACETS?: string;
+  // Synthetic D1-only A/B: cannot be enabled by default production configuration.
+  FORE_GUEST_COMPACT_STAGE?: string;
+  FORE_GUEST_COMPACT_SYNTHETIC_D1_ID?: string;
   COVE_PUBLIC_PRESENTATION_CACHE?: PresentationR2Bucket;
   // Optional production-disabled read-model: R2/KV is never a rights authority.
   COVE_SOUNDS_SNAPSHOT_ENABLED?: string;
@@ -2226,8 +2230,7 @@ export async function runCatalogIngestion(
       ),
     );
     if (statements.length) await db.batch(statements);
-    for (const book of changed)
-      await dispatchCatalogFreeNormalization(db, String(book.id), at);
+    for (const book of changed) await dispatchCatalogFreeNormalization(db, String(book.id), at);
     // This must run even when the source and canonical rows were unchanged:
     // a previous run may have failed *after* canonical normalization but
     // before taxonomy/outbox publication, and mapping rules may have changed.
@@ -2922,6 +2925,12 @@ export async function handleCoveApi(
   execution?: ApiExecutionContext,
 ): Promise<Response | null> {
   if (!new URL(request.url).pathname.startsWith("/api/fore/")) return null;
+  // Private single-D1 capacity reference is ineligible for production hosts,
+  // accounts, cookies, commerce, entitlement or public customer routing.
+  // It must execute before legacy HTTP auditing so the control represents
+  // exactly one full-shape current-rights primary-D1 service operation.
+  const privateAuthorityProbe = await handlePrivateAuthorityStageProbe(request, env);
+  if (privateAuthorityProbe) return privateAuthorityProbe;
   // Aggregate-only interaction telemetry has no user, commerce or territorial
   // rights dependency. Handle it before auth/context/HTTP D1 logging.
   if (request.method === "POST" && new URL(request.url).pathname === "/api/fore/sounds/events") {
