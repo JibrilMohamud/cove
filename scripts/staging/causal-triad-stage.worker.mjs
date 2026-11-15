@@ -14,7 +14,18 @@ const R2_LIVE_RETAIL_URL =
   "https://cove-presentation-r2-proof-20261114.cove-jibrilmohamud.workers.dev/api/fore/__perf/private-r2-live-rights";
 // The original four-path campaign remains unchanged; single is a separate
 // opt-in differential capacity proof, never a storefront certification.
-const MODES = ["noop", "context", "rights", "catalog", "single", "r2live", "r2page2", "r2seed"];
+const MODES = [
+  "noop",
+  "context",
+  "rights",
+  "catalog",
+  "single",
+  "r2live",
+  "r2page2",
+  "r2cursor",
+  "r2cursorseed",
+  "r2seed",
+];
 const RIGHTS_SQL = `WITH ranked AS MATERIALIZED (
  SELECT d.product_id,d.fore_bestseller_score sort_score,d.external_book_id sort_source
  FROM catalog_search_documents d INDEXED BY idx_search_popular_stable
@@ -108,11 +119,18 @@ export function summarizeTriad(mode, kind, offered, rows, durationMs) {
     releaseCertified: false,
   };
 }
-export async function singleTriadProbe(mode, env, ordinal, runId) {
+export async function singleTriadProbe(mode, env, ordinal, runId, cursorToken = null) {
   if (!triadStageBindingGuard(env)) throw new Error("stage-bindings-not-proven");
   if (!MODES.includes(mode)) throw new Error("invalid-diagnostic-mode");
   const started = performance.now();
   try {
+    if (
+      mode === "r2cursor" &&
+      (typeof cursorToken !== "string" ||
+        cursorToken.length > 768 ||
+        !/^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$/.test(cursorToken))
+    )
+      return { status: 400, valid: false, errorKind: "missing-or-invalid-signed-cursor" };
     if (mode === "noop") return { status: 200, valid: true, ms: performance.now() - started };
     if (mode === "rights") {
       const result = await env.DB.prepare(RIGHTS_SQL).bind("available", "US", "USD", 25).all();
@@ -131,9 +149,11 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
       };
     }
     const url =
-      mode === "r2live"
+      mode === "r2live" || mode === "r2cursorseed"
         ? R2_LIVE_RETAIL_URL
-        : mode === "r2page2"
+        : mode === "r2cursor"
+          ? R2_LIVE_RETAIL_URL + "?cursor=" + cursorToken
+          : mode === "r2page2"
           ? R2_LIVE_RETAIL_URL + "?page=2"
           : mode === "r2seed"
             ? R2_LIVE_RETAIL_URL + "/seed"
@@ -176,7 +196,8 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
         ms: performance.now() - started,
         valid: false,
         errorKind:
-          (mode === "r2live" || mode === "r2page2") && known.includes(failure)
+          (mode === "r2live" || mode === "r2page2" || mode === "r2cursor" || mode === "r2cursorseed") &&
+          known.includes(failure)
             ? failure
             : "upstream-http-status",
       };
@@ -221,16 +242,20 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
       resp.headers.get("x-cove-persistence") ===
         (mode === "single"
           ? "d1-only-synthetic"
-          : mode === "r2live" || mode === "r2page2"
+          : ["r2live", "r2page2", "r2cursor", "r2cursorseed"].includes(mode)
             ? "d1-live-retail-r2-display-synthetic"
             : "d1-r2") &&
       (mode !== "single" ||
         (data?.releaseCertified === false && data?.mode === "single-primary-rights-only")) &&
-      ((mode !== "r2live" && mode !== "r2page2") ||
+      (!["r2live", "r2page2", "r2cursor", "r2cursorseed"].includes(mode) ||
         (data?.releaseCertified === false &&
-          (mode !== "r2page2" ||
+          (mode !== "r2page2" && mode !== "r2cursor" ||
             (!Object.hasOwn(data, "count") && !Object.hasOwn(data, "facets"))) &&
-          data?.mode === "r2-live-retail" &&
+          data?.mode === (mode === "r2cursor" ? "r2-live-retail-cursor" : "r2-live-retail") &&
+          (mode !== "r2cursorseed" ||
+            (typeof data?.nextCursor === "string" &&
+              data.nextCursor.length <= 768 &&
+              /^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$/.test(data.nextCursor))) &&
           data?.hasMore === true &&
           data.results.every(
             (b) =>
@@ -273,6 +298,9 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
       firstByteMs,
       ms,
       valid,
+      ...(mode === "r2cursorseed" && valid ? { cursorToken: data.nextCursor } : {}),
+      // Only the private seed probe exposes an opaque nonauthorizing cursor
+      // to its gated runner. Never include it in a phase metric or log.
       // Safe enumerated categories only; never log IDs, payload, request
       // headers, SQL, origin URLs, raw errors or anonymous client IPs.
       errorKind: valid
