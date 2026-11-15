@@ -71,9 +71,31 @@ test("unauthorized, malformed and expired probes never access D1 or the service 
   ]) {
     assert.equal((await worker.fetch(request, env)).status, 404);
   }
-  assert.equal(privateTriadGuard({ ...env, COVE_TRIAD_EXPIRES_AT: "2026-01-01T00:00:00Z" }, makeRequest("noop")), false);
-  assert.equal((await worker.fetch(makeRequest("rights"), { ...env, COVE_TRIAD_EXPIRES_AT: "2026-01-01T00:00:00Z" })).status, 404);
-  assert.equal((await worker.fetch(makeRequest("rights"), { ...env, COVE_TRIAD_SYNTHETIC_D1_ID: "4bd657ac-8789-403e-a28c-93aba8d0a989" })).status, 404);
+  assert.equal(
+    privateTriadGuard(
+      { ...env, COVE_TRIAD_EXPIRES_AT: "2026-01-01T00:00:00Z" },
+      makeRequest("noop"),
+    ),
+    false,
+  );
+  assert.equal(
+    (
+      await worker.fetch(makeRequest("rights"), {
+        ...env,
+        COVE_TRIAD_EXPIRES_AT: "2026-01-01T00:00:00Z",
+      })
+    ).status,
+    404,
+  );
+  assert.equal(
+    (
+      await worker.fetch(makeRequest("rights"), {
+        ...env,
+        COVE_TRIAD_SYNTHETIC_D1_ID: "4bd657ac-8789-403e-a28c-93aba8d0a989",
+      })
+    ).status,
+    404,
+  );
   assert.equal(d1Calls, 0);
   assert.equal(serviceCalls, 0);
 });
@@ -84,12 +106,20 @@ test("one authenticated ingress tests noop, rights, context and catalog without 
   for (const mode of ["noop", "rights", "context", "catalog"]) {
     const response = await worker.fetch(makeRequest(mode), env);
     const result = await response.json();
-    assert.equal(response.status, 200, mode + " " + JSON.stringify({ result, serviceCalls, serviceFailure }));
+    assert.equal(
+      response.status,
+      200,
+      mode + " " + JSON.stringify({ result, serviceCalls, serviceFailure }),
+    );
     assert.match(response.headers.get("server-timing") || "", /cove_stage_worker;dur=/);
     assert.equal(result.mode, mode);
     assert.equal(result.valid, true);
     assert.equal(result.releaseCertified, false);
-    assert.equal(JSON.stringify(result).includes("perf-synth-"), false, "Do not disclose candidate IDs");
+    assert.equal(
+      JSON.stringify(result).includes("perf-synth-"),
+      false,
+      "Do not disclose candidate IDs",
+    );
   }
   assert.equal(d1Calls, 1, "Noop and service-bound paths do not use the driver D1");
   assert.equal(serviceCalls, 2, "Only context/catalog traverse the candidate binding");
@@ -98,12 +128,14 @@ test("one authenticated ingress tests noop, rights, context and catalog without 
 test("malformed ordinal and run identifiers are rejected before D1", async () => {
   d1Calls = 0;
   assert.equal(
-    (await worker.fetch(
-      new Request(URL + "/__cove/performance/triad/rights?run=bad%2Fsecret&ordinal=1", {
-        headers: { "x-cove-triad-key": GATE },
-      }),
-      env,
-    )).status,
+    (
+      await worker.fetch(
+        new Request(URL + "/__cove/performance/triad/rights?run=bad%2Fsecret&ordinal=1", {
+          headers: { "x-cove-triad-key": GATE },
+        }),
+        env,
+      )
+    ).status,
     400,
   );
   assert.equal(d1Calls, 0);
@@ -153,7 +185,10 @@ test("single full-shape current-rights reference is separate from public catalog
     ...env,
     CANDIDATE: {
       async fetch(request) {
-        assert.equal(new globalThis.URL(request.url).pathname, "/api/fore/__perf/private-authority");
+        assert.equal(
+          new globalThis.URL(request.url).pathname,
+          "/api/fore/__perf/private-authority",
+        );
         assert.equal(request.headers.get("x-cove-backend-token"), "b".repeat(64));
         assert.equal(request.headers.get("x-cove-client-country"), "US");
         return Response.json(
@@ -191,6 +226,10 @@ test("single full-shape current-rights reference is separate from public catalog
     },
   };
   const rejected = await worker.fetch(makeRequest("single"), invalid);
-  assert.equal(rejected.status, 503, "Missing explicit not-release-certified signal fails the reference");
+  assert.equal(
+    rejected.status,
+    503,
+    "Missing explicit not-release-certified signal fails the reference",
+  );
   assert.equal((await rejected.json()).resultKind, "missing-persistence-proof");
 });
