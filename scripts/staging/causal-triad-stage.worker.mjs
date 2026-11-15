@@ -18,6 +18,7 @@ const MODES = [
   "noop",
   "context",
   "rights",
+  "revision",
   "catalog",
   "single",
   "r2live",
@@ -47,6 +48,11 @@ WHERE p.storefront_status='active'
 ORDER BY wanted.sort_score DESC,wanted.sort_source ASC,wanted.product_id ASC
 LIMIT ?`;
 
+// A deliberately minimal synthetic-D1 service floor. This SELECT is NOT a
+// rights, offer, legal-owner or entitlement authorization.
+const REVISION_SQL =
+  "SELECT CAST(revision AS TEXT) current_revision FROM cove_synthetic_public_metadata_revision WHERE id=1";
+
 export function triadStageBindingGuard(env) {
   return (
     env?.COVE_TRIAD_STAGE === "1" &&
@@ -60,6 +66,7 @@ export function triadStageBindingGuard(env) {
 }
 export const triadModes = Object.freeze([...MODES]);
 export const triadSql = RIGHTS_SQL;
+export const triadRevisionSql = REVISION_SQL;
 
 // TEST-NET IPv4 addresses, unique by request ordinal. Never use real identities.
 export function stageSyntheticIp(i) {
@@ -132,6 +139,19 @@ export async function singleTriadProbe(mode, env, ordinal, runId, cursorToken = 
     )
       return { status: 400, valid: false, errorKind: "missing-or-invalid-signed-cursor" };
     if (mode === "noop") return { status: 200, valid: true, ms: performance.now() - started };
+    if (mode === "revision") {
+      const query = await env.DB.prepare(REVISION_SQL).all();
+      const revision = query.results?.[0]?.current_revision;
+      const sqlMs = Number(query.meta?.duration);
+      const ms = performance.now() - started;
+      return {
+        status: 200,
+        valid: query.results?.length === 1 && /^[1-9]\\d{0,18}$/.test(String(revision)),
+        ms,
+        sqlMs: Number.isFinite(sqlMs) ? sqlMs : null,
+        outsideSqlMs: Number.isFinite(sqlMs) && sqlMs <= ms ? ms - sqlMs : null,
+      };
+    }
     if (mode === "rights") {
       const result = await env.DB.prepare(RIGHTS_SQL).bind("available", "US", "USD", 25).all();
       const ids = (result.results || []).map((r) => r.product_id);
