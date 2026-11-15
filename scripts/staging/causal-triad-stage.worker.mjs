@@ -212,9 +212,14 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
               b.offer?.currency === "USD" &&
               Number.isSafeInteger(b.offer?.amountMinor) &&
               b.offer.amountMinor >= 0 &&
-              b.subscriptionEligible === undefined &&
-              b.libraryEligible === undefined &&
-              b.downloadable === undefined &&
+              typeof b.subscriptionEligible === "boolean" &&
+              typeof b.libraryEligible === "boolean" &&
+              typeof b.downloadable === "boolean" &&
+              ["available", "preorder"].includes(b.releaseStatus) &&
+              typeof b.drmStatus === "string" &&
+              typeof b.workId === "string" &&
+              Number.isSafeInteger(b.download_count) &&
+              b.download_count >= 0 &&
               !b.formats?.["application/epub+zip"],
           )));
     return {
