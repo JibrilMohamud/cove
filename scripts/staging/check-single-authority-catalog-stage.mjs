@@ -15,9 +15,7 @@ try {
     alias: { jszip: "jszip/dist/jszip.min.js" },
     logLevel: "silent",
   });
-  const { canonicalBoundedPopularPageByLiveRights } = await import(
-    path.join(dir, "authority.mjs")
-  );
+  const { canonicalBoundedPopularPageByLiveRights } = await import(path.join(dir, "authority.mjs"));
   const scope = {
     where: [
       "p.storefront_status='active'",
@@ -61,7 +59,10 @@ try {
   rows = Array.from({ length: 25 }, (_, i) => row(i));
   const books = await canonicalBoundedPopularPageByLiveRights(db, scope, 24);
   assert.equal(books?.length, 24, "25th rights witness is not displayed");
-  assert.deepEqual(books.map((b) => b.productId), rows.slice(0, 24).map((r) => r.product_id));
+  assert.deepEqual(
+    books.map((b) => b.productId),
+    rows.slice(0, 24).map((r) => r.product_id),
+  );
   assert.deepEqual(lastBinds, ["available", "US", "USD", 25]);
   assert.match(lastSql, /WITH ranked AS MATERIALIZED/);
   assert.match(lastSql, /LIMIT 96/);
@@ -69,7 +70,10 @@ try {
   assert.match(lastSql, /retail_product_availability_rows/);
   assert.match(lastSql, /FROM eligible selected CROSS JOIN products p ON p.id=selected.product_id/);
   assert.match(lastSql, /FROM offers o WHERE o.product_id=p.id/);
-  assert.match(lastSql, /ORDER BY selected.sort_score DESC,selected.sort_source ASC,selected.product_id ASC/);
+  assert.match(
+    lastSql,
+    /ORDER BY selected.sort_score DESC,selected.sort_source ASC,selected.product_id ASC/,
+  );
   assert.doesNotMatch(lastSql, /\b(?:INSERT|UPDATE|DELETE|REPLACE)\s+(?:INTO|FROM|[A-Za-z])/i);
   rows = rows.slice(0, 24);
   assert.equal(
@@ -113,7 +117,10 @@ try {
   assert.match(search, /guestCompactLiveRights: compactGuestBooks !== null/);
   assert.match(search, /delete safe\.subscriptionEligible/);
   assert.match(search, /delete safe\.libraryEligible/);
-  assert.match(search, /: await contextualizeChannelEligibility\(env.DB, pageBooks, input\.territory\)/);
+  assert.match(
+    search,
+    /: await contextualizeChannelEligibility\(env.DB, pageBooks, input\.territory\)/,
+  );
   assert.match(api, /FORE_GUEST_COMPACT_STAGE\?: string;/);
   for (const file of [
     "wrangler.backend.production.toml",
@@ -122,7 +129,9 @@ try {
     const contents = fs.readFileSync(file, "utf8");
     assert.doesNotMatch(contents, /FORE_GUEST_COMPACT_STAGE|FORE_GUEST_COMPACT_SYNTHETIC_D1_ID/);
   }
-  console.log("PASS: compact single-current-D1 full-shape selection, 25th witness, denied unsafe scopes, stage-only opt-in and retail-only flags");
+  console.log(
+    "PASS: compact single-current-D1 full-shape selection, 25th witness, denied unsafe scopes, stage-only opt-in and retail-only flags",
+  );
 } finally {
   fs.rmSync(dir, { recursive: true, force: true });
 }
