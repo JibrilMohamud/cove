@@ -128,7 +128,10 @@ try {
     assert.equal(book.formats["application/epub+zip"], undefined);
   }
 
-  returned = rows(Array.from({ length: 25 }, (_, i) => i), 0);
+  returned = rows(
+    Array.from({ length: 25 }, (_, i) => i),
+    0,
+  );
   assert.equal(
     (await syntheticR2PageWithLiveRights(request, env, () => now)).books[0].offer.amountMinor,
     0,
@@ -136,12 +139,22 @@ try {
   );
   // A revocation removes the retired ID, while a later current right-checked
   // candidate fills the page without any cached positive grant.
-  returned = rows([...Array.from({ length: 3 }, (_, i) => i), ...Array.from({ length: 22 }, (_, i) => i + 4)]);
+  returned = rows([
+    ...Array.from({ length: 3 }, (_, i) => i),
+    ...Array.from({ length: 22 }, (_, i) => i + 4),
+  ]);
   const revoked = await syntheticR2PageWithLiveRights(request, env, () => now);
-  assert.equal(revoked.books.some((b) => b.productId === "perf-synth-3"), false);
+  assert.equal(
+    revoked.books.some((b) => b.productId === "perf-synth-3"),
+    false,
+  );
   assert.equal(revoked.books.length, 24);
   returned = rows(Array.from({ length: 24 }, (_, i) => i));
-  assert.equal(await syntheticR2PageWithLiveRights(request, env, () => now), null, "No 25th live witness");
+  assert.equal(
+    await syntheticR2PageWithLiveRights(request, env, () => now),
+    null,
+    "No 25th live witness",
+  );
   returned = rows(Array.from({ length: 25 }, (_, i) => i));
   returned[0].offer_json = null;
   assert.equal(await syntheticR2PageWithLiveRights(request, env, () => now), null, "No offer");
@@ -160,15 +173,38 @@ try {
     req({ "x-cove-client-country": "CA" }),
     req({ "x-cove-backend-token": "b".repeat(64) }),
     req({}, "https://covereads.com/api/fore/__perf/private-r2-live-rights"),
-    req({}, "https://cove-presentation-r2-proof-20261114.cove-jibrilmohamud.workers.dev/api/fore/__perf/private-r2-live-rights?sort=popular"),
-  ]) assert.equal(await syntheticR2PageWithLiveRights(denied, env, () => now), null);
-  assert.equal(await syntheticR2PageWithLiveRights(request, { ...env, FORE_GUEST_R2_DISPLAY_STAGE: "0" }, () => now), null);
-  assert.equal(await syntheticR2PageWithLiveRights(request, { ...env, COVE_SYNTHETIC_STAGING_ONLY: "4bd657ac-8789-403e-a28c-93aba8d0a989" }, () => now), null);
+    req(
+      {},
+      "https://cove-presentation-r2-proof-20261114.cove-jibrilmohamud.workers.dev/api/fore/__perf/private-r2-live-rights?sort=popular",
+    ),
+  ])
+    assert.equal(await syntheticR2PageWithLiveRights(denied, env, () => now), null);
+  assert.equal(
+    await syntheticR2PageWithLiveRights(
+      request,
+      { ...env, FORE_GUEST_R2_DISPLAY_STAGE: "0" },
+      () => now,
+    ),
+    null,
+  );
+  assert.equal(
+    await syntheticR2PageWithLiveRights(
+      request,
+      { ...env, COVE_SYNTHETIC_STAGING_ONLY: "4bd657ac-8789-403e-a28c-93aba8d0a989" },
+      () => now,
+    ),
+    null,
+  );
   assert.equal(dbCalls, prev, "No denied probe may touch D1");
   assert.equal(
     await syntheticR2PageWithLiveRights(
       request,
-      { ...env, COVE_PUBLIC_PRESENTATION_CACHE: { get: async () => ({ etag: "x", text: async () => snapshot }) } },
+      {
+        ...env,
+        COVE_PUBLIC_PRESENTATION_CACHE: {
+          get: async () => ({ etag: "x", text: async () => snapshot }),
+        },
+      },
       () => now + 120_001,
     ),
     null,
@@ -179,7 +215,12 @@ try {
   assert.equal(
     await syntheticR2PageWithLiveRights(
       request,
-      { ...env, COVE_PUBLIC_PRESENTATION_CACHE: { get: async () => ({ etag: "x", text: async () => JSON.stringify(injected) }) } },
+      {
+        ...env,
+        COVE_PUBLIC_PRESENTATION_CACHE: {
+          get: async () => ({ etag: "x", text: async () => JSON.stringify(injected) }),
+        },
+      },
       () => now,
     ),
     null,
@@ -188,10 +229,7 @@ try {
   assert.equal(dbCalls, prev, "Invalid display object never authorizes via D1");
   assert.doesNotMatch(
     buildSyntheticDisplayObject(
-      [
-        { ...books[0], formats: { "image/jpeg": "javascript:attack" } },
-        ...books.slice(1),
-      ],
+      [{ ...books[0], formats: { "image/jpeg": "javascript:attack" } }, ...books.slice(1)],
       now,
     ),
     /javascript:attack/,
