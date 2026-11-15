@@ -10,9 +10,11 @@ const CONTEXT_URL =
   "https://cove-presentation-r2-proof-20261114.cove-jibrilmohamud.workers.dev/api/fore/storefront/context";
 const SINGLE_AUTHORITY_URL =
   "https://cove-presentation-r2-proof-20261114.cove-jibrilmohamud.workers.dev/api/fore/__perf/private-authority";
+const R2_LIVE_RETAIL_URL =
+  "https://cove-presentation-r2-proof-20261114.cove-jibrilmohamud.workers.dev/api/fore/__perf/private-r2-live-rights";
 // The original four-path campaign remains unchanged; single is a separate
 // opt-in differential capacity proof, never a storefront certification.
-const MODES = ["noop", "context", "rights", "catalog", "single"];
+const MODES = ["noop", "context", "rights", "catalog", "single", "r2live", "r2seed"];
 const RIGHTS_SQL = `WITH ranked AS MATERIALIZED (
  SELECT d.product_id,d.fore_bestseller_score sort_score,d.external_book_id sort_source
  FROM catalog_search_documents d INDEXED BY idx_search_popular_stable
@@ -129,13 +131,17 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
       };
     }
     const url =
-      (mode === "catalog"
-        ? CATALOG_URL + "?sort=popular&page=1&currency=USD"
-        : mode === "single"
-          ? SINGLE_AUTHORITY_URL
-          : CONTEXT_URL) +
-      (mode === "catalog" ? "&__proof=" : "?__proof=") +
-      encodeURIComponent(runId + "-" + ordinal);
+      mode === "r2live"
+        ? R2_LIVE_RETAIL_URL
+        : mode === "r2seed"
+          ? R2_LIVE_RETAIL_URL + "/seed"
+          : (mode === "catalog"
+              ? CATALOG_URL + "?sort=popular&page=1&currency=USD"
+              : mode === "single"
+                ? SINGLE_AUTHORITY_URL
+                : CONTEXT_URL) +
+            (mode === "catalog" ? "&__proof=" : "?__proof=") +
+            encodeURIComponent(runId + "-" + ordinal);
     const ip = stageSyntheticIp(ordinal);
     const headers = {
       accept: "application/json",
@@ -146,7 +152,7 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
     };
     const resp = await env.CANDIDATE.fetch(
       new Request(url, {
-        method: "GET",
+        method: mode === "r2seed" ? "POST" : "GET",
         headers,
         signal: AbortSignal.timeout(10000),
       }),
@@ -154,6 +160,16 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
     const firstByteMs = performance.now() - started;
     const data = await resp.json();
     const ms = performance.now() - started;
+    if (mode === "r2seed") {
+      const valid = resp.status === 200 && data?.seeded === true && data?.releaseCertified === false;
+      return {
+        status: resp.status,
+        firstByteMs,
+        ms,
+        valid,
+        errorKind: valid ? null : "snapshot-seed-denied",
+      };
+    }
     if (mode === "context") {
       const valid =
         resp.status === 200 &&
@@ -179,9 +195,27 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
       new Set(ids).size === 24 &&
       ids.every((id) => typeof id === "string" && id.startsWith("perf-synth-")) &&
       resp.headers.get("x-cove-persistence") ===
-        (mode === "single" ? "d1-only-synthetic" : "d1-r2") &&
+        (mode === "single"
+          ? "d1-only-synthetic"
+          : mode === "r2live"
+            ? "d1-live-retail-r2-display-synthetic"
+            : "d1-r2") &&
       (mode !== "single" ||
-        (data?.releaseCertified === false && data?.mode === "single-primary-rights-only"));
+        (data?.releaseCertified === false && data?.mode === "single-primary-rights-only")) &&
+      (mode !== "r2live" ||
+        (data?.releaseCertified === false &&
+          data?.mode === "r2-live-retail" &&
+          data?.hasMore === true &&
+          data.results.every(
+            (b) =>
+              b.offer?.currency === "USD" &&
+              Number.isSafeInteger(b.offer?.amountMinor) &&
+              b.offer.amountMinor >= 0 &&
+              b.subscriptionEligible === undefined &&
+              b.libraryEligible === undefined &&
+              b.downloadable === undefined &&
+              !b.formats?.["application/epub+zip"],
+          )));
     return {
       status: resp.status,
       firstByteMs,
