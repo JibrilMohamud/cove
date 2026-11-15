@@ -34,7 +34,7 @@ assert.equal(run.length,2);
 const shell=run[1].split("\n").map(line=>
   line.startsWith("          ")?line.slice(10):line).join("\n");
 assert.match(shell,/cat > wrangler\.backend\.deploy\.toml <<EOF/);
-assert.match(shell,/\\[\\[durable_objects\.bindings\\]\\]/);
+assert.match(shell,/\[\[durable_objects\.bindings\]\]/);
 const env={...process.env,WORKER_NAME:WORKER,D1_DATABASE_ID:DB,
   D1_DATABASE_NAME:"cove-production",R2_BUCKET_NAME:BUCKET,
   PUBLIC_URL:"https://cove-puce-theta.vercel.app"};
@@ -48,7 +48,7 @@ assert.match(config,/compatibility_date = "2026-09-01"/);
 assert.match(config,/dataset = "cove_public_http_ops"/);
 assert.match(config,/FORE_ENVIRONMENT = "production"/);
 assert.match(config,/keep_vars = true/);
-assert.doesNotMatch(config,/cove-qa|staging-route|routes = \\[/i);
+assert.doesNotMatch(config,/cove-qa|staging-route|routes = \[/i);
 mkdirSync("artifacts/production-diagnostic-upload",{recursive:true});
 async function call(path){
   const r=await fetch("https://api.cloudflare.com/client/v4"+path,{
