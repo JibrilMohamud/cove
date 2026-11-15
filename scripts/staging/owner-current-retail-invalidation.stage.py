@@ -21,60 +21,60 @@ MARKET_VERSION = "cove_stage_owner_market_version"
 # Each expression maps NEW/OLD mutated rows to affected products. These are
 # source-table dependencies, not statements that legal permission exists.
 PRODUCT_SCOPES = {
-    "products": "SELECT {ref}.id",
-    "editions": "SELECT p.id FROM products p WHERE p.edition_id={ref}.id",
-    "rights_grants": "SELECT p.id FROM products p WHERE p.edition_id={ref}.edition_id",
+    "products": "SELECT {ref}.id AS product_id",
+    "editions": "SELECT p.id AS product_id FROM products p WHERE p.edition_id={ref}.id",
+    "rights_grants": "SELECT p.id AS product_id FROM products p WHERE p.edition_id={ref}.edition_id",
     "rights_grant_territories": (
-        "SELECT p.id FROM products p JOIN rights_grants rg ON rg.edition_id=p.edition_id "
+        "SELECT p.id AS product_id FROM products p JOIN rights_grants rg ON rg.edition_id=p.edition_id "
         "WHERE rg.id={ref}.grant_id"
     ),
     "rights_contracts": (
-        "SELECT p.id FROM products p JOIN rights_grants rg ON rg.edition_id=p.edition_id "
+        "SELECT p.id AS product_id FROM products p JOIN rights_grants rg ON rg.edition_id=p.edition_id "
         "WHERE rg.contract_id={ref}.id"
     ),
     "rights_contract_languages": (
-        "SELECT p.id FROM products p JOIN rights_grants rg ON rg.edition_id=p.edition_id "
+        "SELECT p.id AS product_id FROM products p JOIN rights_grants rg ON rg.edition_id=p.edition_id "
         "WHERE rg.contract_id={ref}.contract_id"
     ),
     "rights_contract_versions": (
-        "SELECT p.id FROM products p JOIN rights_grants rg ON rg.edition_id=p.edition_id "
+        "SELECT p.id AS product_id FROM products p JOIN rights_grants rg ON rg.edition_id=p.edition_id "
         "WHERE rg.contract_id={ref}.contract_id"
     ),
     "rights_contract_version_territories": (
-        "SELECT p.id FROM products p JOIN rights_grants rg ON rg.edition_id=p.edition_id "
+        "SELECT p.id AS product_id FROM products p JOIN rights_grants rg ON rg.edition_id=p.edition_id "
         "JOIN rights_contract_versions rv ON rv.contract_id=rg.contract_id "
         "WHERE rv.id={ref}.contract_version_id"
     ),
     "rights_contract_version_formats": (
-        "SELECT p.id FROM products p JOIN rights_grants rg ON rg.edition_id=p.edition_id "
+        "SELECT p.id AS product_id FROM products p JOIN rights_grants rg ON rg.edition_id=p.edition_id "
         "JOIN rights_contract_versions rv ON rv.contract_id=rg.contract_id "
         "WHERE rv.id={ref}.contract_version_id"
     ),
     "rights_contract_version_channels": (
-        "SELECT p.id FROM products p JOIN rights_grants rg ON rg.edition_id=p.edition_id "
+        "SELECT p.id AS product_id FROM products p JOIN rights_grants rg ON rg.edition_id=p.edition_id "
         "JOIN rights_contract_versions rv ON rv.contract_id=rg.contract_id "
         "WHERE rv.id={ref}.contract_version_id"
     ),
     "publisher_contract_assignments": (
-        "SELECT p.id FROM products p JOIN rights_grants rg ON rg.edition_id=p.edition_id "
+        "SELECT p.id AS product_id FROM products p JOIN rights_grants rg ON rg.edition_id=p.edition_id "
         "WHERE rg.contract_id={ref}.contract_id"
     ),
-    "edition_languages": "SELECT p.id FROM products p WHERE p.edition_id={ref}.edition_id",
-    "offers": "SELECT {ref}.product_id",
-    "digital_assets": "SELECT p.id FROM products p WHERE p.edition_id={ref}.edition_id",
+    "edition_languages": "SELECT p.id AS product_id FROM products p WHERE p.edition_id={ref}.edition_id",
+    "offers": "SELECT {ref}.product_id AS product_id",
+    "digital_assets": "SELECT p.id AS product_id FROM products p WHERE p.edition_id={ref}.edition_id",
     "asset_versions": (
-        "SELECT p.id FROM products p JOIN digital_assets da ON da.edition_id=p.edition_id "
+        "SELECT p.id AS product_id FROM products p JOIN digital_assets da ON da.edition_id=p.edition_id "
         "WHERE da.current_version_id={ref}.id"
     ),
-    "catalog_search_documents": "SELECT {ref}.product_id",
+    "catalog_search_documents": "SELECT {ref}.product_id AS product_id",
 }
 
 # Territory eligibility and aliases are used directly by the canonical
 # live resolver. Never keep a positive row for a territory whose sellability
 # or canonical alias mapping changed.
 TERRITORY_SCOPES = {
-    "territories": "SELECT {ref}.code",
-    "territory_aliases": "SELECT {ref}.territory_code",
+    "territories": "SELECT {ref}.code AS territory_code",
+    "territory_aliases": "SELECT {ref}.territory_code AS territory_code",
 }
 
 # US market is an existing fallback for markets with missing local currency.
