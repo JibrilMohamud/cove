@@ -116,26 +116,38 @@ const catalogStart = api.indexOf("async function catalog(");
 const catalogEnd = api.indexOf("function libraryRow(", catalogStart);
 assert.ok(catalogStart !== -1 && catalogEnd > catalogStart);
 const canonicalEnvelope = api.slice(catalogStart, catalogEnd);
-const envelopeBlock = canonicalEnvelope.match(/return \{\s*results:\s*result\.books,([\s\S]*?)\n    \};/);
+const envelopeBlock = canonicalEnvelope.match(
+  /return \{\s*results:\s*result\.books,([\s\S]*?)\n    \};/,
+);
 assert.ok(envelopeBlock, "Production catalog payload structure changed");
-const envelopeFields = ["results", ...[
-  ...envelopeBlock[1].matchAll(/^      ([a-zA-Z_]\w*)(?:\s*[:,])/gm),
-].map((match) => match[1])];
+const envelopeFields = [
+  "results",
+  ...[...envelopeBlock[1].matchAll(/^      ([a-zA-Z_]\w*)(?:\s*[:,])/gm)].map((match) => match[1]),
+];
 const probeStart = stage.indexOf("const result = await syntheticR2PageWithLiveRights");
-const probeReturn = stage.slice(probeStart).match(/return Response\.json\(\s*\{([\s\S]*?)\n      \},/);
+const probeReturn = stage
+  .slice(probeStart)
+  .match(/return Response\.json\(\s*\{([\s\S]*?)\n      \},/);
 assert.ok(probeReturn, "Synthetic endpoint contract could not be read");
-const stagedEnvelopeFields = [
-  ...probeReturn[1].matchAll(/^        ([a-zA-Z_]\w*)\s*:/gm),
-].map((match) => match[1]);
+const stagedEnvelopeFields = [...probeReturn[1].matchAll(/^        ([a-zA-Z_]\w*)\s*:/gm)].map(
+  (match) => match[1],
+);
 assert.deepEqual(
   [...envelopeFields].sort(),
-  ["results", "count", "next", "cached", "facets", "facetsPending",
-    "countPending", "search", "ingestion"].sort(),
+  [
+    "results",
+    "count",
+    "next",
+    "cached",
+    "facets",
+    "facetsPending",
+    "countPending",
+    "search",
+    "ingestion",
+  ].sort(),
   "Canonical catalog envelope changed; review pagination and facet parity",
 );
-const missingEnvelope = envelopeFields.filter(
-  (field) => !stagedEnvelopeFields.includes(field),
-);
+const missingEnvelope = envelopeFields.filter((field) => !stagedEnvelopeFields.includes(field));
 const audit = {
   schema: "cove.synthetic-r2-full-catalog-parity-inventory.v2",
   canonicalEnvelopeFields: envelopeFields,
