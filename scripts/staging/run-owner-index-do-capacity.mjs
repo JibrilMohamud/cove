@@ -231,6 +231,11 @@ try {
     const full = await phase("read", "100-rps-20s-phase-" + i, 2000, 10, true);
     assert.ok(strict(full, 2000), "Unified owner DO failed strict 100RPS phase " + i);
   }
+  // The exact same owner-SQL index must also serve FTS5 keyword search
+  // and disjunctive facets at strict hosted rates, not just default pages.
+  const searched=await phase("read-search","100-rps-20s-owner-fts",2000,10,true);
+  assert.ok(strict(searched,2000),
+    "Authorized owner-local FTS5 search failed strict hosted 100RPS");
   // Real concurrent owner SQL reads and an ACK-fenced contractual revocation:
   // cannot serve the previous price/rights after the legal owner commits.
   await withdrawalUnderLoad();
@@ -243,6 +248,13 @@ try {
   const stale = await command("stale-regrant");
   assert.equal(stale.stalePositiveRejected, true, "Stale positive must fail");
   assert.equal(stale.count, 23);
+  const short=await command("short-paid-lease");
+  assert.equal(short.count,23,'Shortening a still-valid paid lease cannot increase allowance');
+  await sleep(2800);
+  const expired=await command("expire-check");
+  assert.equal(expired.valid,true,'Owner must selectively withdraw expired proof');
+  assert.equal(expired.count,22,'Expired offer removed from exact owner-index count');
+  assert.equal(expired.expiredSearchCount,0,'Expired paid book cannot remain searchable');
   const market = await command("market-deny");
   assert.equal(market.marketDenied, true);
   assert.equal(market.count, 0, "Market tombstone removes all prior offers");
