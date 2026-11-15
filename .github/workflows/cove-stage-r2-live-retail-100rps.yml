@@ -1,7 +1,7 @@
 name: cove-stage-r2-current-retail-100rps
 on:
   push:
-    branches: [perf/stage-r2-display-current-rights-20261115, perf/stage-live-epub-readiness-20261115, perf/stage-full-book-shape-fresh-20261115, perf/stage-public-metadata-r2-20261115, perf/stage-all-public-details-r2-20261115, perf/stage-disclosure-revision-fence-20261115, perf/stage-source-attribution-fence-20261115, perf/stage-page2-live-rights-20261115, perf/stage-page2-hosted-capacity-20261115, perf/stage-page2-bounded-56-20261115, perf/stage-page2-hydrate-visible-20261115, perf/stage-signed-rights-cursor-20261115, perf/stage-cursor-tail-attribution-20261115, perf/stage-cursor-stage-timing-20261115, perf/stage-paired-ingress-control-20261115]
+    branches: [perf/stage-r2-display-current-rights-20261115, perf/stage-live-epub-readiness-20261115, perf/stage-full-book-shape-fresh-20261115, perf/stage-public-metadata-r2-20261115, perf/stage-all-public-details-r2-20261115, perf/stage-disclosure-revision-fence-20261115, perf/stage-source-attribution-fence-20261115, perf/stage-page2-live-rights-20261115, perf/stage-page2-hosted-capacity-20261115, perf/stage-page2-bounded-56-20261115, perf/stage-page2-hydrate-visible-20261115, perf/stage-signed-rights-cursor-20261115, perf/stage-cursor-tail-attribution-20261115, perf/stage-cursor-stage-timing-20261115, perf/stage-paired-ingress-control-20261115, perf/stage-exact-25-rights-witness-20261115]
     paths:
       - src/features/fore/synthetic-r2-live-rights-page.stage.ts
       - src/features/fore/synthetic-stage-rights-cursor.ts
@@ -74,6 +74,8 @@ jobs:
         run: |
           if [ "$GITHUB_REF_NAME" = "perf/stage-paired-ingress-control-20261115" ]; then
             node scripts/staging/run-r2-live-retail-campaign.mjs --cursor-only --shadow-no-db
+          elif [ "$GITHUB_REF_NAME" = "perf/stage-exact-25-rights-witness-20261115" ]; then
+            node scripts/staging/run-r2-live-retail-campaign.mjs --cursor-only
           elif [ "$GITHUB_REF_NAME" = "perf/stage-signed-rights-cursor-20261115" ] || [ "$GITHUB_REF_NAME" = "perf/stage-cursor-tail-attribution-20261115" ] || [ "$GITHUB_REF_NAME" = "perf/stage-cursor-stage-timing-20261115" ]; then
             node scripts/staging/run-r2-live-retail-campaign.mjs --cursor-only
           elif [ "$GITHUB_REF_NAME" = "perf/stage-page2-hosted-capacity-20261115" ] || [ "$GITHUB_REF_NAME" = "perf/stage-page2-bounded-56-20261115" ] || [ "$GITHUB_REF_NAME" = "perf/stage-page2-hydrate-visible-20261115" ]; then
