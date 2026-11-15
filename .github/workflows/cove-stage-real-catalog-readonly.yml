@@ -1,0 +1,58 @@
+name: cove-stage-real-catalog-readonly
+on:
+  push:
+    branches: [audit/stage-real-catalog-metadata-readonly-20261115]
+    paths:
+      - src/storefront-strangler/production-catalog-metadata-readonly.stage.mjs
+      - scripts/staging/check-production-catalog-metadata-readonly.mjs
+      - scripts/staging/run-production-catalog-metadata-readonly.mjs
+      - .github/workflows/cove-stage-real-catalog-readonly.yml
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type READ_ONLY_AUDIT to request the protected 82k D1 read-only scan"
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: cove-readonly-d1-catalog-full-audit
+  cancel-in-progress: false
+jobs:
+  offline-read-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: node --check src/storefront-strangler/production-catalog-metadata-readonly.stage.mjs
+      - run: node --check scripts/staging/check-production-catalog-metadata-readonly.mjs
+      - run: node --check scripts/staging/run-production-catalog-metadata-readonly.mjs
+      - name: Verify read-only SQL, full source reconstruction and fail-closed negative cases
+        run: node --no-warnings scripts/staging/check-production-catalog-metadata-readonly.mjs
+      - run: git diff --check
+  protected-live-readonly-scan:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/audit/stage-real-catalog-metadata-readonly-20261115' &&
+      inputs.confirm == 'READ_ONLY_AUDIT'
+    needs: [offline-read-contract]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: cove-production-release-audit
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Observe full live production metadata WITHOUT grants, writes or exports
+        run: node --no-warnings scripts/staging/run-production-catalog-metadata-readonly.mjs --live
+        env:
+          CF_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+          COVE_CF_PRODUCTION_AUDIT_READ_TOKEN: ${{ secrets.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN }}
