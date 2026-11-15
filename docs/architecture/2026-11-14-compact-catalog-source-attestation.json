@@ -5,8 +5,8 @@
   "files": [
     {
       "path": "src/features/fore/api.server.ts",
-      "sha256": "6fcd78b97f61bfded4da8522631f2edbcfc866ae0f1534367410217d427c08bd",
-      "review": "Added only synthetic compact-stage environment typings near existing staging settings, leaving all 33 owner-required writer statements and their original callers, guards, execution and owner classifications unchanged. No new production route, automatic feature enablement, entitlement authority or user principal mutation."
+      "sha256": "7ee5833098e280e0000ec6090d5ecfd7d6bc16668253a3c98055c4a953d96f2d",
+      "review": "Added only synthetic compact-stage environment typings near existing staging settings, leaving all 33 owner-required writer statements and their original callers, guards, execution and owner classifications unchanged. No new production route, automatic feature enablement, entitlement authority or user principal mutation. Additional guard review: private /api/fore/__perf/private-authority is admitted before auth and HTTP D1 audit ONLY for the exact synthetic staging hostname, matching synthetic D1 fixture ID, explicit staging feature flag, no cookie or identity, US country and constant-time private backend token. It is not a public storefront route, authorization credential, payment or legal operation. All 33 preexisting protected SQL writer literals, caller guards and command classifications remain byte-for-byte unchanged."
     },
     {
       "path": "src/features/fore/search.server.ts",
