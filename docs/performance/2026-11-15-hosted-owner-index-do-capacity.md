@@ -102,6 +102,34 @@ not the full production catalog or canonical customer-paid evidence.
 Even its FTS5 search uses restricted literal terms and stage rank order,
 not Cove's complete FTS synonyms/typo/relevance contract.
 
+## Hosted adaptive planner repeat — PASS
+
+[GitHub Actions run #43764154144](https://github.com/JibrilMohamud/cove/actions/runs/43764154144)
+ran the 25-product isolated owner with FTS5 vocabulary selectivity,
+an exact ubiquitous-term shortcut and explicit FTS-first rare-term
+search. It also used the strict FTS initial seal that verifies row
+identity and searchable content, not just counts.
+
+| Campaign | Valid/offered | Drops | p95 ms | p99 ms | max ms |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 100RPS 20s catalog #1 | 2000/2000 | 0 | 54.81 | 138.23 | 267.80 |
+| 100RPS 20s catalog #2 | 2000/2000 | 0 | 54.22 | 93.00 | 285.95 |
+| 100RPS 20s ubiquitous FTS | 2000/2000 | 0 | 64.84 | 160.39 | 310.83 |
+| **100RPS 20s rare-keyword FTS-first** | **2000/2000** | **0** | **58.40** | **109.73** | **509.67** |
+| Concurrent contract revocation | 600/600 | 0 | 65.00 | 129.73 | 228.90 |
+
+1/4/8/16/32 bursts all passed (maximum 492.87 ms at 32).
+Withdrawal test: 289 requests before ACK and 311 after ACK;
+**zero stale paid offers after ACK**. Timed expiry plus market tombstone
+checks passed. The ephemeral Worker was removed by cleanup and its
+absence was independently confirmed by Cloudflare API HTTP 404.
+
+**Caution:** stage FTS uses intentionally restricted title/format/publisher
+terms. The actual production catalog uses ten textual fields, prefixes
+and different language-specific tokenizers. Production DTO/facet/FTS
+parity is NOT established. The entire run was 25 staged products with
+no customer grants, D1 writes or live payments.
+
 ## Release status: BLOCKED
 
 This evidence supports the *mechanism* of a fast, strongly consistent
