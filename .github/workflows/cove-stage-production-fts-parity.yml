@@ -1,0 +1,32 @@
+name: cove-stage-production-fts-parity
+on:
+  push:
+    branches: [perf/stage-production-fts-parity-20261115]
+    paths:
+      - src/storefront-strangler/owner-production-fts-mirror.stage.mjs
+      - scripts/staging/check-stage-production-fts-mirror.mjs
+      - scripts/staging/check-owner-catalog-incremental-index.mjs
+      - .github/workflows/cove-stage-production-fts-parity.yml
+permissions:
+  contents: read
+jobs:
+  production-fts-stage-contract:
+    if: github.repository == 'JibrilMohamud/cove'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: node --check src/storefront-strangler/owner-production-fts-mirror.stage.mjs
+      - run: node --check scripts/staging/check-stage-production-fts-mirror.mjs
+      - name: Verify exact FTS schema, suppression, language, BM25, identifiers and legal withdrawal
+        run: node scripts/staging/check-stage-production-fts-mirror.mjs
+      - name: Validate canonical free/paid/market owner SQL plus indexed real-authority parity
+        run: |
+          npm ci --no-audit --no-fund
+          node scripts/staging/check-owner-catalog-incremental-index.mjs
+      - run: git diff --check
