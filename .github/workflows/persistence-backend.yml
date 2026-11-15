@@ -10,6 +10,7 @@ on:
       - "src/lib/primary-d1-overload.ts"
       - "scripts/check-isolated-http-metric.mjs"
       - "scripts/check-production-http-metric-wiring.mjs"
+      - "scripts/check-staging-isolated-ops-metrics.mjs"
       - ".github/workflows/deploy-persistence-backend.yml"
       - "scripts/check-primary-d1-overload-fail-closed.mjs"
       - "scripts/check-http-audit-write-failure-signal.mjs"
@@ -159,6 +160,7 @@ jobs:
         run: |
           node scripts/check-isolated-http-metric.mjs
           node scripts/check-production-http-metric-wiring.mjs
+          node scripts/check-staging-isolated-ops-metrics.mjs
       - name: Persistence architecture
         run: npm run test:persistence-backend
       - name: Soundtrack library rights and delivery regressions
