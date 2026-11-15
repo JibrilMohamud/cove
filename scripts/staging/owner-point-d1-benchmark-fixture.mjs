@@ -79,7 +79,10 @@ async function verify() {
   );
   const rows = result.results || [];
   assert.equal(rows.length, 25, "Benchmark must have exactly 25 synthetic positive-shaped rows");
-  assert.deepEqual(rows.map((row) => row.product_id), ids);
+  assert.deepEqual(
+    rows.map((row) => row.product_id),
+    ids,
+  );
   assert.ok(rows.every((row) => Date.parse(row.valid_until + "Z") > Date.now()));
   return { current: rows.length, sqlMs: result.meta?.duration };
 }
@@ -116,7 +119,11 @@ async function install() {
   assert.equal(seeded.meta?.changes, 25, "Benchmark positive-shaped fixture must seed 25");
   const result = await verify();
   console.log(
-    JSON.stringify({ event: "cove_stage_bench_fixture_installed", ...result, releaseCertified: false }),
+    JSON.stringify({
+      event: "cove_stage_bench_fixture_installed",
+      ...result,
+      releaseCertified: false,
+    }),
   );
 }
 

@@ -75,10 +75,7 @@ async function scriptState() {
     } catch (error) {
       // A newly active deployment can precede the version-detail API
       // propagation. Never skip checking actual binding isolation on 404.
-      if (
-        !(error instanceof Error) ||
-        !error.message.includes("failed HTTP 404: 100146")
-      )
+      if (!(error instanceof Error) || !error.message.includes("failed HTTP 404: 100146"))
         throw error;
       const [settings, second] = await Promise.all([
         api("/workers/scripts/" + SCRIPT + "/settings"),
@@ -175,7 +172,11 @@ async function refreshSyntheticPointBenchmark() {
       sql: "SELECT count(*) AS ready FROM cove_stage_perf_retail_authority WHERE territory_code='US' AND currency='USD' AND current_offer_id='BENCH-NOT-A-GRANT' AND valid_until>datetime('now')",
     }),
   });
-  assert.equal(checked?.[0]?.results?.[0]?.ready, 25, "Only current synthetic point rows may be load tested");
+  assert.equal(
+    checked?.[0]?.results?.[0]?.ready,
+    25,
+    "Only current synthetic point rows may be load tested",
+  );
 }
 
 async function rollbackIfDiagnostic() {
@@ -471,15 +472,15 @@ async function warmup(run, secret) {
     ? ["noop", "pointbench"]
     : process.argv.includes("--revision-only-100rps")
       ? ["noop", "revision"]
-    : process.argv.includes("--r2-cursor-100rps")
-      ? ["noop", "r2seed", "r2cursorseed", "r2cursor"]
-      : process.argv.includes("--r2-page2-100rps")
-        ? ["noop", "r2seed", "r2page2"]
-        : process.argv.includes("--r2-retail-100rps")
-          ? ["noop", "r2seed", "r2live"]
-          : process.argv.includes("--rights-only-100rps")
-            ? ["noop", "rights"]
-            : MODES;
+      : process.argv.includes("--r2-cursor-100rps")
+        ? ["noop", "r2seed", "r2cursorseed", "r2cursor"]
+        : process.argv.includes("--r2-page2-100rps")
+          ? ["noop", "r2seed", "r2page2"]
+          : process.argv.includes("--r2-retail-100rps")
+            ? ["noop", "r2seed", "r2live"]
+            : process.argv.includes("--rights-only-100rps")
+              ? ["noop", "rights"]
+              : MODES;
   for (const mode of warmModes) {
     let result;
     for (let retry = 0; retry < 5; retry++) {
