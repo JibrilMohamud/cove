@@ -7,30 +7,49 @@ const FRESH_EVALUATION_MS = 2000;
 const CLOCK_BOUNDARY_MARGIN_MS = 2500;
 
 /**
- * This is a publication-time PRIMARY-D1 query, NEVER a request-time
- * authorization check. A legal owner must already hold the deny-first
- * publication fence and must still compare its epoch when committing.
+ * This is a publication-time PRIMARY-D1 read, NEVER a request-time
+ * authorization check. Every canonical mutation writer must still issue a
+ * deny-first owner fence and the owner must atomically compare its epoch.
  *
- * Include every dated positive AND negative legal source: a future deny
- * grant, future restrictive contract/version/language entry, or competing
- * offer must expire a positive proof before the scheduled change. No
- * positive can be published when a source date is not parseable.
+ * D1's production SQLite compound-SELECT budget is restrictive. Use TWO
+ * small, bounded, indexed reads with four and two UNION terms respectively,
+ * rather than a dozen-term UNION that fails to compile on live primary D1.
+ * json_each(json_array(start,end)) folds both time columns into one stream.
+ * NULL date fields are ignored; a malformed NON-NULL date fails closed.
  */
 export const CANONICAL_PAID_NEXT_BOUNDARY_SQL = `WITH target AS MATERIALIZED (
   SELECT p.id product_id,p.edition_id FROM products p WHERE p.id=?
-), times(at) AS (
-  SELECT rg.starts_at FROM rights_grants rg JOIN target t ON t.edition_id=rg.edition_id
-  UNION ALL SELECT rg.ends_at FROM rights_grants rg JOIN target t ON t.edition_id=rg.edition_id
-  UNION ALL SELECT rc.effective_from FROM rights_contracts rc JOIN rights_grants rg ON rg.contract_id=rc.id JOIN target t ON t.edition_id=rg.edition_id
-  UNION ALL SELECT rc.effective_to FROM rights_contracts rc JOIN rights_grants rg ON rg.contract_id=rc.id JOIN target t ON t.edition_id=rg.edition_id
-  UNION ALL SELECT cv.effective_from FROM rights_contract_versions cv JOIN rights_grants rg ON rg.contract_id=cv.contract_id JOIN target t ON t.edition_id=rg.edition_id
-  UNION ALL SELECT cv.effective_to FROM rights_contract_versions cv JOIN rights_grants rg ON rg.contract_id=cv.contract_id JOIN target t ON t.edition_id=rg.edition_id
-  UNION ALL SELECT cl.starts_at FROM rights_contract_languages cl JOIN rights_grants rg ON rg.contract_id=cl.contract_id JOIN target t ON t.edition_id=rg.edition_id
-  UNION ALL SELECT cl.ends_at FROM rights_contract_languages cl JOIN rights_grants rg ON rg.contract_id=cl.contract_id JOIN target t ON t.edition_id=rg.edition_id
-  UNION ALL SELECT o.starts_at FROM offers o JOIN target t ON t.product_id=o.product_id
-  UNION ALL SELECT o.ends_at FROM offers o JOIN target t ON t.product_id=o.product_id
-  UNION ALL SELECT e.release_date FROM editions e JOIN target t ON t.edition_id=e.id
-  UNION ALL SELECT e.preorder_date FROM editions e JOIN target t ON t.edition_id=e.id
+), times(at) AS MATERIALIZED (
+  SELECT dates.value FROM rights_grants rg
+    JOIN target t ON t.edition_id=rg.edition_id
+    CROSS JOIN json_each(json_array(rg.starts_at,rg.ends_at)) dates
+  UNION ALL SELECT dates.value FROM rights_contracts rc
+    JOIN rights_grants rg ON rg.contract_id=rc.id
+    JOIN target t ON t.edition_id=rg.edition_id
+    CROSS JOIN json_each(json_array(rc.effective_from,rc.effective_to)) dates
+  UNION ALL SELECT dates.value FROM rights_contract_versions cv
+    JOIN rights_grants rg ON rg.contract_id=cv.contract_id
+    JOIN target t ON t.edition_id=rg.edition_id
+    CROSS JOIN json_each(json_array(cv.effective_from,cv.effective_to)) dates
+  UNION ALL SELECT dates.value FROM rights_contract_languages cl
+    JOIN rights_grants rg ON rg.contract_id=cl.contract_id
+    JOIN target t ON t.edition_id=rg.edition_id
+    CROSS JOIN json_each(json_array(cl.starts_at,cl.ends_at)) dates
+) SELECT
+  (SELECT COUNT(*) FROM target) product_count,
+  strftime('%Y-%m-%dT%H:%M:%fZ','now') primary_now,
+  MIN(CASE WHEN julianday(at)>julianday('now')
+      THEN strftime('%Y-%m-%dT%H:%M:%fZ',at) END) next_transition,
+  SUM(CASE WHEN at IS NOT NULL AND julianday(at) IS NULL THEN 1 ELSE 0 END) invalid_times
+  FROM times`;
+
+export const CANONICAL_PAID_OFFER_NEXT_BOUNDARY_SQL = `WITH target AS MATERIALIZED (
+  SELECT p.id product_id,p.edition_id FROM products p WHERE p.id=?
+), times(at) AS MATERIALIZED (
+  SELECT dates.value FROM offers o JOIN target t ON t.product_id=o.product_id
+    CROSS JOIN json_each(json_array(o.starts_at,o.ends_at)) dates
+  UNION ALL SELECT dates.value FROM editions e JOIN target t ON t.edition_id=e.id
+    CROSS JOIN json_each(json_array(e.release_date,e.preorder_date)) dates
 ) SELECT
   (SELECT COUNT(*) FROM target) product_count,
   strftime('%Y-%m-%dT%H:%M:%fZ','now') primary_now,
@@ -49,11 +68,11 @@ type BoundaryRow = {
 /**
  * Called ONLY after fresh resolveProductRights(persist:false) returns a
  * canonical positive. evaluatedAtMs is captured immediately BEFORE that
- * resolver invocation, never supplied by a user or a presentation cache.
+ * resolver invocation; it must never come from a customer or R2/KV bytes.
  *
- * The primary D1 clock independently bounds staleness and any future
- * boundary (including negative changes); owner SQLite's epoch/denial CAS
- * remains the final authority on publication.
+ * The PRIMARY D1 clock rejects stale/future decisions and bounds ALL known
+ * future positives and negatives, even if the chosen grant remains active.
+ * Owner SQLite's epoch, subject-denial and evidence CAS remain final.
  */
 export async function canonicalCommercialLeaseUntil(
   db:CatalogDB,productId:string,evaluatedAtMs:number
@@ -63,24 +82,34 @@ export async function canonicalCommercialLeaseUntil(
      Math.abs(Date.now()-evaluatedAtMs)>FRESH_EVALUATION_MS)
     throw Error("canonical_lease_unfresh_evaluation");
 
-  const row=await db.prepare(CANONICAL_PAID_NEXT_BOUNDARY_SQL)
-    .bind(productId).first<BoundaryRow>();
+  const rows=await Promise.all([
+    db.prepare(CANONICAL_PAID_NEXT_BOUNDARY_SQL)
+      .bind(productId).first<BoundaryRow>(),
+    db.prepare(CANONICAL_PAID_OFFER_NEXT_BOUNDARY_SQL)
+      .bind(productId).first<BoundaryRow>(),
+  ]);
   const now=Date.now();
-  const primaryMs=Date.parse(row?.primary_now||"");
-  if(!row||row.product_count!==1||
-     !Number.isFinite(primaryMs)||
-     row.invalid_times===null||!Number.isSafeInteger(row.invalid_times)||
-     row.invalid_times!==0||
-     Math.abs(primaryMs-now)>FRESH_EVALUATION_MS||
-     Math.abs(primaryMs-evaluatedAtMs)>FRESH_EVALUATION_MS)
+  const primaryTimes=rows.map(row=>Date.parse(row?.primary_now||""));
+  if(rows.some((row,i)=>
+       !row||row.product_count!==1||
+       !Number.isFinite(primaryTimes[i])||
+       row.invalid_times===null||!Number.isSafeInteger(row.invalid_times)||
+       row.invalid_times!==0||
+       Math.abs(primaryTimes[i]-now)>FRESH_EVALUATION_MS||
+       Math.abs(primaryTimes[i]-evaluatedAtMs)>FRESH_EVALUATION_MS))
     throw Error("canonical_lease_primary_unverified");
 
-  const boundary=row.next_transition===null
-    ? Number.POSITIVE_INFINITY:Date.parse(row.next_transition);
-  if(Number.isNaN(boundary))
+  // Use the oldest verified primary timestamp and the EARLIEST boundary.
+  // Cross-query inconsistency cannot extend the lease; source withdrawals
+  // still require their separate owner-first fences before any D1 mutation.
+  const earliest=rows.map(row=>row!.next_transition===null
+    ? Number.POSITIVE_INFINITY:Date.parse(row!.next_transition!));
+  if(earliest.some(value=>Number.isNaN(value)))
     throw Error("canonical_lease_invalid_transition");
-  const expires=Math.min(primaryMs+MAX_RIGHTS_LEASE_MS,
-    boundary-CLOCK_BOUNDARY_MARGIN_MS);
+  const expires=Math.min(
+    Math.min(...primaryTimes)+MAX_RIGHTS_LEASE_MS,
+    Math.min(...earliest)-CLOCK_BOUNDARY_MARGIN_MS,
+  );
   if(!(expires>now+50))
     throw Error("canonical_lease_transition_imminent");
   return new Date(expires).toISOString();
