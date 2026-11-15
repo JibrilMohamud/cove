@@ -29,13 +29,16 @@ const EXPECTED_BINDINGS = [
 ].sort();
 const PAGE_TWO_MODE = process.argv.includes("--page-two-only");
 const CURSOR_MODE = process.argv.includes("--cursor-only");
+const SHADOW_MODE = process.argv.includes("--shadow-no-db");
 const EVIDENCE = {
   schema: "cove.synthetic-r2-display-current-retail-rights-100rps.v1",
   releaseCertified: false,
   productionModified: false,
-  sourceBranch: CURSOR_MODE
-    ? "perf/stage-signed-rights-cursor-20261115"
-    : PAGE_TWO_MODE
+  sourceBranch: SHADOW_MODE
+    ? "perf/stage-paired-ingress-control-20261115"
+    : CURSOR_MODE
+      ? "perf/stage-signed-rights-cursor-20261115"
+      : PAGE_TWO_MODE
       ? "perf/stage-page2-hosted-capacity-20261115"
       : "perf/stage-page2-live-rights-20261115",
   originalCandidateVersion: ORIGINAL,
@@ -254,13 +257,19 @@ function runArm(name, candidateMode = "r2live") {
       : candidateMode === "r2page2"
         ? "--r2-page2-100rps"
         : "--r2-retail-100rps";
-  const result = spawnSync(process.execPath, [runner, flag], {
+  if (SHADOW_MODE && candidateMode !== "r2cursor")
+    throw Error("Concurrent shadow must test the real cursor candidate");
+  const result = spawnSync(
+    process.execPath,
+    [runner, flag, ...(SHADOW_MODE ? ["--shadow-no-db"] : [])],
+    {
     cwd: ".",
     env: { ...process.env, COVE_ALLOW_SAFE_RESTORE: "1" },
     encoding: "utf8",
     maxBuffer: 8 * 1024 * 1024,
-    timeout: 8 * 60 * 1000,
-  });
+      timeout: 8 * 60 * 1000,
+    },
+  );
   const raw = loadEvidence();
   if (!raw) {
     const logs = String(result.stderr || "") + String(result.stdout || "");
@@ -333,6 +342,7 @@ function runArm(name, candidateMode = "r2live") {
       statusCounts: x.statusCounts || {},
       failureKindCounts: x.failureKindCounts || {},
       downstreamStatusCounts: x.downstreamStatusCounts || {},
+      ingressShadow: x.ingressShadow || null,
     }));
   const strict = (x, offered) =>
     x &&
@@ -342,7 +352,8 @@ function runArm(name, candidateMode = "r2live") {
     x.ttfbP95Ms !== null &&
     x.ttfbP95Ms < 600 &&
     x.ttfbP99Ms < 750 &&
-    x.ttfbMaxMs < 800;
+    x.ttfbMaxMs < 800 &&
+    (!SHADOW_MODE || offered !== 2000 || x.ingressShadow?.passed === true);
   const fifty = raw.results.find((x) => x.mode === candidateMode && x.shape === "50-rps-20s");
   const phase1 = raw.results.find(
     (x) => x.mode === candidateMode && x.shape === "100-rps-20s-phase-1",
