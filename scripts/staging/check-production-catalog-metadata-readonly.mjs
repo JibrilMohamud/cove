@@ -77,6 +77,8 @@ try{
   assert.equal(result.englishFts,meta().english);
   assert.equal(result.globalFts,8);
   assert.equal(result.authorizedProducts,0);
+  assert.equal(result.stageMetadataRows,9);
+  assert.equal(result.stageAuthorizedFtsDocuments,0);
   assert.equal(result.productionOwnerEvidence,false);
   assert.equal(result.atomicPrimarySnapshot,false);
   assert.equal(result.releaseCertified,false);
