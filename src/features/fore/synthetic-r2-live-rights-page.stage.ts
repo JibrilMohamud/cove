@@ -233,8 +233,16 @@ export async function syntheticR2PageWithLiveRights(
     "US",
     "USD",
   );
-  if (current.length !== PAGE_COUNT + 1) return null;
+  if (
+    current.length !== PAGE_COUNT + 1 ||
+    new Set(current.map((row) => row.product_id)).size !== PAGE_COUNT + 1
+  )
+    return null;
   const byId = new Map(snapshot.items.map((item) => [item.productId, item]));
+  const rank = new Map(snapshot.items.map((item, index) => [item.productId, index]));
+  for (let i = 1; i < current.length; i++)
+    if ((rank.get(current[i - 1].product_id) ?? 999) >= (rank.get(current[i].product_id) ?? -1))
+      return null;
   const books: CatalogBook[] = [];
   for (const row of current) {
     const display = byId.get(row.product_id);
