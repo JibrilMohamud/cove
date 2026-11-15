@@ -1,0 +1,25 @@
+name: cove-one-read-prettier-export
+on:
+  push:
+    branches: [perf/stage-single-authority-catalog-20261114]
+    paths: [.github/workflows/cove-one-read-format-export.yml]
+permissions: { contents: read }
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci
+      - name: Format three new stage-only files in ephemeral checkout
+        run: |
+          npx prettier --write src/features/fore/single-authority-probe.stage.ts scripts/staging/check-private-one-read-stage.mjs scripts/staging/run-one-read-authority-reference.mjs
+          node --input-type=module - <<'NODE'
+          import { execFileSync } from "node:child_process";
+          const paths=["src/features/fore/single-authority-probe.stage.ts","scripts/staging/check-private-one-read-stage.mjs","scripts/staging/run-one-read-authority-reference.mjs"];
+          const diff=execFileSync("git", ["diff", "--", ...paths], { encoding: "utf8" });
+          console.log("__COVE_ONE_READ_PRETTIER_DIFF_START__"+Buffer.from(diff).toString("base64")+"__COVE_ONE_READ_PRETTIER_DIFF_END__");
+          NODE
