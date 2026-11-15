@@ -309,6 +309,7 @@ function runArm(name, candidateMode = "r2live") {
     ttfbP99Ms: target.ttfbP99Ms,
     ttfbMaxMs: target.ttfbMaxMs,
     workerP95Ms: target.workerP95Ms,
+    tailAttribution: target.tailAttribution || null,
     statusCounts: target.statusCounts,
     // The private diagnostic never reports raw book IDs, headers, SQL or
     // exception messages. These low-cardinality classifications distinguish
@@ -328,6 +329,7 @@ function runArm(name, candidateMode = "r2live") {
       p95: x.ttfbP95Ms,
       p99: x.ttfbP99Ms,
       max: x.ttfbMaxMs,
+      tailAttribution: x.tailAttribution || null,
       statusCounts: x.statusCounts || {},
       failureKindCounts: x.failureKindCounts || {},
       downstreamStatusCounts: x.downstreamStatusCounts || {},
