@@ -10,6 +10,7 @@ import worker, {
   summarizeTriad,
   runTriadPhase,
 } from "./causal-triad-stage.worker.mjs";
+import privateWorker from "./private-causal-triad.worker.mjs";
 
 const config = JSON.parse(readFileSync("wrangler.performance-triad.stage.jsonc", "utf8"));
 const TEST_DB = "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
@@ -84,6 +85,8 @@ test("staging is private, read-only, and not bound to production", () => {
     "single",
     "r2live",
     "r2page2",
+    "r2cursor",
+    "r2cursorseed",
     "r2seed",
   ]);
   assert.match(triadSql, /retail_product_availability_rows/);
@@ -135,6 +138,82 @@ test("guarded second-page driver preserves fixed query and denies unverified pay
   assert.equal(result.status, 200);
   assert.equal(result.valid, false, "Never accept incomplete page two despite HTTP 200");
   assert.equal(result.errorKind, "unexpected-result-count");
+});
+test("private cursor carrier isolates one signed anchor from measured page-two D1 reads", async () => {
+  const token = "A".repeat(120) + "." + "b".repeat(43);
+  let captured = [];
+  const visible = Array.from({ length: 24 }, (_, i) => ({
+    productId: "perf-synth-" + (i + 24),
+    offer: { currency: "USD", amountMinor: 599 },
+    subscriptionEligible: false,
+    libraryEligible: false,
+    downloadable: true,
+    releaseStatus: "available",
+    drmStatus: "none",
+    workId: "work-" + i,
+    download_count: 0,
+    sourceName: "gutenberg",
+    sourceExternalId: "gutenberg-" + i,
+    externalIdentifiers: { product: {}, edition: {}, work: {} },
+    layout: "reflowable",
+    readingAvailability: { state: "stored" },
+    formats: {},
+  }));
+  const stageEnv = {
+    ...env,
+    COVE_TRIAD_ONDEMAND: "1",
+    COVE_TRIAD_EXPIRES_AT: "2099-01-01T00:00:00Z",
+    COVE_TRIAD_PROBE_GATE: "f".repeat(64),
+    CANDIDATE: {
+      fetch: async (req) => {
+        const url = new URL(req.url);
+        captured.push(url.search);
+        assert.equal(req.headers.get("x-cove-backend-token"), env.BACKEND);
+        return Response.json(
+          {
+            results: visible,
+            nextCursor: token,
+            hasMore: true,
+            mode: url.search ? "r2-live-retail-cursor" : "r2-live-retail",
+            releaseCertified: false,
+          },
+          { headers: { "x-cove-persistence": "d1-live-retail-r2-display-synthetic" } },
+        );
+      },
+    },
+  };
+  assert.equal((await singleTriadProbe("r2cursor", stageEnv, 0, "proof")).status, 400);
+  assert.equal(captured.length, 0, "No candidate query without a provided signed cursor");
+  const make = (mode, headers = {}) =>
+    new Request("https://triad.invalid/__cove/performance/triad/" + mode + "?run=proof&ordinal=7", {
+      headers: { "x-cove-triad-key": "f".repeat(64), ...headers },
+    });
+  const seed = await privateWorker.fetch(make("r2cursorseed"), stageEnv);
+  assert.equal(seed.status, 200);
+  const seeded = await seed.json();
+  assert.equal(seeded.valid, true);
+  assert.equal(seeded.cursorToken, token);
+  const cursor = await privateWorker.fetch(
+    make("r2cursor", { "x-cove-stage-cursor": token }),
+    stageEnv,
+  );
+  assert.equal(cursor.status, 200);
+  const result = await cursor.json();
+  assert.equal(result.valid, true);
+  assert.equal(result.cursorToken, undefined, "Only seed endpoint can return the opaque cursor");
+  assert.deepEqual(captured, ["", "?cursor=" + token]);
+  const noGate = await privateWorker.fetch(
+    new Request(make("r2cursor", { "x-cove-stage-cursor": token }).url),
+    stageEnv,
+  );
+  assert.equal(noGate.status, 404);
+  assert.equal(captured.length, 2, "Unauthenticated callers cannot query candidate or cursor");
+  const invalidCursor = await privateWorker.fetch(
+    make("r2cursor", { "x-cove-stage-cursor": "invalid" }),
+    stageEnv,
+  );
+  assert.equal(invalidCursor.status, 503);
+  assert.equal(captured.length, 2, "Malformed cursor is rejected before service binding");
 });
 test("synthetic 503 retains HTTP status and only allowlisted failure class", async () => {
   const overload = await singleTriadProbe(

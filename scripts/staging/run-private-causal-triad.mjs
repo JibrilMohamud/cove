@@ -117,7 +117,10 @@ async function requireSyntheticRetailOffers() {
   });
   const eligible = Number(result?.[0]?.results?.[0]?.eligible_offer_count);
   evidence.syntheticLiveOfferWitnessCount = Number.isSafeInteger(eligible) ? eligible : null;
-  const minimum = process.argv.includes("--r2-page2-100rps") ? 49 : 25;
+  const minimum =
+    process.argv.includes("--r2-page2-100rps") || process.argv.includes("--r2-cursor-100rps")
+      ? 49
+      : 25;
   evidence.syntheticRetailOfferParityProved = Number.isSafeInteger(eligible) && eligible >= minimum;
   assert.ok(
     evidence.syntheticRetailOfferParityProved,
@@ -225,22 +228,45 @@ async function deployPrivateStage(secret) {
   return { version: after.version, expiration, uploadSuccess: Boolean(result) };
 }
 
+// Ephemeral per-process only: no cursor ever enters recorded metrics or logs.
+let signedStageCursor = null;
 async function requestProbe(mode, ordinal, run, secret) {
   const started = performance.now();
   try {
     const response = await fetch(
       ORIGIN + PREFIX + mode + "?run=" + encodeURIComponent(run) + "&ordinal=" + ordinal,
       {
-        headers: { "x-cove-triad-key": secret, accept: "application/json" },
+        headers: {
+          "x-cove-triad-key": secret,
+          accept: "application/json",
+          ...(mode === "r2cursor" && signedStageCursor
+            ? { "x-cove-stage-cursor": signedStageCursor }
+            : {}),
+        },
         signal: AbortSignal.timeout(12000),
       },
     );
     const firstByteMs = performance.now() - started;
     const payload = await response.json();
+    if (mode === "r2cursorseed") {
+      signedStageCursor = null;
+      if (
+        response.status === 200 &&
+        payload?.valid === true &&
+        typeof payload.cursorToken === "string" &&
+        payload.cursorToken.length <= 768 &&
+        /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(payload.cursorToken)
+      )
+        signedStageCursor = payload.cursorToken;
+    }
     const fullMs = performance.now() - started;
     return {
       status: response.status,
-      valid: response.status === 200 && payload?.valid === true && payload?.mode === mode,
+      valid:
+        response.status === 200 &&
+        payload?.valid === true &&
+        payload?.mode === mode &&
+        (mode !== "r2cursorseed" || signedStageCursor !== null),
       launched: true,
       firstByteMs: rounded(firstByteMs),
       fullMs: rounded(fullMs),
@@ -346,13 +372,15 @@ async function warmup(run, secret) {
   assert.equal(unauthorizedStatus, 404, "Private staging route did not propagate safely");
   // The rights-only experiment must never depend on a separately deployed
   // candidate endpoint. The same private driver verifies no-DB and live D1.
-  const warmModes = process.argv.includes("--r2-page2-100rps")
-    ? ["noop", "r2seed", "r2page2"]
-    : process.argv.includes("--r2-retail-100rps")
-      ? ["noop", "r2seed", "r2live"]
-      : process.argv.includes("--rights-only-100rps")
-        ? ["noop", "rights"]
-        : MODES;
+  const warmModes = process.argv.includes("--r2-cursor-100rps")
+    ? ["noop", "r2seed", "r2cursorseed", "r2cursor"]
+    : process.argv.includes("--r2-page2-100rps")
+      ? ["noop", "r2seed", "r2page2"]
+      : process.argv.includes("--r2-retail-100rps")
+        ? ["noop", "r2seed", "r2live"]
+        : process.argv.includes("--rights-only-100rps")
+          ? ["noop", "rights"]
+          : MODES;
   for (const mode of warmModes) {
     let result;
     for (let retry = 0; retry < 5; retry++) {
@@ -372,10 +400,15 @@ async function campaign(secret) {
   const run = randomUUID().replaceAll("-", "").slice(0, 24);
   await warmup(run, secret);
   const page2Campaign = process.argv.includes("--r2-page2-100rps");
-  if (page2Campaign || process.argv.includes("--r2-retail-100rps")) {
-    const stageMode = page2Campaign ? "r2page2" : "r2live";
-    const metricPrefix = page2Campaign ? "r2Page2" : "r2Retail";
-    const failurePrefix = page2Campaign ? "r2-page-two" : "r2-retail";
+  const cursorCampaign = process.argv.includes("--r2-cursor-100rps");
+  if (cursorCampaign || page2Campaign || process.argv.includes("--r2-retail-100rps")) {
+    const stageMode = cursorCampaign ? "r2cursor" : page2Campaign ? "r2page2" : "r2live";
+    const metricPrefix = cursorCampaign ? "r2Cursor" : page2Campaign ? "r2Page2" : "r2Retail";
+    const failurePrefix = cursorCampaign
+      ? "r2-cursor"
+      : page2Campaign
+        ? "r2-page-two"
+        : "r2-retail";
     // This experiment isolates live primary-D1 rights + retail offer validation
     // from R2 display-only books. It cannot certify full bookstore parity.
     evidence.r2RetailPresentationOnly = true;
@@ -406,6 +439,14 @@ async function campaign(secret) {
       if (!seed.valid) {
         evidence.stopReason = "r2-snapshot-refresh-failed";
         throw Error("Private R2 display snapshot refresh failed");
+      }
+      if (cursorCampaign) {
+        signedStageCursor = null;
+        const cursor = await requestProbe("r2cursorseed", 0, run, secret);
+        if (!cursor.valid || !signedStageCursor) {
+          evidence.stopReason = "signed-cursor-preflight-failed";
+          throw Error("Protected stage cursor could not be obtained from current first page");
+        }
       }
     };
     await refresh();

@@ -28,13 +28,16 @@ const EXPECTED_BINDINGS = [
   "OPS_ANALYTICS",
 ].sort();
 const PAGE_TWO_MODE = process.argv.includes("--page-two-only");
+const CURSOR_MODE = process.argv.includes("--cursor-only");
 const EVIDENCE = {
   schema: "cove.synthetic-r2-display-current-retail-rights-100rps.v1",
   releaseCertified: false,
   productionModified: false,
-  sourceBranch: PAGE_TWO_MODE
-    ? "perf/stage-page2-hosted-capacity-20261115"
-    : "perf/stage-page2-live-rights-20261115",
+  sourceBranch: CURSOR_MODE
+    ? "perf/stage-signed-rights-cursor-20261115"
+    : PAGE_TWO_MODE
+      ? "perf/stage-page2-hosted-capacity-20261115"
+      : "perf/stage-page2-live-rights-20261115",
   originalCandidateVersion: ORIGINAL,
   testedChange:
     "Synthetic-only full public book DTO from short-lived R2; live primary-D1 rights, offers, DRM and asset state + same-statement metadata generation fence; publication trigger coverage remains stage-only",
@@ -245,7 +248,12 @@ function loadEvidence() {
 function runArm(name, candidateMode = "r2live") {
   const runner = "scripts/staging/run-private-causal-triad.mjs";
   const start = Date.now();
-  const flag = candidateMode === "r2page2" ? "--r2-page2-100rps" : "--r2-retail-100rps";
+  const flag =
+    candidateMode === "r2cursor"
+      ? "--r2-cursor-100rps"
+      : candidateMode === "r2page2"
+        ? "--r2-page2-100rps"
+        : "--r2-retail-100rps";
   const result = spawnSync(process.execPath, [runner, flag], {
     cwd: ".",
     env: { ...process.env, COVE_ALLOW_SAFE_RESTORE: "1" },
@@ -343,18 +351,25 @@ function runArm(name, candidateMode = "r2live") {
   const passed =
     result.status === 0 &&
     raw.restoredOriginal === true &&
-    (candidateMode === "r2page2" ? raw.r2Page2100RpsPassed : raw.r2Retail100RpsPassed) === true &&
+    (candidateMode === "r2cursor"
+      ? raw.r2Cursor100RpsPassed
+      : candidateMode === "r2page2"
+        ? raw.r2Page2100RpsPassed
+        : raw.r2Retail100RpsPassed) === true &&
     strict(fifty, 1000) &&
     strict(phase1, 2000) &&
     strict(phase2, 2000);
-  if (candidateMode === "r2page2") concise.r2Page2TwoPhasePassed = passed;
+  if (candidateMode === "r2cursor") concise.r2CursorTwoPhasePassed = passed;
+  else if (candidateMode === "r2page2") concise.r2Page2TwoPhasePassed = passed;
   else concise.r2FullSyntheticTwoPhasePassed = passed;
   console.log(
     JSON.stringify({
       event:
-        candidateMode === "r2page2"
-          ? "cove_r2_page_two_current_rights_stage"
-          : "cove_r2_retail_current_rights_stage",
+        candidateMode === "r2cursor"
+          ? "cove_signed_cursor_current_rights_stage"
+          : candidateMode === "r2page2"
+            ? "cove_r2_page_two_current_rights_stage"
+            : "cove_r2_retail_current_rights_stage",
       ...concise,
     }),
   );
@@ -386,7 +401,10 @@ async function main() {
     // Real production catalog/owner/payment paths are unchanged.
     await deployArm();
     armed = true;
-    if (PAGE_TWO_MODE) {
+    if (CURSOR_MODE) {
+      EVIDENCE.cursor = runArm("r2-signed-cursor-live-retail", "r2cursor");
+      EVIDENCE.syntheticStrict100RpsPassed = EVIDENCE.cursor.r2CursorTwoPhasePassed;
+    } else if (PAGE_TWO_MODE) {
       EVIDENCE.page2 = runArm("r2-display-live-retail-page-two", "r2page2");
       EVIDENCE.syntheticStrict100RpsPassed = EVIDENCE.page2.r2Page2TwoPhasePassed;
     } else {
