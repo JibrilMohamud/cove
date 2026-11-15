@@ -33,7 +33,7 @@ const script=v=>[
 for(const v of ["A","B"]){
   writeFileSync(root+"/worker-"+v+".mjs",script(v),{mode:0o600});
   const config={
-    name,main:root+"/worker-"+v+".mjs",
+    name,main:"worker-"+v+".mjs",
     compatibility_date:"2026-11-15",
     workers_dev:true,preview_urls:false,routes:[],
     observability:{enabled:false},
