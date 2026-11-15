@@ -76,6 +76,37 @@ only*, requires `READ_ONLY_AUDIT`, a protected environment, and
 `COVE_CF_PRODUCTION_AUDIT_READ_TOKEN`. There is no background monitor
 and no automatic production D1 scan.
 
+## Stage presentation import, explicitly ZERO owner grants
+
+The full-metadata scan now inserts verified keyset records into the
+`cove_stage_owner_prod_search_source` staging presentation table used
+by draft #709. The strongly consistent owner authorization table is
+created **empty** and is NEVER populated by this importer. Both
+owner-visible FTS5 projections must therefore have exactly zero rows,
+even if all 82,247 real metadata rows import successfully. The
+stage migration seal and an actual indexed search check verify zero
+authorized products; any positive search result fails the run.
+The data is held only in the CI runner's in-memory SQLite database and
+is not published as a GitHub artifact or an external file.
+
+The offline nine-document fixture verified this handoff and the
+zero-grant invariant. This is a critical distinction: a complete
+production search document is NOT sufficient evidence for rights,
+contract, territory, time, channel, DRM, license or current offer.
+
+## Small, independently executed real D1 smoke read
+
+A read-only source probe requested four sequential keyset pages
+(100 records each) and received **400/400** records in increasing
+product-ID order. There were **zero** missing columns or
+duplicate/unsorted identifiers. Aggregate D1 query execution time was
+**36.59 ms** across four calls (not request TTFB or 100RPS capacity).
+The sampled maximum title/description length was 2,006 characters.
+A separate 82,247-row read-only aggregate observed the maximum
+production description length as 4,453 characters, below the staging
+mirror's 10,000-character per-field safety limit.
+The small smoke did NOT claim full 82k row parity or legal authorization.
+
 ## Remaining release gates
 
 1. **Canonical legal decisions:** actual paid/free writer publishes rights,
