@@ -1,0 +1,29 @@
+name: cove-synthetic-r2-live-rights-page-check
+on:
+  push:
+    branches: [perf/stage-r2-display-current-rights-20261115]
+    paths:
+      - src/features/fore/synthetic-r2-live-rights-page.stage.ts
+      - scripts/staging/check-synthetic-r2-live-rights-page.mjs
+      - .github/workflows/cove-synthetic-r2-live-rights-page-check.yml
+permissions:
+  contents: read
+jobs:
+  stage-only-read-model:
+    if: github.repository == 'JibrilMohamud/cove'
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: '22', cache: npm }
+      - run: npm ci
+      - name: Deny cached rights, offers and commercial presentation divergence
+        run: node scripts/staging/check-synthetic-r2-live-rights-page.mjs
+      - name: Verify source formatting without committing changes
+        run: |
+          npx prettier --write src/features/fore/synthetic-r2-live-rights-page.stage.ts scripts/staging/check-synthetic-r2-live-rights-page.mjs
+          git diff --exit-code -- src/features/fore/synthetic-r2-live-rights-page.stage.ts scripts/staging/check-synthetic-r2-live-rights-page.mjs
+      - name: Production-shaped backend build with synthetic stage flags absent
+        run: npm run build:backend
