@@ -116,6 +116,7 @@ import JSZip from "jszip";
 import seed from "./catalog-seed.json";
 import type { CatalogBook } from "./client";
 import type { PresentationR2Bucket } from "./search-presentation-r2.server";
+import { handlePrivateAuthorityStageProbe } from "./single-authority-probe.stage";
 import {
   canDeferGuestCatalogFacets,
   firstPaintStorefrontShelf,
@@ -2924,6 +2925,12 @@ export async function handleCoveApi(
   execution?: ApiExecutionContext,
 ): Promise<Response | null> {
   if (!new URL(request.url).pathname.startsWith("/api/fore/")) return null;
+  // Private single-D1 capacity reference is ineligible for production hosts,
+  // accounts, cookies, commerce, entitlement or public customer routing.
+  // It must execute before legacy HTTP auditing so the control represents
+  // exactly one full-shape current-rights primary-D1 service operation.
+  const privateAuthorityProbe = await handlePrivateAuthorityStageProbe(request, env);
+  if (privateAuthorityProbe) return privateAuthorityProbe;
   // Aggregate-only interaction telemetry has no user, commerce or territorial
   // rights dependency. Handle it before auth/context/HTTP D1 logging.
   if (request.method === "POST" && new URL(request.url).pathname === "/api/fore/sounds/events") {
