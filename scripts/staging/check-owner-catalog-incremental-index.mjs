@@ -229,6 +229,42 @@ try{
   assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,23);
   assert.equal(free.readAuthorizedPresentations(sql,freeIds,'US','USD').length,11);
 
+  // Time-based expiry must never leave a still-visible paid book in an
+  // otherwise cached query. Shorten an EXISTING verified test lease (not a
+  // positive regrant), then let clock time cross its canonical deadline.
+  const expiring=paidIds[1],shortLease=new Date(Date.now()+2200).toISOString();
+  inTransaction(()=>{
+    sql.exec(`UPDATE cove_commercial_scope_proofs SET valid_until=?
+      WHERE product_id=? AND territory='US' AND channel='retail'`,shortLease,expiring);
+    sql.exec(`UPDATE cove_commercial_storefront_proofs SET valid_until=?
+      WHERE product_id=? AND territory='US' AND currency='USD'`,shortLease,expiring);
+    idx.reconcileStageOwnerDirty(sql);
+    stage.rebuildStageOwnerCatalogSnapshot(sql);
+  });
+  assert.equal(idx.readStageOwnerIncrementalIndex(sql,scope).count,23);
+  await new Promise(resolve=>setTimeout(resolve,2400));
+  assert.throws(()=>idx.readStageOwnerIncrementalIndex(sql,scope),/expired_unreconciled/,
+    'Past canonical lease deadline MUST block stale indexed count and page');
+  assert.throws(()=>idx.readStageOwnerFilteredIndex(sql,{...scope,categories:['Fiction']}),
+    /expired_unreconciled/,'The filtered query cache also cannot bypass expiry');
+  inTransaction(()=>{
+    const swept=idx.refreshStageOwnerExpired(sql);
+    assert.equal(swept.processed,1,'Only genuinely expired owner-local lease is reconciled');
+    assert.equal(swept.remaining,0);
+    stage.rebuildStageOwnerCatalogSnapshot(sql);
+  });
+  assert.equal(idx.readStageOwnerIncrementalIndex(sql,scope).count,22);
+  assert.ok(!idx.readStageOwnerIncrementalIndex(sql,scope).pageIds.includes(expiring));
+  assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope),
+    stage.stageOwnerCatalogRead(sql,scope),'Expiry rebuild must equal canonical owner SQL');
+  for(const part of filterSamples){
+    const input={...scope,...part};
+    assert.deepEqual(idx.readStageOwnerFilteredIndex(sql,input),filteredGold(input),
+      'Expired paid offers must disappear from every filtered count and facet');
+  }
+  assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,22);
+  assert.equal(paid.readCommercialStorefront(sql,paidIds,'US','USD').length,11);
+
   inTransaction(()=>{
     market.denyMarket(sql,{territory:'US',operationId:'stage:catalog:market-deny:1'});
     stage.rebuildStageOwnerCatalogSnapshot(sql);
@@ -248,7 +284,7 @@ try{
   for(const bad of [{...scope,query:'War'},{...scope,sort:'popular'},{...scope,filter:'category'}])
     assert.throws(()=>idx.readStageOwnerIncrementalIndex(sql,bad),/unreviewed_scope/);
   console.log('PASS: generation-fenced filtered query cache and exact filter/price/count/page parity across '+filterSamples.length+' cases and withdrawals');
-  console.log('PASS: owner-index exact default count/facets/page 25/24/23/0; 250 indexed hot reads, source/contract/market denial, dirty fail-close, disallowed scopes rejected');
+  console.log('PASS: owner-index exact default count/facets/page 25/24/23/22/0; 250 indexed hot reads, source/contract/market denial, dirty fail-close, disallowed scopes rejected');
 }finally{
   db.close();rmSync(root,{recursive:true,force:true});
 }
