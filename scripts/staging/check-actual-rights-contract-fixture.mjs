@@ -119,6 +119,10 @@ try {
     ["language-denied", false, "LANGUAGE_EXPLICIT_DENY"],
     ["language-allow-mismatch", false, "LANGUAGE_RIGHTS_UNAVAILABLE"],
     ["product-disabled", false, "PRODUCT_INACTIVE"],
+    ["future-explicit-deny", true, "ACTIVE_GRANT"],
+    ["contract-expiry-soon", true, "ACTIVE_GRANT"],
+    ["future-competitive-offer", true, "ACTIVE_GRANT"],
+    ["invalid-legal-time", true, "ACTIVE_GRANT"],
   ];
   for (const [scenario, allowed, reason] of scenarios) {
     await rpc({ op: "scenario", name: scenario });
@@ -143,21 +147,37 @@ try {
       "USD",
       new Date(),
     );
-    assert.equal(writer.published, allowed, "Owner writer diverged from canonical " + scenario);
+    const publicationExpected = allowed && scenario !== "invalid-legal-time";
+    assert.equal(
+      writer.published,
+      publicationExpected,
+      "Owner writer must respect canonical denial and malformed-time fail-closed: " + scenario,
+    );
     const row = await db
       .prepare(
-        "SELECT product_id,amount_minor,current_offer_id FROM cove_stage_owner_retail_authority WHERE product_id=?",
+        "SELECT product_id,amount_minor,current_offer_id,valid_until FROM cove_stage_owner_retail_authority WHERE product_id=?",
       )
       .bind("p_fixture")
       .first();
-    assert.equal(Boolean(row), allowed, "Stored positive disagrees with canonical " + scenario);
-    if (allowed) {
+    assert.equal(Boolean(row), publicationExpected, "Stored positive disagrees with policy " + scenario);
+    if (publicationExpected) {
       assert.equal(row.current_offer_id, "o_fixture");
       assert.equal(row.amount_minor, 599);
+      const leaseMs = Date.parse(row.valid_until.replace(" ", "T") + "Z") - Date.now();
+      assert.ok(leaseMs > -1000, "Lease must not already be expired");
+      const transitionSoon = [
+        "future-explicit-deny",
+        "contract-expiry-soon",
+        "future-competitive-offer",
+      ].includes(scenario);
+      assert.ok(
+        leaseMs <= (transitionSoon ? 6000 : 31000),
+        "Positive cannot outlive nearest grant/contract/offer boundary: " + scenario,
+      );
     }
   }
   console.log(
-    "PASS: actual resolveProductRights and guarded owner CAS writer agree on contract versions, explicit deny, territory, format, channel, DRM, languages and expiry in isolated SQLite. No production parity claimed.",
+    "PASS: actual resolveProductRights and guarded owner CAS writer preserve contract/version, explicit-deny, territory, format, channel, DRM, language and future grant/contract/offer time boundaries in isolated SQLite. No production parity claimed.",
   );
 } finally {
   lines.close();
