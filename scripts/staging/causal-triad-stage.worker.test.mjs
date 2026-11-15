@@ -25,26 +25,6 @@ const env = {
   GATE: "a".repeat(64),
   DB: {
     prepare: (sql) => ({
-      ...(sql === triadPointBenchmarkSql
-        ? {
-            bind: (...params) => {
-              assert.equal(JSON.parse(params[0]).length, 25);
-              assert.deepEqual(params.slice(1), ["US", "USD"]);
-              return {
-                all: async () => ({
-                  results: Array.from({ length: 25 }, (_, i) => ({
-                    product_id: "perf-synth-" + String(i + 1).padStart(6, "0"),
-                    rank_position: i,
-                    current_offer_id: "BENCH-NOT-A-GRANT",
-                    amount_minor: 599,
-                    evidence_digest: "b".repeat(64),
-                  })),
-                  meta: { duration: 0.4, rows_read: 150 },
-                }),
-              };
-            },
-          }
-        : {}),
       ...(sql === triadRevisionSql
         ? {
             all: async () => ({
@@ -54,6 +34,22 @@ const env = {
           }
         : {}),
       bind: (...args) => {
+        if (sql === triadPointBenchmarkSql) {
+          assert.equal(JSON.parse(args[0]).length, 25);
+          assert.deepEqual(args.slice(1), ["US", "USD"]);
+          return {
+            all: async () => ({
+              results: Array.from({ length: 25 }, (_, i) => ({
+                product_id: "perf-synth-" + String(i + 1).padStart(6, "0"),
+                rank_position: i,
+                current_offer_id: "BENCH-NOT-A-GRANT",
+                amount_minor: 599,
+                evidence_digest: "b".repeat(64),
+              })),
+              meta: { duration: 0.4, rows_read: 150 },
+            }),
+          };
+        }
         assert.equal(sql, triadSql);
         assert.deepEqual(args, ["available", "US", "USD", 25]);
         return {
