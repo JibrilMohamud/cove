@@ -296,3 +296,102 @@ export function readStageOwnerIncrementalIndex(sql:AuthoritySql,scope:{
     null:{currency:scope.currency,min:prices.min_price,max:prices.max_price}},
     releaseCertified:false as const};
 }
+
+/**
+ * Indexed AUTHORITATIVE-SET filtered reference: supports five disjunctive
+ * facets and price on the reviewed US/USD rank-only search scope. Each facet
+ * ignores its own filter (OR within a facet, AND between facets), matching
+ * the existing production catalog facet-selection contract. It never scans
+ * D1's expensive retail rights view: only owner-confirmed index rows.
+ *
+ * This is NOT full SearchInput support: title FTS, taxonomy, date/release,
+ * author, reviews, other sorts/territories, subscriptions and user-specific
+ * filters MUST be added and differential-tested before any production use.
+ */
+const FILTER_FIELDS=['categories','languages','formats','publishers','series'] as const;
+type FilterField=typeof FILTER_FIELDS[number];
+type FilteredInput={territory:string;currency:string;sort:string;page:number;limit:number;
+  query?:string;categories?:string[];languages?:string[];formats?:string[];
+  publishers?:string[];series?:string[];minPrice?:number;maxPrice?:number};
+function validatedFilters(input:FilteredInput){
+  const allowed=new Set(['territory','currency','sort','page','limit','query',
+    ...FILTER_FIELDS,'minPrice','maxPrice']);
+  if(!input||Object.keys(input).some(k=>!allowed.has(k)))
+    throw Error('stage_owner_filtered_unreviewed_scope');
+  const filters={} as Record<FilterField,string[]>;
+  for(const field of FILTER_FIELDS){
+    const raw=input[field]??[];
+    if(!Array.isArray(raw)||raw.length>12||raw.some(v=>
+      typeof v!=='string'||v.length<1||v.length>160))
+      throw Error('stage_owner_filtered_invalid_facet');
+    filters[field]=[...new Set(raw)].sort();
+  }
+  for(const price of ['minPrice','maxPrice'] as const){
+    const value=input[price];
+    if(value!==undefined&&(!Number.isSafeInteger(value)||value<0||value>1_000_000_000))
+      throw Error('stage_owner_filtered_invalid_price');
+  }
+  if(input.minPrice!==undefined&&input.maxPrice!==undefined&&
+    input.minPrice>input.maxPrice)throw Error('stage_owner_filtered_inverted_price');
+  return filters;
+}
+function scopedIndexWhere(input:FilteredInput,filters:Record<FilterField,string[]>,omit?:FilterField|'price'){
+  const parts=['i.territory=?','i.currency=?'];
+  const args:(string|number)[]=[input.territory,input.currency];
+  for(const kind of FILTER_FIELDS){
+    if(kind===omit||!filters[kind].length)continue;
+    const values=filters[kind];
+    parts.push(`EXISTS(SELECT 1 FROM cove_stage_owner_index_dimensions dim
+      WHERE dim.territory=i.territory AND dim.currency=i.currency
+        AND dim.product_id=i.product_id AND dim.kind=?
+        AND dim.value IN (${values.map(()=>'?').join(',')}))`);
+    args.push(kind,...values);
+  }
+  if(omit!=='price'){
+    if(input.minPrice!==undefined){parts.push('i.price_minor>=?');args.push(input.minPrice);}
+    if(input.maxPrice!==undefined){parts.push('i.price_minor<=?');args.push(input.maxPrice);}
+  }
+  return {clause:parts.join(' AND '),args};
+}
+export function readStageOwnerFilteredIndex(sql:AuthoritySql,input:FilteredInput){
+  const filters=validatedFilters(input);
+  const bare={territory:input.territory,currency:input.currency,sort:input.sort,
+    page:input.page,limit:input.limit,query:input.query};
+  // The default path verifies initialization, dirty queue, lease freshness
+  // and market tombstone before any facet or page read is allowed.
+  const defaultPage=readStageOwnerIncrementalIndex(sql,bare);
+  if(defaultPage.count===0 ||
+    (FILTER_FIELDS.every(x=>!filters[x].length)&&input.minPrice===undefined&&
+      input.maxPrice===undefined))return defaultPage;
+  const where=scopedIndexWhere(input,filters);
+  const count=sql.exec<{total:number}>(`SELECT COUNT(*) total FROM
+    cove_stage_owner_index_items i WHERE ${where.clause}`,...where.args).toArray()[0]?.total;
+  if(!Number.isSafeInteger(count))throw Error('stage_owner_filtered_invalid_count');
+  const pageIds=sql.exec<{product_id:string}>(`SELECT i.product_id FROM
+    cove_stage_owner_index_items i WHERE ${where.clause}
+    ORDER BY i.rank_score DESC,i.product_id ASC LIMIT ? OFFSET ?`,
+    ...where.args,input.limit,(input.page-1)*input.limit).toArray().map(x=>x.product_id);
+  const facets={} as Record<FilterField,Array<{value:string;count:number}>>;
+  for(const kind of FILTER_FIELDS){
+    const facetWhere=scopedIndexWhere(input,filters,kind);
+    const rows=sql.exec<{value:string;num:number}>(`SELECT dim.value value,
+      COUNT(DISTINCT i.product_id) num FROM cove_stage_owner_index_items i
+      JOIN cove_stage_owner_index_dimensions dim ON
+        dim.territory=i.territory AND dim.currency=i.currency
+        AND dim.product_id=i.product_id AND dim.kind=?
+      WHERE ${facetWhere.clause}
+      GROUP BY dim.value ORDER BY num DESC,dim.value ASC LIMIT ?`,
+      kind,...facetWhere.args,CAPS[kind]).toArray();
+    facets[kind]=rows.map(x=>({value:x.value,count:x.num}));
+  }
+  const priceWhere=scopedIndexWhere(input,filters,'price');
+  const price=sql.exec<{minimum:number|null;maximum:number|null}>(`SELECT
+    MIN(i.price_minor) minimum,MAX(i.price_minor) maximum FROM
+    cove_stage_owner_index_items i WHERE ${priceWhere.clause}`,
+    ...priceWhere.args).toArray()[0];
+  return {count,pageIds,facets:{...facets,
+    availability:count?[{value:'available',count}]:[],
+    price:price?.minimum==null||price.maximum==null?null:
+      {currency:input.currency,min:price.minimum,max:price.maximum}},
+    releaseCertified:false as const};
+}
