@@ -12,12 +12,14 @@ Scope: synthetic, isolated Cloudflare staging; no customer routing, legal owner,
 | 56-candidate prefix with 49 live witnesses, attempt 1 | 32 burst, 50 RPS, 100-RPS phase 1 passed; **100-RPS phase 2 failed** | **17 / 2000** |
 | Same 56/49 candidate, independent rerun | 32 burst, 50 RPS passed; **100-RPS phase 1 failed** | **72 / 2000** |
 | Same 56/49 candidate, but hydrate only 24 visible books after current rights | 32 burst, 50 RPS passed; **100-RPS phase 1 failed** | **240 / 2000** |
+| Same 56/49 visible-only variant, independent corrected-source rerun | 32 burst, 50 RPS passed; **100-RPS phase 1 failed** | **381 / 2000** |
 
 Source evidence:
 - [96/49 strict run #43685466693](https://github.com/JibrilMohamud/cove/actions/runs/43685466693)
 - [56/49 run #43685785336](https://github.com/JibrilMohamud/cove/actions/runs/43685785336)
 - [56/49 rerun #43685892217](https://github.com/JibrilMohamud/cove/actions/runs/43685892217)
 - [56/49 visible-only run #43686197913](https://github.com/JibrilMohamud/cove/actions/runs/43686197913)
+- [56/49 visible-only rerun #43686320869](https://github.com/JibrilMohamud/cove/actions/runs/43686320869)
 - First-page 25-authority-witness proof [#43685009745](https://github.com/JibrilMohamud/cove/actions/runs/43685009745): two 2000/2000 100-RPS phases, zero failures/drops, max 434.21/399.30ms.
 
 All stage failures were preserved as failures. Candidate/private-driver restoration completed. The successes prove **only** guarded synthetic first-page capacity, not the customer-facing catalog or four-colo performance. Individual D1 SQL-time preflights are not load-test latency.
