@@ -29,7 +29,7 @@ try {
   const scope = { digest, revision: "1", expiresAt: now + 110_000 };
   const anchor = { position: 23, productId: "perf-synth-23" };
   const cursor = await signSyntheticStageCursor(anchor, scope, gate, now);
-  assert.match(cursor, /^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$/);
+  assert.match(cursor, /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
   assert.ok(cursor.length < 768);
   assert.deepEqual(await verifySyntheticStageCursor(cursor, scope, gate, now), anchor);
   assert.deepEqual(await verifySyntheticStageCursor(cursor, scope, gate, now + 109_999), anchor);
