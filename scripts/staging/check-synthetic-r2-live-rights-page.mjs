@@ -15,8 +15,13 @@ try {
     alias: { jszip: "jszip/dist/jszip.min.js" },
     logLevel: "silent",
   });
-  const { buildSyntheticDisplayObject, eligibleSyntheticR2Page, syntheticR2PageWithLiveRights } =
-    await import(path.join(dir, "presentation.mjs"));
+  const {
+    buildSyntheticDisplayObject,
+    eligibleSyntheticR2Page,
+    seedSyntheticR2Display,
+    handleSyntheticR2LiveRightsStage,
+    syntheticR2PageWithLiveRights,
+  } = await import(path.join(dir, "presentation.mjs"));
   const books = Array.from({ length: 96 }, (_, i) => ({
     id: "public-" + i,
     productId: "perf-synth-" + i,
@@ -114,6 +119,64 @@ try {
     );
   const request = req();
   assert.equal(eligibleSyntheticR2Page(request, env), true);
+  let prepared = "";
+  const stageSeedEnv = {
+    ...env,
+    DB: {
+      prepare(sql) {
+        assert.match(sql, /idx_search_popular_stable/);
+        return {
+          all: async () => ({
+            results: books.map((b) => ({
+              product_id: b.productId,
+              edition_id: b.editionId.replace("edition-synth-", "perf-synth-"),
+              title: b.title,
+              subtitle: b.subtitle,
+              language: "en",
+            })),
+          }),
+        };
+      },
+    },
+    COVE_PUBLIC_PRESENTATION_CACHE: {
+      get: async () => (prepared ? { etag: "saved", text: async () => prepared } : null),
+      put: async (key, body, conditions) => {
+        assert.match(key, /synthetic-ranked-books-v1/);
+        assert.deepEqual(conditions, { onlyIf: { etagDoesNotMatch: "*" } });
+        prepared = body;
+        return { etag: "saved" };
+      },
+    },
+  };
+  assert.equal(await seedSyntheticR2Display(stageSeedEnv, () => now), true);
+  assert.equal(JSON.parse(prepared).items.length, 96);
+  assert.equal(prepared.includes("amountMinor"), false);
+  const seedReq = new Request(request.url + "/seed", {
+    method: "POST",
+    headers: request.headers,
+  });
+  assert.equal(
+    (await handleSyntheticR2LiveRightsStage(seedReq, { ...stageSeedEnv, FORE_GUEST_R2_DISPLAY_STAGE: "0" })).status,
+    404,
+  );
+  assert.equal(
+    (await handleSyntheticR2LiveRightsStage(new Request(seedReq.url, { method: "POST", headers: request.headers, body: "unsafe" }), stageSeedEnv)).status,
+    404,
+  );
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  const stageLive = await handleSyntheticR2LiveRightsStage(request, {
+    ...env,
+    COVE_PUBLIC_PRESENTATION_CACHE: {
+      get: async () => ({ etag: "saved", text: async () => snapshot }),
+    },
+  });
+  assert.equal(stageLive.status, 200);
+  assert.equal(stageLive.headers.get("x-cove-persistence"), "d1-live-retail-r2-display-synthetic");
+  const stageBody = await stageLive.json();
+  assert.equal(stageBody.results.length, 24);
+  assert.equal(stageBody.releaseCertified, false);
+  assert.equal(stageBody.mode, "r2-live-retail");
+
   const good = await syntheticR2PageWithLiveRights(request, env, () => now);
   assert.equal(dbCalls, 1, "Every successful response must reach current primary D1");
   assert.equal(good?.books.length, 24);
