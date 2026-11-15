@@ -76,7 +76,7 @@ test("staging is private, read-only, and not bound to production", () => {
     }),
     false,
   );
-  assert.deepEqual(triadModes, ["noop", "context", "rights", "catalog", "single"]);
+  assert.deepEqual(triadModes, ["noop", "context", "rights", "catalog", "single", "r2live", "r2seed"]);
   assert.match(triadSql, /retail_product_availability_rows/);
   assert.match(triadSql, /INDEXED BY idx_search_popular_stable/);
 });
