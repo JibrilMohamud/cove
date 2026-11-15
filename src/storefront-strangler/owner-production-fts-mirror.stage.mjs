@@ -210,3 +210,102 @@ export function readStageProductionFtsMirror(sql,input,legalIndexRead){
     expression,term,compact,term,input.limit,(input.page-1)*input.limit);
   return {count,pageIds:rows.map(x=>x.product_id),releaseCertified:false};
 }
+
+/**
+ * Production-shaped *facet surface*, restricted to the five already-reviewed
+ * stage dimensions and price. This still DOES NOT implement the full public
+ * SearchInput (ratings, IDs, taxonomy, dates, additional sorts, etc.).
+ * Every facet omits only its own selected values and retains FTS + all other
+ * filters. No result is cached without owner epoch/legal expiry fencing.
+ */
+export function readStageProductionFtsFiltered(sql,input,legalIndexRead){
+  const fields=['categories','languages','formats','publishers','series'];
+  const allowed=new Set(['query','topic','territory','currency','language','page',
+    'limit','sort',...fields,'minPrice','maxPrice']);
+  if(!input||Object.keys(input).some(x=>!allowed.has(x))||
+    typeof legalIndexRead!=='function'||input.territory!=='US'||input.currency!=='USD'||
+    !['en','all'].includes(input.language)||input.sort!=='relevance'||
+    !Number.isSafeInteger(input.page)||input.page<1||input.page>500||
+    !Number.isSafeInteger(input.limit)||input.limit<1||input.limit>60)
+    throw Error('stage_production_fts_unreviewed_scope');
+  const filters={};
+  for(const field of fields){
+    const values=input[field]??[];
+    if(!Array.isArray(values)||values.length>12||values.some(x=>
+      typeof x!=='string'||x.length<1||x.length>160))
+      throw Error('stage_production_fts_unreviewed_filters');
+    filters[field]=[...new Set(values)].sort();
+  }
+  for(const key of ['minPrice','maxPrice'])if(input[key]!==undefined&&
+    (!Number.isSafeInteger(input[key])||input[key]<0||input[key]>1000000000))
+    throw Error('stage_production_fts_unreviewed_filters');
+  if(input.minPrice!==undefined&&input.maxPrice!==undefined&&input.minPrice>input.maxPrice)
+    throw Error('stage_production_fts_unreviewed_filters');
+  const legal=legalIndexRead();
+  if(!legal||legal.releaseCertified!==false||!Number.isSafeInteger(legal.count))
+    throw Error('stage_production_fts_authority_missing');
+  if(!exec(sql,`SELECT 1 FROM ${READY} WHERE id=1 AND ready=1`).length)
+    throw Error('stage_production_fts_unsealed');
+  if(legal.count===0)return {count:0,pageIds:[],facets:{
+    categories:[],languages:[],formats:[],publishers:[],series:[],
+    availability:[],price:null},releaseCertified:false};
+  const expression=productionFtsExpression(input.query,input.topic||'');
+  if(!expression)throw Error('stage_production_fts_empty_query_requires_default_index');
+  const table=input.language==='en'?EN:FTS;
+  const base=`FROM ${table} f
+    JOIN ${KEYS} k ON k.fts_rowid=f.rowid
+    JOIN ${OWNER_DB_INDEX} i ON i.product_id=k.product_id
+      AND i.territory='US' AND i.currency='USD'
+    JOIN ${SOURCE} d ON d.product_id=i.product_id`;
+  const where=(omit)=>{
+    const clauses=[`${table} MATCH ?`];
+    const params=[expression];
+    for(const field of fields){
+      const vals=filters[field];
+      if(!vals.length||omit===field)continue;
+      clauses.push(`EXISTS(SELECT 1 FROM cove_stage_owner_index_dimensions dim
+        WHERE dim.product_id=i.product_id AND dim.territory=i.territory
+          AND dim.currency=i.currency AND dim.kind=?
+          AND dim.value IN (${vals.map(()=>'?').join(',')}))`);
+      params.push(field,...vals);
+    }
+    if(omit!=='price')for(const [key,op] of [['minPrice','>='],['maxPrice','<=']]){
+      if(input[key]!==undefined){clauses.push(`i.price_minor${op}?`);params.push(input[key]);}
+    }
+    return {sql:' WHERE '+clauses.join(' AND '),params};
+  };
+  const filtered=where();
+  const count=exec(sql,`SELECT COUNT(*) total ${base}${filtered.sql}`,
+    ...filtered.params)[0]?.total;
+  if(!Number.isSafeInteger(count)||count<0)
+    throw Error('stage_production_fts_invalid_count');
+  const rawQuery=input.query.normalize('NFKC').trim().toLocaleLowerCase('en-US');
+  const compact=rawQuery.replace(/[\s-]/g,'');
+  const pageIds=exec(sql,`SELECT i.product_id ${base}${filtered.sql}
+    ORDER BY CASE WHEN lower(d.external_book_id)=? OR
+      replace(d.isbn13,'-','')=? OR lower(d.title)=? THEN 0 ELSE 1 END ASC,
+      bm25(${table},0,14,11,12,10,8,4,14,4,3,1) ASC,
+      i.rank_score DESC,i.product_id ASC LIMIT ? OFFSET ?`,
+    ...filtered.params,rawQuery,compact,rawQuery,input.limit,
+    (input.page-1)*input.limit).map(x=>x.product_id);
+  const caps={categories:40,languages:30,formats:20,publishers:30,series:30};
+  const facets={};
+  for(const field of fields){
+    const subset=where(field);
+    facets[field]=exec(sql,`SELECT dim.value value,
+      COUNT(DISTINCT i.product_id) amount ${base}
+      JOIN cove_stage_owner_index_dimensions dim ON
+        dim.product_id=i.product_id AND dim.territory=i.territory
+        AND dim.currency=i.currency AND dim.kind=?
+      ${subset.sql} GROUP BY dim.value
+      ORDER BY amount DESC,dim.value ASC LIMIT ?`,
+      field,...subset.params,caps[field]).map(x=>({value:x.value,count:x.amount}));
+  }
+  const p=where('price');
+  const prices=exec(sql,`SELECT MIN(i.price_minor) low,MAX(i.price_minor) high
+    ${base}${p.sql}`,...p.params)[0];
+  return {count,pageIds,facets:{...facets,
+    availability:count?[{value:'available',count}]:[],
+    price:prices?.low==null||prices.high==null?null:{currency:'USD',
+      min:prices.low,max:prices.high}},releaseCertified:false};
+}
