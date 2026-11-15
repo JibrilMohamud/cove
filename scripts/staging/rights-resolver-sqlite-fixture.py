@@ -78,10 +78,14 @@ CREATE VIEW retail_product_availability_rows AS
  JOIN rights_grants rg ON rg.edition_id=p.edition_id
  JOIN rights_grant_territories rgt ON rgt.grant_id=rg.id
  WHERE rg.status='active' AND rg.decision='allow'
+ AND (rg.starts_at IS NULL OR datetime(rg.starts_at)<=datetime('now'))
+ AND (rg.ends_at IS NULL OR datetime(rg.ends_at)>datetime('now'))
  AND NOT EXISTS (SELECT 1 FROM rights_grants denied
    JOIN rights_grant_territories dgt ON dgt.grant_id=denied.id
    WHERE denied.edition_id=rg.edition_id AND denied.status='active'
-   AND denied.decision='deny' AND dgt.territory_code=rgt.territory_code);
+   AND denied.decision='deny' AND dgt.territory_code=rgt.territory_code
+   AND (denied.starts_at IS NULL OR datetime(denied.starts_at)<=datetime('now'))
+   AND (denied.ends_at IS NULL OR datetime(denied.ends_at)>datetime('now')));
 """
 
 ROWS = [
