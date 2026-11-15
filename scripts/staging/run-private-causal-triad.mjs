@@ -389,11 +389,13 @@ async function phase(mode, shape, offered, spacingMs, run, secret) {
   const sample = await summarize(mode, shape, offered, rows, performance.now() - started);
   if (shadowEnabled) {
     sample.ingressShadow = pairedIngressShadowEvidence(rows, shadowRows, 100);
-    console.log(JSON.stringify({
-      event: "cove_private_ingress_shadow_control",
-      phase: shape,
-      ...sample.ingressShadow,
-    }));
+    console.log(
+      JSON.stringify({
+        event: "cove_private_ingress_shadow_control",
+        phase: shape,
+        ...sample.ingressShadow,
+      }),
+    );
   }
   return sample;
 }

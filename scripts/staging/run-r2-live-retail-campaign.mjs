@@ -39,8 +39,8 @@ const EVIDENCE = {
     : CURSOR_MODE
       ? "perf/stage-signed-rights-cursor-20261115"
       : PAGE_TWO_MODE
-      ? "perf/stage-page2-hosted-capacity-20261115"
-      : "perf/stage-page2-live-rights-20261115",
+        ? "perf/stage-page2-hosted-capacity-20261115"
+        : "perf/stage-page2-live-rights-20261115",
   originalCandidateVersion: ORIGINAL,
   testedChange:
     "Synthetic-only full public book DTO from short-lived R2; live primary-D1 rights, offers, DRM and asset state + same-statement metadata generation fence; publication trigger coverage remains stage-only",
@@ -263,10 +263,10 @@ function runArm(name, candidateMode = "r2live") {
     process.execPath,
     [runner, flag, ...(SHADOW_MODE ? ["--shadow-no-db"] : [])],
     {
-    cwd: ".",
-    env: { ...process.env, COVE_ALLOW_SAFE_RESTORE: "1" },
-    encoding: "utf8",
-    maxBuffer: 8 * 1024 * 1024,
+      cwd: ".",
+      env: { ...process.env, COVE_ALLOW_SAFE_RESTORE: "1" },
+      encoding: "utf8",
+      maxBuffer: 8 * 1024 * 1024,
       timeout: 8 * 60 * 1000,
     },
   );

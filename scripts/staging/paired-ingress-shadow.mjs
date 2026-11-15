@@ -62,7 +62,10 @@ export function pairedIngressShadowEvidence(targetRows, controlRows, expectedCon
     atOrAbove800Ms: timings.filter((ms) => ms >= 800).length,
     nearSlowestCursorWindowMs: 1000,
     nearSlowestCursorControlCount: nearby.length,
-    nearSlowestCursorControlMaxMs: quantile(nearby.map((row) => row.firstByteMs), 1),
+    nearSlowestCursorControlMaxMs: quantile(
+      nearby.map((row) => row.firstByteMs),
+      1,
+    ),
     nearestControlTtfbMs: round(nearest?.firstByteMs),
     nearestControlScheduledSeparationMs:
       nearest && worst ? round(Math.abs(nearest.phaseOffsetMs - worst.phaseOffsetMs)) : null,

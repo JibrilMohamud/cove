@@ -26,27 +26,35 @@ test("concurrent no-DB control preserves exact counts and paired schedule proxim
 });
 
 test("a 200 OK shadow at the hard 800ms maximum blocks pass", () => {
-  const result = pairedIngressShadowEvidence([], [
-    { firstByteMs: 800, phaseOffsetMs: 0, valid: true, dropped: false },
-  ], 1);
+  const result = pairedIngressShadowEvidence(
+    [],
+    [{ firstByteMs: 800, phaseOffsetMs: 0, valid: true, dropped: false }],
+    1,
+  );
   assert.equal(result.passed, false);
   assert.equal(result.valid, 1);
   assert.equal(result.atOrAbove800Ms, 1);
 });
 
 test("drops, invalid results and unmeasured observations are not forgiven", () => {
-  const dropped = pairedIngressShadowEvidence([], [
-    { dropped: true, valid: false, phaseOffsetMs: 0 },
-  ], 1);
+  const dropped = pairedIngressShadowEvidence(
+    [],
+    [{ dropped: true, valid: false, phaseOffsetMs: 0 }],
+    1,
+  );
   assert.equal(dropped.passed, false);
   assert.equal(dropped.dropped, 1);
-  const invalid = pairedIngressShadowEvidence([], [
-    { dropped: false, valid: false, phaseOffsetMs: 0, firstByteMs: 20 },
-  ], 1);
+  const invalid = pairedIngressShadowEvidence(
+    [],
+    [{ dropped: false, valid: false, phaseOffsetMs: 0, firstByteMs: 20 }],
+    1,
+  );
   assert.equal(invalid.passed, false);
-  const unmeasured = pairedIngressShadowEvidence([], [
-    { dropped: false, valid: true, phaseOffsetMs: 0 },
-  ], 1);
+  const unmeasured = pairedIngressShadowEvidence(
+    [],
+    [{ dropped: false, valid: true, phaseOffsetMs: 0 }],
+    1,
+  );
   assert.equal(unmeasured.passed, false);
 });
 
