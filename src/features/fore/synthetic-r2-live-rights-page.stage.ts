@@ -572,7 +572,6 @@ function currentPublicObject(
   return value as Record<string, unknown>;
 }
 
-
 /**
  * Synthetic-only live retail SELECT. The former prototype selected 25
  * territorial candidates BEFORE checking current offers. If one of those
@@ -600,7 +599,7 @@ type SyntheticExtendedAuthorityRow = PrimaryStorefrontAuthorityRow & {
   source_project: string | null;
   source_page_url: string | null;
   source_license_url: string | null;
-   ai_disclosure_json: string | null;
+  ai_disclosure_json: string | null;
 };
 
 export async function authorizeOfferBearingSyntheticPage(
@@ -751,7 +750,7 @@ export async function syntheticR2PageWithLiveRights(
       (row.epub_storage_status !== null && !shortText(row.epub_storage_status, 80)) ||
       (row.download_count !== null &&
         (!Number.isSafeInteger(row.download_count) || row.download_count < 0)) ||
-       !optionalText(row.source_project, 200) ||
+      !optionalText(row.source_project, 200) ||
       !optionalText(row.source_page_url, 2048) ||
       !optionalText(row.source_license_url, 2048)
     )
