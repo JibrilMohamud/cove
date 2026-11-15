@@ -17,9 +17,8 @@ export default {
   ) {
     const path = new URL(request.url).pathname;
     if (path === PRIVATE_PROBE || path === PRIVATE_PROBE + "/seed") {
-      const { handleSyntheticR2LiveRightsStage } = await import(
-        "./features/fore/synthetic-r2-live-rights-page.stage"
-      );
+      const { handleSyntheticR2LiveRightsStage } =
+        await import("./features/fore/synthetic-r2-live-rights-page.stage");
       const stage = await handleSyntheticR2LiveRightsStage(request, env);
       if (stage) return stage;
     }
