@@ -108,3 +108,42 @@ test("malformed ordinal and run identifiers are rejected before D1", async () =>
   );
   assert.equal(d1Calls, 0);
 });
+
+test("invalid upstream 200 payload and true 503 are counted separately without raw identifiers", async () => {
+  const invalid = {
+    ...env,
+    CANDIDATE: {
+      async fetch() {
+        return Response.json(
+          { results: Array.from({ length: 24 }, () => ({ productId: "sensitive-nonfixture" })) },
+          { headers: { "x-cove-persistence": "d1-r2" } },
+        );
+      },
+    },
+  };
+  const invalidResponse = await worker.fetch(makeRequest("catalog"), invalid);
+  assert.equal(invalidResponse.status, 503);
+  const invalidPayload = await invalidResponse.json();
+  assert.equal(invalidPayload.downstreamStatus, 200);
+  assert.equal(invalidPayload.resultKind, "duplicate-result-id");
+  assert.equal(invalidPayload.valid, false);
+  assert.doesNotMatch(JSON.stringify(invalidPayload), /sensitive-nonfixture/);
+
+  const overloaded = {
+    ...env,
+    CANDIDATE: {
+      async fetch() {
+        return Response.json(
+          { error: "D1 DB is overloaded. Do not copy private messages." },
+          { status: 503, headers: { "x-cove-persistence": "d1-r2" } },
+        );
+      },
+    },
+  };
+  const overloadResponse = await worker.fetch(makeRequest("catalog"), overloaded);
+  assert.equal(overloadResponse.status, 503);
+  const overloadPayload = await overloadResponse.json();
+  assert.equal(overloadPayload.downstreamStatus, 503);
+  assert.equal(overloadPayload.resultKind, "upstream-http-status");
+  assert.doesNotMatch(JSON.stringify(overloadPayload), /D1 DB is overloaded|private messages/);
+});
