@@ -66,6 +66,14 @@ try {
     layout: "reflowable",
     accessibility: { screenReaderCompatible: 1, accessModes: ["textual"] },
     formatProfile: { epubVersion: "3", compatibilityClass: "reflowable" },
+    sourceProject: "gutenberg",
+    sourceUrl: "https://www.gutenberg.org/ebooks/1",
+    sourceLicenseUrl: "https://www.gutenberg.org/policy/license.html",
+    aiDisclosure: {
+      policyVersion: "2026.1",
+      textOrigin: "human",
+      publicBadges: [{ key: "human", label: "Human written" }],
+    },
     publisherDescription: "Sample descriptive publisher text",
     editorialReviews: "Sample editorial review",
     series: [
@@ -96,8 +104,6 @@ try {
     "drmStatus",
     "downloadable",
     "readingAvailability",
-    "sourceLicenseUrl",
-    "aiDisclosure",
     "amountMinor",
     "offer",
   ]) {
@@ -116,6 +122,11 @@ try {
   assert.equal(cleanSnapshot.items[0].epubVersion, "3.0");
   assert.equal(cleanSnapshot.items[0].accessibility.screenReaderCompatible, 1);
   assert.equal(cleanSnapshot.items[0].formatProfile.compatibilityClass, "reflowable");
+  assert.equal(
+    cleanSnapshot.items[0].sourceLicenseUrl,
+    "https://www.gutenberg.org/policy/license.html",
+  );
+  assert.equal(cleanSnapshot.items[0].aiDisclosure.policyVersion, "2026.1");
   assert.equal(cleanSnapshot.items[0].publisherDescription, "Sample descriptive publisher text");
 
   const GATE = "a".repeat(64);
@@ -146,7 +157,8 @@ try {
         assert.doesNotMatch(sql, /product_external_ids_json/);
         assert.doesNotMatch(sql, /accessibility_json/);
         assert.doesNotMatch(sql, /format_profile_json/);
-        assert.match(sql, /ai_disclosure_json/);
+        assert.doesNotMatch(sql, /ai_disclosure_json/);
+        assert.doesNotMatch(sql, /source_license_url/);
         assert.match(sql, /FROM offers o/);
         assert.match(sql, /EXISTS \(SELECT 1 FROM offers offer_exists/);
         assert.doesNotMatch(sql, /\\b(?:INSERT|UPDATE|DELETE|REPLACE)\\b/i);
@@ -194,14 +206,6 @@ try {
       epub_storage_status: null,
       has_epub_object: 0,
       has_epub_source: 0,
-      source_project: "gutenberg",
-      source_page_url: "https://www.gutenberg.org/ebooks/1",
-      source_license_url: "https://www.gutenberg.org/policy/license.html",
-      ai_disclosure_json: JSON.stringify({
-        policyVersion: "2026.1",
-        textOrigin: "human",
-        publicBadges: [{ key: "human", label: "Human written" }],
-      }),
       offer_json: JSON.stringify({ type: "retail", currency: "USD", amountMinor: price }),
     }));
   returned = rows(Array.from({ length: 25 }, (_, i) => i));
@@ -264,6 +268,14 @@ try {
                   work_external_ids_json: JSON.stringify({ work: "work-v3" }),
                   accessibility_json: JSON.stringify({ screenReaderCompatible: 1 }),
                   format_profile_json: JSON.stringify({ epubVersion: "3" }),
+                  source_project: "gutenberg",
+                  source_page_url: "https://www.gutenberg.org/ebooks/1",
+                  source_license_url: "https://www.gutenberg.org/policy/license.html",
+                  ai_disclosure_json: JSON.stringify({
+                    policyVersion: "2026.1",
+                    textOrigin: "human",
+                    publicBadges: [{ key: "human", label: "Human written" }],
+                  }),
                   contributors_json: JSON.stringify([
                     {
                       id: "source-author-" + i,
@@ -339,6 +351,9 @@ try {
   assert.equal(seeded.formatProfile.epubVersion, "3");
   assert.equal(seeded.fileSizeBytes, 12345);
   assert.equal(seeded.layout, "reflowable");
+  assert.equal(seeded.sourceProject, "gutenberg");
+  assert.equal(seeded.sourceLicenseUrl, "https://www.gutenberg.org/policy/license.html");
+  assert.equal(seeded.aiDisclosure.policyVersion, "2026.1");
   const seedReq = new Request(request.url + "/seed", {
     method: "POST",
     headers: request.headers,
@@ -500,9 +515,15 @@ try {
   assert.equal(await syntheticR2PageWithLiveRights(request, env, () => now), null);
   env.COVE_PUBLIC_PRESENTATION_CACHE.get = originalGet;
 
-  returned = rows(Array.from({ length: 25 }, (_, i) => i));
-  returned[0].ai_disclosure_json = '{"policyVersion":';
-  await assert.rejects(syntheticR2PageWithLiveRights(request, env, () => now));
+  const unsafeDisclosure = JSON.parse(snapshot);
+  unsafeDisclosure.items[0].aiDisclosure = ["unsafe", "disclosure"];
+  const disclosureBody = JSON.stringify(unsafeDisclosure);
+  env.COVE_PUBLIC_PRESENTATION_CACHE.get = async () => ({
+    size: disclosureBody.length,
+    text: async () => disclosureBody,
+  });
+  assert.equal(await syntheticR2PageWithLiveRights(request, env, () => now), null);
+  env.COVE_PUBLIC_PRESENTATION_CACHE.get = originalGet;
   returned = rows(Array.from({ length: 25 }, (_, i) => i));
 
   // If the top candidate loses its retail offer, the live SELECT itself
