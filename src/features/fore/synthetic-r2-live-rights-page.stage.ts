@@ -232,28 +232,23 @@ export async function seedSyntheticR2Display(
   }>();
   if (
     result.results.length !== ITEM_COUNT ||
-    result.results.some(
-      (row) =>
-        !row.product_id.startsWith("perf-synth-") ||
-        !row.edition_id.startsWith("perf-synth-"),
-    )
+    result.results.some((row) => !row.product_id.startsWith("perf-synth-")) ||
+    result.results.some((row) => !row.edition_id.startsWith("perf-synth-"))
   )
     return false;
-  const books = result.results.map(
-    (row): CatalogBook => ({
-      id: row.product_id,
-      productId: row.product_id,
-      editionId: row.edition_id,
-      title: row.title,
-      subtitle: row.subtitle || "",
-      authors: [{ name: "Synthetic author" }],
-      subjects: [],
-      bookshelves: [],
-      languages: [row.language || "en"],
-      formats: {},
-      download_count: 0,
-    }),
-  );
+  const books = result.results.map((row): CatalogBook => ({
+    id: row.product_id,
+    productId: row.product_id,
+    editionId: row.edition_id,
+    title: row.title,
+    subtitle: row.subtitle || "",
+    authors: [{ name: "Synthetic author" }],
+    subjects: [],
+    bookshelves: [],
+    languages: [row.language || "en"],
+    formats: {},
+    download_count: 0,
+  }));
   const body = buildSyntheticDisplayObject(books, now());
   const bucket = env.COVE_PUBLIC_PRESENTATION_CACHE;
   const old = await bucket.get(OBJECT_KEY);
