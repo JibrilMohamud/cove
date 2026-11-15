@@ -60,9 +60,40 @@ bottleneck; hence the version-fenced cache. This local result is not Cloudflare
 TTFB and still needs actual hosted testing and improvements for distinct
 high-cardinality queries under 100 RPS.
 
+## Latest revision: owner-transactional FTS5 and timed paid expiry
+
+A real FTS5 virtual table is now updated by SQLite triggers on the SAME
+authorized index rows. Inserted legal proofs become searchable only after
+owner SQL has confirmed them; revocations and metadata changes delete/rebuild
+the FTS rows transactionally. FTS row IDs use an owner-local key mapping, and
+the FTS table cannot accept search requests until the initial population is
+sealed against the indexed product count. Existing pre-FTS deployments require
+an explicit staged backfill/migration before a seal; creating a virtual table
+with no rows is NEVER interpreted as full search coverage.
+
+The implemented query grammar is deliberately restricted to up to eight
+literal, AND-combined Unicode FTS5 words across title, format, publisher;
+unreviewed operators, typo-correction and synonyms are explicitly rejected.
+All matches are ranked by the existing stage catalog score, NOT production
+BM25/exact-ISBN ranking. Keyword search uses the same category/language/
+format/publisher/series and price disjunctive facet path and is keyed by
+the complete normalized FTS expression plus the transaction generation.
+
+Regression tests now compare **24** filter/keyword combinations against an
+independently built owner SQL answer set before/after contract and free-source
+denials. Owner search for unique revoked title terms disappears immediately.
+A paid lease is shortened in the isolated fixture, time passes its canonical
+expiry, ALL page/count/facet/keyword reads fail closed until bounded
+owner-local expiry reconciliation removes precisely that expired book and
+its FTS entry. The resulting exact population sequence is
+**25 → 24 → 23 → 22 → 0**. The old full snapshot separately becomes
+unavailable after the stored paid proof expires; it cannot be treated as
+a working fallback. This is evidence for the new selective index, not a
+full-product contract.
+
 ## Strict blockers; no relabeling a skipped gate as passed
 
-1. **Full SearchInput parity:** still missing FTS5/relevance, synonyms/correction,
+1. **Full SearchInput parity:** literal stage FTS5 works, but still missing exact production BM25/relevance, synonyms/correction,
    taxonomy, contributor/series/publisher/imprint IDs, ratings/reviews, all other
    sorts, dates/preorder/deals/subscription/library/user-state, all territories,
    production catalog DTOs, all facets/envelope fields, ingestion and public
@@ -71,12 +102,14 @@ high-cardinality queries under 100 RPS.
    source/offer/scheduled contract and language/DRM evidence, plus index
    fanout and atomic withdrawal-to-reconciliation. Large contract fanout may
    cause temporary fail-closed unavailability.
-3. **Proof expiry and money:** scheduled rights changes, in-flight promotion
+3. **Proof expiry and money:** selective paid proof expiry is tested locally; scheduled future rights changes, in-flight promotion
    races, LIVE settlement-to-entitlement/protected content/refund/revocation
    remain separate tests.
-4. **Performance:** hosted same-owner 1/4/8/16/32 max <800ms,
-   two 2,000-valid-response 100-RPS phases, ORD/LAX/IAD/DFW,
-   actual SSR and zero production 503 have not been shown.
+4. **Performance:** the 25-book isolated hosted owner index already passed
+   strict 1/4/8/16/32 and two 2,000-response 100-RPS phases in PR #708
+   (p95 75.61/77.62ms, max 320.39/301.70ms, zero drops).
+   The FULL 82k corpus, four-colo ORD/LAX/IAD/DFW, actual production SSR
+   and zero production 503 acceptance have NOT been shown.
 5. **Operational gates:** production owner still disabled; persistence Worker
    and overprivileged deployment token retain physical write capabilities.
    Protected rollback rehearsal remains incomplete.
