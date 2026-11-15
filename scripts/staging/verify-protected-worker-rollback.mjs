@@ -8,6 +8,7 @@ import {readFileSync,writeFileSync} from "node:fs";
 const ACCOUNT="d26430caa63ec55f6612e32f36aca5e9";
 const PRODUCTION="cove-persistence-backend";
 const PINNED_PROD_VERSION="401f2af2-6e69-4611-8110-1d127af6eecf";
+const PREVIOUS_PROD_VERSION="3f5fdeed-4f11-411a-8d4e-e86816f865bc";
 const run=process.env.GITHUB_RUN_ID,attempt=process.env.GITHUB_RUN_ATTEMPT;
 assert.match(run||"",/^[0-9]{8,15}$/);
 assert.match(attempt||"",/^[1-9][0-9]{0,2}$/);
@@ -89,10 +90,35 @@ if(phase==="capture-a"){
   const prod=await currentId(PRODUCTION);
   assert.equal(prod,PINNED_PROD_VERSION,
     "Production version drift; refuse to treat this as controlled rollback");
+  // Read-only rollback-candidate preflight: version 450 must still exist
+  // and retain the same binding types/names and runtime compatibility as
+  // the pinned production version. This does NOT establish D1 schema or
+  // payment-state rollback compatibility.
+  const versions=await Promise.all(
+    [PINNED_PROD_VERSION,PREVIOUS_PROD_VERSION].map(id=>
+      cloudflare("GET",PRODUCTION,"/versions/"+id)),
+  );
+  assert.deepEqual(versions.map(x=>x.number),[451,450]);
+  const bindShape=v=>(v.resources?.bindings||[]).map(b=>b.type+":"+b.name).sort();
+  assert.deepEqual(bindShape(versions[0]),bindShape(versions[1]),
+    "Archived production rollback candidate has incompatible binding names/types");
+  assert.deepEqual(
+    versions[0].resources?.script_runtime,
+    versions[1].resources?.script_runtime,
+    "Archived production version has different Worker runtime settings",
+  );
+  for(const x of versions){
+    const bindings=x.resources?.bindings||[];
+    assert.ok(bindings.some(b=>b.type==="d1"&&b.name==="DB"&&
+      b.database_id==="4bd657ac-8789-403e-a28c-93aba8d0a989"));
+    assert.ok(bindings.some(b=>b.type==="durable_object_namespace"&&
+      b.name==="LEGAL_AUTHORITY"&&b.script_name==="cove-legal-authority-production"));
+  }
   const original=await currentId(name);
   writeFileSync(root+"/original.json",JSON.stringify({original,prod}),{mode:0o600});
   console.log(JSON.stringify({event:"cove_isolated_original_verified",ready:true,
-    script:name,productionUnchanged:true,releaseCertified:false}));
+    script:name,productionUnchanged:true,archivedBindingsMatch:true,
+    productionRollbackCertified:false,releaseCertified:false}));
 }else{
   const {original,prod}=JSON.parse(readFileSync(root+"/original.json","utf8"));
   assert.match(original,/^[a-f0-9-]{36}$/);
