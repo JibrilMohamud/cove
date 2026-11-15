@@ -112,5 +112,42 @@
     "Stripe LIVE settlement -> entitlement -> protected access -> refund/revocation",
     "Protected production rollout and rollback rehearsal"
   ],
-  "interpretation": "The isolated bounded live market/territory/edition/retail-offer projection passed the strict synthetic load pattern. It does not authorize production release, rights-owner activation or payment changes."
+  "interpretation": "The isolated bounded live market/territory/edition/retail-offer projection passed the strict synthetic load pattern. It does not authorize production release, rights-owner activation or payment changes.",
+  "repeatVerification": {
+    "workflowUrl": "https://github.com/JibrilMohamud/cove/actions/runs/43674178781",
+    "sourceCommit": "2161ce2c0d3682e6c8d24bea14fa2a061da855cc",
+    "runSuccess": true,
+    "first50Rps20s": {
+      "offered": 1000,
+      "valid": 1000,
+      "failed": 0,
+      "dropped": 0,
+      "p95TtfbMs": 171.59,
+      "p99TtfbMs": 234.58,
+      "maxTtfbMs": 426.41
+    },
+    "phases100Rps20s": [
+      {
+        "phase": 1,
+        "offered": 2000,
+        "valid": 2000,
+        "failed": 0,
+        "dropped": 0,
+        "p95TtfbMs": 161.33,
+        "p99TtfbMs": 223.94,
+        "maxTtfbMs": 383.39
+      },
+      {
+        "phase": 2,
+        "offered": 2000,
+        "valid": 2000,
+        "failed": 0,
+        "dropped": 0,
+        "p95TtfbMs": 144.86,
+        "p99TtfbMs": 217.81,
+        "maxTtfbMs": 512.96
+      }
+    ],
+    "revertedPrivateWorkers": true
+  }
 }
