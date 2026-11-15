@@ -582,7 +582,7 @@ export async function handleSyntheticR2LiveRightsStage(
         results: result.books,
         hasMore: result.hasMore,
         nextCursor,
-        mode: "r2-live-retail",
+        mode: syntheticPage(request) === "cursor" ? "r2-live-retail-cursor" : "r2-live-retail",
         releaseCertified: false,
       },
       {
