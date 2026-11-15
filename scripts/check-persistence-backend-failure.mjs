@@ -91,6 +91,29 @@ assert.equal(
 const apiSource = fs.readFileSync("src/features/fore/api.server.ts", "utf8");
 assert.match(apiSource, /timings\["fault_" \+ name\] = 1/);
 assert.match(apiSource, /promise\.catch/);
+// Compile the EXACT nested production timer in isolation rather than merely
+// checking a text marker. No database or production API is invoked.
+const timerStart = apiSource.indexOf("    async function timed<T>(name: string, promise: Promise<T>): Promise<T> {");
+const timerEnd = apiSource.indexOf("    // These are independent, live per-request operations", timerStart);
+assert.ok(timerStart > 0 && timerEnd > timerStart, "Actual production phase timer must be found");
+const timerSource = `
+  const timings: Record<string,number> = {};
+  const phases: Record<string,number> = {};
+  ${apiSource.slice(timerStart, timerEnd)}
+  export const testTimed = timed;
+  export const observed = () => ({timings: {...timings}, phases: {...phases}});
+`;
+const { code: timerCode } = await transform(timerSource, { loader: "ts", format: "esm" });
+const { testTimed, observed } = await import(
+  "data:text/javascript;base64," + Buffer.from(timerCode).toString("base64")
+);
+assert.equal(await testTimed("context", Promise.resolve("ready")), "ready");
+assert.equal(observed().timings.fault_context, undefined, "Successful context is never a failure");
+const originalFault = new Error("sensitive-upstream-error-value");
+await assert.rejects(testTimed("catalog", Promise.reject(originalFault)), (error) => error === originalFault);
+assert.equal(observed().timings.fault_catalog, 1, "Real catalog rejection sets numeric fault flag");
+assert.ok(Number.isFinite(observed().phases.catalog));
+assert.doesNotMatch(JSON.stringify(observed()), /sensitive-upstream-error-value/);
 const errorResponse = (error, headers = apiHeaders) =>
   Response.json({ error }, { status: 503, headers });
 for (const [error, category] of [
