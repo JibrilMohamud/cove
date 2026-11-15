@@ -91,6 +91,59 @@ unavailable after the stored paid proof expires; it cannot be treated as
 a working fallback. This is evidence for the new selective index, not a
 full-product contract.
 
+## 82,249-row FTS5 planner regression (synthetic local SQLite)
+
+A reproducible local benchmark now lives at
+`scripts/staging/benchmark-owner-catalog-fts-planner.mjs` and runs as part
+of the same staging-only CI. It creates **82,249 synthetic authorized-index
+shapes** and a populated FTS5 virtual table. These are NOT real legal-owner
+decisions, do not contain production titles, and are NOT hosted Cloudflare
+performance acceptance. It asserts exact page equality between rank-first
+and forced-FTS-first plans, FTS5 query-plan use, exact document count, exact
+aggregate category facets, and immediate FTS disappearance when an index
+row is deleted.
+
+Observed on one local Node 22 / SQLite 3.49.1 execution (ms, page p95):
+
+| FTS match population | Rank-first | Forced match-first | Chosen |
+| --- | ---: | ---: | --- |
+| Unique 1 book | 9.56 | 0.02 | FTS-first |
+| Sparse 21 books | 10.21 | 0.05 | FTS-first |
+| 2,654 books | 2.43 | 3.92 | Ranked index |
+| All 82,249 books | 53.42 | 99.66 | Ranked index |
+
+The default SQLite optimizer can reverse even an explicitly materialized
+FTS CTE, so the sparse plan uses `CROSS JOIN` to retain FTS matches as
+the outer loop, followed by indexed product-ID lookups. A read-only FTS5
+vocabulary lookup estimates the AND query's maximum match population;
+it selects the sparse plan when the least frequent token occurs in at most
+128 documents. The selection changes the execution plan, NEVER eligibility
+or result order. Stage tests assert the actual query plan and differential
+count/page/facet results on owner-authorized fixtures.
+
+A keyword whose every literal term appears in exactly the authorized
+population can use the already-owned default page, total and precomputed
+facet counters. This is an EXACT optimization, not a statistical heuristic:
+the owner first checks bootstrap readiness, dirty queue, legal market veto,
+and paid proof expiry, then confirms FTS5 document frequency equals the
+indexed total. For the synthetic universal word `book`, all 82,249 rows
+matched, and the default ranked page p95 was 0.01ms (vs ~53ms for an
+unnecessary FTS probe). This is the local page operation only, not end-to-end
+TTFB or full production FTS semantics.
+
+**Known cold broad-query risk:** a term matching the entire 82,249-row
+synthetic fixture still required approximately 112ms p95 for an uncached
+count and 212ms p95 for one uncached category facet aggregation when
+no exact shortcut applies. Filtered results are already generation-fenced
+for reuse, but cold distinct broad queries and all real facets under 100RPS
+remain unproven.
+
+FTS bootstrap verification now fails if an unauthorized or mis-mapped FTS
+record has been substituted without changing row counts, or if title,
+format or publisher text disagrees with the owner-index source. Stage
+regression deliberately injects these bad rows, proves sealing fails,
+restores the genuine content, then verifies exact live search.
+
 ## Strict blockers; no relabeling a skipped gate as passed
 
 1. **Full SearchInput parity:** literal stage FTS5 works, but still missing exact production BM25/relevance, synonyms/correction,
