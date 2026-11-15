@@ -161,7 +161,8 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
     const data = await resp.json();
     const ms = performance.now() - started;
     if (mode === "r2seed") {
-      const valid = resp.status === 200 && data?.seeded === true && data?.releaseCertified === false;
+      const valid =
+        resp.status === 200 && data?.seeded === true && data?.releaseCertified === false;
       return {
         status: resp.status,
         firstByteMs,
