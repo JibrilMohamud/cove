@@ -292,7 +292,12 @@ async function warmup(run, secret) {
     await sleep(1000);
   }
   assert.equal(unauthorizedStatus, 404, "Private staging route did not propagate safely");
-  for (const mode of MODES) {
+  // The rights-only experiment must never depend on a separately deployed
+  // candidate endpoint. The same private driver verifies no-DB and live D1.
+  const warmModes = process.argv.includes("--rights-only-100rps")
+    ? ["noop", "rights"]
+    : MODES;
+  for (const mode of warmModes) {
     let result;
     for (let retry = 0; retry < 5; retry++) {
       result = await requestProbe(mode, retry, run, secret);
@@ -307,6 +312,51 @@ async function warmup(run, secret) {
 async function campaign(secret) {
   const run = randomUUID().replaceAll("-", "").slice(0,24);
   await warmup(run, secret);
+  if (process.argv.includes("--rights-only-100rps")) {
+    evidence.rightsOnlyCurrentD1 = true;
+    evidence.catalogHydrationIncluded = false;
+    evidence.marketContextIncluded = false;
+    evidence.productionReleaseEligible = false;
+    const meets = (phase, offered) =>
+      phase.valid === offered &&
+      phase.dropped === 0 &&
+      phase.ttfbP95Ms !== null &&
+      phase.ttfbP95Ms < 600 &&
+      phase.ttfbP99Ms < 750 &&
+      phase.ttfbMaxMs < 800;
+    const noDb = await phase("noop", "100-rps-no-db-control-20s", 2000, 10, run, secret);
+    evidence.noDbControlPassed = meets(noDb, 2000);
+    if (!evidence.noDbControlPassed) {
+      evidence.rights100RpsTwoPhasePassed = false;
+      evidence.stopReason = "no-db-offered-rate-control-failed";
+      return;
+    }
+    const fifty = await phase("rights", "50-rps-20s", 1000, 20, run, secret);
+    evidence.rights50Passed = meets(fifty, 1000);
+    if (!evidence.rights50Passed) {
+      evidence.rights100RpsTwoPhasePassed = false;
+      evidence.stopReason = "sustained-rights-50-rps-failed";
+      return;
+    }
+    for (let trial = 1; trial <= 2; trial++) {
+      const hundred = await phase(
+        "rights",
+        "100-rps-20s-phase-" + trial,
+        2000,
+        10,
+        run,
+        secret,
+      );
+      evidence.rights100RpsPhases = trial;
+      if (!meets(hundred, 2000)) {
+        evidence.rights100RpsTwoPhasePassed = false;
+        evidence.stopReason = "authoritative-rights-100-rps-phase-failed";
+        return;
+      }
+    }
+    evidence.rights100RpsTwoPhasePassed = true;
+    return;
+  }
   if (process.argv.includes("--single-only")) {
     evidence.referenceOnly = true;
     evidence.noMarketContextOrSecondaryChannel = true;
