@@ -1,7 +1,7 @@
 name: cove-stage-owner-point-d1-100rps
 on:
   push:
-    branches: [perf/stage-owner-point-d1-100rps-20261115]
+    branches: [perf/stage-owner-point-d1-100rps-20261115, perf/stage-owner-point-50k-index-20261115]
     paths:
       - scripts/staging/owner-point-d1-benchmark-fixture.mjs
       - scripts/staging/causal-triad-stage.worker.mjs
@@ -50,7 +50,7 @@ jobs:
       - name: Install ephemeral 25-row D1 positive-SHAPED benchmark (never authorizing)
         run: node scripts/staging/owner-point-d1-benchmark-fixture.mjs --install
       - name: Strict 1/4/8/16/32, 50RPS and two 100RPS synthetic D1 phases
-        run: node scripts/staging/run-private-causal-triad.mjs --point-only-100rps
+        run: node scripts/staging/run-private-causal-triad.mjs --point-only-100rps --shadow-no-db
       - name: Restore exact original private driver on every exit
         if: always()
         run: node scripts/staging/run-private-causal-triad.mjs --restore-only

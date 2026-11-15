@@ -159,17 +159,25 @@ async function requireSyntheticRetailOffers() {
 async function refreshSyntheticPointBenchmark() {
   assert.ok(process.argv.includes("--point-only-100rps"));
   assert.equal(process.env.COVE_SYNTHETIC_POINT_BENCH, "1");
+  // Refresh ONLY the 25 distant points, not all 50k benchmark entries.
+  // Otherwise reseeding creates a needless write storm between phases.
+  const ids = Array.from(
+    { length: 25 },
+    (_, i) => "perf-synth-" + String(1 + i * 1999).padStart(6, "0"),
+  );
   const updated = await api("/d1/database/" + DB + "/query", {
     method: "POST",
     body: JSON.stringify({
-      sql: "UPDATE cove_stage_perf_retail_authority SET valid_until=datetime('now','+30 seconds') WHERE territory_code='US' AND currency='USD' AND current_offer_id='BENCH-NOT-A-GRANT'",
+      sql: "UPDATE cove_stage_perf_retail_authority SET valid_until=datetime('now','+30 seconds') WHERE territory_code='US' AND currency='USD' AND current_offer_id='BENCH-NOT-A-GRANT' AND product_id IN (SELECT value FROM json_each(?))",
+      params: [JSON.stringify(ids)],
     }),
   });
-  assert.equal(updated?.[0]?.meta?.changes, 25, "All 25 temporary benchmark leases must refresh");
+  assert.equal(updated?.[0]?.meta?.changes, 25, "All 25 dispersed benchmark leases must refresh");
   const checked = await api("/d1/database/" + DB + "/query", {
     method: "POST",
     body: JSON.stringify({
-      sql: "SELECT count(*) AS ready FROM cove_stage_perf_retail_authority WHERE territory_code='US' AND currency='USD' AND current_offer_id='BENCH-NOT-A-GRANT' AND valid_until>datetime('now')",
+      sql: "SELECT count(*) AS ready FROM cove_stage_perf_retail_authority WHERE territory_code='US' AND currency='USD' AND current_offer_id='BENCH-NOT-A-GRANT' AND valid_until>datetime('now') AND product_id IN (SELECT value FROM json_each(?))",
+      params: [JSON.stringify(ids)],
     }),
   });
   assert.equal(
@@ -390,6 +398,24 @@ async function summarize(mode, shape, offered, rows, elapsed) {
         return o;
       }, {}),
     invalidUpstream200: rows.filter((r) => !r.valid && r.downstreamStatus === 200).length,
+    // For strict max-TTFB diagnostics, correlate the actual slowest
+    // request's D1 SQL time, rows read and Worker wall time. Percentiles
+    // alone obscure a rare 1.2-second D1 queue tail.
+    slowestD1Request: (() => {
+      const worst = rows
+        .filter((r) => Number.isFinite(r.firstByteMs))
+        .reduce((best, r) => (!best || r.firstByteMs > best.firstByteMs ? r : best), null);
+      return worst
+        ? {
+            externalTtfbMs: worst.firstByteMs,
+            workerMs: worst.workerMs,
+            sqlMs: worst.sqlMs,
+            outsideSqlMs: worst.outsideSqlMs,
+            rowsRead: worst.rowsRead,
+            downstreamStatus: worst.downstreamStatus,
+          }
+        : null;
+    })(),
     releaseCertified: false,
   };
   evidence.results.push(sample);
@@ -401,12 +427,12 @@ async function phase(mode, shape, offered, spacingMs, run, secret) {
   const started = performance.now();
   const rows = [];
   const pending = new Set();
-  // 100 real cursor requests/s remains the test target. Five additional
-  // control requests/s hit the SAME private driver with no DB/service-binding.
-  // The controls never replace or reduce the scheduled cursor workload.
+  // 100 real target requests/s remains the test target. Five additional
+  // controls/s hit the SAME private driver without D1. They never
+  // replace or reduce scheduled cursor OR projected-point requests.
   const shadowEnabled =
     process.argv.includes("--shadow-no-db") &&
-    mode === "r2cursor" &&
+    (mode === "r2cursor" || mode === "pointbench") &&
     offered === 2000 &&
     spacingMs === 10;
   const shadowRows = [];
@@ -444,6 +470,7 @@ async function phase(mode, shape, offered, spacingMs, run, secret) {
     console.log(
       JSON.stringify({
         event: "cove_private_ingress_shadow_control",
+        targetMode: mode,
         phase: shape,
         ...sample.ingressShadow,
       }),
@@ -501,6 +528,8 @@ async function campaign(secret) {
   if (process.argv.includes("--point-only-100rps")) await refreshSyntheticPointBenchmark();
   await warmup(run, secret);
   if (process.argv.includes("--point-only-100rps")) {
+    const pointShadow = process.argv.includes("--shadow-no-db");
+    evidence.sameWindowNoDbShadow = pointShadow;
     evidence.syntheticPointBenchmarkOnly = true;
     evidence.positiveOffersAreFake = true;
     evidence.ownerCanonicalDecisionsIncluded = false;
@@ -512,7 +541,11 @@ async function campaign(secret) {
       part.ttfbP95Ms !== null &&
       part.ttfbP95Ms < 600 &&
       part.ttfbP99Ms < 750 &&
-      part.ttfbMaxMs < 800;
+      part.ttfbMaxMs < 800 &&
+      (!pointShadow ||
+        part.offered !== 2000 ||
+        part.mode !== "pointbench" ||
+        part.ingressShadow?.passed === true);
     for (const concurrency of [1, 4, 8, 16, 32]) {
       const tested = await phase("pointbench", "burst-" + concurrency, concurrency, 0, run, secret);
       if (!strict(tested, concurrency)) {

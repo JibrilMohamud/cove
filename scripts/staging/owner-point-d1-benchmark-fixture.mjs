@@ -18,7 +18,13 @@ const TABLES = [
   "cove_stage_perf_market_revision",
   "cove_stage_perf_owner_state",
 ];
-const ids = Array.from({ length: 25 }, (_, i) => "perf-synth-" + String(i + 1).padStart(6, "0"));
+// 25 deterministic point reads scattered across the entire 50k-record
+// benchmark B-tree. IDs are all synthetic; no catalog ranking is inferred.
+const ids = Array.from(
+  { length: 25 },
+  (_, i) => "perf-synth-" + String(1 + i * 1999).padStart(6, "0"),
+);
+const TOTAL_SYNTHETIC_PRODUCTS = 50000;
 if (
   process.env.COVE_SYNTHETIC_POINT_BENCH !== "1" ||
   process.env.CLOUDFLARE_ACCOUNT_ID !== ACCOUNT ||
@@ -73,18 +79,30 @@ const ddl = [
 ];
 
 async function verify() {
+  const full = await d1("SELECT count(*) total FROM cove_stage_perf_retail_authority");
+  assert.equal(
+    full.results?.[0]?.total,
+    TOTAL_SYNTHETIC_PRODUCTS,
+    "Benchmark must measure an actual 50k indexed authorization-shaped table",
+  );
   const result = await d1(
     `SELECT product_id,valid_until FROM cove_stage_perf_retail_authority
-     WHERE territory_code='US' AND currency='USD' ORDER BY product_id`,
+     WHERE product_id IN (SELECT value FROM json_each(?))
+       AND territory_code='US' AND currency='USD' ORDER BY product_id`,
+    [JSON.stringify(ids)],
   );
   const rows = result.results || [];
-  assert.equal(rows.length, 25, "Benchmark must have exactly 25 synthetic positive-shaped rows");
+  assert.equal(rows.length, 25, "Benchmark must read 25 dispersed synthetic witnesses");
   assert.deepEqual(
     rows.map((row) => row.product_id),
     ids,
   );
   assert.ok(rows.every((row) => Date.parse(row.valid_until + "Z") > Date.now()));
-  return { current: rows.length, sqlMs: result.meta?.duration };
+  return {
+    current: rows.length,
+    tableCardinality: full.results[0].total,
+    sqlMs: result.meta?.duration,
+  };
 }
 
 async function install() {
@@ -93,30 +111,39 @@ async function install() {
   // production legal or catalog schemas, and the Worker never reads these
   // benchmark tables outside explicit private-driver mode.
   for (const table of TABLES) await d1("DELETE FROM " + table);
-  const count = await d1(
+  const count = await d1("SELECT COUNT(*) n FROM products WHERE id LIKE 'perf-synth-%'");
+  assert.equal(
+    count.results?.[0]?.n,
+    TOTAL_SYNTHETIC_PRODUCTS,
+    "Stage products must match exactly the pinned 50k synthetic corpus",
+  );
+  const scattered = await d1(
     `SELECT COUNT(*) n FROM products WHERE id IN
      (SELECT value FROM json_each(?))`,
     [JSON.stringify(ids)],
   );
-  assert.equal(count.results?.[0]?.n, 25, "Pinned synthetic products are not present");
+  assert.equal(scattered.results?.[0]?.n, 25, "All dispersed synthetic witness IDs must exist");
   await d1("INSERT INTO cove_stage_perf_owner_state VALUES(1,1,1,1)");
   await d1("INSERT INTO cove_stage_perf_territory_revision VALUES('US',1)");
   await d1("INSERT INTO cove_stage_perf_market_revision VALUES('US',1)");
   await d1(
     `INSERT INTO cove_stage_perf_source_revision(product_id,revision)
-     SELECT id,1 FROM products WHERE id IN
-     (SELECT value FROM json_each(?))`,
-    [JSON.stringify(ids)],
+     SELECT id,1 FROM products WHERE id LIKE 'perf-synth-%'`,
+    [],
   );
   const seeded = await d1(
     `INSERT INTO cove_stage_perf_retail_authority
     SELECT id,'US','USD',599,'BENCH-NOT-A-GRANT',1,1,1,1,1,
            'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
            datetime('now','+30 seconds')
-    FROM products WHERE id IN (SELECT value FROM json_each(?))`,
-    [JSON.stringify(ids)],
+    FROM products WHERE id LIKE 'perf-synth-%'`,
+    [],
   );
-  assert.equal(seeded.meta?.changes, 25, "Benchmark positive-shaped fixture must seed 25");
+  assert.equal(
+    seeded.meta?.changes,
+    TOTAL_SYNTHETIC_PRODUCTS,
+    "Benchmark fixture must seed all 50k fake positive-shaped entries",
+  );
   const result = await verify();
   console.log(
     JSON.stringify({

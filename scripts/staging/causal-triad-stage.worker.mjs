@@ -58,7 +58,7 @@ const REVISION_SQL =
 // constant placeholder hashes: NEVER real rights/settlement/entitlements.
 const POINT_BENCH_IDS = Array.from(
   { length: 25 },
-  (_, i) => "perf-synth-" + String(i + 1).padStart(6, "0"),
+  (_, i) => "perf-synth-" + String(1 + i * 1999).padStart(6, "0"),
 );
 const POINT_BENCH_SQL = `WITH requested(product_id,rank_position) AS MATERIALIZED (
  SELECT value,CAST(key AS INTEGER) FROM json_each(?)

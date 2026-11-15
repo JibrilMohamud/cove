@@ -40,7 +40,7 @@ const env = {
           return {
             all: async () => ({
               results: Array.from({ length: 25 }, (_, i) => ({
-                product_id: "perf-synth-" + String(i + 1).padStart(6, "0"),
+                product_id: "perf-synth-" + String(1 + i * 1999).padStart(6, "0"),
                 rank_position: i,
                 current_offer_id: "BENCH-NOT-A-GRANT",
                 amount_minor: 599,
