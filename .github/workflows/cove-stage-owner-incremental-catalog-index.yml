@@ -5,6 +5,7 @@ on:
     paths:
       - src/storefront-strangler/owner-catalog-authorized-set.stage.ts
       - src/storefront-strangler/owner-catalog-incremental-index.stage.ts
+      - src/storefront-strangler/owner-catalog-fts.stage.ts
       - scripts/staging/check-owner-catalog-incremental-index.mjs
       - scripts/staging/benchmark-owner-catalog-index.mjs
       - .github/workflows/cove-stage-owner-incremental-catalog-index.yml
