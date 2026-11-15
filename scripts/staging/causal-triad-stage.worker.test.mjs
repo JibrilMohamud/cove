@@ -6,6 +6,7 @@ import worker, {
   triadModes,
   triadSql,
   triadRevisionSql,
+  triadPointBenchmarkSql,
   stageSyntheticIp,
   singleTriadProbe,
   summarizeTriad,
@@ -19,10 +20,31 @@ const env = {
   COVE_TRIAD_STAGE: "1",
   COVE_TRIAD_SYNTHETIC_D1_ID: TEST_DB,
   COVE_TRIAD_CANDIDATE: "cove-presentation-r2-candidate-stage",
+  COVE_SYNTHETIC_POINT_BENCH: "1",
   BACKEND: "b".repeat(64),
   GATE: "a".repeat(64),
   DB: {
     prepare: (sql) => ({
+      ...(sql === triadPointBenchmarkSql
+        ? {
+            bind: (...params) => {
+              assert.equal(JSON.parse(params[0]).length, 25);
+              assert.deepEqual(params.slice(1), ["US", "USD"]);
+              return {
+                all: async () => ({
+                  results: Array.from({ length: 25 }, (_, i) => ({
+                    product_id: "perf-synth-" + String(i + 1).padStart(6, "0"),
+                    rank_position: i,
+                    current_offer_id: "BENCH-NOT-A-GRANT",
+                    amount_minor: 599,
+                    evidence_digest: "b".repeat(64),
+                  })),
+                  meta: { duration: 0.4, rows_read: 150 },
+                }),
+              };
+            },
+          }
+        : {}),
       ...(sql === triadRevisionSql
         ? {
             all: async () => ({
@@ -91,6 +113,7 @@ test("staging is private, read-only, and not bound to production", () => {
     "context",
     "rights",
     "revision",
+    "pointbench",
     "catalog",
     "single",
     "r2live",
@@ -111,6 +134,16 @@ test("all paths validate stage identity and independent rights provenance", asyn
   assert.equal(revision.status, 200);
   assert.equal(revision.valid, true);
   assert.equal(revision.sqlMs, 0.1);
+  const point = await singleTriadProbe("pointbench", env, 1, "probe");
+  assert.equal(point.valid, true, "25 dummy-shaped witnesses must agree with the query");
+  assert.equal(point.rowsRead, 150);
+  assert.equal(point.sqlMs, 0.4);
+  assert.equal(
+    (await singleTriadProbe("pointbench", { ...env, COVE_SYNTHETIC_POINT_BENCH: "0" }, 1, "probe"))
+      .valid,
+    false,
+    "Private D1 point benchmark must be explicitly enabled",
+  );
   const missingAuthority = await singleTriadProbe(
     "revision",
     {
