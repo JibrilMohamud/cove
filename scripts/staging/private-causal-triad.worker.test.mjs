@@ -147,3 +147,50 @@ test("invalid upstream 200 payload and true 503 are counted separately without r
   assert.equal(overloadPayload.resultKind, "upstream-http-status");
   assert.doesNotMatch(JSON.stringify(overloadPayload), /D1 DB is overloaded|private messages/);
 });
+
+test("single full-shape current-rights reference is separate from public catalog and checks synthetic provenance", async () => {
+  const current = {
+    ...env,
+    CANDIDATE: {
+      async fetch(request) {
+        assert.equal(new URL(request.url).pathname, "/api/fore/__perf/private-authority");
+        assert.equal(request.headers.get("x-cove-backend-token"), "b".repeat(64));
+        assert.equal(request.headers.get("x-cove-client-country"), "US");
+        return Response.json(
+          {
+            mode: "single-primary-rights-only",
+            releaseCertified: false,
+            results: Array.from({ length: 24 }, (_, i) => ({
+              productId: "perf-synth-" + i,
+            })),
+          },
+          { headers: { "x-cove-persistence": "d1-only-synthetic" } },
+        );
+      },
+    },
+  };
+  const response = await worker.fetch(makeRequest("single"), current);
+  assert.equal(response.status, 200);
+  const result = await response.json();
+  assert.equal(result.mode, "single");
+  assert.equal(result.downstreamStatus, 200);
+  assert.equal(result.valid, true);
+  assert.equal(result.releaseCertified, false);
+  const invalid = {
+    ...current,
+    CANDIDATE: {
+      async fetch() {
+        return Response.json(
+          {
+            mode: "single-primary-rights-only",
+            results: Array.from({ length: 24 }, (_, i) => ({ productId: "perf-synth-" + i })),
+          },
+          { headers: { "x-cove-persistence": "d1-only-synthetic" } },
+        );
+      },
+    },
+  };
+  const rejected = await worker.fetch(makeRequest("single"), invalid);
+  assert.equal(rejected.status, 503, "Missing explicit not-release-certified signal fails the reference");
+  assert.equal((await rejected.json()).resultKind, "missing-persistence-proof");
+});
