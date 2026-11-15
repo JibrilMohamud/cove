@@ -79,6 +79,7 @@ try {
         assert.match(sql, /storefront_markets/);
         assert.match(sql, /retail_product_availability_rows/);
         assert.match(sql, /FROM offers o/);
+        assert.match(sql, /EXISTS \(SELECT 1 FROM offers offer_exists/);
         assert.doesNotMatch(sql, /\\b(?:INSERT|UPDATE|DELETE|REPLACE)\\b/i);
         return {
           bind(...params) {
@@ -200,7 +201,22 @@ try {
     assert.equal(book.formats["application/epub+zip"], undefined);
   }
 
-  returned = rows(
+  // If the top candidate loses its retail offer, the live SELECT itself
+  // must exclude it so candidate 26 fills the 25th witness slot; the R2
+  // ranking is unchanged and cannot confer price or availability.
+  returned = rows(Array.from({ length: 25 }, (_, i) => i + 1));
+  const offerWithdrawn = await syntheticR2PageWithLiveRights(request, env, () => now);
+  assert.equal(offerWithdrawn.books.length, 24);
+  assert.equal(offerWithdrawn.books[0].productId, "perf-synth-1");
+  assert.equal(offerWithdrawn.books.some((book) => book.productId === "perf-synth-0"), false);
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  returned[0].offer_json = null;
+  assert.equal(
+    await syntheticR2PageWithLiveRights(request, env, () => now),
+    null,
+    "A malformed primary offer witness must fail closed",
+  );
+    returned = rows(
     Array.from({ length: 25 }, (_, i) => i),
     0,
   );
