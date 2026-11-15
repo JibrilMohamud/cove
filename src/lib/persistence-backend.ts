@@ -98,6 +98,12 @@ function gatewayHeaders(request: Request, env: PersistenceEnv, target: URL) {
     "x-cove-client-country",
     "x-cove-client-ip",
     "x-cove-backend-host",
+    // Cloudflare explicitly allows external callers to override Worker
+    // version selection, including a version assigned 0% traffic. A public
+    // Vercel visitor must NEVER force an unapproved release or influence
+    // canary affinity across the authenticated persistence gateway.
+    "cloudflare-workers-version-overrides",
+    "cloudflare-workers-version-key",
     // Only a trusted platform may assert these identities. Never proxy
     // client-controlled headers into D1 account authorization.
     "oai-authenticated-user-id",
