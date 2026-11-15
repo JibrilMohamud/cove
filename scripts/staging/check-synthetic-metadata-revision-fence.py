@@ -120,6 +120,7 @@ changed(
 changed("DELETE FROM publishing_publication_versions WHERE id='version-1'")
 
 prior = revision()
+db.commit()
 db.execute("BEGIN")
 db.execute(
     "INSERT INTO publishing_publication_disclosures VALUES (?,?,?,?,?,?,?,?,?)",
