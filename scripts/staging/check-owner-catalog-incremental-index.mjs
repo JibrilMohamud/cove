@@ -1,0 +1,171 @@
+/* eslint-disable prettier/prettier -- Stage-only source-contract proof for real legal SQL modules. */
+import assert from 'node:assert/strict';
+import {DatabaseSync} from 'node:sqlite';
+import {build} from 'esbuild';
+import {mkdtempSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
+import {pathToFileURL} from 'node:url';
+
+const root=mkdtempSync(path.join(tmpdir(),'cove-stage-catalog-owner-index-'));
+const db=new DatabaseSync(':memory:');
+const sql={exec:(query,...args)=>{
+  const statement=db.prepare(query);
+  const rows=/^\s*(SELECT|WITH|PRAGMA)\b/i.test(query)?statement.all(...args):(statement.run(...args),[]);
+  return {toArray:()=>rows};
+}};
+const inTransaction=fn=>{db.exec('BEGIN IMMEDIATE');try{const x=fn();db.exec('COMMIT');return x;}catch(e){db.exec('ROLLBACK');throw e;}};
+try{
+  await build({entryPoints:{
+    free:'src/storefront-strangler/legal-authority-core.ts',
+    commercial:'src/storefront-strangler/commercial-legal-core.ts',
+    paid:'src/storefront-strangler/commercial-storefront-authority.ts',
+    market:'src/storefront-strangler/market-authority-core.ts',
+    catalog:'src/storefront-strangler/owner-catalog-authorized-set.stage.ts',
+    incremental:'src/storefront-strangler/owner-catalog-incremental-index.stage.ts',
+  },outdir:root,bundle:true,platform:'node',format:'esm',target:'node22',logLevel:'silent'});
+  const load=async name=>import(pathToFileURL(path.join(root,name+'.js')).href);
+  const free=await load('free'),commercial=await load('commercial');
+  const paid=await load('paid'),market=await load('market');
+  const stage=await load('catalog'),idx=await load('incremental');
+  free.createAuthoritySchema(sql);free.createAuthorityProofSchema(sql);
+  commercial.createCommercialAuthoritySchema(sql);
+  paid.createCommercialStorefrontSchema(sql);market.createMarketAuthoritySchema(sql);
+  stage.createStageOwnerCatalogSchema(sql);
+  stage.createStageOwnerCatalogSnapshotSchema(sql);
+  idx.createStageOwnerIncrementalIndex(sql);
+  assert.doesNotMatch(stage.STAGE_OWNER_CATALOG_SQL,/retail_product_availability_rows|PRIMARY_DB|FROM offers|FROM rights_grants/);
+  const scope={territory:'US',currency:'USD',page:1,limit:24,sort:'rank'};
+  const freeIds=Array.from({length:12},(_,i)=>'prd_gutenberg_'+(900000001+i));
+  const paidIds=Array.from({length:13},(_,i)=>'prd_stage_owner_'+String(i+1).padStart(3,'0'));
+  const all=[...freeIds,...paidIds];
+  inTransaction(()=>{
+    for(const [i,id] of all.entries()){
+      stage.stageStorePresentation(sql,{
+        productId:id,title:'Fake catalog '+i,format:i%3===0?'ebook':'audio',
+        publisher:i%2===0?'Stage Publishing A':'Stage Publishing B',rank:1000-i,
+        categories:i<5?['Fiction','Classics']:['Fiction'],
+        languages:i%2===0?['en']:['fr'],series:i<2?['Stage Series']:[],
+      });
+    }
+    for(const id of freeIds){
+      const sourceId=id.slice('prd_gutenberg_'.length);
+      const command={sourceId,territory:'US',revision:1,action:'allow'};
+      assert.equal(free.applyAuthorityCommand(sql,command).applied,true);
+      free.storeAuthorizedPresentationProof(sql,command,'USD',{
+        productId:id,editionId:'ed_gutenberg_'+sourceId,
+        productPublicId:null,editionPublicId:null,
+        offerJson:JSON.stringify({type:'public-domain',currency:'USD',amountMinor:0}),
+      });
+    }
+    for(const [i,id] of paidIds.entries()){
+      const suffix=String(i+1).padStart(3,'0');
+      const proof={productId:id,editionId:'ed_stage_owner_'+suffix,
+        territory:'US',channel:'retail',grantId:'grant_stage_owner_'+suffix,
+        contractId:'contract_stage_owner_'+suffix,
+        contractVersionId:'version_stage_owner_'+suffix,
+        validUntil:new Date(Date.now()+4*60_000).toISOString()};
+      const receipt=commercial.publishFreshCommercialProof(sql,proof,0);
+      assert.equal(receipt.applied,true);assert.equal(receipt.epoch,1);
+      paid.publishCommercialStorefront(sql,{
+        product_id:id,edition_id:proof.editionId,
+        product_public_id:null,edition_public_id:null,territory:'US',currency:'USD',
+        rights_epoch:1,grant_id:proof.grantId,contract_id:proof.contractId,
+        contract_version_id:proof.contractVersionId,
+        offer_json:JSON.stringify({type:'retail',currency:'USD',amountMinor:599}),
+        valid_until:proof.validUntil,
+      });
+    }
+  });
+  const direct=stage.stageOwnerCatalogRead(sql,scope);
+  assert.equal(direct.count,25);
+  assert.deepEqual(direct.pageIds,all.slice(0,24));
+  assert.equal(direct.facets.price?.min,0);
+  assert.equal(direct.facets.price?.max,599);
+  assert.deepEqual(direct.facets.categories,[
+    {value:'Fiction',count:25},{value:'Classics',count:5},
+  ]);
+  assert.equal(direct.facets.availability[0].count,25);
+  assert.equal(stage.stageOwnerCatalogRead(sql,{...scope,page:2,limit:10}).pageIds.length,10);
+  assert.equal(stage.stageOwnerCatalogRead(sql,{...scope,page:3,limit:10}).pageIds.length,5);
+  assert.deepEqual(free.readAuthorizedPresentations(sql,freeIds,'US','USD').map(x=>x.product_id),freeIds);
+  assert.deepEqual(paid.readCommercialStorefront(sql,paidIds,'US','USD').map(x=>x.product_id),paidIds);
+
+  assert.throws(()=>stage.readStageOwnerCatalogSnapshot(sql,scope),/unavailable_or_revoked/);
+  inTransaction(()=>stage.rebuildStageOwnerCatalogSnapshot(sql));
+  inTransaction(()=>idx.bootstrapStageOwnerIndex(sql));
+  const firstIndexed=idx.readStageOwnerIncrementalIndex(sql,scope);
+  assert.deepEqual(firstIndexed,direct,'Indexed 25-book exact page/count/facets parity');
+  assert.equal(idx.readStageOwnerIncrementalIndex(sql,{...scope,page:2,limit:10}).pageIds.length,10);
+  assert.equal(idx.readStageOwnerIncrementalIndex(sql,{...scope,page:3,limit:10}).pageIds.length,5);
+  const cached=stage.readStageOwnerCatalogSnapshot(sql,scope);
+  assert.deepEqual(cached,direct);
+  assert.equal(cached.releaseCertified,false);
+  // Hot read must be a one-row owner-generation lookup, not a legal-view scan.
+  const hotPlan=db.prepare(`EXPLAIN QUERY PLAN SELECT s.body FROM cove_stage_catalog_snapshot s
+    JOIN cove_stage_catalog_generation g ON g.id=1
+    WHERE s.territory=? AND s.currency=? AND s.generation=g.generation
+      AND s.expires_at>?`).all('US','USD',new Date().toISOString());
+  assert.ok(hotPlan.some(p=>String(p.detail).includes('PRIMARY KEY')));
+  for(let i=0;i<250;i++){
+    assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,25);
+    assert.equal(idx.readStageOwnerIncrementalIndex(sql,scope).count,25);
+  }
+
+  // Fresh unverified presentation rows never become rights grants.
+  inTransaction(()=>stage.stageStorePresentation(sql,{productId:'prd_gutenberg_999999999',
+    title:'Unauthorized display only',format:'ebook',publisher:'Unknown',rank:9999,
+    categories:['Fiction'],languages:['en'],series:[]}));
+  assert.throws(()=>stage.readStageOwnerCatalogSnapshot(sql,scope),/unavailable_or_revoked/,
+    'Unreviewed metadata mutation invalidates every cached positive');
+  assert.equal(stage.stageOwnerCatalogRead(sql,scope).count,25);
+  assert.throws(()=>idx.readStageOwnerIncrementalIndex(sql,scope),/dirty_unreconciled/,
+    'Unreviewed metadata must invalidate index before authorization is confirmed');
+  inTransaction(()=>{idx.reconcileStageOwnerDirty(sql);stage.rebuildStageOwnerCatalogSnapshot(sql);});
+  assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope),stage.stageOwnerCatalogRead(sql,scope));
+  assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,25);
+
+  inTransaction(()=>{
+    const receipt=commercial.denyCommercialSubject(sql,{
+      subjectKind:'contract',subjectId:'contract_stage_owner_001',
+      operationId:'stage:catalog:contract-deny:1'});
+    assert.equal(receipt.applied,true);
+    idx.reconcileStageOwnerDirty(sql);
+    stage.rebuildStageOwnerCatalogSnapshot(sql);
+  });
+  assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope),stage.stageOwnerCatalogRead(sql,scope));
+  assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,24);
+  assert.ok(!stage.readStageOwnerCatalogSnapshot(sql,scope).pageIds.includes(paidIds[0]));
+  assert.equal(paid.readCommercialStorefront(sql,paidIds,'US','USD').length,12);
+
+  inTransaction(()=>{
+    assert.equal(free.applyAuthorityCommand(sql,{
+      sourceId:freeIds[0].slice('prd_gutenberg_'.length),territory:'*',revision:2,action:'deny',
+    }).applied,true);
+    idx.reconcileStageOwnerDirty(sql);
+    stage.rebuildStageOwnerCatalogSnapshot(sql);
+  });
+  assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope),stage.stageOwnerCatalogRead(sql,scope));
+  assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,23);
+  assert.equal(free.readAuthorizedPresentations(sql,freeIds,'US','USD').length,11);
+
+  inTransaction(()=>{
+    market.denyMarket(sql,{territory:'US',operationId:'stage:catalog:market-deny:1'});
+    stage.rebuildStageOwnerCatalogSnapshot(sql);
+  });
+  assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,0);
+  assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope),stage.stageOwnerCatalogRead(sql,scope));
+  assert.deepEqual(stage.readStageOwnerCatalogSnapshot(sql,scope).pageIds,[]);
+  assert.deepEqual(stage.readStageOwnerCatalogSnapshot(sql,scope).facets.availability,[]);
+  for(const invalid of [
+    {...scope,page:2},{...scope,limit:10},{...scope,query:'war'},
+    {...scope,sort:'popular'},{...scope,territory:'GB'},
+    {...scope,filter:'category'},
+  ]) assert.throws(()=>stage.readStageOwnerCatalogSnapshot(sql,invalid),/unreviewed_scope/);
+  assert.throws(()=>stage.stageOwnerCatalogRead(sql,{...scope,query:'war'}),/unsupported_scope/);
+  for(const bad of [{...scope,query:'War'},{...scope,sort:'popular'},{...scope,filter:'category'}])
+    assert.throws(()=>idx.readStageOwnerIncrementalIndex(sql,bad),/unreviewed_scope/);
+  console.log('PASS: owner-index exact default count/facets/page 25/24/23/0; 250 indexed hot reads, source/contract/market denial, dirty fail-close, disallowed scopes rejected');
+}finally{
+  db.close();rmSync(root,{recursive:true,force:true});
+}
