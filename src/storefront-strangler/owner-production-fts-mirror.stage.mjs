@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Isolated stage-only SQL contract fixture; mirrors existing owner-stage source conventions. */
 /**
  * ISOLATED staging mirror of production FTS5 textual contract. NEVER a rights source.
  * Product authorization comes only from the existing strongly consistent owner index.
