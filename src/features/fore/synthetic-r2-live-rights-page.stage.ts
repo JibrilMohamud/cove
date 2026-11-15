@@ -1,9 +1,5 @@
 import type { CatalogBook } from "./client";
-import {
-  authorizeStorefrontPresentationIds,
-  type CatalogDB,
-  type PrimaryStorefrontAuthorityRow,
-} from "./catalog-model.server";
+import { type CatalogDB, type PrimaryStorefrontAuthorityRow } from "./catalog-model.server";
 import type { PresentationR2Bucket } from "./search-presentation-r2.server";
 
 /**
@@ -320,6 +316,74 @@ function currentOffer(row: PrimaryStorefrontAuthorityRow): CatalogBook["offer"] 
   }
 }
 
+/**
+ * Synthetic-only live retail SELECT. The former prototype selected 25
+ * territorial candidates BEFORE checking current offers. If one of those
+ * candidates lost its offer, it returned a 503 instead of using candidate 26.
+ *
+ * Include the offer's current active USD retail state INSIDE the primary-D1
+ * candidate selection; retain one current-statement snapshot for ordering and
+ * pricing. R2 supplies neither eligibility nor price. No production handler
+ * calls this function.
+ */
+export async function authorizeOfferBearingSyntheticPage(
+  db: CatalogDB,
+  ids: string[],
+): Promise<PrimaryStorefrontAuthorityRow[]> {
+  if (
+    ids.length !== ITEM_COUNT ||
+    ids.some((id) => !identifier(id)) ||
+    new Set(ids).size !== ids.length
+  )
+    throw new Error("Invalid synthetic retail candidates");
+  const result = await db
+    .prepare(
+      `WITH market(currency) AS MATERIALIZED (
+        SELECT COALESCE(
+          (SELECT default_currency FROM storefront_markets
+           WHERE country_code=? AND market_status='active'),
+          (SELECT default_currency FROM storefront_markets
+           WHERE country_code='US' AND market_status='active'))
+      ), candidates AS MATERIALIZED (
+        SELECT value product_id,CAST(key AS INTEGER) position FROM json_each(?)
+      ), authorized AS MATERIALIZED (
+        SELECT p.id product_id,p.public_id product_public_id,p.edition_id,
+          e.public_id edition_public_id,c.position,d.currency
+        FROM candidates c CROSS JOIN products p ON p.id=c.product_id
+        JOIN editions e ON e.id=p.edition_id
+        JOIN catalog_search_documents d ON d.product_id=p.id
+        WHERE p.storefront_status='active' AND p.source_name<>'upload'
+          AND e.release_status IN ('available','preorder')
+          AND d.suppressed=0 AND d.availability='available'
+          AND d.currency=? AND ?=(SELECT currency FROM market)
+          AND EXISTS (SELECT 1 FROM retail_product_availability_rows rpa
+            WHERE rpa.product_id=p.id AND rpa.territory_code=?)
+          AND EXISTS (SELECT 1 FROM offers offer_exists
+            WHERE offer_exists.product_id=p.id
+              AND offer_exists.sales_channel='retail'
+              AND offer_exists.currency=d.currency
+              AND offer_exists.active=1
+              AND (offer_exists.starts_at IS NULL
+                OR offer_exists.starts_at<=datetime('now'))
+              AND (offer_exists.ends_at IS NULL
+                OR offer_exists.ends_at>datetime('now')))
+        ORDER BY c.position LIMIT 25
+      )
+      SELECT a.product_id,a.product_public_id,a.edition_id,a.edition_public_id,
+        (SELECT json_object('type',o.offer_type,'currency',o.currency,
+          'amountMinor',o.amount_minor)
+         FROM offers o WHERE o.product_id=a.product_id
+           AND o.sales_channel='retail' AND o.currency=a.currency AND o.active=1
+           AND (o.starts_at IS NULL OR o.starts_at<=datetime('now'))
+           AND (o.ends_at IS NULL OR o.ends_at>datetime('now'))
+         ORDER BY o.created_at DESC LIMIT 1) offer_json
+      FROM authorized a ORDER BY a.position`,
+    )
+    .bind("US", JSON.stringify(ids), "USD", "USD", "US")
+    .all<PrimaryStorefrontAuthorityRow>();
+  return result.results;
+}
+
 export async function syntheticR2PageWithLiveRights(
   request: Request,
   env: SyntheticRightsPresentationEnv,
@@ -342,11 +406,9 @@ export async function syntheticR2PageWithLiveRights(
 
   // D1 exceptions deliberately propagate: a primary outage cannot be rescued
   // by presentation content, and cannot ever be considered authorization.
-  const current = await authorizeStorefrontPresentationIds(
+  const current = await authorizeOfferBearingSyntheticPage(
     env.DB,
     snapshot.items.map((item) => item.productId),
-    "US",
-    "USD",
   );
   if (
     current.length !== PAGE_COUNT + 1 ||
