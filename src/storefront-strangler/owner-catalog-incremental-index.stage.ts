@@ -18,7 +18,7 @@ import {readAuthorizedPresentations} from './legal-authority-core';
 import {readCommercialStorefront} from './commercial-storefront-authority';
 import {marketIsWithdrawn} from './market-authority-core';
 import {createStageOwnerFtsSchema,sealStageOwnerFts,assertStageOwnerFtsReady,
-  stageOwnerLiteralFtsExpression} from './owner-catalog-fts.stage';
+  stageOwnerLiteralFtsExpression,stageOwnerFtsPreferMatchesFirst} from './owner-catalog-fts.stage';
 
 const GOOD_ID=/^prd_[a-zA-Z0-9_-]{3,120}$/;
 const DEFAULT={territory:'US',currency:'USD',sort:'rank'} as const;
@@ -386,11 +386,12 @@ function validatedFilters(input:FilteredInput){
     input.minPrice>input.maxPrice)throw Error('stage_owner_filtered_inverted_price');
   return filters;
 }
-function scopedIndexWhere(input:FilteredInput,filters:Record<FilterField,string[]>,omit?:FilterField|'price'){
+function scopedIndexWhere(input:FilteredInput,filters:Record<FilterField,string[]>,
+  omit?:FilterField|'price',skipFts=false){
   const parts=['i.territory=?','i.currency=?'];
   const args:(string|number)[]=[input.territory,input.currency];
   const fts=stageOwnerLiteralFtsExpression(input.query);
-  if(fts){
+  if(fts&&!skipFts){
     parts.push(`i.product_id IN (SELECT product_id FROM cove_stage_owner_fts
       WHERE cove_stage_owner_fts MATCH ?)`);
     args.push(fts);
@@ -442,7 +443,23 @@ export function readStageOwnerFilteredIndex(sql:AuthoritySql,input:FilteredInput
   const count=sql.exec<{total:number}>(`SELECT COUNT(*) total FROM
     cove_stage_owner_index_items i WHERE ${where.clause}`,...where.args).toArray()[0]?.total;
   if(!Number.isSafeInteger(count))throw Error('stage_owner_filtered_invalid_count');
-  const pageIds=sql.exec<{product_id:string}>(`SELECT i.product_id FROM
+  // FTS5 inverted-list cardinality, not total product count, chooses the
+  // plan. A narrow match MUST lead the join: SQLite can otherwise iterate
+  // thousands of ranked rows to find one matching document. CROSS JOIN
+  // fixes the order; rank-index-first remains faster for broad keywords.
+  const matchFirst=!!ftsExpression && stageOwnerFtsPreferMatchesFirst(sql,ftsExpression);
+  const pageIds=matchFirst?(()=>{
+    const narrowed=scopedIndexWhere(input,filters,undefined,true);
+    return sql.exec<{product_id:string}>(`WITH matched AS MATERIALIZED (
+      SELECT product_id FROM cove_stage_owner_fts
+      WHERE cove_stage_owner_fts MATCH ?
+    ) SELECT i.product_id FROM matched m
+      CROSS JOIN cove_stage_owner_index_items i
+      WHERE i.product_id=m.product_id AND ${narrowed.clause}
+      ORDER BY i.rank_score DESC,i.product_id ASC LIMIT ? OFFSET ?`,
+      ftsExpression,...narrowed.args,input.limit,(input.page-1)*input.limit)
+      .toArray().map(x=>x.product_id);
+  })():sql.exec<{product_id:string}>(`SELECT i.product_id FROM
     cove_stage_owner_index_items i WHERE ${where.clause}
     ORDER BY i.rank_score DESC,i.product_id ASC LIMIT ? OFFSET ?`,
     ...where.args,input.limit,(input.page-1)*input.limit).toArray().map(x=>x.product_id);
