@@ -375,9 +375,7 @@ export function buildSyntheticDisplayObject(books: CatalogBook[], now = Date.now
       ...(book.formatProfile !== undefined ? { formatProfile: book.formatProfile } : {}),
       ...(book.sourceProject !== undefined ? { sourceProject: book.sourceProject } : {}),
       ...(book.sourceUrl !== undefined ? { sourceUrl: book.sourceUrl } : {}),
-      ...(book.sourceLicenseUrl !== undefined
-        ? { sourceLicenseUrl: book.sourceLicenseUrl }
-        : {}),
+      ...(book.sourceLicenseUrl !== undefined ? { sourceLicenseUrl: book.sourceLicenseUrl } : {}),
       ...(book.aiDisclosure !== undefined ? { aiDisclosure: book.aiDisclosure } : {}),
     };
   });
