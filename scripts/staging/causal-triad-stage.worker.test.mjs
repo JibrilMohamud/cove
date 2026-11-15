@@ -56,12 +56,14 @@ const env = {
           assert.deepEqual(args, ["page-synth-000001"]);
           return {
             all: async () => ({
-              results: [{
-                page_id: "page-synth-000001",
-                candidate_count: 25,
-                rank_digest: "c".repeat(64),
-                current_offer_digest: "d".repeat(64),
-              }],
+              results: [
+                {
+                  page_id: "page-synth-000001",
+                  candidate_count: 25,
+                  rank_digest: "c".repeat(64),
+                  current_offer_digest: "d".repeat(64),
+                },
+              ],
               meta: { duration: 0.17, rows_read: 1 },
             }),
           };

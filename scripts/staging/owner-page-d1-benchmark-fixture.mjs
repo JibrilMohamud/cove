@@ -73,9 +73,7 @@ async function install() {
   ) WITHOUT ROWID`);
   // If prior interrupted run left only this synthetic table, fully reset it.
   await query(`DELETE FROM ${TABLE}`);
-  const products = await query(
-    "SELECT COUNT(*) n FROM products WHERE id LIKE 'perf-synth-%'",
-  );
+  const products = await query("SELECT COUNT(*) n FROM products WHERE id LIKE 'perf-synth-%'");
   assert.equal(products.results?.[0]?.n, COUNT, "Exact synthetic product corpus required");
   const seeded = await query(
     `INSERT INTO ${TABLE}
@@ -109,5 +107,7 @@ if (args.length !== 1 || !["--install", "--verify", "--destroy"].includes(args[0
   throw Error("Explicit isolated --install, --verify, or --destroy only");
 if (args[0] === "--install") await install();
 else if (args[0] === "--verify") {
-  console.log(JSON.stringify({ event: "cove_stage_page_witness_bench_verified", ...(await verify()) }));
+  console.log(
+    JSON.stringify({ event: "cove_stage_page_witness_bench_verified", ...(await verify()) }),
+  );
 } else await destroy();
