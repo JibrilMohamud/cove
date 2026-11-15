@@ -1,0 +1,118 @@
+{
+  "schema": "cove.synthetic-canonical-public-r2-parity.v1",
+  "asOfUtc": "2026-11-15",
+  "sourceCommit": "8c15805663d2f4b2e1f282fe7a8579c74c2f4acf",
+  "branch": "perf/stage-r2-display-current-rights-20261115",
+  "releaseCertified": false,
+  "productionModified": false,
+  "contract": {
+    "canonicalCatalogBookTopLevelFields": 59,
+    "stagedReturnedTopLevelFields": 48,
+    "missingTopLevelFields": [
+      "externalIdentifiers",
+      "sourceProject",
+      "sourceUrl",
+      "sourceLicenseUrl",
+      "fileSizeBytes",
+      "epubVersion",
+      "layout",
+      "readingAvailability",
+      "accessibility",
+      "formatProfile",
+      "aiDisclosure"
+    ],
+    "canonicalCatalogEnvelopeFieldCount": 9,
+    "stagedEnvelopeComplete": false,
+    "meaning": "Field presence is NOT semantic parity or legal/access certification."
+  },
+  "r2Scope": {
+    "seedMethod": "One explicit private synthetic staging seed uses canonicalBooksByProductIds for exact 96 ranked book identities; not per-request hydration.",
+    "includes": [
+      "public contributors and author identities",
+      "public titles and summaries",
+      "subjects and shelves",
+      "publisher and imprint metadata",
+      "series metadata",
+      "publication/reading estimates",
+      "public cover image URL if safely allowlisted"
+    ],
+    "excludes": [
+      "retail offers or prices",
+      "territorial entitlement or license grants",
+      "rights owner state",
+      "DRM",
+      "protected EPUB object keys or source URLs",
+      "library/account state",
+      "subscription access",
+      "raw payment credentials"
+    ],
+    "snapshotTtlSeconds": 120,
+    "seedDataset": "isolated synthetic D1",
+    "productRightsGate": "fresh primary-D1 market+territory+edition+offer+release and flags per request",
+    "rankingCandidatesCached": 96,
+    "d1FastCandidates": 32,
+    "d1FallbackCandidates": 96,
+    "fallbackUsesFreshSnapshot": true,
+    "cacheMayNotGrantRights": true
+  },
+  "tests": [
+    {
+      "workflowUrl": "https://github.com/JibrilMohamud/cove/actions/runs/43676552998",
+      "sourceCommit": "b02db6179315b9ab5b3c0c314df502b83252a8e1",
+      "phase1": {
+        "offered": 2000,
+        "valid": 2000,
+        "failures": 0,
+        "dropped": 0,
+        "ttfbP95Ms": 217.36,
+        "ttfbP99Ms": 302.83,
+        "ttfbMaxMs": 424.22
+      },
+      "phase2": {
+        "offered": 2000,
+        "valid": 2000,
+        "failures": 0,
+        "dropped": 0,
+        "ttfbP95Ms": 227.96,
+        "ttfbP99Ms": 302.82,
+        "ttfbMaxMs": 401.87
+      },
+      "workersRestored": true,
+      "fullTypecheckAtThisCommit": false
+    },
+    {
+      "workflowUrl": "https://github.com/JibrilMohamud/cove/actions/runs/43676636001",
+      "sourceCommit": "8c15805663d2f4b2e1f282fe7a8579c74c2f4acf",
+      "phase1": {
+        "offered": 2000,
+        "valid": 2000,
+        "failures": 0,
+        "dropped": 0,
+        "ttfbP95Ms": 203.69,
+        "ttfbP99Ms": 277.24,
+        "ttfbMaxMs": 650.43
+      },
+      "phase2": {
+        "offered": 2000,
+        "valid": 2000,
+        "failures": 0,
+        "dropped": 0,
+        "ttfbP95Ms": 203.73,
+        "ttfbP99Ms": 251.95,
+        "ttfbMaxMs": 478.46
+      },
+      "workersRestored": true,
+      "unitAndBackendBuild": true,
+      "isolatedDataPlaneTypecheck": true
+    }
+  ],
+  "independentNoDatabaseControl": "Included in hosted campaign; not equivalent to production SSR",
+  "legalOwnerEnabledForProduction": false,
+  "reviewNotes": [
+    "Canonical author placeholders removed from R2 seed; staging fixture may contain zero real contributors, correctly represented as []",
+    "Public metadata remains bounded and strict allowlist-validated; malformed or stale snapshots deny response",
+    "Immediate product/edition/offer withdrawal and correct pricing require fresh D1; no R2 positive rights",
+    "Reading availability and other 10 omitted fields require a further isolated phase, not invented defaults",
+    "Production catalog 503, geographic cold/warm, customer-facing complete catalog 100RPS, owner exclusivity, LIVE commerce, rollback remain BLOCKED"
+  ]
+}
