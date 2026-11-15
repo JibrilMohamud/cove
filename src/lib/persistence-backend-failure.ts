@@ -25,13 +25,7 @@ export function backendFailurePhase(headers: Headers): "post-context" | "pre-con
 
 /** An enum of failed timed stages, never an upstream exception message. */
 export type BackendFailureStage =
-  | "context"
-  | "catalog"
-  | "markets"
-  | "limit"
-  | "page"
-  | "multiple"
-  | "unknown";
+  "context" | "catalog" | "markets" | "limit" | "page" | "multiple" | "unknown";
 
 export function backendFailureStage(headers: Headers): BackendFailureStage {
   if (backendFailureSource(headers) !== "worker-api") return "unknown";
