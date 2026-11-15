@@ -1,3 +1,8 @@
+import {
+  CURRENT_RIGHTS_OFFER_SQL,
+  validateCurrentRightsOfferWitness,
+} from "./primary-rights-offer-projection.mjs";
+
 // Diagnostic-only, non-public stage Worker. Never bind production D1.
 // All controls share one caller, schedule, region and synthetic identity distribution.
 // In deployed use BACKEND and GATE are inherited from the existing private stage driver.
@@ -12,7 +17,7 @@ const SINGLE_AUTHORITY_URL =
   "https://cove-presentation-r2-proof-20261114.cove-jibrilmohamud.workers.dev/api/fore/__perf/private-authority";
 // The original four-path campaign remains unchanged; single is a separate
 // opt-in differential capacity proof, never a storefront certification.
-const MODES = ["noop", "context", "rights", "catalog", "single"];
+const MODES = ["noop", "context", "rights", "rights-offer", "catalog", "single"];
 const RIGHTS_SQL = `WITH ranked AS MATERIALIZED (
  SELECT d.product_id,d.fore_bestseller_score sort_score,d.external_book_id sort_source
  FROM catalog_search_documents d INDEXED BY idx_search_popular_stable
@@ -108,6 +113,24 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
   const started = performance.now();
   try {
     if (mode === "noop") return { status: 200, valid: true, ms: performance.now() - started };
+    if (mode === "rights-offer") {
+      // The same primary-D1 snapshot must verify current deny-first grants,
+      // active market/currency AND current retail offers. No cached UI fields.
+      const result = await env.DB.prepare(CURRENT_RIGHTS_OFFER_SQL)
+        .bind("available", "US", "USD", "US", "USD", 25)
+        .all();
+      const projection = validateCurrentRightsOfferWitness(result.results || [], 24, "USD");
+      const sqlMs = Number(result.meta?.duration);
+      const ms = performance.now() - started;
+      return {
+        status: 200,
+        valid: projection !== null && projection.length === 24,
+        ms,
+        sqlMs: Number.isFinite(sqlMs) ? sqlMs : null,
+        outsideSqlMs: Number.isFinite(sqlMs) && sqlMs <= ms ? ms - sqlMs : null,
+        errorKind: projection ? null : "invalid-current-rights-or-offer-proof",
+      };
+    }
     if (mode === "rights") {
       const result = await env.DB.prepare(RIGHTS_SQL).bind("available", "US", "USD", 25).all();
       const ids = (result.results || []).map((r) => r.product_id);
