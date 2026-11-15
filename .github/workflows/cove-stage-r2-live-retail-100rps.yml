@@ -1,0 +1,73 @@
+name: cove-stage-r2-current-retail-100rps
+on:
+  push:
+    branches: [perf/stage-r2-display-current-rights-20261115]
+    paths:
+      - src/features/fore/synthetic-r2-live-rights-page.stage.ts
+      - src/persistence-backend-entry.worker.ts
+      - scripts/staging/causal-triad-stage.worker.mjs
+      - scripts/staging/private-causal-triad.worker.mjs
+      - scripts/staging/run-private-causal-triad.mjs
+      - scripts/staging/run-r2-live-retail-campaign.mjs
+      - scripts/staging/synthetic-retail-offers-20261115.sql
+      - scripts/staging/check-synthetic-r2-live-rights-page.mjs
+      - scripts/staging/private-causal-triad.worker.test.mjs
+      - scripts/staging/causal-triad-stage.worker.test.mjs
+      - .github/workflows/cove-stage-r2-live-retail-100rps.yml
+permissions:
+  contents: read
+concurrency:
+  group: cove-isolated-causal-catalog-stage-driver
+  cancel-in-progress: false
+jobs:
+  genuine-current-offer-probe:
+    if: github.repository == 'JibrilMohamud/cove'
+    runs-on: ubuntu-latest
+    timeout-minutes: 27
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      COVE_ALLOW_SAFE_RESTORE: "1"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Deny nonfixture rights, cached offers, unsafe synthetic presentation and new direct SQL writers
+        run: |
+          node scripts/staging/check-synthetic-r2-live-rights-page.mjs
+          node scripts/reconcile-canonical-writers.mjs
+          node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/2026-11-15-context-r2-live-market-source-attestation.json
+      - name: Validate restricted private driver and exact stage orchestrator syntax
+        run: |
+          node --test scripts/staging/private-causal-triad.worker.test.mjs
+          node scripts/staging/causal-triad-stage.worker.test.mjs
+          node --check scripts/staging/run-private-causal-triad.mjs
+          node --check scripts/staging/run-r2-live-retail-campaign.mjs
+          npx prettier --check scripts/staging/causal-triad-stage.worker.mjs scripts/staging/private-causal-triad.worker.mjs scripts/staging/run-private-causal-triad.mjs scripts/staging/run-r2-live-retail-campaign.mjs scripts/staging/causal-triad-stage.worker.test.mjs
+      - name: Build production-shaped backend with stage flags absent
+        run: npm run build:backend
+      - name: Require protected staging deployment token
+        run: test -n "$CLOUDFLARE_API_TOKEN"
+      - name: Private synthetic R2/live-retail 1-32 bursts, 50-RPS and two 100-RPS phases
+        run: node scripts/staging/run-r2-live-retail-campaign.mjs
+      - name: Restore pinned original candidate even if synthetic tests fail
+        if: always()
+        run: node scripts/staging/run-r2-live-retail-campaign.mjs --restore-only
+      - name: Restore pinned original private driver even if synthetic tests fail
+        if: always()
+        run: node scripts/staging/run-private-causal-triad.mjs --restore-only
+      - name: Archive count, tail, failure classification and rollback proof
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cove-synthetic-r2-live-retail-${{ github.run_id }}
+          path: |
+            artifacts/public-context-r2-ab/
+            artifacts/causal-triad-stage/
+          if-no-files-found: ignore
+          retention-days: 14
