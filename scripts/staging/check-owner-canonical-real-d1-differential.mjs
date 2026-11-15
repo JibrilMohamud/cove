@@ -90,17 +90,19 @@ try {
   // Systematically include ranked display candidates and nontrivial rights:
   // deny grants, contract-bound grants, or nontrivial DRM requirements.
   const ranked = await readOnlySql(
-    "SELECT product_id FROM catalog_search_documents ORDER BY fore_bestseller_score DESC,external_book_id ASC,product_id ASC LIMIT 24",
+    "SELECT product_id FROM catalog_search_documents WHERE product_id LIKE 'perf-synth-%' ORDER BY fore_bestseller_score DESC,external_book_id ASC,product_id ASC LIMIT 24",
   );
   const complex = await readOnlySql(
     `SELECT DISTINCT p.id product_id FROM products p
      JOIN rights_grants rg ON rg.edition_id=p.edition_id
-     WHERE rg.contract_id IS NOT NULL OR rg.decision='deny'
-       OR lower(rg.drm_requirement) NOT IN ('none','optional','any','')
+     WHERE p.id LIKE 'perf-synth-%'
+       AND (rg.contract_id IS NOT NULL OR rg.decision='deny'
+       OR lower(rg.drm_requirement) NOT IN ('none','optional','any',''))
      ORDER BY p.id LIMIT 24`,
   );
   const ids = [...new Set([...ranked, ...complex].map((x) => String(x.product_id)))].slice(0, BUDGET);
-  if (ids.length < 12) throw new Error("Staging corpus too small for rights differential proof");
+  if (ids.length < 12 || ids.some((id) => !/^perf-synth-[A-Za-z0-9_-]{1,120}$/.test(id)))
+    throw new Error("Only isolated synthetic product IDs may be evaluated");
   const now = new Date().toISOString();
   const reasons = Object.create(null);
   const category = (v) => {
