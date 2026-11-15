@@ -1,0 +1,30 @@
+name: cove-synthetic-context-r2-source-formatter
+on:
+  push:
+    branches: [perf/stage-context-r2-live-market-fence-20261115]
+    paths: [.github/workflows/cove-stage-context-format-export.yml]
+permissions: { contents: read }
+jobs:
+  exact-format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci
+      - name: Format modified stage experiment only and print isolated patch
+        run: |
+          npx prettier --write src/features/fore/api.server.ts src/features/fore/search.server.ts src/features/fore/synthetic-public-context-r2.stage.ts scripts/staging/check-synthetic-public-context-r2.mjs
+          node --input-type=module - <<'NODE'
+          import { execFileSync } from "node:child_process";
+          const files = [
+            "src/features/fore/api.server.ts",
+            "src/features/fore/search.server.ts",
+            "src/features/fore/synthetic-public-context-r2.stage.ts",
+            "scripts/staging/check-synthetic-public-context-r2.mjs",
+          ];
+          const diff = execFileSync("git", ["diff", "--", ...files], { encoding: "utf8" });
+          console.log("__COVE_STAGE_CONTEXT_FORMAT_START__" + Buffer.from(diff).toString("base64") + "__COVE_STAGE_CONTEXT_FORMAT_END__");
+          NODE
