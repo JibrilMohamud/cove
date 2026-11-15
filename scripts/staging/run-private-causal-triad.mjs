@@ -46,8 +46,16 @@ async function api(path, { method = "GET", body } = {}) {
   });
   const json = await res.json();
   if (!res.ok || !json.success)
-    throw new Error("Cloudflare " + method + " " + path.split("?")[0] + " failed HTTP " + res.status +
-      ": " + (json.errors || []).map((e) => e.code).join(","));
+    throw new Error(
+      "Cloudflare " +
+        method +
+        " " +
+        path.split("?")[0] +
+        " failed HTTP " +
+        res.status +
+        ": " +
+        (json.errors || []).map((e) => e.code).join(","),
+    );
   return json.result;
 }
 
@@ -58,9 +66,7 @@ async function scriptState() {
     api("/workers/scripts/" + SCRIPT + "/subdomain"),
   ]);
   const version = d.deployments?.[0]?.versions?.[0]?.version_id;
-  const details = version
-    ? await api("/workers/scripts/" + SCRIPT + "/versions/" + version)
-    : null;
+  const details = version ? await api("/workers/scripts/" + SCRIPT + "/versions/" + version) : null;
   return {
     version,
     bindings: details?.resources?.bindings || [],
@@ -103,7 +109,8 @@ async function rollbackIfDiagnostic() {
       strategy: "percentage",
       versions: [{ version_id: OLD_VERSION, percentage: 100 }],
       annotations: {
-        "workers/message": "Restore pinned original capacity driver after isolated synthetic performance test",
+        "workers/message":
+          "Restore pinned original capacity driver after isolated synthetic performance test",
       },
     }),
   });
@@ -155,7 +162,11 @@ async function deployPrivateStage(secret) {
   const data = new FormData();
   data.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
   for (const [filename, file] of modules)
-    data.append(filename, new Blob([readFileSync(file)], { type: "application/javascript+module" }), filename);
+    data.append(
+      filename,
+      new Blob([readFileSync(file)], { type: "application/javascript+module" }),
+      filename,
+    );
   const result = await api("/workers/scripts/" + SCRIPT + "?bindings_inherit=strict", {
     method: "PUT",
     body: data,
@@ -168,7 +179,9 @@ async function deployPrivateStage(secret) {
   const db = after.bindings.filter((x) => x.type === "d1");
   assert.equal(db.length, 1);
   assert.equal(db[0].database_id, DB);
-  assert.ok(after.bindings.some((x) => x.name === "COVE_TRIAD_PROBE_GATE" && x.type === "secret_text"));
+  assert.ok(
+    after.bindings.some((x) => x.name === "COVE_TRIAD_PROBE_GATE" && x.type === "secret_text"),
+  );
   assert.ok(after.bindings.some((x) => x.name === "CANDIDATE" && x.service === SERVICE));
   return { version: after.version, expiration, uploadSuccess: Boolean(result) };
 }
@@ -294,9 +307,7 @@ async function warmup(run, secret) {
   assert.equal(unauthorizedStatus, 404, "Private staging route did not propagate safely");
   // The rights-only experiment must never depend on a separately deployed
   // candidate endpoint. The same private driver verifies no-DB and live D1.
-  const warmModes = process.argv.includes("--rights-only-100rps")
-    ? ["noop", "rights"]
-    : MODES;
+  const warmModes = process.argv.includes("--rights-only-100rps") ? ["noop", "rights"] : MODES;
   for (const mode of warmModes) {
     let result;
     for (let retry = 0; retry < 5; retry++) {
@@ -304,13 +315,16 @@ async function warmup(run, secret) {
       if (result.valid) break;
       await sleep(1500);
     }
-    assert.equal(result.valid, true, "Failed stage single-path warmup for " + mode +
-      " (" + result.status + ")");
+    assert.equal(
+      result.valid,
+      true,
+      "Failed stage single-path warmup for " + mode + " (" + result.status + ")",
+    );
   }
 }
 
 async function campaign(secret) {
-  const run = randomUUID().replaceAll("-", "").slice(0,24);
+  const run = randomUUID().replaceAll("-", "").slice(0, 24);
   await warmup(run, secret);
   if (process.argv.includes("--rights-only-100rps")) {
     evidence.rightsOnlyCurrentD1 = true;
@@ -339,14 +353,7 @@ async function campaign(secret) {
       return;
     }
     for (let trial = 1; trial <= 2; trial++) {
-      const hundred = await phase(
-        "rights",
-        "100-rps-20s-phase-" + trial,
-        2000,
-        10,
-        run,
-        secret,
-      );
+      const hundred = await phase("rights", "100-rps-20s-phase-" + trial, 2000, 10, run, secret);
       evidence.rights100RpsPhases = trial;
       if (!meets(hundred, 2000)) {
         evidence.rights100RpsTwoPhasePassed = false;
@@ -374,14 +381,7 @@ async function campaign(secret) {
       return;
     }
     for (let trial = 1; trial <= 2; trial++) {
-      const hundred = await phase(
-        "single",
-        "100-rps-20s-phase-" + trial,
-        2000,
-        10,
-        run,
-        secret,
-      );
+      const hundred = await phase("single", "100-rps-20s-phase-" + trial, 2000, 10, run, secret);
       evidence.reference100RpsPhases = trial;
       if (!meets(hundred, 2000)) {
         evidence.reference100RpsTwoPhasePassed = false;
@@ -404,14 +404,18 @@ async function campaign(secret) {
     for (const mode of MODES.slice(count % 4).concat(MODES.slice(0, count % 4))) {
       const res = await phase(mode, "burst-" + count, count, 0, run, secret);
       if (res.failed >= STOP_AFTER_FAILURES)
-        throw new Error("Stage test failed; stop offering additional load at " + mode + "/" + count);
+        throw new Error(
+          "Stage test failed; stop offering additional load at " + mode + "/" + count,
+        );
     }
   }
   for (const rate of [10, 25]) {
     for (const mode of MODES) {
       const res = await phase(mode, rate + "-rps", rate * 2, 1000 / rate, run, secret);
       if (res.failed >= STOP_AFTER_FAILURES)
-        throw new Error("Scheduled stage test failed; stop before higher rate at " + mode + "/" + rate);
+        throw new Error(
+          "Scheduled stage test failed; stop before higher rate at " + mode + "/" + rate,
+        );
     }
   }
   for (const mode of MODES) {
@@ -433,7 +437,9 @@ async function campaign(secret) {
   evidence.sustained50Passed = meetsLatencyGate(sustained50, 1000);
   if (!evidence.sustained50Passed) {
     evidence.skipped100Rps = "sustained-50-rps-catalog-gate-failed";
-    throw new Error("20-second 50-RPS synthetic catalog tail or validity gate failed; do not offer 100 RPS");
+    throw new Error(
+      "20-second 50-RPS synthetic catalog tail or validity gate failed; do not offer 100 RPS",
+    );
   }
   for (let trial = 1; trial <= 2; trial++) {
     const result = await phase("catalog", "100-rps-20s-phase-" + trial, 2000, 10, run, secret);
@@ -453,7 +459,9 @@ function save() {
 
 async function main() {
   if (process.argv.includes("--restore-only")) {
-    console.log(JSON.stringify({ event: "cove_stage_restore", clean: await rollbackIfDiagnostic() }));
+    console.log(
+      JSON.stringify({ event: "cove_stage_restore", clean: await rollbackIfDiagnostic() }),
+    );
     return;
   }
   const secret = randomBytes(32).toString("hex");
@@ -467,7 +475,7 @@ async function main() {
     evidence.campaignCompleted = true;
   } catch (error) {
     evidence.campaignCompleted = false;
-    evidence.failure = (error instanceof Error ? error.message : "unknown").slice(0,240);
+    evidence.failure = (error instanceof Error ? error.message : "unknown").slice(0, 240);
     throw error;
   } finally {
     try {
@@ -490,6 +498,9 @@ async function main() {
 
 if (import.meta.url === new URL("file://" + process.argv[1]).href)
   main().catch((error) => {
-    console.error("Private staging control failed:", error instanceof Error ? error.message : "unknown");
+    console.error(
+      "Private staging control failed:",
+      error instanceof Error ? error.message : "unknown",
+    );
     process.exitCode = 1;
   });
