@@ -27,11 +27,14 @@ const EXPECTED_BINDINGS = [
   "FORE_SEARCH_BACKEND",
   "OPS_ANALYTICS",
 ].sort();
+const PAGE_TWO_MODE = process.argv.includes("--page-two-only");
 const EVIDENCE = {
   schema: "cove.synthetic-r2-display-current-retail-rights-100rps.v1",
   releaseCertified: false,
   productionModified: false,
-  sourceBranch: "perf/stage-source-attribution-fence-20261115",
+  sourceBranch: PAGE_TWO_MODE
+    ? "perf/stage-page2-hosted-capacity-20261115"
+    : "perf/stage-page2-live-rights-20261115",
   originalCandidateVersion: ORIGINAL,
   testedChange:
     "Synthetic-only full public book DTO from short-lived R2; live primary-D1 rights, offers, DRM and asset state + same-statement metadata generation fence; publication trigger coverage remains stage-only",
@@ -239,10 +242,11 @@ function loadEvidence() {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
-function runArm(name) {
+function runArm(name, candidateMode = "r2live") {
   const runner = "scripts/staging/run-private-causal-triad.mjs";
   const start = Date.now();
-  const result = spawnSync(process.execPath, [runner, "--r2-retail-100rps"], {
+  const flag = candidateMode === "r2page2" ? "--r2-page2-100rps" : "--r2-retail-100rps";
+  const result = spawnSync(process.execPath, [runner, flag], {
     cwd: ".",
     env: { ...process.env, COVE_ALLOW_SAFE_RESTORE: "1" },
     encoding: "utf8",
@@ -277,7 +281,7 @@ function runArm(name) {
     throw new Error("Stage driver failed before trustworthy evidence; cause=" + category);
   }
   assert.equal(raw.restoredOriginal, true, "Stage driver rollback must succeed");
-  const target = raw.results.find((r) => r.mode === "r2live" && r.shape === "50-rps-20s");
+  const target = raw.results.find((r) => r.mode === candidateMode && r.shape === "50-rps-20s");
   assert.ok(target, "The sustained 50-RPS phase did not execute in " + name);
   assert.equal(target.offered, 1000, "Exact offered workload required");
   assert.equal(target.dropped, 0, "No hidden generator drops allowed");
@@ -306,7 +310,7 @@ function runArm(name) {
     invalidUpstream200: target.invalidUpstream200 || 0,
   };
   concise.catalogPhases = raw.results
-    .filter((x) => x.mode === "r2live" && x.shape.includes("rps"))
+    .filter((x) => x.mode === candidateMode && x.shape.includes("rps"))
     .map((x) => ({
       shape: x.shape,
       offered: x.offered,
@@ -329,19 +333,33 @@ function runArm(name) {
     x.ttfbP95Ms < 600 &&
     x.ttfbP99Ms < 750 &&
     x.ttfbMaxMs < 800;
-  const fifty = raw.results.find((x) => x.mode === "r2live" && x.shape === "50-rps-20s");
-  const phase1 = raw.results.find((x) => x.mode === "r2live" && x.shape === "100-rps-20s-phase-1");
-  const phase2 = raw.results.find((x) => x.mode === "r2live" && x.shape === "100-rps-20s-phase-2");
-  concise.r2FullSyntheticTwoPhasePassed =
+  const fifty = raw.results.find((x) => x.mode === candidateMode && x.shape === "50-rps-20s");
+  const phase1 = raw.results.find(
+    (x) => x.mode === candidateMode && x.shape === "100-rps-20s-phase-1",
+  );
+  const phase2 = raw.results.find(
+    (x) => x.mode === candidateMode && x.shape === "100-rps-20s-phase-2",
+  );
+  const passed =
     result.status === 0 &&
     raw.restoredOriginal === true &&
-    raw.r2Retail100RpsPassed === true &&
+    (candidateMode === "r2page2" ? raw.r2Page2100RpsPassed : raw.r2Retail100RpsPassed) ===
+      true &&
     strict(fifty, 1000) &&
     strict(phase1, 2000) &&
     strict(phase2, 2000);
-  console.log(JSON.stringify({ event: "cove_r2_retail_current_rights_stage", ...concise }));
-  if (!concise.r2FullSyntheticTwoPhasePassed)
-    throw Error("R2 retail synthetic strict two-phase 100-RPS gate failed; do not release");
+  if (candidateMode === "r2page2") concise.r2Page2TwoPhasePassed = passed;
+  else concise.r2FullSyntheticTwoPhasePassed = passed;
+  console.log(
+    JSON.stringify({
+      event: candidateMode === "r2page2"
+        ? "cove_r2_page_two_current_rights_stage"
+        : "cove_r2_retail_current_rights_stage",
+      ...concise,
+    }),
+  );
+  if (!passed)
+    throw Error("Isolated R2 live retail strict two-phase 100-RPS gate failed; no release");
   return concise;
 }
 
@@ -368,9 +386,14 @@ async function main() {
     // Real production catalog/owner/payment paths are unchanged.
     await deployArm();
     armed = true;
-    EVIDENCE.r2 = runArm("r2-display-live-retail");
+    if (PAGE_TWO_MODE) {
+      EVIDENCE.page2 = runArm("r2-display-live-retail-page-two", "r2page2");
+      EVIDENCE.syntheticStrict100RpsPassed = EVIDENCE.page2.r2Page2TwoPhasePassed;
+    } else {
+      EVIDENCE.r2 = runArm("r2-display-live-retail");
+      EVIDENCE.syntheticStrict100RpsPassed = EVIDENCE.r2.r2FullSyntheticTwoPhasePassed;
+    }
     EVIDENCE.completed = true;
-    EVIDENCE.syntheticStrict100RpsPassed = EVIDENCE.r2.r2FullSyntheticTwoPhasePassed;
   } catch (error) {
     EVIDENCE.completed = false;
     EVIDENCE.failureKind = error instanceof Error ? error.message.slice(0, 230) : "unknown";
