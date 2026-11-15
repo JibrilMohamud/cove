@@ -283,6 +283,19 @@ def check_authority_boundaries():
     check(read(db, at="2026-11-15 14:00:00") is None, "Scheduled boundary must fail closed")
     db.execute("UPDATE cove_stage_owner_authority_state SET enabled=0 WHERE id=1")
     check(read(db) is None, "Disabled owner must not serve the projection")
+    for invalid in (
+        "UPDATE cove_stage_owner_authority_state SET enabled=1 WHERE id=1",
+        "UPDATE cove_stage_owner_authority_state SET epoch=6 WHERE id=1",
+        "UPDATE cove_stage_owner_authority_state SET us_fallback_revision=0 WHERE id=1",
+        "DELETE FROM cove_stage_owner_authority_state WHERE id=1",
+    ):
+        try:
+            db.execute(invalid)
+        except sqlite3.DatabaseError:
+            pass
+        else:
+            raise AssertionError("Owner epoch regression or state deletion must abort: " + invalid)
+    check(read(db) is None, "Failed owner reactivation cannot resurrect old positive")
     db.execute("UPDATE cove_stage_owner_authority_state SET enabled=1,epoch=8 WHERE id=1")
     check(read(db) is None, "Old owner epoch must not authorize a new owner")
     plan = db.execute(

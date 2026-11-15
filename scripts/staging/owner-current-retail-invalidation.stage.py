@@ -93,6 +93,17 @@ CREATE TABLE IF NOT EXISTS {AUTHORITY_STATE} (
     epoch INTEGER NOT NULL CHECK(epoch>0),
     us_fallback_revision INTEGER NOT NULL DEFAULT 1 CHECK(us_fallback_revision>0)
 );
+-- A disabled legal authority must NEVER reactivate old positive rows using
+-- the same epoch. Source-version match alone cannot guard an owner reset.
+CREATE TRIGGER IF NOT EXISTS cove_stage_owner_require_epoch_rotation
+BEFORE UPDATE ON {AUTHORITY_STATE}
+WHEN NEW.epoch<OLD.epoch
+  OR NEW.us_fallback_revision<OLD.us_fallback_revision
+  OR (OLD.enabled=0 AND NEW.enabled=1 AND NEW.epoch<=OLD.epoch)
+BEGIN SELECT RAISE(ABORT,'cove_stage_owner_epoch_rotation_required'); END;
+CREATE TRIGGER IF NOT EXISTS cove_stage_owner_preserve_state
+BEFORE DELETE ON {AUTHORITY_STATE}
+BEGIN SELECT RAISE(ABORT,'cove_stage_owner_state_must_not_be_deleted'); END;
 CREATE TABLE IF NOT EXISTS {SOURCE_VERSION} (
     product_id TEXT PRIMARY KEY NOT NULL,
     revision INTEGER NOT NULL CHECK(revision>0)
