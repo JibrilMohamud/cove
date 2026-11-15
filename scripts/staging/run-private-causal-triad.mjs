@@ -420,13 +420,13 @@ async function warmup(run, secret) {
     ? ["noop", "revision"]
     : process.argv.includes("--r2-cursor-100rps")
       ? ["noop", "r2seed", "r2cursorseed", "r2cursor"]
-    : process.argv.includes("--r2-page2-100rps")
-      ? ["noop", "r2seed", "r2page2"]
-      : process.argv.includes("--r2-retail-100rps")
-        ? ["noop", "r2seed", "r2live"]
-        : process.argv.includes("--rights-only-100rps")
-          ? ["noop", "rights"]
-          : MODES;
+      : process.argv.includes("--r2-page2-100rps")
+        ? ["noop", "r2seed", "r2page2"]
+        : process.argv.includes("--r2-retail-100rps")
+          ? ["noop", "r2seed", "r2live"]
+          : process.argv.includes("--rights-only-100rps")
+            ? ["noop", "rights"]
+            : MODES;
   for (const mode of warmModes) {
     let result;
     for (let retry = 0; retry < 5; retry++) {
