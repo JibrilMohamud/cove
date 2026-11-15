@@ -64,6 +64,7 @@ export default {
       workerDurationMs: Number(duration.toFixed(3)),
       d1SqlMs: Number.isFinite(result.sqlMs) ? result.sqlMs : null,
       d1OutsideSqlMs: Number.isFinite(result.outsideSqlMs) ? result.outsideSqlMs : null,
+      d1RowsRead: Number.isFinite(result.rowsRead) ? result.rowsRead : null,
       downstreamFirstByteMs: Number.isFinite(result.firstByteMs) ? result.firstByteMs : null,
       stageR2Ms: Number.isFinite(result.stageR2Ms) ? result.stageR2Ms : null,
       stageCursorMs: Number.isFinite(result.stageCursorMs) ? result.stageCursorMs : null,
