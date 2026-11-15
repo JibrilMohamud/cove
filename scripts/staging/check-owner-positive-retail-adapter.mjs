@@ -19,6 +19,9 @@ assert.match(source, /owner\.epoch=\?/);
 assert.match(source, /EXISTS \(SELECT 1 FROM retail_product_availability_rows rights/);
 assert.match(source, /future_offer\.starts_at/);
 assert.match(source, /MAX_LEASE_MS = 30_000/);
+assert.match(source, /const now = new Date\(\)/);
+assert.match(source, /julianday\(\?\)<=julianday\(\x27now\x27\)/);
+assert.match(source, /julianday\(\?\)>julianday\(\x27now\x27,\x27-2 seconds\x27\)/);
 assert.doesNotMatch(source, /\bK[Vv]\.|\.put\(|\.get\("rights/);
 
 const folder = mkdtempSync(path.join(tmpdir(), "cove-owner-positive-stage-"));

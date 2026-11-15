@@ -1,7 +1,7 @@
 name: cove-stage-owner-current-retail-projection-proof
 on:
   push:
-    branches: [perf/stage-owner-transactional-retail-projection-20261115, perf/stage-owner-cas-positive-writer-20261115, perf/stage-owner-batched-point-read-20261115]
+    branches: [perf/stage-owner-transactional-retail-projection-20261115, perf/stage-owner-cas-positive-writer-20261115, perf/stage-owner-batched-point-read-20261115, safety/stage-owner-db-clock-fence-20261115]
     paths:
       - scripts/staging/owner-current-retail-invalidation.stage.py
       - scripts/staging/check-owner-current-retail-invalidation.py
@@ -10,6 +10,8 @@ on:
       - scripts/staging/check-owner-batched-point-read.py
       - src/features/fore/owner-positive-retail.stage.ts
       - scripts/staging/check-owner-positive-retail-adapter.mjs
+      - scripts/staging/check-actual-rights-contract-fixture.mjs
+      - scripts/staging/rights-resolver-sqlite-fixture.py
       - scripts/staging/check-owner-retail-source-dependencies.py
       - src/features/fore/rights.server.ts
       - .github/workflows/cove-stage-owner-retail-projection-proof.yml
@@ -40,6 +42,7 @@ jobs:
       - name: Compile and gate the real canonical TypeScript rights adapter
         run: |
           node scripts/staging/check-owner-positive-retail-adapter.mjs
+          node scripts/staging/check-actual-rights-contract-fixture.mjs
           python3 scripts/staging/check-owner-retail-source-dependencies.py
       - name: Verify 25 current indexed owner witnesses and D1-clock expiry
         run: python3 scripts/staging/check-owner-batched-point-read.py
