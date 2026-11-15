@@ -56,6 +56,16 @@ try {
     pageEstimate: 244,
     wordCount: 54321,
     readingTimeMinutes: 300,
+    externalIdentifiers: {
+      product: { gutenberg: "1" },
+      edition: { edition: "edition-v2" },
+      work: { work: "work-v3" },
+    },
+    fileSizeBytes: 12345,
+    epubVersion: "3.0",
+    layout: "reflowable",
+    accessibility: { screenReaderCompatible: 1, accessModes: ["textual"] },
+    formatProfile: { epubVersion: "3", compatibilityClass: "reflowable" },
     publisherDescription: "Sample descriptive publisher text",
     editorialReviews: "Sample editorial review",
     series: [
@@ -86,9 +96,7 @@ try {
     "drmStatus",
     "downloadable",
     "readingAvailability",
-    "externalIdentifiers",
     "sourceLicenseUrl",
-    "formatProfile",
     "aiDisclosure",
     "amountMinor",
     "offer",
@@ -103,6 +111,11 @@ try {
   assert.equal(cleanSnapshot.items[0].summaries[0], "Public canonical summary");
   assert.equal(cleanSnapshot.items[0].series[0].name, "Synthetic Series");
   assert.equal(cleanSnapshot.items[0].pageEstimate, 244);
+  assert.equal(cleanSnapshot.items[0].externalIdentifiers.product.gutenberg, "1");
+  assert.equal(cleanSnapshot.items[0].fileSizeBytes, 12345);
+  assert.equal(cleanSnapshot.items[0].epubVersion, "3.0");
+  assert.equal(cleanSnapshot.items[0].accessibility.screenReaderCompatible, 1);
+  assert.equal(cleanSnapshot.items[0].formatProfile.compatibilityClass, "reflowable");
   assert.equal(cleanSnapshot.items[0].publisherDescription, "Sample descriptive publisher text");
 
   const GATE = "a".repeat(64);
@@ -130,9 +143,9 @@ try {
         assert.match(sql, /has_epub_object/);
         assert.match(sql, /has_epub_source/);
         assert.match(sql, /gutenberg_source_cache/);
-        assert.match(sql, /product_external_ids_json/);
-        assert.match(sql, /accessibility_json/);
-        assert.match(sql, /format_profile_json/);
+        assert.doesNotMatch(sql, /product_external_ids_json/);
+        assert.doesNotMatch(sql, /accessibility_json/);
+        assert.doesNotMatch(sql, /format_profile_json/);
         assert.match(sql, /ai_disclosure_json/);
         assert.match(sql, /FROM offers o/);
         assert.match(sql, /EXISTS \(SELECT 1 FROM offers offer_exists/);
@@ -181,18 +194,10 @@ try {
       epub_storage_status: null,
       has_epub_object: 0,
       has_epub_source: 0,
-      file_size_bytes: 12345,
-      epub_version: "3.0",
-      layout: "reflowable",
-      source_project: "gutenberg",
+       source_project: "gutenberg",
       source_page_url: "https://www.gutenberg.org/ebooks/1",
       source_license_url: "https://www.gutenberg.org/policy/license.html",
-      product_external_ids_json: JSON.stringify({ gutenberg: "1" }),
-      edition_external_ids_json: JSON.stringify({ edition: "edition-v2" }),
-      work_external_ids_json: JSON.stringify({ work: "work-v3" }),
-      accessibility_json: JSON.stringify({ screenReaderCompatible: 1, accessModes: ["textual"] }),
-      format_profile_json: JSON.stringify({ epubVersion: "3", compatibilityClass: "reflowable" }),
-      ai_disclosure_json: JSON.stringify({
+       ai_disclosure_json: JSON.stringify({
         policyVersion: "2026.1",
         textOrigin: "human",
         publicBadges: [{ key: "human", label: "Human written" }],
@@ -251,6 +256,14 @@ try {
                   title: b.title,
                   subtitle: b.subtitle,
                   description: "Canonical source description " + i,
+                  file_size_bytes: 12345,
+                  epub_version: "3.0",
+                  layout: "reflowable",
+                  product_external_ids_json: JSON.stringify({ gutenberg: "1" }),
+                  edition_external_ids_json: JSON.stringify({ edition: "edition-v2" }),
+                  work_external_ids_json: JSON.stringify({ work: "work-v3" }),
+                  accessibility_json: JSON.stringify({ screenReaderCompatible: 1 }),
+                  format_profile_json: JSON.stringify({ epubVersion: "3" }),
                   contributors_json: JSON.stringify([
                     {
                       id: "source-author-" + i,
@@ -321,6 +334,11 @@ try {
   assert.equal(seeded.publisher, "Actual Publisher");
   assert.equal(seeded.publisherDescription, "Verified source public description");
   assert.equal(seeded.series[0].name, "Source Series");
+  assert.deepEqual(seeded.externalIdentifiers.product, { gutenberg: "1" });
+  assert.equal(seeded.accessibility.screenReaderCompatible, 1);
+  assert.equal(seeded.formatProfile.epubVersion, "3");
+  assert.equal(seeded.fileSizeBytes, 12345);
+  assert.equal(seeded.layout, "reflowable");
   const seedReq = new Request(request.url + "/seed", {
     method: "POST",
     headers: request.headers,
@@ -461,21 +479,30 @@ try {
   );
   returned = rows(Array.from({ length: 25 }, (_, i) => i));
 
-  // The full book-detail projection is fresh-primary-only. A corrupt nested
-  // disclosure or identifier map must deny the entire page, never leak raw SQL,
-  // never silently reconstruct an old authorization from presentation cache.
-  returned = rows(Array.from({ length: 25 }, (_, i) => i));
-  returned[0].product_external_ids_json = '["not", "a", "map"]';
-  await assert.rejects(
-    syntheticR2PageWithLiveRights(request, env, () => now),
-    /Invalid current detail/,
-  );
+  // Rich public metadata comes from R2 only. Corrupt or oversized detail is
+  // rejected before any new grant; no stale document can confer rights.
+  const originalGet = env.COVE_PUBLIC_PRESENTATION_CACHE.get;
+  const corrupted = JSON.parse(snapshot);
+  corrupted.items[0].externalIdentifiers = ["not", "a", "record"];
+  const corruptedBody = JSON.stringify(corrupted);
+  env.COVE_PUBLIC_PRESENTATION_CACHE.get = async () => ({
+    size: corruptedBody.length,
+    text: async () => corruptedBody,
+  });
+  assert.equal(await syntheticR2PageWithLiveRights(request, env, () => now), null);
+  const oversized = JSON.parse(snapshot);
+  oversized.items[0].accessibility = { summary: "a".repeat(24001) };
+  const oversizedBody = JSON.stringify(oversized);
+  env.COVE_PUBLIC_PRESENTATION_CACHE.get = async () => ({
+    size: oversizedBody.length,
+    text: async () => oversizedBody,
+  });
+  assert.equal(await syntheticR2PageWithLiveRights(request, env, () => now), null);
+  env.COVE_PUBLIC_PRESENTATION_CACHE.get = originalGet;
+
   returned = rows(Array.from({ length: 25 }, (_, i) => i));
   returned[0].ai_disclosure_json = '{"policyVersion":';
   await assert.rejects(syntheticR2PageWithLiveRights(request, env, () => now));
-  returned = rows(Array.from({ length: 25 }, (_, i) => i));
-  returned[0].file_size_bytes = -1;
-  assert.equal(await syntheticR2PageWithLiveRights(request, env, () => now), null);
   returned = rows(Array.from({ length: 25 }, (_, i) => i));
 
   // If the top candidate loses its retail offer, the live SELECT itself
