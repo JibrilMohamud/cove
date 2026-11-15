@@ -89,6 +89,22 @@ export class StageUnifiedOwner extends DurableObject<StageEnv> {
       fingerprint:valid?"verified-fts-owner-index":"incomplete"};
   }
 
+  private searchRare() {
+    const sql=this.ctx.storage.sql as unknown as AuthoritySql;
+    const projection=this.indexed();
+    // Stage book 0 is a unique title term. This MUST exercise FTS-first,
+    // not the ubiquitous-term shortcut used by the "book" control.
+    const queried=readStageOwnerFilteredIndex(sql,
+      {territory:"US",currency:"USD",sort:"rank",page:1,limit:25,
+        query:"0",categories:["Fiction"]});
+    const valid=projection.count===25 && queried.count===1 &&
+      queried.pageIds.length===1 && queried.pageIds[0]===freeIds[0] &&
+      queried.facets.availability[0]?.count===1 &&
+      queried.facets.categories[0]?.count===25;
+    return {valid,count:queried.count,releaseCertified:false,
+      fingerprint:valid?"verified-rare-fts-owner-index":"incomplete"};
+  }
+
   private read() {
     const projection=this.indexed();
     const valid=projection.count===25 && projection.pageIds.length===25 &&
@@ -183,6 +199,13 @@ export class StageUnifiedOwner extends DurableObject<StageEnv> {
           sql.exec("INSERT INTO stage_owner_fixture(id,seeded_at) VALUES(1,datetime('now'))");
         });
         return Response.json({ schema: "cove.stage-owner-do.v1", ...this.read(), releaseCertified: false }, { headers });
+      }
+      if (route === "/read-search-rare") {
+        const result=this.searchRare();
+        return Response.json(
+          {schema:"cove.stage-owner-do.v1",...result,releaseCertified:false},
+          {status:result.valid?200:503,headers},
+        );
       }
       if (route === "/read-search") {
         const result=this.search();
@@ -293,6 +316,7 @@ export default {
       "/__cove/owner-do/seed": "/seed",
       "/__cove/owner-do/read": "/read",
       "/__cove/owner-do/read-search": "/read-search",
+      "/__cove/owner-do/read-search-rare": "/read-search-rare",
       "/__cove/owner-do/read-fence": "/read-fence",
       "/__cove/owner-do/deny-contract": "/deny-contract",
       "/__cove/owner-do/deny-free": "/deny-free",
