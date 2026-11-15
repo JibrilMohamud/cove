@@ -104,7 +104,7 @@ try {
     "drmStatus",
     "downloadable",
     "readingAvailability",
-     "amountMinor",
+    "amountMinor",
     "offer",
   ]) {
     assert.equal(snapshot.includes(field), false, "R2 must exclude " + field);
@@ -122,7 +122,10 @@ try {
   assert.equal(cleanSnapshot.items[0].epubVersion, "3.0");
   assert.equal(cleanSnapshot.items[0].accessibility.screenReaderCompatible, 1);
   assert.equal(cleanSnapshot.items[0].formatProfile.compatibilityClass, "reflowable");
-  assert.equal(cleanSnapshot.items[0].sourceLicenseUrl, "https://www.gutenberg.org/policy/license.html");
+  assert.equal(
+    cleanSnapshot.items[0].sourceLicenseUrl,
+    "https://www.gutenberg.org/policy/license.html",
+  );
   assert.equal(cleanSnapshot.items[0].aiDisclosure.policyVersion, "2026.1");
   assert.equal(cleanSnapshot.items[0].publisherDescription, "Sample descriptive publisher text");
 
