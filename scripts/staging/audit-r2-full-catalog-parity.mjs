@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 // explicitly reviewed. A green audit here NEVER certifies parity by itself.
 const CANONICAL = "src/features/fore/client.ts";
 const API = "src/features/fore/api.server.ts";
+const ENVELOPE = "src/features/fore/catalog-envelope.server.ts";
 const STAGE = "src/features/fore/synthetic-r2-live-rights-page.stage.ts";
 
 const FRESH_PRIMARY = [
@@ -83,6 +84,7 @@ const NEEDS_POLICY_REVIEW = [];
 
 const source = readFileSync(CANONICAL, "utf8");
 const api = readFileSync(API, "utf8");
+const sharedEnvelope = readFileSync(ENVELOPE, "utf8");
 const stage = readFileSync(STAGE, "utf8");
 const start = source.indexOf("export type CatalogBook = {");
 const end = source.indexOf("export type LibraryBook = {", start);
@@ -119,13 +121,25 @@ const catalogStart = api.indexOf("async function catalog(");
 const catalogEnd = api.indexOf("function libraryRow(", catalogStart);
 assert.ok(catalogStart !== -1 && catalogEnd > catalogStart);
 const canonicalEnvelope = api.slice(catalogStart, catalogEnd);
-const envelopeBlock = canonicalEnvelope.match(
-  /return \{\s*results:\s*result\.books,([\s\S]*?)\n    \};/,
+assert.match(
+  canonicalEnvelope,
+  /return canonicalCatalogEnvelope\(url, input\.page, result, ingestion\)/,
+  "Production handler must reuse tested canonical search envelope",
 );
-assert.ok(envelopeBlock, "Production catalog payload structure changed");
+assert.match(
+  api,
+  /import \{ canonicalCatalogEnvelope \} from "\.\/catalog-envelope\.server";/,
+  "Production handler import missing shared envelope",
+);
+const envelopeBlock = sharedEnvelope.match(
+  /return \{\s*results:\s*result\.books,([\s\S]*?)\n  \};/,
+);
+assert.ok(envelopeBlock, "Shared canonical catalog payload structure changed");
 const envelopeFields = [
   "results",
-  ...[...envelopeBlock[1].matchAll(/^      ([a-zA-Z_]\w*)(?:\s*[:,])/gm)].map((match) => match[1]),
+  ...[...envelopeBlock[1].matchAll(/^    ([a-zA-Z_]\w*)(?:\s*[:,])/gm)].map(
+    (match) => match[1],
+  ),
 ];
 const probeStart = stage.indexOf("const result = await syntheticR2PageWithLiveRights");
 const probeReturn = stage
