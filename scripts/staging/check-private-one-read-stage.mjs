@@ -14,8 +14,9 @@ try {
     format: "esm",
     logLevel: "silent",
   });
-  const { handlePrivateAuthorityStageProbe, isPrivateAuthorityStageProbeAuthorized } =
-    await import(path.join(directory, "stage-probe.mjs"));
+  const { handlePrivateAuthorityStageProbe, isPrivateAuthorityStageProbeAuthorized } = await import(
+    path.join(directory, "stage-probe.mjs")
+  );
 
   const base =
     "https://cove-presentation-r2-proof-20261114.cove-jibrilmohamud.workers.dev/api/fore/__perf/private-authority";
@@ -99,10 +100,7 @@ try {
   }
   assert.equal(sqlCalls, 1, "Invalid host, identity, fixture, flags and secret cannot reach D1");
   assert.equal(
-    await handlePrivateAuthorityStageProbe(
-      req("https://covereads.com/api/fore/catalog"),
-      env,
-    ),
+    await handlePrivateAuthorityStageProbe(req("https://covereads.com/api/fore/catalog"), env),
     null,
     "Existing public storefront must never use the diagnostic route",
   );
@@ -113,14 +111,21 @@ try {
   assert.equal(await withdrawn.text(), "", "Fail closed without disclosing book IDs");
   const outage = {
     ...env,
-    DB: { prepare() { throw Error("secret SQL credential must never be exposed"); } },
+    DB: {
+      prepare() {
+        throw Error("secret SQL credential must never be exposed");
+      },
+    },
   };
   const rejected = await handlePrivateAuthorityStageProbe(req(), outage);
   assert.equal(rejected.status, 503);
   assert.equal(await rejected.text(), "");
 
   const api = fs.readFileSync("src/features/fore/api.server.ts", "utf8");
-  assert.match(api, /const privateAuthorityProbe = await handlePrivateAuthorityStageProbe\(request, env\)/);
+  assert.match(
+    api,
+    /const privateAuthorityProbe = await handlePrivateAuthorityStageProbe\(request, env\)/,
+  );
   assert.ok(
     api.indexOf("const privateAuthorityProbe = await handlePrivateAuthorityStageProbe") <
       api.indexOf("const trace = beginRequestTrace(request)"),
@@ -133,7 +138,9 @@ try {
     const contents = fs.readFileSync(config, "utf8");
     assert.doesNotMatch(contents, /FORE_GUEST_COMPACT_STAGE|__perf\/private-authority/);
   }
-  console.log("PASS: isolated one-D1 full catalog reference, fresh retail-rights 25th witness, no production exposure, and zero authorization leakage");
+  console.log(
+    "PASS: isolated one-D1 full catalog reference, fresh retail-rights 25th witness, no production exposure, and zero authorization leakage",
+  );
 } finally {
   fs.rmSync(directory, { recursive: true, force: true });
 }
