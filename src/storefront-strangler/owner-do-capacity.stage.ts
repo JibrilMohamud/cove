@@ -15,6 +15,9 @@ import {
   readCommercialStorefront,
 } from "./commercial-storefront-authority";
 import { createMarketAuthoritySchema, denyMarket, marketIsWithdrawn } from "./market-authority-core";
+import {createStageOwnerCatalogSchema,stageStorePresentation} from "./owner-catalog-authorized-set.stage";
+import {createStageOwnerIncrementalIndex,bootstrapStageOwnerIndex,
+  readStageOwnerIncrementalIndex,reconcileStageOwnerDirty} from "./owner-catalog-incremental-index.stage";
 
 type StageEnv = {
   COVE_OWNER_DO_STAGE: string;
@@ -48,6 +51,8 @@ export class StageUnifiedOwner extends DurableObject<StageEnv> {
     createCommercialAuthoritySchema(sql);
     createCommercialStorefrontSchema(sql);
     createMarketAuthoritySchema(sql);
+    createStageOwnerCatalogSchema(sql);
+    createStageOwnerIncrementalIndex(sql);
     sql.exec("CREATE TABLE IF NOT EXISTS stage_owner_fixture (id INTEGER PRIMARY KEY CHECK(id=1), seeded_at TEXT NOT NULL)");
   }
 
@@ -58,19 +63,21 @@ export class StageUnifiedOwner extends DurableObject<StageEnv> {
     return storage.transactionSync(fn);
   }
 
+  private indexed() {
+    return readStageOwnerIncrementalIndex(
+      this.ctx.storage.sql as unknown as AuthoritySql,
+      { territory:"US",currency:"USD",sort:"rank",page:1,limit:25 },
+    );
+  }
+
   private read() {
-    const sql = this.ctx.storage.sql as unknown as AuthoritySql;
-    if (marketIsWithdrawn(sql, "US")) return { valid: false, count: 0, fingerprint: "market-denied" };
-    const free = readAuthorizedPresentations(sql, freeIds, "US", "USD");
-    const paid = readCommercialStorefront(sql, paidIds, "US", "USD");
-    const actual = [...free, ...paid];
-    const valid = actual.length === 25 &&
-      actual.every((row, i) => {
-        if (row.product_id !== ids[i]) return false;
-        const offer = JSON.parse(row.offer_json) as { currency: string; amountMinor: number };
-        return offer.currency === "USD" && offer.amountMinor === expectedOffers[i];
-      });
-    return { valid, count: actual.length, fingerprint: valid ? "exact-12-free-13-paid" : "incomplete" };
+    const projection=this.indexed();
+    const valid=projection.count===25 && projection.pageIds.length===25 &&
+      projection.pageIds.every((id,i)=>id===ids[i]) &&
+      projection.facets.price?.min===0 && projection.facets.price?.max===599 &&
+      projection.facets.availability[0]?.count===25;
+    return {valid,count:projection.count,
+      fingerprint:valid?"exact-12-free-13-paid":"incomplete"};
   }
 
   /** Measure linearizable legal withdrawal during a 100-RPS read stream.
@@ -92,7 +99,12 @@ export class StageUnifiedOwner extends DurableObject<StageEnv> {
         return offer.currency === "USD" &&
           offer.amountMinor === (row.product_id.startsWith("prd_gutenberg_") ? 0 : 599);
       });
-    return { valid, count: rows.length, contractDenied };
+    const projection=this.indexed();
+    const indexedMatches=projection.count===expected.length &&
+      projection.pageIds.length===expected.length &&
+      projection.pageIds.every((id,i)=>id===expected[i]) &&
+      projection.facets.availability[0]?.count===expected.length;
+    return { valid:valid&&indexedMatches, count:projection.count, contractDenied };
   }
 
   async fetch(request: Request) {
@@ -106,6 +118,11 @@ export class StageUnifiedOwner extends DurableObject<StageEnv> {
         this.transaction(() => {
           if (sql.exec("SELECT 1 AS ready FROM stage_owner_fixture WHERE id=1").toArray().length)
             throw Error("stage_owner_already_seeded");
+          for(const [i,id] of ids.entries())stageStorePresentation(sql,{
+            productId:id,title:"Staged Owner Book "+i,format:i%3===0?"ebook":"audio",
+            publisher:i%2===0?"Stage Publisher A":"Stage Publisher B",
+            rank:1000-i,categories:["Fiction"],languages:["en"],series:[],
+          });
           for (const id of freeIds) {
             const command = { sourceId: freeSource(id), territory: "US", revision: 1, action: "allow" as const };
             if (!applyAuthorityCommand(sql, command).applied) throw Error("free_fixture_denied");
@@ -139,6 +156,7 @@ export class StageUnifiedOwner extends DurableObject<StageEnv> {
               valid_until: validUntil,
             });
           }
+          bootstrapStageOwnerIndex(sql);
           sql.exec("INSERT INTO stage_owner_fixture(id,seeded_at) VALUES(1,datetime('now'))");
         });
         return Response.json({ schema: "cove.stage-owner-do.v1", ...this.read(), releaseCertified: false }, { headers });
@@ -158,11 +176,13 @@ export class StageUnifiedOwner extends DurableObject<StageEnv> {
         );
       }
       if (route === "/deny-contract") {
-        this.transaction(() => denyCommercialSubject(sql, {
-          subjectKind: "contract",
-          subjectId: "contract_stage_owner_001",
-          operationId: "stage:contract:deny:1",
-        }));
+        this.transaction(()=>{
+          denyCommercialSubject(sql,{
+            subjectKind:"contract",subjectId:"contract_stage_owner_001",
+            operationId:"stage:contract:deny:1",
+          });
+          reconcileStageOwnerDirty(sql);
+        });
         return Response.json({ count: this.read().count, releaseCertified: false }, { headers });
       }
       if (route === "/deny-free") {
@@ -170,6 +190,7 @@ export class StageUnifiedOwner extends DurableObject<StageEnv> {
           if (!applyAuthorityCommand(sql, {
             sourceId: freeSource(freeIds[0]), territory: "*", revision: 2, action: "deny",
           }).applied) throw Error("stage_free_denial_failed");
+          reconcileStageOwnerDirty(sql);
         });
         return Response.json({ count: this.read().count, releaseCertified: false }, { headers });
       }
