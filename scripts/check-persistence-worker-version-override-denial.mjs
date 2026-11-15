@@ -29,9 +29,12 @@ try {
   globalThis.fetch = async (url, init) => {
     const headers = new Headers(init.headers);
     seen.push({ url: String(url), headers });
-    return Response.json({ ok: true }, {
-      headers: { "cache-control": "no-store" },
-    });
+    return Response.json(
+      { ok: true },
+      {
+        headers: { "cache-control": "no-store" },
+      },
+    );
   };
   try {
     for (const route of [
