@@ -159,7 +159,11 @@ try {
       )
       .bind("p_fixture")
       .first();
-    assert.equal(Boolean(row), publicationExpected, "Stored positive disagrees with policy " + scenario);
+    assert.equal(
+      Boolean(row),
+      publicationExpected,
+      "Stored positive disagrees with policy " + scenario,
+    );
     if (publicationExpected) {
       assert.equal(row.current_offer_id, "o_fixture");
       assert.equal(row.amount_minor, 599);
