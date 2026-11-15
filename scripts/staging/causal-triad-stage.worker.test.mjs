@@ -7,6 +7,7 @@ import worker, {
   triadSql,
   triadRevisionSql,
   triadPointBenchmarkSql,
+  triadPageBenchmarkSql,
   stageSyntheticIp,
   singleTriadProbe,
   summarizeTriad,
@@ -21,6 +22,7 @@ const env = {
   COVE_TRIAD_SYNTHETIC_D1_ID: TEST_DB,
   COVE_TRIAD_CANDIDATE: "cove-presentation-r2-candidate-stage",
   COVE_SYNTHETIC_POINT_BENCH: "1",
+  COVE_SYNTHETIC_PAGE_BENCH: "1",
   BACKEND: "b".repeat(64),
   GATE: "a".repeat(64),
   DB: {
@@ -47,6 +49,20 @@ const env = {
                 evidence_digest: "b".repeat(64),
               })),
               meta: { duration: 0.4, rows_read: 150 },
+            }),
+          };
+        }
+        if (sql === triadPageBenchmarkSql) {
+          assert.deepEqual(args, ["page-synth-000001"]);
+          return {
+            all: async () => ({
+              results: [{
+                page_id: "page-synth-000001",
+                candidate_count: 25,
+                rank_digest: "c".repeat(64),
+                current_offer_digest: "d".repeat(64),
+              }],
+              meta: { duration: 0.17, rows_read: 1 },
             }),
           };
         }
@@ -110,6 +126,7 @@ test("staging is private, read-only, and not bound to production", () => {
     "rights",
     "revision",
     "pointbench",
+    "pagebench",
     "catalog",
     "single",
     "r2live",
@@ -134,6 +151,16 @@ test("all paths validate stage identity and independent rights provenance", asyn
   assert.equal(point.valid, true, "25 dummy-shaped witnesses must agree with the query");
   assert.equal(point.rowsRead, 150);
   assert.equal(point.sqlMs, 0.4);
+  const page = await singleTriadProbe("pagebench", env, 1, "probe");
+  assert.equal(page.valid, true, "One synthetic D1 page digest must validate");
+  assert.equal(page.rowsRead, 1);
+  assert.equal(page.sqlMs, 0.17);
+  assert.equal(
+    (await singleTriadProbe("pagebench", { ...env, COVE_SYNTHETIC_PAGE_BENCH: "0" }, 1, "probe"))
+      .valid,
+    false,
+    "Stage page witness requires explicit synthetic flag",
+  );
   assert.equal(
     (await singleTriadProbe("pointbench", { ...env, COVE_SYNTHETIC_POINT_BENCH: "0" }, 1, "probe"))
       .valid,
