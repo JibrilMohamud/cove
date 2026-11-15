@@ -54,6 +54,24 @@ export function sealStageOwnerFts(sql:AuthoritySql){
     (SELECT COUNT(*) FROM cove_stage_owner_fts) fts`).toArray()[0];
   if(!counts||counts.products!==counts.keys||counts.products!==counts.fts)
     throw Error('stage_owner_fts_partial_index_rejected');
+  // Equal counts are NOT sufficient: 82k identifiers could be shuffled or
+  // content altered while the totals still agree. Seal only when all
+  // authorized product IDs, FTS row mappings, and searchable text are exact.
+  const missing=sql.exec(`SELECT 1 FROM cove_stage_owner_index_items i
+    WHERE NOT EXISTS(SELECT 1 FROM cove_stage_owner_fts_ids m
+      WHERE m.product_id=i.product_id) LIMIT 1`).toArray();
+  const orphaned=sql.exec(`SELECT 1 FROM cove_stage_owner_fts_ids m
+    WHERE NOT EXISTS(SELECT 1 FROM cove_stage_owner_index_items i
+      WHERE i.territory='US' AND i.currency='USD'
+        AND i.product_id=m.product_id) LIMIT 1`).toArray();
+  const mismatch=sql.exec(`SELECT 1 FROM cove_stage_owner_fts_ids m
+    JOIN cove_stage_owner_fts f ON f.rowid=m.fts_rowid
+    JOIN cove_stage_owner_index_items i ON
+      i.territory='US' AND i.currency='USD' AND i.product_id=m.product_id
+    WHERE f.product_id<>m.product_id OR f.title<>i.title
+      OR f.format<>i.format OR f.publisher<>i.publisher LIMIT 1`).toArray();
+  if(missing.length||orphaned.length||mismatch.length)
+    throw Error('stage_owner_fts_partial_index_rejected');
   sql.exec('UPDATE cove_stage_owner_fts_ready SET ready=1 WHERE id=1');
 }
 export function assertStageOwnerFtsReady(sql:AuthoritySql){
