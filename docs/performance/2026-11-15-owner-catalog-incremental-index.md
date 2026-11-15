@@ -144,6 +144,39 @@ format or publisher text disagrees with the owner-index source. Stage
 regression deliberately injects these bad rows, proves sealing fails,
 restores the genuine content, then verifies exact live search.
 
+## Production D1 read-only metadata and FTS contract audit
+
+Production primary D1 read-only queries on November 15 verified:
+
+- 82,247 `products` and `catalog_search_documents` rows.
+- Exactly **one** suppressed document, so the main FTS table contains
+  exactly **82,246** searchable rows, matching `suppressed=0`.
+- **65,924** unsuppressed English-language edition rows, exactly equal
+  to the English FTS index count.
+- Existing `catalog_search_ai` / `catalog_search_au` triggers
+  explicitly exclude suppressed books and keep English FTS limited to
+  English-language editions; the 1-book count difference is expected.
+
+The current production FTS5 schema is **NOT the same as this stage-only
+index**. Production uses indexed `external_book_id`, title, subtitle,
+contributors, series, publisher, ISBN13, categories, keywords and
+description (plus unindexed `product_id`), tokenizer
+`unicode61 remove_diacritics 2` and prefixes `2 3 4`.
+The separate English table uses
+`porter unicode61 remove_diacritics 2` and the same prefixes.
+This stage proof currently searches title/publisher/format only, uses
+plain `unicode61`, a conservative literal-AND grammar and stage rank.
+Full search/DTO parity therefore remains BLOCKED until the
+canonical publication path reproduces those fields and precise
+production FTS semantics, including BM25/exact-identifier ranking and
+all filters.
+
+A read-only `COUNT(*)` on the real FTS table took about 7.2 seconds,
+versus ~32ms for `catalog_search_documents` on the same D1 sample.
+This is NOT a causal proof that catalog 503s arise from FTS counts,
+but it prohibits treating full FTS scans as a safe hot-path strategy.
+No customer or production records were modified.
+
 ## Strict blockers; no relabeling a skipped gate as passed
 
 1. **Full SearchInput parity:** literal stage FTS5 works, but still missing exact production BM25/relevance, synonyms/correction,
