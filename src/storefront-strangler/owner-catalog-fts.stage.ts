@@ -66,9 +66,9 @@ export function stageOwnerLiteralFtsExpression(raw:string|undefined){
   if(typeof raw!=='string')throw Error('stage_owner_fts_invalid_query');
   const normalized=raw.trim().normalize('NFKC').toLocaleLowerCase('en-US');
   if(!normalized||normalized.length>120||
-    !/^[\\p{L}\\p{N}\\s]+$/u.test(normalized))
+    !/^[\p{L}\p{N}\s]+$/u.test(normalized))
     throw Error('stage_owner_fts_invalid_query');
-  const tokens=normalized.split(/\\s+/);
+  const tokens=normalized.split(/\s+/);
   if(tokens.length>8||tokens.some(t=>t.length>35))
     throw Error('stage_owner_fts_invalid_query');
   return tokens.map(t=>'"'+t+'"').join(' AND ');
