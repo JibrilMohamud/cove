@@ -122,6 +122,67 @@ def check_triggers_and_targeting():
     db.close()
 
 
+def check_insert_delete_and_key_migration():
+    # Newly inserted denials and changed related records must invalidate the
+    # old positive before any future legal-owner re-evaluation can occur.
+    inserts = (
+        ("INSERT INTO rights_grants VALUES(?,?,?,?,?,?,?,?)",
+         ("deny3", "e1", None, "active", "deny", "ebook", "retail", "none")),
+        ("INSERT INTO rights_grant_territories VALUES(?,?,?)", ("t3", "g1", "CA")),
+        ("INSERT INTO rights_contract_languages VALUES(?,?,?)", ("cl3", "c1", "fr")),
+        ("INSERT INTO offers VALUES(?,?,?)", ("o3", "p1", 799)),
+        ("INSERT INTO digital_assets VALUES(?,?,?,?)", ("a3", "e1", "v1", "epub")),
+        ("INSERT INTO rights_contract_versions VALUES(?,?,?)", ("rv3", "c1", "active")),
+    )
+    for sql, args in inserts:
+        db = fixture()
+        db.execute(sql, args)
+        check(read(db) is None, "Inserted related record left stale positive: " + sql)
+        check(read(db, "p2") is not None, "Insert improperly revoked unrelated book")
+        db.close()
+
+    removals = (
+        "DELETE FROM rights_grants WHERE id='g1'",
+        "DELETE FROM rights_grant_territories WHERE id='t1'",
+        "DELETE FROM rights_contracts WHERE id='c1'",
+        "DELETE FROM rights_contract_languages WHERE id='cl1'",
+        "DELETE FROM offers WHERE id='o1'",
+        "DELETE FROM digital_assets WHERE id='a1'",
+        "DELETE FROM asset_versions WHERE id='v1'",
+        "DELETE FROM catalog_search_documents WHERE product_id='p1'",
+        "DELETE FROM edition_languages WHERE id='el1'",
+    )
+    for sql in removals:
+        db = fixture()
+        db.execute(sql)
+        check(read(db) is None, "Deleted related record left stale positive: " + sql)
+        check(read(db, "p2") is not None, "Delete improperly revoked unrelated book")
+        db.close()
+
+    db = fixture()
+    db.execute("UPDATE offers SET product_id='p2' WHERE id='o1'")
+    check(read(db) is None and read(db, "p2") is None,
+          "Both OLD and NEW offer owners must lose previous authority")
+    db.close()
+
+    db = fixture()
+    db.execute("UPDATE rights_grants SET edition_id='e2' WHERE id='g1'")
+    check(read(db) is None and read(db, "p2") is None,
+          "Both OLD and NEW edition rights must be invalidated")
+    db.close()
+
+    # An AFTER asset-version DELETE trigger could lose its owner after a
+    # foreign-key ON DELETE SET NULL cascade changes digital_assets first.
+    db = fixture()
+    definition = db.execute(
+        "SELECT sql FROM sqlite_master WHERE type='trigger' "
+        "AND name='cove_stage_owner_invalidate_asset_versions_delete'"
+    ).fetchone()
+    check(definition and "BEFORE DELETE" in definition[0],
+          "Dependent asset invalidation must precede possible FK cascade")
+    db.close()
+
+
 def check_atomic_owner_mutations():
     db = fixture()
     # Invalidate within the SAME canonical transaction as a withdrawal.
@@ -178,6 +239,7 @@ def check_authority_boundaries():
 
 if __name__ == "__main__":
     check_triggers_and_targeting()
+    check_insert_delete_and_key_migration()
     check_atomic_owner_mutations()
     check_authority_boundaries()
     print(
