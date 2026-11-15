@@ -1,0 +1,39 @@
+name: cove-synthetic-r2-context-live-rights-safety
+on:
+  push:
+    branches: [perf/stage-context-r2-live-market-fence-20261115]
+    paths:
+      - src/features/fore/api.server.ts
+      - src/features/fore/search.server.ts
+      - src/features/fore/synthetic-public-context-r2.stage.ts
+      - scripts/staging/check-synthetic-public-context-r2.mjs
+      - scripts/staging/run-public-context-r2-ab.mjs
+      - docs/architecture/canonical-writer-review.json
+      - docs/architecture/2026-11-15-context-r2-live-market-source-attestation.json
+      - .github/workflows/cove-stage-context-r2-check.yml
+permissions:
+  contents: read
+jobs:
+  safety-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci
+      - name: Prove R2 context cannot substitute for live market and territorial rights
+        run: node scripts/staging/check-synthetic-public-context-r2.mjs
+      - name: Verify isolated synthetic flags absent from all production defaults
+        run: |
+          node scripts/staging/check-single-authority-catalog-stage.mjs
+          node scripts/check-progressive-guest-catalog-total.mjs
+      - name: Verify source SHA and 314 protected canonical writer classifications
+        run: |
+          node scripts/reconcile-canonical-writers.mjs
+          node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/2026-11-15-context-r2-live-market-source-attestation.json
+      - name: Check project source formatting
+        run: npx prettier --check src/features/fore/synthetic-public-context-r2.stage.ts src/features/fore/search.server.ts src/features/fore/api.server.ts scripts/staging/check-synthetic-public-context-r2.mjs scripts/staging/run-public-context-r2-ab.mjs
+      - name: Compile production-shaped synthetic candidate without deployment
+        run: npm run build:backend

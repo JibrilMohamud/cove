@@ -36,6 +36,7 @@ type SearchEnv = {
   FORE_POPULAR_RIGHTS_SHORTLIST?: string;
   FORE_GUEST_CATALOG_PROGRESSIVE_COUNT?: string;
   FORE_GUEST_COMPACT_STAGE?: string;
+  FORE_GUEST_CONTEXT_R2_STAGE?: string;
   FORE_GUEST_COMPACT_SYNTHETIC_D1_ID?: string;
   COVE_PUBLIC_PRESENTATION_CACHE?: PresentationR2Bucket;
 };
@@ -1080,6 +1081,29 @@ async function searchD1(
   let correctedQuery: string | undefined;
   let expression = await ftsExpression(env.DB, input);
   let part = candidateParts(input, expression);
+  // Stage A/B with an R2 public context snapshot: a live market-status and
+  // default-currency check is JOINED into every primary-D1 rights statement,
+  // including any sparse-market fallback. Cached context is never a grant.
+  const stagePublicContext =
+    env.FORE_GUEST_COMPACT_STAGE === "1" &&
+    env.FORE_GUEST_CONTEXT_R2_STAGE === "1" &&
+    env.FORE_GUEST_COMPACT_SYNTHETIC_D1_ID === "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3" &&
+    !!presentationStore &&
+    !userId &&
+    !input.query &&
+    input.sort === "popular" &&
+    input.page === 1 &&
+    input.limit === 24 &&
+    input.territory === "US" &&
+    input.currency === "USD" &&
+    input.subscription === undefined &&
+    input.library === undefined;
+  if (stagePublicContext) {
+    part.where.push(
+      "EXISTS(SELECT 1 FROM storefront_markets sm WHERE sm.country_code=upper(?) AND sm.market_status='active' AND upper(sm.default_currency)=upper(?))",
+    );
+    part.binds.push(input.territory, input.currency);
+  }
   // Search ranking is presentation, not authorization. Opt in only for
   // anonymous public discovery when a real replica session exists.
   // Every proposed ID is independently rechecked against CURRENT primary D1.

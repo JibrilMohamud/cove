@@ -1,0 +1,93 @@
+{
+  "schema": "cove.stage-r2-context-100rps-capacity.v1",
+  "dateUTC": "2026-11-15",
+  "releaseCertified": false,
+  "fullProductionCapacityCertified": false,
+  "sourceRun": "https://github.com/JibrilMohamud/cove/actions/runs/43666231402",
+  "sourceJob": 132666103779,
+  "setup": "Identical compiled candidate and synthetic 50k-product isolated D1 e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3. Both use one compact fresh primary-D1 market-and-rights and full canonical book hydration SELECT. Flag off reads public market context from D1; flag on reads anonymous public market presentation from private R2 with strict live-market existence and currency fence in primary query. No production customer routing.",
+  "arms": {
+    "liveD1Context": {
+      "sustained50rps20s": {
+        "offered": 1000,
+        "valid": 1000,
+        "failed": 0,
+        "dropped": 0,
+        "ttfbP95Ms": 206.96,
+        "ttfbP99Ms": 279.18,
+        "ttfbMaxMs": 381.13,
+        "successfulRps": 49.74
+      },
+      "first100rps20s": {
+        "offered": 2000,
+        "valid": 1146,
+        "failed": 854,
+        "dropped": 0,
+        "ttfbP95Ms": 289.01,
+        "ttfbP99Ms": 378.83,
+        "ttfbMaxMs": 533.4
+      },
+      "second100RpsAttempted": false
+    },
+    "privateR2PublicContext": {
+      "sustained50rps20s": {
+        "offered": 1000,
+        "valid": 1000,
+        "failed": 0,
+        "dropped": 0,
+        "ttfbP95Ms": 239.56,
+        "ttfbP99Ms": 320.61,
+        "ttfbMaxMs": 412.2,
+        "successfulRps": 49.44
+      },
+      "first100rps20s": {
+        "offered": 2000,
+        "valid": 1629,
+        "failed": 371,
+        "dropped": 0,
+        "ttfbP95Ms": 269.84,
+        "ttfbP99Ms": 389.61,
+        "ttfbMaxMs": 513.03
+      },
+      "second100RpsAttempted": false
+    }
+  },
+  "providerEvidence": {
+    "source": "Cloudflare Workers Observability trace samples correlated by exact traceId during isolated 100-RPS runs; raw SQL and identity payloads excluded.",
+    "liveD1Context": {
+      "windowsUTC": [
+        "2026-11-15T02:08:47Z–02:08:57Z",
+        "2026-11-15T02:08:57Z–02:09:09Z"
+      ],
+      "sampledCandidateGET503": 72,
+      "matchedD1OverloadEvents": 72,
+      "overloadedMarketContextSpans": 56,
+      "overloadedCompactRightsSpans": 16,
+      "overloadedHTTPAuditBatchSpans": 68,
+      "approxMeanGETCpuMs": 4.1
+    },
+    "privateR2PublicContext": {
+      "windowsUTC": [
+        "2026-11-15T02:10:16Z–02:10:27Z",
+        "2026-11-15T02:10:27Z–02:10:39Z"
+      ],
+      "sampledCandidateGET503": 33,
+      "matchedD1OverloadEvents": 33,
+      "overloadedMarketContextSpans": 0,
+      "overloadedCompactRightsSpans": 33,
+      "overloadedHTTPAuditBatchSpans": 29,
+      "approxMeanGETCpuMs": 4.6
+    },
+    "sqlObservation": "Primary compact rights and hydration SQL completed in approximately 4 ms where successful; 7429 ten-second D1 resource-window overload remained in current authoritative read at 100 offered RPS, despite no separate market/context read."
+  },
+  "interpretation": "Both variants cleared 50 RPS sustained with 100% validity. The R2 projection reduced 100-RPS failures but did not meet any 100-RPS validity gate. The remaining primary D1 single-query read itself overloaded. No second 100-RPS phase, no four-geography production test, no production cutover. 50-RPS p95 was slightly slower with R2; no ungrounded latency claim.",
+  "decision": "Further SQL-only or context-only tuning is insufficient. Next controlled experiment must separate current primary rights-only proof from full canonical book presentation/hydration via private R2, then test thin rights-only 50/100-RPS service limits before wiring book data. Read replicas without a current-primary bookmark cannot serve as authoritative current withdrawal checks.",
+  "rollback": {
+    "driverActiveVersion": "4c25df92-5f4d-4b57-ac8c-c7b80d8a34c2",
+    "candidateActiveVersion": "60d1924f-2917-42be-acf7-496e84cb55e7",
+    "driverD1BindingCount": 0,
+    "candidateBoundD1": "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
+    "candidatePublicIngress": false,
+    "cronCount": 0
+  }
+}

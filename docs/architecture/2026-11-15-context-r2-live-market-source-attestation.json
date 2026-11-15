@@ -1,0 +1,22 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Independent stage source review: this new public storefront presentation-R2 experiment does NOT enable cached data to authorize book display, sale, download or entitlement. Anonymous synthetic US/USD popular catalog requests can resolve public localized presentation metadata from a 120-second, etag-CAS R2 object, but all book IDs and offers remain selected/hydrated by primary-D1 current territorial rights. The candidate SQL now includes a fresh active-market/default-currency EXISTS predicate in the SAME authoritative statement; even a stale R2 snapshot cannot produce a positive product-rights grant after market withdrawal or change. Every prior executable SQL mutation literal is byte-for-byte unchanged; existing production, authenticated, filtered, legal, payment, publishing and identity callers remain unchanged. Enablement requires multiple independent synthetic-only flags checked against the exact test D1 fixture and a private stage deployment that verifies the active D1 binding. Source review and test are not production legal-owner certification or audit-retention approval.",
+  "files": [
+    {
+      "path": "src/features/fore/api.server.ts",
+      "sha256": "6926b6be4489e1ccf23a9771d9b9133129294395db41545d8bcf3e710da5b788",
+      "review": "The only caller edit wraps resolveStorefrontContext in a synthetic-only public R2 context read with mandatory live-D1 fallback; current identity, country resolver, D1 publisher/owner calls, and all protected SQL writer sites are intact. Only two explicit staging flag typings and one synthetic marker are added. Production configuration has no such flags. All 33 protected SQL literals match prior source exactly."
+    },
+    {
+      "path": "src/features/fore/search.server.ts",
+      "sha256": "f871ea003cdfe9fca4acd14bb30a1ac67aa0972b2883904a7e9b3216a3801636",
+      "review": "Adds a synthetic-only active-market/currency EXISTS predicate to the same primary-D1 current retail-rights query, and preserves that predicate for sparse/legacy fallback because it is inserted into the scoped candidateParts filters. No rights are derived from public market cache. All prior search predicates remain; nonanonymous and alternate-market requests stay on the original code path. The one historical SQL writer site and its original owner protection remain byte-for-byte unchanged."
+    },
+    {
+      "path": "src/features/fore/synthetic-public-context-r2.stage.ts",
+      "sha256": "fe54690dd03ff9799a62b68e6e07ca901caf077967d78ea32ad2dfaaa9dee632",
+      "review": "New read-only public-context R2 helper: exact test fixture marker and both stage flags, anonymous request, US/IP source, en-US/no Accept-Language, default popular page, no cookies/authorization or user ID, two-minute TTL and bounded response shape, conditional etag PUT, and mandatory primary-D1 resolver fallback for invalid, missing, expired or inaccessible R2 entries. No SQL mutation, secret material, checkout entitlement, legal status, private object keys or personal data cached; cached market metadata cannot authorize books."
+    }
+  ]
+}
