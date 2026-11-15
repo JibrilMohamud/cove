@@ -88,6 +88,42 @@ function assertOriginal(state) {
   assert.equal(state.previews, false, "Private preview URLs must stay disabled");
 }
 
+// The synthetic 50k-product fixture can prove D1 territorial-read capacity,
+// but MUST NOT be used to claim full commercial catalog capacity unless the
+// same top-96 ranked seed has at least 25 CURRENT eligible retail offers.
+// The preflight runs before touching either private Worker deployment.
+async function requireSyntheticRetailOffers() {
+  const statement = `WITH ranked AS MATERIALIZED (
+    SELECT product_id FROM catalog_search_documents INDEXED BY idx_search_popular_stable
+    ORDER BY fore_bestseller_score DESC,external_book_id ASC,product_id ASC LIMIT 96
+  )
+  SELECT COUNT(*) AS eligible_offer_count FROM ranked r
+  JOIN products p ON p.id=r.product_id
+  JOIN editions e ON e.id=p.edition_id
+  JOIN catalog_search_documents d ON d.product_id=p.id
+  WHERE p.storefront_status='active' AND p.source_name<>'upload'
+    AND e.release_status IN ('available','preorder')
+    AND d.suppressed=0 AND d.availability='available' AND d.currency='USD'
+    AND EXISTS (SELECT 1 FROM retail_product_availability_rows rpa
+      WHERE rpa.product_id=p.id AND rpa.territory_code='US')
+    AND EXISTS (SELECT 1 FROM offers o
+      WHERE o.product_id=p.id AND o.sales_channel='retail' AND o.currency='USD'
+        AND o.active=1
+        AND (o.starts_at IS NULL OR o.starts_at<=datetime('now'))
+        AND (o.ends_at IS NULL OR o.ends_at>datetime('now')))`;
+  const result = await api("/d1/database/" + DB + "/query", {
+    method: "POST",
+    body: JSON.stringify({ sql: statement }),
+  });
+  const eligible = Number(result?.[0]?.results?.[0]?.eligible_offer_count);
+  evidence.syntheticLiveOfferWitnessCount = Number.isSafeInteger(eligible) ? eligible : null;
+  evidence.syntheticRetailOfferParityProved = Number.isSafeInteger(eligible) && eligible >= 25;
+  assert.ok(
+    evidence.syntheticRetailOfferParityProved,
+    "Synthetic top-96 has fewer than 25 current eligible retail offers; refuse commercial catalog load/certification",
+  );
+}
+
 async function rollbackIfDiagnostic() {
   const state = await scriptState();
   if (state.version === OLD_VERSION) {
@@ -327,6 +363,8 @@ async function campaign(secret) {
   const run = randomUUID().replaceAll("-", "").slice(0, 24);
   await warmup(run, secret);
   if (process.argv.includes("--rights-only-100rps")) {
+    // This capacity floor intentionally excludes retail offer verification.
+    evidence.syntheticRetailOfferParityProved = false;
     evidence.rightsOnlyCurrentD1 = true;
     evidence.catalogHydrationIncluded = false;
     evidence.marketContextIncluded = false;
@@ -467,6 +505,10 @@ async function main() {
   const secret = randomBytes(32).toString("hex");
   let attempted = false;
   try {
+    // Rights-only is a narrow capacity floor. Every full-catalog campaign
+    // requires a real synthetic commercial-offer fixture before deployment.
+    if (!process.argv.includes("--rights-only-100rps"))
+      await requireSyntheticRetailOffers();
     const deployed = await deployPrivateStage(secret);
     attempted = true;
     evidence.testVersion = deployed.version;
