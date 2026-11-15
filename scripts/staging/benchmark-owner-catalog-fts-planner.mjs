@@ -180,6 +180,29 @@ try {
     output.selectedPlans.push({name:c.name,strategy:first?'fts-first':'rank-first',
       p50:stats.p50,p95:stats.p95,max:stats.max});
   }
+  // Ubiquitous terms are an exact no-op only after FTS vocabulary shows
+  // that EVERY authorized owner-index row contains each term. The stage
+  // owner already maintains default count and facet counters by delta.
+  const term='"book"', allDocuments=PRODUCTS;
+  assert.equal(vocab.get('book').doc,allDocuments);
+  const defaultPage=db.prepare(`SELECT product_id FROM cove_stage_owner_index_items
+    WHERE territory='US' AND currency='USD'
+    ORDER BY rank_score DESC,product_id LIMIT ${PAGE_SIZE}`);
+  assert.deepEqual(defaultPage.all().map(x=>x.product_id),
+    queryPage.all(term).map(x=>x.product_id),
+    'A saturated FTS term must match exactly the authorized default page');
+  const defaultCategoryCount=db.prepare(`SELECT d.value,COUNT(*) AS n
+    FROM cove_stage_owner_index_dimensions d
+    WHERE d.territory='US' AND d.currency='USD' AND d.kind='categories'
+    GROUP BY d.value ORDER BY n DESC,d.value LIMIT 24`).all();
+  assert.deepEqual(defaultCategoryCount,queryFacet.all(term),
+    'A saturated FTS term must preserve every default facet count');
+  const universalPages=timed(defaultPage,[],5,200);
+  output.exactUniversalShortcut={term:'book',authorizedItems:PRODUCTS,
+    wordDocuments:vocab.get('book').doc,
+    exactPage:true,exactCount:true,exactCategoryFacets:true,
+    page:{p50:universalPages.p50,p95:universalPages.p95,max:universalPages.max},
+    reminder:'Authorized default counts/facets are already preaggregated in the stage owner; this local benchmark measures only its indexed page.'};
   // An array of distinct, uncached exact-search terms measures a different
   // workload than repeatedly querying one popular (cacheable) term.
   const distinctDurations=[];
