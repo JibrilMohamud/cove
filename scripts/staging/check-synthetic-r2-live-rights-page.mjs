@@ -29,7 +29,15 @@ try {
     title: "Stage book " + i,
     subtitle: "Only public description",
     authors: [{ id: "author-" + i, slug: "synthetic-author", name: "Synthetic author" }],
-    contributors: [{ id: "author-" + i, slug: "synthetic-author", name: "Synthetic author", role: "author", position: 0 }],
+    contributors: [
+      {
+        id: "author-" + i,
+        slug: "synthetic-author",
+        name: "Synthetic author",
+        role: "author",
+        position: 0,
+      },
+    ],
     summaries: ["Public canonical summary"],
     publisher: "Synthetic Press",
     publisherId: "pub-" + i,
@@ -50,7 +58,9 @@ try {
     readingTimeMinutes: 300,
     publisherDescription: "Sample descriptive publisher text",
     editorialReviews: "Sample editorial review",
-    series: [{ id: "series-" + i, slug: "synthetic-series", name: "Synthetic Series", position: 1 }],
+    series: [
+      { id: "series-" + i, slug: "synthetic-series", name: "Synthetic Series", position: 1 },
+    ],
     subjects: ["fiction"],
     bookshelves: [],
     languages: ["en"],
@@ -91,7 +101,7 @@ try {
   assert.equal(cleanSnapshot.items[0].pageEstimate, 244);
   assert.equal(cleanSnapshot.items[0].publisherDescription, "Sample descriptive publisher text");
 
-    const GATE = "a".repeat(64);
+  const GATE = "a".repeat(64);
   let dbCalls = 0;
   let returned = [];
   let primaryError = null;
@@ -193,7 +203,10 @@ try {
         assert.match(sql, /contributors_json/);
         return {
           bind(...ids) {
-            assert.deepEqual(ids, books.map((b) => b.productId));
+            assert.deepEqual(
+              ids,
+              books.map((b) => b.productId),
+            );
             return {
               all: async () => ({
                 results: books.map((b, i) => ({
@@ -209,7 +222,13 @@ try {
                   subtitle: b.subtitle,
                   description: "Canonical source description " + i,
                   contributors_json: JSON.stringify([
-                    { id: "source-author-" + i, slug: "real-author", name: "Verified Source Author", role: "author", position: 0 },
+                    {
+                      id: "source-author-" + i,
+                      slug: "real-author",
+                      name: "Verified Source Author",
+                      role: "author",
+                      position: 0,
+                    },
                   ]),
                   subjects_json: JSON.stringify(["actual subject"]),
                   bookshelves_json: JSON.stringify(["actual bookshelf"]),
@@ -229,7 +248,9 @@ try {
                   reading_time_minutes: 300,
                   publisher_description: "Verified source public description",
                   editorial_reviews: "Verified source editorial notes",
-                  series_json: JSON.stringify([{ id: "serie-" + i, name: "Source Series", position: 1 }]),
+                  series_json: JSON.stringify([
+                    { id: "serie-" + i, name: "Source Series", position: 1 },
+                  ]),
                   min_age: 12,
                   max_age: 18,
                   content_warnings: "Nonviolent synthetic sample",
@@ -237,7 +258,7 @@ try {
                   drm_status: "restricted",
                   subscription_eligible: 1,
                   downloadable: 1,
-                  offer_json: JSON.stringify({type:"retail",currency:"USD",amountMinor:99}),
+                  offer_json: JSON.stringify({ type: "retail", currency: "USD", amountMinor: 99 }),
                 })),
               }),
             };
