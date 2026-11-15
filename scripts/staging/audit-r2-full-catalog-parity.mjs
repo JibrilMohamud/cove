@@ -27,6 +27,18 @@ const FRESH_PRIMARY = [
   "subscriptionEligible",
   "libraryEligible",
   "offer",
+  "sourceExternalId",
+  "sourceName",
+  "sourceProject",
+  "sourceUrl",
+  "sourceLicenseUrl",
+  "externalIdentifiers",
+  "fileSizeBytes",
+  "epubVersion",
+  "layout",
+  "accessibility",
+  "formatProfile",
+  "aiDisclosure",
 ];
 
 const R2_PUBLIC_DISPLAY = [
@@ -61,22 +73,11 @@ const R2_PUBLIC_DISPLAY = [
   "series",
 ];
 
-// Must be reviewed for disclosure/license semantics or asset refresh before
-// anyone proposes to put these richer source/details into a public R2 cache.
-const NEEDS_POLICY_REVIEW = [
-  "sourceExternalId",
-  "sourceName",
-  "sourceProject",
-  "sourceUrl",
-  "sourceLicenseUrl",
-  "externalIdentifiers",
-  "fileSizeBytes",
-  "epubVersion",
-  "layout",
-  "accessibility",
-  "formatProfile",
-  "aiDisclosure",
-];
+// Sensitive source, license, EPUB package, accessibility and AI metadata now
+// comes exclusively from the same FRESH PRIMARY D1 read as live rights and
+// offers; zero of these fields is in the public R2 projection. Presence alone
+// is not equivalent to business-semantic, rights-owner or delivery parity.
+const NEEDS_POLICY_REVIEW = [];
 
 const source = readFileSync(CANONICAL, "utf8");
 const api = readFileSync(API, "utf8");
@@ -163,9 +164,10 @@ const audit = {
   unreviewedR2PolicyFields: NEEDS_POLICY_REVIEW,
   r2SnapshotAllowlistedKeys: r2Keys,
   note:
-    "Book DTO and catalog envelope both have unimplemented fields. " +
-    "Even when first paint is fast, count/next/facets/search/ingestion and detailed " +
-    "legal metadata require independently verified parity. Production release is BLOCKED.",
+    "Catalog envelope parity remains incomplete even if all 59 book DTO field names " +
+    "are present. Fresh primary projection is not proof of semantic/access/rights " +
+    "equivalence. count/next/facets/search/ingestion, customer SSR/503, geographic " +
+    "performance and production legal/payment/rollback certification are BLOCKED.",
 };
 assert.ok(
   missing.length > 0 || missingEnvelope.length > 0,

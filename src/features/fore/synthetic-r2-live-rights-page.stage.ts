@@ -508,6 +508,34 @@ function currentOffer(row: PrimaryStorefrontAuthorityRow): CatalogBook["offer"] 
 }
 
 /**
+ * Canonical catalog JSON values are read fresh from primary D1, not from R2.
+ * Refuse malformed, oversized or unexpected identifier maps instead of
+ * treating corrupt metadata as public approval. No asset origin, secret key,
+ * customer, entitlement or commercial right is ever included in this parser.
+ */
+function currentPublicObject(
+  raw: string | null,
+  maxBytes: number,
+): Record<string, unknown> | undefined {
+  if (raw === null) return undefined;
+  if (typeof raw !== "string" || raw.length > maxBytes) throw new Error("Unsafe current detail");
+  const value: unknown = JSON.parse(raw);
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error("Invalid current detail");
+  return value as Record<string, unknown>;
+}
+function currentIdentifiers(raw: string | null): Record<string, string> {
+  const parsed = currentPublicObject(raw, 8000);
+  if (!parsed) return {};
+  if (
+    Object.keys(parsed).length > 50 ||
+    !Object.entries(parsed).every(([key, value]) => shortText(key, 100) && shortText(value, 512))
+  )
+    throw new Error("Invalid current identifiers");
+  return parsed as Record<string, string>;
+}
+
+/**
  * Synthetic-only live retail SELECT. The former prototype selected 25
  * territorial candidates BEFORE checking current offers. If one of those
  * candidates lost its offer, it returned a 503 instead of using candidate 26.
@@ -531,6 +559,18 @@ type SyntheticExtendedAuthorityRow = PrimaryStorefrontAuthorityRow & {
   epub_storage_status: string | null;
   has_epub_object: number;
   has_epub_source: number;
+  file_size_bytes: number | null;
+  epub_version: string | null;
+  layout: string | null;
+  source_project: string | null;
+  source_page_url: string | null;
+  source_license_url: string | null;
+  product_external_ids_json: string | null;
+  edition_external_ids_json: string | null;
+  work_external_ids_json: string | null;
+  accessibility_json: string | null;
+  format_profile_json: string | null;
+  ai_disclosure_json: string | null;
 };
 
 export async function authorizeOfferBearingSyntheticPage(
@@ -558,6 +598,7 @@ export async function authorizeOfferBearingSyntheticPage(
           e.public_id edition_public_id,p.source_name,p.source_external_id,
           e.work_id,w.public_id work_public_id,e.release_status,e.drm_status,
           e.downloadable,e.subscription_eligible,e.library_eligible,
+          e.file_size_bytes,e.epub_version,e.layout,
           d.download_count,c.position,d.currency
         FROM candidates c CROSS JOIN products p ON p.id=c.product_id
         JOIN editions e ON e.id=p.edition_id
@@ -584,6 +625,7 @@ export async function authorizeOfferBearingSyntheticPage(
         a.source_name,a.source_external_id,a.work_id,a.work_public_id,
         a.release_status,a.drm_status,a.downloadable,
         a.subscription_eligible,a.library_eligible,a.download_count,
+        a.file_size_bytes,a.epub_version,a.layout,
         (SELECT json_object('type',o.offer_type,'currency',o.currency,
           'amountMinor',o.amount_minor)
          FROM offers o WHERE o.product_id=a.product_id
@@ -601,7 +643,16 @@ export async function authorizeOfferBearingSyntheticPage(
         EXISTS (SELECT 1 FROM digital_assets da JOIN asset_versions av
           ON av.id=da.current_version_id WHERE da.edition_id=a.edition_id
           AND da.kind='epub' AND av.source_url IS NOT NULL
-          AND av.source_url<>'') has_epub_source
+          AND av.source_url<>'') has_epub_source,
+        (SELECT source_project FROM gutenberg_source_cache gc WHERE a.source_name='gutenberg' AND gc.id=a.source_external_id LIMIT 1) source_project,
+        (SELECT source_url FROM gutenberg_source_cache gc WHERE a.source_name='gutenberg' AND gc.id=a.source_external_id LIMIT 1) source_page_url,
+        (SELECT source_license_url FROM gutenberg_source_cache gc WHERE a.source_name='gutenberg' AND gc.id=a.source_external_id LIMIT 1) source_license_url,
+        (SELECT json_group_object(scheme,value) FROM external_identifiers WHERE entity_type='product' AND entity_id=a.product_id) product_external_ids_json,
+        (SELECT json_group_object(scheme,value) FROM external_identifiers WHERE entity_type='edition' AND entity_id=a.edition_id) edition_external_ids_json,
+        (SELECT json_group_object(scheme,value) FROM external_identifiers WHERE entity_type='work' AND entity_id=a.work_id) work_external_ids_json,
+        (SELECT json_object('screenReaderCompatible',am.screen_reader_compatible,'altTextComplete',am.alt_text_complete,'semanticStructure',am.semantic_structure,'summary',COALESCE(ap.accessibility_summary,am.accessibility_summary),'certifier',am.certifier,'visualAdjustments',ap.visual_adjustments,'nonvisualReading',ap.nonvisual_reading,'primaryLanguageDeclared',ap.primary_language_declared,'readingOrderVerified',ap.reading_order_verified,'tableSemanticsComplete',ap.table_semantics_complete,'mathmlPresent',ap.mathml_present,'mathmlAccessible',ap.mathml_accessible,'pageNavigation',ap.page_navigation,'accessibilityNavigation',ap.accessibility_navigation,'accessModes',json(COALESCE(ap.access_modes_json,'[]')),'accessModeSufficient',json(COALESCE(ap.access_mode_sufficient_json,'[]')),'features',json(COALESCE(ap.features_json,'[]')),'hazards',json(COALESCE(ap.hazards_json,'[]')),'conformsTo',json(COALESCE(ap.conforms_to_json,'[]')),'certification',json(COALESCE(ap.certification_json,'{}')),'validationPolicyVersion',ap.validation_policy_version,'validationStatus',ap.validation_status,'validationReport',json(COALESCE(ap.validation_report_json,'{}')),'publisherDeclaration',json(COALESCE(ap.publisher_declaration_json,'{}'))) FROM accessibility_metadata am LEFT JOIN edition_accessibility_profiles ap ON ap.edition_id=am.edition_id WHERE am.edition_id=a.edition_id) accessibility_json,
+        (SELECT json_object('epubVersion',fp.epub_version,'packageVersion',fp.package_version,'navigationType',fp.navigation_type,'renditionLayout',fp.rendition_layout,'pageProgressionDirection',fp.page_progression_direction,'writingMode',fp.writing_mode,'rtl',fp.rtl,'verticalWriting',fp.vertical_writing,'complexCss',fp.complex_css,'embeddedFonts',fp.embedded_fonts,'svg',fp.svg,'mathml',fp.mathml,'complexTables',fp.complex_tables,'footnotes',fp.footnotes,'endnotes',fp.endnotes,'dictionaryContent',fp.dictionary_content,'mediaOverlays',fp.media_overlays,'oversizedImages',fp.oversized_images,'accessibilityNavigation',fp.accessibility_navigation,'compatibilityClass',fp.compatibility_class,'readerSupport',fp.reader_support,'features',json(COALESCE(fp.features_json,'{}')),'warnings',json(COALESCE(fp.warnings_json,'[]'))) FROM edition_format_profiles fp WHERE fp.edition_id=a.edition_id) format_profile_json,
+        (SELECT json_object('policyVersion',pd.policy_version,'textOrigin',pd.text_origin,'coverOrigin',pd.cover_origin,'narrationOrigin',pd.narration_origin,'translationOrigin',pd.translation_origin,'syntheticVoiceLabel',pd.synthetic_voice_label,'publicBadges',json(pd.public_badges_json)) FROM publishing_release_lifecycles l JOIN publishing_publication_versions pv ON pv.id=l.current_publication_version_id JOIN publishing_publications pp ON pp.id=pv.publication_id JOIN publishing_publication_disclosures pd ON pd.publication_version_id=pv.id WHERE pp.product_id=a.product_id LIMIT 1) ai_disclosure_json
       FROM authorized a ORDER BY a.position`,
     )
     .bind("US", JSON.stringify(ids), "USD", "USD", "US")
@@ -676,7 +727,14 @@ export async function syntheticR2PageWithLiveRights(
       ![0, 1].includes(row.has_epub_source) ||
       (row.epub_storage_status !== null && !shortText(row.epub_storage_status, 80)) ||
       (row.download_count !== null &&
-        (!Number.isSafeInteger(row.download_count) || row.download_count < 0))
+        (!Number.isSafeInteger(row.download_count) || row.download_count < 0)) ||
+      (row.file_size_bytes !== null &&
+        (!Number.isSafeInteger(row.file_size_bytes) || row.file_size_bytes < 0)) ||
+      !optionalText(row.epub_version, 80) ||
+      !optionalText(row.layout, 80) ||
+      !optionalText(row.source_project, 200) ||
+      !optionalText(row.source_page_url, 2048) ||
+      !optionalText(row.source_license_url, 2048)
     )
       return null;
     // EXACT canonicalRowBook reading-availability semantics, but with
@@ -700,6 +758,14 @@ export async function syntheticR2PageWithLiveRights(
     if (readingState !== "unavailable" && (objectStored || sourceAvailable))
       formats["application/epub+zip"] =
         `/api/fore/books/${encodeURIComponent(row.product_public_id || row.source_external_id)}/epub`;
+    const externalIdentifiers = {
+      product: currentIdentifiers(row.product_external_ids_json),
+      edition: currentIdentifiers(row.edition_external_ids_json),
+      work: currentIdentifiers(row.work_external_ids_json),
+    };
+    const accessibility = currentPublicObject(row.accessibility_json, 24000);
+    const formatProfile = currentPublicObject(row.format_profile_json, 16000);
+    const aiDisclosure = currentPublicObject(row.ai_disclosure_json, 8000);
     books.push({
       id: row.product_public_id || row.product_id,
       productId: row.product_id,
@@ -710,6 +776,10 @@ export async function syntheticR2PageWithLiveRights(
       publicWorkId: row.work_public_id || undefined,
       sourceName: row.source_name,
       sourceExternalId: row.source_external_id,
+      externalIdentifiers,
+      sourceProject: row.source_project || undefined,
+      sourceUrl: row.source_page_url || undefined,
+      sourceLicenseUrl: row.source_license_url || undefined,
       copyright: row.source_name === "gutenberg" ? false : undefined,
       uploaded: row.source_name === "upload",
       releaseStatus: row.release_status,
@@ -727,6 +797,12 @@ export async function syntheticR2PageWithLiveRights(
       languages: display.languages,
       formats,
       readingAvailability: { state: readingState },
+      fileSizeBytes: row.file_size_bytes ?? undefined,
+      epubVersion: row.epub_version || undefined,
+      layout: row.layout || "reflowable",
+      accessibility,
+      formatProfile,
+      aiDisclosure,
       download_count: row.download_count ?? 0,
       publisher: display.publisher,
       publisherId: display.publisherId,

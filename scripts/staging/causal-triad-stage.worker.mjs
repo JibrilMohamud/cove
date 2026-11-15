@@ -238,6 +238,19 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
               typeof b.workId === "string" &&
               Number.isSafeInteger(b.download_count) &&
               b.download_count >= 0 &&
+              typeof b.sourceName === "string" &&
+              typeof b.sourceExternalId === "string" &&
+              !!b.externalIdentifiers &&
+              typeof b.externalIdentifiers.product === "object" &&
+              typeof b.externalIdentifiers.edition === "object" &&
+              typeof b.externalIdentifiers.work === "object" &&
+              (b.fileSizeBytes === undefined ||
+                (Number.isSafeInteger(b.fileSizeBytes) && b.fileSizeBytes >= 0)) &&
+              (b.epubVersion === undefined || typeof b.epubVersion === "string") &&
+              typeof b.layout === "string" &&
+              (b.accessibility === undefined || typeof b.accessibility === "object") &&
+              (b.formatProfile === undefined || typeof b.formatProfile === "object") &&
+              (b.aiDisclosure === undefined || typeof b.aiDisclosure === "object") &&
               ["stored", "on-demand", "processing", "unavailable"].includes(
                 b.readingAvailability?.state,
               ) &&
