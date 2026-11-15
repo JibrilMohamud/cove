@@ -42,8 +42,9 @@ jobs:
           node --check scripts/staging/owner-page-d1-benchmark-fixture.mjs
           node --check scripts/staging/run-private-causal-triad.mjs
           node scripts/reconcile-canonical-writers.mjs
-          npx prettier --check scripts/staging/owner-page-d1-benchmark-fixture.mjs scripts/staging/run-private-causal-triad.mjs scripts/staging/causal-triad-stage.worker.mjs scripts/staging/causal-triad-stage.worker.test.mjs scripts/staging/private-causal-triad.worker.mjs
+          npx prettier --write scripts/staging/owner-page-d1-benchmark-fixture.mjs scripts/staging/run-private-causal-triad.mjs scripts/staging/causal-triad-stage.worker.mjs scripts/staging/causal-triad-stage.worker.test.mjs scripts/staging/private-causal-triad.worker.mjs
           git diff --check
+          git diff --exit-code -- scripts/staging/owner-page-d1-benchmark-fixture.mjs scripts/staging/run-private-causal-triad.mjs scripts/staging/causal-triad-stage.worker.mjs scripts/staging/causal-triad-stage.worker.test.mjs scripts/staging/private-causal-triad.worker.mjs
       - name: Require isolated Cloudflare deployment credential
         run: test -n "$CLOUDFLARE_API_TOKEN"
       - name: Install 50k FAKE indexed page witnesses in isolated synthetic D1 only
