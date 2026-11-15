@@ -232,6 +232,12 @@ function runArm(name) {
     ttfbMaxMs: target.ttfbMaxMs,
     workerP95Ms: target.workerP95Ms,
     statusCounts: target.statusCounts,
+    // The private diagnostic never reports raw book IDs, headers, SQL or
+    // exception messages. These low-cardinality classifications distinguish
+    // real candidate 503s from invalid synthetic 200 payloads.
+    downstreamStatusCounts: target.downstreamStatusCounts || {},
+    failureKindCounts: target.failureKindCounts || {},
+    invalidUpstream200: target.invalidUpstream200 || 0,
   };
   concise.catalogPhases = raw.results
     .filter((x) => x.mode === "catalog" && x.shape.includes("rps"))
