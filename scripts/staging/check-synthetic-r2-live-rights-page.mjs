@@ -149,6 +149,20 @@ try {
     false,
   );
   assert.equal(revoked.books.length, 24);
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  returned[24] = { ...returned[23] };
+  assert.equal(
+    await syntheticR2PageWithLiveRights(request, env, () => now),
+    null,
+    "Duplicate D1 rows must never prove a 25th authorized item",
+  );
+  returned = rows(Array.from({ length: 25 }, (_, i) => i));
+  [returned[0], returned[1]] = [returned[1], returned[0]];
+  assert.equal(
+    await syntheticR2PageWithLiveRights(request, env, () => now),
+    null,
+    "D1 order must agree with the verified public ranking",
+  );
   returned = rows(Array.from({ length: 24 }, (_, i) => i));
   assert.equal(
     await syntheticR2PageWithLiveRights(request, env, () => now),
