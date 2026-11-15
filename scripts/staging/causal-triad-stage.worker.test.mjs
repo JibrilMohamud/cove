@@ -126,7 +126,15 @@ test("guarded second-page driver preserves fixed query and denies unverified pay
           captured = new URL(request.url);
           return Response.json(
             { releaseCertified: false, hasMore: true, mode: "r2-live-retail", results: [] },
-            { headers: { "x-cove-persistence": "d1-live-retail-r2-display-synthetic" } },
+            {
+            headers: {
+              "x-cove-persistence": "d1-live-retail-r2-display-synthetic",
+              "x-cove-stage-r2-ms": "3.45",
+              "x-cove-stage-cursor-ms": "0.89",
+              "x-cove-stage-primary-ms": "98.32",
+              "x-cove-stage-assembly-ms": "1.28",
+            },
+          },
           );
         },
       },
@@ -201,6 +209,10 @@ test("private cursor carrier isolates one signed anchor from measured page-two D
   const result = await cursor.json();
   assert.equal(result.valid, true);
   assert.equal(result.cursorToken, undefined, "Only seed endpoint can return the opaque cursor");
+  assert.equal(result.stageR2Ms, 3.45);
+  assert.equal(result.stageCursorMs, 0.89);
+  assert.equal(result.stagePrimaryMs, 98.32);
+  assert.equal(result.stageAssemblyMs, 1.28);
   assert.deepEqual(captured, ["", "?cursor=" + token]);
   const noGate = await privateWorker.fetch(
     new Request(make("r2cursor", { "x-cove-stage-cursor": token }).url),
