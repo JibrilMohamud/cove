@@ -255,7 +255,7 @@ async function requestProbe(mode, ordinal, run, secret) {
         payload?.valid === true &&
         typeof payload.cursorToken === "string" &&
         payload.cursorToken.length <= 768 &&
-        /^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$/.test(payload.cursorToken)
+        /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(payload.cursorToken)
       )
         signedStageCursor = payload.cursorToken;
     }
