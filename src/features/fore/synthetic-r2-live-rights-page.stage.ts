@@ -32,7 +32,7 @@ export type SyntheticDisplayRow = {
   editionId: string;
   title: string;
   subtitle: string;
-  authors: Array<{ name: string }>;
+  authors: CatalogBook["authors"];
   subjects: string[];
   bookshelves: string[];
   languages: string[];
