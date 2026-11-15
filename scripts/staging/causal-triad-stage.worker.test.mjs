@@ -10,6 +10,7 @@ import worker, {
   summarizeTriad,
   runTriadPhase,
 } from "./causal-triad-stage.worker.mjs";
+import privateWorker from "./private-causal-triad.worker.mjs";
 
 const config = JSON.parse(readFileSync("wrangler.performance-triad.stage.jsonc", "utf8"));
 const TEST_DB = "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
@@ -187,24 +188,24 @@ test("private cursor carrier isolates one signed anchor from measured page-two D
     new Request("https://triad.invalid/__cove/performance/triad/" + mode + "?run=proof&ordinal=7", {
       headers: { "x-cove-triad-key": "f".repeat(64), ...headers },
     });
-  const seed = await worker.fetch(make("r2cursorseed"), stageEnv);
+  const seed = await privateWorker.fetch(make("r2cursorseed"), stageEnv);
   assert.equal(seed.status, 200);
   const seeded = await seed.json();
   assert.equal(seeded.valid, true);
   assert.equal(seeded.cursorToken, token);
-  const cursor = await worker.fetch(make("r2cursor", { "x-cove-stage-cursor": token }), stageEnv);
+  const cursor = await privateWorker.fetch(make("r2cursor", { "x-cove-stage-cursor": token }), stageEnv);
   assert.equal(cursor.status, 200);
   const result = await cursor.json();
   assert.equal(result.valid, true);
   assert.equal(result.cursorToken, undefined, "Only seed endpoint can return the opaque cursor");
   assert.deepEqual(captured, ["", "?cursor=" + token]);
-  const noGate = await worker.fetch(
+  const noGate = await privateWorker.fetch(
     new Request(make("r2cursor", { "x-cove-stage-cursor": token }).url),
     stageEnv,
   );
   assert.equal(noGate.status, 404);
   assert.equal(captured.length, 2, "Unauthenticated callers cannot query candidate or cursor");
-  const invalidCursor = await worker.fetch(
+  const invalidCursor = await privateWorker.fetch(
     make("r2cursor", { "x-cove-stage-cursor": "invalid" }),
     stageEnv,
   );
