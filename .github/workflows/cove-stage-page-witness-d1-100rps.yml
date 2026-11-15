@@ -1,0 +1,66 @@
+name: cove-stage-page-witness-d1-100rps
+on:
+  push:
+    branches: [perf/stage-page-witness-50k-20261115]
+    paths:
+      - scripts/staging/owner-page-d1-benchmark-fixture.mjs
+      - scripts/staging/causal-triad-stage.worker.mjs
+      - scripts/staging/causal-triad-stage.worker.test.mjs
+      - scripts/staging/private-causal-triad.worker.mjs
+      - scripts/staging/private-causal-triad.worker.test.mjs
+      - scripts/staging/run-private-causal-triad.mjs
+      - .github/workflows/cove-stage-page-witness-d1-100rps.yml
+permissions:
+  contents: read
+concurrency:
+  group: cove-isolated-causal-catalog-stage-driver
+  cancel-in-progress: false
+jobs:
+  one-page-fake-witness-current-d1:
+    if: github.repository == 'JibrilMohamud/cove'
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      COVE_SYNTHETIC_D1_ID: e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3
+      COVE_SYNTHETIC_PAGE_BENCH: "1"
+      COVE_ALLOW_SAFE_RESTORE: "1"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Verify no customer route, explicit synthetic mode and protected private-driver tests
+        run: |
+          node --test scripts/staging/causal-triad-stage.worker.test.mjs
+          node --test scripts/staging/private-causal-triad.worker.test.mjs
+          node --check scripts/staging/owner-page-d1-benchmark-fixture.mjs
+          node --check scripts/staging/run-private-causal-triad.mjs
+          node scripts/reconcile-canonical-writers.mjs
+          npx prettier --check scripts/staging/owner-page-d1-benchmark-fixture.mjs scripts/staging/run-private-causal-triad.mjs scripts/staging/causal-triad-stage.worker.mjs scripts/staging/causal-triad-stage.worker.test.mjs scripts/staging/private-causal-triad.worker.mjs
+          git diff --check
+      - name: Require isolated Cloudflare deployment credential
+        run: test -n "$CLOUDFLARE_API_TOKEN"
+      - name: Install 50k FAKE indexed page witnesses in isolated synthetic D1 only
+        run: node scripts/staging/owner-page-d1-benchmark-fixture.mjs --install
+      - name: Strict bursts 1/4/8/16/32 plus 50 RPS and 2x100 RPS with no-DB shadow
+        run: node scripts/staging/run-private-causal-triad.mjs --page-only-100rps --shadow-no-db
+      - name: Verify original pinned private driver restored on every exit
+        if: always()
+        run: node scripts/staging/run-private-causal-triad.mjs --restore-only
+      - name: Drop FAKE page witness table and verify absence on every exit
+        if: always()
+        run: node scripts/staging/owner-page-d1-benchmark-fixture.mjs --destroy
+      - name: Archive full offered/valid counts and D1/Worker latency evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cove-stage-page-witness-50k-${{ github.run_id }}
+          path: artifacts/causal-triad-stage/
+          retention-days: 14
+          if-no-files-found: ignore

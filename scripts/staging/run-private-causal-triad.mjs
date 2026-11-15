@@ -187,6 +187,26 @@ async function refreshSyntheticPointBenchmark() {
   );
 }
 
+async function refreshSyntheticPageBenchmark() {
+  assert.ok(process.argv.includes("--page-only-100rps"));
+  assert.equal(process.env.COVE_SYNTHETIC_PAGE_BENCH, "1");
+  const updated = await api("/d1/database/" + DB + "/query", {
+    method: "POST",
+    body: JSON.stringify({
+      sql: "UPDATE cove_stage_perf_page_authority SET valid_until=datetime('now','+30 seconds') WHERE page_id='page-synth-000001' AND candidate_count=25 AND rank_digest=? AND current_offer_digest=?",
+      params: ["c".repeat(64), "d".repeat(64)],
+    }),
+  });
+  assert.equal(updated?.[0]?.meta?.changes, 1, "Synthetic page witness lease must refresh");
+  const result = await api("/d1/database/" + DB + "/query", {
+    method: "POST",
+    body: JSON.stringify({
+      sql: "SELECT COUNT(*) AS ready FROM cove_stage_perf_page_authority WHERE page_id='page-synth-000001' AND candidate_count=25 AND owner_epoch=1 AND valid_until>datetime('now')",
+    }),
+  });
+  assert.equal(result?.[0]?.results?.[0]?.ready, 1, "Stage page witness must be current");
+}
+
 async function rollbackIfDiagnostic() {
   const state = await scriptState();
   if (state.version === OLD_VERSION) {
@@ -250,6 +270,9 @@ async function deployPrivateStage(secret) {
       { name: "COVE_TRIAD_CANDIDATE", type: "plain_text", text: SERVICE },
       ...(process.argv.includes("--point-only-100rps")
         ? [{ name: "COVE_SYNTHETIC_POINT_BENCH", type: "plain_text", text: "1" }]
+        : []),
+      ...(process.argv.includes("--page-only-100rps")
+        ? [{ name: "COVE_SYNTHETIC_PAGE_BENCH", type: "plain_text", text: "1" }]
         : []),
       { name: "COVE_TRIAD_EXPIRES_AT", type: "plain_text", text: expiration },
       { name: "COVE_TRIAD_PROBE_GATE", type: "secret_text", text: secret },
@@ -432,7 +455,7 @@ async function phase(mode, shape, offered, spacingMs, run, secret) {
   // replace or reduce scheduled cursor OR projected-point requests.
   const shadowEnabled =
     process.argv.includes("--shadow-no-db") &&
-    (mode === "r2cursor" || mode === "pointbench") &&
+    (mode === "r2cursor" || mode === "pointbench" || mode === "pagebench") &&
     offered === 2000 &&
     spacingMs === 10;
   const shadowRows = [];
@@ -495,19 +518,21 @@ async function warmup(run, secret) {
   assert.equal(unauthorizedStatus, 404, "Private staging route did not propagate safely");
   // The rights-only experiment must never depend on a separately deployed
   // candidate endpoint. The same private driver verifies no-DB and live D1.
-  const warmModes = process.argv.includes("--point-only-100rps")
-    ? ["noop", "pointbench"]
-    : process.argv.includes("--revision-only-100rps")
-      ? ["noop", "revision"]
-      : process.argv.includes("--r2-cursor-100rps")
-        ? ["noop", "r2seed", "r2cursorseed", "r2cursor"]
-        : process.argv.includes("--r2-page2-100rps")
-          ? ["noop", "r2seed", "r2page2"]
-          : process.argv.includes("--r2-retail-100rps")
-            ? ["noop", "r2seed", "r2live"]
-            : process.argv.includes("--rights-only-100rps")
-              ? ["noop", "rights"]
-              : MODES;
+  const warmModes = process.argv.includes("--page-only-100rps")
+    ? ["noop", "pagebench"]
+    : process.argv.includes("--point-only-100rps")
+      ? ["noop", "pointbench"]
+      : process.argv.includes("--revision-only-100rps")
+        ? ["noop", "revision"]
+        : process.argv.includes("--r2-cursor-100rps")
+          ? ["noop", "r2seed", "r2cursorseed", "r2cursor"]
+          : process.argv.includes("--r2-page2-100rps")
+            ? ["noop", "r2seed", "r2page2"]
+            : process.argv.includes("--r2-retail-100rps")
+              ? ["noop", "r2seed", "r2live"]
+              : process.argv.includes("--rights-only-100rps")
+                ? ["noop", "rights"]
+                : MODES;
   for (const mode of warmModes) {
     let result;
     for (let retry = 0; retry < 5; retry++) {
@@ -525,9 +550,15 @@ async function warmup(run, secret) {
 
 async function campaign(secret) {
   const run = randomUUID().replaceAll("-", "").slice(0, 24);
-  if (process.argv.includes("--point-only-100rps")) await refreshSyntheticPointBenchmark();
+  const pageBench = process.argv.includes("--page-only-100rps");
+  const pointBench = process.argv.includes("--point-only-100rps");
+  if (pointBench) await refreshSyntheticPointBenchmark();
+  if (pageBench) await refreshSyntheticPageBenchmark();
   await warmup(run, secret);
-  if (process.argv.includes("--point-only-100rps")) {
+  if (pageBench || pointBench) {
+    const witnessMode = pageBench ? "pagebench" : "pointbench";
+    const refresh = pageBench ? refreshSyntheticPageBenchmark : refreshSyntheticPointBenchmark;
+    evidence.singlePageWitnessBenchmarkOnly = pageBench;
     const pointShadow = process.argv.includes("--shadow-no-db");
     evidence.sameWindowNoDbShadow = pointShadow;
     evidence.syntheticPointBenchmarkOnly = true;
@@ -544,10 +575,10 @@ async function campaign(secret) {
       part.ttfbMaxMs < 800 &&
       (!pointShadow ||
         part.offered !== 2000 ||
-        part.mode !== "pointbench" ||
+        part.mode !== witnessMode ||
         part.ingressShadow?.passed === true);
     for (const concurrency of [1, 4, 8, 16, 32]) {
-      const tested = await phase("pointbench", "burst-" + concurrency, concurrency, 0, run, secret);
+      const tested = await phase(witnessMode, "burst-" + concurrency, concurrency, 0, run, secret);
       if (!strict(tested, concurrency)) {
         evidence.stopReason = "synthetic-point-burst-failed-" + concurrency;
         throw Error("25-point indexed D1 benchmark did not meet strict burst thresholds");
@@ -559,16 +590,16 @@ async function campaign(secret) {
       evidence.stopReason = "synthetic-point-no-db-control-failed";
       throw Error("No-DB baseline failed before D1 projected point benchmark");
     }
-    await refreshSyntheticPointBenchmark();
-    const half = await phase("pointbench", "50-rps-20s", 1000, 20, run, secret);
+    await refresh();
+    const half = await phase(witnessMode, "50-rps-20s", 1000, 20, run, secret);
     evidence.point50Passed = strict(half, 1000);
     if (!evidence.point50Passed) {
       evidence.stopReason = "synthetic-point-50-rps-failed";
       throw Error("Indexed D1 point lookup failed strict 50RPS");
     }
     for (let i = 1; i <= 2; i++) {
-      await refreshSyntheticPointBenchmark();
-      const full = await phase("pointbench", "100-rps-20s-phase-" + i, 2000, 10, run, secret);
+      await refresh();
+      const full = await phase(witnessMode, "100-rps-20s-phase-" + i, 2000, 10, run, secret);
       evidence.point100RpsPhases = i;
       if (!strict(full, 2000)) {
         evidence.stopReason = "synthetic-point-100-rps-phase-" + i + "-failed";
@@ -850,9 +881,12 @@ async function main() {
     // requires a real synthetic commercial-offer fixture before deployment.
     if (process.argv.includes("--point-only-100rps"))
       assert.equal(process.env.COVE_SYNTHETIC_POINT_BENCH, "1");
+    if (process.argv.includes("--page-only-100rps"))
+      assert.equal(process.env.COVE_SYNTHETIC_PAGE_BENCH, "1");
     if (
       !process.argv.includes("--rights-only-100rps") &&
-      !process.argv.includes("--point-only-100rps")
+      !process.argv.includes("--point-only-100rps") &&
+      !process.argv.includes("--page-only-100rps")
     )
       await requireSyntheticRetailOffers();
     const deployed = await deployPrivateStage(secret);
