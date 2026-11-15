@@ -126,15 +126,7 @@ test("guarded second-page driver preserves fixed query and denies unverified pay
           captured = new URL(request.url);
           return Response.json(
             { releaseCertified: false, hasMore: true, mode: "r2-live-retail", results: [] },
-            {
-            headers: {
-              "x-cove-persistence": "d1-live-retail-r2-display-synthetic",
-              "x-cove-stage-r2-ms": "3.45",
-              "x-cove-stage-cursor-ms": "0.89",
-              "x-cove-stage-primary-ms": "98.32",
-              "x-cove-stage-assembly-ms": "1.28",
-            },
-          },
+            { headers: { "x-cove-persistence": "d1-live-retail-r2-display-synthetic" } },
           );
         },
       },
@@ -185,7 +177,15 @@ test("private cursor carrier isolates one signed anchor from measured page-two D
             mode: url.search ? "r2-live-retail-cursor" : "r2-live-retail",
             releaseCertified: false,
           },
-          { headers: { "x-cove-persistence": "d1-live-retail-r2-display-synthetic" } },
+          {
+            headers: {
+              "x-cove-persistence": "d1-live-retail-r2-display-synthetic",
+              "x-cove-stage-r2-ms": "3.45",
+              "x-cove-stage-cursor-ms": "0.89",
+              "x-cove-stage-primary-ms": "98.32",
+              "x-cove-stage-assembly-ms": "1.28",
+            },
+          },
         );
       },
     },

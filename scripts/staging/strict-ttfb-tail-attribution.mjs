@@ -36,9 +36,7 @@ export function strictTtfbTailAttribution(rows, ceilingMs = 800) {
     maxStageR2Ms: ms(maximum(measured.map((r) => r.stageR2Ms).filter(finiteDuration))),
     maxStageCursorMs: ms(maximum(measured.map((r) => r.stageCursorMs).filter(finiteDuration))),
     maxStagePrimaryMs: ms(maximum(measured.map((r) => r.stagePrimaryMs).filter(finiteDuration))),
-    maxStageAssemblyMs: ms(
-      maximum(measured.map((r) => r.stageAssemblyMs).filter(finiteDuration)),
-    ),
+    maxStageAssemblyMs: ms(maximum(measured.map((r) => r.stageAssemblyMs).filter(finiteDuration))),
     slowestRequestPaired: fastestMax
       ? {
           externalFirstByteMs: ms(fastestMax.firstByteMs),
