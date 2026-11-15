@@ -413,7 +413,7 @@ try {
   );
   returned = rows(Array.from({ length: 25 }, (_, i) => i));
 
-    // If the top candidate loses its retail offer, the live SELECT itself
+  // If the top candidate loses its retail offer, the live SELECT itself
   // must exclude it so candidate 26 fills the 25th witness slot; the R2
   // ranking is unchanged and cannot confer price or availability.
   returned = rows(Array.from({ length: 25 }, (_, i) => i + 1));
