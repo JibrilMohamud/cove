@@ -98,6 +98,67 @@ try{
   assert.deepEqual(firstIndexed,direct,'Indexed 25-book exact page/count/facets parity');
   assert.equal(idx.readStageOwnerIncrementalIndex(sql,{...scope,page:2,limit:10}).pageIds.length,10);
   assert.equal(idx.readStageOwnerIncrementalIndex(sql,{...scope,page:3,limit:10}).pageIds.length,5);
+  // Independent reference: acquire authorized IDs from actual owner SQL,
+  // then recompute each disjunctive facet using raw canonical fixture data.
+  function filteredGold(input){
+    const ids=stage.stageOwnerCatalogRead(sql,{...scope,page:1,limit:25}).pageIds;
+    const books=ids.map(id=>{
+      const meta=db.prepare('SELECT rank_score,format,publisher FROM cove_stage_owner_catalog WHERE product_id=?').get(id);
+      const tags={};
+      for(const [facet,table] of [['categories','category'],['languages','language'],['series','series']]){
+        tags[facet]=db.prepare(`SELECT value FROM cove_stage_owner_catalog_${table} WHERE product_id=?`)
+          .all(id).map(r=>r.value);
+      }
+      tags.formats=[meta.format];tags.publishers=[meta.publisher];
+      const proof=db.prepare(id.startsWith('prd_gutenberg_')?
+        `SELECT offer_json FROM cove_authorized_offer_proofs WHERE product_id=? AND territory='US' AND currency='USD'`:
+        `SELECT offer_json FROM cove_commercial_storefront_proofs WHERE product_id=? AND territory='US' AND currency='USD'`).get(id);
+      return {id,tags,rank:meta.rank_score,price:JSON.parse(proof.offer_json).amountMinor};
+    });
+    const facets=['categories','languages','formats','publishers','series'];
+    const selected=(book,omit)=>facets.every(f=>f===omit||!input[f]?.length||
+      input[f].some(x=>book.tags[f].includes(x)))&&
+      (omit==='price'||(
+        (input.minPrice===undefined||book.price>=input.minPrice)&&
+        (input.maxPrice===undefined||book.price<=input.maxPrice)));
+    const matches=books.filter(b=>selected(b));
+    const distribution=(kind)=>{
+      const counter=new Map();
+      for(const book of books.filter(b=>selected(b,kind))){
+        for(const value of new Set(book.tags[kind]))counter.set(value,(counter.get(value)||0)+1);
+      }
+      const cap={categories:40,languages:30,formats:20,publishers:30,series:30}[kind];
+      return [...counter].map(([value,count])=>({value,count}))
+        .sort((a,b)=>b.count-a.count||a.value.localeCompare(b.value)).slice(0,cap);
+    };
+    const prices=books.filter(b=>selected(b,'price')).map(x=>x.price);
+    return {count:matches.length,pageIds:matches.slice((input.page-1)*input.limit,input.page*input.limit)
+      .map(x=>x.id),facets:{
+      ...Object.fromEntries(facets.map(f=>[f,distribution(f)])),
+      availability:matches.length?[{value:'available',count:matches.length}]:[],
+      price:prices.length?{currency:'USD',min:Math.min(...prices),max:Math.max(...prices)}:null,
+    },releaseCertified:false};
+  }
+  const filterSamples=[
+    {categories:['Fiction']},
+    {categories:['Classics']},
+    {categories:['Missing']},
+    {categories:['Classics'],languages:['en','fr']},
+    {languages:['en'],formats:['ebook']},
+    {formats:['audio'],publishers:['Stage Publishing A']},
+    {series:['Stage Series']},
+    {minPrice:500},
+    {maxPrice:0},
+    {minPrice:0,maxPrice:599},
+    {categories:['Classics'],minPrice:500},
+    {categories:['Classics'],minPrice:600},
+    {formats:['audio','ebook'],series:['Stage Series'],page:2,limit:1},
+  ];
+  for(const part of filterSamples){
+    const input={...scope,...part};
+    assert.deepEqual(idx.readStageOwnerFilteredIndex(sql,input),filteredGold(input),
+      'Every filtered count/page and self-excluding facet must match independent owner SQL');
+  }
   const cached=stage.readStageOwnerCatalogSnapshot(sql,scope);
   assert.deepEqual(cached,direct);
   assert.equal(cached.releaseCertified,false);
@@ -134,6 +195,8 @@ try{
     stage.rebuildStageOwnerCatalogSnapshot(sql);
   });
   assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope),stage.stageOwnerCatalogRead(sql,scope));
+  for(const part of filterSamples){const input={...scope,...part};
+    assert.deepEqual(idx.readStageOwnerFilteredIndex(sql,input),filteredGold(input));}
   assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,24);
   assert.ok(!stage.readStageOwnerCatalogSnapshot(sql,scope).pageIds.includes(paidIds[0]));
   assert.equal(paid.readCommercialStorefront(sql,paidIds,'US','USD').length,12);
@@ -146,6 +209,8 @@ try{
     stage.rebuildStageOwnerCatalogSnapshot(sql);
   });
   assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope),stage.stageOwnerCatalogRead(sql,scope));
+  for(const part of filterSamples){const input={...scope,...part};
+    assert.deepEqual(idx.readStageOwnerFilteredIndex(sql,input),filteredGold(input));}
   assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,23);
   assert.equal(free.readAuthorizedPresentations(sql,freeIds,'US','USD').length,11);
 
@@ -155,6 +220,8 @@ try{
   });
   assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,0);
   assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope),stage.stageOwnerCatalogRead(sql,scope));
+  for(const part of filterSamples){const input={...scope,...part};
+    assert.deepEqual(idx.readStageOwnerFilteredIndex(sql,input),filteredGold(input));}
   assert.deepEqual(stage.readStageOwnerCatalogSnapshot(sql,scope).pageIds,[]);
   assert.deepEqual(stage.readStageOwnerCatalogSnapshot(sql,scope).facets.availability,[]);
   for(const invalid of [
@@ -165,6 +232,7 @@ try{
   assert.throws(()=>stage.stageOwnerCatalogRead(sql,{...scope,query:'war'}),/unsupported_scope/);
   for(const bad of [{...scope,query:'War'},{...scope,sort:'popular'},{...scope,filter:'category'}])
     assert.throws(()=>idx.readStageOwnerIncrementalIndex(sql,bad),/unreviewed_scope/);
+  console.log('PASS: indexed disjunctive filter/price/count/page parity across '+filterSamples.length+' cases and withdrawals');
   console.log('PASS: owner-index exact default count/facets/page 25/24/23/0; 250 indexed hot reads, source/contract/market denial, dirty fail-close, disallowed scopes rejected');
 }finally{
   db.close();rmSync(root,{recursive:true,force:true});
