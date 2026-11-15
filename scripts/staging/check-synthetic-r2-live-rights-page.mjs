@@ -194,10 +194,10 @@ try {
       epub_storage_status: null,
       has_epub_object: 0,
       has_epub_source: 0,
-       source_project: "gutenberg",
+      source_project: "gutenberg",
       source_page_url: "https://www.gutenberg.org/ebooks/1",
       source_license_url: "https://www.gutenberg.org/policy/license.html",
-       ai_disclosure_json: JSON.stringify({
+      ai_disclosure_json: JSON.stringify({
         policyVersion: "2026.1",
         textOrigin: "human",
         publicBadges: [{ key: "human", label: "Human written" }],
