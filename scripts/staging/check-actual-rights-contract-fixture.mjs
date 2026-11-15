@@ -63,6 +63,25 @@ const db = {
     throw new Error("Real-rights fixture is read-only");
   },
 };
+// The ONLY writes allowed are to the ephemeral, private test authority
+// projection. Rights, offers, contracts and products stay read-only here.
+function ownerStatement(sql, values = []) {
+  return {
+    bind: (...v) => ownerStatement(sql, v),
+    first: async () => (await rpc({ op: "query", sql, params: values })).results[0] || null,
+    all: async () => ({ results: (await rpc({ op: "query", sql, params: values })).results }),
+    run: async () => {
+      const response = await rpc({ op: "stage_owner_write", sql, params: values });
+      return response;
+    },
+  };
+}
+const ownerDb = {
+  prepare: (sql) => ownerStatement(sql),
+  batch: async () => {
+    throw new Error("Owner fixture forbids D1 batches");
+  },
+};
 
 try {
   const outfile = path.join(folder, "rights.mjs");
@@ -76,6 +95,16 @@ try {
   });
   const { resolveProductRights } = await import(pathToFileURL(outfile).href);
   assert.equal(typeof resolveProductRights, "function");
+  const ownerOutfile = path.join(folder, "owner.mjs");
+  await build({
+    entryPoints: ["src/features/fore/owner-positive-retail.stage.ts"],
+    outfile: ownerOutfile,
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    logLevel: "silent",
+  });
+  const { stageRecomputeOwnerPositiveRetail } = await import(pathToFileURL(ownerOutfile).href);
   const scenarios = [
     ["baseline", true, "ACTIVE_GRANT"],
     ["explicit-deny", false, "EXPLICIT_DENY"],
@@ -103,9 +132,32 @@ try {
     assert.equal(resolved.salesChannel, "retail");
     assert.equal(resolved.territory, "US");
     assert.equal(resolved.productId, "p_fixture");
+    const writer = await stageRecomputeOwnerPositiveRetail(
+      {
+        DB: ownerDb,
+        COVE_STAGE_OWNER_CAS_ONLY: "1",
+        COVE_STAGE_OWNER_DB_ID: "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
+      },
+      "p_fixture",
+      "US",
+      "USD",
+      new Date(),
+    );
+    assert.equal(writer.published, allowed, "Owner writer diverged from canonical " + scenario);
+    const row = await db
+      .prepare(
+        "SELECT product_id,amount_minor,current_offer_id FROM cove_stage_owner_retail_authority WHERE product_id=?",
+      )
+      .bind("p_fixture")
+      .first();
+    assert.equal(Boolean(row), allowed, "Stored positive disagrees with canonical " + scenario);
+    if (allowed) {
+      assert.equal(row.current_offer_id, "o_fixture");
+      assert.equal(row.amount_minor, 599);
+    }
   }
   console.log(
-    "PASS: actual resolveProductRights SQL through isolated SQLite: active contract, explicit deny, inactive/versioned contract, territory, format, channel, DRM, languages, grant expiry and disabled product. No production parity claimed.",
+    "PASS: actual resolveProductRights and guarded owner CAS writer agree on contract versions, explicit deny, territory, format, channel, DRM, languages and expiry in isolated SQLite. No production parity claimed.",
   );
 } finally {
   lines.close();
