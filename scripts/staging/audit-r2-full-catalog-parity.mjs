@@ -32,12 +32,6 @@ const FRESH_PRIMARY = [
   "sourceProject",
   "sourceUrl",
   "sourceLicenseUrl",
-  "externalIdentifiers",
-  "fileSizeBytes",
-  "epubVersion",
-  "layout",
-  "accessibility",
-  "formatProfile",
   "aiDisclosure",
 ];
 
@@ -70,13 +64,20 @@ const R2_PUBLIC_DISPLAY = [
   "readingTimeMinutes",
   "publisherDescription",
   "editorialReviews",
+  "externalIdentifiers",
+  "fileSizeBytes",
+  "epubVersion",
+  "layout",
+  "accessibility",
+  "formatProfile",
   "series",
 ];
 
-// Sensitive source, license, EPUB package, accessibility and AI metadata now
-// comes exclusively from the same FRESH PRIMARY D1 read as live rights and
-// offers; zero of these fields is in the public R2 projection. Presence alone
-// is not equivalent to business-semantic, rights-owner or delivery parity.
+// Identifier and non-authorizing edition-format metadata may be staged as
+// bounded, short-lived R2 display. Source and LICENSE attribution plus AI
+// release disclosures stay fresh primary-D1. Current rights, offers, DRM and
+// protected URLs never enter R2. This classification is stage-only: revisions
+// and semantic production parity still need independent release certification.
 const NEEDS_POLICY_REVIEW = [];
 
 const source = readFileSync(CANONICAL, "utf8");
