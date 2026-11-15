@@ -760,10 +760,7 @@ export async function syntheticR2PageWithLiveRights(
   let current =
     page === 2
       ? await authorizeOfferBearingSyntheticPage(env.DB, rankedIds, SECOND_PAGE_WITNESSES)
-      : await authorizeOfferBearingSyntheticPage(
-          env.DB,
-          rankedIds.slice(0, FAST_CANDIDATE_COUNT),
-        );
+      : await authorizeOfferBearingSyntheticPage(env.DB, rankedIds.slice(0, FAST_CANDIDATE_COUNT));
   if (page === 1 && current.length < PAGE_COUNT + 1)
     current = await authorizeOfferBearingSyntheticPage(env.DB, rankedIds);
   const requiredWitnesses = page === 2 ? SECOND_PAGE_WITNESSES : PAGE_COUNT + 1;
