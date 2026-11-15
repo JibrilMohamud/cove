@@ -66,6 +66,14 @@ PRODUCT_SCOPES = {
     "catalog_search_documents": "SELECT {ref}.product_id",
 }
 
+# Territory eligibility and aliases are used directly by the canonical
+# live resolver. Never keep a positive row for a territory whose sellability
+# or canonical alias mapping changed.
+TERRITORY_SCOPES = {
+    "territories": "SELECT {ref}.code",
+    "territory_aliases": "SELECT {ref}.territory_code",
+}
+
 # US market is an existing fallback for markets with missing local currency.
 # On US market edits, deny all projection rows until owner rebuilds them.
 # This is deliberately conservative; an atomic full rebuild is required
@@ -114,6 +122,20 @@ def invalidation_triggers() -> str:
         ):
             conditions = " OR ".join(
                 "product_id IN (" + scope.format(ref=ref) + ")" for ref in aliases
+            )
+            statements.append(
+                f"CREATE TRIGGER cove_stage_owner_invalidate_{table}_{operation.lower()} "
+                f"BEFORE {operation} ON {table} BEGIN "
+                f"DELETE FROM {PROJECTION} WHERE {conditions}; END;"
+            )
+    for table, scope in TERRITORY_SCOPES.items():
+        for operation, aliases in (
+            ("INSERT", ("NEW",)),
+            ("UPDATE", ("OLD", "NEW")),
+            ("DELETE", ("OLD",)),
+        ):
+            conditions = " OR ".join(
+                "territory_code IN (" + scope.format(ref=ref) + ")" for ref in aliases
             )
             statements.append(
                 f"CREATE TRIGGER cove_stage_owner_invalidate_{table}_{operation.lower()} "
