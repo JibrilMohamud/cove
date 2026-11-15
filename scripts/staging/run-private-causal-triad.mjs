@@ -307,6 +307,40 @@ async function warmup(run, secret) {
 async function campaign(secret) {
   const run = randomUUID().replaceAll("-", "").slice(0,24);
   await warmup(run, secret);
+  if (process.argv.includes("--single-only")) {
+    evidence.referenceOnly = true;
+    evidence.noMarketContextOrSecondaryChannel = true;
+    const meets = (s, offered) =>
+      s.valid === offered &&
+      s.dropped === 0 &&
+      s.ttfbP95Ms !== null &&
+      s.ttfbP95Ms < 600 &&
+      s.ttfbP99Ms < 750 &&
+      s.ttfbMaxMs < 800;
+    const fifty = await phase("single", "50-rps-20s", 1000, 20, run, secret);
+    evidence.reference50Passed = meets(fifty, 1000);
+    if (!evidence.reference50Passed) {
+      evidence.skipped100Rps = "single-authority-50-rps-gate-failed";
+      return;
+    }
+    for (let trial = 1; trial <= 2; trial++) {
+      const hundred = await phase(
+        "single",
+        "100-rps-20s-phase-" + trial,
+        2000,
+        10,
+        run,
+        secret,
+      );
+      evidence.reference100RpsPhases = trial;
+      if (!meets(hundred, 2000)) {
+        evidence.reference100RpsTwoPhasePassed = false;
+        return;
+      }
+    }
+    evidence.reference100RpsTwoPhasePassed = true;
+    return;
+  }
   if (process.argv.includes("--catalog-only")) {
     const diagnostic = await phase("catalog", "50-rps-20s", 1000, 20, run, secret);
     evidence.diagnosticOnly = true;
