@@ -528,6 +528,9 @@ type SyntheticExtendedAuthorityRow = PrimaryStorefrontAuthorityRow & {
   subscription_eligible: number;
   library_eligible: number;
   download_count: number | null;
+  epub_storage_status: string | null;
+  has_epub_object: number;
+  has_epub_source: number;
 };
 
 export async function authorizeOfferBearingSyntheticPage(
@@ -587,7 +590,18 @@ export async function authorizeOfferBearingSyntheticPage(
            AND o.sales_channel='retail' AND o.currency=a.currency AND o.active=1
            AND (o.starts_at IS NULL OR o.starts_at<=datetime('now'))
            AND (o.ends_at IS NULL OR o.ends_at>datetime('now'))
-         ORDER BY o.created_at DESC LIMIT 1) offer_json
+         ORDER BY o.created_at DESC LIMIT 1) offer_json,
+        (SELECT gc.epub_status FROM gutenberg_source_cache gc
+         WHERE a.source_name='gutenberg' AND gc.id=a.source_external_id
+         LIMIT 1) epub_storage_status,
+        EXISTS (SELECT 1 FROM digital_assets da JOIN asset_versions av
+          ON av.id=da.current_version_id WHERE da.edition_id=a.edition_id
+          AND da.kind='epub' AND av.object_key IS NOT NULL
+          AND av.object_key<>'') has_epub_object,
+        EXISTS (SELECT 1 FROM digital_assets da JOIN asset_versions av
+          ON av.id=da.current_version_id WHERE da.edition_id=a.edition_id
+          AND da.kind='epub' AND av.source_url IS NOT NULL
+          AND av.source_url<>'') has_epub_source
       FROM authorized a ORDER BY a.position`,
     )
     .bind("US", JSON.stringify(ids), "USD", "USD", "US")
@@ -658,10 +672,34 @@ export async function syntheticR2PageWithLiveRights(
       ![0, 1].includes(row.downloadable) ||
       ![0, 1].includes(row.subscription_eligible) ||
       ![0, 1].includes(row.library_eligible) ||
+      ![0, 1].includes(row.has_epub_object) ||
+      ![0, 1].includes(row.has_epub_source) ||
+      (row.epub_storage_status !== null && !shortText(row.epub_storage_status, 80)) ||
       (row.download_count !== null &&
         (!Number.isSafeInteger(row.download_count) || row.download_count < 0))
     )
       return null;
+    // EXACT canonicalRowBook reading-availability semantics, but with
+    // only current primary-D1 asset-existence booleans. Never return,
+    // serialize or cache a private object key or signed EPUB origin.
+    const sourceAvailable = row.has_epub_source === 1;
+    const objectStored = row.has_epub_object === 1;
+    const readingState =
+      !objectStored && ["failed", "unavailable"].includes(row.epub_storage_status || "")
+        ? "unavailable"
+        : objectStored
+          ? "stored"
+          : sourceAvailable &&
+              row.source_name === "gutenberg" &&
+              !/^(pgca|pgau|pgeu)_/.test(row.source_external_id)
+            ? "on-demand"
+            : "processing";
+    const formats: CatalogBook["formats"] = display.imageUrl
+      ? { [display.imageUrl.endsWith(".png") ? "image/png" : "image/jpeg"]: display.imageUrl }
+      : {};
+    if (readingState !== "unavailable" && (objectStored || sourceAvailable))
+      formats["application/epub+zip"] =
+        `/api/fore/books/${encodeURIComponent(row.product_public_id || row.source_external_id)}/epub`;
     books.push({
       id: row.product_public_id || row.product_id,
       productId: row.product_id,
@@ -687,9 +725,8 @@ export async function syntheticR2PageWithLiveRights(
       subjects: display.subjects,
       bookshelves: display.bookshelves,
       languages: display.languages,
-      formats: display.imageUrl
-        ? { [display.imageUrl.endsWith(".png") ? "image/png" : "image/jpeg"]: display.imageUrl }
-        : {},
+      formats,
+      readingAvailability: { state: readingState },
       download_count: row.download_count ?? 0,
       publisher: display.publisher,
       publisherId: display.publisherId,
@@ -713,8 +750,9 @@ export async function syntheticR2PageWithLiveRights(
       editorialReviews: display.editorialReviews,
       series: display.series,
       offer,
-      // Edition display flags are live-primary metadata, NOT entitlement
-      // grants. No protected EPUB URL is cached or delivered by this probe.
+      // Public reader-route presence is from fresh primary asset existence,
+      // NOT an entitlement. Protected asset keys, CDN/source URLs and
+      // offline licenses are not cached or returned by this probe.
     });
   }
   return { books: books.slice(0, PAGE_COUNT), hasMore: true };
