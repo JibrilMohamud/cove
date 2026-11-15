@@ -5,7 +5,7 @@ import { transform } from "esbuild";
 const source = fs.readFileSync("src/lib/persistence-backend-failure.ts", "utf8");
 const { code } = await transform(source, { loader: "ts", format: "esm" });
 const { backendFailureSource, backendFailurePhase, backendFailureStage, backendFailureCategory } =
-  await import("data:text/javascript;base64," + Buffer.from(code).toString("base64");
+  await import("data:text/javascript;base64," + Buffer.from(code).toString("base64"));
 
 function classify(headers) {
   return backendFailureSource(new Headers(headers));
