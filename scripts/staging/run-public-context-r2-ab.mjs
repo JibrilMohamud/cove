@@ -33,7 +33,8 @@ const EVIDENCE = {
   productionModified: false,
   sourceBranch: "perf/stage-context-r2-live-market-fence-20261115",
   originalCandidateVersion: ORIGINAL,
-  testedChange: "public market-context metadata from private R2; all book and active-market rights still checked by primary D1",
+  testedChange:
+    "public market-context metadata from private R2; all book and active-market rights still checked by primary D1",
   syntheticD1: DB,
   variant: [],
 };
@@ -195,18 +196,12 @@ async function deployArm(enabled) {
   assertIsolated(state);
   assert.notEqual(state.version, ORIGINAL);
   assert.equal(state.bindings.length, EXPECTED_BINDINGS.length + 4);
-  assert.equal(
-    state.bindings.find((b) => b.name === "FORE_GUEST_COMPACT_STAGE")?.text,
-    "1",
-  );
+  assert.equal(state.bindings.find((b) => b.name === "FORE_GUEST_COMPACT_STAGE")?.text, "1");
   assert.equal(
     state.bindings.find((b) => b.name === "FORE_GUEST_CONTEXT_R2_STAGE")?.text,
     enabled ? "1" : "0",
   );
-  assert.equal(
-    state.bindings.find((b) => b.name === "COVE_SYNTHETIC_STAGING_ONLY")?.text,
-    DB,
-  );
+  assert.equal(state.bindings.find((b) => b.name === "COVE_SYNTHETIC_STAGING_ONLY")?.text, DB);
   assert.equal(state.runtime?.limits?.cpu_ms, 300000);
   EVIDENCE.variant.push({
     mode: enabled ? "r2-public-context" : "live-d1-context",
