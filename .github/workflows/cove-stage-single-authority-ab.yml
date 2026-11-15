@@ -24,7 +24,7 @@ jobs:
         with: { persist-credentials: false }
       - uses: actions/checkout@v6
         with:
-          ref: d22ef137e3b153adf36b4532f36e053dd19666bd
+          ref: 3633dc9fd7f656cb386e38a2aa3fe2d17f7b8a49
           path: stage-driver
           persist-credentials: false
       - uses: actions/setup-node@v6
