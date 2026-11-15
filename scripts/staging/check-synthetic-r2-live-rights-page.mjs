@@ -425,7 +425,11 @@ try {
   returned = rows(Array.from({ length: 49 }, (_, i) => i));
   const beforePage2 = dbCalls;
   const secondPage = await syntheticR2PageWithLiveRights(secondPageRequest, env, () => now);
-  assert.equal(dbCalls - beforePage2, 1, "Page two normally uses one fresh 56-candidate primary read");
+  assert.equal(
+    dbCalls - beforePage2,
+    1,
+    "Page two normally uses one fresh 56-candidate primary read",
+  );
   assert.equal(secondPage?.books.length, 24);
   assert.equal(secondPage?.books[0].productId, "perf-synth-24");
   assert.equal(secondPage.books[23].productId, "perf-synth-47");
