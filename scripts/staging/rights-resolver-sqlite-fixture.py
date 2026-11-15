@@ -14,7 +14,7 @@ SCHEMA = """
 CREATE TABLE territory_aliases(alias_code TEXT,territory_code TEXT);
 CREATE TABLE territories(code TEXT PRIMARY KEY,is_sellable INTEGER);
 CREATE TABLE products(id TEXT PRIMARY KEY,edition_id TEXT,format TEXT,storefront_status TEXT);
-CREATE TABLE editions(id TEXT PRIMARY KEY,drm_status TEXT,release_status TEXT);
+CREATE TABLE editions(id TEXT PRIMARY KEY,drm_status TEXT,release_status TEXT,release_date TEXT,preorder_date TEXT);
 CREATE TABLE digital_assets(id TEXT,edition_id TEXT,kind TEXT,drm_status TEXT,updated_at TEXT);
 CREATE TABLE rights_parties(id TEXT,display_name TEXT);
 CREATE TABLE publishers(id TEXT,name TEXT);
@@ -55,12 +55,39 @@ CREATE TABLE rights_contract_version_formats (
 CREATE TABLE rights_contract_version_channels (
  contract_version_id TEXT,sales_channel TEXT,permitted INTEGER,terms_json TEXT
 );
+CREATE TABLE offers(
+ id TEXT PRIMARY KEY,product_id TEXT,amount_minor INTEGER,currency TEXT,
+ sales_channel TEXT,active INTEGER,starts_at TEXT,ends_at TEXT,created_at TEXT
+);
+CREATE TABLE cove_stage_owner_authority_state(
+ id INTEGER PRIMARY KEY,enabled INTEGER,epoch INTEGER,us_fallback_revision INTEGER
+);
+CREATE TABLE cove_stage_owner_product_source_version(product_id TEXT PRIMARY KEY,revision INTEGER);
+CREATE TABLE cove_stage_owner_territory_version(territory_code TEXT PRIMARY KEY,revision INTEGER);
+CREATE TABLE cove_stage_owner_market_version(territory_code TEXT PRIMARY KEY,revision INTEGER);
+CREATE TABLE cove_stage_owner_retail_authority(
+ product_id TEXT,territory_code TEXT,currency TEXT,amount_minor INTEGER,
+ current_offer_id TEXT,owner_epoch INTEGER,source_revision INTEGER,
+ territory_revision INTEGER,market_revision INTEGER,us_fallback_revision INTEGER,
+ evidence_digest TEXT,valid_until TEXT,
+ PRIMARY KEY(product_id,territory_code,currency)
+);
+CREATE VIEW retail_product_availability_rows AS
+ SELECT p.id product_id,rgt.territory_code territory_code
+ FROM products p
+ JOIN rights_grants rg ON rg.edition_id=p.edition_id
+ JOIN rights_grant_territories rgt ON rgt.grant_id=rg.id
+ WHERE rg.status='active' AND rg.decision='allow'
+ AND NOT EXISTS (SELECT 1 FROM rights_grants denied
+   JOIN rights_grant_territories dgt ON dgt.grant_id=denied.id
+   WHERE denied.edition_id=rg.edition_id AND denied.status='active'
+   AND denied.decision='deny' AND dgt.territory_code=rgt.territory_code);
 """
 
 ROWS = [
  ("INSERT INTO territories VALUES('US',1)", ()),
  ("INSERT INTO products VALUES('p_fixture','e_fixture','ebook','active')", ()),
- ("INSERT INTO editions VALUES('e_fixture','none','available')", ()),
+ ("INSERT INTO editions(id,drm_status,release_status) VALUES('e_fixture','none','available')", ()),
  ("INSERT INTO edition_languages VALUES('e_fixture','en','content')", ()),
  ("INSERT INTO digital_assets VALUES('a_fixture','e_fixture','epub','none','2026-01-01')", ()),
  ("INSERT INTO rights_contracts VALUES('rc_fixture','Test contract','R1','active','2020-01-01','2040-01-01','all')", ()),
@@ -78,6 +105,11 @@ ROWS = [
  ("INSERT INTO rights_contract_version_territories VALUES('rv_fixture','US','allow')", ()),
  ("INSERT INTO rights_contract_version_formats VALUES('rv_fixture','ebook','allow','none',NULL,NULL,1)", ()),
  ("INSERT INTO rights_contract_version_channels VALUES('rv_fixture','retail',1,'{}')", ()),
+ ("INSERT INTO offers VALUES('o_fixture','p_fixture',599,'USD','retail',1,NULL,NULL,'2020-01-01')", ()),
+ ("INSERT INTO cove_stage_owner_authority_state VALUES(1,1,7,1)", ()),
+ ("INSERT INTO cove_stage_owner_product_source_version VALUES('p_fixture',9)", ()),
+ ("INSERT INTO cove_stage_owner_territory_version VALUES('US',5)", ()),
+ ("INSERT INTO cove_stage_owner_market_version VALUES('US',3)", ()),
 ]
 
 MUTATIONS = {
@@ -135,6 +167,18 @@ for line in sys.stdin:
                 raise ValueError("Only read-only SQL is permitted")
             cursor = db.execute(sql, req.get("params") or [])
             result = {"results": [dict(row) for row in cursor.fetchall()]}
+        elif kind == "stage_owner_write":
+            sql = str(req.get("sql") or "")
+            normalized = sql.lstrip().upper()
+            if not (
+                normalized.startswith("INSERT OR REPLACE INTO COVE_STAGE_OWNER_RETAIL_AUTHORITY")
+                or normalized.startswith("DELETE FROM COVE_STAGE_OWNER_RETAIL_AUTHORITY")
+            ):
+                raise ValueError("Only isolated staged authority projection can be written")
+            before = db.total_changes
+            db.execute(sql, req.get("params") or [])
+            db.commit()
+            result = {"meta": {"changes": db.total_changes - before}}
         else:
             raise ValueError("Unknown isolated RPC operation")
         print(json.dumps({"id": req["id"], "ok": True, **result}), flush=True)
