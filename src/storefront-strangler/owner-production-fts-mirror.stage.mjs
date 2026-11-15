@@ -32,7 +32,9 @@ export const PRODUCTION_FTS_SCHEMA = Object.freeze({
 function exec(sql, statement, ...args) {return sql.exec(statement,...args).toArray();}
 const membership = (prefix) => `EXISTS(SELECT 1 FROM ${OWNER_DB_INDEX} i
   WHERE i.territory='US' AND i.currency='USD' AND i.product_id=${prefix}.product_id)`;
-const eligible = (prefix) => `${prefix}.suppressed=0 AND ${membership(prefix)}`;
+const eligibility = (prefix) => `${prefix}.suppressed=0 AND ${prefix}.storefront_status='active'
+  AND ${prefix}.source_name<>'upload' AND ${prefix}.release_status IN ('available','preorder')`;
+const eligible = (prefix) => `${eligibility(prefix)} AND ${membership(prefix)}`;
 
 function refreshStatements(productId) {
   const row = `(SELECT fts_rowid FROM ${KEYS} WHERE product_id=${productId})`;
@@ -62,7 +64,8 @@ export function createStageProductionFtsMirror(sql) {
     publisher_text TEXT NOT NULL, isbn13 TEXT NOT NULL,
     categories_text TEXT NOT NULL, keywords_text TEXT NOT NULL,
     description TEXT NOT NULL,language_code TEXT NOT NULL,
-    suppressed INTEGER NOT NULL CHECK(suppressed IN (0,1))
+    suppressed INTEGER NOT NULL CHECK(suppressed IN (0,1)),
+    storefront_status TEXT NOT NULL,source_name TEXT NOT NULL,release_status TEXT NOT NULL
   ) WITHOUT ROWID`);
   exec(sql, `CREATE TABLE IF NOT EXISTS ${KEYS}(
     fts_rowid INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -96,26 +99,32 @@ export function writeStageProductionSearchMetadata(sql, raw) {
   if(!raw||typeof raw!=='object'||!ID.test(raw.product_id)||
     CONTENT_FIELDS.some(k=>typeof raw[k]!=='string'||raw[k].length>10000)||
     !/^[a-z]{2,8}(?:-[a-z]{2,8})?$/i.test(raw.language_code)||
+    ['storefront_status','source_name','release_status'].some(k=>
+      typeof raw[k]!=='string'||raw[k].length<1||raw[k].length>80)||
     typeof raw.suppressed!=='boolean')
     throw Error('stage_production_fts_invalid_metadata');
-  exec(sql,`INSERT INTO ${SOURCE}(product_id,${QUOTED_FIELDS},language_code,suppressed)
-    VALUES(${Array(13).fill('?').join(',')}) ON CONFLICT(product_id) DO UPDATE SET
+  exec(sql,`INSERT INTO ${SOURCE}(product_id,${QUOTED_FIELDS},language_code,suppressed,
+    storefront_status,source_name,release_status)
+    VALUES(${Array(16).fill('?').join(',')}) ON CONFLICT(product_id) DO UPDATE SET
     ${CONTENT_FIELDS.map(x=>`${x}=excluded.${x}`).join(',')},
-    language_code=excluded.language_code,suppressed=excluded.suppressed`,
-    raw.product_id,...CONTENT_FIELDS.map(x=>raw[x]),raw.language_code,Number(raw.suppressed));
+    language_code=excluded.language_code,suppressed=excluded.suppressed,
+    storefront_status=excluded.storefront_status,source_name=excluded.source_name,
+    release_status=excluded.release_status`,
+    raw.product_id,...CONTENT_FIELDS.map(x=>raw[x]),raw.language_code,Number(raw.suppressed),
+    raw.storefront_status,raw.source_name,raw.release_status);
 }
 
 export function sealStageProductionFtsMirror(sql){
   const metrics=exec(sql,`SELECT
     (SELECT COUNT(*) FROM ${OWNER_DB_INDEX} i JOIN ${SOURCE} d
       ON d.product_id=i.product_id WHERE i.territory='US' AND i.currency='USD'
-      AND d.suppressed=0) expected,
+      AND ${eligibility('d')}) expected,
     (SELECT COUNT(*) FROM ${KEYS}) mapped,
     (SELECT COUNT(*) FROM ${FTS}) global_count,
     (SELECT COUNT(*) FROM ${EN}) english_count,
     (SELECT COUNT(*) FROM ${OWNER_DB_INDEX} i JOIN ${SOURCE} d
       ON d.product_id=i.product_id WHERE i.territory='US' AND i.currency='USD'
-      AND d.suppressed=0 AND lower(d.language_code)='en') expected_en`)[0];
+      AND ${eligibility('d')} AND lower(d.language_code)='en') expected_en`)[0];
   if(!metrics||metrics.expected!==metrics.mapped||metrics.expected!==metrics.global_count||
     metrics.expected_en!==metrics.english_count)
     throw Error('stage_production_fts_incomplete_migration');
@@ -143,7 +152,7 @@ export function sealStageProductionFtsMirror(sql){
     LIMIT 1`);
   const missing=exec(sql,`SELECT 1 FROM ${OWNER_DB_INDEX} i JOIN ${SOURCE} d
     ON d.product_id=i.product_id WHERE i.territory='US' AND i.currency='USD'
-    AND d.suppressed=0 AND NOT EXISTS (SELECT 1 FROM ${KEYS} k
+    AND ${eligibility('d')} AND NOT EXISTS (SELECT 1 FROM ${KEYS} k
       WHERE k.product_id=i.product_id) LIMIT 1`);
   if(noMetadata.length||orphanKey.length||mismatch.length||missing.length)
     throw Error('stage_production_fts_incomplete_migration');
