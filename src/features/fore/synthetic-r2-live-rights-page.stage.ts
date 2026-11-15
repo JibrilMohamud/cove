@@ -311,7 +311,9 @@ function validSnapshot(raw: unknown, now: number): raw is Snapshot {
   const v = raw as Partial<Snapshot>;
   return (
     Object.keys(v).every((key) =>
-      ["schema", "territory", "currency", "expiresAt", "publicMetadataRevision", "items"].includes(key),
+      ["schema", "territory", "currency", "expiresAt", "publicMetadataRevision", "items"].includes(
+        key,
+      ),
     ) &&
     v.schema === "cove.synthetic-display-v1" &&
     v.territory === "US" &&
