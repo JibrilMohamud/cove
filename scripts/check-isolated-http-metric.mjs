@@ -98,7 +98,11 @@ try {
   for (const item of refused) {
     assert.equal(route(...item, 1), false);
   }
-  assert.equal(written.length, 4, "Only 2xx aggregates and two anonymous public 5xx counters are emitted");
+  assert.equal(
+    written.length,
+    4,
+    "Only 2xx aggregates and two anonymous public 5xx counters are emitted",
+  );
   assert.deepEqual(written.slice(2), [
     {
       blobs: ["public-api-failure", "/api/fore/catalog", "5xx"],
@@ -111,8 +115,11 @@ try {
       indexes: ["public-failure"],
     },
   ]);
-  assert.equal(JSON.stringify(written).includes("private"),false,
-    "No search text, query string, identity, or error body may reach independent AE");
+  assert.equal(
+    JSON.stringify(written).includes("private"),
+    false,
+    "No search text, query string, identity, or error body may reach independent AE",
+  );
   const broken = {
     ...env,
     OPS_ANALYTICS: {
