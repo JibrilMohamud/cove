@@ -6,6 +6,8 @@ on:
       - scripts/staging/prepare-protected-worker-rollback.mjs
       - scripts/staging/verify-protected-worker-rollback.mjs
       - scripts/staging/cleanup-protected-worker-rollback.mjs
+      - scripts/staging/check-protected-persistence-deploy-guard.mjs
+      - .github/workflows/deploy-persistence-backend.yml
       - .github/workflows/cove-stage-protected-worker-rollback.yml
 permissions:
   contents: read
@@ -28,6 +30,8 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
+      - name: Verify canonical production deploy guard and migration opt-in policy
+        run: node scripts/staging/check-protected-persistence-deploy-guard.mjs
       - name: Validate isolated rollback controls
         run: |
           node --check scripts/staging/prepare-protected-worker-rollback.mjs
