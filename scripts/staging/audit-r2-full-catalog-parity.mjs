@@ -137,9 +137,7 @@ const envelopeBlock = sharedEnvelope.match(
 assert.ok(envelopeBlock, "Shared canonical catalog payload structure changed");
 const envelopeFields = [
   "results",
-  ...[...envelopeBlock[1].matchAll(/^    ([a-zA-Z_]\w*)(?:\s*[:,])/gm)].map(
-    (match) => match[1],
-  ),
+  ...[...envelopeBlock[1].matchAll(/^    ([a-zA-Z_]\w*)(?:\s*[:,])/gm)].map((match) => match[1]),
 ];
 const probeStart = stage.indexOf("const result = await syntheticR2PageWithLiveRights");
 const probeReturn = stage
