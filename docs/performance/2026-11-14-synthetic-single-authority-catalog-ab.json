@@ -1,0 +1,137 @@
+{
+  "schema": "cove.synthetic-single-current-authority-catalog-a-b.v1",
+  "dateUTC": "2026-11-15",
+  "sourceRun": "https://github.com/JibrilMohamud/cove/actions/runs/43658768012",
+  "sourceJobId": 132643150155,
+  "releaseCertified": false,
+  "environment": "GitHub runner HTTPS -> protected Cloudflare stage driver -> private candidate Worker, 50k-product synthetic D1 e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3; no production data, no production route changes",
+  "experiment": "Identical compiled worker code, same flags/bindings except FORE_GUEST_COMPACT_STAGE off/on. Existing path: market read + bounded current-rights shortlist + canonical full hydration + secondary channel eligibility. Compact path: market read + one bounded live-authority full canonical projection, no unverified secondary-channel flags.",
+  "sustained50rps20s": {
+    "control": {
+      "offered": 1000,
+      "valid": 708,
+      "failed503": 292,
+      "generatorDrops": 0,
+      "successfulThroughputRps": 34.68,
+      "ttfbP95Ms": 953.45,
+      "ttfbP99Ms": 1070.05,
+      "ttfbMaxMs": 1503.33
+    },
+    "compact": {
+      "offered": 1000,
+      "valid": 985,
+      "failed503": 15,
+      "generatorDrops": 0,
+      "successfulThroughputRps": 48.74,
+      "ttfbP95Ms": 305.32,
+      "ttfbP99Ms": 374.05,
+      "ttfbMaxMs": 788.79
+    },
+    "absoluteFailureReduction": 277,
+    "relativeFailureReductionPercent": 94.86,
+    "allValidRequired": true,
+    "passed": false,
+    "offered100Rps": false
+  },
+  "shortCatalogPhases": {
+    "baseline": [
+      {
+        "shape": "10-rps",
+        "offered": 20,
+        "valid": 20,
+        "p95Ms": 517.31,
+        "p99Ms": 536.07,
+        "maxMs": 536.07
+      },
+      {
+        "shape": "25-rps",
+        "offered": 50,
+        "valid": 50,
+        "p95Ms": 560.66,
+        "p99Ms": 645.34,
+        "maxMs": 645.34
+      },
+      {
+        "shape": "50-rps",
+        "offered": 50,
+        "valid": 50,
+        "p95Ms": 638.1,
+        "p99Ms": 779.18,
+        "maxMs": 779.18
+      }
+    ],
+    "compact": [
+      {
+        "shape": "10-rps",
+        "offered": 20,
+        "valid": 20,
+        "p95Ms": 360.96,
+        "p99Ms": 727.92,
+        "maxMs": 727.92
+      },
+      {
+        "shape": "25-rps",
+        "offered": 50,
+        "valid": 50,
+        "p95Ms": 320.36,
+        "p99Ms": 398.03,
+        "maxMs": 398.03
+      },
+      {
+        "shape": "50-rps",
+        "offered": 50,
+        "valid": 50,
+        "p95Ms": 345.38,
+        "p99Ms": 367.7,
+        "maxMs": 367.7
+      }
+    ]
+  },
+  "cloudflareTraceSamples": {
+    "controlWindowUTC": "2026-11-15T00:34:25Z–00:35:28Z",
+    "compactWindowUTC": "2026-11-15T00:35:55Z–00:36:40Z",
+    "control": {
+      "sampledEvents": 969,
+      "shortlistOperations": 126,
+      "canonicalHydrationOperations": 121,
+      "secondaryChannelOperations": 115,
+      "marketContextOperations": 145,
+      "sampledHttp200": 124,
+      "sampledHttp503": 29,
+      "overloadMatchedHttp503": 29
+    },
+    "compact": {
+      "sampledEvents": 738,
+      "compactAuthorizedFullHydrationOperations": 141,
+      "shortlistOperations": 0,
+      "canonicalHydrationOperations": 0,
+      "secondaryChannelOperations": 0,
+      "marketContextOperations": 143,
+      "sampledHttp200": 155,
+      "sampledHttp503": 0,
+      "meanCombinedSqlMs": 5.58,
+      "meanCombinedRowsRead": 646,
+      "overloadedD1Spans": 0
+    },
+    "interpretation": "Observability is sampled and no 503 in compact sample does NOT contradict the runner's 15/1000 503. These samples confirm elimination of 3 previous D1 calls for the targeted guest path. This was one nonrandomized sequential A/B and cannot prove 100-RPS viability or production parity."
+  },
+  "rollbackVerified": {
+    "driverOriginalVersion": "4c25df92-5f4d-4b57-ac8c-c7b80d8a34c2",
+    "driverD1Bindings": 0,
+    "driverCronCount": 0,
+    "candidateOriginalVersion": "60d1924f-2917-42be-acf7-496e84cb55e7",
+    "candidateD1Database": "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
+    "candidatePublicIngress": false,
+    "candidatePreviewIngress": false,
+    "candidateCronCount": 0,
+    "source": "Active version-specific Cloudflare settings verified after workflow's two passing rollback steps"
+  },
+  "releaseGatesPending": [
+    "100% validity at sustained 50 RPS",
+    "2x20 seconds 100 RPS with 2000 valid responses each, zero drops, p95<600 p99<750 max<800",
+    "Strict geographic cold/warm homepage TTFB across 1/4/8/16/32",
+    "Catalog response parity, revocation/withdrawal, eligibility and offer detail page semantics",
+    "Production catalog 503 and context availability",
+    "Production legal owner, writer exclusivity, Stripe LIVE and protected rollback"
+  ]
+}
