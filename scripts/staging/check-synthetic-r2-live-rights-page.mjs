@@ -188,10 +188,14 @@ try {
                 if (primaryError) throw primaryError;
                 if (failFallbackD1 && candidates.length === 96)
                   throw Object.assign(new Error("D1 overload during fallback"), { code: 7429 });
+                const eligible = returned.filter((row) => inWindow.has(row.product_id));
                 return {
-                  results: returned
-                    .filter((row) => inWindow.has(row.product_id))
-                    .slice(0, sql.includes("LIMIT 49") ? 49 : 25),
+                  results: sql.includes("page_rows AS MATERIALIZED")
+                    ? eligible.slice(24, 48).map((row) => ({
+                        ...row,
+                        live_witness_count: Math.min(eligible.length, 49),
+                      }))
+                    : eligible.slice(0, 25),
                 };
               },
             };
@@ -472,6 +476,17 @@ try {
     await syntheticR2PageWithLiveRights(secondPageRequest, env, () => now),
     null,
     "Even the non-displayed next-page witness must share the current metadata generation",
+  );
+  returned = rows(Array.from({ length: 49 }, (_, i) => i));
+  // A partial page has no demonstrated 49th current witness. The new
+  // in-statement count must be validated before publishing 24 live rows.
+  const staleWitness = rows(Array.from({ length: 49 }, (_, i) => i));
+  staleWitness[24].public_metadata_revision = "2";
+  returned = staleWitness;
+  assert.equal(
+    await syntheticR2PageWithLiveRights(secondPageRequest, env, () => now),
+    null,
+    "Visible page-two license generation mismatch must deny publication",
   );
   returned = rows(Array.from({ length: 49 }, (_, i) => i));
   const secondStage = await handleSyntheticR2LiveRightsStage(secondPageRequest, {
