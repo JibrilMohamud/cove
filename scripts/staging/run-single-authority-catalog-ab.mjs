@@ -197,7 +197,7 @@ function loadEvidence() {
     "causal-triad-stage",
     "controlled-worker-runs.json",
   );
-  assert.ok(existsSync(path), "No stage evidence: cannot claim a valid comparison");
+  if (!existsSync(path)) return null;
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
@@ -212,6 +212,32 @@ function runArm(name) {
     timeout: 8 * 60 * 1000,
   });
   const raw = loadEvidence();
+  if (!raw) {
+    const logs = String(result.stderr || "") + String(result.stdout || "");
+    const category = logs.includes("Concurrent modification")
+      ? "stage-version-conflict"
+      : logs.includes("Private staging route did not propagate")
+        ? "stage-ingress-propagation"
+        : logs.includes("Unexpected third-party stage deployment")
+          ? "stage-rollback-version-guard"
+          : logs.includes("Cloudflare ")
+            ? "cloudflare-api-error"
+            : logs.includes("Stage test failed")
+              ? "stage-validity-gate"
+              : logs.includes("No stage")
+                ? "stage-preflight"
+                : "stage-process-without-evidence";
+    console.warn(
+      JSON.stringify({
+        event: "cove_stage_driver_no_evidence",
+        arm: name,
+        exitStatus: result.status,
+        signal: result.signal || null,
+        category,
+      }),
+    );
+    throw new Error("Stage driver failed before trustworthy evidence; cause=" + category);
+  }
   assert.equal(raw.restoredOriginal, true, "Stage driver rollback must succeed");
   const target = raw.results.find((r) => r.mode === "catalog" && r.shape === "50-rps-20s");
   assert.ok(target, "The sustained 50-RPS phase did not execute in " + name);
