@@ -206,6 +206,12 @@ export async function singleTriadProbe(mode, env, ordinal, runId, cursorToken = 
       };
     }
     const data = await resp.json();
+    const stageMs = (name) => {
+      const raw = resp.headers.get(name);
+      if (raw === null) return null;
+      const value = Number(raw);
+      return Number.isFinite(value) && value >= 0 && value <= 12000 ? value : null;
+    };
     const ms = performance.now() - started;
     if (mode === "r2seed") {
       const valid =
@@ -302,6 +308,15 @@ export async function singleTriadProbe(mode, env, ordinal, runId, cursorToken = 
       ms,
       valid,
       ...(mode === "r2cursorseed" && valid ? { cursorToken: data.nextCursor } : {}),
+      ...(mode === "r2cursor"
+        ? {
+            stageR2Ms: stageMs("x-cove-stage-r2-ms"),
+            stageCursorMs: stageMs("x-cove-stage-cursor-ms"),
+            stagePrimaryMs: stageMs("x-cove-stage-primary-ms"),
+            stageAssemblyMs: stageMs("x-cove-stage-assembly-ms"),
+            stageHandlerMs: stageMs("x-cove-stage-handler-ms"),
+          }
+        : {}),
       // Only the private seed probe exposes an opaque nonauthorizing cursor
       // to its gated runner. Never include it in a phase metric or log.
       // Safe enumerated categories only; never log IDs, payload, request

@@ -415,6 +415,10 @@ try {
   const stageLive = await handleSyntheticR2LiveRightsStage(request, liveRouteEnv);
   assert.equal(stageLive.status, 200);
   assert.equal(stageLive.headers.get("x-cove-persistence"), "d1-live-retail-r2-display-synthetic");
+  // Isolated synthetic stage timings must be numeric, bounded to the gated
+  // host, and must not disclose any source, book identity or signed cursor.
+  for (const part of ["r2", "cursor", "primary", "assembly", "handler"])
+    assert.match(stageLive.headers.get("x-cove-stage-" + part + "-ms"), /^[0-9]+\.[0-9]{2}$/);
   const stageBody = await stageLive.json();
   assert.equal(stageBody.results.length, 24);
   assert.equal(stageBody.releaseCertified, false);

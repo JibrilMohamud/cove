@@ -33,11 +33,28 @@ export function strictTtfbTailAttribution(rows, ceilingMs = 800) {
     maxCandidateFirstByteMs: ms(
       maximum(measured.map((r) => r.downstreamFirstByteMs).filter(finiteDuration)),
     ),
+    maxStageR2Ms: ms(maximum(measured.map((r) => r.stageR2Ms).filter(finiteDuration))),
+    maxStageCursorMs: ms(maximum(measured.map((r) => r.stageCursorMs).filter(finiteDuration))),
+    maxStagePrimaryMs: ms(maximum(measured.map((r) => r.stagePrimaryMs).filter(finiteDuration))),
+    maxStageAssemblyMs: ms(maximum(measured.map((r) => r.stageAssemblyMs).filter(finiteDuration))),
+    maxStageHandlerMs: ms(maximum(measured.map((r) => r.stageHandlerMs).filter(finiteDuration))),
     slowestRequestPaired: fastestMax
       ? {
           externalFirstByteMs: ms(fastestMax.firstByteMs),
           driverWorkerMs: ms(fastestMax.workerMs),
           candidateFirstByteMs: ms(fastestMax.downstreamFirstByteMs),
+          stageR2Ms: ms(fastestMax.stageR2Ms),
+          stageCursorMs: ms(fastestMax.stageCursorMs),
+          stagePrimaryMs: ms(fastestMax.stagePrimaryMs),
+          stageAssemblyMs: ms(fastestMax.stageAssemblyMs),
+          stageHandlerMs: ms(fastestMax.stageHandlerMs),
+          // This is one paired duration difference, not proof of a particular
+          // Cloudflare subsystem or network cause.
+          candidateMinusHandlerMs:
+            finiteDuration(fastestMax.downstreamFirstByteMs) &&
+            finiteDuration(fastestMax.stageHandlerMs)
+              ? ms(Math.max(0, fastestMax.downstreamFirstByteMs - fastestMax.stageHandlerMs))
+              : null,
           // A paired difference, NOT a subtraction of distinct percentile
           // distributions. Includes transport + scheduling; not cause proof.
           externalMinusDriverMs: paired

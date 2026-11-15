@@ -177,7 +177,16 @@ test("private cursor carrier isolates one signed anchor from measured page-two D
             mode: url.search ? "r2-live-retail-cursor" : "r2-live-retail",
             releaseCertified: false,
           },
-          { headers: { "x-cove-persistence": "d1-live-retail-r2-display-synthetic" } },
+          {
+            headers: {
+              "x-cove-persistence": "d1-live-retail-r2-display-synthetic",
+              "x-cove-stage-r2-ms": "3.45",
+              "x-cove-stage-cursor-ms": "0.89",
+              "x-cove-stage-primary-ms": "98.32",
+              "x-cove-stage-assembly-ms": "1.28",
+              "x-cove-stage-handler-ms": "110.51",
+            },
+          },
         );
       },
     },
@@ -201,6 +210,11 @@ test("private cursor carrier isolates one signed anchor from measured page-two D
   const result = await cursor.json();
   assert.equal(result.valid, true);
   assert.equal(result.cursorToken, undefined, "Only seed endpoint can return the opaque cursor");
+  assert.equal(result.stageR2Ms, 3.45);
+  assert.equal(result.stageCursorMs, 0.89);
+  assert.equal(result.stagePrimaryMs, 98.32);
+  assert.equal(result.stageAssemblyMs, 1.28);
+  assert.equal(result.stageHandlerMs, 110.51);
   assert.deepEqual(captured, ["", "?cursor=" + token]);
   const noGate = await privateWorker.fetch(
     new Request(make("r2cursor", { "x-cove-stage-cursor": token }).url),
