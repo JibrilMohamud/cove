@@ -694,9 +694,13 @@ export async function authorizeOfferBearingSyntheticPage(
               AND (offer_exists.ends_at IS NULL
                 OR offer_exists.ends_at>datetime('now')))
         ORDER BY c.position LIMIT ${witnessCount}
-      )${witnessCount === SECOND_PAGE_WITNESSES ? `, page_rows AS MATERIALIZED (
+      )${
+        witnessCount === SECOND_PAGE_WITNESSES
+          ? `, page_rows AS MATERIALIZED (
         SELECT * FROM authorized ORDER BY position LIMIT 24 OFFSET 24
-      )` : ""}
+      )`
+          : ""
+      }
       SELECT a.product_id,a.product_public_id,a.edition_id,a.edition_public_id,
         a.source_name,a.source_external_id,a.work_id,a.work_public_id,
         a.release_status,a.drm_status,a.downloadable,
@@ -720,9 +724,11 @@ export async function authorizeOfferBearingSyntheticPage(
           AND da.kind='epub' AND av.source_url IS NOT NULL
           AND av.source_url<>'') has_epub_source,
         (SELECT current_revision FROM metadata_revision) public_metadata_revision
-        ${witnessCount === SECOND_PAGE_WITNESSES
-          ? ", (SELECT COUNT(*) FROM authorized) live_witness_count"
-          : ""}
+        ${
+          witnessCount === SECOND_PAGE_WITNESSES
+            ? ", (SELECT COUNT(*) FROM authorized) live_witness_count"
+            : ""
+        }
       FROM ${witnessCount === SECOND_PAGE_WITNESSES ? "page_rows" : "authorized"} a
       ORDER BY a.position`,
     )
@@ -787,8 +793,7 @@ export async function syntheticR2PageWithLiveRights(
   const requiredWitnesses = page === 2 ? PAGE_COUNT : PAGE_COUNT + 1;
   if (
     current.length !== requiredWitnesses ||
-    (page === 2 &&
-      current.some((row) => row.live_witness_count !== SECOND_PAGE_WITNESSES)) ||
+    (page === 2 && current.some((row) => row.live_witness_count !== SECOND_PAGE_WITNESSES)) ||
     new Set(current.map((row) => row.product_id)).size !== requiredWitnesses ||
     current.some(
       (row) =>
