@@ -77,6 +77,57 @@ TERRITORY_SCOPES = {
     "territory_aliases": "SELECT {ref}.territory_code AS territory_code",
 }
 
+# Every PRIMARY KEY and UNIQUE index on the exact isolated synthetic D1
+# source schema must be accounted for. SQLite INSERT OR REPLACE can silently
+# delete an OLD row without invoking its DELETE trigger when recursive
+# triggers are disabled (SQLite default). A NEW-only invalidation would then
+# leave the OLD product's positive authority intact. Abort *all* conflicting
+# inserts; canonical owner source writers must use explicit UPDATE instead.
+# The separate read-only CI audit must reject unique-index schema drift.
+SOURCE_UNIQUE_KEYS = {
+    "products": (
+        ("id",), ("public_id",), ("sku",), ("source_name", "source_external_id"),
+    ),
+    "editions": (("id",), ("public_id",)),
+    "rights_grants": (("id",),),
+    "rights_grant_territories": (("grant_id", "territory_code"),),
+    "rights_contracts": (("id",), ("reference_code",)),
+    "rights_contract_languages": (("id",),),
+    "rights_contract_versions": (("id",), ("contract_id", "version_number")),
+    "rights_contract_version_territories": (("contract_version_id", "territory_code"),),
+    "rights_contract_version_formats": (("contract_version_id", "format"),),
+    "rights_contract_version_channels": (("contract_version_id", "sales_channel"),),
+    "publisher_contract_assignments": (("account_id", "contract_id"),),
+    "edition_languages": (("edition_id", "language_code", "kind"),),
+    "offers": (("id",),),
+    "digital_assets": (("id",), ("edition_id", "kind")),
+    "asset_versions": (("id",), ("asset_id", "version_number")),
+    "catalog_search_documents": (("product_id",), ("external_book_id",)),
+    "territories": (("code",),),
+    "territory_aliases": (("alias_code",),),
+    "storefront_markets": (("country_code",),),
+}
+
+
+def abort_replace_triggers() -> str:
+    assert set(SOURCE_UNIQUE_KEYS) == (
+        set(PRODUCT_SCOPES) | set(TERRITORY_SCOPES) | {"storefront_markets"}
+    ), "A mutable authority source lacks a unique-conflict guard"
+    generated = []
+    for table, keys in SOURCE_UNIQUE_KEYS.items():
+        comparisons = " OR ".join(
+            "(" + " AND ".join(f"prior.{col}=NEW.{col}" for col in key) + ")"
+            for key in keys
+        )
+        generated.append(
+            f"CREATE TRIGGER cove_stage_owner_abort_conflicting_insert_{table} "
+            f"BEFORE INSERT ON {table} WHEN EXISTS ("
+            f"SELECT 1 FROM {table} prior WHERE {comparisons}"
+            ") BEGIN SELECT RAISE(ABORT,'cove_owner_requires_explicit_update'); END;"
+        )
+    return "\\n".join(generated) + "\\n"
+
+
 # US market is an existing fallback for markets with missing local currency.
 # On US market edits, deny all projection rows until owner rebuilds them.
 # This is deliberately conservative; an atomic full rebuild is required
@@ -244,7 +295,7 @@ def invalidation_triggers() -> str:
 
 
 def stage_schema() -> str:
-    return SCHEMA + invalidation_triggers()
+    return SCHEMA + invalidation_triggers() + abort_replace_triggers()
 
 
 if __name__ == "__main__":
