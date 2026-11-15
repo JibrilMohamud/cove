@@ -86,6 +86,27 @@ export function stageOwnerLiteralFtsExpression(raw:string|undefined){
  *
  * A missing word means zero matches, not permission to serve all books.
  */
+/**
+ * Exact all-documents fast path for ubiquitous literal terms. An AND query
+ * matches every authorized index document iff each quoted term has a document
+ * frequency equal to the current owner-index count. The FTS table is sealed,
+ * and callers must have checked dirty state, proof expiry and market veto.
+ *
+ * Only a logical query simplification: no authorization may be inferred
+ * from FTS or from a cache. If a token frequency is missing or inconsistent,
+ * the caller must execute the ordinary FTS predicate.
+ */
+export function stageOwnerFtsCoversAll(sql:AuthoritySql,expression:string,total:number){
+  if(!expression||!Number.isSafeInteger(total)||total<1)return false;
+  const tokens=[...expression.matchAll(/"([^"]+)"/g)].map(m=>m[1]);
+  if(!tokens.length||tokens.length>8)return false;
+  return tokens.every(token=>{
+    const row=sql.exec<{doc:number}>(`SELECT doc FROM cove_stage_owner_fts_vocab
+      WHERE term=?`,token).toArray()[0];
+    return row?.doc===total;
+  });
+}
+
 export function stageOwnerFtsPreferMatchesFirst(sql:AuthoritySql,expression:string){
   if(!expression)return false;
   const tokens=[...expression.matchAll(/"([^"]+)"/g)].map(m=>m[1]);
