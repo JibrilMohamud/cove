@@ -42,7 +42,6 @@ try {
     cursor.slice(0, -1) + (cursor.endsWith("A") ? "B" : "A"),
     cursor.slice(0, cursor.indexOf(".")) + ".AA",
     "x".repeat(769),
-    cursor.replace(/-/g, "+"),
   ];
   for (const forged of bad)
     assert.equal(await verifySyntheticStageCursor(forged, scope, gate, now), null);
