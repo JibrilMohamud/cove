@@ -95,7 +95,8 @@ try{
   assert.match(CANONICAL_PAID_OFFER_NEXT_BOUNDARY_SQL,/editions/);
   assert.ok((CANONICAL_PAID_NEXT_BOUNDARY_SQL.match(/UNION ALL/g)||[]).length<=3);
   assert.ok((CANONICAL_PAID_OFFER_NEXT_BOUNDARY_SQL.match(/UNION ALL/g)||[]).length<=1);
-  assert.match(CANONICAL_PAID_NEXT_BOUNDARY_SQL,/julianday\(at\)/);
+  assert.match(CANONICAL_PAID_NEXT_BOUNDARY_SQL,/julianday\(at\)>=julianday\(\?\)/);
+  assert.match(CANONICAL_PAID_OFFER_NEXT_BOUNDARY_SQL,/julianday\(at\)>=julianday\(\?\)/);
   assert.match(CANONICAL_PAID_NEXT_BOUNDARY_SQL,/primary_now/);
 
   createCommercialAuthoritySchema(ownerSql);
@@ -218,11 +219,38 @@ try{
     );
   }
   assert.equal(readCommercialStorefront(ownerSql,["prd_fixture_001"],"US","USD").length,0);
+  // A pending canonical ALLOW has crossed an imminent legal transition
+  // between resolver evaluation and the D1 follow-up. A query anchored
+  // to the later D1 NOW would incorrectly omit it; the evaluatedAt fence
+  // must keep the expired boundary visible and refuse publication.
+  const evaluationStart=Date.now()-500;
+  let boundCount=0;
+  const crossingDB={
+    prepare:(sql)=>{
+      assert.match(sql,/julianday\\(at\\)>=julianday\\(\\?\\)/);
+      return {bind:(productId,start)=>{
+        assert.equal(productId,"prd_fixture_001");
+        assert.equal(start,new Date(evaluationStart).toISOString());
+        boundCount++;
+        return {first:async()=>({
+          product_count:1,primary_now:new Date().toISOString(),
+          next_transition:new Date(Date.now()-150).toISOString(),
+          invalid_times:0,
+        })};
+      }};
+    },
+  };
+  await assert.rejects(
+    canonicalCommercialLeaseUntil(crossingDB,"prd_fixture_001",evaluationStart),
+    /canonical_lease_transition_imminent/,
+    "A legal change during canonical evaluation must prevent a stale positive",
+  );
+  assert.equal(boundCount,2);
   console.log(JSON.stringify({
     event:"cove_stage_real_canonical_owner_lease",
     canonicalCases:scenarios.length,positives,negatives,
     futureTransitions:schedules,malformedDatesDenied:malformed,
-    staleOrFutureClockDenied:2,liveOwnerContractVeto:true,
+    staleOrFutureClockDenied:2,midVerificationTransitionDenied:true,liveOwnerContractVeto:true,
     productionModified:false,releaseCertified:false,passed:true,
   }));
 }finally{
