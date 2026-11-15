@@ -73,6 +73,28 @@ export class StageUnifiedOwner extends DurableObject<StageEnv> {
     return { valid, count: actual.length, fingerprint: valid ? "exact-12-free-13-paid" : "incomplete" };
   }
 
+  /** Measure linearizable legal withdrawal during a 100-RPS read stream.
+   * All SQL reads run in the actual isolated owner SQLite; no R2/KV hints.
+   * No private IDs are included in the external response. */
+  private readFence() {
+    const sql = this.ctx.storage.sql as unknown as AuthoritySql;
+    const contractDenied = sql.exec(
+      "SELECT 1 FROM cove_commercial_subject_denials WHERE subject_kind='contract' AND subject_id='contract_stage_owner_001' LIMIT 1",
+    ).toArray().length === 1;
+    const free = readAuthorizedPresentations(sql, freeIds, "US", "USD");
+    const paid = readCommercialStorefront(sql, paidIds, "US", "USD");
+    const rows = [...free, ...paid];
+    const expected = [...freeIds, ...(contractDenied ? paidIds.slice(1) : paidIds)];
+    const valid = rows.length === expected.length &&
+      rows.every((row, i) => {
+        if (row.product_id !== expected[i]) return false;
+        const offer = JSON.parse(row.offer_json) as { currency: string; amountMinor: number };
+        return offer.currency === "USD" &&
+          offer.amountMinor === (row.product_id.startsWith("prd_gutenberg_") ? 0 : 599);
+      });
+    return { valid, count: rows.length, contractDenied };
+  }
+
   async fetch(request: Request) {
     if (!stageLive(this.env) || request.method !== "POST" ||
       request.headers.get("x-cove-stage-owner-key") !== this.env.COVE_OWNER_DO_GATE)
@@ -123,6 +145,13 @@ export class StageUnifiedOwner extends DurableObject<StageEnv> {
       }
       if (route === "/read") {
         const result = this.read();
+        return Response.json(
+          { schema: "cove.stage-owner-do.v1", ...result, releaseCertified: false },
+          { status: result.valid ? 200 : 503, headers },
+        );
+      }
+      if (route === "/read-fence") {
+        const result = this.readFence();
         return Response.json(
           { schema: "cove.stage-owner-do.v1", ...result, releaseCertified: false },
           { status: result.valid ? 200 : 503, headers },
@@ -188,6 +217,7 @@ export default {
     const paths: Record<string, string> = {
       "/__cove/owner-do/seed": "/seed",
       "/__cove/owner-do/read": "/read",
+      "/__cove/owner-do/read-fence": "/read-fence",
       "/__cove/owner-do/deny-contract": "/deny-contract",
       "/__cove/owner-do/deny-free": "/deny-free",
       "/__cove/owner-do/stale-regrant": "/stale-regrant",

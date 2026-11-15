@@ -114,6 +114,83 @@ async function phase(path, shape, offered, spacing, shadow = false) {
   console.log(JSON.stringify({ event: "cove_stage_owner_do_phase", ...result }));
   return result;
 }
+/**
+ * Verify the owner-only contract tombstone takes effect from its ACK forward
+ * while separate clients keep offering 100 legal-authority reads per second.
+ * Before ACK either complete state is legal; after ACK only denied is legal.
+ * No generated request is retried or silently discarded.
+ */
+async function withdrawalUnderLoad() {
+  const offered = 600, interval = 10, started = performance.now();
+  const pending = new Set(), responses = [];
+  let ackAt = Number.POSITIVE_INFINITY;
+  const withdraw = (async () => {
+    await sleep(started + 2800 - performance.now());
+    const receipt = await command("deny-contract");
+    ackAt = performance.now();
+    assert.equal(receipt.count, 24, "Contract owner ACK must reflect revocation");
+    return receipt;
+  })();
+  for (let i = 0; i < offered; i++) {
+    const due = started + i * interval;
+    await sleep(due - performance.now());
+    if (performance.now() - due >= 100 || pending.size >= 64) {
+      responses.push({ launched: false, valid: false, dropped: true });
+      continue;
+    }
+    const sentAt = performance.now();
+    const task = (async () => {
+      try {
+        const response = await fetch(origin + "/__cove/owner-do/read-fence", {
+          method: "POST",
+          headers: { authorization: "Bearer " + secret },
+          signal: AbortSignal.timeout(10000),
+        });
+        const ms = performance.now() - sentAt;
+        const body = await response.json();
+        responses.push({
+          sentAt, ms, launched: true, dropped: false,
+          count: body.count, contractDenied: body.contractDenied,
+          valid: response.status === 200 && body.valid === true &&
+            body.releaseCertified === false && (body.count === 24 || body.count === 25) &&
+            body.contractDenied === (body.count === 24),
+        });
+      } catch {
+        responses.push({ sentAt, launched: true, dropped: false, valid: false, count: null });
+      }
+    })();
+    pending.add(task);
+    task.finally(() => pending.delete(task));
+  }
+  await withdraw;
+  await Promise.allSettled([...pending]);
+  const before = responses.filter(r => r.launched && r.sentAt < ackAt);
+  const after = responses.filter(r => r.launched && r.sentAt >= ackAt);
+  const illegalAfterAck = after.filter(r => r.count !== 24 || r.contractDenied !== true);
+  const latencies = responses.map(r => r.ms).filter(Number.isFinite);
+  const evidence = {
+    offered, launched: responses.filter(r => r.launched).length,
+    valid: responses.filter(r => r.valid).length,
+    dropped: responses.filter(r => r.dropped).length,
+    beforeAck: before.length, afterAck: after.length, illegalAfterAck: illegalAfterAck.length,
+    p95: rounded(percentile(latencies, 0.95)),
+    p99: rounded(percentile(latencies, 0.99)),
+    max: rounded(percentile(latencies, 1)),
+    releaseCertified: false,
+  };
+  results.push({ shape: "100rps-with-live-contract-denial", ...evidence });
+  console.log(JSON.stringify({ event: "cove_stage_owner_do_mutation_concurrency", ...evidence }));
+  assert.equal(evidence.launched, offered, "Contract race must offer exactly 600 reads");
+  assert.equal(evidence.dropped, 0, "No generator drops during contract withdrawal");
+  assert.equal(evidence.valid, offered, "Every read must return an exact legal state");
+  assert.ok(evidence.beforeAck >= 100 && evidence.afterAck >= 100,
+    "Both sides of the owner ACK must have substantial coverage");
+  assert.equal(evidence.illegalAfterAck, 0,
+    "An acknowledged contract withdrawal must never return the old paid offer");
+  assert.ok(evidence.p95 < 600 && evidence.p99 < 750 && evidence.max < 800,
+    "Mixed owner read/write race must still satisfy strict latency");
+}
+
 let failed = null;
 try {
   // Never retry mutations or measured requests. Readiness checks can retry
@@ -144,10 +221,13 @@ try {
     const full = await phase("read", "100-rps-20s-phase-" + i, 2000, 10, true);
     assert.ok(strict(full, 2000), "Unified owner DO failed strict 100RPS phase " + i);
   }
-  // Mutations are checked only after latency tests, as a separate strict
-  // sequential revocation/regression proof. Never retry uncertain writes.
-  const contract = await command("deny-contract");
-  assert.equal(contract.count, 24, "Contract denial must immediately remove paid offer");
+  // Real concurrent owner SQL reads and an ACK-fenced contractual revocation:
+  // cannot serve the previous price/rights after the legal owner commits.
+  await withdrawalUnderLoad();
+  // Remaining post-load mutations are serialized and never retried.
+  const fencedRead = await command("read-fence");
+  assert.equal(fencedRead.count, 24, "Denied contract remains absent after concurrent load");
+  assert.equal(fencedRead.valid, true);
   const free = await command("deny-free");
   assert.equal(free.count, 23, "Source-wide denial must immediately remove free offer");
   const stale = await command("stale-regrant");
