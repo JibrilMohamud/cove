@@ -107,8 +107,20 @@ async function rollbackIfDiagnostic() {
       },
     }),
   });
-  assertOriginal(await scriptState());
-  return true;
+  // The deployment POST can acknowledge before a subsequent read is fully
+  // consistent. Poll the ACTIVE version rather than treating propagation as
+  // an unrelated writer. No third-party version is ever accepted.
+  for (let i = 0; i < 12; i++) {
+    const restored = await scriptState();
+    if (restored.version === OLD_VERSION) {
+      assertOriginal(restored);
+      return true;
+    }
+    if (restored.version !== state.version)
+      throw new Error("Unexpected third-party stage deployment during rollback");
+    await sleep(500);
+  }
+  throw new Error("Original stage driver deployment was not verified after bounded rollback polls");
 }
 
 async function deployPrivateStage(secret) {
@@ -374,11 +386,21 @@ async function main() {
     evidence.failure = (error instanceof Error ? error.message : "unknown").slice(0,240);
     throw error;
   } finally {
-    if (attempted || process.env.COVE_ALLOW_SAFE_RESTORE === "1") {
-      evidence.restoredOriginal = await rollbackIfDiagnostic();
+    try {
+      if (attempted || process.env.COVE_ALLOW_SAFE_RESTORE === "1") {
+        evidence.restoredOriginal = await rollbackIfDiagnostic();
+      }
+    } catch (error) {
+      evidence.rollbackFailureKind =
+        error instanceof Error &&
+        error.message.includes("Original stage driver deployment was not verified")
+          ? "rollback-propagation-timeout"
+          : "rollback-not-independently-certified";
+      throw error;
+    } finally {
+      evidence.endedAt = new Date().toISOString();
+      save();
     }
-    evidence.endedAt = new Date().toISOString();
-    save();
   }
 }
 
