@@ -11,6 +11,8 @@ on:
       - scripts/staging/private-causal-triad.worker.mjs
       - scripts/staging/run-private-causal-triad.mjs
       - scripts/staging/run-r2-live-retail-campaign.mjs
+      - scripts/staging/candidate-deployment-verification.mjs
+      - scripts/staging/candidate-deployment-verification.test.mjs
       - scripts/staging/strict-ttfb-tail-attribution.mjs
       - scripts/staging/strict-ttfb-tail-attribution.test.mjs
       - scripts/staging/paired-ingress-shadow.mjs
@@ -56,14 +58,15 @@ jobs:
           node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/2026-11-15-context-r2-live-market-source-attestation.json
       - name: Validate restricted private driver and exact stage orchestrator syntax
         run: |
+          node --test scripts/staging/candidate-deployment-verification.test.mjs
           node --test scripts/staging/paired-ingress-shadow.test.mjs
           node --test scripts/staging/strict-ttfb-tail-attribution.test.mjs
           node --test scripts/staging/private-causal-triad.worker.test.mjs
           node scripts/staging/causal-triad-stage.worker.test.mjs
           node --check scripts/staging/run-private-causal-triad.mjs
           node --check scripts/staging/run-r2-live-retail-campaign.mjs
-          npx prettier --write scripts/staging/paired-ingress-shadow.mjs scripts/staging/paired-ingress-shadow.test.mjs scripts/staging/strict-ttfb-tail-attribution.mjs scripts/staging/strict-ttfb-tail-attribution.test.mjs scripts/staging/causal-triad-stage.worker.mjs scripts/staging/private-causal-triad.worker.mjs scripts/staging/run-private-causal-triad.mjs scripts/staging/run-r2-live-retail-campaign.mjs scripts/staging/causal-triad-stage.worker.test.mjs
-          git diff --exit-code -- scripts/staging/paired-ingress-shadow.mjs scripts/staging/paired-ingress-shadow.test.mjs scripts/staging/strict-ttfb-tail-attribution.mjs scripts/staging/strict-ttfb-tail-attribution.test.mjs scripts/staging/causal-triad-stage.worker.mjs scripts/staging/private-causal-triad.worker.mjs scripts/staging/run-private-causal-triad.mjs scripts/staging/run-r2-live-retail-campaign.mjs scripts/staging/causal-triad-stage.worker.test.mjs
+          npx prettier --write scripts/staging/candidate-deployment-verification.mjs scripts/staging/candidate-deployment-verification.test.mjs scripts/staging/paired-ingress-shadow.mjs scripts/staging/paired-ingress-shadow.test.mjs scripts/staging/strict-ttfb-tail-attribution.mjs scripts/staging/strict-ttfb-tail-attribution.test.mjs scripts/staging/causal-triad-stage.worker.mjs scripts/staging/private-causal-triad.worker.mjs scripts/staging/run-private-causal-triad.mjs scripts/staging/run-r2-live-retail-campaign.mjs scripts/staging/causal-triad-stage.worker.test.mjs
+          git diff --exit-code -- scripts/staging/candidate-deployment-verification.mjs scripts/staging/candidate-deployment-verification.test.mjs scripts/staging/paired-ingress-shadow.mjs scripts/staging/paired-ingress-shadow.test.mjs scripts/staging/strict-ttfb-tail-attribution.mjs scripts/staging/strict-ttfb-tail-attribution.test.mjs scripts/staging/causal-triad-stage.worker.mjs scripts/staging/private-causal-triad.worker.mjs scripts/staging/run-private-causal-triad.mjs scripts/staging/run-r2-live-retail-campaign.mjs scripts/staging/causal-triad-stage.worker.test.mjs
       - name: Reject TypeScript contract divergence before staging
         run: npm run typecheck
       - name: Build production-shaped backend with stage flags absent
