@@ -43,7 +43,7 @@ jobs:
       # Never expose the production review credential to code checked out for a PR.
       COVE_SOUNDTRACK_REVIEW_TOKEN: ${{ github.event_name != 'pull_request' && secrets.COVE_SOUNDTRACK_REVIEW_TOKEN || '' }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"

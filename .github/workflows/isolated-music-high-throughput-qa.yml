@@ -32,7 +32,7 @@ jobs:
       COVE_MUSIC_SUPPLY_INGEST_TOKEN: ${{ secrets.COVE_MUSIC_SUPPLY_INGEST_TOKEN }}
       COVE_MUSIC_EXECUTION_RUNNER_ENABLED: "1"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with: { node-version: 22, cache: npm }
       - run: npm ci --no-audit --no-fund
@@ -48,7 +48,7 @@ jobs:
       COVE_MUSIC_SUPPLY_QA_TOKEN: ${{ secrets.COVE_MUSIC_SUPPLY_QA_TOKEN }}
       COVE_MUSIC_EXECUTION_RUNNER_ENABLED: "1"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with: { node-version: 22, cache: npm }
       - run: npm ci --no-audit --no-fund
@@ -74,7 +74,7 @@ jobs:
       HF_HUB_DISABLE_TELEMETRY: "1"
       HF_HUB_DISABLE_XET: "1"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
