@@ -121,7 +121,9 @@ async function requireSyntheticRetailOffers() {
   evidence.syntheticRetailOfferParityProved = Number.isSafeInteger(eligible) && eligible >= minimum;
   assert.ok(
     evidence.syntheticRetailOfferParityProved,
-    "Synthetic top-96 has fewer than " + minimum + " current eligible retail offers; refuse catalog capacity probe",
+    "Synthetic top-96 has fewer than " +
+      minimum +
+      " current eligible retail offers; refuse catalog capacity probe",
   );
 }
 
