@@ -173,10 +173,7 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
         firstByteMs,
         ms: performance.now() - started,
         valid: false,
-        errorKind:
-          mode === "r2live" && known.includes(failure)
-            ? failure
-            : "upstream-http-status",
+        errorKind: mode === "r2live" && known.includes(failure) ? failure : "upstream-http-status",
       };
     }
     const data = await resp.json();
