@@ -51,5 +51,34 @@ assert.equal(emit({...stage,OPS_ANALYTICS:undefined},req("/api/fore/catalog"),re
 assert.equal(emit({...stage,COVE_OPS_TELEMETRY_MODE:"d1"},req("/api/fore/catalog"),res(),"anonymous",3),false);
 assert.equal(emit({...stage,OPS_ANALYTICS:{writeDataPoint:()=>{throw Error("fixture outage")}}},req("/api/fore/catalog"),res(),"anonymous",3),true,
   "An isolated-metrics outage must not become extra primary-D1 writes");
-assert.ok(points.every(p=>p.blobs.length===3 && p.indexes[0]==="public-read"));
-console.log("PASS: stage-only anonymous success metrics use isolated Analytics Engine; no PII, no commerce/security audit bypass");
+const failures=points.filter(p=>p.indexes[0]==="public-failure");
+assert.equal(failures.length,1,"A public anonymous 500 should have a distinct non-PII AE counter");
+assert.deepEqual(failures[0],{
+  blobs:["public-api-failure","/api/fore/catalog","5xx"],
+  doubles:[500,3],
+  indexes:["public-failure"],
+});
+assert.equal(
+  emit(stage,req("/api/fore/catalog?email=secret",{
+    headers:{authorization:"Bearer secret"},
+  }),res(503),"anonymous",9),
+  false,
+);
+assert.equal(
+  emit(stage,req("/api/fore/catalog?email=secret",{
+    headers:{cookie:"session=secret"},
+  }),res(503),"anonymous",9),
+  false,
+);
+assert.equal(emit(stage,req("/api/fore/checkout/payment"),res(503),"anonymous",9),false);
+assert.equal(
+  emit({...stage,OPS_ANALYTICS:{writeDataPoint:()=>{throw Error("AE-down")}}},
+    req("/api/fore/catalog"),res(503),"anonymous",10),
+  false,
+  "AE outage MUST NOT suppress existing durable D1 error-audit path",
+);
+assert.equal(points.filter(p=>p.indexes[0]==="public-failure").length,1);
+assert.ok(points.every(p=>p.blobs.length===3));
+assert.equal(JSON.stringify(points).includes("secret"),false);
+assert.equal(JSON.stringify(points).includes("email"),false);
+console.log("PASS: 2xx uses isolated AE; anonymous public 5xx adds non-PII AE counter but retains D1 error/security auditing");
