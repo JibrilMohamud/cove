@@ -13,6 +13,7 @@ import type { PresentationR2Bucket } from "./search-presentation-r2.server";
  */
 export type StageContextEnv = {
   FORE_ENVIRONMENT?: string;
+  COVE_SYNTHETIC_STAGING_ONLY?: string;
   FORE_GUEST_COMPACT_STAGE?: string;
   FORE_GUEST_CONTEXT_R2_STAGE?: string;
   FORE_GUEST_COMPACT_SYNTHETIC_D1_ID?: string;
@@ -37,7 +38,10 @@ export function eligibleStageContextRequest(
 ): boolean {
   const url = new URL(request.url);
   return (
-    env.FORE_ENVIRONMENT !== "production" &&
+    // This isolated candidate inherits a production-shaped feature mode.
+    // Only a separately provisioned synthetic Worker and D1 fixture binding
+    // may opt in; exact binding verification belongs to the stage deployer.
+    env.COVE_SYNTHETIC_STAGING_ONLY === SYNTHETIC_D1 &&
     env.FORE_GUEST_COMPACT_STAGE === "1" &&
     env.FORE_GUEST_CONTEXT_R2_STAGE === "1" &&
     env.FORE_GUEST_COMPACT_SYNTHETIC_D1_ID === SYNTHETIC_D1 &&
