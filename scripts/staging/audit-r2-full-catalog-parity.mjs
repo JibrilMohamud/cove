@@ -29,10 +29,6 @@ const FRESH_PRIMARY = [
   "offer",
   "sourceExternalId",
   "sourceName",
-  "sourceProject",
-  "sourceUrl",
-  "sourceLicenseUrl",
-  "aiDisclosure",
 ];
 
 const R2_PUBLIC_DISPLAY = [
@@ -70,14 +66,19 @@ const R2_PUBLIC_DISPLAY = [
   "layout",
   "accessibility",
   "formatProfile",
+  "sourceProject",
+  "sourceUrl",
+  "sourceLicenseUrl",
+  "aiDisclosure",
   "series",
 ];
 
-// Identifier and non-authorizing edition-format metadata may be staged as
-// bounded, short-lived R2 display. Source and LICENSE attribution plus AI
-// release disclosures stay fresh primary-D1. Current rights, offers, DRM and
-// protected URLs never enter R2. This classification is stage-only: revisions
-// and semantic production parity still need independent release certification.
+// EXPERIMENTAL: all canonical PUBLIC book metadata, including source-license
+// attribution and public AI disclosure, is bounded stage-only R2 display with
+// 120-second TTL. This is NOT approved for production: attribution/disclosure
+// freshness and legally acceptable revocation/version semantics still need
+// independent review. Rights, offers, DRM, protected assets and entitlements
+// are always fresh primary-D1 and must never be cached in R2.
 const NEEDS_POLICY_REVIEW = [];
 
 const source = readFileSync(CANONICAL, "utf8");
