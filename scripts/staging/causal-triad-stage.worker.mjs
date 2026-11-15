@@ -158,6 +158,27 @@ export async function singleTriadProbe(mode, env, ordinal, runId) {
       }),
     );
     const firstByteMs = performance.now() - started;
+    // The synthetic candidate deliberately returns an EMPTY 503 body. Parsing
+    // it as JSON used to turn real HTTP failures into fake SyntaxError codes.
+    // Preserve the actual HTTP status and only a fixed low-cardinality class.
+    if (resp.status !== 200) {
+      const failure = resp.headers.get("x-cove-stage-failure-class");
+      const known = [
+        "d1-7429-resource-window",
+        "invalid-snapshot-or-authority-witness",
+        "primary-or-stage-failure",
+      ];
+      return {
+        status: resp.status,
+        firstByteMs,
+        ms: performance.now() - started,
+        valid: false,
+        errorKind:
+          mode === "r2live" && known.includes(failure)
+            ? failure
+            : "upstream-http-status",
+      };
+    }
     const data = await resp.json();
     const ms = performance.now() - started;
     if (mode === "r2seed") {
