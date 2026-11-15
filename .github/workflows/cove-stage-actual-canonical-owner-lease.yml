@@ -1,0 +1,46 @@
+name: cove-stage-actual-canonical-owner-lease
+on:
+  push:
+    branches: [safety/owner-canonical-lease-boundary-20261115]
+    paths:
+      - src/storefront-strangler/canonical-commercial-lease.ts
+      - src/storefront-strangler/legal-authority.worker.ts
+      - scripts/staging/rights-resolver-sqlite-fixture.py
+      - scripts/staging/check-owner-actual-canonical-lease.mjs
+      - .github/workflows/cove-stage-actual-canonical-owner-lease.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  actual-canonical-contract-to-owner-sqlite:
+    if: github.repository == 'JibrilMohamud/cove'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Verify isolated, read-only canonical rights fixture contract
+        run: |
+          node --check scripts/staging/check-owner-actual-canonical-lease.mjs
+          python3 -m py_compile scripts/staging/rights-resolver-sqlite-fixture.py
+          git diff --check
+      - name: Actual TypeScript canonical resolver to owner SQLite proof and withdrawal
+        run: node --experimental-sqlite scripts/staging/check-owner-actual-canonical-lease.mjs
+      - name: Guard owner publication source against accidental phase bypass
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import {readFileSync} from "node:fs";
+          const owner=readFileSync("src/storefront-strangler/legal-authority.worker.ts","utf8");
+          assert.match(owner,/const evaluatedAtMs=Date.now\(\);\s*const decision=await resolveProductRights\(/);
+          assert.match(owner,/const sourceUntil=await canonicalCommercialLeaseUntil\(/);
+          assert.match(owner,/const expiresAt=Math.min\(Date.parse\(sourceUntil\),\.\.\.ends\)/);
+          assert.match(owner,/return publishFreshCommercialProof\(sql/);
+          console.log("PASS: only canonical owner private positive path consults D1 schedule before epoch/CAS");
+          '
