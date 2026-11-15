@@ -602,7 +602,10 @@ export async function handleSyntheticR2LiveRightsStage(
     );
     // Total includes JSON serialization and signing but not pending
     // pre-invocation service-binding dispatch/queue time.
-    response.headers.set("x-cove-stage-handler-ms", (performance.now() - handlerStart).toFixed(2));
+    response.headers.set(
+      "x-cove-stage-handler-ms",
+      (performance.now() - handlerStart).toFixed(2),
+    );
     return response;
   } catch (error) {
     // Only a low-cardinality failure class leaves the explicitly guarded

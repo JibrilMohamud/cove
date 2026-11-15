@@ -169,8 +169,14 @@ assert.deepEqual(
 const probeStart = stage.indexOf("const result = await syntheticR2PageWithLiveRights");
 const probeReturn = stage
   .slice(probeStart)
-  .match(/return Response\.json\(\s*\{([\s\S]*?)\n      \},/);
+  .match(/(?:return |const response = )Response\.json\(\s*\{([\s\S]*?)\n      \},/);
 assert.ok(probeReturn, "Synthetic endpoint contract could not be read");
+// When the handler constructs the Response before attaching stage-only timing,
+// make sure the same response is returned and never bypasses this audit.
+if (stage.slice(probeStart).includes("const response = Response.json(")) {
+  assert.match(stage, /response\.headers\.set\(\s*"x-cove-stage-handler-ms"/);
+  assert.match(stage, /return response;\s*\} catch \(error\)/);
+}
 const stagedEnvelopeFields = [...probeReturn[1].matchAll(/^        ([a-zA-Z_]\w*)\s*:/gm)].map(
   (match) => match[1],
 );
