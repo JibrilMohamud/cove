@@ -5,6 +5,8 @@ on:
     paths:
       - scripts/staging/owner-current-retail-invalidation.stage.py
       - scripts/staging/check-owner-current-retail-invalidation.py
+      - scripts/staging/check-owner-retail-source-dependencies.py
+      - src/features/fore/rights.server.ts
       - .github/workflows/cove-stage-owner-retail-projection-proof.yml
 permissions:
   contents: read
@@ -24,5 +26,6 @@ jobs:
         run: |
           python3 -m py_compile scripts/staging/owner-current-retail-invalidation.stage.py scripts/staging/check-owner-current-retail-invalidation.py
           python3 scripts/staging/check-owner-current-retail-invalidation.py
+          python3 scripts/staging/check-owner-retail-source-dependencies.py
       - name: Deny accidental stage proof edits or whitespace errors
         run: git diff --check
