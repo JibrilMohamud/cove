@@ -10,6 +10,7 @@ on:
       - scripts/staging/run-private-causal-triad.mjs
       - scripts/staging/run-r2-live-retail-campaign.mjs
       - scripts/staging/synthetic-retail-offers-20261115.sql
+      - wrangler.performance-triad.stage.jsonc
       - scripts/staging/check-synthetic-r2-live-rights-page.mjs
       - scripts/staging/private-causal-triad.worker.test.mjs
       - scripts/staging/causal-triad-stage.worker.test.mjs
