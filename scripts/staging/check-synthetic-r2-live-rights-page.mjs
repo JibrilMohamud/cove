@@ -155,14 +155,16 @@ try {
     method: "POST",
     headers: request.headers,
   });
-  assert.equal(
-    (await handleSyntheticR2LiveRightsStage(seedReq, { ...stageSeedEnv, FORE_GUEST_R2_DISPLAY_STAGE: "0" })).status,
-    404,
+  const deniedSeed = await handleSyntheticR2LiveRightsStage(seedReq, {
+    ...stageSeedEnv,
+    FORE_GUEST_R2_DISPLAY_STAGE: "0",
+  });
+  assert.equal(deniedSeed.status, 404);
+  const badBodySeed = await handleSyntheticR2LiveRightsStage(
+    new Request(seedReq.url, { method: "POST", headers: request.headers, body: "unsafe" }),
+    stageSeedEnv,
   );
-  assert.equal(
-    (await handleSyntheticR2LiveRightsStage(new Request(seedReq.url, { method: "POST", headers: request.headers, body: "unsafe" }), stageSeedEnv)).status,
-    404,
-  );
+  assert.equal(badBodySeed.status, 404);
   returned = rows(Array.from({ length: 25 }, (_, i) => i));
   const stageLive = await handleSyntheticR2LiveRightsStage(request, {
     ...env,
@@ -181,7 +183,11 @@ try {
   assert.equal(stageBody.mode, "r2-live-retail");
 
   const good = await syntheticR2PageWithLiveRights(request, env, () => now);
-  assert.equal(dbCalls, 2, "Both the private API and direct helper must recheck current primary D1");
+  assert.equal(
+    dbCalls,
+    2,
+    "Both the private API and direct helper must recheck current primary D1",
+  );
   assert.equal(good?.books.length, 24);
   assert.equal(good?.hasMore, true);
   assert.equal(good.books[0].offer.amountMinor, 599, "Price comes exclusively from D1");
