@@ -42,6 +42,11 @@ jobs:
           node --test scripts/release/zero-traffic-worker-version-fence.test.mjs scripts/release/protected-zero-traffic-worker-upload.source.test.mjs
           node --check scripts/release/protected-zero-traffic-worker-upload.mjs
           git diff --check
+      - name: Validate pinned credential-free Wrangler package and strict-upload CLI
+        run: |
+          npm install --prefix "$RUNNER_TEMP/cove-wrangler" --no-save --ignore-scripts --no-audit --no-fund wrangler@4.151.0
+          "$RUNNER_TEMP/cove-wrangler/node_modules/.bin/wrangler" --version
+          "$RUNNER_TEMP/cove-wrangler/node_modules/.bin/wrangler" versions upload --help | grep -q -- "--strict"
 
   upload_archived_only:
     if: ${{ github.repository == 'JibrilMohamud/cove' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirm_zero_traffic_only == true && inputs.reviewed_source_sha == 'a3fd303da6f7418ceec574e0c158d62fe1245984' }}
