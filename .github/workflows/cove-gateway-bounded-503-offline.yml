@@ -7,6 +7,7 @@ on:
       - "src/lib/persistence-backend-failure.ts"
       - "src/lib/persistence-backend.ts"
       - "scripts/check-persistence-backend-failure.mjs"
+      - "scripts/check-gateway-bounded-503-live-shaped.mjs"
       - "scripts/check-persistence-backend.mjs"
       - ".github/workflows/cove-gateway-bounded-503-offline.yml"
 
@@ -29,6 +30,7 @@ jobs:
       - name: Reject indefinite or oversized upstream 503 error bodies
         run: |
           node scripts/check-persistence-backend-failure.mjs
+          node scripts/check-gateway-bounded-503-live-shaped.mjs
           node scripts/check-persistence-backend.mjs
       - run: npm run typecheck
       - run: npm run build:backend
