@@ -107,8 +107,7 @@ export function shouldSkipPinnedProductionAudit(env = process.env, git = execFil
     const root = git("git", ["rev-parse", "--show-toplevel"], opts).trim();
     if (!root || root.includes("\u0000")) return false;
     const run = (args) => git("git", ["-C", root, ...args], opts).trim();
-    const parents = run(["show", "-s", "--format=%P", "HEAD"]).split(/\s+/)
-      .filter(Boolean);
+    const parents = run(["show", "-s", "--format=%P", "HEAD"]).split(/\s+/).filter(Boolean);
     if (parents.length !== 1 || parents[0] !== PINNED_AUDIT_PRODUCTION_PARENT) return false;
     const head = run(["rev-parse", "HEAD"]);
     if (!VALID_SHA.test(head) || head === PINNED_AUDIT_PRODUCTION_PARENT) return false;
