@@ -293,9 +293,7 @@ export function readStageProductionFtsFiltered(sql,input,legalIndexRead){
     throw Error('stage_production_fts_unreviewed_filters');
   if(input.minPrice!==undefined&&input.maxPrice!==undefined&&input.minPrice>input.maxPrice)
     throw Error('stage_production_fts_unreviewed_filters');
-  const legal=legalIndexRead();
-  if(!legal||legal.releaseCertified!==false||!Number.isSafeInteger(legal.count))
-    throw Error('stage_production_fts_authority_missing');
+  const countAuthorized=checkedLegalGate(sql,legalIndexRead);
   if(!exec(sql,`SELECT 1 FROM ${READY} WHERE id=1 AND ready=1`).length)
     throw Error('stage_production_fts_unsealed');
   if(countAuthorized===0)return {count:0,pageIds:[],facets:{
