@@ -45,6 +45,25 @@ assert.match(code, /response\.status < 200 \|\| response\.status >= 300/);
 // A 5xx AE counter must return false so handleCoveApi still executes the
 // original durable D1 error/security audit logic.
 assert.match(code, /indexes: \["public-failure"\][\s\S]*?return false;/);
+assert.match(code, /const ANONYMOUS_PHASES = \["auth", "context", "identity"\]/);
+assert.match(code, /const SLOW_MS = 800/);
+assert.match(code, /indexes: \["public-anomaly"\]/);
+assert.match(handler, /Date\.now\(\) - trace\.startedMs,\s*timings,/);
+const phaseStart = code.indexOf('blobs: ["public-api-anomaly-phase", path, top]');
+const phaseEnd = code.indexOf("});", phaseStart);
+assert.ok(phaseStart >= 0 && phaseEnd > phaseStart);
+const phasePayload = code.slice(phaseStart, phaseEnd);
+assert.match(phasePayload, /doubles: \[status, elapsed, largest\]/);
+assert.doesNotMatch(
+  phasePayload,
+  /\b(query|productId|email|ipAddress|userId|cookie|request|message|exception|errorText)\b/,
+);
+// A failure's additional numeric phase report cannot turn a 5xx into a
+// successful unaudited call; the response still flows through durable D1.
+assert.match(
+  code,
+  /recordAnonymousAnomalyPhase\([\s\S]*?\);\s*return false;/,
+);
 console.log(
   "PASS: only canonical production anonymous GET success metrics may bypass D1, with independently bound AE and retained error/security logging",
 );
