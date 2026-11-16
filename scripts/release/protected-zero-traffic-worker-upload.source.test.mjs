@@ -23,7 +23,7 @@ test("separate constrained upload secret, source pin and no automatic D1 migrati
   assert.match(workflow, /secrets\.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
   assert.doesNotMatch(workflow, /secrets\.CLOUDFLARE_API_TOKEN/);
   assert.match(workflow, /reviewed_source_sha == 'a3fd303da6f7418ceec574e0c158d62fe1245984'/);
-  assert.match(workflow, /wrangler versions upload/);
+  assert.match(workflow, /node_modules\/\.bin\/wrangler" versions upload/);
   assert.match(workflow, /--keep-vars --strict/, "reject conflicting remote Worker config");
   assert.doesNotMatch(
     workflow,
@@ -65,7 +65,7 @@ test("only the protected live upload holds the primary-D1 release lock", () => {
     /    concurrency:\n      group: cove-exclusive-real-primary-cold-acceptance\n      queue: max\n      cancel-in-progress: false/,
   );
   assert.match(live, /environment: cove-production-release-audit/);
-  assert.match(live, /wrangler versions upload/);
+  assert.match(live, /node_modules\/\.bin\/wrangler" versions upload/);
 });
 
 test("npm install and build never receive privileged Cloudflare credentials", () => {
@@ -86,11 +86,19 @@ test("npm install and build never receive privileged Cloudflare credentials", ()
     "      - name: Upload an INACTIVE version only, never deploy traffic\n",
   )[0];
   assert.doesNotMatch(build, /secrets\./, "Compilation may not access protected credentials");
+  const staging = steps.split(
+    "      - name: Stage pinned Wrangler WITHOUT production credentials\n",
+  )[1].split("      - name: Upload an INACTIVE version only, never deploy traffic\n")[0];
+  assert.match(staging, /npm install --prefix/);
+  assert.match(staging, /--ignore-scripts/);
+  assert.doesNotMatch(staging, /secrets\./);
   const upload = steps.split("      - name: Upload an INACTIVE version only, never deploy traffic\n")[1].split(
     "      - name: Verify one archived version, exact binding parity, unchanged 100% production pin\n",
   )[0];
   assert.match(upload, /CLOUDFLARE_API_TOKEN: .*COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
   assert.doesNotMatch(upload, /COVE_CF_WORKERS_METADATA_READ_TOKEN:/);
+  assert.doesNotMatch(upload, /npm (?:exec|install|ci)|npx/);
+  assert.match(upload, /node_modules\\/\\.bin\\/wrangler" versions upload/);
   const verify = steps.split(
     "      - name: Verify one archived version, exact binding parity, unchanged 100% production pin\n",
   )[1].split("      - name: ALWAYS verify no customer Worker traffic or owner activation changed\n")[0];
