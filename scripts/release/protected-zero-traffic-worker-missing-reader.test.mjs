@@ -110,7 +110,10 @@ test("complete fence succeeds only with independent positive owner-disabled proo
     .map((row) => JSON.parse(row));
   assert.deepEqual(
     records.map((row) => row.event),
-    ["cove_worker_100pct_pin_independently_verified", "cove_unconditional_zero_traffic_release_fence"],
+    [
+      "cove_worker_100pct_pin_independently_verified",
+      "cove_unconditional_zero_traffic_release_fence",
+    ],
   );
   assert.equal(records[1].customerPercent, 100);
   assert.equal(records[1].rightsOwnerStillDisabled, true);
