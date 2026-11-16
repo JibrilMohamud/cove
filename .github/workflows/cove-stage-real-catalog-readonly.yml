@@ -37,8 +37,8 @@ jobs:
       - run: node --check scripts/staging/check-production-catalog-metadata-readonly.mjs
       - run: node --check scripts/staging/run-production-catalog-metadata-readonly.mjs
       - run: node --check scripts/staging/check-production-canonical-rights-readonly.mjs
-      - run: node --no-warnings scripts/staging/check-production-canonical-rights-readonly.mjs --self-test
       - run: npm ci
+      - run: node --no-warnings scripts/staging/check-production-canonical-rights-readonly.mjs --self-test
       - run: node --check scripts/staging/check-real-metadata-canonical-owner-handoff.mjs
       - name: Verify read-only SQL, full source reconstruction and fail-closed negative cases
         run: node --no-warnings scripts/staging/check-production-catalog-metadata-readonly.mjs
