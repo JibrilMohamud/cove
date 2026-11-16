@@ -22,8 +22,11 @@ const dir=mkdtempSync(path.join(tmpdir(),'cove-real-metadata-owner-boundary-'));
 const db=new DatabaseSync(':memory:');
 const sql={exec:(query,...args)=>{
   const statement=db.prepare(query);
-  return {toArray:()=>/^\s*(SELECT|WITH|PRAGMA)\b/i.test(query)?
-    statement.all(...args):(statement.run(...args),[])};
+  // Owner SQL writes execute synchronously, even when nobody consumes the
+  // cursor. Returning a lazy write would skip schema creation/withdrawals.
+  const rows=/^\s*(SELECT|WITH|PRAGMA)\b/i.test(query)?
+    statement.all(...args):(statement.run(...args),[]);
+  return {toArray:()=>rows};
 }};
 const tx=fn=>{db.exec('BEGIN IMMEDIATE');try{const x=fn();db.exec('COMMIT');return x;}
   catch(e){db.exec('ROLLBACK');throw e;}};
