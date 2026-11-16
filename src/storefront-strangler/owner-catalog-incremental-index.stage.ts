@@ -108,22 +108,22 @@ export function createStageOwnerIncrementalIndex(sql:AuthoritySql){
   // accumulate inside the SAME legal-owner SQLite transaction; callers may
   // only clear them after sealing a full new bitmap or accepting a strictly
   // removal-only overlay. This is a stage-only experiment.
-  sql.exec(\`CREATE TABLE IF NOT EXISTS cove_stage_owner_bitmap_change_log(
+  sql.exec(`CREATE TABLE IF NOT EXISTS cove_stage_owner_bitmap_change_log(
     product_id TEXT PRIMARY KEY,
     item_deleted INTEGER NOT NULL DEFAULT 0,
     item_written INTEGER NOT NULL DEFAULT 0,
     dimension_deleted INTEGER NOT NULL DEFAULT 0,
     dimension_written INTEGER NOT NULL DEFAULT 0
-  ) WITHOUT ROWID\`);
+  ) WITHOUT ROWID`);
   const recordBitmapChange=(table:string,verb:'INSERT'|'UPDATE'|'DELETE',
     oldOrNew:'OLD'|'NEW',flag:string)=>{
     const id=oldOrNew+'.product_id';
-    sql.exec(\`CREATE TRIGGER IF NOT EXISTS cove_stage_owner_bm_\${table}_\${verb.toLowerCase()}_\${oldOrNew.toLowerCase()}
-      AFTER \${verb} ON cove_stage_owner_index_\${table} BEGIN
-      INSERT INTO cove_stage_owner_bitmap_change_log(product_id,\${flag})
-        VALUES(\${id},1)
-        ON CONFLICT(product_id) DO UPDATE SET \${flag}=1;
-      END\`);
+    sql.exec(`CREATE TRIGGER IF NOT EXISTS cove_stage_owner_bm_${table}_${verb.toLowerCase()}_${oldOrNew.toLowerCase()}
+      AFTER ${verb} ON cove_stage_owner_index_${table} BEGIN
+      INSERT INTO cove_stage_owner_bitmap_change_log(product_id,${flag})
+        VALUES(${id},1)
+        ON CONFLICT(product_id) DO UPDATE SET ${flag}=1;
+      END`);
   };
   for(const [table,deleted,inserted] of [
     ['items','item_deleted','item_written'],
@@ -139,10 +139,10 @@ export function createStageOwnerIncrementalIndex(sql:AuthoritySql){
   // removal-only writer refuses such unmatched changes.
   for(const table of ['facet_counts','totals'] as const){
     for(const verb of ['INSERT','UPDATE','DELETE'] as const){
-      sql.exec(\`CREATE TRIGGER IF NOT EXISTS cove_stage_owner_bm_\${table}_epoch_\${verb.toLowerCase()}
-        AFTER \${verb} ON cove_stage_owner_index_\${table} BEGIN
+      sql.exec(`CREATE TRIGGER IF NOT EXISTS cove_stage_owner_bm_${table}_epoch_${verb.toLowerCase()}
+        AFTER ${verb} ON cove_stage_owner_index_${table} BEGIN
         UPDATE cove_stage_owner_index_epoch SET epoch=epoch+1 WHERE id=1;
-        END\`);
+        END`);
     }
   }
   // Every legal/material change must enqueue the affected product(s), even
