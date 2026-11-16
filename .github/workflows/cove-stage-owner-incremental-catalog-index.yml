@@ -12,6 +12,7 @@ on:
       - scripts/staging/benchmark-owner-catalog-index.mjs
       - scripts/staging/benchmark-owner-catalog-fts-planner.mjs
       - scripts/staging/benchmark-owner-catalog-selective-facets.mjs
+      - scripts/staging/benchmark-owner-bitmap-shard-hydration.mjs
       - .github/workflows/cove-stage-owner-incremental-catalog-index.yml
 permissions:
   contents: read
@@ -42,4 +43,6 @@ jobs:
         run: node scripts/staging/benchmark-owner-catalog-fts-planner.mjs
       - name: Informational LOCAL 82k selective inverted-facet cold benchmark and full-scan parity
         run: node scripts/staging/benchmark-owner-catalog-selective-facets.mjs
+      - name: Informational LOCAL 82k stored-bitmap sharding and cold hydration
+        run: node scripts/staging/benchmark-owner-bitmap-shard-hydration.mjs
       - run: git diff --check
