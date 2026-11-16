@@ -105,14 +105,14 @@ async function main(){
       throw Error('rights_spot_audit_d1_invalid_or_write');
     return result.results;
   }
+  const statement=(sql,params=[])=>({
+    bind:(...values)=>statement(sql,values),
+    first:async()=>(await readSql(sql,params))[0]??null,
+    all:async()=>({results:await readSql(sql,params)}),
+    run:async()=>{throw Error('rights_spot_audit_write_denied');},
+  });
   const db={
-    prepare:(sql)=>({
-      bind:(...params)=>({
-        first:async()=>(await readSql(sql,params))[0]??null,
-        all:async()=>({results:await readSql(sql,params)}),
-        run:async()=>{throw Error('rights_spot_audit_write_denied');},
-      }),
-    }),
+    prepare:sql=>statement(sql),
     batch:async()=>{throw Error('rights_spot_audit_batch_denied');},
   };
   const scratch=mkdtempSync(path.join(tmpdir(),'cove-prod-legal-readonly-'));
