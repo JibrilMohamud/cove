@@ -4,6 +4,8 @@ on:
     branches: [audit/protected-real-rights-spot-20261116]
     paths:
       - scripts/release/check-protected-production-rights-spot.mjs
+      - scripts/vercel-ignore-build.mjs
+      - scripts/check-vercel-one-shot-audit-no-deploy.mjs
       - .github/workflows/cove-protected-real-rights-spot-readonly.yml
   workflow_dispatch:
     inputs:
@@ -31,6 +33,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: node --check scripts/release/check-protected-production-rights-spot.mjs
+      - name: Prove exact-pinned audit-only merge skips storefront redeployment, no other commit does
+        run: node --no-warnings scripts/check-vercel-one-shot-audit-no-deploy.mjs
       - name: Fail-closed read-only and protected invocation self-tests
         run: node --no-warnings scripts/release/check-protected-production-rights-spot.mjs --self-test
       - run: git diff --check
