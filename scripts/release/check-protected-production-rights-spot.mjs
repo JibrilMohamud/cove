@@ -76,6 +76,20 @@ function allowedParams(params){
     x===null||typeof x==='string'&&x.length<=160||
     typeof x==='number'&&Number.isSafeInteger(x));
 }
+/**
+ * A missing D1 mutation attestation is NOT equivalent to a zero-write result.
+ * The Cloudflare API must explicitly report changed_db=false and changes=0.
+ */
+function verifiedD1ReadResult(parsed){
+  const result=parsed?.result?.[0];
+  const meta=result?.meta;
+  if(parsed?.success!==true||!Array.isArray(parsed.result)||
+    parsed.result.length!==1||!Array.isArray(result?.results)||
+    !meta||meta.changed_db!==false||
+    !Number.isSafeInteger(meta.changes)||meta.changes!==0)
+    throw Error('rights_spot_audit_d1_invalid_or_write');
+  return result.results;
+}
 function assertLivePermission(){
   if(process.argv.length!==3||process.argv[2]!=='--live'||
     process.env.COVE_PRODUCTION_LEGAL_AUDIT_ONLY!=='1'||
@@ -102,6 +116,18 @@ async function main(){
     assert.equal(allowedReadSql('SELECT 1'),true);
     assert.equal(allowedParams(['test','US',24]),true);
     assert.equal(allowedParams([{}]),false);
+    const valid={success:true,result:[{results:[{n:1}],
+      meta:{changed_db:false,changes:0}}]};
+    assert.deepEqual(verifiedD1ReadResult(valid),[{n:1}]);
+    for(const faulty of [
+      {success:true,result:[{results:[],meta:{changes:0}}]},
+      {success:true,result:[{results:[],meta:{changed_db:false}}]},
+      {success:true,result:[{results:[],meta:{changed_db:true,changes:0}}]},
+      {success:true,result:[{results:[],meta:{changed_db:false,changes:1}}]},
+      {success:true,result:[{results:[],meta:{changed_db:false,changes:'0'}}]},
+      {success:true,result:[]},
+    ])assert.throws(()=>verifiedD1ReadResult(faulty),/d1_invalid_or_write/,
+      'Missing or invalid D1 zero-write evidence must be rejected');
     assert.throws(assertLivePermission,/protected_permission_required/);
     console.log('PASS: production spot audit denies unprotected runs, SQL mutations, dynamic execution and invalid params');
     return;
@@ -127,12 +153,7 @@ async function main(){
     let parsed;
     try{parsed=await response.json();}
     catch{throw Error('rights_spot_audit_bad_json');}
-    const result=parsed?.result?.[0];
-    if(parsed?.success!==true||!Array.isArray(parsed.result)||
-      parsed.result.length!==1||!Array.isArray(result?.results)||
-      result?.meta?.changed_db===true||Number(result?.meta?.changes||0)!==0)
-      throw Error('rights_spot_audit_d1_invalid_or_write');
-    return result.results;
+    return verifiedD1ReadResult(parsed);
   }
   const statement=(sql,params=[])=>({
     bind:(...values)=>statement(sql,values),
