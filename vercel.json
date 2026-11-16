@@ -39,6 +39,7 @@
   ],
   "git": {
     "deploymentEnabled": {
+      "main": false,
       "diagnostics/**": false,
       "docs/**": false
     }
