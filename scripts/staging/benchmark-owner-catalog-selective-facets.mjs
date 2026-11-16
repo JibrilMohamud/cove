@@ -50,6 +50,19 @@ try{
     {categories:"Category44",publishers:"Publisher25"},
     {categories:"Category53",publishers:"Publisher31"},
     {categories:"Category65",publishers:"Publisher36"},
+    // Positive intersection fixtures: category 96 and publisher 42 have gcd 6.
+    // Include compatible residues rather than mostly impossible intersections.
+    {categories:"Category0",publishers:"Publisher0"},
+    {categories:"Category2",publishers:"Publisher2"},
+    {categories:"Category10",publishers:"Publisher4"},
+    {categories:"Category20",publishers:"Publisher8"},
+    {categories:"Category42",publishers:"Publisher0"},
+    {categories:"Category88",publishers:"Publisher40"},
+    // Multi-dimensional positive cases and deliberately broad fallback cases.
+    {categories:"Category5",languages:"en",formats:"ebook"},
+    {categories:"Category0",languages:"fr",formats:"audio"},
+    {languages:"en",formats:"ebook"},
+    {formats:"ebook"},
   ];
   const posting=db.prepare("SELECT COUNT(*) n FROM dims INDEXED BY idx_owner_inverted "+
     "WHERE territory='US' AND currency='USD' AND kind=? AND value=?");
@@ -100,17 +113,30 @@ try{
     return {count:n,page,facets,price:{...price}};
   }
   const baselineMs=[],selectiveMs=[],matched=[];
+  const narrowBaselineMs=[],narrowSelectiveMs=[],broadBaselineMs=[],broadSelectiveMs=[];
   for(const filter of filters){
+    // Classify the actual posting-plan choice, not a hand-picked case label.
+    const usedPostingSeed=scan(filter,undefined,true).from.includes(" seed ");
     const before=performance.now();
     const baseline=calculate(filter,false);
-    baselineMs.push(performance.now()-before);
+    const oldMs=performance.now()-before;
+    baselineMs.push(oldMs);
     const optimizedStart=performance.now();
     const optimized=calculate(filter,true);
-    selectiveMs.push(performance.now()-optimizedStart);
+    const newMs=performance.now()-optimizedStart;
+    selectiveMs.push(newMs);
     assert.deepEqual(optimized,baseline,
       "Inverted dimension plans must preserve count, rank, facets and price");
-    matched.push({filter,count:baseline.count});
+    (usedPostingSeed?narrowBaselineMs:broadBaselineMs).push(oldMs);
+    (usedPostingSeed?narrowSelectiveMs:broadSelectiveMs).push(newMs);
+    matched.push({filter,count:baseline.count,usedPostingSeed});
   }
+  assert.ok(matched.filter(x=>x.count>0).length>=9,
+    "Performance corpus must include many real nonempty intersections");
+  assert.ok(matched.some(x=>x.count===0),
+    "Performance corpus must preserve impossible cross-dimension filters");
+  assert.ok(matched.filter(x=>!x.usedPostingSeed).length>=2,
+    "Broad filter cases must exercise the original full-scan fallback");
   const plan=db.prepare("EXPLAIN QUERY PLAN SELECT i.product_id FROM "+
     "(SELECT DISTINCT product_id FROM dims INDEXED BY idx_owner_inverted "+
     "WHERE territory='US' AND currency='USD' AND kind=? AND value=?) seed "+
@@ -125,9 +151,16 @@ try{
     schema:"cove.stage.selective-facet-benchmark.v1",
     products:PRODUCTS,synthetic:true,ownerRightsChecked:false,hostedCloudflare:false,
     releaseCertified:false,seedMs,distinctCases:filters.length,exactParity:true,
+    positiveCases:matched.filter(x=>x.count>0).length,
+    emptyCases:matched.filter(x=>x.count===0).length,
+    broadFallbackCases:matched.filter(x=>!x.usedPostingSeed).length,
     old:{p50Ms:pct(baselineMs,.5),p95Ms:pct(baselineMs,.95),maxMs:pct(baselineMs,1)},
     inverted:{p50Ms:pct(selectiveMs,.5),p95Ms:pct(selectiveMs,.95),
       maxMs:pct(selectiveMs,1)},
+    narrowPosting:{oldP95Ms:pct(narrowBaselineMs,.95),
+      invertedP95Ms:pct(narrowSelectiveMs,.95)},
+    broadFallback:{oldP95Ms:pct(broadBaselineMs,.95),
+      invertedP95Ms:pct(broadSelectiveMs,.95)},
     matched,plan:plan.map(x=>x.detail).slice(0,12)
   }));
 }finally{db.close();}
