@@ -1,0 +1,65 @@
+name: cove-protected-real-rights-spot-readonly
+on:
+  push:
+    branches: [audit/protected-real-rights-spot-20261116]
+    paths:
+      - scripts/release/check-protected-production-rights-spot.mjs
+      - scripts/vercel-ignore-build.mjs
+      - scripts/check-vercel-one-shot-audit-no-deploy.mjs
+      - .github/workflows/cove-protected-real-rights-spot-readonly.yml
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type RIGHTS_SPOT_AUDIT to request a protected 8-product READ-ONLY production rights check"
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: cove-protected-primary-d1-legal-audit
+  cancel-in-progress: false
+jobs:
+  offline-safety:
+    if: github.repository == 'JibrilMohamud/cove'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: node --check scripts/release/check-protected-production-rights-spot.mjs
+      - name: Prove exact-pinned audit-only merge skips storefront redeployment, no other commit does
+        run: node --no-warnings scripts/check-vercel-one-shot-audit-no-deploy.mjs
+      - name: Fail-closed read-only and protected invocation self-tests
+        run: node --no-warnings scripts/release/check-protected-production-rights-spot.mjs --self-test
+      - run: git diff --check
+  protected-live-audit:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm == 'RIGHTS_SPOT_AUDIT'
+    needs: [offline-safety]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: cove-production-release-audit
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Bounded eight-product real canonical vs legal-view audit, NO MUTATIONS
+        run: node --no-warnings scripts/release/check-protected-production-rights-spot.mjs --live
+        env:
+          CF_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+          COVE_PRODUCTION_D1_ID: 4bd657ac-8789-403e-a28c-93aba8d0a989
+          COVE_PRODUCTION_LEGAL_AUDIT_ONLY: '1'
+          COVE_CF_PRODUCTION_AUDIT_READ_TOKEN: ${{ secrets.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN }}
