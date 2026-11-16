@@ -29,6 +29,23 @@ const MAX_PRODUCTS=8,MAX_QUERIES=400;
 // contract-bound or bestselling products. Small fixed limits prevent a
 // metadata scan or whole-catalog rights resolution from this audit.
 const COHORTS=Object.freeze([
+  // The real primary currently has grants but zero contracts/versions/language
+  // policy rows. Sample actual allow/deny evidence and the vast Gutenberg
+  // source FIRST; otherwise the audit can pass on all-denied metadata alone.
+  {name:'active_grant_allow',limit:2,sql:`SELECT DISTINCT p.id product_id
+    FROM products p JOIN rights_grants rg ON rg.edition_id=p.edition_id
+    WHERE p.storefront_status='active' AND p.id NOT LIKE 'perf-synth-%'
+      AND rg.status='active' AND rg.decision='allow'
+    ORDER BY p.id LIMIT 2`},
+  {name:'active_grant_deny',limit:2,sql:`SELECT DISTINCT p.id product_id
+    FROM products p JOIN rights_grants rg ON rg.edition_id=p.edition_id
+    WHERE p.storefront_status='active' AND p.id NOT LIKE 'perf-synth-%'
+      AND rg.status='active' AND rg.decision='deny'
+    ORDER BY p.id LIMIT 2`},
+  {name:'gutenberg_free',limit:2,sql:`SELECT p.id product_id FROM products p
+    WHERE p.storefront_status='active' AND p.source_name='gutenberg'
+      AND p.id NOT LIKE 'perf-synth-%'
+    ORDER BY p.id LIMIT 2`},
   {name:'contract_version',limit:2,sql:`SELECT DISTINCT p.id product_id
     FROM products p JOIN rights_grants rg ON rg.edition_id=p.edition_id
     JOIN rights_contract_versions v ON v.contract_id=rg.contract_id
