@@ -39,7 +39,7 @@ export function evaluatePhysicalWriterInventory({workers,tokens,userTokensVerifi
   if(!Array.isArray(tokens))problems.push("account_token_inventory_unavailable");
   const privileged=(tokens||[]).filter(t=>t.status==="active" &&
     (t.policies||[]).some(p=>(p.permission_groups||[]).some(g=>
-      ["D1 Write","Workers Admin","Account API Tokens Write"].includes(g.name))));
+      ["D1 Write","Workers Admin","Workers Editor","Workers Scripts Write","Account API Tokens Write"].includes(g.name))));
   if(privileged.length)problems.push("active_account_token_can_mutate_primary_or_owner");
   if(userTokensVerified!==true)problems.push("user_token_inventory_unverified");
   return {
@@ -156,7 +156,7 @@ async function main(){
     userTokensVerified=Array.isArray(users.result)&&
       users.result.filter(x=>x.status==="active").every(t=>
         !(t.policies||[]).some(p=>(p.permission_groups||[]).some(g=>
-          ["D1 Write","Workers Admin","Workers Scripts Write","Account API Tokens Write"].includes(g.name))));
+          ["D1 Write","Workers Admin","Workers Editor","Workers Scripts Write","Account API Tokens Write"].includes(g.name))));
   }catch{
     userTokensVerified=false;
   }
