@@ -9,6 +9,7 @@ import {
 import { saveTasteControls, loadTasteControls } from "./discovery-intelligence.server";
 import { validateStoredEpub } from "./stored-epub.server";
 import { createAuth, resolvedIdentity } from "./auth.server";
+import { settleErrorTelemetry } from "./failclosed-error-telemetry";
 import { handleLegalContact } from "./legal.server";
 import { mirrorUrl } from "./gutenberg-source";
 import { hasEpubDownloadWindow, mixEpubFrontier, planEpubRetry } from "./epub-retry-policy";
@@ -6299,9 +6300,21 @@ async function handleCoveRequest(
     return json({ error: "This action was not found." }, 404);
   } catch (e) {
     if (!(e instanceof ApiError) && !(e instanceof z.ZodError)) {
-      if (env.DB)
-        await recordErrorEvent(env.DB as any, undefined, request, e, { method: request.method });
-      await reportExternalError(env, request, e);
+      // Incident-safe: this telemetry is not an authorization or fulfillment
+      // journal. A failed or backlogged primary-D1 error write must not delay
+      // or replace the original fail-closed 503 response.
+      await settleErrorTelemetry(
+        [
+          () =>
+            env.DB
+              ? recordErrorEvent(env.DB as any, undefined, request, e, {
+                  method: request.method,
+                })
+              : undefined,
+          () => reportExternalError(env, request, e),
+        ],
+        execution,
+      );
     }
     if (e instanceof ApiError) return json({ error: e.message }, e.status);
     if (e instanceof z.ZodError)
@@ -6309,11 +6322,9 @@ async function handleCoveRequest(
         { error: "Some information is missing or invalid. Please check your entry." },
         400,
       );
-    console.error(
-      "Cove service error",
-      e instanceof Error ? e.message : "Unknown",
-      (e as any)?.cause?.code || "",
-    );
+    // Private exception messages and cause fields may contain identities or
+    // secrets. Keep the public path and Workers Logs free of raw exceptions.
+    console.error("Cove service error; request failed closed");
     return json(
       {
         error:
