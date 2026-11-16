@@ -337,9 +337,16 @@ export async function resolveStorefrontContext(
   fallbackCountry = "US",
   includeMarkets = false,
   onHomePageRows?: (rows: Record<string, unknown>[] | null) => void,
+  onFailureStage?: (stage: "preference" | "market" | "locale" | "currency" | "details") => void,
 ): Promise<StorefrontContext> {
+  // Only fixed identifiers leave the resolver; preserve original exceptions,
+  // SQL, authorization, locale selection, and payment/rights semantics.
+  const stageRead = async <T>(stage: "preference" | "market" | "currency" | "details", read: () => Promise<T>): Promise<T> => {
+    try { return await read(); }
+    catch (error) { onFailureStage?.(stage); throw error; }
+  };
   const network = networkCountry(request, fallbackCountry);
-  const pref = await preference(db, userId);
+  const pref = await stageRead("preference", () => preference(db, userId));
   const prefLocale = String(pref?.locale || cookie(request, "fore-locale") || "").trim();
   const requestedLocales = [
     ...(prefLocale ? [prefLocale] : []),
@@ -366,37 +373,43 @@ export async function resolveStorefrontContext(
     effectiveCountry = network.country;
     countrySource = network.source;
   }
-  let { selectedMarket, localeRows, availableMarkets, homepageRows, anonymousDetails } = await marketWithSupportedLocales(
+  let { selectedMarket, localeRows, availableMarkets, homepageRows, anonymousDetails } = await stageRead("market", () => marketWithSupportedLocales(
     db,
     effectiveCountry,
     includeMarkets,
     anonymousLocales,
-  );
+  ));
   if (!selectedMarket) {
     effectiveCountry = network.country;
     countrySource = network.source;
-    ({ selectedMarket, localeRows, availableMarkets, homepageRows, anonymousDetails } = await marketWithSupportedLocales(
+    ({ selectedMarket, localeRows, availableMarkets, homepageRows, anonymousDetails } = await stageRead("market", () => marketWithSupportedLocales(
       db,
       effectiveCountry,
       includeMarkets,
       anonymousLocales,
-    ));
+    )));
   }
   if (!selectedMarket) {
     effectiveCountry = "US";
     countrySource = "default";
-    ({ selectedMarket, localeRows, availableMarkets, homepageRows, anonymousDetails } = await marketWithSupportedLocales(
+    ({ selectedMarket, localeRows, availableMarkets, homepageRows, anonymousDetails } = await stageRead("market", () => marketWithSupportedLocales(
       db,
       "US",
       includeMarkets,
       anonymousLocales,
-    ));
+    )));
   }
-  if (!selectedMarket) throw new ApiError(503, "No active Cove storefront market is configured.");
+  if (!selectedMarket) {
+    onFailureStage?.("market");
+    throw new ApiError(503, "No active Cove storefront market is configured.");
+  }
 
   requestedLocales.push(String(selectedMarket.default_locale));
   const loc = chooseSupportedLocale(localeRows, requestedLocales);
-  if (!loc) throw new ApiError(503, "This storefront has no active locale configured.");
+  if (!loc) {
+    onFailureStage?.("locale");
+    throw new ApiError(503, "This storefront has no active locale configured.");
+  }
 
   const requestedCurrency = String(
     pref?.currency || cookie(request, "fore-currency") || "",
@@ -404,12 +417,12 @@ export async function resolveStorefrontContext(
   let currency = String(selectedMarket.default_currency).toUpperCase(),
     currencySource = "market";
   if (/^[A-Z]{3}$/.test(requestedCurrency)) {
-    const allowed = await db
+    const allowed = await stageRead("currency", () => db
       .prepare(
         "SELECT 1 ok FROM storefront_currency_options WHERE country_code=? AND currency=? AND active=1",
       )
       .bind(effectiveCountry, requestedCurrency)
-      .first<any>();
+      .first<any>());
     if (allowed) {
       currency = requestedCurrency;
       currencySource = "preference";
@@ -422,7 +435,7 @@ export async function resolveStorefrontContext(
   // one consistent D1 session. This read-only batch cannot grant rights.
   const [paymentMethods, translationRows] = anonymousDetails
     ? [anonymousDetails.paymentMethods, anonymousDetails.translationRows]
-    : (await db.batch([
+    : (await stageRead("details", () => db.batch([
     db
       .prepare(
         `SELECT payment_method,provider,currency,availability,priority FROM storefront_payment_methods
@@ -430,7 +443,7 @@ export async function resolveStorefrontContext(
       )
       .bind(effectiveCountry, currency),
     messageStatement(db, String(loc.locale)),
-  ])) as [
+  ]))) as [
     {
       results: {
         payment_method: string;
