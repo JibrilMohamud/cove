@@ -218,7 +218,9 @@ function guardedOwnerSearchPopulation(sql){
   return amount;
 }
 function checkedLegalGate(sql,legalIndexRead){
-  const countAuthorized=checkedLegalGate(sql,legalIndexRead);
+  const legal=legalIndexRead();
+  if(!legal||legal.releaseCertified!==false||!Number.isSafeInteger(legal.count))
+    throw Error('stage_production_fts_authority_missing');
   const safe=guardedOwnerSearchPopulation(sql);
   if(legal.count!==safe)
     throw Error('stage_production_fts_authority_disagreement');
