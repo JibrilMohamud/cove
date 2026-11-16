@@ -58,7 +58,7 @@ const entry=readFileSync('src/persistence-backend.worker.ts','utf8');
 test('primary persistence entrypoint logs do not expose raw exceptions, IDs or job data',()=>{
   // All Worker entrypoint log sites are reviewed as a fixed inventory.
   // Changing the count requires an explicit new privacy review.
-  assert.equal((entry.match(/console\\.(?:warn|error|info|log|debug)\\(/g)||[]).length,31);
+  assert.equal((entry.match(/console\.(?:warn|error|info|log|debug)\(/g)||[]).length,31);
   for(const unsafe of [
     'console.warn("Catalog search sync failed", error)',
     'console.warn("Unable to persist Cove audio trigger diagnostic", error)',
@@ -75,8 +75,8 @@ test('primary persistence entrypoint logs do not expose raw exceptions, IDs or j
     'console.error("Regional EPUB repair failed", String(error)',
     'console.info(JSON.stringify({ event: "account_erasure_tick", ...result }))'
   ])assert.equal(entry.includes(unsafe),false,'unsafe Worker logger: '+unsafe);
-  assert.match(entry,/console\\.info\\(JSON\\.stringify\\(\\{ event: "account_erasure_tick", completed: true \\}\\)\\)/);
-  assert.match(entry,/console\\.info\\(JSON\\.stringify\\(\\{ event: "cove_queue_tick", name, completed: true \\}\\)\\)/);
-  assert.match(entry,/console\\.warn\\("Cove published soundtrack rights audit"\\)/);
-  assert.match(entry,/console\\.error\\("Cove service error; request failed closed"\\)|console\\.error\\("Cove scheduled queue failed", name\\)/);
+  assert.match(entry,/console\.info\(JSON\.stringify\(\{ event: "account_erasure_tick", completed: true \}\)\)/);
+  assert.match(entry,/console\.info\(JSON\.stringify\(\{ event: "cove_queue_tick", name, completed: true \}\)\)/);
+  assert.match(entry,/console\.warn\("Cove published soundtrack rights audit"\)/);
+  assert.match(entry,/console\.error\("Cove service error; request failed closed"\)|console\.error\("Cove scheduled queue failed", name\)/);
 });
