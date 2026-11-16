@@ -143,8 +143,15 @@ try{
       subjectKind:'contract',subjectId:'contract_stage_owner_001',
       operationId:'stage:metadata-handoff:contract-deny-1'});
     assert.equal(denial.applied,true);
-    idx.reconcileStageOwnerDirty(sql);
+    // Simulate a durable legal ACK before a lagging index reconciler runs.
+    // Search must DENY during this window, not expose cached old rights.
   });
+  assert.throws(()=>stageSearch('river'),/dirty_unreconciled/,
+    'Accepted contract withdrawal may not leave a stale search result during reconciliation');
+  assert.throws(()=>readStageProductionFtsMirror(sql,search('river'),unsafeGate),
+    /owner_dirty_unreconciled/,
+    'Injected stale callback must also fail during pending legal withdrawal');
+  tx(()=>idx.reconcileStageOwnerDirty(sql));
   assert.equal(legalGate().count,3);
   assert.throws(()=>readStageProductionFtsMirror(sql,search('river'),unsafeGate),
     /authority_disagreement/,
@@ -156,9 +163,18 @@ try{
     const result=free.applyAuthorityCommand(sql,{
       sourceId:f1.slice('prd_gutenberg_'.length),territory:'*',revision:2,action:'deny'});
     assert.equal(result.applied,true);
-    idx.reconcileStageOwnerDirty(sql);
   });
+  assert.throws(()=>stageSearch('river'),/dirty_unreconciled/,
+    'Global source withdrawal must block positive search before reconciliation');
+  tx(()=>idx.reconcileStageOwnerDirty(sql));
   assert.equal(legalGate().count,2);
+  assert.throws(()=>tx(()=>free.storeAuthorizedPresentationProof(sql,{
+    sourceId:f1.slice('prd_gutenberg_'.length),territory:'US',revision:1,action:'allow',
+  },'USD',{
+    productId:f1,editionId:'ed_gutenberg_'+f1.slice('prd_gutenberg_'.length),
+    productPublicId:null,editionPublicId:null,
+    offerJson:JSON.stringify({type:'public-domain',currency:'USD',amountMinor:0}),
+  })),/revision_unconfirmed/,'Old proof must not re-authorize after global withdrawal');
   assert.equal(stageSearch('river').count,0,
     'Global free-source withdrawal must hide text, even if metadata still exists');
   assert.equal(sealStageProductionFtsMirror(sql).global_count,1);
