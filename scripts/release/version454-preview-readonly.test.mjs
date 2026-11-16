@@ -72,8 +72,8 @@ test("manual protected read-only job cannot deploy, write, auto-run or reuse pub
   assert.match(workflow, /environment: cove-production-release-audit/);
   assert.match(workflow, /concurrency:\n      group: cove-exclusive-real-primary-cold-acceptance/);
   assert.match(workflow, /inputs\.confirm_readonly_version_preview == true/);
-  assert.match(workflow, /COVE_EXPECTED_ARCHIVED_VERSION: \\$\\{\\{ inputs\\.candidate_version_id \\}\\}/);
-  assert.match(workflow, /inputs\\.candidate_version_id == 'adc603f1-d82a-44d9-b302-509690dec5bd'/);
+  assert.match(workflow, /COVE_EXPECTED_ARCHIVED_VERSION: \$\{\{ inputs\.candidate_version_id \}\}/);
+  assert.match(workflow, /inputs\.candidate_version_id == 'adc603f1-d82a-44d9-b302-509690dec5bd'/);
   assert.doesNotMatch(workflow, /wrangler|d1 execute|d1 migrations|versions deploy|npm exec/);
   assert.doesNotMatch(workflow, /continue-on-error: true/);
 });
