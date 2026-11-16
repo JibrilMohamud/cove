@@ -180,6 +180,30 @@ try{
     if(!part.query)assert.deepEqual(bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,input),
       filteredGold(input),'Prebuilt bitmap exact canonical owner filter parity');
   }
+  // A direct dimension change need not touch an authorized product row.
+  // Prove it still invalidates a prebuilt bitmap and cannot silently leak
+  // forged facet metadata. Restore the original stage fixture immediately.
+  const rawDimensionId=all[3],rawPublisher='Stage Publishing B';
+  const priorDimEpoch=db.prepare(
+    'SELECT epoch FROM cove_stage_owner_index_epoch WHERE id=1').get().epoch;
+  inTransaction(()=>sql.exec(`UPDATE cove_stage_owner_index_dimensions
+    SET value='Forged stage publisher'
+    WHERE territory='US' AND currency='USD' AND product_id=?
+      AND kind='publishers' AND value=?`,rawDimensionId,rawPublisher));
+  assert.ok(db.prepare('SELECT epoch FROM cove_stage_owner_index_epoch WHERE id=1')
+    .get().epoch>priorDimEpoch,'Raw dimension update must bump owner bitmap epoch');
+  assert.throws(()=>bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope),
+    /stale_epoch/,'Prebuilt positive bitmap must reject altered dimensions');
+  inTransaction(()=>sql.exec(`UPDATE cove_stage_owner_index_dimensions
+    SET value=?
+    WHERE territory='US' AND currency='USD' AND product_id=?
+      AND kind='publishers' AND value='Forged stage publisher'`,
+    rawPublisher,rawDimensionId));
+  bitmapSnapshot=bitmap.buildStageOwnerBitmap(sql);
+  assert.deepEqual(bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,
+    {...scope,publishers:[rawPublisher]}),
+    filteredGold({...scope,publishers:[rawPublisher]}),
+    'Rebuilt bitmap after a repaired dimension must retain canonical facet parity');
   const ftsDocs=db.prepare('SELECT COUNT(*) n FROM cove_stage_owner_fts').get().n;
   assert.equal(ftsDocs,25,'FTS must index every owner-authorized catalog row');
   const sampleFtsRow=db.prepare(`SELECT fts_rowid FROM cove_stage_owner_fts_ids

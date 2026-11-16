@@ -93,6 +93,15 @@ export function createStageOwnerIncrementalIndex(sql:AuthoritySql){
       UPDATE cove_stage_owner_index_epoch SET epoch=epoch+1 WHERE id=1;
       END`);
   }
+  // Direct changes to dimension rows can alter facets without modifying an
+  // owner item. Fence every prebuilt bitmap against them too: a drifted
+  // dimension epoch must never be served as a current snapshot.
+  for(const verb of ['INSERT','UPDATE','DELETE'] as const){
+    sql.exec(`CREATE TRIGGER IF NOT EXISTS cove_stage_owner_dimension_epoch_${verb.toLowerCase()}
+      AFTER ${verb} ON cove_stage_owner_index_dimensions BEGIN
+      UPDATE cove_stage_owner_index_epoch SET epoch=epoch+1 WHERE id=1;
+      END`);
+  }
   // Every legal/material change must enqueue the affected product(s), even
   // when a caller forgets to refresh. Missing reconciliation blocks ALL
   // indexed reads instead of silently exposing an old paid authorization.
