@@ -38,10 +38,7 @@ function recordAnonymousAnomalyPhase(
   durationMs: number,
   stages: Readonly<Record<string, number>> | undefined,
 ) {
-  if (
-    !stages ||
-    (status < 500 && !(status >= 200 && status < 300 && durationMs >= SLOW_MS))
-  )
+  if (!stages || (status < 500 && !(status >= 200 && status < 300 && durationMs >= SLOW_MS)))
     return;
   const elapsed = Number.isFinite(durationMs) ? Math.max(0, durationMs) : 0;
   let top: (typeof ANONYMOUS_PHASES)[number] | "unattributed" = "unattributed";
@@ -116,13 +113,7 @@ export function emitIsolatedAnonymousHttpMetric(
       // The observability sink cannot create an extra D1 write or alter the
       // original 5xx response. The pre-existing durable audit still runs.
     }
-    recordAnonymousAnomalyPhase(
-      env.OPS_ANALYTICS,
-      path,
-      response.status,
-      durationMs,
-      stages,
-    );
+    recordAnonymousAnomalyPhase(env.OPS_ANALYTICS, path, response.status, durationMs, stages);
     return false;
   }
   if (response.status < 200 || response.status >= 300) return false;
@@ -138,12 +129,6 @@ export function emitIsolatedAnonymousHttpMetric(
     // warning is kept in ordinary Worker logs; errors stay on the D1 path.
     console.warn("Isolated anonymous performance aggregate unavailable");
   }
-  recordAnonymousAnomalyPhase(
-    env.OPS_ANALYTICS,
-    path,
-    response.status,
-    durationMs,
-    stages,
-  );
+  recordAnonymousAnomalyPhase(env.OPS_ANALYTICS, path, response.status, durationMs, stages);
   return true;
 }
