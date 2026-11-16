@@ -57,7 +57,12 @@ function simulate(mode, { reader = "", wrongDeployment = false } = {}) {
   };
   return spawnSync(
     process.execPath,
-    ["--import", "data:text/javascript;base64," + Buffer.from(fakeCloudflare).toString("base64"), SCRIPT, mode],
+    [
+      "--import",
+      "data:text/javascript;base64," + Buffer.from(fakeCloudflare).toString("base64"),
+      SCRIPT,
+      mode,
+    ],
     { encoding: "utf8", timeout: 5000, env },
   );
 }
@@ -73,7 +78,10 @@ test("unconditional fence still proves the pinned 451 is 100% before failing mis
   const r = simulate("fence");
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /Protected legal-owner metadata read-only credential absent/);
-  const records = r.stdout.split("\n").filter(Boolean).map((row) => JSON.parse(row));
+  const records = r.stdout
+    .split("\n")
+    .filter(Boolean)
+    .map((row) => JSON.parse(row));
   assert.equal(records.length, 1);
   assert.deepEqual(records[0], {
     event: "cove_worker_100pct_pin_independently_verified",
@@ -96,11 +104,14 @@ test("bad Worker deployment is rejected even if metadata reader is missing", () 
 test("complete fence succeeds only with independent positive owner-disabled proof", () => {
   const r = simulate("fence", { reader: MOCK_READER_TOKEN });
   assert.equal(r.status, 0, r.stderr.slice(0, 500));
-  const records = r.stdout.split("\n").filter(Boolean).map((row) => JSON.parse(row));
-  assert.deepEqual(records.map((row) => row.event), [
-    "cove_worker_100pct_pin_independently_verified",
-    "cove_unconditional_zero_traffic_release_fence",
-  ]);
+  const records = r.stdout
+    .split("\n")
+    .filter(Boolean)
+    .map((row) => JSON.parse(row));
+  assert.deepEqual(
+    records.map((row) => row.event),
+    ["cove_worker_100pct_pin_independently_verified", "cove_unconditional_zero_traffic_release_fence"],
+  );
   assert.equal(records[1].customerPercent, 100);
   assert.equal(records[1].rightsOwnerStillDisabled, true);
   assert.equal(records[1].releaseCertified, false);
