@@ -114,10 +114,7 @@ test("npm install and build never receive privileged Cloudflare credentials", ()
 
   const fence = between("ALWAYS verify", "Archive public identifiers");
   assert.match(fence, /CLOUDFLARE_API_TOKEN: .*COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
-  assert.match(
-    fence,
-    /COVE_CF_WORKERS_METADATA_READ_TOKEN: .*COVE_CF_WORKERS_METADATA_READ_TOKEN/,
-  );
+  assert.match(fence, /COVE_CF_WORKERS_METADATA_READ_TOKEN: .*COVE_CF_WORKERS_METADATA_READ_TOKEN/);
   assert.match(fence, /if: always\(\)/);
 });
 
