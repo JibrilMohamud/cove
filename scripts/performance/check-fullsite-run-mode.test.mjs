@@ -33,7 +33,10 @@ test("approved live run retains exact-SHA Vercel, Worker, and rights-backed cata
   assert.match(probe, /node scripts\/performance\/route-inventory\.mjs/);
   assert.match(probe, /node scripts\/performance\/fullsite-browser\.mjs/);
   assert.match(probe, /if: github\.event_name == 'push'/);
-  assert.match(browser, /if \(results\.some\(\(r\) => r\.failure \|\| r\.pageErrors\.length\)\) process\.exitCode = 1/);
+  assert.match(
+    browser,
+    /if \(results\.some\(\(r\) => r\.failure \|\| r\.pageErrors\.length\)\) process\.exitCode = 1/,
+  );
 });
 
 test("no change to strict capacity threshold checks or synthetic browser failure behavior", () => {
