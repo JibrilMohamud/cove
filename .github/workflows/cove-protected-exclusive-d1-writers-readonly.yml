@@ -1,0 +1,65 @@
+name: cove-protected-exclusive-d1-writers-readonly
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/cove-protected-exclusive-d1-writers-readonly.yml
+      - scripts/release/audit-production-primary-d1-writers.mjs
+      - scripts/release/audit-production-primary-d1-writers.test.mjs
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type EXCLUSIVE_D1_WRITERS_READONLY to inspect all production D1 Worker bindings'
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: cove-protected-primary-d1-binding-inventory
+  cancel-in-progress: false
+jobs:
+  offline-safety:
+    if: github.repository == 'JibrilMohamud/cove'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: node --check scripts/release/audit-production-primary-d1-writers.mjs
+      - run: node --test scripts/release/audit-production-primary-d1-writers.test.mjs
+  protected-live-inventory:
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm == 'EXCLUSIVE_D1_WRITERS_READONLY'
+    needs: offline-safety
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: cove-production-release-audit
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Require a protected Workers Metadata Read-only token
+        shell: bash
+        env:
+          COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ "${#COVE_CF_WORKERS_METADATA_READ_TOKEN}" -lt 20 ]; then
+            echo '::error title=Missing Workers metadata token::Install a Workers Metadata Read-only token scoped to Cove under the protected GitHub audit environment, with no Workers Edit or D1 Write permissions.'
+            exit 1
+          fi
+      - name: Inspect all Worker primary-D1 bindings without modifying state
+        env:
+          COVE_EXCLUSIVE_WRITER_AUDIT: ${{ inputs.confirm }}
+          COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
+        run: node scripts/release/audit-production-primary-d1-writers.mjs --live
