@@ -105,7 +105,11 @@ test("automatic main builds and diagnostics/docs previews are disabled without d
     "diagnostics/**": false,
     "docs/**": false,
   });
-  assert.equal(cfg.git.deploymentEnabled["*"], undefined, "other preview branches must remain eligible");
+  assert.equal(
+    cfg.git.deploymentEnabled["*"],
+    undefined,
+    "other preview branches must remain eligible",
+  );
   assert.equal(cfg.services.app.ignoreCommand, "node scripts/vercel-ignore-build.mjs app");
   assert.equal(cfg.services.audio_pipeline.ignoreCommand, "node vercel-ignore-build.mjs audio");
   assert.equal(cfg.services.app.framework, "tanstack-start");
