@@ -208,9 +208,7 @@ assert.equal(
 const encoded = (value) => new TextEncoder().encode(value);
 const oneKB = "x".repeat(1025);
 assert.equal(
-  await backendFailureCategory(
-    new Response(oneKB, { status: 503, headers: apiHeaders }),
-  ),
+  await backendFailureCategory(new Response(oneKB, { status: 503, headers: apiHeaders })),
   "other",
   "No Content-Length must not allow an unbounded upstream body",
 );
