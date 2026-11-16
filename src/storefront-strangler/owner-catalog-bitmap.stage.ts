@@ -154,7 +154,7 @@ export function buildStageOwnerBitmap(sql:AuthoritySql):Snapshot{
       EXCEPT SELECT product_id,kind,value FROM expected
     )
     SELECT 1 bad FROM missing UNION ALL SELECT 1 bad FROM excess LIMIT 1`,
-    ...Array.from({length:8},()=>[TERRITORY,CURRENCY]).flat()).toArray();
+    ...Array.from({length:7},()=>[TERRITORY,CURRENCY]).flat()).toArray();
   if(drift.length)throw Error('stage_owner_bitmap_dimension_mismatch');
   // Re-run the complete owner guard, not merely the epoch. A market tombstone
   // or proof expiry can block a snapshot without changing any item bit.
