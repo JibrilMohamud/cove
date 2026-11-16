@@ -533,10 +533,10 @@ export function readStageOwnerFilteredIndex(sql:AuthoritySql,input:FilteredInput
       COUNT(DISTINCT i.product_id) num FROM ${facetScan.from}
       JOIN cove_stage_owner_index_dimensions dim ON
         dim.territory=i.territory AND dim.currency=i.currency
-        AND dim.product_id=i.product_id AND dim.kind=?
-      WHERE ${facetScan.clause}
+        AND dim.product_id=i.product_id
+      WHERE ${facetScan.clause} AND dim.kind=?
       GROUP BY dim.value ORDER BY num DESC,dim.value ASC LIMIT ?`,
-      kind,...facetScan.args,CAPS[kind]).toArray();
+      ...facetScan.args,kind,CAPS[kind]).toArray();
     facets[kind]=rows.map(x=>({value:x.value,count:x.num}));
   }
   const priceScan=selectiveOwnerFilteredScan(sql,scopedInput,filters,'price');
