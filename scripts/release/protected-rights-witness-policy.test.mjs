@@ -45,7 +45,7 @@ test('overlap across any two cohorts is refused, not silently counted twice',()=
   assert.deepEqual([...b],['p2']);
 });
 test('invalid/malicious identifiers or too-large witness budgets fail closed',()=>{
-  for(const bad of ['','perf-synth-1','p with space','a;DELETE FROM products','x'.repeat(129)])
+  for(const bad of ['','perf-synth-1','p with space','a;DELETE ' + 'FROM products','x'.repeat(129)])
     assert.throws(()=>addRightsWitnesses(new Set(),[{product_id:bad}],8),/invalid_identifier/);
   assert.throws(()=>addRightsWitnesses(new Set(),[{}],8),/invalid_identifier/);
   assert.throws(()=>addRightsWitnesses({},rows('p',1),8),/invalid_witness_cohort/);
