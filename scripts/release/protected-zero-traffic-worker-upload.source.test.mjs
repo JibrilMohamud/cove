@@ -98,7 +98,7 @@ test("npm install and build never receive privileged Cloudflare credentials", ()
   assert.match(upload, /CLOUDFLARE_API_TOKEN: .*COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
   assert.doesNotMatch(upload, /COVE_CF_WORKERS_METADATA_READ_TOKEN:/);
   assert.doesNotMatch(upload, /npm (?:exec|install|ci)|npx/);
-  assert.match(upload, /node_modules\\/\\.bin\\/wrangler" versions upload/);
+  assert.match(upload, /node_modules\/\.bin\/wrangler" versions upload/);
   const verify = steps.split(
     "      - name: Verify one archived version, exact binding parity, unchanged 100% production pin\n",
   )[1].split("      - name: ALWAYS verify no customer Worker traffic or owner activation changed\n")[0];
