@@ -4,7 +4,7 @@
  * Only a protected/manual workflow_dispatch with a D1-READ credential can
  * execute live. Every SQL statement must be a single SELECT or WITH, all
  * D1 response metadata must report zero mutations, and no SQL/results/IDs/
- * book/contract texts/token values are logged. At most eight products and
+ * book/contract texts/token values are logged. At most twelve products and
  * 400 bounded D1 SELECT requests. No writes, owner flag, Stripe, routing,
  * publishing, payments, offline entitlements or other customer operations.
  *
@@ -19,13 +19,15 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {createProtectedD1ReadThrottle} from './protected-d1-read-throttle.mjs';
+import {POSITIVE_WITNESSES,NEGATIVE_WITNESSES,addRightsWitnesses,
+  assertRightsWitnessCoverage,verifyNegativeRightsVerdict} from './protected-rights-witness-policy.mjs';
 
 const ACCOUNT='d26430caa63ec55f6612e32f36aca5e9';
 const PRODUCTION_DB='4bd657ac-8789-403e-a28c-93aba8d0a989';
 const BRANCH='refs/heads/main';
 const DB_API='https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT+
   '/d1/database/'+PRODUCTION_DB+'/query';
-const MAX_PRODUCTS=8,MAX_QUERIES=400;
+const MAX_PRODUCTS=12,MAX_QUERIES=400;
 // Deliberately independent legal-policy cohorts, not merely the first
 // contract-bound or bestselling products. Small fixed limits prevent a
 // metadata scan or whole-catalog rights resolution from this audit.
@@ -77,6 +79,14 @@ const COHORTS=Object.freeze([
       AND p.id NOT LIKE 'perf-synth-%'
     ORDER BY p.id LIMIT 8`},
 ]);
+// Real production has suspended allow grants paired with inactive Gutenberg
+// products. These are essential concrete negative authorization witnesses;
+// explicit deny, contract, DRM and timed-policy cohorts have no real rows yet.
+// No product IDs leave the protected process and no SQL can mutate rights.
+const SUSPENDED_SQL=`SELECT p.id product_id FROM rights_grants rg
+ JOIN products p ON p.edition_id=rg.edition_id
+ WHERE rg.status='suspended' AND p.storefront_status<>'active'
+   AND p.id NOT LIKE 'perf-synth-%' LIMIT 4`;
 const VIEW_SQL=`SELECT EXISTS(SELECT 1 FROM retail_product_availability_rows a
   WHERE a.product_id=? AND a.territory_code='US') AS permitted`;
 const WATERMARK_SQL=`SELECT
@@ -131,6 +141,7 @@ async function main(){
       assert.ok(cohort.limit>=1&&cohort.limit<=MAX_PRODUCTS);
     }
     assert.equal(allowedReadSql(VIEW_SQL),true);
+    assert.equal(allowedReadSql(SUSPENDED_SQL),true);
     assert.equal(allowedReadSql('SELECT 1;DELETE FROM products'),false);
     assert.equal(allowedReadSql('SELECT load_extension(x)'),false);
     assert.equal(allowedReadSql('UPDATE rights_grants SET status=\'active\''),false);
@@ -236,26 +247,29 @@ async function main(){
     if(!before||['product_watermark','edition_watermark','search_watermark']
       .some(x=>typeof before[x]!=='string'))
       throw Error('rights_spot_audit_invalid_baseline');
-    const ids=new Set();
+    const positiveIds=new Set();
     const cohortCounts=Object.create(null);
     for(const cohort of COHORTS){
       const rows=await readSql(cohort.sql);
       if(rows.length>cohort.limit)
         throw Error('rights_spot_audit_cohort_unbounded');
-      let selected=0;
-      for(const row of rows){
-        const id=String(row?.product_id||'');
-        if(!/^[a-zA-Z0-9_:-]{1,128}$/.test(id)||id.startsWith('perf-synth-'))
-          throw Error('rights_spot_audit_invalid_identifier');
-        if(ids.size>=MAX_PRODUCTS)break;
-        if(!ids.has(id)){ids.add(id);selected++;}
-      }
+      const selected=addRightsWitnesses(positiveIds,rows,POSITIVE_WITNESSES);
       cohortCounts[cohort.name]={candidates:rows.length,uniquelySelected:selected};
     }
-    if(ids.size<4||ids.size>MAX_PRODUCTS)
-      throw Error('rights_spot_audit_insufficient_witnesses');
+    const suspendedRows=await readSql(SUSPENDED_SQL);
+    if(suspendedRows.length>NEGATIVE_WITNESSES)
+      throw Error('rights_spot_audit_cohort_unbounded');
+    const suspendedIds=new Set();
+    const negativeSelected=addRightsWitnesses(suspendedIds,suspendedRows,
+      NEGATIVE_WITNESSES,positiveIds);
+    cohortCounts.suspended_inactive={
+      candidates:suspendedRows.length,uniquelySelected:negativeSelected,
+    };
+    assertRightsWitnessCoverage(positiveIds,suspendedIds);
+    const ids=[...positiveIds,...suspendedIds];
     const now=new Date().toISOString();
     let allowed=0,legacyAllowed=0,viewOnly=0,canonicalOnly=0;
+    let positiveAllowedByBoth=0,suspendedDeniedByBoth=0;
     const reasons=Object.create(null);
     for(const id of ids){
       let verdict;
@@ -272,6 +286,10 @@ async function main(){
       if(![0,1].includes(Number(view?.permitted)))
         throw Error('rights_spot_audit_invalid_legacy_view');
       const legacy=Number(view.permitted)===1;
+      if(suspendedIds.has(id)){
+        verifyNegativeRightsVerdict(verdict,legacy);
+        suspendedDeniedByBoth++;
+      }else if(verdict.allowed&&legacy) positiveAllowedByBoth++;
       if(verdict.allowed)allowed++;
       else{
         const reason=String(verdict.reasonCode||'UNCLASSIFIED')
@@ -282,11 +300,15 @@ async function main(){
       if(legacy&&!verdict.allowed)viewOnly++;
       if(verdict.allowed&&!legacy)canonicalOnly++;
     }
+    if(positiveAllowedByBoth!==POSITIVE_WITNESSES||
+      suspendedDeniedByBoth!==NEGATIVE_WITNESSES)
+      throw Error('rights_spot_audit_insufficient_deny_and_allow_witnesses');
     const after=(await readSql(WATERMARK_SQL))[0];
     if(!after||Object.keys(before).some(k=>before[k]!==after[k]))
       throw Error('rights_spot_audit_source_changed');
-    const out={schema:'cove.production.canonical-rights-spot-readonly.v1',
-      checked:ids.size,cohortCounts,canonicalAllowed:allowed,
+    const out={schema:'cove.production.canonical-rights-spot-readonly.v2',
+      checked:ids.length,cohortCounts,positiveAllowedByBoth,
+      suspendedDeniedByBoth,canonicalAllowed:allowed,
       legacyAllowed,viewOnly,canonicalOnly,deniedReasons:reasons,
       D1Queries:queryCount,D1HttpAttempts:throttle.stats().httpAttempts,
       rateLimitedResponses:throttle.stats().rateLimitedResponses,
