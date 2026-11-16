@@ -23,13 +23,14 @@ try{
     market:'src/storefront-strangler/market-authority-core.ts',
     catalog:'src/storefront-strangler/owner-catalog-authorized-set.stage.ts',
     incremental:'src/storefront-strangler/owner-catalog-incremental-index.stage.ts',
+    bitmap:'src/storefront-strangler/owner-catalog-bitmap.stage.ts',
     fts:'src/storefront-strangler/owner-catalog-fts.stage.ts',
   },outdir:root,bundle:true,platform:'node',format:'esm',target:'node22',logLevel:'silent'});
   const load=async name=>import(pathToFileURL(path.join(root,name+'.js')).href);
   const free=await load('free'),commercial=await load('commercial');
   const paid=await load('paid'),market=await load('market');
   const stage=await load('catalog'),idx=await load('incremental');
-  const fts=await load('fts');
+  const fts=await load('fts'),bitmap=await load('bitmap');
   free.createAuthoritySchema(sql);free.createAuthorityProofSchema(sql);
   commercial.createCommercialAuthoritySchema(sql);
   paid.createCommercialStorefrontSchema(sql);market.createMarketAuthoritySchema(sql);
@@ -96,6 +97,7 @@ try{
   assert.throws(()=>stage.readStageOwnerCatalogSnapshot(sql,scope),/unavailable_or_revoked/);
   inTransaction(()=>stage.rebuildStageOwnerCatalogSnapshot(sql));
   inTransaction(()=>idx.bootstrapStageOwnerIndex(sql));
+  let bitmapSnapshot=bitmap.buildStageOwnerBitmap(sql);
   const firstIndexed=idx.readStageOwnerIncrementalIndex(sql,scope);
   assert.deepEqual(firstIndexed,direct,'Indexed 25-book exact page/count/facets parity');
   assert.equal(idx.readStageOwnerIncrementalIndex(sql,{...scope,page:2,limit:10}).pageIds.length,10);
@@ -175,6 +177,8 @@ try{
     const input={...scope,...part};
     assert.deepEqual(idx.readStageOwnerFilteredIndex(sql,input),filteredGold(input),
       'Every filtered count/page and self-excluding facet must match independent owner SQL');
+    if(!part.query)assert.deepEqual(bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,input),
+      filteredGold(input),'Prebuilt bitmap exact canonical owner filter parity');
   }
   const ftsDocs=db.prepare('SELECT COUNT(*) n FROM cove_stage_owner_fts').get().n;
   assert.equal(ftsDocs,25,'FTS must index every owner-authorized catalog row');
@@ -266,7 +270,12 @@ try{
   assert.equal(stage.stageOwnerCatalogRead(sql,scope).count,25);
   assert.throws(()=>idx.readStageOwnerIncrementalIndex(sql,scope),/dirty_unreconciled/,
     'Unreviewed metadata must invalidate index before authorization is confirmed');
+  assert.throws(()=>bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope),
+    /dirty_unreconciled/,'Pending owner metadata must block bitmap reads');
   inTransaction(()=>{idx.reconcileStageOwnerDirty(sql);stage.rebuildStageOwnerCatalogSnapshot(sql);});
+  assert.throws(()=>bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope),
+    /stale_epoch/,'Metadata reconciliation must invalidate snapshot');
+  bitmapSnapshot=bitmap.buildStageOwnerBitmap(sql);
   assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope),stage.stageOwnerCatalogRead(sql,scope));
   assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,25);
 
@@ -287,7 +296,11 @@ try{
     'Revoked contract keyword must be removed from FTS in owner transaction');
   assert.equal(fts.stageOwnerFtsCoversAll(sql,'"fake" AND "catalog"',24),true,
     'Contract withdrawal must update ubiquitous term frequency transactionally');
+  assert.throws(()=>bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope),
+    /stale_epoch/,'Contract revocation changes owner generation');
+  bitmapSnapshot=bitmap.buildStageOwnerBitmap(sql);
   assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,24);
+  assert.ok(!bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope).pageIds.includes(paidIds[0]));
   assert.ok(!stage.readStageOwnerCatalogSnapshot(sql,scope).pageIds.includes(paidIds[0]));
   assert.equal(paid.readCommercialStorefront(sql,paidIds,'US','USD').length,12);
 
@@ -305,6 +318,9 @@ try{
     'Revoked free source cannot remain searchable');
   assert.equal(fts.stageOwnerFtsCoversAll(sql,'"fake" AND "catalog"',23),true,
     'Source withdrawal must keep exact all-documents FTS invariants');
+  assert.throws(()=>bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope),
+    /stale_epoch/,'Free-source withdrawal invalidates old snapshot');
+  bitmapSnapshot=bitmap.buildStageOwnerBitmap(sql);
   assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,23);
   assert.equal(free.readAuthorizedPresentations(sql,freeIds,'US','USD').length,11);
 
@@ -320,12 +336,17 @@ try{
     idx.reconcileStageOwnerDirty(sql);
     stage.rebuildStageOwnerCatalogSnapshot(sql);
   });
+  assert.throws(()=>bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope),
+    /stale_epoch/,'Shortening a paid lease invalidates old bitmap');
+  bitmapSnapshot=bitmap.buildStageOwnerBitmap(sql);
   assert.equal(idx.readStageOwnerIncrementalIndex(sql,scope).count,23);
   await new Promise(resolve=>setTimeout(resolve,2400));
   assert.throws(()=>idx.readStageOwnerIncrementalIndex(sql,scope),/expired_unreconciled/,
     'Past canonical lease deadline MUST block stale indexed count and page');
   assert.throws(()=>idx.readStageOwnerFilteredIndex(sql,{...scope,categories:['Fiction']}),
     /expired_unreconciled/,'The filtered query cache also cannot bypass expiry');
+  assert.throws(()=>bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope),
+    /expired_unreconciled/,'Owner lease expiry prevents stale bitmap reads');
   inTransaction(()=>{
     const swept=idx.refreshStageOwnerExpired(sql);
     assert.equal(swept.processed,1,'Only genuinely expired owner-local lease is reconciled');
@@ -334,6 +355,9 @@ try{
     // stored paid lease. This incremental index deliberately avoids that
     // global expiry lock; keep the old snapshot unavailable, not falsified.
   });
+  assert.throws(()=>bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope),
+    /stale_epoch/,'Expiry cleanup invalidates pre-expiry bitmap');
+  bitmapSnapshot=bitmap.buildStageOwnerBitmap(sql);
   assert.equal(idx.readStageOwnerIncrementalIndex(sql,scope).count,22);
   assert.equal(idx.readStageOwnerFilteredIndex(sql,{...scope,query:'13'}).count,0,
     'Expired paid proof must leave FTS and its cache after owner refresh');
@@ -359,6 +383,8 @@ try{
   for(const part of filterSamples){const input={...scope,...part};
     assert.deepEqual(idx.readStageOwnerFilteredIndex(sql,input),filteredGold(input));}
   assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope).pageIds,[]);
+  assert.deepEqual(bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope).pageIds,[],
+    'Global market tombstone must veto retained bitmap state');
   assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope).facets.availability,[]);
   for(const invalid of [
     {...scope,page:2},{...scope,limit:10},{...scope,query:'war'},
@@ -368,6 +394,11 @@ try{
   assert.throws(()=>stage.stageOwnerCatalogRead(sql,{...scope,query:'war'}),/unsupported_scope/);
   for(const bad of [{...scope,query:'War'},{...scope,sort:'popular'},{...scope,filter:'category'}])
     assert.throws(()=>idx.readStageOwnerIncrementalIndex(sql,bad),/unreviewed_scope/);
+  assert.throws(()=>bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,{...scope,query:'fake'}),
+    /unsupported_scope/,'Unsupported FTS must fail closed');
+  assert.throws(()=>bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,{...scope,territory:'GB'}),
+    /unsupported_scope/,'Uncertified market must fail closed');
+  console.log('PASS: prebuilt owner bitmap exact counts/pages/facets and dirty, contract, source, expiry, market denials');
   console.log('PASS: owner-transactional FTS5 keyword matching and '+filterSamples.length+
     ' filtered+keyword cases, expiry/contract/source/market withdrawal, disjunctive facets');
   console.log('PASS: owner-index exact default count/facets/page 25/24/23/22/0; 250 indexed hot reads, source/contract/market denial, dirty fail-close, disallowed scopes rejected');
