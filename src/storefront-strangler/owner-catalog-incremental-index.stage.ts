@@ -59,6 +59,12 @@ export function createStageOwnerIncrementalIndex(sql:AuthoritySql){
     kind TEXT NOT NULL,value TEXT NOT NULL,
     PRIMARY KEY(territory,currency,product_id,kind,value)
   ) WITHOUT ROWID`);
+  // The dimension PK is product-first, ideal for reconciliation but
+  // pathological for cold, distinct filtered queries. This inverted index
+  // selects a small disjunctive posting list BEFORE the expensive per-facet
+  // scan. It stores no permission separate from the canonical owner items.
+  sql.exec(`CREATE INDEX IF NOT EXISTS cove_stage_owner_index_dimension_inverted ON
+    cove_stage_owner_index_dimensions(territory,currency,kind,value,product_id)`);
   sql.exec(`CREATE TABLE IF NOT EXISTS cove_stage_owner_index_facet_counts(
     territory TEXT NOT NULL,currency TEXT NOT NULL,
     kind TEXT NOT NULL,value TEXT NOT NULL,
