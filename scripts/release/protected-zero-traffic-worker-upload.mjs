@@ -181,7 +181,7 @@ if (mode === "preflight") {
     ...parity,
     migrationsRun: false,
     rightsOwnerActivation: false,
-    customerRoutingChanged: false,
+    workerDeploymentChanged: false,
     releaseCertified: false,
   };
   writeFileSync(evidenceFile, JSON.stringify(evidence, null, 2) + "\n", { mode: 0o600 });
