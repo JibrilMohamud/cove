@@ -52,3 +52,31 @@ test('source changes cannot silently deploy Worker or promote the storefront',()
   assert.match(deploy,/if: \$\{\{ github\.event_name == 'workflow_dispatch' \|\| \(github\.ref == 'refs\/heads\/main' && vars\.COVE_PRODUCTION_PERSISTENCE_AUTO_DEPLOY == '1'\) \}\}/);
   assert.doesNotMatch(deploy,/if: \$\{\{ github\.event_name == 'push' \}\}/);
 });
+
+const entry=readFileSync('src/persistence-backend.worker.ts','utf8');
+
+test('primary persistence entrypoint logs do not expose raw exceptions, IDs or job data',()=>{
+  // All Worker entrypoint log sites are reviewed as a fixed inventory.
+  // Changing the count requires an explicit new privacy review.
+  assert.equal((entry.match(/console\\.(?:warn|error|info|log|debug)\\(/g)||[]).length,31);
+  for(const unsafe of [
+    'console.warn("Catalog search sync failed", error)',
+    'console.warn("Unable to persist Cove audio trigger diagnostic", error)',
+    'console.error("Cove scheduled queue failed", name, error)',
+    'console.info("Cove BioSync short-track transcript cached", row.edition_id',
+    'console.warn("Cove minute maintenance failed", String(error)',
+    'console.error("Cove scheduled BioSync trigger failed", result.reason)',
+    'console.error("Cove scheduled audio trigger failed", result.reason)',
+    'console.warn("Cove published soundtrack rights audit", JSON.stringify(rights))',
+    'console.info("Cove soundtrack R2 import", JSON.stringify(result))',
+    'console.error("Hosted BioSync transcription failed", editionId',
+    'console.error("Community tournament advancement failed", error)',
+    'console.error("Cove scheduled ingestion failed", controller.cron, error)',
+    'console.error("Regional EPUB repair failed", String(error)',
+    'console.info(JSON.stringify({ event: "account_erasure_tick", ...result }))'
+  ])assert.equal(entry.includes(unsafe),false,'unsafe Worker logger: '+unsafe);
+  assert.match(entry,/console\\.info\\(JSON\\.stringify\\(\\{ event: "account_erasure_tick", completed: true \\}\\)\\)/);
+  assert.match(entry,/console\\.info\\(JSON\\.stringify\\(\\{ event: "cove_queue_tick", name, completed: true \\}\\)\\)/);
+  assert.match(entry,/console\\.warn\\("Cove published soundtrack rights audit"\\)/);
+  assert.match(entry,/console\\.error\\("Cove service error; request failed closed"\\)|console\\.error\\("Cove scheduled queue failed", name\\)/);
+});
