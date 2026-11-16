@@ -26,7 +26,10 @@ assert.equal(process.env.GITHUB_REF, "refs/heads/main");
 assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, WORKER_ACCOUNT);
 assert.equal(process.env.COVE_APPROVED_DIAGNOSTIC_SOURCE, REVIEWED_BACKEND_SOURCE);
 const token = process.env.CLOUDFLARE_API_TOKEN;
-assert.ok(typeof token === "string" && token.length >= 24, "Protected upload-only credential absent");
+assert.ok(
+  typeof token === "string" && token.length >= 24,
+  "Protected upload-only credential absent",
+);
 const runId = String(process.env.GITHUB_RUN_ID || "");
 assert.match(runId, /^[0-9]{8,15}$/);
 const evidenceDir = "artifacts/protected-zero-traffic-worker-upload";
@@ -47,7 +50,9 @@ async function get(path) {
 }
 
 async function assertProductionStillDisabled() {
-  const owner = await get(`/accounts/${WORKER_ACCOUNT}/workers/scripts/cove-legal-authority-production/settings`);
+  const owner = await get(
+    `/accounts/${WORKER_ACCOUNT}/workers/scripts/cove-legal-authority-production/settings`,
+  );
   const values = (owner?.bindings || []).filter((b) => b.name === "COVE_RIGHTS_OWNER_ENABLED");
   assert.equal(values.length, 1, "Missing unique production rights-owner control");
   assert.equal(values[0].type, "plain_text");
@@ -70,10 +75,14 @@ function assertReviewedSource() {
     "scripts/build-persistence-backend.mjs",
     ".github/workflows/deploy-persistence-backend.yml",
   ];
-  const diff = spawnSync("git", ["diff", "--name-only", REVIEWED_BACKEND_SOURCE, "HEAD", "--", ...allowed], {
-    encoding: "utf8",
-    timeout: 20000,
-  });
+  const diff = spawnSync(
+    "git",
+    ["diff", "--name-only", REVIEWED_BACKEND_SOURCE, "HEAD", "--", ...allowed],
+    {
+      encoding: "utf8",
+      timeout: 20000,
+    },
+  );
   assert.equal(diff.status, 0, "Unable to verify exact approved backend sources");
   assert.equal(diff.stdout.trim(), "", "Backend sources differ from reviewed diagnostic source");
 }
@@ -87,7 +96,10 @@ function generateCanonicalConfig() {
   const section = workflow.split(begin)[1].split(end)[0];
   const run = section.split("        run: |\n");
   assert.equal(run.length, 2, "Canonical production config generation unavailable");
-  const shell = run[1].split("\n").map((line) => line.startsWith("          ") ? line.slice(10) : line).join("\n");
+  const shell = run[1]
+    .split("\n")
+    .map((line) => (line.startsWith("          ") ? line.slice(10) : line))
+    .join("\n");
   assert.match(shell, /cat > wrangler\.backend\.deploy\.toml <<EOF/);
   const env = {
     ...process.env,
@@ -130,16 +142,18 @@ if (mode === "preflight") {
   };
   mkdirSync(evidenceDir, { recursive: true });
   writeFileSync(beforeFile, JSON.stringify(prior), { mode: 0o600 });
-  console.log(JSON.stringify({
-    event: "cove_zero_traffic_worker_upload_preflight",
-    pinnedVersion: 451,
-    percentage: 100,
-    bindingCount,
-    rightsOwnerEnabled: false,
-    reviewedSource: true,
-    migrations: false,
-    releaseCertified: false,
-  }));
+  console.log(
+    JSON.stringify({
+      event: "cove_zero_traffic_worker_upload_preflight",
+      pinnedVersion: 451,
+      percentage: 100,
+      bindingCount,
+      rightsOwnerEnabled: false,
+      reviewedSource: true,
+      migrations: false,
+      releaseCertified: false,
+    }),
+  );
 } else if (mode === "verify") {
   const before = JSON.parse(readFileSync(beforeFile, "utf8"));
   assert.equal(before.runId, runId);
@@ -174,11 +188,13 @@ if (mode === "preflight") {
   console.log(JSON.stringify(evidence));
 } else {
   const pinned = await fence();
-  console.log(JSON.stringify({
-    event: "cove_unconditional_zero_traffic_release_fence",
-    pin: pinned.versionId,
-    customerPercent: pinned.percentage,
-    rightsOwnerStillDisabled: true,
-    releaseCertified: false,
-  }));
+  console.log(
+    JSON.stringify({
+      event: "cove_unconditional_zero_traffic_release_fence",
+      pin: pinned.versionId,
+      customerPercent: pinned.percentage,
+      rightsOwnerStillDisabled: true,
+      releaseCertified: false,
+    }),
+  );
 }
