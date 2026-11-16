@@ -7,6 +7,12 @@ on:
       - scripts/vercel-ignore-build.mjs
       - scripts/check-vercel-one-shot-audit-no-deploy.mjs
       - .github/workflows/cove-protected-real-rights-spot-readonly.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/cove-protected-real-rights-spot-readonly.yml
+      - scripts/release/check-protected-production-rights-spot.mjs
+      - docs/architecture/protected-production-rights-spot-audit-runbook.md
   workflow_dispatch:
     inputs:
       confirm:
