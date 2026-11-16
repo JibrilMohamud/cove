@@ -23,6 +23,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: node --test scripts/staging/check-failclosed-error-telemetry.test.mjs
+      - run: node scripts/check-primary-d1-overload-fail-closed.mjs
       - run: npm run build:backend
       - run: npm run typecheck
       - run: git diff --check
