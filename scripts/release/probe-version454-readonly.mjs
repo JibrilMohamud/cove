@@ -33,8 +33,12 @@ const ownerSettings =
 
 async function readControlPlane(path, token) {
   assert.ok(
-    [workerBase + "/deployments", workerBase + "/versions/" + CANDIDATE_VERSION,
-      workerBase + "/versions/401f2af2-6e69-4611-8110-1d127af6eecf", ownerSettings].includes(path),
+    [
+      workerBase + "/deployments",
+      workerBase + "/versions/" + CANDIDATE_VERSION,
+      workerBase + "/versions/401f2af2-6e69-4611-8110-1d127af6eecf",
+      ownerSettings,
+    ].includes(path),
     "Unapproved Cloudflare read",
   );
   const response = await fetch("https://api.cloudflare.com/client/v4" + path, {
@@ -51,12 +55,18 @@ async function readControlPlane(path, token) {
 
 function assertSourceUnchanged() {
   const allowed = [
-    "src", "drizzle", "package.json", "package-lock.json",
-    "scripts/build-persistence-backend.mjs", ".github/workflows/deploy-persistence-backend.yml",
+    "src",
+    "drizzle",
+    "package.json",
+    "package-lock.json",
+    "scripts/build-persistence-backend.mjs",
+    ".github/workflows/deploy-persistence-backend.yml",
   ];
-  const diff = spawnSync("git", [
-    "diff", "--name-only", REVIEWED_BACKEND_SOURCE, "HEAD", "--", ...allowed,
-  ], { encoding: "utf8", timeout: 20000 });
+  const diff = spawnSync(
+    "git",
+    ["diff", "--name-only", REVIEWED_BACKEND_SOURCE, "HEAD", "--", ...allowed],
+    { encoding: "utf8", timeout: 20000 },
+  );
   assert.equal(diff.status, 0, "Cannot verify reviewed source freeze");
   assert.equal(diff.stdout.trim(), "", "Reviewed production backend sources changed");
 }
@@ -65,8 +75,14 @@ async function controlPlaneGate() {
   assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, WORKER_ACCOUNT);
   const writer = process.env.CLOUDFLARE_API_TOKEN;
   const reader = process.env.COVE_CF_WORKERS_METADATA_READ_TOKEN;
-  assert.ok(typeof writer === "string" && writer.length >= 24, "Scoped Worker metadata credential absent");
-  assert.ok(typeof reader === "string" && reader.length >= 24, "Distinct owner metadata reader absent");
+  assert.ok(
+    typeof writer === "string" && writer.length >= 24,
+    "Scoped Worker metadata credential absent",
+  );
+  assert.ok(
+    typeof reader === "string" && reader.length >= 24,
+    "Distinct owner metadata reader absent",
+  );
   assert.notEqual(writer, reader, "Uploader and owner metadata credentials must be distinct");
   const [deployments, oldVersion, candidate, owner] = await Promise.all([
     readControlPlane(workerBase + "/deployments", writer),
@@ -113,23 +129,29 @@ async function probe() {
   mkdirSync(evidenceDir, { recursive: true });
   writeFileSync(
     evidenceDir + "/evidence.json",
-    JSON.stringify({
-      event: "cove_archived_worker_version454_readonly_denial",
-      versionId: CANDIDATE_VERSION,
-      requests: results,
-      authenticatedHealthOrCatalogTested: false,
-      customerTrafficChanged: false,
-      rightsOrPaymentsTested: false,
-      releaseCertified: false,
-    }, null, 2) + "\n",
+    JSON.stringify(
+      {
+        event: "cove_archived_worker_version454_readonly_denial",
+        versionId: CANDIDATE_VERSION,
+        requests: results,
+        authenticatedHealthOrCatalogTested: false,
+        customerTrafficChanged: false,
+        rightsOrPaymentsTested: false,
+        releaseCertified: false,
+      },
+      null,
+      2,
+    ) + "\n",
     { mode: 0o600 },
   );
-  console.log(JSON.stringify({
-    event: "cove_archived_worker_version454_preview_denial_pass",
-    version: CANDIDATE_NUMBER,
-    cases: results,
-    releaseCertified: false,
-  }));
+  console.log(
+    JSON.stringify({
+      event: "cove_archived_worker_version454_preview_denial_pass",
+      version: CANDIDATE_NUMBER,
+      cases: results,
+      releaseCertified: false,
+    }),
+  );
 }
 
 if (mode === "probe") {
@@ -137,14 +159,19 @@ if (mode === "probe") {
 } else {
   if (mode === "preflight") assertSourceUnchanged();
   const result = await controlPlaneGate();
-  console.log(JSON.stringify({
-    event: mode === "preflight" ? "cove_archived_preview_preflight" : "cove_archived_preview_postflight",
-    version: CANDIDATE_NUMBER,
-    candidatePercent: 0,
-    currentProductionVersionPercent: result.pinned.percentage,
-    originalBindingsMatch: result.parity.bindingsMatch,
-    originalRuntimeMatches: result.parity.runtimeMatches,
-    legalOwnerDisabled: true,
-    releaseCertified: false,
-  }));
+  console.log(
+    JSON.stringify({
+      event:
+        mode === "preflight"
+          ? "cove_archived_preview_preflight"
+          : "cove_archived_preview_postflight",
+      version: CANDIDATE_NUMBER,
+      candidatePercent: 0,
+      currentProductionVersionPercent: result.pinned.percentage,
+      originalBindingsMatch: result.parity.bindingsMatch,
+      originalRuntimeMatches: result.parity.runtimeMatches,
+      legalOwnerDisabled: true,
+      releaseCertified: false,
+    }),
+  );
 }
