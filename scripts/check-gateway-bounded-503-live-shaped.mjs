@@ -13,7 +13,8 @@ const bundle = await build({
   write: false,
 });
 assert.equal(bundle.outputFiles.length, 1);
-const dataUrl = "data:text/javascript;base64," + bundle.outputFiles[0].contents.toString("base64");
+const dataUrl =
+  "data:text/javascript;base64," + Buffer.from(bundle.outputFiles[0].contents).toString("base64");
 const { proxyPersistenceApi } = await import(dataUrl);
 
 const priorFetch = globalThis.fetch;
