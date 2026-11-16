@@ -497,9 +497,9 @@ export function readStageOwnerFilteredIndex(sql:AuthoritySql,input:FilteredInput
       throw Error('stage_owner_filter_cache_corrupt');
     return parsed as ReturnType<typeof readStageOwnerIncrementalIndex>;
   }
-  const where=scopedIndexWhere(scopedInput,filters);
+  const countScan=selectiveOwnerFilteredScan(sql,scopedInput,filters);
   const count=sql.exec<{total:number}>(`SELECT COUNT(*) total FROM
-    cove_stage_owner_index_items i WHERE ${where.clause}`,...where.args).toArray()[0]?.total;
+    ${countScan.from} WHERE ${countScan.clause}`,...countScan.args).toArray()[0]?.total;
   if(!Number.isSafeInteger(count))throw Error('stage_owner_filtered_invalid_count');
   // FTS5 inverted-list cardinality, not total product count, chooses the
   // plan. A narrow match MUST lead the join: SQLite can otherwise iterate
@@ -518,28 +518,32 @@ export function readStageOwnerFilteredIndex(sql:AuthoritySql,input:FilteredInput
       ORDER BY i.rank_score DESC,i.product_id ASC LIMIT ? OFFSET ?`,
       ftsExpression,...narrowed.args,input.limit,(input.page-1)*input.limit)
       .toArray().map(x=>x.product_id);
-  })():sql.exec<{product_id:string}>(`SELECT i.product_id FROM
-    cove_stage_owner_index_items i WHERE ${where.clause}
-    ORDER BY i.rank_score DESC,i.product_id ASC LIMIT ? OFFSET ?`,
-    ...where.args,input.limit,(input.page-1)*input.limit).toArray().map(x=>x.product_id);
+  })():(()=>{
+    const pageScan=selectiveOwnerFilteredScan(sql,scopedInput,filters);
+    return sql.exec<{product_id:string}>(`SELECT i.product_id FROM
+      ${pageScan.from} WHERE ${pageScan.clause}
+      ORDER BY i.rank_score DESC,i.product_id ASC LIMIT ? OFFSET ?`,
+      ...pageScan.args,input.limit,(input.page-1)*input.limit)
+      .toArray().map(x=>x.product_id);
+  })();
   const facets={} as Record<FilterField,Array<{value:string;count:number}>>;
   for(const kind of FILTER_FIELDS){
-    const facetWhere=scopedIndexWhere(scopedInput,filters,kind);
+    const facetScan=selectiveOwnerFilteredScan(sql,scopedInput,filters,kind);
     const rows=sql.exec<{value:string;num:number}>(`SELECT dim.value value,
-      COUNT(DISTINCT i.product_id) num FROM cove_stage_owner_index_items i
+      COUNT(DISTINCT i.product_id) num FROM ${facetScan.from}
       JOIN cove_stage_owner_index_dimensions dim ON
         dim.territory=i.territory AND dim.currency=i.currency
         AND dim.product_id=i.product_id AND dim.kind=?
-      WHERE ${facetWhere.clause}
+      WHERE ${facetScan.clause}
       GROUP BY dim.value ORDER BY num DESC,dim.value ASC LIMIT ?`,
-      kind,...facetWhere.args,CAPS[kind]).toArray();
+      kind,...facetScan.args,CAPS[kind]).toArray();
     facets[kind]=rows.map(x=>({value:x.value,count:x.num}));
   }
-  const priceWhere=scopedIndexWhere(scopedInput,filters,'price');
+  const priceScan=selectiveOwnerFilteredScan(sql,scopedInput,filters,'price');
   const price=sql.exec<{minimum:number|null;maximum:number|null}>(`SELECT
     MIN(i.price_minor) minimum,MAX(i.price_minor) maximum FROM
-    cove_stage_owner_index_items i WHERE ${priceWhere.clause}`,
-    ...priceWhere.args).toArray()[0];
+    ${priceScan.from} WHERE ${priceScan.clause}`,
+    ...priceScan.args).toArray()[0];
   const result={count,pageIds,facets:{...facets,
     availability:count?[{value:'available',count}]:[],
     price:price?.minimum==null||price.maximum==null?null:
