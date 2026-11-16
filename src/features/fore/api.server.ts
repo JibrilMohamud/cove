@@ -929,7 +929,7 @@ async function seedCatalog(env: CoveEnv) {
     await syncEditionTaxonomy(db, catalogIds(String(book.id)).editionId);
   }
   await syncSearchIndex(env, Math.min(100, books.length || 1)).catch((error) =>
-    console.warn("Initial search index sync failed", error),
+    console.warn("Initial search index sync failed"),
   );
 }
 async function getBook(env: CoveEnv, id: string, userId?: string): Promise<CatalogBook> {
@@ -1127,7 +1127,7 @@ async function catalog(
     };
   } catch (error) {
     if (error instanceof ApiError) throw error;
-    console.warn("Commercial catalog search failed closed", error);
+    console.warn("Commercial catalog search failed closed");
     throw new ApiError(
       503,
       "The catalog is temporarily unavailable while Cove verifies distribution rights.",
@@ -1677,7 +1677,7 @@ export async function runCatalogAssetMaintenance(env: CoveEnv, limit = 1, deadli
       attempted++;
     });
   } catch (error) {
-    console.warn("Catalog asset maintenance failed", error);
+    console.warn("Catalog asset maintenance failed");
     return {
       attempted,
       downloaded: 0,
@@ -1976,7 +1976,7 @@ export async function runRegionalCatalogIngestion(
       await syncSearchIndex(
         env,
         Math.min(200, Math.max(5, epubs.downloaded * 5 + staleCount)),
-      ).catch((error) => console.warn("Regional search sync failed", error));
+      ).catch((error) => console.warn("Regional search sync failed"));
     return {
       sourceId,
       fetched: items.length,
@@ -2230,7 +2230,7 @@ export async function runCatalogIngestion(
     /* eslint-enable prettier/prettier */
     if (!options.deferSearchSync) {
       await syncSearchIndex(env, Math.min(500, Math.max(50, accepted.length))).catch((error) =>
-        console.warn("Catalog search sync failed", error),
+        console.warn("Catalog search sync failed"),
       );
     }
     const nextUrl = typeof payload.next === "string" ? payload.next : null;
@@ -6025,7 +6025,7 @@ async function handleCoveRequest(
           const journey = await ensureReadingJourney(db, user.id, completionId);
           readingJourneyId = String(journey.id);
         } catch (e) {
-          console.error("Reading Journey generation failed", e);
+          console.error("Reading Journey generation failed");
         }
       }
       if (input.rating !== undefined && input.rating !== null)
@@ -6131,7 +6131,7 @@ async function handleCoveRequest(
           });
         }
       } catch (e) {
-        console.error("Annotation version anchor snapshot failed", e);
+        console.error("Annotation version anchor snapshot failed");
       }
       return json({ id, saved: true, version: 1, updatedAt: date }, 201);
     }
@@ -6309,11 +6309,7 @@ async function handleCoveRequest(
         { error: "Some information is missing or invalid. Please check your entry." },
         400,
       );
-    console.error(
-      "Cove service error",
-      e instanceof Error ? e.message : "Unknown",
-      (e as any)?.cause?.code || "",
-    );
+    console.error("Cove service error; request failed closed");
     return json(
       {
         error:
