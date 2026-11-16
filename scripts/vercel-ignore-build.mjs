@@ -81,7 +81,6 @@ export function changedSinceLastSuccess(env = process.env, git = execFileSync) {
   }
 }
 
-
 /**
  * Single-use audit-release exemption. Vercel's automatic `main` deployment
  * would otherwise rebuild customer services for a GitHub Actions workflow
@@ -93,8 +92,7 @@ export function changedSinceLastSuccess(env = process.env, git = execFileSync) {
  * history, merge commit, extra path, changed production baseline, preview,
  * or manual deployment falls back to BUILD. A check failure NEVER skips.
  */
-const PINNED_AUDIT_PRODUCTION_PARENT =
-  "c959eaed64c58f7d9675c0c8b6852c70f4914dec";
+const PINNED_AUDIT_PRODUCTION_PARENT = "c959eaed64c58f7d9675c0c8b6852c70f4914dec";
 const AUDIT_FILES = new Set([
   ".github/workflows/cove-protected-real-rights-spot-readonly.yml",
   "scripts/release/check-protected-production-rights-spot.mjs",
@@ -102,25 +100,18 @@ const AUDIT_FILES = new Set([
   "scripts/check-vercel-one-shot-audit-no-deploy.mjs",
 ]);
 
-export function shouldSkipPinnedProductionAudit(
-  env = process.env,
-  git = execFileSync,
-) {
-  if (env.VERCEL_ENV !== "production" || env.VERCEL_GIT_COMMIT_REF !== "main")
-    return false;
+export function shouldSkipPinnedProductionAudit(env = process.env, git = execFileSync) {
+  if (env.VERCEL_ENV !== "production" || env.VERCEL_GIT_COMMIT_REF !== "main") return false;
   try {
     const opts = { encoding: "utf8", timeout: 5000, maxBuffer: 1024 * 1024 };
     const root = git("git", ["rev-parse", "--show-toplevel"], opts).trim();
     if (!root || root.includes("\u0000")) return false;
     const run = (args) => git("git", ["-C", root, ...args], opts).trim();
-    const parents = run(["show", "-s", "--format=%P", "HEAD"])
-      .split(/\s+/)
+    const parents = run(["show", "-s", "--format=%P", "HEAD"]).split(/\s+/)
       .filter(Boolean);
-    if (parents.length !== 1 || parents[0] !== PINNED_AUDIT_PRODUCTION_PARENT)
-      return false;
+    if (parents.length !== 1 || parents[0] !== PINNED_AUDIT_PRODUCTION_PARENT) return false;
     const head = run(["rev-parse", "HEAD"]);
-    if (!VALID_SHA.test(head) || head === PINNED_AUDIT_PRODUCTION_PARENT)
-      return false;
+    if (!VALID_SHA.test(head) || head === PINNED_AUDIT_PRODUCTION_PARENT) return false;
     const changed = run([
       "diff",
       "--no-ext-diff",
