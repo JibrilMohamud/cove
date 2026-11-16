@@ -7,10 +7,11 @@
  */
 export const POSITIVE_WITNESSES=8;
 export const NEGATIVE_WITNESSES=4;
+export const TERRITORY_WITNESSES=4;
 
 export function addRightsWitnesses(destination,rows,limit,excluded=new Set()){
   if(!(destination instanceof Set)||!(excluded instanceof Set)||
-    !Array.isArray(rows)||!Number.isSafeInteger(limit)||limit<1||limit>12)
+    !Array.isArray(rows)||!Number.isSafeInteger(limit)||limit<1||limit>16)
     throw Error('rights_spot_audit_invalid_witness_cohort');
   let selected=0;
   for(const row of rows){
@@ -22,15 +23,18 @@ export function addRightsWitnesses(destination,rows,limit,excluded=new Set()){
   }
   return selected;
 }
-export function assertRightsWitnessCoverage(positive,negative){
-  if(!(positive instanceof Set)||!(negative instanceof Set)||
+export function assertRightsWitnessCoverage(positive,suspended,territory){
+  if(!(positive instanceof Set)||!(suspended instanceof Set)||
+    !(territory instanceof Set)||
     positive.size!==POSITIVE_WITNESSES||
-    negative.size!==NEGATIVE_WITNESSES||
-    [...negative].some(id=>positive.has(id)))
-    throw Error('rights_spot_audit_insufficient_deny_and_allow_witnesses');
+    suspended.size!==NEGATIVE_WITNESSES||
+    territory.size!==TERRITORY_WITNESSES||
+    [...suspended].some(id=>positive.has(id))||
+    [...territory].some(id=>positive.has(id)||suspended.has(id)))
+    throw Error('rights_spot_audit_insufficient_three_policy_witnesses');
 }
-export function verifyNegativeRightsVerdict(verdict,legacy){
+export function verifyNegativeRightsVerdict(verdict,legacy,expectedReason){
   if(verdict?.allowed!==false||legacy!==false||
-    verdict?.reasonCode!=='PRODUCT_INACTIVE')
-    throw Error('rights_spot_audit_suspended_grant_exposed');
+    verdict?.reasonCode!==expectedReason)
+    throw Error('rights_spot_audit_deny_policy_exposed');
 }
