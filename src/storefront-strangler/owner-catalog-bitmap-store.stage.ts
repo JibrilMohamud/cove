@@ -89,6 +89,19 @@ function encodeSnapshot(snapshot:Snapshot){
  * shard inserts and the seal, not publish partially updated rights. */
 export function persistStageOwnerBitmap(sql:AuthoritySql,snapshot:Snapshot){
   currentFor(snapshot,sql);
+  // A hydrated removal overlay has historical rows with inactive bits. It
+  // MUST NOT become a new positive base: only rebuildStageOwnerBitmap from
+  // current canonical owner index can compact retired slots.
+  if(snapshot.rows.length!==snapshot.count)
+    throw Error('stage_owner_bitmap_store_rebuild_required');
+  let active=0;
+  for(let value of snapshot.allBits){
+    value=value-((value>>>1)&0x55555555);
+    value=(value&0x33333333)+((value>>>2)&0x33333333);
+    active+=(((value+(value>>>4))&0x0f0f0f0f)*0x01010101)>>>24;
+  }
+  if(active!==snapshot.count)
+    throw Error('stage_owner_bitmap_store_inactive_base');
   const bytes=encodeSnapshot(snapshot);
   const parts=Math.ceil(bytes.length/MAX_CHUNK_BYTES);
   if(!parts||parts>MAX_CHUNKS)throw Error('stage_owner_bitmap_store_chunk_limit');
