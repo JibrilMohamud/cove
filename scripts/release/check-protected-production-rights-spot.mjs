@@ -25,15 +25,40 @@ const BRANCH='refs/heads/main';
 const DB_API='https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT+
   '/d1/database/'+PRODUCTION_DB+'/query';
 const MAX_PRODUCTS=8,MAX_QUERIES=400;
-const ISOLATED_ONLY=false;
-const CONTRACT_PRODUCT_SQL=`SELECT DISTINCT p.id product_id FROM products p
- JOIN rights_grants rg ON rg.edition_id=p.edition_id
- WHERE p.storefront_status='active' AND p.id NOT LIKE 'perf-synth-%'
- ORDER BY p.id LIMIT 4`;
-const CATALOG_PRODUCT_SQL=`SELECT p.id product_id FROM products p
- WHERE p.storefront_status='active' AND p.source_name<>'upload'
-   AND p.id NOT LIKE 'perf-synth-%'
- ORDER BY p.id LIMIT 8`;
+// Deliberately independent legal-policy cohorts, not merely the first
+// contract-bound or bestselling products. Small fixed limits prevent a
+// metadata scan or whole-catalog rights resolution from this audit.
+const COHORTS=Object.freeze([
+  {name:'contract_version',limit:2,sql:`SELECT DISTINCT p.id product_id
+    FROM products p JOIN rights_grants rg ON rg.edition_id=p.edition_id
+    JOIN rights_contract_versions v ON v.contract_id=rg.contract_id
+    WHERE p.storefront_status='active' AND p.id NOT LIKE 'perf-synth-%'
+    ORDER BY p.id LIMIT 2`},
+  {name:'contract_language',limit:2,sql:`SELECT DISTINCT p.id product_id
+    FROM products p JOIN rights_grants rg ON rg.edition_id=p.edition_id
+    JOIN rights_contract_languages l ON l.contract_id=rg.contract_id
+    WHERE p.storefront_status='active' AND p.id NOT LIKE 'perf-synth-%'
+    ORDER BY p.id LIMIT 2`},
+  {name:'nontrivial_drm',limit:2,sql:`SELECT DISTINCT p.id product_id
+    FROM products p JOIN rights_grants rg ON rg.edition_id=p.edition_id
+    WHERE p.storefront_status='active' AND p.id NOT LIKE 'perf-synth-%'
+      AND lower(COALESCE(rg.drm_requirement,'')) NOT IN ('none','optional','any','')
+    ORDER BY p.id LIMIT 2`},
+  {name:'timed_rights',limit:2,sql:`SELECT DISTINCT p.id product_id
+    FROM products p JOIN rights_grants rg ON rg.edition_id=p.edition_id
+    WHERE p.storefront_status='active' AND p.id NOT LIKE 'perf-synth-%'
+      AND (rg.starts_at IS NOT NULL OR rg.ends_at IS NOT NULL)
+    ORDER BY p.id LIMIT 2`},
+  {name:'contract_bound',limit:2,sql:`SELECT DISTINCT p.id product_id
+    FROM products p JOIN rights_grants rg ON rg.edition_id=p.edition_id
+    WHERE p.storefront_status='active' AND p.id NOT LIKE 'perf-synth-%'
+      AND rg.contract_id IS NOT NULL
+    ORDER BY p.id LIMIT 2`},
+  {name:'catalog',limit:8,sql:`SELECT p.id product_id FROM products p
+    WHERE p.storefront_status='active' AND p.source_name<>'upload'
+      AND p.id NOT LIKE 'perf-synth-%'
+    ORDER BY p.id LIMIT 8`},
+]);
 const VIEW_SQL=`SELECT EXISTS(SELECT 1 FROM retail_product_availability_rows a
   WHERE a.product_id=? AND a.territory_code='US') AS permitted`;
 const WATERMARK_SQL=`SELECT
@@ -65,7 +90,11 @@ function assertLivePermission(){
 }
 async function main(){
   if(process.argv.includes('--self-test')){
-    assert.equal(allowedReadSql(CONTRACT_PRODUCT_SQL),true);
+    for(const cohort of COHORTS){
+      assert.equal(allowedReadSql(cohort.sql),true);
+      assert.match(cohort.name,/^[a-z_]+$/);
+      assert.ok(cohort.limit>=1&&cohort.limit<=MAX_PRODUCTS);
+    }
     assert.equal(allowedReadSql(VIEW_SQL),true);
     assert.equal(allowedReadSql('SELECT 1;DELETE FROM products'),false);
     assert.equal(allowedReadSql('SELECT load_extension(x)'),false);
@@ -126,20 +155,21 @@ async function main(){
     if(!before||['product_watermark','edition_watermark','search_watermark']
       .some(x=>typeof before[x]!=='string'))
       throw Error('rights_spot_audit_invalid_baseline');
-    const cohorts=[
-      {kind:'contract',rows:await readSql(CONTRACT_PRODUCT_SQL)},
-      {kind:'catalog',rows:await readSql(CATALOG_PRODUCT_SQL)},
-    ];
     const ids=new Set();
-    const counts={contract:0,catalog:0};
-    for(const {kind,rows} of cohorts){
+    const cohortCounts=Object.create(null);
+    for(const cohort of COHORTS){
+      const rows=await readSql(cohort.sql);
+      if(rows.length>cohort.limit)
+        throw Error('rights_spot_audit_cohort_unbounded');
+      let selected=0;
       for(const row of rows){
         const id=String(row?.product_id||'');
         if(!/^[a-zA-Z0-9_:-]{1,128}$/.test(id)||id.startsWith('perf-synth-'))
           throw Error('rights_spot_audit_invalid_identifier');
         if(ids.size>=MAX_PRODUCTS)break;
-        if(!ids.has(id)){ids.add(id);counts[kind]++;}
+        if(!ids.has(id)){ids.add(id);selected++;}
       }
+      cohortCounts[cohort.name]={candidates:rows.length,uniquelySelected:selected};
     }
     if(ids.size<4||ids.size>MAX_PRODUCTS)
       throw Error('rights_spot_audit_insufficient_witnesses');
@@ -175,7 +205,7 @@ async function main(){
     if(!after||Object.keys(before).some(k=>before[k]!==after[k]))
       throw Error('rights_spot_audit_source_changed');
     const out={schema:'cove.production.canonical-rights-spot-readonly.v1',
-      checked:ids.size,cohortCounts:counts,canonicalAllowed:allowed,
+      checked:ids.size,cohortCounts,canonicalAllowed:allowed,
       legacyAllowed,viewOnly,canonicalOnly,deniedReasons:reasons,
       D1Queries:queryCount,allRowsAtomicSnapshot:false,
       productionOwnerEvidenceCertified:false,
