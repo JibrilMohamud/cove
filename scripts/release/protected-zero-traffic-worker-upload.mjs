@@ -88,7 +88,7 @@ function generateCanonicalConfig() {
   const run = section.split("        run: |\n");
   assert.equal(run.length, 2, "Canonical production config generation unavailable");
   const shell = run[1].split("\n").map((line) => line.startsWith("          ") ? line.slice(10) : line).join("\n");
-  assert.match(shell, /cat > wrangler\\.backend\\.deploy\\.toml <<EOF/);
+  assert.match(shell, /cat > wrangler\.backend\.deploy\.toml <<EOF/);
   const env = {
     ...process.env,
     WORKER_NAME,
@@ -106,7 +106,7 @@ function generateCanonicalConfig() {
   assert.match(config, /dataset = "cove_public_http_ops"/);
   assert.match(config, /compatibility_date = "2026-09-01"/);
   assert.match(config, /keep_vars = true/);
-  assert.doesNotMatch(config, /\\broutes\\s*=|cove-qa|staging-route/i);
+  assert.doesNotMatch(config, /\broutes\s*=|cove-qa|staging-route/i);
 }
 
 if (mode === "preflight") {
