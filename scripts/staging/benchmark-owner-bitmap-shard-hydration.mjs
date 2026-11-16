@@ -101,14 +101,67 @@ try{
     cove_stage_owner_bitmap_shards`).get().n;
   assert.ok(written.chunks>1,'Realistic catalog must shard across many rows');
   assert.ok(largest<524_288,'Each text row must be far below Cloudflare 8MiB limit');
-  // A single canonical legal/source writer change forces hydration failure;
-  // fake fixture does NOT substitute for production positive authorization.
+  // Simulate 64 OWNER-INDEX REMOVALS only; no positive rights are created
+  // or inferred. This is an offline shape/performance experiment, NOT a
+  // substitute for real legal-owner transaction or D1 correctness evidence.
+  const sealBefore=db.prepare('SELECT checksum,byte_length,chunk_count FROM cove_stage_owner_bitmap_seal').get();
+  const rawBytesBefore=db.prepare('SELECT SUM(length(encoded_chunk)) n FROM cove_stage_owner_bitmap_shards').get().n;
+  const deleted=64,deltaStart=performance.now();
+  const drop=db.prepare('DELETE FROM cove_stage_owner_index_items WHERE product_id=?');
+  const event=db.prepare(`INSERT INTO cove_stage_owner_bitmap_change_log(
+    product_id,item_deleted,dimension_deleted) VALUES(?,1,1)`);
+  const delta=tx(()=>{
+    for(let i=0;i<deleted;i++){
+      const id='prd_stage_synthetic_'+String(i).padStart(6,'0');
+      drop.run(id);event.run(id);
+    }
+    db.prepare("UPDATE cove_stage_owner_index_totals SET amount=amount-? WHERE territory='US' AND currency='USD'").run(deleted);
+    db.prepare('UPDATE cove_stage_owner_index_epoch SET epoch=epoch+? WHERE id=1').run(deleted);
+    assert.throws(()=>store.hydrateStageOwnerBitmap(sql),/stale_or_absent/,
+      'Unsealed owner withdrawal cannot expose an old positive snapshot');
+    return store.persistStageOwnerBitmapRevocations(sql);
+  });
+  const deltaMs=+(performance.now()-deltaStart).toFixed(3);
+  assert.equal(delta.removed,deleted);
+  assert.equal(delta.active,PRODUCT_COUNT-deleted);
+  assert.deepEqual(db.prepare('SELECT checksum,byte_length,chunk_count FROM cove_stage_owner_bitmap_seal').get(),
+    sealBefore,'Removal-only patch cannot rewrite 5.9 MB immutable base');
+  assert.equal(db.prepare('SELECT SUM(length(encoded_chunk)) n FROM cove_stage_owner_bitmap_shards').get().n,
+    rawBytesBefore,'Removal-only patch must leave all 23 payload shards untouched');
+  const hydratedDeltaAt=performance.now();
+  const afterWithdrawal=store.hydrateStageOwnerBitmap(sql);
+  const hydrateAfterDeltaMs=+(performance.now()-hydratedDeltaAt).toFixed(3);
+  assert.equal(afterWithdrawal.count,PRODUCT_COUNT-deleted);
+  assert.equal(afterWithdrawal.rows.length,PRODUCT_COUNT);
+  for(let i=0;i<deleted;i++)assert.equal(afterWithdrawal.allBits[i>>>5]&(1<<(i&31)),0,
+    'Withdrawn book must not have a readable catalog bit');
+  assert.ok(afterWithdrawal.allBits[deleted>>>5]&(1<<(deleted&31)),
+    'Unchanged, already-indexed book must remain visible');
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM cove_stage_owner_bitmap_revoked').get().n,deleted);
+  assert.throws(()=>tx(()=>{
+    db.prepare('INSERT INTO cove_stage_owner_bitmap_change_log(product_id,item_written) VALUES(?,1)')
+      .run('prd_stage_synthetic_000100');
+    db.prepare('UPDATE cove_stage_owner_index_epoch SET epoch=epoch+1 WHERE id=1').run();
+    store.persistStageOwnerBitmapRevocations(sql);
+  }),/positive_or_unsupported_edit/,
+  'Unreviewed positive edit must not be accepted as a revocation delta');
+  assert.throws(()=>tx(()=>{
+    db.prepare('UPDATE cove_stage_owner_index_epoch SET epoch=epoch+1 WHERE id=1').run();
+    store.persistStageOwnerBitmapRevocations(sql);
+  }),/untracked_owner_change/,
+  'Changed generation without a journaled removal must fail closed');
+  assert.equal(store.hydrateStageOwnerBitmap(sql).count,PRODUCT_COUNT-deleted,
+    'Transaction rollback preserves previously sealed safe snapshot');
+  // A single unjournaled canonical mutation must deny cached authorization.
   db.prepare('UPDATE cove_stage_owner_index_epoch SET epoch=epoch+1 WHERE id=1').run();
   assert.throws(()=>store.hydrateStageOwnerBitmap(sql),/stale_or_absent/);
-  console.log(JSON.stringify({schema:'cove.stage.sharded-owner-bitmap-cold.v1',
+  console.log(JSON.stringify({schema:'cove.stage.sharded-owner-bitmap-cold.v2',
     syntheticProducts:PRODUCT_COUNT,seedMs,shardCount:written.chunks,
     serializedBytes:written.bytes,maxEncodedShardChars:largest,
-    coldHydrateMs:hydrateMs,exactRestoredBits:true,staleEpochDenied:true,
+    coldHydrateMs:hydrateMs,deltaRemoved:deleted,
+    deltaTransactionMs:deltaMs,coldHydrateAfterDeltaMs:hydrateAfterDeltaMs,
+    baseShardsRewritten:0,exactRestoredBits:true,postDeltaVisible:PRODUCT_COUNT-deleted,
+    staleEpochDenied:true,positiveWriteDenied:true,rollbackSafe:true,
     ownerRightsChecked:false,realCustomerRequests:0,hostedCloudflare:false,
     geographicLoadCertified:false,releaseCertified:false}));
 } finally {db.close();rmSync(root,{recursive:true,force:true});}
