@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Private audit witness safety, no customer code. */
 /**
  * Fail-closed witness selection for the protected production rights audit.
  * Pure and offline-testable: no SQL, fetch, filesystem, DB writes or logs.
