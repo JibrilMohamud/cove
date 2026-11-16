@@ -6,7 +6,7 @@ export const WORKER_NAME = "cove-persistence-backend";
 export const PINNED_DEPLOYMENT = "9df84b20-0599-4fe9-a14e-2c11a4f25133";
 export const PINNED_VERSION = "401f2af2-6e69-4611-8110-1d127af6eecf";
 export const PINNED_VERSION_NUMBER = 451;
-export const REVIEWED_BACKEND_SOURCE = "c3c1a68dd239aca018040d3165c44630118ae8af";
+export const REVIEWED_BACKEND_SOURCE = "a3fd303da6f7418ceec574e0c158d62fe1245984";
 export const PRIMARY_D1 = "4bd657ac-8789-403e-a28c-93aba8d0a989";
 
 const sha = (data) => createHash("sha256").update(JSON.stringify(data)).digest("hex");

@@ -22,7 +22,7 @@ test("no push, PR, timer or build can upload a production Worker version", () =>
 test("separate constrained upload secret, source pin and no automatic D1 migration", () => {
   assert.match(workflow, /secrets\.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
   assert.doesNotMatch(workflow, /secrets\.CLOUDFLARE_API_TOKEN/);
-  assert.match(workflow, /reviewed_source_sha == 'c3c1a68dd239aca018040d3165c44630118ae8af'/);
+  assert.match(workflow, /reviewed_source_sha == 'a3fd303da6f7418ceec574e0c158d62fe1245984'/);
   assert.match(workflow, /wrangler versions upload/);
   assert.doesNotMatch(
     workflow,
@@ -42,6 +42,18 @@ test("script never calls a Cloudflare write API and accepts only exact pinned ma
   assert.match(runner, /assertPinnedProductionDeployment\(deployed\)/);
   assert.match(runner, /assertProductionStillDisabled\(\)/);
   assert.match(runner, /assertExactNonsecretResourceParity\(oldVersion, candidate\)/);
+});
+
+test("only the protected live upload holds the primary-D1 release lock", () => {
+  const [offline, live] = workflow.split("  upload_archived_only:\n");
+  assert.ok(live, "Protected upload job must exist");
+  assert.doesNotMatch(offline, /^concurrency:/m, "PR-only checks must not consume the live lock");
+  assert.match(
+    live,
+    /    concurrency:\n      group: cove-exclusive-real-primary-cold-acceptance\n      queue: max\n      cancel-in-progress: false/,
+  );
+  assert.match(live, /environment: cove-production-release-audit/);
+  assert.match(live, /wrangler versions upload/);
 });
 
 test("the production gateway still prohibits uncontrolled main Git deployments", () => {
