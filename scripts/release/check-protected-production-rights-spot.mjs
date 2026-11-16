@@ -18,6 +18,7 @@ import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
+import {createProtectedD1ReadThrottle} from './protected-d1-read-throttle.mjs';
 
 const ACCOUNT='d26430caa63ec55f6612e32f36aca5e9';
 const PRODUCTION_DB='4bd657ac-8789-403e-a28c-93aba8d0a989';
@@ -177,6 +178,15 @@ async function main(){
   }
   assertLivePermission();
   let queryCount=0;
+  // Shared throttle across ALL authoritative rights resolver reads, rather
+  // than one retry budget per product. The exact same SELECT+bound parameters
+  // may be replayed on 429 only; no mutable operations are ever admitted.
+  const throttle=createProtectedD1ReadThrottle({
+    onThrottle:({retry,delayMs})=>{
+      console.log(JSON.stringify({event:'cove_prod_rights_spot_rate_limit_backoff',
+        httpStatus:429,retry,delayMs,releaseCertified:false}));
+    },
+  });
   async function readSql(sql,params=[]){
     if(!allowedReadSql(sql)||!allowedParams(params))
       throw Error('rights_spot_audit_query_blocked');
@@ -184,14 +194,21 @@ async function main(){
       throw Error('rights_spot_audit_query_budget_exhausted');
     let response;
     try{
-      response=await fetch(DB_API,{
+      response=await throttle.request(()=>fetch(DB_API,{
         method:'POST',headers:{
           authorization:'Bearer '+process.env.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN,
           'content-type':'application/json',
         },body:JSON.stringify({sql,params}),
         signal:AbortSignal.timeout(15000),
-      });
-    }catch{throw Error('rights_spot_audit_transport_failed');}
+      }));
+    }catch(error){
+      // Explicit 429 / attempt-budget errors are expected safety denials,
+      // not transient transport faults to hide behind a generic reason.
+      if(['rights_spot_audit_rate_limited',
+        'rights_spot_audit_query_budget_exhausted'].includes(error?.message))
+        throw error;
+      throw Error('rights_spot_audit_transport_failed');
+    }
     if(!response.ok)throw Error('rights_spot_audit_http_'+response.status);
     let parsed;
     try{parsed=await response.json();}
@@ -271,7 +288,10 @@ async function main(){
     const out={schema:'cove.production.canonical-rights-spot-readonly.v1',
       checked:ids.size,cohortCounts,canonicalAllowed:allowed,
       legacyAllowed,viewOnly,canonicalOnly,deniedReasons:reasons,
-      D1Queries:queryCount,allRowsAtomicSnapshot:false,
+      D1Queries:queryCount,D1HttpAttempts:throttle.stats().httpAttempts,
+      rateLimitedResponses:throttle.stats().rateLimitedResponses,
+      rateLimitWaitMs:throttle.stats().rateLimitWaitMs,
+      allRowsAtomicSnapshot:false,
       productionOwnerEvidenceCertified:false,
       fullCatalogRightsCertified:false,releaseCertified:false,
       wroteD1:false,hostedCapacityCertified:false};
