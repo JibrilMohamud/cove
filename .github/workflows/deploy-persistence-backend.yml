@@ -163,6 +163,18 @@ jobs:
           workers_dev = true
           keep_vars = true
 
+          # Proposed production diagnostic capture, only on an APPROVED deploy.
+          # No production configuration changes on PR or unapproved main push.
+          [observability]
+          enabled = true
+          head_sampling_rate = 1
+          redact_query_string = true
+
+          [observability.logs]
+          enabled = true
+          head_sampling_rate = 1
+          invocation_logs = true
+
           [limits]
           cpu_ms = 300_000
 
