@@ -44,6 +44,18 @@ test("script never calls a Cloudflare write API and accepts only exact pinned ma
   assert.match(runner, /assertExactNonsecretResourceParity\(oldVersion, candidate\)/);
 });
 
+test("only the protected live upload holds the primary-D1 release lock", () => {
+  const [offline, live] = workflow.split("  upload_archived_only:\n");
+  assert.ok(live, "Protected upload job must exist");
+  assert.doesNotMatch(offline, /^concurrency:/m, "PR-only checks must not consume the live lock");
+  assert.match(
+    live,
+    /    concurrency:\n      group: cove-exclusive-real-primary-cold-acceptance\n      queue: max\n      cancel-in-progress: false/,
+  );
+  assert.match(live, /environment: cove-production-release-audit/);
+  assert.match(live, /wrangler versions upload/);
+});
+
 test("the production gateway still prohibits uncontrolled main Git deployments", () => {
   const vercel = JSON.parse(readFileSync("vercel.json", "utf8"));
   assert.equal(vercel.git.deploymentEnabled.main, false);
