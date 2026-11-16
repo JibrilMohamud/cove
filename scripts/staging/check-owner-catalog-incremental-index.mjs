@@ -273,8 +273,11 @@ try{
   assert.throws(()=>bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope),
     /dirty_unreconciled/,'Pending owner metadata must block bitmap reads');
   inTransaction(()=>{idx.reconcileStageOwnerDirty(sql);stage.rebuildStageOwnerCatalogSnapshot(sql);});
-  assert.throws(()=>bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope),
-    /stale_epoch/,'Metadata reconciliation must invalidate snapshot');
+  // Metadata-only changes that never create a positive owner index row need
+  // not advance the item epoch; the dirty queue already blocked their reads.
+  assert.deepEqual(bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope),
+    idx.readStageOwnerIncrementalIndex(sql,scope),
+    'Unapproved presentation must not create a bitmap positive');
   bitmapSnapshot=bitmap.buildStageOwnerBitmap(sql);
   assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope),stage.stageOwnerCatalogRead(sql,scope));
   assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,25);
