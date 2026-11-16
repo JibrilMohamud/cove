@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Adversarial one-shot Vercel guard fixture. */
 /* Single-use audit deployment guard: only a pinned, four-file main merge may skip Vercel production. */
 import assert from "node:assert/strict";
 import { shouldSkipPinnedProductionAudit, shouldBuildService } from "./vercel-ignore-build.mjs";
