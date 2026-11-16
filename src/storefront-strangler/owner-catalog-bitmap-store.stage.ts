@@ -131,9 +131,13 @@ export function hydrateStageOwnerBitmap(sql:AuthoritySql):Snapshot{
   }
   if(offset!==bytes.length||checksum(bytes)!==state.checksum)
     throw Error('stage_owner_bitmap_store_checksum_mismatch');
-  let raw:any;
-  try{raw=JSON.parse(decoder.decode(bytes));}
-  catch{throw Error('stage_owner_bitmap_store_invalid_json');}
+  let raw:Record<string,unknown>|null=null;
+  try{
+    const decoded:unknown=JSON.parse(decoder.decode(bytes));
+    if(!decoded||typeof decoded!=='object'||Array.isArray(decoded))
+      throw Error('stage_owner_bitmap_store_invalid_json');
+    raw=decoded as Record<string,unknown>;
+  }catch{throw Error('stage_owner_bitmap_store_invalid_json');}
   if(raw?.schema!==1||raw.ownerEpoch!==owner.epoch||raw.count!==owner.count||
     !Array.isArray(raw.rows)||raw.rows.length!==owner.count||
     !Array.isArray(raw.postings)||raw.postings.length!==fields.length)
