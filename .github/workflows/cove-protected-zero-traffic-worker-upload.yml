@@ -55,8 +55,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      # Distinct, manually installed Workers Scripts Write credential.
-      # Never reuse the broad CLOUDFLARE_API_TOKEN with D1/Token Admin rights.
+      # Distinct, manually installed per-Worker Editor token restricted to
+      # cove-persistence-backend only. Never use a broad D1/Token Admin key.
       CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN }}
       # Read-only, separately scoped; must see legal-owner settings but cannot
       # mutate its Worker or the production D1 database.
