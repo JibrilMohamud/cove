@@ -135,6 +135,96 @@ try {
   } finally {
     console.warn = originalWarn;
   }
+  // Fixed phase attribution is an ADDITIONAL non-authoritative data point,
+  // never an excuse to skip the pre-existing D1 failure/security journal.
+  const before = written.length;
+  assert.equal(
+    route(
+      prod,
+      request("/api/fore/storefront/bootstrap?secret=do-not-log"),
+      status(200),
+      "anonymous",
+      1200,
+      { auth: 50, context: 1050, unexpected_user_field: "do-not-log" },
+    ),
+    true,
+  );
+  assert.deepEqual(written.slice(before), [
+    {
+      blobs: ["public-api-read", "/api/fore/storefront/bootstrap", "GET"],
+      doubles: [200, 1200],
+      indexes: ["public-read"],
+    },
+    {
+      blobs: ["public-api-anomaly-phase", "/api/fore/storefront/bootstrap", "context"],
+      doubles: [200, 1200, 1050],
+      indexes: ["public-anomaly"],
+    },
+  ]);
+  assert.equal(
+    route(
+      prod,
+      request("/api/fore/storefront/bootstrap?secret=do-not-log"),
+      status(503),
+      "anonymous",
+      3100,
+      { auth: 90, context: 2900 },
+    ),
+    false,
+  );
+  assert.deepEqual(written.slice(-2), [
+    {
+      blobs: ["public-api-failure", "/api/fore/storefront/bootstrap", "5xx"],
+      doubles: [503, 3100],
+      indexes: ["public-failure"],
+    },
+    {
+      blobs: ["public-api-anomaly-phase", "/api/fore/storefront/bootstrap", "context"],
+      doubles: [503, 3100, 2900],
+      indexes: ["public-anomaly"],
+    },
+  ]);
+  // Only the named, numeric stages are admitted. An unknown slow phase must
+  // not be misattributed to rights, SQL or transport based on absent evidence.
+  assert.equal(
+    route(prod, request("/api/fore/catalog"), status(200), "anonymous", 900, {
+      auth: 12,
+      identity: 10,
+      context: 120,
+      attackerControlled: 9000,
+    }),
+    true,
+  );
+  assert.deepEqual(written.at(-1), {
+    blobs: ["public-api-anomaly-phase", "/api/fore/catalog", "unattributed"],
+    doubles: [200, 900, 120],
+    indexes: ["public-anomaly"],
+  });
+  const beforePrivate = written.length;
+  assert.equal(
+    route(
+      prod,
+      request("/api/fore/storefront/bootstrap", { cookie: "session=private" }),
+      status(503),
+      "anonymous",
+      9000,
+      { context: 8000 },
+    ),
+    false,
+  );
+  assert.equal(written.length, beforePrivate, "private traffic never emits phase metrics");
+  assert.equal(JSON.stringify(written).includes("do-not-log"), false);
+  assert.equal(JSON.stringify(written).includes("attackerControlled"), false);
+  assert.equal(
+    route(prod, request("/api/fore/catalog"), status(200), "anonymous", 800),
+    true,
+    "previous callers without stage timings still retain original semantics",
+  );
+  assert.deepEqual(written.at(-1), {
+    blobs: ["public-api-read", "/api/fore/catalog", "GET"],
+    doubles: [200, 800],
+    indexes: ["public-read"],
+  });
   console.log(
     "PASS: anonymous 5xx category counters in AE, no PII; durable D1 error/security audit remains enabled.",
   );

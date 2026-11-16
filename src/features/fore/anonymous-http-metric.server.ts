@@ -21,6 +21,47 @@ const PUBLIC_READ_PATHS = new Set([
   "/api/fore/taxonomy",
   "/api/fore/search/suggest",
 ]);
+/**
+ * Attribution is deliberately coarse. These three names are owned by the
+ * Worker, not derived from requests or exception text. Only finite numeric
+ * measurements from known stages may leave the request in Analytics Engine.
+ * "unattributed" means no one stage explains at least half the elapsed time;
+ * it is NOT a guess that SQL, Cloudflare transport or an external API failed.
+ */
+const ANONYMOUS_PHASES = ["auth", "context", "identity"] as const;
+const SLOW_MS = 800;
+
+function recordAnonymousAnomalyPhase(
+  sink: NonNullable<IsolatedMetricsEnv["OPS_ANALYTICS"]>,
+  path: string,
+  status: number,
+  durationMs: number,
+  stages: Readonly<Record<string, number>> | undefined,
+) {
+  if (!stages || (status < 500 && !(status >= 200 && status < 300 && durationMs >= SLOW_MS)))
+    return;
+  const elapsed = Number.isFinite(durationMs) ? Math.max(0, durationMs) : 0;
+  let top: (typeof ANONYMOUS_PHASES)[number] | "unattributed" = "unattributed";
+  let largest = 0;
+  for (const phase of ANONYMOUS_PHASES) {
+    const value = stages[phase];
+    if (Number.isFinite(value) && value > largest && value >= 0) {
+      largest = Math.min(value, 300_000);
+      top = phase;
+    }
+  }
+  if (largest < elapsed / 2) top = "unattributed";
+  try {
+    sink.writeDataPoint({
+      blobs: ["public-api-anomaly-phase", path, top],
+      doubles: [status, elapsed, largest],
+      indexes: ["public-anomaly"],
+    });
+  } catch {
+    // Never substitute a metric for the original primary-D1 audit, and never
+    // let an independent analytics failure change a customer response.
+  }
+}
 
 /** True means a best-effort, non-PII metric was handled by independent
  * analytics; it MUST NOT cause a synchronous write to primary D1.
@@ -34,6 +75,7 @@ export function emitIsolatedAnonymousHttpMetric(
   response: Response,
   actorKind: string,
   durationMs: number,
+  stages?: Readonly<Record<string, number>>,
 ): boolean {
   // Production must opt in independently from staging. Identity-bearing,
   // commercial, detailed failure and rights audit events are never sent; a
@@ -71,6 +113,7 @@ export function emitIsolatedAnonymousHttpMetric(
       // The observability sink cannot create an extra D1 write or alter the
       // original 5xx response. The pre-existing durable audit still runs.
     }
+    recordAnonymousAnomalyPhase(env.OPS_ANALYTICS, path, response.status, durationMs, stages);
     return false;
   }
   if (response.status < 200 || response.status >= 300) return false;
@@ -86,5 +129,6 @@ export function emitIsolatedAnonymousHttpMetric(
     // warning is kept in ordinary Worker logs; errors stay on the D1 path.
     console.warn("Isolated anonymous performance aggregate unavailable");
   }
+  recordAnonymousAnomalyPhase(env.OPS_ANALYTICS, path, response.status, durationMs, stages);
   return true;
 }
