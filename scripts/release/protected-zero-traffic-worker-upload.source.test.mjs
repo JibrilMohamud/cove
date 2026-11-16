@@ -118,6 +118,27 @@ test("npm install and build never receive privileged Cloudflare credentials", ()
   assert.match(fence, /if: always\(\)/);
 });
 
+test("missing metadata reader stops before npm ci, source build and any upload", () => {
+  const live = workflow.split("  upload_archived_only:\n")[1];
+  assert.ok(live);
+  const steps = live.split("    steps:\n")[1];
+  const credentialStep = steps.indexOf(
+    "      - name: Require separately scoped protected Cloudflare credentials",
+  );
+  const installStep = steps.indexOf("      - run: npm ci --no-audit --no-fund");
+  const uploadStep = steps.indexOf("      - name: Upload an INACTIVE version");
+  assert.ok(credentialStep >= 0 && credentialStep < installStep && installStep < uploadStep);
+  const diagnostic = steps.slice(credentialStep, installStep);
+  assert.match(diagnostic, /secrets\.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
+  assert.match(diagnostic, /secrets\.COVE_CF_WORKERS_METADATA_READ_TOKEN/);
+  assert.match(diagnostic, /if \[ -z "\$OWNER_METADATA_TOKEN" \]/);
+  assert.match(diagnostic, /::error title=Missing protected Workers metadata reader/);
+  assert.match(diagnostic, /if \[ "\$UPLOAD_TOKEN" = "\$OWNER_METADATA_TOKEN" \]/);
+  assert.doesNotMatch(diagnostic, /echo.*\$(?:UPLOAD_TOKEN|OWNER_METADATA_TOKEN)/);
+  assert.match(runner, /event: "cove_worker_100pct_pin_independently_verified"/);
+  assert.match(runner, /rightsOwnerVerified: false/);
+});
+
 test("the production gateway still prohibits uncontrolled main Git deployments", () => {
   const vercel = JSON.parse(readFileSync("vercel.json", "utf8"));
   assert.equal(vercel.git.deploymentEnabled.main, false);
