@@ -5,6 +5,7 @@ on:
     paths:
       [
         "scripts/performance/**",
+        "scripts/production-storefront-run-mode*.mjs",
         "scripts/wait-live-storefront-catalog*.mjs",
         "scripts/wait-persistence-backend-production*.mjs",
         ".github/workflows/fullsite-performance.yml",
@@ -23,6 +24,7 @@ on:
   pull_request:
     paths:
       - "scripts/performance/**"
+      - "scripts/production-storefront-run-mode*.mjs"
       - "src/features/fore/Store.tsx"
       - "scripts/check-secondary-home-discovery-admission.mjs"
       - ".github/workflows/fullsite-performance.yml"
@@ -35,19 +37,45 @@ concurrency:
   group: cove-fullsite-performance-${{ github.ref }}
   cancel-in-progress: false
 jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      should_probe: ${{ steps.mode.outputs.should_probe }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Validate exact strict acceptance and production push eligibility
+        run: |
+          node --test scripts/performance/check-owned-ssr-capacity.test.mjs scripts/wait-live-storefront-catalog.test.mjs scripts/wait-persistence-backend-production.test.mjs scripts/production-storefront-run-mode.test.mjs scripts/performance/check-fullsite-run-mode.test.mjs
+          node scripts/check-secondary-home-discovery-admission.mjs
+      - id: mode
+        name: Main Git disabled means no new production SHA to certify
+        run: node scripts/production-storefront-run-mode.mjs
+
   public-browser-baseline:
+    needs: preflight
+    # A green preflight / skipped probe is NOT production performance approval.
+    # A real manual dispatch probes the pinned storefront, not unpromoted main.
+    # A main push with automatic Vercel builds deliberately disabled cannot
+    # wait for a deployment that must not exist. Keep exact-SHA waits if the
+    # explicit production Git deployment setting is enabled again.
+    if: github.event_name != 'pull_request' && needs.preflight.outputs.should_probe == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v6
         with: { node-version: 22, cache: npm }
       - run: npm ci
-      - run: node --test scripts/performance/check-owned-ssr-capacity.test.mjs
-      - run: node scripts/check-secondary-home-discovery-admission.mjs
-      - run: node --test scripts/wait-live-storefront-catalog.test.mjs scripts/wait-persistence-backend-production.test.mjs
       - run: npx playwright install --with-deps chromium
-      - name: Wait for this production deployment
+      - name: Wait for this exact production deployment when main auto-builds are enabled
         if: github.event_name == 'push'
         run: node scripts/wait-vercel-production.mjs
         env:
@@ -61,7 +89,7 @@ jobs:
         run: node scripts/wait-live-storefront-catalog.mjs
       - name: Inventory and measure guest HTTP routes
         run: node scripts/performance/route-inventory.mjs
-      - name: Measure current production public journeys
+      - name: Measure current production public journeys with unchanged hard thresholds
         run: node scripts/performance/fullsite-browser.mjs
       - uses: actions/upload-artifact@v4
         if: always()
