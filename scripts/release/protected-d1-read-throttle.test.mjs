@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Bounded protected legal audit transport fixture. */
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {createProtectedD1ReadThrottle,retryAfterDelayMs} from './protected-d1-read-throttle.mjs';
