@@ -98,12 +98,18 @@ test("missing or shallow git history fails open rather than skipping an unbuilt 
   assert.equal(shouldBuildService("audio", "preview", changedSinceLastSuccess({})), true);
 });
 
-test("diagnostics/docs previews are disabled without disabling production or service builds", () => {
+test("automatic main builds and diagnostics/docs previews are disabled without disabling other previews or service builds", () => {
   const cfg = JSON.parse(readFileSync(new URL("../vercel.json", import.meta.url), "utf8"));
   assert.deepEqual(cfg.git.deploymentEnabled, {
+    main: false,
     "diagnostics/**": false,
     "docs/**": false,
   });
+  assert.equal(
+    cfg.git.deploymentEnabled["*"],
+    undefined,
+    "other preview branches must remain eligible",
+  );
   assert.equal(cfg.services.app.ignoreCommand, "node scripts/vercel-ignore-build.mjs app");
   assert.equal(cfg.services.audio_pipeline.ignoreCommand, "node vercel-ignore-build.mjs audio");
   assert.equal(cfg.services.app.framework, "tanstack-start");

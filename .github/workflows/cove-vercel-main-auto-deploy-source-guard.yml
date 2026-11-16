@@ -1,0 +1,23 @@
+name: cove-vercel-main-auto-deploy-source-guard
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - vercel.json
+      - scripts/staging/check-vercel-main-release-source-guard.test.mjs
+      - .github/workflows/cove-vercel-main-auto-deploy-source-guard.yml
+permissions:
+  contents: read
+jobs:
+  offline-no-automatic-main:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: node --test scripts/staging/check-vercel-main-release-source-guard.test.mjs
+      - run: git diff --check
