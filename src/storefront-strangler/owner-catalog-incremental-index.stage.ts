@@ -418,6 +418,51 @@ function scopedIndexWhere(input:FilteredInput,filters:Record<FilterField,string[
   }
   return {clause:parts.join(' AND '),args};
 }
+/** Stage-only cost-based SELECT driver. Never changes the owner decision: every
+ * row still comes from the already authorized, expiry/dirty/market-guarded
+ * cove_stage_owner_index_items, with identical disjunctive predicates.
+ * Each facet excludes its own input before choosing a seed.
+ */
+function selectiveOwnerFilteredScan(sql:AuthoritySql,input:FilteredInput,
+  filters:Record<FilterField,string[]>,omit?:FilterField|'price'){
+  const fts=stageOwnerLiteralFtsExpression(input.query);
+  if(fts&&stageOwnerFtsPreferMatchesFirst(sql,fts)){
+    const predicate=scopedIndexWhere(input,filters,omit,true);
+    return {from:`(SELECT product_id FROM cove_stage_owner_fts
+        WHERE cove_stage_owner_fts MATCH ?) seed
+        CROSS JOIN cove_stage_owner_index_items i`,
+      clause:`i.product_id=seed.product_id AND ${predicate.clause}`,
+      args:[fts,...predicate.args]};
+  }
+  let best:{field:FilterField;values:string[];n:number}|null=null;
+  for(const field of FILTER_FIELDS){
+    if(omit===field||!filters[field].length)continue;
+    const values=filters[field];
+    const count=sql.exec<{n:number}>(`SELECT COUNT(*) n
+      FROM cove_stage_owner_index_dimensions
+      INDEXED BY cove_stage_owner_index_dimension_inverted
+      WHERE territory=? AND currency=? AND kind=?
+        AND value IN (${values.map(()=>'?').join(',')})`,
+      input.territory,input.currency,field,...values).toArray()[0]?.n;
+    if(!Number.isSafeInteger(count)||count<0)
+      throw Error('stage_owner_filtered_invalid_posting_count');
+    if(!best||count<best.n)best={field,values,n:count};
+  }
+  const predicate=scopedIndexWhere(input,filters,omit);
+  if(best&&best.n<=4096){
+    return {from:`(SELECT DISTINCT product_id
+        FROM cove_stage_owner_index_dimensions
+        INDEXED BY cove_stage_owner_index_dimension_inverted
+        WHERE territory=? AND currency=? AND kind=?
+          AND value IN (${best.values.map(()=>'?').join(',')})) seed
+        CROSS JOIN cove_stage_owner_index_items i`,
+      clause:`i.product_id=seed.product_id AND ${predicate.clause}`,
+      args:[input.territory,input.currency,best.field,
+        ...best.values,...predicate.args]};
+  }
+  return {from:'cove_stage_owner_index_items i',
+    clause:predicate.clause,args:predicate.args};
+}
 export function readStageOwnerFilteredIndex(sql:AuthoritySql,input:FilteredInput){
   const filters=validatedFilters(input);
   const ftsExpression=stageOwnerLiteralFtsExpression(input.query);
