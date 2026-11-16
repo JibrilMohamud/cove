@@ -81,9 +81,23 @@ test("npm install and build never receive privileged Cloudflare credentials", ()
     assert.ok(start >= 0 && end > start, "Required upload step missing");
     return steps.slice(start, end);
   };
-  const setup = steps.slice(0, steps.indexOf("      - name: Verify frozen reviewed source"));
-  assert.match(setup, /npm ci --no-audit --no-fund/);
+  const credentialStart = steps.indexOf(
+    "      - name: Require separately scoped protected Cloudflare credentials",
+  );
+  const installationStart = steps.indexOf("      - run: npm ci --no-audit --no-fund");
+  assert.ok(credentialStart > 0 && installationStart > credentialStart);
+  const setup = steps.slice(0, credentialStart);
   assert.doesNotMatch(setup, /secrets\./, "Checkout/setup must not access production secrets");
+  const credentialCheck = steps.slice(credentialStart, installationStart);
+  assert.match(credentialCheck, /secrets\.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
+  assert.match(credentialCheck, /secrets\.COVE_CF_WORKERS_METADATA_READ_TOKEN/);
+  assert.doesNotMatch(credentialCheck, /npm (?:ci|install|exec)|npx/);
+  const install = steps.slice(
+    installationStart,
+    steps.indexOf("      - name: Verify frozen reviewed source", installationStart),
+  );
+  assert.match(install, /npm ci --no-audit --no-fund/);
+  assert.doesNotMatch(install, /secrets\./, "npm ci must not access protected credentials");
 
   const preflight = between("Verify frozen reviewed source", "Build reviewed Worker");
   assert.match(preflight, /CLOUDFLARE_API_TOKEN: .*COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
