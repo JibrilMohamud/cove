@@ -48,6 +48,23 @@ jobs:
     timeout-minutes: 15
     environment: cove-production-release-audit
     steps:
+      # Secrets are available only after GitHub authorizes this environment.
+      # Keep the credential OUT of checkout, npm ci, and general job env.
+      - name: Require protected Cloudflare D1 Read token before running any dependencies
+        shell: bash
+        env:
+          COVE_CF_PRODUCTION_AUDIT_READ_TOKEN: ${{ secrets.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${COVE_CF_PRODUCTION_AUDIT_READ_TOKEN:-}" ]; then
+            echo "::error title=Missing protected D1 Read token::Configure COVE_CF_PRODUCTION_AUDIT_READ_TOKEN as a GitHub Environment secret under cove-production-release-audit; use a least-privilege Cloudflare D1 Read token. No rights were checked."
+            exit 1
+          fi
+          if [ "${#COVE_CF_PRODUCTION_AUDIT_READ_TOKEN}" -lt 20 ]; then
+            echo "::error title=Invalid protected D1 Read token::The configured environment secret is too short. Replace it with a valid, D1 Read-only Cloudflare API token. Do not paste tokens in logs."
+            exit 1
+          fi
+          echo "Protected D1 Read credential is present; its value is not printed."
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
