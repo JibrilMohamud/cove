@@ -10,7 +10,7 @@
  */
 export type ErrorTelemetryJob = () => Promise<unknown> | unknown;
 export type ErrorTelemetryLifetime = {
-  waitUntil: (work: Promise<unknown>) => void;
+  waitUntil?: (work: Promise<unknown>) => void;
 };
 
 export function settleErrorTelemetry(
