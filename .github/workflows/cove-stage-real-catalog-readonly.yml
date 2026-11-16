@@ -5,6 +5,7 @@ on:
     paths:
       - src/storefront-strangler/production-catalog-metadata-readonly.stage.mjs
       - scripts/staging/check-production-catalog-metadata-readonly.mjs
+      - scripts/staging/check-real-metadata-canonical-owner-handoff.mjs
       - scripts/staging/run-production-catalog-metadata-readonly.mjs
       - .github/workflows/cove-stage-real-catalog-readonly.yml
   workflow_dispatch:
@@ -32,8 +33,12 @@ jobs:
       - run: node --check src/storefront-strangler/production-catalog-metadata-readonly.stage.mjs
       - run: node --check scripts/staging/check-production-catalog-metadata-readonly.mjs
       - run: node --check scripts/staging/run-production-catalog-metadata-readonly.mjs
+      - run: npm ci
+      - run: node --check scripts/staging/check-real-metadata-canonical-owner-handoff.mjs
       - name: Verify read-only SQL, full source reconstruction and fail-closed negative cases
         run: node --no-warnings scripts/staging/check-production-catalog-metadata-readonly.mjs
+      - name: Verify canonical owner-approved FTS handoff, withdrawn contracts and market veto
+        run: node --no-warnings scripts/staging/check-real-metadata-canonical-owner-handoff.mjs
       - run: git diff --check
   protected-live-readonly-scan:
     if: >-
