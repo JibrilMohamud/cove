@@ -68,6 +68,42 @@ test("only the protected live upload holds the primary-D1 release lock", () => {
   assert.match(live, /wrangler versions upload/);
 });
 
+test("npm install and build never receive privileged Cloudflare credentials", () => {
+  const live = workflow.split("  upload_archived_only:\n")[1];
+  assert.ok(live, "Protected manual upload job missing");
+  const jobHeader = live.split("    steps:\n")[0];
+  assert.doesNotMatch(jobHeader, /CLOUDFLARE_API_TOKEN|COVE_CF_WORKERS_METADATA_READ_TOKEN/);
+  assert.doesNotMatch(jobHeader, /secrets\./);
+  const steps = live.split("    steps:\n")[1];
+  const install = steps.split("      - run: npm ci --no-audit --no-fund\n")[0];
+  assert.doesNotMatch(install, /secrets\./, "Checkout/setup must run without production secrets");
+  const preflight = steps.split(
+    "      - name: Verify frozen reviewed source and production version 451 at exactly 100%\n",
+  )[1].split("      - name: Build reviewed Worker; NO customer release\n")[0];
+  assert.match(preflight, /CLOUDFLARE_API_TOKEN: .*COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
+  assert.match(preflight, /COVE_CF_WORKERS_METADATA_READ_TOKEN: .*COVE_CF_WORKERS_METADATA_READ_TOKEN/);
+  const build = steps.split("      - name: Build reviewed Worker; NO customer release\n")[1].split(
+    "      - name: Upload an INACTIVE version only, never deploy traffic\n",
+  )[0];
+  assert.doesNotMatch(build, /secrets\./, "Compilation may not access protected credentials");
+  const upload = steps.split("      - name: Upload an INACTIVE version only, never deploy traffic\n")[1].split(
+    "      - name: Verify one archived version, exact binding parity, unchanged 100% production pin\n",
+  )[0];
+  assert.match(upload, /CLOUDFLARE_API_TOKEN: .*COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
+  assert.doesNotMatch(upload, /COVE_CF_WORKERS_METADATA_READ_TOKEN:/);
+  const verify = steps.split(
+    "      - name: Verify one archived version, exact binding parity, unchanged 100% production pin\n",
+  )[1].split("      - name: ALWAYS verify no customer Worker traffic or owner activation changed\n")[0];
+  assert.match(verify, /CLOUDFLARE_API_TOKEN: .*COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
+  assert.match(verify, /COVE_CF_WORKERS_METADATA_READ_TOKEN: .*COVE_CF_WORKERS_METADATA_READ_TOKEN/);
+  const fence = steps.split(
+    "      - name: ALWAYS verify no customer Worker traffic or owner activation changed\n",
+  )[1].split("      - name: Archive public identifiers only; no credential, SQL or customer data\n")[0];
+  assert.match(fence, /CLOUDFLARE_API_TOKEN: .*COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
+  assert.match(fence, /COVE_CF_WORKERS_METADATA_READ_TOKEN: .*COVE_CF_WORKERS_METADATA_READ_TOKEN/);
+  assert.match(fence, /if: always\(\)/);
+});
+
 test("the production gateway still prohibits uncontrolled main Git deployments", () => {
   const vercel = JSON.parse(readFileSync("vercel.json", "utf8"));
   assert.equal(vercel.git.deploymentEnabled.main, false);
