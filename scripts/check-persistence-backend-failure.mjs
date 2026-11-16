@@ -92,17 +92,27 @@ assert.equal(
   "Missing parent failure cannot assign a context subphase",
 );
 assert.equal(
-  backendFailureStage(flagged("cove_fault_context;dur=1, cove_fault_context_market;dur=10, cove_api;dur=34")),
+  backendFailureStage(
+    flagged("cove_fault_context;dur=1, cove_fault_context_market;dur=10, cove_api;dur=34"),
+  ),
   "context",
   "Untrusted or malformed numeric detail cannot alter parent attribution",
 );
 assert.equal(
-  backendFailureStage(flagged("cove_fault_context;dur=1, cove_fault_context_market;dur=1, cove_fault_context_currency;dur=1, cove_api;dur=34")),
+  backendFailureStage(
+    flagged(
+      "cove_fault_context;dur=1, cove_fault_context_market;dur=1, cove_fault_context_currency;dur=1, cove_api;dur=34",
+    ),
+  ),
   "multiple",
   "Competing context subphases must not be falsely pinpointed",
 );
 assert.equal(
-  backendFailureStage(flagged("cove_fault_context;dur=1, cove_fault_catalog;dur=1, cove_fault_context_market;dur=1, cove_api;dur=34")),
+  backendFailureStage(
+    flagged(
+      "cove_fault_context;dur=1, cove_fault_catalog;dur=1, cove_fault_context_market;dur=1, cove_api;dur=34",
+    ),
+  ),
   "multiple",
   "Competing catalog+context failures must remain ambiguous",
 );
