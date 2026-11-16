@@ -60,10 +60,7 @@ assert.doesNotMatch(
 );
 // A failure's additional numeric phase report cannot turn a 5xx into a
 // successful unaudited call; the response still flows through durable D1.
-assert.match(
-  code,
-  /recordAnonymousAnomalyPhase\([\s\S]*?\);\s*return false;/,
-);
+assert.match(code, /recordAnonymousAnomalyPhase\([\s\S]*?\);\s*return false;/);
 console.log(
   "PASS: only canonical production anonymous GET success metrics may bypass D1, with independently bound AE and retained error/security logging",
 );
