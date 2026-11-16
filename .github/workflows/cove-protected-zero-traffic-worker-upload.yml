@@ -76,12 +76,16 @@ jobs:
         run: node scripts/release/protected-zero-traffic-worker-upload.mjs preflight
       - name: Build reviewed Worker; NO customer release
         run: npm run build:backend
+      - name: Stage pinned Wrangler WITHOUT production credentials
+        run: |
+          npm install --prefix "$RUNNER_TEMP/cove-wrangler" --no-save --ignore-scripts --no-audit --no-fund wrangler@4.151.0
+          "$RUNNER_TEMP/cove-wrangler/node_modules/.bin/wrangler" --version
       - name: Upload an INACTIVE version only, never deploy traffic
         env:
           # Per-Worker Editor ONLY on cove-persistence-backend.
           CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN }}
         run: |
-          npm exec --yes --package=wrangler@4.151.0 -- wrangler versions upload \
+          "$RUNNER_TEMP/cove-wrangler/node_modules/.bin/wrangler" versions upload \
             --config wrangler.backend.deploy.toml --keep-vars --strict \
             --tag "cove-privacy-diag-${GITHUB_RUN_ID}" \
             --message "Cove reviewed anonymous 503 diagnostic version ${GITHUB_RUN_ID}; NO DEPLOY"
