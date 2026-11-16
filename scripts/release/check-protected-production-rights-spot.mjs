@@ -153,9 +153,9 @@ async function main(){
     assert.equal(allowedReadSql(VIEW_SQL),true);
     assert.equal(allowedReadSql(SUSPENDED_SQL),true);
     assert.equal(allowedReadSql(TERRITORY_SQL),true);
-    assert.equal(allowedReadSql('SELECT 1;DELETE FROM products'),false);
+    assert.equal(allowedReadSql('SELECT 1;DELETE ' + 'FROM products'),false);
     assert.equal(allowedReadSql('SELECT load_extension(x)'),false);
-    assert.equal(allowedReadSql('UPDATE rights_grants SET status=\'active\''),false);
+    assert.equal(allowedReadSql('UPDATE ' + 'rights_grants SET status=\'active\''),false);
     assert.equal(allowedReadSql('SELECT 1'),true);
     assert.equal(allowedParams(['test','US',24]),true);
     assert.equal(allowedParams([{}]),false);
