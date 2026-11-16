@@ -73,6 +73,25 @@ jobs:
         with:
           node-version: "22"
           cache: npm
+      - name: Require separately scoped protected Cloudflare credentials
+        shell: bash
+        env:
+          UPLOAD_TOKEN: ${{ secrets.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN }}
+          OWNER_METADATA_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
+        run: |
+          if [ -z "$UPLOAD_TOKEN" ]; then
+            echo "::error title=Missing protected Worker upload secret::Install COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN in the cove-production-release-audit GitHub environment."
+            exit 1
+          fi
+          if [ -z "$OWNER_METADATA_TOKEN" ]; then
+            echo "::error title=Missing protected Workers metadata reader::Install COVE_CF_WORKERS_METADATA_READ_TOKEN in the cove-production-release-audit GitHub environment, scoped to Workers Metadata Read-Only. Do not broaden the upload token."
+            exit 1
+          fi
+          if [ "$UPLOAD_TOKEN" = "$OWNER_METADATA_TOKEN" ]; then
+            echo "::error title=Protected Cloudflare credentials must be distinct::Do not reuse an Editor or account-admin token for the read-only legal-owner check."
+            exit 1
+          fi
+          echo "Protected upload and read-only metadata credentials present; values never printed."
       - run: npm ci --no-audit --no-fund
       - name: Verify frozen reviewed source and production version 451 at exactly 100%
         env:
