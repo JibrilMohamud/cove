@@ -24,6 +24,7 @@ test("separate constrained upload secret, source pin and no automatic D1 migrati
   assert.doesNotMatch(workflow, /secrets\.CLOUDFLARE_API_TOKEN/);
   assert.match(workflow, /reviewed_source_sha == 'a3fd303da6f7418ceec574e0c158d62fe1245984'/);
   assert.match(workflow, /wrangler versions upload/);
+  assert.match(workflow, /--keep-vars --strict/, "reject conflicting remote Worker config");
   assert.doesNotMatch(
     workflow,
     /wrangler (?:deploy|versions deploy|d1 execute|d1 migrations apply)/,
