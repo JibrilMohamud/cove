@@ -136,6 +136,9 @@ try{
   const hydrateAfterDeltaMs=+(performance.now()-hydratedDeltaAt).toFixed(3);
   assert.equal(afterWithdrawal.count,PRODUCT_COUNT-deleted);
   assert.equal(afterWithdrawal.rows.length,PRODUCT_COUNT);
+  assert.throws(()=>tx(()=>store.persistStageOwnerBitmap(sql,afterWithdrawal)),
+    /rebuild_required/,
+    'A retired slot cannot be accidentally re-sealed as a positive book');
   for(let i=0;i<deleted;i++)assert.equal(afterWithdrawal.allBits[i>>>5]&(1<<(i&31)),0,
     'Withdrawn book must not have a readable catalog bit');
   assert.ok(afterWithdrawal.allBits[deleted>>>5]&(1<<(deleted&31)),
@@ -155,6 +158,16 @@ try{
   'Changed generation without a journaled removal must fail closed');
   assert.equal(store.hydrateStageOwnerBitmap(sql).count,PRODUCT_COUNT-deleted,
     'Transaction rollback preserves previously sealed safe snapshot');
+  assert.throws(()=>tx(()=>{
+    const journal=db.prepare(`INSERT INTO cove_stage_owner_bitmap_change_log(
+      product_id,item_deleted) VALUES(?,1)`);
+    for(let i=0;i<513;i++)
+      journal.run('prd_stage_fake_overflow_'+String(i).padStart(6,'0'));
+    store.persistStageOwnerBitmapRevocations(sql);
+  }),/compaction_required/,
+    'Oversize removal journal must demand exact owner maintenance rebuild');
+  assert.equal(store.hydrateStageOwnerBitmap(sql).count,PRODUCT_COUNT-deleted,
+    'Rejected oversize journal must not alter durable bitmap');
   // A single unjournaled canonical mutation must deny cached authorization.
   db.prepare('UPDATE cove_stage_owner_index_epoch SET epoch=epoch+1 WHERE id=1').run();
   assert.throws(()=>store.hydrateStageOwnerBitmap(sql),/stale_or_absent/);
