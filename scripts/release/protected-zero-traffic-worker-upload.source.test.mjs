@@ -44,6 +44,17 @@ test("script never calls a Cloudflare write API and accepts only exact pinned ma
   assert.match(runner, /assertExactNonsecretResourceParity\(oldVersion, candidate\)/);
 });
 
+test("cross-Worker owner reads require distinct metadata-only authority", () => {
+  assert.match(workflow, /secrets\.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
+  assert.match(workflow, /secrets\.COVE_CF_WORKERS_METADATA_READ_TOKEN/);
+  assert.match(runner, /const ownerReadToken = process\.env\.COVE_CF_WORKERS_METADATA_READ_TOKEN;/);
+  assert.match(runner, /assert\.notEqual\(\s*ownerReadToken,\s*token,/);
+  assert.match(runner, /const bearer = path === OWNER_SETTINGS_PATH \? ownerReadToken : token;/);
+  assert.match(runner, /const owner = await get\(OWNER_SETTINGS_PATH\);/);
+  assert.match(runner, /method: "GET"/);
+  assert.doesNotMatch(workflow, /secrets\.CLOUDFLARE_API_TOKEN/);
+});
+
 test("only the protected live upload holds the primary-D1 release lock", () => {
   const [offline, live] = workflow.split("  upload_archived_only:\n");
   assert.ok(live, "Protected upload job must exist");
