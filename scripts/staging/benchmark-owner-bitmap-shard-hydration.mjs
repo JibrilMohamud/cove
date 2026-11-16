@@ -31,6 +31,12 @@ try{
     bootstrapped INTEGER NOT NULL);
     INSERT INTO cove_stage_owner_index_state VALUES(1,1);
     CREATE TABLE cove_stage_owner_dirty(product_id TEXT PRIMARY KEY);
+    CREATE TABLE cove_stage_owner_bitmap_change_log(
+      product_id TEXT PRIMARY KEY,
+      item_deleted INTEGER NOT NULL DEFAULT 0,
+      item_written INTEGER NOT NULL DEFAULT 0,
+      dimension_deleted INTEGER NOT NULL DEFAULT 0,
+      dimension_written INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE cove_stage_owner_index_epoch(id INTEGER PRIMARY KEY,epoch INTEGER);
     INSERT INTO cove_stage_owner_index_epoch VALUES(1,7);
     CREATE TABLE cove_stage_owner_index_totals(
