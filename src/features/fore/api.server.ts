@@ -2956,6 +2956,7 @@ export async function handleCoveApi(
     response,
     actorKind,
     Date.now() - trace.startedMs,
+    timings,
   );
   if (isSoundsAnalyticsAck(tracedRequest, response)) {
     // Aggregate-only music interaction. No per-click primary-D1 log writes.
