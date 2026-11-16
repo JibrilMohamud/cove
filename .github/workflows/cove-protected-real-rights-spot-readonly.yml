@@ -7,6 +7,14 @@ on:
       - scripts/vercel-ignore-build.mjs
       - scripts/check-vercel-one-shot-audit-no-deploy.mjs
       - .github/workflows/cove-protected-real-rights-spot-readonly.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/cove-protected-real-rights-spot-readonly.yml
+      - scripts/release/check-protected-production-rights-spot.mjs
+      - scripts/release/protected-d1-read-throttle.mjs
+      - scripts/release/protected-d1-read-throttle.test.mjs
+      - docs/architecture/protected-production-rights-spot-audit-runbook.md
   workflow_dispatch:
     inputs:
       confirm:
@@ -37,6 +45,8 @@ jobs:
         run: node --no-warnings scripts/check-vercel-one-shot-audit-no-deploy.mjs
       - name: Fail-closed read-only and protected invocation self-tests
         run: node --no-warnings scripts/release/check-protected-production-rights-spot.mjs --self-test
+      - name: Prove global D1 request pacing, Retry-After, and overload fail closed
+        run: node --test scripts/release/protected-d1-read-throttle.test.mjs
       - run: git diff --check
   protected-live-audit:
     if: >-
@@ -48,6 +58,23 @@ jobs:
     timeout-minutes: 15
     environment: cove-production-release-audit
     steps:
+      # Secrets are available only after GitHub authorizes this environment.
+      # Keep the credential OUT of checkout, npm ci, and general job env.
+      - name: Require protected Cloudflare D1 Read token before running any dependencies
+        shell: bash
+        env:
+          COVE_CF_PRODUCTION_AUDIT_READ_TOKEN: ${{ secrets.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${COVE_CF_PRODUCTION_AUDIT_READ_TOKEN:-}" ]; then
+            echo "::error title=Missing protected D1 Read token::Configure COVE_CF_PRODUCTION_AUDIT_READ_TOKEN as a GitHub Environment secret under cove-production-release-audit; use a least-privilege Cloudflare D1 Read token. No rights were checked."
+            exit 1
+          fi
+          if [ "${#COVE_CF_PRODUCTION_AUDIT_READ_TOKEN}" -lt 20 ]; then
+            echo "::error title=Invalid protected D1 Read token::The configured environment secret is too short. Replace it with a valid, D1 Read-only Cloudflare API token. Do not paste tokens in logs."
+            exit 1
+          fi
+          echo "Protected D1 Read credential is present; its value is not printed."
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
