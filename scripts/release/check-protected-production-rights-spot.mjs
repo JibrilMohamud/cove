@@ -107,17 +107,20 @@ function verifiedD1ReadResult(parsed){
     throw Error('rights_spot_audit_d1_invalid_or_write');
   return result.results;
 }
-function assertLivePermission(){
-  if(process.argv.length!==3||process.argv[2]!=='--live'||
-    process.env.COVE_PRODUCTION_LEGAL_AUDIT_ONLY!=='1'||
-    process.env.CF_ACCOUNT_ID!==ACCOUNT||
-    process.env.COVE_PRODUCTION_D1_ID!==PRODUCTION_DB||
-    process.env.GITHUB_ACTIONS!=='true'||
-    process.env.GITHUB_EVENT_NAME!=='workflow_dispatch'||
-    process.env.GITHUB_REF!==BRANCH||
-    typeof process.env.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN!=='string'||
-    process.env.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN.length<20)
+function assertLivePermission(argv=process.argv,env=process.env){
+  if(argv.length!==3||argv[2]!=='--live'||
+    env.COVE_PRODUCTION_LEGAL_AUDIT_ONLY!=='1'||
+    env.CF_ACCOUNT_ID!==ACCOUNT||
+    env.COVE_PRODUCTION_D1_ID!==PRODUCTION_DB||
+    env.GITHUB_ACTIONS!=='true'||
+    env.GITHUB_EVENT_NAME!=='workflow_dispatch'||
+    env.GITHUB_REF!==BRANCH)
     throw Error('rights_spot_audit_protected_permission_required');
+  // A missing environment secret is a setup problem, NOT legal evidence.
+  // Never substitute the broad CLOUDFLARE_API_TOKEN or permit anonymous runs.
+  if(typeof env.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN!=='string'||
+    env.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN.length<20)
+    throw Error('rights_spot_audit_missing_read_token');
 }
 async function main(){
   if(process.argv.includes('--self-test')){
@@ -146,7 +149,30 @@ async function main(){
     ])assert.throws(()=>verifiedD1ReadResult(faulty),/d1_invalid_or_write/,
       'Missing or invalid D1 zero-write evidence must be rejected');
     assert.throws(assertLivePermission,/protected_permission_required/);
-    console.log('PASS: production spot audit denies unprotected runs, SQL mutations, dynamic execution and invalid params');
+    const validContext={
+      COVE_PRODUCTION_LEGAL_AUDIT_ONLY:'1',
+      CF_ACCOUNT_ID:ACCOUNT,
+      COVE_PRODUCTION_D1_ID:PRODUCTION_DB,
+      GITHUB_ACTIONS:'true',
+      GITHUB_EVENT_NAME:'workflow_dispatch',
+      GITHUB_REF:BRANCH,
+      COVE_CF_PRODUCTION_AUDIT_READ_TOKEN:'X'.repeat(32),
+    };
+    const liveArgv=['node','audit.mjs','--live'];
+    assert.doesNotThrow(()=>assertLivePermission(liveArgv,validContext));
+    assert.throws(()=>assertLivePermission(liveArgv,{
+      ...validContext,COVE_CF_PRODUCTION_AUDIT_READ_TOKEN:'',
+    }),/rights_spot_audit_missing_read_token/);
+    assert.throws(()=>assertLivePermission(liveArgv,{
+      ...validContext,COVE_CF_PRODUCTION_AUDIT_READ_TOKEN:'too-short',
+    }),/rights_spot_audit_missing_read_token/);
+    assert.throws(()=>assertLivePermission(liveArgv,{
+      ...validContext,GITHUB_REF:'refs/heads/feature',
+    }),/rights_spot_audit_protected_permission_required/);
+    assert.throws(()=>assertLivePermission(liveArgv,{
+      ...validContext,GITHUB_EVENT_NAME:'push',
+    }),/rights_spot_audit_protected_permission_required/);
+    console.log('PASS: production spot audit rejects missing read credential and unprotected invocation without weakening rights');
     return;
   }
   assertLivePermission();
