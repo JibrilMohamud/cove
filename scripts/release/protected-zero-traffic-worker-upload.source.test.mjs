@@ -71,44 +71,53 @@ test("only the protected live upload holds the primary-D1 release lock", () => {
 test("npm install and build never receive privileged Cloudflare credentials", () => {
   const live = workflow.split("  upload_archived_only:\n")[1];
   assert.ok(live, "Protected manual upload job missing");
-  const jobHeader = live.split("    steps:\n")[0];
+  const [jobHeader, steps] = live.split("    steps:\n");
   assert.doesNotMatch(jobHeader, /CLOUDFLARE_API_TOKEN|COVE_CF_WORKERS_METADATA_READ_TOKEN/);
   assert.doesNotMatch(jobHeader, /secrets\./);
-  const steps = live.split("    steps:\n")[1];
-  const install = steps.split("      - run: npm ci --no-audit --no-fund\n")[0];
-  assert.doesNotMatch(install, /secrets\./, "Checkout/setup must run without production secrets");
-  const preflight = steps.split(
-    "      - name: Verify frozen reviewed source and production version 451 at exactly 100%\n",
-  )[1].split("      - name: Build reviewed Worker; NO customer release\n")[0];
+
+  const between = (first, last) => {
+    const start = steps.indexOf("      - name: " + first);
+    const end = steps.indexOf("      - name: " + last, start + first.length);
+    assert.ok(start >= 0 && end > start, "Required upload step missing");
+    return steps.slice(start, end);
+  };
+  const setup = steps.slice(0, steps.indexOf("      - name: Verify frozen reviewed source"));
+  assert.match(setup, /npm ci --no-audit --no-fund/);
+  assert.doesNotMatch(setup, /secrets\./, "Checkout/setup must not access production secrets");
+
+  const preflight = between("Verify frozen reviewed source", "Build reviewed Worker");
   assert.match(preflight, /CLOUDFLARE_API_TOKEN: .*COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
-  assert.match(preflight, /COVE_CF_WORKERS_METADATA_READ_TOKEN: .*COVE_CF_WORKERS_METADATA_READ_TOKEN/);
-  const build = steps.split("      - name: Build reviewed Worker; NO customer release\n")[1].split(
-    "      - name: Upload an INACTIVE version only, never deploy traffic\n",
-  )[0];
-  assert.doesNotMatch(build, /secrets\./, "Compilation may not access protected credentials");
-  const staging = steps.split(
-    "      - name: Stage pinned Wrangler WITHOUT production credentials\n",
-  )[1].split("      - name: Upload an INACTIVE version only, never deploy traffic\n")[0];
+  assert.match(
+    preflight,
+    /COVE_CF_WORKERS_METADATA_READ_TOKEN: .*COVE_CF_WORKERS_METADATA_READ_TOKEN/,
+  );
+
+  const build = between("Build reviewed Worker", "Stage pinned Wrangler");
+  assert.doesNotMatch(build, /secrets\./, "Compilation must not access Cloudflare tokens");
+  const staging = between("Stage pinned Wrangler", "Upload an INACTIVE version");
   assert.match(staging, /npm install --prefix/);
   assert.match(staging, /--ignore-scripts/);
   assert.doesNotMatch(staging, /secrets\./);
-  const upload = steps.split("      - name: Upload an INACTIVE version only, never deploy traffic\n")[1].split(
-    "      - name: Verify one archived version, exact binding parity, unchanged 100% production pin\n",
-  )[0];
+
+  const upload = between("Upload an INACTIVE version", "Verify one archived version");
   assert.match(upload, /CLOUDFLARE_API_TOKEN: .*COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
   assert.doesNotMatch(upload, /COVE_CF_WORKERS_METADATA_READ_TOKEN:/);
   assert.doesNotMatch(upload, /npm (?:exec|install|ci)|npx/);
   assert.match(upload, /node_modules\/\.bin\/wrangler" versions upload/);
-  const verify = steps.split(
-    "      - name: Verify one archived version, exact binding parity, unchanged 100% production pin\n",
-  )[1].split("      - name: ALWAYS verify no customer Worker traffic or owner activation changed\n")[0];
+
+  const verify = between("Verify one archived version", "ALWAYS verify");
   assert.match(verify, /CLOUDFLARE_API_TOKEN: .*COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
-  assert.match(verify, /COVE_CF_WORKERS_METADATA_READ_TOKEN: .*COVE_CF_WORKERS_METADATA_READ_TOKEN/);
-  const fence = steps.split(
-    "      - name: ALWAYS verify no customer Worker traffic or owner activation changed\n",
-  )[1].split("      - name: Archive public identifiers only; no credential, SQL or customer data\n")[0];
+  assert.match(
+    verify,
+    /COVE_CF_WORKERS_METADATA_READ_TOKEN: .*COVE_CF_WORKERS_METADATA_READ_TOKEN/,
+  );
+
+  const fence = between("ALWAYS verify", "Archive public identifiers");
   assert.match(fence, /CLOUDFLARE_API_TOKEN: .*COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
-  assert.match(fence, /COVE_CF_WORKERS_METADATA_READ_TOKEN: .*COVE_CF_WORKERS_METADATA_READ_TOKEN/);
+  assert.match(
+    fence,
+    /COVE_CF_WORKERS_METADATA_READ_TOKEN: .*COVE_CF_WORKERS_METADATA_READ_TOKEN/,
+  );
   assert.match(fence, /if: always\(\)/);
 });
 
