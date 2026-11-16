@@ -14,11 +14,13 @@ on:
       - scripts/release/check-protected-production-rights-spot.mjs
       - scripts/release/protected-d1-read-throttle.mjs
       - scripts/release/protected-d1-read-throttle.test.mjs
+      - scripts/release/protected-rights-witness-policy.mjs
+      - scripts/release/protected-rights-witness-policy.test.mjs
       - docs/architecture/protected-production-rights-spot-audit-runbook.md
   workflow_dispatch:
     inputs:
       confirm:
-        description: "Type RIGHTS_SPOT_AUDIT to request a protected 8-product READ-ONLY production rights check"
+        description: "Type RIGHTS_SPOT_AUDIT to request protected 8-allow + 4-suspended + 4-territory-denied rights check"
         required: true
         type: string
 permissions:
@@ -47,6 +49,8 @@ jobs:
         run: node --no-warnings scripts/release/check-protected-production-rights-spot.mjs --self-test
       - name: Prove global D1 request pacing, Retry-After, and overload fail closed
         run: node --test scripts/release/protected-d1-read-throttle.test.mjs
+      - name: Prove real suspended-grant denial witnesses cannot be omitted or counted as allowed
+        run: node --test scripts/release/protected-rights-witness-policy.test.mjs
       - run: git diff --check
   protected-live-audit:
     if: >-
@@ -83,7 +87,7 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - name: Bounded eight-product real canonical vs legal-view audit, NO MUTATIONS
+      - name: Bounded 8-allow + 4-suspended + 4-AU-territory-denied audit, NO MUTATIONS
         run: node --no-warnings scripts/release/check-protected-production-rights-spot.mjs --live
         env:
           CF_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
