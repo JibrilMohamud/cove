@@ -6322,11 +6322,9 @@ async function handleCoveRequest(
         { error: "Some information is missing or invalid. Please check your entry." },
         400,
       );
-    console.error(
-      "Cove service error",
-      e instanceof Error ? e.message : "Unknown",
-      (e as any)?.cause?.code || "",
-    );
+    // Private exception messages and cause fields may contain identities or
+    // secrets. Keep the public path and Workers Logs free of raw exceptions.
+    console.error("Cove service error; request failed closed");
     return json(
       {
         error:
