@@ -250,9 +250,7 @@ async function catalogBatch(request: Request, env: BackendEnv) {
       catalogAdmissionBudget(env.FORE_CATALOG_ADMISSION_MAX_MS),
     );
     if (admission.allowed) {
-      await syncSearchIndex(env, 500).catch(() =>
-        console.warn("Catalog search sync failed"),
-      );
+      await syncSearchIndex(env, 500).catch(() => console.warn("Catalog search sync failed"));
     } else {
       searchSync = {
         skipped: "primary_busy",
@@ -571,10 +569,7 @@ async function warmOneShortBiosyncTranscript(env: BackendEnv) {
       console.info("Cove BioSync short-track transcript cached");
       return;
     }
-    console.warn(
-      "BioSync short-track ASR warm-up skipped",
-      response.status,
-    );
+    console.warn("BioSync short-track ASR warm-up skipped", response.status);
   }
 }
 
@@ -640,9 +635,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
       await refreshPublicStatus(env).catch(() =>
         console.warn("Public service status refresh failed"),
       );
-      await prunePublicCache(env).catch(() =>
-        console.warn("Public cache cleanup failed"),
-      );
+      await prunePublicCache(env).catch(() => console.warn("Public cache cleanup failed"));
       if (!(await audioComputeAdmission(env)).allowed) {
         await scheduledCatalog(env);
         return;
