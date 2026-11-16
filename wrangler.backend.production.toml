@@ -6,6 +6,19 @@ main = "backend-dist/worker.js"
 compatibility_date = "2026-10-09"
 workers_dev = true
 
+# Production 503 incident: retain exception and invocation evidence in Workers Logs.
+# This is a configuration CANDIDATE; deploy only after privacy/log security review
+# and protected release authorization. Query strings are never persisted.
+[observability]
+enabled = true
+head_sampling_rate = 1
+redact_query_string = true
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+invocation_logs = true
+
 [limits]
 cpu_ms = 300_000
 
