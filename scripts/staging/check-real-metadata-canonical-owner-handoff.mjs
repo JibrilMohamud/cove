@@ -41,7 +41,7 @@ const meta=id=>({
   })[id],subtitle:'A staged work',contributors_text:'Fixture Writer',
   series_text:'The Verified Series',publisher_text:'Stage Example Press',
   isbn13:'9781234567890',categories_text:'Fiction Science',
-  keywords_text:'river astronomy',description:'Metadata alone is never a right',
+  keywords_text:id===f2?'astronomy science':'river astronomy',description:'Metadata alone is never a right',
   language_code:id===f2?'fr':'en',
   suppressed:id===paidHidden,
   storefront_status:'active',source_name:'gutenberg',release_status:'available',
