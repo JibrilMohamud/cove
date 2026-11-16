@@ -47,6 +47,9 @@ try{
       territory TEXT PRIMARY KEY,operation_id TEXT,withdrawn_at TEXT);
     CREATE TABLE cove_stage_owner_index_items(
       product_id TEXT PRIMARY KEY,territory TEXT,currency TEXT,expires_at TEXT);
+    CREATE TABLE cove_stage_owner_index_dimensions(
+      product_id TEXT,territory TEXT,currency TEXT,kind TEXT,value TEXT,
+      PRIMARY KEY(product_id,territory,currency,kind,value));
     CREATE INDEX idx_stage_expires ON cove_stage_owner_index_items(
       territory,currency,expires_at);`);
   const rows=[], fields=['categories','languages','formats','publishers','series'];
