@@ -38,6 +38,11 @@ assert.match(overloadedPath, /event: "primary_d1_overload"/);
 assert.match(overloadedPath, /return;/);
 assert.doesNotMatch(overloadedPath, /\.prepare\(|recordErrorEvent\(/);
 const handler = readFileSync("src/features/fore/api.server.ts", "utf8");
-assert.match(handler, /await recordErrorEvent\(env\.DB as any/);
+// Errors may be reported after the fail-closed response is determined.
+ Keep the original primary-D1 overload skip in operations.server.ts;
+ // otherwise deferred telemetry could repeatedly overload the same DB.
+assert.match(handler, /await settleErrorTelemetry\(/);
+assert.match(handler, /recordErrorEvent\(env\.DB as any/);
+assert.doesNotMatch(handler, /await recordErrorEvent\(env\.DB as any/);
 assert.match(handler, /return json\(/);
 console.log("Cloudflare D1 7429 skips recursive error writes; API still fails closed: PASS");
