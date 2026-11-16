@@ -11,7 +11,10 @@ test("main push with disabled Git production builds must not wait on a nonexiste
   assert.equal(shouldRunProductionProbe("push", { git: { deploymentEnabled: false } }), false);
 });
 test("real automatic production push candidates retain the fail-closed deployment wait", () => {
-  assert.equal(shouldRunProductionProbe("push", { git: { deploymentEnabled: { main: true } } }), true);
+  assert.equal(
+    shouldRunProductionProbe("push", { git: { deploymentEnabled: { main: true } } }),
+    true,
+  );
   assert.equal(shouldRunProductionProbe("push", { git: { deploymentEnabled: {} } }), true);
   assert.equal(shouldRunProductionProbe("push", {}), true);
 });
