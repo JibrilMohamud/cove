@@ -81,7 +81,7 @@ jobs:
       - name: Upload an INACTIVE version only, never deploy traffic
         run: |
           npm exec --yes --package=wrangler@4.151.0 -- wrangler versions upload \
-            --config wrangler.backend.deploy.toml --keep-vars \
+            --config wrangler.backend.deploy.toml --keep-vars --strict \
             --tag "cove-privacy-diag-${GITHUB_RUN_ID}" \
             --message "Cove reviewed anonymous 503 diagnostic version ${GITHUB_RUN_ID}; NO DEPLOY"
       - name: Verify one archived version, exact binding parity, unchanged 100% production pin
