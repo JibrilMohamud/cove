@@ -103,20 +103,24 @@ test("secret values never appear in source parity checks or error messages", () 
 
 test("exactly one new archived candidate; duplicate or concurrent changes fail closed", () => {
   assert.equal(
-    detectExactlyOneArchivedCandidate(["a", "b"], [
-      { id: "a", number: 451 },
-      { id: "candidate-abcdef", number: 454 },
-    ]).number,
+    detectExactlyOneArchivedCandidate(
+      ["a", "b"],
+      [
+        { id: "a", number: 451 },
+        { id: "candidate-abcdef", number: 454 },
+      ],
+    ).number,
     454,
   );
+  assert.throws(() => detectExactlyOneArchivedCandidate(["a"], [{ id: "a", number: 451 }]));
   assert.throws(() =>
-    detectExactlyOneArchivedCandidate(["a"], [{ id: "a", number: 451 }]),
-  );
-  assert.throws(() =>
-    detectExactlyOneArchivedCandidate(["a"], [
-      { id: "new-candidate-1", number: 454 },
-      { id: "new-candidate-2", number: 455 },
-    ]),
+    detectExactlyOneArchivedCandidate(
+      ["a"],
+      [
+        { id: "new-candidate-1", number: 454 },
+        { id: "new-candidate-2", number: 455 },
+      ],
+    ),
   );
   assert.throws(() => detectExactlyOneArchivedCandidate(["a", "a"], []));
 });
