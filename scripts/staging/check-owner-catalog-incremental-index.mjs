@@ -228,6 +228,7 @@ try{
       AND kind='publishers' AND value='Forged stage publisher'`,
     rawPublisher,rawDimensionId));
   bitmapSnapshot=bitmap.buildStageOwnerBitmap(sql);
+  inTransaction(()=>bitmapStore.persistStageOwnerBitmap(sql,bitmapSnapshot));
   assert.deepEqual(bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,
     {...scope,publishers:[rawPublisher]}),
     filteredGold({...scope,publishers:[rawPublisher]}),
@@ -335,6 +336,15 @@ try{
   bitmapSnapshot=bitmap.buildStageOwnerBitmap(sql);
   assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope),stage.stageOwnerCatalogRead(sql,scope));
   assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,25);
+  assert.throws(()=>inTransaction(()=>{
+    sql.exec(`UPDATE cove_stage_owner_index_items SET rank_score=rank_score+1
+      WHERE territory='US' AND currency='USD' AND product_id=?`,paidIds[2]);
+    bitmapStore.persistStageOwnerBitmapRevocations(sql);
+  }),/positive_or_unsupported_edit/,
+  'A price/rank/positive change must NEVER masquerade as removal-only bitmap delta');
+  assert.deepEqual(bitmap.readStageOwnerBitmap(sql,bitmapStore.hydrateStageOwnerBitmap(sql),
+    {...scope,formats:['ebook']}),filteredGold({...scope,formats:['ebook']}),
+    'Rejected positive delta must roll back entire owner transaction');
 
   inTransaction(()=>{
     const receipt=commercial.denyCommercialSubject(sql,{
@@ -343,6 +353,8 @@ try{
     assert.equal(receipt.applied,true);
     idx.reconcileStageOwnerDirty(sql);
     stage.rebuildStageOwnerCatalogSnapshot(sql);
+    const patch=bitmapStore.persistStageOwnerBitmapRevocations(sql);
+    assert.equal(patch.removed,1,'Exact contract withdrawal needs one tombstone');
   });
   assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope),stage.stageOwnerCatalogRead(sql,scope));
   for(const part of filterSamples){const input={...scope,...part};
@@ -355,9 +367,10 @@ try{
     'Contract withdrawal must update ubiquitous term frequency transactionally');
   assert.throws(()=>bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope),
     /stale_epoch/,'Contract revocation changes owner generation');
-  assert.throws(()=>bitmapStore.hydrateStageOwnerBitmap(sql),/stale_or_absent/,
-    'Committed contract revocation denies old durable snapshot');
-  bitmapSnapshot=bitmap.buildStageOwnerBitmap(sql);
+  bitmapSnapshot=bitmapStore.hydrateStageOwnerBitmap(sql);
+  assert.deepEqual(bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,{...scope,categories:['Fiction']}),
+    filteredGold({...scope,categories:['Fiction']}),
+    'Removal-only owner delta preserves exact facet and price parity without rebuilding');
   assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,24);
   assert.ok(!bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope).pageIds.includes(paidIds[0]));
   assert.ok(!stage.readStageOwnerCatalogSnapshot(sql,scope).pageIds.includes(paidIds[0]));
@@ -369,6 +382,8 @@ try{
     }).applied,true);
     idx.reconcileStageOwnerDirty(sql);
     stage.rebuildStageOwnerCatalogSnapshot(sql);
+    const patch=bitmapStore.persistStageOwnerBitmapRevocations(sql);
+    assert.equal(patch.removed,1,'Exact source withdrawal needs one tombstone');
   });
   assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope),stage.stageOwnerCatalogRead(sql,scope));
   for(const part of filterSamples){const input={...scope,...part};
@@ -379,9 +394,10 @@ try{
     'Source withdrawal must keep exact all-documents FTS invariants');
   assert.throws(()=>bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope),
     /stale_epoch/,'Free-source withdrawal invalidates old snapshot');
-  assert.throws(()=>bitmapStore.hydrateStageOwnerBitmap(sql),/stale_or_absent/,
-    'Committed source withdrawal denies old durable snapshot');
-  bitmapSnapshot=bitmap.buildStageOwnerBitmap(sql);
+  bitmapSnapshot=bitmapStore.hydrateStageOwnerBitmap(sql);
+  assert.deepEqual(bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,{...scope,languages:['en']}),
+    filteredGold({...scope,languages:['en']}),
+    'Second consecutive owner delta retains exact page/count/facet parity');
   assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,23);
   assert.equal(free.readAuthorizedPresentations(sql,freeIds,'US','USD').length,11);
 
@@ -399,7 +415,11 @@ try{
   });
   assert.throws(()=>bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope),
     /stale_epoch/,'Shortening a paid lease invalidates old bitmap');
+  assert.throws(()=>bitmapStore.persistStageOwnerBitmapRevocations(sql),
+    /positive_or_unsupported_edit/,
+    'A lease extension/metadata rewrite requires a full canonical bitmap seal');
   bitmapSnapshot=bitmap.buildStageOwnerBitmap(sql);
+  inTransaction(()=>bitmapStore.persistStageOwnerBitmap(sql,bitmapSnapshot));
   assert.equal(idx.readStageOwnerIncrementalIndex(sql,scope).count,23);
   await new Promise(resolve=>setTimeout(resolve,2400));
   assert.throws(()=>idx.readStageOwnerIncrementalIndex(sql,scope),/expired_unreconciled/,
@@ -412,14 +432,15 @@ try{
     const swept=idx.refreshStageOwnerExpired(sql);
     assert.equal(swept.processed,1,'Only genuinely expired owner-local lease is reconciled');
     assert.equal(swept.remaining,0);
+    const patch=bitmapStore.persistStageOwnerBitmapRevocations(sql);
+    assert.equal(patch.removed,1,'Expired canonical lease must clear exactly one bitmap item');
     // The OLD full snapshot is known to fail publication after ANY expired
     // stored paid lease. This incremental index deliberately avoids that
     // global expiry lock; keep the old snapshot unavailable, not falsified.
   });
   assert.throws(()=>bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope),
     /stale_epoch/,'Expiry cleanup invalidates pre-expiry bitmap');
-  bitmapSnapshot=bitmap.buildStageOwnerBitmap(sql);
-  inTransaction(()=>bitmapStore.persistStageOwnerBitmap(sql,bitmapSnapshot));
+  bitmapSnapshot=bitmapStore.hydrateStageOwnerBitmap(sql);
   assert.deepEqual(bitmap.readStageOwnerBitmap(sql,bitmapStore.hydrateStageOwnerBitmap(sql),
     {...scope,languages:['en'],formats:['ebook']}),
     filteredGold({...scope,languages:['en'],formats:['ebook']}),
@@ -468,6 +489,7 @@ try{
     /unsupported_scope/,'Uncertified market must fail closed');
   console.log('PASS: prebuilt owner bitmap exact counts/pages/facets and dirty, contract, source, expiry, market denials');
   console.log('PASS: bounded owner-local persisted bitmap, corrupted/missing shards, stale epoch, source/contract/expiry and market denial');
+  console.log('PASS: canonical owner removal-only bitmap deltas: contract, source and expiry with 0 full bitmap rebuilds');
   console.log('PASS: owner-transactional FTS5 keyword matching and '+filterSamples.length+
     ' filtered+keyword cases, expiry/contract/source/market withdrawal, disjunctive facets');
   console.log('PASS: owner-index exact default count/facets/page 25/24/23/22/0; 250 indexed hot reads, source/contract/market denial, dirty fail-close, disallowed scopes rejected');
