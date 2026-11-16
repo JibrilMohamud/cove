@@ -81,9 +81,23 @@ test("npm install and build never receive privileged Cloudflare credentials", ()
     assert.ok(start >= 0 && end > start, "Required upload step missing");
     return steps.slice(start, end);
   };
-  const setup = steps.slice(0, steps.indexOf("      - name: Verify frozen reviewed source"));
-  assert.match(setup, /npm ci --no-audit --no-fund/);
+  const credentialStart = steps.indexOf(
+    "      - name: Require separately scoped protected Cloudflare credentials",
+  );
+  const installationStart = steps.indexOf("      - run: npm ci --no-audit --no-fund");
+  assert.ok(credentialStart > 0 && installationStart > credentialStart);
+  const setup = steps.slice(0, credentialStart);
   assert.doesNotMatch(setup, /secrets\./, "Checkout/setup must not access production secrets");
+  const credentialCheck = steps.slice(credentialStart, installationStart);
+  assert.match(credentialCheck, /secrets\.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
+  assert.match(credentialCheck, /secrets\.COVE_CF_WORKERS_METADATA_READ_TOKEN/);
+  assert.doesNotMatch(credentialCheck, /npm (?:ci|install|exec)|npx/);
+  const install = steps.slice(
+    installationStart,
+    steps.indexOf("      - name: Verify frozen reviewed source", installationStart),
+  );
+  assert.match(install, /npm ci --no-audit --no-fund/);
+  assert.doesNotMatch(install, /secrets\./, "npm ci must not access protected credentials");
 
   const preflight = between("Verify frozen reviewed source", "Build reviewed Worker");
   assert.match(preflight, /CLOUDFLARE_API_TOKEN: .*COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
@@ -116,6 +130,27 @@ test("npm install and build never receive privileged Cloudflare credentials", ()
   assert.match(fence, /CLOUDFLARE_API_TOKEN: .*COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
   assert.match(fence, /COVE_CF_WORKERS_METADATA_READ_TOKEN: .*COVE_CF_WORKERS_METADATA_READ_TOKEN/);
   assert.match(fence, /if: always\(\)/);
+});
+
+test("missing metadata reader stops before npm ci, source build and any upload", () => {
+  const live = workflow.split("  upload_archived_only:\n")[1];
+  assert.ok(live);
+  const steps = live.split("    steps:\n")[1];
+  const credentialStep = steps.indexOf(
+    "      - name: Require separately scoped protected Cloudflare credentials",
+  );
+  const installStep = steps.indexOf("      - run: npm ci --no-audit --no-fund");
+  const uploadStep = steps.indexOf("      - name: Upload an INACTIVE version");
+  assert.ok(credentialStep >= 0 && credentialStep < installStep && installStep < uploadStep);
+  const diagnostic = steps.slice(credentialStep, installStep);
+  assert.match(diagnostic, /secrets\.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
+  assert.match(diagnostic, /secrets\.COVE_CF_WORKERS_METADATA_READ_TOKEN/);
+  assert.match(diagnostic, /if \[ -z "\$OWNER_METADATA_TOKEN" \]/);
+  assert.match(diagnostic, /::error title=Missing protected Workers metadata reader/);
+  assert.match(diagnostic, /if \[ "\$UPLOAD_TOKEN" = "\$OWNER_METADATA_TOKEN" \]/);
+  assert.doesNotMatch(diagnostic, /echo.*\$(?:UPLOAD_TOKEN|OWNER_METADATA_TOKEN)/);
+  assert.match(runner, /event: "cove_worker_100pct_pin_independently_verified"/);
+  assert.match(runner, /rightsOwnerVerified: false/);
 });
 
 test("the production gateway still prohibits uncontrolled main Git deployments", () => {

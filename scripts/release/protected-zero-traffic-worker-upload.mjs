@@ -33,10 +33,12 @@ assert.ok(
 // Scope upload authority ONLY to cove-persistence-backend. Never broaden
 // that token to read or edit the production legal-owner Worker.
 const ownerReadToken = process.env.COVE_CF_WORKERS_METADATA_READ_TOKEN;
-assert.ok(
-  typeof ownerReadToken === "string" && ownerReadToken.length >= 24,
-  "Protected legal-owner metadata read-only credential absent",
-);
+if (mode !== "fence") {
+  assert.ok(
+    typeof ownerReadToken === "string" && ownerReadToken.length >= 24,
+    "Protected legal-owner metadata read-only credential absent",
+  );
+}
 assert.notEqual(
   ownerReadToken,
   token,
@@ -67,6 +69,10 @@ async function get(path) {
 }
 
 async function assertProductionStillDisabled() {
+  assert.ok(
+    typeof ownerReadToken === "string" && ownerReadToken.length >= 24,
+    "Protected legal-owner metadata read-only credential absent",
+  );
   const owner = await get(OWNER_SETTINGS_PATH);
   const values = (owner?.bindings || []).filter((b) => b.name === "COVE_RIGHTS_OWNER_ENABLED");
   assert.equal(values.length, 1, "Missing unique production rights-owner control");
@@ -77,6 +83,19 @@ async function assertProductionStillDisabled() {
 async function fence() {
   const deployments = await get(base + "/deployments");
   const pinned = assertPinnedProductionDeployment(deployments);
+  // This independent 100% pin is still checked and recorded when the
+  // separate legal-owner read-only secret is missing. Never mark the full
+  // release fence successful until owner-disabled verification also passes.
+  console.log(
+    JSON.stringify({
+      event: "cove_worker_100pct_pin_independently_verified",
+      deploymentId: pinned.deploymentId,
+      versionId: pinned.versionId,
+      percent: pinned.percentage,
+      rightsOwnerVerified: false,
+      releaseCertified: false,
+    }),
+  );
   await assertProductionStillDisabled();
   return pinned;
 }
