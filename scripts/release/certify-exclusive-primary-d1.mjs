@@ -37,6 +37,15 @@ function completeTokenInventory(tokens){
   });
 }
 
+function completeTokenPage(response){
+  const data=response?.result,info=response?.result_info;
+  if(!Array.isArray(data)||!info||info.page!==1||info.total_pages!==1||
+    !Number.isSafeInteger(info.count)||info.count!==data.length||
+    !Number.isSafeInteger(info.total_count)||info.total_count!==data.length)
+    throw Error("Incomplete Cloudflare token inventory page");
+  return data;
+}
+
 export function evaluatePhysicalWriterInventory({workers,tokens,userTokensVerified}){
   const problems=[];
   if(!Array.isArray(workers)||!workers.length)
@@ -127,6 +136,15 @@ function selfTest(){
     assert.equal(report.certified,false);
     assert.ok(report.problems.includes("account_token_permission_metadata_incomplete"));
   }
+  assert.deepEqual(completeTokenPage({result:[],result_info:{
+    page:1,total_pages:1,count:0,total_count:0,
+  }}),[]);
+  for(const info of [
+    null,{page:1,total_pages:2,count:1,total_count:2},
+    {page:2,total_pages:2,count:0,total_count:0},
+    {page:1,total_pages:1,count:1,total_count:1},
+  ])assert.throws(()=>completeTokenPage({result:[],result_info:info}),
+    /Incomplete Cloudflare token inventory page/);
   for(const flag of ["COVE_RIGHTS_OWNER_ENABLED","COVE_RIGHTS_OWNER_PRIMARY_ID"]){
     const duplicate={...owner,bindings:[...owner.bindings,
       owner.bindings.find(b=>b.name===flag)]};
@@ -196,21 +214,21 @@ async function main(){
   const final=verifiedScripts(await transport.get(root+"/workers/scripts",workersToken));
   if(JSON.stringify(baseline)!==JSON.stringify(final))
     throw Error("Worker inventory modified during protected read");
-  const account=await transport.get(root+"/tokens",accountToken);
-  if(!Array.isArray(account.result))
-    throw Error("Missing account token permission inventory");
+  const accountTokens=completeTokenPage(
+    await transport.get(root+"/tokens",accountToken));
   // User-scoped API token inventory is an independent credential and source.
   // 403 or missing permissions block certification; never convert to zero.
   let userTokensVerified=false;
   try{
-    const users=await transport.get("/user/tokens",userToken);
-    userTokensVerified=completeTokenInventory(users.result)&&
-      users.result.every(t=>t.status!=="active"||!tokenCanMutate(t));
+    const userTokens=completeTokenPage(
+      await transport.get("/user/tokens",userToken));
+    userTokensVerified=completeTokenInventory(userTokens)&&
+      userTokens.every(t=>t.status!=="active"||!tokenCanMutate(t));
   }catch{
     userTokensVerified=false;
   }
   const report=evaluatePhysicalWriterInventory({
-    workers,tokens:account.result,userTokensVerified,
+    workers,tokens:accountTokens,userTokensVerified,
   });
   console.log(JSON.stringify({
     ...report,
