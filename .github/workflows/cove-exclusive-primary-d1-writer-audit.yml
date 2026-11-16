@@ -4,6 +4,8 @@ on:
     branches: [audit/release-exclusive-primary-d1-20261115]
     paths:
       - scripts/release/certify-exclusive-primary-d1.mjs
+      - scripts/release/physical-d1-writer-read-transport.mjs
+      - scripts/release/physical-d1-writer-read-transport.test.mjs
       - .github/workflows/cove-exclusive-primary-d1-writer-audit.yml
   workflow_dispatch:
 permissions:
@@ -20,6 +22,7 @@ jobs:
           node-version: '22'
       - run: node --check scripts/release/certify-exclusive-primary-d1.mjs
       - run: node scripts/release/certify-exclusive-primary-d1.mjs --self-test
+      - run: node --test scripts/release/physical-d1-writer-read-transport.test.mjs
   live-physical-audit:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     needs: [offline-source-contract]
@@ -37,5 +40,6 @@ jobs:
         run: node scripts/release/certify-exclusive-primary-d1.mjs
         env:
           CF_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
-          CF_API_TOKEN: ${{ secrets.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN }}
+          CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
+          CF_ACCOUNT_TOKENS_AUDIT_READ_TOKEN: ${{ secrets.COVE_CF_ACCOUNT_TOKENS_AUDIT_READ_TOKEN }}
           CF_USER_AUDIT_TOKEN: ${{ secrets.COVE_CF_USER_TOKENS_AUDIT_READ_TOKEN }}
