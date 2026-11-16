@@ -244,7 +244,7 @@ try{
   assert.ok(preMutation.count>0);
   bitmap.denyDirty();
   assert.throws(()=>bitmap.calculateBitmap({formats:"ebook"}),/dirty_or_denied/);
-  const revokeId="prd_stage_synthetic_000000";
+  const revokeId="prd_stage_synthetic_000001";
   db.exec("BEGIN IMMEDIATE");
   try{
     db.prepare("DELETE FROM dims WHERE product_id=?").run(revokeId);
