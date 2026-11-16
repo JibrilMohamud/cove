@@ -4,7 +4,9 @@ on:
     branches: [audit/stage-real-catalog-metadata-readonly-20261115]
     paths:
       - src/storefront-strangler/production-catalog-metadata-readonly.stage.mjs
+      - src/storefront-strangler/owner-production-fts-mirror.stage.mjs
       - scripts/staging/check-production-catalog-metadata-readonly.mjs
+      - scripts/staging/check-stage-production-fts-mirror.mjs
       - scripts/staging/check-real-metadata-canonical-owner-handoff.mjs
       - scripts/staging/run-production-catalog-metadata-readonly.mjs
       - .github/workflows/cove-stage-real-catalog-readonly.yml
@@ -37,6 +39,8 @@ jobs:
       - run: node --check scripts/staging/check-real-metadata-canonical-owner-handoff.mjs
       - name: Verify read-only SQL, full source reconstruction and fail-closed negative cases
         run: node --no-warnings scripts/staging/check-production-catalog-metadata-readonly.mjs
+      - name: Check production-shaped FTS mirror and independent owner fence
+        run: node --no-warnings scripts/staging/check-stage-production-fts-mirror.mjs
       - name: Verify canonical owner-approved FTS handoff, withdrawn contracts and market veto
         run: node --no-warnings scripts/staging/check-real-metadata-canonical-owner-handoff.mjs
       - run: git diff --check
