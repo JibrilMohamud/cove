@@ -31,6 +31,8 @@ export function evaluatePhysicalWriterInventory({workers,tokens,userTokensVerifi
     problems.push("production_owner_primary_d1_not_uniquely_bound");
   if((owner?.bindings||[]).find(b=>b.name==="COVE_RIGHTS_OWNER_ENABLED")?.text!=="1")
     problems.push("production_owner_disabled");
+  if((owner?.bindings||[]).find(b=>b.name==="COVE_RIGHTS_OWNER_PRIMARY_ID")?.text!==PRODUCTION_DB)
+    problems.push("production_owner_primary_id_mismatch");
   const outsiders=(workers||[]).filter(w=>w.name!==OWNER &&
     (w.bindings||[]).some(b=>
       (b.type==="d1"||b.type==="d1_database") &&
@@ -61,6 +63,7 @@ function selfTest(){
   const owner={name:OWNER,bindings:[
     {type:"d1",name:"PRIMARY_DB",id:PRODUCTION_DB},
     {type:"plain_text",name:"COVE_RIGHTS_OWNER_ENABLED",text:"1"},
+    {type:"plain_text",name:"COVE_RIGHTS_OWNER_PRIMARY_ID",text:PRODUCTION_DB},
   ]};
   const safe=evaluatePhysicalWriterInventory({
     workers:[owner,{name:"safe-replica",bindings:[]}],
