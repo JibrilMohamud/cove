@@ -9,6 +9,7 @@ on:
       - scripts/staging/check-owner-catalog-incremental-index.mjs
       - scripts/staging/benchmark-owner-catalog-index.mjs
       - scripts/staging/benchmark-owner-catalog-fts-planner.mjs
+      - scripts/staging/benchmark-owner-catalog-selective-facets.mjs
       - .github/workflows/cove-stage-owner-incremental-catalog-index.yml
 permissions:
   contents: read
@@ -37,4 +38,6 @@ jobs:
         run: node scripts/staging/benchmark-owner-catalog-index.mjs
       - name: Informational LOCAL 82k FTS5 rank-vs-match planner benchmark (not hosted acceptance)
         run: node scripts/staging/benchmark-owner-catalog-fts-planner.mjs
+      - name: Informational LOCAL 82k selective inverted-facet cold benchmark and full-scan parity
+        run: node scripts/staging/benchmark-owner-catalog-selective-facets.mjs
       - run: git diff --check
