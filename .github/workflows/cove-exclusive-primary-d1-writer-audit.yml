@@ -6,6 +6,7 @@ on:
       - scripts/release/certify-exclusive-primary-d1.mjs
       - scripts/release/physical-d1-writer-read-transport.mjs
       - scripts/release/physical-d1-writer-read-transport.test.mjs
+      - scripts/release/exclusive-primary-d1-workflow-lock.test.mjs
       - .github/workflows/cove-exclusive-primary-d1-writer-audit.yml
   pull_request:
     branches: [main]
@@ -29,10 +30,14 @@ jobs:
           node-version: '22'
       - run: node --check scripts/release/certify-exclusive-primary-d1.mjs
       - run: node scripts/release/certify-exclusive-primary-d1.mjs --self-test
-      - run: node --test scripts/release/physical-d1-writer-read-transport.test.mjs
+      - run: node --test scripts/release/physical-d1-writer-read-transport.test.mjs scripts/release/exclusive-primary-d1-workflow-lock.test.mjs
   live-physical-audit:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     needs: [offline-source-contract]
+    concurrency:
+      group: cove-exclusive-real-primary-cold-acceptance
+      queue: max
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     environment: cove-production-release-audit
     timeout-minutes: 15
