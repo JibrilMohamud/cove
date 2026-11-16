@@ -122,6 +122,7 @@ try{
   });
   const legalGate=()=>idx.readStageOwnerIncrementalIndex(sql,scope);
   const stageSearch=query=>readStageProductionFtsMirror(sql,search(query),legalGate);
+  const unsafeGate=()=>({releaseCertified:false,count:4});
   const ftsMetrics=sealStageProductionFtsMirror(sql);
   assert.equal(legalGate().count,4,'Only four genuinely owner-proven books allowed');
   assert.equal(ftsMetrics.global_count,3,'Owner-proven suppressed book not searchable');
@@ -145,6 +146,9 @@ try{
     idx.reconcileStageOwnerDirty(sql);
   });
   assert.equal(legalGate().count,3);
+  assert.throws(()=>readStageProductionFtsMirror(sql,search('river'),unsafeGate),
+    /authority_disagreement/,
+    'An external callback may not forge stale pre-revocation legal authority');
   assert.deepEqual(stageSearch('river').pageIds,[f1],
     'Canonical contract withdrawal must retire production-text FTS in owner transaction');
   assert.equal(sealStageProductionFtsMirror(sql).global_count,2);

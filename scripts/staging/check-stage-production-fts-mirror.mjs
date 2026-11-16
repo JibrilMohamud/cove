@@ -23,7 +23,18 @@ try{
   db.exec(`CREATE TABLE cove_stage_owner_index_items(
     product_id TEXT NOT NULL,territory TEXT NOT NULL,currency TEXT NOT NULL,
     rank_score INTEGER NOT NULL, price_minor INTEGER NOT NULL,
+    expires_at TEXT NOT NULL,
     PRIMARY KEY(territory,currency,product_id)) WITHOUT ROWID`);
+  db.exec(`CREATE TABLE cove_stage_owner_index_state(
+    id INTEGER PRIMARY KEY,bootstrapped INTEGER NOT NULL);
+    INSERT INTO cove_stage_owner_index_state VALUES(1,1);
+    CREATE TABLE cove_stage_owner_dirty(product_id TEXT PRIMARY KEY);
+    CREATE TABLE cove_market_withdrawals(
+      territory TEXT PRIMARY KEY,operation_id TEXT,withdrawn_at TEXT);
+    CREATE TABLE cove_stage_owner_index_totals(
+      territory TEXT,currency TEXT,amount INTEGER,
+      PRIMARY KEY(territory,currency));
+    INSERT INTO cove_stage_owner_index_totals VALUES('US','USD',0)`);
   db.exec(`CREATE TABLE cove_stage_owner_index_dimensions(product_id TEXT NOT NULL,
     territory TEXT NOT NULL,currency TEXT NOT NULL,kind TEXT NOT NULL,value TEXT NOT NULL,
     PRIMARY KEY(territory,currency,product_id,kind,value)) WITHOUT ROWID`);
@@ -37,14 +48,15 @@ try{
     assert.ok(def.includes(tokenizer)&&def.includes("prefix='2 3 4'"),name+' tokenizer/prefix mismatch');
   }
   // Empty/missing metadata must fail sealing even when the table is empty.
-  db.prepare('INSERT INTO cove_stage_owner_index_items VALUES(?,?,?,?,?)')
-    .run(docs[0][0],'US','USD',100,0);
+  db.prepare('INSERT INTO cove_stage_owner_index_items VALUES(?,?,?,?,?,?)')
+    .run(docs[0][0],'US','USD',100,0,'9999-12-31T23:59:59Z');
   assert.throws(()=>sealStageProductionFtsMirror(sql),/incomplete_migration/);
   db.prepare('DELETE FROM cove_stage_owner_index_items WHERE product_id=?').run(docs[0][0]);
   tx(()=>{
     for(const row of docs)writeStageProductionSearchMetadata(sql,make(row));
-    for(let i=0;i<4;i++)db.prepare('INSERT INTO cove_stage_owner_index_items VALUES(?,?,?,?,?)')
-      .run(docs[i][0],'US','USD',100-i,i===1?599:0);
+    for(let i=0;i<4;i++)db.prepare('INSERT INTO cove_stage_owner_index_items VALUES(?,?,?,?,?,?)')
+      .run(docs[i][0],'US','USD',100-i,i===1?599:0,'9999-12-31T23:59:59Z');
+    db.prepare("UPDATE cove_stage_owner_index_totals SET amount=4 WHERE territory='US' AND currency='USD'").run();
     for(let i=0;i<4;i++){
       for(const [kind,value] of [
         ['categories',i===1?'Sports':'Classics'],
@@ -74,7 +86,9 @@ try{
   tx(()=>writeStageProductionSearchMetadata(sql,{...make(docs[2]),release_status:'preorder'}));
   assert.equal(sealStageProductionFtsMirror(sql).global_count,3);
   tx(()=>writeStageProductionSearchMetadata(sql,make(docs[2])));
-  const legalGate=()=>({releaseCertified:false,count:db.prepare('SELECT COUNT(*) n FROM cove_stage_owner_index_items').get().n});
+  const legalGate=()=>({releaseCertified:false,
+    count:db.prepare("SELECT 1 FROM cove_market_withdrawals WHERE territory='US' LIMIT 1").get()?
+      0:db.prepare('SELECT amount FROM cove_stage_owner_index_totals').get().amount});
   const find=(q,l='all',topic='')=>readStageProductionFtsMirror(sql,input(q,l,topic),legalGate);
   assert.deepEqual(find('cafe').pageIds,[docs[0][0]],'Diacritics must match production global tokenizer');
   assert.deepEqual(find('run','en').pageIds,[docs[1][0]],'Porter English prefix must work');
@@ -105,10 +119,30 @@ try{
   assert.ok(productionFtsExpression('river').includes('*'));
   assert.match(productionFtsExpression('9781234567890'),/^isbn13 :/);
   assert.throws(()=>readStageProductionFtsMirror(sql,{...input('cafe'),sort:'popular'},legalGate),/unreviewed_scope/);
+  // A forged callback cannot bypass a pending dirty owner transaction.
+  db.prepare('INSERT INTO cove_stage_owner_dirty VALUES(?)').run(docs[0][0]);
+  assert.throws(()=>find('river'),/owner_dirty_unreconciled/,
+    'Even a correct-looking injected count cannot bypass owner dirty state');
+  assert.throws(()=>filtered({categories:['Classics']}),/owner_dirty_unreconciled/);
+  db.prepare('DELETE FROM cove_stage_owner_dirty').run();
+  const previousExpiry=db.prepare('SELECT expires_at FROM cove_stage_owner_index_items WHERE product_id=?')
+    .get(docs[0][0]).expires_at;
+  db.prepare('UPDATE cove_stage_owner_index_items SET expires_at=? WHERE product_id=?')
+    .run('2020-01-01T00:00:00Z',docs[0][0]);
+  assert.throws(()=>find('cafe'),/owner_expired_unreconciled/,
+    'A past paid-style lease cannot survive even if its search row remains');
+  db.prepare('UPDATE cove_stage_owner_index_items SET expires_at=? WHERE product_id=?')
+    .run(previousExpiry,docs[0][0]);
+  const spoof=()=>({releaseCertified:false,count:1});
+  assert.throws(()=>readStageProductionFtsMirror(sql,input('river'),spoof),
+    /authority_disagreement/,'Injected positive count cannot grant search authority');
   // Stage-only owner legal denial: removal from canonical owner index MUST
   // remove all mirror FTS matches in the SAME transaction.
-  tx(()=>db.prepare('DELETE FROM cove_stage_owner_index_items WHERE product_id=?')
-    .run(docs[1][0]));
+  tx(()=>{
+    db.prepare('DELETE FROM cove_stage_owner_index_items WHERE product_id=?')
+      .run(docs[1][0]);
+    db.prepare("UPDATE cove_stage_owner_index_totals SET amount=3 WHERE territory='US' AND currency='USD'").run();
+  });
   assert.equal(find('running').count,0,'Revoked paid product must disappear from global FTS');
   assert.equal(filtered({formats:['audio']}).count,0);
   assert.equal(filtered({categories:['Classics']}).count,2);
@@ -131,5 +165,8 @@ try{
   assert.throws(()=>find('different'),/stage_production_fts_unsealed/,
     'Metadata repair alone cannot bypass explicit seal');
   assert.doesNotThrow(()=>sealStageProductionFtsMirror(sql));
+  db.prepare("INSERT INTO cove_market_withdrawals VALUES('US','test','2026-11-16T00:00:00Z')").run();
+  assert.equal(find('different').count,0,
+    'Market-wide tombstone must override still-indexed search metadata');
   console.log('PASS: production 10-field / two-tokenizer stage mirror, exact IDs and field matching, suppression, English, revocation and tamper fail-close');
 }finally{db.close();}
