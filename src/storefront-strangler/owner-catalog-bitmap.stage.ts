@@ -82,6 +82,7 @@ export function buildStageOwnerBitmap(sql:AuthoritySql):Snapshot{
     FROM cove_stage_owner_index_items WHERE territory=? AND currency=?
     ORDER BY rank_score DESC,product_id ASC`,TERRITORY,CURRENCY).toArray();
   if(rows.length!==guarded.count)throw Error('stage_owner_bitmap_incomplete_population');
+  if(rows.length>100_000)throw Error('stage_owner_bitmap_population_limit');
   const positions=new Map<string,number>();
   for(const [i,row] of rows.entries()){
     if(positions.has(row.product_id)||!Number.isSafeInteger(row.rank_score)||
@@ -93,6 +94,8 @@ export function buildStageOwnerBitmap(sql:AuthoritySql):Snapshot{
   const allBits=new Uint32Array(words);
   allBits.fill(0xffffffff);
   if(words&&rows.length%32)allBits[words-1]=0xffffffff>>>(32-(rows.length%32));
+  let allocatedBytes=allBits.byteLength;
+  const MAX_BITMAP_BYTES=32*1024*1024;
   const postings=new Map<Field,Map<string,Uint32Array>>();
   for(const field of FIELDS)postings.set(field,new Map());
   const dimensions=sql.exec<{product_id:string;kind:string;value:string}>(`
@@ -109,9 +112,50 @@ export function buildStageOwnerBitmap(sql:AuthoritySql):Snapshot{
     if(dim.kind==='availability')continue;
     const byValue=postings.get(dim.kind as Field)!;
     let bits=byValue.get(dim.value);
-    if(!bits){bits=new Uint32Array(words);byValue.set(dim.value,bits);}
+    if(!bits){
+      if(allocatedBytes+words*4>MAX_BITMAP_BYTES)
+        throw Error('stage_owner_bitmap_memory_limit');
+      bits=new Uint32Array(words);byValue.set(dim.value,bits);
+      allocatedBytes+=words*4;
+    }
     bits[index!>>>5]|=1<<(index!&31);
   }
+  // Exact two-way seal against the OWNER PRESENTATION TABLES. Merely
+  // matching row counts is unsafe: an altered facet value could otherwise
+  // be legitimized by rebuilding a perfectly well-formed false bitmap.
+  // This one-time query is maintenance-only and never a customer read.
+  const drift=sql.exec<{bad:number}>(`WITH expected(product_id,kind,value) AS (
+      SELECT product_id,'formats',format FROM cove_stage_owner_index_items
+        WHERE territory=? AND currency=?
+      UNION ALL SELECT product_id,'publishers',publisher
+        FROM cove_stage_owner_index_items WHERE territory=? AND currency=?
+      UNION ALL SELECT product_id,'availability','available'
+        FROM cove_stage_owner_index_items WHERE territory=? AND currency=?
+      UNION ALL SELECT c.product_id,'categories',c.value
+        FROM cove_stage_owner_catalog_category c
+        JOIN cove_stage_owner_index_items i ON i.product_id=c.product_id
+          AND i.territory=? AND i.currency=?
+      UNION ALL SELECT c.product_id,'languages',c.value
+        FROM cove_stage_owner_catalog_language c
+        JOIN cove_stage_owner_index_items i ON i.product_id=c.product_id
+          AND i.territory=? AND i.currency=?
+      UNION ALL SELECT c.product_id,'series',c.value
+        FROM cove_stage_owner_catalog_series c
+        JOIN cove_stage_owner_index_items i ON i.product_id=c.product_id
+          AND i.territory=? AND i.currency=?
+    ), actual AS (
+      SELECT product_id,kind,value FROM cove_stage_owner_index_dimensions
+        WHERE territory=? AND currency=?
+    ), missing AS (
+      SELECT product_id,kind,value FROM expected
+      EXCEPT SELECT product_id,kind,value FROM actual
+    ), excess AS (
+      SELECT product_id,kind,value FROM actual
+      EXCEPT SELECT product_id,kind,value FROM expected
+    )
+    SELECT 1 bad FROM missing UNION ALL SELECT 1 bad FROM excess LIMIT 1`,
+    ...Array.from({length:8},()=>[TERRITORY,CURRENCY]).flat()).toArray();
+  if(drift.length)throw Error('stage_owner_bitmap_dimension_mismatch');
   // Re-run the complete owner guard, not merely the epoch. A market tombstone
   // or proof expiry can block a snapshot without changing any item bit.
   const after=guardStageOwnerIndexRead(sql,defaultInput);

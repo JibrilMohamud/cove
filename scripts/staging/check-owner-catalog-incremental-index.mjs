@@ -194,6 +194,8 @@ try{
     .get().epoch>priorDimEpoch,'Raw dimension update must bump owner bitmap epoch');
   assert.throws(()=>bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope),
     /stale_epoch/,'Prebuilt positive bitmap must reject altered dimensions');
+  assert.throws(()=>bitmap.buildStageOwnerBitmap(sql),/dimension_mismatch/,
+    'A new bitmap must reject forged owner-index facet text even with unchanged counts');
   inTransaction(()=>sql.exec(`UPDATE cove_stage_owner_index_dimensions
     SET value=?
     WHERE territory='US' AND currency='USD' AND product_id=?
