@@ -25,11 +25,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: cove-exclusive-real-primary-cold-acceptance
-  queue: max
-  cancel-in-progress: false
-
 jobs:
   offline:
     if: github.event_name == 'pull_request'
@@ -50,6 +45,12 @@ jobs:
 
   upload_archived_only:
     if: ${{ github.repository == 'JibrilMohamud/cove' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirm_zero_traffic_only == true && inputs.reviewed_source_sha == 'a3fd303da6f7418ceec574e0c158d62fe1245984' }}
+    # Only the live upload mutates Worker versions; source-only PR checks
+    # must not occupy the production D1/cold-capacity serialization lock.
+    concurrency:
+      group: cove-exclusive-real-primary-cold-acceptance
+      queue: max
+      cancel-in-progress: false
     environment: cove-production-release-audit
     runs-on: ubuntu-latest
     timeout-minutes: 25
