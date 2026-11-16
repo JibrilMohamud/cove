@@ -67,4 +67,6 @@ test('production API only defers non-authoritative error telemetry; signed webho
   assert.match(error,/request\.method === "GET"[\s\S]*?"This content could not be loaded\. Please try again\."/);
   assert.match(api,/return json\(await stripeWebhook\(env, request\)\)/,'signed Stripe flow untouched');
   assert.doesNotMatch(error,/await recordErrorEvent\(/,'never wait on error D1 writer inline');
+  assert.match(error,/console\.error\("Cove service error; request failed closed"\)/,
+    'do not log raw exception messages or cause fields');
 });
