@@ -235,7 +235,9 @@ export async function proxyPersistenceApi(
           backendFailureStage(response.headers),
           await backendFailureCategory(response),
         );
-        await response.body?.cancel();
+        // Upstream error-body cleanup is best effort. Waiting on a stalled
+        // body cancellation after status >=502 can delay the fail-closed 503.
+        void response.body?.cancel().catch(() => {});
         return unavailablePersistenceResponse();
       }
       console.warn("Persistent backend unavailable; using development fallback", response.status);
