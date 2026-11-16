@@ -5,8 +5,9 @@
  * mutates Workers, credentials, routes, D1 records, or payment configuration.
  *
  * Self-test: node scripts/release/certify-exclusive-primary-d1.mjs --self-test
- * Live: CF_API_TOKEN=... CF_ACCOUNT_ID=... node scripts/release/certify-exclusive-primary-d1.mjs
- * Keep credentials in a protected environment; never paste them into output.
+ * Live: protected workflow_dispatch on main with three separate metadata-only
+ * Cloudflare read credentials. Never use a D1-only or broad deployment token.
+ * Keep credentials in the protected environment, not command lines or logs.
  */
 import assert from "node:assert/strict";
 import {pathToFileURL} from "node:url";
@@ -15,6 +16,26 @@ import {createPhysicalWriterReadTransport} from "./physical-d1-writer-read-trans
 const PRODUCTION_DB="4bd657ac-8789-403e-a28c-93aba8d0a989";
 const ACCOUNT="d26430caa63ec55f6612e32f36aca5e9";
 const OWNER="cove-legal-authority-production";
+const PRIVILEGED_GROUPS=new Set([
+  "D1 Write","Workers Admin","Workers Editor",
+  "Workers Scripts Write","Account API Tokens Write",
+]);
+function tokenCanMutate(token){
+  return (token.policies||[]).some(p=>(p.permission_groups||[])
+    .some(group=>PRIVILEGED_GROUPS.has(group.name)));
+}
+function completeTokenInventory(tokens){
+  if(!Array.isArray(tokens))return false;
+  return tokens.every(t=>{
+    if(!t||typeof t.name!=="string"||!t.name.trim()||
+      !["active","disabled","expired"].includes(t.status))return false;
+    if(t.status!=="active")return true;
+    return Array.isArray(t.policies)&&t.policies.length>0&&
+      t.policies.every(p=>Array.isArray(p.permission_groups)&&
+        p.permission_groups.length>0&&p.permission_groups.every(g=>
+          typeof g?.name==="string"&&g.name.trim().length>0));
+  });
+}
 
 export function evaluatePhysicalWriterInventory({workers,tokens,userTokensVerified}){
   const problems=[];
@@ -29,9 +50,12 @@ export function evaluatePhysicalWriterInventory({workers,tokens,userTokensVerifi
     b.name==="PRIMARY_DB");
   if(ownerBindings.length!==1)
     problems.push("production_owner_primary_d1_not_uniquely_bound");
-  if((owner?.bindings||[]).find(b=>b.name==="COVE_RIGHTS_OWNER_ENABLED")?.text!=="1")
+  const enabled=(owner?.bindings||[]).filter(b=>b.name==="COVE_RIGHTS_OWNER_ENABLED");
+  if(enabled.length!==1||enabled[0].type!=="plain_text"||enabled[0].text!=="1")
     problems.push("production_owner_disabled");
-  if((owner?.bindings||[]).find(b=>b.name==="COVE_RIGHTS_OWNER_PRIMARY_ID")?.text!==PRODUCTION_DB)
+  const primaryId=(owner?.bindings||[]).filter(b=>b.name==="COVE_RIGHTS_OWNER_PRIMARY_ID");
+  if(primaryId.length!==1||primaryId[0].type!=="plain_text"||
+    primaryId[0].text!==PRODUCTION_DB)
     problems.push("production_owner_primary_id_mismatch");
   const outsiders=(workers||[]).filter(w=>w.name!==OWNER &&
     (w.bindings||[]).some(b=>
@@ -39,9 +63,9 @@ export function evaluatePhysicalWriterInventory({workers,tokens,userTokensVerifi
       (b.id||b.database_id)===PRODUCTION_DB));
   if(outsiders.length)problems.push("nonowner_primary_d1_binding");
   if(!Array.isArray(tokens))problems.push("account_token_inventory_unavailable");
-  const privileged=(tokens||[]).filter(t=>t.status==="active" &&
-    (t.policies||[]).some(p=>(p.permission_groups||[]).some(g=>
-      ["D1 Write","Workers Admin","Workers Editor","Workers Scripts Write","Account API Tokens Write"].includes(g.name))));
+  if(!completeTokenInventory(tokens))
+    problems.push("account_token_permission_metadata_incomplete");
+  const privileged=(tokens||[]).filter(t=>t?.status==="active"&&tokenCanMutate(t));
   if(privileged.length)problems.push("active_account_token_can_mutate_primary_or_owner");
   if(userTokensVerified!==true)problems.push("user_token_inventory_unverified");
   return {
@@ -89,6 +113,30 @@ function selfTest(){
   assert.deepEqual(unsafe.nonownerBindingNames,["nonowner"]);
   assert.deepEqual(unsafe.privilegedAccountTokenNames,["broad"]);
   assert.equal(JSON.stringify(unsafe).includes(PRODUCTION_DB),false);
+  for(const incomplete of [
+    [{name:"missing-policies",status:"active"}],
+    [{name:"empty-policies",status:"active",policies:[]}],
+    [{name:"no-groups",status:"active",policies:[{}]}],
+    [{name:"empty-groups",status:"active",policies:[{permission_groups:[]}]}],
+    [{name:"unknown-group",status:"active",policies:[{permission_groups:[{}]}]}],
+    [{name:"unknown-status",status:"pending"}],
+  ]){
+    const report=evaluatePhysicalWriterInventory({
+      workers:[owner],tokens:incomplete,userTokensVerified:true,
+    });
+    assert.equal(report.certified,false);
+    assert.ok(report.problems.includes("account_token_permission_metadata_incomplete"));
+  }
+  for(const flag of ["COVE_RIGHTS_OWNER_ENABLED","COVE_RIGHTS_OWNER_PRIMARY_ID"]){
+    const duplicate={...owner,bindings:[...owner.bindings,
+      owner.bindings.find(b=>b.name===flag)]};
+    const report=evaluatePhysicalWriterInventory({
+      workers:[duplicate],tokens:[],userTokensVerified:true,
+    });
+    assert.equal(report.certified,false);
+    assert.ok(report.problems.includes(flag==="COVE_RIGHTS_OWNER_ENABLED"?
+      "production_owner_disabled":"production_owner_primary_id_mismatch"));
+  }
   console.log("PASS: physical primary-D1 owner inventory self-test is fail-closed");
 }
 
@@ -156,10 +204,8 @@ async function main(){
   let userTokensVerified=false;
   try{
     const users=await transport.get("/user/tokens",userToken);
-    userTokensVerified=Array.isArray(users.result)&&
-      users.result.filter(x=>x.status==="active").every(t=>
-        !(t.policies||[]).some(p=>(p.permission_groups||[]).some(g=>
-          ["D1 Write","Workers Admin","Workers Editor","Workers Scripts Write","Account API Tokens Write"].includes(g.name))));
+    userTokensVerified=completeTokenInventory(users.result)&&
+      users.result.every(t=>t.status!=="active"||!tokenCanMutate(t));
   }catch{
     userTokensVerified=false;
   }
