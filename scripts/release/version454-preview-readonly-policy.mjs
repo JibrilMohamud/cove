@@ -17,7 +17,10 @@ export const READ_ONLY_CASES = Object.freeze([
 ]);
 
 export function assertSafePreviewCase(input) {
-  assert.ok(READ_ONLY_CASES.some((x) => x === input), "Unapproved preview request");
+  assert.ok(
+    READ_ONLY_CASES.some((x) => x === input),
+    "Unapproved preview request",
+  );
   const url = new URL(input.path, EXPECTED_PREVIEW_ORIGIN);
   assert.equal(url.protocol, "https:");
   assert.equal(url.origin, EXPECTED_PREVIEW_ORIGIN);
