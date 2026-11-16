@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Bounded protected legal audit transport fixture. */
 /**
  * Bounded, low-rate scheduling for protected READ-ONLY primary D1 API queries.
  *
