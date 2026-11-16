@@ -30,6 +30,18 @@ assert.ok(
   typeof token === "string" && token.length >= 24,
   "Protected upload-only credential absent",
 );
+// Scope upload authority ONLY to cove-persistence-backend. Never broaden
+// that token to read or edit the production legal-owner Worker.
+const ownerReadToken = process.env.COVE_CF_WORKERS_METADATA_READ_TOKEN;
+assert.ok(
+  typeof ownerReadToken === "string" && ownerReadToken.length >= 24,
+  "Protected legal-owner metadata read-only credential absent",
+);
+assert.notEqual(
+  ownerReadToken,
+  token,
+  "Worker upload token and legal-owner metadata reader must be separate",
+);
 const runId = String(process.env.GITHUB_RUN_ID || "");
 assert.match(runId, /^[0-9]{8,15}$/);
 const evidenceDir = "artifacts/protected-zero-traffic-worker-upload";
@@ -37,10 +49,16 @@ const evidenceFile = evidenceDir + "/evidence.json";
 const beforeFile = evidenceDir + "/before.json";
 const base = `/accounts/${WORKER_ACCOUNT}/workers/scripts/${WORKER_NAME}`;
 
+const OWNER_SETTINGS_PATH =
+  `/accounts/${WORKER_ACCOUNT}/workers/scripts/cove-legal-authority-production/settings`;
+
 async function get(path) {
+  // Never allow the upload-capable token to access the legal-owner Worker;
+  // its own individual-Worker Editor scope intentionally forbids this read.
+  const bearer = path === OWNER_SETTINGS_PATH ? ownerReadToken : token;
   const response = await fetch("https://api.cloudflare.com/client/v4" + path, {
     method: "GET",
-    headers: { authorization: "Bearer " + token },
+    headers: { authorization: "Bearer " + bearer },
     signal: AbortSignal.timeout(15000),
   });
   if (!response.ok) throw Error("Protected Cloudflare read unavailable: HTTP " + response.status);
@@ -50,9 +68,7 @@ async function get(path) {
 }
 
 async function assertProductionStillDisabled() {
-  const owner = await get(
-    `/accounts/${WORKER_ACCOUNT}/workers/scripts/cove-legal-authority-production/settings`,
-  );
+  const owner = await get(OWNER_SETTINGS_PATH);
   const values = (owner?.bindings || []).filter((b) => b.name === "COVE_RIGHTS_OWNER_ENABLED");
   assert.equal(values.length, 1, "Missing unique production rights-owner control");
   assert.equal(values[0].type, "plain_text");
