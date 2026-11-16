@@ -24,7 +24,10 @@ test("separate constrained upload secret, source pin and no automatic D1 migrati
   assert.doesNotMatch(workflow, /secrets\.CLOUDFLARE_API_TOKEN/);
   assert.match(workflow, /reviewed_source_sha == 'c3c1a68dd239aca018040d3165c44630118ae8af'/);
   assert.match(workflow, /wrangler versions upload/);
-  assert.doesNotMatch(workflow, /wrangler (?:deploy|versions deploy|d1 execute|d1 migrations apply)/);
+  assert.doesNotMatch(
+    workflow,
+    /wrangler (?:deploy|versions deploy|d1 execute|d1 migrations apply)/,
+  );
   assert.match(workflow, /scripts\/release\/protected-zero-traffic-worker-upload\.mjs fence/);
   assert.match(runner, /REVIEWED_BACKEND_SOURCE/);
   assert.match(runner, /assertReviewedSource\(\)/);
