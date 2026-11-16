@@ -12,6 +12,8 @@ on:
     paths:
       - .github/workflows/cove-protected-real-rights-spot-readonly.yml
       - scripts/release/check-protected-production-rights-spot.mjs
+      - scripts/release/protected-d1-read-throttle.mjs
+      - scripts/release/protected-d1-read-throttle.test.mjs
       - docs/architecture/protected-production-rights-spot-audit-runbook.md
   workflow_dispatch:
     inputs:
@@ -43,6 +45,8 @@ jobs:
         run: node --no-warnings scripts/check-vercel-one-shot-audit-no-deploy.mjs
       - name: Fail-closed read-only and protected invocation self-tests
         run: node --no-warnings scripts/release/check-protected-production-rights-spot.mjs --self-test
+      - name: Prove global D1 request pacing, Retry-After, and overload fail closed
+        run: node --test scripts/release/protected-d1-read-throttle.test.mjs
       - run: git diff --check
   protected-live-audit:
     if: >-
