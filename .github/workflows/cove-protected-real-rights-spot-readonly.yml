@@ -20,7 +20,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: "Type RIGHTS_SPOT_AUDIT to request protected 8-allow + 4-suspended READ-ONLY production rights check"
+        description: "Type RIGHTS_SPOT_AUDIT to request protected 8-allow + 4-suspended + 4-territory-denied rights check"
         required: true
         type: string
 permissions:
@@ -87,7 +87,7 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - name: Bounded real 8-allow plus 4-suspended canonical vs legacy audit, NO MUTATIONS
+      - name: Bounded 8-allow + 4-suspended + 4-AU-territory-denied audit, NO MUTATIONS
         run: node --no-warnings scripts/release/check-protected-production-rights-spot.mjs --live
         env:
           CF_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
