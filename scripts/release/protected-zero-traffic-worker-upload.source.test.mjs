@@ -22,7 +22,7 @@ test("no push, PR, timer or build can upload a production Worker version", () =>
 test("separate constrained upload secret, source pin and no automatic D1 migration", () => {
   assert.match(workflow, /secrets\.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
   assert.doesNotMatch(workflow, /secrets\.CLOUDFLARE_API_TOKEN/);
-  assert.match(workflow, /reviewed_source_sha == 'c3c1a68dd239aca018040d3165c44630118ae8af'/);
+  assert.match(workflow, /reviewed_source_sha == 'a3fd303da6f7418ceec574e0c158d62fe1245984'/);
   assert.match(workflow, /wrangler versions upload/);
   assert.doesNotMatch(
     workflow,
