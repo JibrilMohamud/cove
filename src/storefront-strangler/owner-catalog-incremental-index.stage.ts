@@ -59,6 +59,12 @@ export function createStageOwnerIncrementalIndex(sql:AuthoritySql){
     kind TEXT NOT NULL,value TEXT NOT NULL,
     PRIMARY KEY(territory,currency,product_id,kind,value)
   ) WITHOUT ROWID`);
+  // The dimension PK is product-first, ideal for reconciliation but
+  // pathological for cold, distinct filtered queries. This inverted index
+  // selects a small disjunctive posting list BEFORE the expensive per-facet
+  // scan. It stores no permission separate from the canonical owner items.
+  sql.exec(`CREATE INDEX IF NOT EXISTS cove_stage_owner_index_dimension_inverted ON
+    cove_stage_owner_index_dimensions(territory,currency,kind,value,product_id)`);
   sql.exec(`CREATE TABLE IF NOT EXISTS cove_stage_owner_index_facet_counts(
     territory TEXT NOT NULL,currency TEXT NOT NULL,
     kind TEXT NOT NULL,value TEXT NOT NULL,
@@ -86,6 +92,58 @@ export function createStageOwnerIncrementalIndex(sql:AuthoritySql){
       AFTER ${verb} ON cove_stage_owner_index_items BEGIN
       UPDATE cove_stage_owner_index_epoch SET epoch=epoch+1 WHERE id=1;
       END`);
+  }
+  // Direct changes to dimension rows can alter facets without modifying an
+  // owner item. Fence every prebuilt bitmap against them too: a drifted
+  // dimension epoch must never be served as a current snapshot.
+  for(const verb of ['INSERT','UPDATE','DELETE'] as const){
+    sql.exec(`CREATE TRIGGER IF NOT EXISTS cove_stage_owner_dimension_epoch_${verb.toLowerCase()}
+      AFTER ${verb} ON cove_stage_owner_index_dimensions BEGIN
+      UPDATE cove_stage_owner_index_epoch SET epoch=epoch+1 WHERE id=1;
+      END`);
+  }
+  // An owner-local, durable mutation journal is necessary for removal-only
+  // bitmap deltas. Epochs alone say WHAT changed, not whether it was a safe
+  // withdrawal or an unreviewed positive grant/metadata edit. Journal flags
+  // accumulate inside the SAME legal-owner SQLite transaction; callers may
+  // only clear them after sealing a full new bitmap or accepting a strictly
+  // removal-only overlay. This is a stage-only experiment.
+  sql.exec(`CREATE TABLE IF NOT EXISTS cove_stage_owner_bitmap_change_log(
+    product_id TEXT PRIMARY KEY,
+    item_deleted INTEGER NOT NULL DEFAULT 0,
+    item_written INTEGER NOT NULL DEFAULT 0,
+    dimension_deleted INTEGER NOT NULL DEFAULT 0,
+    dimension_written INTEGER NOT NULL DEFAULT 0
+  ) WITHOUT ROWID`);
+  const recordBitmapChange=(table:string,verb:'INSERT'|'UPDATE'|'DELETE',
+    oldOrNew:'OLD'|'NEW',flag:string)=>{
+    const id=oldOrNew+'.product_id';
+    sql.exec(`CREATE TRIGGER IF NOT EXISTS cove_stage_owner_bm_${table}_${verb.toLowerCase()}_${oldOrNew.toLowerCase()}
+      AFTER ${verb} ON cove_stage_owner_index_${table} BEGIN
+      INSERT INTO cove_stage_owner_bitmap_change_log(product_id,${flag})
+        VALUES(${id},1)
+        ON CONFLICT(product_id) DO UPDATE SET ${flag}=1;
+      END`);
+  };
+  for(const [table,deleted,inserted] of [
+    ['items','item_deleted','item_written'],
+    ['dimensions','dimension_deleted','dimension_written'],
+  ] as const){
+    recordBitmapChange(table,'DELETE','OLD',deleted);
+    recordBitmapChange(table,'INSERT','NEW',inserted);
+    recordBitmapChange(table,'UPDATE','OLD',inserted);
+    recordBitmapChange(table,'UPDATE','NEW',inserted);
+  }
+  // Raw edits to aggregate counts can cause result drift without changing
+  // item/dimension rows. Advance the epoch so no old snapshot can serve; the
+  // removal-only writer refuses such unmatched changes.
+  for(const table of ['facet_counts','totals'] as const){
+    for(const verb of ['INSERT','UPDATE','DELETE'] as const){
+      sql.exec(`CREATE TRIGGER IF NOT EXISTS cove_stage_owner_bm_${table}_epoch_${verb.toLowerCase()}
+        AFTER ${verb} ON cove_stage_owner_index_${table} BEGIN
+        UPDATE cove_stage_owner_index_epoch SET epoch=epoch+1 WHERE id=1;
+        END`);
+    }
   }
   // Every legal/material change must enqueue the affected product(s), even
   // when a caller forgets to refresh. Missing reconciliation blocks ALL
@@ -298,6 +356,43 @@ export function bootstrapStageOwnerIndex(sql:AuthoritySql){
   sql.exec('UPDATE cove_stage_owner_index_state SET bootstrapped=1 WHERE id=1');
 }
 
+/** The exact minimal synchronous owner guard. Avoid serializing a page,
+ * aggregates or facets merely to prove the owner-index bitmap is current.
+ * This is stage-only and deliberately never treats a presentation as a grant.
+ */
+export function guardStageOwnerIndexRead(sql:AuthoritySql,scope:{
+  territory:string;currency:string;
+}){
+  if(!scope||scope.territory!==DEFAULT.territory||
+    scope.currency!==DEFAULT.currency)
+    throw Error('stage_owner_index_unreviewed_scope');
+  const ready=sql.exec<{bootstrapped:number}>(
+    'SELECT bootstrapped FROM cove_stage_owner_index_state WHERE id=1').toArray()[0];
+  if(!ready||ready.bootstrapped!==1)throw Error('stage_owner_index_uninitialized');
+  if(sql.exec('SELECT product_id FROM cove_stage_owner_dirty LIMIT 1').toArray().length)
+    throw Error('stage_owner_index_dirty_unreconciled');
+  // Market tombstone is a synchronous owner-local veto even when no index
+  // item, bitmap bit or price changes; never consult stale positive snapshots.
+  const withdrawn=marketIsWithdrawn(sql,scope.territory);
+  if(!withdrawn){
+    const now=new Date().toISOString();
+    const expired=sql.exec(`SELECT product_id FROM cove_stage_owner_index_items
+      WHERE territory=? AND currency=? AND expires_at<=? LIMIT 1`,
+      scope.territory,scope.currency,now).toArray();
+    if(expired.length)throw Error('stage_owner_index_expired_unreconciled');
+  }
+  const epoch=sql.exec<{epoch:number}>(
+    'SELECT epoch FROM cove_stage_owner_index_epoch WHERE id=1').toArray()[0]?.epoch;
+  if(!Number.isSafeInteger(epoch)||epoch<0)
+    throw Error('stage_owner_index_invalid_epoch');
+  const count=withdrawn?0:(sql.exec<{amount:number}>(`SELECT amount FROM
+    cove_stage_owner_index_totals WHERE territory=? AND currency=?`,
+    scope.territory,scope.currency).toArray()[0]?.amount??0);
+  if(!Number.isSafeInteger(count)||count<0)
+    throw Error('stage_owner_index_invalid_count');
+  return {withdrawn,count,epoch};
+}
+
 export function readStageOwnerIncrementalIndex(sql:AuthoritySql,scope:{
   territory:string;currency:string;sort:string;page:number;limit:number;query?:string;
 }){
@@ -307,24 +402,12 @@ export function readStageOwnerIncrementalIndex(sql:AuthoritySql,scope:{
     (scope.query!==undefined&&scope.query!=='')||Object.keys(scope).some(x=>
       !['territory','currency','sort','page','limit','query'].includes(x)))
     throw Error('stage_owner_index_unreviewed_scope');
-  const ready=sql.exec<{bootstrapped:number}>(
-    'SELECT bootstrapped FROM cove_stage_owner_index_state WHERE id=1').toArray()[0];
-  if(!ready||ready.bootstrapped!==1)throw Error('stage_owner_index_uninitialized');
-  if(sql.exec('SELECT product_id FROM cove_stage_owner_dirty LIMIT 1').toArray().length)
-    throw Error('stage_owner_index_dirty_unreconciled');
-  // O(1) mandatory market veto; a global withdrawal never requires an 82k
-  // product fanout and never waits for cached counts to be refreshed.
-  if(marketIsWithdrawn(sql,scope.territory))return {
+  const current=guardStageOwnerIndexRead(sql,scope);
+  if(current.withdrawn)return {
     count:0,pageIds:[],facets:{categories:[],languages:[],formats:[],
       publishers:[],series:[],availability:[],price:null},releaseCertified:false as const,
   };
-  const now=new Date().toISOString();
-  const expired=sql.exec(`SELECT product_id FROM cove_stage_owner_index_items
-    WHERE territory=? AND currency=? AND expires_at<=? LIMIT 1`,
-    scope.territory,scope.currency,now).toArray();
-  if(expired.length)throw Error('stage_owner_index_expired_unreconciled');
-  const count=sql.exec<{amount:number}>(`SELECT amount FROM cove_stage_owner_index_totals
-    WHERE territory=? AND currency=?`,scope.territory,scope.currency).toArray()[0]?.amount??0;
+  const count=current.count;
   const pageIds=sql.exec<{product_id:string}>(`SELECT product_id FROM cove_stage_owner_index_items
     WHERE territory=? AND currency=? ORDER BY rank_score DESC,product_id LIMIT ? OFFSET ?`,
     scope.territory,scope.currency,scope.limit,(scope.page-1)*scope.limit).toArray()
@@ -412,6 +495,51 @@ function scopedIndexWhere(input:FilteredInput,filters:Record<FilterField,string[
   }
   return {clause:parts.join(' AND '),args};
 }
+/** Stage-only cost-based SELECT driver. Never changes the owner decision: every
+ * row still comes from the already authorized, expiry/dirty/market-guarded
+ * cove_stage_owner_index_items, with identical disjunctive predicates.
+ * Each facet excludes its own input before choosing a seed.
+ */
+function selectiveOwnerFilteredScan(sql:AuthoritySql,input:FilteredInput,
+  filters:Record<FilterField,string[]>,omit?:FilterField|'price'){
+  const fts=stageOwnerLiteralFtsExpression(input.query);
+  if(fts&&stageOwnerFtsPreferMatchesFirst(sql,fts)){
+    const predicate=scopedIndexWhere(input,filters,omit,true);
+    return {from:`(SELECT product_id FROM cove_stage_owner_fts
+        WHERE cove_stage_owner_fts MATCH ?) seed
+        CROSS JOIN cove_stage_owner_index_items i`,
+      clause:`i.product_id=seed.product_id AND ${predicate.clause}`,
+      args:[fts,...predicate.args]};
+  }
+  let best:{field:FilterField;values:string[];n:number}|null=null;
+  for(const field of FILTER_FIELDS){
+    if(omit===field||!filters[field].length)continue;
+    const values=filters[field];
+    const count=sql.exec<{n:number}>(`SELECT COUNT(*) n
+      FROM cove_stage_owner_index_dimensions
+      INDEXED BY cove_stage_owner_index_dimension_inverted
+      WHERE territory=? AND currency=? AND kind=?
+        AND value IN (${values.map(()=>'?').join(',')})`,
+      input.territory,input.currency,field,...values).toArray()[0]?.n;
+    if(!Number.isSafeInteger(count)||count<0)
+      throw Error('stage_owner_filtered_invalid_posting_count');
+    if(!best||count<best.n)best={field,values,n:count};
+  }
+  const predicate=scopedIndexWhere(input,filters,omit);
+  if(best&&best.n<=4096){
+    return {from:`(SELECT DISTINCT product_id
+        FROM cove_stage_owner_index_dimensions
+        INDEXED BY cove_stage_owner_index_dimension_inverted
+        WHERE territory=? AND currency=? AND kind=?
+          AND value IN (${best.values.map(()=>'?').join(',')})) seed
+        CROSS JOIN cove_stage_owner_index_items i`,
+      clause:`i.product_id=seed.product_id AND ${predicate.clause}`,
+      args:[input.territory,input.currency,best.field,
+        ...best.values,...predicate.args]};
+  }
+  return {from:'cove_stage_owner_index_items i',
+    clause:predicate.clause,args:predicate.args};
+}
 export function readStageOwnerFilteredIndex(sql:AuthoritySql,input:FilteredInput){
   const filters=validatedFilters(input);
   const ftsExpression=stageOwnerLiteralFtsExpression(input.query);
@@ -446,9 +574,9 @@ export function readStageOwnerFilteredIndex(sql:AuthoritySql,input:FilteredInput
       throw Error('stage_owner_filter_cache_corrupt');
     return parsed as ReturnType<typeof readStageOwnerIncrementalIndex>;
   }
-  const where=scopedIndexWhere(scopedInput,filters);
+  const countScan=selectiveOwnerFilteredScan(sql,scopedInput,filters);
   const count=sql.exec<{total:number}>(`SELECT COUNT(*) total FROM
-    cove_stage_owner_index_items i WHERE ${where.clause}`,...where.args).toArray()[0]?.total;
+    ${countScan.from} WHERE ${countScan.clause}`,...countScan.args).toArray()[0]?.total;
   if(!Number.isSafeInteger(count))throw Error('stage_owner_filtered_invalid_count');
   // FTS5 inverted-list cardinality, not total product count, chooses the
   // plan. A narrow match MUST lead the join: SQLite can otherwise iterate
@@ -467,28 +595,32 @@ export function readStageOwnerFilteredIndex(sql:AuthoritySql,input:FilteredInput
       ORDER BY i.rank_score DESC,i.product_id ASC LIMIT ? OFFSET ?`,
       ftsExpression,...narrowed.args,input.limit,(input.page-1)*input.limit)
       .toArray().map(x=>x.product_id);
-  })():sql.exec<{product_id:string}>(`SELECT i.product_id FROM
-    cove_stage_owner_index_items i WHERE ${where.clause}
-    ORDER BY i.rank_score DESC,i.product_id ASC LIMIT ? OFFSET ?`,
-    ...where.args,input.limit,(input.page-1)*input.limit).toArray().map(x=>x.product_id);
+  })():(()=>{
+    const pageScan=selectiveOwnerFilteredScan(sql,scopedInput,filters);
+    return sql.exec<{product_id:string}>(`SELECT i.product_id FROM
+      ${pageScan.from} WHERE ${pageScan.clause}
+      ORDER BY i.rank_score DESC,i.product_id ASC LIMIT ? OFFSET ?`,
+      ...pageScan.args,input.limit,(input.page-1)*input.limit)
+      .toArray().map(x=>x.product_id);
+  })();
   const facets={} as Record<FilterField,Array<{value:string;count:number}>>;
   for(const kind of FILTER_FIELDS){
-    const facetWhere=scopedIndexWhere(scopedInput,filters,kind);
+    const facetScan=selectiveOwnerFilteredScan(sql,scopedInput,filters,kind);
     const rows=sql.exec<{value:string;num:number}>(`SELECT dim.value value,
-      COUNT(DISTINCT i.product_id) num FROM cove_stage_owner_index_items i
+      COUNT(DISTINCT i.product_id) num FROM ${facetScan.from}
       JOIN cove_stage_owner_index_dimensions dim ON
         dim.territory=i.territory AND dim.currency=i.currency
-        AND dim.product_id=i.product_id AND dim.kind=?
-      WHERE ${facetWhere.clause}
+        AND dim.product_id=i.product_id
+      WHERE ${facetScan.clause} AND dim.kind=?
       GROUP BY dim.value ORDER BY num DESC,dim.value ASC LIMIT ?`,
-      kind,...facetWhere.args,CAPS[kind]).toArray();
+      ...facetScan.args,kind,CAPS[kind]).toArray();
     facets[kind]=rows.map(x=>({value:x.value,count:x.num}));
   }
-  const priceWhere=scopedIndexWhere(scopedInput,filters,'price');
+  const priceScan=selectiveOwnerFilteredScan(sql,scopedInput,filters,'price');
   const price=sql.exec<{minimum:number|null;maximum:number|null}>(`SELECT
     MIN(i.price_minor) minimum,MAX(i.price_minor) maximum FROM
-    cove_stage_owner_index_items i WHERE ${priceWhere.clause}`,
-    ...priceWhere.args).toArray()[0];
+    ${priceScan.from} WHERE ${priceScan.clause}`,
+    ...priceScan.args).toArray()[0];
   const result={count,pageIds,facets:{...facets,
     availability:count?[{value:'available',count}]:[],
     price:price?.minimum==null||price.maximum==null?null:

@@ -1,14 +1,18 @@
 name: cove-stage-owner-incremental-catalog-index
 on:
   push:
-    branches: [perf/stage-transactional-owner-catalog-index-20261115]
+    branches: [perf/stage-transactional-owner-catalog-index-20261115, perf/stage-owner-selective-filter-planner-20261115]
     paths:
       - src/storefront-strangler/owner-catalog-authorized-set.stage.ts
       - src/storefront-strangler/owner-catalog-incremental-index.stage.ts
+      - src/storefront-strangler/owner-catalog-bitmap.stage.ts
+      - src/storefront-strangler/owner-catalog-bitmap-store.stage.ts
       - src/storefront-strangler/owner-catalog-fts.stage.ts
       - scripts/staging/check-owner-catalog-incremental-index.mjs
       - scripts/staging/benchmark-owner-catalog-index.mjs
       - scripts/staging/benchmark-owner-catalog-fts-planner.mjs
+      - scripts/staging/benchmark-owner-catalog-selective-facets.mjs
+      - scripts/staging/benchmark-owner-bitmap-shard-hydration.mjs
       - .github/workflows/cove-stage-owner-incremental-catalog-index.yml
 permissions:
   contents: read
@@ -37,4 +41,8 @@ jobs:
         run: node scripts/staging/benchmark-owner-catalog-index.mjs
       - name: Informational LOCAL 82k FTS5 rank-vs-match planner benchmark (not hosted acceptance)
         run: node scripts/staging/benchmark-owner-catalog-fts-planner.mjs
+      - name: Informational LOCAL 82k selective inverted-facet cold benchmark and full-scan parity
+        run: node scripts/staging/benchmark-owner-catalog-selective-facets.mjs
+      - name: Informational LOCAL 82k stored-bitmap sharding and cold hydration
+        run: node scripts/staging/benchmark-owner-bitmap-shard-hydration.mjs
       - run: git diff --check

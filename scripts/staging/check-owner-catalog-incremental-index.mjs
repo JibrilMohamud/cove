@@ -23,13 +23,16 @@ try{
     market:'src/storefront-strangler/market-authority-core.ts',
     catalog:'src/storefront-strangler/owner-catalog-authorized-set.stage.ts',
     incremental:'src/storefront-strangler/owner-catalog-incremental-index.stage.ts',
+    bitmap:'src/storefront-strangler/owner-catalog-bitmap.stage.ts',
+    bitmapStore:'src/storefront-strangler/owner-catalog-bitmap-store.stage.ts',
     fts:'src/storefront-strangler/owner-catalog-fts.stage.ts',
   },outdir:root,bundle:true,platform:'node',format:'esm',target:'node22',logLevel:'silent'});
   const load=async name=>import(pathToFileURL(path.join(root,name+'.js')).href);
   const free=await load('free'),commercial=await load('commercial');
   const paid=await load('paid'),market=await load('market');
   const stage=await load('catalog'),idx=await load('incremental');
-  const fts=await load('fts');
+  const fts=await load('fts'),bitmap=await load('bitmap'),
+    bitmapStore=await load('bitmapStore');
   free.createAuthoritySchema(sql);free.createAuthorityProofSchema(sql);
   commercial.createCommercialAuthoritySchema(sql);
   paid.createCommercialStorefrontSchema(sql);market.createMarketAuthoritySchema(sql);
@@ -96,6 +99,31 @@ try{
   assert.throws(()=>stage.readStageOwnerCatalogSnapshot(sql,scope),/unavailable_or_revoked/);
   inTransaction(()=>stage.rebuildStageOwnerCatalogSnapshot(sql));
   inTransaction(()=>idx.bootstrapStageOwnerIndex(sql));
+  let bitmapSnapshot=bitmap.buildStageOwnerBitmap(sql);
+  const persisted=inTransaction(()=>bitmapStore.persistStageOwnerBitmap(sql,bitmapSnapshot));
+  assert.equal(persisted.epoch,bitmapSnapshot.ownerEpoch);
+  assert.ok(persisted.chunks>=1&&persisted.bytes>0);
+  const hydratedInitial=bitmapStore.hydrateStageOwnerBitmap(sql);
+  assert.deepEqual(bitmap.readStageOwnerBitmap(sql,hydratedInitial,
+    {...scope,categories:['Classics']}),
+    bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,{...scope,categories:['Classics']}),
+    'Cold owner snapshot rehydration must retain exact legal/facet parity');
+  // Damage a valid-length base64 shard; the prebuilt snapshot must never be
+  // trusted when the owner-local durable bytes no longer match its seal.
+  const originalChunk=db.prepare(
+    'SELECT encoded_chunk FROM cove_stage_owner_bitmap_shards WHERE ordinal=0').get().encoded_chunk;
+  const mid=Math.floor(originalChunk.length/3);
+  const damaged=originalChunk.slice(0,mid)+(originalChunk[mid]==='A'?'B':'A')+
+    originalChunk.slice(mid+1);
+  inTransaction(()=>sql.exec(`UPDATE cove_stage_owner_bitmap_shards
+    SET encoded_chunk=? WHERE ordinal=0`,damaged));
+  assert.throws(()=>bitmapStore.hydrateStageOwnerBitmap(sql),/checksum_mismatch/,
+    'Corrupted persisted bytes must never create a positive owner read');
+  inTransaction(()=>bitmapStore.persistStageOwnerBitmap(sql,bitmapSnapshot));
+  inTransaction(()=>sql.exec('DELETE FROM cove_stage_owner_bitmap_shards WHERE ordinal=0'));
+  assert.throws(()=>bitmapStore.hydrateStageOwnerBitmap(sql),/missing_shard/,
+    'Missing cold-start shard must fail closed');
+  inTransaction(()=>bitmapStore.persistStageOwnerBitmap(sql,bitmapSnapshot));
   const firstIndexed=idx.readStageOwnerIncrementalIndex(sql,scope);
   assert.deepEqual(firstIndexed,direct,'Indexed 25-book exact page/count/facets parity');
   assert.equal(idx.readStageOwnerIncrementalIndex(sql,{...scope,page:2,limit:10}).pageIds.length,10);
@@ -175,7 +203,36 @@ try{
     const input={...scope,...part};
     assert.deepEqual(idx.readStageOwnerFilteredIndex(sql,input),filteredGold(input),
       'Every filtered count/page and self-excluding facet must match independent owner SQL');
+    if(!part.query)assert.deepEqual(bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,input),
+      filteredGold(input),'Prebuilt bitmap exact canonical owner filter parity');
   }
+  // A direct dimension change need not touch an authorized product row.
+  // Prove it still invalidates a prebuilt bitmap and cannot silently leak
+  // forged facet metadata. Restore the original stage fixture immediately.
+  const rawDimensionId=all[3],rawPublisher='Stage Publishing B';
+  const priorDimEpoch=db.prepare(
+    'SELECT epoch FROM cove_stage_owner_index_epoch WHERE id=1').get().epoch;
+  inTransaction(()=>sql.exec(`UPDATE cove_stage_owner_index_dimensions
+    SET value='Forged stage publisher'
+    WHERE territory='US' AND currency='USD' AND product_id=?
+      AND kind='publishers' AND value=?`,rawDimensionId,rawPublisher));
+  assert.ok(db.prepare('SELECT epoch FROM cove_stage_owner_index_epoch WHERE id=1')
+    .get().epoch>priorDimEpoch,'Raw dimension update must bump owner bitmap epoch');
+  assert.throws(()=>bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope),
+    /stale_epoch/,'Prebuilt positive bitmap must reject altered dimensions');
+  assert.throws(()=>bitmap.buildStageOwnerBitmap(sql),/dimension_mismatch/,
+    'A new bitmap must reject forged owner-index facet text even with unchanged counts');
+  inTransaction(()=>sql.exec(`UPDATE cove_stage_owner_index_dimensions
+    SET value=?
+    WHERE territory='US' AND currency='USD' AND product_id=?
+      AND kind='publishers' AND value='Forged stage publisher'`,
+    rawPublisher,rawDimensionId));
+  bitmapSnapshot=bitmap.buildStageOwnerBitmap(sql);
+  inTransaction(()=>bitmapStore.persistStageOwnerBitmap(sql,bitmapSnapshot));
+  assert.deepEqual(bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,
+    {...scope,publishers:[rawPublisher]}),
+    filteredGold({...scope,publishers:[rawPublisher]}),
+    'Rebuilt bitmap after a repaired dimension must retain canonical facet parity');
   const ftsDocs=db.prepare('SELECT COUNT(*) n FROM cove_stage_owner_fts').get().n;
   assert.equal(ftsDocs,25,'FTS must index every owner-authorized catalog row');
   const sampleFtsRow=db.prepare(`SELECT fts_rowid FROM cove_stage_owner_fts_ids
@@ -266,9 +323,28 @@ try{
   assert.equal(stage.stageOwnerCatalogRead(sql,scope).count,25);
   assert.throws(()=>idx.readStageOwnerIncrementalIndex(sql,scope),/dirty_unreconciled/,
     'Unreviewed metadata must invalidate index before authorization is confirmed');
+  assert.throws(()=>bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope),
+    /dirty_unreconciled/,'Pending owner metadata must block bitmap reads');
+  assert.throws(()=>bitmapStore.hydrateStageOwnerBitmap(sql),/dirty_unreconciled/,
+    'Persisted shards cannot bypass pending owner mutation');
   inTransaction(()=>{idx.reconcileStageOwnerDirty(sql);stage.rebuildStageOwnerCatalogSnapshot(sql);});
+  // Metadata-only changes that never create a positive owner index row need
+  // not advance the item epoch; the dirty queue already blocked their reads.
+  assert.deepEqual(bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope),
+    idx.readStageOwnerIncrementalIndex(sql,scope),
+    'Unapproved presentation must not create a bitmap positive');
+  bitmapSnapshot=bitmap.buildStageOwnerBitmap(sql);
   assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope),stage.stageOwnerCatalogRead(sql,scope));
   assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,25);
+  assert.throws(()=>inTransaction(()=>{
+    sql.exec(`UPDATE cove_stage_owner_index_items SET rank_score=rank_score+1
+      WHERE territory='US' AND currency='USD' AND product_id=?`,paidIds[2]);
+    bitmapStore.persistStageOwnerBitmapRevocations(sql);
+  }),/positive_or_unsupported_edit/,
+  'A price/rank/positive change must NEVER masquerade as removal-only bitmap delta');
+  assert.deepEqual(bitmap.readStageOwnerBitmap(sql,bitmapStore.hydrateStageOwnerBitmap(sql),
+    {...scope,formats:['ebook']}),filteredGold({...scope,formats:['ebook']}),
+    'Rejected positive delta must roll back entire owner transaction');
 
   inTransaction(()=>{
     const receipt=commercial.denyCommercialSubject(sql,{
@@ -277,6 +353,8 @@ try{
     assert.equal(receipt.applied,true);
     idx.reconcileStageOwnerDirty(sql);
     stage.rebuildStageOwnerCatalogSnapshot(sql);
+    const patch=bitmapStore.persistStageOwnerBitmapRevocations(sql);
+    assert.equal(patch.removed,1,'Exact contract withdrawal needs one tombstone');
   });
   assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope),stage.stageOwnerCatalogRead(sql,scope));
   for(const part of filterSamples){const input={...scope,...part};
@@ -287,7 +365,14 @@ try{
     'Revoked contract keyword must be removed from FTS in owner transaction');
   assert.equal(fts.stageOwnerFtsCoversAll(sql,'"fake" AND "catalog"',24),true,
     'Contract withdrawal must update ubiquitous term frequency transactionally');
+  assert.throws(()=>bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope),
+    /stale_epoch/,'Contract revocation changes owner generation');
+  bitmapSnapshot=bitmapStore.hydrateStageOwnerBitmap(sql);
+  assert.deepEqual(bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,{...scope,categories:['Fiction']}),
+    filteredGold({...scope,categories:['Fiction']}),
+    'Removal-only owner delta preserves exact facet and price parity without rebuilding');
   assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,24);
+  assert.ok(!bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope).pageIds.includes(paidIds[0]));
   assert.ok(!stage.readStageOwnerCatalogSnapshot(sql,scope).pageIds.includes(paidIds[0]));
   assert.equal(paid.readCommercialStorefront(sql,paidIds,'US','USD').length,12);
 
@@ -297,6 +382,8 @@ try{
     }).applied,true);
     idx.reconcileStageOwnerDirty(sql);
     stage.rebuildStageOwnerCatalogSnapshot(sql);
+    const patch=bitmapStore.persistStageOwnerBitmapRevocations(sql);
+    assert.equal(patch.removed,1,'Exact source withdrawal needs one tombstone');
   });
   assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope),stage.stageOwnerCatalogRead(sql,scope));
   for(const part of filterSamples){const input={...scope,...part};
@@ -305,6 +392,12 @@ try{
     'Revoked free source cannot remain searchable');
   assert.equal(fts.stageOwnerFtsCoversAll(sql,'"fake" AND "catalog"',23),true,
     'Source withdrawal must keep exact all-documents FTS invariants');
+  assert.throws(()=>bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope),
+    /stale_epoch/,'Free-source withdrawal invalidates old snapshot');
+  bitmapSnapshot=bitmapStore.hydrateStageOwnerBitmap(sql);
+  assert.deepEqual(bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,{...scope,languages:['en']}),
+    filteredGold({...scope,languages:['en']}),
+    'Second consecutive owner delta retains exact page/count/facet parity');
   assert.equal(stage.readStageOwnerCatalogSnapshot(sql,scope).count,23);
   assert.equal(free.readAuthorizedPresentations(sql,freeIds,'US','USD').length,11);
 
@@ -320,20 +413,38 @@ try{
     idx.reconcileStageOwnerDirty(sql);
     stage.rebuildStageOwnerCatalogSnapshot(sql);
   });
+  assert.throws(()=>bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope),
+    /stale_epoch/,'Shortening a paid lease invalidates old bitmap');
+  assert.throws(()=>bitmapStore.persistStageOwnerBitmapRevocations(sql),
+    /positive_or_unsupported_edit/,
+    'A lease extension/metadata rewrite requires a full canonical bitmap seal');
+  bitmapSnapshot=bitmap.buildStageOwnerBitmap(sql);
+  inTransaction(()=>bitmapStore.persistStageOwnerBitmap(sql,bitmapSnapshot));
   assert.equal(idx.readStageOwnerIncrementalIndex(sql,scope).count,23);
   await new Promise(resolve=>setTimeout(resolve,2400));
   assert.throws(()=>idx.readStageOwnerIncrementalIndex(sql,scope),/expired_unreconciled/,
     'Past canonical lease deadline MUST block stale indexed count and page');
   assert.throws(()=>idx.readStageOwnerFilteredIndex(sql,{...scope,categories:['Fiction']}),
     /expired_unreconciled/,'The filtered query cache also cannot bypass expiry');
+  assert.throws(()=>bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope),
+    /expired_unreconciled/,'Owner lease expiry prevents stale bitmap reads');
   inTransaction(()=>{
     const swept=idx.refreshStageOwnerExpired(sql);
     assert.equal(swept.processed,1,'Only genuinely expired owner-local lease is reconciled');
     assert.equal(swept.remaining,0);
+    const patch=bitmapStore.persistStageOwnerBitmapRevocations(sql);
+    assert.equal(patch.removed,1,'Expired canonical lease must clear exactly one bitmap item');
     // The OLD full snapshot is known to fail publication after ANY expired
     // stored paid lease. This incremental index deliberately avoids that
     // global expiry lock; keep the old snapshot unavailable, not falsified.
   });
+  assert.throws(()=>bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope),
+    /stale_epoch/,'Expiry cleanup invalidates pre-expiry bitmap');
+  bitmapSnapshot=bitmapStore.hydrateStageOwnerBitmap(sql);
+  assert.deepEqual(bitmap.readStageOwnerBitmap(sql,bitmapStore.hydrateStageOwnerBitmap(sql),
+    {...scope,languages:['en'],formats:['ebook']}),
+    filteredGold({...scope,languages:['en'],formats:['ebook']}),
+    'Rehydrated owner snapshot must exclude expired commercial proofs');
   assert.equal(idx.readStageOwnerIncrementalIndex(sql,scope).count,22);
   assert.equal(idx.readStageOwnerFilteredIndex(sql,{...scope,query:'13'}).count,0,
     'Expired paid proof must leave FTS and its cache after owner refresh');
@@ -359,6 +470,10 @@ try{
   for(const part of filterSamples){const input={...scope,...part};
     assert.deepEqual(idx.readStageOwnerFilteredIndex(sql,input),filteredGold(input));}
   assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope).pageIds,[]);
+  assert.deepEqual(bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,scope).pageIds,[],
+    'Global market tombstone must veto retained bitmap state');
+  assert.throws(()=>bitmapStore.hydrateStageOwnerBitmap(sql),/market_withdrawn/,
+    'Market-wide denial must block persisted snapshot hydration immediately');
   assert.deepEqual(idx.readStageOwnerIncrementalIndex(sql,scope).facets.availability,[]);
   for(const invalid of [
     {...scope,page:2},{...scope,limit:10},{...scope,query:'war'},
@@ -368,6 +483,13 @@ try{
   assert.throws(()=>stage.stageOwnerCatalogRead(sql,{...scope,query:'war'}),/unsupported_scope/);
   for(const bad of [{...scope,query:'War'},{...scope,sort:'popular'},{...scope,filter:'category'}])
     assert.throws(()=>idx.readStageOwnerIncrementalIndex(sql,bad),/unreviewed_scope/);
+  assert.throws(()=>bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,{...scope,query:'fake'}),
+    /unsupported_scope/,'Unsupported FTS must fail closed');
+  assert.throws(()=>bitmap.readStageOwnerBitmap(sql,bitmapSnapshot,{...scope,territory:'GB'}),
+    /unsupported_scope/,'Uncertified market must fail closed');
+  console.log('PASS: prebuilt owner bitmap exact counts/pages/facets and dirty, contract, source, expiry, market denials');
+  console.log('PASS: bounded owner-local persisted bitmap, corrupted/missing shards, stale epoch, source/contract/expiry and market denial');
+  console.log('PASS: canonical owner removal-only bitmap deltas: contract, source and expiry with 0 full bitmap rebuilds');
   console.log('PASS: owner-transactional FTS5 keyword matching and '+filterSamples.length+
     ' filtered+keyword cases, expiry/contract/source/market withdrawal, disjunctive facets');
   console.log('PASS: owner-index exact default count/facets/page 25/24/23/22/0; 250 indexed hot reads, source/contract/market denial, dirty fail-close, disallowed scopes rejected');
