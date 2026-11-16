@@ -20,7 +20,7 @@ on:
         description: "Enter exact reviewed source SHA from PR #728 (required)."
         required: true
         type: string
-        default: "c3c1a68dd239aca018040d3165c44630118ae8af"
+        default: "a3fd303da6f7418ceec574e0c158d62fe1245984"
 
 permissions:
   contents: read
@@ -49,7 +49,7 @@ jobs:
           git diff --check
 
   upload_archived_only:
-    if: ${{ github.repository == 'JibrilMohamud/cove' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirm_zero_traffic_only == true && inputs.reviewed_source_sha == 'c3c1a68dd239aca018040d3165c44630118ae8af' }}
+    if: ${{ github.repository == 'JibrilMohamud/cove' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirm_zero_traffic_only == true && inputs.reviewed_source_sha == 'a3fd303da6f7418ceec574e0c158d62fe1245984' }}
     environment: cove-production-release-audit
     runs-on: ubuntu-latest
     timeout-minutes: 25
