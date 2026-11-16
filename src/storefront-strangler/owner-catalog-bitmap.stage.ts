@@ -16,7 +16,7 @@
  * deliberately rejected. No rights may be inferred from metadata.
  */
 import type {AuthoritySql} from './legal-authority-core';
-import {readStageOwnerIncrementalIndex} from './owner-catalog-incremental-index.stage';
+import {guardStageOwnerIndexRead} from './owner-catalog-incremental-index.stage';
 
 const TERRITORY='US',CURRENCY='USD';
 const FIELDS=['categories','languages','formats','publishers','series'] as const;
@@ -37,12 +37,6 @@ type Snapshot={
 };
 const defaultInput={territory:TERRITORY,currency:CURRENCY,sort:'rank',
   page:1,limit:25,query:''} as const;
-function ownerEpoch(sql:AuthoritySql){
-  const n=sql.exec<{epoch:number}>('SELECT epoch FROM cove_stage_owner_index_epoch WHERE id=1')
-    .toArray()[0]?.epoch;
-  if(!Number.isSafeInteger(n)||n<0)throw Error('stage_owner_bitmap_unsealed_epoch');
-  return n;
-}
 function checkedScope(input:Scope){
   if(!input||input.territory!==TERRITORY||input.currency!==CURRENCY||
     input.sort!=='rank'||!Number.isSafeInteger(input.page)||input.page<1||
@@ -81,8 +75,9 @@ function countBits(bits:Uint32Array){
  * incomplete index cannot be used as a source of positive rights.
  */
 export function buildStageOwnerBitmap(sql:AuthoritySql):Snapshot{
-  const guarded=readStageOwnerIncrementalIndex(sql,defaultInput);
-  const beforeEpoch=ownerEpoch(sql);
+  const guarded=guardStageOwnerIndexRead(sql,defaultInput);
+  if(guarded.withdrawn)throw Error('stage_owner_bitmap_market_withdrawn');
+  const beforeEpoch=guarded.epoch;
   const rows=sql.exec<OwnerItem>(`SELECT product_id,rank_score,price_minor
     FROM cove_stage_owner_index_items WHERE territory=? AND currency=?
     ORDER BY rank_score DESC,product_id ASC`,TERRITORY,CURRENCY).toArray();
@@ -117,12 +112,11 @@ export function buildStageOwnerBitmap(sql:AuthoritySql):Snapshot{
     if(!bits){bits=new Uint32Array(words);byValue.set(dim.value,bits);}
     bits[index!>>>5]|=1<<(index!&31);
   }
-  if(ownerEpoch(sql)!==beforeEpoch)
+  // Re-run the complete owner guard, not merely the epoch. A market tombstone
+  // or proof expiry can block a snapshot without changing any item bit.
+  const after=guardStageOwnerIndexRead(sql,defaultInput);
+  if(after.withdrawn||after.count!==rows.length||after.epoch!==beforeEpoch)
     throw Error('stage_owner_bitmap_modified_during_build');
-  // Re-run the complete owner guard, not merely the numeric epoch; a tombstone
-  // or clock deadline can change without any positive index-row mutation.
-  const after=readStageOwnerIncrementalIndex(sql,defaultInput);
-  if(after.count!==rows.length)throw Error('stage_owner_bitmap_modified_during_build');
   const bitmapBytes=[...postings.values()].reduce((size,values)=>
     size+[...values.values()].reduce((n,bits)=>n+bits.byteLength,0),allBits.byteLength);
   return {ownerEpoch:beforeEpoch,count:rows.length,approximateBitmapBytes:bitmapBytes,
@@ -135,11 +129,12 @@ export function buildStageOwnerBitmap(sql:AuthoritySql):Snapshot{
  */
 export function readStageOwnerBitmap(sql:AuthoritySql,snapshot:Snapshot,input:Scope){
   checkedScope(input);
-  const current=readStageOwnerIncrementalIndex(sql,defaultInput);
-  // A withdrawn market can return zero immediately without consulting
-  // historical positive bitmap contents.
-  if(current.count===0)return {...current,pageIds:[]};
-  if(ownerEpoch(sql)!==snapshot.ownerEpoch||current.count!==snapshot.count)
+  const current=guardStageOwnerIndexRead(sql,defaultInput);
+  // Withdrawn markets or a truly empty catalog return no historical rights.
+  if(current.count===0)return {count:0,pageIds:[],
+    facets:{categories:[],languages:[],formats:[],publishers:[],series:[],
+      availability:[],price:null},releaseCertified:false as const};
+  if(current.epoch!==snapshot.ownerEpoch||current.count!==snapshot.count)
     throw Error('stage_owner_bitmap_stale_epoch');
   const {rows,allBits,postings}=snapshot;
   const words=allBits.length;

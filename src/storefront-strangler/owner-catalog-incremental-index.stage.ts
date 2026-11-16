@@ -304,6 +304,43 @@ export function bootstrapStageOwnerIndex(sql:AuthoritySql){
   sql.exec('UPDATE cove_stage_owner_index_state SET bootstrapped=1 WHERE id=1');
 }
 
+/** The exact minimal synchronous owner guard. Avoid serializing a page,
+ * aggregates or facets merely to prove the owner-index bitmap is current.
+ * This is stage-only and deliberately never treats a presentation as a grant.
+ */
+export function guardStageOwnerIndexRead(sql:AuthoritySql,scope:{
+  territory:string;currency:string;
+}){
+  if(!scope||scope.territory!==DEFAULT.territory||
+    scope.currency!==DEFAULT.currency)
+    throw Error('stage_owner_index_unreviewed_scope');
+  const ready=sql.exec<{bootstrapped:number}>(
+    'SELECT bootstrapped FROM cove_stage_owner_index_state WHERE id=1').toArray()[0];
+  if(!ready||ready.bootstrapped!==1)throw Error('stage_owner_index_uninitialized');
+  if(sql.exec('SELECT product_id FROM cove_stage_owner_dirty LIMIT 1').toArray().length)
+    throw Error('stage_owner_index_dirty_unreconciled');
+  // Market tombstone is a synchronous owner-local veto even when no index
+  // item, bitmap bit or price changes; never consult stale positive snapshots.
+  const withdrawn=marketIsWithdrawn(sql,scope.territory);
+  if(!withdrawn){
+    const now=new Date().toISOString();
+    const expired=sql.exec(`SELECT product_id FROM cove_stage_owner_index_items
+      WHERE territory=? AND currency=? AND expires_at<=? LIMIT 1`,
+      scope.territory,scope.currency,now).toArray();
+    if(expired.length)throw Error('stage_owner_index_expired_unreconciled');
+  }
+  const epoch=sql.exec<{epoch:number}>(
+    'SELECT epoch FROM cove_stage_owner_index_epoch WHERE id=1').toArray()[0]?.epoch;
+  if(!Number.isSafeInteger(epoch)||epoch<0)
+    throw Error('stage_owner_index_invalid_epoch');
+  const count=withdrawn?0:(sql.exec<{amount:number}>(`SELECT amount FROM
+    cove_stage_owner_index_totals WHERE territory=? AND currency=?`,
+    scope.territory,scope.currency).toArray()[0]?.amount??0);
+  if(!Number.isSafeInteger(count)||count<0)
+    throw Error('stage_owner_index_invalid_count');
+  return {withdrawn,count,epoch};
+}
+
 export function readStageOwnerIncrementalIndex(sql:AuthoritySql,scope:{
   territory:string;currency:string;sort:string;page:number;limit:number;query?:string;
 }){
@@ -313,24 +350,12 @@ export function readStageOwnerIncrementalIndex(sql:AuthoritySql,scope:{
     (scope.query!==undefined&&scope.query!=='')||Object.keys(scope).some(x=>
       !['territory','currency','sort','page','limit','query'].includes(x)))
     throw Error('stage_owner_index_unreviewed_scope');
-  const ready=sql.exec<{bootstrapped:number}>(
-    'SELECT bootstrapped FROM cove_stage_owner_index_state WHERE id=1').toArray()[0];
-  if(!ready||ready.bootstrapped!==1)throw Error('stage_owner_index_uninitialized');
-  if(sql.exec('SELECT product_id FROM cove_stage_owner_dirty LIMIT 1').toArray().length)
-    throw Error('stage_owner_index_dirty_unreconciled');
-  // O(1) mandatory market veto; a global withdrawal never requires an 82k
-  // product fanout and never waits for cached counts to be refreshed.
-  if(marketIsWithdrawn(sql,scope.territory))return {
+  const current=guardStageOwnerIndexRead(sql,scope);
+  if(current.withdrawn)return {
     count:0,pageIds:[],facets:{categories:[],languages:[],formats:[],
       publishers:[],series:[],availability:[],price:null},releaseCertified:false as const,
   };
-  const now=new Date().toISOString();
-  const expired=sql.exec(`SELECT product_id FROM cove_stage_owner_index_items
-    WHERE territory=? AND currency=? AND expires_at<=? LIMIT 1`,
-    scope.territory,scope.currency,now).toArray();
-  if(expired.length)throw Error('stage_owner_index_expired_unreconciled');
-  const count=sql.exec<{amount:number}>(`SELECT amount FROM cove_stage_owner_index_totals
-    WHERE territory=? AND currency=?`,scope.territory,scope.currency).toArray()[0]?.amount??0;
+  const count=current.count;
   const pageIds=sql.exec<{product_id:string}>(`SELECT product_id FROM cove_stage_owner_index_items
     WHERE territory=? AND currency=? ORDER BY rank_score DESC,product_id LIMIT ? OFFSET ?`,
     scope.territory,scope.currency,scope.limit,(scope.page-1)*scope.limit).toArray()
