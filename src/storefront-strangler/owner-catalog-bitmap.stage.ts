@@ -65,13 +65,14 @@ function checkedScope(input:Scope){
   if(input.minPrice!==undefined&&input.maxPrice!==undefined&&
     input.minPrice>input.maxPrice)throw Error('stage_owner_bitmap_inverted_price');
 }
+function popcount32(n:number){
+  n=n-((n>>>1)&0x55555555);
+  n=(n&0x33333333)+((n>>>2)&0x33333333);
+  return (((n+(n>>>4))&0x0f0f0f0f)*0x01010101)>>>24;
+}
 function countBits(bits:Uint32Array){
   let count=0;
-  for(let n of bits){
-    n=n-((n>>>1)&0x55555555);
-    n=(n&0x33333333)+((n>>>2)&0x33333333);
-    count+=(((n+(n>>>4))&0x0f0f0f0f)*0x01010101)>>>24;
-  }
+  for(const n of bits)count+=popcount32(n);
   return count;
 }
 /**
@@ -183,7 +184,7 @@ export function readStageOwnerBitmap(sql:AuthoritySql,snapshot:Snapshot,input:Sc
     const values:Array<{value:string;count:number}>=[];
     for(const [value,bits] of postings.get(field)!){
       let n=0;
-      for(let w=0;w<words;w++)n+=countBits(Uint32Array.of(basis[w]&bits[w]));
+      for(let w=0;w<words;w++)n+=popcount32(basis[w]&bits[w]);
       if(n)values.push({value,count:n});
     }
     facets[field]=values.sort((a,b)=>b.count-a.count||
