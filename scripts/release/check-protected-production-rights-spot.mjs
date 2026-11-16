@@ -4,7 +4,7 @@
  * Only a protected/manual workflow_dispatch with a D1-READ credential can
  * execute live. Every SQL statement must be a single SELECT or WITH, all
  * D1 response metadata must report zero mutations, and no SQL/results/IDs/
- * book/contract texts/token values are logged. At most twelve products and
+ * book/contract texts/token values are logged. At most sixteen products and
  * 400 bounded D1 SELECT requests. No writes, owner flag, Stripe, routing,
  * publishing, payments, offline entitlements or other customer operations.
  *
@@ -19,7 +19,7 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {createProtectedD1ReadThrottle} from './protected-d1-read-throttle.mjs';
-import {POSITIVE_WITNESSES,NEGATIVE_WITNESSES,addRightsWitnesses,
+import {POSITIVE_WITNESSES,NEGATIVE_WITNESSES,TERRITORY_WITNESSES,addRightsWitnesses,
   assertRightsWitnessCoverage,verifyNegativeRightsVerdict} from './protected-rights-witness-policy.mjs';
 
 const ACCOUNT='d26430caa63ec55f6612e32f36aca5e9';
@@ -27,7 +27,7 @@ const PRODUCTION_DB='4bd657ac-8789-403e-a28c-93aba8d0a989';
 const BRANCH='refs/heads/main';
 const DB_API='https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT+
   '/d1/database/'+PRODUCTION_DB+'/query';
-const MAX_PRODUCTS=12,MAX_QUERIES=400;
+const MAX_PRODUCTS=16,MAX_QUERIES=400;
 // Deliberately independent legal-policy cohorts, not merely the first
 // contract-bound or bestselling products. Small fixed limits prevent a
 // metadata scan or whole-catalog rights resolution from this audit.
@@ -87,6 +87,16 @@ const SUSPENDED_SQL=`SELECT p.id product_id FROM rights_grants rg
  JOIN products p ON p.edition_id=rg.edition_id
  WHERE rg.status='suspended' AND p.storefront_status<>'active'
    AND p.id NOT LIKE 'perf-synth-%' LIMIT 4`;
+// A real active Australian-only grant must NOT permit US distribution.
+// Select evidence by grant source and absence of a US territory grant, not
+// by pre-filtering against the legacy legal view that is under test.
+const TERRITORY_SQL=`SELECT p.id product_id
+ FROM rights_grants rg JOIN products p ON p.edition_id=rg.edition_id
+ WHERE rg.source='gutenberg-pg_au-public-domain' AND rg.status='active'
+   AND p.storefront_status='active' AND p.id NOT LIKE 'perf-synth-%'
+   AND NOT EXISTS(SELECT 1 FROM rights_grant_territories rgt
+     WHERE rgt.grant_id=rg.id AND upper(rgt.territory_code)='US')
+ LIMIT 4`;
 const VIEW_SQL=`SELECT EXISTS(SELECT 1 FROM retail_product_availability_rows a
   WHERE a.product_id=? AND a.territory_code='US') AS permitted`;
 const WATERMARK_SQL=`SELECT
@@ -142,6 +152,7 @@ async function main(){
     }
     assert.equal(allowedReadSql(VIEW_SQL),true);
     assert.equal(allowedReadSql(SUSPENDED_SQL),true);
+    assert.equal(allowedReadSql(TERRITORY_SQL),true);
     assert.equal(allowedReadSql('SELECT 1;DELETE FROM products'),false);
     assert.equal(allowedReadSql('SELECT load_extension(x)'),false);
     assert.equal(allowedReadSql('UPDATE rights_grants SET status=\'active\''),false);
@@ -265,11 +276,20 @@ async function main(){
     cohortCounts.suspended_inactive={
       candidates:suspendedRows.length,uniquelySelected:negativeSelected,
     };
-    assertRightsWitnessCoverage(positiveIds,suspendedIds);
-    const ids=[...positiveIds,...suspendedIds];
+    const territoryRows=await readSql(TERRITORY_SQL);
+    if(territoryRows.length>TERRITORY_WITNESSES)
+      throw Error('rights_spot_audit_cohort_unbounded');
+    const territoryIds=new Set();
+    const territorySelected=addRightsWitnesses(territoryIds,territoryRows,
+      TERRITORY_WITNESSES,new Set([...positiveIds,...suspendedIds]));
+    cohortCounts.australian_not_us={
+      candidates:territoryRows.length,uniquelySelected:territorySelected,
+    };
+    assertRightsWitnessCoverage(positiveIds,suspendedIds,territoryIds);
+    const ids=[...positiveIds,...suspendedIds,...territoryIds];
     const now=new Date().toISOString();
     let allowed=0,legacyAllowed=0,viewOnly=0,canonicalOnly=0;
-    let positiveAllowedByBoth=0,suspendedDeniedByBoth=0;
+    let positiveAllowedByBoth=0,suspendedDeniedByBoth=0,territoryDeniedByBoth=0;
     const reasons=Object.create(null);
     for(const id of ids){
       let verdict;
@@ -287,8 +307,11 @@ async function main(){
         throw Error('rights_spot_audit_invalid_legacy_view');
       const legacy=Number(view.permitted)===1;
       if(suspendedIds.has(id)){
-        verifyNegativeRightsVerdict(verdict,legacy);
+        verifyNegativeRightsVerdict(verdict,legacy,'PRODUCT_INACTIVE');
         suspendedDeniedByBoth++;
+      }else if(territoryIds.has(id)){
+        verifyNegativeRightsVerdict(verdict,legacy,'NO_ACTIVE_GRANT');
+        territoryDeniedByBoth++;
       }else if(verdict.allowed&&legacy) positiveAllowedByBoth++;
       if(verdict.allowed)allowed++;
       else{
@@ -301,14 +324,15 @@ async function main(){
       if(verdict.allowed&&!legacy)canonicalOnly++;
     }
     if(positiveAllowedByBoth!==POSITIVE_WITNESSES||
-      suspendedDeniedByBoth!==NEGATIVE_WITNESSES)
+      suspendedDeniedByBoth!==NEGATIVE_WITNESSES||
+      territoryDeniedByBoth!==TERRITORY_WITNESSES)
       throw Error('rights_spot_audit_insufficient_deny_and_allow_witnesses');
     const after=(await readSql(WATERMARK_SQL))[0];
     if(!after||Object.keys(before).some(k=>before[k]!==after[k]))
       throw Error('rights_spot_audit_source_changed');
-    const out={schema:'cove.production.canonical-rights-spot-readonly.v2',
+    const out={schema:'cove.production.canonical-rights-spot-readonly.v3',
       checked:ids.length,cohortCounts,positiveAllowedByBoth,
-      suspendedDeniedByBoth,canonicalAllowed:allowed,
+      suspendedDeniedByBoth,territoryDeniedByBoth,canonicalAllowed:allowed,
       legacyAllowed,viewOnly,canonicalOnly,deniedReasons:reasons,
       D1Queries:queryCount,D1HttpAttempts:throttle.stats().httpAttempts,
       rateLimitedResponses:throttle.stats().rateLimitedResponses,
