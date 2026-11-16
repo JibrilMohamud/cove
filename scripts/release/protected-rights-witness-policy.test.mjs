@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Adversarial protected rights withdrawal fixture. */
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {addRightsWitnesses,assertRightsWitnessCoverage,verifyNegativeRightsVerdict,
