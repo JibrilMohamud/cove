@@ -17,7 +17,7 @@ on:
         type: boolean
         default: false
       reviewed_source_sha:
-        description: "Enter exact reviewed source SHA from PR #728 (required)."
+        description: "Enter the exact approved main source SHA; any later source drift fails closed."
         required: true
         type: string
         default: "a3fd303da6f7418ceec574e0c158d62fe1245984"
