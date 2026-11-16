@@ -203,11 +203,88 @@ assert.equal(
   ),
   "other",
 );
+// A trusted 503 body is optional diagnostic evidence, not customer data.
+// Even a malicious or wedged upstream stream must not delay fail-closed 503.
+const encoded = (value) => new TextEncoder().encode(value);
+const oneKB = "x".repeat(1025);
+assert.equal(
+  await backendFailureCategory(new Response(oneKB, { status: 503, headers: apiHeaders })),
+  "other",
+  "No Content-Length must not allow an unbounded upstream body",
+);
+assert.equal(
+  await backendFailureCategory(
+    new Response("{}", {
+      status: 503,
+      headers: { ...apiHeaders, "content-length": "infinity" },
+    }),
+  ),
+  "other",
+  "Malformed content length cannot grant unbounded parsing",
+);
+assert.equal(
+  await backendFailureCategory(
+    new Response('{"error":"No active Cove storefront market is configured."}', {
+      status: 503,
+      headers: { ...apiHeaders, "content-length": "4096" },
+    }),
+  ),
+  "other",
+  "Declared oversized body is rejected without parsing",
+);
+const delayed = new ReadableStream({
+  start(controller) {
+    controller.enqueue(encoded('{"error":"No active Cove '));
+    setTimeout(() => {
+      controller.enqueue(encoded('storefront market is configured."}'));
+      controller.close();
+    }, 20);
+  },
+});
+assert.equal(
+  await backendFailureCategory(new Response(delayed, { status: 503, headers: apiHeaders })),
+  "market-configuration",
+  "Bounded split JSON within the deadline retains existing diagnostics",
+);
+const oversize = new ReadableStream({
+  start(controller) {
+    controller.enqueue(encoded(oneKB));
+    controller.close();
+  },
+});
+assert.equal(
+  await backendFailureCategory(new Response(oversize, { status: 503, headers: apiHeaders })),
+  "other",
+  "Actual byte count, not just Content-Length, must enforce 1KiB maximum",
+);
+const stalled = new ReadableStream({
+  start() {
+    // Upstream sends HTTP 503 headers but never finishes its JSON body.
+  },
+});
+const started = performance.now();
+assert.equal(
+  await Promise.race([
+    backendFailureCategory(new Response(stalled, { status: 503, headers: apiHeaders })),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Gateway 503 diagnostic read never terminated")), 800),
+    ),
+  ]),
+  "other",
+  "An indefinite upstream body may not prevent returning a fail-closed 503",
+);
+assert.ok(
+  performance.now() - started < 550,
+  "Error categorization must remain bounded independently of upstream body completion",
+);
+
 const gateway = fs.readFileSync("src/lib/persistence-backend.ts", "utf8");
 assert.match(gateway, /path === "\/api\/fore\/storefront\/bootstrap"/);
 assert.match(gateway, /backendFailureSource\(response\.headers\)/);
 assert.match(gateway, /backendFailurePhase\(response\.headers\)/);
 assert.match(gateway, /backendFailureStage\(response\.headers\)/);
 assert.match(gateway, /await backendFailureCategory\(response\)/);
+assert.doesNotMatch(gateway, /await response\.body\?\.cancel\(\)/);
+assert.match(gateway, /void response\.body\?\.cancel\(\)\.catch\(\(\) => \{\}\)/);
 assert.match(gateway, /if \(productionFallbackDenied\(env\)\)/);
 console.log("Read-only persistence 5xx attribution and fail-closed bootstrap: PASS");

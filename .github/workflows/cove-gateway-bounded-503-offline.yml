@@ -1,0 +1,37 @@
+name: cove-gateway-bounded-503-offline
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/lib/persistence-backend-failure.ts"
+      - "src/lib/persistence-backend.ts"
+      - "scripts/check-persistence-backend-failure.mjs"
+      - "scripts/check-gateway-bounded-503-live-shaped.mjs"
+      - "scripts/check-persistence-backend.mjs"
+      - ".github/workflows/cove-gateway-bounded-503-offline.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  fail-closed-bounded-upstream:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Reject indefinite or oversized upstream 503 error bodies
+        run: |
+          node scripts/check-persistence-backend-failure.mjs
+          node scripts/check-gateway-bounded-503-live-shaped.mjs
+          node scripts/check-persistence-backend.mjs
+      - run: npm run typecheck
+      - run: npm run build:backend
+      - run: git diff --check

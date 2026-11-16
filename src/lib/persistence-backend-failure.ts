@@ -70,16 +70,66 @@ export type BackendFailureCategory =
  * authorize a fallback. Whitelisted exact messages only; no raw error,
  * request URLs, identity, cookies, response headers or secrets reach logs.
  */
+const MAX_FAILURE_BODY_BYTES = 1024;
+const FAILURE_READ_DEADLINE_MS = 150;
+
+/**
+ * The remote response is discarded on the production failure path. Consume
+ * ONLY its first bounded JSON error document, without cloning a potentially
+ * unbounded or stalled stream. Never let error categorization hold a customer
+ * 503 for the upstream's 30-second fetch deadline.
+ *
+ * This intentionally consumes/cancels the response body. No caller may read
+ * or forward the discarded upstream body after categorization.
+ */
 export async function backendFailureCategory(response: Response): Promise<BackendFailureCategory> {
+  const lengthHeader = response.headers.get("content-length");
   if (
     response.status < 500 ||
     backendFailureSource(response.headers) !== "worker-api" ||
     !response.headers.get("content-type")?.includes("application/json") ||
-    Number(response.headers.get("content-length") || 0) > 1024
+    (lengthHeader !== null &&
+      (!/^[0-9]+$/.test(lengthHeader) || Number(lengthHeader) > MAX_FAILURE_BODY_BYTES))
   )
     return "other";
+
+  let reader: ReadableStreamDefaultReader<Uint8Array>;
   try {
-    const value: unknown = await response.clone().json();
+    if (!response.body) return "other";
+    reader = response.body.getReader();
+  } catch {
+    return "other";
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<"deadline">((resolve) => {
+    timer = setTimeout(() => resolve("deadline"), FAILURE_READ_DEADLINE_MS);
+  });
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const next = await Promise.race([
+        reader.read().then(
+          (value) => ({ kind: "read" as const, value }),
+          () => ({ kind: "error" as const }),
+        ),
+        deadline,
+      ]);
+      if (next === "deadline" || next.kind === "error") return "other";
+      if (next.value.done) break;
+      const chunk = next.value.value;
+      if (!(chunk instanceof Uint8Array)) return "other";
+      total += chunk.byteLength;
+      if (total > MAX_FAILURE_BODY_BYTES) return "other";
+      chunks.push(chunk);
+    }
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    const value: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
     if (!value || typeof value !== "object" || Array.isArray(value)) return "other";
     const message = (value as { error?: unknown }).error;
     if (
@@ -99,7 +149,17 @@ export async function backendFailureCategory(response: Response): Promise<Backen
     if (message === "This content could not be loaded. Please try again.")
       return "handler-exception";
   } catch {
-    // Even a malformed or unreadable error response cannot modify deny behavior.
+    // Malformed, invalid UTF-8 or unreadable bytes cannot change deny behavior.
+  } finally {
+    if (timer) clearTimeout(timer);
+    // Cancellation/cleanup must NEVER become another awaited upstream wait.
+    // A pending reader.read is safely observed by the rejection handler above.
+    void reader.cancel().catch(() => {});
+    try {
+      reader.releaseLock();
+    } catch {
+      // A still-pending stream is discarded, never used for customer output.
+    }
   }
   return "other";
 }
