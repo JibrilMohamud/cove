@@ -49,8 +49,7 @@ const evidenceFile = evidenceDir + "/evidence.json";
 const beforeFile = evidenceDir + "/before.json";
 const base = `/accounts/${WORKER_ACCOUNT}/workers/scripts/${WORKER_NAME}`;
 
-const OWNER_SETTINGS_PATH =
-  `/accounts/${WORKER_ACCOUNT}/workers/scripts/cove-legal-authority-production/settings`;
+const OWNER_SETTINGS_PATH = `/accounts/${WORKER_ACCOUNT}/workers/scripts/cove-legal-authority-production/settings`;
 
 async function get(path) {
   // Never allow the upload-capable token to access the legal-owner Worker;
