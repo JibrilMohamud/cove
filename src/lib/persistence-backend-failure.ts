@@ -25,7 +25,18 @@ export function backendFailurePhase(headers: Headers): "post-context" | "pre-con
 
 /** An enum of failed timed stages, never an upstream exception message. */
 export type BackendFailureStage =
-  "context" | "catalog" | "markets" | "limit" | "page" | "multiple" | "unknown";
+  | "context"
+  | "catalog"
+  | "markets"
+  | "limit"
+  | "page"
+  | "multiple"
+  | "unknown"
+  | "context-preference"
+  | "context-market"
+  | "context-locale"
+  | "context-currency"
+  | "context-details";
 
 export function backendFailureStage(headers: Headers): BackendFailureStage {
   if (backendFailureSource(headers) !== "worker-api") return "unknown";
@@ -34,7 +45,17 @@ export function backendFailureStage(headers: Headers): BackendFailureStage {
   const found = phases.filter((phase) =>
     new RegExp(`(?:^|,)\\s*cove_fault_${phase};dur=1(?:\\.0)?(?:,|$)`).test(timing),
   );
-  return found.length === 1 ? found[0] : found.length > 1 ? "multiple" : "unknown";
+  if (found.length > 1) return "multiple";
+  if (found.length !== 1) return "unknown";
+  // Hierarchical context detail is only trusted with the matching parent
+  // failure marker and backend provenance. A child cannot override catalog,
+  // admission or competing concurrent failure stages.
+  if (found[0] !== "context") return found[0];
+  const contextPhases = ["preference", "market", "locale", "currency", "details"] as const;
+  const sub = contextPhases.filter((phase) =>
+    new RegExp(`(?:^|,)\\s*cove_fault_context_${phase};dur=1(?:\\.0)?(?:,|$)`).test(timing),
+  );
+  return sub.length === 1 ? `context-${sub[0]}` : sub.length > 1 ? "multiple" : "context";
 }
 
 export type BackendFailureCategory =

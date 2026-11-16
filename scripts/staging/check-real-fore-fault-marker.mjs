@@ -52,8 +52,12 @@ try{
     headers.set("x-cove-backend-cache","MISS");
     assert.equal(backendFailureSource(headers),"worker-api");
     const stage=backendFailureStage(headers);
-    assert.ok(["context","catalog","markets","limit","page","multiple"].includes(stage),
+    assert.ok(["context","context-market","catalog","markets","limit","page","multiple"].includes(stage),
       "Real Worker 503 did not retain a reviewed phase: "+route+" stage="+stage);
+    if(route==="/storefront/context"){
+      assert.equal(stage,"context-market",
+        "Synthetic failing market SELECT must produce exact, safe context substage");
+    }
     const timing=response.headers.get("server-timing")||"";
     assert.ok(timing.includes("cove_api;dur="));
     assert.ok(!timing.includes(SECRET));

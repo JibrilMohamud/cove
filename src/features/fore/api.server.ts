@@ -3282,6 +3282,11 @@ async function handleCoveRequest(
           (rows) => {
             homepageProjection.rows = rows;
           },
+          // Fixed numeric markers only: no SQL, user/market identifiers,
+          // cookies, exceptions, or response bodies ever enter Server-Timing.
+          (stage) => {
+            timings[`fault_context_${stage}`] = 1;
+          },
         ),
       ),
       firstPaint
