@@ -250,7 +250,7 @@ async function catalogBatch(request: Request, env: BackendEnv) {
       catalogAdmissionBudget(env.FORE_CATALOG_ADMISSION_MAX_MS),
     );
     if (admission.allowed) {
-      await syncSearchIndex(env, 500).catch((error) =>
+      await syncSearchIndex(env, 500).catch(() =>
         console.warn("Catalog search sync failed"),
       );
     } else {
@@ -450,7 +450,7 @@ async function runCommercialQueues(cron: string, env: BackendEnv) {
   }
   for (const [name, operation] of tasks) {
     try {
-      const result = await operation();
+      await operation();
       console.info(JSON.stringify({ event: "cove_queue_tick", name, completed: true }));
     } catch (error) {
       console.error("Cove scheduled queue failed", name);
@@ -637,10 +637,10 @@ async function runScheduled(cron: string, env: BackendEnv) {
     }
     if (cron === "*/5 * * * *") {
       // Customer health evidence must not wait for, or depend on, ingestion.
-      await refreshPublicStatus(env).catch((error) =>
+      await refreshPublicStatus(env).catch(() =>
         console.warn("Public service status refresh failed"),
       );
-      await prunePublicCache(env).catch((error) =>
+      await prunePublicCache(env).catch(() =>
         console.warn("Public cache cleanup failed"),
       );
       if (!(await audioComputeAdmission(env)).allowed) {
@@ -923,7 +923,7 @@ export default {
     if (controller.cron === "23 * * * *")
       ctx.waitUntil?.(
         processAccountDeletionQueue(env, 5)
-          .then((result) =>
+          .then(() =>
             console.info(JSON.stringify({ event: "account_erasure_tick", completed: true })),
           )
           .catch(() =>
