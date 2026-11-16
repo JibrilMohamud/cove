@@ -184,6 +184,48 @@ export function productionFtsExpression(raw,topic=''){
 
 /** Requires the caller's real owner-local index read as a synchronous legal
  * gate. Do not bind this stage-only endpoint to an external customer route. */
+
+/**
+ * Fail-closed synchronous owner guard, independent of the caller-provided
+ * presentation callback. The callback is advisory only and must agree with
+ * this actual owner-local SQLite decision. No external metadata, FTS row or
+ * boolean flag can grant access.
+ *
+ * The metadata-only import keeps an EMPTY authorization index. In that
+ * specific case the safe result is always zero without requiring uncreated
+ * owner tables. Any positive indexed item REQUIRES all owner safety tables.
+ */
+function guardedOwnerSearchPopulation(sql){
+  const present=exec(sql,`SELECT 1 FROM ${OWNER_DB_INDEX}
+    WHERE territory='US' AND currency='USD' LIMIT 1`);
+  if(!present.length)return 0;
+  const state=exec(sql,`SELECT bootstrapped FROM cove_stage_owner_index_state
+    WHERE id=1`)[0];
+  if(!state||state.bootstrapped!==1)
+    throw Error('stage_production_fts_owner_uninitialized');
+  if(exec(sql,`SELECT 1 FROM cove_stage_owner_dirty LIMIT 1`).length)
+    throw Error('stage_production_fts_owner_dirty_unreconciled');
+  if(exec(sql,`SELECT 1 FROM cove_market_withdrawals
+    WHERE territory='US' LIMIT 1`).length)return 0;
+  if(exec(sql,`SELECT 1 FROM ${OWNER_DB_INDEX}
+    WHERE territory='US' AND currency='USD' AND expires_at<=? LIMIT 1`,
+    new Date().toISOString()).length)
+    throw Error('stage_production_fts_owner_expired_unreconciled');
+  const amount=exec(sql,`SELECT amount FROM cove_stage_owner_index_totals
+    WHERE territory='US' AND currency='USD'`)[0]?.amount;
+  if(!Number.isSafeInteger(amount)||amount<=0)
+    throw Error('stage_production_fts_owner_count_unsealed');
+  return amount;
+}
+function checkedLegalGate(sql,legalIndexRead){
+  const legal=legalIndexRead();
+  if(!legal||legal.releaseCertified!==false||!Number.isSafeInteger(legal.count))
+    throw Error('stage_production_fts_authority_missing');
+  const safe=guardedOwnerSearchPopulation(sql);
+  if(legal.count!==safe)
+    throw Error('stage_production_fts_authority_disagreement');
+  return safe;
+}
 export function readStageProductionFtsMirror(sql,input,legalIndexRead){
   if(!input||Object.keys(input).some(k=>!['query','topic','territory','currency','language',
     'page','limit','sort'].includes(k))||input.territory!=='US'||input.currency!=='USD'||
@@ -191,14 +233,11 @@ export function readStageProductionFtsMirror(sql,input,legalIndexRead){
     !Number.isSafeInteger(input.page)||input.page<1||input.page>500||
     !Number.isSafeInteger(input.limit)||input.limit<1||input.limit>60||
     typeof legalIndexRead!=='function')throw Error('stage_production_fts_unreviewed_scope');
-  // Never consider a FTS match legally valid; the real owner index first
-  // checks current legal epoch, dirty queue, paid expiry and market veto.
-  const legal=legalIndexRead();
-  if(!legal||legal.releaseCertified!==false||!Number.isSafeInteger(legal.count))
-    throw Error('stage_production_fts_authority_missing');
+  // No injected callback can bypass the synchronous canonical-owner fence.
+  const countAuthorized=checkedLegalGate(sql,legalIndexRead);
   if(!exec(sql,`SELECT ready FROM ${READY} WHERE id=1 AND ready=1`).length)
     throw Error('stage_production_fts_unsealed');
-  if(legal.count===0)return {count:0,pageIds:[],releaseCertified:false};
+  if(countAuthorized===0)return {count:0,pageIds:[],releaseCertified:false};
   const expression=productionFtsExpression(input.query,input.topic||'');
   if(!expression)throw Error('stage_production_fts_empty_query_requires_default_index');
   const table=input.language==='en'?EN:FTS;
@@ -254,12 +293,10 @@ export function readStageProductionFtsFiltered(sql,input,legalIndexRead){
     throw Error('stage_production_fts_unreviewed_filters');
   if(input.minPrice!==undefined&&input.maxPrice!==undefined&&input.minPrice>input.maxPrice)
     throw Error('stage_production_fts_unreviewed_filters');
-  const legal=legalIndexRead();
-  if(!legal||legal.releaseCertified!==false||!Number.isSafeInteger(legal.count))
-    throw Error('stage_production_fts_authority_missing');
+  const countAuthorized=checkedLegalGate(sql,legalIndexRead);
   if(!exec(sql,`SELECT 1 FROM ${READY} WHERE id=1 AND ready=1`).length)
     throw Error('stage_production_fts_unsealed');
-  if(legal.count===0)return {count:0,pageIds:[],facets:{
+  if(countAuthorized===0)return {count:0,pageIds:[],facets:{
     categories:[],languages:[],formats:[],publishers:[],series:[],
     availability:[],price:null},releaseCertified:false};
   const expression=productionFtsExpression(input.query,input.topic||'');
