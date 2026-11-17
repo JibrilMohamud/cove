@@ -440,12 +440,21 @@ try {
       const start=performance.now();
       try{
         const r=await post("/qa/native-first-paint",nativeInput);
+        const phase=r.body?.diagnostics;
+        const phasesVerified=!!phase&&
+          ["marketReadMs","canonicalSelectMs","providerSqlMs","ownerTotalMs"]
+            .every(key=>typeof phase[key]==="number"&&
+              Number.isFinite(phase[key])&&phase[key]>=0&&phase[key]<=12000);
         return {ms:Math.round((performance.now()-start)*100)/100,
-          status:r.status,valid:r.status===200&&
+          status:r.status,valid:r.status===200&&phasesVerified&&
             r.body?.schema==="cove.qa.owner-native-first-paint.v1"&&
             r.body?.rows?.length===1&&
             r.body.rows[0].product_id===test.productId&&
-            r.body.rows[0].offer_json===shelf.body.rows[0].offer_json};
+            r.body.rows[0].offer_json===shelf.body.rows[0].offer_json,
+          marketMs:phase?.marketReadMs??null,
+          canonicalMs:phase?.canonicalSelectMs??null,
+          providerSqlMs:phase?.providerSqlMs??null,
+          ownerMs:phase?.ownerTotalMs??null};
       }catch(error){
         return {ms:Math.round((performance.now()-start)*100)/100,
           status:0,valid:false,error:error instanceof Error?error.name:"unknown"};
@@ -456,11 +465,18 @@ try {
     const summary={parallel,total:parallel,valid:samples.filter(x=>x.valid).length,
       errors:samples.filter(x=>!x.valid).length,
       p50Ms:q(0.50),p95Ms:q(0.95),p99Ms:q(0.99),maxMs:ordered.at(-1),
-      samples:samples.map(x=>({ms:x.ms,status:x.status,valid:x.valid,error:x.error}))};
+      selectP95Ms:(()=>{const d=samples.map(x=>x.canonicalMs)
+        .filter(x=>typeof x==="number").sort((a,b)=>a-b);
+        return d.length===parallel?d[Math.ceil(0.95*d.length)-1]:null;})(),
+      sqlMaxMs:Math.max(...samples.map(x=>x.providerSqlMs??0)),
+      samples:samples.map(x=>({ms:x.ms,status:x.status,valid:x.valid,error:x.error,
+        marketMs:x.marketMs,canonicalMs:x.canonicalMs,
+        providerSqlMs:x.providerSqlMs,ownerMs:x.ownerMs}))};
     nativeEvidence.push(summary);
     console.log("COVE_SYNTHETIC_NATIVE_D1 "+JSON.stringify({
       parallel,valid:summary.valid,errors:summary.errors,
-      p50Ms:summary.p50Ms,p95Ms:summary.p95Ms,p99Ms:summary.p99Ms,maxMs:summary.maxMs
+      p50Ms:summary.p50Ms,p95Ms:summary.p95Ms,p99Ms:summary.p99Ms,
+      maxMs:summary.maxMs,selectP95Ms:summary.selectP95Ms,sqlMaxMs:summary.sqlMaxMs
     }));
   }
   // A paired read-only REST control is issued by the SAME protected
