@@ -1,3 +1,5 @@
+import { boundedReadonlyPhaseMs } from "./readonly-transport-metric";
+
 type Query = { sql: string; params: unknown[] };
 type Result = {
   success: boolean;
@@ -11,6 +13,17 @@ export interface CanonicalReadService {
 /** Request-local D1 facade. No cache, replica, SQL filtering or write fallback. */
 export function canonicalReadonlyD1(service: CanonicalReadService) {
   const descriptors = new WeakMap<object, Query>();
+  async function invoke(queries: Query[]): Promise<Result[]> {
+    const started = performance.now();
+    const response = await service.query(queries);
+    if (!Array.isArray(response) || response.length !== queries.length)
+      throw new Error("Incomplete canonical read result");
+    const rpcMs = boundedReadonlyPhaseMs(started, performance.now());
+    return response.map((row) => ({
+      ...row,
+      meta: { ...row.meta, ...(rpcMs === undefined ? {} : { cove_rpc_wall_ms: rpcMs }) },
+    }));
+  }
   function prepare(sql: string, params: unknown[] = []) {
     const statement = {
       bind(...values: unknown[]) {
@@ -25,7 +38,7 @@ export function canonicalReadonlyD1(service: CanonicalReadService) {
         );
       },
       async all() {
-        return (await service.query([{ sql, params }]))[0];
+        return (await invoke([{ sql, params }]))[0];
       },
       async first(column?: string) {
         const row = (await statement.all()).results[0];
@@ -52,7 +65,7 @@ export function canonicalReadonlyD1(service: CanonicalReadService) {
         if (!query) throw new Error("Foreign canonical read statement");
         return query;
       });
-      return service.query(queries);
+      return invoke(queries);
     },
     withSession(constraint: string) {
       if (!["first-primary", "first-unconstrained"].includes(constraint))
