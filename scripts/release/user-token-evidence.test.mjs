@@ -108,6 +108,16 @@ test("new or unreviewed Cloudflare permission names cannot certify user-token sa
   );
 });
 
+test("scoped Individual Worker Content Read-Only token remains certified as read-only", async () => {
+  assert.deepEqual(
+    await inspectUserTokenEvidence(
+      async () => page([token("read-only", "Individual Workers Content Read-Only")]),
+      USER_TOKEN,
+    ),
+    { verified: true, reason: "current_user_inventory_clear" },
+  );
+});
+
 test("unexpected transport failures disclose only an allowlisted category", async () => {
   const secret = "NEVER_LEAK_PRIVATE_USER_OR_BEARER_TOKEN";
   const evidence = await inspectUserTokenEvidence(async () => {
