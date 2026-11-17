@@ -55,7 +55,10 @@ test("read-only request is scoped, provider failures fail closed, no payload lea
       url,
       "https://api.cloudflare.com/client/v4/accounts/d26430caa63ec55f6612e32f36aca5e9/workers/services/cove-canonical-phase-readonly-staging",
     );
-    return { ok: true, json: async () => ({ success: true, result: service("INSUFFICIENT_INVOCATIONS") }) };
+    return {
+      ok: true,
+      json: async () => ({ success: true, result: service("INSUFFICIENT_INVOCATIONS") }),
+    };
   });
   assert.equal(calls, 1);
   assert.equal(result.status, "INSUFFICIENT_INVOCATIONS");
