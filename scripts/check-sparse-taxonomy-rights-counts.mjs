@@ -90,6 +90,23 @@ try {
       scope.run("deny-" + n, "US");
     }
   }
+  // A deliberately duplicated, still-authorized grant proves that removing
+  // DISTINCT under EXISTS does not multiply product or taxonomy counts.
+  assert.equal(
+    db.prepare(
+      "SELECT COUNT(*) n FROM retail_product_availability_rows WHERE product_id='product-67' AND territory_code='US'",
+    ).get().n,
+    2,
+    "Fixture must produce duplicate legal availability rows",
+  );
+  assert.equal(
+    db.prepare(
+      "SELECT COUNT(*) n FROM retail_product_availability WHERE product_id='product-67' AND territory_code='US'",
+    ).get().n,
+    1,
+    "Original availability view deduplicates the same legal result",
+  );
+
   const original = `WITH eligible AS MATERIALIZED (
     SELECT p.id,p.edition_id FROM products p JOIN editions e ON e.id=p.edition_id
     WHERE p.storefront_status='active' AND p.source_name<>'upload'
