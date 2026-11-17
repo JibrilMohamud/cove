@@ -201,6 +201,58 @@ async function stageParked(metadata, deploy) {
   });
 }
 
+/**
+ * Cloudflare's deployment and subdomain reads may briefly lag a successful
+ * restore. Retry ONLY two harmless convergence signals: the fixed 100% parked
+ * version and disabled HTTP/preview ingress. Any unknown binding, custom
+ * domain, unexpected capability, token denial or changed production pin
+ * immediately fails closed. All assertions must eventually pass.
+ */
+export function parkedPostflightRetryReason(error) {
+  const message = error?.message;
+  if (
+    message === "Existing Worker version/traffic pin changed" ||
+    message === "No Worker deployment"
+  ) {
+    return "parked_version_pending";
+  }
+  for (const name of [STAGE_READER, STAGE_SSR]) {
+    if (message === name + " must have no public HTTP ingress") {
+      return "stage_ingress_disable_pending";
+    }
+    if (message === name + " previews must be disabled") {
+      return "stage_preview_disable_pending";
+    }
+  }
+  return null;
+}
+
+export async function verifyParkedPostflight(
+  check,
+  pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  maxChecks = 12,
+) {
+  assert.equal(typeof check, "function");
+  assert.ok(Number.isInteger(maxChecks) && maxChecks >= 1 && maxChecks <= 12);
+  for (let attempt = 1; attempt <= maxChecks; attempt++) {
+    try {
+      await check();
+      return attempt;
+    } catch (error) {
+      const reason = parkedPostflightRetryReason(error);
+      if (!reason) throw error;
+      if (attempt === maxChecks) {
+        throw new Error("Protected staging postflight never converged: " + reason);
+      }
+      // Report only an allowlisted control-plane category, never a raw API
+      // response, identifier, secret, or assertion value.
+      if (attempt === 1) console.log("PHASE_STAGE_POSTFLIGHT_PENDING=" + reason);
+      await pause(2_000);
+    }
+  }
+  throw new Error("Protected staging postflight could not be certified");
+}
+
 async function tokenPreflight() {
   const deploy = process.env.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN;
   const d1Read = process.env.COVE_CF_STAGE_D1_READ_TOKEN;
@@ -262,7 +314,12 @@ export async function inspectProtectedStage(command) {
   } else if (command === "stage") {
     await verifyStage(metadata);
   } else {
-    await stageParked(metadata, process.env.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN);
+    // Restoration writes can return before the control-plane read replicas
+    // agree. Preserve all parked/production assertions; only boundedly retry
+    // an already-restored version/subdomain that has not converged yet.
+    await verifyParkedPostflight(() =>
+      stageParked(metadata, process.env.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN),
+    );
   }
   return {
     command,
