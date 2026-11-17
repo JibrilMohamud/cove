@@ -5367,6 +5367,14 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       // Source-controlled native primary D1 SQL, followed by owner fences.
       // No arbitrary SQL, cache, or competing native D1 reader binding.
       if(route==="/qa/native-first-paint"){
+        // QA-only numeric phase timings: no identifiers, SQL text, secrets,
+        // query parameters or user data. This does not run in disabled prod.
+        const qaStarted=performance.now();
+        let qaMarketMs:number|undefined,qaSelectMs:number|undefined,
+          qaProviderSqlMs:number|undefined;
+        const safeMs=(ms:number|undefined)=>
+          typeof ms==="number"&&Number.isFinite(ms)&&ms>=0&&ms<=12000
+            ?Math.round(ms*100)/100:null;
         const evidence=await readOwnerNativeFirstPaintQa(raw,{
           readPrimary:async (ids,territory,currency)=>{
             // Reuse the SINGLE QA legal-owner native binding. Primary
@@ -5377,13 +5385,18 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
             if(typeof primary.withSession!=="function")
               throw Error("qa_native_primary_session_unavailable");
             const db=primary.withSession("first-primary");
+            const marketStarted=performance.now();
             const market=await db.prepare(
               "SELECT country_code FROM storefront_markets WHERE country_code=? AND market_status='active' AND default_currency=? LIMIT 1"
             ).bind(territory,currency).first<{country_code:string}>();
+            qaMarketMs=performance.now()-marketStarted;
             const measurements:FirstPaintD1QueryMetrics={};
+            const selectStarted=performance.now();
             const rows=await authorizeStorefrontPresentationIds(
               db,ids,territory,currency,measurements
             );
+            qaSelectMs=performance.now()-selectStarted;
+            qaProviderSqlMs=measurements.sqlDurationMs;
             return {rows,servedByPrimary:measurements.servedByPrimary===true,
               activeMarket:market?.country_code===territory};
           },
@@ -5397,7 +5410,12 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           },
           marketWithdrawn:territory=>marketIsWithdrawn(sql,territory)
         });
-        return Response.json(evidence,{headers:noStore});
+        return Response.json({...evidence,diagnostics:{
+          marketReadMs:safeMs(qaMarketMs),
+          canonicalSelectMs:safeMs(qaSelectMs),
+          providerSqlMs:safeMs(qaProviderSqlMs),
+          ownerTotalMs:safeMs(performance.now()-qaStarted)
+        }},{headers:noStore});
       }
       if(route==="/storefront/authorize-batch"){
         const input=raw as {ids?:unknown;territory?:unknown;currency?:unknown};
