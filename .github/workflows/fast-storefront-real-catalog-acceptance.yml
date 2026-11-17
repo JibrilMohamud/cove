@@ -6,6 +6,8 @@ on:
         "src/storefront-strangler/**",
         "scripts/performance/strangler-real-catalog-acceptance.mjs",
         "scripts/check-storefront-v2-primary-prefix.mjs",
+        "scripts/staging/verify-four-us-colo-ingress.mjs",
+        "scripts/check-four-us-colo-ingress.mjs",
         ".github/workflows/fast-storefront-real-catalog-acceptance.yml",
       ]
   workflow_dispatch:
@@ -28,6 +30,17 @@ concurrency:
   group: cove-exclusive-real-primary-cold-acceptance
   cancel-in-progress: false
 jobs:
+  four-us-colo-contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with: { node-version: "22" }
+      - run: node scripts/check-four-us-colo-ingress.mjs
   protected-real-catalog-acceptance:
     if: >-
       github.repository == 'JibrilMohamud/cove' &&
@@ -115,6 +128,7 @@ jobs:
           await b.close();
           NODE
       - run: node scripts/check-geo-edge-ingress.mjs
+      - run: node scripts/check-four-us-colo-ingress.mjs
       - run: node scripts/check-storefront-strangler.mjs
       - name: Prove 25-ID live rights prefix and full withdrawal-safe fallback
         run: node scripts/check-storefront-v2-primary-prefix.mjs
