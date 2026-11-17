@@ -88,7 +88,9 @@ export function canonicalReadonlyD1(service: CanonicalReadService) {
     const response = await service.query(queries);
     if (!Array.isArray(response) || response.length !== queries.length)
       throw new Error("Incomplete canonical read result");
-    // Legacy cove_rpc_wall_ms measures the whole private service round trip\n    // for both RPC and staging fetch; its field name is retained for parity.\n    const rpcMs = boundedReadonlyPhaseMs(started, performance.now());
+    // Preserve bounded wall timing for the same private read batch in both
+    // production RPC and isolated staging fetch modes.
+    const rpcMs = boundedReadonlyPhaseMs(started, performance.now());
     return response.map((row) => ({
       ...row,
       meta: { ...row.meta, ...(rpcMs === undefined ? {} : { cove_rpc_wall_ms: rpcMs }) },
