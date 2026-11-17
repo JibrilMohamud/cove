@@ -31,9 +31,15 @@ test("partial or malformed user token page cannot be mistaken for no tokens", as
   const cases = [
     { result: [], result_info: { page: 1, total_pages: 2, count: 0, total_count: 1 } },
     { result: [], result_info: null },
-    { result: [token("known", "API Tokens Read")], result_info: {
-      page: 1, total_pages: 1, count: 0, total_count: 0,
-    } },
+    {
+      result: [token("known", "API Tokens Read")],
+      result_info: {
+        page: 1,
+        total_pages: 1,
+        count: 0,
+        total_count: 0,
+      },
+    },
   ];
   for (const value of cases) {
     const evidence = await inspectUserTokenEvidence(async () => value, USER_TOKEN);
@@ -43,14 +49,14 @@ test("partial or malformed user token page cannot be mistaken for no tokens", as
 
 test("active incomplete policy and privileged token each block user inventory", async () => {
   assert.deepEqual(
-    await inspectUserTokenEvidence(async () => page([{ name: "unknown", status: "active" }]), USER_TOKEN),
+    await inspectUserTokenEvidence(
+      async () => page([{ name: "unknown", status: "active" }]),
+      USER_TOKEN,
+    ),
     { verified: false, reason: "user_token_policy_incomplete" },
   );
   assert.deepEqual(
-    await inspectUserTokenEvidence(
-      async () => page([token("unsafe", "D1 Write")]),
-      USER_TOKEN,
-    ),
+    await inspectUserTokenEvidence(async () => page([token("unsafe", "D1 Write")]), USER_TOKEN),
     { verified: false, reason: "active_user_token_mutation_capability" },
   );
 });
