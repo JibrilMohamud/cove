@@ -33,18 +33,14 @@ export function parseBoundedPhases(timing) {
     const match = /^([a-z_]+);dur=([0-9]+(?:\.[0-9]{1,3})?)$/.exec(piece.trim());
     if (!match || !ALLOWED.has(match[1])) continue;
     const value = Number(match[2]);
-    if (!Number.isFinite(value) || value < 0 || value > 12_000 || match[1] in result)
-      return null;
+    if (!Number.isFinite(value) || value < 0 || value > 12_000 || match[1] in result) return null;
     result[match[1]] = value;
   }
   return result;
 }
 
 function bounded(value, cap = 15_000) {
-  return typeof value === "number" &&
-    Number.isFinite(value) &&
-    value >= 0 &&
-    value <= cap
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= cap
     ? value
     : null;
 }
@@ -73,12 +69,9 @@ function classify(phases, ttfb) {
   const outside = Math.max(0, ttfb - worker);
   let cause = "no-dominant-measured-interval";
   if (sql >= 400 && sql >= rpc / 2) cause = "measured-sql-heavy";
-  else if (headers - sql >= 350 && headers >= rpc / 2)
-    cause = "measured-preheader-excess";
-  else if (rpc - headers - body - decode >= 300)
-    cause = "measured-rpc-excess";
-  else if (outside >= 300)
-    cause = "measured-client-worker-residual";
+  else if (headers - sql >= 350 && headers >= rpc / 2) cause = "measured-preheader-excess";
+  else if (rpc - headers - body - decode >= 300) cause = "measured-rpc-excess";
+  else if (outside >= 300) cause = "measured-client-worker-residual";
   return { cause, complete: true };
 }
 
@@ -89,8 +82,7 @@ function examineRow(row, kind, ordinal) {
   // Both are verified by the original protected staging runner. Recheck in
   // independent evidence processing so HTTP 200 with empty/unlicensed cards
   // can never count as successful authorized first paint.
-  const proof = phases?.cove_ssr_local_rights === 0 &&
-    phases?.cove_backend_lean === 0;
+  const proof = phases?.cove_ssr_local_rights === 0 && phases?.cove_backend_lean === 0;
   const valid =
     duration !== null &&
     http === 200 &&
@@ -140,24 +132,14 @@ export function evaluateStageCohort({ cold, concurrency }) {
     const seen = new Set();
     for (const row of file.results) {
       const n = row?.sequence;
-      if (
-        !Number.isSafeInteger(n) ||
-        n < 1 ||
-        n > COLD_PER_TRIAL ||
-        seen.has(n)
-      )
+      if (!Number.isSafeInteger(n) || n < 1 || n > COLD_PER_TRIAL || seen.has(n))
         anomalies.push("invalid-cold-sequence");
       seen.add(n);
       records.push(examineRow(row, "cold-" + (trial + 1), n));
     }
     for (const row of file.failures) {
       const n = row?.sequence;
-      if (
-        !Number.isSafeInteger(n) ||
-        n < 1 ||
-        n > COLD_PER_TRIAL ||
-        seen.has(n)
-      )
+      if (!Number.isSafeInteger(n) || n < 1 || n > COLD_PER_TRIAL || seen.has(n))
         anomalies.push("invalid-cold-failure-sequence");
       seen.add(n);
       records.push({
@@ -175,9 +157,7 @@ export function evaluateStageCohort({ cold, concurrency }) {
     }
     if (seen.size !== COLD_PER_TRIAL) anomalies.push("missing-cold-request");
   }
-  const waveSeen = new Map(
-    Object.keys(WAVE_COUNTS).map((wave) => [Number(wave), new Set()]),
-  );
+  const waveSeen = new Map(Object.keys(WAVE_COUNTS).map((wave) => [Number(wave), new Set()]));
   for (const row of concurrency.results) {
     const count = Number(row?.concurrency);
     const seen = waveSeen.get(count);
@@ -187,20 +167,16 @@ export function evaluateStageCohort({ cold, concurrency }) {
     records.push(examineRow(row, "wave-" + count, row?.sequence));
   }
   for (const [wave, expected] of Object.entries(WAVE_COUNTS)) {
-    if (waveSeen.get(Number(wave)).size !== expected)
-      anomalies.push("missing-concurrency-request");
+    if (waveSeen.get(Number(wave)).size !== expected) anomalies.push("missing-concurrency-request");
   }
   if (records.length !== 120) anomalies.push("incorrect-total-request-count");
   const good = records.filter((row) => row.status === "valid");
   const measured = good.filter((row) => row.phaseCoverage);
-  const limitedStagePass =
-    anomalies.length === 0 && records.every((row) => row.below800);
-  const complete =
-    anomalies.length === 0 && measured.length === records.length;
+  const limitedStagePass = anomalies.length === 0 && records.every((row) => row.below800);
+  const complete = anomalies.length === 0 && measured.length === records.length;
   const categories = Object.create(null);
   for (const row of records) {
-    categories[row.measuredDominantInterval] =
-      (categories[row.measuredDominantInterval] || 0) + 1;
+    categories[row.measuredDominantInterval] = (categories[row.measuredDominantInterval] || 0) + 1;
   }
   return {
     schema: "cove.stage.canonical-phase-evidence.v1",
