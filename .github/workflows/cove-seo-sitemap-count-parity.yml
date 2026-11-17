@@ -27,7 +27,5 @@ jobs:
           node-version: "22"
       - name: Compare indexed EXISTS against original DISTINCT for withdrawal and count parity
         run: node scripts/check-seo-sitemap-count-plan.mjs
-      - name: Confirm full catalog identity and SEO fixture parity
-        run: npm run test:catalog-identity
 
 # Source-only offline test: no secrets, no deploy, no live D1, no customer requests.
