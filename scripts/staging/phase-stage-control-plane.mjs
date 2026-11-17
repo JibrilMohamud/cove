@@ -8,6 +8,10 @@ const D1_READ = "192192df92ee43ac90f2aeeffce67e35";
 const WORKERS_SCRIPTS_WRITE = "e086da7e2179491d91ee5f35b3ca210a";
 const STAGE_READER = "cove-canonical-phase-readonly-staging";
 const STAGE_SSR = "cove-storefront-phase-staging";
+// One-time admin-provisioned, non-routable 401-only versions. Protected deploy
+// credentials cannot create fresh Worker records under 2026 Workers roles.
+export const PARKED_READER_VERSION = "06a9b74b-572f-4f2d-affd-c2cfce31d5f2";
+export const PARKED_SSR_VERSION = "9ad726e2-8ac9-466c-b945-a14fdf290265";
 
 export function assertExactTokenPolicy(token, groupId) {
   assert.equal(token?.status, "active", "Protected token must be active");
@@ -138,13 +142,39 @@ async function pinnedProduction(metadata) {
   );
 }
 
-async function stageAbsent(metadata) {
-  const [reader, ssr] = await Promise.all([
-    get(metadata, script(STAGE_READER) + "/settings", true),
-    get(metadata, script(STAGE_SSR) + "/settings", true),
-  ]);
-  assert.equal(reader, null, "Stage read service already exists: no overwrite");
-  assert.equal(ssr, null, "Stage SSR already exists: no overwrite");
+export function assertParkedStage({reader, ssr, readerDeployment, ssrDeployment, readerSubdomain, ssrSubdomain, domains}) {
+  assertPinnedDeployment(readerDeployment, PARKED_READER_VERSION);
+  assertPinnedDeployment(ssrDeployment, PARKED_SSR_VERSION);
+  for (const [name, record, subdomain] of [
+    [STAGE_READER, reader, readerSubdomain],
+    [STAGE_SSR, ssr, ssrSubdomain],
+  ]) {
+    assert.deepEqual(record?.bindings || null, [], name + " parked bindings must be empty");
+    assert.equal(subdomain?.enabled, false, name + " must have no public HTTP ingress");
+    assert.equal(subdomain?.previews_enabled, false, name + " previews must be disabled");
+  }
+  assert.ok(Array.isArray(domains), "Missing custom-domain inventory");
+  assert.ok(
+    !domains.some((d) => d.service === STAGE_READER || d.service === STAGE_SSR),
+    "Stage Workers must have no customer custom domains",
+  );
+}
+
+async function stageParked(metadata) {
+  const paths = [
+    script(STAGE_READER) + "/settings",
+    script(STAGE_SSR) + "/settings",
+    script(STAGE_READER) + "/deployments",
+    script(STAGE_SSR) + "/deployments",
+    script(STAGE_READER) + "/subdomain",
+    script(STAGE_SSR) + "/subdomain",
+    "/accounts/" + ACCOUNT + "/workers/domains",
+  ];
+  const [reader, ssr, readerDeployment, ssrDeployment, readerSubdomain, ssrSubdomain, domains] =
+    await Promise.all(paths.map((path) => get(metadata, path)));
+  assertParkedStage({
+    reader, ssr, readerDeployment, ssrDeployment, readerSubdomain, ssrSubdomain, domains,
+  });
 }
 
 async function tokenPreflight() {
@@ -170,12 +200,13 @@ async function tokenPreflight() {
 }
 
 async function verifyStage(metadata) {
-  const [readerDeploy, ssrDeploy, reader, ssr, readerSubdomain, domains] = await Promise.all([
+  const [readerDeploy, ssrDeploy, reader, ssr, readerSubdomain, ssrSubdomain, domains] = await Promise.all([
     get(metadata, script(STAGE_READER) + "/deployments"),
     get(metadata, script(STAGE_SSR) + "/deployments"),
     get(metadata, script(STAGE_READER) + "/settings"),
     get(metadata, script(STAGE_SSR) + "/settings"),
     get(metadata, script(STAGE_READER) + "/subdomain"),
+    get(metadata, script(STAGE_SSR) + "/subdomain"),
     get(metadata, "/accounts/" + ACCOUNT + "/workers/domains"),
   ]);
   for (const d of [readerDeploy, ssrDeploy]) {
@@ -187,6 +218,8 @@ async function verifyStage(metadata) {
   }
   assert.equal(readerSubdomain?.enabled, false, "Private read service cannot have HTTP ingress");
   assert.equal(readerSubdomain?.previews_enabled, false);
+  assert.equal(ssrSubdomain?.enabled, true, "Authenticated benchmark SSR needs workers.dev");
+  assert.equal(ssrSubdomain?.previews_enabled, false, "Staging previews must remain disabled");
   assert.ok(
     !domains?.some((domain) => domain.service === STAGE_READER || domain.service === STAGE_SSR),
     "Stage Workers must not have a customer custom domain",
@@ -200,13 +233,18 @@ export async function inspectProtectedStage(command) {
   await pinnedProduction(metadata);
   if (command === "preflight") {
     await tokenPreflight();
-    await stageAbsent(metadata);
+    await stageParked(metadata);
   } else if (command === "stage") {
     await verifyStage(metadata);
   } else {
-    await stageAbsent(metadata);
+    await stageParked(metadata);
   }
-  return { command, productionUnchanged: true, noStagePublicDomain: true };
+  return {
+    command,
+    productionUnchanged: true,
+    noCustomerStageDomain: true,
+    stageParked: command !== "stage",
+  };
 }
 
 if (process.argv[1]?.endsWith("phase-stage-control-plane.mjs")) {
