@@ -105,9 +105,7 @@ function checkedRow(
     ? (evidence === "primary"
         ? offer.type === "public-domain" || offer.type === "free"
         : offer.type === "public-domain") && offer.amountMinor === 0
-    : evidence === "primary"
-      ? offer.type === "purchase" || offer.type === "retail"
-      : offer.type === "retail";
+    : offer.type === "purchase" || offer.type === "retail";
   if (!permitted) throw new Error("native_qa_invalid_offer");
   return raw;
 }
