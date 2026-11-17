@@ -36,11 +36,8 @@ export async function deleteOwnedPhaseWorkers(env, request = fetch) {
     // HTTP 404 is idempotent for a script proven absent before this run.
     // Other API failures remain fatal. Never log a provider response body.
     if (response.status !== 404) {
+      // Cloudflare may return HTTP 200 or 204 with no response body.
       assert.ok(response.ok, "Scoped stage Worker DELETE was denied");
-      if (response.status !== 204) {
-        const payload = await response.json().catch(() => null);
-        assert.ok(payload?.success === true, "Stage Worker DELETE was not acknowledged");
-      }
     }
     deletedOrAbsent += 1;
   }
