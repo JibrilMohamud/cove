@@ -6,8 +6,8 @@ on:
       - ".github/workflows/cove-protected-canonical-phase-staging.yml"
       - "scripts/staging/phase-stage-control-plane.mjs"
       - "scripts/staging/phase-stage-control-plane.test.mjs"
-      - "scripts/staging/delete-canonical-phase-workers.mjs"
-      - "scripts/staging/delete-canonical-phase-workers.test.mjs"
+      - "scripts/staging/restore-canonical-phase-workers.mjs"
+      - "scripts/staging/restore-canonical-phase-workers.test.mjs"
       - "scripts/staging/wait-canonical-phase-stage-version.mjs"
       - "scripts/performance/cloudflare-concurrency.mjs"
       - "scripts/performance/verify-canonical-phase-evidence.mjs"
@@ -42,16 +42,16 @@ jobs:
           node-version: "22"
       - run: |
           node --test scripts/staging/phase-stage-control-plane.test.mjs
-          node --test scripts/staging/delete-canonical-phase-workers.test.mjs
+          node --test scripts/staging/restore-canonical-phase-workers.test.mjs
           node --test scripts/performance/verify-canonical-phase-evidence.test.mjs
           node --check scripts/staging/wait-canonical-phase-stage-version.mjs
           node --check scripts/staging/phase-stage-control-plane.mjs
           git diff --check
-      - name: Confirm staging Wrangler dry-run and scoped direct API cleanup source
+      - name: Confirm staging Wrangler dry-run and scoped parked-version restoration source
         run: |
           npm ci --no-audit --no-fund
           npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.canonical-phase.staging.jsonc
-          node --check scripts/staging/delete-canonical-phase-workers.mjs
+          node --check scripts/staging/restore-canonical-phase-workers.mjs
 
   protected_cold_and_concurrency:
     if: >-
@@ -90,10 +90,10 @@ jobs:
           test "$(git rev-parse HEAD)" = "${{ inputs.reviewed_main_sha }}"
           test "$(git rev-parse HEAD)" = "${{ github.sha }}"
           node --test scripts/staging/phase-stage-control-plane.test.mjs
-          node --test scripts/staging/delete-canonical-phase-workers.test.mjs
+          node --test scripts/staging/restore-canonical-phase-workers.test.mjs
           node --test scripts/performance/verify-canonical-phase-evidence.test.mjs
           git diff --check
-      - name: Verify distinct least-privilege Cloudflare credentials and production pin
+      - name: Verify least-privilege credentials, production pins and parked 401-only stage versions
         env:
           COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
           COVE_CF_STAGE_D1_READ_TOKEN: ${{ secrets.COVE_CF_STAGE_D1_READ_TOKEN }}
@@ -110,13 +110,14 @@ jobs:
           npm run build
           npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.canonical-phase.staging.jsonc
           npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.frontend.phase.staging.toml
-      - name: Deploy new, private phase reader with no public HTTP ingress
+      - name: Update pre-existing private phase reader without creating a Worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-          # Preflight proved this name absent; track even partial upload failures.
+          # Preflight proved exact parked version and absence of public ingress.
+          # Flag before upload so a partial failure still restores the safe pin.
           echo "COVE_PHASE_READER_CREATE_ATTEMPTED=1" >> "$GITHUB_ENV"
           npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.canonical-phase.staging.jsonc
           echo "COVE_PHASE_READER_DEPLOYED=1" >> "$GITHUB_ENV"
@@ -131,7 +132,7 @@ jobs:
             npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put D1_READ_API_TOKEN --config wrangler.canonical-phase.staging.jsonc
           # No Worker GET or performance prewarm; await global secret propagation.
           sleep 30
-      - name: Deploy distinct, authenticated phase SSR Worker without customer routes
+      - name: Update pre-existing authenticated SSR stage Worker without customer routes
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
         shell: bash
@@ -185,24 +186,24 @@ jobs:
         continue-on-error: true
         run: node scripts/performance/cloudflare-concurrency.mjs
       - name: Confirm isolated bindings and unchanged production traffic after stage requests
-        if: always() && env.COVE_PHASE_STAGE_PREFLIGHT_PASSED == '1'
+        if: always() && env.COVE_PHASE_READER_DEPLOYED == '1' && env.COVE_PHASE_SSR_DEPLOYED == '1'
         env:
           COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
         run: node scripts/staging/phase-stage-control-plane.mjs stage
       - name: Reject missing/failed/slow samples and missing SQL/REST/RPC phase coverage
-        if: always() && env.COVE_PHASE_STAGE_PREFLIGHT_PASSED == '1'
+        if: always() && env.COVE_PHASE_READER_DEPLOYED == '1' && env.COVE_PHASE_SSR_DEPLOYED == '1'
         run: |
           node scripts/performance/verify-canonical-phase-evidence.mjs \
             artifacts/cloudflare-ssr-staging-performance-1.json \
             artifacts/cloudflare-ssr-staging-performance-2.json \
             artifacts/cloudflare-ssr-staging-performance-3.json \
             artifacts/cloudflare-concurrency-performance.json
-      - name: ALWAYS delete only the two known previously absent stage Workers
+      - name: ALWAYS restore fixed deny-only staging versions and disable public ingress
         if: always() && env.COVE_PHASE_STAGE_PREFLIGHT_PASSED == '1'
         env:
           COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
-        run: node scripts/staging/delete-canonical-phase-workers.mjs
-      - name: ALWAYS verify unchanged production pins, disabled owner and stage deletion
+        run: node scripts/staging/restore-canonical-phase-workers.mjs
+      - name: ALWAYS verify production pins, disabled owner and parked stage isolation
         if: always()
         env:
           COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
