@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { compactCanonicalPhaseTiming } from "./verify-canonical-phase-evidence.mjs";
 import { capacityHtmlFailureKind } from "./strict-capacity-response-diagnostics.mjs";
 import fs from "node:fs";
 import { performance } from "node:perf_hooks";
@@ -134,7 +135,10 @@ async function fetchOne(concurrency) {
       totalMs,
       cfColo,
       cfRay,
-      timing: timing.timing,
+      timing:
+        process.env.COVE_CANONICAL_PHASE_STAGE_ONLY === "1"
+          ? compactCanonicalPhaseTiming(response.headers.get("server-timing"))
+          : timing.timing,
       workerMs,
       clientQueueMs,
       sentToHeadersMs,
