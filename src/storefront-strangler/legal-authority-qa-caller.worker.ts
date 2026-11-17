@@ -70,12 +70,29 @@ export default {
     const destination=isWriter?env.LEGAL_WRITER!:env.LEGAL_PRIVATE;
     const target=isWriter?"https://legal-quarantine.internal":"https://legal-authority.internal";
     const key=isWriter?env.COVE_LEGAL_WRITER_SECRET:env.COVE_RIGHTS_OWNER_SECRET;
+    // Measure the interval in THIS isolated QA caller from service binding
+    // invocation until the owner DO returns its RESPONSE HEADERS. This includes
+    // placement/dispatch/queue effects, but not caller ingress or body transfer.
+    const bindingStarted=performance.now();
     const response=await destination.fetch(new Request(target+uri.pathname,{
       method:"POST",
       headers:{"content-type":"application/json",
         "authorization":"Bearer "+key},
       body:raw
     }));
+    if(uri.pathname==="/qa/transport-owner-ping" ||
+       uri.pathname==="/qa/native-first-paint"){
+      const bindingMs=performance.now()-bindingStarted;
+      const headers=new Headers(response.headers);
+      if(Number.isFinite(bindingMs)&&bindingMs>=0&&bindingMs<=12000)
+        headers.set("x-cove-qa-binding-header-ms",bindingMs.toFixed(2));
+      // Do NOT infer Durable Object locality from this value. The colo here
+      // is solely the external HTTP caller's edge ingress.
+      const ingress=(request as Request&{cf?:{colo?:string}}).cf?.colo;
+      if(typeof ingress==="string"&&/^[A-Z]{3}$/.test(ingress))
+        headers.set("x-cove-qa-ingress-colo",ingress);
+      return new Response(response.body,{status:response.status,headers});
+    }
     // Only report an enum layer on unavailable responses; never leak
     // credentials, request data, owner SQL or internal error messages.
     if(response.status!==503)return response;
