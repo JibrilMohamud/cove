@@ -91,6 +91,8 @@ export default {
       const ingress=(request as Request&{cf?:{colo?:string}}).cf?.colo;
       if(typeof ingress==="string"&&/^[A-Z]{3}$/.test(ingress))
         headers.set("x-cove-qa-ingress-colo",ingress);
+      if(response.status===503)
+        headers.set("x-cove-qa-unavailable-layer","owner");
       return new Response(response.body,{status:response.status,headers});
     }
     // Only report an enum layer on unavailable responses; never leak
