@@ -47,6 +47,24 @@ test("partial or malformed user token page cannot be mistaken for no tokens", as
   }
 });
 
+test("Cloudflare's documented count-only one-page response is complete", async () => {
+  const complete = {
+    result: [token("read-only-user", "API Tokens Read")],
+    result_info: { page: 1, count: 1, total_count: 1 },
+  };
+  assert.deepEqual(
+    await inspectUserTokenEvidence(async () => complete, USER_TOKEN),
+    { verified: true, reason: "current_user_inventory_clear" },
+  );
+  assert.deepEqual(
+    await inspectUserTokenEvidence(
+      async () => ({ ...complete, result_info: { page: 1, count: 1, total_count: 2 } }),
+      USER_TOKEN,
+    ),
+    { verified: false, reason: "user_token_page_incomplete" },
+  );
+});
+
 test("active incomplete policy and privileged token each block user inventory", async () => {
   assert.deepEqual(
     await inspectUserTokenEvidence(
