@@ -228,7 +228,10 @@ try {
       2,
     ) + "\n",
   );
-  console.log("STAGE taxonomy EXISTS synthetic timing (not release-certified):", JSON.stringify(microbench));
+  console.log(
+    "STAGE taxonomy EXISTS synthetic timing (not release-certified):",
+    JSON.stringify(microbench),
+  );
   console.log(
     "Taxonomy counts: dense/sparse rights parity; locale, duplicates, revocations, denials, active grants PASS",
   );
