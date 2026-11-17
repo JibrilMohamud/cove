@@ -229,9 +229,62 @@ export function evaluateStageCohort({ cold, concurrency }) {
     expectedOrdinal += expected;
   }
   if (records.length !== 120) anomalies.push("incorrect-total-request-count");
+
+  // An HTTP 200 can only count as staging-authorized when the same-runner
+  // negative controls also prove that a missing bearer is denied BEFORE D1.
+  // These are extra 32 requests and NEVER count toward the 120 valid reads.
+  // Keep only fixed labels and bounded numeric summaries; not raw control
+  // response headers, Ray IDs, URL, request payloads or error strings.
+  const rawControls = concurrency.deniedControls;
+  const summaries = concurrency.controlSummaries;
+  if (!Array.isArray(rawControls) || rawControls.length !== 32)
+    anomalies.push("missing-or-extra-edge-denials");
+  if (concurrency.pairedPhaseControls !== true) anomalies.push("unpaired-edge-controls");
+  if (!Array.isArray(summaries) || summaries.length !== 4)
+    anomalies.push("invalid-edge-control-summary-count");
+  const controls = Array.isArray(rawControls) ? rawControls : [];
+  const edgeControlCohorts = Object.keys(WAVE_COUNTS).map((value) => {
+    const wave = Number(value);
+    const rows = controls.filter((row) => row?.concurrency === wave);
+    const valid = rows.filter(
+      (row) =>
+        row.status === 401 &&
+        row.denied === true &&
+        bounded(row.ttfbMs) !== null &&
+        (row.clientQueueMs == null || bounded(row.clientQueueMs) !== null) &&
+        (row.sentToHeadersMs == null || bounded(row.sentToHeadersMs) !== null),
+    );
+    const original = Array.isArray(summaries)
+      ? summaries.find((row) => row?.concurrency === wave)
+      : null;
+    if (
+      rows.length !== 8 ||
+      valid.length !== 8 ||
+      !original ||
+      original.requests !== 8 ||
+      original.denied401 !== 8
+    )
+      anomalies.push("missing-or-invalid-edge-denial");
+    const times = valid.map((row) => row.ttfbMs).sort((a, b) => a - b);
+    const rank = (percent) =>
+      times.length ? times[Math.max(0, Math.ceil(percent * times.length) - 1)] : null;
+    return {
+      concurrency: wave,
+      expected: 8,
+      observed: rows.length,
+      denied401: valid.length,
+      p50Ms: rank(0.5),
+      p95Ms: rank(0.95),
+      maxMs: times.length ? times.at(-1) : null,
+    };
+  });
+  const edgeControlsSecure =
+    !anomalies.some((a) => a.includes("edge")) &&
+    edgeControlCohorts.every((row) => row.denied401 === row.expected);
   const good = records.filter((row) => row.status === "valid");
   const measured = good.filter((row) => row.phaseCoverage);
-  const limitedStagePass = anomalies.length === 0 && records.every((row) => row.below800);
+  const limitedStagePass =
+    edgeControlsSecure && anomalies.length === 0 && records.every((row) => row.below800);
   const complete = anomalies.length === 0 && measured.length === records.length;
   const categories = Object.create(null);
   for (const row of records) {
@@ -248,6 +301,10 @@ export function evaluateStageCohort({ cold, concurrency }) {
     completeNumericPhaseCoverage: complete,
     strictLimitedStagingGate: limitedStagePass,
     releaseCertified: false, // Never substitutes for geo, 100 RPS or payments.
+    edgeControlsExpected: 32,
+    edgeControlsObserved: controls.length,
+    edgeControlsSecure,
+    edgeControlCohorts,
     anomalies: [...new Set(anomalies)],
     measuredIntervals: categories,
     // Sanitized numeric labels only. Never return any source object fields.
@@ -277,6 +334,7 @@ if (process.argv[1]?.endsWith("verify-canonical-phase-evidence.mjs")) {
         validResponses: artifact.validResponses,
         fullyAttributed: artifact.fullyAttributed,
         completeNumericPhaseCoverage: artifact.completeNumericPhaseCoverage,
+        edgeControlsSecure: artifact.edgeControlsSecure,
         strictLimitedStagingGate: artifact.strictLimitedStagingGate,
         releaseCertified: false,
       }),
