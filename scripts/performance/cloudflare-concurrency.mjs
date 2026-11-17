@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
 import { compactCanonicalPhaseTiming } from "./verify-canonical-phase-evidence.mjs";
+import {
+  CANONICAL_STAGE_THRESHOLDS,
+  canonicalStageP95Limit,
+} from "./canonical-stage-thresholds.mjs";
 import { capacityHtmlFailureKind } from "./strict-capacity-response-diagnostics.mjs";
 import fs from "node:fs";
 import { performance } from "node:perf_hooks";
@@ -34,7 +38,7 @@ assert.ok(
       process.env.COVE_CANONICAL_PHASE_STAGE_ONLY === "1"),
   "Only exact protected staging Worker or verified owned SSR canary may be load tested",
 );
-const thresholds = { maxTtfbMs: 800, p95TtfbMs: 650 };
+const thresholds = CANONICAL_STAGE_THRESHOLDS;
 
 // The Node runner itself can queue sockets under 16 in-flight requests.
 // Measure this *per request* so an 800ms failure is never falsely attributed
@@ -224,7 +228,7 @@ const summaries = waves.map(({ concurrency, requests }) => {
       maxMs < thresholds.maxTtfbMs &&
       p95Ms !== null &&
       // Higher load may increase p95 but may never breach the hard 800ms gate.
-      p95Ms <= (concurrency <= 8 ? thresholds.p95TtfbMs : thresholds.maxTtfbMs),
+      p95Ms <= canonicalStageP95Limit(concurrency),
   };
 });
 // Run *after* licensed tests to avoid prewarming the truly cold SSR trials.

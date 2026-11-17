@@ -1,4 +1,8 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  CANONICAL_STAGE_THRESHOLDS,
+  canonicalStageP95Limit,
+} from "./canonical-stage-thresholds.mjs";
 
 // Credential-free, read-only audit. No source URLs, headers, SQL, visitors,
 // book IDs, exception text or tokens may enter the output artifacts.
@@ -281,10 +285,47 @@ export function evaluateStageCohort({ cold, concurrency }) {
   const edgeControlsSecure =
     !anomalies.some((a) => a.includes("edge")) &&
     edgeControlCohorts.every((row) => row.denied401 === row.expected);
+
+  // Independently recompute each concurrency p95 from the SAME verified,
+  // sample-complete numeric records. The live probe's reported "pass" flag
+  // and percentile summaries are untrusted and cannot self-certify a release.
+  // In particular, a cohort with all samples <800ms can STILL violate the
+  // reviewed p95 <=650ms requirement at 1/4/8 in-flight.
+  const waveCohorts = Object.entries(WAVE_COUNTS).map(([key, count]) => {
+    const concurrency = Number(key);
+    const rows = records.filter((row) => row.kind === "wave-" + concurrency);
+    const validTimes = rows
+      .filter((row) => row.status === "valid" && row.ttfbMs !== null)
+      .map((row) => row.ttfbMs)
+      .sort((a, b) => a - b);
+    const p95Ms = validTimes.length ? validTimes[Math.ceil(validTimes.length * 0.95) - 1] : null;
+    const maxMs = validTimes.length ? validTimes.at(-1) : null;
+    const p95LimitMs = canonicalStageP95Limit(concurrency);
+    const pass =
+      rows.length === count &&
+      validTimes.length === count &&
+      maxMs !== null &&
+      maxMs < CANONICAL_STAGE_THRESHOLDS.maxTtfbMs &&
+      p95Ms !== null &&
+      p95Ms <= p95LimitMs;
+    return {
+      concurrency,
+      expected: count,
+      valid: validTimes.length,
+      p95Ms,
+      maxMs,
+      p95LimitMs,
+      pass,
+    };
+  });
   const good = records.filter((row) => row.status === "valid");
   const measured = good.filter((row) => row.phaseCoverage);
   const complete = anomalies.length === 0 && measured.length === records.length;
-  const limitedStagePass = edgeControlsSecure && complete && records.every((row) => row.below800);
+  const limitedStagePass =
+    edgeControlsSecure &&
+    complete &&
+    records.every((row) => row.below800) &&
+    waveCohorts.every((row) => row.pass);
   const categories = Object.create(null);
   for (const row of records) {
     categories[row.measuredDominantInterval] = (categories[row.measuredDominantInterval] || 0) + 1;
@@ -304,6 +345,7 @@ export function evaluateStageCohort({ cold, concurrency }) {
     edgeControlsObserved: controls.length,
     edgeControlsSecure,
     edgeControlCohorts,
+    waveCohorts,
     anomalies: [...new Set(anomalies)],
     measuredIntervals: categories,
     // Sanitized numeric labels only. Never return any source object fields.
@@ -334,6 +376,7 @@ if (process.argv[1]?.endsWith("verify-canonical-phase-evidence.mjs")) {
         fullyAttributed: artifact.fullyAttributed,
         completeNumericPhaseCoverage: artifact.completeNumericPhaseCoverage,
         edgeControlsSecure: artifact.edgeControlsSecure,
+        waveP95Passed: artifact.waveCohorts.every((wave) => wave.pass),
         strictLimitedStagingGate: artifact.strictLimitedStagingGate,
         releaseCertified: false,
       }),

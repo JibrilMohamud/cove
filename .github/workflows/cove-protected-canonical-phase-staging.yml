@@ -10,6 +10,9 @@ on:
       - "scripts/staging/restore-canonical-phase-workers.test.mjs"
       - "scripts/staging/wait-canonical-phase-stage-version.mjs"
       - "scripts/performance/cloudflare-concurrency.mjs"
+      - "scripts/performance/canonical-stage-thresholds.mjs"
+      - "scripts/staging/phase-placement-readiness.mjs"
+      - "scripts/staging/phase-placement-readiness.test.mjs"
       - "scripts/performance/verify-canonical-phase-evidence.mjs"
       - "wrangler.canonical-phase.staging.jsonc"
       - "wrangler.frontend.phase.staging.toml"
@@ -44,6 +47,7 @@ jobs:
           node --test scripts/staging/phase-stage-control-plane.test.mjs
           node --test scripts/staging/restore-canonical-phase-workers.test.mjs
           node --test scripts/performance/verify-canonical-phase-evidence.test.mjs
+          node --test scripts/staging/phase-placement-readiness.test.mjs
           node --check scripts/staging/wait-canonical-phase-stage-version.mjs
           node --check scripts/staging/phase-stage-control-plane.mjs
           git diff --check
@@ -97,6 +101,7 @@ jobs:
           node --test scripts/staging/phase-stage-control-plane.test.mjs
           node --test scripts/staging/restore-canonical-phase-workers.test.mjs
           node --test scripts/performance/verify-canonical-phase-evidence.test.mjs
+          node --test scripts/staging/phase-placement-readiness.test.mjs
           git diff --check
       - name: Verify least-privilege credentials, production pins and parked 401-only stage versions
         env:
@@ -195,6 +200,11 @@ jobs:
         env:
           COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
         run: node scripts/staging/phase-stage-control-plane.mjs stage
+      - name: Record actual Cloudflare Smart Placement readiness, never infer from config
+        if: always() && env.COVE_PHASE_READER_DEPLOYED == '1'
+        env:
+          COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
+        run: node scripts/staging/phase-placement-readiness.mjs
       - name: Reject missing/failed/slow samples and missing SQL/REST/RPC phase coverage
         if: always() && env.COVE_PHASE_READER_DEPLOYED == '1' && env.COVE_PHASE_SSR_DEPLOYED == '1'
         run: |
@@ -221,6 +231,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cove-canonical-phase-stage-evidence-${{ github.run_id }}
-          path: artifacts/canonical-stage-phase-evidence.json
+          path: |
+            artifacts/canonical-stage-phase-evidence.json
+            artifacts/canonical-stage-placement-readiness.json
           retention-days: 14
           if-no-files-found: warn
