@@ -42,9 +42,10 @@ const cold = () =>
 
 const concurrency = () => {
   let ordinal = 0;
+  const protectedCohorts = Object.keys(WAVE_COUNTS).map(Number);
   return {
     pairedPhaseControls: true,
-    deniedControls: Object.keys(WAVE_COUNTS).map(Number).flatMap((wave) =>
+    deniedControls: protectedCohorts.flatMap((wave) =>
       Array.from({ length: 8 }, () => ({
         concurrency: wave,
         status: 401,
@@ -55,7 +56,7 @@ const concurrency = () => {
         secret: "NEVER_COPY_ME",
       })),
     ),
-    controlSummaries: Object.keys(WAVE_COUNTS).map(Number).map((concurrency) => ({
+    controlSummaries: protectedCohorts.map((concurrency) => ({
       concurrency,
       requests: 8,
       denied401: 8,
