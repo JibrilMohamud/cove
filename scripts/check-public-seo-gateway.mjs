@@ -17,6 +17,9 @@ try {
     platform: "node",
     format: "esm",
     outdir: temp,
+    // Multiple entries come from different source subtrees. Bundle each
+    // fixture by basename so imports below resolve the files consistently.
+    entryNames: "[name]",
     outExtension: { ".js": ".mjs" },
     logLevel: "silent",
   });
