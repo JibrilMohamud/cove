@@ -38,10 +38,10 @@ const input = {
   currency: "USD",
 };
 
-function ports({ primary = [free, paid], owner = [free, paid], primaryOk = true, withdrawn } = {}) {
+function ports({ primary = [free, paid], owner = [free, paid], primaryOk = true, activeMarket = true, withdrawn } = {}) {
   let calls = 0;
   return {
-    readPrimary: async () => ({ rows: primary, servedByPrimary: primaryOk }),
+    readPrimary: async () => ({ rows: primary, servedByPrimary: primaryOk, activeMarket }),
     readOwner: () => owner,
     marketWithdrawn: () => {
       calls++;
@@ -82,6 +82,10 @@ test("owner market withdrawal before or during D1 request vetoes all grants", as
 
 test("replica or unknown primary evidence must fail closed", async () => {
   await assert.rejects(readOwnerNativeFirstPaintQa(input, ports({ primaryOk: false })));
+});
+
+test("inactive or unverified storefront market must never inherit a US default currency", async () => {
+  await assert.rejects(readOwnerNativeFirstPaintQa(input, ports({ activeMarket: false })));
 });
 
 test("price, edition or public identity drift rejects the entire positive result", async () => {
