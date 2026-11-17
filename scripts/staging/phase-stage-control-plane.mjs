@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 const ACCOUNT = "d26430caa63ec55f6612e32f36aca5e9";
 const PRODUCTION_PERSISTENCE_VERSION = "401f2af2-6e69-4611-8110-1d127af6eecf";
 const PRIVATE_READ_VERSION = "f252025f-04c4-4e71-a9e9-134ee3f4c6c3";
+const PRODUCTION_LEGAL_OWNER_VERSION = "3463ff93-f077-40bf-a4d5-fb7bfc143cd5";
 const D1_READ = "192192df92ee43ac90f2aeeffce67e35";
 const WORKERS_SCRIPTS_WRITE = "e086da7e2179491d91ee5f35b3ca210a";
 const STAGE_READER = "cove-canonical-phase-readonly-staging";
@@ -121,12 +122,14 @@ async function get(token, path, missing = false) {
 const script = (name) => "/accounts/" + ACCOUNT + "/workers/scripts/" + name;
 
 async function pinnedProduction(metadata) {
-  const [production, owner, privateRead] = await Promise.all([
+  const [production, owner, ownerDeployment, privateRead] = await Promise.all([
     get(metadata, script("cove-persistence-backend") + "/deployments"),
     get(metadata, script("cove-legal-authority-production") + "/settings"),
+    get(metadata, script("cove-legal-authority-production") + "/deployments"),
     get(metadata, script("cove-canonical-d1-readonly") + "/deployments"),
   ]);
   assertPinnedDeployment(production, PRODUCTION_PERSISTENCE_VERSION);
+  assertPinnedDeployment(ownerDeployment, PRODUCTION_LEGAL_OWNER_VERSION);
   assertPinnedDeployment(privateRead, PRIVATE_READ_VERSION);
   assert.equal(
     owner?.bindings?.find((binding) => binding.name === "COVE_RIGHTS_OWNER_ENABLED")?.text,
