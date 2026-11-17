@@ -59,9 +59,11 @@ try {
     "Canonical migration-seeded market must keep the exact USD currency");
   const books=[
     {id:"prd_gutenberg_2701",edition:"ed_gutenberg_2701",work:"wrk_gutenberg_2701",
-      source:"gutenberg",external:"2701",type:"public-domain",price:0,sku:"qa-free-2701"},
+      source:"gutenberg",external:"2701",type:"public-domain",primaryType:"free",
+      price:0,sku:"qa-free-2701"},
     {id:"prd_paid_book_001",edition:"ed_paid_book_001",work:"wrk_paid_book_001",
-      source:"publisher",external:"paid-book-001",type:"retail",price:599,sku:"qa-paid-001"},
+      source:"publisher",external:"paid-book-001",type:"retail",primaryType:"purchase",
+      price:599,sku:"qa-paid-001"},
     {id:"prd_gutenberg_2702",edition:"ed_gutenberg_2702",work:"wrk_gutenberg_2702",
       source:"gutenberg",external:"2702",type:"public-domain",price:0,sku:"qa-unproved-2702"},
   ];
@@ -75,7 +77,7 @@ try {
     insert(primary,"catalog_search_documents",{product_id:b.id,external_book_id:b.external,
       title:"Synthetic full-schema book",currency:"USD",price_minor:b.price,
       first_ingested_at:now,updated_at:now});
-    insert(primary,"offers",{id:"offer_"+b.sku,product_id:b.id,offer_type:b.type,
+    insert(primary,"offers",{id:"offer_"+b.sku,product_id:b.id,offer_type:b.primaryType??b.type,
       currency:"USD",amount_minor:b.price,created_at:now,updated_at:now});
     const grant="grant_"+b.sku;
     insert(primary,"rights_grants",{id:grant,edition_id:b.edition,territory_code:"US",
