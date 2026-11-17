@@ -80,8 +80,12 @@ const hasMixedWildcards = branch => {
   parser=parser.replace(anchor,hook+anchor);
   const block="  const branches = splitTopLevel(body).map(branch => branch.trim());";
   const patch=`  const branches = splitTopLevel(body).map(branch => branch.trim());
-  // These strings otherwise cause nested unbounded regex repetition.
-  // A single branch is sufficient to create catastrophic backtracking.
+  // GHSA-fc5q-39xc-vjpf names single-branch +(*) and +(*a).
+  // The original multiple-branch check never sees those; prevent nested
+  // unbounded star repetition with conservative literalization.
+  if (branches.length === 1 && /^\\*(?!\\()[^()]*$/.test(branches[0])) {
+    return { risky: true };
+  }
   if (branches.some(hasMixedWildcards)) {
     return { risky: true };
   }`;
@@ -96,9 +100,12 @@ const hasMixedWildcards = branch => {
   const script=`
     const assert=require('node:assert/strict');
     const pm=require(process.argv[1]);
-    for(const pattern of ['+(?*a)','*(?*a)','+(*?a)','+(?*[ab])','+(?*a|b)']){
+    for(const pattern of ['+(*)','+(*a)','*(*)','*(*a)','+(?*a)','*(?*a)','+(*?a)','+(?*[ab])','+(?*a|b)']){
       const regex=pm.makeRe(pattern);
       assert(!regex.test('a'.repeat(48)+'!'),pattern+' returned true');
+      if (['+(*)','+(*a)','*(*)','*(*a)'].includes(pattern)) {
+        assert(regex.test(pattern),pattern+' was not conservatively literalized');
+      }
       // PR #194 also changes glob parsing semantics. Existing 4.0.7
       // may represent repeated extglobs as safely partially literalized.
       // The authoritative safety test is a bounded pathological match.
