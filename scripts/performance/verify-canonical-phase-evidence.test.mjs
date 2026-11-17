@@ -99,7 +99,10 @@ test("complete synthetic evidence is not equivalent to release certification", (
   assert.equal(result.edgeControlsExpected, 32);
   assert.equal(result.edgeControlsObserved, 32);
   assert.equal(result.edgeControlsSecure, true);
-  assert.deepEqual(result.edgeControlCohorts.map((x) => x.concurrency), [1, 4, 8, 16]);
+  assert.deepEqual(
+    result.edgeControlCohorts.map((x) => x.concurrency),
+    [1, 4, 8, 16],
+  );
   assert.equal(result.edgeControlCohorts[0].p95Ms, 60);
   assert.equal(result.strictLimitedStagingGate, true);
   assert.equal(result.releaseCertified, false);
@@ -300,14 +303,31 @@ test("runner-supplied arbitrary strings or oversized numbers never enter archive
 
 test("missing or forged anonymous 401 controls block staged rights acceptance", () => {
   for (const mutate of [
-    (raw) => { raw.deniedControls = []; },
-    (raw) => { delete raw.pairedPhaseControls; },
-    (raw) => { raw.deniedControls[0].status = 200; raw.deniedControls[0].denied = false; },
-    (raw) => { raw.deniedControls[0].denied = false; },
-    (raw) => { raw.deniedControls[0].ttfbMs = "Bearer NEVER_COPY_ME"; },
-    (raw) => { raw.deniedControls[0].clientQueueMs = 100_000; },
-    (raw) => { raw.controlSummaries[0].denied401 = 7; },
-    (raw) => { raw.deniedControls[8].concurrency = 8; },
+    (raw) => {
+      raw.deniedControls = [];
+    },
+    (raw) => {
+      delete raw.pairedPhaseControls;
+    },
+    (raw) => {
+      raw.deniedControls[0].status = 200;
+      raw.deniedControls[0].denied = false;
+    },
+    (raw) => {
+      raw.deniedControls[0].denied = false;
+    },
+    (raw) => {
+      raw.deniedControls[0].ttfbMs = "Bearer NEVER_COPY_ME";
+    },
+    (raw) => {
+      raw.deniedControls[0].clientQueueMs = 100_000;
+    },
+    (raw) => {
+      raw.controlSummaries[0].denied401 = 7;
+    },
+    (raw) => {
+      raw.deniedControls[8].concurrency = 8;
+    },
   ]) {
     const data = concurrency();
     mutate(data);
@@ -326,7 +346,9 @@ test("phase controls are post-wave, never prewarm true cold, never change 60 lic
   const coldSafe = source.indexOf("const pairedPhaseControls =");
   const wave = source.indexOf("for (const wave of waves) {");
   const licensed = source.indexOf("const rows = await runWave(wave);");
-  const paired = source.indexOf("deniedControls.push(...(await runDeniedControlWave(wave.concurrency, 8)))");
+  const paired = source.indexOf(
+    "deniedControls.push(...(await runDeniedControlWave(wave.concurrency, 8)))",
+  );
   assert.ok(coldSafe > 0 && wave > coldSafe);
   assert.ok(licensed > wave && paired > licensed);
   assert.match(source, /const controlWaves = pairedPhaseControls/);
