@@ -176,6 +176,14 @@ jobs:
         env:
           COVE_SANDBOX_SECRET_KEY: ${{ secrets.COVE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_TEST_SECRET_KEY || secrets.STRIPE_SANDBOX_SECRET_KEY || secrets.STRIPE_TEST_SECRET_KEY }}
         run: node scripts/staging/prove-private-paid-owner.mjs
+      - name: Retain every synthetic native D1 timing and rights result
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cove-synthetic-native-owner-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/owner-native-qa/
+          retention-days: 14
+          if-no-files-found: ignore
       - name: Independently verify that all per-run QA Worker ingress was removed
         if: always()
         run: |
