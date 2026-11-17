@@ -11,6 +11,7 @@ try {
   await build({
     entryPoints: [
       "src/features/fore/seo-count-projection.ts",
+      "src/features/fore/seo-count-projection-producer.ts",
       "src/features/fore/seo.server.ts",
     ],
     outdir: tmp,
@@ -25,6 +26,9 @@ try {
   );
   const { handleSeoDocumentRequest } = await import(
     pathToFileURL(path.join(tmp, "seo.server.mjs")).href
+  );
+  const { buildSeoCountProjection } = await import(
+    pathToFileURL(path.join(tmp, "seo-count-projection-producer.mjs")).href
   );
 
   const timestamp = Date.now();
@@ -172,7 +176,85 @@ try {
   assert.equal(sqlCounts, 5, "legacy still issues five full-catalog counts");
   assert.match(legacy.headers.get("cache-control"), /public/);
 
-  console.log("PASS: version-fenced SEO counts fail closed, recheck withdrawals, bypass COUNT and disable CDN caching");
+  // Production-safe publication is an explicit, externally implemented
+  // atomic CAS interface, not an automatically enabled D1 or cron writer.
+  const originalFence = () => structuredClone(base.fence);
+  let currentFence = originalFence();
+  let published = null;
+  let readsForBuild = 0;
+  let countCalls = 0;
+  let casCalls = 0;
+  const basePort = {
+    nowMs: () => timestamp,
+    readPrimaryFence: async () => {
+      readsForBuild++;
+      return structuredClone(currentFence);
+    },
+    countAuthoritative: async (kind) => {
+      countCalls++;
+      return base.snapshot.counts[kind];
+    },
+    compareAndPublish: async (expected, candidate) => {
+      casCalls++;
+      if (JSON.stringify(expected) !== JSON.stringify(currentFence)) return false;
+      published = structuredClone(candidate);
+      return true;
+    },
+  };
+  const success = await buildSeoCountProjection(basePort);
+  assert.deepEqual(success, { published: true, reason: "published" });
+  assert.equal(readsForBuild, 2);
+  assert.equal(countCalls, 5);
+  assert.equal(casCalls, 1);
+  assert.equal(verifiedSeoCounts({ snapshot: published, fence: currentFence }, timestamp).works, 20_001);
+
+  currentFence = originalFence();
+  countCalls = 0;
+  casCalls = 0;
+  const midCountWithdrawal = await buildSeoCountProjection({
+    ...basePort,
+    countAuthoritative: async (kind) => {
+      countCalls++;
+      if (kind === "works") currentFence.withdrawalGeneration = "withdrawal-13";
+      return base.snapshot.counts[kind];
+    },
+  });
+  assert.deepEqual(midCountWithdrawal, { published: false, reason: "changed-during-count" });
+  assert.equal(countCalls, 5);
+  assert.equal(casCalls, 0, "no stale snapshot can reach the publisher");
+
+  currentFence = originalFence();
+  const lateWithdrawal = await buildSeoCountProjection({
+    ...basePort,
+    compareAndPublish: async (expected, candidate) => {
+      casCalls++;
+      currentFence.withdrawalGeneration = "withdrawal-14";
+      assert.equal(verifiedSeoCounts({ snapshot: candidate, fence: currentFence }, timestamp), null);
+      return false; // the production adapter MUST enforce atomic CAS in D1
+    },
+  });
+  assert.deepEqual(lateWithdrawal, { published: false, reason: "publish-lost-race" });
+
+  currentFence = originalFence();
+  currentFence.pendingWithdrawals = 1;
+  countCalls = 0;
+  assert.deepEqual(await buildSeoCountProjection(basePort), { published: false, reason: "unsafe-start" });
+  assert.equal(countCalls, 0, "unsafe primary fence must skip all heavy COUNTs");
+
+  currentFence = originalFence();
+  casCalls = 0;
+  assert.deepEqual(await buildSeoCountProjection({
+    ...basePort,
+    countAuthoritative: async () => -1,
+  }), { published: false, reason: "invalid-count" });
+  assert.equal(casCalls, 0);
+
+  assert.deepEqual(await buildSeoCountProjection({
+    ...basePort,
+    readPrimaryFence: async () => { throw Error("sensitive transport failure"); },
+  }), { published: false, reason: "unavailable" });
+
+  console.log("PASS: version-fenced SEO counts fail closed, recheck withdrawals, bypass COUNT and disable CDN caching and prevent stale snapshot publication");
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }
