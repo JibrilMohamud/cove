@@ -31,7 +31,7 @@ function tokenCanMutate(token){
 // A reviewable read-only group must END in the exact word "Read"; other
 // capabilities are unclassified until reviewed, independently of whether
 // the known mutation group list happens to contain the provider's new name.
-const READ_ONLY_GROUP=/^[A-Za-z0-9][A-Za-z0-9 &/._()+-]* Read$/;
+const READ_ONLY_GROUP=/^[A-Za-z0-9][A-Za-z0-9 &/._()+-]* (?:Read|Read-Only)$/;
 function tokenHasUnreviewedPermissions(token){
   return Array.isArray(token?.policies)&&token.policies.some(p=>
     Array.isArray(p?.permission_groups)&&p.permission_groups.some(group=>
@@ -197,6 +197,17 @@ function selfTest(){
     });
     assert.equal(report.certified,false);
     assert.ok(report.problems.includes("active_account_token_can_mutate_primary_or_owner"));
+  }
+  // Real Cloudflare scoped Worker metadata/content readers use Read-Only
+  // suffixes. Keep these safe, but never permit Editor or unknown mutations.
+  for(const readGroup of ["Workers Metadata Read-Only",
+    "Individual Workers Content Read-Only","D1 Read"]){
+    const report=evaluatePhysicalWriterInventory({
+      workers:[owner],tokens:[{name:"reader",status:"active",
+        policies:[{permission_groups:[{name:readGroup}]}]}],
+      userTokensVerified:true,userPrincipalCoverageVerified:true,
+    });
+    assert.equal(report.certified,true);
   }
   for(const unknownName of ["Workers Direct Change","D1 Mutation","API Tokens Manage"]){
     const report=evaluatePhysicalWriterInventory({
