@@ -1,0 +1,33 @@
+name: cove-seo-sitemap-count-parity
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/features/fore/seo.server.ts"
+      - "scripts/check-seo-sitemap-count-plan.mjs"
+      - "scripts/check-catalog-identity-discovery-seo.mjs"
+      - "package.json"
+      - ".github/workflows/cove-seo-sitemap-count-parity.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  offline-seo-count-parity:
+    if: github.repository == 'JibrilMohamud/cove'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Compare indexed EXISTS against original DISTINCT for withdrawal and count parity
+        run: node scripts/check-seo-sitemap-count-plan.mjs
+      - name: Confirm full catalog identity and SEO fixture parity
+        run: npm run test:catalog-identity
+
+# Source-only offline test: no secrets, no deploy, no live D1, no customer requests.
