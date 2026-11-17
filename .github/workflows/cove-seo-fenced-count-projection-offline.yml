@@ -7,6 +7,7 @@ on:
       - ".github/workflows/cove-seo-fenced-count-projection-offline.yml"
       - "src/features/fore/seo.server.ts"
       - "src/features/fore/seo-count-projection.ts"
+      - "src/features/fore/seo-count-projection-producer.ts"
       - "scripts/check-seo-count-projection.mjs"
       - "scripts/check-public-seo-gateway.mjs"
 
