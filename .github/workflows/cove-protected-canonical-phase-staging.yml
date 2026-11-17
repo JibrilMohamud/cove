@@ -6,6 +6,8 @@ on:
       - ".github/workflows/cove-protected-canonical-phase-staging.yml"
       - "scripts/staging/phase-stage-control-plane.mjs"
       - "scripts/staging/phase-stage-control-plane.test.mjs"
+      - "scripts/staging/delete-canonical-phase-workers.mjs"
+      - "scripts/staging/delete-canonical-phase-workers.test.mjs"
       - "scripts/staging/wait-canonical-phase-stage-version.mjs"
       - "scripts/performance/cloudflare-concurrency.mjs"
       - "scripts/performance/verify-canonical-phase-evidence.mjs"
@@ -40,16 +42,16 @@ jobs:
           node-version: "22"
       - run: |
           node --test scripts/staging/phase-stage-control-plane.test.mjs
+          node --test scripts/staging/delete-canonical-phase-workers.test.mjs
           node --test scripts/performance/verify-canonical-phase-evidence.test.mjs
           node --check scripts/staging/wait-canonical-phase-stage-version.mjs
           node --check scripts/staging/phase-stage-control-plane.mjs
           git diff --check
-      - name: Confirm Wrangler dry-run and exact nonproduction deletion options
+      - name: Confirm staging Wrangler dry-run and scoped direct API cleanup source
         run: |
           npm ci --no-audit --no-fund
           npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.canonical-phase.staging.jsonc
-          npm exec --yes --package=wrangler@4.151.0 -- wrangler delete --help | grep -q -- "--force"
-          npm exec --yes --package=wrangler@4.151.0 -- wrangler delete --help | grep -q -- "--config"
+          node --check scripts/staging/delete-canonical-phase-workers.mjs
 
   protected_cold_and_concurrency:
     if: >-
@@ -88,6 +90,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "${{ inputs.reviewed_main_sha }}"
           test "$(git rev-parse HEAD)" = "${{ github.sha }}"
           node --test scripts/staging/phase-stage-control-plane.test.mjs
+          node --test scripts/staging/delete-canonical-phase-workers.test.mjs
           node --test scripts/performance/verify-canonical-phase-evidence.test.mjs
           git diff --check
       - name: Verify distinct least-privilege Cloudflare credentials and production pin
@@ -113,6 +116,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Preflight proved this name absent; track even partial upload failures.
+          echo "COVE_PHASE_READER_CREATE_ATTEMPTED=1" >> "$GITHUB_ENV"
           npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.canonical-phase.staging.jsonc
           echo "COVE_PHASE_READER_DEPLOYED=1" >> "$GITHUB_ENV"
       - name: Install independently audited D1 Read secret into isolated private reader
@@ -132,6 +137,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "COVE_PHASE_SSR_CREATE_ATTEMPTED=1" >> "$GITHUB_ENV"
           npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.frontend.phase.staging.toml
           echo "COVE_PHASE_SSR_DEPLOYED=1" >> "$GITHUB_ENV"
       - name: Three fresh secret versions, each 20 authenticated strictly checked SSR reads
@@ -194,19 +200,8 @@ jobs:
       - name: ALWAYS delete only the two known previously absent stage Workers
         if: always() && env.COVE_PHASE_STAGE_PREFLIGHT_PASSED == '1'
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
-        shell: bash
-        run: |
-          set +e
-          # Never delete a script that this approved run did not create.
-          # A failed/partial deploy without this success marker instead fails
-          # postflight and requires controlled operator inspection.
-          if [ "${COVE_PHASE_SSR_DEPLOYED:-0}" = "1" ]; then
-            npm exec --yes --package=wrangler@4.151.0 -- wrangler delete --force --config wrangler.frontend.phase.staging.toml
-          fi
-          if [ "${COVE_PHASE_READER_DEPLOYED:-0}" = "1" ]; then
-            npm exec --yes --package=wrangler@4.151.0 -- wrangler delete --force --config wrangler.canonical-phase.staging.jsonc
-          fi
+          COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
+        run: node scripts/staging/delete-canonical-phase-workers.mjs
       - name: ALWAYS verify unchanged production pins, disabled owner and stage deletion
         if: always()
         env:
