@@ -46,6 +46,29 @@ function completeTokenPage(response){
   return data;
 }
 
+// User tokens belong to an individual Cloudflare principal, not the account.
+// Preserve the strict single-page and permission metadata contract; report
+// only a bounded cause code. Never expose token identifiers, policy contents,
+// upstream response bodies, credentials or user identities in CI artifacts.
+export async function inspectUserTokenEvidence(get,userToken){
+  let userTokens;
+  try{
+    userTokens=completeTokenPage(await get("/user/tokens",userToken));
+  }catch(error){
+    const code=String(error?.message||"");
+    if(code==="writer_audit_http_401"||code==="writer_audit_http_403")
+      return {verified:false,reason:"user_token_read_unauthorized"};
+    if(code==="Incomplete Cloudflare token inventory page")
+      return {verified:false,reason:"user_token_page_incomplete"};
+    return {verified:false,reason:"user_token_read_unavailable"};
+  }
+  if(!completeTokenInventory(userTokens))
+    return {verified:false,reason:"user_token_policy_incomplete"};
+  if(userTokens.some(t=>t.status==="active"&&tokenCanMutate(t)))
+    return {verified:false,reason:"active_user_token_mutation_capability"};
+  return {verified:true,reason:"current_user_inventory_clear"};
+}
+
 export function evaluatePhysicalWriterInventory({workers,tokens,userTokensVerified}){
   const problems=[];
   if(!Array.isArray(workers)||!workers.length)
@@ -218,20 +241,16 @@ async function main(){
     await transport.get(root+"/tokens",accountToken));
   // User-scoped API token inventory is an independent credential and source.
   // 403 or missing permissions block certification; never convert to zero.
-  let userTokensVerified=false;
-  try{
-    const userTokens=completeTokenPage(
-      await transport.get("/user/tokens",userToken));
-    userTokensVerified=completeTokenInventory(userTokens)&&
-      userTokens.every(t=>t.status!=="active"||!tokenCanMutate(t));
-  }catch{
-    userTokensVerified=false;
-  }
+  const userEvidence=await inspectUserTokenEvidence(transport.get,userToken);
   const report=evaluatePhysicalWriterInventory({
-    workers,tokens:accountTokens,userTokensVerified,
+    workers,tokens:accountTokens,userTokensVerified:userEvidence.verified,
   });
   console.log(JSON.stringify({
     ...report,
+    userTokenEvidenceReason:userEvidence.reason,
+    // A single user credential cannot establish every account member's
+    // independently issued user tokens; retain separate principal scope review.
+    userPrincipalScope:"current-user-only",
     requestStats:transport.stats(),
     inventoryAtomicSnapshot:false,
     tokenScopeEvidenceOnly:true,
