@@ -44,7 +44,17 @@ const requirements = [
 ];
 for (const { file, names, protections } of requirements) {
   const data = readFileSync(file, "utf8");
-  assert.match(data, /push:\n    branches: \[main\]/, file + " needs reviewed-main trigger");
+  if (file === ".github/workflows/fast-storefront-real-catalog-acceptance.yml") {
+    // Source merges cannot launch primary-D1-backed QA with privileged tokens.
+    // This campaign needs environment approval and an exact approved main SHA.
+    assert.doesNotMatch(data, /\n  push:\n/, file + " must be manual-only");
+    assert.match(data, /environment: cove-production-release-audit/);
+    assert.match(data, /inputs\.reviewed_main_sha == github\.sha/);
+    assert.match(data, /inputs\.confirm_real_catalog_readonly == true/);
+    assert.match(data, /github\.event_name == 'workflow_dispatch'/);
+  } else {
+    assert.match(data, /push:\n    branches: \[main\]/, file + " needs reviewed-main trigger");
+  }
   assert.match(data, /workflow_dispatch:/, file + " needs explicit rerun option");
   assert.match(data, /github.ref == 'refs\/heads\/main'/, file + " must be main-only");
   assert.ok(
