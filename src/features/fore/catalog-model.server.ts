@@ -619,14 +619,14 @@ export async function canonicalFirstPaintShelfByRightsQuery(
     recordFirstPaintD1Metrics(rows, diagnostics);
     if (priorMetrics)
       for (const field of [
-          "sqlDurationMs",
-          "rowsRead",
-          "attempts",
-          "canonicalRpcMs",
-          "canonicalRestHeadersMs",
-          "canonicalRestBodyMs",
-          "canonicalRestDecodeMs",
-        ] as const) {
+        "sqlDurationMs",
+        "rowsRead",
+        "attempts",
+        "canonicalRpcMs",
+        "canonicalRestHeadersMs",
+        "canonicalRestBodyMs",
+        "canonicalRestDecodeMs",
+      ] as const) {
         const prior = priorMetrics[field],
           last = diagnostics[field];
         if (prior !== undefined && last !== undefined) diagnostics[field] = prior + last;
