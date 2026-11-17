@@ -17,6 +17,7 @@ on:
       - "infra/canonical-readonly/worker.ts"
       - "infra/canonical-readonly/stage-primary-read-batcher.mjs"
       - "infra/canonical-readonly/stage-primary-read-batcher.test.mjs"
+      - "scripts/check-canonical-readonly-rpc.mjs"
       - "wrangler.canonical-phase.staging.jsonc"
       - "wrangler.frontend.phase.staging.toml"
   workflow_dispatch:
