@@ -30,11 +30,9 @@ export async function resolveNativeWorkerBindings(
     const rpc = worker.COVE_CANONICAL_READONLY_RPC === "1";
     if (!stageFetch && !rpc) return worker;
     const service = worker.COVE_CANONICAL_READONLY as
-      | (CanonicalReadService & { fetch(request: Request): Promise<Response> })
-      | undefined;
+      (CanonicalReadService & { fetch(request: Request): Promise<Response> }) | undefined;
     // A mixed native/read-only topology is a deployment error, never fallback.
-    if (worker.DB || (stageFetch && rpc))
-      throw new Error("Invalid canonical read-only bindings");
+    if (worker.DB || (stageFetch && rpc)) throw new Error("Invalid canonical read-only bindings");
     if (stageFetch) {
       // No production route may enable the experiment. The normal RPC
       // credential and provider-primary-only checks are unchanged.
