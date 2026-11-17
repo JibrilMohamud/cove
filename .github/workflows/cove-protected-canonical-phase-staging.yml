@@ -52,7 +52,8 @@ jobs:
           npm ci --no-audit --no-fund
           # Run a real private Miniflare fetch binding, not only a source regex:
           # Cloudflare placement ignores RPC methods.
-          node scripts/check-canonical-readonly-rpc.mjs
+          # Miniflare is an optional Wrangler dependency, not a root package.
+          npm exec --yes --package=wrangler@4.151.0 -- sh -c 'COVE_MINIFLARE_MODULE="$(dirname "$(command -v wrangler)")/../miniflare" node scripts/check-canonical-readonly-rpc.mjs'
           node scripts/check-cloudflare-native-bindings.mjs
           npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.canonical-phase.staging.jsonc
           node --check scripts/staging/restore-canonical-phase-workers.mjs
