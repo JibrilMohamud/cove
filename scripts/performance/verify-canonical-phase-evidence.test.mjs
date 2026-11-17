@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { evaluateStageCohort, parseBoundedPhases } from "./verify-canonical-phase-evidence.mjs";
+import {
+  compactCanonicalPhaseTiming,
+  evaluateStageCohort,
+  parseBoundedPhases,
+} from "./verify-canonical-phase-evidence.mjs";
 
 const timing = [
   "cove_backend_lean;dur=0",
@@ -45,6 +49,19 @@ const concurrency = () => {
     ),
   };
 };
+
+test("long raw server-timing headers retain only bounded canonical numeric phases", () => {
+  const longHeader = Array.from({ length: 90 }, (_, i) => "irrelevant_" + i + ";dur=3").join(", ") +
+    ", " + timing + ', attacker;desc="NEVER_COPY_ME"';
+  assert.ok(longHeader.length > 650);
+  assert.ok(longHeader.length < 4096);
+  const packed = compactCanonicalPhaseTiming(longHeader);
+  assert.ok(typeof packed === "string" && packed.length < 650);
+  assert.ok(packed.includes("cove_backend_catalog_rest_headers;dur=250"));
+  assert.ok(packed.includes("cove_ssr_local_rights;dur=0"));
+  assert.doesNotMatch(packed, /irrelevant|attacker|NEVER_COPY_ME/);
+  assert.equal(compactCanonicalPhaseTiming(longHeader + longHeader + longHeader), null);
+});
 
 test("complete synthetic evidence is not equivalent to release certification", () => {
   const result = evaluateStageCohort({
