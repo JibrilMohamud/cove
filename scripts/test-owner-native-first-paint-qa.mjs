@@ -66,16 +66,29 @@ test("verified native primary and strongly consistent owner return ordered mixed
 });
 
 test("real paid catalog purchase and strong owner retail are equivalent only at the same amount", async () => {
-  const canonical = { ...paid, offer_json: '{"type":"purchase","currency":"USD","amountMinor":1299}' };
+  const canonical = {
+    ...paid,
+    offer_json: '{"type":"purchase","currency":"USD","amountMinor":1299}',
+  };
   const result = await readOwnerNativeFirstPaintQa(input, ports({ primary: [free, canonical] }));
-  assert.deepEqual(result.rows.map((r) => r.product_id), input.ids);
-  assert.equal(result.rows[0].offer_json, paid.offer_json, "Return only the owner proof, never catalog offer");
+  assert.deepEqual(
+    result.rows.map((r) => r.product_id),
+    input.ids,
+  );
+  assert.equal(
+    result.rows[0].offer_json,
+    paid.offer_json,
+    "Return only the owner proof, never catalog offer",
+  );
 });
 
 test("a primary free offer still requires exact public-domain owner proof", async () => {
   const canonical = { ...free, offer_json: '{"type":"free","currency":"USD","amountMinor":0}' };
   const value = await readOwnerNativeFirstPaintQa(input, ports({ primary: [canonical, paid] }));
-  assert.deepEqual(value.rows.map((r) => r.product_id), input.ids);
+  assert.deepEqual(
+    value.rows.map((r) => r.product_id),
+    input.ids,
+  );
 });
 
 test("unrecognized retail aliases and mismatched canonical prices always deny", async () => {
@@ -85,13 +98,14 @@ test("unrecognized retail aliases and mismatched canonical prices always deny", 
     '{"type":"public-domain","currency":"USD","amountMinor":0}',
     '{"type":"purchase","currency":"CAD","amountMinor":1299}',
   ]) {
-    await assert.rejects(readOwnerNativeFirstPaintQa(input, ports({
-      primary: [free, { ...paid, offer_json: offer }],
-    })));
+    const source = { ...paid, offer_json: offer };
+    await assert.rejects(readOwnerNativeFirstPaintQa(input, ports({ primary: [free, source] })));
   }
-  await assert.rejects(readOwnerNativeFirstPaintQa(input, ports({
-    owner: [free, { ...paid, offer_json: '{"type":"purchase","currency":"USD","amountMinor":1299}' }],
-  })));
+  const invalidOwner = {
+    ...paid,
+    offer_json: '{"type":"purchase","currency":"USD","amountMinor":1299}',
+  };
+  await assert.rejects(readOwnerNativeFirstPaintQa(input, ports({ owner: [free, invalidOwner] })));
 });
 
 test("an absent owner permission never becomes a positive D1-only result", async () => {
