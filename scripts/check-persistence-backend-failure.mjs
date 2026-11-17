@@ -145,6 +145,30 @@ assert.equal(
   ),
   "unknown",
 );
+// Exercise the actual privacy-only marker helper with sync and async failures.
+const faultMarkerSource = fs.readFileSync("src/lib/backend-api-fault-stage.ts", "utf8");
+const { code: faultMarkerCode } = await transform(faultMarkerSource, { loader: "ts", format: "esm" });
+const { markBackendFaultStage } = await import(
+  "data:text/javascript;base64," + Buffer.from(faultMarkerCode).toString("base64"),
+);
+for (const stage of ["auth_handle", "identity", "catalog", "taxonomy"]) {
+  const timings = {};
+  assert.equal(await markBackendFaultStage(stage, () => "success", timings), "success");
+  assert.deepEqual(timings, {}, "Success must never claim a failed boundary");
+  const sensitive = new Error("SECRET_SQL_IDENTITY_DO_NOT_LOG");
+  await assert.rejects(
+    markBackendFaultStage(stage, async () => { throw sensitive; }, timings),
+    (error) => error === sensitive,
+  );
+  assert.deepEqual(timings, { ["fault_" + stage]: 1 });
+  assert.doesNotMatch(JSON.stringify(timings), /SECRET_SQL_IDENTITY_DO_NOT_LOG/);
+  const synchronous = {};
+  await assert.rejects(
+    markBackendFaultStage(stage, () => { throw sensitive; }, synchronous),
+    (error) => error === sensitive,
+  );
+  assert.deepEqual(synchronous, { ["fault_" + stage]: 1 });
+}
 const apiSource = fs.readFileSync("src/features/fore/api.server.ts", "utf8");
 // The actual Worker annotates ONLY rejected, enumerated first-paint phases.
 // Do not weaken the fail-closed exception path or emit raw exception details.
@@ -156,6 +180,24 @@ assert.match(apiSource, /timings\[`fault_\$\{name\}`\] = 1/);
 assert.match(apiSource, /catch \(error\) \{\s*timings\[`fault_\$\{name\}`\] = 1;\s*throw error;/);
 assert.equal((apiSource.match(/timings\[`fault_\$\{name\}`\] = 1/g) || []).length, 1);
 assert.match(apiSource, /timings\[`fault_context_\$\{stage\}`\] = 1/);
+// Authenticate stage labels with genuine provenance, reject competing or forged markers.
+for (const stage of ["auth_handle", "identity", "catalog", "taxonomy"]) {
+  const expected = stage === "auth_handle" ? "auth-handler" : stage;
+  assert.equal(backendFailureStage(flagged("cove_fault_" + stage + ";dur=1, cove_api;dur=34")), expected);
+  assert.equal(backendFailureStage(flagged("cove_fault_" + stage + ";dur=2, cove_api;dur=34")), "unknown");
+  assert.equal(backendFailureStage(flagged("cove_fault_" + stage + ";dur=1", {
+    "x-cove-persistence": "spoofed",
+  })), "unknown");
+}
+assert.equal(
+  backendFailureStage(flagged("cove_fault_identity;dur=1, cove_fault_catalog;dur=1, cove_api;dur=34")),
+  "multiple",
+  "Never misattribute competing errors to one stage",
+);
+assert.match(apiSource, /markBackendFaultStage\("auth_handle", \(\) => auth\.handle\(path\), timings\)/);
+assert.match(apiSource, /markBackendFaultStage\("identity", \(\) => auth\.identify\(\), timings\)/);
+assert.match(apiSource, /markBackendFaultStage\(\s*"catalog"/);
+assert.match(apiSource, /markBackendFaultStage\(\s*"taxonomy"/);
 const localizationSource = fs.readFileSync("src/features/fore/localization.server.ts", "utf8");
 assert.match(localizationSource, /onFailureStage\?\.\(stage\)/);
 assert.match(localizationSource, /stageRead\("market"/);
