@@ -69,11 +69,39 @@ try {
         },
       },
       {
+        name: "readonly-stage",
+        rootPath: temp,
+        modules: [
+          {
+            type: "ESModule",
+            path: "owner.mjs",
+            contents: readFileSync(path.join(temp, "owner.mjs"), "utf8"),
+          },
+        ],
+        compatibilityDate: "2026-10-17",
+        bindings: {
+          D1_READ_API_TOKEN: "not-a-production-token",
+          COVE_STAGE_READ_PHASE_DIAGNOSTICS: "1",
+        },
+        outboundService: async (request) => {
+          calls++;
+          const { batch } = await request.json();
+          return Response.json({
+            success: true,
+            result: batch.map((q) => ({
+              success: true,
+              results: [{ value: q.params[0] ?? 42 }],
+              meta: { served_by_primary: mode !== "replica" },
+            })),
+          });
+        },
+      },
+      {
         name: "client",
         rootPath: temp,
         modules: true,
         compatibilityDate: "2026-10-17",
-        serviceBindings: { READ: "readonly" },
+        serviceBindings: { READ: "readonly", READ_STAGE: "readonly-stage" },
         script:
           facade +
           `
@@ -85,7 +113,18 @@ try {
           const c = await db.withSession("first-primary").prepare("SELECT 42").first();
           let runDenied = false;
           try { await db.prepare("DELETE FROM books").run(); } catch { runDenied = true; }
-          return Response.json({ a, b, c, runDenied });
+          const stageResponse = await env.READ_STAGE.fetch(
+          "https://stage.internal/__cove/stage/primary-read",
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ batch: [{ sql: "SELECT ?", params: [77] }] }),
+          },
+        );
+        if (stageResponse.status !== 200) throw new Error("Staging private fetch failed");
+        const stagePayload = await stageResponse.json();
+        const stageValue = stagePayload.result[0].results[0].value;
+        return Response.json({ a, b, c, runDenied, stageValue });
         } catch (e) { return Response.json({ error: e.message }, { status: 503 }); }
       } };`,
       },
@@ -101,7 +140,8 @@ try {
   );
   assert.equal(result.c.value, 42);
   assert.equal(result.runDenied, true);
-  assert.equal(calls, 3, "Chained prepares and batch must not add query round trips");
+  assert.equal(result.stageValue, 77, "Stage service fetch must read authoritative D1");
+  assert.equal(calls, 4, "Three RPC requests plus one private placed fetch");
   mode = "replica";
   assert.equal(
     (await client.fetch("https://test/")).status,
@@ -114,6 +154,13 @@ try {
   assert.equal((await denied.text()).includes("private SQL"), false);
   const owner = await mf.getWorker("readonly");
   assert.equal((await owner.fetch("https://test/")).status, 404);
+  const stage = await mf.getWorker("readonly-stage");
+  assert.equal((await stage.fetch("https://test/")).status, 404);
+  assert.equal(
+    (await stage.fetch("https://test/__cove/stage/primary-read")).status,
+    404,
+    "Staging read endpoint never serves public GET",
+  );
   await assert.rejects(async () => await owner.query([]));
   const before = calls;
   await assert.rejects(

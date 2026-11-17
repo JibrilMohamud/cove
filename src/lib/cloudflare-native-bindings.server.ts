@@ -1,4 +1,8 @@
-import { canonicalReadonlyD1, type CanonicalReadService } from "./canonical-readonly-d1.server";
+import {
+  canonicalReadonlyD1,
+  canonicalReadonlyFetchTransport,
+  type CanonicalReadService,
+} from "./canonical-readonly-d1.server";
 import { trustedWorkerCountry } from "./cloudflare-country.server";
 
 /**
@@ -22,16 +26,35 @@ export async function resolveNativeWorkerBindings(
   const current =
     provided && typeof provided === "object" ? (provided as Record<string, unknown>) : {};
   function readonly(worker: Record<string, unknown>) {
-    if (worker.COVE_CANONICAL_READONLY_RPC !== "1") return worker;
-    const service = worker.COVE_CANONICAL_READONLY as CanonicalReadService | undefined;
-    // A mixed native/read-only topology is a deployment error, never a fallback.
-    if (worker.DB || typeof service?.query !== "function")
+    const stageFetch = worker.COVE_CANONICAL_READONLY_FETCH === "1";
+    const rpc = worker.COVE_CANONICAL_READONLY_RPC === "1";
+    if (!stageFetch && !rpc) return worker;
+    const service = worker.COVE_CANONICAL_READONLY as
+      (CanonicalReadService & { fetch(request: Request): Promise<Response> }) | undefined;
+    // A mixed native/read-only topology is a deployment error, never fallback.
+    if (worker.DB || (stageFetch && rpc)) throw new Error("Invalid canonical read-only bindings");
+    if (stageFetch) {
+      // No production route may enable the experiment. The normal RPC
+      // credential and provider-primary-only checks are unchanged.
+      if (worker.COVE_SSR_STAGING !== "1" || typeof service?.fetch !== "function")
+        throw new Error("Invalid staging fetch read bindings");
+      return { ...worker, DB: canonicalReadonlyD1(canonicalReadonlyFetchTransport(service)) };
+    }
+    if (typeof service?.query !== "function")
       throw new Error("Invalid canonical read-only bindings");
     return { ...worker, DB: canonicalReadonlyD1(service) };
   }
-  if (current.COVE_CANONICAL_READONLY_RPC === "1" && current.DB)
+  if (
+    (current.COVE_CANONICAL_READONLY_RPC === "1" ||
+      current.COVE_CANONICAL_READONLY_FETCH === "1") &&
+    current.DB
+  )
     throw new Error("Mixed canonical database privileges");
-  if (current.COVE_CANONICAL_READONLY_RPC === "1" && current.COVE_CANONICAL_READONLY)
+  if (
+    (current.COVE_CANONICAL_READONLY_RPC === "1" ||
+      current.COVE_CANONICAL_READONLY_FETCH === "1") &&
+    current.COVE_CANONICAL_READONLY
+  )
     return readonly(current);
   const existingDb = current.DB as { prepare?: unknown } | undefined;
   if (typeof existingDb?.prepare === "function") return current;

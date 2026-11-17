@@ -38,6 +38,9 @@ limit = 180
 period = 60
 
 # Provider-enforced read-only SQL. No canonical D1 binding in SSR.
+# Use the private read service fetch handler for this controlled Smart Placement
+# experiment. Cloudflare placement does not apply to query() RPC entrypoints.
+# The production RPC mode remains unchanged and is not a fetch control.
 [[services]]
 binding = "COVE_CANONICAL_READONLY"
 service = "cove-canonical-phase-readonly-staging"
@@ -50,7 +53,7 @@ binding = "OPS_ANALYTICS"
 dataset = "cove_ops_canonical_phase_stage"
 
 [vars]
-COVE_CANONICAL_READONLY_RPC = "1"
+COVE_CANONICAL_READONLY_FETCH = "1"
 COVE_OPS_TELEMETRY_MODE = "analytics-engine"
 FORE_PUBLIC_URL = "https://cove-puce-theta.vercel.app"
 FORE_ENVIRONMENT = "production"

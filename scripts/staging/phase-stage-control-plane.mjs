@@ -67,6 +67,7 @@ export function assertIsolatedStageBindings(reader, ssr) {
     ["COVE_CANONICAL_READONLY", "service"],
     ["OPS_ANALYTICS", "analytics_engine"],
     ["COVE_CANONICAL_READONLY_RPC", "plain_text"],
+    ["COVE_CANONICAL_READONLY_FETCH", "plain_text"],
     ["COVE_OPS_TELEMETRY_MODE", "plain_text"],
     ["FORE_PUBLIC_URL", "plain_text"],
     ["FORE_ENVIRONMENT", "plain_text"],
@@ -83,6 +84,17 @@ export function assertIsolatedStageBindings(reader, ssr) {
     assert.ok(!seenFrontendBindings.has(binding.name), "Duplicate stage SSR binding");
     seenFrontendBindings.add(binding.name);
   }
+  // A placement benchmark using RPC never invokes the fetch handler and
+  // would silently validate the wrong transport. Reject mode drift.
+  assert.equal(
+    frontend.find((binding) => binding.name === "COVE_CANONICAL_READONLY_FETCH")?.text,
+    "1",
+    "Staging must use placed private fetch transport",
+  );
+  assert.ok(
+    !frontend.some((binding) => binding.name === "COVE_CANONICAL_READONLY_RPC"),
+    "RPC cannot certify Smart Placement",
+  );
   assert.ok(!frontend.some((binding) => binding.type === "d1"), "No native D1 in stage SSR");
   assert.ok(!frontend.some((binding) => binding.type === "r2_bucket"), "No production R2 access");
   assert.ok(

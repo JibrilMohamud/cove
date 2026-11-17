@@ -13,8 +13,55 @@ const endpoint =
 // No native D1 binding. The credential MUST have exactly D1 Read permission.
 // Cloudflare's SQL engine denies writes even if a caller submits arbitrary SQL.
 export default class CanonicalReadonly extends WorkerEntrypoint<Env> {
-  async fetch() {
-    return new Response(null, { status: 404 });
+  // Cloudflare Smart Placement affects fetch handlers, not RPC methods.
+  // Keep the production private service's fetch surface permanently closed.
+  // Only the separately provisioned, non-routable D1 Read staging Worker
+  // may accept this exact private service-binding transport.
+  async fetch(request: Request) {
+    const denied = { "cache-control": "no-store" };
+    if (this.env.COVE_STAGE_READ_PHASE_DIAGNOSTICS !== "1")
+      return new Response(null, { status: 404, headers: denied });
+    if (
+      request.method !== "POST" ||
+      new URL(request.url).pathname !== "/__cove/stage/primary-read" ||
+      (request.headers.get("content-type") || "").split(";")[0].trim() !== "application/json"
+    )
+      return new Response(null, { status: 404, headers: denied });
+    try {
+      if (!request.body) throw new Error("Missing canonical read body");
+      // Do not trust Content-Length or materialize an unbounded request.
+      const reader = request.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let size = 0;
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          size += value.byteLength;
+          if (size > 512 * 1024) {
+            await reader.cancel();
+            throw new Error("Canonical read input too large");
+          }
+          chunks.push(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      const data = new Uint8Array(size);
+      let offset = 0;
+      for (const chunk of chunks) {
+        data.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      const payload = JSON.parse(new TextDecoder().decode(data)) as { batch?: Statement[] };
+      // query() preserves the existing primary-only D1 validation, bounded
+      // REST response, SQL duration metrics and no-write credential.
+      const result = await this.query(payload.batch as Statement[]);
+      return Response.json({ result }, { headers: denied });
+    } catch {
+      // Never echo provider diagnostics, SQL, rights, account data or token.
+      return new Response(null, { status: 503, headers: denied });
+    }
   }
 
   async query(statements: Statement[]) {
