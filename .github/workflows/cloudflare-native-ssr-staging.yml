@@ -83,94 +83,17 @@ on:
       - "scripts/check-cloudflare-deployment-readiness.mjs"
       - "scripts/wait-cloudflare-native-deployment.mjs"
       - ".github/workflows/cloudflare-native-ssr-staging.yml"
-  push:
-    branches: [main]
-    paths:
-      - "src/server.ts"
-      - "src/lib/cloudflare-ssr-stage-gate.server.ts"
-      - "src/lib/cloudflare-native-bindings.server.ts"
-      - "src/lib/canonical-readonly-d1.server.ts"
-      - "infra/canonical-readonly/**"
-      - "wrangler.canonical-readonly.jsonc"
-      - "scripts/read-active-worker-versions.mjs"
-      - "scripts/check-canonical-readonly-rpc.mjs"
-      - "scripts/staging/verify-canonical-readonly-service.mjs"
-      - "scripts/check-cloudflare-native-bindings.mjs"
-      - "scripts/check-staging-isolated-ops-metrics.mjs"
-      - "src/lib/cove-request-env.server.ts"
-      - "src/lib/cloudflare-country.server.ts"
-      - "src/features/fore/api.server.ts"
-      - "src/features/fore/storefront-read-rate-limit.server.ts"
-      - "scripts/check-storefront-firstpaint-rate-limit.mjs"
-      - "src/features/fore/search.server.ts"
-      - "src/features/fore/search-counts-cache.server.ts"
-      - "scripts/check-public-search-count-scope.mjs"
-      - "src/features/fore/taxonomy.server.ts"
-      - "src/features/fore/taxonomy-counts-cache.server.ts"
-      - "src/features/fore/taxonomy-count-query.ts"
-      - "scripts/check-sparse-taxonomy-rights-counts.mjs"
-      - "scripts/check-taxonomy-presentation-count-cache.mjs"
-      - "scripts/check-taxonomy-count-refresh-lease.mjs"
-      - "src/features/fore/rights-scoped-cache-page.ts"
-      - "scripts/check-bounded-cached-rights-recheck.mjs"
-      - "src/features/fore/catalog-model.server.ts"
-      - "src/features/fore/soundtracks.server.ts"
-      - "src/features/fore/quiet-music-inventory.server.ts"
-      - "scripts/check-quiet-music-inventory.mjs"
-      - "src/features/fore/regional-epub-asset-repair.server.ts"
-      - "src/features/fore/literary-profiles.server.ts"
-      - "src/content-processing.worker.ts"
-      - "src/lib/literary-budget-settlement.ts"
-      - "src/lib/catalog-ingestion-backpressure.ts"
-      - "scripts/operate-regional-epub-backfill.mjs"
-      - "scripts/check-regional-epub-asset-repair.mjs"
-      - "src/features/fore/localization.server.ts"
-      - "src/features/fore/recommendations.server.ts"
-      - "src/features/fore/taxonomy.server.ts"
-      - "src/features/fore/merchandising.server.ts"
-      - "scripts/check-rights.mjs"
-      - "drizzle/**"
-      - "drizzle/0075_catalog_fts_indexed_deletes.sql"
-      - "drizzle/0076_catalog_added_expression_sort.sql"
-      - "drizzle/0077_secondary_channel_potential_index.sql"
-      - "drizzle/0078_external_identifier_entity_value.sql"
-      - "scripts/check-external-identifier-index.mjs"
-      - "scripts/check-secondary-channel-index.mjs"
-      - "scripts/check-live-channel-zero-grant-gate.mjs"
-      - "scripts/check-fts-trigger-lookup.py"
-      - "scripts/check-production-storefront-performance.mjs"
-      - "scripts/check-production-storefront-performance.test.mjs"
-      - "scripts/check-storefront-bootstrap.mjs"
-      - "scripts/local-api.mjs"
-      - "src/features/fore/Store.tsx"
-      - "src/features/fore/App.tsx"
-      - "src/styles.css"
-      - "src/features/fore/fore.css"
-      - "src/routes/index.tsx"
-      - "src/routes/__root.tsx"
-      - "src/features/fore/storefront-loader.ts"
-      - "src/features/fore/storefront-anonymous-bootstrap.server.ts"
-      - "src/features/fore/storefront-hedged-fetch.ts"
-      - "vite.config.ts"
-      - "wrangler.frontend.staging.toml"
-      - "wrangler.frontend.production.toml"
-      - "scripts/check-cloudflare-production-candidate.mjs"
-      - "scripts/check-cloudflare-ssr-stage-gate.mjs"
-      - "scripts/check-cloudflare-ssr-pilot.mjs"
-      - "scripts/performance/cloudflare-browser.mjs"
-      - "scripts/performance/cloudflare-concurrency.mjs"
-      - "scripts/performance/strict-capacity-response-diagnostics*.mjs"
-      - "scripts/check-cloudflare-ssr-staging.mjs"
-      - "scripts/performance/deploy-cloudflare-staging.mjs"
-      - "scripts/cloudflare-deployment-readiness.mjs"
-      - "scripts/check-cloudflare-deployment-readiness.mjs"
-      - "scripts/wait-cloudflare-native-deployment.mjs"
-      - ".github/workflows/cloudflare-native-ssr-staging.yml"
   workflow_dispatch:
-  # Preserve a rolling independent cold-start and live-rights signal even
-  # when no code ships. Run off the hour to reduce shared-runner contention.
-  schedule:
-    - cron: "17 7 * * *"
+    inputs:
+      reviewed_main_sha:
+        description: "Exact approved main SHA for this protected staging run."
+        required: true
+        type: string
+      confirm_isolated_stage_only:
+        description: "Run only the isolated staging load; never change customer traffic or primary D1."
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -247,13 +170,19 @@ jobs:
 
   deploy-staging:
     needs: verify
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm_isolated_stage_only == true &&
+      inputs.reviewed_main_sha == github.sha
     concurrency:
       group: cove-exclusive-real-primary-cold-acceptance
       queue: max
       cancel-in-progress: false
     # Use a stable hosted runner with published Playwright system dependencies.
     # The moving ubuntu-latest 26.04 image hit Ubuntu repository DNS failures.
+    environment: cove-production-release-audit
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
@@ -267,6 +196,14 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
+      - name: Require exact reviewed main SHA before stage credentials or build
+        env:
+          EXPECTED_SHA: ${{ inputs.reviewed_main_sha }}
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test "$DISPATCH_SHA" = "$EXPECTED_SHA"
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
