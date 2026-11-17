@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
-import { compactCanonicalPhaseTiming } from "./verify-canonical-phase-evidence.mjs";
+import {
+  compactCanonicalPhaseTiming,
+  PROTECTED_EDGE_CONTROLS,
+  WAVE_COUNTS,
+} from "./verify-canonical-phase-evidence.mjs";
 import {
   CANONICAL_STAGE_THRESHOLDS,
   canonicalStageP95Limit,
@@ -17,26 +21,39 @@ import {
   validateHtml,
 } from "../check-production-storefront-performance.mjs";
 
-// Synthetic, read-only authenticated staging probe; NOT a production load test.
-// The total is capped at 60 requests to respect the Worker edge rate limiter.
-// No client IP, hostname, URL, book contents, headers or bearer key are logged.
-const waves = Object.freeze([
+// Protected phase staging must cover the full 1/4/8/16/32 release matrix.
+// Unrelated staging/canary workflows retain the existing 60-request cap and
+// 8/16 control waves. Never add a 32-wave to a customer or shared canary.
+// The protected run sends 92 licensed GETs and 40 unauthenticated 401 controls;
+// its remaining per-colo budget stays below the staging 180/60s rate cap.
+const pairedPhaseControls = process.env.COVE_CANONICAL_PHASE_STAGE_ONLY === "1";
+const legacyWaves = Object.freeze([
   { concurrency: 1, requests: 8 },
   { concurrency: 4, requests: 12 },
   { concurrency: 8, requests: 16 },
   { concurrency: 16, requests: 24 },
 ]);
+const waves = pairedPhaseControls
+  ? Object.entries(WAVE_COUNTS).map(([concurrency, requests]) => ({
+      concurrency: Number(concurrency),
+      requests,
+    }))
+  : legacyWaves;
 const total = waves.reduce((sum, wave) => sum + wave.requests, 0);
-assert.equal(total, 60, "Keep the concurrency probe below the per-colo read cap");
+assert.equal(total, pairedPhaseControls ? 92 : 60, "Unexpected protected capacity sample count");
+assert.ok(
+  total + (pairedPhaseControls ? PROTECTED_EDGE_CONTROLS : 32) < 180,
+  "Never exceed stage's per-colo request rate limiter",
+);
 const origin = productionOrigin(process.env.COVE_SSR_STAGING_ORIGIN);
 const token = process.env.COVE_SSR_STAGING_GATE_KEY;
 assert.match(token || "", /^[a-f0-9]{64}$/, "Only protected staging may be load-tested");
 assert.ok(
-  origin === "https://cove-storefront-ssr-staging.cove-jibrilmohamud.workers.dev" ||
-    origin === "https://ssr-canary.covereads.com" ||
-    (origin === "https://cove-storefront-phase-staging.cove-jibrilmohamud.workers.dev" &&
-      process.env.COVE_CANONICAL_PHASE_STAGE_ONLY === "1"),
-  "Only exact protected staging Worker or verified owned SSR canary may be load tested",
+  pairedPhaseControls
+    ? origin === "https://cove-storefront-phase-staging.cove-jibrilmohamud.workers.dev"
+    : origin === "https://cove-storefront-ssr-staging.cove-jibrilmohamud.workers.dev" ||
+        origin === "https://ssr-canary.covereads.com",
+  "Expanded 32-wave requires exact protected phase Worker; shared/customer origins denied",
 );
 const thresholds = CANONICAL_STAGE_THRESHOLDS;
 
@@ -191,7 +208,6 @@ async function runWave({ concurrency, requests }) {
 // with an immediately following 401 edge control at the same concurrency.
 // These never count as authorized reads, or prewarm the first cold trial.
 // Other staging workflows retain their historical 8/16 controls unchanged.
-const pairedPhaseControls = process.env.COVE_CANONICAL_PHASE_STAGE_ONLY === "1";
 const controlWaves = pairedPhaseControls
   ? waves.map(({ concurrency }) => ({ concurrency, requests: 8 }))
   : [
@@ -234,7 +250,7 @@ const summaries = waves.map(({ concurrency, requests }) => {
 // Run *after* licensed tests to avoid prewarming the truly cold SSR trials.
 // A missing staging bearer must terminate at the route authorization gate
 // before D1, server entry, catalog, rights or SSR rendering is invoked.
-// These 32 bounded responses provide a same-runner/colo edge dispatch
+// These bounded responses provide a same-runner/colo edge dispatch
 // baseline; they are NOT counted as successful licensed homepage requests.
 async function deniedControl(concurrency) {
   const begin = performance.now();
@@ -304,7 +320,7 @@ const controlSummaries = controlWaves.map(({ concurrency, requests }) => {
   };
 });
 const controlsSecure =
-  deniedControls.length === 32 &&
+  deniedControls.length === (pairedPhaseControls ? PROTECTED_EDGE_CONTROLS : 32) &&
   deniedControls.every((x) => x.denied) &&
   controlSummaries.every((s) => s.requests === s.denied401);
 const passed = summaries.every((s) => s.pass) && controlsSecure;
@@ -352,7 +368,7 @@ const report = [
     (s) =>
       `| ${s.concurrency} | ${s.requests} | ${s.denied401} | ${s.p50Ms} ms | ${s.p95Ms} ms | ${s.maxMs} ms | ${s.colo.join(",")} |`,
   ),
-  `Edge control protection **${controlsSecure ? "pass" : "FAIL"}** — no authorization bypass; not included in 60 licensed samples.`,
+  `Edge control protection **${controlsSecure ? "pass" : "FAIL"}** — no authorization bypass; excluded from ${total} licensed samples.`,
   "",
   "Failed licensed samples (numeric HTTP status and bounded failure category only; no headers, response bodies or credentials):",
   ...results

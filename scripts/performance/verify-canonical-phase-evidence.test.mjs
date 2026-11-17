@@ -9,6 +9,9 @@ import {
   compactCanonicalPhaseTiming,
   evaluateStageCohort,
   parseBoundedPhases,
+  PROTECTED_EDGE_CONTROLS,
+  PROTECTED_LICENSED_SAMPLES,
+  WAVE_COUNTS,
 } from "./verify-canonical-phase-evidence.mjs";
 
 const timing = [
@@ -39,9 +42,10 @@ const cold = () =>
 
 const concurrency = () => {
   let ordinal = 0;
+  const protectedCohorts = Object.keys(WAVE_COUNTS).map(Number);
   return {
     pairedPhaseControls: true,
-    deniedControls: [1, 4, 8, 16].flatMap((wave) =>
+    deniedControls: protectedCohorts.flatMap((wave) =>
       Array.from({ length: 8 }, () => ({
         concurrency: wave,
         status: 401,
@@ -52,12 +56,12 @@ const concurrency = () => {
         secret: "NEVER_COPY_ME",
       })),
     ),
-    controlSummaries: [1, 4, 8, 16].map((concurrency) => ({
+    controlSummaries: protectedCohorts.map((concurrency) => ({
       concurrency,
       requests: 8,
       denied401: 8,
     })),
-    results: Object.entries({ 1: 8, 4: 12, 8: 16, 16: 24 }).flatMap(([k, n]) =>
+    results: Object.entries(WAVE_COUNTS).flatMap(([k, n]) =>
       Array.from({ length: n }, () => ({
         sequence: ++ordinal,
         concurrency: Number(k),
@@ -96,16 +100,16 @@ test("complete synthetic evidence is not equivalent to release certification", (
     cold: cold(),
     concurrency: concurrency(),
   });
-  assert.equal(result.observed, 120);
-  assert.equal(result.validResponses, 120);
-  assert.equal(result.fullyAttributed, 120);
+  assert.equal(result.observed, PROTECTED_LICENSED_SAMPLES);
+  assert.equal(result.validResponses, PROTECTED_LICENSED_SAMPLES);
+  assert.equal(result.fullyAttributed, PROTECTED_LICENSED_SAMPLES);
   assert.equal(result.completeNumericPhaseCoverage, true);
-  assert.equal(result.edgeControlsExpected, 32);
-  assert.equal(result.edgeControlsObserved, 32);
+  assert.equal(result.edgeControlsExpected, PROTECTED_EDGE_CONTROLS);
+  assert.equal(result.edgeControlsObserved, PROTECTED_EDGE_CONTROLS);
   assert.equal(result.edgeControlsSecure, true);
   assert.deepEqual(
     result.edgeControlCohorts.map((x) => x.concurrency),
-    [1, 4, 8, 16],
+    [1, 4, 8, 16, 32],
   );
   assert.equal(result.edgeControlCohorts[0].p95Ms, 60);
   assert.equal(result.strictLimitedStagingGate, true);
@@ -145,8 +149,8 @@ test("complete synthetic evidence is not equivalent to release certification", (
 
 test("independent evidence rejects protected #86-style cohort p95 regressions", () => {
   assert.deepEqual(CANONICAL_STAGE_THRESHOLDS, { maxTtfbMs: 800, p95TtfbMs: 650 });
-  assert.deepEqual([1, 4, 8, 16].map(canonicalStageP95Limit), [650, 650, 650, 800]);
-  assert.throws(() => canonicalStageP95Limit(32));
+  assert.deepEqual([1, 4, 8, 16, 32].map(canonicalStageP95Limit), [650, 650, 650, 800, 800]);
+  assert.throws(() => canonicalStageP95Limit(64));
 
   for (const wave of [1, 4, 8]) {
     const source = concurrency();
@@ -155,7 +159,7 @@ test("independent evidence rejects protected #86-style cohort p95 regressions", 
     source.status = "pass";
     source.summaries = [{ concurrency: wave, p95Ms: 120, pass: true }];
     const result = evaluateStageCohort({ cold: cold(), concurrency: source });
-    assert.equal(result.validResponses, 120);
+    assert.equal(result.validResponses, PROTECTED_LICENSED_SAMPLES);
     assert.equal(result.completeNumericPhaseCoverage, true);
     assert.equal(result.slowOrFailed, 0, "All licensed requests are still under 800ms");
     assert.equal(result.edgeControlsSecure, true);
@@ -182,6 +186,38 @@ test("p95 boundary and 16-concurrent hard max retain existing strict contract", 
   result = evaluateStageCohort({ cold: cold(), concurrency: limit });
   assert.equal(result.strictLimitedStagingGate, false);
   assert.equal(result.slowOrFailed, 1);
+});
+
+test("32-concurrent release wave proves actual 32 in-flight and all 40 401 denials", () => {
+  assert.equal(WAVE_COUNTS[32], 32);
+  assert.equal(PROTECTED_LICENSED_SAMPLES, 152);
+  assert.equal(PROTECTED_EDGE_CONTROLS, 40);
+  const complete = evaluateStageCohort({ cold: cold(), concurrency: concurrency() });
+  assert.equal(complete.waveCohorts.find((row) => row.concurrency === 32).expected, 32);
+  assert.equal(complete.waveCohorts.find((row) => row.concurrency === 32).valid, 32);
+  assert.equal(complete.edgeControlCohorts.find((row) => row.concurrency === 32).denied401, 8);
+  assert.equal(complete.strictLimitedStagingGate, true);
+  assert.equal(complete.releaseCertified, false);
+
+  const missing = concurrency();
+  missing.results.pop();
+  const uncounted = evaluateStageCohort({ cold: cold(), concurrency: missing });
+  assert.equal(uncounted.strictLimitedStagingGate, false);
+  assert.ok(uncounted.anomalies.includes("missing-concurrency-request"));
+  assert.equal(uncounted.observed, 151);
+
+  const unpaired = concurrency();
+  unpaired.deniedControls.pop();
+  const denied = evaluateStageCohort({ cold: cold(), concurrency: unpaired });
+  assert.equal(denied.edgeControlsSecure, false);
+  assert.equal(denied.strictLimitedStagingGate, false);
+
+  const slow = concurrency();
+  slow.results.find((row) => row.concurrency === 32).ttfbMs = 800;
+  const delayed = evaluateStageCohort({ cold: cold(), concurrency: slow });
+  assert.equal(delayed.waveCohorts.find((row) => row.concurrency === 32).pass, false);
+  assert.equal(delayed.slowOrFailed, 1);
+  assert.equal(delayed.strictLimitedStagingGate, false);
 });
 
 test("substituting a concurrency ordinal cannot hide a missing scheduled request", () => {
@@ -213,7 +249,7 @@ test("one 503 and one slow incomplete sample remain unclassified failures", () =
     concurrency: concurrent,
   });
   assert.equal(result.failedOrInvalid, 1);
-  assert.equal(result.fullyAttributed, 118);
+  assert.equal(result.fullyAttributed, PROTECTED_LICENSED_SAMPLES - 2);
   assert.equal(result.completeNumericPhaseCoverage, false);
   assert.equal(result.strictLimitedStagingGate, false);
   assert.equal(result.measuredIntervals["unknown-failed-response"], 1);
@@ -228,7 +264,7 @@ test("missing, duplicated, illegal or unlicensed results can never pass", () => 
     concurrency: concurrency(),
   });
   assert.ok(incomplete.anomalies.includes("missing-cold-request"));
-  assert.equal(incomplete.observed, 119);
+  assert.equal(incomplete.observed, PROTECTED_LICENSED_SAMPLES - 1);
   assert.equal(incomplete.strictLimitedStagingGate, false);
 
   const invalid = cold();
@@ -240,7 +276,7 @@ test("missing, duplicated, illegal or unlicensed results can never pass", () => 
     cold: invalid,
     concurrency: concurrency(),
   });
-  assert.equal(denied.validResponses, 119);
+  assert.equal(denied.validResponses, PROTECTED_LICENSED_SAMPLES - 1);
   assert.equal(denied.releaseCertified, false);
 });
 
@@ -254,7 +290,7 @@ test("impossible and forged timing values are not inferred to be platform faults
     cold: previous,
     concurrency: concurrency(),
   });
-  assert.equal(result.fullyAttributed, 119);
+  assert.equal(result.fullyAttributed, PROTECTED_LICENSED_SAMPLES - 1);
   assert.equal(result.samples[0].measuredDominantInterval, "unknown-inconsistent-phases");
   assert.equal(parseBoundedPhases("cove_backend_catalog_rpc;dur=13000, cove_total;dur=400"), null);
   assert.equal(
@@ -341,7 +377,7 @@ test("runner-supplied arbitrary strings or oversized numbers never enter archive
   const evidence = evaluateStageCohort({ cold: previous, concurrency: concurrency() });
   assert.equal(evidence.samples[0].runnerQueueMs, null);
   assert.equal(evidence.samples[0].runnerSentToHeadersMs, null);
-  assert.equal(evidence.validResponses, 120);
+  assert.equal(evidence.validResponses, PROTECTED_LICENSED_SAMPLES);
   assert.equal(evidence.releaseCertified, false);
   assert.doesNotMatch(JSON.stringify(evidence), /Bearer|NEVER_COPY_ME/);
 });
@@ -377,8 +413,8 @@ test("missing or forged anonymous 401 controls block staged rights acceptance", 
     const data = concurrency();
     mutate(data);
     const evidence = evaluateStageCohort({ cold: cold(), concurrency: data });
-    assert.equal(evidence.observed, 120);
-    assert.equal(evidence.validResponses, 120);
+    assert.equal(evidence.observed, PROTECTED_LICENSED_SAMPLES);
+    assert.equal(evidence.validResponses, PROTECTED_LICENSED_SAMPLES);
     assert.equal(evidence.strictLimitedStagingGate, false);
     assert.equal(evidence.edgeControlsSecure, false);
     assert.ok(evidence.anomalies.some((x) => x.includes("edge")));
@@ -386,7 +422,7 @@ test("missing or forged anonymous 401 controls block staged rights acceptance", 
   }
 });
 
-test("phase controls are post-wave, never prewarm true cold, never change 60 licensed checks", () => {
+test("phase controls are post-wave, never prewarm cold or expand unprotected 60 checks", () => {
   const source = readFileSync("scripts/performance/cloudflare-concurrency.mjs", "utf8");
   const coldSafe = source.indexOf("const pairedPhaseControls =");
   const wave = source.indexOf("for (const wave of waves) {");
@@ -400,5 +436,12 @@ test("phase controls are post-wave, never prewarm true cold, never change 60 lic
   assert.match(source, /if \(!pairedPhaseControls\)/);
   assert.match(source, /const controlsSecure =/);
   assert.match(source, /const passed = summaries\.every\(\(s\) => s\.pass\) && controlsSecure/);
-  assert.match(source, /assert\.equal\(total, 60,/);
+  assert.match(source, /assert\.equal\(total, pairedPhaseControls \? 92 : 60,/);
+  assert.match(source, /\{ concurrency: 16, requests: 24 \}/);
+  assert.match(source, /Object\.entries\(WAVE_COUNTS\)/);
+  assert.match(
+    source,
+    /pairedPhaseControls\s*\? origin === "https:\/\/cove-storefront-phase-staging/,
+  );
+  assert.match(source, /"Expanded 32-wave requires exact protected phase Worker/);
 });
