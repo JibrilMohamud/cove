@@ -5369,11 +5369,23 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       if(route==="/qa/native-first-paint"){
         const evidence=await readOwnerNativeFirstPaintQa(raw,{
           readPrimary:async (ids,territory,currency)=>{
+            // Reuse the SINGLE QA legal-owner native binding. Primary
+            // sessions avoid any replica/lagged-market authorization path.
+            const primary=env.PRIMARY_DB as CatalogDB&{
+              withSession?: (constraint:string)=>CatalogDB
+            };
+            if(typeof primary.withSession!=="function")
+              throw Error("qa_native_primary_session_unavailable");
+            const db=primary.withSession("first-primary");
+            const market=await db.prepare(
+              "SELECT country_code FROM storefront_markets WHERE country_code=? AND market_status='active' AND default_currency=? LIMIT 1"
+            ).bind(territory,currency).first<{country_code:string}>();
             const measurements:FirstPaintD1QueryMetrics={};
             const rows=await authorizeStorefrontPresentationIds(
-              env.PRIMARY_DB,ids,territory,currency,measurements
+              db,ids,territory,currency,measurements
             );
-            return {rows,servedByPrimary:measurements.servedByPrimary===true};
+            return {rows,servedByPrimary:measurements.servedByPrimary===true,
+              activeMarket:market?.country_code===territory};
           },
           readOwner:(ids,territory,currency)=>{
             const free=ids.filter(id=>id.startsWith("prd_gutenberg_"));
