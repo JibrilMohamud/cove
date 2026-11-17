@@ -9,8 +9,19 @@ assert.match(caller, /presentationTaxonomyCounts\(\s*db,\s*territory,\s*language
 assert.match(caller, /taxonomyPresentationReadDb\(db\)/);
 assert.match(caller, /\.prepare\(taxonomySparseRightsProbe\)/);
 assert.match(caller, /taxonomyCountPlan\(\s*territory,\s*language,/);
-assert.match(production, /retail_product_availability rpa/);
-assert.match(production, /retail_product_availability_rows rpa/);
+// Migration 0074 must keep the outer view as DISTINCT of the very same
+// inner legal rows. If future migrations change that contract, stop promotion.
+const legalDdl = fs.readFileSync("drizzle/0074_flatten_retail_membership.sql", "utf8");
+assert.match(
+  legalDdl,
+  /CREATE VIEW retail_product_availability AS\s+SELECT DISTINCT product_id,edition_id,territory_code,format,rights_grant_id\s+FROM retail_product_availability_rows;/,
+);
+assert.match(production, /FROM retail_product_availability_rows rpa/);
+assert.doesNotMatch(
+  production,
+  /FROM retail_product_availability rpa/,
+  "Never reintroduce redundant outer DISTINCT in the hot EXISTS count",
+);
 assert.match(production, /g\.sales_channel='retail' AND g\.status='active'/);
 assert.match(production, /COUNT\(\*\) product_count/);
 
@@ -118,6 +129,8 @@ try {
       `Count must preserve current legal rights for ${territory}/${lang}`,
     );
     const otherPlan = taxonomyCountPlan(territory, lang, !sparse);
+    assert.match(plan.sql, /FROM retail_product_availability_rows rpa/);
+    assert.match(otherPlan.sql, /FROM retail_product_availability_rows rpa/);
     assert.deepEqual(
       normalize(db.prepare(otherPlan.sql).all(...otherPlan.binds)),
       originalRows,
