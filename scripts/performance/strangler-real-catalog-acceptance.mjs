@@ -721,10 +721,7 @@ try {
     // suffix + Worker ingress colo may attest each requested US region.
     // This PUBLIC content-free proof never receives a stage bearer and
     // DOES NOT certify geographic first-paint TTFB or legal rights.
-    evidence.fourUsColoIngress = await verifyFourUsColoIngress(
-      origin,
-      process.env.GITHUB_SHA,
-    );
+    evidence.fourUsColoIngress = await verifyFourUsColoIngress(origin, process.env.GITHUB_SHA);
     console.log("FOUR_US_COLO_INGRESS", JSON.stringify(evidence.fourUsColoIngress));
     save();
   }
