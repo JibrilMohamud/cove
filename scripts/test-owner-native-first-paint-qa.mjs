@@ -101,9 +101,15 @@ test("unrecognized retail aliases and mismatched canonical prices always deny", 
     const source = { ...paid, offer_json: offer };
     await assert.rejects(readOwnerNativeFirstPaintQa(input, ports({ primary: [free, source] })));
   }
-  const invalidOwner = {
+  const purchaseOwner = {
     ...paid,
     offer_json: '{"type":"purchase","currency":"USD","amountMinor":1299}',
+  };
+  const valid = await readOwnerNativeFirstPaintQa(input, ports({ owner: [free, purchaseOwner] }));
+  assert.equal(valid.rows[0].offer_json, purchaseOwner.offer_json);
+  const invalidOwner = {
+    ...paid,
+    offer_json: '{"type":"subscription","currency":"USD","amountMinor":1299}',
   };
   await assert.rejects(readOwnerNativeFirstPaintQa(input, ports({ owner: [free, invalidOwner] })));
 });
