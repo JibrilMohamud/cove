@@ -124,8 +124,8 @@ test("only private staging read service with no native D1 and gated SSR is allow
 
 test("one-time seeded deny-only Workers must be exactly parked before and after every run", () => {
   const parked = {
-    reader: { bindings: [] },
-    ssr: { bindings: [] },
+    reader: { resources: { bindings: [] } },
+    ssr: { resources: { bindings: [] } },
     readerDeployment: { deployments: [{ versions: [{ version_id: PARKED_READER_VERSION, percentage: 100 }] }] },
     ssrDeployment: { deployments: [{ versions: [{ version_id: PARKED_SSR_VERSION, percentage: 100 }] }] },
     readerSubdomain: { enabled: false, previews_enabled: false },
@@ -134,8 +134,8 @@ test("one-time seeded deny-only Workers must be exactly parked before and after 
   };
   assert.doesNotThrow(() => assertParkedStage(parked));
   for (const change of [
-    { reader: { bindings: [{ name: "D1_READ_API_TOKEN", type: "secret_text" }] } },
-    { ssr: { bindings: [{ name: "COVE_SSR_STAGING_GATE_KEY", type: "secret_text" }] } },
+    { reader: { resources: { bindings: [{ name: "D1_READ_API_TOKEN", type: "secret_text" }] } } },
+    { ssr: { resources: { bindings: [{ name: "COVE_SSR_STAGING_GATE_KEY", type: "secret_text" }] } } },
     { readerSubdomain: { enabled: true, previews_enabled: false } },
     { ssrSubdomain: { enabled: true, previews_enabled: false } },
     { ssrSubdomain: { enabled: false, previews_enabled: true } },
