@@ -7,6 +7,7 @@ import { build } from "esbuild";
 
 const directory = mkdtempSync(join(tmpdir(), "cove-upstream-cancel-"));
 const originalFetch = globalThis.fetch;
+const originalTimeout = globalThis.setTimeout;
 const originalWarn = console.warn;
 const originalError = console.error;
 const warnings = [];
@@ -64,8 +65,35 @@ try {
   assert.equal(catalog.status, 503);
   assert.equal(warnings.length, 1);
   assert.match(warnings[0], /production catalog fails closed/);
+  assert.match(warnings[0], /upstream-transport/);
+  assert.doesNotMatch(errors.join(" "), /Synthetic upstream handshake failure/,
+    "Raw transport exceptions must never reach production logs");
+
+  // Reproduce the observed production 30-second AbortError in a 5ms
+  // synthetic timeout. Verify classification without weakening status,
+  // extending the timeout or issuing a genuine upstream request.
+  globalThis.setTimeout = (callback, delay, ...args) =>
+    originalTimeout(callback, delay === 30_000 ? 5 : delay, ...args);
+  globalThis.fetch = (_target, init) =>
+    new Promise((_resolve, reject) => {
+      init.signal.addEventListener(
+        "abort",
+        () => reject(new DOMException("private-upstream-detail", "AbortError")),
+        { once: true },
+      );
+    });
+  const deadline = await proxyPersistenceApi(
+    new Request("https://cove.example/api/fore/recommendations/home"),
+    env,
+  );
+  assert.equal(deadline.status, 503, "Deadline exhaustion cannot grant fallback rights");
+  assert.equal(errors.length, 2);
+  assert.match(errors.at(-1), /backend-deadline/);
+  assert.doesNotMatch(errors.at(-1), /private-upstream-detail/,
+    "Deadline diagnostic must contain only the reviewed category");
 } finally {
   globalThis.fetch = originalFetch;
+  globalThis.setTimeout = originalTimeout;
   console.warn = originalWarn;
   console.error = originalError;
   rmSync(directory, { recursive: true, force: true });
