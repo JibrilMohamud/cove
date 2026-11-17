@@ -1,3 +1,14 @@
+import {
+  noncacheableSeoDocument,
+  unavailableSeoDocument,
+  verifiedSeoCounts,
+  type SeoCountEvidenceLoader,
+  type SeoCountKind,
+  type SeoCounts,
+} from "./seo-count-projection";
+
+type SeoCountReader = (kind: SeoCountKind) => Promise<number>;
+
 type Statement = {
   bind(...v: unknown[]): Statement;
   first<T = any>(): Promise<T | null>;
@@ -55,11 +66,12 @@ async function count(db: SeoDB, kind: "books" | "authors" | "categories" | "work
 async function typeIndex(
   request: Request,
   db: SeoDB,
-  kind: "books" | "authors" | "categories" | "works" | "editions",
+  kind: SeoCountKind,
   publicUrl?: string,
+  countFor: SeoCountReader = (kind) => count(db, kind),
 ) {
   const origin = originOf(request, publicUrl),
-    n = await count(db, kind),
+    n = await countFor(kind),
     pages = Math.max(1, Math.ceil(n / PAGE_SIZE));
   return sitemapIndex(
     origin,
@@ -69,14 +81,15 @@ async function typeIndex(
 async function page(
   request: Request,
   db: SeoDB,
-  kind: "books" | "authors" | "categories" | "works" | "editions",
+  kind: SeoCountKind,
   pageNo: number,
   publicUrl?: string,
+  countFor: SeoCountReader = (kind) => count(db, kind),
 ) {
   const origin = originOf(request, publicUrl);
   // Avoid huge OFFSET scans for arbitrary /sitemaps/books/99999.xml bot
   // probes. Check against the live published-document count first.
-  const totalPages = Math.max(1, Math.ceil((await count(db, kind)) / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil((await countFor(kind)) / PAGE_SIZE));
   if (!Number.isSafeInteger(pageNo) || pageNo < 1 || pageNo > totalPages)
     return new Response("Sitemap page not found", {
       status: 404,
@@ -152,11 +165,36 @@ export async function handleSeoDocumentRequest(
   request: Request,
   db: SeoDB,
   publicUrl?: string,
+  // Opt-in only; no production caller passes this until canonical owner,
+  // exclusive writer and atomic publication/withdrawal fences are certified.
+  loadCountEvidence?: SeoCountEvidenceLoader,
 ): Promise<Response | null> {
   const url = new URL(request.url),
     path = url.pathname,
     origin = originOf(request, publicUrl);
   if (request.method !== "GET" && request.method !== "HEAD") return null;
+
+  // One fresh primary-authority witness per request, never a global cache.
+  // If any required generation is missing/dirty, stop before full-catalog SQL.
+  // Old production behavior is unchanged while the loader is not wired.
+  const catalogDocument =
+    path === "/sitemap.xml" ||
+    /^\/sitemaps\/(?:books|works|editions|authors|categories)(?:\.xml|\/[0-9]+\.xml)$/.test(path);
+  let projected: Readonly<SeoCounts> | null = null;
+  if (loadCountEvidence && catalogDocument) {
+    try {
+      projected = verifiedSeoCounts(await loadCountEvidence(), Date.now());
+    } catch {
+      return unavailableSeoDocument();
+    }
+    if (!projected) return unavailableSeoDocument();
+  }
+  const countFor: SeoCountReader = projected
+    ? async (kind) => projected![kind]
+    : (kind) => count(db, kind);
+  const secure = (response: Response) =>
+    projected ? noncacheableSeoDocument(response, request.method === "HEAD") : response;
+
   if (path === "/robots.txt")
     return text(
       [
@@ -188,11 +226,11 @@ export async function handleSeoDocumentRequest(
     const kinds = ["books", "works", "editions", "authors", "categories"] as const,
       urls = ["/sitemaps/pages.xml"];
     for (const kind of kinds) {
-      const n = await count(db, kind),
+      const n = await countFor(kind),
         pages = Math.max(1, Math.ceil(n / PAGE_SIZE));
       for (let i = 1; i <= pages; i++) urls.push(`/sitemaps/${kind}/${i}.xml`);
     }
-    return sitemapIndex(origin, urls);
+    return secure(sitemapIndex(origin, urls));
   }
   if (path === "/sitemaps/pages.xml") {
     const publicPages = [
@@ -215,8 +253,11 @@ export async function handleSeoDocumentRequest(
     );
   }
   const index = path.match(/^\/sitemaps\/(books|works|editions|authors|categories)\.xml$/);
-  if (index) return typeIndex(request, db, index[1] as any, publicUrl);
+  if (index) return secure(await typeIndex(request, db, index[1] as SeoCountKind, publicUrl, countFor));
   const match = path.match(/^\/sitemaps\/(books|works|editions|authors|categories)\/(\d+)\.xml$/);
-  if (match) return page(request, db, match[1] as any, Number(match[2]), publicUrl);
+  if (match)
+    return secure(
+      await page(request, db, match[1] as SeoCountKind, Number(match[2]), publicUrl, countFor),
+    );
   return null;
 }
