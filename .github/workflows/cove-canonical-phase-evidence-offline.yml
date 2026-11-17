@@ -1,0 +1,33 @@
+name: cove-canonical-phase-evidence-offline
+
+on:
+  pull_request:
+    paths:
+      - "infra/canonical-readonly/worker.ts"
+      - "wrangler.canonical-phase.staging.jsonc"
+      - "wrangler.frontend.phase.staging.toml"
+      - "scripts/performance/verify-canonical-phase-evidence.mjs"
+      - "scripts/performance/verify-canonical-phase-evidence.test.mjs"
+      - ".github/workflows/cove-canonical-phase-evidence-offline.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  exact-sample-and-isolation-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Prove all 120 synthetic observations and isolated service defaults
+        run: node --test scripts/performance/verify-canonical-phase-evidence.test.mjs
+      - name: Check CLI parser and isolated service source without credentials
+        run: |
+          node --check scripts/performance/verify-canonical-phase-evidence.mjs
+          node --check scripts/performance/verify-canonical-phase-evidence.test.mjs
+          git diff --check
