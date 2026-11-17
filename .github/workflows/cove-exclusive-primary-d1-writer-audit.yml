@@ -8,6 +8,11 @@ on:
       - scripts/release/physical-d1-writer-read-transport.mjs
       - scripts/release/physical-d1-writer-read-transport.test.mjs
       - scripts/release/user-token-evidence.test.mjs
+      - scripts/release/active-writer-bindings.mjs
+      - scripts/release/active-writer-bindings.test.mjs
+      - scripts/release/single-principal-coverage.mjs
+      - scripts/release/single-principal-coverage.test.mjs
+      - scripts/read-active-worker-versions.mjs
       - scripts/release/exclusive-primary-d1-workflow-lock.test.mjs
       - .github/workflows/cove-exclusive-primary-d1-writer-audit.yml
   workflow_dispatch:
@@ -32,10 +37,10 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: "22"
       - run: node --check scripts/release/certify-exclusive-primary-d1.mjs
       - run: node scripts/release/certify-exclusive-primary-d1.mjs --self-test
-      - run: node --test scripts/release/physical-d1-writer-read-transport.test.mjs scripts/release/exclusive-primary-d1-workflow-lock.test.mjs scripts/release/user-token-evidence.test.mjs
+      - run: node --test scripts/release/physical-d1-writer-read-transport.test.mjs scripts/release/exclusive-primary-d1-workflow-lock.test.mjs scripts/release/user-token-evidence.test.mjs scripts/release/active-writer-bindings.test.mjs scripts/release/single-principal-coverage.test.mjs
   live-physical-audit:
     if: >-
       github.repository == 'JibrilMohamud/cove' &&
@@ -50,7 +55,7 @@ jobs:
       cancel-in-progress: false
     runs-on: ubuntu-latest
     environment: cove-production-release-audit
-    timeout-minutes: 15
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v6
         with:
@@ -58,7 +63,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: "22"
       - name: Fail closed if protected audit source differs from approved main
         shell: bash
         run: |
@@ -66,10 +71,13 @@ jobs:
           test "$(git rev-parse HEAD)" = "${{ github.sha }}"
           test "$(git rev-parse HEAD)" = "${{ inputs.reviewed_main_sha }}"
           test "$(git branch --show-current)" = "main" || test "${{ github.ref }}" = "refs/heads/main"
+      # Content Read is optional only when the metadata credential already has
+      # immutable-version read access. No deploy credential is ever substituted.
       - name: Require three separately scoped audit credentials before inventory
         shell: bash
         env:
           CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
+          CF_WORKERS_CONTENT_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_CONTENT_READ_TOKEN }}
           CF_ACCOUNT_TOKENS_AUDIT_READ_TOKEN: ${{ secrets.COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN }}
           CF_USER_AUDIT_TOKEN: ${{ secrets.COVE_CF_USER_TOKENS_AUDIT_READ_TOKEN }}
         run: |
@@ -87,5 +95,6 @@ jobs:
         env:
           CF_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
           CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
+          CF_WORKERS_CONTENT_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_CONTENT_READ_TOKEN }}
           CF_ACCOUNT_TOKENS_AUDIT_READ_TOKEN: ${{ secrets.COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN }}
           CF_USER_AUDIT_TOKEN: ${{ secrets.COVE_CF_USER_TOKENS_AUDIT_READ_TOKEN }}

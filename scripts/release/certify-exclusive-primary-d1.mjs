@@ -12,6 +12,8 @@
 import assert from "node:assert/strict";
 import {pathToFileURL} from "node:url";
 import {createPhysicalWriterReadTransport} from "./physical-d1-writer-read-transport.mjs";
+import {inspectActiveWriterBindings} from "./active-writer-bindings.mjs";
+import {inspectSinglePrincipalCoverage} from "./single-principal-coverage.mjs";
 
 const PRODUCTION_DB="4bd657ac-8789-403e-a28c-93aba8d0a989";
 const ACCOUNT="d26430caa63ec55f6612e32f36aca5e9";
@@ -98,6 +100,8 @@ export function evaluatePhysicalWriterInventory({
   const owners=(workers||[]).filter(w=>w.name===OWNER);
   if(owners.length!==1)problems.push("production_owner_missing_or_duplicated");
   const owner=owners[0];
+  if(owner?.activeVersionCount!==undefined&&owner.activeVersionCount!==1)
+    problems.push("production_owner_active_version_ambiguous");
   const ownerBindings=(owner?.bindings||[]).filter(b=>
     (b.type==="d1"||b.type==="d1_database") &&
     (b.id||b.database_id)===PRODUCTION_DB &&
@@ -272,6 +276,7 @@ async function main(){
   assert.equal(process.env.CF_ACCOUNT_ID,ACCOUNT,
     "Refuse to audit an unreviewed Cloudflare account");
   const workersToken=process.env.CF_WORKERS_METADATA_READ_TOKEN;
+  const contentToken=process.env.CF_WORKERS_CONTENT_READ_TOKEN||workersToken;
   const accountToken=process.env.CF_ACCOUNT_TOKENS_AUDIT_READ_TOKEN;
   const userToken=process.env.CF_USER_AUDIT_TOKEN;
   for(const [label,token] of [
@@ -306,10 +311,16 @@ async function main(){
   // serializes all actual Cloudflare GET request starts (<=2/sec).
   for(let i=0;i<baseline.length;i+=12){
     const group=await Promise.all(baseline.slice(i,i+12).map(async script=>{
-      const data=await transport.get(root+"/workers/scripts/"+script.id+"/settings",workersToken);
-      if(!Array.isArray(data.result?.bindings))
-        throw Error("Missing Worker bindings inventory");
-      return {name:script.id,bindings:data.result.bindings};
+      const active=await inspectActiveWriterBindings(async path=>{
+        const token=path.includes("/versions/")?contentToken:workersToken;
+        try{return (await transport.get(path,token)).result;}
+        catch(error){
+          if(path.includes("/versions/")&&["writer_audit_http_401","writer_audit_http_403"].includes(error?.message))
+            throw Error("writer_audit_content_read_unauthorized");
+          throw error;
+        }
+      },root+"/workers/scripts/"+script.id);
+      return {name:script.id,...active};
     }));
     workers.push(...group);
   }
@@ -323,18 +334,18 @@ async function main(){
   // User-scoped API token inventory is an independent credential and source.
   // 403 or missing permissions block certification; never convert to zero.
   const userEvidence=await inspectUserTokenEvidence(transport.get,userToken);
+  const principalEvidence=await inspectSinglePrincipalCoverage(transport.get,accountToken,userToken);
   const report=evaluatePhysicalWriterInventory({
     workers,tokens:accountTokens,userTokensVerified:userEvidence.verified,
-    // A separate account-member policy/cross-principal audit has not yet
-    // supplied independent coverage. Do not silently treat current user as all.
-    userPrincipalCoverageVerified:false,
+    userPrincipalCoverageVerified:principalEvidence.verified,
   });
   console.log(JSON.stringify({
     ...report,
+    bindingEvidenceSource:"active-immutable-versions",
+    activeVersionCount:workers.reduce((sum,worker)=>sum+worker.activeVersionCount,0),
     userTokenEvidenceReason:userEvidence.reason,
-    // A single user credential cannot establish every account member's
-    // independently issued user tokens; retain separate principal scope review.
-    userPrincipalScope:"current-user-only",
+    userPrincipalEvidenceReason:principalEvidence.reason,
+    userPrincipalScope:principalEvidence.verified?"verified-single-member":"unverified",
     requestStats:transport.stats(),
     inventoryAtomicSnapshot:false,
     tokenScopeEvidenceOnly:true,
