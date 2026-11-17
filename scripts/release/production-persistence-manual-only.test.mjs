@@ -3,7 +3,10 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 const workflow = readFileSync(".github/workflows/deploy-persistence-backend.yml", "utf8");
-const eventHeader = workflow.slice(workflow.indexOf("\non:\n") + 1, workflow.indexOf("\npermissions:\n"));
+const eventHeader = workflow.slice(
+  workflow.indexOf("\non:\n") + 1,
+  workflow.indexOf("\npermissions:\n"),
+);
 
 test("production Worker deployment cannot be triggered by any main push", () => {
   assert.match(eventHeader, /^on:\n  #/);
@@ -16,8 +19,14 @@ test("protected deployment requires reviewer, exact main commit and explicit app
   assert.match(workflow, /environment: cove-production-release-audit/);
   assert.match(workflow, /group: cove-exclusive-real-primary-cold-acceptance/);
   assert.match(workflow, /cancel-in-progress: false/);
-  assert.match(workflow, /reviewed_main_sha:\n\s+description:[^\n]*\n\s+required: true\n\s+type: string/);
-  assert.match(workflow, /confirm_production_deploy:\n\s+description:[^\n]*\n\s+required: true\n\s+default: false\n\s+type: boolean/);
+  assert.match(
+    workflow,
+    /reviewed_main_sha:\n\s+description:[^\n]*\n\s+required: true\n\s+type: string/,
+  );
+  assert.match(
+    workflow,
+    /confirm_production_deploy:\n\s+description:[^\n]*\n\s+required: true\n\s+default: false\n\s+type: boolean/,
+  );
   assert.match(workflow, /github\.repository == 'JibrilMohamud\/cove'/);
   assert.match(workflow, /github\.event_name == 'workflow_dispatch'/);
   assert.match(workflow, /github\.ref == 'refs\/heads\/main'/);
