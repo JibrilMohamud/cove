@@ -100,7 +100,7 @@ const hasMixedWildcards = branch => {
       const regex=pm.makeRe(pattern);
       assert(!regex.test('a'.repeat(48)+'!'),pattern+' returned true');
       assert(regex.source.includes('\\\\\\\\+\\\\\\\\(')||regex.source.includes('\\\\\\\\*\\\\\\\\('),
-        pattern+' was not literalized');
+        pattern+' was not literalized: '+JSON.stringify(regex.source));
     }
     for(const [candidate,pattern,expected] of [
       ['src/index.ts','src/**/*.ts',true],
