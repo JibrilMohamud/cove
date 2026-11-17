@@ -283,9 +283,9 @@ export function evaluateStageCohort({ cold, concurrency }) {
     edgeControlCohorts.every((row) => row.denied401 === row.expected);
   const good = records.filter((row) => row.status === "valid");
   const measured = good.filter((row) => row.phaseCoverage);
-  const limitedStagePass =
-    edgeControlsSecure && anomalies.length === 0 && records.every((row) => row.below800);
   const complete = anomalies.length === 0 && measured.length === records.length;
+  const limitedStagePass =
+    edgeControlsSecure && complete && records.every((row) => row.below800);
   const categories = Object.create(null);
   for (const row of records) {
     categories[row.measuredDominantInterval] = (categories[row.measuredDominantInterval] || 0) + 1;
