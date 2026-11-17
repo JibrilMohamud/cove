@@ -1,0 +1,35 @@
+name: picomatch-407-backport-feasibility
+on:
+  push:
+    branches:
+      - security/picomatch-407-backport-spike-20261117
+    paths:
+      - "scripts/security/check-picomatch-407-backport-spike.mjs"
+      - ".github/workflows/picomatch-407-backport-feasibility.yml"
+  pull_request:
+    paths:
+      - "scripts/security/check-picomatch-407-backport-spike.mjs"
+      - ".github/workflows/picomatch-407-backport-feasibility.yml"
+permissions:
+  contents: read
+jobs:
+  ephemeral-source-patch:
+    if: github.repository == 'JibrilMohamud/cove'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install immutable locked dependencies without build scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Test upstream ReDoS backport on disposable copy only
+        run: node scripts/security/check-picomatch-407-backport-spike.mjs
+      - name: Confirm production lockfile remains original
+        run: |
+          git diff --exit-code -- package.json package-lock.json
+          git status --short
