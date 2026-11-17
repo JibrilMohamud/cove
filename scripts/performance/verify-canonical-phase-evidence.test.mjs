@@ -185,6 +185,7 @@ test("private shared read service cannot opt into staging-only phase emission", 
   assert.match(frontend, /name = "cove-storefront-phase-staging"/);
   assert.match(frontend, /service = "cove-canonical-phase-readonly-staging"/);
   assert.doesNotMatch(frontend, /\[\[d1_databases\]\]/);
+  assert.doesNotMatch(frontend, /\[\[r2_buckets\]\]/);
   assert.match(frontend, /COVE_SSR_STAGING = "1"/);
   assert.doesNotMatch(frontend, /COVE_SSR_STAGING_COMMERCE_QA\s*=\s*"1"/);
   assert.doesNotMatch(frontend, /^\s*route\s*=|^\s*routes\s*=/m);
