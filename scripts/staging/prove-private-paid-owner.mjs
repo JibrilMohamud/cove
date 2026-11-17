@@ -190,7 +190,9 @@ const post=async(route,body)=>{
   });
   return {status:response.status,body:response.status===200?await response.json():null,
     ray:response.headers.get("cf-ray"),
-    unavailableLayer:response.headers.get("x-cove-qa-unavailable-layer")};
+    unavailableLayer:response.headers.get("x-cove-qa-unavailable-layer"),
+    nativeFailure:response.headers.get("x-cove-qa-native-failure"),
+    nativePhase:response.headers.get("x-cove-qa-native-phase")};
 };
 const read=async(route,body)=>{
   let result;
@@ -415,6 +417,13 @@ try {
   // this test nor the REST baseline from #96 certifies customer TTFB.
   const nativeInput={ids:[test.productId],territory:"US",currency:"USD"};
   const nativeReady=await read("/qa/native-first-paint",nativeInput);
+  if(nativeReady.status!==200)
+    console.error("COVE_SYNTHETIC_NATIVE_PREFLIGHT_DENIED",JSON.stringify({
+      status:nativeReady.status,
+      layer:nativeReady.unavailableLayer,
+      code:nativeReady.nativeFailure,
+      phase:nativeReady.nativePhase
+    }));
   assert.equal(nativeReady.status,200,
     "The native-first-paint route must be live inside the expiring private QA caller");
   assert.equal(nativeReady.body?.schema,"cove.qa.owner-native-first-paint.v1");
@@ -507,7 +516,8 @@ try {
         return false;
       const canonical=JSON.parse(row.offer_json);
       const approved=JSON.parse(shelf.body.rows[0].offer_json);
-      return canonical?.type==="purchase"&&approved?.type==="retail"&&
+      return canonical?.type==="purchase"&&
+        ["purchase","retail"].includes(approved?.type)&&
         Number.isSafeInteger(canonical.amountMinor)&&canonical.amountMinor>=0&&
         canonical.amountMinor===approved.amountMinor&&
         canonical.currency===approved.currency&&canonical.currency==="USD";

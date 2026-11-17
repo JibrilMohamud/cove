@@ -5367,6 +5367,10 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       // Source-controlled native primary D1 SQL, followed by owner fences.
       // No arbitrary SQL, cache, or competing native D1 reader binding.
       if(route==="/qa/native-first-paint"){
+        // Only a short-lived QA lease can reach this private branch. Report
+        // bounded enum diagnostics so Worker exceptions remain non-sensitive.
+        let qaPhase="start";
+        try {
         // QA-only numeric phase timings: no identifiers, SQL text, secrets,
         // query parameters or user data. This does not run in disabled prod.
         const qaStarted=performance.now();
@@ -5379,18 +5383,21 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           readPrimary:async (ids,territory,currency)=>{
             // Reuse the SINGLE QA legal-owner native binding. Primary
             // sessions avoid any replica/lagged-market authorization path.
+            qaPhase="session";
             const primary=env.PRIMARY_DB as CatalogDB&{
               withSession?: (constraint:string)=>CatalogDB
             };
             if(typeof primary.withSession!=="function")
               throw Error("qa_native_primary_session_unavailable");
             const db=primary.withSession("first-primary");
+            qaPhase="market";
             const marketStarted=performance.now();
             const market=await db.prepare(
               "SELECT country_code FROM storefront_markets WHERE country_code=? AND market_status='active' AND default_currency=? LIMIT 1"
             ).bind(territory,currency).first<{country_code:string}>();
             qaMarketMs=performance.now()-marketStarted;
             const measurements:FirstPaintD1QueryMetrics={};
+            qaPhase="catalog";
             const selectStarted=performance.now();
             const rows=await authorizeStorefrontPresentationIds(
               db,ids,territory,currency,measurements
@@ -5401,6 +5408,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
               activeMarket:market?.country_code===territory};
           },
           readOwner:(ids,territory,currency)=>{
+            qaPhase="owner";
             const free=ids.filter(id=>id.startsWith("prd_gutenberg_"));
             const paid=ids.filter(id=>!id.startsWith("prd_gutenberg_"));
             return [
@@ -5416,6 +5424,25 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           providerSqlMs:safeMs(qaProviderSqlMs),
           ownerTotalMs:safeMs(performance.now()-qaStarted)
         }},{headers:noStore});
+        } catch(error) {
+          // Never expose a provider error, SQL text, identity or raw message.
+          const known=new Set([
+            "native_qa_primary_unverified",
+            "native_qa_owner_primary_disagree",
+            "native_qa_market_withdrawn",
+            "native_qa_invalid_offer",
+            "native_qa_malformed_authority_row",
+            "native_qa_duplicate_primary",
+            "native_qa_duplicate_owner",
+            "qa_native_primary_session_unavailable"
+          ]);
+          const reason=error instanceof Error&&known.has(error.message)
+            ?error.message:"internal";
+          const headers=new Headers(noStore);
+          headers.set("x-cove-qa-native-failure",reason);
+          headers.set("x-cove-qa-native-phase",qaPhase);
+          return new Response(null,{status:503,headers});
+        }
       }
       if(route==="/storefront/authorize-batch"){
         const input=raw as {ids?:unknown;territory?:unknown;currency?:unknown};
