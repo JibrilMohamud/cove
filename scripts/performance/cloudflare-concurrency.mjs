@@ -183,9 +183,22 @@ async function runWave({ concurrency, requests }) {
   return rows.sort((a, b) => a.sequence - b.sequence);
 }
 
+// The strict protected phase comparison pairs each REAL licensed cohort
+// with an immediately following 401 edge control at the same concurrency.
+// These never count as authorized reads, or prewarm the first cold trial.
+// Other staging workflows retain their historical 8/16 controls unchanged.
+const pairedPhaseControls = process.env.COVE_CANONICAL_PHASE_STAGE_ONLY === "1";
+const controlWaves = pairedPhaseControls
+  ? waves.map(({ concurrency }) => ({ concurrency, requests: 8 }))
+  : [
+      { concurrency: 8, requests: 16 },
+      { concurrency: 16, requests: 16 },
+    ];
+const deniedControls = [];
 for (const wave of waves) {
   const rows = await runWave(wave);
   results.push(...rows);
+  if (pairedPhaseControls) deniedControls.push(...(await runDeniedControlWave(wave.concurrency, 8)));
 }
 const summaries = waves.map(({ concurrency, requests }) => {
   const subset = results.filter((r) => r.concurrency === concurrency);
@@ -220,13 +233,16 @@ const summaries = waves.map(({ concurrency, requests }) => {
 // baseline; they are NOT counted as successful licensed homepage requests.
 async function deniedControl(concurrency) {
   const begin = performance.now();
+  const span = {};
   try {
-    const response = await fetch(origin + "/", {
-      method: "GET",
-      redirect: "manual",
-      headers: { Accept: "text/html", "Cache-Control": "no-store" },
-      signal: AbortSignal.timeout(15000),
-    });
+    const response = await probeContext.run(span, () =>
+      fetch(origin + "/", {
+        method: "GET",
+        redirect: "manual",
+        headers: { Accept: "text/html", "Cache-Control": "no-store" },
+        signal: AbortSignal.timeout(15000),
+      }),
+    );
     const ttfbMs = Math.round(performance.now() - begin);
     await response.text();
     return {
@@ -234,6 +250,8 @@ async function deniedControl(concurrency) {
       ttfbMs,
       status: response.status,
       colo: (response.headers.get("cf-ray") || "").match(/-([A-Z]{3})$/)?.[1] || "unknown",
+      clientQueueMs: elapsed(span.sentAt, span.createdAt),
+      sentToHeadersMs: elapsed(span.headersAt, span.sentAt),
       denied:
         response.status === 401 && /no-store/.test(response.headers.get("cache-control") || ""),
     };
@@ -243,25 +261,29 @@ async function deniedControl(concurrency) {
       ttfbMs: Math.round(performance.now() - begin),
       status: 0,
       colo: "unknown",
+      clientQueueMs: elapsed(span.sentAt, span.createdAt),
+      sentToHeadersMs: elapsed(span.headersAt, span.sentAt),
       denied: false,
     };
   }
 }
-const controlWaves = [
-  { concurrency: 8, requests: 16 },
-  { concurrency: 16, requests: 16 },
-];
-const deniedControls = [];
-for (const { concurrency, requests } of controlWaves) {
+async function runDeniedControlWave(concurrency, requests) {
+  const rows = [];
   let next = 0;
   await Promise.all(
-    Array.from({ length: concurrency }, async () => {
+    Array.from({ length: Math.min(concurrency, requests) }, async () => {
       while (next < requests) {
         next += 1;
-        deniedControls.push(await deniedControl(concurrency));
+        rows.push(await deniedControl(concurrency));
       }
     }),
   );
+  return rows;
+}
+if (!pairedPhaseControls) {
+  for (const { concurrency, requests } of controlWaves) {
+    deniedControls.push(...(await runDeniedControlWave(concurrency, requests)));
+  }
 }
 const controlSummaries = controlWaves.map(({ concurrency, requests }) => {
   const rows = deniedControls.filter((x) => x.concurrency === concurrency);
@@ -276,7 +298,10 @@ const controlSummaries = controlWaves.map(({ concurrency, requests }) => {
     colo: [...new Set(rows.map((x) => x.colo))].sort(),
   };
 });
-const controlsSecure = deniedControls.length === 32 && deniedControls.every((x) => x.denied);
+const controlsSecure =
+  deniedControls.length === 32 &&
+  deniedControls.every((x) => x.denied) &&
+  controlSummaries.every((s) => s.requests === s.denied401);
 const passed = summaries.every((s) => s.pass) && controlsSecure;
 const artifact = {
   status: passed ? "pass" : "fail",
@@ -311,7 +336,9 @@ const report = [
   "",
   `Result **${passed ? "pass" : "fail"}** — ${total} bounded requests, no allowed 5xx/429/invalid rights.`,
   "",
-  "Same-runner anonymous edge control (authorization must fail closed with HTTP 401; no D1 work):",
+  pairedPhaseControls
+    ? "Immediately paired same-runner 401 edge controls after each licensed concurrency cohort (no D1 work):"
+    : "Same-runner anonymous edge control (authorization must fail closed with HTTP 401; no D1 work):",
   "| In-flight | Requests | Secure denials | p50 | p95 | Max | CF colos |",
   "| ---: | ---: | ---: | ---: | ---: | ---: | --- |",
   ...controlSummaries.map(
