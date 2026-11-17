@@ -36,6 +36,23 @@ const cold = () =>
 const concurrency = () => {
   let ordinal = 0;
   return {
+    pairedPhaseControls: true,
+    deniedControls: [1, 4, 8, 16].flatMap((wave) =>
+      Array.from({ length: 8 }, () => ({
+        concurrency: wave,
+        status: 401,
+        denied: true,
+        ttfbMs: 60,
+        clientQueueMs: 2,
+        sentToHeadersMs: 55,
+        secret: "NEVER_COPY_ME",
+      })),
+    ),
+    controlSummaries: [1, 4, 8, 16].map((concurrency) => ({
+      concurrency,
+      requests: 8,
+      denied401: 8,
+    })),
     results: Object.entries({ 1: 8, 4: 12, 8: 16, 16: 24 }).flatMap(([k, n]) =>
       Array.from({ length: n }, () => ({
         sequence: ++ordinal,
@@ -79,6 +96,11 @@ test("complete synthetic evidence is not equivalent to release certification", (
   assert.equal(result.validResponses, 120);
   assert.equal(result.fullyAttributed, 120);
   assert.equal(result.completeNumericPhaseCoverage, true);
+  assert.equal(result.edgeControlsExpected, 32);
+  assert.equal(result.edgeControlsObserved, 32);
+  assert.equal(result.edgeControlsSecure, true);
+  assert.deepEqual(result.edgeControlCohorts.map((x) => x.concurrency), [1, 4, 8, 16]);
+  assert.equal(result.edgeControlCohorts[0].p95Ms, 60);
   assert.equal(result.strictLimitedStagingGate, true);
   assert.equal(result.releaseCertified, false);
   assert.deepEqual(
@@ -274,4 +296,42 @@ test("runner-supplied arbitrary strings or oversized numbers never enter archive
   assert.equal(evidence.validResponses, 120);
   assert.equal(evidence.releaseCertified, false);
   assert.doesNotMatch(JSON.stringify(evidence), /Bearer|NEVER_COPY_ME/);
+});
+
+test("missing or forged anonymous 401 controls block staged rights acceptance", () => {
+  for (const mutate of [
+    (raw) => { raw.deniedControls = []; },
+    (raw) => { delete raw.pairedPhaseControls; },
+    (raw) => { raw.deniedControls[0].status = 200; raw.deniedControls[0].denied = false; },
+    (raw) => { raw.deniedControls[0].denied = false; },
+    (raw) => { raw.deniedControls[0].ttfbMs = "Bearer NEVER_COPY_ME"; },
+    (raw) => { raw.deniedControls[0].clientQueueMs = 100_000; },
+    (raw) => { raw.controlSummaries[0].denied401 = 7; },
+    (raw) => { raw.deniedControls[8].concurrency = 8; },
+  ]) {
+    const data = concurrency();
+    mutate(data);
+    const evidence = evaluateStageCohort({ cold: cold(), concurrency: data });
+    assert.equal(evidence.observed, 120);
+    assert.equal(evidence.validResponses, 120);
+    assert.equal(evidence.strictLimitedStagingGate, false);
+    assert.equal(evidence.edgeControlsSecure, false);
+    assert.ok(evidence.anomalies.some((x) => x.includes("edge")));
+    assert.doesNotMatch(JSON.stringify(evidence), /Bearer|NEVER_COPY_ME/);
+  }
+});
+
+test("phase controls are post-wave, never prewarm true cold, never change 60 licensed checks", () => {
+  const source = readFileSync("scripts/performance/cloudflare-concurrency.mjs", "utf8");
+  const coldSafe = source.indexOf("const pairedPhaseControls =");
+  const wave = source.indexOf("for (const wave of waves) {");
+  const licensed = source.indexOf("const rows = await runWave(wave);");
+  const paired = source.indexOf("deniedControls.push(...(await runDeniedControlWave(wave.concurrency, 8)))");
+  assert.ok(coldSafe > 0 && wave > coldSafe);
+  assert.ok(licensed > wave && paired > licensed);
+  assert.match(source, /const controlWaves = pairedPhaseControls/);
+  assert.match(source, /if \(!pairedPhaseControls\)/);
+  assert.match(source, /const controlsSecure =/);
+  assert.match(source, /const passed = summaries\.every\(\(s\) => s\.pass\) && controlsSecure/);
+  assert.match(source, /assert\.equal\(total, 60,/);
 });
