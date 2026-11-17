@@ -77,18 +77,26 @@ bearer and enforce no-store; when idle, the Worker has NO public ingress.
 
 ## Missing protected writer-audit credentials (operator action)
 
-In GitHub repository Settings > Environments >
-`cove-production-release-audit` > Environment secrets, add exactly:
+Protected #19 lacked BOTH the obsolete duplicated account-secret name and
+the user-scoped secret. However #35's successful scoped preflight already
+used `COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN` to inspect account token
+policies via `GET /accounts/{id}/tokens/{id}`. This is the SAME
+**Account API Tokens Read** capability needed for the physical writer
+inventory. The writer workflow now reuses this *existing* secret
+instead of demanding a duplicate `COVE_CF_ACCOUNT_TOKENS_AUDIT_READ_TOKEN`.
 
-- `COVE_CF_ACCOUNT_TOKENS_AUDIT_READ_TOKEN`: an account-owned
-  Cloudflare token scoped only to Cove account with **Account API Tokens
-  Read** (no Write, D1 Write, Workers Admin, or deployment capabilities).
+In GitHub repository Settings > Environments >
+`cove-production-release-audit` > Environment secrets, add ONLY:
+
 - `COVE_CF_USER_TOKENS_AUDIT_READ_TOKEN`: a **user-owned** Cloudflare
   API token with **User > API Tokens > Read**, with no other privileges.
   This is a different scope/issuer from account-owned token inventory;
   account-token Read does not grant access to `GET /user/tokens`.
 
-Keep the existing `COVE_CF_WORKERS_METADATA_READ_TOKEN` unchanged.
+Retain the two already installed independent read secrets
+`COVE_CF_WORKERS_METADATA_READ_TOKEN` and
+`COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN` unchanged.
+Do not introduce the redundant old account-secret name.
 Never store any token value in source, issue comments, CI logs or chat.
 User tokens may only enumerate the creating user's tokens; the
 source audit must explicitly fail if it cannot prove complete authority
