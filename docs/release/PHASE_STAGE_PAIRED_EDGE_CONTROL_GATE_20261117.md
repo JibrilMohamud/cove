@@ -49,8 +49,8 @@ without treating the residual as a single known cause.
   and complete SQL/REST/RPC measurements.
 - Exactly 32 paired, fail-closed unauthorized 401 controls.
 - Independent production Worker pin/legal-owner state checks; isolated
-  Worker names previously absent; exact scoped Worker-deploy and D1-Read
-  credentials; postflight cleanup and deletion verified.
+  Worker records parked at independently pinned deny-only versions; exact scoped Worker-deploy and D1-Read
+  credentials; postflight rollback to deny-only 100% versions and disabled ingress verified.
 - Passing this isolated 120-request stage check is **not** four-region
   ORD/LAX/IAD/DFW acceptance, 1/4/8/16/32 cold/warm hosted acceptance, two
   20-second 100-RPS phases, a fix for production SSR/503, legal owner /
