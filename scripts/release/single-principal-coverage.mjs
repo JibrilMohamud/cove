@@ -5,12 +5,17 @@ function members(payload) {
   const rows = payload?.result;
   const info = payload?.result_info;
   if (
-    !Array.isArray(rows) || !info || info.page !== 1 ||
+    !Array.isArray(rows) ||
+    !info ||
+    info.page !== 1 ||
     (info.total_pages !== undefined && info.total_pages !== 1) ||
-    info.count !== rows.length || info.total_count !== rows.length ||
-    rows.length !== 1 || rows[0]?.status !== "accepted" ||
+    info.count !== rows.length ||
+    info.total_count !== rows.length ||
+    rows.length !== 1 ||
+    rows[0]?.status !== "accepted" ||
     !USER_ID.test(rows[0]?.user?.id || "")
-  ) throw Error("principal_membership_not_single_complete");
+  )
+    throw Error("principal_membership_not_single_complete");
   return rows[0].user.id;
 }
 
@@ -41,7 +46,7 @@ export async function inspectSinglePrincipalCoverage(get, accountToken, userToke
     }
     if (!USER_ID.test(identity || "") || identity !== member)
       throw Error("principal_identity_mismatch");
-    if (await readMembers() !== member) throw Error("principal_membership_changed");
+    if ((await readMembers()) !== member) throw Error("principal_membership_changed");
     return { verified: true, reason: "single_member_identity_matched" };
   } catch (error) {
     // Only locally generated allowlisted categories; no identities or bodies.

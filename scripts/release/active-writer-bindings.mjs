@@ -22,8 +22,7 @@ export async function inspectActiveWriterBindings(get, base) {
       versions: deployment.versions?.map((v) => [v.version_id, v.percentage]).sort(),
     });
   };
-  if (signature(before) !== signature(after))
-    throw Error("writer_audit_active_deployment_changed");
+  if (signature(before) !== signature(after)) throw Error("writer_audit_active_deployment_changed");
   return {
     activeVersionCount: versions.length,
     bindings: versions.flatMap((version) => version.bindings),
