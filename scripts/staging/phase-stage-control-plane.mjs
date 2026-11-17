@@ -142,7 +142,15 @@ async function pinnedProduction(metadata) {
   );
 }
 
-export function assertParkedStage({reader, ssr, readerDeployment, ssrDeployment, readerSubdomain, ssrSubdomain, domains}) {
+export function assertParkedStage({
+  reader,
+  ssr,
+  readerDeployment,
+  ssrDeployment,
+  readerSubdomain,
+  ssrSubdomain,
+  domains,
+}) {
   assertPinnedDeployment(readerDeployment, PARKED_READER_VERSION);
   assertPinnedDeployment(ssrDeployment, PARKED_SSR_VERSION);
   for (const [name, record, subdomain] of [
@@ -151,7 +159,11 @@ export function assertParkedStage({reader, ssr, readerDeployment, ssrDeployment,
   ]) {
     // /settings exposes the LATEST UPLOADED version, even after a rollback.
     // The read source MUST be the exact immutable version deployed at 100%.
-    assert.deepEqual(record?.resources?.bindings || null, [], name + " parked bindings must be empty");
+    assert.deepEqual(
+      record?.resources?.bindings || null,
+      [],
+      name + " parked bindings must be empty",
+    );
     assert.equal(subdomain?.enabled, false, name + " must have no public HTTP ingress");
     assert.equal(subdomain?.previews_enabled, false, name + " previews must be disabled");
   }
@@ -175,7 +187,13 @@ async function stageParked(metadata) {
   const [reader, ssr, readerDeployment, ssrDeployment, readerSubdomain, ssrSubdomain, domains] =
     await Promise.all(paths.map((path) => get(metadata, path)));
   assertParkedStage({
-    reader, ssr, readerDeployment, ssrDeployment, readerSubdomain, ssrSubdomain, domains,
+    reader,
+    ssr,
+    readerDeployment,
+    ssrDeployment,
+    readerSubdomain,
+    ssrSubdomain,
+    domains,
   });
 }
 
@@ -202,15 +220,16 @@ async function tokenPreflight() {
 }
 
 async function verifyStage(metadata) {
-  const [readerDeploy, ssrDeploy, reader, ssr, readerSubdomain, ssrSubdomain, domains] = await Promise.all([
-    get(metadata, script(STAGE_READER) + "/deployments"),
-    get(metadata, script(STAGE_SSR) + "/deployments"),
-    get(metadata, script(STAGE_READER) + "/settings"),
-    get(metadata, script(STAGE_SSR) + "/settings"),
-    get(metadata, script(STAGE_READER) + "/subdomain"),
-    get(metadata, script(STAGE_SSR) + "/subdomain"),
-    get(metadata, "/accounts/" + ACCOUNT + "/workers/domains"),
-  ]);
+  const [readerDeploy, ssrDeploy, reader, ssr, readerSubdomain, ssrSubdomain, domains] =
+    await Promise.all([
+      get(metadata, script(STAGE_READER) + "/deployments"),
+      get(metadata, script(STAGE_SSR) + "/deployments"),
+      get(metadata, script(STAGE_READER) + "/settings"),
+      get(metadata, script(STAGE_SSR) + "/settings"),
+      get(metadata, script(STAGE_READER) + "/subdomain"),
+      get(metadata, script(STAGE_SSR) + "/subdomain"),
+      get(metadata, "/accounts/" + ACCOUNT + "/workers/domains"),
+    ]);
   for (const d of [readerDeploy, ssrDeploy]) {
     const versions = d?.deployments?.[0]?.versions;
     assert.ok(
