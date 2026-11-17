@@ -20,6 +20,12 @@ Sitemap counts **do not authorize** books, sales, downloads, or reader access. N
 
 The existing SEO route accepts an optional `SeoCountEvidenceLoader` for test/staging. **No production caller supplies it.** Therefore both existing XML counts and the current gateway remain unchanged in main and in current deployments. This is not yet a release fix.
 
+## Producer-side source contract (not connected to production)
+
+`src/features/fore/seo-count-projection-producer.ts` also provides an explicit, source-only `buildSeoCountProjection` contract. It rejects an unsafe initial primary-fence witness **before** any expensive COUNT, reads five authoritative counts sequentially outside the customer request path, re-reads the primary fence, and refuses to publish if the generation changed during counting. It then calls a separately supplied `compareAndPublish` callback.
+
+**That callback does not exist in production yet** and is safety critical: the only acceptable implementation is a single atomic owner-authorized D1 compare-and-publish transaction, including a check against older snapshot timestamps or displaced producer leases. A second fence read without an atomic compare-and-publish is vulnerable to withdrawals racing between the read and write. A false/throwing callback fails without marking success. The synthetic test simulates both a withdrawal during counting and another after the second read but before publication, asserting both are rejected.
+
 ## Essential production prerequisites — not implemented here
 
 1. Certify exactly one canonical D1 writer and an enabled, lawful legal owner. This contract must NOT be used as a substitute for that certification.
@@ -32,6 +38,6 @@ The existing SEO route accepts an optional `SeoCountEvidenceLoader` for test/sta
 
 ## Offline evidence
 
-`scripts/check-seo-count-projection.mjs` constructs synthetic version fences and exercises count version mismatches, withdrawal propagation, dirty/pending writes, incomplete evidence, expiry, invalid counts, the lack of a live COUNT when attested, no-store responses, and unchanged legacy behavior. The dedicated workflow `cove-seo-fenced-count-projection-offline` runs it in CI alongside the existing public SEO gateway regression and typecheck. These tests prove **local source behavior only**, not primary-D1 writer atomicity or deployed performance.
+`scripts/check-seo-count-projection.mjs` constructs synthetic version fences and exercises count version mismatches, withdrawal propagation, dirty/pending writes, incomplete evidence, expiry, invalid counts, the lack of a live COUNT when attested, no-store responses, and unchanged legacy behavior. The dedicated workflow `cove-seo-fenced-count-projection-offline` runs it in CI alongside the existing public SEO gateway regression and typecheck, including snapshot-build publication races. These tests prove **local source behavior only**, not primary-D1 writer atomicity or deployed performance.
 
 **Release decision: NO-GO until every independent Cove release gate is certified.**
