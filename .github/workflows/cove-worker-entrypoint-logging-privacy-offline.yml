@@ -6,6 +6,8 @@ on:
     paths:
       - "src/persistence-backend.worker.ts"
       - "src/features/fore/api.server.ts"
+      - "wrangler.backend.production.toml"
+      - ".github/workflows/deploy-persistence-backend.yml"
       - "scripts/release/worker-entrypoint-logger-privacy.test.mjs"
       - "scripts/release/worker-api-logger-privacy.test.mjs"
       - ".github/workflows/cove-worker-entrypoint-logging-privacy-offline.yml"
