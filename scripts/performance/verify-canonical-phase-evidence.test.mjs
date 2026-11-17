@@ -140,7 +140,11 @@ test("impossible and forged timing values are not inferred to be platform faults
 
 test("private shared read service cannot opt into staging-only phase emission", () => {
   const original = JSON.parse(
-    readFileSync("wrangler.canonical-readonly.jsonc", "utf8"),
+    // The existing Wrangler config is JSONC with a permitted trailing comma.
+    readFileSync("wrangler.canonical-readonly.jsonc", "utf8").replace(
+      /,\s*([}\]])/g,
+      "$1",
+    ),
   );
   const staged = JSON.parse(
     readFileSync("wrangler.canonical-phase.staging.jsonc", "utf8"),
