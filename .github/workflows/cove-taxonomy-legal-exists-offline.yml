@@ -26,4 +26,11 @@ jobs:
       - run: npm ci
       - name: Prove dense/sparse taxonomy exact view-equivalence with revocation
         run: node scripts/check-sparse-taxonomy-rights-counts.mjs
+      - name: Preserve synthetic-only, numeric A/B evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: cove-taxonomy-exists-stage-microbench
+          path: artifacts/taxonomy-exists-stage.json
+          retention-days: 14
+          if-no-files-found: error
       - run: git diff --check
