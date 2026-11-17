@@ -23,8 +23,9 @@ const PRIVILEGED_GROUPS=new Set([
   "Account API Tokens Write","API Tokens Write",
 ]);
 function tokenCanMutate(token){
-  return (token.policies||[]).some(p=>(p.permission_groups||[])
-    .some(group=>PRIVILEGED_GROUPS.has(group.name)));
+  return Array.isArray(token?.policies)&&token.policies.some(p=>
+    Array.isArray(p?.permission_groups)&&p.permission_groups
+      .some(group=>PRIVILEGED_GROUPS.has(group?.name)));
 }
 // Never interpret an unrecognized active Cloudflare permission as harmless.
 // A reviewable read-only group must END in the exact word "Read"; other
@@ -32,9 +33,10 @@ function tokenCanMutate(token){
 // the known mutation group list happens to contain the provider's new name.
 const READ_ONLY_GROUP=/^[A-Za-z0-9][A-Za-z0-9 &/._()+-]* Read$/;
 function tokenHasUnreviewedPermissions(token){
-  return (token.policies||[]).some(p=>(p.permission_groups||[])
-    .some(group=>!PRIVILEGED_GROUPS.has(group.name)&&
-      !READ_ONLY_GROUP.test(group.name)));
+  return Array.isArray(token?.policies)&&token.policies.some(p=>
+    Array.isArray(p?.permission_groups)&&p.permission_groups.some(group=>
+      !PRIVILEGED_GROUPS.has(group?.name)&&
+      !READ_ONLY_GROUP.test(group?.name||"")));
 }
 function completeTokenInventory(tokens){
   if(!Array.isArray(tokens))return false;
