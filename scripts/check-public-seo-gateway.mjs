@@ -113,6 +113,15 @@ try {
     env,
   );
   assert.equal(result.headers.has("Vercel-CDN-Cache-Control"), false);
+
+  // A fenced sitemap response must not be recached by the Vercel gateway;
+  // every subsequent request must see its fresh primary-D1 withdrawal fence.
+  nextHeaders = { "cache-control": "no-store" };
+  result = await proxyPersistenceApi(new Request("https://cove.example/sitemap.xml"), env);
+  assert.equal(result.status, 200);
+  assert.equal(result.headers.get("cache-control"), "no-store");
+  assert.equal(result.headers.has("Vercel-CDN-Cache-Control"), false);
+  nextHeaders = {};
   nextStatus = 503;
   result = await proxyPersistenceApi(new Request("https://cove.example/sitemap.xml"), env);
   assert.equal(result.status, 503);
