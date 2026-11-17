@@ -48,9 +48,13 @@ try {
     db.prepare("INSERT INTO "+table+"("+fields+") VALUES("+slots+")")
       .run(...names.map(n=>cols[n]));
   };
-  const marketRow={country_code:"US",display_name:"United States",
-    default_locale:"en-US",default_currency:"USD",created_at:now,updated_at:now};
-  insert(primary,"storefront_markets",marketRow);
+  // The canonical migrations already seed the US market. Preserve the
+  // exact schema seed and verify it, rather than inserting a second market.
+  const seedMarket=primary.prepare(
+    "SELECT country_code,market_status,default_currency FROM storefront_markets WHERE country_code='US'"
+  ).get();
+  assert.deepEqual(seedMarket,{country_code:"US",market_status:"active",default_currency:"USD"},
+    "Canonical migration-seeded market must be an active exact-currency market");
   const books=[
     {id:"prd_gutenberg_2701",edition:"ed_gutenberg_2701",work:"wrk_gutenberg_2701",
       source:"gutenberg",external:"2701",type:"public-domain",price:0,sku:"qa-free-2701"},
