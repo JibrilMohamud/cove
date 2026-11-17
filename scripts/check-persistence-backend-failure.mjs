@@ -29,6 +29,11 @@ for (const bad of [
   assert.equal(validatedBackendFailureRay(new Headers({ "cf-ray": bad })), "unavailable");
 }
 assert.equal(validatedBackendFailureRay(new Headers()), "unavailable");
+assert.equal(
+  validatedBackendFailureRay({ get: () => knownRay + "\r\nCookie: private" }),
+  "unavailable",
+  "Malformed upstream values must be rejected even if a Headers object would reject them first",
+);
 const productionGatewaySource = fs.readFileSync("src/lib/persistence-backend.ts", "utf8");
 assert.equal(
   (productionGatewaySource.match(/validatedBackendFailureRay\(response\.headers\)/g) || []).length,
