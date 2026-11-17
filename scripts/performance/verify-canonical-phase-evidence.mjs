@@ -86,7 +86,9 @@ function examineRow(row, kind, ordinal) {
   const valid =
     duration !== null &&
     http === 200 &&
-    row?.cards >= 1 &&
+    Number.isSafeInteger(row?.cards) &&
+    row.cards >= 1 &&
+    row.cards <= 100 &&
     proof &&
     (kind.startsWith("cold-") || row.error === null);
   const conclusion = valid
