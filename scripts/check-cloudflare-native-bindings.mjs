@@ -115,7 +115,9 @@ try {
       async fetch() {
         return Response.json(
           {
-            result: [{ success: true, results: [{ value: 2 }], meta: { served_by_primary: false } }],
+            result: [
+              { success: true, results: [{ value: 2 }], meta: { served_by_primary: false } },
+            ],
           },
           { headers: { "cache-control": "no-store" } },
         );
