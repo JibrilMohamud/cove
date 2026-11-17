@@ -42,7 +42,7 @@ function exactKeys(value: Record<string, unknown>, required: readonly string[]):
   return keys.length === required.length && keys.every((key) => required.includes(key));
 }
 
-const GENERATIONS = [
+export const SEO_COUNT_GENERATION_KEYS = [
   "ownerVersion",
   "catalogGeneration",
   "rightsGeneration",
@@ -53,14 +53,14 @@ const GENERATIONS = [
 
 const SNAPSHOT_FIELDS = [
   "schema",
-  ...GENERATIONS,
+  ...SEO_COUNT_GENERATION_KEYS,
   "createdAtMs",
   "expiresAtMs",
   "counts",
 ] as const;
 
 const FENCE_FIELDS = [
-  ...GENERATIONS,
+  ...SEO_COUNT_GENERATION_KEYS,
   "ownerEnabled",
   "exclusiveWriter",
   "primaryD1",
@@ -110,7 +110,7 @@ export function verifiedSeoCounts(
 
   // Match ALL mutation classes, not just rights. A changed publication
   // status, contributor link or taxonomy can also change sitemap cardinality.
-  for (const key of GENERATIONS) {
+  for (const key of SEO_COUNT_GENERATION_KEYS) {
     if (!generation(snapshot[key]) || !generation(fence[key]) || snapshot[key] !== fence[key])
       return null;
   }
