@@ -69,7 +69,9 @@ export async function inspectUserTokenEvidence(get,userToken){
   return {verified:true,reason:"current_user_inventory_clear"};
 }
 
-export function evaluatePhysicalWriterInventory({workers,tokens,userTokensVerified}){
+export function evaluatePhysicalWriterInventory({
+  workers,tokens,userTokensVerified,userPrincipalCoverageVerified=false
+}){
   const problems=[];
   if(!Array.isArray(workers)||!workers.length)
     problems.push("worker_inventory_unavailable");
@@ -100,6 +102,11 @@ export function evaluatePhysicalWriterInventory({workers,tokens,userTokensVerifi
   const privileged=(tokens||[]).filter(t=>t?.status==="active"&&tokenCanMutate(t));
   if(privileged.length)problems.push("active_account_token_can_mutate_primary_or_owner");
   if(userTokensVerified!==true)problems.push("user_token_inventory_unverified");
+  // /user/tokens can attest only its issuing user. An account-wide
+  // exclusivity certificate requires independent coverage of ALL account
+  // members' user-owned tokens; no single credential establishes that.
+  if(userPrincipalCoverageVerified!==true)
+    problems.push("all_user_token_principals_unverified");
   return {
     schema:"cove.production-exclusive-d1-audit.v1",
     certified:problems.length===0,
@@ -111,6 +118,7 @@ export function evaluatePhysicalWriterInventory({workers,tokens,userTokensVerifi
     nonownerBindingNames:outsiders.map(w=>w.name),
     privilegedAccountTokenNames:privileged.map(t=>t.name),
     userTokensVerified:userTokensVerified===true,
+    userPrincipalCoverageVerified:userPrincipalCoverageVerified===true,
     problems,
   };
 }
@@ -125,16 +133,21 @@ function selfTest(){
     workers:[owner,{name:"safe-replica",bindings:[]}],
     tokens:[{name:"read-only",status:"active",policies:[
       {permission_groups:[{name:"D1 Read"}]},
-    ]}],userTokensVerified:true,
+    ]}],userTokensVerified:true,userPrincipalCoverageVerified:true,
   });
   assert.equal(safe.certified,true);
+  const oneUserOnly=evaluatePhysicalWriterInventory({
+    workers:[owner],tokens:[],userTokensVerified:true,
+  });
+  assert.equal(oneUserOnly.certified,false);
+  assert.ok(oneUserOnly.problems.includes("all_user_token_principals_unverified"));
   const unsafe=evaluatePhysicalWriterInventory({
     workers:[{...owner,bindings:owner.bindings.map(b=>b.name==="COVE_RIGHTS_OWNER_ENABLED"?
       {...b,text:"0"}:b)},
       {name:"nonowner",bindings:[{type:"d1",name:"DB",database_id:PRODUCTION_DB}]}],
     tokens:[{name:"broad",status:"active",policies:[
       {permission_groups:[{name:"D1 Write"},{name:"Account API Tokens Write"}]},
-    ]}],userTokensVerified:false,
+    ]}],userTokensVerified:false,userPrincipalCoverageVerified:true,
   });
   assert.equal(unsafe.certified,false);
   assert.deepEqual(new Set(unsafe.problems),new Set([
@@ -244,6 +257,9 @@ async function main(){
   const userEvidence=await inspectUserTokenEvidence(transport.get,userToken);
   const report=evaluatePhysicalWriterInventory({
     workers,tokens:accountTokens,userTokensVerified:userEvidence.verified,
+    // A separate account-member policy/cross-principal audit has not yet
+    // supplied independent coverage. Do not silently treat current user as all.
+    userPrincipalCoverageVerified:false,
   });
   console.log(JSON.stringify({
     ...report,
