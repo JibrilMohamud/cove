@@ -24,8 +24,11 @@ for (const [key, invalid] of [
   ["x-cove-qa-unavailable-layer", "authorization-secret"],
   ["cf-placement", "hello-world"],
 ]) {
-  const candidate = new Headers(legit);
-  candidate.set(key, invalid);
+  // Raw spoofed header bytes may be rejected by Headers itself; verify the
+  // sanitizer even when a mock provider returns them unmodified.
+  const candidate = {
+    get: (name) => (name === key ? invalid : legit.get(name)),
+  };
   const projected = safeQaHttpResponseEvidence(candidate);
   assert.ok(!JSON.stringify(projected).includes(invalid));
   if (key === "cf-ray") assert.equal(projected.ray, null);
