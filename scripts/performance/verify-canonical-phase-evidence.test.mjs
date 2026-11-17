@@ -439,4 +439,6 @@ test("phase controls are post-wave, never prewarm cold or expand unprotected 60 
   assert.match(source, /assert\.equal\(total, pairedPhaseControls \? 92 : 60,/);
   assert.match(source, /\{ concurrency: 16, requests: 24 \}/);
   assert.match(source, /Object\.entries\(WAVE_COUNTS\)/);
+  assert.match(source, /pairedPhaseControls\s*\? origin === "https:\/\/cove-storefront-phase-staging/);
+  assert.match(source, /"Expanded 32-wave requires exact protected phase Worker/);
 });
