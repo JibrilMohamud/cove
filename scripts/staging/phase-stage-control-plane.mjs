@@ -201,7 +201,6 @@ async function stageParked(metadata, deploy) {
   });
 }
 
-
 /**
  * Cloudflare's deployment and subdomain reads may briefly lag a successful
  * restore. Retry ONLY two harmless convergence signals: the fixed 100% parked
@@ -211,7 +210,10 @@ async function stageParked(metadata, deploy) {
  */
 export function parkedPostflightRetryReason(error) {
   const message = error?.message;
-  if (message === "Existing Worker version/traffic pin changed" || message === "No Worker deployment") {
+  if (
+    message === "Existing Worker version/traffic pin changed" ||
+    message === "No Worker deployment"
+  ) {
     return "parked_version_pending";
   }
   for (const name of [STAGE_READER, STAGE_SSR]) {
