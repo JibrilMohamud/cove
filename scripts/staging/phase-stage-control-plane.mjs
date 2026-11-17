@@ -149,7 +149,9 @@ export function assertParkedStage({reader, ssr, readerDeployment, ssrDeployment,
     [STAGE_READER, reader, readerSubdomain],
     [STAGE_SSR, ssr, ssrSubdomain],
   ]) {
-    assert.deepEqual(record?.bindings || null, [], name + " parked bindings must be empty");
+    // /settings exposes the LATEST UPLOADED version, even after a rollback.
+    // The read source MUST be the exact immutable version deployed at 100%.
+    assert.deepEqual(record?.resources?.bindings || null, [], name + " parked bindings must be empty");
     assert.equal(subdomain?.enabled, false, name + " must have no public HTTP ingress");
     assert.equal(subdomain?.previews_enabled, false, name + " previews must be disabled");
   }
@@ -162,8 +164,8 @@ export function assertParkedStage({reader, ssr, readerDeployment, ssrDeployment,
 
 async function stageParked(metadata) {
   const paths = [
-    script(STAGE_READER) + "/settings",
-    script(STAGE_SSR) + "/settings",
+    script(STAGE_READER) + "/versions/" + PARKED_READER_VERSION,
+    script(STAGE_SSR) + "/versions/" + PARKED_SSR_VERSION,
     script(STAGE_READER) + "/deployments",
     script(STAGE_SSR) + "/deployments",
     script(STAGE_READER) + "/subdomain",
