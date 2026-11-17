@@ -146,7 +146,9 @@ try {
   };
   mf = new Miniflare(convertV4MiniflareOptions ? convertV4MiniflareOptions(options) : options);
   const client = await mf.getWorker("client");
+  console.log("STAGE_WORKER_INTEGRATION_START");
   const result = await (await client.fetch("https://test/")).json();
+  console.log("STAGE_WORKER_SINGLE_READ_COMPLETED");
   assert.equal(result.a, 7);
   assert.deepEqual(
     result.b.map((x) => x.results[0].value),
@@ -159,7 +161,9 @@ try {
   // Multiple independent callers must receive their own primary result.
   // Also exercise Worker request-context isolation, not only the pure helper.
   const beforeBurst = calls;
+  console.log("STAGE_WORKER_BURST_BEGIN");
   const stageBurst = await (await client.fetch("https://test/stage-burst")).json();
+  console.log("STAGE_WORKER_BURST_COMPLETED");
   assert.deepEqual(stageBurst.statuses, Array(24).fill(200));
   assert.deepEqual(stageBurst.values, Array.from({ length: 24 }, (_, i) => i));
   assert.ok(calls > beforeBurst && calls <= beforeBurst + 24);
