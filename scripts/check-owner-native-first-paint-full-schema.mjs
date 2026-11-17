@@ -180,6 +180,9 @@ try {
   servedPrimary=false;
   response=await call(request);
   assert.equal(response.status,503,"Unverified replica must deny");
+  assert.equal(response.headers.get("x-cove-qa-native-failure"),
+    "native_qa_primary_unverified");
+  assert.equal(response.headers.get("x-cove-qa-native-phase"),"catalog");
   servedPrimary=true;
   afterD1=()=>free.persistSourceWithdrawal(sql,{
     sourceId:"2701",territory:"*",operationId:"qa:full-schema-free-withdrawal"
