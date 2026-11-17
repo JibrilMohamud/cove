@@ -248,7 +248,7 @@ export function evaluateStageCohort({ cold, concurrency }) {
   if (!Array.isArray(rawControls) || rawControls.length !== PROTECTED_EDGE_CONTROLS)
     anomalies.push("missing-or-extra-edge-denials");
   if (concurrency.pairedPhaseControls !== true) anomalies.push("unpaired-edge-controls");
-  if (!Array.isArray(summaries) || summaries.length !== 4)
+  if (!Array.isArray(summaries) || summaries.length !== Object.keys(WAVE_COUNTS).length)
     anomalies.push("invalid-edge-control-summary-count");
   const controls = Array.isArray(rawControls) ? rawControls : [];
   const edgeControlCohorts = Object.keys(WAVE_COUNTS).map((value) => {
