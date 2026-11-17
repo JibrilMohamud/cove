@@ -48,11 +48,7 @@ export function parseBoundedPhases(timing) {
 export function compactCanonicalPhaseTiming(raw) {
   const values = parseBoundedPhases(raw);
   if (!values) return null;
-  const allow = [
-    ...REQUIRED,
-    "cove_backend_lean",
-    "cove_ssr_local_rights",
-  ];
+  const allow = [...REQUIRED, "cove_backend_lean", "cove_ssr_local_rights"];
   return allow
     .filter((name) => name in values)
     .map((name) => name + ";dur=" + values[name])
@@ -133,8 +129,10 @@ function examineRow(row, kind, ordinal) {
     rpcMs: valid && phases ? bounded(phases.cove_backend_catalog_rpc, 12_000) : null,
     // Numeric database-work counters only, never a catalog identifier or row.
     d1CatalogRowsRead:
-      valid && Number.isSafeInteger(row?.d1CatalogRowsRead) &&
-      row.d1CatalogRowsRead >= 0 && row.d1CatalogRowsRead <= 100_000_000
+      valid &&
+      Number.isSafeInteger(row?.d1CatalogRowsRead) &&
+      row.d1CatalogRowsRead >= 0 &&
+      row.d1CatalogRowsRead <= 100_000_000
         ? row.d1CatalogRowsRead
         : null,
     phaseCoverage: conclusion.complete,
@@ -199,8 +197,7 @@ export function evaluateStageCohort({ cold, concurrency }) {
     const seen = waveSeen.get(Number(wave));
     if (seen.size !== expected) anomalies.push("missing-concurrency-request");
     for (let position = 0; position < expected; position++) {
-      if (!seen.has(expectedOrdinal + position))
-        anomalies.push("unmatched-concurrency-sequence");
+      if (!seen.has(expectedOrdinal + position)) anomalies.push("unmatched-concurrency-sequence");
     }
     expectedOrdinal += expected;
   }
