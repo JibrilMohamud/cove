@@ -428,7 +428,8 @@ try {
   assert.equal(nativeDenied.status,200);
   assert.deepEqual(nativeDenied.body?.rows,[],
     "No current D1+owner proof means no native authorized book");
-  const nativeWrongMarket=await read("/qa/native-first-paint",{
+  // Deliberate denied scope: do not retry a real 503 as if it were DNS propagation.
+  const nativeWrongMarket=await post("/qa/native-first-paint",{
     ...nativeInput,territory:"CA"
   });
   assert.equal(nativeWrongMarket.status,503,
