@@ -195,7 +195,20 @@ const post=async(route,body)=>{
   const bodyStarted=performance.now();
   const parsed=response.status===200?await response.json():null;
   const bodyMs=Math.round((performance.now()-bodyStarted)*100)/100;
+  const metric=name=>{
+    const raw=response.headers.get(name);
+    if(!raw||!/^(?:0|[1-9][0-9]{0,4})(?:\.[0-9]{1,2})?$/.test(raw))
+      return null;
+    const ms=Number(raw);
+    return Number.isFinite(ms)&&ms>=0&&ms<=12000?ms:null;
+  };
+  const colo=response.headers.get("x-cove-qa-ingress-colo");
+  const placement=response.headers.get("cf-placement");
   return {status:response.status,body:parsed,headersMs,bodyMs,
+    bindingHeadersMs:metric("x-cove-qa-binding-header-ms"),
+    ownerRouteMs:metric("x-cove-qa-owner-route-ms"),
+    ingressColo:typeof colo==="string"&&/^[A-Z]{3}$/.test(colo)?colo:null,
+    cfPlacement:typeof placement==="string"&&/^(local|remote)-[A-Z]{3}$/.test(placement)?placement:null,
     ray:response.headers.get("cf-ray"),
     unavailableLayer:response.headers.get("x-cove-qa-unavailable-layer"),
     nativeFailure:response.headers.get("x-cove-qa-native-failure"),
@@ -466,9 +479,15 @@ try {
         const start=performance.now();
         try{
           const r=await post(route,{});
+          const hasOwner=route==="/qa/transport-owner-ping";
+          const measured=!hasOwner||(
+            typeof r.bindingHeadersMs==="number"&&
+            typeof r.ownerRouteMs==="number");
           return {ms:Math.round((performance.now()-start)*100)/100,
             headersMs:r.headersMs,bodyMs:r.bodyMs,
-            status:r.status,valid:r.status===200&&r.body?.schema===schema};
+            bindingHeadersMs:r.bindingHeadersMs,ownerRouteMs:r.ownerRouteMs,
+            ingressColo:r.ingressColo,cfPlacement:r.cfPlacement,
+            status:r.status,valid:r.status===200&&r.body?.schema===schema&&measured};
         }catch(e){
           return {ms:Math.round((performance.now()-start)*100)/100,
             status:0,valid:false,error:e instanceof Error?e.name:"unknown"};
@@ -483,6 +502,8 @@ try {
         p50Ms:q(.50),p95Ms:q(.95),p99Ms:q(.99),maxMs:durations.at(-1),
         headersP95Ms:hdr95,
         samples:samples.map(x=>({ms:x.ms,headersMs:x.headersMs,bodyMs:x.bodyMs,
+          bindingHeadersMs:x.bindingHeadersMs,ownerRouteMs:x.ownerRouteMs,
+          ingressColo:x.ingressColo,cfPlacement:x.cfPlacement,
           status:x.status,valid:x.valid,error:x.error}))};
       waves.push(wave);
       console.log("COVE_SYNTHETIC_TRANSPORT "+JSON.stringify({
@@ -507,7 +528,10 @@ try {
               Number.isFinite(phase[key])&&phase[key]>=0&&phase[key]<=12000);
         return {ms:Math.round((performance.now()-start)*100)/100,
           headersMs:r.headersMs,bodyMs:r.bodyMs,
+          bindingHeadersMs:r.bindingHeadersMs,
+          ingressColo:r.ingressColo,cfPlacement:r.cfPlacement,
           status:r.status,valid:r.status===200&&phasesVerified&&
+            typeof r.bindingHeadersMs==="number"&&
             r.body?.schema==="cove.qa.owner-native-first-paint.v1"&&
             r.body?.rows?.length===1&&
             r.body.rows[0].product_id===test.productId&&
@@ -534,6 +558,11 @@ try {
         return d.length===parallel?d[Math.ceil(0.95*d.length)-1]:null;})(),
       sqlMaxMs:Math.max(...samples.map(x=>x.providerSqlMs??0)),
       samples:samples.map(x=>({ms:x.ms,headersMs:x.headersMs,bodyMs:x.bodyMs,
+        bindingHeadersMs:x.bindingHeadersMs,
+        ingressColo:x.ingressColo,cfPlacement:x.cfPlacement,
+        serviceResidualMs:typeof x.bindingHeadersMs==="number"&&
+          typeof x.ownerMs==="number"?
+          Math.round((x.bindingHeadersMs-x.ownerMs)*100)/100:null,
         status:x.status,valid:x.valid,error:x.error,
         marketMs:x.marketMs,canonicalMs:x.canonicalMs,
         providerSqlMs:x.providerSqlMs,ownerMs:x.ownerMs}))};

@@ -5370,10 +5370,15 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         // No native D1 query, entitlement lookup or external call. Still
         // traverses the same private service binding and owner DO creation
         // behind the expiring QA lease and independent owner bearer key.
+        const routeStarted=performance.now();
         if(!raw||typeof raw!=="object"||Array.isArray(raw)||
            Object.keys(raw).length!==0)
           return new Response(null,{status:400,headers:noStore});
-        return Response.json({schema:"cove.qa.transport-owner-ping.v1"},{headers:noStore});
+        const elapsed=Math.max(0,performance.now()-routeStarted);
+        const headers=new Headers(noStore);
+        if(Number.isFinite(elapsed)&&elapsed<=12000)
+          headers.set("x-cove-qa-owner-route-ms",elapsed.toFixed(2));
+        return Response.json({schema:"cove.qa.transport-owner-ping.v1"},{headers});
       }
       if(route==="/qa/native-first-paint"){
         // Only a short-lived QA lease can reach this private branch. Report
