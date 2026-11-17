@@ -14,7 +14,11 @@ const { boundedReadonlyPhaseMs, verifiedReadonlyPhaseMs } = await import(
 );
 assert.equal(boundedReadonlyPhaseMs(10, 10.55), 0.6);
 assert.equal(boundedReadonlyPhaseMs(10, 12010), 12000);
-for (const [from, to] of [[20, 10], [10, 12011], [NaN, 40]]) {
+for (const [from, to] of [
+  [20, 10],
+  [10, 12011],
+  [NaN, 40],
+]) {
   assert.equal(boundedReadonlyPhaseMs(from, to), undefined);
 }
 assert.equal(verifiedReadonlyPhaseMs(3.1), 3.1);
@@ -23,7 +27,10 @@ for (const value of ["3.1", -1, NaN, Infinity, 12001, null]) {
 }
 
 const worker = readFileSync("infra/canonical-readonly/worker.ts", "utf8");
-const bootstrap = readFileSync("src/features/fore/storefront-anonymous-bootstrap.server.ts", "utf8");
+const bootstrap = readFileSync(
+  "src/features/fore/storefront-anonymous-bootstrap.server.ts",
+  "utf8",
+);
 const catalog = readFileSync("src/features/fore/catalog-model.server.ts", "utf8");
 const sanitizer = readFileSync("src/features/fore/storefront-hedged-fetch.ts", "utf8");
 for (const name of ["cove_read_headers_ms", "cove_read_body_ms", "cove_read_decode_ms"]) {
@@ -34,7 +41,12 @@ assert.ok(worker.includes("r.meta?.served_by_primary !== true"));
 assert.ok(worker.includes("meta: { ...row.meta, ...phases }"));
 assert.ok(bootstrap.includes('if (env.COVE_SSR_STAGING === "1")'));
 assert.ok(catalog.includes("verifiedReadonlyPhaseMs(meta?.cove_rpc_wall_ms)"));
-for (const name of ["catalog_rpc", "catalog_rest_headers", "catalog_rest_body", "catalog_rest_decode"]) {
+for (const name of [
+  "catalog_rpc",
+  "catalog_rest_headers",
+  "catalog_rest_body",
+  "catalog_rest_decode",
+]) {
   assert.ok(bootstrap.includes(name + ": d1Metrics."));
   assert.ok(sanitizer.includes('"' + name + '"'));
 }
@@ -86,11 +98,16 @@ try {
   assert.ok(first.meta.cove_rpc_wall_ms >= 0 && first.meta.cove_rpc_wall_ms <= 12000);
   const rows = await db.batch([db.prepare("SELECT ?").bind(1), db.prepare("SELECT ?").bind(2)]);
   assert.equal(rows.length, 2);
-  assert.deepEqual(calls[1].map((item) => item.params), [[1], [2]]);
+  assert.deepEqual(
+    calls[1].map((item) => item.params),
+    [[1], [2]],
+  );
   await assert.rejects(db.prepare("DELETE FROM rights").run(), /read-only/);
   const incomplete = canonicalReadonlyD1({ query: async () => [] });
   await assert.rejects(incomplete.prepare("SELECT 1").all(), /Incomplete canonical read/);
 } finally {
   rmSync(root, { recursive: true, force: true });
 }
-console.log("PASS: staging RPC/REST phases are numeric, bounded, tied to verified reads and never authorize writes");
+console.log(
+  "PASS: staging RPC/REST phases are numeric, bounded, tied to verified reads and never authorize writes",
+);
