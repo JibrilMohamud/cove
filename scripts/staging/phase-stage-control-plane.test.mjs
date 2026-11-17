@@ -88,15 +88,16 @@ test("only private staging read service with no native D1 and gated SSR is allow
   );
   assert.throws(() =>
     assertIsolatedStageBindings(reader, {
-      bindings: [...ssr.bindings, { name: "COVE_CANONICAL_READONLY_RPC", type: "plain_text", text: "1" }],
+      bindings: [
+        ...ssr.bindings,
+        { name: "COVE_CANONICAL_READONLY_RPC", type: "plain_text", text: "1" },
+      ],
     }),
   );
   assert.throws(() =>
     assertIsolatedStageBindings(reader, {
       bindings: ssr.bindings.map((binding) =>
-        binding.name === "COVE_CANONICAL_READONLY_FETCH"
-          ? { ...binding, text: "0" }
-          : binding,
+        binding.name === "COVE_CANONICAL_READONLY_FETCH" ? { ...binding, text: "0" } : binding,
       ),
     }),
   );
@@ -228,7 +229,10 @@ test("Smart Placement experiment exists ONLY on isolated read-only phase staging
   const stage = readFileSync("wrangler.frontend.phase.staging.toml", "utf8");
   assert.match(stage, /COVE_CANONICAL_READONLY_FETCH = "1"/);
   assert.doesNotMatch(stage, /COVE_CANONICAL_READONLY_RPC = "1"/);
-  assert.match(readFileSync("infra/canonical-readonly/worker.ts", "utf8"), /async fetch\(request: Request\)/);
+  assert.match(
+    readFileSync("infra/canonical-readonly/worker.ts", "utf8"),
+    /async fetch\(request: Request\)/,
+  );
   assert.equal(production.placement, undefined);
   assert.equal(owner.placement, undefined);
   assert.equal(production.name, "cove-canonical-d1-readonly");
