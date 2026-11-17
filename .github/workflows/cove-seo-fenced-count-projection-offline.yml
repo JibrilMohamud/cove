@@ -1,0 +1,38 @@
+name: cove-seo-fenced-count-projection-offline
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/cove-seo-fenced-count-projection-offline.yml"
+      - "src/features/fore/seo.server.ts"
+      - "src/features/fore/seo-count-projection.ts"
+      - "scripts/check-seo-count-projection.mjs"
+      - "scripts/check-public-seo-gateway.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  source-only:
+    if: github.repository == 'JibrilMohamud/cove'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Test strict primary-owner, withdrawal and version fences
+        run: node scripts/check-seo-count-projection.mjs
+      - name: Retain legacy sitemap gateway route and CDN behavior until protected promotion
+        run: node scripts/check-public-seo-gateway.mjs
+      - name: Static typecheck for opt-in SEO interface
+        run: npm run typecheck
+
+# No Cloudflare credentials, no SQL against real D1, no deployment,
+# no changes to legal authority, customer routing or Stripe.
