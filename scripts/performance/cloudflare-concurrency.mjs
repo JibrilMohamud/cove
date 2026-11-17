@@ -311,6 +311,8 @@ const artifact = {
   elapsedMs: Math.round(performance.now() - started),
   summaries,
   results,
+  // Statically reviewed cohort-by-cohort 401 checks, not cold prewarm or rights grants.
+  pairedPhaseControls,
   // Metadata only: no request addresses, credentials or response bodies.
   deniedControls,
   controlSummaries,
