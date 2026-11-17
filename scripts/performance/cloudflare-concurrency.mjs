@@ -198,7 +198,8 @@ const deniedControls = [];
 for (const wave of waves) {
   const rows = await runWave(wave);
   results.push(...rows);
-  if (pairedPhaseControls) deniedControls.push(...(await runDeniedControlWave(wave.concurrency, 8)));
+  if (pairedPhaseControls)
+    deniedControls.push(...(await runDeniedControlWave(wave.concurrency, 8)));
 }
 const summaries = waves.map(({ concurrency, requests }) => {
   const subset = results.filter((r) => r.concurrency === concurrency);
