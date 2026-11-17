@@ -444,6 +444,43 @@ try {
   assert.equal(nativeWrongMarket.status,503,
     "An unlaunched country must fail closed, not inherit US storefront permission");
 
+  // Separate outer HTTP ingress, private service-binding/DO dispatch,
+  // and D1/legal authorization. All three stay behind the same expiring
+  // bearer-gated synthetic QA Worker and originate from this SAME runner.
+  // These are full-body HTTP samples; they never stand in for retail TTFB.
+  const transportControls=[];
+  for(const [route,schema] of [
+    ["/qa/transport-caller-ping","cove.qa.transport-caller-ping.v1"],
+    ["/qa/transport-owner-ping","cove.qa.transport-owner-ping.v1"]
+  ]){
+    const waves=[];
+    for(const parallel of [1,4,8,16,32]){
+      const samples=await Promise.all(Array.from({length:parallel},async()=>{
+        const start=performance.now();
+        try{
+          const r=await post(route,{});
+          return {ms:Math.round((performance.now()-start)*100)/100,
+            status:r.status,valid:r.status===200&&r.body?.schema===schema};
+        }catch(e){
+          return {ms:Math.round((performance.now()-start)*100)/100,
+            status:0,valid:false,error:e instanceof Error?e.name:"unknown"};
+        }
+      }));
+      const durations=samples.map(s=>s.ms).sort((a,b)=>a-b);
+      const q=p=>durations[Math.ceil(durations.length*p)-1];
+      const wave={parallel,total:parallel,valid:samples.filter(s=>s.valid).length,
+        errors:samples.filter(s=>!s.valid).length,
+        p50Ms:q(.50),p95Ms:q(.95),p99Ms:q(.99),maxMs:durations.at(-1),
+        samples:samples.map(x=>({ms:x.ms,status:x.status,valid:x.valid,error:x.error}))};
+      waves.push(wave);
+      console.log("COVE_SYNTHETIC_TRANSPORT "+JSON.stringify({
+        route,parallel,valid:wave.valid,errors:wave.errors,
+        p50Ms:wave.p50Ms,p95Ms:wave.p95Ms,maxMs:wave.maxMs
+      }));
+    }
+    transportControls.push({route,schema,waves});
+  }
+
   const nativeEvidence=[];
   for(const parallel of [1,4,8,16,32]){
     const samples=await Promise.all(Array.from({length:parallel},async()=>{
@@ -566,8 +603,12 @@ try {
     scope:"hosted-paid-qa-nine-products",primaryD1:"synthetic-paid-qa-only",
     cold:false,method:"HTTP full-body, not TTFB",releaseCertified:false,
     comparisonScope:"same GitHub runner, synthetic D1, exact SQL; different network/auth paths",
-    nativeHttp:nativeEvidence,restManagementApi:restEvidence
+    nativeHttp:nativeEvidence,restManagementApi:restEvidence,
+    transportControls
   },null,2));
+  assert.ok(transportControls.every(control=>control.waves.every(w=>
+    w.valid===w.total&&w.errors===0)),
+    "Every authenticated QA transport-control sample must retain its expected narrow schema");
   assert.ok(restEvidence.every(w=>w.valid===w.total&&w.errors===0),
     "Every synthetic REST primary query must return the exact canonical paid offer without writes");
   assert.ok(nativeEvidence.every(w=>w.valid===w.total&&w.errors===0),
