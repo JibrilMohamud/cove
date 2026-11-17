@@ -73,6 +73,71 @@ try {
     COVE_CANONICAL_READONLY: undefined,
   }));
   assert.equal(unbound.DB, undefined, "Missing read service has no native fallback");
+  let privateFetchCalls = 0;
+  const fetchBinding = {
+    COVE_SSR_STAGING: "1",
+    COVE_CANONICAL_READONLY_FETCH: "1",
+    COVE_CANONICAL_READONLY: {
+      async fetch(request) {
+        privateFetchCalls++;
+        assert.equal(request.method, "POST");
+        assert.equal(new URL(request.url).pathname, "/__cove/stage/primary-read");
+        const { batch } = await request.json();
+        return Response.json(
+          {
+            result: batch.map(() => ({
+              success: true,
+              results: [{ value: 11 }],
+              meta: { served_by_primary: true },
+            })),
+          },
+          { headers: { "cache-control": "no-store" } },
+        );
+      },
+    },
+  };
+  const fetched = await resolveNativeWorkerBindings(trusted, {}, async () => fetchBinding);
+  assert.equal(await fetched.DB.prepare("SELECT 11 AS value").first("value"), 11);
+  assert.equal(privateFetchCalls, 1, "Placement experiment must invoke fetch, not query RPC");
+  const mixedFetch = await resolveNativeWorkerBindings(trusted, {}, async () => ({
+    ...fetchBinding,
+    COVE_CANONICAL_READONLY_RPC: "1",
+  }));
+  assert.equal(mixedFetch.DB, undefined, "Mixed transport never authorizes D1 fallback");
+  const noStageGate = await resolveNativeWorkerBindings(trusted, {}, async () => ({
+    ...fetchBinding,
+    COVE_SSR_STAGING: undefined,
+  }));
+  assert.equal(noStageGate.DB, undefined, "Production cannot opt into stage-only fetch");
+  const unprovenPrimary = await resolveNativeWorkerBindings(trusted, {}, async () => ({
+    ...fetchBinding,
+    COVE_CANONICAL_READONLY: {
+      async fetch() {
+        return Response.json(
+          {
+            result: [{ success: true, results: [{ value: 2 }], meta: { served_by_primary: false } }],
+          },
+          { headers: { "cache-control": "no-store" } },
+        );
+      },
+    },
+  }));
+  await assert.rejects(
+    unprovenPrimary.DB.prepare("SELECT 2").first(),
+    /Canonical primary read unavailable/,
+  );
+  const missingNoStore = await resolveNativeWorkerBindings(trusted, {}, async () => ({
+    ...fetchBinding,
+    COVE_CANONICAL_READONLY: {
+      async fetch() {
+        return Response.json({ result: [] });
+      },
+    },
+  }));
+  await assert.rejects(
+    missingNoStore.DB.prepare("SELECT 2").first(),
+    /Canonical read unavailable/,
+  );
   console.log("Cloudflare-native D1 binding handoff and legal country isolation: PASS");
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
