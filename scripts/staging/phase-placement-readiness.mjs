@@ -3,11 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 
 const ACCOUNT = "d26430caa63ec55f6612e32f36aca5e9";
 const READER = "cove-canonical-phase-readonly-staging";
-const ALLOWED = new Set([
-  "SUCCESS",
-  "INSUFFICIENT_INVOCATIONS",
-  "UNSUPPORTED_APPLICATION",
-]);
+const ALLOWED = new Set(["SUCCESS", "INSUFFICIENT_INVOCATIONS", "UNSUPPORTED_APPLICATION"]);
 
 // The API's service record reports whether Cloudflare has actually learned
 // Smart Placement. An uploaded mode:smart config is never proof of optimization.
