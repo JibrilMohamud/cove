@@ -171,7 +171,10 @@ try {
     assert.equal(projected.count, projected.results.length);
     assert.ok(result.candidates <= 128);
     const candidateDoc = JSON.parse(objects.get(privateCandidateKey(country)));
-    assert.equal(await assertCandidateQueryParity(country, candidateDoc.currency), result.candidates);
+    assert.equal(
+      await assertCandidateQueryParity(country, candidateDoc.currency),
+      result.candidates,
+    );
     const htmlResponse = await worker.fetch(request(country), env);
     assert.equal(htmlResponse.status, 200, country);
     const html = await htmlResponse.text();
