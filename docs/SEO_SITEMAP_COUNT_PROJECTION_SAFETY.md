@@ -36,6 +36,12 @@ The existing SEO route accepts an optional `SeoCountEvidenceLoader` for test/sta
 6. Run a protected staging experiment against representative real-catalog cardinalities, including exact equality to the current five SQL counts, mutation and withdrawal races, a projected 503 on unavailable evidence, absence of cache headers end-to-end through Vercel, and full concurrent geographic/100-RPS acceptance.
 7. Until the above have passed, keep the optional loader unconnected and leave production traffic, DB schema, legal authority, Stripe, and routing untouched.
 
+## Offline SQL fixture parity
+
+The source-only test also executes the **five exact current SQL count templates** in an in-memory SQLite catalog with duplicate editions, upload exclusions, redirected works, unavailable editions, distinct authors and taxonomy visibility. The test asserts each SQL literal still exists in `seo.server.ts`, builds a snapshot from those counts, changes product publication status under a new catalog generation, verifies the old snapshot is rejected, and confirms the rebuilt counts exactly equal all five SQL results.
+
+This catches SQL-source drift and category-specific cardinality mistakes, but is **not** a real 82,247-book D1 parity or performance result.
+
 ## Offline evidence
 
 `scripts/check-seo-count-projection.mjs` constructs synthetic version fences and exercises count version mismatches, withdrawal propagation, dirty/pending writes, incomplete evidence, expiry, invalid counts, the lack of a live COUNT when attested, no-store responses, and unchanged legacy behavior. The dedicated workflow `cove-seo-fenced-count-projection-offline` runs it in CI alongside the existing public SEO gateway regression and typecheck, including snapshot-build publication races. These tests prove **local source behavior only**, not primary-D1 writer atomicity or deployed performance.
