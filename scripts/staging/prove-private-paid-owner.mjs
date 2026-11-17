@@ -184,11 +184,18 @@ async function seedInitialPendingOrder(){
 
 const pause=(ms)=>new Promise(resolve=>setTimeout(resolve,ms));
 const post=async(route,body)=>{
+  const started=performance.now();
   const response=await fetch(origin+route,{
     method:"POST",headers:{"content-type":"application/json","authorization":"Bearer "+gate},
     body:JSON.stringify(body),signal:AbortSignal.timeout(12000)
   });
-  return {status:response.status,body:response.status===200?await response.json():null,
+  // Measure receipt of headers separately from full JSON consumption.
+  // Both are caller observed, not provider phase execution timestamps.
+  const headersMs=Math.round((performance.now()-started)*100)/100;
+  const bodyStarted=performance.now();
+  const parsed=response.status===200?await response.json():null;
+  const bodyMs=Math.round((performance.now()-bodyStarted)*100)/100;
+  return {status:response.status,body:parsed,headersMs,bodyMs,
     ray:response.headers.get("cf-ray"),
     unavailableLayer:response.headers.get("x-cove-qa-unavailable-layer"),
     nativeFailure:response.headers.get("x-cove-qa-native-failure"),
@@ -460,6 +467,7 @@ try {
         try{
           const r=await post(route,{});
           return {ms:Math.round((performance.now()-start)*100)/100,
+            headersMs:r.headersMs,bodyMs:r.bodyMs,
             status:r.status,valid:r.status===200&&r.body?.schema===schema};
         }catch(e){
           return {ms:Math.round((performance.now()-start)*100)/100,
@@ -468,14 +476,19 @@ try {
       }));
       const durations=samples.map(s=>s.ms).sort((a,b)=>a-b);
       const q=p=>durations[Math.ceil(durations.length*p)-1];
+      const headers=samples.map(s=>s.headersMs).filter(v=>typeof v==="number").sort((a,b)=>a-b);
+      const hdr95=headers.length===parallel?headers[Math.ceil(.95*parallel)-1]:null;
       const wave={parallel,total:parallel,valid:samples.filter(s=>s.valid).length,
         errors:samples.filter(s=>!s.valid).length,
         p50Ms:q(.50),p95Ms:q(.95),p99Ms:q(.99),maxMs:durations.at(-1),
-        samples:samples.map(x=>({ms:x.ms,status:x.status,valid:x.valid,error:x.error}))};
+        headersP95Ms:hdr95,
+        samples:samples.map(x=>({ms:x.ms,headersMs:x.headersMs,bodyMs:x.bodyMs,
+          status:x.status,valid:x.valid,error:x.error}))};
       waves.push(wave);
       console.log("COVE_SYNTHETIC_TRANSPORT "+JSON.stringify({
         route,parallel,valid:wave.valid,errors:wave.errors,
-        p50Ms:wave.p50Ms,p95Ms:wave.p95Ms,maxMs:wave.maxMs
+        p50Ms:wave.p50Ms,p95Ms:wave.p95Ms,maxMs:wave.maxMs,
+        headersP95Ms:wave.headersP95Ms
       }));
     }
     transportControls.push({route,schema,waves});
@@ -493,6 +506,7 @@ try {
             .every(key=>typeof phase[key]==="number"&&
               Number.isFinite(phase[key])&&phase[key]>=0&&phase[key]<=12000);
         return {ms:Math.round((performance.now()-start)*100)/100,
+          headersMs:r.headersMs,bodyMs:r.bodyMs,
           status:r.status,valid:r.status===200&&phasesVerified&&
             r.body?.schema==="cove.qa.owner-native-first-paint.v1"&&
             r.body?.rows?.length===1&&
@@ -512,18 +526,23 @@ try {
     const summary={parallel,total:parallel,valid:samples.filter(x=>x.valid).length,
       errors:samples.filter(x=>!x.valid).length,
       p50Ms:q(0.50),p95Ms:q(0.95),p99Ms:q(0.99),maxMs:ordered.at(-1),
+      headersP95Ms:(()=>{const d=samples.map(x=>x.headersMs)
+        .filter(x=>typeof x==="number").sort((a,b)=>a-b);
+        return d.length===parallel?d[Math.ceil(0.95*d.length)-1]:null;})(),
       selectP95Ms:(()=>{const d=samples.map(x=>x.canonicalMs)
         .filter(x=>typeof x==="number").sort((a,b)=>a-b);
         return d.length===parallel?d[Math.ceil(0.95*d.length)-1]:null;})(),
       sqlMaxMs:Math.max(...samples.map(x=>x.providerSqlMs??0)),
-      samples:samples.map(x=>({ms:x.ms,status:x.status,valid:x.valid,error:x.error,
+      samples:samples.map(x=>({ms:x.ms,headersMs:x.headersMs,bodyMs:x.bodyMs,
+        status:x.status,valid:x.valid,error:x.error,
         marketMs:x.marketMs,canonicalMs:x.canonicalMs,
         providerSqlMs:x.providerSqlMs,ownerMs:x.ownerMs}))};
     nativeEvidence.push(summary);
     console.log("COVE_SYNTHETIC_NATIVE_D1 "+JSON.stringify({
       parallel,valid:summary.valid,errors:summary.errors,
       p50Ms:summary.p50Ms,p95Ms:summary.p95Ms,p99Ms:summary.p99Ms,
-      maxMs:summary.maxMs,selectP95Ms:summary.selectP95Ms,sqlMaxMs:summary.sqlMaxMs
+      maxMs:summary.maxMs,headersP95Ms:summary.headersP95Ms,
+      selectP95Ms:summary.selectP95Ms,sqlMaxMs:summary.sqlMaxMs
     }));
   }
   // A paired read-only REST control is issued by the SAME protected
