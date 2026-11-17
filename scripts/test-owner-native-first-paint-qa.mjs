@@ -38,7 +38,13 @@ const input = {
   currency: "USD",
 };
 
-function ports({ primary = [free, paid], owner = [free, paid], primaryOk = true, activeMarket = true, withdrawn } = {}) {
+function ports({
+  primary = [free, paid],
+  owner = [free, paid],
+  primaryOk = true,
+  activeMarket = true,
+  withdrawn,
+} = {}) {
   let calls = 0;
   return {
     readPrimary: async () => ({ rows: primary, servedByPrimary: primaryOk, activeMarket }),
