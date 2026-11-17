@@ -27,7 +27,10 @@ const ALLOWED = new Set([
 ]);
 
 export function parseBoundedPhases(timing) {
-  if (typeof timing !== "string" || timing.length > 650) return null;
+  // The raw Server-Timing header may contain unrelated source-controlled
+  // phase counters. Bound input, but do not truncate before identifying
+  // important canonical phases at its end.
+  if (typeof timing !== "string" || timing.length > 4_096) return null;
   const result = Object.create(null);
   for (const piece of timing.split(",")) {
     const match = /^([a-z_]+);dur=([0-9]+(?:\.[0-9]{1,3})?)$/.exec(piece.trim());
@@ -37,6 +40,23 @@ export function parseBoundedPhases(timing) {
     result[match[1]] = value;
   }
   return result;
+}
+
+/** Stage-only, tight numeric projection of a potentially long header.
+ * Never persist the original header, its descriptions or unexpected fields.
+ */
+export function compactCanonicalPhaseTiming(raw) {
+  const values = parseBoundedPhases(raw);
+  if (!values) return null;
+  const allow = [
+    ...REQUIRED,
+    "cove_backend_lean",
+    "cove_ssr_local_rights",
+  ];
+  return allow
+    .filter((name) => name in values)
+    .map((name) => name + ";dur=" + values[name])
+    .join(", ");
 }
 
 function bounded(value, cap = 15_000) {
