@@ -15,9 +15,7 @@ export function ownedPhaseWorkerNames(env) {
   for (const value of [reader, frontend])
     assert.ok(value === "0" || value === "1", "Invalid stage creation marker");
   // Delete consumer first; do not force-delete the provider while referenced.
-  return [frontend === "1" ? FRONTEND : null, reader === "1" ? READER : null].filter(
-    Boolean,
-  );
+  return [frontend === "1" ? FRONTEND : null, reader === "1" ? READER : null].filter(Boolean);
 }
 
 export async function deleteOwnedPhaseWorkers(env, request = fetch) {
