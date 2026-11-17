@@ -41,7 +41,11 @@ function completeTokenInventory(tokens){
 
 function completeTokenPage(response){
   const data=response?.result,info=response?.result_info;
-  if(!Array.isArray(data)||!info||info.page!==1||info.total_pages!==1||
+  // Cloudflare's User Tokens API documents page/count/total_count but
+  // not total_pages. total_count === returned count proves a complete page;
+  // an explicitly supplied total_pages >1 still fails closed.
+  if(!Array.isArray(data)||!info||info.page!==1||
+    (info.total_pages!==undefined&&info.total_pages!==1)||
     !Number.isSafeInteger(info.count)||info.count!==data.length||
     !Number.isSafeInteger(info.total_count)||info.total_count!==data.length)
     throw Error("Incomplete Cloudflare token inventory page");
@@ -192,10 +196,14 @@ function selfTest(){
   assert.deepEqual(completeTokenPage({result:[],result_info:{
     page:1,total_pages:1,count:0,total_count:0,
   }}),[]);
+  assert.deepEqual(completeTokenPage({result:[],result_info:{
+    page:1,count:0,total_count:0,
+  }}),[]);
   for(const info of [
     null,{page:1,total_pages:2,count:1,total_count:2},
     {page:2,total_pages:2,count:0,total_count:0},
     {page:1,total_pages:1,count:1,total_count:1},
+    {page:1,count:0,total_count:1},
   ])assert.throws(()=>completeTokenPage({result:[],result_info:info}),
     /Incomplete Cloudflare token inventory page/);
   for(const flag of ["COVE_RIGHTS_OWNER_ENABLED","COVE_RIGHTS_OWNER_PRIMARY_ID"]){
