@@ -174,7 +174,11 @@ export function assertParkedStage({
   );
 }
 
-async function stageParked(metadata) {
+async function stageParked(metadata, deploy) {
+  // GET /versions/{id} requires Workers Scripts Read/Write: metadata-only
+  // credentials can read /settings but NOT immutable version resources.
+  // Reuse the separately verified narrow Workers Scripts Write deploy token.
+  assert.ok(typeof deploy === "string" && deploy.length >= 20);
   const paths = [
     script(STAGE_READER) + "/versions/" + PARKED_READER_VERSION,
     script(STAGE_SSR) + "/versions/" + PARKED_SSR_VERSION,
@@ -185,7 +189,9 @@ async function stageParked(metadata) {
     "/accounts/" + ACCOUNT + "/workers/domains",
   ];
   const [reader, ssr, readerDeployment, ssrDeployment, readerSubdomain, ssrSubdomain, domains] =
-    await Promise.all(paths.map((path) => get(metadata, path)));
+    await Promise.all(
+      paths.map((path, index) => get(index < 2 ? deploy : metadata, path)),
+    );
   assertParkedStage({
     reader,
     ssr,
@@ -254,11 +260,11 @@ export async function inspectProtectedStage(command) {
   await pinnedProduction(metadata);
   if (command === "preflight") {
     await tokenPreflight();
-    await stageParked(metadata);
+    await stageParked(metadata, process.env.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN);
   } else if (command === "stage") {
     await verifyStage(metadata);
   } else {
-    await stageParked(metadata);
+    await stageParked(metadata, process.env.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN);
   }
   return {
     command,
