@@ -2,39 +2,43 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-// The production persistence Worker imports api.server.ts. Reviewing only the
-// Worker entrypoint misses log payloads from this substantial imported module.
+// This imported file contains 33 reviewed canonical SQL mutations. Editing it,
+// even to redact logs, invalidates the exact source-bound writer fingerprints.
+// This test preserves the release hold until its writer sites are re-attested.
 const api = readFileSync("src/features/fore/api.server.ts", "utf8");
+const backendWrangler = readFileSync("wrangler.backend.production.toml", "utf8");
+const backendDeploy = readFileSync(".github/workflows/deploy-persistence-backend.yml", "utf8");
 
-test("all imported API logger sites have only an approved static event message", () => {
-  const callSites = [...api.matchAll(/console\.(?:warn|error|info|log|debug)\s*\(/g)];
-  const approvedCalls = [
-    ...api.matchAll(
-      /console\.(?:warn|error|info|log|debug)\s*\(\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')\s*\)/g,
-    ),
-  ];
-  const allowedMessages = [
-    "Cache write unavailable",
-    "Initial search index sync failed",
-    "Commercial catalog search failed closed",
-    "Catalog asset maintenance failed",
-    "Regional search sync failed",
-    "Catalog search sync failed",
-    "Reading Journey generation failed",
-    "Annotation version anchor snapshot failed",
-    "Cove service error; request failed closed",
-  ];
-  assert.equal(callSites.length, allowedMessages.length, "Unexpected API logging site: review privacy first");
-  assert.equal(approvedCalls.length, callSites.length, "Raw exception, user value or structured payload in a log");
-  const seenMessages = approvedCalls.map((m) => JSON.parse(m[1]));
-  assert.deepEqual(seenMessages.sort(), allowedMessages.sort());
+const riskyLogCalls = [
+  'console.warn("Initial search index sync failed", error)',
+  'console.warn("Commercial catalog search failed closed", error)',
+  'console.warn("Catalog asset maintenance failed", error)',
+  'console.warn("Regional search sync failed", error)',
+  'console.warn("Catalog search sync failed", error)',
+  'console.error("Reading Journey generation failed", e)',
+  'console.error("Annotation version anchor snapshot failed", e)',
+];
+
+test("track imported Worker API raw-error logger risks until writer re-review", () => {
+  // A changed count means a fresh inventory and reviewer decision is needed.
+  const allCalls = [...api.matchAll(/console\.(?:warn|error|info|log|debug)\s*\(/g)];
+  assert.equal(allCalls.length, 9, "Unreviewed API handler log site");
+  for (const site of riskyLogCalls) {
+    assert.equal(api.split(site).length - 1, 1, "Writer-bound API logger changed: re-review required");
+  }
 });
 
-test("fail-closed 503 and user-visible error handling stay intact", () => {
-  assert.match(
-    api,
-    /console\.warn\("Commercial catalog search failed closed"\);[\s\S]{0,120}throw new ApiError\(\s*503/,
+test("full production Worker invocation logging is forbidden while raw API errors remain", () => {
+  // Production source configs and the actual generated deploy workflow must
+  // BOTH stay logging-disabled; changing the checked-in TOML alone is insufficient.
+  assert.doesNotMatch(
+    backendWrangler,
+    /(?:observability|logpush\s*=\s*true|tail_consumers)/i,
+    "Do not enable production Worker Logs before imported API redaction and writer re-review",
   );
-  assert.match(api, /console\.error\("Cove service error; request failed closed"\);/);
-  assert.match(api, /"This content could not be loaded\. Please try again\."/);
+  assert.doesNotMatch(
+    backendDeploy,
+    /(?:observability|logpush\s*=\s*true|tail_consumers)/i,
+    "Generated production Wrangler config must not enable unsafe Worker Logs",
+  );
 });
