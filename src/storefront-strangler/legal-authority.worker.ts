@@ -3960,7 +3960,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/deny-next","/commercial/deny-batch","/commercial/subject/deny-next","/commercial/publish-verified",
       "/commercial/authorize-batch",
       "/storefront/authorize-batch","/storefront/publish-commercial",
-      "/qa/native-first-paint",
+      "/qa/native-first-paint","/qa/transport-owner-ping",
       "/market/deny-next",
       "/commercial/order/deny-next","/commercial/order/verify","/commercial/order/revoke",
       "/commercial/order/settle",
@@ -5366,6 +5366,15 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       // QA lease only, never exposed by the disabled production legal owner.
       // Source-controlled native primary D1 SQL, followed by owner fences.
       // No arbitrary SQL, cache, or competing native D1 reader binding.
+      if(route==="/qa/transport-owner-ping"){
+        // No native D1 query, entitlement lookup or external call. Still
+        // traverses the same private service binding and owner DO creation
+        // behind the expiring QA lease and independent owner bearer key.
+        if(!raw||typeof raw!=="object"||Array.isArray(raw)||
+           Object.keys(raw).length!==0)
+          return new Response(null,{status:400,headers:noStore});
+        return Response.json({schema:"cove.qa.transport-owner-ping.v1"},{headers:noStore});
+      }
       if(route==="/qa/native-first-paint"){
         // Only a short-lived QA lease can reach this private branch. Report
         // bounded enum diagnostics so Worker exceptions remain non-sensitive.
