@@ -96,7 +96,7 @@ const hasMixedWildcards = branch => {
   const script=`
     const assert=require('node:assert/strict');
     const pm=require(process.argv[1]);
-    for(const pattern of ['+(?*a)','*(?*a)","+(*?a)",'+(?*[ab])','+(?*a|b)']){
+    for(const pattern of ['+(?*a)','*(?*a)','+(*?a)','+(?*[ab])','+(?*a|b)']){
       const regex=pm.makeRe(pattern);
       assert(!regex.test('a'.repeat(48)+'!'),pattern+' returned true');
       assert(regex.source.includes('\\\\\\\\+\\\\\\\\(')||regex.source.includes('\\\\\\\\*\\\\\\\\('),
