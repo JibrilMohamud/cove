@@ -1,35 +1,19 @@
 name: deploy-persistence-backend
 
 on:
-  # Customer persistence deployment is RELEASE-LOCKED by default:
-  # main push execution needs vars.COVE_PRODUCTION_PERSISTENCE_AUTO_DEPLOY=1.
-  # Otherwise use workflow_dispatch only after explicit gated validation.
-  # A push never invokes production D1 migrations.
-  push:
-    branches: [main]
-    paths:
-      - "src/persistence-backend.worker.ts"
-      - "src/persistence-backend-entry.worker.ts"
-      - "src/lib/catalog-ingestion-backpressure.ts"
-      - "scripts/check-catalog-ingestion-backpressure.mjs"
-      - "src/features/fore/**"
-      - "scripts/check-isolated-http-metric.mjs"
-      - "scripts/check-production-http-metric-wiring.mjs"
-      # Store.tsx changes only the browser/SSR presentation. Its source is
-      # absent from the persistence Worker's backend bundle: do not redeploy
-      # and rerun primary D1 migrations for this optional UI enhancement.
-      - "!src/features/fore/Store.tsx"
-      # Vercel-only gateway proxy changes never require D1 migrations or a
-      # persistence Worker redeployment. Backend changes are listed above.
-      - "src/storefront-strangler/backend-owner-attestation-entrypoint.ts"
-      # src/server.ts is the Vercel frontend gateway, not persistence code.
-      # Frontend-only releases must not auto-run production D1 migrations.
-      - "scripts/build-persistence-backend.mjs"
-      - "drizzle/*.sql"
-      - "wrangler.backend.production.toml"
-      - "package.json"
+  # During the release hold, pushing to main must NEVER deploy the production
+  # persistence Worker, regardless of repository variables or source paths.
   workflow_dispatch:
     inputs:
+      reviewed_main_sha:
+        description: "Exact approved main HEAD; source drift fails closed."
+        required: true
+        type: string
+      confirm_production_deploy:
+        description: "Explicitly approve a protected production Worker deploy (no automatic push)."
+        required: true
+        default: false
+        type: boolean
       worker_name:
         description: "Production ONLY: exactly cove-persistence-backend. Use isolated staging workflow for clone Workers."
         required: true
@@ -70,10 +54,9 @@ concurrency:
 
 jobs:
   deploy:
-    # During release certification, merging source on main MUST NOT silently
-    # alter the customer persistence Worker. Opt in to push auto-deploy only
-    # by setting the explicit repository variable to "1". Manual dispatch
-    # remains possible with controlled pinned inputs and migrations OFF.
+    # Production persistence is protected manual-only. No push trigger, no
+    # repository variable bypass; stage changes must never become a deployment.
+    # Reviewers must approve the exact main SHA and explicit operator intent.
     # Do not apply production D1 migrations while synthetic cold/100-RPS
     # acceptance or a live principal audit is using the same primary D1.
     # Keep the existing workflow-level deployment serialization too.
@@ -81,11 +64,22 @@ jobs:
       group: cove-exclusive-real-primary-cold-acceptance
       queue: max
       cancel-in-progress: false
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && vars.COVE_PRODUCTION_PERSISTENCE_AUTO_DEPLOY == '1') }}
+    if: ${{ github.repository == 'JibrilMohamud/cove' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirm_production_deploy == true && inputs.reviewed_main_sha == github.sha }}
+    environment: cove-production-release-audit
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Assert immutable approved main commit before any privileged step
+        env:
+          EXPECTED_SHA: ${{ inputs.reviewed_main_sha }}
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test "$DISPATCH_SHA" = "$EXPECTED_SHA"
 
       - uses: actions/setup-node@v6
         with:
