@@ -131,6 +131,12 @@ function examineRow(row, kind, ordinal) {
     ttfbMs: duration,
     sqlMs: valid && phases ? bounded(phases.cove_backend_catalog_sql, 12_000) : null,
     rpcMs: valid && phases ? bounded(phases.cove_backend_catalog_rpc, 12_000) : null,
+    // Numeric database-work counters only, never a catalog identifier or row.
+    d1CatalogRowsRead:
+      valid && Number.isSafeInteger(row?.d1CatalogRowsRead) &&
+      row.d1CatalogRowsRead >= 0 && row.d1CatalogRowsRead <= 100_000_000
+        ? row.d1CatalogRowsRead
+        : null,
     phaseCoverage: conclusion.complete,
     measuredDominantInterval: conclusion.cause,
     below800: valid && duration < 800,
