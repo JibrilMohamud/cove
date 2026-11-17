@@ -131,6 +131,7 @@ jobs:
         continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
+          COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
@@ -150,6 +151,12 @@ jobs:
             printf '%s' "$COVE_SSR_STAGING_GATE_KEY" |
               npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put COVE_SSR_STAGING_GATE_KEY --config wrangler.frontend.phase.staging.toml
             node scripts/staging/wait-canonical-phase-stage-version.mjs
+            # Check isolated service binding, auth secret, native D1 absence,
+            # production pin, and disabled owner before the FIRST actual GET.
+            # This is control-plane only: the new version remains cold.
+            if [ "$trial" -eq 1 ]; then
+              node scripts/staging/phase-stage-control-plane.mjs stage
+            fi
             rm -f artifacts/cloudflare-ssr-staging-performance.json
             if ! node scripts/check-cloudflare-ssr-staging.mjs; then
               failures=$((failures + 1))
