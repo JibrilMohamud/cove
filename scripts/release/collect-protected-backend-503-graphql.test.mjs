@@ -202,7 +202,11 @@ test("D1 region/metric validation refuses malformed provider data", () => {
 
 test("collector has no production SQL, Worker fetch or mutable Cloudflare endpoint", () => {
   const source = readFileSync("scripts/release/collect-protected-backend-503-graphql.mjs", "utf8");
-  assert.doesNotMatch(source, /\/d1\/database\/|\/d1\/insights\/queries|\/workers\/scripts\/.*\/deploy/);
+  assert.doesNotMatch(source, /\/d1\/database\/|\/d1\/insights\/queries/);
+  // Immutable deployment metadata GET is deliberately allowed; deployment
+  // mutations, Worker version overrides and Worker URL fetches are not.
+  assert.match(source, /"\/workers\/scripts\/" \+ WORKER \+ "\/deployments"/);
+  assert.doesNotMatch(source, /\/workers\/scripts\/" \+ WORKER \+ "\/(?:deploy|versions|settings|secrets)"/);
   assert.doesNotMatch(source, /"PUT"|"PATCH"|"DELETE"/);
   assert.match(source, /"POST" : "GET"/);
   assert.match(source, /workersInvocationsAdaptive/);
