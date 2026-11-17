@@ -66,8 +66,11 @@ try {
   assert.equal(warnings.length, 1);
   assert.match(warnings[0], /production catalog fails closed/);
   assert.match(warnings[0], /upstream-transport/);
-  assert.doesNotMatch(errors.join(" "), /Synthetic upstream handshake failure/,
-    "Raw transport exceptions must never reach production logs");
+  assert.doesNotMatch(
+    errors.join(" "),
+    /Synthetic upstream handshake failure/,
+    "Raw transport exceptions must never reach production logs",
+  );
 
   // Reproduce the observed production 30-second AbortError in a 5ms
   // synthetic timeout. Verify classification without weakening status,
@@ -89,8 +92,11 @@ try {
   assert.equal(deadline.status, 503, "Deadline exhaustion cannot grant fallback rights");
   assert.equal(errors.length, 2);
   assert.match(errors.at(-1), /backend-deadline/);
-  assert.doesNotMatch(errors.at(-1), /private-upstream-detail/,
-    "Deadline diagnostic must contain only the reviewed category");
+  assert.doesNotMatch(
+    errors.at(-1),
+    /private-upstream-detail/,
+    "Deadline diagnostic must contain only the reviewed category",
+  );
 } finally {
   globalThis.fetch = originalFetch;
   globalThis.setTimeout = originalTimeout;
