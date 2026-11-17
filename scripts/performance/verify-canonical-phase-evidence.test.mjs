@@ -27,21 +27,24 @@ const cold = () =>
     failures: [],
   }));
 
-const concurrency = () => ({
-  results: Object.entries({ 1: 8, 4: 12, 8: 16, 16: 24 }).flatMap(([k, n]) =>
-    Array.from({ length: n }, (_, i) => ({
-      sequence: Number(k) * 100 + i + 1,
-      concurrency: Number(k),
-      status: 200,
-      error: null,
-      ttfbMs: 520,
-      cards: 24,
-      timing,
-      auth: "Bearer NEVER_COPY_ME",
-      url: "https://private.invalid/never",
-    })),
-  ),
-});
+const concurrency = () => {
+  let ordinal = 0;
+  return {
+    results: Object.entries({ 1: 8, 4: 12, 8: 16, 16: 24 }).flatMap(([k, n]) =>
+      Array.from({ length: n }, () => ({
+        sequence: ++ordinal,
+        concurrency: Number(k),
+        status: 200,
+        error: null,
+        ttfbMs: 520,
+        cards: 24,
+        timing,
+        auth: "Bearer NEVER_COPY_ME",
+        url: "https://private.invalid/never",
+      })),
+    ),
+  };
+};
 
 test("complete synthetic evidence is not equivalent to release certification", () => {
   const result = evaluateStageCohort({
@@ -55,6 +58,15 @@ test("complete synthetic evidence is not equivalent to release certification", (
   assert.equal(result.strictLimitedStagingGate, true);
   assert.equal(result.releaseCertified, false);
   assert.doesNotMatch(JSON.stringify(result), /NEVER_COPY_ME|private\.invalid|Bearer/);
+});
+
+test("substituting a concurrency ordinal cannot hide a missing scheduled request", () => {
+  const falsified = concurrency();
+  falsified.results[0].sequence = 601;
+  const audit = evaluateStageCohort({ cold: cold(), concurrency: falsified });
+  assert.ok(audit.anomalies.includes("unmatched-concurrency-sequence"));
+  assert.equal(audit.strictLimitedStagingGate, false);
+  assert.equal(audit.completeNumericPhaseCoverage, false);
 });
 
 test("one 503 and one slow incomplete sample remain unclassified failures", () => {
