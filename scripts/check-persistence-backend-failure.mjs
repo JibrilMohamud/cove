@@ -7,6 +7,24 @@ const { code } = await transform(source, { loader: "ts", format: "esm" });
 const { backendFailureSource, backendFailurePhase, backendFailureStage, backendFailureCategory } =
   await import("data:text/javascript;base64," + Buffer.from(code).toString("base64"));
 
+// Only a well-formed, server-issued Cloudflare Ray may enter failure logs.
+const raySource = fs.readFileSync("src/lib/persistence-backend-ray.ts", "utf8");
+const { code: rayCode } = await transform(raySource, { loader: "ts", format: "esm" });
+const { validatedBackendFailureRay } = await import(
+  "data:text/javascript;base64," + Buffer.from(rayCode).toString("base64"),
+);
+const knownRay = "8ae2b9362ddfafe0-IAD";
+assert.equal(validatedBackendFailureRay(new Headers({ "cf-ray": knownRay })), knownRay);
+for (const bad of ["", "secret", "8ae2b9362ddfafe0-IA", "8ae2b9362ddfafe0-IAD extra",
+  "8ae2b9362ddfafe0-IAD, attacker", "8ae2b9362ddfafe0-IAD\\r\\nAuthorization:private",
+  "8AE2B9362DDFAFE0-IAD", "8ae2b9362ddfafe0-IAD-FOO", "8ae2b9362ddfafe0-iad"]) {
+  assert.equal(validatedBackendFailureRay(new Headers({ "cf-ray": bad })), "unavailable");
+}
+assert.equal(validatedBackendFailureRay(new Headers()), "unavailable");
+const productionGatewaySource = fs.readFileSync("src/lib/persistence-backend.ts", "utf8");
+assert.equal((productionGatewaySource.match(/validatedBackendFailureRay\(response\.headers\)/g) || []).length, 1);
+assert.ok(productionGatewaySource.indexOf("validatedBackendFailureRay(response.headers)") >
+  productionGatewaySource.indexOf("if (productionFallbackDenied(env))"));
 function classify(headers) {
   return backendFailureSource(new Headers(headers));
 }
