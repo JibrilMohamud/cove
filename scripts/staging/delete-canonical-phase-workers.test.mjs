@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { deleteOwnedPhaseWorkers, ownedPhaseWorkerNames } from "./delete-canonical-phase-workers.mjs";
 
@@ -115,4 +116,32 @@ test("permission denial and missing deploy token always fail closed", async () =
     /Scoped stage Worker DELETE was denied/,
   );
   assert.equal(calls, 1);
+});
+
+test("workflow marks partial creates, deletes stages before independent postflight", () => {
+  const source = readFileSync(
+    ".github/workflows/cove-protected-canonical-phase-staging.yml",
+    "utf8",
+  );
+  const readerAttempt = source.indexOf('echo "COVE_PHASE_READER_CREATE_ATTEMPTED=1"');
+  const readerDeploy = source.indexOf(
+    "wrangler deploy --config wrangler.canonical-phase.staging.jsonc",
+  );
+  const ssrAttempt = source.indexOf('echo "COVE_PHASE_SSR_CREATE_ATTEMPTED=1"');
+  const ssrDeploy = source.indexOf(
+    "wrangler deploy --config wrangler.frontend.phase.staging.toml",
+  );
+  const cleanup = source.indexOf(
+    "run: node scripts/staging/delete-canonical-phase-workers.mjs",
+  );
+  const postflight = source.indexOf(
+    "run: node scripts/staging/phase-stage-control-plane.mjs postflight",
+  );
+  assert.ok(readerAttempt > 0 && readerAttempt < readerDeploy);
+  assert.ok(ssrAttempt > 0 && ssrAttempt < ssrDeploy);
+  assert.ok(cleanup > ssrDeploy && cleanup < postflight);
+  assert.ok(source.includes("if: always() && env.COVE_PHASE_STAGE_PREFLIGHT_PASSED == '1'"));
+  assert.ok(source.includes("COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN:"));
+  assert.doesNotMatch(source, /wrangler delete/);
+  assert.doesNotMatch(source, /--force --config/);
 });
