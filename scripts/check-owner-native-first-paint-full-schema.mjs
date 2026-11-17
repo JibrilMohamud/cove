@@ -127,6 +127,19 @@ try {
     COVE_RIGHTS_OWNER_TEST_EXPIRES_AT:String(Date.now()+12*60_000),
     COVE_RIGHTS_OWNER_SECRET:secret};
   const authority=new CoveLegalAuthority({storage:{sql}},env);
+  const qaCaller=await load("qa-caller","src/storefront-strangler/legal-authority-qa-caller.worker.ts");
+  const qaGate="b".repeat(64);
+  const qaEnv={
+    COVE_LEGAL_QA_CALLER_ENABLED:"1",COVE_LEGAL_QA_GATE:qaGate,
+    COVE_RIGHTS_OWNER_SECRET:secret,
+    COVE_LEGAL_QA_EXPIRES_AT:String(Date.now()+12*60_000),
+    LEGAL_PRIVATE:{fetch:request=>authority.fetch(request)}
+  };
+  const qaRequest=(route,body,gate=qaGate)=>qaCaller.default.fetch(
+    new Request("https://stage.internal"+route,{
+      method:"POST",headers:{"authorization":"Bearer "+gate,
+        "content-type":"application/json"},body:JSON.stringify(body)
+    }),qaEnv);
   // Seed verified owner proofs using the exact production owner proof
   // functions. This is explicitly synthetic; no permissions can come
   // from the mere existence of a catalog or its D1 grants.
@@ -160,6 +173,20 @@ try {
   };
   const request={ids:[freeBook.id,paidBook.id,unproved.id],
     territory:"US",currency:"USD"};
+  // Full-real-handler QA transport controls must remain strictly private,
+  // lease bound, non-SQL and never reveal arbitrary payloads.
+  const callerPing=await qaRequest("/qa/transport-caller-ping",{});
+  assert.equal(callerPing.status,200);
+  assert.equal((await callerPing.json()).schema,"cove.qa.transport-caller-ping.v1");
+  const ownerPing=await qaRequest("/qa/transport-owner-ping",{});
+  assert.equal(ownerPing.status,200);
+  assert.equal((await ownerPing.json()).schema,"cove.qa.transport-owner-ping.v1");
+  assert.equal((await qaRequest("/qa/transport-caller-ping",{}, "0".repeat(64))).status,401);
+  assert.equal((await qaRequest("/qa/transport-owner-ping",{sql:"SELECT * FROM rights"})).status,400);
+  qaEnv.COVE_LEGAL_QA_EXPIRES_AT=String(Date.now()-1);
+  assert.equal((await qaRequest("/qa/transport-caller-ping",{})).status,503,
+    "Expired QA caller MUST refuse even transport-only controls");
+  qaEnv.COVE_LEGAL_QA_EXPIRES_AT=String(Date.now()+12*60_000);
   let response=await call(request);
   assert.equal(response.status,200,"Actual full-schema D1+owner handler must accept synthetic fixture");
   let result=await response.json();
@@ -204,6 +231,8 @@ try {
   // invoke this endpoint. Never substitute a disabled production owner.
   env.COVE_RIGHTS_OWNER_ENABLED="0";
   assert.equal((await call(request)).status,503);
+  assert.equal((await qaRequest("/qa/transport-owner-ping",{})).status,503,
+    "Disabled owner cannot even answer a synthetic transport probe");
   // Expired QA owner also refuses all queries, rather than preserving approvals.
   env.COVE_RIGHTS_OWNER_ENABLED="1";
   env.COVE_RIGHTS_OWNER_TEST_EXPIRES_AT=String(Date.now()-1);

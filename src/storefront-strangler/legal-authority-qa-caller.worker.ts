@@ -31,6 +31,14 @@ export default {
        request.headers.get("content-type")?.split(";")[0]?.trim()!=="application/json")
       return new Response(null,{status:405,headers:noStore});
     const uri=new URL(request.url);
+    // Distinguish caller HTTP ingress from service-binding/owner and D1
+    // latency. This is only available inside the expiring, bearer-gated
+    // synthetic QA caller, never on a customer Worker.
+    if(!uri.search&&uri.pathname==="/qa/transport-caller-ping"){
+      const raw=await request.text();
+      if(raw!=="{}")return new Response(null,{status:400,headers:noStore});
+      return Response.json({schema:"cove.qa.transport-caller-ping.v1"},{headers:noStore});
+    }
     if(uri.search || !["/deny-next","/deny-next-batch","/verify","/authorize-batch","/market/deny-next","/market/withdraw","/quarantine","/evidence/revoke","/source/retract-batch",
         "/commercial/deny-next","/commercial/deny-batch","/commercial/subject/deny-next",
         "/commercial/authorize-batch","/commercial/publish-verified",
@@ -41,7 +49,7 @@ export default {
         "/commercial/entitlement/deny-batch","/commercial/entitlement/revoke-order",
         "/commercial/order/deny-next","/commercial/order/verify",
         "/storefront/authorize-batch","/storefront/publish-commercial",
-        "/qa/native-first-paint"].includes(uri.pathname))
+        "/qa/native-first-paint","/qa/transport-owner-ping"].includes(uri.pathname))
       return new Response(null,{status:404,headers:noStore});
     const isWriter=uri.pathname==="/market/withdraw" ||
       uri.pathname==="/quarantine" || uri.pathname==="/evidence/revoke" ||
