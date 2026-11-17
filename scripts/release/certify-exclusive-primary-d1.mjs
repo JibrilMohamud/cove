@@ -18,7 +18,9 @@ const ACCOUNT="d26430caa63ec55f6612e32f36aca5e9";
 const OWNER="cove-legal-authority-production";
 const PRIVILEGED_GROUPS=new Set([
   "D1 Write","Workers Admin","Workers Editor",
-  "Workers Scripts Write","Account API Tokens Write",
+  "Workers Scripts Write","Workers Scripts Edit","Workers CI Write",
+  "Individual Workers Admin","Individual Workers Editor",
+  "Account API Tokens Write","API Tokens Write",
 ]);
 function tokenCanMutate(token){
   return (token.policies||[]).some(p=>(p.permission_groups||[])
@@ -158,6 +160,21 @@ function selfTest(){
   assert.deepEqual(unsafe.nonownerBindingNames,["nonowner"]);
   assert.deepEqual(unsafe.privilegedAccountTokenNames,["broad"]);
   assert.equal(JSON.stringify(unsafe).includes(PRODUCTION_DB),false);
+  // A per-Worker Editor token can still control an authorized owner Worker;
+  // never exempt it based on the role name without verifying scope IDs.
+  // User-level API Tokens Write can mint an independently privileged token.
+  for(const unsafeGroup of [
+    "Individual Workers Editor","Individual Workers Admin",
+    "API Tokens Write","Workers Scripts Edit","Workers CI Write"
+  ]){
+    const report=evaluatePhysicalWriterInventory({
+      workers:[owner],tokens:[{name:"new-scope-token",status:"active",
+        policies:[{permission_groups:[{name:unsafeGroup}]}]}],
+      userTokensVerified:true,userPrincipalCoverageVerified:true,
+    });
+    assert.equal(report.certified,false);
+    assert.ok(report.problems.includes("active_account_token_can_mutate_primary_or_owner"));
+  }
   for(const incomplete of [
     [{name:"missing-policies",status:"active"}],
     [{name:"empty-policies",status:"active",policies:[]}],
