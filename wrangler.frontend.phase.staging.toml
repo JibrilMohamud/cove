@@ -1,0 +1,63 @@
+# Nonproduction, authenticated read-only SSR trial. NEVER assign a custom
+# route or disable COVE_SSR_STAGING until geo-rights and rollout are approved.
+name = "cove-storefront-phase-staging"
+main = ".output/server/index.mjs"
+# Keep Nitro bundle minification, but avoid a second Wrangler transform
+# until the Cloudflare SSR/D1 runtime is proven compatible.
+minify = false
+compatibility_date = "2026-10-17"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+# Protected staging-only ingress-edge experiment (the *production candidate*
+# uses default placement). The Smart Placement campaign with real US-licensed
+# 24-book SSR in IAD failed 3/3 cold rounds on 2026-10-25, with many slow
+# requests spending 500–800ms OUTSIDE timed Worker execution. Test the same
+# Worker and canonical D1 rights query without any placement override.
+# Do not add placement here while evaluating edge vs Smart Placement.
+# Authentication, rate limits, rights authority, no-store and the strict
+# <800ms gate remain unchanged. No production DNS/traffic migration.
+
+[assets]
+directory = "./.output/public"
+binding = "ASSETS"
+# A user must authenticate before any asset is served. The Worker then
+# delegates accepted static asset requests to ASSETS.fetch.
+run_worker_first = true
+
+# Per-colo public storefront SSR abuse limit. All authenticated/account,
+# commerce and other search endpoints retain their durable D1 controls.
+[[ratelimits]]
+name = "COVE_STOREFRONT_READ_LIMITER"
+namespace_id = "731903"
+
+[ratelimits.simple]
+limit = 180
+period = 60
+
+# Provider-enforced read-only SQL. No canonical D1 binding in SSR.
+[[services]]
+binding = "COVE_CANONICAL_READONLY"
+service = "cove-canonical-phase-readonly-staging"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "cove-production-media"
+
+# Best-effort, low-cardinality anonymous public-GET performance metrics are not
+# an entitlement or audit record. Isolate their ingestion from primary D1,
+# which must remain available for customer-facing rights verification.
+[[analytics_engine_datasets]]
+binding = "OPS_ANALYTICS"
+dataset = "cove_ops_canonical_phase_stage"
+
+[vars]
+COVE_CANONICAL_READONLY_RPC = "1"
+COVE_OPS_TELEMETRY_MODE = "analytics-engine"
+FORE_PUBLIC_URL = "https://cove-puce-theta.vercel.app"
+FORE_ENVIRONMENT = "production"
+FORE_DEFAULT_TERRITORY = "US"
+COVE_SSR_STAGING = "1"
+
+# Secret COVE_SSR_STAGING_GATE_KEY is created by the deploy action, never
+# present here. Missing/invalid secret causes every request to fail closed.
