@@ -1,4 +1,5 @@
 import type { CatalogBook } from "./client";
+import { verifiedReadonlyPhaseMs } from "../../lib/readonly-transport-metric";
 import { ApiError } from "./service";
 import {
   hasCompletedPublicDisplay,
@@ -418,6 +419,10 @@ export type FirstPaintD1QueryMetrics = {
   attempts?: number;
   servedByRegion?: string;
   servedByPrimary?: boolean;
+  canonicalRpcMs?: number;
+  canonicalRestHeadersMs?: number;
+  canonicalRestBodyMs?: number;
+  canonicalRestDecodeMs?: number;
   publicDisplay?: "cold" | "hit" | "miss";
 };
 
@@ -492,6 +497,10 @@ function recordFirstPaintD1Metrics(result: unknown, diagnostics: FirstPaintD1Que
         total_attempts?: number;
         served_by_region?: string;
         served_by_primary?: boolean;
+        cove_rpc_wall_ms?: unknown;
+        cove_read_headers_ms?: unknown;
+        cove_read_body_ms?: unknown;
+        cove_read_decode_ms?: unknown;
       };
     }
   ).meta;
@@ -502,6 +511,13 @@ function recordFirstPaintD1Metrics(result: unknown, diagnostics: FirstPaintD1Que
   }))
     if (typeof value === "number" && Number.isFinite(value) && value >= 0)
       Object.assign(diagnostics, { [key]: value });
+  for (const [key, value] of Object.entries({
+    canonicalRpcMs: verifiedReadonlyPhaseMs(meta?.cove_rpc_wall_ms),
+    canonicalRestHeadersMs: verifiedReadonlyPhaseMs(meta?.cove_read_headers_ms),
+    canonicalRestBodyMs: verifiedReadonlyPhaseMs(meta?.cove_read_body_ms),
+    canonicalRestDecodeMs: verifiedReadonlyPhaseMs(meta?.cove_read_decode_ms),
+  }))
+    if (value !== undefined) Object.assign(diagnostics, { [key]: value });
   if (typeof meta?.served_by_primary === "boolean")
     diagnostics.servedByPrimary = meta.served_by_primary;
   if (/^[A-Za-z0-9-]{1,32}$/.test(meta?.served_by_region || ""))
@@ -602,7 +618,15 @@ export async function canonicalFirstPaintShelfByRightsQuery(
   if (diagnostics) {
     recordFirstPaintD1Metrics(rows, diagnostics);
     if (priorMetrics)
-      for (const field of ["sqlDurationMs", "rowsRead", "attempts"] as const) {
+      for (const field of [
+          "sqlDurationMs",
+          "rowsRead",
+          "attempts",
+          "canonicalRpcMs",
+          "canonicalRestHeadersMs",
+          "canonicalRestBodyMs",
+          "canonicalRestDecodeMs",
+        ] as const) {
         const prior = priorMetrics[field],
           last = diagnostics[field];
         if (prior !== undefined && last !== undefined) diagnostics[field] = prior + last;
