@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/workflows/publish-cloudflare-worker.yml"
       - ".github/workflows/fast-storefront-real-catalog-acceptance.yml"
+      - ".github/workflows/cove-sounds-private-rollout.yml"
       - ".github/workflows/cove-primary-catalog-artifact-release-freeze-offline.yml"
       - "scripts/release/primary-catalog-and-artifact-manual-only.test.mjs"
 
