@@ -191,9 +191,12 @@ jobs:
             fi
           done
           test "$failures" -eq 0
-      - name: Authenticated 1/4/8/16 concurrent waves; no user traffic replay
+      - name: Authenticated 1/4/8/16/32 concurrent waves; no user traffic replay
         id: concurrency
         continue-on-error: true
+        # Phase-only script checks exact owned origin and 180/60s rate budget.
+        # Nonprotected canaries remain capped at the original 60 requests.
+        # Any 32-concurrency violation fails the unchanged <800ms rule.
         run: node scripts/performance/cloudflare-concurrency.mjs
       - name: Confirm isolated bindings and unchanged production traffic after stage requests
         if: always() && env.COVE_PHASE_READER_DEPLOYED == '1' && env.COVE_PHASE_SSR_DEPLOYED == '1'
