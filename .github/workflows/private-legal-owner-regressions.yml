@@ -9,6 +9,9 @@ on:
       - "scripts/test-staged-admin-owner-route.mjs"
       - "src/features/fore/api.server.ts"
       - "src/storefront-strangler/legal-authority-core.ts"
+      - "src/storefront-strangler/owner-native-first-paint-qa.ts"
+      - "scripts/test-owner-native-first-paint-qa.mjs"
+      - "scripts/check-owner-native-first-paint-full-schema.mjs"
       - "src/storefront-strangler/legal-authority-coordinator.ts"
       - "src/storefront-strangler/commercial-legal-core.ts"
       - "src/storefront-strangler/commercial-entitlement-core.ts"
@@ -102,6 +105,8 @@ jobs:
           node scripts/check-legal-authority-owner.mjs
           node scripts/check-legal-authority-coordinator.mjs
           node scripts/check-legal-authority-read.mjs
+          node --test scripts/test-owner-native-first-paint-qa.mjs
+          node scripts/check-owner-native-first-paint-full-schema.mjs
           node scripts/check-commercial-legal-authority.mjs
           node scripts/check-commercial-storefront-owner.mjs
           node scripts/check-paid-entitlement-authority.mjs

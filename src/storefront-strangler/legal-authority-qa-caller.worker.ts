@@ -40,7 +40,8 @@ export default {
         "/commercial/entitlement/authorize","/commercial/entitlement/revoke",
         "/commercial/entitlement/deny-batch","/commercial/entitlement/revoke-order",
         "/commercial/order/deny-next","/commercial/order/verify",
-        "/storefront/authorize-batch","/storefront/publish-commercial"].includes(uri.pathname))
+        "/storefront/authorize-batch","/storefront/publish-commercial",
+        "/qa/native-first-paint"].includes(uri.pathname))
       return new Response(null,{status:404,headers:noStore});
     const isWriter=uri.pathname==="/market/withdraw" ||
       uri.pathname==="/quarantine" || uri.pathname==="/evidence/revoke" ||
