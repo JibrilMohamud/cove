@@ -110,6 +110,9 @@ function examineRow(row, kind, ordinal) {
   const conclusion = valid
     ? classify(phases, duration)
     : { cause: "unknown-failed-response", complete: false };
+  // Archive only bounded numeric phases of a verified, internally consistent,
+  // rights-positive read. Raw Server-Timing and source objects are NEVER copied.
+  const attributed = valid && conclusion.complete && phases !== null;
   return {
     kind,
     ordinal,
@@ -125,8 +128,32 @@ function examineRow(row, kind, ordinal) {
               ? "429"
               : "other",
     ttfbMs: duration,
-    sqlMs: valid && phases ? bounded(phases.cove_backend_catalog_sql, 12_000) : null,
-    rpcMs: valid && phases ? bounded(phases.cove_backend_catalog_rpc, 12_000) : null,
+    sqlMs: attributed ? bounded(phases.cove_backend_catalog_sql, 12_000) : null,
+    rpcMs: attributed ? bounded(phases.cove_backend_catalog_rpc, 12_000) : null,
+    // Additive, stage-only v1 evidence fields. These are measured intervals,
+    // not identities, request headers, network fault causes or SQL statements.
+    catalogMs: attributed ? bounded(phases.cove_backend_catalog, 12_000) : null,
+    restHeadersMs: attributed ? bounded(phases.cove_backend_catalog_rest_headers, 12_000) : null,
+    restBodyMs: attributed ? bounded(phases.cove_backend_catalog_rest_body, 12_000) : null,
+    restDecodeMs: attributed ? bounded(phases.cove_backend_catalog_rest_decode, 12_000) : null,
+    workerMs: attributed ? bounded(phases.cove_total, 12_000) : null,
+    outsideWorkerMs: attributed ? bounded(Math.max(0, duration - phases.cove_total)) : null,
+    rpcUnaccountedMs: attributed
+      ? bounded(
+          Math.max(
+            0,
+            phases.cove_backend_catalog_rpc -
+              phases.cove_backend_catalog_rest_headers -
+              phases.cove_backend_catalog_rest_body -
+              phases.cove_backend_catalog_rest_decode,
+          ),
+          12_000,
+        )
+      : null,
+    runnerQueueMs: attributed ? bounded(row?.clientQueueMs) : null,
+    runnerSentToHeadersMs: attributed
+      ? bounded(row?.sentToHeadersMs ?? row?.clientToHeadersMs)
+      : null,
     // Numeric database-work counters only, never a catalog identifier or row.
     d1CatalogRowsRead:
       valid &&

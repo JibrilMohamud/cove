@@ -26,6 +26,8 @@ const cold = () =>
       ttfbMs: 500,
       cards: 24,
       timing,
+      clientQueueMs: 7,
+      clientToHeadersMs: 493,
       secret: "NEVER_COPY_ME",
     })),
     failures: [],
@@ -43,6 +45,8 @@ const concurrency = () => {
         ttfbMs: 520,
         cards: 24,
         timing,
+        clientQueueMs: 18,
+        sentToHeadersMs: 502,
         auth: "Bearer NEVER_COPY_ME",
         url: "https://private.invalid/never",
       })),
@@ -77,6 +81,36 @@ test("complete synthetic evidence is not equivalent to release certification", (
   assert.equal(result.completeNumericPhaseCoverage, true);
   assert.equal(result.strictLimitedStagingGate, true);
   assert.equal(result.releaseCertified, false);
+  assert.deepEqual(
+    {
+      catalog: result.samples[0].catalogMs,
+      sql: result.samples[0].sqlMs,
+      rpc: result.samples[0].rpcMs,
+      headers: result.samples[0].restHeadersMs,
+      body: result.samples[0].restBodyMs,
+      decode: result.samples[0].restDecodeMs,
+      worker: result.samples[0].workerMs,
+      outside: result.samples[0].outsideWorkerMs,
+      rpcUnaccounted: result.samples[0].rpcUnaccountedMs,
+      queue: result.samples[0].runnerQueueMs,
+      clientToHeaders: result.samples[0].runnerSentToHeadersMs,
+    },
+    {
+      catalog: 310,
+      sql: 4,
+      rpc: 300,
+      headers: 250,
+      body: 35,
+      decode: 3,
+      worker: 410,
+      outside: 90,
+      rpcUnaccounted: 12,
+      queue: 7,
+      clientToHeaders: 493,
+    },
+  );
+  assert.equal(result.samples[60].runnerQueueMs, 18);
+  assert.equal(result.samples[60].runnerSentToHeadersMs, 502);
   assert.doesNotMatch(JSON.stringify(result), /NEVER_COPY_ME|private\.invalid|Bearer/);
 });
 
@@ -189,4 +223,55 @@ test("private shared read service cannot opt into staging-only phase emission", 
   assert.match(frontend, /COVE_SSR_STAGING = "1"/);
   assert.doesNotMatch(frontend, /COVE_SSR_STAGING_COMMERCE_QA\s*=\s*"1"/);
   assert.doesNotMatch(frontend, /^\s*route\s*=|^\s*routes\s*=/m);
+});
+
+test("invalid, impossible or missing phases never persist numeric timing fields", () => {
+  const previous = cold();
+  previous[0].results[0].timing = timing.replace(
+    "cove_backend_catalog_rest_headers;dur=250",
+    "cove_backend_catalog_rest_headers;dur=13000",
+  );
+  previous[0].results[1].timing = timing.replace(
+    "cove_backend_catalog_sql;dur=4",
+    "cove_backend_catalog_sql;dur=900",
+  );
+  const invalid = concurrency();
+  invalid.results[0] = {
+    ...invalid.results[0],
+    status: 503,
+    cards: 0,
+    error: "upstream-5xx",
+    timing: null,
+  };
+  const evidence = evaluateStageCohort({ cold: previous, concurrency: invalid });
+  assert.equal(evidence.strictLimitedStagingGate, false);
+  assert.equal(evidence.completeNumericPhaseCoverage, false);
+  for (const ordinal of [0, 1, 60]) {
+    const sample = evidence.samples[ordinal];
+    for (const name of [
+      "catalogMs",
+      "restHeadersMs",
+      "restBodyMs",
+      "restDecodeMs",
+      "workerMs",
+      "outsideWorkerMs",
+      "rpcUnaccountedMs",
+      "runnerQueueMs",
+      "runnerSentToHeadersMs",
+    ])
+      assert.equal(sample[name], null);
+  }
+  assert.doesNotMatch(JSON.stringify(evidence), /upstream-5xx/);
+});
+
+test("runner-supplied arbitrary strings or oversized numbers never enter archived evidence", () => {
+  const previous = cold();
+  previous[0].results[0].clientQueueMs = 500_000;
+  previous[0].results[0].clientToHeadersMs = "Bearer NEVER_COPY_ME";
+  const evidence = evaluateStageCohort({ cold: previous, concurrency: concurrency() });
+  assert.equal(evidence.samples[0].runnerQueueMs, null);
+  assert.equal(evidence.samples[0].runnerSentToHeadersMs, null);
+  assert.equal(evidence.validResponses, 120);
+  assert.equal(evidence.releaseCertified, false);
+  assert.doesNotMatch(JSON.stringify(evidence), /Bearer|NEVER_COPY_ME/);
 });
