@@ -1,0 +1,122 @@
+name: cove-protected-backend-503-graphql-readonly
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/cove-protected-backend-503-graphql-readonly.yml"
+      - "scripts/release/collect-protected-backend-503-graphql.mjs"
+      - "scripts/release/collect-protected-backend-503-graphql.test.mjs"
+  workflow_dispatch:
+    inputs:
+      confirm_readonly_graphql_only:
+        description: "Explicitly permit only three metadata/GraphQL read requests; zero D1 SQL and zero customer requests."
+        type: boolean
+        required: true
+        default: false
+      reviewed_main_sha:
+        description: "Exactly approved main HEAD; drift blocks release evidence collection."
+        type: string
+        required: true
+      window_from_utc:
+        description: "Start UTC minute, e.g. 2026-11-17T20:40:00Z"
+        type: string
+        required: true
+        default: "2026-11-17T20:40:00Z"
+      window_to_utc:
+        description: "Exclusive end UTC minute, maximum 20-minute window"
+        type: string
+        required: true
+        default: "2026-11-17T20:46:00Z"
+      expected_backend_version:
+        description: "Exactly approved immutable serving persistence Worker version."
+        type: string
+        required: true
+        default: "401f2af2-6e69-4611-8110-1d127af6eecf"
+
+permissions:
+  contents: read
+
+jobs:
+  offline-source-contract:
+    if: github.repository == 'JibrilMohamud/cove' && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Prove version fence, no D1 calls and failure-safe analytics
+        run: |
+          node --check scripts/release/collect-protected-backend-503-graphql.mjs
+          node --test scripts/release/collect-protected-backend-503-graphql.test.mjs
+          git diff --check
+
+  protected-analytics-only:
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm_readonly_graphql_only == true &&
+      inputs.reviewed_main_sha == github.sha &&
+      inputs.expected_backend_version == '401f2af2-6e69-4611-8110-1d127af6eecf'
+    environment: cove-production-release-audit
+    concurrency:
+      group: cove-exclusive-protected-backend-incident-readonly
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Verify exact protected release-audit source and test pure numeric handling
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ inputs.reviewed_main_sha }}"
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+          node --test scripts/release/collect-protected-backend-503-graphql.test.mjs
+      - name: Require separately scoped Cloudflare read credentials
+        shell: bash
+        env:
+          CF_ANALYTICS_READ_TOKEN: ${{ secrets.COVE_CF_ANALYTICS_READ_TOKEN }}
+          CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CF_ANALYTICS_READ_TOKEN:-}" ]; then
+            echo "::error title=Missing Analytics Read credential::Configure COVE_CF_ANALYTICS_READ_TOKEN in the cove-production-release-audit environment with Account Analytics:Read. Do not use a deploy/write token."
+            exit 1
+          fi
+          if [ -z "${CF_WORKERS_METADATA_READ_TOKEN:-}" ]; then
+            echo "::error title=Missing Workers Metadata Read credential::Configure existing COVE_CF_WORKERS_METADATA_READ_TOKEN in the protected environment."
+            exit 1
+          fi
+      - name: Collect three bounded read-only metadata/GraphQL results, no SQL or customer traffic
+        env:
+          CF_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+          CF_ANALYTICS_READ_TOKEN: ${{ secrets.COVE_CF_ANALYTICS_READ_TOKEN }}
+          CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
+          COVE_GRAPHQL_READONLY_CONFIRM: "1"
+          COVE_GRAPHQL_WINDOW_FROM: ${{ inputs.window_from_utc }}
+          COVE_GRAPHQL_WINDOW_TO: ${{ inputs.window_to_utc }}
+          COVE_EXPECTED_BACKEND_VERSION: ${{ inputs.expected_backend_version }}
+        run: node scripts/release/collect-protected-backend-503-graphql.mjs
+      - name: Archive only validated, numeric and version-bound aggregate evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cove-backend-503-graphql-${{ github.run_id }}
+          path: artifacts/incident-773/backend-graphql-evidence.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+# NO push triggers, Wrangler deployment, D1 SQL, customer route probing,
+# token inventory mutation, legal owner operations or commerce transactions.
