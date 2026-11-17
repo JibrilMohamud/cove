@@ -33,6 +33,11 @@ jobs:
           @'
           [general]
           showWelcomeDialogAtStartup = False
+          [update]
+          # Pin the signed NVDA 2026.2 fixture: never interrupt native speech
+          # and focus assertions with an external update notification.
+          autoCheck = False
+          startupNotification = False
           [development]
           enableScratchpadDir = True
           '@ | Set-Content "$profile/nvda.ini" -Encoding utf8
