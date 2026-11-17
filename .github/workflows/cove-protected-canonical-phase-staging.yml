@@ -50,6 +50,10 @@ jobs:
       - name: Confirm staging Wrangler dry-run and scoped parked-version restoration source
         run: |
           npm ci --no-audit --no-fund
+          # Run a real private Miniflare fetch binding, not only a source regex:
+          # Cloudflare placement ignores RPC methods.
+          node scripts/check-canonical-readonly-rpc.mjs
+          node scripts/check-cloudflare-native-bindings.mjs
           npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.canonical-phase.staging.jsonc
           node --check scripts/staging/restore-canonical-phase-workers.mjs
 
