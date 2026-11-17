@@ -10,7 +10,6 @@ import { saveTasteControls, loadTasteControls } from "./discovery-intelligence.s
 import { validateStoredEpub } from "./stored-epub.server";
 import { createAuth, resolvedIdentity } from "./auth.server";
 import { settleErrorTelemetry } from "./failclosed-error-telemetry";
-import { markBackendFaultStage } from "../../lib/backend-api-fault-stage";
 import { handleLegalContact } from "./legal.server";
 import { mirrorUrl } from "./gutenberg-source";
 import { hasEpubDownloadWindow, mixEpubFrontier, planEpubRetry } from "./epub-retry-policy";
@@ -3104,10 +3103,10 @@ async function handleCoveRequest(
     }
     const legalResponse = await handleLegalContact(request, env, path);
     if (legalResponse) return legalResponse;
-    const authResponse = await markBackendFaultStage("auth_handle", () => auth.handle(path), timings);
+    const authResponse = await auth.handle(path);
     if (authResponse) return authResponse;
     const identityStarted = performance.now();
-    await markBackendFaultStage("identity", () => auth.identify(), timings);
+    await auth.identify();
     timings.identity = performance.now() - identityStarted;
     // Account bootstrap already enforces its own identity and entitlement
     // boundaries. It never consumes merchandising, locale or payment settings;
@@ -4375,11 +4374,7 @@ async function handleCoveRequest(
     if (request.method === "GET" && path === "/catalog") {
       const searchUserId = identity(request)?.id || null;
       await rateLimitSearchRequest(request, env, searchUserId, "catalog", 180);
-      const result = await markBackendFaultStage(
-        "catalog",
-        () => catalog(env, url, searchUserId, storefrontTerritory),
-        timings,
-      );
+      const result = await catalog(env, url, searchUserId, storefrontTerritory);
       return json(result);
     }
     if (request.method === "GET" && path === "/search/suggest") {
@@ -4407,17 +4402,12 @@ async function handleCoveRequest(
         .max(16)
         .parse(url.searchParams.get("language") || "");
       return json(
-        await markBackendFaultStage(
-          "taxonomy",
-          () =>
-            taxonomyTree(
-              database(env),
-              territory,
-              language,
-              storefront.locale,
-              execution?.waitUntil ? (work) => execution.waitUntil?.(work) : undefined,
-            ),
-          timings,
+        await taxonomyTree(
+          database(env),
+          territory,
+          language,
+          storefront.locale,
+          execution?.waitUntil ? (work) => execution.waitUntil?.(work) : undefined,
         ),
       );
     }
