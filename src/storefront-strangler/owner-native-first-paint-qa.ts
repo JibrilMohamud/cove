@@ -61,6 +61,7 @@ function checkedRow(
   raw: NativeFirstPaintRow,
   input: NativeRequest,
   allowed: Set<string>,
+  evidence: "primary" | "owner",
 ): NativeFirstPaintRow {
   if (
     !raw ||
@@ -95,13 +96,33 @@ function checkedRow(
     (offer.amountMinor as number) < 0
   )
     throw new Error("native_qa_invalid_offer");
-  if (
-    raw.product_id.startsWith("prd_gutenberg_")
-      ? offer.type !== "public-domain" || offer.amountMinor !== 0
-      : offer.type === "public-domain" || !/^[a-z][a-z0-9_-]{2,39}$/.test(offer.type)
-  )
-    throw new Error("native_qa_invalid_offer");
+  // The catalog's source-controlled retail SQL emits the canonical
+  // offer_type "purchase", while the strong owner's published storefront
+  // proof uses "retail". These are equivalent ONLY when owner, edition,
+  // currency and numeric price match. Never coerce an unknown offer type.
+  const free = raw.product_id.startsWith("prd_gutenberg_");
+  const permitted = free
+    ? (evidence === "primary"
+        ? offer.type === "public-domain" || offer.type === "free"
+        : offer.type === "public-domain") && offer.amountMinor === 0
+    : evidence === "primary"
+      ? offer.type === "purchase" || offer.type === "retail"
+      : offer.type === "retail";
+  if (!permitted) throw new Error("native_qa_invalid_offer");
   return raw;
+}
+
+function offersAgree(source: NativeFirstPaintRow, approval: NativeFirstPaintRow): boolean {
+  // checkedRow validated both JSON shapes and allowed type vocabularies.
+  // Exact monetary/currency equality is mandatory regardless of type alias.
+  const canonical = JSON.parse(source.offer_json!) as {
+    type: string; currency: string; amountMinor: number
+  };
+  const authorized = JSON.parse(approval.offer_json!) as {
+    type: string; currency: string; amountMinor: number
+  };
+  return canonical.amountMinor === authorized.amountMinor &&
+    canonical.currency === authorized.currency;
 }
 
 export async function readOwnerNativeFirstPaintQa(raw: unknown, ports: NativePorts) {
@@ -131,12 +152,12 @@ export async function readOwnerNativeFirstPaintQa(raw: unknown, ports: NativePor
   for (const item of primary.rows) {
     // A primary read must prove that every returned row belongs to the
     // candidate request, with unique identity and a lawful retail offer.
-    const row = checkedRow(item, input, allowed);
+    const row = checkedRow(item, input, allowed, "primary");
     if (byPrimary.has(row.product_id)) throw new Error("native_qa_duplicate_primary");
     byPrimary.set(row.product_id, row);
   }
   for (const item of owner) {
-    const row = checkedRow(item, input, allowed);
+    const row = checkedRow(item, input, allowed, "owner");
     if (byOwner.has(row.product_id)) throw new Error("native_qa_duplicate_owner");
     byOwner.set(row.product_id, row);
   }
@@ -149,7 +170,7 @@ export async function readOwnerNativeFirstPaintQa(raw: unknown, ports: NativePor
       source.edition_id !== approval.edition_id ||
       source.product_public_id !== approval.product_public_id ||
       source.edition_public_id !== approval.edition_public_id ||
-      source.offer_json !== approval.offer_json
+      !offersAgree(source, approval)
     )
       throw new Error("native_qa_owner_primary_disagree");
     rows.push(approval);
