@@ -181,12 +181,28 @@ try {
   const ownerPing=await qaRequest("/qa/transport-owner-ping",{});
   assert.equal(ownerPing.status,200);
   assert.equal((await ownerPing.json()).schema,"cove.qa.transport-owner-ping.v1");
-  assert.equal((await qaRequest("/qa/transport-caller-ping",{}, "0".repeat(64))).status,401);
+  for(const field of ["x-cove-qa-binding-header-ms","x-cove-qa-owner-route-ms"]){
+    const elapsed=Number(ownerPing.headers.get(field));
+    assert.ok(Number.isFinite(elapsed)&&elapsed>=0&&elapsed<=12000,
+      "Private owner hop must publish only bounded numeric "+field);
+  }
+  assert.equal(callerPing.headers.get("x-cove-qa-binding-header-ms"),null,
+    "Caller-only edge control must not invent owner service-binding work");
+  const wrongGate=await qaRequest("/qa/transport-caller-ping",{}, "0".repeat(64));
+  assert.equal(wrongGate.status,401);
+  assert.equal(wrongGate.headers.get("x-cove-qa-binding-header-ms"),null,
+    "Untrusted bearer must never receive private timing diagnostics");
   assert.equal((await qaRequest("/qa/transport-owner-ping",{sql:"SELECT * FROM rights"})).status,400);
   qaEnv.COVE_LEGAL_QA_EXPIRES_AT=String(Date.now()-1);
   assert.equal((await qaRequest("/qa/transport-caller-ping",{})).status,503,
     "Expired QA caller MUST refuse even transport-only controls");
   qaEnv.COVE_LEGAL_QA_EXPIRES_AT=String(Date.now()+12*60_000);
+  const proxyRead=await qaRequest("/qa/native-first-paint",request);
+  assert.equal(proxyRead.status,200);
+  assert.ok(Number.isFinite(Number(proxyRead.headers.get("x-cove-qa-binding-header-ms"))),
+    "Native QA owner fetch must expose measured service-binding header delay");
+  assert.equal((await proxyRead.json()).rows.length,2,
+    "Service-bound native results must remain the intersection of canonical and current owner legal proof");
   let response=await call(request);
   assert.equal(response.status,200,"Actual full-schema D1+owner handler must accept synthetic fixture");
   let result=await response.json();
