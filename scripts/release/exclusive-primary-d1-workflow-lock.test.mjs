@@ -26,7 +26,7 @@ test("writer inventory is protected and shares the exclusive real-primary releas
   assert.match(live, /CF_WORKERS_METADATA_READ_TOKEN: .*COVE_CF_WORKERS_METADATA_READ_TOKEN/);
   assert.match(
     live,
-    /CF_ACCOUNT_TOKENS_AUDIT_READ_TOKEN: .*COVE_CF_ACCOUNT_TOKENS_AUDIT_READ_TOKEN/,
+    /CF_ACCOUNT_TOKENS_AUDIT_READ_TOKEN: .*COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN/,
   );
   assert.match(live, /CF_USER_AUDIT_TOKEN: .*COVE_CF_USER_TOKENS_AUDIT_READ_TOKEN/);
   assert.doesNotMatch(live, /CLOUDFLARE_API_TOKEN|secrets\.CLOUDFLARE_API_TOKEN/);
@@ -46,4 +46,18 @@ test("offline CI remains credential-free, and a draft PR never runs protected li
   assert.match(offline, /reviewed_main_sha:/);
   assert.match(offline, /default: false/);
   assert.match(live, /github\.event_name == 'workflow_dispatch'/);
+});
+
+test("live audit checks both absent protected secrets without printing values", () => {
+  assert.match(live, /name: Require three separately scoped audit credentials/);
+  assert.match(
+    live,
+    /for name in CF_WORKERS_METADATA_READ_TOKEN CF_ACCOUNT_TOKENS_AUDIT_READ_TOKEN CF_USER_AUDIT_TOKEN/,
+  );
+  assert.match(live, /test "\$missing" -eq 0/);
+  const guard = live.indexOf("name: Require three separately scoped audit credentials");
+  const audit = live.indexOf("name: Certify physical Cloudflare writer exclusivity");
+  assert.ok(guard > 0 && audit > guard);
+  assert.doesNotMatch(live, /echo.*\$\{!name\}/);
+  assert.doesNotMatch(live, /::add-mask::|set -x/);
 });

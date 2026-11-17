@@ -8,6 +8,8 @@ minify = false
 compatibility_date = "2026-10-17"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = true
+# No unguarded version preview while the authenticated test is live.
+preview_urls = false
 
 # Protected staging-only ingress-edge experiment (the *production candidate*
 # uses default placement). The Smart Placement campaign with real US-licensed

@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   assertExactTokenPolicy,
   assertPinnedDeployment,
   assertIsolatedStageBindings,
+  assertParkedStage,
+  PARKED_READER_VERSION,
+  PARKED_SSR_VERSION,
 } from "./phase-stage-control-plane.mjs";
 
 const account = "com.cloudflare.api.account.d26430caa63ec55f6612e32f36aca5e9";
@@ -116,5 +120,71 @@ test("only private staging read service with no native D1 and gated SSR is allow
   }
   assert.throws(() =>
     assertIsolatedStageBindings(reader, { bindings: [...ssr.bindings, ssr.bindings[0]] }),
+  );
+});
+
+test("one-time seeded deny-only Workers must be exactly parked before and after every run", () => {
+  const parked = {
+    reader: { resources: { bindings: [] } },
+    ssr: { resources: { bindings: [] } },
+    readerDeployment: {
+      deployments: [{ versions: [{ version_id: PARKED_READER_VERSION, percentage: 100 }] }],
+    },
+    ssrDeployment: {
+      deployments: [{ versions: [{ version_id: PARKED_SSR_VERSION, percentage: 100 }] }],
+    },
+    readerSubdomain: { enabled: false, previews_enabled: false },
+    ssrSubdomain: { enabled: false, previews_enabled: false },
+    domains: [],
+  };
+  assert.doesNotThrow(() => assertParkedStage(parked));
+  for (const change of [
+    { reader: { resources: { bindings: [{ name: "D1_READ_API_TOKEN", type: "secret_text" }] } } },
+    {
+      ssr: {
+        resources: { bindings: [{ name: "COVE_SSR_STAGING_GATE_KEY", type: "secret_text" }] },
+      },
+    },
+    { readerSubdomain: { enabled: true, previews_enabled: false } },
+    { ssrSubdomain: { enabled: true, previews_enabled: false } },
+    { ssrSubdomain: { enabled: false, previews_enabled: true } },
+    { ssrDeployment: { deployments: [{ versions: [{ version_id: "other", percentage: 100 }] }] } },
+    {
+      readerDeployment: {
+        deployments: [{ versions: [{ version_id: PARKED_READER_VERSION, percentage: 99 }] }],
+      },
+    },
+    { domains: [{ service: "cove-storefront-phase-staging" }] },
+    { domains: [{ service: "cove-canonical-phase-readonly-staging" }] },
+    { domains: null },
+  ])
+    assert.throws(() => assertParkedStage({ ...parked, ...change }));
+});
+
+test("immutable version evidence uses existing Workers Scripts Write, not metadata-only token", () => {
+  const stage = readFileSync("scripts/staging/phase-stage-control-plane.mjs", "utf8");
+  const workflow = readFileSync(
+    ".github/workflows/cove-protected-canonical-phase-staging.yml",
+    "utf8",
+  );
+  assert.match(stage, /index < 2 \? deploy : metadata/);
+  assert.match(stage, /get\(index < 2 \? deploy : metadata, path\)/);
+  assert.match(stage, /stageParked\(metadata, process\.env\.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN\)/);
+  assert.match(
+    workflow,
+    /name: ALWAYS verify production pins, disabled owner and parked stage isolation/,
+  );
+  const postflight = workflow.slice(
+    workflow.indexOf(
+      "name: ALWAYS verify production pins, disabled owner and parked stage isolation",
+    ),
+  );
+  assert.match(
+    postflight,
+    /COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN: \$\{\{ secrets\.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN \}\}/,
+  );
+  assert.match(
+    postflight,
+    /COVE_CF_WORKERS_METADATA_READ_TOKEN: \$\{\{ secrets\.COVE_CF_WORKERS_METADATA_READ_TOKEN \}\}/,
   );
 });
