@@ -45,7 +45,7 @@ function completeTokenInventory(tokens){
       !["active","disabled","expired"].includes(t.status))return false;
     if(t.status!=="active")return true;
     return Array.isArray(t.policies)&&t.policies.length>0&&
-      t.policies.every(p=>Array.isArray(p.permission_groups)&&
+      t.policies.every(p=>Array.isArray(p?.permission_groups)&&
         p.permission_groups.length>0&&p.permission_groups.every(g=>
           typeof g?.name==="string"&&g.name.trim().length>0));
   });
@@ -213,6 +213,10 @@ function selfTest(){
     [{name:"no-groups",status:"active",policies:[{}]}],
     [{name:"empty-groups",status:"active",policies:[{permission_groups:[]}]}],
     [{name:"unknown-group",status:"active",policies:[{permission_groups:[{}]}]}],
+    [{name:"null-group",status:"active",policies:[{permission_groups:[null]}]}],
+    [{name:"null-policy",status:"active",policies:[null]}],
+    [{name:"wrong-groups-type",status:"active",policies:[{permission_groups:"Read"}]}],
+    [{name:"wrong-policies-type",status:"active",policies:"Read"}],
     [{name:"unknown-status",status:"pending"}],
   ]){
     const report=evaluatePhysicalWriterInventory({
