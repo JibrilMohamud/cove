@@ -5404,19 +5404,37 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
             if(typeof primary.withSession!=="function")
               throw Error("qa_native_primary_session_unavailable");
             const db=primary.withSession("first-primary");
-            qaPhase="market";
+            // The market and catalog reads are independent PRIMARY-only
+            // denials. Dispatch both without serial REST/RPC waits, and do
+            // not publish a book until BOTH primary reads complete and the
+            // owner is rechecked synchronously AFTER the entire D1 await.
+            // No caching, owner bypass, replica routing or speculative grant.
+            qaPhase="primary-pair";
             const marketStarted=performance.now();
-            const market=await db.prepare(
+            const marketPending=db.prepare(
               "SELECT country_code FROM storefront_markets WHERE country_code=? AND market_status='active' AND default_currency=? LIMIT 1"
-            ).bind(territory,currency).first<{country_code:string}>();
-            qaMarketMs=performance.now()-marketStarted;
+            ).bind(territory,currency).first<{country_code:string}>()
+              .then(value=>{
+                qaMarketMs=performance.now()-marketStarted;
+                return value;
+              });
             const measurements:FirstPaintD1QueryMetrics={};
-            qaPhase="catalog";
             const selectStarted=performance.now();
-            const rows=await authorizeStorefrontPresentationIds(
+            const catalogPending=authorizeStorefrontPresentationIds(
               db,ids,territory,currency,measurements
-            );
-            qaSelectMs=performance.now()-selectStarted;
+            ).then(value=>{
+              qaSelectMs=performance.now()-selectStarted;
+              return value;
+            });
+            // Wait for both queries even when one fails; never permit an
+            // unobserved primary request to outlive this owner decision.
+            const [marketResult,catalogResult]=await Promise.allSettled([
+              marketPending,catalogPending
+            ]);
+            if(marketResult.status!=="fulfilled"||catalogResult.status!=="fulfilled")
+              throw Error("qa_native_primary_pair_failed");
+            const market=marketResult.value;
+            const rows=catalogResult.value;
             qaProviderSqlMs=measurements.sqlDurationMs;
             return {rows,servedByPrimary:measurements.servedByPrimary===true,
               activeMarket:market?.country_code===territory};
