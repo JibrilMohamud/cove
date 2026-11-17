@@ -495,6 +495,24 @@ try {
     sourceSql.includes("retail_product_availability_rows")&&
     sourceSql.includes("FROM authorized a ORDER BY a.position"),
     "Synthetic REST control must never substitute an ad-hoc query shape");
+  // A canonical D1 retail offer is called "purchase"; the legal owner
+  // publishes the same rights-reviewed paid offer as "retail". Compare
+  // exact amount/currency/edition/public identifiers, not JSON type bytes.
+  const exactCanonicalPaidOffer=(row)=>{
+    try{
+      if(!row||row.product_id!==test.productId||
+         row.edition_id!==shelf.body.rows[0].edition_id||
+         row.product_public_id!==shelf.body.rows[0].product_public_id||
+         row.edition_public_id!==shelf.body.rows[0].edition_public_id)
+        return false;
+      const canonical=JSON.parse(row.offer_json);
+      const approved=JSON.parse(shelf.body.rows[0].offer_json);
+      return canonical?.type==="purchase"&&approved?.type==="retail"&&
+        Number.isSafeInteger(canonical.amountMinor)&&canonical.amountMinor>=0&&
+        canonical.amountMinor===approved.amountMinor&&
+        canonical.currency===approved.currency&&canonical.currency==="USD";
+    }catch{return false;}
+  };
   const restParams=["US",JSON.stringify([test.productId]),"USD","USD","US"];
   const restEvidence=[];
   for(const parallel of [1,4,8,16,32]){
@@ -506,8 +524,7 @@ try {
         return {ms:Math.round((performance.now()-start)*100)/100,
           valid:result.success===true&&result.meta?.served_by_primary===true&&
             result.meta?.rows_written===0&&result.results?.length===1&&
-            row?.product_id===test.productId&&
-            row?.offer_json===shelf.body.rows[0].offer_json,
+            exactCanonicalPaidOffer(row),
           sqlMs:result.meta?.timings?.sql_duration_ms??result.meta?.duration??null,
           primary:result.meta?.served_by_primary===true,
           rowsWritten:result.meta?.rows_written??null};
