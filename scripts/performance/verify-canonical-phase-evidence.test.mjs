@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import {
-  evaluateStageCohort,
-  parseBoundedPhases,
-} from "./verify-canonical-phase-evidence.mjs";
+import { evaluateStageCohort, parseBoundedPhases } from "./verify-canonical-phase-evidence.mjs";
 
 const timing = [
   "cove_backend_lean;dur=0",
@@ -122,18 +119,10 @@ test("impossible and forged timing values are not inferred to be platform faults
     concurrency: concurrency(),
   });
   assert.equal(result.fullyAttributed, 119);
+  assert.equal(result.samples[0].measuredDominantInterval, "unknown-inconsistent-phases");
+  assert.equal(parseBoundedPhases("cove_backend_catalog_rpc;dur=13000, cove_total;dur=400"), null);
   assert.equal(
-    result.samples[0].measuredDominantInterval,
-    "unknown-inconsistent-phases",
-  );
-  assert.equal(
-    parseBoundedPhases("cove_backend_catalog_rpc;dur=13000, cove_total;dur=400"),
-    null,
-  );
-  assert.equal(
-    parseBoundedPhases(
-      "cove_backend_catalog_rpc;dur=100, cove_backend_catalog_rpc;dur=90",
-    ),
+    parseBoundedPhases("cove_backend_catalog_rpc;dur=100, cove_backend_catalog_rpc;dur=90"),
     null,
   );
 });
@@ -141,14 +130,9 @@ test("impossible and forged timing values are not inferred to be platform faults
 test("private shared read service cannot opt into staging-only phase emission", () => {
   const original = JSON.parse(
     // The existing Wrangler config is JSONC with a permitted trailing comma.
-    readFileSync("wrangler.canonical-readonly.jsonc", "utf8").replace(
-      /,\s*([}\]])/g,
-      "$1",
-    ),
+    readFileSync("wrangler.canonical-readonly.jsonc", "utf8").replace(/,\s*([}\]])/g, "$1"),
   );
-  const staged = JSON.parse(
-    readFileSync("wrangler.canonical-phase.staging.jsonc", "utf8"),
-  );
+  const staged = JSON.parse(readFileSync("wrangler.canonical-phase.staging.jsonc", "utf8"));
   const frontend = readFileSync("wrangler.frontend.phase.staging.toml", "utf8");
   const backend = readFileSync("infra/canonical-readonly/worker.ts", "utf8");
   assert.equal(original.name, "cove-canonical-d1-readonly");
@@ -167,10 +151,7 @@ test("private shared read service cannot opt into staging-only phase emission", 
     /this\.env\.COVE_STAGE_READ_PHASE_DIAGNOSTICS !== "1"\) return body\.result/,
   );
   assert.match(frontend, /name = "cove-storefront-phase-staging"/);
-  assert.match(
-    frontend,
-    /service = "cove-canonical-phase-readonly-staging"/,
-  );
+  assert.match(frontend, /service = "cove-canonical-phase-readonly-staging"/);
   assert.doesNotMatch(frontend, /\[\[d1_databases\]\]/);
   assert.match(frontend, /COVE_SSR_STAGING = "1"/);
   assert.doesNotMatch(frontend, /COVE_SSR_STAGING_COMMERCE_QA\s*=\s*"1"/);
