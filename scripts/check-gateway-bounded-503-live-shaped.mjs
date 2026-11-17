@@ -80,9 +80,12 @@ try {
   });
   assert.ok(upstreamCancelled, "Upstream body must be discarded without awaiting its cleanup");
   assert.equal(failures.length, 1, "Only one reviewed production failure warning");
-  assert.equal(failures[0].at(-1), "8ae2b9362ddfafe0-IAD", "Validated Ray must identify the failed Cloudflare request");
+  assert.equal(
+    failures[0].at(-1),
+    "8ae2b9362ddfafe0-IAD",
+    "Validated Ray must identify the failed Cloudflare request",
+  );
   assert.doesNotMatch(JSON.stringify(failures), /https:\/\/|Authorization|private-token/);
-
   console.log(
     "PASS: live-shaped production gateway preserves 503/no-store with stalled upstream body",
   );
