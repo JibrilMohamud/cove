@@ -14,7 +14,8 @@ const approved = {
   COVE_PHASE_SSR_CREATE_ATTEMPTED: "1",
   COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN: token,
 };
-const prefix = "https://api.cloudflare.com/client/v4/accounts/" +
+const prefix =
+  "https://api.cloudflare.com/client/v4/accounts/" +
   "d26430caa63ec55f6612e32f36aca5e9/workers/scripts/";
 
 test("restore only two fixed parked versions, consumer first, never production", () => {
@@ -34,12 +35,15 @@ test("restore 100% immutable deny-only version and disable public/preview ingres
     return { ok: true, status: 200, json: async () => ({ success: true }) };
   };
   assert.deepEqual(await restoreOwnedStageWorkers(approved, request), { parked: 2 });
-  assert.deepEqual(calls.map((x) => x.url), [
-    prefix + "cove-storefront-phase-staging/deployments",
-    prefix + "cove-storefront-phase-staging/subdomain",
-    prefix + "cove-canonical-phase-readonly-staging/deployments",
-    prefix + "cove-canonical-phase-readonly-staging/subdomain",
-  ]);
+  assert.deepEqual(
+    calls.map((x) => x.url),
+    [
+      prefix + "cove-storefront-phase-staging/deployments",
+      prefix + "cove-storefront-phase-staging/subdomain",
+      prefix + "cove-canonical-phase-readonly-staging/deployments",
+      prefix + "cove-canonical-phase-readonly-staging/subdomain",
+    ],
+  );
   for (let i = 0; i < calls.length; i++) {
     const { url, options } = calls[i];
     assert.equal(options.method, "POST");
@@ -52,10 +56,12 @@ test("restore 100% immutable deny-only version and disable public/preview ingres
     if (i % 2 === 0) {
       assert.deepEqual(body, {
         strategy: "percentage",
-        versions: [{
-          version_id: i === 0 ? PARKED_SSR_VERSION : PARKED_READER_VERSION,
-          percentage: 100,
-        }],
+        versions: [
+          {
+            version_id: i === 0 ? PARKED_SSR_VERSION : PARKED_READER_VERSION,
+            percentage: 100,
+          },
+        ],
       });
     } else {
       assert.deepEqual(body, { enabled: false, previews_enabled: false });
@@ -64,19 +70,39 @@ test("restore 100% immutable deny-only version and disable public/preview ingres
 });
 
 test("partial update rolls back only attempted names; preflight denial never mutates", async () => {
-  const request = async () => { throw Error("unexpected control-plane mutation"); };
-  assert.deepEqual(ownedStageParkPlan({ ...approved,
-    COVE_PHASE_READER_CREATE_ATTEMPTED: "0", COVE_PHASE_SSR_CREATE_ATTEMPTED: "0",
-  }), []);
-  assert.deepEqual(await restoreOwnedStageWorkers({ ...approved,
-    COVE_PHASE_READER_CREATE_ATTEMPTED: "0", COVE_PHASE_SSR_CREATE_ATTEMPTED: "0",
-  }, request), { parked: 0 });
+  const request = async () => {
+    throw Error("unexpected control-plane mutation");
+  };
+  assert.deepEqual(
+    ownedStageParkPlan({
+      ...approved,
+      COVE_PHASE_READER_CREATE_ATTEMPTED: "0",
+      COVE_PHASE_SSR_CREATE_ATTEMPTED: "0",
+    }),
+    [],
+  );
+  assert.deepEqual(
+    await restoreOwnedStageWorkers(
+      {
+        ...approved,
+        COVE_PHASE_READER_CREATE_ATTEMPTED: "0",
+        COVE_PHASE_SSR_CREATE_ATTEMPTED: "0",
+      },
+      request,
+    ),
+    { parked: 0 },
+  );
   await assert.rejects(
-    () => restoreOwnedStageWorkers({ ...approved, COVE_PHASE_STAGE_PREFLIGHT_PASSED: "0" }, request),
+    () =>
+      restoreOwnedStageWorkers({ ...approved, COVE_PHASE_STAGE_PREFLIGHT_PASSED: "0" }, request),
     /Parked-stage preflight required/,
   );
   await assert.rejects(
-    () => restoreOwnedStageWorkers({ ...approved, COVE_PHASE_READER_CREATE_ATTEMPTED: "true" }, request),
+    () =>
+      restoreOwnedStageWorkers(
+        { ...approved, COVE_PHASE_READER_CREATE_ATTEMPTED: "true" },
+        request,
+      ),
     /Invalid stage deployment marker/,
   );
 });
@@ -110,6 +136,9 @@ test("workflow updates existing named Workers; safe restore before independent p
   assert.match(src, /if: always\(\) && env.COVE_PHASE_STAGE_PREFLIGHT_PASSED == '1'/);
   assert.match(src, /COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN:/);
   assert.doesNotMatch(src, /wrangler delete|delete-canonical-phase-workers\.mjs/);
-  assert.doesNotMatch(src, /--force --config|CLOUDFLARE_API_TOKEN: \$\{\{ secrets\.CLOUDFLARE_API_TOKEN/);
+  assert.doesNotMatch(
+    src,
+    /--force --config|CLOUDFLARE_API_TOKEN: \$\{\{ secrets\.CLOUDFLARE_API_TOKEN/,
+  );
   assert.match(src, /COVE_PHASE_SSR_DEPLOYED == '1'/);
 });
