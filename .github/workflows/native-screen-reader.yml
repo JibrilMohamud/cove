@@ -17,6 +17,7 @@ jobs:
       - uses: actions/setup-node@v6
         with: { node-version: 22, cache: npm }
       - run: npm ci
+      - run: node --test scripts/native-a11y/nvda-profile-policy.test.mjs
       - run: npx playwright install chromium
       - name: Install signed NVDA in isolated portable profile
         shell: pwsh
