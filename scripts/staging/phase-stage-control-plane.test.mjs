@@ -191,7 +191,9 @@ test("immutable version evidence uses existing Workers Scripts Write, not metada
 
 test("Smart Placement experiment exists ONLY on isolated read-only phase staging", () => {
   const candidate = JSON.parse(readFileSync("wrangler.canonical-phase.staging.jsonc", "utf8"));
-  const production = JSON.parse(readFileSync("wrangler.canonical-readonly.jsonc", "utf8"));
+  const production = JSON.parse(
+    readFileSync("wrangler.canonical-readonly.jsonc", "utf8").replace(/,\\s*}/g, "}"),
+  );
   const owner = JSON.parse(readFileSync("wrangler.legal-authority.production-locked.jsonc", "utf8"));
   assert.equal(candidate.name, "cove-canonical-phase-readonly-staging");
   assert.equal(candidate.main, "infra/canonical-readonly/worker.ts");
