@@ -5403,15 +5403,18 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
             };
             if(typeof primary.withSession!=="function")
               throw Error("qa_native_primary_session_unavailable");
-            const db=primary.withSession("first-primary");
-            // The market and catalog reads are independent PRIMARY-only
-            // denials. Dispatch both without serial REST/RPC waits, and do
-            // not publish a book until BOTH primary reads complete and the
-            // owner is rechecked synchronously AFTER the entire D1 await.
-            // No caching, owner bypass, replica routing or speculative grant.
+            // Cloudflare D1 only guarantees the FIRST read of a
+            // first-primary session is primary. Subsequent queries MAY use
+            // replicas, including when dispatched concurrently. A separate
+            // fresh session for EACH query is mandatory for deny-first QA.
+            const marketDb=primary.withSession("first-primary");
+            const catalogDb=primary.withSession("first-primary");
+            // The market and catalog reads are independent primary denials.
+            // Do not publish a book until BOTH read barriers complete and
+            // current owner rights are rechecked synchronously afterward.
             qaPhase="primary-pair";
             const marketStarted=performance.now();
-            const marketPending=db.prepare(
+            const marketPending=marketDb.prepare(
               "SELECT country_code FROM storefront_markets WHERE country_code=? AND market_status='active' AND default_currency=? LIMIT 1"
             ).bind(territory,currency).first<{country_code:string}>()
               .then(value=>{
@@ -5421,7 +5424,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
             const measurements:FirstPaintD1QueryMetrics={};
             const selectStarted=performance.now();
             const catalogPending=authorizeStorefrontPresentationIds(
-              db,ids,territory,currency,measurements
+              catalogDb,ids,territory,currency,measurements
             ).then(value=>{
               qaSelectMs=performance.now()-selectStarted;
               return value;
