@@ -8,7 +8,10 @@ import {
 // book IDs, exception text or tokens may enter the output artifacts.
 export const COLD_TRIALS = 3;
 export const COLD_PER_TRIAL = 20;
-export const WAVE_COUNTS = Object.freeze({ 1: 8, 4: 12, 8: 16, 16: 24 });
+export const WAVE_COUNTS = Object.freeze({ 1: 8, 4: 12, 8: 16, 16: 24, 32: 32 });
+export const PROTECTED_LICENSED_SAMPLES =
+  COLD_TRIALS * COLD_PER_TRIAL + Object.values(WAVE_COUNTS).reduce((sum, n) => sum + n, 0);
+export const PROTECTED_EDGE_CONTROLS = Object.keys(WAVE_COUNTS).length * 8;
 const REQUIRED = [
   "cove_backend_catalog",
   "cove_backend_catalog_sql",
@@ -179,7 +182,7 @@ export function evaluateStageCohort({ cold, concurrency }) {
     !concurrency ||
     !Array.isArray(concurrency.results)
   )
-    throw new Error("Missing required 3-cold/60-concurrency artifacts");
+    throw new Error("Missing required 3-cold/92-concurrency artifacts");
   const records = [];
   const anomalies = [];
   for (let trial = 0; trial < COLD_TRIALS; trial++) {
@@ -232,16 +235,17 @@ export function evaluateStageCohort({ cold, concurrency }) {
     }
     expectedOrdinal += expected;
   }
-  if (records.length !== 120) anomalies.push("incorrect-total-request-count");
+  if (records.length !== PROTECTED_LICENSED_SAMPLES)
+    anomalies.push("incorrect-total-request-count");
 
   // An HTTP 200 can only count as staging-authorized when the same-runner
   // negative controls also prove that a missing bearer is denied BEFORE D1.
-  // These are extra 32 requests and NEVER count toward the 120 valid reads.
+  // These are 40 extra 401 controls, NEVER part of the 152 licensed reads.
   // Keep only fixed labels and bounded numeric summaries; not raw control
   // response headers, Ray IDs, URL, request payloads or error strings.
   const rawControls = concurrency.deniedControls;
   const summaries = concurrency.controlSummaries;
-  if (!Array.isArray(rawControls) || rawControls.length !== 32)
+  if (!Array.isArray(rawControls) || rawControls.length !== PROTECTED_EDGE_CONTROLS)
     anomalies.push("missing-or-extra-edge-denials");
   if (concurrency.pairedPhaseControls !== true) anomalies.push("unpaired-edge-controls");
   if (!Array.isArray(summaries) || summaries.length !== 4)
@@ -332,7 +336,7 @@ export function evaluateStageCohort({ cold, concurrency }) {
   }
   return {
     schema: "cove.stage.canonical-phase-evidence.v1",
-    expected: 120,
+    expected: PROTECTED_LICENSED_SAMPLES,
     observed: records.length,
     validResponses: good.length,
     failedOrInvalid: records.length - good.length,
@@ -341,7 +345,7 @@ export function evaluateStageCohort({ cold, concurrency }) {
     completeNumericPhaseCoverage: complete,
     strictLimitedStagingGate: limitedStagePass,
     releaseCertified: false, // Never substitutes for geo, 100 RPS or payments.
-    edgeControlsExpected: 32,
+    edgeControlsExpected: PROTECTED_EDGE_CONTROLS,
     edgeControlsObserved: controls.length,
     edgeControlsSecure,
     edgeControlCohorts,
