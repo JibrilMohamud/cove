@@ -87,6 +87,27 @@ test("only complete, current-user safe tokens are accepted; disabled mutation gr
   assert.deepEqual(evidence, { verified: true, reason: "current_user_inventory_clear" });
 });
 
+test("new or unreviewed Cloudflare permission names cannot certify user-token safety", async () => {
+  for (const group of ["Workers Direct Change", "D1 Mutation", "API Tokens Manage"]) {
+    const evidence = await inspectUserTokenEvidence(
+      async () => page([token("unreviewed", group)]),
+      USER_TOKEN,
+    );
+    assert.deepEqual(evidence, {
+      verified: false,
+      reason: "active_user_token_permission_unreviewed",
+    });
+  }
+  // Unknown privileges are ignored only if the token is independently inactive.
+  assert.deepEqual(
+    await inspectUserTokenEvidence(
+      async () => page([token("disabled-unknown", "Workers Direct Change", "disabled")]),
+      USER_TOKEN,
+    ),
+    { verified: true, reason: "current_user_inventory_clear" },
+  );
+});
+
 test("unexpected transport failures disclose only an allowlisted category", async () => {
   const secret = "NEVER_LEAK_PRIVATE_USER_OR_BEARER_TOKEN";
   const evidence = await inspectUserTokenEvidence(async () => {
