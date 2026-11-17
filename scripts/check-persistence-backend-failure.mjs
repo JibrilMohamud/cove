@@ -15,16 +15,29 @@ const { validatedBackendFailureRay } = await import(
 );
 const knownRay = "8ae2b9362ddfafe0-IAD";
 assert.equal(validatedBackendFailureRay(new Headers({ "cf-ray": knownRay })), knownRay);
-for (const bad of ["", "secret", "8ae2b9362ddfafe0-IA", "8ae2b9362ddfafe0-IAD extra",
-  "8ae2b9362ddfafe0-IAD, attacker", "8ae2b9362ddfafe0-IAD\\r\\nAuthorization:private",
-  "8AE2B9362DDFAFE0-IAD", "8ae2b9362ddfafe0-IAD-FOO", "8ae2b9362ddfafe0-iad"]) {
+for (const bad of [
+  "",
+  "secret",
+  "8ae2b9362ddfafe0-IA",
+  "8ae2b9362ddfafe0-IAD extra",
+  "8ae2b9362ddfafe0-IAD, attacker",
+  "8ae2b9362ddfafe0-IAD\\r\\nAuthorization:private",
+  "8AE2B9362DDFAFE0-IAD",
+  "8ae2b9362ddfafe0-IAD-FOO",
+  "8ae2b9362ddfafe0-iad",
+]) {
   assert.equal(validatedBackendFailureRay(new Headers({ "cf-ray": bad })), "unavailable");
 }
 assert.equal(validatedBackendFailureRay(new Headers()), "unavailable");
 const productionGatewaySource = fs.readFileSync("src/lib/persistence-backend.ts", "utf8");
-assert.equal((productionGatewaySource.match(/validatedBackendFailureRay\(response\.headers\)/g) || []).length, 1);
-assert.ok(productionGatewaySource.indexOf("validatedBackendFailureRay(response.headers)") >
-  productionGatewaySource.indexOf("if (productionFallbackDenied(env))"));
+assert.equal(
+  (productionGatewaySource.match(/validatedBackendFailureRay\(response\.headers\)/g) || []).length,
+  1,
+);
+assert.ok(
+  productionGatewaySource.indexOf("validatedBackendFailureRay(response.headers)") >
+    productionGatewaySource.indexOf("if (productionFallbackDenied(env))"),
+);
 function classify(headers) {
   return backendFailureSource(new Headers(headers));
 }
