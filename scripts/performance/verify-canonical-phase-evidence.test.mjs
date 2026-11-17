@@ -51,8 +51,11 @@ const concurrency = () => {
 };
 
 test("long raw server-timing headers retain only bounded canonical numeric phases", () => {
-  const longHeader = Array.from({ length: 90 }, (_, i) => "irrelevant_" + i + ";dur=3").join(", ") +
-    ", " + timing + ', attacker;desc="NEVER_COPY_ME"';
+  const longHeader =
+    Array.from({ length: 90 }, (_, i) => "irrelevant_" + i + ";dur=3").join(", ") +
+    ", " +
+    timing +
+    ', attacker;desc="NEVER_COPY_ME"';
   assert.ok(longHeader.length > 650);
   assert.ok(longHeader.length < 4096);
   const packed = compactCanonicalPhaseTiming(longHeader);
