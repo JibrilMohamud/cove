@@ -37,7 +37,7 @@
     "security:secret-scan": "node scripts/security-secret-scan.mjs",
     "security:sbom": "node scripts/generate-sbom.mjs",
     "test:security-sync": "node scripts/check-security-sync-bookmarks.mjs",
-    "test:catalog-identity": "node scripts/check-catalog-identity-discovery-seo.mjs",
+    "test:catalog-identity": "node scripts/check-catalog-identity-discovery-seo.mjs && node scripts/check-seo-sitemap-count-plan.mjs",
     "test:social-reading": "node scripts/check-social-reading.mjs && npm run test:social-journeys",
     "build:backend": "node scripts/build-persistence-backend.mjs",
     "test:persistence-backend": "node scripts/check-persistence-backend.mjs",
