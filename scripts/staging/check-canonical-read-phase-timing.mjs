@@ -42,6 +42,17 @@ assert.ok(bootstrap.includes("Number.isFinite(ms) && ms >= 0 && ms <= 12_000"));
 
 const root = mkdtempSync(path.join(tmpdir(), "cove-stage-read-phase-"));
 try {
+  // The actual Cloudflare RPC service must still bundle after adding the
+  // shared pure timing module; the platform import remains external to esbuild.
+  await build({
+    entryPoints: ["infra/canonical-readonly/worker.ts"],
+    bundle: true,
+    platform: "neutral",
+    format: "esm",
+    external: ["cloudflare:workers"],
+    outfile: path.join(root, "worker.mjs"),
+    logLevel: "silent",
+  });
   await build({
     entryPoints: ["src/lib/canonical-readonly-d1.server.ts"],
     bundle: true,
