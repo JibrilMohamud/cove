@@ -40,10 +40,10 @@ export function assertPinnedDeployment(payload, versionId) {
 export function assertIsolatedStageBindings(reader, ssr) {
   const bindings = reader?.bindings || [];
   assert.ok(!bindings.some((binding) => binding.type === "d1"), "No native D1 in stage reader");
-  assert.deepEqual(
-    bindings.map((binding) => binding.name).sort(),
-    ["COVE_STAGE_READ_PHASE_DIAGNOSTICS", "D1_READ_API_TOKEN"],
-  );
+  assert.deepEqual(bindings.map((binding) => binding.name).sort(), [
+    "COVE_STAGE_READ_PHASE_DIAGNOSTICS",
+    "D1_READ_API_TOKEN",
+  ]);
   assert.equal(
     bindings.find((binding) => binding.name === "COVE_STAGE_READ_PHASE_DIAGNOSTICS")?.text,
     "1",
@@ -64,17 +64,11 @@ export function assertIsolatedStageBindings(reader, ssr) {
     "Stage SSR must use the separate read service",
   );
   assert.ok(
-    frontend.some(
-      (binding) =>
-        binding.name === "COVE_SSR_STAGING" &&
-        binding.text === "1",
-    ),
+    frontend.some((binding) => binding.name === "COVE_SSR_STAGING" && binding.text === "1"),
   );
   assert.ok(
     frontend.some(
-      (binding) =>
-        binding.name === "COVE_SSR_STAGING_GATE_KEY" &&
-        binding.type === "secret_text",
+      (binding) => binding.name === "COVE_SSR_STAGING_GATE_KEY" && binding.type === "secret_text",
     ),
   );
   assert.ok(
