@@ -30,9 +30,6 @@ export type BackendFailureStage =
   | "markets"
   | "limit"
   | "page"
-  | "identity"
-  | "auth-handler"
-  | "taxonomy"
   | "multiple"
   | "unknown"
   | "context-preference"
@@ -44,16 +41,7 @@ export type BackendFailureStage =
 export function backendFailureStage(headers: Headers): BackendFailureStage {
   if (backendFailureSource(headers) !== "worker-api") return "unknown";
   const timing = headers.get("server-timing") || "";
-  const phases = [
-    "context",
-    "catalog",
-    "markets",
-    "limit",
-    "page",
-    "auth_handle",
-    "identity",
-    "taxonomy",
-  ] as const;
+  const phases = ["context", "catalog", "markets", "limit", "page"] as const;
   const found = phases.filter((phase) =>
     new RegExp(`(?:^|,)\\s*cove_fault_${phase};dur=1(?:\\.0)?(?:,|$)`).test(timing),
   );
@@ -62,7 +50,6 @@ export function backendFailureStage(headers: Headers): BackendFailureStage {
   // Hierarchical context detail is only trusted with the matching parent
   // failure marker and backend provenance. A child cannot override catalog,
   // admission or competing concurrent failure stages.
-  if (found[0] === "auth_handle") return "auth-handler";
   if (found[0] !== "context") return found[0];
   const contextPhases = ["preference", "market", "locale", "currency", "details"] as const;
   const sub = contextPhases.filter((phase) =>
