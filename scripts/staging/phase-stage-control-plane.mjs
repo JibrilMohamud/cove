@@ -53,6 +53,31 @@ export function assertIsolatedStageBindings(reader, ssr) {
     "secret_text",
   );
   const frontend = ssr?.bindings || [];
+  // A new config binding must never silently grant this temporary SSR Worker
+  // writable KV, queues, a production service, another secret, or other
+  // capabilities. Require explicit review for *every* binding name and type.
+  const allowedFrontendBindings = new Map([
+    ["ASSETS", "assets"],
+    ["COVE_STOREFRONT_READ_LIMITER", "ratelimit"],
+    ["COVE_CANONICAL_READONLY", "service"],
+    ["OPS_ANALYTICS", "analytics_engine"],
+    ["COVE_CANONICAL_READONLY_RPC", "plain_text"],
+    ["COVE_OPS_TELEMETRY_MODE", "plain_text"],
+    ["FORE_PUBLIC_URL", "plain_text"],
+    ["FORE_ENVIRONMENT", "plain_text"],
+    ["FORE_DEFAULT_TERRITORY", "plain_text"],
+    ["COVE_SSR_STAGING", "plain_text"],
+    ["COVE_SSR_STAGING_GATE_KEY", "secret_text"],
+  ]);
+  const seenFrontendBindings = new Set();
+  for (const binding of frontend) {
+    assert.ok(
+      allowedFrontendBindings.get(binding.name) === binding.type,
+      "Unexpected stage SSR binding name or capability type",
+    );
+    assert.ok(!seenFrontendBindings.has(binding.name), "Duplicate stage SSR binding");
+    seenFrontendBindings.add(binding.name);
+  }
   assert.ok(!frontend.some((binding) => binding.type === "d1"), "No native D1 in stage SSR");
   assert.ok(!frontend.some((binding) => binding.type === "r2_bucket"), "No production R2 access");
   assert.ok(
