@@ -463,14 +463,69 @@ try {
       p50Ms:summary.p50Ms,p95Ms:summary.p95Ms,p99Ms:summary.p99Ms,maxMs:summary.maxMs
     }));
   }
+  // A paired read-only REST control is issued by the SAME protected
+  // runner against the SAME synthetic primary and exact repo SQL.
+  // It still follows a different network path, so do not label this
+  // native-vs-REST pair as a storefront TTFB certification.
+  const catalogSource=fs.readFileSync("src/features/fore/catalog-model.server.ts","utf8");
+  const functionStart=catalogSource.indexOf("export async function authorizeStorefrontPresentationIds");
+  const sqlStart=catalogSource.indexOf("`WITH market(currency) AS MATERIALIZED (",functionStart);
+  const sqlEnd=catalogSource.indexOf("`,\n    )\n    .bind(territory",sqlStart);
+  assert.ok(functionStart>0&&sqlStart>functionStart&&sqlEnd>sqlStart,
+    "Matched REST comparison requires unchanged source-controlled catalog SQL boundaries");
+  const sourceSql=catalogSource.slice(sqlStart+1,sqlEnd);
+  assert.ok(!sourceSql.includes("${")&&
+    sourceSql.includes("retail_product_availability_rows")&&
+    sourceSql.includes("FROM authorized a ORDER BY a.position"),
+    "Synthetic REST control must never substitute an ad-hoc query shape");
+  const restParams=["US",JSON.stringify([test.productId]),"USD","USD","US"];
+  const restEvidence=[];
+  for(const parallel of [1,4,8,16,32]){
+    const samples=await Promise.all(Array.from({length:parallel},async()=>{
+      const start=performance.now();
+      try{
+        const result=await qaSql(sourceSql,restParams);
+        const row=result.results?.[0];
+        return {ms:Math.round((performance.now()-start)*100)/100,
+          valid:result.success===true&&result.meta?.served_by_primary===true&&
+            result.meta?.rows_written===0&&result.results?.length===1&&
+            row?.product_id===test.productId&&
+            row?.offer_json===shelf.body.rows[0].offer_json,
+          sqlMs:result.meta?.timings?.sql_duration_ms??result.meta?.duration??null,
+          primary:result.meta?.served_by_primary===true,
+          rowsWritten:result.meta?.rows_written??null};
+      }catch(error){
+        return {ms:Math.round((performance.now()-start)*100)/100,
+          valid:false,error:error instanceof Error?error.name:"unknown"};
+      }
+    }));
+    const sorted=samples.map(x=>x.ms).sort((a,b)=>a-b);
+    const q=v=>sorted[Math.ceil(v*sorted.length)-1];
+    const wave={parallel,total:parallel,valid:samples.filter(x=>x.valid).length,
+      errors:samples.filter(x=>!x.valid).length,
+      p50Ms:q(0.50),p95Ms:q(0.95),p99Ms:q(0.99),maxMs:sorted.at(-1),
+      sqlMaxMs:Math.max(...samples.map(x=>x.sqlMs??0)),
+      samples:samples.map(x=>({ms:x.ms,valid:x.valid,error:x.error,
+        sqlMs:x.sqlMs,primary:x.primary,rowsWritten:x.rowsWritten}))};
+    restEvidence.push(wave);
+    console.log("COVE_SYNTHETIC_REST_D1 "+JSON.stringify({
+      parallel,valid:wave.valid,errors:wave.errors,
+      p50Ms:wave.p50Ms,p95Ms:wave.p95Ms,p99Ms:wave.p99Ms,
+      maxMs:wave.maxMs,sqlMaxMs:wave.sqlMaxMs
+    }));
+  }
+
   const destination="artifacts/owner-native-qa/"+runId+".json";
   fs.mkdirSync(path.dirname(destination),{recursive:true});
   fs.writeFileSync(destination,JSON.stringify({
     schema:"cove.synthetic-owner-native-d1.v1",
     scope:"hosted-paid-qa-nine-products",primaryD1:"synthetic-paid-qa-only",
     cold:false,method:"HTTP full-body, not TTFB",releaseCertified:false,
-    scenarios:nativeEvidence
+    comparisonScope:"same GitHub runner, synthetic D1, exact SQL; different network/auth paths",
+    nativeHttp:nativeEvidence,restManagementApi:restEvidence
   },null,2));
+  assert.ok(restEvidence.every(w=>w.valid===w.total&&w.errors===0),
+    "Every synthetic REST primary query must return the exact canonical paid offer without writes");
   assert.ok(nativeEvidence.every(w=>w.valid===w.total&&w.errors===0),
     "Every native D1 QA sample must return one current owner-rights authorized product");
   // This is a conservative preflight filter (full-body latency), NOT a
