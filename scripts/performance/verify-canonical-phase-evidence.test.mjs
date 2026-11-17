@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
+  CANONICAL_STAGE_THRESHOLDS,
+  canonicalStageP95Limit,
+} from "./canonical-stage-thresholds.mjs";
+import {
   compactCanonicalPhaseTiming,
   evaluateStageCohort,
   parseBoundedPhases,
@@ -137,6 +141,47 @@ test("complete synthetic evidence is not equivalent to release certification", (
   assert.equal(result.samples[60].runnerQueueMs, 18);
   assert.equal(result.samples[60].runnerSentToHeadersMs, 502);
   assert.doesNotMatch(JSON.stringify(result), /NEVER_COPY_ME|private\.invalid|Bearer/);
+});
+
+test("independent evidence rejects protected #86-style cohort p95 regressions", () => {
+  assert.deepEqual(CANONICAL_STAGE_THRESHOLDS, { maxTtfbMs: 800, p95TtfbMs: 650 });
+  assert.deepEqual([1, 4, 8, 16].map(canonicalStageP95Limit), [650, 650, 650, 800]);
+  assert.throws(() => canonicalStageP95Limit(32));
+
+  for (const wave of [1, 4, 8]) {
+    const source = concurrency();
+    const row = source.results.find((item) => item.concurrency === wave);
+    row.ttfbMs = 702;
+    source.status = "pass";
+    source.summaries = [{ concurrency: wave, p95Ms: 120, pass: true }];
+    const result = evaluateStageCohort({ cold: cold(), concurrency: source });
+    assert.equal(result.validResponses, 120);
+    assert.equal(result.completeNumericPhaseCoverage, true);
+    assert.equal(result.slowOrFailed, 0, "All licensed requests are still under 800ms");
+    assert.equal(result.edgeControlsSecure, true);
+    assert.equal(result.waveCohorts.find((entry) => entry.concurrency === wave)?.p95Ms, 702);
+    assert.equal(result.waveCohorts.find((entry) => entry.concurrency === wave)?.pass, false);
+    assert.equal(result.strictLimitedStagingGate, false);
+    assert.equal(result.releaseCertified, false);
+  }
+});
+
+test("p95 boundary and 16-concurrent hard max retain existing strict contract", () => {
+  const limit = concurrency();
+  limit.results.find((row) => row.concurrency === 8).ttfbMs = 650;
+  limit.results.find((row) => row.concurrency === 16).ttfbMs = 799;
+  let result = evaluateStageCohort({ cold: cold(), concurrency: limit });
+  assert.equal(result.strictLimitedStagingGate, true);
+  assert.equal(result.waveCohorts.find((row) => row.concurrency === 8).p95Ms, 650);
+  assert.equal(result.waveCohorts.find((row) => row.concurrency === 16).maxMs, 799);
+  limit.results.find((row) => row.concurrency === 8).ttfbMs = 651;
+  result = evaluateStageCohort({ cold: cold(), concurrency: limit });
+  assert.equal(result.strictLimitedStagingGate, false);
+  limit.results.find((row) => row.concurrency === 8).ttfbMs = 650;
+  limit.results.find((row) => row.concurrency === 16).ttfbMs = 800;
+  result = evaluateStageCohort({ cold: cold(), concurrency: limit });
+  assert.equal(result.strictLimitedStagingGate, false);
+  assert.equal(result.slowOrFailed, 1);
 });
 
 test("substituting a concurrency ordinal cannot hide a missing scheduled request", () => {
