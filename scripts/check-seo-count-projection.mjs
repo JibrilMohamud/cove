@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -254,7 +255,80 @@ try {
     readPrimaryFence: async () => { throw Error("sensitive transport failure"); },
   }), { published: false, reason: "unavailable" });
 
-  console.log("PASS: version-fenced SEO counts fail closed, recheck withdrawals, bypass COUNT and disable CDN caching and prevent stale snapshot publication");
+  // The builder must match EVERY current SQL count exactly, not an inferred
+  // catalog total. The works query intentionally differs from books: legacy
+  // works-count does not filter edition.release_status. Preserve behavior.
+  const sql = {
+    books: "SELECT COUNT(*) n FROM products p JOIN editions e ON e.id=p.edition_id WHERE p.storefront_status='active' AND p.source_name<>'upload' AND e.release_status IN ('available','preorder')",
+    works: "SELECT COUNT(DISTINCT w.id) n FROM works w JOIN editions e ON e.work_id=w.id JOIN products p ON p.edition_id=e.id WHERE p.storefront_status='active' AND p.source_name<>'upload' AND w.canonical_status<>'redirected'",
+    editions: "SELECT COUNT(DISTINCT e.id) n FROM editions e JOIN products p ON p.edition_id=e.id WHERE p.storefront_status='active' AND p.source_name<>'upload' AND e.release_status IN ('available','preorder')",
+    authors: "SELECT COUNT(DISTINCT c.id) n FROM contributors c JOIN edition_contributors ec ON ec.contributor_id=c.id AND ec.role='author' JOIN editions e ON e.id=ec.edition_id JOIN products p ON p.edition_id=e.id WHERE p.storefront_status='active' AND p.source_name<>'upload' AND e.release_status IN ('available','preorder')",
+    categories: "SELECT COUNT(*) n FROM storefront_taxonomy_nodes n JOIN storefront_taxonomies t ON t.id=n.taxonomy_id WHERE t.is_default=1 AND t.status='active' AND n.visible=1",
+  };
+  const actualSeoSource = readFileSync("src/features/fore/seo.server.ts", "utf8");
+  for (const kind of ["books", "works", "editions", "authors", "categories"]) {
+    assert.ok(actualSeoSource.includes(sql[kind]), "live sitemap count changed without reviewed projection parity: " + kind);
+  }
+  const catalogDb = new DatabaseSync(":memory:");
+  try {
+    catalogDb.exec([
+      "CREATE TABLE works (id TEXT PRIMARY KEY, canonical_status TEXT);",
+      "CREATE TABLE editions (id TEXT PRIMARY KEY, work_id TEXT, release_status TEXT);",
+      "CREATE TABLE products (id TEXT PRIMARY KEY, edition_id TEXT, storefront_status TEXT, source_name TEXT);",
+      "CREATE TABLE contributors (id TEXT PRIMARY KEY);",
+      "CREATE TABLE edition_contributors (edition_id TEXT, contributor_id TEXT, role TEXT);",
+      "CREATE TABLE storefront_taxonomies (id TEXT PRIMARY KEY, is_default INTEGER, status TEXT);",
+      "CREATE TABLE storefront_taxonomy_nodes (id TEXT PRIMARY KEY, taxonomy_id TEXT, visible INTEGER);",
+      "INSERT INTO works VALUES ('w1','canonical'),('w2','redirected'),('w3','canonical');",
+      "INSERT INTO editions VALUES ('e1','w1','available'),('e2','w1','preorder'),('e3','w2','available'),('e4','w3','unavailable');",
+      "INSERT INTO products VALUES ('p1','e1','active','gutenberg'),('p2','e2','active','publisher-api'),('p3','e3','active','gutenberg'),('p4','e4','active','gutenberg'),('p5','e1','active','upload');",
+      "INSERT INTO contributors VALUES ('c1'),('c2');",
+      "INSERT INTO edition_contributors VALUES ('e1','c1','author'),('e2','c1','author'),('e3','c2','author'),('e2','c2','editor');",
+      "INSERT INTO storefront_taxonomies VALUES ('tax1',1,'active'),('tax2',0,'active');",
+      "INSERT INTO storefront_taxonomy_nodes VALUES ('n1','tax1',1),('n2','tax1',0),('n3','tax2',1);",
+      "CREATE INDEX idx_editions_work ON editions(work_id);",
+      "CREATE INDEX idx_products_edition ON products(edition_id);",
+    ].join("\n"));
+    const actualCount = (kind) => Number(catalogDb.prepare(sql[kind]).get().n);
+    const fixtureCounts = () => Object.fromEntries(
+      Object.keys(sql).map((kind) => [kind, actualCount(kind)])
+    );
+    assert.deepEqual(fixtureCounts(), {
+      books: 3, works: 2, editions: 3, authors: 2, categories: 1,
+    }, "synthetic catalog fixture must retain distinct edition/work/author semantics");
+
+    let fence = originalFence();
+    let projection = null;
+    const sqlPort = {
+      nowMs: () => timestamp,
+      readPrimaryFence: async () => structuredClone(fence),
+      countAuthoritative: async (kind) => actualCount(kind),
+      compareAndPublish: async (expected, snapshot) => {
+        if (JSON.stringify(expected) !== JSON.stringify(fence)) return false;
+        projection = structuredClone(snapshot);
+        return true;
+      },
+    };
+    assert.equal((await buildSeoCountProjection(sqlPort)).published, true);
+    assert.deepEqual(projection.counts, fixtureCounts());
+    assert.ok(verifiedSeoCounts({ snapshot: projection, fence }, timestamp));
+
+    // Change publication status under a new canonical owner generation.
+    // Previously published counts become invalid BEFORE recomputation.
+    catalogDb.exec("UPDATE products SET storefront_status='inactive' WHERE id IN ('p1','p2')");
+    fence.catalogGeneration = "catalog-100";
+    assert.equal(verifiedSeoCounts({ snapshot: projection, fence }, timestamp), null);
+    assert.deepEqual(fixtureCounts(), {
+      books: 1, works: 1, editions: 1, authors: 1, categories: 1,
+    }, "published-work and contributor counts must track active products exactly");
+    assert.equal((await buildSeoCountProjection(sqlPort)).published, true);
+    assert.deepEqual(projection.counts, fixtureCounts());
+    assert.ok(verifiedSeoCounts({ snapshot: projection, fence }, timestamp));
+  } finally {
+    catalogDb.close();
+  }
+
+  console.log("PASS: version-fenced SEO counts fail closed, recheck withdrawals, bypass COUNT and disable CDN caching, enforce exact SQL count parity and prevent stale snapshot publication");
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }
