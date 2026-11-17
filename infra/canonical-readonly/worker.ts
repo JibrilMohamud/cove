@@ -1,5 +1,6 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { boundedReadonlyPhaseMs } from "../../src/lib/readonly-transport-metric";
+import { createStagePrimaryReadBatcher } from "./stage-primary-read-batcher.mjs";
 
 interface Env {
   D1_READ_API_TOKEN: string;
@@ -9,6 +10,10 @@ interface Env {
 type Statement = { sql: string; params: unknown[] };
 const endpoint =
   "https://api.cloudflare.com/client/v4/accounts/d26430caa63ec55f6612e32f36aca5e9/d1/database/4bd657ac-8789-403e-a28c-93aba8d0a989/query";
+
+// Only the isolated staging fetch transport uses microbatches. Production
+// RPC calls still execute independently, unchanged, against the primary.
+const stagePrimaryRead = createStagePrimaryReadBatcher();
 
 // No native D1 binding. The credential MUST have exactly D1 Read permission.
 // Cloudflare's SQL engine denies writes even if a caller submits arbitrary SQL.
@@ -56,7 +61,7 @@ export default class CanonicalReadonly extends WorkerEntrypoint<Env> {
       const payload = JSON.parse(new TextDecoder().decode(data)) as { batch?: Statement[] };
       // query() preserves the existing primary-only D1 validation, bounded
       // REST response, SQL duration metrics and no-write credential.
-      const result = await this.query(payload.batch as Statement[]);
+      const result = await stagePrimaryRead(payload.batch as Statement[], (batch) => this.query(batch));
       return Response.json({ result }, { headers: denied });
     } catch {
       // Never echo provider diagnostics, SQL, rights, account data or token.
