@@ -53,8 +53,10 @@ try {
   const seedMarket=primary.prepare(
     "SELECT country_code,market_status,default_currency FROM storefront_markets WHERE country_code='US'"
   ).get();
-  assert.deepEqual(seedMarket,{country_code:"US",market_status:"active",default_currency:"USD"},
-    "Canonical migration-seeded market must be an active exact-currency market");
+  assert.equal(seedMarket?.country_code,"US");
+  assert.equal(seedMarket?.market_status,"active");
+  assert.equal(seedMarket?.default_currency,"USD",
+    "Canonical migration-seeded market must keep the exact USD currency");
   const books=[
     {id:"prd_gutenberg_2701",edition:"ed_gutenberg_2701",work:"wrk_gutenberg_2701",
       source:"gutenberg",external:"2701",type:"public-domain",price:0,sku:"qa-free-2701"},
