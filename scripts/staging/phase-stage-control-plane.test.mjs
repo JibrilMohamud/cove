@@ -99,4 +99,22 @@ test("only private staging read service with no native D1 and gated SSR is allow
       bindings: [...ssr.bindings, { name: "COVE_SSR_STAGING_COMMERCE_QA", text: "1" }],
     }),
   );
+  // A restricted read-only test may not gain another service, arbitrary
+  // secret, KV namespace, queue, Durable Object or other unseen capability.
+  for (const forbidden of [
+    { name: "PRODUCTION_PERSISTENCE", type: "service", service: "cove-persistence-backend" },
+    { name: "WRITABLE_CACHE", type: "kv_namespace" },
+    { name: "PUBLISH_QUEUE", type: "queue" },
+    { name: "LEGAL_OWNER", type: "durable_object_namespace" },
+    { name: "UNREVIEWED_SECRET", type: "secret_text" },
+    { name: "UNKNOWN_SETTING", type: "plain_text", text: "1" },
+    { name: "ASSETS", type: "r2_bucket" },
+  ]) {
+    assert.throws(() =>
+      assertIsolatedStageBindings(reader, { bindings: [...ssr.bindings, forbidden] }),
+    );
+  }
+  assert.throws(() =>
+    assertIsolatedStageBindings(reader, { bindings: [...ssr.bindings, ssr.bindings[0]] }),
+  );
 });
