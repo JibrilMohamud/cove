@@ -7,10 +7,10 @@ import { test } from "node:test";
 const api = readFileSync("src/features/fore/api.server.ts", "utf8");
 
 test("all imported API logger sites have only an approved static event message", () => {
-  const callSites = [...api.matchAll(/console\\.(?:warn|error|info|log|debug)\\s*\\(/g)];
+  const callSites = [...api.matchAll(/console\.(?:warn|error|info|log|debug)\s*\(/g)];
   const approvedCalls = [
     ...api.matchAll(
-      /console\\.(?:warn|error|info|log|debug)\\s*\\(\\s*("(?:[^"\\\\]|\\\\.)*"|'(?:[^'\\\\]|\\\\.)*')\\s*\\)/g,
+      /console\.(?:warn|error|info|log|debug)\s*\(\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')\s*\)/g,
     ),
   ];
   const allowedMessages = [
@@ -33,8 +33,8 @@ test("all imported API logger sites have only an approved static event message",
 test("fail-closed 503 and user-visible error handling stay intact", () => {
   assert.match(
     api,
-    /console\\.warn\\("Commercial catalog search failed closed"\\);[\\s\\S]{0,120}throw new ApiError\\(\\s*503/,
+    /console\.warn\("Commercial catalog search failed closed"\);[\s\S]{0,120}throw new ApiError\(\s*503/,
   );
-  assert.match(api, /console\\.error\\("Cove service error; request failed closed"\\);/);
-  assert.match(api, /"This content could not be loaded\\. Please try again\\."/);
+  assert.match(api, /console\.error\("Cove service error; request failed closed"\);/);
+  assert.match(api, /"This content could not be loaded\. Please try again\."/);
 });
