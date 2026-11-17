@@ -126,8 +126,12 @@ test("one-time seeded deny-only Workers must be exactly parked before and after 
   const parked = {
     reader: { resources: { bindings: [] } },
     ssr: { resources: { bindings: [] } },
-    readerDeployment: { deployments: [{ versions: [{ version_id: PARKED_READER_VERSION, percentage: 100 }] }] },
-    ssrDeployment: { deployments: [{ versions: [{ version_id: PARKED_SSR_VERSION, percentage: 100 }] }] },
+    readerDeployment: {
+      deployments: [{ versions: [{ version_id: PARKED_READER_VERSION, percentage: 100 }] }],
+    },
+    ssrDeployment: {
+      deployments: [{ versions: [{ version_id: PARKED_SSR_VERSION, percentage: 100 }] }],
+    },
     readerSubdomain: { enabled: false, previews_enabled: false },
     ssrSubdomain: { enabled: false, previews_enabled: false },
     domains: [],
@@ -135,14 +139,23 @@ test("one-time seeded deny-only Workers must be exactly parked before and after 
   assert.doesNotThrow(() => assertParkedStage(parked));
   for (const change of [
     { reader: { resources: { bindings: [{ name: "D1_READ_API_TOKEN", type: "secret_text" }] } } },
-    { ssr: { resources: { bindings: [{ name: "COVE_SSR_STAGING_GATE_KEY", type: "secret_text" }] } } },
+    {
+      ssr: {
+        resources: { bindings: [{ name: "COVE_SSR_STAGING_GATE_KEY", type: "secret_text" }] },
+      },
+    },
     { readerSubdomain: { enabled: true, previews_enabled: false } },
     { ssrSubdomain: { enabled: true, previews_enabled: false } },
     { ssrSubdomain: { enabled: false, previews_enabled: true } },
     { ssrDeployment: { deployments: [{ versions: [{ version_id: "other", percentage: 100 }] }] } },
-    { readerDeployment: { deployments: [{ versions: [{ version_id: PARKED_READER_VERSION, percentage: 99 }] }] } },
+    {
+      readerDeployment: {
+        deployments: [{ versions: [{ version_id: PARKED_READER_VERSION, percentage: 99 }] }],
+      },
+    },
     { domains: [{ service: "cove-storefront-phase-staging" }] },
     { domains: [{ service: "cove-canonical-phase-readonly-staging" }] },
     { domains: null },
-  ]) assert.throws(() => assertParkedStage({ ...parked, ...change }));
+  ])
+    assert.throws(() => assertParkedStage({ ...parked, ...change }));
 });
