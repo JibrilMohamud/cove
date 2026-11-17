@@ -167,9 +167,25 @@ try {
     sqlPlan.some((row) => String(row.detail).includes("idx_rights_grant_territories_lookup")),
     "Sparse market must use the indexed territory seed",
   );
+  // SQLite inlines the SELECT-only legal row view, so an EXPLAIN plan cannot
+  // reliably name the view. Validate the executed SQL's exact legal boundary
+  // and independently forbid the redundant DISTINCT-view co-routine.
+  for (const sparse of [false, true]) {
+    const actualSql = taxonomyCountPlan("CA", "", sparse).sql;
+    assert.match(
+      actualSql,
+      /\bFROM retail_product_availability_rows rpa\b/,
+      "Both dense and sparse counts must invoke the authoritative legal row view",
+    );
+    assert.doesNotMatch(
+      actualSql,
+      /\bFROM retail_product_availability rpa\b/,
+      "No counts plan may restore the redundant DISTINCT wrapper under EXISTS",
+    );
+  }
   assert.ok(
-    sqlPlan.some((row) => String(row.detail).includes("retail_product_availability")),
-    "Always preserve the authoritative legal view",
+    !sqlPlan.some((row) => /CO-ROUTINE retail_product_availability\b/.test(String(row.detail))),
+    "Sparse counts must not force the DISTINCT availability co-routine",
   );
   console.log(
     "Taxonomy counts: dense/sparse rights parity; locale, duplicates, revocations, denials, active grants PASS",
