@@ -37,7 +37,11 @@ export default {
     if(!uri.search&&uri.pathname==="/qa/transport-caller-ping"){
       const raw=await request.text();
       if(raw!=="{}")return new Response(null,{status:400,headers:noStore});
-      return Response.json({schema:"cove.qa.transport-caller-ping.v1"},{headers:noStore});
+      const headers=new Headers(noStore);
+      const ingress=(request as Request&{cf?:{colo?:string}}).cf?.colo;
+      if(typeof ingress==="string"&&/^[A-Z]{3}$/.test(ingress))
+        headers.set("x-cove-qa-ingress-colo",ingress);
+      return Response.json({schema:"cove.qa.transport-caller-ping.v1"},{headers});
     }
     if(uri.search || !["/deny-next","/deny-next-batch","/verify","/authorize-batch","/market/deny-next","/market/withdraw","/quarantine","/evidence/revoke","/source/retract-batch",
         "/commercial/deny-next","/commercial/deny-batch","/commercial/subject/deny-next",
