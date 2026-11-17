@@ -7,7 +7,7 @@ export const CANONICAL_STAGE_THRESHOLDS = Object.freeze({
 });
 
 export function canonicalStageP95Limit(concurrency) {
-  if (![1, 4, 8, 16].includes(concurrency)) throw new Error("Unknown protected stage concurrency");
+  if (![1, 4, 8, 16, 32].includes(concurrency)) throw new Error("Unknown protected stage concurrency");
   return concurrency <= 8
     ? CANONICAL_STAGE_THRESHOLDS.p95TtfbMs
     : CANONICAL_STAGE_THRESHOLDS.maxTtfbMs;
