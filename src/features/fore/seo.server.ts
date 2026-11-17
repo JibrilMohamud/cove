@@ -43,7 +43,7 @@ async function count(db: SeoDB, kind: "books" | "authors" | "categories" | "work
   if (kind === "books")
     sql = `SELECT COUNT(*) n FROM products p JOIN editions e ON e.id=p.edition_id WHERE p.storefront_status='active' AND p.source_name<>'upload' AND e.release_status IN ('available','preorder')`;
   else if (kind === "works")
-    sql = `SELECT COUNT(DISTINCT w.id) n FROM works w JOIN editions e ON e.work_id=w.id JOIN products p ON p.edition_id=e.id WHERE p.storefront_status='active' AND p.source_name<>'upload' AND w.canonical_status<>'redirected'`;
+    sql = `SELECT COUNT(*) n FROM works w WHERE w.canonical_status<>'redirected' AND EXISTS (SELECT 1 FROM editions e JOIN products p ON p.edition_id=e.id WHERE e.work_id=w.id AND p.storefront_status='active' AND p.source_name<>'upload')`;
   else if (kind === "editions")
     sql = `SELECT COUNT(DISTINCT e.id) n FROM editions e JOIN products p ON p.edition_id=e.id WHERE p.storefront_status='active' AND p.source_name<>'upload' AND e.release_status IN ('available','preorder')`;
   else if (kind === "authors")
