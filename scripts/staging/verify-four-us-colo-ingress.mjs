@@ -31,8 +31,7 @@ export function parseFourUsColoEvidence(measurement, expectedSha) {
       ([key]) => key.toLowerCase() === "cf-ray",
     )?.[1];
     const ray = Array.isArray(rayHeader) ? rayHeader[0] : rayHeader;
-    const ingress =
-      typeof ray === "string" ? /^[a-f0-9]{12,32}-([A-Z]{3})$/.exec(ray)?.[1] : null;
+    const ingress = typeof ray === "string" ? /^[a-f0-9]{12,32}-([A-Z]{3})$/.exec(ray)?.[1] : null;
     const city = entry.probe?.city ?? null;
     const country = entry.probe?.country ?? null;
     const expected = regionProbes.find((region) => region.city === city);
@@ -52,9 +51,7 @@ export function parseFourUsColoEvidence(measurement, expectedSha) {
       requestedCity: city,
       observedColo: ingress || null,
       targetColo: expected?.colo ?? null,
-      firstByteMs: Number.isFinite(result.timings?.firstByte)
-        ? result.timings.firstByte
-        : null,
+      firstByteMs: Number.isFinite(result.timings?.firstByte) ? result.timings.firstByte : null,
       valid,
     };
   });
