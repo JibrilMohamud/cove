@@ -133,7 +133,9 @@ try {
   const freeBook=books[0],paidBook=books[1],unproved=books[2];
   const freeCommand={sourceId:"2701",territory:"US",revision:1,action:"allow"};
   assert.equal(free.applyAuthorityCommand(sql,freeCommand).applied,true);
-  const offerJson=b=>JSON.stringify({type:b.type,currency:"USD",amountMinor:b.price});
+  const offerJson=b=>JSON.stringify({
+    type:b.type==="retail"?"purchase":b.type,currency:"USD",amountMinor:b.price
+  });
   free.storeAuthorizedPresentationProof(sql,freeCommand,"USD",{
     productId:freeBook.id,editionId:freeBook.edition,
     productPublicId:freeBook.id+"_public",editionPublicId:freeBook.edition+"_public",
@@ -168,6 +170,8 @@ try {
       "The authenticated QA owner must emit only bounded numeric "+field);
   assert.deepEqual(result.rows.map(row=>row.product_id),[freeBook.id,paidBook.id],
     "Available primary-only catalog product MUST NOT bypass owner permission");
+  assert.equal(JSON.parse(result.rows[1].offer_json).type,"purchase",
+    "Full-schema owner may publish the exact canonical paid purchase offer");
   assert.ok(reads>0,"Endpoint must execute the real prepared native D1 SELECT");
   assert.equal((await call(request,"0".repeat(64))).status,401,
     "The synthetic owner route never admits an untrusted service binding");
