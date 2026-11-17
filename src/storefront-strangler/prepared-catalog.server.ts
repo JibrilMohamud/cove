@@ -118,6 +118,43 @@ export function validateCandidateSnapshot(
   return doc as CandidateSnapshot;
 }
 
+/**
+ * A country without ANY active retail allow grant cannot have authorized
+ * retail products. Check that necessary (not sufficient) condition once in
+ * the same live D1 statement, before scanning the 82k ranked catalog.
+ *
+ * The gate deliberately omits contracts, time windows, denies and DRM: it
+ * never grants access. A possible allow merely runs the ORIGINAL full
+ * deny-first retail availability view for each ranked candidate. The gate
+ * uses the same UPPER territory normalization as that view so mixed-case
+ * legacy grants cannot cause a false negative.
+ *
+ * CROSS JOIN fixes the candidate scan after the at-most-one-row gate.
+ * No negative grant state is cached, so a new grant is visible on the next
+ * read, subject to the existing out-of-band snapshot publication schedule.
+ */
+export const producerRankedCandidateSql = `WITH possible_country_allow AS MATERIALIZED (
+  SELECT 1 allowed_candidate
+  FROM rights_grant_territories rgt
+  JOIN rights_grants rg ON rg.id=rgt.grant_id
+  WHERE upper(rgt.territory_code)=?
+    AND rg.sales_channel='retail' AND rg.status='active'
+    AND rg.decision='allow'
+  LIMIT 1
+)
+SELECT d.product_id
+FROM possible_country_allow gate
+CROSS JOIN catalog_search_documents d INDEXED BY idx_search_popular_stable
+JOIN products p ON p.id=d.product_id JOIN editions e ON e.id=p.edition_id
+WHERE d.currency=? AND d.availability='available' AND d.suppressed=0
+  AND p.storefront_status='active' AND p.source_name<>'upload'
+  AND e.release_status IN ('available','preorder')
+  AND EXISTS (
+    SELECT 1 FROM retail_product_availability_rows rpa
+    WHERE rpa.product_id=p.id AND rpa.territory_code=?
+  )
+ORDER BY d.fore_bestseller_score DESC,d.external_book_id ASC,d.product_id ASC LIMIT ?`;
+
 /** Producer side. Runs outside the critical request in a future isolated job.
  * It reads catalog order/market metadata, never rights or entitlement grants.
  */
@@ -151,19 +188,8 @@ export async function produceCandidateSnapshot(
   // Every served ID is reauthorized against current PRIMARY-D1 retail rights.
   // It avoids losing sparse-market books outside the globally ranked top 128.
   const result = await db
-    .prepare(
-      `SELECT d.product_id FROM catalog_search_documents d INDEXED BY idx_search_popular_stable
-       JOIN products p ON p.id=d.product_id JOIN editions e ON e.id=p.edition_id
-       WHERE d.currency=? AND d.availability='available' AND d.suppressed=0
-         AND p.storefront_status='active' AND p.source_name<>'upload'
-         AND e.release_status IN ('available','preorder')
-         AND EXISTS (
-           SELECT 1 FROM retail_product_availability_rows rpa
-           WHERE rpa.product_id=p.id AND rpa.territory_code=?
-         )
-       ORDER BY d.fore_bestseller_score DESC,d.external_book_id ASC,d.product_id ASC LIMIT ?`,
-    )
-    .bind(currency, country, MAX_CANDIDATES)
+    .prepare(producerRankedCandidateSql)
+    .bind(country, currency, country, MAX_CANDIDATES)
     .all<{ product_id: string }>();
   const snapshot: CandidateSnapshot = {
     schema: MODEL_VERSION,
