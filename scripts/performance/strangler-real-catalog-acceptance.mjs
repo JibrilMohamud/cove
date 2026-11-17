@@ -5,6 +5,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
 import { verifyGeoEdgeIngress } from "../staging/verify-geo-edge-ingress.mjs";
+import { verifyFourUsColoIngress } from "../staging/verify-four-us-colo-ingress.mjs";
 
 const account = "d26430caa63ec55f6612e32f36aca5e9";
 const dbId = "4bd657ac-8789-403e-a28c-93aba8d0a989";
@@ -714,6 +715,17 @@ try {
     // No customer identity or stage bearer reaches the outside probe service.
     evidence.geoIngress = await verifyGeoEdgeIngress(origin, process.env.GITHUB_SHA);
     console.log("GEO_INGRESS_PROOF", JSON.stringify(evidence.geoIngress));
+    save();
+    // Distinct worldwide Cloudflare POPs alone cannot stand in for the
+    // mandated ORD/LAX/IAD/DFW repeatability. Only the observed cf-ray
+    // suffix + Worker ingress colo may attest each requested US region.
+    // This PUBLIC content-free proof never receives a stage bearer and
+    // DOES NOT certify geographic first-paint TTFB or legal rights.
+    evidence.fourUsColoIngress = await verifyFourUsColoIngress(
+      origin,
+      process.env.GITHUB_SHA,
+    );
+    console.log("FOUR_US_COLO_INGRESS", JSON.stringify(evidence.fourUsColoIngress));
     save();
   }
   evidence.pass = true;
