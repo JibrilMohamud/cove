@@ -134,10 +134,7 @@ try {
       },
     },
   }));
-  await assert.rejects(
-    missingNoStore.DB.prepare("SELECT 2").first(),
-    /Canonical read unavailable/,
-  );
+  await assert.rejects(missingNoStore.DB.prepare("SELECT 2").first(), /Canonical read unavailable/);
   console.log("Cloudflare-native D1 binding handoff and legal country isolation: PASS");
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
