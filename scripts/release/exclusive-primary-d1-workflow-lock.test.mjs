@@ -28,6 +28,7 @@ test("writer inventory is protected and shares the exclusive real-primary releas
     live,
     /CF_ACCOUNT_TOKENS_AUDIT_READ_TOKEN: .*COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN/,
   );
+  assert.match(live, /CF_WORKERS_CONTENT_READ_TOKEN: .*COVE_CF_WORKERS_CONTENT_READ_TOKEN/);
   assert.match(live, /CF_USER_AUDIT_TOKEN: .*COVE_CF_USER_TOKENS_AUDIT_READ_TOKEN/);
   assert.doesNotMatch(live, /CLOUDFLARE_API_TOKEN|secrets\.CLOUDFLARE_API_TOKEN/);
 });

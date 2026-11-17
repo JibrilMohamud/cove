@@ -6,14 +6,17 @@
  */
 const ACCOUNT='d26430caa63ec55f6612e32f36aca5e9';
 const RETRY_MS=[20000,40000,80000];
-const MAX_REQUESTS=1200;
+// Two deployment reads plus immutable bindings for each serving version.
+// 460 current Workers take ~1,400 calls, still globally paced at <=2/sec.
+const MAX_REQUESTS=3000;
 const MAX_429=5;
 const MAX_429_WAIT_MS=180000;
 function safePath(path){
-  if(path==='/user/tokens')return true;
+  if(path==='/user/tokens'||path==='/user')return true;
+  if(path==='/accounts/'+ACCOUNT+'/members')return true;
   if(path==='/accounts/'+ACCOUNT+'/tokens')return true;
   if(path==='/accounts/'+ACCOUNT+'/workers/scripts')return true;
-  return new RegExp('^/accounts/'+ACCOUNT+'/workers/scripts/[a-z0-9_-]{3,128}/settings$').test(path);
+  return new RegExp('^/accounts/'+ACCOUNT+'/workers/scripts/[a-z0-9_-]{3,128}/(?:deployments|versions/[a-f0-9-]{36})$').test(path);
 }
 export function retryAfterMs(header,now){
   if(typeof header!=='string'||!header.trim())return 0;

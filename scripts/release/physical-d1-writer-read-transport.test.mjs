@@ -29,12 +29,12 @@ test('concurrent requests are serialized with <=2 starts/sec across endpoint/tok
  }});
  await Promise.all([
    client.get(SCRIPTS,TOKEN),
-   client.get(SCRIPTS+'/cove-persistence-backend/settings',TOKEN),
+   client.get(SCRIPTS+'/cove-persistence-backend/deployments',TOKEN),
    client.get('/accounts/'+ACCOUNT+'/tokens',TOKEN),
    client.get('/user/tokens',TOKEN)
  ]);
  assert.deepEqual(starts,[1000000,1000500,1001000,1001500]);
- assert.deepEqual(paths,[SCRIPTS,SCRIPTS+'/cove-persistence-backend/settings','/accounts/'+ACCOUNT+'/tokens','/user/tokens']);
+ assert.deepEqual(paths,[SCRIPTS,SCRIPTS+'/cove-persistence-backend/deployments','/accounts/'+ACCOUNT+'/tokens','/user/tokens']);
  assert.deepEqual(client.stats(),{calls:4,rateLimited:0,rateLimitWaitMs:0});
 });
 test('429 retries only the original GET, respects long Retry-After and cancels throttled body',async()=>{
@@ -72,7 +72,9 @@ test('unapproved endpoints, POST-equivalent paths and missing credentials cannot
  const client=createPhysicalWriterReadTransport({fetchImpl:async()=>{calls++;return ok();}});
  for(const path of [
    '/accounts/'+ACCOUNT+'/d1/database',
-   SCRIPTS+'/cove-persistence-backend/deployments',
+   SCRIPTS+'/cove-persistence-backend/settings',
+   SCRIPTS+'/cove-persistence-backend/versions',
+   SCRIPTS+'/cove-persistence-backend/versions/not-a-uuid',
    '/accounts/'+ACCOUNT+'/tokens/privileged/revoke',
    '/user/tokens/create',
    '/accounts/other-account/workers/scripts'
@@ -83,11 +85,11 @@ test('unapproved endpoints, POST-equivalent paths and missing credentials cannot
 test('release script requires separate protected scopes and repeats Worker revision list',()=>{
  const code=readFileSync('scripts/release/certify-exclusive-primary-d1.mjs','utf8');
  const flow=readFileSync('.github/workflows/cove-exclusive-primary-d1-writer-audit.yml','utf8');
- for(const key of ['CF_WORKERS_METADATA_READ_TOKEN','CF_ACCOUNT_TOKENS_AUDIT_READ_TOKEN','CF_USER_AUDIT_TOKEN'])
+ for(const key of ['CF_WORKERS_METADATA_READ_TOKEN','CF_WORKERS_CONTENT_READ_TOKEN','CF_ACCOUNT_TOKENS_AUDIT_READ_TOKEN','CF_USER_AUDIT_TOKEN'])
    assert.ok(code.includes(key)&&flow.includes(key),key);
  assert.match(code,/github\.event_name|GITHUB_EVENT_NAME/);
  assert.match(code,/JSON\.stringify\(baseline\)!==JSON\.stringify\(final\)/);
  assert.match(code,/inventoryAtomicSnapshot:false/);
  assert.match(flow,/environment: cove-production-release-audit/);
- assert.match(flow,/timeout-minutes: 15/);
+ assert.match(flow,/timeout-minutes: 55/);
 });
