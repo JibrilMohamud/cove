@@ -316,7 +316,13 @@ test("postflight does not retry unknown bindings, domains, permissions or owner 
     );
     assert.equal(checks, 1);
   }
-  await assert.rejects(verifyParkedPostflight(async () => {}, async () => {}, 13));
+  await assert.rejects(
+    verifyParkedPostflight(
+      async () => {},
+      async () => {},
+      13,
+    ),
+  );
 });
 
 test("production pin check occurs outside the stage-only postflight convergence loop", () => {
