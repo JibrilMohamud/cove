@@ -160,6 +160,10 @@ try {
   assert.equal(response.status,200,"Actual full-schema D1+owner handler must accept synthetic fixture");
   let result=await response.json();
   assert.equal(result.schema,"cove.qa.owner-native-first-paint.v1");
+  for(const field of ["marketReadMs","canonicalSelectMs","providerSqlMs","ownerTotalMs"])
+    assert.ok(typeof result.diagnostics?.[field]==="number"&&
+      Number.isFinite(result.diagnostics[field])&&result.diagnostics[field]>=0,
+      "The authenticated QA owner must emit only bounded numeric "+field);
   assert.deepEqual(result.rows.map(row=>row.product_id),[freeBook.id,paidBook.id],
     "Available primary-only catalog product MUST NOT bypass owner permission");
   assert.ok(reads>0,"Endpoint must execute the real prepared native D1 SELECT");
