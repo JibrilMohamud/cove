@@ -9,7 +9,7 @@ assert.match(caller, /presentationTaxonomyCounts\(\s*db,\s*territory,\s*language
 assert.match(caller, /taxonomyPresentationReadDb\(db\)/);
 assert.match(caller, /\.prepare\(taxonomySparseRightsProbe\)/);
 assert.match(caller, /taxonomyCountPlan\(\s*territory,\s*language,/);
-assert.match(production, /retail_product_availability rpa/);
+assert.doesNotMatch(production, /\bFROM retail_product_availability rpa\b/);
 assert.match(production, /retail_product_availability_rows rpa/);
 assert.match(production, /g\.sales_channel='retail' AND g\.status='active'/);
 assert.match(production, /COUNT\(\*\) product_count/);
@@ -43,7 +43,7 @@ try {
     CREATE INDEX idx_rights_grant_territories_lookup
       ON rights_grant_territories(territory_code,grant_id);
     CREATE VIEW retail_product_availability_rows AS
-      SELECT DISTINCT p.id product_id,rgt.territory_code
+      SELECT p.id product_id,rgt.territory_code
       FROM products p
       JOIN rights_grants g ON g.edition_id=p.edition_id
         AND g.sales_channel='retail' AND g.status='active' AND g.decision='allow'
