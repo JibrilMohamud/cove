@@ -53,17 +53,26 @@ function ports({ primary = [free, paid], owner = [free, paid], primaryOk = true,
 test("verified native primary and strongly consistent owner return ordered mixed authorized books", async () => {
   const value = await readOwnerNativeFirstPaintQa(input, ports());
   assert.equal(value.schema, "cove.qa.owner-native-first-paint.v1");
-  assert.deepEqual(value.rows.map((r) => r.product_id), input.ids);
+  assert.deepEqual(
+    value.rows.map((r) => r.product_id),
+    input.ids,
+  );
 });
 
 test("an absent owner permission never becomes a positive D1-only result", async () => {
   const value = await readOwnerNativeFirstPaintQa(input, ports({ owner: [free] }));
-  assert.deepEqual(value.rows.map((r) => r.product_id), [free.product_id]);
+  assert.deepEqual(
+    value.rows.map((r) => r.product_id),
+    [free.product_id],
+  );
 });
 
 test("an absent canonical D1 proof never becomes an owner-only allowance", async () => {
   const value = await readOwnerNativeFirstPaintQa(input, ports({ primary: [paid] }));
-  assert.deepEqual(value.rows.map((r) => r.product_id), [paid.product_id]);
+  assert.deepEqual(
+    value.rows.map((r) => r.product_id),
+    [paid.product_id],
+  );
 });
 
 test("owner market withdrawal before or during D1 request vetoes all grants", async () => {
@@ -81,9 +90,7 @@ test("price, edition or public identity drift rejects the entire positive result
     { ...paid, edition_id: "ed_other" },
     { ...paid, product_public_id: "wrong-id" },
   ])
-    await assert.rejects(
-      readOwnerNativeFirstPaintQa(input, ports({ primary: [free, different] })),
-    );
+    await assert.rejects(readOwnerNativeFirstPaintQa(input, ports({ primary: [free, different] })));
 });
 
 test("malformed, duplicate and unauthorized rows cannot leak across requests", async () => {
@@ -93,9 +100,7 @@ test("malformed, duplicate and unauthorized rows cannot leak across requests", a
     [{ ...paid, offer_json: '{"amountMinor":0,"currency":"USD","type":"public-domain"}' }],
     [{ ...paid, offer_json: '{"amountMinor":1299,"currency":"CAD","type":"retail"}' }],
   ])
-    await assert.rejects(
-      readOwnerNativeFirstPaintQa(input, ports({ primary: malformed })),
-    );
+    await assert.rejects(readOwnerNativeFirstPaintQa(input, ports({ primary: malformed })));
 });
 
 test("only narrow, unique IDs, trusted country and currency are accepted", () => {
