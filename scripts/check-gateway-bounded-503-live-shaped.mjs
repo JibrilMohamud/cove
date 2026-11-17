@@ -18,6 +18,9 @@ const dataUrl =
 const { proxyPersistenceApi } = await import(dataUrl);
 
 const priorFetch = globalThis.fetch;
+const priorWarn = console.warn;
+const failures = [];
+console.warn = (...parts) => failures.push(parts);
 let upstreamCancelled = false;
 try {
   globalThis.fetch = async () =>
@@ -36,6 +39,7 @@ try {
           "x-cove-persistence": "d1-r2",
           "x-cove-backend-cache": "MISS",
           "server-timing": "cove_auth;dur=12, cove_api;dur=24",
+          "cf-ray": "8ae2b9362ddfafe0-IAD",
           "content-type": "application/json",
         },
       },
@@ -75,9 +79,14 @@ try {
     error: "The live Cove catalog is temporarily unavailable. Please retry.",
   });
   assert.ok(upstreamCancelled, "Upstream body must be discarded without awaiting its cleanup");
+  assert.equal(failures.length, 1, "Only one reviewed production failure warning");
+  assert.equal(failures[0].at(-1), "8ae2b9362ddfafe0-IAD", "Validated Ray must identify the failed Cloudflare request");
+  assert.doesNotMatch(JSON.stringify(failures), /https:\/\/|Authorization|private-token/);
+
   console.log(
     "PASS: live-shaped production gateway preserves 503/no-store with stalled upstream body",
   );
 } finally {
   globalThis.fetch = priorFetch;
+  console.warn = priorWarn;
 }
