@@ -94,6 +94,12 @@ the current user token inventory passes. Full account-member/principal
 scope must be positively established using independent, protected evidence
 before code may ever set `userPrincipalCoverageVerified=true`; there is
 no environment-variable override or manual bypass in this change.
+The privilege scanner also rejects unreviewed **Individual Workers
+Editor/Admin**, Workers Scripts Edit, Workers CI Write, and user-level
+API Tokens Write. These may create or grant owner mutation authority
+despite not being the legacy account-level Workers Scripts Write role.
+A future token scoped to just the parked staging Workers must prove
+its exact resource UUID policy before any exemption is considered.
 
 **Never** revoke `Cove GitHub Deployments`, remove the persistence Worker
 binding, or activate the legal owner without validating replacement consumers,
