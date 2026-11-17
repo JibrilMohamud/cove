@@ -65,6 +65,22 @@ jobs:
           test "$(git rev-parse HEAD)" = "${{ github.sha }}"
           test "$(git rev-parse HEAD)" = "${{ inputs.reviewed_main_sha }}"
           test "$(git branch --show-current)" = "main" || test "${{ github.ref }}" = "refs/heads/main"
+      - name: Require three separately scoped audit credentials before inventory
+        shell: bash
+        env:
+          CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
+          CF_ACCOUNT_TOKENS_AUDIT_READ_TOKEN: ${{ secrets.COVE_CF_ACCOUNT_TOKENS_AUDIT_READ_TOKEN }}
+          CF_USER_AUDIT_TOKEN: ${{ secrets.COVE_CF_USER_TOKENS_AUDIT_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in CF_WORKERS_METADATA_READ_TOKEN CF_ACCOUNT_TOKENS_AUDIT_READ_TOKEN CF_USER_AUDIT_TOKEN; do
+            if [ -z "${!name}" ]; then
+              echo "::error title=Missing scoped protected read credential::$name must be configured in cove-production-release-audit"
+              missing=1
+            fi
+          done
+          test "$missing" -eq 0
       - name: Certify physical Cloudflare writer exclusivity (READ-ONLY)
         run: node scripts/release/certify-exclusive-primary-d1.mjs
         env:
