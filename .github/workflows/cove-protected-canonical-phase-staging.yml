@@ -136,6 +136,11 @@ jobs:
           set -euo pipefail
           failures=0
           for trial in 1 2 3; do
+            # Fresh source artifact deployment for trials 2/3 as well as new
+            # secret versions; never prewarm through HTTP or omit trial one.
+            if [ "$trial" -gt 1 ]; then
+              npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.frontend.phase.staging.toml
+            fi
             COVE_SSR_STAGING_GATE_KEY="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
             echo "::add-mask::$COVE_SSR_STAGING_GATE_KEY"
             export COVE_SSR_STAGING_GATE_KEY
