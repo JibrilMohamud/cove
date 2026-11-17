@@ -169,16 +169,15 @@ test("immutable version evidence uses existing Workers Scripts Write, not metada
   );
   assert.match(stage, /index < 2 \? deploy : metadata/);
   assert.match(stage, /get\(index < 2 \? deploy : metadata, path\)/);
-  assert.match(
-    stage,
-    /stageParked\(metadata, process\.env\.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN\)/,
-  );
+  assert.match(stage, /stageParked\(metadata, process\.env\.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN\)/);
   assert.match(
     workflow,
     /name: ALWAYS verify production pins, disabled owner and parked stage isolation/,
   );
   const postflight = workflow.slice(
-    workflow.indexOf("name: ALWAYS verify production pins, disabled owner and parked stage isolation"),
+    workflow.indexOf(
+      "name: ALWAYS verify production pins, disabled owner and parked stage isolation",
+    ),
   );
   assert.match(
     postflight,
