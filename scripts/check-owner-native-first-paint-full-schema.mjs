@@ -80,8 +80,11 @@ try {
     const grant="grant_"+b.sku;
     insert(primary,"rights_grants",{id:grant,edition_id:b.edition,territory_code:"US",
       format:"ebook",license_type:b.type,created_at:now});
-    insert(primary,"rights_grant_territories",{grant_id:grant,territory_code:"US",
-      snapshotted_at:now});
+    // The canonical rights_grants insert trigger owns the territory
+    // materialization. Never write a second snapshot by hand.
+    assert.equal(primary.prepare(
+      "SELECT COUNT(*) n FROM rights_grant_territories WHERE grant_id=? AND territory_code='US'"
+    ).get(grant).n,1,"Rights-grant trigger must materialize the exact authorized territory");
   }
   const execSql=(query,...args)=>{
     // SQLite's synchronous owner storage commits DDL and writes eagerly.
