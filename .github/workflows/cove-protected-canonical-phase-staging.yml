@@ -1,0 +1,222 @@
+name: cove-protected-canonical-phase-staging
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/cove-protected-canonical-phase-staging.yml"
+      - "scripts/staging/phase-stage-control-plane.mjs"
+      - "scripts/staging/phase-stage-control-plane.test.mjs"
+      - "scripts/staging/wait-canonical-phase-stage-version.mjs"
+      - "scripts/performance/cloudflare-concurrency.mjs"
+      - "scripts/performance/verify-canonical-phase-evidence.mjs"
+      - "wrangler.canonical-phase.staging.jsonc"
+      - "wrangler.frontend.phase.staging.toml"
+  workflow_dispatch:
+    inputs:
+      confirm_isolated_readonly_only:
+        description: "Deploy only two isolated stage Workers; no production traffic, D1 writes or owner changes."
+        required: true
+        type: boolean
+        default: false
+      reviewed_main_sha:
+        description: "Exact approved main HEAD: source drift fails closed."
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - run: |
+          node --test scripts/staging/phase-stage-control-plane.test.mjs
+          node --test scripts/performance/verify-canonical-phase-evidence.test.mjs
+          node --check scripts/staging/wait-canonical-phase-stage-version.mjs
+          node --check scripts/staging/phase-stage-control-plane.mjs
+          git diff --check
+      - name: Confirm Wrangler dry-run and exact nonproduction deletion options
+        run: |
+          npm ci --no-audit --no-fund
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.canonical-phase.staging.jsonc
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler delete --help | grep -q -- "--force"
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler delete --help | grep -q -- "--config"
+
+  protected_cold_and_concurrency:
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm_isolated_readonly_only == true &&
+      inputs.reviewed_main_sha == github.sha
+    environment: cove-production-release-audit
+    concurrency:
+      group: cove-exclusive-real-primary-cold-acceptance
+      queue: max
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      CLOUDFLARE_SEND_METRICS: "false"
+      COVE_CLOUDFLARE_SSR_PILOT: "1"
+      VERCEL: "0"
+      COVE_SSR_STAGING_ORIGIN: "https://cove-storefront-phase-staging.cove-jibrilmohamud.workers.dev"
+      COVE_CANONICAL_PHASE_STAGE_ONLY: "1"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Assert approved main source and offline stage-denial contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ inputs.reviewed_main_sha }}"
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+          node --test scripts/staging/phase-stage-control-plane.test.mjs
+          node --test scripts/performance/verify-canonical-phase-evidence.test.mjs
+          git diff --check
+      - name: Verify distinct least-privilege Cloudflare credentials and production pin
+        env:
+          COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
+          COVE_CF_STAGE_D1_READ_TOKEN: ${{ secrets.COVE_CF_STAGE_D1_READ_TOKEN }}
+          COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN: ${{ secrets.COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN }}
+          COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/staging/phase-stage-control-plane.mjs preflight
+          echo "COVE_PHASE_STAGE_PREFLIGHT_PASSED=1" >> "$GITHUB_ENV"
+      - name: Install and build production-source staging code without Cloudflare credentials
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.canonical-phase.staging.jsonc
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.frontend.phase.staging.toml
+      - name: Deploy new, private phase reader with no public HTTP ingress
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.canonical-phase.staging.jsonc
+          echo "COVE_PHASE_READER_DEPLOYED=1" >> "$GITHUB_ENV"
+      - name: Install independently audited D1 Read secret into isolated private reader
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
+          COVE_CF_STAGE_D1_READ_TOKEN: ${{ secrets.COVE_CF_STAGE_D1_READ_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$COVE_CF_STAGE_D1_READ_TOKEN" |
+            npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put D1_READ_API_TOKEN --config wrangler.canonical-phase.staging.jsonc
+          # No Worker GET or performance prewarm; await global secret propagation.
+          sleep 30
+      - name: Deploy distinct, authenticated phase SSR Worker without customer routes
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.frontend.phase.staging.toml
+          echo "COVE_PHASE_SSR_DEPLOYED=1" >> "$GITHUB_ENV"
+      - name: Three fresh secret versions, each 20 authenticated strictly checked SSR reads
+        id: cold
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
+          COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          failures=0
+          for trial in 1 2 3; do
+            # Fresh source artifact deployment for trials 2/3 as well as new
+            # secret versions; never prewarm through HTTP or omit trial one.
+            if [ "$trial" -gt 1 ]; then
+              npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.frontend.phase.staging.toml
+            fi
+            COVE_SSR_STAGING_GATE_KEY="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+            echo "::add-mask::$COVE_SSR_STAGING_GATE_KEY"
+            export COVE_SSR_STAGING_GATE_KEY
+            echo "COVE_SSR_STAGING_GATE_KEY=$COVE_SSR_STAGING_GATE_KEY" >> "$GITHUB_ENV"
+            COVE_STAGE_SECRET_ROTATION_EPOCH_MS="$(node -p 'Date.now()')"
+            export COVE_STAGE_SECRET_ROTATION_EPOCH_MS
+            printf '%s' "$COVE_SSR_STAGING_GATE_KEY" |
+              npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put COVE_SSR_STAGING_GATE_KEY --config wrangler.frontend.phase.staging.toml
+            node scripts/staging/wait-canonical-phase-stage-version.mjs
+            # Check isolated service binding, auth secret, native D1 absence,
+            # production pin, and disabled owner before the FIRST actual GET.
+            # This is control-plane only: the new version remains cold.
+            if [ "$trial" -eq 1 ]; then
+              node scripts/staging/phase-stage-control-plane.mjs stage
+            fi
+            rm -f artifacts/cloudflare-ssr-staging-performance.json
+            if ! node scripts/check-cloudflare-ssr-staging.mjs; then
+              failures=$((failures + 1))
+            fi
+            if [ -f artifacts/cloudflare-ssr-staging-performance.json ]; then
+              cp artifacts/cloudflare-ssr-staging-performance.json "artifacts/cloudflare-ssr-staging-performance-$trial.json"
+            fi
+          done
+          test "$failures" -eq 0
+      - name: Authenticated 1/4/8/16 concurrent waves; no user traffic replay
+        id: concurrency
+        continue-on-error: true
+        run: node scripts/performance/cloudflare-concurrency.mjs
+      - name: Confirm isolated bindings and unchanged production traffic after stage requests
+        if: always() && env.COVE_PHASE_STAGE_PREFLIGHT_PASSED == '1'
+        env:
+          COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
+        run: node scripts/staging/phase-stage-control-plane.mjs stage
+      - name: Reject missing/failed/slow samples and missing SQL/REST/RPC phase coverage
+        if: always() && env.COVE_PHASE_STAGE_PREFLIGHT_PASSED == '1'
+        run: |
+          node scripts/performance/verify-canonical-phase-evidence.mjs \
+            artifacts/cloudflare-ssr-staging-performance-1.json \
+            artifacts/cloudflare-ssr-staging-performance-2.json \
+            artifacts/cloudflare-ssr-staging-performance-3.json \
+            artifacts/cloudflare-concurrency-performance.json
+      - name: ALWAYS delete only the two known previously absent stage Workers
+        if: always() && env.COVE_PHASE_STAGE_PREFLIGHT_PASSED == '1'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
+        shell: bash
+        run: |
+          set +e
+          # Never delete a script that this approved run did not create.
+          # A failed/partial deploy without this success marker instead fails
+          # postflight and requires controlled operator inspection.
+          if [ "${COVE_PHASE_SSR_DEPLOYED:-0}" = "1" ]; then
+            npm exec --yes --package=wrangler@4.151.0 -- wrangler delete --force --config wrangler.frontend.phase.staging.toml
+          fi
+          if [ "${COVE_PHASE_READER_DEPLOYED:-0}" = "1" ]; then
+            npm exec --yes --package=wrangler@4.151.0 -- wrangler delete --force --config wrangler.canonical-phase.staging.jsonc
+          fi
+      - name: ALWAYS verify unchanged production pins, disabled owner and stage deletion
+        if: always()
+        env:
+          COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
+        run: node scripts/staging/phase-stage-control-plane.mjs postflight
+      - name: Archive numeric-only evidence; NEVER upload raw payloads or credentials
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cove-canonical-phase-stage-evidence-${{ github.run_id }}
+          path: artifacts/canonical-stage-phase-evidence.json
+          retention-days: 14
+          if-no-files-found: warn

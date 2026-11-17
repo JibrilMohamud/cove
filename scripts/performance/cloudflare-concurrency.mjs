@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { compactCanonicalPhaseTiming } from "./verify-canonical-phase-evidence.mjs";
 import { capacityHtmlFailureKind } from "./strict-capacity-response-diagnostics.mjs";
 import fs from "node:fs";
 import { performance } from "node:perf_hooks";
@@ -28,7 +29,9 @@ const token = process.env.COVE_SSR_STAGING_GATE_KEY;
 assert.match(token || "", /^[a-f0-9]{64}$/, "Only protected staging may be load-tested");
 assert.ok(
   origin === "https://cove-storefront-ssr-staging.cove-jibrilmohamud.workers.dev" ||
-    origin === "https://ssr-canary.covereads.com",
+    origin === "https://ssr-canary.covereads.com" ||
+    (origin === "https://cove-storefront-phase-staging.cove-jibrilmohamud.workers.dev" &&
+      process.env.COVE_CANONICAL_PHASE_STAGE_ONLY === "1"),
   "Only exact protected staging Worker or verified owned SSR canary may be load tested",
 );
 const thresholds = { maxTtfbMs: 800, p95TtfbMs: 650 };
@@ -132,7 +135,10 @@ async function fetchOne(concurrency) {
       totalMs,
       cfColo,
       cfRay,
-      timing: timing.timing,
+      timing:
+        process.env.COVE_CANONICAL_PHASE_STAGE_ONLY === "1"
+          ? compactCanonicalPhaseTiming(response.headers.get("server-timing"))
+          : timing.timing,
       workerMs,
       clientQueueMs,
       sentToHeadersMs,

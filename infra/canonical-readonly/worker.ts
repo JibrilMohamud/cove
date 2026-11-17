@@ -3,6 +3,8 @@ import { boundedReadonlyPhaseMs } from "../../src/lib/readonly-transport-metric"
 
 interface Env {
   D1_READ_API_TOKEN: string;
+  // Only the separately named, protected staging read service may enable this.
+  COVE_STAGE_READ_PHASE_DIAGNOSTICS?: string;
 }
 type Statement = { sql: string; params: unknown[] };
 const endpoint =
@@ -110,9 +112,13 @@ export default class CanonicalReadonly extends WorkerEntrypoint<Env> {
       )
     )
       throw new Error("Canonical primary read unavailable");
-    // Numeric-only service timing accompanies the SAME verified primary D1
-    // result. No SQL text, params, request IDs, provider errors or territory
-    // are copied into the diagnostic fields. This Worker is staging-only.
+    // This source also backs the established shared private read service.
+    // It MUST NOT emit experimental metadata in that service. Only a
+    // separately provisioned staging service opts in; all other responses
+    // retain the original production-compatible metadata contract.
+    if (this.env.COVE_STAGE_READ_PHASE_DIAGNOSTICS !== "1") return body.result;
+    // Numeric-only timings accompany the SAME verified primary D1 result.
+    // No SQL text, parameters, identities, URLs or provider error messages.
     const phases = {
       cove_read_headers_ms: boundedReadonlyPhaseMs(remoteStarted, headersAt),
       cove_read_body_ms: boundedReadonlyPhaseMs(headersAt, bodyReadAt),
