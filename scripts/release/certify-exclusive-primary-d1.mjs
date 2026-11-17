@@ -26,6 +26,16 @@ function tokenCanMutate(token){
   return (token.policies||[]).some(p=>(p.permission_groups||[])
     .some(group=>PRIVILEGED_GROUPS.has(group.name)));
 }
+// Never interpret an unrecognized active Cloudflare permission as harmless.
+// A reviewable read-only group must END in the exact word "Read"; other
+// capabilities are unclassified until reviewed, independently of whether
+// the known mutation group list happens to contain the provider's new name.
+const READ_ONLY_GROUP=/^[A-Za-z0-9][A-Za-z0-9 &/._()+-]* Read$/;
+function tokenHasUnreviewedPermissions(token){
+  return (token.policies||[]).some(p=>(p.permission_groups||[])
+    .some(group=>!PRIVILEGED_GROUPS.has(group.name)&&
+      !READ_ONLY_GROUP.test(group.name)));
+}
 function completeTokenInventory(tokens){
   if(!Array.isArray(tokens))return false;
   return tokens.every(t=>{
@@ -72,6 +82,8 @@ export async function inspectUserTokenEvidence(get,userToken){
     return {verified:false,reason:"user_token_policy_incomplete"};
   if(userTokens.some(t=>t.status==="active"&&tokenCanMutate(t)))
     return {verified:false,reason:"active_user_token_mutation_capability"};
+  if(userTokens.some(t=>t.status==="active"&&tokenHasUnreviewedPermissions(t)))
+    return {verified:false,reason:"active_user_token_permission_unreviewed"};
   return {verified:true,reason:"current_user_inventory_clear"};
 }
 
@@ -107,6 +119,11 @@ export function evaluatePhysicalWriterInventory({
     problems.push("account_token_permission_metadata_incomplete");
   const privileged=(tokens||[]).filter(t=>t?.status==="active"&&tokenCanMutate(t));
   if(privileged.length)problems.push("active_account_token_can_mutate_primary_or_owner");
+  // Provider permission names are extensible. Treat every active non-Read,
+  // non-allowlisted group as unproven, not as positive read-only evidence.
+  const unreviewed=(tokens||[]).filter(t=>t?.status==="active"&&
+    tokenHasUnreviewedPermissions(t));
+  if(unreviewed.length)problems.push("active_account_token_permission_unreviewed");
   if(userTokensVerified!==true)problems.push("user_token_inventory_unverified");
   // /user/tokens can attest only its issuing user. An account-wide
   // exclusivity certificate requires independent coverage of ALL account
@@ -178,6 +195,15 @@ function selfTest(){
     });
     assert.equal(report.certified,false);
     assert.ok(report.problems.includes("active_account_token_can_mutate_primary_or_owner"));
+  }
+  for(const unknownName of ["Workers Direct Change","D1 Mutation","API Tokens Manage"]){
+    const report=evaluatePhysicalWriterInventory({
+      workers:[owner],tokens:[{name:"unknown-privilege",status:"active",
+        policies:[{permission_groups:[{name:unknownName}]}]}],
+      userTokensVerified:true,userPrincipalCoverageVerified:true,
+    });
+    assert.equal(report.certified,false);
+    assert.ok(report.problems.includes("active_account_token_permission_unreviewed"));
   }
   for(const incomplete of [
     [{name:"missing-policies",status:"active"}],
