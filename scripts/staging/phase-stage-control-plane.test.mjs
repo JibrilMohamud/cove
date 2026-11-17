@@ -12,11 +12,13 @@ const writeGroup = "e086da7e2179491d91ee5f35b3ca210a";
 const version = "401f2af2-6e69-4611-8110-1d127af6eecf";
 const policy = (group) => ({
   status: "active",
-  policies: [{
-    effect: "allow",
-    permission_groups: [{ id: group }],
-    resources: { [account]: "*" },
-  }],
+  policies: [
+    {
+      effect: "allow",
+      permission_groups: [{ id: group }],
+      resources: { [account]: "*" },
+    },
+  ],
 });
 
 test("separately scoped D1 Read and Workers Scripts Write tokens only", () => {
@@ -39,12 +41,19 @@ test("production pin requires exactly one immutable version at 100 percent", () 
   assert.doesNotThrow(() => assertPinnedDeployment(pinned, version));
   assert.throws(() => assertPinnedDeployment({}, version));
   assert.throws(() =>
-    assertPinnedDeployment({
-      deployments: [{ versions: [
-        { version_id: version, percentage: 99 },
-        { version_id: "other", percentage: 1 },
-      ] }],
-    }, version),
+    assertPinnedDeployment(
+      {
+        deployments: [
+          {
+            versions: [
+              { version_id: version, percentage: 99 },
+              { version_id: "other", percentage: 1 },
+            ],
+          },
+        ],
+      },
+      version,
+    ),
   );
 });
 
@@ -76,9 +85,7 @@ test("only private staging read service with no native D1 and gated SSR is allow
   assert.throws(() =>
     assertIsolatedStageBindings(reader, {
       bindings: ssr.bindings.map((x) =>
-        x.name === "COVE_CANONICAL_READONLY"
-          ? { ...x, service: "cove-canonical-d1-readonly" }
-          : x,
+        x.name === "COVE_CANONICAL_READONLY" ? { ...x, service: "cove-canonical-d1-readonly" } : x,
       ),
     }),
   );
