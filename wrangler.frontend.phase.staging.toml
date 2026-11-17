@@ -40,11 +40,7 @@ period = 60
 binding = "COVE_CANONICAL_READONLY"
 service = "cove-canonical-phase-readonly-staging"
 
-[[r2_buckets]]
-binding = "BUCKET"
-bucket_name = "cove-production-media"
-
-# Best-effort, low-cardinality anonymous public-GET performance metrics are not
+# No R2 binding: this experiment cannot mutate production media.\n\n# Best-effort, low-cardinality anonymous public-GET performance metrics are not
 # an entitlement or audit record. Isolate their ingestion from primary D1,
 # which must remain available for customer-facing rights verification.
 [[analytics_engine_datasets]]
