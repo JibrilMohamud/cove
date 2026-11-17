@@ -1,4 +1,5 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
+import { boundedReadonlyPhaseMs } from "../../src/lib/readonly-transport-metric";
 
 interface Env {
   D1_READ_API_TOKEN: string;
@@ -34,6 +35,7 @@ export default class CanonicalReadonly extends WorkerEntrypoint<Env> {
     if (new TextEncoder().encode(encoded).length > 512 * 1024)
       throw new Error("Canonical read request too large");
     if (!this.env.D1_READ_API_TOKEN) throw new Error("Canonical read unavailable");
+    const remoteStarted = performance.now();
     const response = await fetch(endpoint, {
       method: "POST",
       redirect: "manual",
@@ -44,6 +46,7 @@ export default class CanonicalReadonly extends WorkerEntrypoint<Env> {
       body: encoded,
       signal: AbortSignal.timeout(8_000),
     });
+    const headersAt = performance.now();
     // Do not propagate provider errors: they can contain SQL and customer values.
     if (!response.ok) {
       const details = (await response.json().catch(() => null)) as {
@@ -82,6 +85,7 @@ export default class CanonicalReadonly extends WorkerEntrypoint<Env> {
     } finally {
       reader.releaseLock();
     }
+    const bodyReadAt = performance.now();
     const data = new Uint8Array(bytes);
     let offset = 0;
     for (const chunk of chunks) {
@@ -96,6 +100,7 @@ export default class CanonicalReadonly extends WorkerEntrypoint<Env> {
         meta?: { served_by_primary?: boolean };
       }>;
     };
+    const decodedAt = performance.now();
     if (
       !body.success ||
       !Array.isArray(body.result) ||
@@ -105,6 +110,14 @@ export default class CanonicalReadonly extends WorkerEntrypoint<Env> {
       )
     )
       throw new Error("Canonical primary read unavailable");
-    return body.result;
+    // Numeric-only service timing accompanies the SAME verified primary D1
+    // result. No SQL text, params, request IDs, provider errors or territory
+    // are copied into the diagnostic fields. This Worker is staging-only.
+    const phases = {
+      cove_read_headers_ms: boundedReadonlyPhaseMs(remoteStarted, headersAt),
+      cove_read_body_ms: boundedReadonlyPhaseMs(headersAt, bodyReadAt),
+      cove_read_decode_ms: boundedReadonlyPhaseMs(bodyReadAt, decodedAt),
+    };
+    return body.result.map((row) => ({ ...row, meta: { ...row.meta, ...phases } }));
   }
 }
