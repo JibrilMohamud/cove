@@ -8,6 +8,8 @@ import {
   assertParkedStage,
   PARKED_READER_VERSION,
   PARKED_SSR_VERSION,
+  parkedPostflightRetryReason,
+  verifyParkedPostflight,
 } from "./phase-stage-control-plane.mjs";
 
 const account = "com.cloudflare.api.account.d26430caa63ec55f6612e32f36aca5e9";
@@ -209,4 +211,118 @@ test("Smart Placement experiment exists ONLY on isolated read-only phase staging
   assert.equal(owner.placement, undefined);
   assert.equal(production.name, "cove-canonical-d1-readonly");
   assert.equal(owner.name, "cove-legal-authority-production");
+});
+
+test("bounded parked postflight waits for Cloudflare deploy and ingress convergence", async () => {
+  assert.equal(
+    parkedPostflightRetryReason(new Error("Existing Worker version/traffic pin changed")),
+    "parked_version_pending",
+  );
+  assert.equal(
+    parkedPostflightRetryReason(
+      new Error("cove-storefront-phase-staging must have no public HTTP ingress"),
+    ),
+    "stage_ingress_disable_pending",
+  );
+  assert.equal(
+    parkedPostflightRetryReason(
+      new Error("cove-canonical-phase-readonly-staging previews must be disabled"),
+    ),
+    "stage_preview_disable_pending",
+  );
+  const results = [
+    "Existing Worker version/traffic pin changed",
+    "cove-storefront-phase-staging previews must be disabled",
+  ];
+  let calls = 0;
+  let sleeps = 0;
+  const originalLog = console.log;
+  console.log = () => {}; // Prevent test-only pending markers from polluting CI.
+  try {
+    const attempts = await verifyParkedPostflight(
+      async () => {
+        calls++;
+        const next = results.shift();
+        if (next) throw new Error(next);
+      },
+      async (ms) => {
+        assert.equal(ms, 2_000);
+        sleeps++;
+      },
+      4,
+    );
+    assert.equal(attempts, 3);
+    assert.equal(calls, 3);
+    assert.equal(sleeps, 2);
+  } finally {
+    console.log = originalLog;
+  }
+});
+
+test("postflight never accepts a persistent delayed version or public ingress", async () => {
+  for (const code of [
+    "Existing Worker version/traffic pin changed",
+    "cove-canonical-phase-readonly-staging must have no public HTTP ingress",
+  ]) {
+    let checks = 0;
+    let sleeps = 0;
+    const originalLog = console.log;
+    console.log = () => {};
+    try {
+      await assert.rejects(
+        verifyParkedPostflight(
+          async () => {
+            checks++;
+            throw new Error(code);
+          },
+          async () => {
+            sleeps++;
+          },
+          3,
+        ),
+        /Protected staging postflight never converged/,
+      );
+    } finally {
+      console.log = originalLog;
+    }
+    assert.equal(checks, 3);
+    assert.equal(sleeps, 2);
+  }
+});
+
+test("postflight does not retry unknown bindings, domains, permissions or owner changes", async () => {
+  const unsafe = [
+    "cove-storefront-phase-staging parked bindings must be empty",
+    "Stage Workers must have no customer custom domains",
+    "Protected read-only Cloudflare API preflight failed",
+    "Production legal owner changed",
+    "Unknown stage SSR binding name or capability type",
+  ];
+  for (const message of unsafe) {
+    assert.equal(parkedPostflightRetryReason(new Error(message)), null);
+    let checks = 0;
+    await assert.rejects(
+      verifyParkedPostflight(
+        async () => {
+          checks++;
+          throw new Error(message);
+        },
+        async () => {
+          throw new Error("Must not sleep after unsafe change");
+        },
+        3,
+      ),
+      { message },
+    );
+    assert.equal(checks, 1);
+  }
+  await assert.rejects(verifyParkedPostflight(async () => {}, async () => {}, 13));
+});
+
+test("production pin check occurs outside the stage-only postflight convergence loop", () => {
+  const source = readFileSync("scripts/staging/phase-stage-control-plane.mjs", "utf8");
+  assert.match(
+    source,
+    /await pinnedProduction\(metadata\);[\s\S]*?await verifyParkedPostflight\(\(\) =>\s*stageParked\(metadata, process\.env\.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN\)/,
+  );
 });
