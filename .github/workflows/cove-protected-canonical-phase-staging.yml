@@ -42,7 +42,14 @@ jobs:
           node --test scripts/staging/phase-stage-control-plane.test.mjs
           node --test scripts/performance/verify-canonical-phase-evidence.test.mjs
           node --check scripts/staging/wait-canonical-phase-stage-version.mjs
+          node --check scripts/staging/phase-stage-control-plane.mjs
           git diff --check
+      - name: Confirm Wrangler dry-run and exact nonproduction deletion options
+        run: |
+          npm ci --no-audit --no-fund
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.canonical-phase.staging.jsonc
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler delete --help | grep -q -- "--force"
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler delete --help | grep -q -- "--config"
 
   protected_cold_and_concurrency:
     if: >-
