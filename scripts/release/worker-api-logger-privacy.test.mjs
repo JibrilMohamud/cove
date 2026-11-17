@@ -24,7 +24,11 @@ test("track imported Worker API raw-error logger risks until writer re-review", 
   const allCalls = [...api.matchAll(/console\.(?:warn|error|info|log|debug)\s*\(/g)];
   assert.equal(allCalls.length, 9, "Unreviewed API handler log site");
   for (const site of riskyLogCalls) {
-    assert.equal(api.split(site).length - 1, 1, "Writer-bound API logger changed: re-review required");
+    assert.equal(
+      api.split(site).length - 1,
+      1,
+      "Writer-bound API logger changed: re-review required",
+    );
   }
 });
 
