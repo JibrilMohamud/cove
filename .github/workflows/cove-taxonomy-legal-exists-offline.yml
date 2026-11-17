@@ -1,0 +1,29 @@
+name: cove-taxonomy-legal-exists-offline
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/features/fore/taxonomy-count-query.ts"
+      - "scripts/check-sparse-taxonomy-rights-counts.mjs"
+      - "drizzle/0074_flatten_retail_membership.sql"
+      - ".github/workflows/cove-taxonomy-legal-exists-offline.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  exact-count-differential:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Prove dense/sparse taxonomy exact view-equivalence with revocation
+        run: node scripts/check-sparse-taxonomy-rights-counts.mjs
+      - run: git diff --check
