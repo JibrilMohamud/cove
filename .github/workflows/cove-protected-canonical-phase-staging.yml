@@ -207,6 +207,9 @@ jobs:
         if: always()
         env:
           COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
+          # Immutable /versions/{id} requires Scripts Read/Write, not Metadata Read.
+          # Reuse this already validated narrow deploy credential, no new scope.
+          COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
         run: node scripts/staging/phase-stage-control-plane.mjs postflight
       - name: Archive numeric-only evidence; NEVER upload raw payloads or credentials
         if: always()
