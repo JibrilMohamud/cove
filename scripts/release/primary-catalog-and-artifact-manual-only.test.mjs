@@ -13,6 +13,11 @@ const workflows = [
     flag: "confirm_real_catalog_readonly",
     job: "  protected-real-catalog-acceptance:",
   },
+  {
+    path: ".github/workflows/cove-sounds-private-rollout.yml",
+    flag: "confirm_private_sounds",
+    job: "  private-sounds-release:",
+  },
 ];
 
 for (const { path, flag, job } of workflows) {
@@ -51,4 +56,17 @@ test("artifact pipeline only publishes the reviewed Worker bundle to its artifac
   assert.match(source, /cancel-in-progress: false/);
   assert.match(source, /git push origin HEAD:cloudflare-worker-artifact --force/);
   assert.doesNotMatch(source, /wrangler deploy|CLOUDFLARE_API_TOKEN/);
+});
+
+test("private Sounds production-worker secret rotation cannot follow a push or workflow completion", () => {
+  const source = readFileSync(".github/workflows/cove-sounds-private-rollout.yml", "utf8");
+  const events = source.slice(
+    source.indexOf("\non:\n") + 1,
+    source.indexOf("\npermissions:\n"),
+  );
+  assert.doesNotMatch(events, /\n  push:\n|\n  workflow_run:\n|\n  schedule:\n/);
+  assert.match(source, /COVE_SOUNDS_SNAPSHOT_ENABLED/);
+  assert.match(source, /environment: cove-production-release-audit/);
+  assert.match(source, /inputs\.confirm_private_sounds == true/);
+  assert.match(source, /inputs\.reviewed_main_sha == github\.sha/);
 });
