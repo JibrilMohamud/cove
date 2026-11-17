@@ -168,8 +168,15 @@ export function evaluateStageCohort({ cold, concurrency }) {
     else seen.add(row.sequence);
     records.push(examineRow(row, "wave-" + count, row?.sequence));
   }
+  let expectedOrdinal = 1;
   for (const [wave, expected] of Object.entries(WAVE_COUNTS)) {
-    if (waveSeen.get(Number(wave)).size !== expected) anomalies.push("missing-concurrency-request");
+    const seen = waveSeen.get(Number(wave));
+    if (seen.size !== expected) anomalies.push("missing-concurrency-request");
+    for (let position = 0; position < expected; position++) {
+      if (!seen.has(expectedOrdinal + position))
+        anomalies.push("unmatched-concurrency-sequence");
+    }
+    expectedOrdinal += expected;
   }
   if (records.length !== 120) anomalies.push("incorrect-total-request-count");
   const good = records.filter((row) => row.status === "valid");
