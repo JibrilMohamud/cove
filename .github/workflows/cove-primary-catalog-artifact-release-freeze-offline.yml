@@ -1,0 +1,28 @@
+name: cove-primary-catalog-artifact-release-freeze-offline
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-cloudflare-worker.yml"
+      - ".github/workflows/fast-storefront-real-catalog-acceptance.yml"
+      - ".github/workflows/cove-sounds-private-rollout.yml"
+      - ".github/workflows/cove-primary-catalog-artifact-release-freeze-offline.yml"
+      - "scripts/release/primary-catalog-and-artifact-manual-only.test.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  refuse-automatic-primary-catalog-or-bundle-publishing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - run: node --test scripts/release/primary-catalog-and-artifact-manual-only.test.mjs
+      - run: git diff --check

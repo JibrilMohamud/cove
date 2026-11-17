@@ -8,26 +8,17 @@ on:
         "scripts/check-storefront-v2-primary-prefix.mjs",
         ".github/workflows/fast-storefront-real-catalog-acceptance.yml",
       ]
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/fast-storefront-real-catalog-acceptance.yml"
-      - "src/storefront-strangler/worker.ts"
-      - "src/storefront-strangler/homepage-presentation.server.ts"
-      - "src/storefront-strangler/bootstrap-optimized.server.ts"
-      - "src/features/fore/catalog-model.server.ts"
-      - "scripts/check-storefront-v2-primary-prefix.mjs"
-      - "scripts/performance/strangler-real-catalog-acceptance.mjs"
-      - "scripts/staging/verify-geo-edge-ingress.mjs"
-      - "src/features/fore/Book.tsx"
-      - "src/features/fore/BookDiscussionDeferred.tsx"
-      - "src/features/fore/Community.tsx"
-      - "src/features/fore/reading-community.css"
-      - "src/features/fore/social.server.ts"
-      - "scripts/staging/verify-literary-postpublication-readonly.mjs"
-      - "wrangler.content-literary-infer.prod-isolated.jsonc"
-      - "wrangler.literary-publisher.prod-isolated.jsonc"
   workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        description: "Exact approved main SHA required for protected action."
+        required: true
+        type: string
+      confirm_real_catalog_readonly:
+        description: "Explicitly approve this protected noncustomer operation."
+        required: true
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read
@@ -38,7 +29,13 @@ concurrency:
   cancel-in-progress: false
 jobs:
   protected-real-catalog-acceptance:
-    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm_real_catalog_readonly == true &&
+      inputs.reviewed_main_sha == github.sha
+    environment: cove-production-release-audit
     runs-on: ubuntu-latest
     # Identical pinned runtime successfully certified all six browsers on
     # 39927023349 and 39931555965. Avoid apt-mirror stalls on Chromium too.
@@ -57,6 +54,14 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
+      - name: Verify exact approved main source before build and privileged activity
+        env:
+          EXPECTED_SHA: ${{ inputs.reviewed_main_sha }}
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test "$DISPATCH_SHA" = "$EXPECTED_SHA"
       - uses: actions/setup-node@v6
         with: { node-version: "22" }
       # Avoid a 100MB Actions cache restore that can stall at the account

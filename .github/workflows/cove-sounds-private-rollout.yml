@@ -11,27 +11,17 @@ on:
       - "scripts/check-cove-sounds-snapshot.mjs"
       - "scripts/test-production-writer-topology.mjs"
       - ".github/workflows/cove-sounds-private-rollout.yml"
-  # Rebuild the isolated hourly producer when its verified source changes.
-  # This does not alter any public DNS route or canonical legal owner.
-  push:
-    branches: [main]
-    paths:
-      - "src/storefront-strangler/sounds-publication.worker.ts"
-      - "src/lib/canonical-readonly-d1.server.ts"
-      - "wrangler.sounds-publication.prod-isolated.jsonc"
-      - "wrangler.sounds-publication.prod-disabled.jsonc"
-      - "scripts/staging/verify-canonical-readonly-service.mjs"
-      - "scripts/check-sounds-readonly-principal.mjs"
-      - "scripts/check-cove-sounds-snapshot.mjs"
-      - "scripts/staging/seed-cove-sounds-private.mjs"
-      - "scripts/staging/cf-api-429-retry.mjs"
-      - "scripts/staging/cf-api-429-retry.test.mjs"
-      - ".github/workflows/cove-sounds-private-rollout.yml"
-  workflow_run:
-    workflows: [deploy-persistence-backend]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        description: "Exact approved main HEAD for protected Sounds publication."
+        required: true
+        type: string
+      confirm_private_sounds:
+        description: "Approve production-bound private Sounds activation; no automatic merges."
+        required: true
+        type: boolean
+        default: false
 permissions:
   contents: read
 # Exactly one production backend mutation at a time, including the existing
@@ -72,11 +62,12 @@ jobs:
       queue: max
       cancel-in-progress: false
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_branch == 'main')
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm_private_sounds == true &&
+      inputs.reviewed_main_sha == github.sha
+    environment: cove-production-release-audit
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
@@ -87,6 +78,14 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
+      - name: Verify exact approved main SHA before Sounds production secret or publishing
+        env:
+          EXPECTED_SHA: ${{ inputs.reviewed_main_sha }}
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test "$DISPATCH_SHA" = "$EXPECTED_SHA"
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
