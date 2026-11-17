@@ -15,8 +15,6 @@ on:
       - "scripts/staging/phase-placement-readiness.test.mjs"
       - "scripts/performance/verify-canonical-phase-evidence.mjs"
       - "infra/canonical-readonly/worker.ts"
-      - "infra/canonical-readonly/stage-primary-read-batcher.mjs"
-      - "infra/canonical-readonly/stage-primary-read-batcher.test.mjs"
       - "scripts/check-canonical-readonly-rpc.mjs"
       - "wrangler.canonical-phase.staging.jsonc"
       - "wrangler.frontend.phase.staging.toml"
@@ -52,7 +50,6 @@ jobs:
           node --test scripts/staging/restore-canonical-phase-workers.test.mjs
           node --test scripts/performance/verify-canonical-phase-evidence.test.mjs
           node --test scripts/staging/phase-placement-readiness.test.mjs
-          node --test infra/canonical-readonly/stage-primary-read-batcher.test.mjs
           node --check scripts/staging/wait-canonical-phase-stage-version.mjs
           node --check scripts/staging/phase-stage-control-plane.mjs
           git diff --check
@@ -107,7 +104,6 @@ jobs:
           node --test scripts/staging/restore-canonical-phase-workers.test.mjs
           node --test scripts/performance/verify-canonical-phase-evidence.test.mjs
           node --test scripts/staging/phase-placement-readiness.test.mjs
-          node --test infra/canonical-readonly/stage-primary-read-batcher.test.mjs
           git diff --check
       - name: Verify least-privilege credentials, production pins and parked 401-only stage versions
         env:
