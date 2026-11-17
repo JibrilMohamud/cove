@@ -101,10 +101,13 @@ try {
   let servedPrimary=true,afterD1=null,reads=0;
   let checkConcurrent=false,marketStarted=false,catalogStarted=false;
   let failMarket=false,failCatalog=false;
+  const issuedPrimarySessions=[];
   const binding={
     withSession(anchor){
       assert.equal(anchor,"first-primary");
-      return this;
+      const session={prepare:this.prepare};
+      issuedPrimarySessions.push(session);
+      return session;
     },
     prepare(statement){
       return {bind(...args){
@@ -216,7 +219,12 @@ try {
     "Native QA owner fetch must expose measured service-binding header delay");
   assert.equal((await proxyRead.json()).rows.length,2,
     "Service-bound native results must remain the intersection of canonical and current owner legal proof");
+  const beforePrimarySessions=issuedPrimarySessions.length;
   let response=await call(request);
+  assert.equal(issuedPrimarySessions.length-beforePrimarySessions,2,
+    "Every call requires two independently first-primary D1 sessions");
+  assert.notEqual(issuedPrimarySessions.at(-1),issuedPrimarySessions.at(-2),
+    "Concurrent primary reads must never share a session that could route a later read to a replica");
   assert.equal(response.status,200,"Actual full-schema D1+owner handler must accept synthetic fixture");
   let result=await response.json();
   assert.equal(result.schema,"cove.qa.owner-native-first-paint.v1");
