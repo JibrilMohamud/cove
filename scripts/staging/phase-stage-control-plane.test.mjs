@@ -72,6 +72,7 @@ test("only private staging read service with no native D1 and gated SSR is allow
     bindings: [
       { name: "COVE_SSR_STAGING", type: "plain_text", text: "1" },
       { name: "COVE_SSR_STAGING_GATE_KEY", type: "secret_text" },
+      { name: "COVE_CANONICAL_READONLY_FETCH", type: "plain_text", text: "1" },
       {
         name: "COVE_CANONICAL_READONLY",
         type: "service",
@@ -80,6 +81,25 @@ test("only private staging read service with no native D1 and gated SSR is allow
     ],
   };
   assert.doesNotThrow(() => assertIsolatedStageBindings(reader, ssr));
+  assert.throws(() =>
+    assertIsolatedStageBindings(reader, {
+      bindings: ssr.bindings.filter((binding) => binding.name !== "COVE_CANONICAL_READONLY_FETCH"),
+    }),
+  );
+  assert.throws(() =>
+    assertIsolatedStageBindings(reader, {
+      bindings: [...ssr.bindings, { name: "COVE_CANONICAL_READONLY_RPC", type: "plain_text", text: "1" }],
+    }),
+  );
+  assert.throws(() =>
+    assertIsolatedStageBindings(reader, {
+      bindings: ssr.bindings.map((binding) =>
+        binding.name === "COVE_CANONICAL_READONLY_FETCH"
+          ? { ...binding, text: "0" }
+          : binding,
+      ),
+    }),
+  );
   assert.throws(() =>
     assertIsolatedStageBindings(
       { bindings: [...reader.bindings, { name: "DB", type: "d1" }] },
@@ -205,6 +225,10 @@ test("Smart Placement experiment exists ONLY on isolated read-only phase staging
   assert.deepEqual(candidate.routes, []);
   assert.equal(candidate.d1_databases, undefined);
   assert.equal(candidate.services, undefined);
+  const stage = readFileSync("wrangler.frontend.phase.staging.toml", "utf8");
+  assert.match(stage, /COVE_CANONICAL_READONLY_FETCH = "1"/);
+  assert.doesNotMatch(stage, /COVE_CANONICAL_READONLY_RPC = "1"/);
+  assert.match(readFileSync("infra/canonical-readonly/worker.ts", "utf8"), /async fetch\(request: Request\)/);
   assert.equal(production.placement, undefined);
   assert.equal(owner.placement, undefined);
   assert.equal(production.name, "cove-canonical-d1-readonly");
