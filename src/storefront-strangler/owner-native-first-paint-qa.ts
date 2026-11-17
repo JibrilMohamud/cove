@@ -22,6 +22,7 @@ type NativeRequest = {
 type NativeRead = {
   rows: NativeFirstPaintRow[];
   servedByPrimary: boolean;
+  activeMarket: boolean;
 };
 type NativePorts = {
   readPrimary(ids: string[], territory: string, currency: string): Promise<NativeRead>;
@@ -105,7 +106,12 @@ export async function readOwnerNativeFirstPaintQa(raw: unknown, ports: NativePor
   if (ports.marketWithdrawn(input.territory)) throw new Error("native_qa_market_withdrawn");
 
   const primary = await ports.readPrimary(input.ids, input.territory, input.currency);
-  if (!primary || primary.servedByPrimary !== true || !Array.isArray(primary.rows))
+  if (
+    !primary ||
+    primary.servedByPrimary !== true ||
+    primary.activeMarket !== true ||
+    !Array.isArray(primary.rows)
+  )
     throw new Error("native_qa_primary_unverified");
 
   // This read runs AFTER the awaited D1 statement. A withdrawal occurring
