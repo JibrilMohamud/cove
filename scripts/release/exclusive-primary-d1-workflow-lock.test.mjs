@@ -10,10 +10,13 @@ const [offline, live] = workflow.split("  live-physical-audit:\n");
 
 test("writer inventory is protected and shares the exclusive real-primary release lock", () => {
   assert.ok(live, "Missing manually approved physical-writer job");
-  assert.match(
-    live,
-    /if: github\.event_name == 'workflow_dispatch' && github\.ref == 'refs\/heads\/main'/,
-  );
+  assert.match(live, /github\.repository == 'JibrilMohamud\/cove'/);
+  assert.match(live, /github\.event_name == 'workflow_dispatch'/);
+  assert.match(live, /github\.ref == 'refs\/heads\/main'/);
+  assert.match(live, /inputs\.confirm_readonly_physical_audit == true/);
+  assert.match(live, /inputs\.reviewed_main_sha == github\.sha/);
+  assert.match(live, /git rev-parse HEAD/);
+  assert.match(live, /inputs\.reviewed_main_sha/);
   assert.match(live, /needs: \[offline-source-contract\]/);
   assert.match(
     live,
@@ -38,5 +41,9 @@ test("offline CI remains credential-free, and a draft PR never runs protected li
     /node --test scripts\/release\/physical-d1-writer-read-transport\.test\.mjs scripts\/release\/exclusive-primary-d1-workflow-lock\.test\.mjs/,
   );
   assert.doesNotMatch(offline, /secrets\.|environment: cove-production-release-audit/);
-  assert.match(live, /if: github\.event_name == 'workflow_dispatch'/);
+  assert.doesNotMatch(offline, /\n  push:/);
+  assert.match(offline, /confirm_readonly_physical_audit:/);
+  assert.match(offline, /reviewed_main_sha:/);
+  assert.match(offline, /default: false/);
+  assert.match(live, /github\.event_name == 'workflow_dispatch'/);
 });
