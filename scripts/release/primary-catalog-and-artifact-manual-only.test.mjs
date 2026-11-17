@@ -22,10 +22,7 @@ const workflows = [
 
 for (const { path, flag, job } of workflows) {
   const source = readFileSync(path, "utf8");
-  const events = source.slice(
-    source.indexOf("\non:\n") + 1,
-    source.indexOf("\npermissions:\n"),
-  );
+  const events = source.slice(source.indexOf("\non:\n") + 1, source.indexOf("\npermissions:\n"));
   const protectedJob = source.slice(source.indexOf("\n" + job) + 1);
 
   test(path + " refuses all nonmanual branch pushes and scheduled releases", () => {
@@ -60,10 +57,7 @@ test("artifact pipeline only publishes the reviewed Worker bundle to its artifac
 
 test("private Sounds production-worker secret rotation cannot follow a push or workflow completion", () => {
   const source = readFileSync(".github/workflows/cove-sounds-private-rollout.yml", "utf8");
-  const events = source.slice(
-    source.indexOf("\non:\n") + 1,
-    source.indexOf("\npermissions:\n"),
-  );
+  const events = source.slice(source.indexOf("\non:\n") + 1, source.indexOf("\npermissions:\n"));
   assert.doesNotMatch(events, /\n  push:\n|\n  workflow_run:\n|\n  schedule:\n/);
   assert.match(source, /COVE_SOUNDS_SNAPSHOT_ENABLED/);
   assert.match(source, /environment: cove-production-release-audit/);
