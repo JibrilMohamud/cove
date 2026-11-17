@@ -88,8 +88,12 @@ The protected run has the three required secrets present. The fourth finding
 collapses endpoint access, pagination, metadata, and unsafe active user tokens
 into one boolean. The new allowlisted reason code will distinguish these
 without revealing private token inventories. A user-owned Cloudflare token
-only sees its issuing user's tokens; separate membership/principal scope
-evidence remains necessary before account-wide exclusivity.
+only sees its issuing user's tokens. The inventory evaluator now **explicitly
+fails** `all_user_token_principals_unverified` independently of whether
+the current user token inventory passes. Full account-member/principal
+scope must be positively established using independent, protected evidence
+before code may ever set `userPrincipalCoverageVerified=true`; there is
+no environment-variable override or manual bypass in this change.
 
 **Never** revoke `Cove GitHub Deployments`, remove the persistence Worker
 binding, or activate the legal owner without validating replacement consumers,
