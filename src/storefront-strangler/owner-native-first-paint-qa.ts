@@ -116,13 +116,18 @@ function offersAgree(source: NativeFirstPaintRow, approval: NativeFirstPaintRow)
   // checkedRow validated both JSON shapes and allowed type vocabularies.
   // Exact monetary/currency equality is mandatory regardless of type alias.
   const canonical = JSON.parse(source.offer_json!) as {
-    type: string; currency: string; amountMinor: number
+    type: string;
+    currency: string;
+    amountMinor: number;
   };
   const authorized = JSON.parse(approval.offer_json!) as {
-    type: string; currency: string; amountMinor: number
+    type: string;
+    currency: string;
+    amountMinor: number;
   };
-  return canonical.amountMinor === authorized.amountMinor &&
-    canonical.currency === authorized.currency;
+  return (
+    canonical.amountMinor === authorized.amountMinor && canonical.currency === authorized.currency
+  );
 }
 
 export async function readOwnerNativeFirstPaintQa(raw: unknown, ports: NativePorts) {
