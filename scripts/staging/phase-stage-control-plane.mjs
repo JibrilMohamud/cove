@@ -54,6 +54,7 @@ export function assertIsolatedStageBindings(reader, ssr) {
   );
   const frontend = ssr?.bindings || [];
   assert.ok(!frontend.some((binding) => binding.type === "d1"), "No native D1 in stage SSR");
+  assert.ok(!frontend.some((binding) => binding.type === "r2_bucket"), "No production R2 access");
   assert.ok(
     frontend.some(
       (binding) =>
