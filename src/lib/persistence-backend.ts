@@ -209,10 +209,14 @@ export async function proxyPersistenceApi(
   }
 
   const controller = new AbortController();
+  let deadlineExpired = false;
   const abortFromCaller = () => controller.abort(request.signal.reason);
   request.signal.addEventListener("abort", abortFromCaller, { once: true });
   if (request.signal.aborted) abortFromCaller();
-  const timer = setTimeout(() => controller.abort(), requestTimeout(requestUrl.pathname));
+  const timer = setTimeout(() => {
+    deadlineExpired = true;
+    controller.abort();
+  }, requestTimeout(requestUrl.pathname));
   try {
     const init: RequestInit & { duplex?: "half" } = {
       method: request.method,
@@ -271,20 +275,34 @@ export async function proxyPersistenceApi(
     // counting it as one pollutes outage/error telemetry and can hide real
     // Cloudflare transport failures. Preserve fail-closed behavior.
     if (request.signal.aborted) return unavailablePersistenceResponse();
+    // Report only a fixed low-cardinality cause. Raw exception messages or
+    // request URLs can contain private transport data and must not be logged.
+    const failureReason = deadlineExpired
+      ? "backend-deadline"
+      : controller.signal.aborted
+        ? "proxy-abort"
+        : "upstream-transport";
     if (safePublicFallback(request)) {
       if (productionFallbackDenied(env)) {
         // A bootstrap transport exception is a real upstream error, not a
         // cancelled losing hedge. Preserve its separate error signal while
         // the public response remains denied, without logging exception text.
         if (requestUrl.pathname === "/api/fore/storefront/bootstrap")
-          console.error("Persistent backend request failed; production bootstrap fails closed");
-        else console.warn("Persistent backend request failed; production catalog fails closed");
+          console.error(
+            "Persistent backend request failed; production bootstrap fails closed",
+            failureReason,
+          );
+        else
+          console.warn(
+            "Persistent backend request failed; production catalog fails closed",
+            failureReason,
+          );
         return unavailablePersistenceResponse();
       }
-      console.warn("Persistent backend request failed; using development fallback", error);
+      console.warn("Persistent backend request failed; using development fallback", failureReason);
       return null;
     }
-    console.error("Persistent backend request failed", error);
+    console.error("Persistent backend request failed", failureReason);
     return new Response(JSON.stringify({ error: "Cove persistence is temporarily unavailable." }), {
       status: 503,
       headers: {
