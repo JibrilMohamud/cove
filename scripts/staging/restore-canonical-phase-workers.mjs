@@ -1,8 +1,5 @@
 import assert from "node:assert/strict";
-import {
-  PARKED_READER_VERSION,
-  PARKED_SSR_VERSION,
-} from "./phase-stage-control-plane.mjs";
+import { PARKED_READER_VERSION, PARKED_SSR_VERSION } from "./phase-stage-control-plane.mjs";
 
 // These are one-time provisioned, nonroutable deny-all Workers. Production
 // workers can NEVER be targeted by this path. The fixed version IDs came
