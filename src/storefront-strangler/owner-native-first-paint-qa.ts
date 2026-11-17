@@ -49,7 +49,7 @@ export function nativeFirstPaintRequest(raw: unknown): NativeRequest {
     !/^[A-Z]{3}$/.test(value.currency)
   )
     throw new Error("invalid_native_qa_request");
-  return value as NativeRequest;
+  return { ids: value.ids as string[], territory: value.territory as string, currency: value.currency as string };
 }
 
 function checkedRow(
@@ -65,11 +65,9 @@ function checkedRow(
     typeof raw.edition_id !== "string" ||
     !editionId.test(raw.edition_id) ||
     (raw.product_public_id !== null &&
-      (typeof raw.product_public_id !== "string" ||
-        raw.product_public_id.length > 160)) ||
+      (typeof raw.product_public_id !== "string" || raw.product_public_id.length > 160)) ||
     (raw.edition_public_id !== null &&
-      (typeof raw.edition_public_id !== "string" ||
-        raw.edition_public_id.length > 160)) ||
+      (typeof raw.edition_public_id !== "string" || raw.edition_public_id.length > 160)) ||
     typeof raw.offer_json !== "string" ||
     raw.offer_json.length > 512
   )
@@ -95,8 +93,7 @@ function checkedRow(
   if (
     raw.product_id.startsWith("prd_gutenberg_")
       ? offer.type !== "public-domain" || offer.amountMinor !== 0
-      : offer.type === "public-domain" ||
-        !/^[a-z][a-z0-9_-]{2,39}$/.test(offer.type)
+      : offer.type === "public-domain" || !/^[a-z][a-z0-9_-]{2,39}$/.test(offer.type)
   )
     throw new Error("native_qa_invalid_offer");
   return raw;
@@ -105,8 +102,7 @@ function checkedRow(
 export async function readOwnerNativeFirstPaintQa(raw: unknown, ports: NativePorts) {
   const input = nativeFirstPaintRequest(raw);
   // A market-level withdrawal vetoes all previously published proofs.
-  if (ports.marketWithdrawn(input.territory))
-    throw new Error("native_qa_market_withdrawn");
+  if (ports.marketWithdrawn(input.territory)) throw new Error("native_qa_market_withdrawn");
 
   const primary = await ports.readPrimary(input.ids, input.territory, input.currency);
   if (!primary || primary.servedByPrimary !== true || !Array.isArray(primary.rows))
@@ -114,8 +110,7 @@ export async function readOwnerNativeFirstPaintQa(raw: unknown, ports: NativePor
 
   // This read runs AFTER the awaited D1 statement. A withdrawal occurring
   // while the primary call is in flight must be visible before any approval.
-  if (ports.marketWithdrawn(input.territory))
-    throw new Error("native_qa_market_withdrawn");
+  if (ports.marketWithdrawn(input.territory)) throw new Error("native_qa_market_withdrawn");
   const owner = ports.readOwner(input.ids, input.territory, input.currency);
   if (!Array.isArray(owner) || owner.length > input.ids.length)
     throw new Error("native_qa_owner_unavailable");
