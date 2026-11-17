@@ -50,7 +50,11 @@ export function nativeFirstPaintRequest(raw: unknown): NativeRequest {
     !/^[A-Z]{3}$/.test(value.currency)
   )
     throw new Error("invalid_native_qa_request");
-  return { ids: value.ids as string[], territory: value.territory as string, currency: value.currency as string };
+  return {
+    ids: value.ids as string[],
+    territory: value.territory as string,
+    currency: value.currency as string,
+  };
 }
 
 function checkedRow(
