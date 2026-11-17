@@ -407,6 +407,76 @@ try {
   const displayOffer=JSON.parse(shelf.body.rows[0].offer_json);
   assert.equal(displayOffer.currency,"USD");
   assert.equal(displayOffer.amountMinor,399);
+  // Synthetic hosted evidence for PR #761: the exact product has already
+  // passed live provider-rights publication and live owner-price publication.
+  // Exercise the same private owner with a native primary D1 session, then
+  // preserve EVERY status/latency sample at increasing concurrency. This is
+  // a QA database with nine products, not the 82k production catalog; neither
+  // this test nor the REST baseline from #96 certifies customer TTFB.
+  const nativeInput={ids:[test.productId],territory:"US",currency:"USD"};
+  const nativeReady=await read("/qa/native-first-paint",nativeInput);
+  assert.equal(nativeReady.status,200,
+    "The native-first-paint route must be live inside the expiring private QA caller");
+  assert.equal(nativeReady.body?.schema,"cove.qa.owner-native-first-paint.v1");
+  assert.equal(nativeReady.body?.rows?.length,1);
+  assert.equal(nativeReady.body.rows[0].product_id,test.productId);
+  assert.equal(nativeReady.body.rows[0].offer_json,shelf.body.rows[0].offer_json,
+    "Native canonical offer must byte-match the strong owner's current legal price");
+  const nativeDenied=await read("/qa/native-first-paint",{
+    ...nativeInput,ids:["prd_paid_no_such_qa_product"]
+  });
+  assert.equal(nativeDenied.status,200);
+  assert.deepEqual(nativeDenied.body?.rows,[],
+    "No current D1+owner proof means no native authorized book");
+  const nativeWrongMarket=await read("/qa/native-first-paint",{
+    ...nativeInput,territory:"CA"
+  });
+  assert.equal(nativeWrongMarket.status,503,
+    "An unlaunched country must fail closed, not inherit US storefront permission");
+
+  const nativeEvidence=[];
+  for(const parallel of [1,4,8,16,32]){
+    const samples=await Promise.all(Array.from({length:parallel},async()=>{
+      const start=performance.now();
+      try{
+        const r=await post("/qa/native-first-paint",nativeInput);
+        return {ms:Math.round((performance.now()-start)*100)/100,
+          status:r.status,valid:r.status===200&&
+            r.body?.schema==="cove.qa.owner-native-first-paint.v1"&&
+            r.body?.rows?.length===1&&
+            r.body.rows[0].product_id===test.productId&&
+            r.body.rows[0].offer_json===shelf.body.rows[0].offer_json};
+      }catch(error){
+        return {ms:Math.round((performance.now()-start)*100)/100,
+          status:0,valid:false,error:error instanceof Error?error.name:"unknown"};
+      }
+    }));
+    const ordered=samples.map(x=>x.ms).sort((a,b)=>a-b);
+    const q=probability=>ordered[Math.ceil(probability*ordered.length)-1];
+    const summary={parallel,total:parallel,valid:samples.filter(x=>x.valid).length,
+      errors:samples.filter(x=>!x.valid).length,
+      p50Ms:q(0.50),p95Ms:q(0.95),p99Ms:q(0.99),maxMs:ordered.at(-1),
+      samples:samples.map(x=>({ms:x.ms,status:x.status,valid:x.valid,error:x.error}))};
+    nativeEvidence.push(summary);
+    console.log("COVE_SYNTHETIC_NATIVE_D1 "+JSON.stringify({
+      parallel,valid:summary.valid,errors:summary.errors,
+      p50Ms:summary.p50Ms,p95Ms:summary.p95Ms,p99Ms:summary.p99Ms,maxMs:summary.maxMs
+    }));
+  }
+  const destination="artifacts/owner-native-qa/"+runId+".json";
+  fs.mkdirSync(path.dirname(destination),{recursive:true});
+  fs.writeFileSync(destination,JSON.stringify({
+    schema:"cove.synthetic-owner-native-d1.v1",
+    scope:"hosted-paid-qa-nine-products",primaryD1:"synthetic-paid-qa-only",
+    cold:false,method:"HTTP full-body, not TTFB",releaseCertified:false,
+    scenarios:nativeEvidence
+  },null,2));
+  assert.ok(nativeEvidence.every(w=>w.valid===w.total&&w.errors===0),
+    "Every native D1 QA sample must return one current owner-rights authorized product");
+  // This is a conservative preflight filter (full-body latency), NOT a
+  // substitute for the unchanged customer TTFB/100RPS/four-region gate.
+  assert.ok(nativeEvidence.every(w=>w.maxMs<800),
+    "Native owner QA exceeds the hard preliminary 800ms sample ceiling");
   const wrongCurrency=await read("/storefront/authorize-batch",{
     ids:[test.productId],territory:"US",currency:"EUR"
   });
