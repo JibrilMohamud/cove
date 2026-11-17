@@ -189,9 +189,7 @@ async function stageParked(metadata, deploy) {
     "/accounts/" + ACCOUNT + "/workers/domains",
   ];
   const [reader, ssr, readerDeployment, ssrDeployment, readerSubdomain, ssrSubdomain, domains] =
-    await Promise.all(
-      paths.map((path, index) => get(index < 2 ? deploy : metadata, path)),
-    );
+    await Promise.all(paths.map((path, index) => get(index < 2 ? deploy : metadata, path)));
   assertParkedStage({
     reader,
     ssr,
