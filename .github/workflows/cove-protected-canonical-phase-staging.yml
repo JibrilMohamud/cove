@@ -110,7 +110,11 @@ jobs:
       - name: Deploy new, private phase reader with no public HTTP ingress
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
-        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.canonical-phase.staging.jsonc
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.canonical-phase.staging.jsonc
+          echo "COVE_PHASE_READER_DEPLOYED=1" >> "$GITHUB_ENV"
       - name: Install independently audited D1 Read secret into isolated private reader
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
@@ -125,7 +129,11 @@ jobs:
       - name: Deploy distinct, authenticated phase SSR Worker without customer routes
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
-        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.frontend.phase.staging.toml
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.frontend.phase.staging.toml
+          echo "COVE_PHASE_SSR_DEPLOYED=1" >> "$GITHUB_ENV"
       - name: Three fresh secret versions, each 20 authenticated strictly checked SSR reads
         id: cold
         continue-on-error: true
@@ -190,8 +198,15 @@ jobs:
         shell: bash
         run: |
           set +e
-          npm exec --yes --package=wrangler@4.151.0 -- wrangler delete --force --config wrangler.frontend.phase.staging.toml
-          npm exec --yes --package=wrangler@4.151.0 -- wrangler delete --force --config wrangler.canonical-phase.staging.jsonc
+          # Never delete a script that this approved run did not create.
+          # A failed/partial deploy without this success marker instead fails
+          # postflight and requires controlled operator inspection.
+          if [ "${COVE_PHASE_SSR_DEPLOYED:-0}" = "1" ]; then
+            npm exec --yes --package=wrangler@4.151.0 -- wrangler delete --force --config wrangler.frontend.phase.staging.toml
+          fi
+          if [ "${COVE_PHASE_READER_DEPLOYED:-0}" = "1" ]; then
+            npm exec --yes --package=wrangler@4.151.0 -- wrangler delete --force --config wrangler.canonical-phase.staging.jsonc
+          fi
       - name: ALWAYS verify unchanged production pins, disabled owner and stage deletion
         if: always()
         env:
