@@ -91,6 +91,11 @@ test("only private staging read service with no native D1 and gated SSR is allow
   );
   assert.throws(() =>
     assertIsolatedStageBindings(reader, {
+      bindings: [...ssr.bindings, { name: "BUCKET", type: "r2_bucket" }],
+    }),
+  );
+  assert.throws(() =>
+    assertIsolatedStageBindings(reader, {
       bindings: [...ssr.bindings, { name: "COVE_SSR_STAGING_COMMERCE_QA", text: "1" }],
     }),
   );
