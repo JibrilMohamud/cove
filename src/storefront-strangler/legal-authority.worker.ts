@@ -31,8 +31,9 @@ import {ownerContractVersionSchema} from "./owner-contract-version-schema";
 import {ApiError} from "../features/fore/service";
 import {createContractVersionOwnerSchema,executeOwnerContractVersion} from "./owner-contract-version-executor";
 import {createMarketAuthoritySchema,denyMarket,marketIsWithdrawn} from "./market-authority-core";
-import { authorizeStorefrontPresentationIds,catalogIds, type CatalogDB } from "../features/fore/catalog-model.server";
+import { authorizeStorefrontPresentationIds,catalogIds, type CatalogDB, type FirstPaintD1QueryMetrics } from "../features/fore/catalog-model.server";
 import { resolveProductRights,detectRightsConflicts } from "../features/fore/rights.server";
+import {readOwnerNativeFirstPaintQa} from "./owner-native-first-paint-qa";
 import {createPublicationMaterializationSchema,executePublicationMaterialization} from "./publication-materialization-command";
 import type {PublishingEnv,PublishingDB} from "../features/fore/publishing.server";
 import {executePublicationPreorder} from "./publication-preorder-command";
@@ -3959,6 +3960,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/deny-next","/commercial/deny-batch","/commercial/subject/deny-next","/commercial/publish-verified",
       "/commercial/authorize-batch",
       "/storefront/authorize-batch","/storefront/publish-commercial",
+      "/qa/native-first-paint",
       "/market/deny-next",
       "/commercial/order/deny-next","/commercial/order/verify","/commercial/order/revoke",
       "/commercial/order/settle",
@@ -3996,7 +3998,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     let raw:unknown;
     try {
       const bytes=await request.text();
-      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/create-quote"?4096:route==="/commercial/checkout/materialize-draft"?2048:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
+      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/create-quote"?4096:route==="/commercial/checkout/materialize-draft"?2048:route==="/qa/native-first-paint"?5000:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
       raw=JSON.parse(bytes);
     }catch {return new Response(null,{status:400,headers:noStore});}
     const sql=this.ctx.storage.sql as unknown as AuthoritySql;
@@ -5361,6 +5363,30 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       // Mixed free and contract-backed paid shelf. The entire authorization
       // happens under one strongly consistent SQLite owner, never primary D1.
       // Missing/unpublished rows are absent, not inferred from KV/R2.
+      // QA lease only, never exposed by the disabled production legal owner.
+      // Source-controlled native primary D1 SQL, followed by owner fences.
+      // No arbitrary SQL, cache, or competing native D1 reader binding.
+      if(route==="/qa/native-first-paint"){
+        const evidence=await readOwnerNativeFirstPaintQa(raw,{
+          readPrimary:async (ids,territory,currency)=>{
+            const measurements:FirstPaintD1QueryMetrics={};
+            const rows=await authorizeStorefrontPresentationIds(
+              env.PRIMARY_DB,ids,territory,currency,measurements
+            );
+            return {rows,servedByPrimary:measurements.servedByPrimary===true};
+          },
+          readOwner:(ids,territory,currency)=>{
+            const free=ids.filter(id=>id.startsWith("prd_gutenberg_"));
+            const paid=ids.filter(id=>!id.startsWith("prd_gutenberg_"));
+            return [
+              ...readAuthorizedPresentations(sql,free,territory,currency),
+              ...readCommercialStorefront(sql,paid,territory,currency)
+            ];
+          },
+          marketWithdrawn:territory=>marketIsWithdrawn(sql,territory)
+        });
+        return Response.json(evidence,{headers:noStore});
+      }
       if(route==="/storefront/authorize-batch"){
         const input=raw as {ids?:unknown;territory?:unknown;currency?:unknown};
         if(!input||!Array.isArray(input.ids)||input.ids.length>128||
