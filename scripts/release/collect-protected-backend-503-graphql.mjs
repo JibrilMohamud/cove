@@ -26,8 +26,8 @@ export function validatedWindow(from, to) {
   if (
     !Number.isFinite(start) ||
     !Number.isFinite(end) ||
-    new Date(start).toISOString() !== from ||
-    new Date(end).toISOString() !== to ||
+    new Date(start).toISOString().replace(".000Z", "Z") !== from ||
+    new Date(end).toISOString().replace(".000Z", "Z") !== to ||
     end - start < 60_000 ||
     end - start > 20 * 60_000
   )
