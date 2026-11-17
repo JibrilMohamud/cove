@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   assertExactTokenPolicy,
@@ -158,4 +159,21 @@ test("one-time seeded deny-only Workers must be exactly parked before and after 
     { domains: null },
   ])
     assert.throws(() => assertParkedStage({ ...parked, ...change }));
+});
+
+test("immutable version evidence uses existing Workers Scripts Write, not metadata-only token", () => {
+  const stage = readFileSync("scripts/staging/phase-stage-control-plane.mjs", "utf8");
+  const workflow = readFileSync(
+    ".github/workflows/cove-protected-canonical-phase-staging.yml",
+    "utf8",
+  );
+  assert.match(stage, /index < 2 \? deploy : metadata/);
+  assert.match(stage, /get\(index < 2 \? deploy : metadata, path\)/);
+  assert.match(stage, /stageParked\(metadata, process\.env\.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN\)/);
+  assert.match(workflow, /name: ALWAYS verify production pins, disabled owner and parked stage isolation/);
+  const postflight = workflow.slice(
+    workflow.indexOf("name: ALWAYS verify production pins, disabled owner and parked stage isolation"),
+  );
+  assert.match(postflight, /COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN: \$\{\{ secrets\.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN \}\}/);
+  assert.match(postflight, /COVE_CF_WORKERS_METADATA_READ_TOKEN: \$\{\{ secrets\.COVE_CF_WORKERS_METADATA_READ_TOKEN \}\}/);
 });
