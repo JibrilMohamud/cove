@@ -165,7 +165,10 @@ try {
   const stageBurst = await (await client.fetch("https://test/stage-burst")).json();
   console.log("STAGE_WORKER_BURST_COMPLETED");
   assert.deepEqual(stageBurst.statuses, Array(24).fill(200));
-  assert.deepEqual(stageBurst.values, Array.from({ length: 24 }, (_, i) => i));
+  assert.deepEqual(
+    stageBurst.values,
+    Array.from({ length: 24 }, (_, i) => i),
+  );
   assert.ok(calls > beforeBurst && calls <= beforeBurst + 24);
   mode = "replica";
   assert.equal(
