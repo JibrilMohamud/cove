@@ -10,7 +10,14 @@ assert.match(
   taxonomy,
   /presentationTaxonomyCounts\(\s*db,\s*territory,\s*language,\s*async \(\) =>/,
 );
-assert.match(countQueries, /retail_product_availability rpa/);
+// EXISTS membership is equivalent on migration 0074's DISTINCT wrapper and
+// its underlying rights-filtered rows. Keep the fast count plan on the latter.
+const migration = fs.readFileSync("drizzle/0074_flatten_retail_membership.sql", "utf8");
+assert.match(
+  migration,
+  /CREATE VIEW retail_product_availability AS\s+SELECT DISTINCT product_id,edition_id,territory_code,format,rights_grant_id\s+FROM retail_product_availability_rows;/,
+);
+assert.doesNotMatch(countQueries, /FROM retail_product_availability rpa/);
 assert.match(countQueries, /retail_product_availability_rows rpa/);
 assert.match(taxonomy, /\.prepare\(taxonomySparseRightsProbe\)/);
 assert.doesNotMatch(code, /product_id|productIds|account_id|user_id/);
