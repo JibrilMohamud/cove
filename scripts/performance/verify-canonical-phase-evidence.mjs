@@ -298,9 +298,7 @@ export function evaluateStageCohort({ cold, concurrency }) {
       .filter((row) => row.status === "valid" && row.ttfbMs !== null)
       .map((row) => row.ttfbMs)
       .sort((a, b) => a - b);
-    const p95Ms = validTimes.length
-      ? validTimes[Math.ceil(validTimes.length * 0.95) - 1]
-      : null;
+    const p95Ms = validTimes.length ? validTimes[Math.ceil(validTimes.length * 0.95) - 1] : null;
     const maxMs = validTimes.length ? validTimes.at(-1) : null;
     const p95LimitMs = canonicalStageP95Limit(concurrency);
     const pass =
