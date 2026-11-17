@@ -188,3 +188,25 @@ test("immutable version evidence uses existing Workers Scripts Write, not metada
     /COVE_CF_WORKERS_METADATA_READ_TOKEN: \$\{\{ secrets\.COVE_CF_WORKERS_METADATA_READ_TOKEN \}\}/,
   );
 });
+
+test("Smart Placement experiment exists ONLY on isolated read-only phase staging", () => {
+  const candidate = JSON.parse(readFileSync("wrangler.canonical-phase.staging.jsonc", "utf8"));
+  const production = JSON.parse(
+    readFileSync("wrangler.canonical-readonly.jsonc", "utf8").replace(/,\s*}/g, "}"),
+  );
+  const owner = JSON.parse(
+    readFileSync("wrangler.legal-authority.production-locked.jsonc", "utf8"),
+  );
+  assert.equal(candidate.name, "cove-canonical-phase-readonly-staging");
+  assert.equal(candidate.main, "infra/canonical-readonly/worker.ts");
+  assert.deepEqual(candidate.placement, { mode: "smart" });
+  assert.equal(candidate.workers_dev, false);
+  assert.equal(candidate.preview_urls, false);
+  assert.deepEqual(candidate.routes, []);
+  assert.equal(candidate.d1_databases, undefined);
+  assert.equal(candidate.services, undefined);
+  assert.equal(production.placement, undefined);
+  assert.equal(owner.placement, undefined);
+  assert.equal(production.name, "cove-canonical-d1-readonly");
+  assert.equal(owner.name, "cove-legal-authority-production");
+});

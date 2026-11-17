@@ -7,6 +7,7 @@ on:
       - scripts/release/certify-exclusive-primary-d1.mjs
       - scripts/release/physical-d1-writer-read-transport.mjs
       - scripts/release/physical-d1-writer-read-transport.test.mjs
+      - scripts/release/user-token-evidence.test.mjs
       - scripts/release/exclusive-primary-d1-workflow-lock.test.mjs
       - .github/workflows/cove-exclusive-primary-d1-writer-audit.yml
   workflow_dispatch:
@@ -34,7 +35,7 @@ jobs:
           node-version: '22'
       - run: node --check scripts/release/certify-exclusive-primary-d1.mjs
       - run: node scripts/release/certify-exclusive-primary-d1.mjs --self-test
-      - run: node --test scripts/release/physical-d1-writer-read-transport.test.mjs scripts/release/exclusive-primary-d1-workflow-lock.test.mjs
+      - run: node --test scripts/release/physical-d1-writer-read-transport.test.mjs scripts/release/exclusive-primary-d1-workflow-lock.test.mjs scripts/release/user-token-evidence.test.mjs
   live-physical-audit:
     if: >-
       github.repository == 'JibrilMohamud/cove' &&

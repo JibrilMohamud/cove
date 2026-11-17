@@ -18,11 +18,25 @@ const ACCOUNT="d26430caa63ec55f6612e32f36aca5e9";
 const OWNER="cove-legal-authority-production";
 const PRIVILEGED_GROUPS=new Set([
   "D1 Write","Workers Admin","Workers Editor",
-  "Workers Scripts Write","Account API Tokens Write",
+  "Workers Scripts Write","Workers Scripts Edit","Workers CI Write",
+  "Individual Workers Admin","Individual Workers Editor",
+  "Account API Tokens Write","API Tokens Write",
 ]);
 function tokenCanMutate(token){
-  return (token.policies||[]).some(p=>(p.permission_groups||[])
-    .some(group=>PRIVILEGED_GROUPS.has(group.name)));
+  return Array.isArray(token?.policies)&&token.policies.some(p=>
+    Array.isArray(p?.permission_groups)&&p.permission_groups
+      .some(group=>PRIVILEGED_GROUPS.has(group?.name)));
+}
+// Never interpret an unrecognized active Cloudflare permission as harmless.
+// A reviewable read-only group must END in the exact word "Read"; other
+// capabilities are unclassified until reviewed, independently of whether
+// the known mutation group list happens to contain the provider's new name.
+const READ_ONLY_GROUP=/^[A-Za-z0-9][A-Za-z0-9 &/._()+-]* (?:Read|Read-Only)$/;
+function tokenHasUnreviewedPermissions(token){
+  return Array.isArray(token?.policies)&&token.policies.some(p=>
+    Array.isArray(p?.permission_groups)&&p.permission_groups.some(group=>
+      !PRIVILEGED_GROUPS.has(group?.name)&&
+      !READ_ONLY_GROUP.test(group?.name||"")));
 }
 function completeTokenInventory(tokens){
   if(!Array.isArray(tokens))return false;
@@ -31,7 +45,7 @@ function completeTokenInventory(tokens){
       !["active","disabled","expired"].includes(t.status))return false;
     if(t.status!=="active")return true;
     return Array.isArray(t.policies)&&t.policies.length>0&&
-      t.policies.every(p=>Array.isArray(p.permission_groups)&&
+      t.policies.every(p=>Array.isArray(p?.permission_groups)&&
         p.permission_groups.length>0&&p.permission_groups.every(g=>
           typeof g?.name==="string"&&g.name.trim().length>0));
   });
@@ -39,14 +53,45 @@ function completeTokenInventory(tokens){
 
 function completeTokenPage(response){
   const data=response?.result,info=response?.result_info;
-  if(!Array.isArray(data)||!info||info.page!==1||info.total_pages!==1||
+  // Cloudflare's User Tokens API documents page/count/total_count but
+  // not total_pages. total_count === returned count proves a complete page;
+  // an explicitly supplied total_pages >1 still fails closed.
+  if(!Array.isArray(data)||!info||info.page!==1||
+    (info.total_pages!==undefined&&info.total_pages!==1)||
     !Number.isSafeInteger(info.count)||info.count!==data.length||
     !Number.isSafeInteger(info.total_count)||info.total_count!==data.length)
     throw Error("Incomplete Cloudflare token inventory page");
   return data;
 }
 
-export function evaluatePhysicalWriterInventory({workers,tokens,userTokensVerified}){
+// User tokens belong to an individual Cloudflare principal, not the account.
+// Preserve the strict single-page and permission metadata contract; report
+// only a bounded cause code. Never expose token identifiers, policy contents,
+// upstream response bodies, credentials or user identities in CI artifacts.
+export async function inspectUserTokenEvidence(get,userToken){
+  let userTokens;
+  try{
+    userTokens=completeTokenPage(await get("/user/tokens",userToken));
+  }catch(error){
+    const code=String(error?.message||"");
+    if(code==="writer_audit_http_401"||code==="writer_audit_http_403")
+      return {verified:false,reason:"user_token_read_unauthorized"};
+    if(code==="Incomplete Cloudflare token inventory page")
+      return {verified:false,reason:"user_token_page_incomplete"};
+    return {verified:false,reason:"user_token_read_unavailable"};
+  }
+  if(!completeTokenInventory(userTokens))
+    return {verified:false,reason:"user_token_policy_incomplete"};
+  if(userTokens.some(t=>t.status==="active"&&tokenCanMutate(t)))
+    return {verified:false,reason:"active_user_token_mutation_capability"};
+  if(userTokens.some(t=>t.status==="active"&&tokenHasUnreviewedPermissions(t)))
+    return {verified:false,reason:"active_user_token_permission_unreviewed"};
+  return {verified:true,reason:"current_user_inventory_clear"};
+}
+
+export function evaluatePhysicalWriterInventory({
+  workers,tokens,userTokensVerified,userPrincipalCoverageVerified=false
+}){
   const problems=[];
   if(!Array.isArray(workers)||!workers.length)
     problems.push("worker_inventory_unavailable");
@@ -76,7 +121,17 @@ export function evaluatePhysicalWriterInventory({workers,tokens,userTokensVerifi
     problems.push("account_token_permission_metadata_incomplete");
   const privileged=(tokens||[]).filter(t=>t?.status==="active"&&tokenCanMutate(t));
   if(privileged.length)problems.push("active_account_token_can_mutate_primary_or_owner");
+  // Provider permission names are extensible. Treat every active non-Read,
+  // non-allowlisted group as unproven, not as positive read-only evidence.
+  const unreviewed=(tokens||[]).filter(t=>t?.status==="active"&&
+    tokenHasUnreviewedPermissions(t));
+  if(unreviewed.length)problems.push("active_account_token_permission_unreviewed");
   if(userTokensVerified!==true)problems.push("user_token_inventory_unverified");
+  // /user/tokens can attest only its issuing user. An account-wide
+  // exclusivity certificate requires independent coverage of ALL account
+  // members' user-owned tokens; no single credential establishes that.
+  if(userPrincipalCoverageVerified!==true)
+    problems.push("all_user_token_principals_unverified");
   return {
     schema:"cove.production-exclusive-d1-audit.v1",
     certified:problems.length===0,
@@ -88,6 +143,7 @@ export function evaluatePhysicalWriterInventory({workers,tokens,userTokensVerifi
     nonownerBindingNames:outsiders.map(w=>w.name),
     privilegedAccountTokenNames:privileged.map(t=>t.name),
     userTokensVerified:userTokensVerified===true,
+    userPrincipalCoverageVerified:userPrincipalCoverageVerified===true,
     problems,
   };
 }
@@ -102,16 +158,21 @@ function selfTest(){
     workers:[owner,{name:"safe-replica",bindings:[]}],
     tokens:[{name:"read-only",status:"active",policies:[
       {permission_groups:[{name:"D1 Read"}]},
-    ]}],userTokensVerified:true,
+    ]}],userTokensVerified:true,userPrincipalCoverageVerified:true,
   });
   assert.equal(safe.certified,true);
+  const oneUserOnly=evaluatePhysicalWriterInventory({
+    workers:[owner],tokens:[],userTokensVerified:true,
+  });
+  assert.equal(oneUserOnly.certified,false);
+  assert.ok(oneUserOnly.problems.includes("all_user_token_principals_unverified"));
   const unsafe=evaluatePhysicalWriterInventory({
     workers:[{...owner,bindings:owner.bindings.map(b=>b.name==="COVE_RIGHTS_OWNER_ENABLED"?
       {...b,text:"0"}:b)},
       {name:"nonowner",bindings:[{type:"d1",name:"DB",database_id:PRODUCTION_DB}]}],
     tokens:[{name:"broad",status:"active",policies:[
       {permission_groups:[{name:"D1 Write"},{name:"Account API Tokens Write"}]},
-    ]}],userTokensVerified:false,
+    ]}],userTokensVerified:false,userPrincipalCoverageVerified:true,
   });
   assert.equal(unsafe.certified,false);
   assert.deepEqual(new Set(unsafe.problems),new Set([
@@ -122,12 +183,51 @@ function selfTest(){
   assert.deepEqual(unsafe.nonownerBindingNames,["nonowner"]);
   assert.deepEqual(unsafe.privilegedAccountTokenNames,["broad"]);
   assert.equal(JSON.stringify(unsafe).includes(PRODUCTION_DB),false);
+  // A per-Worker Editor token can still control an authorized owner Worker;
+  // never exempt it based on the role name without verifying scope IDs.
+  // User-level API Tokens Write can mint an independently privileged token.
+  for(const unsafeGroup of [
+    "Individual Workers Editor","Individual Workers Admin",
+    "API Tokens Write","Workers Scripts Edit","Workers CI Write"
+  ]){
+    const report=evaluatePhysicalWriterInventory({
+      workers:[owner],tokens:[{name:"new-scope-token",status:"active",
+        policies:[{permission_groups:[{name:unsafeGroup}]}]}],
+      userTokensVerified:true,userPrincipalCoverageVerified:true,
+    });
+    assert.equal(report.certified,false);
+    assert.ok(report.problems.includes("active_account_token_can_mutate_primary_or_owner"));
+  }
+  // Real Cloudflare scoped Worker metadata/content readers use Read-Only
+  // suffixes. Keep these safe, but never permit Editor or unknown mutations.
+  for(const readGroup of ["Workers Metadata Read-Only",
+    "Individual Workers Content Read-Only","D1 Read"]){
+    const report=evaluatePhysicalWriterInventory({
+      workers:[owner],tokens:[{name:"reader",status:"active",
+        policies:[{permission_groups:[{name:readGroup}]}]}],
+      userTokensVerified:true,userPrincipalCoverageVerified:true,
+    });
+    assert.equal(report.certified,true);
+  }
+  for(const unknownName of ["Workers Direct Change","D1 Mutation","API Tokens Manage"]){
+    const report=evaluatePhysicalWriterInventory({
+      workers:[owner],tokens:[{name:"unknown-privilege",status:"active",
+        policies:[{permission_groups:[{name:unknownName}]}]}],
+      userTokensVerified:true,userPrincipalCoverageVerified:true,
+    });
+    assert.equal(report.certified,false);
+    assert.ok(report.problems.includes("active_account_token_permission_unreviewed"));
+  }
   for(const incomplete of [
     [{name:"missing-policies",status:"active"}],
     [{name:"empty-policies",status:"active",policies:[]}],
     [{name:"no-groups",status:"active",policies:[{}]}],
     [{name:"empty-groups",status:"active",policies:[{permission_groups:[]}]}],
     [{name:"unknown-group",status:"active",policies:[{permission_groups:[{}]}]}],
+    [{name:"null-group",status:"active",policies:[{permission_groups:[null]}]}],
+    [{name:"null-policy",status:"active",policies:[null]}],
+    [{name:"wrong-groups-type",status:"active",policies:[{permission_groups:"Read"}]}],
+    [{name:"wrong-policies-type",status:"active",policies:"Read"}],
     [{name:"unknown-status",status:"pending"}],
   ]){
     const report=evaluatePhysicalWriterInventory({
@@ -139,10 +239,14 @@ function selfTest(){
   assert.deepEqual(completeTokenPage({result:[],result_info:{
     page:1,total_pages:1,count:0,total_count:0,
   }}),[]);
+  assert.deepEqual(completeTokenPage({result:[],result_info:{
+    page:1,count:0,total_count:0,
+  }}),[]);
   for(const info of [
     null,{page:1,total_pages:2,count:1,total_count:2},
     {page:2,total_pages:2,count:0,total_count:0},
     {page:1,total_pages:1,count:1,total_count:1},
+    {page:1,count:0,total_count:1},
   ])assert.throws(()=>completeTokenPage({result:[],result_info:info}),
     /Incomplete Cloudflare token inventory page/);
   for(const flag of ["COVE_RIGHTS_OWNER_ENABLED","COVE_RIGHTS_OWNER_PRIMARY_ID"]){
@@ -218,20 +322,19 @@ async function main(){
     await transport.get(root+"/tokens",accountToken));
   // User-scoped API token inventory is an independent credential and source.
   // 403 or missing permissions block certification; never convert to zero.
-  let userTokensVerified=false;
-  try{
-    const userTokens=completeTokenPage(
-      await transport.get("/user/tokens",userToken));
-    userTokensVerified=completeTokenInventory(userTokens)&&
-      userTokens.every(t=>t.status!=="active"||!tokenCanMutate(t));
-  }catch{
-    userTokensVerified=false;
-  }
+  const userEvidence=await inspectUserTokenEvidence(transport.get,userToken);
   const report=evaluatePhysicalWriterInventory({
-    workers,tokens:accountTokens,userTokensVerified,
+    workers,tokens:accountTokens,userTokensVerified:userEvidence.verified,
+    // A separate account-member policy/cross-principal audit has not yet
+    // supplied independent coverage. Do not silently treat current user as all.
+    userPrincipalCoverageVerified:false,
   });
   console.log(JSON.stringify({
     ...report,
+    userTokenEvidenceReason:userEvidence.reason,
+    // A single user credential cannot establish every account member's
+    // independently issued user tokens; retain separate principal scope review.
+    userPrincipalScope:"current-user-only",
     requestStats:transport.stats(),
     inventoryAtomicSnapshot:false,
     tokenScopeEvidenceOnly:true,
