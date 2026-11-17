@@ -1,33 +1,46 @@
 name: publish-cloudflare-worker-artifact
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "src/persistence-backend.worker.ts"
-      - "src/lib/persistence-backend.ts"
-      - "src/features/fore/**"
-      - "src/server.ts"
-      - "scripts/build-persistence-backend.mjs"
-      - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/publish-cloudflare-worker.yml"
   workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        description: "Exact approved main SHA required for protected action."
+        required: true
+        type: string
+      confirm_artifact_publish:
+        description: "Explicitly approve this protected noncustomer operation."
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 concurrency:
   group: publish-cloudflare-worker-artifact
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   publish:
-    if: github.ref == 'refs/heads/main'
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm_artifact_publish == true &&
+      inputs.reviewed_main_sha == github.sha
+    environment: cove-production-release-audit
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
+      - name: Verify exact approved main source before build and privileged activity
+        env:
+          EXPECTED_SHA: ${{ inputs.reviewed_main_sha }}
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test "$DISPATCH_SHA" = "$EXPECTED_SHA"
       - uses: actions/setup-node@v6
         with:
           node-version: 22
