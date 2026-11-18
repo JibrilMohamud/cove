@@ -3,6 +3,25 @@ import {
   projectedRequestFailure,
   strictProjectionPhasePass,
 } from "./performance/capacity-release-gate.mjs";
+import { responseCompletionSummary } from "./performance/response-completion-diagnostics.mjs";
+const drains = responseCompletionSummary([
+  { ok: true, ms: 40, completeMs: 90, bodyDrainMs: 50, wireBytes: 100, decodedBytes: 200 },
+  { ok: true, ms: 40, completeMs: 1200, bodyDrainMs: 1160, wireBytes: 500, decodedBytes: 1000 },
+  { ok: false, ms: 55, completeMs: null, bodyDrainMs: null, wireBytes: null, decodedBytes: null },
+]);
+assert.equal(drains.received, 3);
+assert.equal(drains.completed, 2);
+assert.equal(drains.drained, 2);
+assert.equal(drains.incomplete, 1);
+assert.equal(drains.completionMaxMs, 1200);
+assert.equal(drains.bodyDrainP95Ms, 1160);
+assert.equal(drains.slowBodyOver500Ms, 1);
+assert.equal(drains.wireBytes, 600);
+assert.equal(drains.decodedBytes, 1200);
+// A slow body is diagnostic, not permission to discard the request or
+// rewrite the 800ms header-TTFB and zero-dropped-arrival release gates.
+assert.equal(projectedRequestFailure({ ok: true, ms: 799, completeMs: 1200 }), null);
+assert.equal(projectedRequestFailure({ ok: true, ms: 800, completeMs: 800 }), "request-max-800ms");
 const ok = { ok: true, ms: 799.999, status: 200 };
 assert.equal(projectedRequestFailure(ok), null);
 for (const [row, code] of [
