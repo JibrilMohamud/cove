@@ -232,13 +232,14 @@ export async function proxyPersistenceApi(
     const response = await fetch(target, init);
     if ([502, 503, 504].includes(response.status) && safePublicFallback(request)) {
       if (productionFallbackDenied(env)) {
+        // Only the enumerated 502/503/504 status and the fixed, trusted
+        // classifiers are logged. Raw response headers/bodies stay private.
+        const source = backendFailureSource(response.headers);
+        const phase = backendFailurePhase(response.headers);
+        const stage = backendFailureStage(response.headers);
+        const category = await backendFailureCategory(response);
         console.warn(
-          "Persistent backend unavailable; production catalog fails closed",
-          response.status,
-          backendFailureSource(response.headers),
-          backendFailurePhase(response.headers),
-          backendFailureStage(response.headers),
-          await backendFailureCategory(response),
+          `Persistent backend unavailable; production catalog fails closed status=${response.status} source=${source} phase=${phase} stage=${stage} category=${category}`,
         );
         // Upstream error-body cleanup is best effort. Waiting on a stalled
         // body cancellation after status >=502 can delay the fail-closed 503.
