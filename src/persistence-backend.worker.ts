@@ -366,6 +366,8 @@ async function triggerVercelAudio(env: BackendEnv, path: string) {
     signal: AbortSignal.timeout(290_000),
   });
   if (!response.ok) {
+    // Drop untrusted response bytes without delaying the protected scheduler.
+    void response.body?.cancel().catch(() => {});
     // Upstream errors may contain private customer/provider details. Persist
     // only the bounded HTTP status and the trusted internal operation path.
     if (response.status === 524) {
