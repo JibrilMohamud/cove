@@ -126,27 +126,41 @@ let releaseGlobal;
 const globalBarrier = new Promise((resolve) => {
   releaseGlobal = resolve;
 });
-const markets = [
-  ["FI", "it", 31],
+let globalScans = 0;
+const firstCountryState = { pending: false };
+const firstMarket = await presentationTaxonomyCounts(
+  db,
+  "FI",
+  "it",
+  async () => {
+    globalScans++;
+    globalReached();
+    await globalBarrier;
+    return [{ node_id: "FI", product_count: 31 }];
+  },
+  clock,
+  defer,
+  firstCountryState,
+);
+assert.deepEqual(firstMarket, []);
+assert.equal(firstCountryState.pending, true);
+const [globalOwner] = jobs.splice(0);
+await globalEntered;
+const competitors = [
   ["NO", "sv", 32],
   ["PL", "pl", 33],
 ];
-let globalScans = 0;
-const marketStates = [];
-const marketResults = await Promise.all(
-  markets.map(([country, lang, count], i) => {
+const competitorStates = [];
+const otherMarkets = await Promise.all(
+  competitors.map(([country, lang, count]) => {
     const state = { pending: false };
-    marketStates.push(state);
+    competitorStates.push(state);
     return presentationTaxonomyCounts(
       db,
       country,
       lang,
       async () => {
         globalScans++;
-        if (i === 0) {
-          globalReached();
-          await globalBarrier;
-        }
         return [{ node_id: country, product_count: count }];
       },
       clock,
@@ -155,12 +169,10 @@ const marketResults = await Promise.all(
     );
   }),
 );
-assert.ok(marketResults.every((x) => x.length === 0));
-assert.ok(marketStates.every((x) => x.pending));
-assert.equal(jobs.length, 3);
-const [globalOwner, ...globalContenders] = jobs.splice(0);
-await globalEntered;
-await Promise.all(globalContenders);
+assert.ok(otherMarkets.every((x) => x.length === 0));
+assert.ok(competitorStates.every((x) => x.pending));
+assert.equal(jobs.length, 2);
+await Promise.all(jobs.splice(0));
 assert.equal(globalScans, 1, "Only one in-flight expensive recount across all markets");
 releaseGlobal();
 await globalOwner;
