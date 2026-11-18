@@ -43,33 +43,36 @@ const countColumns = [
 type Row = Record<string, unknown>;
 
 const selectFence =
-  "SELECT owner_version,owner_denial_epoch,catalog_generation,rights_generation,withdrawal_generation,taxonomy_generation,contributor_generation,dirty,pending_withdrawals,pending_writes FROM cove_seo_primary_fence WHERE slot=1";
+  "SELECT owner_version,owner_denial_epoch,catalog_generation,rights_generation,withdrawal_generation,taxonomy_generation,contributor_generation,eligibility_valid_until_ms,dirty,pending_withdrawals,pending_writes FROM cove_seo_primary_fence WHERE slot=1";
 const selectEvidence = `SELECT f.owner_version,f.owner_denial_epoch,f.catalog_generation,f.rights_generation,f.withdrawal_generation,
-  f.taxonomy_generation,f.contributor_generation,f.dirty,f.pending_withdrawals,f.pending_writes,
+  f.taxonomy_generation,f.contributor_generation,f.eligibility_valid_until_ms,f.dirty,f.pending_withdrawals,f.pending_writes,
   s.owner_version AS snapshot_owner_version,s.owner_denial_epoch AS snapshot_owner_denial_epoch,s.catalog_generation AS snapshot_catalog_generation,
   s.rights_generation AS snapshot_rights_generation,
   s.withdrawal_generation AS snapshot_withdrawal_generation,
   s.taxonomy_generation AS snapshot_taxonomy_generation,
   s.contributor_generation AS snapshot_contributor_generation,
+  s.eligibility_valid_until_ms AS snapshot_eligibility_valid_until_ms,
   s.built_at_ms,s.expires_at_ms,s.books_count,s.works_count,s.editions_count,
   s.authors_count,s.categories_count FROM cove_seo_primary_fence f
   LEFT JOIN cove_seo_count_snapshots s ON s.slot=f.slot WHERE f.slot=1`;
 export const SEO_PRIMARY_ATOMIC_PUBLISH_SQL = `
 INSERT INTO cove_seo_count_snapshots(
   slot,owner_version,owner_denial_epoch,catalog_generation,rights_generation,withdrawal_generation,
-  taxonomy_generation,contributor_generation,built_at_ms,expires_at_ms,
+  taxonomy_generation,contributor_generation,eligibility_valid_until_ms,built_at_ms,expires_at_ms,
   books_count,works_count,editions_count,authors_count,categories_count)
 SELECT 1,f.owner_version,f.owner_denial_epoch,f.catalog_generation,f.rights_generation,f.withdrawal_generation,
-  f.taxonomy_generation,f.contributor_generation,?,?,?,?,?,?,?
+  f.taxonomy_generation,f.contributor_generation,f.eligibility_valid_until_ms,?,?,?,?,?,?,?
 FROM cove_seo_primary_fence f
 WHERE f.slot=1 AND f.owner_version=? AND f.owner_denial_epoch=? AND f.dirty=0
   AND f.pending_withdrawals=0 AND f.pending_writes=0
   AND f.catalog_generation=? AND f.rights_generation=? AND f.withdrawal_generation=?
   AND f.taxonomy_generation=? AND f.contributor_generation=?
+  AND f.eligibility_valid_until_ms=? AND f.eligibility_valid_until_ms>=?
 ON CONFLICT(slot) DO UPDATE SET
   owner_version=excluded.owner_version,owner_denial_epoch=excluded.owner_denial_epoch,catalog_generation=excluded.catalog_generation,
   rights_generation=excluded.rights_generation,withdrawal_generation=excluded.withdrawal_generation,
   taxonomy_generation=excluded.taxonomy_generation,contributor_generation=excluded.contributor_generation,
+  eligibility_valid_until_ms=excluded.eligibility_valid_until_ms,
   built_at_ms=excluded.built_at_ms,expires_at_ms=excluded.expires_at_ms,
   books_count=excluded.books_count,works_count=excluded.works_count,
   editions_count=excluded.editions_count,authors_count=excluded.authors_count,
@@ -113,6 +116,7 @@ function fenceFrom(row: Row | null, owner: string) {
     dirty: row.dirty !== 0,
     pendingWithdrawals: row.pending_withdrawals,
     pendingWrites: row.pending_writes,
+    eligibilityValidUntilMs: row.eligibility_valid_until_ms,
   };
 }
 export async function readSeoPrimaryFence(db: SeoPrimaryDb, witness: VerifiedSeoOwner) {
@@ -141,6 +145,7 @@ export async function readSeoCountEvidence(
     ),
     createdAtMs: row.built_at_ms,
     expiresAtMs: row.expires_at_ms,
+    eligibilityValidUntilMs: row.snapshot_eligibility_valid_until_ms,
     counts: Object.fromEntries(SEO_COUNT_KINDS.map((key, i) => [key, row[countColumns[i]]])),
   };
   return { snapshot, fence };
@@ -183,6 +188,8 @@ export async function publishSeoCountCas(
       ...SEO_COUNT_KINDS.map((kind) => counts[kind]),
       owner,
       ...epochs,
+      before.eligibilityValidUntilMs,
+      doc.expiresAtMs,
     )
     .first<{ slot: number }>();
   return result?.slot === 1;
