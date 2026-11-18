@@ -198,7 +198,8 @@ export async function proxyPersistenceApi(
   try {
     target = backendUrl(env, requestUrl);
   } catch (error) {
-    console.error("Invalid persistence backend configuration", error);
+    // Exception text can include deployment configuration; never persist it.
+    console.error("Invalid persistence backend configuration");
     return new Response(JSON.stringify({ error: "Cove persistence is misconfigured." }), {
       status: 503,
       headers: {
@@ -289,20 +290,18 @@ export async function proxyPersistenceApi(
         // the public response remains denied, without logging exception text.
         if (requestUrl.pathname === "/api/fore/storefront/bootstrap")
           console.error(
-            "Persistent backend request failed; production bootstrap fails closed",
-            failureReason,
+            `Persistent backend request failed; production bootstrap fails closed cause=${failureReason}`,
           );
         else
           console.warn(
-            "Persistent backend request failed; production catalog fails closed",
-            failureReason,
+            `Persistent backend request failed; production catalog fails closed cause=${failureReason}`,
           );
         return unavailablePersistenceResponse();
       }
-      console.warn("Persistent backend request failed; using development fallback", failureReason);
+      console.warn(`Persistent backend request failed; using development fallback cause=${failureReason}`);
       return null;
     }
-    console.error("Persistent backend request failed", failureReason);
+    console.error(`Persistent backend request failed cause=${failureReason}`);
     return new Response(JSON.stringify({ error: "Cove persistence is temporarily unavailable." }), {
       status: 503,
       headers: {
