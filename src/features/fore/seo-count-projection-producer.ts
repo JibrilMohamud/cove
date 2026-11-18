@@ -44,7 +44,10 @@ function createSnapshot(fence: Record<string, unknown>, counts: SeoCounts, now: 
     schema: SEO_COUNT_PROJECTION_SCHEMA,
     ...Object.fromEntries(SEO_COUNT_GENERATION_KEYS.map((key) => [key, fence[key]])),
     createdAtMs: now,
-    expiresAtMs: now + SEO_COUNT_MAX_AGE_MS,
+    // Never promise unchanged eligibility past the owner's next legal
+    // expiry/eligibility transition. Missing or invalid horizon rejects.
+    expiresAtMs: Math.min(now + SEO_COUNT_MAX_AGE_MS, Number(fence.eligibilityValidUntilMs)),
+    eligibilityValidUntilMs: fence.eligibilityValidUntilMs,
     counts,
   };
 }
