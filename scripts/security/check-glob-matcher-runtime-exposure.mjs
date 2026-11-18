@@ -23,21 +23,33 @@ function scanSource(source, filename) {
   const findings = [];
   const collect = (specifier, node) => {
     if (isGlobModule(specifier))
-      findings.push({ file: filename, line: file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1, module: specifier });
+      findings.push({
+        file: filename,
+        line: file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1,
+        module: specifier,
+      });
   };
   const visit = (node) => {
-    if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
-      node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier))
+    if (
+      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteral(node.moduleSpecifier)
+    )
       collect(node.moduleSpecifier.text, node);
-    if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference) &&
-      node.moduleReference.expression && ts.isStringLiteral(node.moduleReference.expression))
+    if (
+      ts.isImportEqualsDeclaration(node) &&
+      ts.isExternalModuleReference(node.moduleReference) &&
+      node.moduleReference.expression &&
+      ts.isStringLiteral(node.moduleReference.expression)
+    )
       collect(node.moduleReference.expression.text, node);
-    if (ts.isCallExpression(node) && node.arguments.length >= 1 &&
+    if (
+      ts.isCallExpression(node) &&
+      node.arguments.length >= 1 &&
       ts.isStringLiteral(node.arguments[0]) &&
-      (
-        node.expression.kind === ts.SyntaxKind.ImportKeyword ||
-        (ts.isIdentifier(node.expression) && node.expression.text === "require")
-      ))
+      (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+        (ts.isIdentifier(node.expression) && node.expression.text === "require"))
+    )
       collect(node.arguments[0].text, node);
     ts.forEachChild(node, visit);
   };
@@ -48,7 +60,8 @@ function scanSource(source, filename) {
 function* walk(dir) {
   if (!existsSync(dir)) return;
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name === "node_modules" || entry.name === ".output" || entry.name === "dist") continue;
+    if (entry.name === "node_modules" || entry.name === ".output" || entry.name === "dist")
+      continue;
     const filename = path.join(dir, entry.name);
     if (entry.isDirectory()) yield* walk(filename);
     else if (entry.isFile() && EXTENSIONS.test(entry.name) && !/\.d\.ts$/i.test(entry.name))
@@ -64,12 +77,14 @@ for (const snippet of [
   'const g = await import("tinyglobby");',
   'const g = require("unplugin");',
   'import g = require("picomatch");',
-]) assert.equal(scanSource(snippet, "src/example.ts").length, 1, snippet);
+]) 
+  assert.equal(scanSource(snippet, "src/example.ts").length, 1, snippet);
 for (const snippet of [
   'import x from "picomatch-other";',
   'const x = await import("@/lib/public-seo-document-path");',
   'const s = "require(\\"picomatch\\")";',
-]) assert.equal(scanSource(snippet, "src/example.ts").length, 0, snippet);
+]) 
+  assert.equal(scanSource(snippet, "src/example.ts").length, 0, snippet);
 
 const lock = JSON.parse(readFileSync("package-lock.json", "utf8"));
 const packages = lock.packages || {};
@@ -88,13 +103,21 @@ for (const root of SOURCES) {
     violations.push(...scanSource(readFileSync(filename, "utf8"), filename));
   }
 }
-assert.equal(violations.length, 0, "Glob parser directly imported by customer-serving source: " + JSON.stringify(violations));
+assert.equal(
+  violations.length,
+  0,
+  "Glob parser directly imported by customer-serving source: " + JSON.stringify(violations),
+);
 assert.ok(files > 0, "No customer-serving code was examined");
-console.log(JSON.stringify({
-  result: "source-only direct-import exposure check passed",
-  scannedSourceFiles: files,
-  installedPicomatch: installed,
-  dependencyConsumers: consumers,
-  customerServingDirectGlobImports: violations.length,
-}));
-console.log("NOT CERTIFIED: indirect runtime reachability, untrusted dependency configuration, ReDoS resistance or supply-chain safety.");
+console.log(
+  JSON.stringify({
+    result: "source-only direct-import exposure check passed",
+    scannedSourceFiles: files,
+    installedPicomatch: installed,
+    dependencyConsumers: consumers,
+    customerServingDirectGlobImports: violations.length,
+  }),
+);
+console.log(
+  "NOT CERTIFIED: indirect runtime reachability, untrusted dependency configuration, ReDoS resistance or supply-chain safety.",
+);
