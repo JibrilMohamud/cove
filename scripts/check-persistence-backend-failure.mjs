@@ -79,7 +79,9 @@ assert.equal(
 );
 for (const stage of ["legal", "auth", "identity", "database"]) {
   assert.equal(
-    backendFailureStage(flagged(`cove_auth;dur=3, cove_fault_pre_${stage};dur=1.0, cove_api;dur=34`)),
+    backendFailureStage(
+      flagged(`cove_auth;dur=3, cove_fault_pre_${stage};dur=1.0, cove_api;dur=34`),
+    ),
     `pre-${stage}`,
     "Only the four reviewed pre-context failures may be classified",
   );
@@ -93,17 +95,23 @@ for (const invalid of [
   assert.equal(backendFailureStage(flagged(`${invalid}, cove_api;dur=34`)), "unknown");
 }
 assert.equal(
-  backendFailureStage(flagged("cove_fault_pre_auth;dur=1, cove_fault_pre_identity;dur=1, cove_api;dur=34")),
+  backendFailureStage(
+    flagged("cove_fault_pre_auth;dur=1, cove_fault_pre_identity;dur=1, cove_api;dur=34"),
+  ),
   "multiple",
 );
 assert.equal(
-  backendFailureStage(flagged("cove_fault_pre_identity;dur=1, cove_fault_context;dur=1, cove_api;dur=34")),
+  backendFailureStage(
+    flagged("cove_fault_pre_identity;dur=1, cove_fault_context;dur=1, cove_api;dur=34"),
+  ),
   "multiple",
 );
 assert.equal(
-  backendFailureStage(flagged("cove_fault_pre_identity;dur=1, cove_api;dur=34", {
-    "x-cove-persistence": "untrusted",
-  })),
+  backendFailureStage(
+    flagged("cove_fault_pre_identity;dur=1, cove_api;dur=34", {
+      "x-cove-persistence": "untrusted",
+    }),
+  ),
   "unknown",
 );
 for (const stage of ["preference", "market", "locale", "currency", "details"]) {
