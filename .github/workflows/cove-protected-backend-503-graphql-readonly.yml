@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm_readonly_graphql_only:
-        description: "Explicitly permit only three metadata/GraphQL read requests; zero D1 SQL and zero customer requests."
+        description: "Explicitly permit four metadata/GraphQL read requests; zero D1 SQL and zero customer requests."
         type: boolean
         required: true
         default: false
@@ -49,7 +49,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
-      - name: Prove version fence, no D1 calls and failure-safe analytics
+      - name: Prove version fence, no D1 calls and redacted SQL-hotspot analytics
         run: |
           node --check scripts/release/collect-protected-backend-503-graphql.mjs
           node --test scripts/release/collect-protected-backend-503-graphql.test.mjs
@@ -99,7 +99,7 @@ jobs:
             echo "::error title=Missing Workers Metadata Read credential::Configure existing COVE_CF_WORKERS_METADATA_READ_TOKEN in the protected environment."
             exit 1
           fi
-      - name: Collect three bounded read-only metadata/GraphQL results, no SQL or customer traffic
+      - name: Collect four bounded read-only metadata/GraphQL results, no SQL or customer traffic
         env:
           CF_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
           CF_ANALYTICS_READ_TOKEN: ${{ secrets.COVE_CF_ANALYTICS_READ_TOKEN }}
@@ -118,5 +118,5 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-# NO push triggers, Wrangler deployment, D1 SQL, customer route probing,
+# No raw SQL/error capture, push triggers, Wrangler deployment, D1 SQL, customer route probing,
 # token inventory mutation, legal owner operations or commerce transactions.
