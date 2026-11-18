@@ -127,9 +127,61 @@ export function summarizeD1Groups(rows, window) {
     .sort((a, b) => a.minute.localeCompare(b.minute) || a.region.localeCompare(b.region));
 }
 
-export function makeEvidence({ window, deployment, workerRows, d1Rows }) {
+/**
+ * D1 Insights can return captured SQL text, including literals in source SQL.
+ * Inspect it in memory for an exact reviewed QUERY SHAPE only. No SQL string,
+ * error body, source token or query hash may enter the written artifact.
+ * Query-level adaptive sums may differ from per-database minute totals.
+ */
+export function summarizeD1QueryGroups(rows, window) {
+  if (!Array.isArray(rows) || rows.length === 0 || rows.length >= MAX_GROUPS)
+    throw new Error("D1 query insights missing or truncated; no root-cause verdict.");
+  const groups = rows.map((group) => {
+    const d = group?.dimensions || {};
+    safeMinute(d.datetimeMinute, window.from, window.to);
+    if (typeof d.query !== "string" || d.query.length > 32_768)
+      throw new Error("Missing or unbounded D1 query classification input.");
+    if (d.databaseRole !== "primary" && d.databaseRole !== "replica")
+      throw new Error("Unexpected D1 serving role.");
+    if (typeof d.servedByRegion !== "string" || !/^[A-Z0-9-]{2,16}$/.test(d.servedByRegion))
+      throw new Error("Unexpected D1 query region.");
+    const statement = d.query;
+    const commonTaxonomy =
+      statement.includes("WITH eligible AS MATERIALIZED") &&
+      statement.includes("FROM eligible p JOIN edition_taxonomy_nodes et") &&
+      statement.includes("COUNT(*) product_count") &&
+      statement.includes("GROUP BY et.taxonomy_node_id");
+    const queryClass = commonTaxonomy && statement.includes("FROM retail_product_availability rpa")
+      ? "taxonomy-count-distinct-view"
+      : commonTaxonomy && statement.includes("FROM retail_product_availability_rows rpa")
+        ? "taxonomy-count-legal-rows"
+        : "unclassified";
+    const executions = finiteNonnegative(group.count, "query executions");
+    const rowsRead = finiteNonnegative(group.sum?.rowsRead, "query rowsRead");
+    const rowsWritten = finiteNonnegative(group.sum?.rowsWritten, "query rowsWritten");
+    const rowsReturned = finiteNonnegative(group.sum?.rowsReturned, "query rowsReturned");
+    const queryDurationMs = finiteNonnegative(group.sum?.queryDurationMs, "query duration");
+    return {
+      minute: d.datetimeMinute,
+      queryClass,
+      databaseRole: d.databaseRole,
+      servedByRegion: d.servedByRegion,
+      hadSqlError: Boolean(d.error),
+      executions,
+      estimatedRowsRead: rowsRead,
+      estimatedRowsReturned: rowsReturned,
+      estimatedRowsWritten: rowsWritten,
+      estimatedSqlDurationMs: queryDurationMs,
+    };
+  });
+  groups.sort((a, b) => b.estimatedRowsRead - a.estimatedRowsRead);
+  return { groupsObserved: rows.length, hotspots: groups.slice(0, 10) };
+}
+
+export function makeEvidence({ window, deployment, workerRows, d1Rows, d1QueryRows }) {
   const worker = summarizeWorkerGroups(workerRows, deployment.version, window);
   const d1 = summarizeD1Groups(d1Rows, window);
+  const queryHotspots = summarizeD1QueryGroups(d1QueryRows, window);
   return {
     schema: "cove.incident-773.graphql-readonly.v1",
     releaseCertified: false,
@@ -143,18 +195,21 @@ export function makeEvidence({ window, deployment, workerRows, d1Rows }) {
     },
     worker,
     d1,
+    queryHotspots,
     limitations: [
       "Worker and D1 metrics are separate aggregates, not per-request correlations.",
       "A successful Worker invocation can return HTTP 503.",
       "D1 metrics omit requests rejected before SQL execution.",
       "D1 SQL time excludes queueing, dispatch, transport and client TTFB.",
+      "Query-level insights use adaptive sampling; query totals need not equal D1 minute aggregates.",
+      "The recorded query class is not raw SQL and is not an individual 503 attribution.",
       "No customer 503 root cause or release acceptance is established by this report.",
     ],
   };
 }
 
-// Only these three destinations are permitted: one GET deployment metadata,
-// and two POST GraphQL read-only analytics queries. No Worker ingress or D1 SQL.
+// Only these four requests are permitted: one GET deployment metadata,
+// and three POST GraphQL read-only analytics queries. No Worker ingress or D1 SQL.
 async function fetchReadOnlyJson(path, token, graphqlQuery) {
   const url = API + path;
   const response = await fetch(url, {
@@ -202,6 +257,20 @@ function graphqlD1(window) {
   );
 }
 
+function graphqlD1Queries(window) {
+  return (
+    "query { viewer { accounts(filter:{accountTag:\"" +
+    ACCOUNT +
+    "\"}) { d1QueriesAdaptiveGroups(limit:500,filter:{datetime_geq:\"" +
+    window.from +
+    "\",datetime_lt:\"" +
+    window.to +
+    "\",databaseId:\"" +
+    D1 +
+    "\"}) { dimensions{datetimeMinute query error databaseRole servedByRegion} count sum{rowsRead rowsReturned rowsWritten queryDurationMs} } } } }"
+  );
+}
+
 async function collect() {
   if (process.env.COVE_GRAPHQL_READONLY_CONFIRM !== "1")
     throw new Error("Explicit protected read-only confirmation is required.");
@@ -220,9 +289,11 @@ async function collect() {
   const deployment = verifyPinnedDeployment(metadata, expected);
   const workerResult = await fetchReadOnlyJson("/graphql", analyticsToken, graphqlWorker(window));
   const d1Result = await fetchReadOnlyJson("/graphql", analyticsToken, graphqlD1(window));
+  const d1QueryResult = await fetchReadOnlyJson("/graphql", analyticsToken, graphqlD1Queries(window));
   const workerRows = workerResult.data?.viewer?.accounts?.[0]?.workersInvocationsAdaptive;
   const d1Rows = d1Result.data?.viewer?.accounts?.[0]?.d1AnalyticsAdaptiveGroups;
-  const evidence = makeEvidence({ window, deployment, workerRows, d1Rows });
+  const d1QueryRows = d1QueryResult.data?.viewer?.accounts?.[0]?.d1QueriesAdaptiveGroups;
+  const evidence = makeEvidence({ window, deployment, workerRows, d1Rows, d1QueryRows });
   const file = resolve("artifacts/incident-773/backend-graphql-evidence.json");
   await mkdir(resolve("artifacts/incident-773"), { recursive: true });
   await writeFile(file, JSON.stringify(evidence, null, 2) + "\n", { mode: 0o600 });
@@ -236,6 +307,7 @@ async function collect() {
       backendFetchRequests: evidence.worker.fetchRequests,
       backendInvocationErrors: evidence.worker.invocationErrors,
       d1RegionMinutes: evidence.d1.length,
+      d1QueryGroups: evidence.queryHotspots.groupsObserved,
       releaseCertified: false,
     }),
   );
