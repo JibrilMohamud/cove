@@ -1,0 +1,31 @@
+name: cove-glob-matcher-exposure-offline
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - package-lock.json
+      - package.json
+      - "src/**"
+      - "app/**"
+      - "server/**"
+      - scripts/security/check-glob-matcher-runtime-exposure.mjs
+      - .github/workflows/cove-glob-matcher-exposure-offline.yml
+permissions:
+  contents: read
+jobs:
+  direct-runtime-glob-isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Reject direct customer-serving glob-parser imports
+        run: node scripts/security/check-glob-matcher-runtime-exposure.mjs
+      - name: Source formatting
+        run: npx eslint scripts/security/check-glob-matcher-runtime-exposure.mjs
