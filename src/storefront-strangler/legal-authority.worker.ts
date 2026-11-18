@@ -31,6 +31,7 @@ import {ownerContractVersionSchema} from "./owner-contract-version-schema";
 import {ApiError} from "../features/fore/service";
 import {createContractVersionOwnerSchema,executeOwnerContractVersion} from "./owner-contract-version-executor";
 import {createMarketAuthoritySchema,denyMarket,marketIsWithdrawn} from "./market-authority-core";
+import {withSeoQaSourceDenialEpoch} from "./seo-owner-source-denial-qa";
 import { authorizeStorefrontPresentationIds,catalogIds, type CatalogDB, type FirstPaintD1QueryMetrics } from "../features/fore/catalog-model.server";
 import { resolveProductRights,detectRightsConflicts } from "../features/fore/rights.server";
 import {readOwnerNativeFirstPaintQa} from "./owner-native-first-paint-qa";
@@ -70,6 +71,8 @@ type LegalAuthorityEnv = {
   COVE_RIGHTS_OWNER_ENABLED?: string;
   COVE_RIGHTS_OWNER_PRIMARY_ID?: string;
   COVE_RIGHTS_OWNER_TEST_EXPIRES_AT?: string;
+  // QA shadow only: NOT accepted on the disabled production primary.
+  COVE_SEO_OWNER_DENIAL_EPOCH_QA?: string;
   STRIPE_SECRET_KEY?:string;
   STRIPE_LIVEMODE?:string;
   STRIPE_TAX_ENABLED?:string;
@@ -3956,6 +3959,14 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       return new Response(null,{status:401,headers:noStore});
     if(request.method!=="POST") return new Response(null,{status:405,headers:noStore});
     const route=new URL(request.url).pathname;
+    // The SEO epoch experiment has only source-withdrawal coverage so far.
+    // An operator may opt in on a fresh short-lived QA owner, but NO other
+    // legal, market, commercial, entitlement or publication transition may
+    // happen while this incomplete epoch is being tested. Production's
+    // disabled owner is rejected by qaOwnerLeaseLive above.
+    if(env.COVE_SEO_OWNER_DENIAL_EPOCH_QA==="1" &&
+       route!=="/deny-next" && route!=="/verify")
+      return new Response(null,{status:503,headers:noStore});
     if(!["/deny","/deny-next","/deny-next-batch","/verify","/publish-allow","/authorize-batch",
       "/commercial/deny-next","/commercial/deny-batch","/commercial/subject/deny-next","/commercial/publish-verified",
       "/commercial/authorize-batch",
@@ -5616,6 +5627,14 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         return Response.json(verdict,{status:verdict.applied?200:409,headers:noStore});
       }
       if(route==="/deny-next") {
+        if(env.COVE_SEO_OWNER_DENIAL_EPOCH_QA==="1") {
+          const storage=this.ctx.storage as typeof this.ctx.storage&{
+            transactionSync<T>(fn:()=>T):T;
+          };
+          const verdict=withSeoQaSourceDenialEpoch(sql,
+            fn=>storage.transactionSync(fn),raw);
+          return Response.json(verdict,{status:verdict.applied?200:409,headers:noStore});
+        }
         const verdict=persistSourceWithdrawal(sql,raw);
         return Response.json(verdict,{status:verdict.applied?200:409,headers:noStore});
       }
