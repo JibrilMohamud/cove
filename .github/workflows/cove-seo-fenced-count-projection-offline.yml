@@ -11,6 +11,9 @@ on:
       - "src/storefront-strangler/seo-primary-d1-counts.server.ts"
       - "src/storefront-strangler/seo-owner-denial-epoch.ts"
       - "src/storefront-strangler/seo-owner-denial-read.server.ts"
+      - "src/storefront-strangler/seo-owner-source-denial-qa.ts"
+      - "src/storefront-strangler/legal-authority.worker.ts"
+      - "scripts/check-seo-owner-source-qa.mjs"
       - "scripts/check-seo-owner-denial-epoch.mjs"
       - "scripts/staging/seo-primary-count-fence.prototype.sql"
       - "scripts/check-seo-primary-d1-count-cas.mjs"
@@ -40,6 +43,8 @@ jobs:
         run: node scripts/check-seo-primary-d1-count-cas.mjs
       - name: Prove DO deny-first epoch stays ahead of D1 and fails closed
         run: node scripts/check-seo-owner-denial-epoch.mjs
+      - name: Prove real source-denial QA bridge and uninstrumented route lockdown
+        run: node scripts/check-seo-owner-source-qa.mjs
       - name: Retain legacy sitemap gateway route and CDN behavior until protected promotion
         run: node scripts/check-public-seo-gateway.mjs
       - name: Static typecheck for opt-in SEO interface
