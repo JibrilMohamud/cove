@@ -233,6 +233,63 @@ try {
     handlerCalls++;
     return api.handleCoveApi(req, env);
   };
+  // A 200 once returned by a rights-sensitive route cannot be replayed
+  // after withdrawal: only /catalog and /storefront/bootstrap currently
+  // implement a fresh per-HIT canonical eligibility recheck.
+  const unverifiedRightsCacheRoutes = [
+    "/search/suggest?search=private",
+    "/audiobooks",
+    "/audio/pg-123",
+    "/audio/pg-123/tracks/1",
+    "/books/123",
+    "/books/123/detail",
+    "/books/123/epub",
+  ];
+  for (const route of unverifiedRightsCacheRoutes) {
+    const logicalRequest = request(route);
+    assert.equal(
+      cache.publicCacheTtl(new URL(logicalRequest.url).pathname),
+      0,
+      route + ": no shared cache until current-owner legal validation exists",
+    );
+    assert.equal(cache.publicCacheEligible(logicalRequest), false);
+    let rightsCurrent = true;
+    let liveCalls = 0;
+    const rightsHandler = async () => {
+      liveCalls++;
+      return rightsCurrent
+        ? Response.json({ book: "approved" })
+        : Response.json({ error: "Withdrawn under current legal authority" }, { status: 503 });
+    };
+    const backendRequest = new Request(
+      "https://backend.example.workers.dev" + new URL(logicalRequest.url).pathname,
+    );
+    const initial = await cache.cachedPublicApi(
+      logicalRequest,
+      backendRequest,
+      env,
+      ctx,
+      rightsHandler,
+    );
+    assert.equal(initial.status, 200);
+    assert.equal(initial.headers.get("x-cove-backend-cache"), "BYPASS");
+    assert.equal(initial.headers.get("cache-control"), "no-store");
+    assert.deepEqual(await initial.json(), { book: "approved" });
+    rightsCurrent = false;
+    const withdrawn = await cache.cachedPublicApi(
+      logicalRequest,
+      backendRequest,
+      env,
+      ctx,
+      rightsHandler,
+    );
+    assert.equal(withdrawn.status, 503, route + ": must reach the new legal decision");
+    assert.equal(withdrawn.headers.get("x-cove-backend-cache"), "BYPASS");
+    assert.equal(withdrawn.headers.get("cache-control"), "no-store");
+    assert.equal(liveCalls, 2, route + ": never replay the old cached allowance");
+  }
+  assert.equal(cache.publicCacheTtl("/api/fore/catalog"), 300);
+  assert.equal(cache.publicCacheTtl("/api/fore/storefront/bootstrap"), 300);
   const cacheRequest = new Request(
     "https://backend.example.workers.dev/api/fore/catalog?search=adventure",
   );
