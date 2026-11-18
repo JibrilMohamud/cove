@@ -1,0 +1,48 @@
+name: picomatch-407-backport-feasibility
+on:
+  push:
+    branches:
+      - security/picomatch-407-backport-spike-20261117
+    paths:
+      - "scripts/security/check-picomatch-407-backport-spike.mjs"
+      - "scripts/security/picomatch-407-collapse-candidate.mjs"
+      - ".github/workflows/picomatch-407-backport-feasibility.yml"
+  pull_request:
+    paths:
+      - "scripts/security/check-picomatch-407-backport-spike.mjs"
+      - "scripts/security/picomatch-407-collapse-candidate.mjs"
+      - ".github/workflows/picomatch-407-backport-feasibility.yml"
+permissions:
+  contents: read
+jobs:
+  ephemeral-source-patch:
+    if: github.repository == 'JibrilMohamud/cove'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install immutable locked dependencies without build scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Read exact published upstream tests without checkout credentials
+        uses: actions/checkout@v6
+        with:
+          repository: micromatch/picomatch
+          ref: 6bb40679c218cefba5d4e9662408c5fdf699a8bb
+          path: upstream-picomatch-407
+          persist-credentials: false
+      - name: Install isolated upstream test tools without package scripts
+        run: npm install --prefix upstream-picomatch-407 --ignore-scripts --no-audit --no-fund
+      - name: Compare bounded adversarial cases and full published upstream suite
+        env:
+          COVE_PICOMATCH_UPSTREAM_TEST_ROOT: ${{ github.workspace }}/upstream-picomatch-407
+        run: node scripts/security/check-picomatch-407-backport-spike.mjs
+      - name: Confirm experiment leaves manifest and lockfile unchanged
+        run: |
+          git diff --exit-code -- package.json package-lock.json
+          git status --short
