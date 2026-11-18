@@ -16,6 +16,10 @@ assert.match(cacheUtility, /ON CONFLICT\(key\) DO UPDATE/);
 assert.match(cacheUtility, /const leaseFence = guard/);
 assert.match(source, /DELETE FROM api_cache WHERE key=\? AND body=\?/);
 assert.match(source, /MAX_STALE_MS = 3_600_000/);
+assert.match(source, /const GLOBAL_REFRESH_KEY = REFRESH_PREFIX \+ "global"/);
+assert.match(source, /const refreshKey = GLOBAL_REFRESH_KEY/);
+assert.doesNotMatch(source, /const refreshKey = REFRESH_PREFIX \+ hash/);
+assert.doesNotMatch(source, /error\.message/);
 assert.match(caller, /countsPending: countState.pending/);
 assert.match(api, /execution\?\.waitUntil \? \(work\) => execution.waitUntil\?\.\(work\)/);
 assert.match(publicCache, /path === "\/api\/fore\/taxonomy" && data.countsPending === true/);
@@ -110,6 +114,93 @@ const live = await presentationTaxonomyCounts(db, "US", "en", expensive, clock, 
 assert.equal(live[0]?.product_count, 25);
 assert.equal(state.pending, false);
 assert.equal(expensiveCalls, 1, "Fresh counts never trigger a second expensive query");
+
+// Different language/country display counts must not each launch a large
+// independent primary-D1 scan during one burst. The shared lease is ONLY a
+// concurrency budget, not a country-independent cached eligibility decision.
+let globalReached;
+const globalEntered = new Promise((resolve) => {
+  globalReached = resolve;
+});
+let releaseGlobal;
+const globalBarrier = new Promise((resolve) => {
+  releaseGlobal = resolve;
+});
+const markets = [
+  ["FI", "it", 31],
+  ["NO", "sv", 32],
+  ["PL", "pl", 33],
+];
+let globalScans = 0;
+const marketStates = [];
+const marketResults = await Promise.all(
+  markets.map(([country, lang, count], i) => {
+    const state = { pending: false };
+    marketStates.push(state);
+    return presentationTaxonomyCounts(
+      db,
+      country,
+      lang,
+      async () => {
+        globalScans++;
+        if (i === 0) {
+          globalReached();
+          await globalBarrier;
+        }
+        return [{ node_id: country, product_count: count }];
+      },
+      clock,
+      defer,
+      state,
+    );
+  }),
+);
+assert.ok(marketResults.every((x) => x.length === 0));
+assert.ok(marketStates.every((x) => x.pending));
+assert.equal(jobs.length, 3);
+const [globalOwner, ...globalContenders] = jobs.splice(0);
+await globalEntered;
+await Promise.all(globalContenders);
+assert.equal(globalScans, 1, "Only one in-flight expensive recount across all markets");
+releaseGlobal();
+await globalOwner;
+assert.equal(
+  (await presentationTaxonomyCounts(db, "FI", "it", async () => [], clock, defer))[0]?.product_count,
+  31,
+  "The first market publishes only its own independent display result",
+);
+let otherScans = 0;
+const otherPending = await presentationTaxonomyCounts(
+  db,
+  "NO",
+  "sv",
+  async () => {
+    otherScans++;
+    return [{ node_id: "NO", product_count: 32 }];
+  },
+  clock,
+  defer,
+);
+assert.deepEqual(otherPending, []);
+await Promise.all(jobs.splice(0));
+assert.equal(otherScans, 1, "The skipped market must eventually refresh on its own request");
+const otherReady = await presentationTaxonomyCounts(
+  db,
+  "NO",
+  "sv",
+  async () => {
+    throw Error("Unnecessary second market recount");
+  },
+  clock,
+  defer,
+);
+assert.deepEqual(otherReady, [{ node_id: "NO", product_count: 32 }]);
+assert.deepEqual(
+  await presentationTaxonomyCounts(db, "PL", "pl", async () => [], clock, defer),
+  [],
+  "An unrefreshed market must not inherit another market's result",
+);
+await Promise.all(jobs.splice(0));
 
 // Refresh proactively near expiration. Respond with current display labels;
 // the new aggregation is performed in request-owned waitUntil, never shared
