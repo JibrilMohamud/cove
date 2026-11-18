@@ -48,21 +48,26 @@ export type SeoDenialEpochReceipt = {
  * The mutateDenial callback MUST be a vetted canonical owner denial. No
  * network await is allowed while the owner's SQLite transaction is open.
  * Duplicate acknowledged operations do not advance the epoch twice.
- * Replaying an operation after a superseding allow is NOT acknowledged.
+ * A replay MUST be checked against the CURRENT canonical legal-denial state
+ * before any mutator runs. The verifier must bind this operation ID to the
+ * same scope, revision and still-active denial, not merely any active denial.
+ * Replaying after a superseding allow MUST fail without reapplying a denial.
  */
 export function withSeoOwnerDenialEpoch(
   sql: Sql,
   operationId: string,
   transactionSync: <T>(fn: () => T) => T,
   mutateDenial: () => { applied: boolean },
+  isOperationDenialCurrent: () => boolean,
 ): SeoDenialEpochReceipt {
+  if (typeof isOperationDenialCurrent !== "function")
+    throw Error("seo_owner_denial_verifier_required");
   if (typeof operationId !== "string" ||
       !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(operationId))
     throw Error("seo_owner_denial_operation_invalid");
   return transactionSync(() => {
-    const result = mutateDenial();
-    if (!result || result.applied !== true)
-      throw Error("seo_owner_denial_not_durable");
+    // Inspect the idempotency key BEFORE running any canonical deny mutation.
+    // Otherwise a replay after a superseding allow could silently re-deny.
     const prior = sql.exec<OwnerEpoch>(
       "SELECT epoch FROM cove_seo_owner_denial_events WHERE operation_id=?",
       operationId
@@ -70,8 +75,14 @@ export function withSeoOwnerDenialEpoch(
     if (prior) {
       if (!Number.isSafeInteger(prior.epoch) || prior.epoch < 1)
         throw Error("seo_owner_denial_event_corrupt");
+      if (isOperationDenialCurrent() !== true)
+        throw Error("seo_owner_denial_replay_not_current");
       return { applied: true, replayed: true, epoch: prior.epoch };
     }
+    const result = mutateDenial();
+    if (!result || result.applied !== true ||
+        isOperationDenialCurrent() !== true)
+      throw Error("seo_owner_denial_not_durable");
     const value = readSeoOwnerDenialEpoch(sql);
     if (value >= Number.MAX_SAFE_INTEGER - 1)
       throw Error("seo_owner_denial_epoch_exhausted");
