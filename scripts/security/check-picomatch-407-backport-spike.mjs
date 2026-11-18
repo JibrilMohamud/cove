@@ -1,138 +1,116 @@
-/**
- * Offline, non-production security experiment. Proves whether a MINIMAL
- * backport of upstream picomatch PR #194 can be applied to the exact locked
- * picomatch@4.0.7 without reverting later security fixes.
- *
- * This script NEVER changes node_modules, package-lock.json, npm audit,
- * build outputs, or a runtime Worker. The patched package exists only in
- * an automatically deleted temp directory. It does NOT certify a shipped
- * mitigation, and npm audit must remain strict until a reviewed fix lands.
- */
+/** Non-shipping experiment. Installed source, lockfile and audit stay intact. */
 import assert from "node:assert/strict";
-import {spawnSync} from "node:child_process";
-import {cpSync,readFileSync,writeFileSync,mkdtempSync,rmSync} from "node:fs";
-import {join,resolve} from "node:path";
-import {tmpdir} from "node:os";
+import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
+import { cpSync, readFileSync, writeFileSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { collapseCandidate, PUBLISHED_COMMIT } from "./picomatch-407-collapse-candidate.mjs";
 
-const original=resolve("node_modules/picomatch");
-const installed=JSON.parse(readFileSync(join(original,"package.json"),"utf8"));
-assert.equal(installed.name,"picomatch");
-assert.equal(installed.version,"4.0.7","Only test the exact locked, vendor-released 4.0.7");
-
-const work=mkdtempSync(join(tmpdir(),"cove-picomatch-cve-2026-112366-"));
-try{
-  const patched=join(work,"picomatch");
-  cpSync(original,patched,{recursive:true});
-  const parsePath=join(patched,"lib","parse.js");
-  let parser=readFileSync(parsePath,"utf8");
-  assert.ok(!parser.includes("const hasMixedWildcards ="),
-    "Candidate is already patched; update review constraints");
-  const anchor="const hasRepeatedCharPrefixOverlap = branches => {";
-  const hook=`/**
- * Strict top-level mixed wildcard recognition, adapted from upstream
- * micromatch/picomatch PR #194. Bracket/escaped/nested tokens are ignored.
- */
-const hasMixedWildcards = branch => {
-  let escaped = false;
-  let bracket = 0;
-  let paren = 0;
-  let star = false;
-  let qmark = false;
-
-  for (let i = 0; i < branch.length; i++) {
-    const ch = branch[i];
-    if (escaped) {
-      escaped = false;
-      continue;
-    }
-    if (ch === '\\\\') {
-      escaped = true;
-      continue;
-    }
-    if (ch === '[') {
-      bracket++;
-      continue;
-    }
-    if (ch === ']' && bracket > 0) {
-      bracket--;
-      continue;
-    }
-    if (ch === '(') {
-      paren++;
-      continue;
-    }
-    if (ch === ')' && paren > 0) {
-      paren--;
-      continue;
-    }
-    if (bracket > 0 || paren > 0) continue;
-    if (ch === '*' || ch === '?') {
-      if (branch[i + 1] === '(') continue;
-      if (ch === '*') star = true;
-      else qmark = true;
-    }
-  }
-  return star && qmark;
-};
-
-`;
-  assert.equal(parser.split(anchor).length,2,"Source moved; update reviewed patch");
-  parser=parser.replace(anchor,hook+anchor);
-  const block="  const branches = splitTopLevel(body).map(branch => branch.trim());";
-  const patch=`  const branches = splitTopLevel(body).map(branch => branch.trim());
-  // GHSA-fc5q-39xc-vjpf names single-branch +(*) and +(*a).
-  // The original multiple-branch check never sees those; prevent nested
-  // unbounded star repetition with conservative literalization.
-  if (branches.length === 1 && /^\\*(?!\\()[^()]*$/.test(branches[0])) {
-    return { risky: true };
-  }
-  if (branches.some(hasMixedWildcards)) {
-    return { risky: true };
-  }`;
-  // Only patch the analyzeRepeatedExtglob call, not earlier helper functions
-  // with their own distinct splitTopLevel loops.
-  const fn=parser.indexOf("const analyzeRepeatedExtglob = (body, options) => {");
-  const at=parser.indexOf(block,fn);
-  assert.ok(fn>0&&at>fn&&at<fn+900,"Missing exact 4.0.7 risky-extglob analysis");
-  parser=parser.slice(0,at)+parser.slice(at).replace(block,patch);
-  writeFileSync(parsePath,parser);
-
-  const script=`
-    const assert=require('node:assert/strict');
-    const pm=require(process.argv[1]);
-    for(const pattern of ['+(*)','+(*a)','*(*)','*(*a)','+(?*a)','*(?*a)','+(*?a)','+(?*[ab])','+(?*a|b)']){
-      const regex=pm.makeRe(pattern);
-      assert(!regex.test('a'.repeat(48)+'!'),pattern+' returned true');
-      if (['+(*)','+(*a)','*(*)','*(*a)'].includes(pattern)) {
-        assert(regex.test(pattern),pattern+' was not conservatively literalized');
-      }
-      // PR #194 also changes glob parsing semantics. Existing 4.0.7
-      // may represent repeated extglobs as safely partially literalized.
-      // The authoritative safety test is a bounded pathological match.
-      process.stdout.write('COVE_CANDIDATE_REGEX '+pattern+' '+regex.source+'\\n');
-      assert(regex.source.length<1000,'Invalid oversized regex source');
-    }
-    for(const [candidate,pattern,expected] of [
-      ['src/index.ts','src/**/*.ts',true],
-      ['src/index.jsx','src/**/*.ts',false],
-      ['readme.md','*.md',true],
-      ['abcabc','+(abc)',true],
-      ['foobar','*(foo|bar)',true],
-      ['a/b/c.js','**/*.js',true],
-      ['a/b/c.js','**/*.ts',false],
-    ])assert.equal(pm.isMatch(candidate,pattern),expected,pattern);
-    process.stdout.write('COVE_PICOMATCH_BACKPORT_SPIKE_PASS\\n');
-  `;
-  const child=spawnSync(process.execPath,["-e",script,patched],{
-    encoding:"utf8",timeout:3500,maxBuffer:8192
+const original = resolve("node_modules/picomatch");
+const installed = JSON.parse(readFileSync(join(original, "package.json"), "utf8"));
+assert.equal(installed.name, "picomatch");
+assert.equal(installed.version, "4.0.7");
+const originalParser = readFileSync(join(original, "lib/parse.js"), "utf8");
+const packageBefore = readFileSync("package.json", "utf8");
+const lockBefore = readFileSync("package-lock.json", "utf8");
+const work = mkdtempSync(join(tmpdir(), "cove-picomatch-407-collapse-"));
+function child(script, args, timeout = 10_000) {
+  return spawnSync(process.execPath, ["-e", script, ...args], {
+    encoding: "utf8",
+    timeout,
+    killSignal: "SIGKILL",
+    maxBuffer: 32_768,
   });
-  assert.equal(child.status,0,
-    "Patched transient package failed strict ReDoS/compatibility test: "+
-    (child.error?.code||child.stderr?.slice(0,450)||child.signal));
-  assert.match(child.stdout,/COVE_PICOMATCH_BACKPORT_SPIKE_PASS/);
-  assert.equal(readFileSync(join(original,"lib","parse.js"),"utf8").includes("const hasMixedWildcards ="),false,
-    "Testing MUST NOT mutate npm-installed source");
-  console.log("PASS offline 4.0.7 ReDoS patch feasibility; NOT installed, shipped or audit-certified");
-} finally {
-  rmSync(work,{recursive:true,force:true});
 }
+try {
+  const patched = join(work, "picomatch");
+  cpSync(original, patched, { recursive: true });
+  writeFileSync(join(patched, "lib/parse.js"), collapseCandidate(originalParser));
+  // Actual CPU stall on the original failed match; kill only the subprocess.
+  const attack = `const pm=require(process.argv[1]);
+    const result=pm.isMatch('a'.repeat(64)+'!', '+(*a)');
+    process.stdout.write(JSON.stringify(result));`;
+  const vulnerable = child(attack, [original], 1_500);
+  assert.equal(vulnerable.error?.code, "ETIMEDOUT", "original must reproduce actual CPU stall");
+  assert.equal(vulnerable.signal, "SIGKILL");
+  const bounded = child(attack, [patched], 1_500);
+  assert.equal(bounded.status, 0, "candidate timed out or crashed: " + bounded.stderr);
+  assert.equal(bounded.stdout, "false");
+  const compare = `
+    const assert=require('node:assert/strict');
+    const original=require(process.argv[1]);
+    const candidate=require(process.argv[2]);
+    const patterns=['+(*)','+(*a)','*(*a)','+(a*)','+(a*b)','+(a?*b)',
+      '*(*.js)','+(*)c','+(*a)b','pre+(a*b)post','*(a*b)','+(*a*b)'];
+    const options=[{}, {dot:true}, {windows:true}, {bash:true},
+      {nocase:true}, {dot:true,windows:true,bash:true}];
+    const alphabet=['a','b','.','/','\\\\','!',' '];
+    const inputs=['','abc','abcabc','a.a','foo.js','foo.ts','preaxbpost'];
+    let layer=[''];
+    for(let length=1;length<=4;length++){
+      layer=layer.flatMap(prefix=>alphabet.map(char=>prefix+char));
+      inputs.push(...layer);
+    }
+    let compared=0;
+    for(const pattern of patterns)for(const opts of options){
+      const before=original(pattern,opts),after=candidate(pattern,opts);
+      for(const input of inputs){
+        assert.equal(after(input),before(input),JSON.stringify({pattern,opts,input}));
+        compared++;
+      }
+    }
+    assert.equal(candidate.isMatch('abc','+(*)c'),true);
+    assert.equal(candidate.isMatch('aaa','+(*a)'),true);
+    assert.equal(candidate.isMatch('a'.repeat(64)+'!','+(*)'),true);
+    for(const pattern of ['+("*a")','+(\\\\*a)','+([ab]*a)',
+      '+(**a)','+(a/*b)','+(*(ab)c)','+(a|*a)'])
+      assert.equal(candidate.makeRe(pattern).source,original.makeRe(pattern).source,
+        'excluded syntax changed: '+pattern);
+    for(const captureOption of [true,1,'yes']){
+      const capture=candidate.makeRe('+(*a)',{capture:captureOption});
+      assert.equal(capture.test('aaa'),false);
+      assert.equal(capture.test('+(*a)'),true);
+    }
+    assert.equal(candidate.makeRe('+(*a)',{maxExtglobRecursion:false}).source,
+      original.makeRe('+(*a)',{maxExtglobRecursion:false}).source);
+    for(const pattern of ['+(*a)','*(*a)','+(*)b','+(a*)b','+(*a*b)c']){
+      const regex=candidate.makeRe(pattern);
+      assert.equal(/\\)[+*]/.test(regex.source),false,pattern+' retains outer repetition');
+      regex.test('a'.repeat(20_000)+'!');
+    }
+    console.log('PASS '+compared+' differential matches; actual baseline stall / bounded candidate; excluded grammar and capture fallback');
+  `;
+  const result = child(compare, [original, patched]);
+  assert.equal(result.status, 0, "candidate compatibility failed: " + result.stderr);
+  console.log(result.stdout.trim());
+  const upstream = process.env.COVE_PICOMATCH_UPSTREAM_TEST_ROOT;
+  if (upstream) {
+    const root = resolve(upstream);
+    const revision = spawnSync("git", ["-C", root, "rev-parse", "HEAD"], { encoding: "utf8" });
+    assert.equal(revision.status, 0);
+    assert.equal(revision.stdout.trim(), PUBLISHED_COMMIT);
+    assert.equal(readFileSync(join(root, "lib/parse.js"), "utf8"), originalParser);
+    cpSync(join(root, "test"), join(patched, "test"), { recursive: true });
+    symlinkSync(join(root, "node_modules"), join(patched, "node_modules"), "dir");
+    const require = createRequire(join(root, "package.json"));
+    const mocha = require.resolve("mocha/bin/mocha.js");
+    const full = spawnSync(process.execPath, [mocha, "--reporter", "dot", "test/**/*.js"], {
+      cwd: patched,
+      encoding: "utf8",
+      timeout: 60_000,
+      killSignal: "SIGKILL",
+      maxBuffer: 65_536,
+    });
+    assert.equal(full.status, 0, "published-suite regression: " + full.stdout + full.stderr);
+    console.log(full.stdout.trim());
+  }
+} finally {
+  rmSync(work, { recursive: true, force: true });
+  assert.equal(readFileSync(join(original, "lib/parse.js"), "utf8"), originalParser);
+  assert.equal(readFileSync("package.json", "utf8"), packageBefore);
+  assert.equal(readFileSync("package-lock.json", "utf8"), lockBefore);
+}
+console.log(
+  "NON-SHIPPING: installed dependency and mandatory audit unchanged; no release clearance",
+);
