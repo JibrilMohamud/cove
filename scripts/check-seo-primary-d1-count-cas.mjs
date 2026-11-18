@@ -60,7 +60,11 @@ try {
   );
   let before = db.prepare("SELECT * FROM cove_seo_primary_fence WHERE slot=1").get();
   assert.equal(before.dirty, 1, "migration MUST start sealed and unavailable");
-  assert.equal(before.eligibility_valid_until_ms, 0, "legal time horizon starts unknown and denied");
+  assert.equal(
+    before.eligibility_valid_until_ms,
+    0,
+    "legal time horizon starts unknown and denied",
+  );
   assert.equal(before.catalog_generation, 0);
 
   // Independent values per source mutation category. Same SQLite statement as
