@@ -1,7 +1,7 @@
 import {
   noncacheableSeoDocument,
   unavailableSeoDocument,
-  verifiedSeoCounts,
+  verifiedSeoCountsForServing,
   type SeoCountEvidenceLoader,
   type SeoCountKind,
   type SeoCounts,
@@ -183,7 +183,7 @@ export async function handleSeoDocumentRequest(
   let projected: Readonly<SeoCounts> | null = null;
   if (loadCountEvidence && catalogDocument) {
     try {
-      projected = verifiedSeoCounts(await loadCountEvidence(), Date.now());
+      projected = verifiedSeoCountsForServing(await loadCountEvidence(), Date.now());
     } catch {
       return unavailableSeoDocument();
     }
