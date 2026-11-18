@@ -368,12 +368,12 @@ async function triggerVercelAudio(env: BackendEnv, path: string) {
     signal: AbortSignal.timeout(290_000),
   });
   if (!response.ok) {
-    const body = (await response.text()).replace(/[\r\n\t]+/g, " ").slice(0, 900);
+    // Upstream errors may contain private customer/provider details. Persist
+    // only the bounded HTTP status and the trusted internal operation path.
     if (response.status === 524) {
       await persistAudioTriggerDiagnostic(env, "audio_trigger_last_timeout", {
         path,
         status: response.status,
-        body,
         disposition: "in-flight",
       });
       console.warn("Cove audio trigger timed out; D1 lease recovery remains authoritative.");
@@ -382,7 +382,6 @@ async function triggerVercelAudio(env: BackendEnv, path: string) {
     await persistAudioTriggerDiagnostic(env, "audio_trigger_last_error", {
       path,
       status: response.status,
-      body,
     });
     throw new Error(`Audio ingestion trigger failed (${response.status}) for ${path}`);
   }
