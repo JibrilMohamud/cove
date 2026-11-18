@@ -79,7 +79,9 @@ The runtime is loopback-only. Its namespace, storage directory and test
 bundle are temporary; no Cloudflare account, production D1, real customer,
 Stripe or external credentials are used. The existing credential-free SEO
 workflow runs these checks alongside the prior generation/CAS, deny-first,
-expiry, gateway and TypeScript suites.
+expiry, gateway and TypeScript suites. Its path filter includes all private-owner
+sources and the dependency manifests, so schema-helper or runtime updates cannot
+silently miss the inventory and native-runtime regression.
 
 ## Remaining release work
 

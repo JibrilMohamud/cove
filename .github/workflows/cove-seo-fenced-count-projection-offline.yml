@@ -5,17 +5,16 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/cove-seo-fenced-count-projection-offline.yml"
+      - "package.json"
+      - "package-lock.json"
       - "src/features/fore/seo.server.ts"
       - "src/features/fore/seo-count-projection.ts"
       - "src/features/fore/seo-count-projection-producer.ts"
-      - "src/storefront-strangler/seo-primary-d1-counts.server.ts"
-      - "src/storefront-strangler/seo-owner-denial-epoch.ts"
-      - "src/storefront-strangler/seo-owner-denial-read.server.ts"
-      - "src/storefront-strangler/seo-owner-source-denial-qa.ts"
-      - "src/storefront-strangler/seo-owner-mutation-fence-qa.ts"
+      # Schema/command helpers and their transitive private-owner imports must
+      # rerun the constructor inventory, mutation and shipping-bundle checks.
+      - "src/storefront-strangler/**"
       - "scripts/staging/seo-owner-mutation-fixture.ts"
       - "scripts/check-seo-owner-mutation-fence.mjs"
-      - "src/storefront-strangler/legal-authority.worker.ts"
       - "scripts/check-seo-owner-source-qa.mjs"
       - "scripts/check-seo-owner-denial-epoch.mjs"
       - "scripts/staging/seo-primary-count-fence.prototype.sql"
