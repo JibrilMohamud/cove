@@ -93,6 +93,7 @@ try {
 
   let sqlCounts = 0;
   let sqlPages = 0;
+  let denyDuringPage = false;
   const db = {
     prepare(query) {
       if (/COUNT/i.test(query)) sqlCounts++;
@@ -101,6 +102,11 @@ try {
         async first() { return { n: 42_635 }; },
         async all() {
           sqlPages++;
+          if (denyDuringPage) {
+            // Durable owner denies WHILE an expensive OFFSET page is in flight.
+            ownerEpoch = "2";
+            denyDuringPage = false;
+          }
           return { results: [{ ref: "book-1", updated_at: "2026-11-16T00:00:00Z" }] };
         },
       };
@@ -142,10 +148,23 @@ try {
   assert.equal(sqlPages, 1, "live page SELECT remains necessary; counts do not authorize URLs");
   assert.equal(sqlCounts, 0);
 
+  // The first owner proof can be valid, then a deny arrives during the
+  // page SQL itself. The final private owner read must veto the XML body.
+  const pageReadsBefore = reads;
+  denyDuringPage = true;
+  const duringPage = await handleSeoDocumentRequest(
+    req("/sitemaps/works/2.xml"), db, undefined, load
+  );
+  assert.equal(duringPage.status, 503);
+  assert.equal(duringPage.headers.get("cache-control"), "no-store");
+  assert.equal(reads, pageReadsBefore + 2, "page must recheck owner after SQL");
+  assert.doesNotMatch(await duringPage.text(), /book-1|sitemaps\\/works/);
+  ownerEpoch = "0";
+
   const invalid = await handleSeoDocumentRequest(req("/sitemaps/works/99999.xml"), db, undefined, load);
   assert.equal(invalid.status, 404);
   assert.equal(invalid.headers.get("cache-control"), "no-store");
-  assert.equal(sqlPages, 1, "huge invalid OFFSET never reaches SQL");
+  assert.equal(sqlPages, 2, "huge invalid OFFSET never reaches SQL");
 
   // Deny-first race: the owner DO has acknowledged a new denial but the
   // corresponding D1 rights mutation has NOT committed yet. Its D1 epoch
