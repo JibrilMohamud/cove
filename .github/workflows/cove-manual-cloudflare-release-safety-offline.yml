@@ -9,6 +9,7 @@ on:
       - .github/workflows/deploy-locked-fast-storefront-gateway.yml
       - .github/workflows/cloudflare-paired-release-freeze.yml
       - .github/workflows/literary-live-cutover-preflight.yml
+      - .github/workflows/cove-commerce-private-qa-deploy.yml
       - .github/workflows/cove-manual-cloudflare-release-safety-offline.yml
       - scripts/security/check-manual-cloudflare-release-workflows.mjs
 permissions:
