@@ -7,6 +7,7 @@
 CREATE TABLE IF NOT EXISTS cove_seo_primary_fence (
   slot INTEGER PRIMARY KEY CHECK(slot=1),
   owner_version TEXT NOT NULL DEFAULT '',
+  owner_denial_epoch INTEGER NOT NULL DEFAULT 0 CHECK(owner_denial_epoch>=0),
   catalog_generation INTEGER NOT NULL DEFAULT 0 CHECK(catalog_generation>=0),
   rights_generation INTEGER NOT NULL DEFAULT 0 CHECK(rights_generation>=0),
   withdrawal_generation INTEGER NOT NULL DEFAULT 0 CHECK(withdrawal_generation>=0),
@@ -20,6 +21,7 @@ INSERT OR IGNORE INTO cove_seo_primary_fence(slot) VALUES(1);
 CREATE TABLE IF NOT EXISTS cove_seo_count_snapshots (
   slot INTEGER PRIMARY KEY CHECK(slot=1),
   owner_version TEXT NOT NULL,
+  owner_denial_epoch INTEGER NOT NULL CHECK(owner_denial_epoch>=0),
   catalog_generation INTEGER NOT NULL,
   rights_generation INTEGER NOT NULL,
   withdrawal_generation INTEGER NOT NULL,
@@ -34,6 +36,11 @@ CREATE TABLE IF NOT EXISTS cove_seo_count_snapshots (
   categories_count INTEGER NOT NULL CHECK(categories_count>=0)
 );
 
+-- The DO deny epoch is NEVER advanced by these D1 triggers. An authorized
+-- canonical owner must acknowledge and reconcile it after the Durable Object
+-- denial is committed, and the private owner must be queried again before
+-- any sitemap response. D1 is not authority for owner-denial recency.
+-- No live owner ack adapter exists in this staged prototype.
 -- Incomplete source/table inventory or an unported writer MUST keep dirty=1.
 -- No generic admin command may set dirty=0; owner-enabled cutover is separate.
 CREATE TRIGGER IF NOT EXISTS seo_gen_works_insert
