@@ -203,11 +203,11 @@ export async function handleSeoDocumentRequest(
     if (afterPageSql) {
       try {
         const latestEvidence = await loadCountEvidence!();
+        const before = initialEvidence?.fence as Record<string, unknown> | undefined;
+        const after = latestEvidence.fence as Record<string, unknown> | undefined;
         if (!verifiedSeoCountsForServing(latestEvidence, Date.now()) ||
-            !initialEvidence ||
-            SEO_COUNT_GENERATION_KEYS.some(
-              (key) => latestEvidence.fence[key] !== initialEvidence.fence[key],
-            ))
+            !before || !after ||
+            SEO_COUNT_GENERATION_KEYS.some((key) => after[key] !== before[key]))
           return unavailableSeoDocument();
       } catch {
         return unavailableSeoDocument();
