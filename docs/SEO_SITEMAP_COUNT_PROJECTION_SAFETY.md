@@ -81,6 +81,44 @@ Using the authenticated Cloudflare account read endpoints (`GET /accounts/{accou
 
 No other currently listed Worker script had a native binding to this primary D1. Numerous isolated QA scripts bind other D1 databases; those are not part of the primary binding count. This is an enumeration of **Worker bindings only**: it does **not** enumerate D1 REST API tokens, GitHub secrets, outside integrations, script permissions, or hidden write paths, and cannot certify exclusive physical writers. Do not remove the persistence backend's binding or enable the owner until all identified dependent customer/commerce jobs have safe owner-mediated replacements and the protected rollback is rehearsed. No Worker settings were changed during this read-only audit.
 
+## Real-owner QA source withdrawal bridge — 2026-11-18
+
+The opt-in `COVE_SEO_OWNER_DENIAL_EPOCH_QA=1` source-only adapter now
+exercises the **existing** canonical `persistSourceWithdrawal` command from
+`CoveLegalAuthority.fetch` in a short-lived, explicitly leased **QA owner**.
+This is a narrower achievement than activating a production serving proof.
+
+- `seo-owner-source-denial-qa.ts` checks the exact operation's legal source,
+  territory and revision **inside the same owner SQLite transaction** as the
+  source withdrawal and global epoch journal. It refuses an old replay after
+  a newer allow or a newer denial, without repeating the prior mutation.
+- Initial enrollment **requires an empty source fence and denial operation
+  history**; it refuses silently treating a preexisting legal database as
+  epoch zero. No historical owner may bootstrap into serving mode through
+  this QA code.
+- Only `/deny-next` and `/verify` remain accepted when the special QA flag
+  is enabled. **All other legal, market, commercial, entitlement, publishing
+  and positive-publication routes return 503 no-store**. This deliberately
+  prevents a false claim that the epoch covers all owner-denial families.
+- `qaOwnerLeaseLive` still requires one of the two isolated QA D1 IDs and
+  a bounded owner lease; it rejects Cove's real production primary database.
+  The production disabled-owner code path and its public/customer routing
+  are unchanged. The flag defaults off, and no proof reader route is added.
+- The isolated source tests cover new deny, exact idempotent replay, replay
+  after superseding allow, new global deny, mismatched scope, malformed
+  operations and rejection of a preexisting legal database. The owner-locked
+  build and existing source-only SEO tests are independent safeguards, **not**
+  evidence of a deployed Durable Object or of production correctness.
+
+**Still missing:** a reviewed inventory and same-transaction epoch coverage
+for *every* relevant commercial, paid order/entitlement, market, source,
+publisher, emergency withdrawal and rights-evidence pathway; a safe and
+complete historical owner epoch migration; real full-catalog expiry/withdrawal
+races against D1 and actual primary writer generation triggers; private
+authenticated production proof issuance; and the complete protected release
+gates. Even an authenticated read from this partial QA owner must **never**
+be accepted as production SEO publishing authorization.
+
 ## Essential production prerequisites — not implemented here
 
 1. Certify exactly one canonical D1 writer and an enabled, lawful legal owner. This contract must NOT be used as a substitute for that certification.
