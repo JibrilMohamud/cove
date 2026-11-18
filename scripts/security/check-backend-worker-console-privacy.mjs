@@ -62,7 +62,7 @@ function inspectTriggerDiagnostic(source) {
   );
   assert.ok(fn, "Scheduled audio trigger must remain reviewable");
   const trigger = fn.getText(file);
-  assert.doesNotMatch(trigger, /response\\.(?:text|json|arrayBuffer)\\s*\\(/);
+  assert.doesNotMatch(trigger, /response\.(?:text|json|arrayBuffer)\s*\(/);
   const allowed = new Set(["path", "status", "disposition"]);
   const keys = [];
   const visit = (node) => {
@@ -92,8 +92,8 @@ function inspectTriggerDiagnostic(source) {
 }
 assert.ok(inspectTriggerDiagnostic(raw));
 const upstreamBodyMutation = raw.replace(
-  '        status: response.status,\\n        disposition: "in-flight",',
-  '        status: response.status,\\n        body: await response.text(),\\n        disposition: "in-flight",',
+  '        status: response.status,\n        disposition: "in-flight",',
+  '        status: response.status,\n        body: await response.text(),\n        disposition: "in-flight",',
 );
 assert.notEqual(upstreamBodyMutation, raw);
 assert.throws(() => inspectTriggerDiagnostic(upstreamBodyMutation));
