@@ -65,7 +65,9 @@ try {
   assert.deepEqual(messages, [
     {
       level: "error",
-      args: ["Persistent backend request failed; production bootstrap fails closed cause=upstream-transport"],
+      args: [
+        "Persistent backend request failed; production bootstrap fails closed cause=upstream-transport",
+      ],
     },
   ]);
   assertMessagesPrivate();
@@ -138,7 +140,9 @@ try {
   assert.deepEqual(messages, [
     {
       level: "error",
-      args: ["Persistent backend request failed; production bootstrap fails closed cause=backend-deadline"],
+      args: [
+        "Persistent backend request failed; production bootstrap fails closed cause=backend-deadline",
+      ],
     },
   ]);
   assertMessagesPrivate();
