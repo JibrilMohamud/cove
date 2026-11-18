@@ -77,13 +77,13 @@ for (const snippet of [
   'const g = await import("tinyglobby");',
   'const g = require("unplugin");',
   'import g = require("picomatch");',
-]) 
+])
   assert.equal(scanSource(snippet, "src/example.ts").length, 1, snippet);
 for (const snippet of [
   'import x from "picomatch-other";',
   'const x = await import("@/lib/public-seo-document-path");',
   'const s = "require(\\"picomatch\\")";',
-]) 
+])
   assert.equal(scanSource(snippet, "src/example.ts").length, 0, snippet);
 
 const lock = JSON.parse(readFileSync("package-lock.json", "utf8"));
