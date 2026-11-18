@@ -32,6 +32,8 @@ jobs:
       - run: npm ci
       - name: Security gate failure, skip and cancellation regressions
         run: node --test scripts/check-security-workflow.test.mjs scripts/check-eslint-minimatch.test.mjs
+      - name: Identify picomatch consumers and deny direct runtime glob imports
+        run: node scripts/security/check-glob-matcher-runtime-exposure.mjs
       - name: Secret scan
         run: npm run security:secret-scan
       - name: Static analysis (strict formatting plus legacy-error non-regression)
