@@ -43,19 +43,32 @@ export function verifyProtectedWorkflow(yaml, jobName) {
   return true;
 }
 
+function mutateOnlyJob(yaml, jobName, from, to) {
+  const start = yaml.indexOf("  " + jobName + ":\n");
+  assert.ok(start >= 0);
+  const rest = yaml.slice(start);
+  const next = rest.search(/\n  [a-z][a-z-]+:\n/);
+  const end = next < 0 ? yaml.length : start + next;
+  const job = yaml.slice(start, end);
+  assert.ok(job.includes(from), "Job mutation target missing: " + from);
+  return yaml.slice(0, start) + job.replace(from, to) + yaml.slice(end);
+}
+
 for (const [name, job] of jobs) {
   const source = readFileSync(".github/workflows/" + name + ".yml", "utf8");
   assert.equal(verifyProtectedWorkflow(source, job), true, name);
-  for (const edit of [
-    (s) => s.replace("  workflow_dispatch:", "  push:"),
-    (s) => s.replace("    environment: cove-production-release-audit\n", ""),
-    (s) => s.replace("github.event_name == 'workflow_dispatch'", "github.event_name == 'push'"),
-    (s) => s.replace("github.ref == 'refs/heads/main'", "github.ref == 'refs/heads/other'"),
-    (s) => s.replace("inputs.reviewed_main_sha == github.sha", "true"),
-    (s) => s.replace("inputs.confirm_protected_cloudflare_action == true", "true"),
+  const unexpectedEvent = source.replace("  workflow_dispatch:", "  push:");
+  assert.notEqual(unexpectedEvent, source);
+  assert.throws(() => verifyProtectedWorkflow(unexpectedEvent, job));
+  for (const [from, to] of [
+    ["    environment: cove-production-release-audit\n", ""],
+    ["github.event_name == 'workflow_dispatch'", "github.event_name == 'push'"],
+    ["github.ref == 'refs/heads/main'", "github.ref == 'refs/heads/other'"],
+    ["inputs.reviewed_main_sha == github.sha", "true"],
+    ["inputs.confirm_protected_cloudflare_action == true", "true"],
   ]) {
-    const mutated = edit(source);
-    assert.notEqual(mutated, source, "Mutant did not alter workflow source");
+    const mutated = mutateOnlyJob(source, job, from, to);
+    assert.notEqual(mutated, source);
     assert.throws(() => verifyProtectedWorkflow(mutated, job));
   }
 }
