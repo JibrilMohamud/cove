@@ -1,0 +1,32 @@
+name: cove-worker-entrypoint-logging-privacy-offline
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/persistence-backend.worker.ts"
+      - "src/features/fore/api.server.ts"
+      - "wrangler.backend.production.toml"
+      - ".github/workflows/deploy-persistence-backend.yml"
+      - "scripts/release/worker-entrypoint-logger-privacy.test.mjs"
+      - "scripts/release/worker-api-logger-privacy.test.mjs"
+      - ".github/workflows/cove-worker-entrypoint-logging-privacy-offline.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  logger-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - run: |
+          node --test scripts/release/worker-entrypoint-logger-privacy.test.mjs
+          node --test scripts/release/worker-api-logger-privacy.test.mjs
+      - run: git diff --check
