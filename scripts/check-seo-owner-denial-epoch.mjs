@@ -69,18 +69,22 @@ try {
   const script = readFileSync("scripts/staging/seo-primary-count-fence.prototype.sql", "utf8");
   primary.exec(script.slice(0, script.indexOf("CREATE TRIGGER")));
   const ownerVersion = "isolated-owner-451";
+  const seededAt = Date.now();
+  const reviewedUntil = seededAt + 40_000; // synthetic owner-certified fixture only
   primary
-    .prepare("UPDATE cove_seo_primary_fence SET owner_version=?,dirty=0 WHERE slot=1")
-    .run(ownerVersion);
+    .prepare(
+      "UPDATE cove_seo_primary_fence SET owner_version=?,dirty=0,eligibility_valid_until_ms=? WHERE slot=1",
+    )
+    .run(ownerVersion, reviewedUntil);
   primary
     .prepare(
       `INSERT INTO cove_seo_count_snapshots(
       slot,owner_version,owner_denial_epoch,catalog_generation,rights_generation,
-      withdrawal_generation,taxonomy_generation,contributor_generation,built_at_ms,
-      expires_at_ms,books_count,works_count,editions_count,authors_count,categories_count
-    ) VALUES(1,?,0,0,0,0,0,0,?,?,?,?,?,?,?)`,
+      withdrawal_generation,taxonomy_generation,contributor_generation,eligibility_valid_until_ms,
+      built_at_ms,expires_at_ms,books_count,works_count,editions_count,authors_count,categories_count
+    ) VALUES(1,?,0,0,0,0,0,0,?,?,?,?,?,?,?,?)`,
     )
-    .run(ownerVersion, Date.now(), Date.now() + 25_000, 100, 75, 100, 30, 4);
+    .run(ownerVersion, reviewedUntil, seededAt, seededAt + 25_000, 100, 75, 100, 30, 4);
   let primaryReads = 0;
   const d1 = {
     withSession(consistency) {
