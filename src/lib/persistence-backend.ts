@@ -298,7 +298,9 @@ export async function proxyPersistenceApi(
           );
         return unavailablePersistenceResponse();
       }
-      console.warn(`Persistent backend request failed; using development fallback cause=${failureReason}`);
+      console.warn(
+        `Persistent backend request failed; using development fallback cause=${failureReason}`,
+      );
       return null;
     }
     console.error(`Persistent backend request failed cause=${failureReason}`);
