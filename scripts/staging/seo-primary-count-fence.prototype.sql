@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS cove_seo_primary_fence (
   withdrawal_generation INTEGER NOT NULL DEFAULT 0 CHECK(withdrawal_generation>=0),
   taxonomy_generation INTEGER NOT NULL DEFAULT 0 CHECK(taxonomy_generation>=0),
   contributor_generation INTEGER NOT NULL DEFAULT 0 CHECK(contributor_generation>=0),
+  -- Closed by default: real legal owner must certify the earliest eligible
+  -- rights/contract/territory transition, even if no D1 write will occur.
+  eligibility_valid_until_ms INTEGER NOT NULL DEFAULT 0 CHECK(eligibility_valid_until_ms>=0),
   dirty INTEGER NOT NULL DEFAULT 1 CHECK(dirty IN (0,1)),
   pending_withdrawals INTEGER NOT NULL DEFAULT 0 CHECK(pending_withdrawals>=0),
   pending_writes INTEGER NOT NULL DEFAULT 0 CHECK(pending_writes>=0)
@@ -27,8 +30,9 @@ CREATE TABLE IF NOT EXISTS cove_seo_count_snapshots (
   withdrawal_generation INTEGER NOT NULL,
   taxonomy_generation INTEGER NOT NULL,
   contributor_generation INTEGER NOT NULL,
+  eligibility_valid_until_ms INTEGER NOT NULL CHECK(eligibility_valid_until_ms>0),
   built_at_ms INTEGER NOT NULL CHECK(built_at_ms>=0),
-  expires_at_ms INTEGER NOT NULL CHECK(expires_at_ms>built_at_ms AND expires_at_ms<=built_at_ms+60000),
+  expires_at_ms INTEGER NOT NULL CHECK(expires_at_ms>built_at_ms AND expires_at_ms<=built_at_ms+60000 AND expires_at_ms<=eligibility_valid_until_ms),
   books_count INTEGER NOT NULL CHECK(books_count>=0),
   works_count INTEGER NOT NULL CHECK(works_count>=0),
   editions_count INTEGER NOT NULL CHECK(editions_count>=0),
