@@ -9,8 +9,19 @@ assert.match(caller, /presentationTaxonomyCounts\(\s*db,\s*territory,\s*language
 assert.match(caller, /taxonomyPresentationReadDb\(db\)/);
 assert.match(caller, /\.prepare\(taxonomySparseRightsProbe\)/);
 assert.match(caller, /taxonomyCountPlan\(\s*territory,\s*language,/);
-assert.match(production, /retail_product_availability rpa/);
-assert.match(production, /retail_product_availability_rows rpa/);
+// Migration 0074 must keep the outer view as DISTINCT of the very same
+// inner legal rows. If future migrations change that contract, stop promotion.
+const legalDdl = fs.readFileSync("drizzle/0074_flatten_retail_membership.sql", "utf8");
+assert.match(
+  legalDdl,
+  /CREATE VIEW retail_product_availability AS\s+SELECT DISTINCT product_id,edition_id,territory_code,format,rights_grant_id\s+FROM retail_product_availability_rows;/,
+);
+assert.match(production, /FROM retail_product_availability_rows rpa/);
+assert.doesNotMatch(
+  production,
+  /FROM retail_product_availability rpa/,
+  "Never reintroduce redundant outer DISTINCT in the hot EXISTS count",
+);
 assert.match(production, /g\.sales_channel='retail' AND g\.status='active'/);
 assert.match(production, /COUNT\(\*\) product_count/);
 
@@ -118,6 +129,8 @@ try {
       `Count must preserve current legal rights for ${territory}/${lang}`,
     );
     const otherPlan = taxonomyCountPlan(territory, lang, !sparse);
+    assert.match(plan.sql, /FROM retail_product_availability_rows rpa/);
+    assert.match(otherPlan.sql, /FROM retail_product_availability_rows rpa/);
     assert.deepEqual(
       normalize(db.prepare(otherPlan.sql).all(...otherPlan.binds)),
       originalRows,
@@ -153,6 +166,71 @@ try {
   assert.ok(
     sqlPlan.some((row) => String(row.detail).includes("retail_product_availability")),
     "Always preserve the authoritative legal view",
+  );
+  // Stage-only A/B. This fixture is synthetic and proves equality, not a
+  // hosted performance win. Never use these medians as release SLO evidence.
+  const median = (values) => {
+    const sorted = [...values].sort((a, b) => a - b);
+    return (sorted[1] + sorted[2]) / 2;
+  };
+  const microbench = [];
+  for (const languageCode of ["", "en"]) {
+    const updated = taxonomyCountPlan("US", languageCode, false);
+    const originalSql = updated.sql.replace(
+      "FROM retail_product_availability_rows rpa",
+      "FROM retail_product_availability rpa",
+    );
+    assert.notEqual(originalSql, updated.sql);
+    const oldStatement = db.prepare(originalSql);
+    const newStatement = db.prepare(updated.sql);
+    assert.deepEqual(
+      normalize(newStatement.all(...updated.binds)),
+      normalize(oldStatement.all(...updated.binds)),
+    );
+    const elapsed = (statement) => {
+      const started = performance.now();
+      statement.all(...updated.binds);
+      return Number((performance.now() - started).toFixed(3));
+    };
+    const oldMs = [];
+    const newMs = [];
+    for (let i = 0; i < 4; i++) {
+      if (i % 2 === 0) {
+        oldMs.push(elapsed(oldStatement));
+        newMs.push(elapsed(newStatement));
+      } else {
+        newMs.push(elapsed(newStatement));
+        oldMs.push(elapsed(oldStatement));
+      }
+    }
+    microbench.push({
+      language: languageCode || "all",
+      fixtureProducts: 2500,
+      legacyMedianMs: median(oldMs),
+      innerLegalRowsMedianMs: median(newMs),
+      semanticParity: true,
+    });
+  }
+  fs.mkdirSync("artifacts", { recursive: true });
+  fs.writeFileSync(
+    "artifacts/taxonomy-exists-stage.json",
+    JSON.stringify(
+      {
+        schema: "cove.stage.taxonomy-exists-differential.v1",
+        productionDatabaseQueried: false,
+        syntheticFixture: true,
+        scope: "display_counts_only",
+        dynamicRightsRechecked: true,
+        releaseCertified: false,
+        comparativeRuns: microbench,
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+  console.log(
+    "STAGE taxonomy EXISTS synthetic timing (not release-certified):",
+    JSON.stringify(microbench),
   );
   console.log(
     "Taxonomy counts: dense/sparse rights parity; locale, duplicates, revocations, denials, active grants PASS",
