@@ -440,7 +440,7 @@ async function runCommercialQueues(cron: string, env: BackendEnv) {
           }),
       ]);
   }
-  for (const [name, operation] of tasks) {
+  for (const [, operation] of tasks) {
     try {
       await operation();
       console.info("Cove scheduled queue tick completed");
