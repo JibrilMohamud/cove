@@ -158,7 +158,7 @@ try {
   assert.equal(duringPage.status, 503);
   assert.equal(duringPage.headers.get("cache-control"), "no-store");
   assert.equal(reads, pageReadsBefore + 2, "page must recheck owner after SQL");
-  assert.doesNotMatch(await duringPage.text(), /book-1|sitemaps\\/works/);
+  assert.doesNotMatch(await duringPage.text(), /book-1|sitemaps\/works/);
   ownerEpoch = "0";
 
   const invalid = await handleSeoDocumentRequest(req("/sitemaps/works/99999.xml"), db, undefined, load);
