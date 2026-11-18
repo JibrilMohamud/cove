@@ -40,6 +40,8 @@ jobs:
         run: npm run lint
       - name: Strict TypeScript validation
         run: npm run typecheck
+      - name: Patched migration compiler and isolated SQLite generation
+        run: node scripts/security/check-drizzle-esbuild-compatibility.mjs
       - name: Vercel preview build cost guard and production-safety regressions
         run: node --test scripts/vercel-ignore-build.test.mjs
       - name: Security/domain regressions
