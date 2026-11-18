@@ -14,15 +14,15 @@ export type SeoPrimaryDb={withSession(constraint:"first-primary"):{prepare(sql:s
 export type VerifiedSeoOwner={
   primaryId:string;ownerVersion:string;ownerEnabled:true;exclusiveWriter:true;authorizing:true
 };
-const epochColumns=["catalog_generation","rights_generation","withdrawal_generation",
+const epochColumns=["owner_denial_epoch","catalog_generation","rights_generation","withdrawal_generation",
   "taxonomy_generation","contributor_generation"] as const;
 const countColumns=["books_count","works_count","editions_count","authors_count","categories_count"] as const;
 type Row=Record<string,unknown>;
 
-const selectFence="SELECT owner_version,catalog_generation,rights_generation,withdrawal_generation,taxonomy_generation,contributor_generation,dirty,pending_withdrawals,pending_writes FROM cove_seo_primary_fence WHERE slot=1";
-const selectEvidence=`SELECT f.owner_version,f.catalog_generation,f.rights_generation,f.withdrawal_generation,
+const selectFence="SELECT owner_version,owner_denial_epoch,catalog_generation,rights_generation,withdrawal_generation,taxonomy_generation,contributor_generation,dirty,pending_withdrawals,pending_writes FROM cove_seo_primary_fence WHERE slot=1";
+const selectEvidence=`SELECT f.owner_version,f.owner_denial_epoch,f.catalog_generation,f.rights_generation,f.withdrawal_generation,
   f.taxonomy_generation,f.contributor_generation,f.dirty,f.pending_withdrawals,f.pending_writes,
-  s.owner_version AS snapshot_owner_version,s.catalog_generation AS snapshot_catalog_generation,
+  s.owner_version AS snapshot_owner_version,s.owner_denial_epoch AS snapshot_owner_denial_epoch,s.catalog_generation AS snapshot_catalog_generation,
   s.rights_generation AS snapshot_rights_generation,
   s.withdrawal_generation AS snapshot_withdrawal_generation,
   s.taxonomy_generation AS snapshot_taxonomy_generation,
@@ -32,18 +32,18 @@ const selectEvidence=`SELECT f.owner_version,f.catalog_generation,f.rights_gener
   LEFT JOIN cove_seo_count_snapshots s ON s.slot=f.slot WHERE f.slot=1`;
 export const SEO_PRIMARY_ATOMIC_PUBLISH_SQL=`
 INSERT INTO cove_seo_count_snapshots(
-  slot,owner_version,catalog_generation,rights_generation,withdrawal_generation,
+  slot,owner_version,owner_denial_epoch,catalog_generation,rights_generation,withdrawal_generation,
   taxonomy_generation,contributor_generation,built_at_ms,expires_at_ms,
   books_count,works_count,editions_count,authors_count,categories_count)
-SELECT 1,f.owner_version,f.catalog_generation,f.rights_generation,f.withdrawal_generation,
+SELECT 1,f.owner_version,f.owner_denial_epoch,f.catalog_generation,f.rights_generation,f.withdrawal_generation,
   f.taxonomy_generation,f.contributor_generation,?,?,?,?,?,?,?
 FROM cove_seo_primary_fence f
-WHERE f.slot=1 AND f.owner_version=? AND f.dirty=0
+WHERE f.slot=1 AND f.owner_version=? AND f.owner_denial_epoch=? AND f.dirty=0
   AND f.pending_withdrawals=0 AND f.pending_writes=0
   AND f.catalog_generation=? AND f.rights_generation=? AND f.withdrawal_generation=?
   AND f.taxonomy_generation=? AND f.contributor_generation=?
 ON CONFLICT(slot) DO UPDATE SET
-  owner_version=excluded.owner_version,catalog_generation=excluded.catalog_generation,
+  owner_version=excluded.owner_version,owner_denial_epoch=excluded.owner_denial_epoch,catalog_generation=excluded.catalog_generation,
   rights_generation=excluded.rights_generation,withdrawal_generation=excluded.withdrawal_generation,
   taxonomy_generation=excluded.taxonomy_generation,contributor_generation=excluded.contributor_generation,
   built_at_ms=excluded.built_at_ms,expires_at_ms=excluded.expires_at_ms,
