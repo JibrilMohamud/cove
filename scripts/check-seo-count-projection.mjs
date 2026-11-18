@@ -47,6 +47,7 @@ try {
       ...generations,
       createdAtMs: timestamp - 500,
       expiresAtMs: timestamp + 30_000,
+      eligibilityValidUntilMs: timestamp + 45_000,
       counts: { books: 40_100, works: 20_001, editions: 40_040, authors: 2_001, categories: 73 },
     },
     fence: {
@@ -57,6 +58,7 @@ try {
       dirty: false,
       pendingWithdrawals: 0,
       pendingWrites: 0,
+      eligibilityValidUntilMs: timestamp + 45_000,
     },
   };
   const clone = () => structuredClone(base);
@@ -130,6 +132,29 @@ try {
   });
   mustReject("unbounded TTL", (x) => {
     x.snapshot.expiresAtMs = timestamp + 90_000;
+  });
+  // A rights grant or territorial window can expire with no D1 mutation.
+  // A still-current generation must not override the owner's time boundary.
+  mustReject("missing expiry review", (x) => {
+    delete x.fence.eligibilityValidUntilMs;
+  });
+  mustReject("missing snapshot expiry review", (x) => {
+    delete x.snapshot.eligibilityValidUntilMs;
+  });
+  mustReject("mismatched expiry review", (x) => {
+    x.fence.eligibilityValidUntilMs += 1;
+  });
+  mustReject("rights expire before XML", (x) => {
+    x.fence.eligibilityValidUntilMs = timestamp + 20_000;
+    x.snapshot.eligibilityValidUntilMs = timestamp + 20_000;
+  });
+  mustReject("expiry review has elapsed", (x) => {
+    x.fence.eligibilityValidUntilMs = timestamp;
+    x.snapshot.eligibilityValidUntilMs = timestamp;
+  });
+  mustReject("expiry review is untrusted string", (x) => {
+    x.fence.eligibilityValidUntilMs = String(timestamp + 45_000);
+    x.snapshot.eligibilityValidUntilMs = String(timestamp + 45_000);
   });
 
   let sqlCounts = 0;
@@ -341,6 +366,7 @@ try {
   assert.equal(readsForBuild, 2);
   assert.equal(countCalls, 5);
   assert.equal(casCalls, 1);
+  assert.equal(published.eligibilityValidUntilMs, timestamp + 45_000);
   assert.equal(
     verifiedSeoCounts({ snapshot: published, fence: currentFence }, timestamp).works,
     20_001,
@@ -376,6 +402,29 @@ try {
   });
   assert.deepEqual(lateWithdrawal, { published: false, reason: "publish-lost-race" });
 
+  // Future legal expiry is an independent clock transition. The producer
+  // caps its new snapshot to that boundary, not an unconditional 60 seconds.
+  currentFence = originalFence();
+  currentFence.eligibilityValidUntilMs = timestamp + 5_000;
+  let expiryPublished = null;
+  assert.deepEqual(
+    await buildSeoCountProjection({
+      ...basePort,
+      compareAndPublish: async (_expected, candidate) => {
+        expiryPublished = candidate;
+        return true;
+      },
+    }),
+    { published: true, reason: "published" },
+  );
+  assert.equal(expiryPublished.expiresAtMs, timestamp + 5_000);
+  assert.equal(verifiedSeoCounts({ snapshot: expiryPublished, fence: currentFence }, timestamp).works, 20_001);
+  assert.equal(verifiedSeoCounts({ snapshot: expiryPublished, fence: currentFence }, timestamp + 5_000), null);
+  currentFence.eligibilityValidUntilMs = timestamp;
+  assert.deepEqual(await buildSeoCountProjection(basePort), {
+    published: false,
+    reason: "unsafe-start",
+  });
   currentFence = originalFence();
   currentFence.pendingWithdrawals = 1;
   countCalls = 0;
