@@ -142,9 +142,9 @@ try {
       /seo_qa_epoch_nonvirgin/,
     );
     assert.equal(
-      existing.sql.exec(
-        "SELECT name FROM sqlite_master WHERE name='cove_seo_owner_denial_epoch'",
-      ).toArray().length,
+      existing.sql
+        .exec("SELECT name FROM sqlite_master WHERE name='cove_seo_owner_denial_epoch'")
+        .toArray().length,
       0,
       "An existing owner cannot be silently initialized at epoch 0",
     );
@@ -158,7 +158,7 @@ try {
   assert.match(worker, /route!=="\/deny-next" && route!=="\/verify"/);
   assert.match(worker, /withSeoQaSourceDenialEpoch\(sql,/);
   assert.ok(
-    worker.indexOf('if (!qaOwnerLeaseLive(env))') <
+    worker.indexOf("if (!qaOwnerLeaseLive(env))") <
       worker.indexOf('if(env.COVE_SEO_OWNER_DENIAL_EPOCH_QA==="1" &&'),
     "No QA SEO epoch code runs before the protected owner QA lease",
   );

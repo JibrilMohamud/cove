@@ -13,10 +13,7 @@ import {
   validateAuthorityCommand,
   type AuthoritySql,
 } from "./legal-authority-core";
-import {
-  createSeoOwnerDenialEpochSchema,
-  withSeoOwnerDenialEpoch,
-} from "./seo-owner-denial-epoch";
+import { createSeoOwnerDenialEpochSchema, withSeoOwnerDenialEpoch } from "./seo-owner-denial-epoch";
 
 type OwnerTransaction = <T>(fn: () => T) => T;
 type DenialOperation = { sourceId: string; territory: string; operationId: string };
@@ -34,7 +31,8 @@ function validateOperation(raw: unknown): DenialOperation {
     !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(input.operationId) ||
     typeof input.sourceId !== "string" ||
     typeof input.territory !== "string"
-  ) throw Error("seo_qa_denial_operation_invalid");
+  )
+    throw Error("seo_qa_denial_operation_invalid");
   validateAuthorityCommand({
     sourceId: input.sourceId,
     territory: input.territory,
@@ -45,17 +43,20 @@ function validateOperation(raw: unknown): DenialOperation {
 }
 
 function operationRow(sql: AuthoritySql, input: DenialOperation): OperationRow | null {
-  const row = sql.exec<OperationRow>(
-    "SELECT source_id,territory,revision FROM cove_legal_denial_operations WHERE operation_id=?",
-    input.operationId,
-  ).toArray()[0];
+  const row = sql
+    .exec<OperationRow>(
+      "SELECT source_id,territory,revision FROM cove_legal_denial_operations WHERE operation_id=?",
+      input.operationId,
+    )
+    .toArray()[0];
   if (
     !row ||
     row.source_id !== input.sourceId ||
     row.territory !== input.territory ||
     !Number.isSafeInteger(row.revision) ||
     row.revision < 1
-  ) return null;
+  )
+    return null;
   return row;
 }
 
@@ -63,11 +64,13 @@ function operationRow(sql: AuthoritySql, input: DenialOperation): OperationRow |
 export function qaSourceDenialCurrent(sql: AuthoritySql, input: DenialOperation): boolean {
   const row = operationRow(sql, input);
   if (!row) return false;
-  const fence = sql.exec<FenceRow>(
-    "SELECT revision,verdict FROM cove_legal_fences WHERE source_id=? AND territory=?",
-    input.sourceId,
-    input.territory,
-  ).toArray()[0];
+  const fence = sql
+    .exec<FenceRow>(
+      "SELECT revision,verdict FROM cove_legal_fences WHERE source_id=? AND territory=?",
+      input.sourceId,
+      input.territory,
+    )
+    .toArray()[0];
   if (fence?.verdict !== "deny" || fence.revision !== row.revision) return false;
   const state = readAuthority(
     sql,
@@ -78,29 +81,35 @@ export function qaSourceDenialCurrent(sql: AuthoritySql, input: DenialOperation)
   if (input.territory === "*") {
     // A newer US/other-country allowance supersedes an old global withdrawal
     // even when a different country's effective verdict remains denied.
-    const superseded = sql.exec<{ one: number }>(
-      "SELECT 1 one FROM cove_legal_fences WHERE source_id=? AND revision>? AND verdict='allow' LIMIT 1",
-      input.sourceId,
-      row.revision,
-    ).toArray()[0];
+    const superseded = sql
+      .exec<{ one: number }>(
+        "SELECT 1 one FROM cove_legal_fences WHERE source_id=? AND revision>? AND verdict='allow' LIMIT 1",
+        input.sourceId,
+        row.revision,
+      )
+      .toArray()[0];
     if (superseded) return false;
   }
   return true;
 }
 
 function requireVirginQaBootstrap(sql: AuthoritySql) {
-  const names = sql.exec<{ name: string }>(
-    "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('cove_seo_owner_denial_epoch','cove_seo_owner_denial_events')",
-  ).toArray();
+  const names = sql
+    .exec<{ name: string }>(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('cove_seo_owner_denial_epoch','cove_seo_owner_denial_events')",
+    )
+    .toArray();
   if (names.length === 2) return;
   if (names.length !== 0) throw Error("seo_qa_partial_epoch_schema");
   // Source-law state and operation history must both be EMPTY on first
   // enrollment. All other denial families remain blocked in QA shadow mode.
   createAuthoritySchema(sql);
-  const fences = sql.exec<{ n: number }>("SELECT COUNT(*) n FROM cove_legal_fences").toArray()[0]?.n;
-  const operations = sql.exec<{ n: number }>(
-    "SELECT COUNT(*) n FROM cove_legal_denial_operations",
-  ).toArray()[0]?.n;
+  const fences = sql
+    .exec<{ n: number }>("SELECT COUNT(*) n FROM cove_legal_fences")
+    .toArray()[0]?.n;
+  const operations = sql
+    .exec<{ n: number }>("SELECT COUNT(*) n FROM cove_legal_denial_operations")
+    .toArray()[0]?.n;
   if (fences !== 0 || operations !== 0) throw Error("seo_qa_epoch_nonvirgin");
   createSeoOwnerDenialEpochSchema(sql);
 }
