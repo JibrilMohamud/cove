@@ -6,6 +6,8 @@ on:
     paths:
       - "src/features/fore/api.server.ts"
       - "src/lib/persistence-backend-failure.ts"
+      - "src/lib/persistence-backend.ts"
+      - "scripts/check-persistence-gateway-runtime-attribution.mjs"
       - "scripts/check-persistence-backend-failure.mjs"
       - "scripts/release/check-precontext-writer-rereview.mjs"
       - "docs/architecture/canonical-writer-review.json"
@@ -33,6 +35,8 @@ jobs:
         run: node scripts/release/check-precontext-writer-rereview.mjs
       - name: Fixed enum only and fail-closed 503 regression
         run: node scripts/check-persistence-backend-failure.mjs
+      - name: Exercise 503, 504, timeout and cancellation against fake upstream only
+        run: node scripts/check-persistence-gateway-runtime-attribution.mjs
       - name: Strict TypeScript validation
         run: npm run typecheck
       - name: Strict source lint baseline
