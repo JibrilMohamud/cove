@@ -72,6 +72,15 @@ The opt-in handler also re-reads the owner and primary-D1 generation fence **aft
 
 The per-request owner read establishes a linearization point: denials acknowledged **before** that read must be observed. A denial acknowledged after the final owner read cannot retroactively withdraw already transmitted XML. URLs on individual pages must still be validated by current legal authorization; a global count is never an entitlement proof. The real owner route must remain disabled in production until legal ownership and physical D1 write exclusivity are proven. The independently protected rollout must verify that Vercel/Cloudflare cannot retain previously cached SEO XML.
 
+## Read-only deployed Worker binding inventory — 2026-11-17
+
+Using the authenticated Cloudflare account read endpoints (`GET /accounts/{account_id}/workers/scripts` and `GET /accounts/{account_id}/workers/scripts/{script_name}/settings`), every current Worker script was inspected. **460 scripts, 460 successful settings reads, zero read errors.** Exactly **two** scripts had native D1 bindings to Cove's verified primary database ID `4bd657ac-8789-403e-a28c-93aba8d0a989`:
+
+- `cove-legal-authority-production`: native `PRIMARY_DB` binding and `LEGAL_AUTHORITY` Durable Object binding. Its deployed `COVE_RIGHTS_OWNER_ENABLED` is **disabled**. An existing binding is not evidence of active lawful ownership.
+- `cove-persistence-backend`: native `DB` binding and `LEGAL_AUTHORITY` Durable Object binding. This remains a **competing primary-D1 access path** that must be retired or constrained after safe migration and rollback proof.
+
+No other currently listed Worker script had a native binding to this primary D1. Numerous isolated QA scripts bind other D1 databases; those are not part of the primary binding count. This is an enumeration of **Worker bindings only**: it does **not** enumerate D1 REST API tokens, GitHub secrets, outside integrations, script permissions, or hidden write paths, and cannot certify exclusive physical writers. Do not remove the persistence backend's binding or enable the owner until all identified dependent customer/commerce jobs have safe owner-mediated replacements and the protected rollback is rehearsed. No Worker settings were changed during this read-only audit.
+
 ## Essential production prerequisites — not implemented here
 
 1. Certify exactly one canonical D1 writer and an enabled, lawful legal owner. This contract must NOT be used as a substitute for that certification.
