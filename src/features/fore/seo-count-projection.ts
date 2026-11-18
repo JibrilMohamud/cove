@@ -7,6 +7,9 @@
  * atomic publication-generation invalidation for EVERY catalog, legal,
  * status, taxonomy and contributor mutation. A cached clock/TTL or eventual
  * invalidation is NOT a substitute for the primary-D1 fence.
+ * Time-based legal expiry can change eligibility without a D1 mutation: the
+ * canonical owner MUST independently attest the exclusive expiry horizon.
+ * A missing/expired horizon blocks serving even with unchanged generations.
  */
 export const SEO_COUNT_PROJECTION_SCHEMA = "cove.seo.counts.v1";
 export const SEO_COUNT_MAX_AGE_MS = 60_000;
@@ -65,6 +68,7 @@ const SNAPSHOT_FIELDS = [
   ...SEO_COUNT_GENERATION_KEYS,
   "createdAtMs",
   "expiresAtMs",
+  "eligibilityValidUntilMs",
   "counts",
 ] as const;
 
@@ -76,6 +80,7 @@ const FENCE_FIELDS = [
   "dirty",
   "pendingWithdrawals",
   "pendingWrites",
+  "eligibilityValidUntilMs",
 ] as const;
 
 function generation(value: unknown): value is string {
@@ -112,6 +117,11 @@ export function verifiedSeoCounts(
     !Number.isSafeInteger(nowMs) ||
     !Number.isSafeInteger(snapshot.createdAtMs) ||
     !Number.isSafeInteger(snapshot.expiresAtMs) ||
+    !Number.isSafeInteger(snapshot.eligibilityValidUntilMs) ||
+    !Number.isSafeInteger(fence.eligibilityValidUntilMs) ||
+    snapshot.eligibilityValidUntilMs !== fence.eligibilityValidUntilMs ||
+    (snapshot.eligibilityValidUntilMs as number) <= 0 ||
+    (snapshot.expiresAtMs as number) > (snapshot.eligibilityValidUntilMs as number) ||
     (snapshot.createdAtMs as number) > nowMs ||
     (snapshot.expiresAtMs as number) <= nowMs ||
     nowMs - (snapshot.createdAtMs as number) > SEO_COUNT_MAX_AGE_MS ||
