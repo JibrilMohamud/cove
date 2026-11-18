@@ -60,6 +60,7 @@ try {
   );
   let before = db.prepare("SELECT * FROM cove_seo_primary_fence WHERE slot=1").get();
   assert.equal(before.dirty, 1, "migration MUST start sealed and unavailable");
+  assert.equal(before.eligibility_valid_until_ms, 0, "legal time horizon starts unknown and denied");
   assert.equal(before.catalog_generation, 0);
 
   // Independent values per source mutation category. Same SQLite statement as
@@ -178,6 +179,16 @@ try {
   db.prepare("UPDATE cove_seo_primary_fence SET owner_version=?,dirty=0 WHERE slot=1").run(
     witness.ownerVersion,
   );
+  // Even a locally unsealed primary-D1 fence stays unavailable until the
+  // independent legal owner has reviewed the next temporal eligibility change.
+  assert.deepEqual(await buildSeoCountProjection(port()), {
+    published: false,
+    reason: "unsafe-start",
+  });
+  assert.equal(heavyCounts, 0, "no full catalog count before expiry authority");
+  db.prepare("UPDATE cove_seo_primary_fence SET eligibility_valid_until_ms=? WHERE slot=1").run(
+    now + 120_000,
+  );
   const seededPort = port();
   const good = await buildSeoCountProjection({
     ...seededPort,
@@ -229,6 +240,17 @@ try {
 
   const second = await readSeoCountEvidence(d1, witness);
   const beforeDirty = structuredClone(second.snapshot);
+  // No SQL rights write or generation increment occurs here. A revised,
+  // owner-reviewed upcoming expiry must still invalidate older evidence and
+  // refuse stale atomic publication in the same primary-D1 transaction.
+  db.prepare("UPDATE cove_seo_primary_fence SET eligibility_valid_until_ms=? WHERE slot=1").run(
+    now + 61_000,
+  );
+  assert.equal(verifiedSeoCounts(await readSeoCountEvidence(d1, witness), later), null);
+  assert.equal(await publishSeoCountCas(d1, witness, second.fence, beforeDirty), false);
+  db.prepare("UPDATE cove_seo_primary_fence SET eligibility_valid_until_ms=? WHERE slot=1").run(
+    now + 120_000,
+  );
   db.prepare("UPDATE cove_seo_primary_fence SET dirty=1 WHERE slot=1").run();
   assert.equal(verifiedSeoCounts(await readSeoCountEvidence(d1, witness), later), null);
   assert.equal(await publishSeoCountCas(d1, witness, second.fence, beforeDirty), false);
