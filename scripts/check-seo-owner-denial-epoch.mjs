@@ -141,7 +141,7 @@ try {
   const failClosed = await serve();
   assert.equal(failClosed.status, 503);
   assert.equal(failClosed.headers.get("cache-control"), "no-store");
-  assert.doesNotMatch(await failClosed.text(), /sitemaps\\/books|sitemaps\\/works/);
+  assert.equal((await failClosed.text()).includes("sitemaps/"), false);
 
   // Failed, uncommitted denials cannot advance the owner epoch or leave
   // a partial event. SQLite rolls back both the deny and the counter.
