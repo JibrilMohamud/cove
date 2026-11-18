@@ -118,7 +118,18 @@ try {
   // This unseals *only* our local fixture. Production owner remains disabled.
   db.prepare("UPDATE cove_seo_primary_fence SET owner_version=?,dirty=0 WHERE slot=1")
     .run(witness.ownerVersion);
-  const good = await buildSeoCountProjection(port());
+  const seededPort = port();
+  const good = await buildSeoCountProjection({
+    ...seededPort,
+    compareAndPublish: async (expected, snapshot) => {
+      try {
+        return await seededPort.compareAndPublish(expected, snapshot);
+      } catch (error) {
+        throw new Error("local_primary_cas_failure:" +
+          (error instanceof Error ? error.message : "unknown"));
+      }
+    },
+  });
   assert.deepEqual(good, { published: true, reason: "published" });
   assert.equal(heavyCounts, 5);
   const evidence = await readSeoCountEvidence(d1, witness);
