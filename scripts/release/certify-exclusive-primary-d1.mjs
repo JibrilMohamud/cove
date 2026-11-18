@@ -39,9 +39,9 @@ const READ_ONLY_GROUP=/^[A-Za-z0-9][A-Za-z0-9 &/._()+-]* (?:Read|Read-Only)$/;
 // independently documented Read permissions may resolve a name-only mismatch.
 // Never infer access from a dashboard category label, substring or suffix alone.
 const DOCUMENTED_USER_READ_GROUPS=[
-  {name:"API Tokens Read",scope:"com.cloudflare.api.user"},
-  {name:"User Details Read",scope:"com.cloudflare.api.user"},
-  {name:"Account Analytics Read",scope:"com.cloudflare.api.account"},
+  {name:"API Tokens Read",alias:"API Tokens",scope:"com.cloudflare.api.user"},
+  {name:"User Details Read",alias:"User Details",scope:"com.cloudflare.api.user"},
+  {name:"Account Analytics Read",alias:"Account Analytics",scope:"com.cloudflare.api.account"},
 ];
 const GROUP_ID=/^[a-f0-9]{32}$/;
 async function proveUnreviewedUserGroupsReadOnly(get,userToken,userTokens){
@@ -52,8 +52,8 @@ async function proveUnreviewedUserGroupsReadOnly(get,userToken,userTokens){
   if(!unreviewed.length)return true;
   // A missing ID cannot be trusted based on a display name alone.
   if(unreviewed.some(group=>!GROUP_ID.test(group.id||"")))return false;
-  const verifiedIds=new Set();
-  for(const {name,scope} of DOCUMENTED_USER_READ_GROUPS){
+  const verifiedIds=new Map();
+  for(const {name,alias,scope} of DOCUMENTED_USER_READ_GROUPS){
     let page;
     try{
       page=await get("/user/tokens/permission_groups?name="+
@@ -66,9 +66,9 @@ async function proveUnreviewedUserGroupsReadOnly(get,userToken,userTokens){
       rows[0]?.name!==name||!GROUP_ID.test(rows[0]?.id||"")||
       !Array.isArray(rows[0]?.scopes)||!rows[0].scopes.includes(scope)||
       (info&&(info.page!==1||info.count!==1)))return false;
-    verifiedIds.add(rows[0].id);
+    verifiedIds.set(rows[0].id,alias);
   }
-  return unreviewed.every(group=>verifiedIds.has(group.id));
+  return unreviewed.every(group=>verifiedIds.get(group.id)===group.name);
 }
 function tokenHasUnreviewedPermissions(token){
   return Array.isArray(token?.policies)&&token.policies.some(p=>
