@@ -8,6 +8,9 @@ on:
       - "src/features/fore/seo.server.ts"
       - "src/features/fore/seo-count-projection.ts"
       - "src/features/fore/seo-count-projection-producer.ts"
+      - "src/storefront-strangler/seo-primary-d1-counts.server.ts"
+      - "scripts/staging/seo-primary-count-fence.prototype.sql"
+      - "scripts/check-seo-primary-d1-count-cas.mjs"
       - "scripts/check-seo-count-projection.mjs"
       - "scripts/check-public-seo-gateway.mjs"
 
@@ -30,6 +33,8 @@ jobs:
       - run: npm ci
       - name: Test strict primary-owner, withdrawal and version fences
         run: node scripts/check-seo-count-projection.mjs
+      - name: Exercise primary-D1 atomic count publishing and 48 mutation triggers in local SQLite only
+        run: node scripts/check-seo-primary-d1-count-cas.mjs
       - name: Retain legacy sitemap gateway route and CDN behavior until protected promotion
         run: node scripts/check-public-seo-gateway.mjs
       - name: Static typecheck for opt-in SEO interface
