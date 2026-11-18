@@ -98,7 +98,9 @@ try {
     ownerVersion: "isolated-test-451", ownerEnabled: true,
     exclusiveWriter: true, authorizing: true,
   };
-  assert.equal((await readSeoPrimaryFence(d1, witness)).dirty, true);
+  // No positive owner version exists in the dirty-by-default schema.
+  // A caller asserting authority cannot turn a missing owner into a witness.
+  await assert.rejects(() => readSeoPrimaryFence(d1, witness), /seo_primary_owner_version_mismatch/);
   let heavyCounts = 0;
   const currentCounts = { books: 6, works: 4, editions: 5, authors: 3, categories: 2 };
   const now = 1794950000000;
@@ -108,10 +110,10 @@ try {
   }, () => now);
 
   assert.deepEqual(await buildSeoCountProjection(port()), {
-    published: false, reason: "unsafe-start",
+    published: false, reason: "unavailable",
   });
   assert.equal(heavyCounts, 0);
-  assert.equal((await readSeoCountEvidence(d1, witness)).snapshot, null);
+  await assert.rejects(() => readSeoCountEvidence(d1, witness), /seo_primary_owner_version_mismatch/);
 
   // This unseals *only* our local fixture. Production owner remains disabled.
   db.prepare("UPDATE cove_seo_primary_fence SET owner_version=?,dirty=0 WHERE slot=1")
