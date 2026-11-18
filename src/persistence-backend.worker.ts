@@ -257,7 +257,7 @@ async function catalogBatch(request: Request, env: BackendEnv) {
         reason: admission.reason,
         probeMs: admission.probeMs,
       };
-      console.warn("Catalog search index deferred");
+      console.warn("catalog_search_index_deferred");
     }
   }
   return json({
@@ -586,7 +586,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
         catalogAdmissionBudget(env.FORE_CATALOG_ADMISSION_MAX_MS),
       );
       if (!admission.allowed) {
-        console.warn("Optional minute maintenance deferred");
+        console.warn("optional_minute_maintenance_deferred");
         return;
       }
       // EPUB preparation shares the Worker's memory with asset ingestion.
