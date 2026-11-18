@@ -125,8 +125,10 @@ try {
       try {
         return await seededPort.compareAndPublish(expected, snapshot);
       } catch (error) {
-        throw new Error("local_primary_cas_failure:" +
-          (error instanceof Error ? error.message : "unknown"));
+        // Local synthetic fixture has no private SQL or request data.
+        console.error("LOCAL_PRIMARY_CAS_DIAGNOSTIC",
+          error instanceof Error ? error.message : "unknown");
+        throw error;
       }
     },
   });
