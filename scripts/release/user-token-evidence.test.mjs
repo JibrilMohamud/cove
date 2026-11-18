@@ -126,3 +126,74 @@ test("unexpected transport failures disclose only an allowlisted category", asyn
   assert.deepEqual(evidence, { verified: false, reason: "user_token_read_unavailable" });
   assert.doesNotMatch(JSON.stringify(evidence), /NEVER_LEAK|Bearer|PRIVATE_USER/);
 });
+
+const READ_GROUPS = [
+  { name: "API Tokens Read", scope: "com.cloudflare.api.user", id: "a".repeat(32) },
+  { name: "User Details Read", scope: "com.cloudflare.api.user", id: "b".repeat(32) },
+  { name: "Account Analytics Read", scope: "com.cloudflare.api.account", id: "c".repeat(32) },
+];
+const groupLookup = (name) => "/user/tokens/permission_groups?name=" + encodeURIComponent(name);
+const catalog = (entry) => ({
+  result: [{ id: entry.id, name: entry.name, scopes: [entry.scope] }],
+  result_info: { page: 1, count: 1, total_count: 2000 },
+});
+const aliasedPolicy = (id, name) => ({
+  name: "redacted",
+  status: "active",
+  policies: [{ permission_groups: [{ id, name }] }],
+});
+const aliasTransport = (userRows, override) => async (path, credential) => {
+  assert.equal(credential, USER_TOKEN);
+  if (path === "/user/tokens") return page(userRows);
+  const entry = READ_GROUPS.find((v) => groupLookup(v.name) === path);
+  assert.ok(entry, "unexpected catalog path");
+  return override ? override(entry) : catalog(entry);
+};
+
+test("only provider-confirmed stable IDs resolve cosmetic labels for three documented Read permissions", async () => {
+  const labels = ["API Tokens", "User Details", "Account Analytics"];
+  const tokens = READ_GROUPS.map((v, i) => aliasedPolicy(v.id, labels[i]));
+  let calls = 0;
+  const get = aliasTransport(tokens);
+  const evidence = await inspectUserTokenEvidence(async (...args) => {
+    calls++;
+    return get(...args);
+  }, USER_TOKEN);
+  assert.deepEqual(evidence, { verified: true, reason: "current_user_inventory_clear" });
+  assert.equal(calls, 4);
+});
+
+test("alias with a mutation ID, missing ID, or unknown permission remains release-blocked", async () => {
+  for (const item of [
+    aliasedPolicy("d".repeat(32), "Account Analytics"),
+    aliasedPolicy(undefined, "Account Analytics"),
+    aliasedPolicy("c".repeat(32), "Workers Arbitrary Change"),
+  ]) {
+    const evidence = await inspectUserTokenEvidence(aliasTransport([item]), USER_TOKEN);
+    assert.deepEqual(evidence, {
+      verified: false,
+      reason: "active_user_token_permission_unreviewed",
+    });
+  }
+  const explicitWrite = aliasedPolicy("c".repeat(32), "Workers Scripts Write");
+  assert.deepEqual(
+    await inspectUserTokenEvidence(aliasTransport([explicitWrite]), USER_TOKEN),
+    { verified: false, reason: "active_user_token_mutation_capability" },
+  );
+});
+
+test("spoofed or unavailable permission-group catalog cannot certify an alias", async () => {
+  const unknown = [aliasedPolicy("c".repeat(32), "Account Analytics")];
+  for (const override of [
+    () => { throw Error("writer_audit_http_403"); },
+    (entry) => ({ ...catalog(entry), result: [{ ...catalog(entry).result[0], name: "Account Analytics Write" }] }),
+    (entry) => ({ ...catalog(entry), result: [{ ...catalog(entry).result[0], scopes: ["com.cloudflare.api.user"] }] }),
+    (entry) => ({ ...catalog(entry), result: [] }),
+    (entry) => ({ ...catalog(entry), result_info: { page: 2, count: 1, total_count: 2000 } }),
+  ]) {
+    assert.deepEqual(
+      await inspectUserTokenEvidence(aliasTransport(unknown, override), USER_TOKEN),
+      { verified: false, reason: "active_user_token_permission_unreviewed" },
+    );
+  }
+});
