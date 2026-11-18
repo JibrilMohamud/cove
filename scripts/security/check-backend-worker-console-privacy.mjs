@@ -63,6 +63,11 @@ function inspectTriggerDiagnostic(source) {
   assert.ok(fn, "Scheduled audio trigger must remain reviewable");
   const trigger = fn.getText(file);
   assert.doesNotMatch(trigger, /response\.(?:text|json|arrayBuffer)\s*\(/);
+  // Cancel untrusted response streams without reading them or delaying D1 status receipt.
+  const failedResponse = trigger.indexOf("if (!response.ok)");
+  const cancel = trigger.indexOf("void response.body?.cancel().catch(() => {});");
+  const firstReceipt = trigger.indexOf('persistAudioTriggerDiagnostic(env, "audio_trigger_last_timeout"');
+  assert.ok(failedResponse >= 0 && cancel > failedResponse && firstReceipt > cancel);
   const allowed = new Set(["path", "status", "disposition"]);
   const keys = [];
   const visit = (node) => {
@@ -97,6 +102,9 @@ const upstreamBodyMutation = raw.replace(
 );
 assert.notEqual(upstreamBodyMutation, raw);
 assert.throws(() => inspectTriggerDiagnostic(upstreamBodyMutation));
+const cancelMutation = raw.replace("void response.body?.cancel().catch(() => {});", "");
+assert.notEqual(cancelMutation, raw);
+assert.throws(() => inspectTriggerDiagnostic(cancelMutation));
 
 assert.ok(inspect(raw));
 assert.doesNotMatch(wrangler, /^\[observability(?:\.|\])/, "Production Worker log collection cannot be enabled before full imported-module and invocation-log privacy review");
