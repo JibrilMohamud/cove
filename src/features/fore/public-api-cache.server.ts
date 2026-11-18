@@ -19,9 +19,11 @@ export function publicCacheTtl(path: string) {
   // UI context only: authenticated requests bypass shared caching, and every
   // commerce/rights endpoint independently resolves current legal authority.
   if (path === "/api/fore/storefront/context") return 30;
-  if (path === "/api/fore/search/suggest") return 60;
-  if (path === "/api/fore/audiobooks" || /^\/api\/fore\/audio\/[^/]+$/.test(path)) return 300;
-  if (/^\/api\/fore\/books\/[^/]+(?:\/detail)?$/.test(path)) return 60;
+  // No shared TTL for suggestions, book/edition detail, audiobook, or audio
+  // routes. Unlike catalog and bootstrap HITs below, these have no complete
+  // per-HIT canonical rights / withdrawal / expiry recheck. Returning a stale
+  // response would disclose a withdrawn item even if the live handler denies it.
+  // Re-enable only with a separately reviewed current-owner rights validator.
   return 0;
 }
 /**
