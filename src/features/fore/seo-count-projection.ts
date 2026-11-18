@@ -31,7 +31,21 @@ export type SeoCountProjectionEvidence = {
   fence: unknown;
 };
 
-export type SeoCountEvidenceLoader = () => Promise<SeoCountProjectionEvidence>;
+/**
+ * Owner evidence is a separate, fresh read from the one canonical legal-owner
+ * Durable Object, never from D1 or a request header. The client must verify
+ * a fresh private challenge and strict no-store response before returning it.
+ */
+export type SeoOwnerDenialProof = {
+  schema: "cove.seo.owner-denial-epoch.v1";
+  ownerVersion: string;
+  denialEpoch: string;
+  authority: "canonical-legal-durable-object";
+};
+export type SeoCountServingEvidence = SeoCountProjectionEvidence & {
+  ownerDenialProof: unknown;
+};
+export type SeoCountEvidenceLoader = () => Promise<SeoCountServingEvidence>;
 
 function record(input: unknown): input is Record<string, unknown> {
   return !!input && typeof input === "object" && !Array.isArray(input);
@@ -44,6 +58,7 @@ function exactKeys(value: Record<string, unknown>, required: readonly string[]):
 
 export const SEO_COUNT_GENERATION_KEYS = [
   "ownerVersion",
+  "ownerDenialEpoch",
   "catalogGeneration",
   "rightsGeneration",
   "withdrawalGeneration",
@@ -121,6 +136,32 @@ export function verifiedSeoCounts(
     if (!Number.isSafeInteger(value) || (value as number) < 0) return null;
   }
   return Object.freeze({ ...(snapshot.counts as SeoCounts) });
+}
+
+/**
+ * Serving is STRICTER than offline snapshot publication: after reading D1,
+ * fetch a fresh, authenticated global owner-denial epoch. A denial committed
+ * in the DO but not yet reflected by D1 must immediately stop sitemap output.
+ * No stale-owner fallback. This comparison's linearization point is the
+ * final owner read; it cannot revoke bytes already sent before a later denial.
+ */
+export function verifiedSeoCountsForServing(
+  evidence: SeoCountServingEvidence,
+  nowMs: number,
+): Readonly<SeoCounts> | null {
+  if (!record(evidence) || !record(evidence.fence) ||
+      !record(evidence.snapshot) || !record(evidence.ownerDenialProof)) return null;
+  const proof=evidence.ownerDenialProof;
+  if (!exactKeys(proof, ["schema", "ownerVersion", "denialEpoch", "authority"]) ||
+      proof.schema!=="cove.seo.owner-denial-epoch.v1" ||
+      proof.authority!=="canonical-legal-durable-object" ||
+      proof.ownerVersion!==evidence.fence.ownerVersion ||
+      proof.denialEpoch!==evidence.fence.ownerDenialEpoch ||
+      proof.denialEpoch!==evidence.snapshot.ownerDenialEpoch ||
+      typeof proof.denialEpoch!=="string" ||
+      !/^(0|[1-9][0-9]*)$/.test(proof.denialEpoch) ||
+      !Number.isSafeInteger(Number(proof.denialEpoch))) return null;
+  return verifiedSeoCounts(evidence,nowMs);
 }
 
 /**
