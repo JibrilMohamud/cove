@@ -1,14 +1,16 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const jobs = new Map([
+const jobs = [
   ["production-legal-owner-locked", "deploy-locked-owner"],
   ["literary-prod-handoff-dormant-deploy", "deploy-without-trigger"],
   ["literary-prod-publisher-dormant-deploy", "deploy-no-routes-no-secrets"],
   ["deploy-locked-fast-storefront-gateway", "deploy-off-by-default"],
   ["cloudflare-paired-release-freeze", "immutable-paired-benchmark"],
   ["literary-live-cutover-preflight", "protected-live-readonly-audit"],
-]);
+  ["cove-commerce-private-qa-deploy", "private-commerce"],
+  ["cove-commerce-private-qa-deploy", "authenticated-commerce"],
+];
 
 export function verifyProtectedWorkflow(yaml, jobName) {
   const on = yaml.match(/^on:\n([\s\S]*?)(?=^permissions:)/m)?.[1];
@@ -57,4 +59,4 @@ for (const [name, job] of jobs) {
     assert.throws(() => verifyProtectedWorkflow(mutated, job));
   }
 }
-console.log("PASS: six Cloudflare production-capable workflows are manual-only, main-pinned and protected");
+console.log("PASS: eight Cloudflare production-capable jobs are manual-only, main-pinned and protected");
