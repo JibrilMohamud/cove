@@ -2995,6 +2995,19 @@ async function handleCoveRequest(
   const url = new URL(request.url);
   if (!url.pathname.startsWith("/api/fore/")) return null;
   const path = url.pathname.slice("/api/fore".length);
+  // Fixed, request-local numeric markers only. Never serialize the error,
+  // request identity, SQL, headers or input into diagnostics.
+  async function observedPreContext<T>(
+    name: "legal" | "auth" | "identity",
+    run: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await run();
+    } catch (error) {
+      timings[`fault_pre_${name}`] = 1;
+      throw error;
+    }
+  }
   try {
     if (request.method === "GET" && path === "/service-status")
       return json(await publicServiceStatus(env));
@@ -3101,18 +3114,27 @@ async function handleCoveRequest(
       const publicResponse = await handleVercelPublicRequest(request, env, path);
       if (publicResponse) return publicResponse;
     }
-    const legalResponse = await handleLegalContact(request, env, path);
+    const legalResponse = await observedPreContext("legal", () =>
+      handleLegalContact(request, env, path),
+    );
     if (legalResponse) return legalResponse;
-    const authResponse = await auth.handle(path);
+    const authResponse = await observedPreContext("auth", () => auth.handle(path));
     if (authResponse) return authResponse;
     const identityStarted = performance.now();
-    await auth.identify();
+    await observedPreContext("identity", () => auth.identify());
     timings.identity = performance.now() - identityStarted;
     // Account bootstrap already enforces its own identity and entitlement
     // boundaries. It never consumes merchandising, locale or payment settings;
     // do not serialize those D1 lookups ahead of every reader's account state.
     if (request.method === "GET" && path === "/account") return json(await account(env, request));
-    const machineDb = database(env);
+    const machineDb = (() => {
+      try {
+        return database(env);
+      } catch (error) {
+        timings.fault_pre_database = 1;
+        throw error;
+      }
+    })();
     if (path.startsWith("/machine/v1/")) {
       if (request.method !== "POST") throw new ApiError(405, "Machine endpoints require POST.");
       if (path === "/machine/v1/ops/check") {
