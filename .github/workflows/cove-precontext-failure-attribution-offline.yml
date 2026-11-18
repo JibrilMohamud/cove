@@ -7,6 +7,8 @@ on:
       - "src/features/fore/api.server.ts"
       - "src/lib/persistence-backend-failure.ts"
       - "scripts/check-persistence-backend-failure.mjs"
+      - "scripts/release/check-precontext-writer-rereview.mjs"
+      - "docs/architecture/canonical-writer-review.json"
       - ".github/workflows/cove-precontext-failure-attribution-offline.yml"
 
 permissions:
@@ -21,11 +23,14 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
           cache: npm
       - run: npm ci --no-audit --no-fund
+      - name: Verify all 33 reviewed SQL sites, exact source, and unchanged denial
+        run: node scripts/release/check-precontext-writer-rereview.mjs
       - name: Fixed enum only and fail-closed 503 regression
         run: node scripts/check-persistence-backend-failure.mjs
       - name: Strict TypeScript validation
