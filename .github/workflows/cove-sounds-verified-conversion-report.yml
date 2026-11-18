@@ -4,11 +4,6 @@ on:
     paths:
       - "scripts/staging/report-cove-sounds-verified-conversion.mjs"
       - ".github/workflows/cove-sounds-verified-conversion-report.yml"
-  push:
-    branches: [main]
-    paths:
-      - "scripts/staging/report-cove-sounds-verified-conversion.mjs"
-      - ".github/workflows/cove-sounds-verified-conversion-report.yml"
   schedule:
     - cron: "17 12 * * *"
   workflow_dispatch:
@@ -31,8 +26,14 @@ jobs:
           node scripts/staging/report-cove-sounds-verified-conversion.mjs --self-test
           node scripts/staging/report-cove-sounds-market-readiness.mjs --self-test
   aggregate-only-report:
-    if: github.event_name != 'pull_request'
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm_protected_cloudflare_action == true &&
+      inputs.reviewed_main_sha == github.sha
     runs-on: ubuntu-latest
+    environment: cove-production-release-audit
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
