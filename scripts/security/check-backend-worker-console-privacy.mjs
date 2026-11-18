@@ -53,6 +53,51 @@ function inspect(source) {
   assert.equal(calls.length, 31, "Worker logger inventory must be explicitly re-reviewed");
   return true;
 }
+// The scheduled Vercel audio trigger writes a status-only diagnostic to D1.
+// The remote error body must NEVER be read, logged, or stored as configuration.
+function inspectTriggerDiagnostic(source) {
+  const file = ts.createSourceFile(PATH, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const fn = file.statements.find(
+    (node) => ts.isFunctionDeclaration(node) && node.name?.text === "triggerVercelAudio",
+  );
+  assert.ok(fn, "Scheduled audio trigger must remain reviewable");
+  const trigger = fn.getText(file);
+  assert.doesNotMatch(trigger, /response\\.(?:text|json|arrayBuffer)\\s*\\(/);
+  const allowed = new Set(["path", "status", "disposition"]);
+  const keys = [];
+  const visit = (node) => {
+    if (ts.isCallExpression(node) && node.expression.getText(file) === "persistAudioTriggerDiagnostic") {
+      const details = node.arguments[2];
+      assert.ok(ts.isObjectLiteralExpression(details), "Status receipt must remain a literal object");
+      for (const property of details.properties) {
+        assert.ok(ts.isPropertyAssignment(property) || ts.isShorthandPropertyAssignment(property));
+        const name = property.name.getText(file);
+        assert.ok(allowed.has(name), "No upstream body, error, identities, or secrets in D1 status");
+        const value = ts.isPropertyAssignment(property) ? property.initializer.getText(file) : name;
+        assert.ok(
+          (name === "path" && value === "path") ||
+          (name === "status" && value === "response.status") ||
+          (name === "disposition" && value === '"in-flight"'),
+          "Only exact reviewed fields may reach persistent status receipts",
+        );
+        keys.push(name);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(fn);
+  assert.equal(keys.filter((k) => k === "status").length, 3);
+  assert.equal(keys.filter((k) => k === "path").length, 3);
+  return true;
+}
+assert.ok(inspectTriggerDiagnostic(raw));
+const upstreamBodyMutation = raw.replace(
+  '        status: response.status,\\n        disposition: "in-flight",',
+  '        status: response.status,\\n        body: await response.text(),\\n        disposition: "in-flight",',
+);
+assert.notEqual(upstreamBodyMutation, raw);
+assert.throws(() => inspectTriggerDiagnostic(upstreamBodyMutation));
+
 assert.ok(inspect(raw));
 assert.doesNotMatch(wrangler, /^\[observability(?:\.|\])/, "Production Worker log collection cannot be enabled before full imported-module and invocation-log privacy review");
 for (const [existing, unsafe] of [
