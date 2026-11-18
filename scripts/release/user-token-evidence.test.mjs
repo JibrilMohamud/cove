@@ -187,7 +187,7 @@ test("spoofed or unavailable permission-group catalog cannot certify an alias", 
   for (const override of [
     () => { throw Error("writer_audit_http_403"); },
     (entry) => ({ ...catalog(entry), result: [{ ...catalog(entry).result[0], name: "Account Analytics Write" }] }),
-    (entry) => ({ ...catalog(entry), result: [{ ...catalog(entry).result[0], scopes: ["com.cloudflare.api.user"] }] }),
+    (entry) => ({ ...catalog(entry), result: [{ ...catalog(entry).result[0], scopes: ["com.cloudflare.edge.r2.bucket"] }] }),
     (entry) => ({ ...catalog(entry), result: [] }),
     (entry) => ({ ...catalog(entry), result_info: { page: 2, count: 1, total_count: 2000 } }),
   ]) {
