@@ -12,7 +12,7 @@ Sitemap counts **do not authorize** books, sales, downloads, or reader access. N
 
 `src/features/fore/seo-count-projection.ts` provides **pure validation only**; it neither reads D1 nor writes a projection. Its opt-in caller must fetch a projection and a **fresh, consistent primary-D1 owner fence on every sitemap request**. A projection is accepted only when:
 
-- **All six generations match**: immutable serving owner version; catalog mutation revision; canonical rights revision; withdrawal revision; taxonomy revision; contributor revision.
+- **All seven generation/version fields match**: immutable serving owner version; independent Durable Object denial epoch reconciled into primary D1; catalog mutation revision; canonical rights revision; withdrawal revision; taxonomy revision; contributor revision.
 - The primary evidence explicitly attests `ownerEnabled=true`, `exclusiveWriter=true`, `primaryD1=true`, `dirty=false`, `pendingWithdrawals=0`, and `pendingWrites=0`.
 - The entire five-field count record is present, integer and non-negative; schema and structure are exact; and the projection was published within a maximum 60-second validity interval.
 - The response opts out of origin/CDN caching: `Cache-Control: no-store`, with CDN-specific cache headers stripped.
@@ -57,6 +57,8 @@ Two new stage-only source modules implement the protocol:
 `scripts/check-seo-owner-denial-epoch.mjs` uses two *independent* in-memory SQLite databases to reproduce the gap: owner denial committed before D1; D1-only comparison still looks valid, but serving rejects it; D1 later reconciles and invalidates the old snapshot; a newly built snapshot can pass only after epochs match. Tests also cover failed denial rollback, replay, unavailable owner, stale challenge and public cache headers.
 
 **Important limitations:** These source modules are **not integrated into the existing 300KB production legal-owner Worker** and create no private production route. None of the current legal denials are instrumented to advance a shared owner-wide epoch yet. The actual owner has per-source revisions, not this global counter. A reviewed, complete inventory must include source, market, commercial product, paid entitlement, publication, emergency rights and other applicable denial paths, including crash recovery and replays. Any uncovered path can make a global epoch insufficient; keep all public sitemap projections disabled until completeness is independently certified.
+
+The opt-in handler also re-reads the owner and primary-D1 generation fence **after each potentially slow sitemap page SELECT**, before returning XML. Any intervening deny or mutation returns 503 with no-store. This second read costs extra latency and requires protected four-region/100-RPS measurement before promotion.
 
 The per-request owner read establishes a linearization point: denials acknowledged **before** that read must be observed. A denial acknowledged after the final owner read cannot retroactively withdraw already transmitted XML. URLs on individual pages must still be validated by current legal authorization; a global count is never an entitlement proof. The real owner route must remain disabled in production until legal ownership and physical D1 write exclusivity are proven. The independently protected rollout must verify that Vercel/Cloudflare cannot retain previously cached SEO XML.
 
