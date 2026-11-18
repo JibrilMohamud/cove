@@ -376,9 +376,7 @@ export async function cachedPublicApi(
         }),
       );
   };
-  const work = write().catch(() =>
-    console.warn("Public cache write unavailable"),
-  );
+  const work = write().catch(() => console.warn("Public cache write unavailable"));
   if (ctx.waitUntil) ctx.waitUntil(work);
   else await work;
   return decorate(response, "MISS");
