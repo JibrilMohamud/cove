@@ -250,9 +250,7 @@ async function catalogBatch(request: Request, env: BackendEnv) {
       catalogAdmissionBudget(env.FORE_CATALOG_ADMISSION_MAX_MS),
     );
     if (admission.allowed) {
-      await syncSearchIndex(env, 500).catch(() =>
-        console.warn("Catalog search sync failed"),
-      );
+      await syncSearchIndex(env, 500).catch(() => console.warn("Catalog search sync failed"));
     } else {
       searchSync = {
         skipped: "primary_busy",
@@ -445,7 +443,9 @@ async function runCommercialQueues(cron: string, env: BackendEnv) {
       console.info("Cove scheduled queue tick completed");
     } catch (error) {
       console.error(
-        isD1QuotaError(error) ? "Cove scheduled queue D1 quota blocked" : "Cove scheduled queue failed",
+        isD1QuotaError(error)
+          ? "Cove scheduled queue D1 quota blocked"
+          : "Cove scheduled queue failed",
       );
       if (isD1QuotaError(error)) {
         await markD1QuotaBlocked();
@@ -624,9 +624,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
       await refreshPublicStatus(env).catch(() =>
         console.warn("Public service status refresh failed"),
       );
-      await prunePublicCache(env).catch(() =>
-        console.warn("Public cache cleanup failed"),
-      );
+      await prunePublicCache(env).catch(() => console.warn("Public cache cleanup failed"));
       if (!(await audioComputeAdmission(env)).allowed) {
         await scheduledCatalog(env);
         return;
