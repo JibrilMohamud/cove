@@ -116,7 +116,7 @@ export async function publishSeoCountCas(
   if(!verifiedSeoCounts({snapshot:doc,fence:before},Number(doc.createdAtMs)))return false;
   const epochs=SEO_COUNT_GENERATION_KEYS.slice(1).map(key=>{
     const value=before[key];
-    if(typeof value!=="string"||!/^(0|[1-9]d*)$/.test(value)||
+    if(typeof value!=="string"||!/^(0|[1-9][0-9]*)$/.test(value)||
       !Number.isSafeInteger(Number(value)))throw Error("seo_publish_epoch_invalid");
     return Number(value);
   });
