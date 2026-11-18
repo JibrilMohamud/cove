@@ -4,11 +4,10 @@
  * numbers. No cached count authorizes a book, sale, download or reading,
  * and there is no cached eligibility or cross-request Worker I/O.
  *
- * With <=1000 potential active retail territorial grants, seed only those
- * products before executing the UNCHANGED retail availability view. At
- * >1000 grants, the primary-D1 optimizer uses the established catalog scan.
- * The count is exact because products.id and the (edition_id,node_id) pair
- * in edition_taxonomy_nodes are primary keys.
+ * The runtime seeds distinct taxonomy editions before consulting the
+ * UNCHANGED live retail availability view. The previous full-catalog plan
+ * remains available for parity tests of rights, locale and counts.
+ * The count is exact because products.id and (edition_id,node_id) are unique.
  */
 export type TaxonomyCountPlan = { sql: string; binds: (string | number)[] };
 const eligibleWhere = `
@@ -23,10 +22,10 @@ const eligibleWhere = `
       WHERE rpa.product_id=p.id AND rpa.territory_code=upper(?)
     )`;
 
-export function taxonomyCountPlan(
+/** Legacy dense full-catalog scan retained only for exact parity tests. */
+export function legacyDenseTaxonomyCountPlan(
   territory: string,
   language: string,
-  sparse: boolean,
 ): TaxonomyCountPlan {
   const normal = `WITH eligible AS MATERIALIZED (
     SELECT p.id,p.edition_id FROM products p
@@ -36,26 +35,36 @@ export function taxonomyCountPlan(
   SELECT et.taxonomy_node_id node_id,COUNT(*) product_count
   FROM eligible p JOIN edition_taxonomy_nodes et ON et.edition_id=p.edition_id
   GROUP BY et.taxonomy_node_id`;
-  if (!sparse) return { sql: normal, binds: [language, language, territory] };
+  return { sql: normal, binds: [language, language, territory] };
+}
 
-  const seeded = `WITH territory_seed AS MATERIALIZED (
-    SELECT DISTINCT seed_product.id,seed_product.edition_id
-    FROM rights_grant_territories rgt
-    JOIN rights_grants g ON g.id=rgt.grant_id
-      AND g.sales_channel='retail' AND g.status='active'
-    JOIN products seed_product ON seed_product.edition_id=g.edition_id
-    WHERE rgt.territory_code=upper(?)
+/**
+ * Taxonomy counts are presentation-only. Start from the distinct editions
+ * actually assigned to a node, not all catalog products or all live grants;
+ * keep the complete current retail availability view and territory/locale
+ * restrictions on EACH candidate. This avoids a giant primary-D1 rights scan
+ * for books with no taxonomy membership and handles empty taxonomies cheaply.
+ * The legacy sparse argument is retained for the audited caller interface.
+ */
+export function taxonomyCountPlan(
+  territory: string,
+  language: string,
+  _sparse: boolean,
+): TaxonomyCountPlan {
+  const seeded = `WITH taxonomy_seed AS MATERIALIZED (
+    SELECT DISTINCT et.edition_id
+    FROM edition_taxonomy_nodes et
   ), eligible AS MATERIALIZED (
     SELECT p.id,p.edition_id
-    FROM territory_seed seed
-    CROSS JOIN products p ON p.id=seed.id
+    FROM taxonomy_seed seed
+    CROSS JOIN products p ON p.edition_id=seed.edition_id
     CROSS JOIN editions e ON e.id=p.edition_id
     ${eligibleWhere.replace("retail_product_availability rpa", "retail_product_availability_rows rpa")}
   )
   SELECT et.taxonomy_node_id node_id,COUNT(*) product_count
   FROM eligible p JOIN edition_taxonomy_nodes et ON et.edition_id=p.edition_id
   GROUP BY et.taxonomy_node_id`;
-  return { sql: seeded, binds: [territory, language, language, territory] };
+  return { sql: seeded, binds: [language, language, territory] };
 }
 
 export const taxonomySparseRightsProbe = `
