@@ -15,11 +15,17 @@ on:
       - "wrangler.content-literary-prepare.prod-disabled.jsonc"
       - "wrangler.content-literary-infer.prod-disabled.jsonc"
       - ".github/workflows/literary-prod-handoff-dormant-deploy.yml"
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/literary-prod-handoff-dormant-deploy.yml"
   workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        description: "Exact reviewed main commit; changes fail closed."
+        required: true
+        type: string
+      confirm_protected_cloudflare_action:
+        description: "Authorize protected Cloudflare action; not automatic on merge."
+        required: true
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -44,8 +50,14 @@ jobs:
       - run: node scripts/check-literary-preparation-queue-owner.mjs
   deploy-without-trigger:
     needs: static-dormant-constraints
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm_protected_cloudflare_action == true &&
+      inputs.reviewed_main_sha == github.sha
     runs-on: ubuntu-latest
+    environment: cove-production-release-audit
     timeout-minutes: 18
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
