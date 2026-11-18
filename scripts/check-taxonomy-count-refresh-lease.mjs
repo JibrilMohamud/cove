@@ -177,7 +177,8 @@ assert.equal(globalScans, 1, "Only one in-flight expensive recount across all ma
 releaseGlobal();
 await globalOwner;
 assert.equal(
-  (await presentationTaxonomyCounts(db, "FI", "it", async () => [], clock, defer))[0]?.product_count,
+  (await presentationTaxonomyCounts(db, "FI", "it", async () => [], clock, defer))[0]
+    ?.product_count,
   31,
   "The first market publishes only its own independent display result",
 );
