@@ -14,7 +14,7 @@ concurrency:
 permissions:
   contents: read
 jobs:
-  supply-chain:
+  dependency-audit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -23,6 +23,15 @@ jobs:
       - run: npm ci
       - name: Dependency vulnerability audit
         run: npm audit --audit-level=high
+  source-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci
+      - name: Security gate failure, skip and cancellation regressions
+        run: node --test scripts/check-security-workflow.test.mjs scripts/check-eslint-minimatch.test.mjs
       - name: Secret scan
         run: npm run security:secret-scan
       - name: Static analysis (strict formatting plus legacy-error non-regression)
@@ -109,6 +118,23 @@ jobs:
         run: npm run security:sbom
       - uses: actions/upload-artifact@v4
         with: { name: security-sbom, path: artifacts/sbom.cdx.json, if-no-files-found: error }
+  # Keep the existing required check name. Neither successful source tests nor a
+  # skipped/cancelled audit may satisfy branch protection or publish provenance.
+  supply-chain:
+    if: ${{ always() }}
+    needs: [dependency-audit, source-checks]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every security job to succeed
+        env:
+          DEPENDENCY_AUDIT_RESULT: ${{ needs.dependency-audit.result }}
+          SOURCE_CHECKS_RESULT: ${{ needs.source-checks.result }}
+        run: |
+          if [ "$DEPENDENCY_AUDIT_RESULT" != "success" ] || [ "$SOURCE_CHECKS_RESULT" != "success" ]; then
+            echo "Security gate failed: audit=$DEPENDENCY_AUDIT_RESULT source=$SOURCE_CHECKS_RESULT"
+            exit 1
+          fi
+          echo "All security jobs passed."
   provenance:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: supply-chain
