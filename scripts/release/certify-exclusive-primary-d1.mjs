@@ -34,6 +34,42 @@ function tokenCanMutate(token){
 // capabilities are unclassified until reviewed, independently of whether
 // the known mutation group list happens to contain the provider's new name.
 const READ_ONLY_GROUP=/^[A-Za-z0-9][A-Za-z0-9 &/._()+-]* (?:Read|Read-Only)$/;
+// Cloudflare states permission-group names are cosmetic. Verify unexpected
+// user-owned group labels against a FRESH provider catalog ID; only these three
+// independently documented Read permissions may resolve a name-only mismatch.
+// Never infer access from a dashboard category label, substring or suffix alone.
+const DOCUMENTED_USER_READ_GROUPS=[
+  {name:"API Tokens Read",scope:"com.cloudflare.api.user"},
+  {name:"User Details Read",scope:"com.cloudflare.api.user"},
+  {name:"Account Analytics Read",scope:"com.cloudflare.api.account"},
+];
+const GROUP_ID=/^[a-f0-9]{32}$/;
+async function proveUnreviewedUserGroupsReadOnly(get,userToken,userTokens){
+  const unreviewed=userTokens.filter(t=>t.status==="active")
+    .flatMap(t=>t.policies.flatMap(p=>p.permission_groups))
+    .filter(group=>!PRIVILEGED_GROUPS.has(group.name)&&
+      !READ_ONLY_GROUP.test(group.name));
+  if(!unreviewed.length)return true;
+  // A missing ID cannot be trusted based on a display name alone.
+  if(unreviewed.some(group=>!GROUP_ID.test(group.id||"")))return false;
+  const verifiedIds=new Set();
+  for(const {name,scope} of DOCUMENTED_USER_READ_GROUPS){
+    let page;
+    try{
+      page=await get("/user/tokens/permission_groups?name="+
+        encodeURIComponent(name),userToken);
+    }catch{return false;}
+    // Provider endpoint may report total_count across unfiltered groups.
+    // Require one exact named row, exact scope and a usable stable group ID.
+    const rows=page?.result,info=page?.result_info;
+    if(!Array.isArray(rows)||rows.length!==1||
+      rows[0]?.name!==name||!GROUP_ID.test(rows[0]?.id||"")||
+      !Array.isArray(rows[0]?.scopes)||!rows[0].scopes.includes(scope)||
+      (info&&(info.page!==1||info.count!==1)))return false;
+    verifiedIds.add(rows[0].id);
+  }
+  return unreviewed.every(group=>verifiedIds.has(group.id));
+}
 function tokenHasUnreviewedPermissions(token){
   return Array.isArray(token?.policies)&&token.policies.some(p=>
     Array.isArray(p?.permission_groups)&&p.permission_groups.some(group=>
@@ -86,8 +122,10 @@ export async function inspectUserTokenEvidence(get,userToken){
     return {verified:false,reason:"user_token_policy_incomplete"};
   if(userTokens.some(t=>t.status==="active"&&tokenCanMutate(t)))
     return {verified:false,reason:"active_user_token_mutation_capability"};
-  if(userTokens.some(t=>t.status==="active"&&tokenHasUnreviewedPermissions(t)))
-    return {verified:false,reason:"active_user_token_permission_unreviewed"};
+  if(userTokens.some(t=>t.status==="active"&&tokenHasUnreviewedPermissions(t))){
+    if(!await proveUnreviewedUserGroupsReadOnly(get,userToken,userTokens))
+      return {verified:false,reason:"active_user_token_permission_unreviewed"};
+  }
   return {verified:true,reason:"current_user_inventory_clear"};
 }
 
