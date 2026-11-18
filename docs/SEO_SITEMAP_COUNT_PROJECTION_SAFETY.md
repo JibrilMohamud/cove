@@ -54,6 +54,16 @@ Two new stage-only source modules implement the protocol:
 - `seo-owner-denial-epoch.ts` defines a monotonic, idempotent owner-wide denial journal to be advanced in the **same DO SQLite transaction** as each validated legal denial. A failed denial rolls back the epoch; a replay cannot advance it twice. Its private proof includes a nonce challenge.
 - `seo-owner-denial-read.server.ts` uses a separately authenticated private service-binding POST with a fresh 128-bit random challenge, requires the exact owner/version/epoch schema, the challenge echo, strict no-store, and reads the owner **after** the single joined primary-D1 snapshot read. There is no fallback to a cached proof or replica.
 
+**Replay invariant (hardened):** the prototype owner DO journal checks an existing
+idempotency key **before** invoking any denial mutator. Replayed operations must
+pass a fresh in-transaction legal-state verifier for the exact operation,
+scope and unsuperseded revision; replays following a superseding allow are
+rejected without reapplying the old denial. New acknowledgments must also
+demonstrate that their corresponding denial is currently durable, otherwise
+the entire transaction rolls back. This is a stage-only contract, **not** a
+claim that production legal-owner commands use it. Failure to instrument all
+deny and allow paths remains an explicit release blocker.
+
 `scripts/check-seo-owner-denial-epoch.mjs` uses two *independent* in-memory SQLite databases to reproduce the gap: owner denial committed before D1; D1-only comparison still looks valid, but serving rejects it; D1 later reconciles and invalidates the old snapshot; a newly built snapshot can pass only after epochs match. Tests also cover failed denial rollback, replay, unavailable owner, stale challenge and public cache headers.
 
 **Important limitations:** These source modules are **not integrated into the existing 300KB production legal-owner Worker** and create no private production route. None of the current legal denials are instrumented to advance a shared owner-wide epoch yet. The actual owner has per-source revisions, not this global counter. A reviewed, complete inventory must include source, market, commercial product, paid entitlement, publication, emergency rights and other applicable denial paths, including crash recovery and replays. Any uncovered path can make a global epoch insufficient; keep all public sitemap projections disabled until completeness is independently certified.
