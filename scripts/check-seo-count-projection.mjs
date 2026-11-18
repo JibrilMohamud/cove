@@ -418,8 +418,14 @@ try {
     { published: true, reason: "published" },
   );
   assert.equal(expiryPublished.expiresAtMs, timestamp + 5_000);
-  assert.equal(verifiedSeoCounts({ snapshot: expiryPublished, fence: currentFence }, timestamp).works, 20_001);
-  assert.equal(verifiedSeoCounts({ snapshot: expiryPublished, fence: currentFence }, timestamp + 5_000), null);
+  assert.equal(
+    verifiedSeoCounts({ snapshot: expiryPublished, fence: currentFence }, timestamp).works,
+    20_001,
+  );
+  assert.equal(
+    verifiedSeoCounts({ snapshot: expiryPublished, fence: currentFence }, timestamp + 5_000),
+    null,
+  );
   currentFence.eligibilityValidUntilMs = timestamp;
   assert.deepEqual(await buildSeoCountProjection(basePort), {
     published: false,
