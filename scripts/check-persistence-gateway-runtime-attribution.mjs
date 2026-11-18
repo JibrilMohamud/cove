@@ -145,18 +145,22 @@ try {
 
   // Invalid endpoint settings do not leak the URL or original exception.
   messages.length = 0;
-  await checked(await proxyPersistenceApi(request(), {
+  const misconfigured = await proxyPersistenceApi(request(), {
     ...env,
     FORE_BACKEND_URL: "http://secret-identity.invalid",
-  }));
+  });
+  assert.equal(misconfigured?.status, 503);
+  assert.equal(misconfigured.headers.get("cache-control"), "no-store");
+  assert.match(await misconfigured.text(), /misconfigured/);
   assert.deepEqual(messages, [{
     level: "error",
     args: ["Invalid persistence backend configuration"],
   }]);
   assertMessagesPrivate();
 
-  console.log = console.log.bind(console);
-  nativeWarn("PASS: isolated upstream HTTP 503/504, transport, timeout and caller cancellation are fail-closed, low-cardinality and privacy-safe");
+  process.stdout.write(
+    "PASS: isolated upstream HTTP 503/504, transport, timeout and caller cancellation are fail-closed, low-cardinality and privacy-safe\\n",
+  );
 } finally {
   globalThis.fetch = nativeFetch;
   globalThis.setTimeout = nativeSetTimeout;
