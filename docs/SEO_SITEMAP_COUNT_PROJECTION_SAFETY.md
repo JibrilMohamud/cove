@@ -45,6 +45,21 @@ The fixture-based `scripts/check-seo-primary-d1-count-cas.mjs` uses Node SQLite 
 
 **Remaining gap: this is NOT a deployable complete production migration.** The 16-table coverage list still requires a complete independently reviewed source-write inventory against the real full schema, including ownership-related and emergency revocation pathways. A private owner witness is assumed for the test but not issued by any live production authorizer. Legal effective-time expiry may invalidate access without a SQL mutation; production must additionally bound projection validity by expiry or refuse to publish where such an event is not covered. Sitemap result pages still require live primary-D1 eligibility checks; valid count snapshots do not authorize individual URLs. Initial CDN invalidation/purge at cutover must be proven. Trigger write amplification must be benchmarked against the strict latency target before a protected staging schema application. No production D1 changes or owner enablement are performed.
 
+## Independent deny-first owner epoch: isolated protocol
+
+The prototype now reserves `owner_denial_epoch` in the primary-D1 fence **and** its count snapshot. The opt-in sitemap handler calls `verifiedSeoCountsForServing` rather than the producer-only version comparator. Serving requires a fresh independently read proof from the canonical legal-owner Durable Object, and the **owner denial epoch must match both the D1 fence and the published snapshot**. If the owner acknowledges a denial while its D1 mutation is not yet committed, the owner's epoch advances and the response becomes **503 no-store** rather than serving old XML.
+
+Two new stage-only source modules implement the protocol:
+
+- `seo-owner-denial-epoch.ts` defines a monotonic, idempotent owner-wide denial journal to be advanced in the **same DO SQLite transaction** as each validated legal denial. A failed denial rolls back the epoch; a replay cannot advance it twice. Its private proof includes a nonce challenge.
+- `seo-owner-denial-read.server.ts` uses a separately authenticated private service-binding POST with a fresh 128-bit random challenge, requires the exact owner/version/epoch schema, the challenge echo, strict no-store, and reads the owner **after** the single joined primary-D1 snapshot read. There is no fallback to a cached proof or replica.
+
+`scripts/check-seo-owner-denial-epoch.mjs` uses two *independent* in-memory SQLite databases to reproduce the gap: owner denial committed before D1; D1-only comparison still looks valid, but serving rejects it; D1 later reconciles and invalidates the old snapshot; a newly built snapshot can pass only after epochs match. Tests also cover failed denial rollback, replay, unavailable owner, stale challenge and public cache headers.
+
+**Important limitations:** These source modules are **not integrated into the existing 300KB production legal-owner Worker** and create no private production route. None of the current legal denials are instrumented to advance a shared owner-wide epoch yet. The actual owner has per-source revisions, not this global counter. A reviewed, complete inventory must include source, market, commercial product, paid entitlement, publication, emergency rights and other applicable denial paths, including crash recovery and replays. Any uncovered path can make a global epoch insufficient; keep all public sitemap projections disabled until completeness is independently certified.
+
+The per-request owner read establishes a linearization point: denials acknowledged **before** that read must be observed. A denial acknowledged after the final owner read cannot retroactively withdraw already transmitted XML. URLs on individual pages must still be validated by current legal authorization; a global count is never an entitlement proof. The real owner route must remain disabled in production until legal ownership and physical D1 write exclusivity are proven. The independently protected rollout must verify that Vercel/Cloudflare cannot retain previously cached SEO XML.
+
 ## Essential production prerequisites — not implemented here
 
 1. Certify exactly one canonical D1 writer and an enabled, lawful legal owner. This contract must NOT be used as a substitute for that certification.
