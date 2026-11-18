@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -21,8 +21,18 @@ try {
       "rights_contract_version_channels",
     ],
   };
-  for (const name of Object.values(tables).flat())
+  // The staging trigger inventory must at least name real schema objects in
+  // Cove's authored migration chain. Never silently validate fictional names
+  // in a synthetic CREATE TABLE fixture.
+  const migrationDdl = readdirSync("drizzle").filter((name) => name.endsWith(".sql"))
+    .map((name) => readFileSync(path.join("drizzle", name), "utf8"))
+    .join("\n").toLowerCase().replaceAll(/[\x60"']/g, "").replace(/\s+/g, " ");
+  for (const name of Object.values(tables).flat()) {
+    const present = migrationDdl.includes("create table " + name + " ") ||
+      migrationDdl.includes("create table if not exists " + name + " ");
+    assert.ok(present, "staging generation trigger refers to a missing real migration table: " + name);
     db.exec("CREATE TABLE " + name + " (id TEXT PRIMARY KEY, state TEXT);");
+  }
 
   const schema = readFileSync("scripts/staging/seo-primary-count-fence.prototype.sql", "utf8");
   assert.doesNotMatch(schema, /BEGIN\s+TRANSACTION|PRAGMA\s+writable_schema/i);
