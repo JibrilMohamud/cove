@@ -5,6 +5,7 @@ import {
   type SeoCountEvidenceLoader,
   type SeoCountKind,
   type SeoCounts,
+  SEO_COUNT_GENERATION_KEYS,
 } from "./seo-count-projection";
 
 type SeoCountReader = (kind: SeoCountKind) => Promise<number>;
@@ -181,9 +182,11 @@ export async function handleSeoDocumentRequest(
     path === "/sitemap.xml" ||
     /^\/sitemaps\/(?:books|works|editions|authors|categories)(?:\.xml|\/[0-9]+\.xml)$/.test(path);
   let projected: Readonly<SeoCounts> | null = null;
+  let initialEvidence: Awaited<ReturnType<SeoCountEvidenceLoader>> | null = null;
   if (loadCountEvidence && catalogDocument) {
     try {
-      projected = verifiedSeoCountsForServing(await loadCountEvidence(), Date.now());
+      initialEvidence = await loadCountEvidence();
+      projected = verifiedSeoCountsForServing(initialEvidence, Date.now());
     } catch {
       return unavailableSeoDocument();
     }
@@ -192,8 +195,26 @@ export async function handleSeoDocumentRequest(
   const countFor: SeoCountReader = projected
     ? async (kind) => projected![kind]
     : (kind) => count(db, kind);
-  const secure = (response: Response) =>
-    projected ? noncacheableSeoDocument(response, request.method === "HEAD") : response;
+  // Page SQL can take seconds, so a deny-first owner epoch can change AFTER
+  // the initial check. Re-read both fresh primary and independent owner once
+  // more immediately after page generation; no body is released on mismatch.
+  const secure = async (response: Response, afterPageSql = false) => {
+    if (!projected) return response;
+    if (afterPageSql) {
+      try {
+        const latestEvidence = await loadCountEvidence!();
+        if (!verifiedSeoCountsForServing(latestEvidence, Date.now()) ||
+            !initialEvidence ||
+            SEO_COUNT_GENERATION_KEYS.some(
+              (key) => latestEvidence.fence[key] !== initialEvidence.fence[key],
+            ))
+          return unavailableSeoDocument();
+      } catch {
+        return unavailableSeoDocument();
+      }
+    }
+    return noncacheableSeoDocument(response, request.method === "HEAD");
+  };
 
   if (path === "/robots.txt")
     return text(
@@ -258,6 +279,7 @@ export async function handleSeoDocumentRequest(
   if (match)
     return secure(
       await page(request, db, match[1] as SeoCountKind, Number(match[2]), publicUrl, countFor),
+      true,
     );
   return null;
 }
