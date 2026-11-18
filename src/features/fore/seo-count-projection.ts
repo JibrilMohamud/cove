@@ -10,13 +10,7 @@
  */
 export const SEO_COUNT_PROJECTION_SCHEMA = "cove.seo.counts.v1";
 export const SEO_COUNT_MAX_AGE_MS = 60_000;
-export const SEO_COUNT_KINDS = [
-  "books",
-  "works",
-  "editions",
-  "authors",
-  "categories",
-] as const;
+export const SEO_COUNT_KINDS = ["books", "works", "editions", "authors", "categories"] as const;
 
 export type SeoCountKind = (typeof SEO_COUNT_KINDS)[number];
 export type SeoCounts = Record<SeoCountKind, number>;
@@ -111,7 +105,8 @@ export function verifiedSeoCounts(
     fence.dirty !== false ||
     fence.pendingWithdrawals !== 0 ||
     fence.pendingWrites !== 0
-  ) return null;
+  )
+    return null;
 
   if (
     !Number.isSafeInteger(nowMs) ||
@@ -121,7 +116,8 @@ export function verifiedSeoCounts(
     (snapshot.expiresAtMs as number) <= nowMs ||
     nowMs - (snapshot.createdAtMs as number) > SEO_COUNT_MAX_AGE_MS ||
     (snapshot.expiresAtMs as number) - (snapshot.createdAtMs as number) > SEO_COUNT_MAX_AGE_MS
-  ) return null;
+  )
+    return null;
 
   // Match ALL mutation classes, not just rights. A changed publication
   // status, contributor link or taxonomy can also change sitemap cardinality.
@@ -149,19 +145,27 @@ export function verifiedSeoCountsForServing(
   evidence: SeoCountServingEvidence,
   nowMs: number,
 ): Readonly<SeoCounts> | null {
-  if (!record(evidence) || !record(evidence.fence) ||
-      !record(evidence.snapshot) || !record(evidence.ownerDenialProof)) return null;
-  const proof=evidence.ownerDenialProof;
-  if (!exactKeys(proof, ["schema", "ownerVersion", "denialEpoch", "authority"]) ||
-      proof.schema!=="cove.seo.owner-denial-epoch.v1" ||
-      proof.authority!=="canonical-legal-durable-object" ||
-      proof.ownerVersion!==evidence.fence.ownerVersion ||
-      proof.denialEpoch!==evidence.fence.ownerDenialEpoch ||
-      proof.denialEpoch!==evidence.snapshot.ownerDenialEpoch ||
-      typeof proof.denialEpoch!=="string" ||
-      !/^(0|[1-9][0-9]*)$/.test(proof.denialEpoch) ||
-      !Number.isSafeInteger(Number(proof.denialEpoch))) return null;
-  return verifiedSeoCounts(evidence,nowMs);
+  if (
+    !record(evidence) ||
+    !record(evidence.fence) ||
+    !record(evidence.snapshot) ||
+    !record(evidence.ownerDenialProof)
+  )
+    return null;
+  const proof = evidence.ownerDenialProof;
+  if (
+    !exactKeys(proof, ["schema", "ownerVersion", "denialEpoch", "authority"]) ||
+    proof.schema !== "cove.seo.owner-denial-epoch.v1" ||
+    proof.authority !== "canonical-legal-durable-object" ||
+    proof.ownerVersion !== evidence.fence.ownerVersion ||
+    proof.denialEpoch !== evidence.fence.ownerDenialEpoch ||
+    proof.denialEpoch !== evidence.snapshot.ownerDenialEpoch ||
+    typeof proof.denialEpoch !== "string" ||
+    !/^(0|[1-9][0-9]*)$/.test(proof.denialEpoch) ||
+    !Number.isSafeInteger(Number(proof.denialEpoch))
+  )
+    return null;
+  return verifiedSeoCounts(evidence, nowMs);
 }
 
 /**

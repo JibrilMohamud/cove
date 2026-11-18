@@ -22,9 +22,8 @@ try {
     outExtension: { ".js": ".mjs" },
     logLevel: "silent",
   });
-  const { verifiedSeoCounts, verifiedSeoCountsForServing, SEO_COUNT_PROJECTION_SCHEMA } = await import(
-    pathToFileURL(path.join(tmp, "seo-count-projection.mjs")).href
-  );
+  const { verifiedSeoCounts, verifiedSeoCountsForServing, SEO_COUNT_PROJECTION_SCHEMA } =
+    await import(pathToFileURL(path.join(tmp, "seo-count-projection.mjs")).href);
   const { handleSeoDocumentRequest } = await import(
     pathToFileURL(path.join(tmp, "seo.server.mjs")).href
   );
@@ -68,28 +67,70 @@ try {
   };
   assert.equal(verifiedSeoCounts(clone(), timestamp).works, 20_001);
   for (const name of Object.keys(generations)) {
-    mustReject("stale " + name, (x) => { x.fence[name] += "-new"; });
+    mustReject("stale " + name, (x) => {
+      x.fence[name] += "-new";
+    });
   }
-  mustReject("owner disabled", (x) => { x.fence.ownerEnabled = false; });
-  mustReject("competing writer", (x) => { x.fence.exclusiveWriter = false; });
-  mustReject("replica disallowed", (x) => { x.fence.primaryD1 = false; });
-  mustReject("dirty publishing", (x) => { x.fence.dirty = true; });
-  mustReject("withdrawal pending", (x) => { x.fence.pendingWithdrawals = 1; });
-  mustReject("write pending", (x) => { x.fence.pendingWrites = 1; });
-  mustReject("missing fence", (x) => { delete x.fence; });
-  mustReject("missing generation", (x) => { delete x.fence.rightsGeneration; });
-  mustReject("empty generation", (x) => { x.fence.rightsGeneration = ""; });
-  mustReject("additional unreviewed field", (x) => { x.snapshot.debug = "unreviewed"; });
-  mustReject("extra count field", (x) => { x.snapshot.counts.account_id = 1; });
-  mustReject("unknown schema", (x) => { x.snapshot.schema = "v2"; });
-  mustReject("negative count", (x) => { x.snapshot.counts.works = -1; });
-  mustReject("noninteger count", (x) => { x.snapshot.counts.books = 3.5; });
-  mustReject("NaN count", (x) => { x.snapshot.counts.books = NaN; });
-  mustReject("string count", (x) => { x.snapshot.counts.books = "2"; });
-  mustReject("too old", (x) => { x.snapshot.createdAtMs = timestamp - 60_001; });
-  mustReject("expired", (x) => { x.snapshot.expiresAtMs = timestamp; });
-  mustReject("future dated", (x) => { x.snapshot.createdAtMs = timestamp + 1; });
-  mustReject("unbounded TTL", (x) => { x.snapshot.expiresAtMs = timestamp + 90_000; });
+  mustReject("owner disabled", (x) => {
+    x.fence.ownerEnabled = false;
+  });
+  mustReject("competing writer", (x) => {
+    x.fence.exclusiveWriter = false;
+  });
+  mustReject("replica disallowed", (x) => {
+    x.fence.primaryD1 = false;
+  });
+  mustReject("dirty publishing", (x) => {
+    x.fence.dirty = true;
+  });
+  mustReject("withdrawal pending", (x) => {
+    x.fence.pendingWithdrawals = 1;
+  });
+  mustReject("write pending", (x) => {
+    x.fence.pendingWrites = 1;
+  });
+  mustReject("missing fence", (x) => {
+    delete x.fence;
+  });
+  mustReject("missing generation", (x) => {
+    delete x.fence.rightsGeneration;
+  });
+  mustReject("empty generation", (x) => {
+    x.fence.rightsGeneration = "";
+  });
+  mustReject("additional unreviewed field", (x) => {
+    x.snapshot.debug = "unreviewed";
+  });
+  mustReject("extra count field", (x) => {
+    x.snapshot.counts.account_id = 1;
+  });
+  mustReject("unknown schema", (x) => {
+    x.snapshot.schema = "v2";
+  });
+  mustReject("negative count", (x) => {
+    x.snapshot.counts.works = -1;
+  });
+  mustReject("noninteger count", (x) => {
+    x.snapshot.counts.books = 3.5;
+  });
+  mustReject("NaN count", (x) => {
+    x.snapshot.counts.books = NaN;
+  });
+  mustReject("string count", (x) => {
+    x.snapshot.counts.books = "2";
+  });
+  mustReject("too old", (x) => {
+    x.snapshot.createdAtMs = timestamp - 60_001;
+  });
+  mustReject("expired", (x) => {
+    x.snapshot.expiresAtMs = timestamp;
+  });
+  mustReject("future dated", (x) => {
+    x.snapshot.createdAtMs = timestamp + 1;
+  });
+  mustReject("unbounded TTL", (x) => {
+    x.snapshot.expiresAtMs = timestamp + 90_000;
+  });
 
   let sqlCounts = 0;
   let sqlPages = 0;
@@ -98,8 +139,12 @@ try {
     prepare(query) {
       if (/COUNT/i.test(query)) sqlCounts++;
       return {
-        bind() { return this; },
-        async first() { return { n: 42_635 }; },
+        bind() {
+          return this;
+        },
+        async first() {
+          return { n: 42_635 };
+        },
         async all() {
           sqlPages++;
           if (denyDuringPage) {
@@ -153,7 +198,10 @@ try {
   const pageReadsBefore = reads;
   denyDuringPage = true;
   const duringPage = await handleSeoDocumentRequest(
-    req("/sitemaps/works/2.xml"), db, undefined, load
+    req("/sitemaps/works/2.xml"),
+    db,
+    undefined,
+    load,
   );
   assert.equal(duringPage.status, 503);
   assert.equal(duringPage.headers.get("cache-control"), "no-store");
@@ -161,7 +209,12 @@ try {
   assert.doesNotMatch(await duringPage.text(), /book-1|sitemaps\/works/);
   ownerEpoch = "0";
 
-  const invalid = await handleSeoDocumentRequest(req("/sitemaps/works/99999.xml"), db, undefined, load);
+  const invalid = await handleSeoDocumentRequest(
+    req("/sitemaps/works/99999.xml"),
+    db,
+    undefined,
+    load,
+  );
   assert.equal(invalid.status, 404);
   assert.equal(invalid.headers.get("cache-control"), "no-store");
   assert.equal(sqlPages, 2, "huge invalid OFFSET never reaches SQL");
@@ -176,20 +229,37 @@ try {
   assert.equal(sqlCounts, 0, "DO denial gap must not trigger SQL fallback");
   const ownerAdvanced = await load();
   assert.equal(verifiedSeoCountsForServing(ownerAdvanced, timestamp), null);
-  assert.equal(verifiedSeoCounts(ownerAdvanced, timestamp).works, 20_001,
-    "D1-only comparison is insufficient while DO denial is ahead");
+  assert.equal(
+    verifiedSeoCounts(ownerAdvanced, timestamp).works,
+    20_001,
+    "D1-only comparison is insufficient while DO denial is ahead",
+  );
   ownerEpoch = "0";
 
   // Forged, malformed, missing or wrong-owner proof must fail closed.
   const evidence = await load();
   for (const mutation of [
-    (x) => { delete x.ownerDenialProof; },
-    (x) => { x.ownerDenialProof.denialEpoch = "000"; },
-    (x) => { x.ownerDenialProof.denialEpoch = "1"; },
-    (x) => { x.ownerDenialProof.ownerVersion = "other-owner"; },
-    (x) => { x.ownerDenialProof.schema = "unknown"; },
-    (x) => { x.ownerDenialProof.authority = "client-header"; },
-    (x) => { x.ownerDenialProof.arbitrary = "extra"; },
+    (x) => {
+      delete x.ownerDenialProof;
+    },
+    (x) => {
+      x.ownerDenialProof.denialEpoch = "000";
+    },
+    (x) => {
+      x.ownerDenialProof.denialEpoch = "1";
+    },
+    (x) => {
+      x.ownerDenialProof.ownerVersion = "other-owner";
+    },
+    (x) => {
+      x.ownerDenialProof.schema = "unknown";
+    },
+    (x) => {
+      x.ownerDenialProof.authority = "client-header";
+    },
+    (x) => {
+      x.ownerDenialProof.arbitrary = "extra";
+    },
   ]) {
     const altered = structuredClone(evidence);
     mutation(altered);
@@ -211,7 +281,10 @@ try {
   const refreshed = await handleSeoDocumentRequest(req("/sitemap.xml"), db, undefined, load);
   assert.equal(refreshed.status, 200);
   assert.doesNotMatch(await refreshed.text(), /\/sitemaps\/works\/2\.xml/);
-  assert.equal((await handleSeoDocumentRequest(req("/sitemaps/works/2.xml"), db, undefined, load)).status, 404);
+  assert.equal(
+    (await handleSeoDocumentRequest(req("/sitemaps/works/2.xml"), db, undefined, load)).status,
+    404,
+  );
   assert.equal(sqlCounts, 0);
 
   // Missing/failed read authorization is never treated like a cache miss.
@@ -268,7 +341,10 @@ try {
   assert.equal(readsForBuild, 2);
   assert.equal(countCalls, 5);
   assert.equal(casCalls, 1);
-  assert.equal(verifiedSeoCounts({ snapshot: published, fence: currentFence }, timestamp).works, 20_001);
+  assert.equal(
+    verifiedSeoCounts({ snapshot: published, fence: currentFence }, timestamp).works,
+    20_001,
+  );
 
   currentFence = originalFence();
   countCalls = 0;
@@ -291,7 +367,10 @@ try {
     compareAndPublish: async (expected, candidate) => {
       casCalls++;
       currentFence.withdrawalGeneration = "withdrawal-14";
-      assert.equal(verifiedSeoCounts({ snapshot: candidate, fence: currentFence }, timestamp), null);
+      assert.equal(
+        verifiedSeoCounts({ snapshot: candidate, fence: currentFence }, timestamp),
+        null,
+      );
       return false; // the production adapter MUST enforce atomic CAS in D1
     },
   });
@@ -300,63 +379,91 @@ try {
   currentFence = originalFence();
   currentFence.pendingWithdrawals = 1;
   countCalls = 0;
-  assert.deepEqual(await buildSeoCountProjection(basePort), { published: false, reason: "unsafe-start" });
+  assert.deepEqual(await buildSeoCountProjection(basePort), {
+    published: false,
+    reason: "unsafe-start",
+  });
   assert.equal(countCalls, 0, "unsafe primary fence must skip all heavy COUNTs");
 
   currentFence = originalFence();
   casCalls = 0;
-  assert.deepEqual(await buildSeoCountProjection({
-    ...basePort,
-    countAuthoritative: async () => -1,
-  }), { published: false, reason: "invalid-count" });
+  assert.deepEqual(
+    await buildSeoCountProjection({
+      ...basePort,
+      countAuthoritative: async () => -1,
+    }),
+    { published: false, reason: "invalid-count" },
+  );
   assert.equal(casCalls, 0);
 
-  assert.deepEqual(await buildSeoCountProjection({
-    ...basePort,
-    readPrimaryFence: async () => { throw Error("sensitive transport failure"); },
-  }), { published: false, reason: "unavailable" });
+  assert.deepEqual(
+    await buildSeoCountProjection({
+      ...basePort,
+      readPrimaryFence: async () => {
+        throw Error("sensitive transport failure");
+      },
+    }),
+    { published: false, reason: "unavailable" },
+  );
 
   // The builder must match EVERY current SQL count exactly, not an inferred
   // catalog total. The works query intentionally differs from books: legacy
   // works-count does not filter edition.release_status. Preserve behavior.
   const sql = {
-    books: "SELECT COUNT(*) n FROM products p JOIN editions e ON e.id=p.edition_id WHERE p.storefront_status='active' AND p.source_name<>'upload' AND e.release_status IN ('available','preorder')",
-    works: "SELECT COUNT(DISTINCT w.id) n FROM works w JOIN editions e ON e.work_id=w.id JOIN products p ON p.edition_id=e.id WHERE p.storefront_status='active' AND p.source_name<>'upload' AND w.canonical_status<>'redirected'",
-    editions: "SELECT COUNT(DISTINCT e.id) n FROM editions e JOIN products p ON p.edition_id=e.id WHERE p.storefront_status='active' AND p.source_name<>'upload' AND e.release_status IN ('available','preorder')",
-    authors: "SELECT COUNT(DISTINCT c.id) n FROM contributors c JOIN edition_contributors ec ON ec.contributor_id=c.id AND ec.role='author' JOIN editions e ON e.id=ec.edition_id JOIN products p ON p.edition_id=e.id WHERE p.storefront_status='active' AND p.source_name<>'upload' AND e.release_status IN ('available','preorder')",
-    categories: "SELECT COUNT(*) n FROM storefront_taxonomy_nodes n JOIN storefront_taxonomies t ON t.id=n.taxonomy_id WHERE t.is_default=1 AND t.status='active' AND n.visible=1",
+    books:
+      "SELECT COUNT(*) n FROM products p JOIN editions e ON e.id=p.edition_id WHERE p.storefront_status='active' AND p.source_name<>'upload' AND e.release_status IN ('available','preorder')",
+    works:
+      "SELECT COUNT(DISTINCT w.id) n FROM works w JOIN editions e ON e.work_id=w.id JOIN products p ON p.edition_id=e.id WHERE p.storefront_status='active' AND p.source_name<>'upload' AND w.canonical_status<>'redirected'",
+    editions:
+      "SELECT COUNT(DISTINCT e.id) n FROM editions e JOIN products p ON p.edition_id=e.id WHERE p.storefront_status='active' AND p.source_name<>'upload' AND e.release_status IN ('available','preorder')",
+    authors:
+      "SELECT COUNT(DISTINCT c.id) n FROM contributors c JOIN edition_contributors ec ON ec.contributor_id=c.id AND ec.role='author' JOIN editions e ON e.id=ec.edition_id JOIN products p ON p.edition_id=e.id WHERE p.storefront_status='active' AND p.source_name<>'upload' AND e.release_status IN ('available','preorder')",
+    categories:
+      "SELECT COUNT(*) n FROM storefront_taxonomy_nodes n JOIN storefront_taxonomies t ON t.id=n.taxonomy_id WHERE t.is_default=1 AND t.status='active' AND n.visible=1",
   };
   const actualSeoSource = readFileSync("src/features/fore/seo.server.ts", "utf8");
   for (const kind of ["books", "works", "editions", "authors", "categories"]) {
-    assert.ok(actualSeoSource.includes(sql[kind]), "live sitemap count changed without reviewed projection parity: " + kind);
+    assert.ok(
+      actualSeoSource.includes(sql[kind]),
+      "live sitemap count changed without reviewed projection parity: " + kind,
+    );
   }
   const catalogDb = new DatabaseSync(":memory:");
   try {
-    catalogDb.exec([
-      "CREATE TABLE works (id TEXT PRIMARY KEY, canonical_status TEXT);",
-      "CREATE TABLE editions (id TEXT PRIMARY KEY, work_id TEXT, release_status TEXT);",
-      "CREATE TABLE products (id TEXT PRIMARY KEY, edition_id TEXT, storefront_status TEXT, source_name TEXT);",
-      "CREATE TABLE contributors (id TEXT PRIMARY KEY);",
-      "CREATE TABLE edition_contributors (edition_id TEXT, contributor_id TEXT, role TEXT);",
-      "CREATE TABLE storefront_taxonomies (id TEXT PRIMARY KEY, is_default INTEGER, status TEXT);",
-      "CREATE TABLE storefront_taxonomy_nodes (id TEXT PRIMARY KEY, taxonomy_id TEXT, visible INTEGER);",
-      "INSERT INTO works VALUES ('w1','canonical'),('w2','redirected'),('w3','canonical');",
-      "INSERT INTO editions VALUES ('e1','w1','available'),('e2','w1','preorder'),('e3','w2','available'),('e4','w3','unavailable');",
-      "INSERT INTO products VALUES ('p1','e1','active','gutenberg'),('p2','e2','active','publisher-api'),('p3','e3','active','gutenberg'),('p4','e4','active','gutenberg'),('p5','e1','active','upload');",
-      "INSERT INTO contributors VALUES ('c1'),('c2');",
-      "INSERT INTO edition_contributors VALUES ('e1','c1','author'),('e2','c1','author'),('e3','c2','author'),('e2','c2','editor');",
-      "INSERT INTO storefront_taxonomies VALUES ('tax1',1,'active'),('tax2',0,'active');",
-      "INSERT INTO storefront_taxonomy_nodes VALUES ('n1','tax1',1),('n2','tax1',0),('n3','tax2',1);",
-      "CREATE INDEX idx_editions_work ON editions(work_id);",
-      "CREATE INDEX idx_products_edition ON products(edition_id);",
-    ].join("\n"));
-    const actualCount = (kind) => Number(catalogDb.prepare(sql[kind]).get().n);
-    const fixtureCounts = () => Object.fromEntries(
-      Object.keys(sql).map((kind) => [kind, actualCount(kind)])
+    catalogDb.exec(
+      [
+        "CREATE TABLE works (id TEXT PRIMARY KEY, canonical_status TEXT);",
+        "CREATE TABLE editions (id TEXT PRIMARY KEY, work_id TEXT, release_status TEXT);",
+        "CREATE TABLE products (id TEXT PRIMARY KEY, edition_id TEXT, storefront_status TEXT, source_name TEXT);",
+        "CREATE TABLE contributors (id TEXT PRIMARY KEY);",
+        "CREATE TABLE edition_contributors (edition_id TEXT, contributor_id TEXT, role TEXT);",
+        "CREATE TABLE storefront_taxonomies (id TEXT PRIMARY KEY, is_default INTEGER, status TEXT);",
+        "CREATE TABLE storefront_taxonomy_nodes (id TEXT PRIMARY KEY, taxonomy_id TEXT, visible INTEGER);",
+        "INSERT INTO works VALUES ('w1','canonical'),('w2','redirected'),('w3','canonical');",
+        "INSERT INTO editions VALUES ('e1','w1','available'),('e2','w1','preorder'),('e3','w2','available'),('e4','w3','unavailable');",
+        "INSERT INTO products VALUES ('p1','e1','active','gutenberg'),('p2','e2','active','publisher-api'),('p3','e3','active','gutenberg'),('p4','e4','active','gutenberg'),('p5','e1','active','upload');",
+        "INSERT INTO contributors VALUES ('c1'),('c2');",
+        "INSERT INTO edition_contributors VALUES ('e1','c1','author'),('e2','c1','author'),('e3','c2','author'),('e2','c2','editor');",
+        "INSERT INTO storefront_taxonomies VALUES ('tax1',1,'active'),('tax2',0,'active');",
+        "INSERT INTO storefront_taxonomy_nodes VALUES ('n1','tax1',1),('n2','tax1',0),('n3','tax2',1);",
+        "CREATE INDEX idx_editions_work ON editions(work_id);",
+        "CREATE INDEX idx_products_edition ON products(edition_id);",
+      ].join("\n"),
     );
-    assert.deepEqual(fixtureCounts(), {
-      books: 3, works: 2, editions: 3, authors: 2, categories: 1,
-    }, "synthetic catalog fixture must retain distinct edition/work/author semantics");
+    const actualCount = (kind) => Number(catalogDb.prepare(sql[kind]).get().n);
+    const fixtureCounts = () =>
+      Object.fromEntries(Object.keys(sql).map((kind) => [kind, actualCount(kind)]));
+    assert.deepEqual(
+      fixtureCounts(),
+      {
+        books: 3,
+        works: 2,
+        editions: 3,
+        authors: 2,
+        categories: 1,
+      },
+      "synthetic catalog fixture must retain distinct edition/work/author semantics",
+    );
 
     let fence = originalFence();
     let projection = null;
@@ -379,9 +486,17 @@ try {
     catalogDb.exec("UPDATE products SET storefront_status='inactive' WHERE id IN ('p1','p2')");
     fence.catalogGeneration = "catalog-100";
     assert.equal(verifiedSeoCounts({ snapshot: projection, fence }, timestamp), null);
-    assert.deepEqual(fixtureCounts(), {
-      books: 1, works: 1, editions: 1, authors: 1, categories: 1,
-    }, "published-work and contributor counts must track active products exactly");
+    assert.deepEqual(
+      fixtureCounts(),
+      {
+        books: 1,
+        works: 1,
+        editions: 1,
+        authors: 1,
+        categories: 1,
+      },
+      "published-work and contributor counts must track active products exactly",
+    );
     assert.equal((await buildSeoCountProjection(sqlPort)).published, true);
     assert.deepEqual(projection.counts, fixtureCounts());
     assert.ok(verifiedSeoCounts({ snapshot: projection, fence }, timestamp));
@@ -389,7 +504,9 @@ try {
     catalogDb.close();
   }
 
-  console.log("PASS: version-fenced SEO counts fail closed, recheck withdrawals, bypass COUNT and disable CDN caching, enforce exact SQL count parity and prevent stale snapshot publication");
+  console.log(
+    "PASS: version-fenced SEO counts fail closed, recheck withdrawals, bypass COUNT and disable CDN caching, enforce exact SQL count parity and prevent stale snapshot publication",
+  );
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }

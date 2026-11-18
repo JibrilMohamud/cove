@@ -70,7 +70,9 @@ export async function buildSeoCountProjection(
       return { published: false, reason: "unsafe-start" };
     }
     const empty = Object.fromEntries(SEO_COUNT_KINDS.map((kind) => [kind, 0])) as SeoCounts;
-    if (!verifiedSeoCounts({ snapshot: createSnapshot(begin, empty, beginAt), fence: begin }, beginAt)) {
+    if (
+      !verifiedSeoCounts({ snapshot: createSnapshot(begin, empty, beginAt), fence: begin }, beginAt)
+    ) {
       return { published: false, reason: "unsafe-start" };
     }
 

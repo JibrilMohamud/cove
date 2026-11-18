@@ -205,9 +205,12 @@ export async function handleSeoDocumentRequest(
         const latestEvidence = await loadCountEvidence!();
         const before = initialEvidence?.fence as Record<string, unknown> | undefined;
         const after = latestEvidence.fence as Record<string, unknown> | undefined;
-        if (!verifiedSeoCountsForServing(latestEvidence, Date.now()) ||
-            !before || !after ||
-            SEO_COUNT_GENERATION_KEYS.some((key) => after[key] !== before[key]))
+        if (
+          !verifiedSeoCountsForServing(latestEvidence, Date.now()) ||
+          !before ||
+          !after ||
+          SEO_COUNT_GENERATION_KEYS.some((key) => after[key] !== before[key])
+        )
           return unavailableSeoDocument();
       } catch {
         return unavailableSeoDocument();
@@ -274,7 +277,8 @@ export async function handleSeoDocumentRequest(
     );
   }
   const index = path.match(/^\/sitemaps\/(books|works|editions|authors|categories)\.xml$/);
-  if (index) return secure(await typeIndex(request, db, index[1] as SeoCountKind, publicUrl, countFor));
+  if (index)
+    return secure(await typeIndex(request, db, index[1] as SeoCountKind, publicUrl, countFor));
   const match = path.match(/^\/sitemaps\/(books|works|editions|authors|categories)\/(\d+)\.xml$/);
   if (match)
     return secure(
