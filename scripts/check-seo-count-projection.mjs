@@ -22,7 +22,7 @@ try {
     outExtension: { ".js": ".mjs" },
     logLevel: "silent",
   });
-  const { verifiedSeoCounts, SEO_COUNT_PROJECTION_SCHEMA } = await import(
+  const { verifiedSeoCounts, verifiedSeoCountsForServing, SEO_COUNT_PROJECTION_SCHEMA } = await import(
     pathToFileURL(path.join(tmp, "seo-count-projection.mjs")).href
   );
   const { handleSeoDocumentRequest } = await import(
@@ -35,6 +35,7 @@ try {
   const timestamp = Date.now();
   const generations = {
     ownerVersion: "worker-451",
+    ownerDenialEpoch: "0",
     catalogGeneration: "catalog-99",
     rightsGeneration: "rights-18",
     withdrawalGeneration: "withdrawal-12",
@@ -107,9 +108,20 @@ try {
   };
   let proof = clone();
   let reads = 0;
+  let ownerEpoch = "0";
   const load = async () => {
     reads++;
-    return structuredClone(proof);
+    // The proof is modeled as a separate strongly consistent DO read
+    // AFTER the primary-D1 snapshot. Never derive it from the D1 fence.
+    return {
+      ...structuredClone(proof),
+      ownerDenialProof: {
+        schema: "cove.seo.owner-denial-epoch.v1",
+        ownerVersion: proof.fence.ownerVersion,
+        denialEpoch: ownerEpoch,
+        authority: "canonical-legal-durable-object",
+      },
+    };
   };
   const req = (url, method) => new Request("https://covereads.com" + url, { method });
 
@@ -134,6 +146,36 @@ try {
   assert.equal(invalid.status, 404);
   assert.equal(invalid.headers.get("cache-control"), "no-store");
   assert.equal(sqlPages, 1, "huge invalid OFFSET never reaches SQL");
+
+  // Deny-first race: the owner DO has acknowledged a new denial but the
+  // corresponding D1 rights mutation has NOT committed yet. Its D1 epoch
+  // still looks current; the independent owner evidence must reject it.
+  ownerEpoch = "1";
+  const denyBeforeD1 = await handleSeoDocumentRequest(req("/sitemap.xml"), db, undefined, load);
+  assert.equal(denyBeforeD1.status, 503);
+  assert.equal(denyBeforeD1.headers.get("cache-control"), "no-store");
+  assert.equal(sqlCounts, 0, "DO denial gap must not trigger SQL fallback");
+  const ownerAdvanced = await load();
+  assert.equal(verifiedSeoCountsForServing(ownerAdvanced, timestamp), null);
+  assert.equal(verifiedSeoCounts(ownerAdvanced, timestamp).works, 20_001,
+    "D1-only comparison is insufficient while DO denial is ahead");
+  ownerEpoch = "0";
+
+  // Forged, malformed, missing or wrong-owner proof must fail closed.
+  const evidence = await load();
+  for (const mutation of [
+    (x) => { delete x.ownerDenialProof; },
+    (x) => { x.ownerDenialProof.denialEpoch = "000"; },
+    (x) => { x.ownerDenialProof.denialEpoch = "1"; },
+    (x) => { x.ownerDenialProof.ownerVersion = "other-owner"; },
+    (x) => { x.ownerDenialProof.schema = "unknown"; },
+    (x) => { x.ownerDenialProof.authority = "client-header"; },
+    (x) => { x.ownerDenialProof.arbitrary = "extra"; },
+  ]) {
+    const altered = structuredClone(evidence);
+    mutation(altered);
+    assert.equal(verifiedSeoCountsForServing(altered, timestamp), null);
+  }
 
   // A withdrawal invalidates the old snapshot immediately at the primary fence.
   proof.fence.withdrawalGeneration = "withdrawal-13";
