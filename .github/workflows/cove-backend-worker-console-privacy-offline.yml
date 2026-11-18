@@ -1,0 +1,28 @@
+name: cove-backend-worker-console-privacy-offline
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - src/persistence-backend.worker.ts
+      - wrangler.backend.production.toml
+      - scripts/security/check-backend-worker-console-privacy.mjs
+      - .github/workflows/cove-backend-worker-console-privacy-offline.yml
+permissions:
+  contents: read
+jobs:
+  worker-log-redaction:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Verify static-only Worker console logs and reject raw-data mutations
+        run: node scripts/security/check-backend-worker-console-privacy.mjs
+      - name: Verify Worker source formatting
+        run: npx eslint src/persistence-backend.worker.ts
