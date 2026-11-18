@@ -7,6 +7,16 @@ on:
   schedule:
     - cron: "17 12 * * *"
   workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        description: "Approve the exact main SHA before Cloudflare API access."
+        required: true
+        type: string
+      confirm_protected_cloudflare_action:
+        description: "Explicitly approve this Cloudflare action; never auto-run on source merge."
+        required: true
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
