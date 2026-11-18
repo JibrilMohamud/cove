@@ -234,6 +234,82 @@ try {
   assert.doesNotMatch(await duringPage.text(), /book-1|sitemaps\/works/);
   ownerEpoch = "0";
 
+  // A clock-only transition need not change any SQL generation or DO epoch.
+  // A newly published snapshot must never renew an in-flight page's OLD
+  // authorization window, even when the latest evidence is independently valid.
+  const realNow = Date.now;
+  try {
+    for (const method of ["GET", "HEAD"]) {
+      for (const transition of ["expired-horizon", "expired-snapshot", "changed-horizon"]) {
+        let clock = timestamp;
+        Date.now = () => clock;
+        const initial = await load();
+        initial.snapshot.expiresAtMs = timestamp + 1_000;
+        if (transition === "expired-horizon") {
+          initial.snapshot.eligibilityValidUntilMs = timestamp + 1_000;
+          initial.fence.eligibilityValidUntilMs = timestamp + 1_000;
+        }
+        const latest = structuredClone(initial);
+        let windowReads = 0;
+        const windowLoader = async () => {
+          windowReads++;
+          return structuredClone(windowReads === 1 ? initial : latest);
+        };
+        const expiringDb = {
+          prepare(query) {
+            assert.doesNotMatch(query, /COUNT/i, "expiry race must not fall back to COUNT");
+            return {
+              bind() {
+                return this;
+              },
+              async all() {
+                clock = timestamp + (transition === "changed-horizon" ? 500 : 1_000);
+                latest.snapshot.createdAtMs = clock;
+                latest.snapshot.expiresAtMs = clock + 30_000;
+                if (transition !== "expired-snapshot") {
+                  latest.snapshot.eligibilityValidUntilMs = timestamp + 40_000;
+                  latest.fence.eligibilityValidUntilMs = timestamp + 40_000;
+                }
+                assert.ok(verifiedSeoCountsForServing(latest, clock), "renewed proof is valid");
+                return { results: [{ ref: "expired-book", updated_at: "2026-11-16" }] };
+              },
+            };
+          },
+        };
+        const result = await handleSeoDocumentRequest(
+          req("/sitemaps/works/1.xml", method),
+          expiringDb,
+          undefined,
+          windowLoader,
+        );
+        assert.equal(
+          result.status,
+          503,
+          method + " must reject " + transition + " during page SQL",
+        );
+        assert.equal(result.headers.get("cache-control"), "no-store");
+        assert.doesNotMatch(await result.text(), /expired-book/);
+      }
+      for (const document of ["/sitemap.xml", "/sitemaps/works.xml"]) {
+        let clockReads = 0;
+        Date.now = () => timestamp + (clockReads++ === 0 ? 0 : 1_000);
+        const initial = await load();
+        initial.snapshot.expiresAtMs = timestamp + 1_000;
+        const result = await handleSeoDocumentRequest(
+          req(document, method),
+          db,
+          undefined,
+          async () => structuredClone(initial),
+        );
+        assert.equal(result.status, 503, document + " must recheck original expiry before release");
+        assert.equal(result.headers.get("cache-control"), "no-store");
+        assert.doesNotMatch(await result.text(), /sitemapindex/);
+      }
+    }
+  } finally {
+    Date.now = realNow;
+  }
+
   const invalid = await handleSeoDocumentRequest(
     req("/sitemaps/works/99999.xml"),
     db,

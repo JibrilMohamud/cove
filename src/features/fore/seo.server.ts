@@ -198,6 +198,8 @@ export async function handleSeoDocumentRequest(
   // Page SQL can take seconds, so a deny-first owner epoch can change AFTER
   // the initial check. Re-read both fresh primary and independent owner once
   // more immediately after page generation; no body is released on mismatch.
+  // Retain the ORIGINAL time window too: a new snapshot with unchanged SQL
+  // generations cannot reauthorize URLs selected before a clock-only expiry.
   const secure = async (response: Response, afterPageSql = false) => {
     if (!projected) return response;
     if (afterPageSql) {
@@ -209,6 +211,7 @@ export async function handleSeoDocumentRequest(
           !verifiedSeoCountsForServing(latestEvidence, Date.now()) ||
           !before ||
           !after ||
+          after.eligibilityValidUntilMs !== before.eligibilityValidUntilMs ||
           SEO_COUNT_GENERATION_KEYS.some((key) => after[key] !== before[key])
         )
           return unavailableSeoDocument();
@@ -216,6 +219,10 @@ export async function handleSeoDocumentRequest(
         return unavailableSeoDocument();
       }
     }
+    // All catalog documents, including indexes without page SQL, must still
+    // fit their original snapshot and legal horizon when the body is released.
+    if (!initialEvidence || !verifiedSeoCountsForServing(initialEvidence, Date.now()))
+      return unavailableSeoDocument();
     return noncacheableSeoDocument(response, request.method === "HEAD");
   };
 

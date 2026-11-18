@@ -33,11 +33,12 @@ The branch now includes a **staging-only SQL prototype** at `scripts/staging/seo
 
 The prototype creates one sealed primary-fence row (`dirty=1`, blank owner version), a one-row count snapshot, and 48 insert/update/delete generation triggers on 16 currently identified catalog/rights/taxonomy/contributor tables. SQLite executes each trigger in the **same transaction as the source mutation**. Existing non-owner writers cannot silently skip invalidation for those covered tables.
 
-The adapter requires the specific Cove primary D1 ID and a *separately verified* private owner witness; a flag or API request header is not an owner certificate. It **requires** `withSession("first-primary")` and uses one joined primary read to obtain both the snapshot and the current fence. Snapshot publication is a single conditional `INSERT ... SELECT ... ON CONFLICT DO UPDATE ... RETURNING` statement that atomically compares every generation, owner version, dirty state and pending-write/withdrawal state, and blocks older publisher timestamps. There is no `BEGIN`/network-`await`/`COMMIT` race.
+The adapter requires the specific Cove primary D1 ID and a _separately verified_ private owner witness; a flag or API request header is not an owner certificate. It **requires** `withSession("first-primary")` and uses one joined primary read to obtain both the snapshot and the current fence. Snapshot publication is a single conditional `INSERT ... SELECT ... ON CONFLICT DO UPDATE ... RETURNING` statement that atomically compares every generation, owner version, dirty state and pending-write/withdrawal state, and blocks older publisher timestamps. There is no `BEGIN`/network-`await`/`COMMIT` race.
 
 The fixture-based `scripts/check-seo-primary-d1-count-cas.mjs` uses Node SQLite to verify:
+
 - All 48 triggers cover their declared INSERT, UPDATE and DELETE operations; rolled-back mutations also roll back their fence changes.
-- The fixture is sealed by default and rejects apparent owner attestations until explicitly opened *within the local test*.
+- The fixture is sealed by default and rejects apparent owner attestations until explicitly opened _within the local test_.
 - The joined evidence read rejects a withdrawn/dirty/changed primary generation; a snapshot from before a rights withdrawal cannot be republished.
 - A withdrawal between producer validation and the atomic publish statement causes CAS failure; older producer timestamps lose to newer snapshots.
 - No read is allowed through the replica/unconstrained session path.
@@ -50,11 +51,11 @@ The fixture-based `scripts/check-seo-primary-d1-count-cas.mjs` uses Node SQLite 
 
 A rights grant, territory entitlement, contract, source authority or publication condition may expire **solely because the clock moves**, without firing any of the D1 generation triggers. A 60-second snapshot whose authorization ends in the next 20 seconds must **not** advertise that title for 60 seconds merely because `rights_generation` is unchanged.
 
-The primary staging fence now has `eligibility_valid_until_ms INTEGER NOT NULL DEFAULT 0`. Until a separately authorized owner attests a positive horizon, no count projection may be built or served. Each published snapshot records the exact reviewed horizon and is bounded to the earlier of 60 seconds or that horizon. The existing *same-statement* primary-D1 compare-and-publish checks that the fence still has the originally reviewed horizon **and** that it reaches the snapshot's expiration. The joined primary snapshot read also returns both horizons and serving rejects any mismatch. The schema constraint rejects snapshots expiring after the reviewed horizon.
+The primary staging fence now has `eligibility_valid_until_ms INTEGER NOT NULL DEFAULT 0`. Until a separately authorized owner attests a positive horizon, no count projection may be built or served. Each published snapshot records the exact reviewed horizon and is bounded to the earlier of 60 seconds or that horizon. The existing _same-statement_ primary-D1 compare-and-publish checks that the fence still has the originally reviewed horizon **and** that it reaches the snapshot's expiration. The joined primary snapshot read also returns both horizons and serving rejects any mismatch. The schema constraint rejects snapshots expiring after the reviewed horizon.
 
 **Important trust requirement:** an arbitrary HTTP header, caller-supplied flag, stale replica, scheduler tick or guessed horizon is not legal authority. The real canonical owner must enumerate **all** possible time-based eligibility and denial transitions for the in-scope title set, compute the earliest transition consistently with the rights generation and owner denial epoch, and durably publish a verified horizon into primary D1. A missing class of expiry must leave the fence sealed (`0`). An owner acknowledgment of a denial before the primary D1 write is handled separately by the already required **fresh independent DO denial-epoch read**. These two checks must both pass; a horizon cannot substitute for the DO fence. The current source-only test uses a fixed synthetic horizon **solely inside local SQLite**, and is **not** an independently verified producer for real Cove rights.
 
-The updated tests reject missing, stale, malformed or expired horizons; prove that a snapshot stops being valid at the exact boundary despite no SQL mutation; and prove that a legal owner shortening the horizon in primary D1 makes an older concurrent publisher lose its atomic CAS. This closes a *contract-level* timer safety gap, not the production catalog/owner inventory or unimplemented full legal-effective-time authority.
+The updated tests reject missing, stale, malformed or expired horizons; prove that a snapshot stops being valid at the exact boundary despite no SQL mutation; and prove that a legal owner shortening the horizon in primary D1 makes an older concurrent publisher lose its atomic CAS. This closes a _contract-level_ timer safety gap, not the production catalog/owner inventory or unimplemented full legal-effective-time authority.
 
 ## Independent deny-first owner epoch: isolated protocol
 
@@ -75,7 +76,7 @@ the entire transaction rolls back. This is a stage-only contract, **not** a
 claim that production legal-owner commands use it. Failure to instrument all
 deny and allow paths remains an explicit release blocker.
 
-`scripts/check-seo-owner-denial-epoch.mjs` uses two *independent* in-memory SQLite databases to reproduce the gap: owner denial committed before D1; D1-only comparison still looks valid, but serving rejects it; D1 later reconciles and invalidates the old snapshot; a newly built snapshot can pass only after epochs match. Tests also cover failed denial rollback, replay, unavailable owner, stale challenge and public cache headers.
+`scripts/check-seo-owner-denial-epoch.mjs` uses two _independent_ in-memory SQLite databases to reproduce the gap: owner denial committed before D1; D1-only comparison still looks valid, but serving rejects it; D1 later reconciles and invalidates the old snapshot; a newly built snapshot can pass only after epochs match. Tests also cover failed denial rollback, replay, unavailable owner, stale challenge and public cache headers.
 
 **Important limitations:** These source modules are **not integrated into the existing 300KB production legal-owner Worker** and create no private production route. None of the current legal denials are instrumented to advance a shared owner-wide epoch yet. The actual owner has per-source revisions, not this global counter. A reviewed, complete inventory must include source, market, commercial product, paid entitlement, publication, emergency rights and other applicable denial paths, including crash recovery and replays. Any uncovered path can make a global epoch insufficient; keep all public sitemap projections disabled until completeness is independently certified.
 
@@ -122,13 +123,37 @@ This is a narrower achievement than activating a production serving proof.
   evidence of a deployed Durable Object or of production correctness.
 
 **Still missing:** a reviewed inventory and same-transaction epoch coverage
-for *every* relevant commercial, paid order/entitlement, market, source,
+for _every_ relevant commercial, paid order/entitlement, market, source,
 publisher, emergency withdrawal and rights-evidence pathway; a safe and
 complete historical owner epoch migration; real full-catalog expiry/withdrawal
 races against D1 and actual primary writer generation triggers; private
 authenticated production proof issuance; and the complete protected release
 gates. Even an authenticated read from this partial QA owner must **never**
 be accepted as production SEO publishing authorization.
+
+## In-flight temporal boundary regression — November 18
+
+Source review and an executable regression reproduced a gap in the draft
+page handler: a query started within a valid window could finish after that
+window expired and accept a newly published snapshot with unchanged SQL
+generations and owner-denial epoch. Before the fix, this fixture returned
+**200** with the old page body when **503 no-store** was required. A newer
+snapshot does not authorize a URL list selected in an earlier eligibility
+window; legal eligibility can change just because time advances.
+
+The opt-in handler now requires the **original** snapshot to remain valid at
+response release, and requires the final primary fence's legal horizon to
+equal the initial horizon after page SQL. It retains the independent fresh
+owner-denial read. Index documents also recheck their original expiry before
+release, using no extra SQL or network read. Ten deterministic GET/HEAD
+regressions cover an elapsed legal horizon, elapsed original snapshot with a
+valid replacement, a changed future horizon, and root/type-index expiry.
+No case falls back to the heavy COUNT queries or releases the old XML body.
+
+This fix affects only the unconnected draft loader path. It does **not**
+establish authoritative production horizon derivation, complete owner journal
+coverage, per-URL legal authorization, real-catalog parity, deployed D1
+correctness, or production latency. Production prerequisites below still apply.
 
 ## Essential production prerequisites — not implemented here
 
