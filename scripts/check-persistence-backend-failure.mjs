@@ -333,7 +333,10 @@ assert.match(gateway, /if \(productionFallbackDenied\(env\)\)/);
 // Vercel's production log viewer displays the first message argument; the
 // second console argument was hiding the already-computed fixed cause marker.
 // Only the three reviewable, request-local literal causes may enter telemetry.
-assert.match(gateway, /const failureReason = deadlineExpired\s*\?\s*"backend-deadline"\s*:\s*controller\.signal\.aborted\s*\?\s*"proxy-abort"\s*:\s*"upstream-transport"/);
+assert.match(
+  gateway,
+  /const failureReason = deadlineExpired\s*\?\s*"backend-deadline"\s*:\s*controller\.signal\.aborted\s*\?\s*"proxy-abort"\s*:\s*"upstream-transport"/,
+);
 for (const message of [
   "Persistent backend request failed; production bootstrap fails closed",
   "Persistent backend request failed; production catalog fails closed",
@@ -343,9 +346,18 @@ for (const message of [
   const occurrences = gateway.split(message + " cause=${failureReason}").length - 1;
   assert.equal(occurrences, 1, "Fixed cause must be embedded in one message: " + message);
 }
-assert.doesNotMatch(gateway, /console\.error\("Invalid persistence backend configuration",\s*error\)/);
+assert.doesNotMatch(
+  gateway,
+  /console\.error\("Invalid persistence backend configuration",\s*error\)/,
+);
 assert.match(gateway, /console\.error\("Invalid persistence backend configuration"\)/);
-assert.doesNotMatch(gateway, /console\.(?:error|warn)\(\s*["']Persistent backend request failed[^"']*["'],\s*(?:failureReason|error)\s*\)/);
-assert.doesNotMatch(gateway, /failureReason\s*=\s*(?:String|error\?\.message|error\.message|requestUrl)/);
+assert.doesNotMatch(
+  gateway,
+  /console\.(?:error|warn)\(\s*["']Persistent backend request failed[^"']*["'],\s*(?:failureReason|error)\s*\)/,
+);
+assert.doesNotMatch(
+  gateway,
+  /failureReason\s*=\s*(?:String|error\?\.message|error\.message|requestUrl)/,
+);
 
 console.log("Read-only persistence 5xx attribution and fail-closed bootstrap: PASS");
