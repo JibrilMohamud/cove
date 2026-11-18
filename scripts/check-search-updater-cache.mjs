@@ -3,7 +3,36 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { build } from "esbuild";
+import ts from "typescript";
 import { localBindings } from "./local-api.mjs";
+
+// Public cache failures must never dump raw upstream exceptions, identifiers
+// or request data into future Workers Logs. Audit actual AST call arguments,
+// not a text-match that can miss multiline/indirect console invocations.
+const cacheSource = ts.createSourceFile(
+  "public-api-cache.server.ts",
+  fs.readFileSync("src/features/fore/public-api-cache.server.ts", "utf8"),
+  ts.ScriptTarget.Latest,
+  true,
+  ts.ScriptKind.TS,
+);
+let reviewedCacheLogCalls = 0;
+function auditCacheLogs(node) {
+  if (
+    ts.isCallExpression(node) &&
+    ts.isPropertyAccessExpression(node.expression) &&
+    ts.isIdentifier(node.expression.expression) &&
+    node.expression.expression.text === "console" &&
+    ["log", "info", "warn", "error"].includes(node.expression.name.text)
+  ) {
+    reviewedCacheLogCalls++;
+    assert.equal(node.arguments.length, 1, "cache log call must have one safe argument");
+    assert.ok(ts.isStringLiteral(node.arguments[0]), "cache logs must contain a fixed literal");
+  }
+  ts.forEachChild(node, auditCacheLogs);
+}
+auditCacheLogs(cacheSource);
+assert.equal(reviewedCacheLogCalls, 6, "new cache log site requires privacy review");
 
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "cove-search-"));
 const originalFetch = globalThis.fetch;
