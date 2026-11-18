@@ -52,6 +52,9 @@ try {
   };
   createSeoOwnerDenialEpochSchema(legalSql);
   legal.exec("CREATE TABLE legal_denial_events(id TEXT PRIMARY KEY, status TEXT NOT NULL)");
+  const denialStillCurrent = (id) => () =>
+    legal.prepare("SELECT status FROM legal_denial_events WHERE id=?")
+      .get(id)?.status === "denied";
   assert.equal(readSeoOwnerDenialEpoch(legalSql), 0);
 
   const script = readFileSync("scripts/staging/seo-primary-count-fence.prototype.sql", "utf8");
@@ -130,7 +133,7 @@ try {
     legal.prepare("INSERT INTO legal_denial_events(id,status) VALUES(?,?)")
       .run("withdraw-1", "denied");
     return { applied: true };
-  });
+  }, denialStillCurrent("withdraw-1"));
   assert.deepEqual(receipt, { applied: true, replayed: false, epoch: 1 });
   assert.equal(readSeoOwnerDenialEpoch(legalSql), 1);
   assert.equal(primary.prepare("SELECT owner_denial_epoch FROM cove_seo_primary_fence").get().owner_denial_epoch, 0);
@@ -149,16 +152,28 @@ try {
     legal.prepare("INSERT INTO legal_denial_events(id,status) VALUES(?,?)")
       .run("withdraw-failed", "denied");
     return { applied: false };
-  }), /seo_owner_denial_not_durable/);
+  }, denialStillCurrent("withdraw-failed")), /seo_owner_denial_not_durable/);
   assert.equal(readSeoOwnerDenialEpoch(legalSql), 1);
   assert.equal(legal.prepare("SELECT count(*) n FROM legal_denial_events WHERE id='withdraw-failed'").get().n, 0);
 
-  // A duplicate callback acknowledged by the canonical owner cannot advance
-  // a second global epoch for an idempotent operation.
+  // Replays must NEVER rerun a canonical mutator, even if that mutator would
+  // reapply a legally superseded denial. The current denial is checked first.
+  let replayMutationCalls = 0;
   const replay = withSeoOwnerDenialEpoch(legalSql, "withdraw-1", transactionSync,
-    () => ({ applied: true }));
+    () => { replayMutationCalls++; throw Error("replay mutator must not run"); },
+    denialStillCurrent("withdraw-1"));
   assert.deepEqual(replay, { applied: true, replayed: true, epoch: 1 });
+  assert.equal(replayMutationCalls, 0);
   assert.equal(readSeoOwnerDenialEpoch(legalSql), 1);
+  // Claims of applied:true are insufficient if no current denial was written.
+  assert.throws(() => withSeoOwnerDenialEpoch(legalSql,
+    "withdraw-no-legal-write", transactionSync, () => ({ applied: true }),
+    denialStillCurrent("withdraw-no-legal-write")),
+    /seo_owner_denial_not_durable/);
+  assert.equal(readSeoOwnerDenialEpoch(legalSql), 1);
+  assert.throws(() => withSeoOwnerDenialEpoch(legalSql,
+    "withdraw-missing-verifier", transactionSync, () => ({ applied: true })),
+    /seo_owner_denial_verifier_required/);
 
   // D1 reconciliation after the committed legal write invalidates the old
   // snapshot. Until rebuilt, even matching D1 and DO epochs must fail closed.
@@ -177,8 +192,11 @@ try {
 
   // A new DO withdrawal immediately fails again, without waiting for D1
   // or a TTL. Wrong challenge, wrong cache policy or owner 503 also deny.
-  withSeoOwnerDenialEpoch(legalSql, "withdraw-2", transactionSync,
-    () => ({ applied: true }));
+  withSeoOwnerDenialEpoch(legalSql, "withdraw-2", transactionSync, () => {
+    legal.prepare("INSERT INTO legal_denial_events(id,status) VALUES(?,?)")
+      .run("withdraw-2", "denied");
+    return { applied: true };
+  }, denialStillCurrent("withdraw-2"));
   assert.equal((await serve()).status, 503);
   unavailable = true;
   await assert.rejects(load, /seo_owner_proof_unavailable/);
@@ -194,9 +212,20 @@ try {
     () => readFreshSeoOwnerDenialProof(owner, "not-a-secret", ownerVersion),
     /seo_owner_proof_binding_invalid/
   );
+  // A superseding allow must not be undone by an old withdrawal retry.
+  legal.prepare("UPDATE legal_denial_events SET status='allowed' WHERE id=?")
+    .run("withdraw-1");
+  let supersededReplayMutationCalls = 0;
+  assert.throws(() => withSeoOwnerDenialEpoch(legalSql, "withdraw-1",
+    transactionSync,
+    () => { supersededReplayMutationCalls++; return { applied: true }; },
+    denialStillCurrent("withdraw-1")),
+    /seo_owner_denial_replay_not_current/);
+  assert.equal(supersededReplayMutationCalls, 0);
+  assert.equal(readSeoOwnerDenialEpoch(legalSql), 2);
   assert.ok(ownerReads > 6);
   assert.ok(primaryReads >= ownerReads - 1);
-  console.log("PASS: two-db DO deny-first gap, atomic owner epoch, D1 reconciliation, challenge and no-store failures");
+  console.log("PASS: two-db DO deny-first gap, nonmutating replay/superseding allow, atomic owner epoch, D1 reconciliation, challenge and no-store failures");
 } finally {
   primary.close();
   legal.close();
