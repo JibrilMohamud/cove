@@ -62,10 +62,12 @@ try {
   };
   messages.length = 0;
   await checked(await proxyPersistenceApi(request(), env));
-  assert.deepEqual(messages, [{
-    level: "error",
-    args: ["Persistent backend request failed; production bootstrap fails closed cause=upstream-transport"],
-  }]);
+  assert.deepEqual(messages, [
+    {
+      level: "error",
+      args: ["Persistent backend request failed; production bootstrap fails closed cause=upstream-transport"],
+    },
+  ]);
   assertMessagesPrivate();
 
   // A real Worker response must produce EXACT fixed source, phase, stage and
@@ -73,27 +75,32 @@ try {
   // discarded after bounded classification, never served to a visitor.
   globalThis.fetch = async (_url, init) => {
     assert.equal(init.headers.get("x-cove-backend-token"), env.FORE_BACKEND_TOKEN);
-    return new Response(JSON.stringify({
-      error: "This content could not be loaded. Please try again.",
-      privateIdentity: "secret-identity",
-    }), {
-      status: 503,
-      headers: {
-        "content-type": "application/json",
-        "x-cove-persistence": "d1-r2",
-        "x-cove-backend-cache": "MISS",
-        "server-timing": "cove_api;dur=1,cove_auth;dur=1,cove_fault_pre_auth;dur=1",
+    return new Response(
+      JSON.stringify({
+        error: "This content could not be loaded. Please try again.",
+        privateIdentity: "secret-identity",
+      }),
+      {
+        status: 503,
+        headers: {
+          "content-type": "application/json",
+          "x-cove-persistence": "d1-r2",
+          "x-cove-backend-cache": "MISS",
+          "server-timing": "cove_api;dur=1,cove_auth;dur=1,cove_fault_pre_auth;dur=1",
+        },
       },
-    });
+    );
   };
   messages.length = 0;
   await checked(await proxyPersistenceApi(request(), env));
-  assert.deepEqual(messages, [{
-    level: "warn",
-    args: [
-      "Persistent backend unavailable; production catalog fails closed status=503 source=worker-api phase=pre-context stage=pre-auth category=handler-exception",
-    ],
-  }]);
+  assert.deepEqual(messages, [
+    {
+      level: "warn",
+      args: [
+        "Persistent backend unavailable; production catalog fails closed status=503 source=worker-api phase=pre-context stage=pre-auth category=handler-exception",
+      ],
+    },
+  ]);
   assertMessagesPrivate();
 
   // Untrusted edge-generated response body, headers and strings can never
@@ -105,12 +112,14 @@ try {
     });
   messages.length = 0;
   await checked(await proxyPersistenceApi(request(), env));
-  assert.deepEqual(messages, [{
-    level: "warn",
-    args: [
-      "Persistent backend unavailable; production catalog fails closed status=504 source=edge-or-runtime phase=untraced stage=unknown category=other",
-    ],
-  }]);
+  assert.deepEqual(messages, [
+    {
+      level: "warn",
+      args: [
+        "Persistent backend unavailable; production catalog fails closed status=504 source=edge-or-runtime phase=untraced stage=unknown category=other",
+      ],
+    },
+  ]);
   assertMessagesPrivate();
 
   const abortingFetch = async (_url, init) => {
@@ -126,10 +135,12 @@ try {
     nativeSetTimeout(fn, ms === 30_000 ? 1 : ms, ...args);
   messages.length = 0;
   await checked(await proxyPersistenceApi(request(), env));
-  assert.deepEqual(messages, [{
-    level: "error",
-    args: ["Persistent backend request failed; production bootstrap fails closed cause=backend-deadline"],
-  }]);
+  assert.deepEqual(messages, [
+    {
+      level: "error",
+      args: ["Persistent backend request failed; production bootstrap fails closed cause=backend-deadline"],
+    },
+  ]);
   assertMessagesPrivate();
   globalThis.setTimeout = nativeSetTimeout;
 
@@ -152,10 +163,12 @@ try {
   assert.equal(misconfigured?.status, 503);
   assert.equal(misconfigured.headers.get("cache-control"), "no-store");
   assert.match(await misconfigured.text(), /misconfigured/);
-  assert.deepEqual(messages, [{
-    level: "error",
-    args: ["Invalid persistence backend configuration"],
-  }]);
+  assert.deepEqual(messages, [
+    {
+      level: "error",
+      args: ["Invalid persistence backend configuration"],
+    },
+  ]);
   assertMessagesPrivate();
 
   process.stdout.write(
