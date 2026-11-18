@@ -32,12 +32,16 @@ jobs:
       - run: npm ci
       - name: Security gate failure, skip and cancellation regressions
         run: node --test scripts/check-security-workflow.test.mjs scripts/check-eslint-minimatch.test.mjs
+      - name: Identify picomatch consumers and deny direct runtime glob imports
+        run: node scripts/security/check-glob-matcher-runtime-exposure.mjs
       - name: Secret scan
         run: npm run security:secret-scan
       - name: Static analysis (strict formatting plus legacy-error non-regression)
         run: npm run lint
       - name: Strict TypeScript validation
         run: npm run typecheck
+      - name: Patched migration compiler and isolated SQLite generation
+        run: node scripts/security/check-drizzle-esbuild-compatibility.mjs
       - name: Vercel preview build cost guard and production-safety regressions
         run: node --test scripts/vercel-ignore-build.test.mjs
       - name: Security/domain regressions

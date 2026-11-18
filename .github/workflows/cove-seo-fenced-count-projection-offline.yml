@@ -12,6 +12,9 @@ on:
       - "src/storefront-strangler/seo-owner-denial-epoch.ts"
       - "src/storefront-strangler/seo-owner-denial-read.server.ts"
       - "src/storefront-strangler/seo-owner-source-denial-qa.ts"
+      - "src/storefront-strangler/seo-owner-mutation-fence-qa.ts"
+      - "scripts/staging/seo-owner-mutation-fixture.ts"
+      - "scripts/check-seo-owner-mutation-fence.mjs"
       - "src/storefront-strangler/legal-authority.worker.ts"
       - "scripts/check-seo-owner-source-qa.mjs"
       - "scripts/check-seo-owner-denial-epoch.mjs"
@@ -45,6 +48,8 @@ jobs:
         run: node scripts/check-seo-owner-denial-epoch.mjs
       - name: Prove real source-denial QA bridge and uninstrumented route lockdown
         run: node scripts/check-seo-owner-source-qa.mjs
+      - name: Exercise all reviewed owner-table invalidations in SQLite and local workerd
+        run: node scripts/check-seo-owner-mutation-fence.mjs
       - name: Retain legacy sitemap gateway route and CDN behavior until protected promotion
         run: node scripts/check-public-seo-gateway.mjs
       - name: Static typecheck for opt-in SEO interface
