@@ -4,11 +4,16 @@
 name: cloudflare-paired-release-freeze
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/cloudflare-paired-release-freeze.yml"
-
+    inputs:
+      reviewed_main_sha:
+        description: "Exact reviewed main commit; changes fail closed."
+        required: true
+        type: string
+      confirm_protected_cloudflare_action:
+        description: "Authorize protected Cloudflare action; not automatic on merge."
+        required: true
+        type: boolean
+        default: false
 permissions:
   contents: read
 
@@ -20,7 +25,14 @@ concurrency:
 
 jobs:
   immutable-paired-benchmark:
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm_protected_cloudflare_action == true &&
+      inputs.reviewed_main_sha == github.sha
     runs-on: ubuntu-latest
+    environment: cove-production-release-audit
     timeout-minutes: 65
     env:
       VERCEL: "0"
