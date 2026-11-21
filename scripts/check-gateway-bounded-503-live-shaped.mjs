@@ -85,7 +85,7 @@ try {
     warnings[0][0].endsWith(" ray=8ae2b9362ddfafe0-IAD"),
     "Validated Ray should correlate this bounded upstream 503",
   );
-  assert.doesNotMatch(JSON.stringify(warnings), /Authorization|Cookie:|private-token|https:\\/\\//);
+  assert.doesNotMatch(JSON.stringify(warnings), /Authorization|Cookie:|private-token|https:/);
   console.log(
     "PASS: live-shaped production gateway preserves 503/no-store with stalled upstream body",
   );
