@@ -16,6 +16,7 @@ const observedAt = Date.parse("2026-11-21T15:00:00Z");
 
 function fixture() {
   const state = {
+    schema: "cove.qa.owner-primary-read-bracket.v1",
     ownerEpoch: 4,
     primaryEpoch: 4,
     primaryId,
@@ -77,6 +78,7 @@ function fixture() {
             async first() {
               state.primaryReads++;
               return {
+                publication_schema: state.schema,
                 primary_id: state.primaryId,
                 owner_journal_version: state.journalVersion,
                 owner_mutation_epoch: state.primaryEpoch,
@@ -161,6 +163,7 @@ for (const edit of [
 }
 
 for (const edit of [
+  (s) => { s.schema = "cove.production.primary-fence.v1"; },
   (s) => { s.primaryEpoch = 3; },
   (s) => { s.primaryEpoch = "4"; },
   (s) => { s.primaryId = "wrong"; },
