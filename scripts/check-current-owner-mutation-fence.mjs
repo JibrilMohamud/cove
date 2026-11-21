@@ -193,7 +193,7 @@ try {
     logLevel: "silent",
   });
   const { withCurrentQaOwnerPrimaryRead, QA_OWNER_PRIMARY_FENCE_SQL } = await import(
-    pathToFileURL(bracketFile),
+    pathToFileURL(bracketFile)
   );
   f.env.COVE_QA_OWNER_REHEARSAL_REVISION = "A";
   const generation = Number((await f.read()).mutationEpoch);
