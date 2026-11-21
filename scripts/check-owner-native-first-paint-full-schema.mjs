@@ -99,16 +99,32 @@ try {
   };
   const sql={exec:execSql};
   let servedPrimary=true,afterD1=null,reads=0;
+  let checkConcurrent=false,marketStarted=false,catalogStarted=false;
+  let failMarket=false,failCatalog=false;
+  const issuedPrimarySessions=[];
   const binding={
     withSession(anchor){
       assert.equal(anchor,"first-primary");
-      return this;
+      const session={prepare:this.prepare};
+      issuedPrimarySessions.push(session);
+      return session;
     },
     prepare(statement){
       return {bind(...args){
         return {
-          async first(){return primary.prepare(statement).get(...args)??null;},
+          async first(){
+            if(checkConcurrent){
+              marketStarted=true;
+              await new Promise(resolve=>setImmediate(resolve));
+              assert.equal(catalogStarted,true,
+                "The catalog primary read must dispatch before the market result finishes");
+            }
+            if(failMarket)throw Error("synthetic-market-d1-failure");
+            return primary.prepare(statement).get(...args)??null;
+          },
           async all(){
+            if(checkConcurrent)catalogStarted=true;
+            if(failCatalog)throw Error("synthetic-catalog-d1-failure");
             reads++;
             const rows=primary.prepare(statement).all(...args);
             if(afterD1){const callback=afterD1;afterD1=null;callback();}
@@ -203,7 +219,12 @@ try {
     "Native QA owner fetch must expose measured service-binding header delay");
   assert.equal((await proxyRead.json()).rows.length,2,
     "Service-bound native results must remain the intersection of canonical and current owner legal proof");
+  const beforePrimarySessions=issuedPrimarySessions.length;
   let response=await call(request);
+  assert.equal(issuedPrimarySessions.length-beforePrimarySessions,2,
+    "Every call requires two independently first-primary D1 sessions");
+  assert.notEqual(issuedPrimarySessions.at(-1),issuedPrimarySessions.at(-2),
+    "Concurrent primary reads must never share a session that could route a later read to a replica");
   assert.equal(response.status,200,"Actual full-schema D1+owner handler must accept synthetic fixture");
   let result=await response.json();
   assert.equal(result.schema,"cove.qa.owner-native-first-paint.v1");
@@ -216,6 +237,24 @@ try {
   assert.equal(JSON.parse(result.rows[1].offer_json).type,"purchase",
     "Full-schema owner may publish the exact canonical paid purchase offer");
   assert.ok(reads>0,"Endpoint must execute the real prepared native D1 SELECT");
+  // Catch a reversion to serial first() -> all(): a deliberately delayed
+  // market result MUST not hold up the independent canonical SELECT call.
+  checkConcurrent=true;
+  response=await call(request);
+  assert.equal(response.status,200);
+  assert.equal(marketStarted,true);
+  assert.equal(catalogStarted,true);
+  checkConcurrent=false;
+  // Either primary query failing must veto the whole request even if its
+  // companion returns a current positive row. No owner-only resurrection.
+  failMarket=true;
+  assert.equal((await call(request)).status,503,
+    "Market-D1 transport failure must deny, not reuse catalog rights");
+  failMarket=false;
+  failCatalog=true;
+  assert.equal((await call(request)).status,503,
+    "Catalog-D1 transport failure must deny, not reuse market permission");
+  failCatalog=false;
   assert.equal((await call(request,"0".repeat(64))).status,401,
     "The synthetic owner route never admits an untrusted service binding");
   response=await call({...request,ids:[freeBook.id],sql:"SELECT 1"});
@@ -225,7 +264,7 @@ try {
   assert.equal(response.status,503,"Unverified replica must deny");
   assert.equal(response.headers.get("x-cove-qa-native-failure"),
     "native_qa_primary_unverified");
-  assert.equal(response.headers.get("x-cove-qa-native-phase"),"catalog");
+  assert.equal(response.headers.get("x-cove-qa-native-phase"),"primary-pair");
   servedPrimary=true;
   afterD1=()=>free.persistSourceWithdrawal(sql,{
     sourceId:"2701",territory:"*",operationId:"qa:full-schema-free-withdrawal"
