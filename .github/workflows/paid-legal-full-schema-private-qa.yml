@@ -35,6 +35,8 @@ on:
       - "scripts/check-offline-audio-issuer-authorization.mjs"
       - "scripts/check-stripe-terminal-order-states.mjs"
       - "scripts/staging/prove-private-paid-owner.mjs"
+      - "scripts/staging/safe-qa-http-response-evidence.mjs"
+      - "scripts/check-safe-qa-http-response-evidence.mjs"
       - "scripts/staging/paid-owner-schema-policy.mjs"
       - "scripts/check-qa-synthetic-audio.mjs"
       - "scripts/staging/provision-original-audio-qa.mjs"
@@ -78,6 +80,8 @@ on:
       - "drizzle/0088_paid_repurchase_fresh_entitlement.sql"
       - "scripts/check-customer-media-owner-order.mjs"
       - "scripts/staging/prove-private-paid-owner.mjs"
+      - "scripts/staging/safe-qa-http-response-evidence.mjs"
+      - "scripts/check-safe-qa-http-response-evidence.mjs"
       - "scripts/staging/paid-owner-schema-policy.mjs"
       - "scripts/staging/provision-original-audio-qa.mjs"
       - "scripts/check-qa-synthetic-audio.mjs"
@@ -107,6 +111,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: node scripts/check-paid-stage-initial-identity.mjs
       - run: node scripts/check-qa-synthetic-audio.mjs
+      - run: node scripts/check-safe-qa-http-response-evidence.mjs
       - run: node scripts/check-owner-checkout-draft.mjs
       - run: node scripts/check-owner-checkout-preparation.mjs
       - run: node scripts/check-owner-checkout-full-schema.mjs
