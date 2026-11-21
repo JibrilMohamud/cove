@@ -4,6 +4,10 @@ on:
     paths:
       - "src/storefront-strangler/paid-settlement-stage-qa.worker.ts"
       - "src/storefront-strangler/legal-authority.worker.ts"
+      - "src/storefront-strangler/legal-authority-qa-caller.worker.ts"
+      - "src/storefront-strangler/owner-sql-mutation-journal.ts"
+      - "scripts/staging/paid-owner-rollback-evidence.mjs"
+      - "scripts/staging/paid-owner-rollback-evidence.test.mjs"
       - "src/storefront-strangler/checkout-draft-owner-plan.ts"
       - "src/storefront-strangler/owner-checkout-creation.server.ts"
       - "src/storefront-strangler/canonical-owner-command-gateway.ts"
@@ -50,6 +54,10 @@ on:
     paths:
       - "src/storefront-strangler/paid-settlement-stage-qa.worker.ts"
       - "src/storefront-strangler/legal-authority.worker.ts"
+      - "src/storefront-strangler/legal-authority-qa-caller.worker.ts"
+      - "src/storefront-strangler/owner-sql-mutation-journal.ts"
+      - "scripts/staging/paid-owner-rollback-evidence.mjs"
+      - "scripts/staging/paid-owner-rollback-evidence.test.mjs"
       - "src/storefront-strangler/checkout-draft-owner-plan.ts"
       - "src/storefront-strangler/owner-checkout-creation.server.ts"
       - "src/storefront-strangler/canonical-owner-command-gateway.ts"
@@ -86,6 +94,16 @@ on:
       - "scripts/check-offline-audio-issuer-authorization.mjs"
       - ".github/workflows/paid-legal-full-schema-private-qa.yml"
   workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        description: "Exact reviewed main SHA, required for the owner-state rollback rehearsal."
+        required: false
+        type: string
+      confirm_owner_state_rollback:
+        description: "Run actual synthetic paid-owner A/B/A version rollback after TEST refund; no production changes."
+        required: true
+        default: false
+        type: boolean
 permissions:
   contents: read
 concurrency:
@@ -114,8 +132,15 @@ jobs:
       - run: node scripts/check-offline-epub-issuer-expiry.mjs
       - run: node scripts/check-offline-audio-issuer-authorization.mjs
       - run: node scripts/check-customer-media-owner-order.mjs
+      - run: node --test scripts/staging/paid-owner-rollback-evidence.test.mjs
+      - run: node scripts/check-current-owner-mutation-fence.mjs
   real-test-payment-to-private-owner:
-    if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["qa/private-paid-owner-independent-20261028","qa/original-customer-media-paid-owner-20261028"]'), github.event.pull_request.head.ref)) || ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main')
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref == 'refs/heads/main' &&
+      (inputs.confirm_owner_state_rollback != true || inputs.reviewed_main_sha == github.sha)
+    environment: cove-production-release-audit
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -174,6 +199,9 @@ jobs:
           stripe version
       - name: Real signed Stripe TEST settlement, EPUB/audio/offline and owner revocation
         env:
+          COVE_QA_REHEARSE_OWNER_ROLLBACK: ${{ github.event_name == 'workflow_dispatch' && inputs.confirm_owner_state_rollback && '1' || '0' }}
+          COVE_REVIEWED_MAIN_SHA: ${{ inputs.reviewed_main_sha }}
+          COVE_PAID_ROLLBACK_PROTECTED: cove-production-release-audit
           COVE_SANDBOX_SECRET_KEY: ${{ secrets.COVE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_TEST_SECRET_KEY || secrets.STRIPE_SANDBOX_SECRET_KEY || secrets.STRIPE_TEST_SECRET_KEY }}
         run: node scripts/staging/prove-private-paid-owner.mjs
       - name: Retain every synthetic native D1 timing and rights result

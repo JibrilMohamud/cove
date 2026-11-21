@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import {randomBytes,createHash,generateKeyPairSync} from "node:crypto";
 import {pathToFileURL} from "node:url";
+import {readPaidOwnerFence,paidOwnerRollbackEvidence} from "./paid-owner-rollback-evidence.mjs";
 import {isPaidOwnerQaSchemaTable} from "./paid-owner-schema-policy.mjs";
 import {provisionPublishedQaAudio} from "./provision-original-audio-qa.mjs";
 import JSZip from "jszip";
@@ -20,6 +21,7 @@ const token=process.env.CLOUDFLARE_API_TOKEN;
 const account=process.env.CLOUDFLARE_ACCOUNT_ID;
 assert.match(runId||"",/^\d{8,15}-\d{1,5}$/);
 assert.match(account||"",/^[a-f0-9]{32}$/);
+assert.equal(account,"d26430caa63ec55f6612e32f36aca5e9");
 assert.ok(token,"Cloudflare QA authorization required");
 const stripeSecret=process.env.COVE_SANDBOX_SECRET_KEY||"";
 assert.match(stripeSecret,/^(?:sk|rk|rkcs)_test_[A-Za-z0-9]+$/,"Independent owner requires a real TEST Stripe credential");
@@ -36,6 +38,16 @@ const primary="7c7ab994-f6b3-419d-a72d-71eb9ea22e7e";
 const primaryName="cove-paid-commerce-legal-qa-20261027";
 const gate=randomBytes(32).toString("hex");
 const secret=randomBytes(32).toString("hex");
+const journalVersion=randomBytes(32).toString("hex");
+const rehearseRollback=process.env.COVE_QA_REHEARSE_OWNER_ROLLBACK==="1";
+if(rehearseRollback){
+  assert.equal(process.env.GITHUB_EVENT_NAME,"workflow_dispatch");
+  assert.equal(process.env.GITHUB_REF,"refs/heads/main");
+  assert.equal(process.env.GITHUB_REPOSITORY,"JibrilMohamud/cove");
+  assert.match(process.env.GITHUB_SHA||"",/^[a-f0-9]{40}$/);
+  assert.equal(process.env.COVE_REVIEWED_MAIN_SHA,process.env.GITHUB_SHA);
+  assert.equal(process.env.COVE_PAID_ROLLBACK_PROTECTED,"cove-production-release-audit");
+}
 const writerSecret=randomBytes(32).toString("hex");
 let expires=Date.now()+12*60_000;
 const temp=fs.mkdtempSync(path.join(process.cwd(),".cove-paid-proof-"));
@@ -319,6 +331,8 @@ try {
   original.vars.COVE_RIGHTS_OWNER_TEST_EXPIRES_AT=String(expires);
   original.vars.STRIPE_LIVEMODE="false";
   original.vars.STRIPE_TAX_ENABLED="false";
+  original.vars.COVE_QA_OWNER_JOURNAL_VERSION=journalVersion;
+  original.vars.COVE_QA_OWNER_REHEARSAL_REVISION="A";
   fs.writeFileSync(ownerCfg,JSON.stringify(original));
   ownerCreated=true;
   await deploy(ownerCfg,{COVE_RIGHTS_OWNER_SECRET:secret,STRIPE_SECRET_KEY:stripeSecret});
@@ -357,6 +371,10 @@ try {
   await verifySecrets(callerName,["COVE_LEGAL_QA_GATE","COVE_RIGHTS_OWNER_SECRET",
     "COVE_LEGAL_WRITER_SECRET"]);
   await readyOwner();
+  const initialFence=await readPaidOwnerFence(read,journalVersion,"A");
+  assert.equal(initialFence.mutationEpoch,"0","Fresh per-run owner must start empty");
+  const rollback=rehearseRollback?paidOwnerRollbackEvidence({runId,journalVersion,api,post:read}):null;
+  await rollback?.captureA();
   // Confirm the *writer* route has propagated independently of the owner read
   // route. An empty JSON object is rejected by the writer's validation before
   // any owner call or D1 mutation; only HTTP 400 proves this path is live.
@@ -1378,6 +1396,18 @@ try {
     "Original audio offline issuer must fail closed when independent owner is unavailable");
   console.log("PASS: ORIGINAL commercial audiobook range stream, synthetic frozen narrator publisher proof, offline license issue/verify and owner-outage veto");
 
+  if(rollback){
+    original.vars.COVE_QA_OWNER_REHEARSAL_REVISION="B";
+    fs.writeFileSync(ownerCfg,JSON.stringify(original));
+    await deploy(ownerCfg,{COVE_RIGHTS_OWNER_SECRET:secret,STRIPE_SECRET_KEY:stripeSecret});
+    await until(async()=>{
+      try{return (await readPaidOwnerFence(post,journalVersion,"B")).rehearsalRevision==="B";}
+      catch{return false;}
+    },"owner_version_b");
+    await rollback.captureB();
+  }
+  const preRefundFence=await readPaidOwnerFence(read,journalVersion,rollback?"B":"A");
+  assert.ok(BigInt(preRefundFence.mutationEpoch)>0n,"Actual settlement must advance owner journal");
   const initialRefund=await stripeRequest("refunds",{
     payment_intent:initialPaymentIntentId,
     reason:"requested_by_customer"
@@ -1388,6 +1418,39 @@ try {
   });
   assert.equal(initialDenial.status,200,
     "Refund denial must be durable before any lagging D1 buyer reconciliation");
+  const denialFence=await readPaidOwnerFence(read,journalVersion,rollback?"B":"A");
+  assert.ok(BigInt(denialFence.mutationEpoch)>BigInt(preRefundFence.mutationEpoch),
+    "Acknowledged actual refund must advance current owner journal");
+  if(rollback){
+    // State is captured after refund. Version rollback must not restore the
+    // pre-refund D1 entitlement or lose the independently durable DO denial.
+    const commerceState=async()=>({
+      order:(await qaSql("SELECT id,status,stripe_payment_intent_id FROM commerce_orders WHERE id=?",[initialOrder])).results,
+      entitlements:(await qaSql("SELECT e.id,e.user_id,e.product_id,e.status FROM entitlements e JOIN commerce_order_items oi ON oi.id=e.order_item_id WHERE oi.order_id=? ORDER BY e.id",[initialOrder])).results,
+      ledger:(await qaSql("SELECT entry_type,account_code,amount_minor FROM commerce_ledger_entries WHERE order_id=? ORDER BY entry_type,account_code",[initialOrder])).results
+    });
+    const before=await commerceState();
+    await rollback.restoreA(denialFence.mutationEpoch);
+    await until(async()=>{
+      try{return (await readPaidOwnerFence(post,journalVersion,"A")).rehearsalRevision==="A";}
+      catch{return false;}
+    },"owner_rollback_a");
+    const evidence=await rollback.verifyRestored(denialFence.mutationEpoch);
+    assert.deepEqual(await commerceState(),before,"Rollback changed post-refund commerce state");
+    assert.equal((await postSettlement("/authorize-initial",initialOrder,initialBuyer)).status,451,
+      "Rolled-back actual owner must retain immediate refund denial");
+    assert.notEqual((await postSettlement("/certify-initial",initialOrder,initialBuyer)).status,200,
+      "Rolled-back owner must not resurrect a refunded order on signed-event replay");
+    // No raw buyer, payment or credential inventory is written to this artifact.
+    const dir="artifacts/owner-native-qa";
+    fs.mkdirSync(dir,{recursive:true});
+    fs.writeFileSync(path.join(dir,"paid-owner-state-rollback.json"),JSON.stringify({
+      ...evidence,sourceSha:process.env.GITHUB_SHA,runId,paidStatePreserved:true,
+      refundDenied:true,replayDenied:true,journalBefore:initialFence.mutationEpoch,
+      journalAfterRefund:denialFence.mutationEpoch
+    },null,2)+"\n");
+    console.log("PASS: protected actual paid-owner A/B/A rollback retained SQLite journal, refund denial and D1 paid state; production versions unchanged; synthetic QA only");
+  }
   assert.equal((await postSettlement("/authorize-initial",
     initialOrder,initialBuyer)).status,451,
     "Actual first-payment purchase must be denied immediately after owner refund");

@@ -250,6 +250,12 @@ try {
   const stable = (await f.read()).mutationEpoch;
   const restarted = fixture({ db: f.db });
   assert.equal((await restarted.read()).mutationEpoch, stable);
+  restarted.env.COVE_QA_OWNER_REHEARSAL_REVISION = "B";
+  assert.equal((await restarted.read()).rehearsalRevision, "B");
+  restarted.env.COVE_QA_OWNER_REHEARSAL_REVISION = "invalid";
+  assert.equal((await restarted.post(route, { challenge })).status, 503);
+  restarted.env.COVE_QA_OWNER_REHEARSAL_REVISION = "A";
+  assert.equal((await restarted.read()).mutationEpoch, stable);
   // Transaction failure after several row mutations rolls back state and epoch.
   const batched = fixture();
   batched.db.exec(
