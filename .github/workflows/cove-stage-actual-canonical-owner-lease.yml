@@ -1,5 +1,15 @@
 name: cove-stage-actual-canonical-owner-lease
 on:
+  pull_request:
+    paths:
+      - src/storefront-strangler/**
+      - src/features/fore/rights.server.ts
+      - src/features/fore/contract-policy.server.ts
+      - scripts/staging/rights-resolver-sqlite-fixture.py
+      - scripts/staging/check-owner-actual-canonical-lease.mjs
+      - .github/workflows/cove-stage-actual-canonical-owner-lease.yml
+      - package.json
+      - package-lock.json
   push:
     branches: [safety/owner-canonical-lease-boundary-20261115]
     paths:
