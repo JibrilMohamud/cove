@@ -12,7 +12,7 @@ const { backendFailureSource, backendFailurePhase, backendFailureStage, backendF
 const raySource = fs.readFileSync("src/lib/persistence-backend-ray.ts", "utf8");
 const { code: rayCode } = await transform(raySource, { loader: "ts", format: "esm" });
 const { validatedBackendFailureRay } = await import(
-  "data:text/javascript;base64," + Buffer.from(rayCode).toString("base64"),
+  "data:text/javascript;base64," + Buffer.from(rayCode).toString("base64")
 );
 const knownRay = "8ae2b9362ddfafe0-IAD";
 assert.equal(validatedBackendFailureRay(new Headers({ "cf-ray": knownRay })), knownRay);
@@ -30,14 +30,13 @@ for (const invalid of [
 }
 assert.equal(validatedBackendFailureRay(new Headers()), "unavailable");
 assert.equal(
-  validatedBackendFailureRay({ get: () => knownRay + String.fromCharCode(13, 10) + "Cookie: secret" }),
+  validatedBackendFailureRay({
+    get: () => knownRay + String.fromCharCode(13, 10) + "Cookie: secret",
+  }),
   "unavailable",
 );
 const gatewaySource = fs.readFileSync("src/lib/persistence-backend.ts", "utf8");
-assert.equal(
-  gatewaySource.split("validatedBackendFailureRay(response.headers)").length - 1,
-  1,
-);
+assert.equal(gatewaySource.split("validatedBackendFailureRay(response.headers)").length - 1, 1);
 assert.ok(
   gatewaySource.indexOf("validatedBackendFailureRay(response.headers)") >
     gatewaySource.indexOf("if (productionFallbackDenied(env))"),
