@@ -60,10 +60,87 @@ export function requireNoPrimaryD1PreviewBinding(config, expectedIsolatedId) {
     !serialized.includes(PRIMARY_D1),
     "Production primary database ID found in isolated Worker deployment config",
   );
-  assert.ok(
-    !config.routes && !config.route && !config.queues,
-    "Isolated preview cannot have customer routes or production queues",
+  // A service or Durable Object binding can reach the legal owner and its
+  // production primary D1 even when this Worker's direct DB binding is safe.
+  // Deny all indirection and privileged platform capabilities before upload.
+  for (const capability of [
+    "routes",
+    "route",
+    "queues",
+    "services",
+    "durable_objects",
+    "dispatch_namespaces",
+    "hyperdrive",
+    "workflows",
+    "tail_consumers",
+    "unsafe",
+    "send_email",
+    "mtls_certificates",
+    "vectorize",
+    "analytics_engine_datasets",
+    "ai",
+    "browser",
+    "assets",
+    "triggers",
+    "zone_id",
+  ]) {
+    if (capability === "services") {
+      assert.ok(
+        !config.services || (Array.isArray(config.services) && config.services.length === 0),
+        "Isolated preview cannot have service bindings",
+      );
+    } else {
+      assert.ok(
+        !Object.hasOwn(config, capability),
+        "Isolated preview cannot attach privileged capability: " + capability,
+      );
+    }
+  }
+  assert.match(
+    String(config.name || ""),
+    /^cove-strangler-real-preview-[1-9][0-9]*-[1-9][0-9]*$/,
+    "Only a unique disposable preview Worker name is allowed",
   );
+  assert.equal(config.workers_dev, true, "Isolated preview must use Workers.dev only");
+  assert.equal(config.preview_urls, false, "Preview URL aliases must remain disabled");
+  assert.ok(
+    config.vars && typeof config.vars === "object",
+    "Isolated preview must have explicit vars",
+  );
+  assert.equal(
+    config.vars.COVE_STRANGLER_DATABASE_ID,
+    expectedIsolatedId,
+    "Isolated runtime must identify only its authorized staging DB",
+  );
+  assert.equal(
+    config.vars.FORE_PUBLIC_URL,
+    `https://${config.name}.cove-jibrilmohamud.workers.dev`,
+    "Isolated preview origin cannot point to customer infrastructure",
+  );
+  assert.ok(
+    !Object.keys(config.vars).some((key) =>
+      /^(?:COVE_RIGHTS_OWNER|COVE_LEGAL_|COVE_COMMERCE_|STRIPE_)/.test(key),
+    ),
+    "Legal owner and payment authority cannot be injected through preview vars",
+  );
+  assert.ok(
+    config.observability?.enabled === false,
+    "Real-catalog staging must disable Worker log collection",
+  );
+  if (Object.hasOwn(config, "r2_buckets")) {
+    assert.deepEqual(
+      config.r2_buckets,
+      [{ binding: "PRESENTATION", bucket_name: "cove-strangler-private-presentation-stage" }],
+      "Preview can bind only the approved isolated R2 presentation bucket",
+    );
+  }
+  if (Object.hasOwn(config, "kv_namespaces")) {
+    assert.deepEqual(
+      config.kv_namespaces,
+      [{ binding: "PRESENTATION_KV", id: "8245d5f2116a445d9571405b41b7c8c3" }],
+      "Preview can bind only the approved isolated presentation KV namespace",
+    );
+  }
   return true;
 }
 

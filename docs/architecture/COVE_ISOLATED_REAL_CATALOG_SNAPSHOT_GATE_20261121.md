@@ -46,6 +46,15 @@ were independently found to contain **zero** edition taxonomy links.
    creates a Worker, requires explicit zero-write result metadata, and
    cleans up all newly created Workers. A passing count is **only a minimum
    structural preflight**, not a claim that every product has correct rights.
+   The generated Worker must be a fresh disposable Workers.dev identity with
+   an origin bound to that identity. The pre-upload guard rejects **indirect
+   owner/production access** through service, Durable Object, dispatch,
+   Hyperdrive or privileged bindings, rejects customer routes, queues,
+   cron schedules, tail consumers and payment/owner configuration, and limits
+   any optional R2/KV binding to the pre-approved presentation staging stores.
+   Worker observability/log collection is disabled for the potentially
+   sensitive isolated fixture. A passing config guard cannot certify that
+   external Cloudflare account tokens have exclusive physical write access.
 5. Separately compare immutable owner revision, product IDs, country/language,
    format/DRM, legal expiry, withdrawal, restoration, exact search/count/
    facet/pagination envelopes and real negative witnesses. Fail closed for
