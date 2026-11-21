@@ -38,6 +38,9 @@ assert.equal(config.vars.COVE_STRANGLER_EXPERIENCE, "1");
 config.name = name;
 config.workers_dev = true;
 config.preview_urls = false;
+// The isolated fixture may contain legal metadata. Do not enable Cloudflare
+// Workers Logs for this disposable performance Worker or attach tail consumers.
+config.observability = { enabled: false };
 // All protected commerce, account, and reader delegation is separately
 // exercised with a fake CORE by the same-SHA local integration suite.
 config.services = [];
