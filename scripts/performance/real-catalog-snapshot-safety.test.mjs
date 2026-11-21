@@ -106,7 +106,9 @@ test("a preview has no service, owner-DO, credential or customer-origin indirect
       c.services = [{ binding: "OWNER", service: "cove-legal-authority-production" }];
     },
     (c) => {
-      c.durable_objects = { bindings: [{ name: "LEGAL_AUTHORITY", class_name: "CoveLegalAuthority" }] };
+      c.durable_objects = {
+        bindings: [{ name: "LEGAL_AUTHORITY", class_name: "CoveLegalAuthority" }],
+      };
     },
     (c) => {
       c.dispatch_namespaces = [{ binding: "DISPATCH", namespace: "cove-production" }];
