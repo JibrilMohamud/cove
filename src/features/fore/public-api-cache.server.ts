@@ -19,9 +19,11 @@ export function publicCacheTtl(path: string) {
   // UI context only: authenticated requests bypass shared caching, and every
   // commerce/rights endpoint independently resolves current legal authority.
   if (path === "/api/fore/storefront/context") return 30;
-  if (path === "/api/fore/search/suggest") return 60;
-  if (path === "/api/fore/audiobooks" || /^\/api\/fore\/audio\/[^/]+$/.test(path)) return 300;
-  if (/^\/api\/fore\/books\/[^/]+(?:\/detail)?$/.test(path)) return 60;
+  // No shared TTL for suggestions, book/edition detail, audiobook, or audio
+  // routes. Unlike catalog and bootstrap HITs below, these have no complete
+  // per-HIT canonical rights / withdrawal / expiry recheck. Returning a stale
+  // response would disclose a withdrawn item even if the live handler denies it.
+  // Re-enable only with a separately reviewed current-owner rights validator.
   return 0;
 }
 /**
@@ -163,8 +165,8 @@ export async function cachedPublicApi(
   if (edge && !useDb) {
     try {
       hit = await edge.match(key);
-    } catch (error) {
-      console.warn("Edge cache read unavailable", error);
+    } catch {
+      console.warn("Edge cache read unavailable");
       useDb = true;
     }
   }
@@ -177,8 +179,8 @@ export async function cachedPublicApi(
         hit = new Response(row.body, {
           headers: { "content-type": "application/json; charset=utf-8" },
         });
-    } catch (error) {
-      console.warn("Public cache read unavailable", error);
+    } catch {
+      console.warn("Public cache read unavailable");
     }
   }
   if (hit) {
@@ -261,8 +263,8 @@ export async function cachedPublicApi(
               },
             },
             context.rightsCountry,
-          ).catch((error: unknown) => {
-            console.warn("Cached storefront analytics unavailable", error);
+          ).catch(() => {
+            console.warn("Cached storefront analytics unavailable");
             return null;
           });
           catalog.search = { ...catalog.search, queryId, processingTimeMs: 0 };
@@ -320,8 +322,8 @@ export async function cachedPublicApi(
             new URL(request.url),
             cached,
             new URL(key.url).searchParams.get("__cove_country") || "US",
-          ).catch((error: unknown) => {
-            console.warn("Cached search analytics unavailable", error);
+          ).catch(() => {
+            console.warn("Cached search analytics unavailable");
             return null;
           });
           data.search = { ...search, queryId, processingTimeMs: 0 };
@@ -329,8 +331,8 @@ export async function cachedPublicApi(
         }
         return decorate(Response.json(data), "HIT", true);
       }
-    } catch (error) {
-      console.warn("Invalid public cache entry", error);
+    } catch {
+      console.warn("Invalid public cache entry");
     }
   }
   const response = await handler(request, env);
@@ -374,9 +376,7 @@ export async function cachedPublicApi(
         }),
       );
   };
-  const work = write().catch((error: unknown) =>
-    console.warn("Public cache write unavailable", error),
-  );
+  const work = write().catch(() => console.warn("Public cache write unavailable"));
   if (ctx.waitUntil) ctx.waitUntil(work);
   else await work;
   return decorate(response, "MISS");

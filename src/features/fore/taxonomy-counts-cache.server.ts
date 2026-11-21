@@ -9,6 +9,10 @@ const REFRESH_EARLY_MS = 120_000;
 const MAX_STALE_MS = 3_600_000;
 const LEASE_MS = 30_000;
 const REFRESH_PREFIX = "taxonomy-counts-refresh:v1:";
+// A cross-market mutex, not a shared counts cache. Primary D1 must never
+// execute concurrent multi-second display-only recounts for different keys.
+// Each territory/language still has an independent hashed counts cache key.
+const GLOBAL_REFRESH_KEY = REFRESH_PREFIX + "global";
 
 type DeferredWork = (work: Promise<unknown>) => void;
 
@@ -46,6 +50,9 @@ async function refreshPresentationCounts(
   queryLive: () => Promise<TaxonomyCountRow[]>,
   nowMs: () => number,
 ) {
+  // The shared lease budgets one expensive display recount across all markets.
+  // Other cold keys remain pending and may retry on their next UI poll; they
+  // never reuse another market's results or authorize any product.
   // A lease can expire while a slow rights-count aggregation is running.
   // Only its owner may publish results or remove the lease. In particular,
   // an older request may NOT delete a newer owner's lease after takeover.
@@ -116,7 +123,7 @@ export async function presentationTaxonomyCounts(
   );
   const hash = [...new Uint8Array(bytes)].map((n) => n.toString(16).padStart(2, "0")).join("");
   const key = PREFIX + hash;
-  const refreshKey = REFRESH_PREFIX + hash;
+  const refreshKey = GLOBAL_REFRESH_KEY;
   const now = nowMs();
 
   try {
@@ -132,11 +139,9 @@ export async function presentationTaxonomyCounts(
       // Do not share D1 promises across Cloudflare requests or isolates.
       if (!counts || expiresAt - now <= REFRESH_EARLY_MS) {
         defer(
-          refreshPresentationCounts(db, key, refreshKey, queryLive, nowMs).catch((error) => {
-            console.warn(
-              "Presentation taxonomy refresh unavailable",
-              error instanceof Error ? error.message : "unknown",
-            );
+          refreshPresentationCounts(db, key, refreshKey, queryLive, nowMs).catch(() => {
+            // Raw D1/rights error messages may contain sensitive identifiers.
+            console.warn("Presentation taxonomy refresh unavailable");
           }),
         );
       }

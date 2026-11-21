@@ -198,7 +198,8 @@ export async function proxyPersistenceApi(
   try {
     target = backendUrl(env, requestUrl);
   } catch (error) {
-    console.error("Invalid persistence backend configuration", error);
+    // Exception text can include deployment configuration; never persist it.
+    console.error("Invalid persistence backend configuration");
     return new Response(JSON.stringify({ error: "Cove persistence is misconfigured." }), {
       status: 503,
       headers: {
@@ -231,13 +232,14 @@ export async function proxyPersistenceApi(
     const response = await fetch(target, init);
     if ([502, 503, 504].includes(response.status) && safePublicFallback(request)) {
       if (productionFallbackDenied(env)) {
+        // Only the enumerated 502/503/504 status and the fixed, trusted
+        // classifiers are logged. Raw response headers/bodies stay private.
+        const source = backendFailureSource(response.headers);
+        const phase = backendFailurePhase(response.headers);
+        const stage = backendFailureStage(response.headers);
+        const category = await backendFailureCategory(response);
         console.warn(
-          "Persistent backend unavailable; production catalog fails closed",
-          response.status,
-          backendFailureSource(response.headers),
-          backendFailurePhase(response.headers),
-          backendFailureStage(response.headers),
-          await backendFailureCategory(response),
+          `Persistent backend unavailable; production catalog fails closed status=${response.status} source=${source} phase=${phase} stage=${stage} category=${category}`,
         );
         // Upstream error-body cleanup is best effort. Waiting on a stalled
         // body cancellation after status >=502 can delay the fail-closed 503.
@@ -289,20 +291,20 @@ export async function proxyPersistenceApi(
         // the public response remains denied, without logging exception text.
         if (requestUrl.pathname === "/api/fore/storefront/bootstrap")
           console.error(
-            "Persistent backend request failed; production bootstrap fails closed",
-            failureReason,
+            `Persistent backend request failed; production bootstrap fails closed cause=${failureReason}`,
           );
         else
           console.warn(
-            "Persistent backend request failed; production catalog fails closed",
-            failureReason,
+            `Persistent backend request failed; production catalog fails closed cause=${failureReason}`,
           );
         return unavailablePersistenceResponse();
       }
-      console.warn("Persistent backend request failed; using development fallback", failureReason);
+      console.warn(
+        `Persistent backend request failed; using development fallback cause=${failureReason}`,
+      );
       return null;
     }
-    console.error("Persistent backend request failed", failureReason);
+    console.error(`Persistent backend request failed cause=${failureReason}`);
     return new Response(JSON.stringify({ error: "Cove persistence is temporarily unavailable." }), {
       status: 503,
       headers: {
