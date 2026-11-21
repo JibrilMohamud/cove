@@ -34,6 +34,7 @@ import {createContractVersionOwnerSchema,executeOwnerContractVersion} from "./ow
 import {createMarketAuthoritySchema,denyMarket,marketIsWithdrawn} from "./market-authority-core";
 import { authorizeStorefrontPresentationIds,catalogIds, type CatalogDB, type FirstPaintD1QueryMetrics } from "../features/fore/catalog-model.server";
 import { resolveProductRights,detectRightsConflicts } from "../features/fore/rights.server";
+import {canonicalCommercialLeaseUntil} from "./canonical-commercial-lease";
 import {readOwnerNativeFirstPaintQa} from "./owner-native-first-paint-qa";
 import {createPublicationMaterializationSchema,executePublicationMaterialization} from "./publication-materialization-command";
 import type {PublishingEnv,PublishingDB} from "../features/fore/publishing.server";
@@ -5583,6 +5584,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         // The canonical evaluator checks territorial grant priority, contract
         // version scope, license language, DRM, channel and current status.
         // Persist=false: owner publication does NOT add primary D1 writes.
+        const evaluatedAtMs=Date.now();
         const decision=await resolveProductRights(
           env.PRIMARY_DB,input.productId,input.territory,{
             salesChannel:input.channel as CommercialChannel,persist:false
@@ -5592,15 +5594,24 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
            decision.editionId!==product.edition_id ||
            decision.productId!==product.id)
           return new Response(null,{status:409,headers:noStore});
+        // A future explicit DENY, contract/version/language transition,
+        // offer change or release schedule must expire the old paid proof
+        // BEFORE that event. The canonical resolver's current positivity
+        // alone cannot authorize its former 30-minute blanket lease.
+        // This is a publication-time PRIMARY-D1 read; no D1 on hot reads.
+        const sourceUntil=await canonicalCommercialLeaseUntil(
+          env.PRIMARY_DB,input.productId,evaluatedAtMs
+        );
         const now=Date.now();
-        const upperBound=now+30*60*1000;
         const ends=[decision.endsAt,
           (decision.contractPolicy as {effectiveTo?:unknown}|null)?.effectiveTo]
           .filter((v):v is string=>typeof v==="string"&&v.length>0)
           .map(v=>Date.parse(v));
         if(ends.some(t=>!Number.isFinite(t) || t<=now))
           return new Response(null,{status:409,headers:noStore});
-        const expiresAt=Math.min(upperBound,...ends);
+        const expiresAt=Math.min(Date.parse(sourceUntil),...ends);
+        if(!(expiresAt>now))
+          return new Response(null,{status:409,headers:noStore});
         const storage=this.ctx.storage as typeof this.ctx.storage & {
           transactionSync<T>(fn:()=>T):T;
         };
