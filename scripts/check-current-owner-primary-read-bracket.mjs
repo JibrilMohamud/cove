@@ -274,6 +274,19 @@ expiryRace.env.nowMs = () => {
   return clockReads >= 3 ? observedAt + 151_000 : observedAt;
 };
 await assert.rejects(read(expiryRace), /qa_owner_primary_read_not_current/);
+for (const invalidClock of [NaN, Infinity, -1, 0, 1.5]) {
+  const x = fixture();
+  x.env.nowMs = () => invalidClock;
+  await assert.rejects(read(x), /qa_owner_primary_read_not_current/);
+}
+const rewindingClock = fixture();
+let priorClockRead = false;
+rewindingClock.env.nowMs = () => {
+  if (priorClockRead) return observedAt - 1;
+  priorClockRead = true;
+  return observedAt;
+};
+await assert.rejects(read(rewindingClock), /qa_owner_primary_read_not_current/);
 
 const ownerUnavailable = fixture();
 ownerUnavailable.env.owner.fetch = async () => {
