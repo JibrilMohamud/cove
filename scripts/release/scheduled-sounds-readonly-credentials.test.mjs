@@ -3,7 +3,10 @@ import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
 
-const workflow = readFileSync(".github/workflows/cove-sounds-verified-conversion-report.yml", "utf8");
+const workflow = readFileSync(
+  ".github/workflows/cove-sounds-verified-conversion-report.yml",
+  "utf8",
+);
 const paid = readFileSync("scripts/staging/report-cove-sounds-verified-conversion.mjs", "utf8");
 const inventory = readFileSync("scripts/staging/report-cove-sounds-market-readiness.mjs", "utf8");
 
@@ -14,7 +17,10 @@ test("scheduled report keeps static verification and uses protected main-only cr
   assert.match(workflow, /confirm_readonly_reporting == true/);
   assert.match(workflow, /inputs\.reviewed_main_sha == github\.sha/);
   assert.match(workflow, /github\.event_name == 'schedule'/);
-  assert.match(workflow, /node --test scripts\/release\/scheduled-sounds-readonly-credentials\.test\.mjs/);
+  assert.match(
+    workflow,
+    /node --test scripts\/release\/scheduled-sounds-readonly-credentials\.test\.mjs/,
+  );
   assert.doesNotMatch(workflow, /secrets\.CLOUDFLARE_API_TOKEN/);
   assert.match(workflow, /secrets\.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN/);
   assert.match(workflow, /secrets\.COVE_CF_ANALYTICS_READ_TOKEN/);
