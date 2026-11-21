@@ -1,0 +1,30 @@
+name: cove-manual-cloudflare-release-safety-offline
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/production-legal-owner-locked.yml
+      - .github/workflows/literary-prod-handoff-dormant-deploy.yml
+      - .github/workflows/literary-prod-publisher-dormant-deploy.yml
+      - .github/workflows/deploy-locked-fast-storefront-gateway.yml
+      - .github/workflows/cloudflare-paired-release-freeze.yml
+      - .github/workflows/literary-live-cutover-preflight.yml
+      - .github/workflows/cove-commerce-private-qa-deploy.yml
+      - .github/workflows/cove-manual-cloudflare-release-safety-offline.yml
+      - scripts/security/check-manual-cloudflare-release-workflows.mjs
+permissions:
+  contents: read
+jobs:
+  protected-release-source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Reject unapproved production Cloudflare deploy/read credentials
+        run: |
+          node --check scripts/security/check-manual-cloudflare-release-workflows.mjs
+          node scripts/security/check-manual-cloudflare-release-workflows.mjs
