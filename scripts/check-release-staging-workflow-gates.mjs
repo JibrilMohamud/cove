@@ -52,6 +52,14 @@ for (const { file, names, protections } of requirements) {
     assert.match(data, /inputs\.reviewed_main_sha == github\.sha/);
     assert.match(data, /inputs\.confirm_real_catalog_readonly == true/);
     assert.match(data, /github\.event_name == 'workflow_dispatch'/);
+  } else if (file === ".github/workflows/continuous-publication-qa.yml") {
+    // Publication QA may deploy isolated Workers; forbid merge-triggered
+    // broad Cloudflare credentials, but preserve protected manual QA.
+    assert.doesNotMatch(data, /\n  push:\n/, "QA Worker deployment must be manual-only");
+    assert.match(data, /environment: cove-production-release-audit/);
+    assert.match(data, /inputs\.confirm_protected_cloudflare_action == true/);
+    assert.match(data, /inputs\.reviewed_main_sha == github\.sha/);
+    assert.match(data, /github\.event_name == 'workflow_dispatch'/);
   } else if (file === ".github/workflows/cove-commerce-private-qa-deploy.yml") {
     assert.doesNotMatch(data, /\n  push:\n/, file + " must not run QA D1 migrations on merge");
     assert.equal((data.match(/environment: cove-production-release-audit/g) || []).length, 2);

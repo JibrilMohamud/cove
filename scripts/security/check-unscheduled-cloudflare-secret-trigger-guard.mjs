@@ -12,7 +12,11 @@ export function verifySecretJobGuard(source, name) {
   assert.ok(on, "Explicit events missing");
   assert.match(on, /^  workflow_dispatch:\s*$/m);
   assert.doesNotMatch(on, /^  push:/m, "Source push cannot access a broad token");
-  assert.doesNotMatch(on, /^  schedule:/m, "This unscheduled workflow cannot obtain a scheduled broad token");
+  assert.doesNotMatch(
+    on,
+    /^  schedule:/m,
+    "This unscheduled workflow cannot obtain a scheduled broad token",
+  );
   for (const input of [
     "reviewed_main_sha:",
     "confirm_protected_cloudflare_action:",
@@ -66,6 +70,12 @@ for (const [stem, name] of PRIVILEGED_JOBS) {
   const withPush = source.replace("  workflow_dispatch:", "  push:");
   assert.notEqual(withPush, source);
   assert.throws(() => verifySecretJobGuard(withPush, name));
+  const withSchedule = source.replace(
+    "  workflow_dispatch:",
+    "  schedule:\n    - cron: '17 * * * *'\n  workflow_dispatch:",
+  );
+  assert.notEqual(withSchedule, source);
+  assert.throws(() => verifySecretJobGuard(withSchedule, name));
   for (const [from, to] of [
     ["    environment: cove-production-release-audit\n", ""],
     ["github.event_name == 'workflow_dispatch'", "github.event_name == 'schedule'"],
