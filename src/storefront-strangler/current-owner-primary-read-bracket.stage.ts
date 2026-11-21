@@ -237,3 +237,14 @@ export async function withCurrentQaOwnerPrimaryRead<T>(
   await checkedPrimary(x, latestOwner, currentTime());
   return result;
 }
+
+/**
+ * Negative-only owner epoch witness for an isolated primary CAS publisher.
+ * Its authorizing:false receipt MUST NEVER authorize positive rights or
+ * re-open a dirty primary catalog. Only the owner-acknowledged epoch can
+ * advance an independently sealed primary row.
+ */
+export async function currentQaOwnerEpochForNegativePublication(x: QaOwnerReadBracket) {
+  validSetup(x);
+  return ownerEpoch(x);
+}
