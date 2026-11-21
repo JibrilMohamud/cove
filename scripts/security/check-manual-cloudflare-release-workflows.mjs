@@ -20,8 +20,11 @@ export function verifyProtectedWorkflow(yaml, jobName) {
   assert.match(on, /^      confirm_protected_cloudflare_action:\s*$/m);
   assert.match(on, /^        required: true\s*$/m);
   assert.match(on, /^        default: false\s*$/m);
-  assert.doesNotMatch(on, /^  (?:push|schedule|workflow_run|repository_dispatch):/m,
-    "Production credentials must never be exposed by non-manual triggers");
+  assert.doesNotMatch(
+    on,
+    /^  (?:push|schedule|workflow_run|repository_dispatch):/m,
+    "Production credentials must never be exposed by non-manual triggers",
+  );
   const header = yaml.indexOf("  " + jobName + ":\n");
   assert.ok(header >= 0, "Protected job missing");
   const following = yaml.slice(header);
@@ -35,10 +38,15 @@ export function verifyProtectedWorkflow(yaml, jobName) {
     "github.ref == 'refs/heads/main'",
     "inputs.confirm_protected_cloudflare_action == true",
     "inputs.reviewed_main_sha == github.sha",
-  ]) assert.ok(gate.includes(condition), "Missing admission condition: " + condition);
+  ]) {
+    assert.ok(gate.includes(condition), "Missing admission condition: " + condition);
+  }
   assert.match(job, /^    environment: cove-production-release-audit\s*$/m);
-  assert.ok(job.indexOf("environment: cove-production-release-audit") <
-    job.indexOf("CLOUDFLARE_API_TOKEN:"), "Environment approval must precede deployment-secret availability");
+  assert.ok(
+    job.indexOf("environment: cove-production-release-audit") <
+      job.indexOf("CLOUDFLARE_API_TOKEN:"),
+    "Environment approval must precede deployment-secret availability",
+  );
   assert.match(yaml, /^permissions:\n  contents: read\s*$/m);
   return true;
 }
@@ -72,4 +80,6 @@ for (const [name, job] of jobs) {
     assert.throws(() => verifyProtectedWorkflow(mutated, job));
   }
 }
-console.log("PASS: eight Cloudflare production-capable jobs are manual-only, main-pinned and protected");
+console.log(
+  "PASS: eight Cloudflare production-capable jobs are manual-only, main-pinned and protected",
+);
