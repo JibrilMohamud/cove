@@ -69,6 +69,7 @@ type LegalAuthorityEnv = {
   BUCKET?:PublishingEnv["BUCKET"];
   FORE_PUBLISHING_AUTO_APPROVE_LOW_RISK?:string;
   COVE_QA_OWNER_JOURNAL_VERSION?: string;
+  COVE_QA_OWNER_REHEARSAL_REVISION?: string;
   COVE_RIGHTS_OWNER_SECRET?: string;
   COVE_RIGHTS_OWNER_ENABLED?: string;
   COVE_RIGHTS_OWNER_PRIMARY_ID?: string;
@@ -4030,7 +4031,11 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         const q=raw as {challenge?:unknown}|null;
         if(!q||Object.keys(q).join(",")!=="challenge"||!validOwnerChallenge(q.challenge))
           return new Response(null,{status:400,headers:noStore});
+        const revision=env.COVE_QA_OWNER_REHEARSAL_REVISION;
+        if(revision!==undefined&&revision!=="A"&&revision!=="B")
+          return new Response(null,{status:503,headers:noStore});
         return Response.json({...journal,challenge:q.challenge,
+          ...(revision===undefined?{}:{rehearsalRevision:revision}),
           primaryId:env.COVE_RIGHTS_OWNER_PRIMARY_ID},{headers:noStore});
       }
       if(route==="/commercial/order/recover-settlements"){
