@@ -1,0 +1,31 @@
+name: cove-current-owner-mutation-fence-offline
+on:
+  pull_request:
+    paths:
+      - "src/storefront-strangler/**"
+      - "scripts/check-current-owner-mutation-fence.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/cove-current-owner-mutation-fence-offline.yml"
+permissions:
+  contents: read
+jobs:
+  actual-owner-handlers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Current owner SQL journal and native workerd withdrawal race
+        run: node scripts/check-current-owner-mutation-fence.mjs
+      - name: Paid fulfillment, refund and disabled-production regression
+        run: |
+          node scripts/check-paid-owner-worker-handlers.mjs
+          node scripts/check-paid-order-revocation-command.mjs
+          node scripts/check-production-disabled-owner-attestation.mjs
+          node scripts/check-locked-production-legal-owner.mjs
+          node scripts/check-canonical-writer-closure.mjs --no-new-writers
+      - run: npm run typecheck
