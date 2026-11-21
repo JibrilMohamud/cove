@@ -4,6 +4,7 @@ on:
     paths:
       - "scripts/staging/report-cove-sounds-verified-conversion.mjs"
       - ".github/workflows/cove-sounds-verified-conversion-report.yml"
+      - "scripts/release/scheduled-sounds-readonly-credentials.test.mjs"
   push:
     branches: [main]
     paths:
@@ -12,6 +13,16 @@ on:
   schedule:
     - cron: "17 12 * * *"
   workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        description: "Exact reviewed main commit for manual read-only reporting."
+        type: string
+        required: true
+      confirm_readonly_reporting:
+        description: "Authorize only Cloudflare D1 Read and Analytics Read; no mutation or deploy."
+        type: boolean
+        required: true
+        default: false
 permissions:
   contents: read
 jobs:
@@ -30,8 +41,19 @@ jobs:
           node --check scripts/staging/report-cove-sounds-verified-conversion.mjs
           node scripts/staging/report-cove-sounds-verified-conversion.mjs --self-test
           node scripts/staging/report-cove-sounds-market-readiness.mjs --self-test
+          node --test scripts/release/scheduled-sounds-readonly-credentials.test.mjs
   aggregate-only-report:
-    if: github.event_name != 'pull_request'
+    # Keep scheduled monitoring, but all secret-bearing production account
+    # calls must pass through the protected, least-privilege environment.
+    # No push-only source change may automatically gain a Cloudflare token.
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'schedule' ||
+       (github.event_name == 'workflow_dispatch' &&
+        inputs.confirm_readonly_reporting == true &&
+        inputs.reviewed_main_sha == github.sha))
+    environment: cove-production-release-audit
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -45,11 +67,25 @@ jobs:
         run: |
           node scripts/staging/report-cove-sounds-verified-conversion.mjs --self-test
           node scripts/staging/report-cove-sounds-market-readiness.mjs --self-test
+      - name: Require independent D1 Read and Analytics Read permissions
+        shell: bash
+        env:
+          COVE_CF_PRODUCTION_AUDIT_READ_TOKEN: ${{ secrets.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN }}
+          COVE_CF_ANALYTICS_READ_TOKEN: ${{ secrets.COVE_CF_ANALYTICS_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          test "${#COVE_CF_PRODUCTION_AUDIT_READ_TOKEN}" -ge 20 || { echo "::error::Protected D1 Read token unavailable"; exit 1; }
+          test "${#COVE_CF_ANALYTICS_READ_TOKEN}" -ge 20 || { echo "::error::Protected Analytics Read token unavailable"; exit 1; }
       - name: Read-only canonical paid orders and anonymous Analytics Engine
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          COVE_CF_PRODUCTION_AUDIT_READ_TOKEN: ${{ secrets.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN }}
+          COVE_CF_ANALYTICS_READ_TOKEN: ${{ secrets.COVE_CF_ANALYTICS_READ_TOKEN }}
         run: node scripts/staging/report-cove-sounds-verified-conversion.mjs
       - name: Audit licensed inventory in all active storefront countries
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          COVE_CF_PRODUCTION_AUDIT_READ_TOKEN: ${{ secrets.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN }}
         run: node scripts/staging/report-cove-sounds-market-readiness.mjs
+
+# No broad Cloudflare deploy token, Worker deployment, D1 Write, rights mutation,
+# customer session, or LIVE charge. The schedule waits for protected environment
+# approval when required rather than falling back to an unreviewed credential.
