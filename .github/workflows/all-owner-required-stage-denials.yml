@@ -8,6 +8,8 @@ on:
       - "docs/architecture/canonical-writer-review.json"
       - "scripts/reconcile-canonical-writers.mjs"
       - "scripts/check-canonical-writer-closure.mjs"
+      - "scripts/release/collect-protected-backend-503-graphql.mjs"
+      - "scripts/release/collect-protected-backend-503-graphql.test.mjs"
       - "scripts/check-all-owner-required-stage-denials.mjs"
       - ".github/workflows/all-owner-required-stage-denials.yml"
   push:
@@ -19,6 +21,8 @@ on:
       - "docs/architecture/canonical-writer-review.json"
       - "scripts/reconcile-canonical-writers.mjs"
       - "scripts/check-canonical-writer-closure.mjs"
+      - "scripts/release/collect-protected-backend-503-graphql.mjs"
+      - "scripts/release/collect-protected-backend-503-graphql.test.mjs"
       - "scripts/check-all-owner-required-stage-denials.mjs"
       - ".github/workflows/all-owner-required-stage-denials.yml"
 permissions:
