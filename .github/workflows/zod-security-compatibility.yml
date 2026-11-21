@@ -16,7 +16,6 @@ jobs:
       - uses: actions/setup-node@v6
         with: { node-version: "22", cache: npm }
       - run: npm ci --no-audit --no-fund
-      - run: npm audit --audit-level=high
       - run: npm run typecheck
       - run: npm run test:rights
       - run: npm run test:commerce
@@ -25,3 +24,6 @@ jobs:
       - run: npm run test:regional-epub-repair
       - run: npm run test:literary-budget-settlement
       - run: npm run test:matching
+      # Keep the audit mandatory, after independent runtime checks so an
+      # unrelated advisory cannot prevent dependency compatibility evidence.
+      - run: npm audit --audit-level=high

@@ -20,25 +20,17 @@ on:
       - "scripts/staging/run-protected-deployed-commerce-qa.mjs"
       - "scripts/staging/cleanup-qa-offline-epub-signing-key.mjs"
       - ".github/workflows/deployed-commerce-browser-acceptance.yml"
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/cove-commerce-private-qa-deploy.yml"
-      - "src/features/fore/commerce.server.ts"
-      - "src/features/fore/delivery.server.ts"
-      - "src/features/fore/commercial-audio.server.ts"
-      - "src/features/fore/offline-epub.server.ts"
-      - "src/features/fore/offline-audio.server.ts"
-      - "drizzle/0085_canonical_terminal_rights_resurrection_guard.sql"
-      - "drizzle/0086_rights_contract_version_terminal_guard.sql"
-      - "drizzle/0087_paid_revocation_terminal_guard.sql"
-      - "drizzle/0088_audio_offline_license_terminal_guard.sql"
-      - "drizzle/0088_paid_repurchase_fresh_entitlement.sql"
-      - "src/lib/cloudflare-ssr-stage-gate.server.ts"
-      - "scripts/staging/check-deployed-commerce-browser.mjs"
-      - "scripts/staging/run-protected-deployed-commerce-qa.mjs"
-      - "scripts/staging/cleanup-qa-offline-epub-signing-key.mjs"
   workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        description: "Exact reviewed main commit; do not run remote QA writes on merge."
+        required: true
+        type: string
+      confirm_protected_cloudflare_action:
+        description: "Approve protected synthetic commerce QA deployment/migration."
+        required: true
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -66,9 +58,13 @@ jobs:
           node --check scripts/staging/cleanup-qa-offline-epub-signing-key.mjs
   private-commerce:
     if: >-
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-      github.ref == 'refs/heads/main'
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm_protected_cloudflare_action == true &&
+      inputs.reviewed_main_sha == github.sha
     runs-on: ubuntu-latest
+    environment: cove-production-release-audit
     timeout-minutes: 35
     env:
       CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
@@ -125,9 +121,13 @@ jobs:
   authenticated-commerce:
     needs: private-commerce
     if: >-
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-      github.ref == 'refs/heads/main'
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm_protected_cloudflare_action == true &&
+      inputs.reviewed_main_sha == github.sha
     runs-on: ubuntu-latest
+    environment: cove-production-release-audit
     timeout-minutes: 35
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

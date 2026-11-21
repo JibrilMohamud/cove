@@ -9,7 +9,7 @@ assert.match(caller, /presentationTaxonomyCounts\(\s*db,\s*territory,\s*language
 assert.match(caller, /taxonomyPresentationReadDb\(db\)/);
 assert.match(caller, /\.prepare\(taxonomySparseRightsProbe\)/);
 assert.match(caller, /taxonomyCountPlan\(\s*territory,\s*language,/);
-assert.match(production, /retail_product_availability rpa/);
+assert.doesNotMatch(production, /\bFROM retail_product_availability rpa\b/);
 assert.match(production, /retail_product_availability_rows rpa/);
 assert.match(production, /g\.sales_channel='retail' AND g\.status='active'/);
 assert.match(production, /COUNT\(\*\) product_count/);
@@ -43,7 +43,7 @@ try {
     CREATE INDEX idx_rights_grant_territories_lookup
       ON rights_grant_territories(territory_code,grant_id);
     CREATE VIEW retail_product_availability_rows AS
-      SELECT DISTINCT p.id product_id,rgt.territory_code
+      SELECT p.id product_id,rgt.territory_code
       FROM products p
       JOIN rights_grants g ON g.edition_id=p.edition_id
         AND g.sales_channel='retail' AND g.status='active' AND g.decision='allow'
@@ -90,6 +90,27 @@ try {
       scope.run("deny-" + n, "US");
     }
   }
+  // A deliberately duplicated, still-authorized grant proves that removing
+  // DISTINCT under EXISTS does not multiply product or taxonomy counts.
+  assert.equal(
+    db
+      .prepare(
+        "SELECT COUNT(*) n FROM retail_product_availability_rows WHERE product_id='product-67' AND territory_code='US'",
+      )
+      .get().n,
+    2,
+    "Fixture must produce duplicate legal availability rows",
+  );
+  assert.equal(
+    db
+      .prepare(
+        "SELECT COUNT(*) n FROM retail_product_availability WHERE product_id='product-67' AND territory_code='US'",
+      )
+      .get().n,
+    1,
+    "Original availability view deduplicates the same legal result",
+  );
+
   const original = `WITH eligible AS MATERIALIZED (
     SELECT p.id,p.edition_id FROM products p JOIN editions e ON e.id=p.edition_id
     WHERE p.storefront_status='active' AND p.source_name<>'upload'
@@ -150,9 +171,25 @@ try {
     sqlPlan.some((row) => String(row.detail).includes("idx_rights_grant_territories_lookup")),
     "Sparse market must use the indexed territory seed",
   );
+  // SQLite inlines the SELECT-only legal row view, so an EXPLAIN plan cannot
+  // reliably name the view. Validate the executed SQL's exact legal boundary
+  // and independently forbid the redundant DISTINCT-view co-routine.
+  for (const sparse of [false, true]) {
+    const actualSql = taxonomyCountPlan("CA", "", sparse).sql;
+    assert.match(
+      actualSql,
+      /\bFROM retail_product_availability_rows rpa\b/,
+      "Both dense and sparse counts must invoke the authoritative legal row view",
+    );
+    assert.doesNotMatch(
+      actualSql,
+      /\bFROM retail_product_availability rpa\b/,
+      "No counts plan may restore the redundant DISTINCT wrapper under EXISTS",
+    );
+  }
   assert.ok(
-    sqlPlan.some((row) => String(row.detail).includes("retail_product_availability")),
-    "Always preserve the authoritative legal view",
+    !sqlPlan.some((row) => /CO-ROUTINE retail_product_availability\b/.test(String(row.detail))),
+    "Sparse counts must not force the DISTINCT availability co-routine",
   );
   console.log(
     "Taxonomy counts: dense/sparse rights parity; locale, duplicates, revocations, denials, active grants PASS",

@@ -10,7 +10,7 @@ assert.match(
   taxonomy,
   /presentationTaxonomyCounts\(\s*db,\s*territory,\s*language,\s*async \(\) =>/,
 );
-assert.match(countQueries, /retail_product_availability rpa/);
+assert.doesNotMatch(countQueries, /\bFROM retail_product_availability rpa\b/);
 assert.match(countQueries, /retail_product_availability_rows rpa/);
 assert.match(taxonomy, /\.prepare\(taxonomySparseRightsProbe\)/);
 assert.doesNotMatch(code, /product_id|productIds|account_id|user_id/);

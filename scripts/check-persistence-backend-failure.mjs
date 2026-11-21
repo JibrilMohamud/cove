@@ -77,6 +77,43 @@ assert.equal(
   backendFailureStage(flagged("cove_fault_catalog;dur=1.0, cove_api;dur=34")),
   "catalog",
 );
+for (const stage of ["legal", "auth", "identity", "database"]) {
+  assert.equal(
+    backendFailureStage(
+      flagged(`cove_auth;dur=3, cove_fault_pre_${stage};dur=1.0, cove_api;dur=34`),
+    ),
+    `pre-${stage}`,
+    "Only the four reviewed pre-context failures may be classified",
+  );
+}
+for (const invalid of [
+  "cove_fault_pre_other;dur=1",
+  "cove_fault_pre_identity;dur=2",
+  "cove_fault_pre_identity;dur=NaN",
+  "cove_fault_pre_identity;dur=1.1",
+]) {
+  assert.equal(backendFailureStage(flagged(`${invalid}, cove_api;dur=34`)), "unknown");
+}
+assert.equal(
+  backendFailureStage(
+    flagged("cove_fault_pre_auth;dur=1, cove_fault_pre_identity;dur=1, cove_api;dur=34"),
+  ),
+  "multiple",
+);
+assert.equal(
+  backendFailureStage(
+    flagged("cove_fault_pre_identity;dur=1, cove_fault_context;dur=1, cove_api;dur=34"),
+  ),
+  "multiple",
+);
+assert.equal(
+  backendFailureStage(
+    flagged("cove_fault_pre_identity;dur=1, cove_api;dur=34", {
+      "x-cove-persistence": "untrusted",
+    }),
+  ),
+  "unknown",
+);
 for (const stage of ["preference", "market", "locale", "currency", "details"]) {
   assert.equal(
     backendFailureStage(
@@ -156,6 +193,12 @@ assert.match(apiSource, /timings\[`fault_\$\{name\}`\] = 1/);
 assert.match(apiSource, /catch \(error\) \{\s*timings\[`fault_\$\{name\}`\] = 1;\s*throw error;/);
 assert.equal((apiSource.match(/timings\[`fault_\$\{name\}`\] = 1/g) || []).length, 1);
 assert.match(apiSource, /timings\[`fault_context_\$\{stage\}`\] = 1/);
+assert.match(apiSource, /timings\[`fault_pre_\$\{name\}`\] = 1/);
+assert.match(apiSource, /timings\.fault_pre_database = 1/);
+assert.match(apiSource, /observedPreContext\("legal",/);
+assert.match(apiSource, /observedPreContext\("auth",/);
+assert.match(apiSource, /observedPreContext\("identity",/);
+assert.doesNotMatch(apiSource, /timings\[`fault_pre_\$\{name\}`\] = (?:error|String\()/);
 const localizationSource = fs.readFileSync("src/features/fore/localization.server.ts", "utf8");
 assert.match(localizationSource, /onFailureStage\?\.\(stage\)/);
 assert.match(localizationSource, /stageRead\("market"/);
@@ -287,4 +330,34 @@ assert.match(gateway, /await backendFailureCategory\(response\)/);
 assert.doesNotMatch(gateway, /await response\.body\?\.cancel\(\)/);
 assert.match(gateway, /void response\.body\?\.cancel\(\)\.catch\(\(\) => \{\}\)/);
 assert.match(gateway, /if \(productionFallbackDenied\(env\)\)/);
+// Vercel's production log viewer displays the first message argument; the
+// second console argument was hiding the already-computed fixed cause marker.
+// Only the three reviewable, request-local literal causes may enter telemetry.
+assert.match(
+  gateway,
+  /const failureReason = deadlineExpired\s*\?\s*"backend-deadline"\s*:\s*controller\.signal\.aborted\s*\?\s*"proxy-abort"\s*:\s*"upstream-transport"/,
+);
+for (const message of [
+  "Persistent backend request failed; production bootstrap fails closed",
+  "Persistent backend request failed; production catalog fails closed",
+  "Persistent backend request failed; using development fallback",
+  "Persistent backend request failed",
+]) {
+  const occurrences = gateway.split(message + " cause=${failureReason}").length - 1;
+  assert.equal(occurrences, 1, "Fixed cause must be embedded in one message: " + message);
+}
+assert.doesNotMatch(
+  gateway,
+  /console\.error\("Invalid persistence backend configuration",\s*error\)/,
+);
+assert.match(gateway, /console\.error\("Invalid persistence backend configuration"\)/);
+assert.doesNotMatch(
+  gateway,
+  /console\.(?:error|warn)\(\s*["']Persistent backend request failed[^"']*["'],\s*(?:failureReason|error)\s*\)/,
+);
+assert.doesNotMatch(
+  gateway,
+  /failureReason\s*=\s*(?:String|error\?\.message|error\.message|requestUrl)/,
+);
+
 console.log("Read-only persistence 5xx attribution and fail-closed bootstrap: PASS");

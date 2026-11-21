@@ -36,7 +36,11 @@ export type BackendFailureStage =
   | "context-market"
   | "context-locale"
   | "context-currency"
-  | "context-details";
+  | "context-details"
+  | "pre-legal"
+  | "pre-auth"
+  | "pre-identity"
+  | "pre-database";
 
 export function backendFailureStage(headers: Headers): BackendFailureStage {
   if (backendFailureSource(headers) !== "worker-api") return "unknown";
@@ -45,7 +49,12 @@ export function backendFailureStage(headers: Headers): BackendFailureStage {
   const found = phases.filter((phase) =>
     new RegExp(`(?:^|,)\\s*cove_fault_${phase};dur=1(?:\\.0)?(?:,|$)`).test(timing),
   );
-  if (found.length > 1) return "multiple";
+  const preStages = ["legal", "auth", "identity", "database"] as const;
+  const pre = preStages.filter((stage) =>
+    new RegExp(`(?:^|,)\\s*cove_fault_pre_${stage};dur=1(?:\\.0)?(?:,|$)`).test(timing),
+  );
+  if (found.length + pre.length > 1) return "multiple";
+  if (pre.length === 1) return `pre-${pre[0]}`;
   if (found.length !== 1) return "unknown";
   // Hierarchical context detail is only trusted with the matching parent
   // failure marker and backend provenance. A child cannot override catalog,
