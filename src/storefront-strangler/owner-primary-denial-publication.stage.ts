@@ -131,8 +131,9 @@ export async function advanceQaPrimaryDenialEpoch(
 
   // The CAS read receipt is not itself proof of a fresh primary generation.
   const latest=await readPrimary(context);
-  if(!matchingRow(latest,context,owner)||
-     latest.owner_mutation_epoch!==owner.epoch||latest.dirty!==1||
+  if(!matchingRow(latest,context,owner))
+    throw Error("qa_owner_primary_negative_publication_denied");
+  if(latest.owner_mutation_epoch!==owner.epoch||latest.dirty!==1||
      epoch(latest.pending_withdrawals)<1||latest.eligibility_valid_until_ms!==0)
     deny();
   const again=await currentQaOwnerEpochForNegativePublication(context);
