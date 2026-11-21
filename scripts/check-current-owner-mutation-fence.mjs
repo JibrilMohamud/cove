@@ -314,9 +314,11 @@ try {
   assert.equal(firstPublication.authorizing, false);
   assert.equal(firstPublication.applied, true);
   assert.equal(firstPublication.ownerEpoch, Number((await f.read()).mutationEpoch));
-  const published = negativeDb.prepare(
-    "SELECT owner_mutation_epoch,dirty,pending_withdrawals,eligibility_valid_until_ms FROM cove_qa_owner_primary_publication_fence WHERE slot=1"
-  ).get();
+  const published = negativeDb
+    .prepare(
+      "SELECT owner_mutation_epoch,dirty,pending_withdrawals,eligibility_valid_until_ms FROM cove_qa_owner_primary_publication_fence WHERE slot=1",
+    )
+    .get();
   assert.equal(published.owner_mutation_epoch, firstPublication.ownerEpoch);
   assert.equal(published.dirty, 1);
   assert.equal(published.eligibility_valid_until_ms, 0);
@@ -330,12 +332,11 @@ try {
   const deniedEpoch = Number((await f.read()).mutationEpoch);
   assert.ok(deniedEpoch > firstPublication.ownerEpoch);
   denyPrimaryWrites = true;
-  await assert.rejects(
-    advanceQaPrimaryDenialEpoch(negativeContext),
-    /injected primary CAS outage/,
-  );
+  await assert.rejects(advanceQaPrimaryDenialEpoch(negativeContext), /injected primary CAS outage/);
   assert.equal(
-    negativeDb.prepare("SELECT owner_mutation_epoch FROM cove_qa_owner_primary_publication_fence").get().owner_mutation_epoch,
+    negativeDb
+      .prepare("SELECT owner_mutation_epoch FROM cove_qa_owner_primary_publication_fence")
+      .get().owner_mutation_epoch,
     firstPublication.ownerEpoch,
     "D1 outage cannot roll back the already acknowledged owner denial",
   );
@@ -343,9 +344,11 @@ try {
   const recoveredPublication = await advanceQaPrimaryDenialEpoch(negativeContext);
   assert.equal(recoveredPublication.ownerEpoch, deniedEpoch);
   assert.equal(recoveredPublication.applied, true);
-  assert.equal(negativeDb.prepare(
-    "SELECT dirty FROM cove_qa_owner_primary_publication_fence"
-  ).get().dirty, 1, "a recovered denial must never automatically reopen rights");
+  assert.equal(
+    negativeDb.prepare("SELECT dirty FROM cove_qa_owner_primary_publication_fence").get().dirty,
+    1,
+    "a recovered denial must never automatically reopen rights",
+  );
   assert.equal((await f.post(route, { challenge: "bad" })).status, 400);
   assert.equal((await f.post(route, { challenge, extra: true })).status, 400);
   assert.equal((await f.post(route, { challenge }, "d".repeat(64))).status, 401);
