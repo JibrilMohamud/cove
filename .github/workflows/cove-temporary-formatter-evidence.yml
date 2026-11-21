@@ -1,0 +1,39 @@
+name: cove-temporary-formatter-evidence
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/cove-temporary-formatter-evidence.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  emit-public-source-format:
+    if: github.repository == 'JibrilMohamud/cove' && github.event.pull_request.head.repo.full_name == 'JibrilMohamud/cove'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Format only two public source files and emit a source-only base64 proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx prettier --write scripts/release/collect-protected-backend-503-graphql.mjs scripts/release/collect-protected-backend-503-graphql.test.mjs
+          npx prettier --check scripts/release/collect-protected-backend-503-graphql.mjs scripts/release/collect-protected-backend-503-graphql.test.mjs
+          printf '%s\n' COVE_FORMAT_BEGIN_COLLECTOR
+          base64 -w 0 scripts/release/collect-protected-backend-503-graphql.mjs | fold -w 240
+          printf '%s\n' COVE_FORMAT_END_COLLECTOR
+          printf '%s\n' COVE_FORMAT_BEGIN_TEST
+          base64 -w 0 scripts/release/collect-protected-backend-503-graphql.test.mjs | fold -w 240
+          printf '%s\n' COVE_FORMAT_END_TEST
+# Temporary PR-only, public source content and formatting proof. No secrets or deployment.
+# Remove from tree as part of applying exact pinned formatter result.
