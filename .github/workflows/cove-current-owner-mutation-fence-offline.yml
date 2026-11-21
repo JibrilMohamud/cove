@@ -4,6 +4,7 @@ on:
     paths:
       - "src/storefront-strangler/**"
       - "scripts/check-current-owner-mutation-fence.mjs"
+      - "scripts/check-current-owner-primary-read-bracket.mjs"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/cove-current-owner-mutation-fence-offline.yml"
@@ -21,6 +22,8 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Current owner SQL journal and native workerd withdrawal race
         run: node scripts/check-current-owner-mutation-fence.mjs
+      - name: Independently bracket an authorized primary read with two current owner challenges
+        run: node scripts/check-current-owner-primary-read-bracket.mjs
       - name: Paid fulfillment, refund and disabled-production regression
         run: |
           node scripts/check-paid-owner-worker-handlers.mjs

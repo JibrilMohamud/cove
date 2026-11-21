@@ -179,6 +179,85 @@ try {
     assert.equal((await f.post(r, command)).status, 200);
     assert.equal((await f.read()).mutationEpoch, after, "idempotent replay must not advance " + r);
   }
+  // Cross-service integration against the REAL legal owner handlers and
+  // their SQLite-backed durable mutation journal, not a fabricated receipt.
+  // The primary row is deliberately synthetic because a certified owner
+  // publisher/generation CAS has NOT been deployed to any real D1.
+  const bracketFile = path.join(temp, "bracket.mjs");
+  await build({
+    entryPoints: ["src/storefront-strangler/current-owner-primary-read-bracket.stage.ts"],
+    outfile: bracketFile,
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    logLevel: "silent",
+  });
+  const { withCurrentQaOwnerPrimaryRead, QA_OWNER_PRIMARY_FENCE_SQL } = await import(
+    pathToFileURL(bracketFile)
+  );
+  f.env.COVE_QA_OWNER_REHEARSAL_REVISION = "A";
+  const generation = Number((await f.read()).mutationEpoch);
+  const primaryRow = {
+    publication_schema: "cove.qa.owner-primary-read-bracket.v1",
+    primary_id: primaryId,
+    owner_journal_version: version,
+    owner_mutation_epoch: generation,
+    owner_rehearsal_revision: "A",
+    dirty: 0,
+    pending_withdrawals: 0,
+    pending_writes: 0,
+    eligibility_valid_until_ms: Date.now() + 120_000,
+  };
+  let primaryReadCount = 0;
+  const bracket = {
+    owner: f.owner,
+    secret,
+    primaryId,
+    journalVersion: version,
+    primary: {
+      withSession(constraint) {
+        assert.equal(constraint, "first-primary");
+        return {
+          prepare(sqlText) {
+            assert.equal(sqlText, QA_OWNER_PRIMARY_FENCE_SQL);
+            return {
+              async first() {
+                primaryReadCount++;
+                return { ...primaryRow };
+              },
+            };
+          },
+        };
+      },
+    },
+  };
+  assert.equal(
+    await withCurrentQaOwnerPrimaryRead(bracket, async () => "rights-checked-book"),
+    "rights-checked-book",
+    "actual owner journal and independently versioned primary witness agree",
+  );
+  assert.equal(primaryReadCount, 3);
+  let producedUnreleasedBook = false;
+  await assert.rejects(
+    withCurrentQaOwnerPrimaryRead(bracket, async () => {
+      // The owner ACKs its new denial before primary publication catches up.
+      const deny = await f.post("/market/deny-next", {
+        territory: "DE",
+        operationId: "qa-read-bracket-race-1",
+      });
+      assert.equal(deny.status, 200);
+      producedUnreleasedBook = true;
+      return "stale-primary-legal-book";
+    }),
+    /qa_owner_primary_read_not_current/,
+    "a genuine owner-ACK withdrawal may not release the older D1 result",
+  );
+  assert.equal(producedUnreleasedBook, true);
+  assert.ok(
+    Number((await f.read()).mutationEpoch) > generation,
+    "the actual owner mutation journal is already ahead of the mock primary",
+  );
+  assert.equal(primaryRow.owner_mutation_epoch, generation);
   assert.equal((await f.post(route, { challenge: "bad" })).status, 400);
   assert.equal((await f.post(route, { challenge, extra: true })).status, 400);
   assert.equal((await f.post(route, { challenge }, "d".repeat(64))).status, 401);
