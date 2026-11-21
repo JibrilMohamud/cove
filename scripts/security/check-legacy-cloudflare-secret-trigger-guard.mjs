@@ -19,7 +19,9 @@ export function verifySecretJobGuard(source, name) {
     "reviewed_main_sha:",
     "confirm_protected_cloudflare_action:",
     "default: false",
-  ]) assert.ok(on.includes(input), "Missing manual authorization input: " + input);
+  ]) {
+    assert.ok(on.includes(input), "Missing manual authorization input: " + input);
+  }
   const first = source.indexOf("  " + name + ":\n");
   assert.ok(first > 0, "Guarded job missing");
   const trailing = source.slice(first);
@@ -33,12 +35,18 @@ export function verifySecretJobGuard(source, name) {
     "github.ref == 'refs/heads/main'",
     "inputs.confirm_protected_cloudflare_action == true",
     "inputs.reviewed_main_sha == github.sha",
-  ]) assert.ok(admission.includes(clause), "Missing gate: " + clause);
+  ]) {
+    assert.ok(admission.includes(clause), "Missing gate: " + clause);
+  }
   assert.match(job, /^    environment: cove-production-release-audit\s*$/m);
-  assert.ok(job.includes("secrets.CLOUDFLARE_API_TOKEN"),
-    "Protected job must use explicitly inventoried credential");
-  assert.ok(job.indexOf("environment: cove-production-release-audit") <
-    job.indexOf("secrets.CLOUDFLARE_API_TOKEN"));
+  assert.ok(
+    job.includes("secrets.CLOUDFLARE_API_TOKEN"),
+    "Protected job must use explicitly inventoried credential",
+  );
+  assert.ok(
+    job.indexOf("environment: cove-production-release-audit") <
+      job.indexOf("secrets.CLOUDFLARE_API_TOKEN"),
+  );
   assert.match(source, /^permissions:\n  contents: read\s*$/m);
   return true;
 }
@@ -46,7 +54,8 @@ export function verifySecretJobGuard(source, name) {
 function mutateJob(source, name, original, replacement) {
   const first = source.indexOf("  " + name + ":\n");
   assert.ok(first > 0);
-  const rest = source.slice(first), next = rest.search(/\n  [a-z][a-z-]+:\n/);
+  const rest = source.slice(first),
+    next = rest.search(/\n  [a-z][a-z-]+:\n/);
   const end = next < 0 ? source.length : first + next;
   const body = source.slice(first, end);
   assert.ok(body.includes(original), "Missing mutation target: " + original);
@@ -71,4 +80,6 @@ for (const [stem, name] of PRIVILEGED_JOBS) {
     assert.throws(() => verifySecretJobGuard(modified, name));
   }
 }
-console.log("PASS: six legacy Cloudflare consumers cannot run broad-token work from push or schedule");
+console.log(
+  "PASS: six legacy Cloudflare consumers cannot run broad-token work from push or schedule",
+);
