@@ -250,22 +250,14 @@ async function catalogBatch(request: Request, env: BackendEnv) {
       catalogAdmissionBudget(env.FORE_CATALOG_ADMISSION_MAX_MS),
     );
     if (admission.allowed) {
-      await syncSearchIndex(env, 500).catch((error) =>
-        console.warn("Catalog search sync failed", error),
-      );
+      await syncSearchIndex(env, 500).catch(() => console.warn("Catalog search sync failed"));
     } else {
       searchSync = {
         skipped: "primary_busy",
         reason: admission.reason,
         probeMs: admission.probeMs,
       };
-      console.warn(
-        JSON.stringify({
-          event: "catalog_search_index_deferred",
-          reason: admission.reason,
-          probeMs: admission.probeMs,
-        }),
-      );
+      console.warn("catalog_search_index_deferred");
     }
   }
   return json({
@@ -348,15 +340,15 @@ async function persistAudioTriggerDiagnostic(
     )
       .bind(key, JSON.stringify({ ...value, at }), at)
       .run();
-  } catch (error) {
-    console.warn("Unable to persist Cove audio trigger diagnostic", error);
+  } catch {
+    console.warn("Unable to persist Cove audio trigger diagnostic");
   }
 }
 
 async function triggerVercelAudio(env: BackendEnv, path: string) {
   const admission = await audioComputeAdmission(env);
   if (!admission.allowed) {
-    console.info("Cove audio compute deferred", admission.reason);
+    console.info("Cove audio compute deferred");
     return;
   }
   if (!env.FORE_PUBLIC_URL) {
@@ -374,23 +366,22 @@ async function triggerVercelAudio(env: BackendEnv, path: string) {
     signal: AbortSignal.timeout(290_000),
   });
   if (!response.ok) {
-    const body = (await response.text()).replace(/[\r\n\t]+/g, " ").slice(0, 900);
+    // Drop untrusted response bytes without delaying the protected scheduler.
+    void response.body?.cancel().catch(() => {});
+    // Upstream errors may contain private customer/provider details. Persist
+    // only the bounded HTTP status and the trusted internal operation path.
     if (response.status === 524) {
       await persistAudioTriggerDiagnostic(env, "audio_trigger_last_timeout", {
         path,
         status: response.status,
-        body,
         disposition: "in-flight",
       });
-      console.warn(
-        `Cove audio trigger timed out at the transport boundary for ${path}; D1 lease recovery remains authoritative.`,
-      );
+      console.warn("Cove audio trigger timed out; D1 lease recovery remains authoritative.");
       return;
     }
     await persistAudioTriggerDiagnostic(env, "audio_trigger_last_error", {
       path,
       status: response.status,
-      body,
     });
     throw new Error(`Audio ingestion trigger failed (${response.status}) for ${path}`);
   }
@@ -448,12 +439,16 @@ async function runCommercialQueues(cron: string, env: BackendEnv) {
           }),
       ]);
   }
-  for (const [name, operation] of tasks) {
+  for (const [, operation] of tasks) {
     try {
-      const result = await operation();
-      console.info(JSON.stringify({ event: "cove_queue_tick", name, result }));
+      await operation();
+      console.info("Cove scheduled queue tick completed");
     } catch (error) {
-      console.error("Cove scheduled queue failed", name, error);
+      console.error(
+        isD1QuotaError(error)
+          ? "Cove scheduled queue D1 quota blocked"
+          : "Cove scheduled queue failed",
+      );
       if (isD1QuotaError(error)) {
         await markD1QuotaBlocked();
         break;
@@ -568,15 +563,10 @@ async function warmOneShortBiosyncTranscript(env: BackendEnv) {
     });
     const response = await hostedBiosyncTranscript(request, env, row.edition_id, row.track_id);
     if (response.ok) {
-      console.info("Cove BioSync short-track transcript cached", row.edition_id, row.track_id);
+      console.info("Cove BioSync short-track transcript cached");
       return;
     }
-    console.warn(
-      "BioSync short-track ASR warm-up skipped",
-      row.edition_id,
-      row.track_id,
-      response.status,
-    );
+    console.warn("BioSync short-track ASR warm-up skipped");
   }
 }
 
@@ -598,13 +588,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
         catalogAdmissionBudget(env.FORE_CATALOG_ADMISSION_MAX_MS),
       );
       if (!admission.allowed) {
-        console.warn(
-          JSON.stringify({
-            event: "optional_minute_maintenance_deferred",
-            reason: admission.reason,
-            probeMs: admission.probeMs,
-          }),
-        );
+        console.warn("optional_minute_maintenance_deferred");
         return;
       }
       // EPUB preparation shares the Worker's memory with asset ingestion.
@@ -632,19 +616,17 @@ async function runScheduled(cron: string, env: BackendEnv) {
         try {
           await run();
         } catch (error) {
-          console.warn("Cove minute maintenance failed", String(error).slice(0, 200));
+          console.warn("Cove minute maintenance failed");
         }
       }
       return;
     }
     if (cron === "*/5 * * * *") {
       // Customer health evidence must not wait for, or depend on, ingestion.
-      await refreshPublicStatus(env).catch((error) =>
-        console.warn("Public service status refresh failed", error),
+      await refreshPublicStatus(env).catch(() =>
+        console.warn("Public service status refresh failed"),
       );
-      await prunePublicCache(env).catch((error) =>
-        console.warn("Public cache cleanup failed", error),
-      );
+      await prunePublicCache(env).catch(() => console.warn("Public cache cleanup failed"));
       if (!(await audioComputeAdmission(env)).allowed) {
         await scheduledCatalog(env);
         return;
@@ -675,7 +657,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
         const [catalogResult, ...audioResults] = await Promise.allSettled(work);
         for (const result of audioResults) {
           if (result.status === "rejected") {
-            console.error("Cove scheduled BioSync trigger failed", result.reason);
+            console.error("Cove scheduled BioSync trigger failed");
           }
         }
         if (catalogResult.status === "rejected") throw catalogResult.reason;
@@ -689,7 +671,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
       const [catalogResult, ...audioResults] = await Promise.allSettled(work);
       for (const result of audioResults) {
         if (result.status === "rejected") {
-          console.error("Cove scheduled audio trigger failed", result.reason);
+          console.error("Cove scheduled audio trigger failed");
         }
       }
       if (trackState.slots > 1) {
@@ -719,11 +701,11 @@ async function runScheduled(cron: string, env: BackendEnv) {
         try {
           const rights = await recheckOnePublishedSoundtrack(env);
           if ("revoked" in rights || "held" in rights) {
-            console.warn("Cove published soundtrack rights audit", JSON.stringify(rights));
+            console.warn("Cove published soundtrack rights audit: recording withheld");
           }
           if ("skipped" in rights) break;
         } catch (error) {
-          console.warn("Published soundtrack rights audit failed", String(error).slice(0, 160));
+          console.warn("Published soundtrack rights audit failed");
           break;
         }
       }
@@ -734,8 +716,8 @@ async function runScheduled(cron: string, env: BackendEnv) {
       // catalog/regional-rights ingest, reducing simultaneous primary D1 load.
       // This must not defer withdrawals, grants, or customer operations.
       // Metadata discovery never copies an unreviewed sound recording.
-      await discoverSoundtrackCandidates(env).catch((error) =>
-        console.warn("Soundtrack discovery failed", String(error).slice(0, 160)),
+      await discoverSoundtrackCandidates(env).catch(() =>
+        console.warn("Soundtrack discovery failed"),
       );
       // Bound imports to two verified originals per tick (12/hour). This exceeds
       // the curator's hourly maximum of eight and prevents an accumulating
@@ -744,11 +726,11 @@ async function runScheduled(cron: string, env: BackendEnv) {
         try {
           const result = await importOneReviewedSoundtrack(env);
           if ("stored" in result || "failed" in result || "invalidated" in result) {
-            console.info("Cove soundtrack R2 import", JSON.stringify(result));
+            console.info("Cove soundtrack R2 import completed");
           }
           if ("skipped" in result || "canceled" in result) break;
         } catch (error) {
-          console.warn("Soundtrack import failed", String(error).slice(0, 160));
+          console.warn("Soundtrack import failed");
           break;
         }
       }
@@ -778,7 +760,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
       await scheduledMaintenance(env);
       return;
     }
-    console.warn("Unknown Cove scheduled trigger", cron);
+    console.warn("Unknown Cove scheduled trigger");
   } catch (error) {
     if (isD1QuotaError(error)) {
       await markD1QuotaBlocked();
@@ -852,7 +834,7 @@ async function hostedBiosyncTranscript(
       audio: Array.from(audio),
     })) as typeof result;
   } catch (error) {
-    console.error("Hosted BioSync transcription failed", editionId, trackId, error);
+    console.error("Hosted BioSync transcription failed");
     return json({ error: "Hosted transcription unavailable.", retryable: true }, 503);
   }
   if (!Array.isArray(result?.words)) {
@@ -910,7 +892,7 @@ export default {
       // pairings, and optimistic CAS commit in one D1 transaction.
       ctx.waitUntil?.(
         advanceDueTournaments(env.DB, 5).catch((error) => {
-          console.error("Community tournament advancement failed", error);
+          console.error("Community tournament advancement failed");
           throw error;
         }),
       );
@@ -925,16 +907,14 @@ export default {
     if (controller.cron === "23 * * * *")
       ctx.waitUntil?.(
         processAccountDeletionQueue(env, 5)
-          .then((result) =>
-            console.info(JSON.stringify({ event: "account_erasure_tick", ...result })),
-          )
+          .then(() => console.info("Account erasure tick completed"))
           .catch(() =>
             console.error("Account erasure tick failed; queued requests will be retried."),
           ),
       );
     ctx.waitUntil?.(
       runScheduled(controller.cron, env).catch((error) => {
-        console.error("Cove scheduled ingestion failed", controller.cron, error);
+        console.error("Cove scheduled ingestion failed");
         throw error;
       }),
     );
@@ -1048,7 +1028,7 @@ export default {
         });
         return json(result);
       } catch (error) {
-        console.error("Regional EPUB repair failed", String(error).slice(0, 180));
+        console.error("Regional EPUB repair failed");
         return json({ error: "Regional EPUB repair failed." }, 503);
       }
     }
