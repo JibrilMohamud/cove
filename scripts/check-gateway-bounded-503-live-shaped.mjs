@@ -18,6 +18,9 @@ const dataUrl =
 const { proxyPersistenceApi } = await import(dataUrl);
 
 const priorFetch = globalThis.fetch;
+const priorWarn = console.warn;
+const warnings = [];
+console.warn = (...args) => warnings.push(args);
 let upstreamCancelled = false;
 try {
   globalThis.fetch = async () =>
@@ -36,6 +39,7 @@ try {
           "x-cove-persistence": "d1-r2",
           "x-cove-backend-cache": "MISS",
           "server-timing": "cove_auth;dur=12, cove_api;dur=24",
+          "cf-ray": "8ae2b9362ddfafe0-IAD",
           "content-type": "application/json",
         },
       },
@@ -75,9 +79,17 @@ try {
     error: "The live Cove catalog is temporarily unavailable. Please retry.",
   });
   assert.ok(upstreamCancelled, "Upstream body must be discarded without awaiting its cleanup");
+  assert.equal(warnings.length, 1, "Exactly one fixed production warning is expected");
+  assert.equal(warnings[0].length, 1, "No raw upstream header object may be logged");
+  assert.ok(
+    warnings[0][0].endsWith(" ray=8ae2b9362ddfafe0-IAD"),
+    "Validated Ray should correlate this bounded upstream 503",
+  );
+  assert.doesNotMatch(JSON.stringify(warnings), /Authorization|Cookie:|private-token|https:/);
   console.log(
     "PASS: live-shaped production gateway preserves 503/no-store with stalled upstream body",
   );
 } finally {
   globalThis.fetch = priorFetch;
+  console.warn = priorWarn;
 }

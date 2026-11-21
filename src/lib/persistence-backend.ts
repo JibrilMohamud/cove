@@ -5,6 +5,7 @@ import {
   backendFailureSource,
   backendFailureStage,
 } from "./persistence-backend-failure";
+import { validatedBackendFailureRay } from "./persistence-backend-ray";
 
 type PersistenceEnv = {
   FORE_BACKEND_URL?: string;
@@ -239,7 +240,7 @@ export async function proxyPersistenceApi(
         const stage = backendFailureStage(response.headers);
         const category = await backendFailureCategory(response);
         console.warn(
-          `Persistent backend unavailable; production catalog fails closed status=${response.status} source=${source} phase=${phase} stage=${stage} category=${category}`,
+          `Persistent backend unavailable; production catalog fails closed status=${response.status} source=${source} phase=${phase} stage=${stage} category=${category} ray=${validatedBackendFailureRay(response.headers)}`,
         );
         // Upstream error-body cleanup is best effort. Waiting on a stalled
         // body cancellation after status >=502 can delay the fail-closed 503.
