@@ -1,0 +1,29 @@
+name: cove-unscheduled-cloudflare-token-trigger-safety-offline
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/continuous-publication-qa.yml
+      - .github/workflows/literary-activation-readiness.yml
+      - .github/workflows/verify-production-disabled-owner-handshake.yml
+      - .github/workflows/cove-unscheduled-cloudflare-token-trigger-safety-offline.yml
+      - scripts/security/check-unscheduled-cloudflare-secret-trigger-guard.mjs
+permissions:
+  contents: read
+jobs:
+  unscheduled-cloudflare-manual-guard:
+    if: github.repository == 'JibrilMohamud/cove'
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Deny push and scheduled Cloudflare credentials on three unscheduled workflows
+        run: |
+          node --check scripts/security/check-unscheduled-cloudflare-secret-trigger-guard.mjs
+          node scripts/security/check-unscheduled-cloudflare-secret-trigger-guard.mjs
+          git diff --check
