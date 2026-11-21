@@ -51,6 +51,21 @@ const DENSE_TAXONOMY_SQL = `WITH eligible AS MATERIALIZED (
  GROUP BY et.taxonomy_node_id
  -- Example literal that must never enter archived evidence: private@example.invalid
 `;
+// Exact query SHAPE observed in production D1 Insights: no literal customer
+// values and no inference about which worker or GitHub job submitted it.
+const RANKED_CANDIDATE_SQL = `SELECT d.product_id
+ FROM catalog_search_documents d INDEXED BY idx_search_popular_stable
+ JOIN products p ON p.id=d.product_id JOIN editions e ON e.id=p.edition_id
+ WHERE d.currency=? AND d.availability='available' AND d.suppressed=0
+ AND p.storefront_status='active' AND p.source_name<>'upload'
+ AND e.release_status IN ('available','preorder')
+ AND EXISTS (
+   SELECT 1 FROM retail_product_availability_rows rpa
+   WHERE rpa.product_id=p.id AND rpa.territory_code=?
+ )
+ AND 'private@example.invalid' <> ''
+ ORDER BY d.fore_bestseller_score DESC,d.external_book_id ASC,d.product_id ASC LIMIT ?`;
+
 function d1Query(
   minute,
   sqlText = DENSE_TAXONOMY_SQL,
@@ -266,6 +281,56 @@ test("classify primary taxonomy dense count without storing provider query text 
     "retail_product_availability",
   ])
     assert.ok(!serial.includes(secret), "Raw SQL must never leave the collector");
+});
+
+test("classify a strict 82k-row ranked-candidate scan shape without SQL or actor attribution", () => {
+  const report = makeEvidence({
+    window: WINDOW,
+    deployment: verifyPinnedDeployment(DEPLOYMENT, VERSION),
+    workerRows: [sample("2026-11-17T20:45:00Z", 503, 12)],
+    d1Rows: [d1("2026-11-17T20:45:00Z", 1_707_288)],
+    d1QueryRows: [d1Query("2026-11-17T20:45:00Z", RANKED_CANDIDATE_SQL, "replica", 82_247)],
+  });
+  const hotspot = report.queryHotspots.hotspots[0];
+  assert.equal(hotspot.queryClass, "ranked-candidate-eligibility-scan");
+  assert.equal(hotspot.estimatedRowsRead, 82_247);
+  assert.equal(hotspot.databaseRole, "replica");
+  assert.equal(report.releaseCertified, false);
+  assert.ok(report.limitations.some((s) => s.includes("does not identify its invoking Worker")));
+  assert.ok(report.limitations.some((s) => s.includes("not per-request")));
+  const serialized = JSON.stringify(report);
+  for (const secret of [
+    "private@example.invalid",
+    "SELECT",
+    "catalog_search_documents",
+    "retail_product_availability_rows",
+    "preparedProducer",
+    "candidate-producer-stage",
+  ])
+    assert.ok(!serialized.includes(secret), "No raw SQL or inferred actor must enter evidence");
+});
+
+test("never classify a missing-rights-check or different rank order as the producer scan", () => {
+  const altered = [
+    RANKED_CANDIDATE_SQL.replace(
+      "FROM retail_product_availability_rows rpa",
+      "FROM retail_product_availability rpa",
+    ),
+    RANKED_CANDIDATE_SQL.replace(
+      "rpa.product_id=p.id AND rpa.territory_code=?",
+      "rpa.product_id=p.id",
+    ),
+    RANKED_CANDIDATE_SQL.replace("idx_search_popular_stable", "idx_search_price"),
+    RANKED_CANDIDATE_SQL.replace("d.external_book_id ASC", "d.external_book_id DESC"),
+    RANKED_CANDIDATE_SQL.replace("LIMIT ?", "LIMIT 128"),
+    RANKED_CANDIDATE_SQL.replace("SELECT d.product_id", "SELECT p.id"),
+    RANKED_CANDIDATE_SQL + " ; DELETE FROM rights_grants",
+  ];
+  for (const sql of altered) {
+    const evidence = summarizeD1QueryGroups([d1Query("2026-11-17T20:45:00Z", sql)], WINDOW);
+    assert.equal(evidence.hotspots[0].queryClass, "unclassified");
+    assert.ok(!JSON.stringify(evidence).includes("rights_grants"));
+  }
 });
 
 test("query insights preserve only an error flag, not D1 error details", () => {
