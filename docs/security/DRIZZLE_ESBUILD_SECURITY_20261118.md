@@ -1,5 +1,16 @@
 # Scoped migration-tool compiler security update — November 18
 
+> **November 21 update:** The separate `picomatch` advisory
+> [GHSA-fc5q-39xc-vjpf](https://github.com/advisories/GHSA-fc5q-39xc-vjpf)
+> was withdrawn November 18, as *not a security issue*. No audit suppression
+> or security-threshold change was made. Exact-head #770 re-runs now PASS the
+> full `npm audit --audit-level=high`, `dependency-audit`, independent
+> `source-checks`, required `supply-chain`, and the final
+> `zod-security-compatibility` audit. All vulnerability totals and NO-GO
+> references below document the **November 18 historical snapshot**,
+> not the current dependency finding. Production release remains NO-GO on
+> independent legal, LIVE commerce, 503, performance and rollback gates.
+
 `drizzle-kit@0.31.11` has a deprecated `@esbuild-kit/esm-loader` dependency
 whose `core-utils@3.3.2` resolves a separate `esbuild@0.18.20`. Updating the
 root esbuild does not replace this nested compiler. The official
