@@ -33,7 +33,11 @@ const workflow = fs.readFileSync(
   "utf8",
 );
 assert.ok(workflow.includes("github.ref == 'refs/heads/main'"));
-assert.ok(workflow.includes("github.event_name == 'push'"));
+assert.ok(workflow.includes("github.event_name == 'workflow_dispatch'"));
+assert.ok(workflow.includes("inputs.reviewed_main_sha == github.sha"));
+assert.ok(workflow.includes("inputs.confirm_protected_cloudflare_action == true"));
+assert.ok(workflow.includes("environment: cove-production-release-audit"));
+assert.ok(!/^  push:/m.test(workflow), "Production dormant handoff must never deploy on push");
 assert.ok(workflow.includes("cancel-in-progress: false"));
 assert.ok(workflow.includes("node scripts/staging/deploy-literary-handoff-disabled.mjs"));
 assert.ok(!workflow.includes("github.event.pull_request.head.ref =="));
