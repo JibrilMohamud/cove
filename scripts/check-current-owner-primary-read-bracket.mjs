@@ -119,11 +119,21 @@ assert.notEqual(
 );
 
 for (const change of [
-  (x) => { x.env.primaryId = "4bd657ac-8789-403e-a28c-93aba8d0a989"; },
-  (x) => { x.env.secret = "invalid"; },
-  (x) => { x.env.journalVersion = "invalid"; },
-  (x) => { x.env.owner = null; },
-  (x) => { x.env.primary = null; },
+  (x) => {
+    x.env.primaryId = "4bd657ac-8789-403e-a28c-93aba8d0a989";
+  },
+  (x) => {
+    x.env.secret = "invalid";
+  },
+  (x) => {
+    x.env.journalVersion = "invalid";
+  },
+  (x) => {
+    x.env.owner = null;
+  },
+  (x) => {
+    x.env.primary = null;
+  },
 ]) {
   const x = fixture();
   change(x);
@@ -144,7 +154,11 @@ for (const alter of [
   (r) => ({ ...r, tables: 23 }),
   (r) => ({ ...r, triggers: 77 }),
   (r) => ({ ...r, rehearsalRevision: "C" }),
-  (r) => { const { rehearsalRevision: ignored, ...noRevision } = r; void ignored; return noRevision; },
+  (r) => {
+    const { rehearsalRevision: ignored, ...noRevision } = r;
+    void ignored;
+    return noRevision;
+  },
   (r) => ({ ...r, extra: true }),
 ]) {
   const x = fixture();
@@ -152,10 +166,18 @@ for (const alter of [
   await assert.rejects(read(x), /qa_owner_primary_read_not_current/);
 }
 for (const edit of [
-  (x) => { x.state.responseStatus = 503; },
-  (x) => { x.state.responseCacheControl = "public, max-age=60"; },
-  (x) => { x.state.responseContentType = "text/plain"; },
-  (x) => { x.state.corruptReceipt = () => ({ huge: "x".repeat(2200) }); },
+  (x) => {
+    x.state.responseStatus = 503;
+  },
+  (x) => {
+    x.state.responseCacheControl = "public, max-age=60";
+  },
+  (x) => {
+    x.state.responseContentType = "text/plain";
+  },
+  (x) => {
+    x.state.corruptReceipt = () => ({ huge: "x".repeat(2200) });
+  },
 ]) {
   const x = fixture();
   edit(x);
@@ -163,28 +185,62 @@ for (const edit of [
 }
 
 for (const edit of [
-  (s) => { s.schema = "cove.production.primary-fence.v1"; },
-  (s) => { s.primaryEpoch = 3; },
-  (s) => { s.primaryEpoch = "4"; },
-  (s) => { s.primaryId = "wrong"; },
-  (s) => { s.primaryRevision = "B"; },
-  (s) => { s.dirty = 1; },
-  (s) => { s.pendingWithdrawals = 1; },
-  (s) => { s.pendingWrites = 1; },
-  (s) => { s.eligibilityUntil = observedAt; },
-  (s) => { s.eligibilityUntil = observedAt + 301_000; },
-  (s) => { s.eligibilityUntil = "infinity"; },
+  (s) => {
+    s.schema = "cove.production.primary-fence.v1";
+  },
+  (s) => {
+    s.primaryEpoch = 3;
+  },
+  (s) => {
+    s.primaryEpoch = "4";
+  },
+  (s) => {
+    s.primaryId = "wrong";
+  },
+  (s) => {
+    s.primaryRevision = "B";
+  },
+  (s) => {
+    s.dirty = 1;
+  },
+  (s) => {
+    s.pendingWithdrawals = 1;
+  },
+  (s) => {
+    s.pendingWrites = 1;
+  },
+  (s) => {
+    s.eligibilityUntil = observedAt;
+  },
+  (s) => {
+    s.eligibilityUntil = observedAt + 301_000;
+  },
+  (s) => {
+    s.eligibilityUntil = "infinity";
+  },
 ]) {
   const x = fixture();
   edit(x.state);
   await assert.rejects(read(x), /qa_owner_primary_read_not_current/);
 }
 const races = [
-  (s) => { s.ownerEpoch++; }, // owner denial ACK before primary D1 commit
-  (s) => { s.ownerEpoch++; s.primaryEpoch++; }, // even a fully reconciled new generation
-  (s) => { s.pendingWithdrawals = 1; },
-  (s) => { s.dirty = 1; },
-  (s) => { s.revision = "B"; s.primaryRevision = "B"; },
+  (s) => {
+    s.ownerEpoch++;
+  }, // owner denial ACK before primary D1 commit
+  (s) => {
+    s.ownerEpoch++;
+    s.primaryEpoch++;
+  }, // even a fully reconciled new generation
+  (s) => {
+    s.pendingWithdrawals = 1;
+  },
+  (s) => {
+    s.dirty = 1;
+  },
+  (s) => {
+    s.revision = "B";
+    s.primaryRevision = "B";
+  },
 ];
 for (const change of races) {
   const x = fixture();
@@ -227,7 +283,9 @@ await assert.rejects(read(ownerUnavailable), /injected owner outage/);
 
 const readFailed = fixture();
 await assert.rejects(
-  read(readFailed, async () => { throw Error("current legal rights unavailable"); }),
+  read(readFailed, async () => {
+    throw Error("current legal rights unavailable");
+  }),
   /current legal rights unavailable/,
 );
 const guardedSource = readFileSync("src/storefront-strangler/legal-authority.worker.ts", "utf8");
