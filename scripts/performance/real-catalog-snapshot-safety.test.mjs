@@ -102,26 +102,66 @@ test("a preview has no service, owner-DO, credential or customer-origin indirect
   ];
   assert.equal(requireNoPrimaryD1PreviewBinding(isolatedV2, SNAPSHOT_ID), true);
   const mutations = [
-    (c) => { c.services = [{ binding: "OWNER", service: "cove-legal-authority-production" }]; },
-    (c) => { c.durable_objects = { bindings: [{ name: "LEGAL_AUTHORITY", class_name: "CoveLegalAuthority" }] }; },
-    (c) => { c.dispatch_namespaces = [{ binding: "DISPATCH", namespace: "cove-production" }]; },
-    (c) => { c.hyperdrive = [{ binding: "PRIMARY", id: "some-connection" }]; },
-    (c) => { c.workflows = [{ binding: "WRITER", name: "production" }]; },
-    (c) => { c.tail_consumers = [{ service: "cove-production-logs" }]; },
-    (c) => { c.unsafe = { bindings: [{ name: "PRIMARY_DB" }] }; },
-    (c) => { c.triggers = { crons: ["* * * * *"] }; },
-    (c) => { c.zone_id = "production-zone"; },
-    (c) => { c.workers_dev = false; },
-    (c) => { c.preview_urls = true; },
-    (c) => { c.name = "cove-persistence-backend"; },
-    (c) => { c.name = "cove-strangler-real-preview-12345-0"; },
-    (c) => { c.vars.FORE_PUBLIC_URL = "https://covereads.com"; },
-    (c) => { c.vars.COVE_STRANGLER_DATABASE_ID = PRIMARY_D1; },
-    (c) => { c.vars.COVE_RIGHTS_OWNER_ENABLED = "1"; },
-    (c) => { c.vars.STRIPE_SECRET_KEY = "injected"; },
-    (c) => { c.observability.enabled = true; },
-    (c) => { c.r2_buckets = [{ binding: "R2", bucket_name: "cove-production-media" }]; },
-    (c) => { c.kv_namespaces = [{ binding: "KV", id: "production" }]; },
+    (c) => {
+      c.services = [{ binding: "OWNER", service: "cove-legal-authority-production" }];
+    },
+    (c) => {
+      c.durable_objects = { bindings: [{ name: "LEGAL_AUTHORITY", class_name: "CoveLegalAuthority" }] };
+    },
+    (c) => {
+      c.dispatch_namespaces = [{ binding: "DISPATCH", namespace: "cove-production" }];
+    },
+    (c) => {
+      c.hyperdrive = [{ binding: "PRIMARY", id: "some-connection" }];
+    },
+    (c) => {
+      c.workflows = [{ binding: "WRITER", name: "production" }];
+    },
+    (c) => {
+      c.tail_consumers = [{ service: "cove-production-logs" }];
+    },
+    (c) => {
+      c.unsafe = { bindings: [{ name: "PRIMARY_DB" }] };
+    },
+    (c) => {
+      c.triggers = { crons: ["* * * * *"] };
+    },
+    (c) => {
+      c.zone_id = "production-zone";
+    },
+    (c) => {
+      c.workers_dev = false;
+    },
+    (c) => {
+      c.preview_urls = true;
+    },
+    (c) => {
+      c.name = "cove-persistence-backend";
+    },
+    (c) => {
+      c.name = "cove-strangler-real-preview-12345-0";
+    },
+    (c) => {
+      c.vars.FORE_PUBLIC_URL = "https://covereads.com";
+    },
+    (c) => {
+      c.vars.COVE_STRANGLER_DATABASE_ID = PRIMARY_D1;
+    },
+    (c) => {
+      c.vars.COVE_RIGHTS_OWNER_ENABLED = "1";
+    },
+    (c) => {
+      c.vars.STRIPE_SECRET_KEY = "injected";
+    },
+    (c) => {
+      c.observability.enabled = true;
+    },
+    (c) => {
+      c.r2_buckets = [{ binding: "R2", bucket_name: "cove-production-media" }];
+    },
+    (c) => {
+      c.kv_namespaces = [{ binding: "KV", id: "production" }];
+    },
   ];
   for (const mutate of mutations) {
     const config = validConfig();
