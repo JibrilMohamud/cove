@@ -16,13 +16,16 @@ export function requireIsolatedCatalogSnapshotTarget(id, name) {
     /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i,
     "Missing full-catalog isolated staging D1 UUID; fail before Worker deployment",
   );
+  // UUIDs identify the same D1 independent of alphabetic case. Never
+  // allow an uppercase primary ID to bypass the physical writer fence.
+  const normalizedId = String(id).toLowerCase();
   assert.notEqual(
-    id,
+    normalizedId,
     PRIMARY_D1,
     "Production primary D1 must never be directly bound to an acceptance Worker",
   );
   assert.ok(
-    !INCOMPLETE_SYNTHETIC_D1.has(id),
+    !INCOMPLETE_SYNTHETIC_D1.has(normalizedId),
     "Known 50k synthetic fixture is not a legally current real-catalog snapshot",
   );
   assert.match(
@@ -34,7 +37,7 @@ export function requireIsolatedCatalogSnapshotTarget(id, name) {
     !/production|primary/i.test(name),
     "A production-primary name cannot masquerade as an isolated fixture",
   );
-  return { id, name };
+  return { id: normalizedId, name };
 }
 
 export function requireNoPrimaryD1PreviewBinding(config, expectedIsolatedId) {
@@ -52,9 +55,9 @@ export function requireNoPrimaryD1PreviewBinding(config, expectedIsolatedId) {
     PRIMARY_D1,
     "A preview Worker must never directly bind production primary D1",
   );
-  const text = JSON.stringify(config);
+  const serialized = JSON.stringify(config).toLowerCase();
   assert.ok(
-    !text.includes(PRIMARY_D1),
+    !serialized.includes(PRIMARY_D1),
     "Production primary database ID found in isolated Worker deployment config",
   );
   assert.ok(
@@ -77,7 +80,9 @@ export function requireMinimumRealCatalogSnapshot(readResult) {
   );
   const one = readResult[0];
   assert.ok(
-    one?.meta?.changed_db === false && one.meta.changes === 0,
+    one?.meta?.changed_db === false &&
+      one.meta.changes === 0 &&
+      (one.meta.rows_written === undefined || one.meta.rows_written === 0),
     "Snapshot preflight is not explicitly certified zero-write",
   );
   assert.ok(
