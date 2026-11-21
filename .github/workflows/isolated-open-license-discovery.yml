@@ -40,7 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with: { persist-credentials: false }
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with: { python-version: "3.12" }
       - run: python -m py_compile scripts/soundtracks/commons-structured-credits.py scripts/soundtracks/discover-openverse-commons.py
       - run: python scripts/soundtracks/test-commons-structured-credits.py -q
@@ -58,7 +58,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with: { persist-credentials: false }
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with: { python-version: "3.12" }
       - name: Test live Commons API as unprivileged original source
         run: python scripts/soundtracks/discover-openverse-commons.py --queries 0 --commons-categories 1 --max-verifications 8 --output commons-source-smoke.json
@@ -83,7 +83,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with: { persist-credentials: false }
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with: { python-version: "3.12" }
       - name: Query one permitted Openverse page and corroborate exact Commons files
         shell: bash
@@ -131,7 +131,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with: { persist-credentials: false }
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with: { python-version: "3.12" }
       - name: Read only the detached music database's last 24 hours
         if: env.CLOUDFLARE_API_TOKEN != ''
