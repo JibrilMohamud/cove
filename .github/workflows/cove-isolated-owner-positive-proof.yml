@@ -1,0 +1,47 @@
+name: cove-isolated-owner-positive-proof
+on:
+  pull_request:
+    paths:
+      - "src/features/fore/owner-positive-retail.stage.ts"
+      - "src/features/fore/rights.server.ts"
+      - "scripts/staging/owner-current-retail-invalidation.stage.py"
+      - "scripts/staging/check-owner-current-retail-invalidation.py"
+      - "scripts/staging/owner-positive-retail-writer.stage.py"
+      - "scripts/staging/check-owner-positive-retail-cas.py"
+      - "scripts/staging/check-owner-positive-retail-adapter.mjs"
+      - "scripts/staging/check-actual-rights-contract-fixture.mjs"
+      - "scripts/staging/rights-resolver-sqlite-fixture.py"
+      - "scripts/staging/check-owner-retail-source-dependencies.py"
+      - "scripts/staging/check-owner-batched-point-read.py"
+      - ".github/workflows/cove-isolated-owner-positive-proof.yml"
+permissions:
+  contents: read
+jobs:
+  nonauthorizing-canonical-rights:
+    if: github.repository == 'JibrilMohamud/cove'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: npm ci --no-audit --no-fund
+      - name: Prove transactional source-revision invalidation and deny-first races
+        run: |
+          python3 scripts/staging/check-owner-current-retail-invalidation.py
+          python3 scripts/staging/check-owner-positive-retail-cas.py
+      - name: Verify actual canonical rights resolver, clock, and all contract-denial branches
+        run: |
+          node scripts/staging/check-owner-positive-retail-adapter.mjs
+          node scripts/staging/check-actual-rights-contract-fixture.mjs
+          python3 scripts/staging/check-owner-retail-source-dependencies.py
+          python3 scripts/staging/check-owner-batched-point-read.py
+      - name: Require strict TypeScript and dependency checks
+        run: npm run typecheck
