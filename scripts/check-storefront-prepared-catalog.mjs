@@ -25,6 +25,8 @@ try {
   const { handleCoveApi } = await import(path.join(root, "api.js"));
   const {
     produceCandidateSnapshot,
+    producerRankedCandidateSql,
+    indexedCountrySpellings,
     servePreparedCatalog,
     privateCandidateKey,
     validateCandidateSnapshot,
@@ -48,7 +50,58 @@ try {
           };
     },
   };
+  // Independent unchanged original SQL: this is the parity oracle for the
+  // ranked publisher. A necessary gate cannot remove any legally available
+  // product, alter its position or introduce a product.
+  const originalRankedSql = `SELECT d.product_id
+    FROM catalog_search_documents d INDEXED BY idx_search_popular_stable
+    JOIN products p ON p.id=d.product_id
+    JOIN editions e ON e.id=p.edition_id
+    WHERE d.currency=? AND d.availability='available' AND d.suppressed=0
+      AND p.storefront_status='active' AND p.source_name<>'upload'
+      AND e.release_status IN ('available','preorder')
+      AND EXISTS (
+        SELECT 1 FROM retail_product_availability_rows rpa
+        WHERE rpa.product_id=p.id AND rpa.territory_code=?
+      )
+    ORDER BY d.fore_bestseller_score DESC,d.external_book_id ASC,d.product_id ASC
+    LIMIT ?`;
   const db = localBindings(root).DB;
+  assert.deepEqual(indexedCountrySpellings("US"), ["US", "Us", "uS", "us"]);
+  assert.deepEqual(indexedCountrySpellings("ZZ"), ["ZZ", "Zz", "zZ", "zz"]);
+  for (const invalid of ["", "U", "USA", "us", "Z1", "A_"]) {
+    assert.throws(() => indexedCountrySpellings(invalid));
+  }
+  assert.match(producerRankedCandidateSql, /possible_country_allow AS MATERIALIZED/);
+  assert.match(producerRankedCandidateSql, /rgt.territory_code IN \(\?,\?,\?,\?\)/);
+  assert.match(producerRankedCandidateSql, /INDEXED BY idx_rights_grant_territories_lookup/);
+  assert.match(producerRankedCandidateSql, /CROSS JOIN catalog_search_documents/);
+  assert.match(producerRankedCandidateSql, /FROM retail_product_availability_rows rpa/);
+  const plan = await db
+    .prepare("EXPLAIN QUERY PLAN " + producerRankedCandidateSql)
+    .bind(...indexedCountrySpellings("ZZ"), "USD", "ZZ", 128)
+    .all();
+  assert.ok(
+    plan.results.some((row) =>
+      String(row.detail).includes(
+        "SEARCH rgt USING COVERING INDEX idx_rights_grant_territories_lookup",
+      ),
+    ),
+    "The necessary grant gate must seek by territory using the existing index, not scan grants",
+  );
+  async function assertCandidateQueryParity(country, currency) {
+    const prior = await db.prepare(originalRankedSql).bind(currency, country, 128).all();
+    const indexed = await db
+      .prepare(producerRankedCandidateSql)
+      .bind(...indexedCountrySpellings(country), currency, country, 128)
+      .all();
+    assert.deepEqual(
+      indexed.results.map((row) => String(row.product_id)),
+      prior.results.map((row) => String(row.product_id)),
+      "Indexed precheck must preserve exact ranked and legally eligible IDs for " + country,
+    );
+    return indexed.results.length;
+  }
   const env = {
     ...localBindings(root),
     DB: db,
@@ -136,6 +189,8 @@ try {
     );
     assert.equal(projected.count, projected.results.length);
     assert.ok(result.candidates <= 128);
+    const published = JSON.parse(objects.get(privateCandidateKey(country)));
+    assert.equal(await assertCandidateQueryParity(country, published.currency), result.candidates);
     const htmlResponse = await worker.fetch(request(country), env);
     assert.equal(htmlResponse.status, 200, country);
     const html = await htmlResponse.text();
@@ -145,6 +200,11 @@ try {
       projected.results.map((book) => book.productId),
     );
   }
+  assert.equal(
+    await assertCandidateQueryParity("ZZ", "USD"),
+    0,
+    "Country with no possible allow must be empty without a ranked catalog scan",
+  );
   const usKey = privateCandidateKey("US");
   const valid = JSON.parse(objects.get(usKey));
   const original = objects.get(usKey);
