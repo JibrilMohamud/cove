@@ -5,6 +5,7 @@ import {sha256 as partnerFeedSha256,partnerAudit as partnerFeedAudit,
 import type {PartnerProduct} from "../features/fore/traditional-publishing.server";
 import type {CoveEnv} from "../features/fore/api.server";
 import {ownerSettlementDiagnostic} from "./owner-settlement-diagnostic";
+import {enrollOwnerSqlMutationJournal,readOwnerSqlMutationJournal} from "./owner-sql-mutation-journal";
 import { DurableObject } from "cloudflare:workers";
 import {DISABLED_OWNER_ATTEST_ROUTE,PRODUCTION_OWNER_OBJECT,isDisabledProductionOwner,validOwnerChallenge,disabledOwnerReceipt} from "./production-disabled-owner-attestation";
 import {publishVerifiedPaidOrderAtomic,type VerifiedPaidOrderLine} from "./paid-order-atomic-publication";
@@ -66,6 +67,7 @@ type LegalAuthorityEnv = {
   PRIMARY_DB: CatalogDB;
   BUCKET?:PublishingEnv["BUCKET"];
   FORE_PUBLISHING_AUTO_APPROVE_LOW_RISK?:string;
+  COVE_QA_OWNER_JOURNAL_VERSION?: string;
   COVE_RIGHTS_OWNER_SECRET?: string;
   COVE_RIGHTS_OWNER_ENABLED?: string;
   COVE_RIGHTS_OWNER_PRIMARY_ID?: string;
@@ -3921,6 +3923,15 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     createMarketAuthoritySchema(ctx.storage.sql as unknown as AuthoritySql);
     createPublicationMaterializationSchema(ctx.storage.sql as unknown as AuthoritySql);
     createContractVersionOwnerSchema(ctx.storage.sql as unknown as AuthoritySql);
+    // Explicit opt-in on the two synthetic QA primaries only. Never enroll
+    // historical production authority or infer a production epoch zero.
+    if(qaOwnerLeaseLive(env)&&env.COVE_QA_OWNER_JOURNAL_VERSION!==undefined){
+      if(!/^[a-f0-9]{64}$/.test(env.COVE_QA_OWNER_JOURNAL_VERSION))
+        throw Error("qa_current_owner_journal_version_invalid");
+      const storage=ctx.storage as typeof ctx.storage&{transactionSync<T>(fn:()=>T):T};
+      enrollOwnerSqlMutationJournal(ctx.storage.sql as AuthoritySql,
+        fn=>storage.transactionSync(fn),env.COVE_QA_OWNER_JOURNAL_VERSION);
+    }
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -3960,7 +3971,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/deny-next","/commercial/deny-batch","/commercial/subject/deny-next","/commercial/publish-verified",
       "/commercial/authorize-batch",
       "/storefront/authorize-batch","/storefront/publish-commercial",
-      "/qa/native-first-paint","/qa/transport-owner-ping",
+      "/qa/native-first-paint","/qa/transport-owner-ping","/qa/current-mutation-fence",
       "/market/deny-next",
       "/commercial/order/deny-next","/commercial/order/verify","/commercial/order/revoke",
       "/commercial/order/settle",
@@ -4003,6 +4014,24 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     }catch {return new Response(null,{status:400,headers:noStore});}
     const sql=this.ctx.storage.sql as unknown as AuthoritySql;
     try {
+      // No command can acknowledge through a damaged enrolled journal.
+      // Validate the exact schema/trigger manifest before handler awaits.
+      let journal:ReturnType<typeof readOwnerSqlMutationJournal>|undefined;
+      if(env.COVE_QA_OWNER_JOURNAL_VERSION!==undefined){
+        if(!/^[a-f0-9]{64}$/.test(env.COVE_QA_OWNER_JOURNAL_VERSION))
+          throw Error("qa_current_owner_journal_version_invalid");
+        const storage=this.ctx.storage as typeof this.ctx.storage&{transactionSync<T>(fn:()=>T):T};
+        journal=readOwnerSqlMutationJournal(sql,fn=>storage.transactionSync(fn),
+          env.COVE_QA_OWNER_JOURNAL_VERSION);
+      }
+      if(route==="/qa/current-mutation-fence"){
+        if(!journal)return new Response(null,{status:503,headers:noStore});
+        const q=raw as {challenge?:unknown}|null;
+        if(!q||Object.keys(q).join(",")!=="challenge"||!validOwnerChallenge(q.challenge))
+          return new Response(null,{status:400,headers:noStore});
+        return Response.json({...journal,challenge:q.challenge,
+          primaryId:env.COVE_RIGHTS_OWNER_PRIMARY_ID},{headers:noStore});
+      }
       if(route==="/commercial/order/recover-settlements"){
         const input=raw as {limit?:unknown}|null;
         if(!input||Object.keys(input).join(",")!=="limit"||!Number.isSafeInteger(input.limit)||Number(input.limit)<1||Number(input.limit)>25)
