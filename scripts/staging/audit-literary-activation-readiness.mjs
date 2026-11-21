@@ -1,15 +1,17 @@
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
+import { literaryActivationReadCredential } from "./literary-activation-readonly-auth.mjs";
 
 const account = "d26430caa63ec55f6612e32f36aca5e9";
 const primary = "4bd657ac-8789-403e-a28c-93aba8d0a989";
 const isolated = "400c3af3-5d40-41fd-83cc-98228e40ddac";
 const bucket = "cove-literary-originals-isolated-20261024";
-const token = process.env.CLOUDFLARE_API_TOKEN;
 assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, account);
-assert.ok(token, "Protected Cloudflare credentials required");
+// Token selection is per exact endpoint: no broad deploy token is accepted.
+// A missing scoped credential fails before any remote request.
 const base = "https://api.cloudflare.com/client/v4/accounts/" + account;
 async function api(method, path, body) {
+  const token = literaryActivationReadCredential(method, path, body);
   const res = await fetch(base + path, {
     method,
     headers: {
@@ -25,8 +27,9 @@ async function api(method, path, body) {
   return data.result;
 }
 async function query(database, sql) {
-  // Do not allow script edits to make this live audit mutating.
-  assert.match(sql.trim(), /^(SELECT|PRAGMA|EXPLAIN|WITH)\b/i);
+  // Belt-and-suspenders only: the request selector also enforces the exact
+  // SQL shapes and the Cloudflare D1 Read token cannot write to primary.
+  assert.match(sql.trim(), /^(SELECT|PRAGMA)\b/i);
   assert.doesNotMatch(sql, /\b(?:INSERT|UPDATE|DELETE|ALTER|DROP|CREATE|REPLACE|ATTACH)\b/i);
   const result = await api("POST", "/d1/database/" + database + "/query", { sql });
   assert.ok(Array.isArray(result) && result.every((part) => part.success));
