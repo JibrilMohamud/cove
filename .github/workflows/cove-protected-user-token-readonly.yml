@@ -1,0 +1,58 @@
+name: cove-protected-user-token-readonly
+on:
+  pull_request:
+    paths:
+      - "scripts/release/certify-exclusive-primary-d1.mjs"
+      - "scripts/release/user-token-evidence.test.mjs"
+      - "scripts/release/user-token-preflight.test.mjs"
+      - "scripts/release/physical-d1-writer-read-transport.mjs"
+      - "scripts/release/physical-d1-writer-read-transport.test.mjs"
+      - ".github/workflows/cove-protected-user-token-readonly.yml"
+  workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        description: "Exact reviewed main SHA; source drift refuses metadata reads."
+        required: true
+        type: string
+      confirm_user_token_metadata_only:
+        description: "Authorize at most five fixed read-only user-token/catalog GETs; no Worker inventory or mutation."
+        required: true
+        default: false
+        type: boolean
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22" }
+      - run: node --test scripts/release/user-token-evidence.test.mjs scripts/release/user-token-preflight.test.mjs
+  protected-user-metadata:
+    needs: offline
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm_user_token_metadata_only == true &&
+      inputs.reviewed_main_sha == github.sha
+    environment: cove-production-release-audit
+    concurrency:
+      group: cove-exclusive-user-token-readonly-preflight
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22" }
+      - name: Refuse source drift before the single scoped credential is available
+        run: test "$(git rev-parse HEAD)" = "${{ inputs.reviewed_main_sha }}"
+      - name: Fixed-category user-token evidence only, never a release certificate
+        run: node scripts/release/certify-exclusive-primary-d1.mjs --user-token-preflight
+        env:
+          CF_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+          CF_USER_AUDIT_TOKEN: ${{ secrets.COVE_CF_USER_TOKENS_AUDIT_READ_TOKEN }}

@@ -93,10 +93,9 @@ test("new or unreviewed Cloudflare permission names cannot certify user-token sa
       async () => page([token("unreviewed", group)]),
       USER_TOKEN,
     );
-    assert.deepEqual(evidence, {
-      verified: false,
-      reason: "active_user_token_permission_unreviewed",
-    });
+    assert.equal(evidence.verified, false);
+    assert.equal(evidence.reason, "active_user_token_permission_unreviewed");
+    assert.match(evidence.detail, /^read_group_(identifier_missing|alias_identifier_mismatch)$/);
   }
   // Unknown privileges are ignored only if the token is independently inactive.
   assert.deepEqual(
@@ -173,6 +172,10 @@ test("alias with a mutation ID, missing ID, or unknown permission remains releas
     assert.deepEqual(evidence, {
       verified: false,
       reason: "active_user_token_permission_unreviewed",
+      detail:
+        item.policies[0].permission_groups[0].id === undefined
+          ? "read_group_identifier_missing"
+          : "read_group_alias_identifier_mismatch",
     });
   }
   const explicitWrite = aliasedPolicy("c".repeat(32), "Workers Scripts Write");
@@ -199,9 +202,12 @@ test("spoofed or unavailable permission-group catalog cannot certify an alias", 
     (entry) => ({ ...catalog(entry), result: [] }),
     (entry) => ({ ...catalog(entry), result_info: { page: 2, count: 1, total_count: 2000 } }),
   ]) {
-    assert.deepEqual(
-      await inspectUserTokenEvidence(aliasTransport(unknown, override), USER_TOKEN),
-      { verified: false, reason: "active_user_token_permission_unreviewed" },
+    const evidence = await inspectUserTokenEvidence(aliasTransport(unknown, override), USER_TOKEN);
+    assert.equal(evidence.verified, false);
+    assert.equal(evidence.reason, "active_user_token_permission_unreviewed");
+    assert.match(
+      evidence.detail,
+      /^read_group_catalog_(unauthorized|name_mismatch|scope_mismatch|not_singleton|page_invalid)$/,
     );
   }
 });
