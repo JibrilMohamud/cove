@@ -19,12 +19,15 @@ deferred behind legal, correctness, commerce and rollback work.
   damaged-history refusal and restart persistence. Receipts always say
   `authorizing:false`; historical production enrollment, version-bound
   serving proof, time horizons and D1 publication/CAS remain incomplete.
-- PR #704 was updated without rewriting published history, retaining the
-  real canonical resolver and bounding commercial proofs by upcoming legal,
-  contract/version/language/offer/release transitions. Its 17-case local
-  canonical suite and the new journal suite pass together. Exact final-head
-  CI and a separate promotion decision are required; this document does not
-  claim it is deployed or production-certified.
+- PR #704 merged at `a17cb774b8f4cfb30a87a09b8f45b16a8f56b93d` after
+  final head `8d8afa7076e5a8ada28f4a3e0cd9d37cae371b56` passed all applicable
+  and required checks, including the 17-case canonical rights suite, native
+  journal/handler suite, paid/legal QA, security, CodeQL, six browsers and
+  NVDA. Commercial positive proofs expire before upcoming legal,
+  contract/version/language/offer/release transitions, including boundaries
+  crossed during verification. Only publication contacts the new D1 queries;
+  customer authorization reads are unchanged. No deployment or owner
+  activation was performed.
 
 ## Physical writer audit: protected run 66
 
@@ -48,7 +51,7 @@ permission metadata also remains blocked. Legitimate scheduled consumers
 and other projects must be migrated/scoped before privileged credentials
 can safely be retired. No credential was changed or revoked.
 
-The catalog-alias failure is too coarse to identify whether the provider
+The existing catalog-alias failure is too coarse to identify whether the provider
 refused a catalog read, returned a different name/scope/page, or returned an
 unmatched ID. A separate protected **user-token-only diagnostic** now reports
 only fixed categories and never certifies release or principal coverage.
