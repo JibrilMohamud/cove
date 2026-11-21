@@ -1,14 +1,19 @@
 name: biosync-production-canary
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'scripts/audio_pipeline/biosync_canary.py'
-      - '.github/workflows/biosync-canary.yml'
   schedule:
     - cron: '42 * * * *'
   workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        description: "Approve the exact main SHA before Cloudflare API access."
+        required: true
+        type: string
+      confirm_protected_cloudflare_action:
+        description: "Explicitly approve this Cloudflare action; never auto-run on source merge."
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -19,7 +24,14 @@ concurrency:
 
 jobs:
   verify:
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm_protected_cloudflare_action == true &&
+      inputs.reviewed_main_sha == github.sha
     runs-on: ubuntu-latest
+    environment: cove-production-release-audit
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v6

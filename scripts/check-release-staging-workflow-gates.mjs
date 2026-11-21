@@ -52,6 +52,14 @@ for (const { file, names, protections } of requirements) {
     assert.match(data, /inputs\.reviewed_main_sha == github\.sha/);
     assert.match(data, /inputs\.confirm_real_catalog_readonly == true/);
     assert.match(data, /github\.event_name == 'workflow_dispatch'/);
+  } else if (file === ".github/workflows/continuous-publication-qa.yml") {
+    // External Worker deployment must require protected manual approval, not a
+    // routine source merge. Preserve only PR-time secret-free source CI.
+    assert.doesNotMatch(data, /\n  push:\n/, file + " must not deploy on source push");
+    assert.match(data, /environment: cove-production-release-audit/);
+    assert.match(data, /inputs\.reviewed_main_sha == github\.sha/);
+    assert.match(data, /inputs\.confirm_protected_cloudflare_action == true/);
+    assert.match(data, /github\.event_name == 'workflow_dispatch'/);
   } else {
     assert.match(data, /push:\n    branches: \[main\]/, file + " needs reviewed-main trigger");
   }

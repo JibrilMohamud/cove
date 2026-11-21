@@ -1,0 +1,29 @@
+name: cove-legacy-cloudflare-token-trigger-safety-offline
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/biosync-canary.yml
+      - .github/workflows/continuous-publication-qa.yml
+      - .github/workflows/cove-sounds-verified-conversion-report.yml
+      - .github/workflows/literary-activation-readiness.yml
+      - .github/workflows/literary-isolated-utc-budget.yml
+      - .github/workflows/verify-production-disabled-owner-handshake.yml
+      - .github/workflows/cove-legacy-cloudflare-token-trigger-safety-offline.yml
+      - scripts/security/check-legacy-cloudflare-secret-trigger-guard.mjs
+permissions:
+  contents: read
+jobs:
+  legacy-cloudflare-trigger-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Reject schedule/push privilege and incomplete reviewed manual grants
+        run: |
+          node --check scripts/security/check-legacy-cloudflare-secret-trigger-guard.mjs
+          node scripts/security/check-legacy-cloudflare-secret-trigger-guard.mjs
