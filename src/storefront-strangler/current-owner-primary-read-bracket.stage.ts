@@ -85,15 +85,19 @@ async function boundedOwnerReceipt(response: Response): Promise<string> {
   const reader = response.body.getReader();
   const decoder = new TextDecoder("utf-8", { fatal: true });
   let text = "";
+  let receivedBytes = 0;
   try {
     while (true) {
       const next = await reader.read();
       if (next.done) break;
-      text += decoder.decode(next.value, { stream: true });
-      if (text.length > 2048) {
+      receivedBytes += next.value.byteLength;
+      // Count actual UTF-8 bytes, including multi-byte text. The error
+      // response cannot force unbounded decoding or string allocations.
+      if (receivedBytes > 2048) {
         await reader.cancel().catch(() => undefined);
         fail();
       }
+      text += decoder.decode(next.value, { stream: true });
     }
     text += decoder.decode();
   } catch {
@@ -200,7 +204,7 @@ async function checkedPrimary(
  */
 export async function withCurrentQaOwnerPrimaryRead<T>(
   x: QaOwnerReadBracket,
-  alreadyRightsAuthorizedRead: (primary: PrimaryFenceSession) => Promise<T>,
+  alreadyRightsAuthorizedRead: () => Promise<T>,
 ): Promise<T> {
   validSetup(x);
   if (typeof alreadyRightsAuthorizedRead !== "function") fail();
@@ -214,8 +218,10 @@ export async function withCurrentQaOwnerPrimaryRead<T>(
     return value;
   };
   const firstOwner = await ownerEpoch(x);
-  const db = await checkedPrimary(x, firstOwner, currentTime());
-  const result = await alreadyRightsAuthorizedRead(db);
+  await checkedPrimary(x, firstOwner, currentTime());
+  // Never hand the fenced D1 adapter to the callback: the primary reader
+  // cannot become an unreviewed SQL mutation executor by accident.
+  const result = await alreadyRightsAuthorizedRead();
   // Fresh primary session, not a possibly stale bookmark from the catalog
   // session. An accepted D1 snapshot does not substitute for the owner check.
   await checkedPrimary(x, firstOwner, currentTime());
