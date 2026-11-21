@@ -176,18 +176,26 @@ test("alias with a mutation ID, missing ID, or unknown permission remains releas
     });
   }
   const explicitWrite = aliasedPolicy("c".repeat(32), "Workers Scripts Write");
-  assert.deepEqual(
-    await inspectUserTokenEvidence(aliasTransport([explicitWrite]), USER_TOKEN),
-    { verified: false, reason: "active_user_token_mutation_capability" },
-  );
+  assert.deepEqual(await inspectUserTokenEvidence(aliasTransport([explicitWrite]), USER_TOKEN), {
+    verified: false,
+    reason: "active_user_token_mutation_capability",
+  });
 });
 
 test("spoofed or unavailable permission-group catalog cannot certify an alias", async () => {
   const unknown = [aliasedPolicy("c".repeat(32), "Account Analytics")];
   for (const override of [
-    () => { throw Error("writer_audit_http_403"); },
-    (entry) => ({ ...catalog(entry), result: [{ ...catalog(entry).result[0], name: "Account Analytics Write" }] }),
-    (entry) => ({ ...catalog(entry), result: [{ ...catalog(entry).result[0], scopes: ["com.cloudflare.edge.r2.bucket"] }] }),
+    () => {
+      throw Error("writer_audit_http_403");
+    },
+    (entry) => ({
+      ...catalog(entry),
+      result: [{ ...catalog(entry).result[0], name: "Account Analytics Write" }],
+    }),
+    (entry) => ({
+      ...catalog(entry),
+      result: [{ ...catalog(entry).result[0], scopes: ["com.cloudflare.edge.r2.bucket"] }],
+    }),
     (entry) => ({ ...catalog(entry), result: [] }),
     (entry) => ({ ...catalog(entry), result_info: { page: 2, count: 1, total_count: 2000 } }),
   ]) {
