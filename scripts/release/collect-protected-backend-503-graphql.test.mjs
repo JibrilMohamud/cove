@@ -324,7 +324,7 @@ test("never classify a missing-rights-check or different rank order as the produ
     RANKED_CANDIDATE_SQL.replace("d.external_book_id ASC", "d.external_book_id DESC"),
     RANKED_CANDIDATE_SQL.replace("LIMIT ?", "LIMIT 128"),
     RANKED_CANDIDATE_SQL.replace("SELECT d.product_id", "SELECT p.id"),
-    RANKED_CANDIDATE_SQL + " ; DELETE FROM rights_grants",
+    RANKED_CANDIDATE_SQL + " ; SELECT 1",
   ];
   for (const sql of altered) {
     const evidence = summarizeD1QueryGroups([d1Query("2026-11-17T20:45:00Z", sql)], WINDOW);
