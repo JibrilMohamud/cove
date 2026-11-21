@@ -5438,20 +5438,42 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
             };
             if(typeof primary.withSession!=="function")
               throw Error("qa_native_primary_session_unavailable");
-            const db=primary.withSession("first-primary");
-            qaPhase="market";
+            // A D1 first-primary session guarantees only its FIRST read
+            // uses primary. A later SELECT may use a replica even when the
+            // market's first SELECT came from primary. Keep independent
+            // primary-first sessions for these two legal prerequisites.
+            const marketDb=primary.withSession("first-primary");
+            const catalogDb=primary.withSession("first-primary");
+            if(marketDb===catalogDb)
+              throw Error("qa_native_primary_sessions_not_independent");
+            qaPhase="primary-pair";
             const marketStarted=performance.now();
-            const market=await db.prepare(
-              "SELECT country_code FROM storefront_markets WHERE country_code=? AND market_status='active' AND default_currency=? LIMIT 1"
-            ).bind(territory,currency).first<{country_code:string}>();
-            qaMarketMs=performance.now()-marketStarted;
+            const marketPending=(async()=>{
+              const market=await marketDb.prepare(
+                "SELECT country_code FROM storefront_markets WHERE country_code=? AND market_status='active' AND default_currency=? LIMIT 1"
+              ).bind(territory,currency).first<{country_code:string}>();
+              qaMarketMs=performance.now()-marketStarted;
+              return market;
+            })();
             const measurements:FirstPaintD1QueryMetrics={};
-            qaPhase="catalog";
             const selectStarted=performance.now();
-            const rows=await authorizeStorefrontPresentationIds(
-              db,ids,territory,currency,measurements
-            );
-            qaSelectMs=performance.now()-selectStarted;
+            const catalogPending=(async()=>{
+              const rows=await authorizeStorefrontPresentationIds(
+                catalogDb,ids,territory,currency,measurements
+              );
+              qaSelectMs=performance.now()-selectStarted;
+              return rows;
+            })();
+            // The second legal read cannot be approved from a partially
+            // completed pair. Observe BOTH results before the synchronous
+            // current-owner withdrawal and offer intersection below.
+            const [marketResult,catalogResult]=await Promise.allSettled([
+              marketPending,catalogPending
+            ]);
+            if(marketResult.status!=="fulfilled"||catalogResult.status!=="fulfilled")
+              throw Error("qa_native_primary_pair_failed");
+            const market=marketResult.value;
+            const rows=catalogResult.value;
             qaProviderSqlMs=measurements.sqlDurationMs;
             return {rows,servedByPrimary:measurements.servedByPrimary===true,
               activeMarket:market?.country_code===territory};
