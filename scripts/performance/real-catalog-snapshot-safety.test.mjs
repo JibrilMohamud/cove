@@ -18,15 +18,19 @@ const validConfig = () => ({
   workers_dev: true,
   vars: { COVE_STRANGLER_DATABASE_ID: SNAPSHOT_ID },
 });
-const goodResponse = () => [{
-  results: [{
-    products: REAL_CATALOG_MINIMUM_PRODUCTS,
-    editions: REAL_CATALOG_MINIMUM_PRODUCTS,
-    taxonomy_links: 1,
-    rights_grants: 82_000,
-  }],
-  meta: { changed_db: false, changes: 0, rows_written: 0 },
-}];
+const goodResponse = () => [
+  {
+    results: [
+      {
+        products: REAL_CATALOG_MINIMUM_PRODUCTS,
+        editions: REAL_CATALOG_MINIMUM_PRODUCTS,
+        taxonomy_links: 1,
+        rights_grants: 82_000,
+      },
+    ],
+    meta: { changed_db: false, changes: 0, rows_written: 0 },
+  },
+];
 
 test("production and existing incomplete 50k fixtures can NEVER back a Worker preview", () => {
   assert.deepEqual(validTarget(), { id: SNAPSHOT_ID, name: SNAPSHOT_NAME });
@@ -49,12 +53,24 @@ test("production and existing incomplete 50k fixtures can NEVER back a Worker pr
 test("deny multiple bindings, customer routes and production IDs even outside DB binding", () => {
   assert.equal(requireNoPrimaryD1PreviewBinding(validConfig(), SNAPSHOT_ID), true);
   for (const mutate of [
-    (c) => { c.d1_databases[0].database_id = PRIMARY_D1; },
-    (c) => { c.d1_databases.push({ binding: "PRIMARY_DB", database_id: PRIMARY_D1 }); },
-    (c) => { c.vars.SOURCE_PRIMARY = PRIMARY_D1; },
-    (c) => { c.routes = ["covereads.com/*"]; },
-    (c) => { c.queues = { producers: ["production-jobs"] }; },
-    (c) => { c.d1_databases = []; },
+    (c) => {
+      c.d1_databases[0].database_id = PRIMARY_D1;
+    },
+    (c) => {
+      c.d1_databases.push({ binding: "PRIMARY_DB", database_id: PRIMARY_D1 });
+    },
+    (c) => {
+      c.vars.SOURCE_PRIMARY = PRIMARY_D1;
+    },
+    (c) => {
+      c.routes = ["covereads.com/*"];
+    },
+    (c) => {
+      c.queues = { producers: ["production-jobs"] };
+    },
+    (c) => {
+      c.d1_databases = [];
+    },
   ]) {
     const config = validConfig();
     mutate(config);
@@ -68,16 +84,36 @@ test("minimum snapshot metadata cannot certify incomplete, synthetic or mutated 
   assert.equal(result.legalGenerationAttested, false);
   assert.equal(result.releaseCertified, false);
   const mutations = [
-    (x) => { x[0].results[0].products = 50_000; },
-    (x) => { x[0].results[0].editions = 50_000; },
-    (x) => { x[0].results[0].taxonomy_links = 0; },
-    (x) => { x[0].results[0].rights_grants = 0; },
-    (x) => { x[0].results[0].products = "82247"; },
-    (x) => { x[0].meta.changes = 1; },
-    (x) => { x[0].meta.changed_db = true; },
-    (x) => { delete x[0].meta.changed_db; },
-    (x) => { x.push(x[0]); },
-    (x) => { x[0].results.push(x[0].results[0]); },
+    (x) => {
+      x[0].results[0].products = 50_000;
+    },
+    (x) => {
+      x[0].results[0].editions = 50_000;
+    },
+    (x) => {
+      x[0].results[0].taxonomy_links = 0;
+    },
+    (x) => {
+      x[0].results[0].rights_grants = 0;
+    },
+    (x) => {
+      x[0].results[0].products = "82247";
+    },
+    (x) => {
+      x[0].meta.changes = 1;
+    },
+    (x) => {
+      x[0].meta.changed_db = true;
+    },
+    (x) => {
+      delete x[0].meta.changed_db;
+    },
+    (x) => {
+      x.push(x[0]);
+    },
+    (x) => {
+      x[0].results.push(x[0].results[0]);
+    },
   ];
   for (const modify of mutations) {
     const x = goodResponse();
@@ -89,7 +125,10 @@ test("minimum snapshot metadata cannot certify incomplete, synthetic or mutated 
 
 test("protected source never hardcodes primary D1 and checks snapshot before deployment", () => {
   const script = readFileSync("scripts/performance/strangler-real-catalog-acceptance.mjs", "utf8");
-  const workflow = readFileSync(".github/workflows/fast-storefront-real-catalog-acceptance.yml", "utf8");
+  const workflow = readFileSync(
+    ".github/workflows/fast-storefront-real-catalog-acceptance.yml",
+    "utf8",
+  );
   assert.ok(!script.includes(PRIMARY_D1), "Production D1 ID must not appear in preview source");
   assert.match(script, /requireIsolatedCatalogSnapshotTarget\(/);
   assert.match(script, /requireNoPrimaryD1PreviewBinding\(config, dbId\)/);
