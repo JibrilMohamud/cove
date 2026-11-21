@@ -31,10 +31,7 @@ export function literaryActivationReadCredential(method, path, body, env = proce
       path,
     );
     const worker = /^\/workers\/workers\/([a-z0-9-]+)$/.exec(path);
-    if (
-      (script && workers.has(script[1])) ||
-      (worker && workers.has(worker[1]))
-    )
+    if ((script && workers.has(script[1])) || (worker && workers.has(worker[1])))
       return requiredCredential(env.COVE_CF_WORKERS_METADATA_READ_TOKEN);
   }
   if (method === "POST") {
