@@ -77,6 +77,33 @@ function challengeHex(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   return [...bytes].map((n) => n.toString(16).padStart(2, "0")).join("");
 }
+/** Bound actual body consumption, not just Content-Length or a post-hoc
+ * response.text() check. A compromised private service cannot force an
+ * unbounded allocation while returning an invalid authority receipt. */
+async function boundedOwnerReceipt(response: Response): Promise<string> {
+  if (!response.body) fail();
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  let text = "";
+  try {
+    while (true) {
+      const next = await reader.read();
+      if (next.done) break;
+      text += decoder.decode(next.value, { stream: true });
+      if (text.length > 2048) {
+        await reader.cancel().catch(() => undefined);
+        fail();
+      }
+    }
+    text += decoder.decode();
+  } catch {
+    fail();
+  } finally {
+    reader.releaseLock();
+  }
+  if (text.length > 2048) fail();
+  return text;
+}
 async function ownerEpoch(x: QaOwnerReadBracket): Promise<OwnerEpoch> {
   const challenge = challengeHex();
   const response = await x.owner.fetch(
@@ -98,8 +125,7 @@ async function ownerEpoch(x: QaOwnerReadBracket): Promise<OwnerEpoch> {
     fail();
   const sizeHeader = response.headers.get("content-length");
   if (sizeHeader && (!/^\d+$/.test(sizeHeader) || Number(sizeHeader) > 2048)) fail();
-  const raw = await response.text();
-  if (raw.length > 2048) fail();
+  const raw = await boundedOwnerReceipt(response);
   let data: unknown;
   try {
     data = JSON.parse(raw);
