@@ -56,7 +56,10 @@ for (const { file, names, protections } of requirements) {
     assert.doesNotMatch(data, /\n  push:\n/, file + " must not run QA D1 migrations on merge");
     assert.equal((data.match(/environment: cove-production-release-audit/g) || []).length, 2);
     assert.equal((data.match(/inputs\.reviewed_main_sha == github\.sha/g) || []).length, 2);
-    assert.equal((data.match(/inputs\.confirm_protected_cloudflare_action == true/g) || []).length, 2);
+    assert.equal(
+      (data.match(/inputs\.confirm_protected_cloudflare_action == true/g) || []).length,
+      2,
+    );
     assert.equal((data.match(/github\.event_name == 'workflow_dispatch'/g) || []).length, 2);
   } else {
     assert.match(data, /push:\n    branches: \[main\]/, file + " needs reviewed-main trigger");
