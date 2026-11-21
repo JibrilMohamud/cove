@@ -3,7 +3,36 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { build } from "esbuild";
+import ts from "typescript";
 import { localBindings } from "./local-api.mjs";
+
+// Public cache failures must never dump raw upstream exceptions, identifiers
+// or request data into future Workers Logs. Audit actual AST call arguments,
+// not a text-match that can miss multiline/indirect console invocations.
+const cacheSource = ts.createSourceFile(
+  "public-api-cache.server.ts",
+  fs.readFileSync("src/features/fore/public-api-cache.server.ts", "utf8"),
+  ts.ScriptTarget.Latest,
+  true,
+  ts.ScriptKind.TS,
+);
+let reviewedCacheLogCalls = 0;
+function auditCacheLogs(node) {
+  if (
+    ts.isCallExpression(node) &&
+    ts.isPropertyAccessExpression(node.expression) &&
+    ts.isIdentifier(node.expression.expression) &&
+    node.expression.expression.text === "console" &&
+    ["log", "info", "warn", "error"].includes(node.expression.name.text)
+  ) {
+    reviewedCacheLogCalls++;
+    assert.equal(node.arguments.length, 1, "cache log call must have one safe argument");
+    assert.ok(ts.isStringLiteral(node.arguments[0]), "cache logs must contain a fixed literal");
+  }
+  ts.forEachChild(node, auditCacheLogs);
+}
+auditCacheLogs(cacheSource);
+assert.equal(reviewedCacheLogCalls, 6, "new cache log site requires privacy review");
 
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "cove-search-"));
 const originalFetch = globalThis.fetch;
@@ -233,6 +262,63 @@ try {
     handlerCalls++;
     return api.handleCoveApi(req, env);
   };
+  // A 200 once returned by a rights-sensitive route cannot be replayed
+  // after withdrawal: only /catalog and /storefront/bootstrap currently
+  // implement a fresh per-HIT canonical eligibility recheck.
+  const unverifiedRightsCacheRoutes = [
+    "/search/suggest?search=private",
+    "/audiobooks",
+    "/audio/pg-123",
+    "/audio/pg-123/tracks/1",
+    "/books/123",
+    "/books/123/detail",
+    "/books/123/epub",
+  ];
+  for (const route of unverifiedRightsCacheRoutes) {
+    const logicalRequest = request(route);
+    assert.equal(
+      cache.publicCacheTtl(new URL(logicalRequest.url).pathname),
+      0,
+      route + ": no shared cache until current-owner legal validation exists",
+    );
+    assert.equal(cache.publicCacheEligible(logicalRequest), false);
+    let rightsCurrent = true;
+    let liveCalls = 0;
+    const rightsHandler = async () => {
+      liveCalls++;
+      return rightsCurrent
+        ? Response.json({ book: "approved" })
+        : Response.json({ error: "Withdrawn under current legal authority" }, { status: 503 });
+    };
+    const backendRequest = new Request(
+      "https://backend.example.workers.dev" + new URL(logicalRequest.url).pathname,
+    );
+    const initial = await cache.cachedPublicApi(
+      logicalRequest,
+      backendRequest,
+      env,
+      ctx,
+      rightsHandler,
+    );
+    assert.equal(initial.status, 200);
+    assert.equal(initial.headers.get("x-cove-backend-cache"), "BYPASS");
+    assert.equal(initial.headers.get("cache-control"), "no-store");
+    assert.deepEqual(await initial.json(), { book: "approved" });
+    rightsCurrent = false;
+    const withdrawn = await cache.cachedPublicApi(
+      logicalRequest,
+      backendRequest,
+      env,
+      ctx,
+      rightsHandler,
+    );
+    assert.equal(withdrawn.status, 503, route + ": must reach the new legal decision");
+    assert.equal(withdrawn.headers.get("x-cove-backend-cache"), "BYPASS");
+    assert.equal(withdrawn.headers.get("cache-control"), "no-store");
+    assert.equal(liveCalls, 2, route + ": never replay the old cached allowance");
+  }
+  assert.equal(cache.publicCacheTtl("/api/fore/catalog"), 300);
+  assert.equal(cache.publicCacheTtl("/api/fore/storefront/bootstrap"), 300);
   const cacheRequest = new Request(
     "https://backend.example.workers.dev/api/fore/catalog?search=adventure",
   );

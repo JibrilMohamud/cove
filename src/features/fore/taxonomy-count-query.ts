@@ -5,7 +5,7 @@
  * and there is no cached eligibility or cross-request Worker I/O.
  *
  * With <=1000 potential active retail territorial grants, seed only those
- * products before executing the UNCHANGED retail availability view. At
+ * products before executing the unchanged legal availability predicate. At
  * >1000 grants, the primary-D1 optimizer uses the established catalog scan.
  * The count is exact because products.id and the (edition_id,node_id) pair
  * in edition_taxonomy_nodes are primary keys.
@@ -19,7 +19,7 @@ const eligibleWhere = `
       WHERE el.edition_id=e.id AND lower(el.language_code)=lower(?)
     ))
     AND EXISTS(
-      SELECT 1 FROM retail_product_availability rpa
+      SELECT 1 FROM retail_product_availability_rows rpa
       WHERE rpa.product_id=p.id AND rpa.territory_code=upper(?)
     )`;
 
@@ -50,7 +50,7 @@ export function taxonomyCountPlan(
     FROM territory_seed seed
     CROSS JOIN products p ON p.id=seed.id
     CROSS JOIN editions e ON e.id=p.edition_id
-    ${eligibleWhere.replace("retail_product_availability rpa", "retail_product_availability_rows rpa")}
+    ${eligibleWhere}
   )
   SELECT et.taxonomy_node_id node_id,COUNT(*) product_count
   FROM eligible p JOIN edition_taxonomy_nodes et ON et.edition_id=p.edition_id
