@@ -82,6 +82,26 @@ test('unapproved endpoints, POST-equivalent paths and missing credentials cannot
  await assert.rejects(()=>client.get(SCRIPTS,''),/writer_audit_read_token_missing/);
  assert.equal(calls,0);
 });
+test('canonical read-group queries are fixed GET-only; arbitrary or mutation lookups are denied',async()=>{
+ const c=clock(),requested=[];
+ const client=createPhysicalWriterReadTransport({...c,fetchImpl:async(url,init)=>{
+   assert.equal(init.method,'GET');
+   requested.push(url);
+   return ok();
+ }});
+ for(const name of ['API Tokens Read','User Details Read','Account Analytics Read']){
+   await client.get('/user/tokens/permission_groups?name='+encodeURIComponent(name),TOKEN);
+ }
+ assert.equal(requested.length,3);
+ for(const path of [
+   '/user/tokens/permission_groups',
+   '/user/tokens/permission_groups?name=D1%20Write',
+   '/user/tokens/permission_groups?name=Account%20Analytics%20Write',
+   '/user/tokens/permission_groups?name=Account%20Analytics%20Read&page=2',
+   '/user/tokens/permission_groups?name=API%20Tokens%20Write'
+ ])await assert.rejects(()=>client.get(path,TOKEN),/writer_audit_endpoint_denied/);
+ assert.equal(requested.length,3);
+});
 test('release script requires separate protected scopes and repeats Worker revision list',()=>{
  const code=readFileSync('scripts/release/certify-exclusive-primary-d1.mjs','utf8');
  const flow=readFileSync('.github/workflows/cove-exclusive-primary-d1-writer-audit.yml','utf8');

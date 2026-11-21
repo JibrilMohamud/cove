@@ -11,7 +11,13 @@ const RETRY_MS=[20000,40000,80000];
 const MAX_REQUESTS=3000;
 const MAX_429=5;
 const MAX_429_WAIT_MS=180000;
+const EXACT_USER_READ_GROUP_LOOKUPS=new Set([
+  '/user/tokens/permission_groups?name=API%20Tokens%20Read',
+  '/user/tokens/permission_groups?name=User%20Details%20Read',
+  '/user/tokens/permission_groups?name=Account%20Analytics%20Read',
+]);
 function safePath(path){
+  if(EXACT_USER_READ_GROUP_LOOKUPS.has(path))return true;
   if(path==='/user/tokens'||path==='/user')return true;
   if(path==='/accounts/'+ACCOUNT+'/members')return true;
   if(path==='/accounts/'+ACCOUNT+'/tokens')return true;
