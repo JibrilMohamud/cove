@@ -50,8 +50,10 @@ if (process.argv.includes("--self-test")) {
   assert.match(example, /US \| 206 \| 0 \| Seeded US pilot/);
   console.log("PASS: licensed territorial inventory and non-US fallback status");
 } else {
-  const token = process.env.CLOUDFLARE_API_TOKEN;
-  assert.ok(token && token.length >= 10, "Cloudflare read-only reporting token missing");
+  // D1 Read only: never accept the broad deployment token as a fallback.
+  const token = process.env.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN;
+  assert.ok(typeof token === "string" && token.length >= 20,
+    "COVE_CF_PRODUCTION_AUDIT_READ_TOKEN is required for rights inventory reads");
   const response = await fetch(
     "https://api.cloudflare.com/client/v4/accounts/" + account + "/d1/database/" + database + "/query",
     { method:"POST", headers:{ authorization:"Bearer " + token, "content-type":"application/json" },
