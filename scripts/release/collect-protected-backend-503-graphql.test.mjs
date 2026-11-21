@@ -97,16 +97,12 @@ test("exact 100%-serving immutable backend version is mandatory", () => {
   assert.equal(identity.version, VERSION);
   assert.equal(identity.deploymentId, DEPLOYMENT.result.deployments[0].id);
   assert.throws(() => verifyPinnedDeployment(DEPLOYMENT, "invalid"));
-  assert.throws(() =>
-    verifyPinnedDeployment(DEPLOYMENT, "adc603f1-d82a-44d9-b302-509690dec5bd"),
-  );
+  assert.throws(() => verifyPinnedDeployment(DEPLOYMENT, "adc603f1-d82a-44d9-b302-509690dec5bd"));
   assert.throws(() =>
     verifyPinnedDeployment(
       {
         result: {
-          deployments: [
-            { versions: [{ version_id: VERSION, percentage: 99 }] },
-          ],
+          deployments: [{ versions: [{ version_id: VERSION, percentage: 99 }] }],
         },
       },
       VERSION,
@@ -152,13 +148,15 @@ test("reproduce 28 handled HTTP 503 and 14 HTTP 200 without calling D1", () => {
     [results.fetchRequests, results.http503, results.http200, results.invocationErrors],
     [42, 28, 14, 0],
   );
-  assert.deepEqual(results.perMinute.map((item) => item.http503), [15, 13]);
+  assert.deepEqual(
+    results.perMinute.map((item) => item.http503),
+    [15, 13],
+  );
 });
 
 test("returning HTTP 503 is not confused with an uncaught Worker exception", () => {
   const results = summarizeWorkerGroups(
-    [sample("2026-11-17T20:40:00Z", 503, 2, 0),
-      sample("2026-11-17T20:40:00Z", 500, 1, 1)],
+    [sample("2026-11-17T20:40:00Z", 503, 2, 0), sample("2026-11-17T20:40:00Z", 500, 1, 1)],
     VERSION,
     WINDOW,
   );
@@ -169,18 +167,13 @@ test("returning HTTP 503 is not confused with an uncaught Worker exception", () 
 test("do not blend another backend version or out-of-window data", () => {
   assert.throws(() =>
     summarizeWorkerGroups(
-      [sample("2026-11-17T20:45:00Z", 503, 1, 0,
-        "adc603f1-d82a-44d9-b302-509690dec5bd")],
+      [sample("2026-11-17T20:45:00Z", 503, 1, 0, "adc603f1-d82a-44d9-b302-509690dec5bd")],
       VERSION,
       WINDOW,
     ),
   );
   assert.throws(() =>
-    summarizeWorkerGroups(
-      [sample("2026-11-17T20:49:00Z", 503, 1)],
-      VERSION,
-      WINDOW,
-    ),
+    summarizeWorkerGroups([sample("2026-11-17T20:49:00Z", 503, 1)], VERSION, WINDOW),
   );
 });
 
@@ -188,11 +181,7 @@ test("missing or truncated Worker metrics never certify zero failures", () => {
   assert.throws(() => summarizeWorkerGroups([], VERSION, WINDOW));
   assert.throws(() => summarizeWorkerGroups(undefined, VERSION, WINDOW));
   assert.throws(() =>
-    summarizeWorkerGroups(
-      Array(500).fill(sample("2026-11-17T20:45:00Z", 200, 1)),
-      VERSION,
-      WINDOW,
-    ),
+    summarizeWorkerGroups(Array(500).fill(sample("2026-11-17T20:45:00Z", 200, 1)), VERSION, WINDOW),
   );
 });
 
@@ -208,8 +197,7 @@ test("invalid negative, fractional, and impossible response/status metrics fail"
 
 test("D1 totals have no implicit HTTP request attribution", () => {
   const rows = summarizeD1Groups(
-    [d1("2026-11-17T20:45:00Z", 1792545),
-      d1("2026-11-17T20:40:00Z", 1794537)],
+    [d1("2026-11-17T20:45:00Z", 1792545), d1("2026-11-17T20:40:00Z", 1794537)],
     WINDOW,
   );
   assert.equal(rows[0].rowsRead, 1794537);
@@ -240,28 +228,44 @@ test("D1 region/metric validation refuses malformed provider data", () => {
 });
 
 test("classify primary taxonomy dense count without storing provider query text or errors", () => {
-  const groups = summarizeD1QueryGroups([
-    d1Query("2026-11-17T20:45:00Z"),
-    d1Query("2026-11-17T20:44:00Z", DENSE_TAXONOMY_SQL.replace(
-      "FROM retail_product_availability rpa",
-      "FROM retail_product_availability_rows rpa",
-    ), "replica", 5_000),
-    d1Query("2026-11-17T20:43:00Z", "SELECT secret FROM request_logs WHERE user='private'", "primary", 7),
-  ], WINDOW);
+  const groups = summarizeD1QueryGroups(
+    [
+      d1Query("2026-11-17T20:45:00Z"),
+      d1Query(
+        "2026-11-17T20:44:00Z",
+        DENSE_TAXONOMY_SQL.replace(
+          "FROM retail_product_availability rpa",
+          "FROM retail_product_availability_rows rpa",
+        ),
+        "replica",
+        5_000,
+      ),
+      d1Query(
+        "2026-11-17T20:43:00Z",
+        "SELECT secret FROM request_logs WHERE user='private'",
+        "primary",
+        7,
+      ),
+    ],
+    WINDOW,
+  );
   assert.equal(groups.groupsObserved, 3);
-  assert.deepEqual(groups.hotspots.map((x) => x.queryClass), [
-    "taxonomy-count-distinct-view",
-    "taxonomy-count-legal-rows",
-    "unclassified",
-  ]);
+  assert.deepEqual(
+    groups.hotspots.map((x) => x.queryClass),
+    ["taxonomy-count-distinct-view", "taxonomy-count-legal-rows", "unclassified"],
+  );
   assert.equal(groups.hotspots[0].executions, 8);
   assert.equal(groups.hotspots[0].databaseRole, "primary");
   assert.equal(groups.hotspots[0].estimatedRowsRead, 13_613_128);
   assert.equal(groups.hotspots[0].estimatedSqlDurationMs, 25_293.8248);
   const serial = JSON.stringify(groups);
   for (const secret of [
-    "private@example.invalid", "request_logs", "SELECT", "retail_product_availability",
-  ]) assert.ok(!serial.includes(secret), "Raw SQL must never leave the collector");
+    "private@example.invalid",
+    "request_logs",
+    "SELECT",
+    "retail_product_availability",
+  ])
+    assert.ok(!serial.includes(secret), "Raw SQL must never leave the collector");
 });
 
 test("query insights preserve only an error flag, not D1 error details", () => {
@@ -278,7 +282,8 @@ test("query insights preserve only an error flag, not D1 error details", () => {
     [d1Query("2026-11-17T20:45:00Z", DENSE_TAXONOMY_SQL, "untrusted")],
     [d1Query("2026-11-17T20:45:00Z", DENSE_TAXONOMY_SQL, "primary", -1)],
     [d1Query("2026-11-17T20:45:00Z", DENSE_TAXONOMY_SQL, "primary", 1, "private region")],
-  ]) assert.throws(() => summarizeD1QueryGroups(malformed, WINDOW));
+  ])
+    assert.throws(() => summarizeD1QueryGroups(malformed, WINDOW));
 });
 
 test("collector has no production SQL, Worker fetch or mutable Cloudflare endpoint", () => {
@@ -287,7 +292,10 @@ test("collector has no production SQL, Worker fetch or mutable Cloudflare endpoi
   // Immutable deployment metadata GET is deliberately allowed; deployment
   // mutations, Worker version overrides and Worker URL fetches are not.
   assert.match(source, /"\/workers\/scripts\/" \+ WORKER \+ "\/deployments"/);
-  assert.doesNotMatch(source, /\/workers\/scripts\/" \+ WORKER \+ "\/(?:deploy|versions|settings|secrets)"/);
+  assert.doesNotMatch(
+    source,
+    /\/workers\/scripts\/" \+ WORKER \+ "\/(?:deploy|versions|settings|secrets)"/,
+  );
   assert.doesNotMatch(source, /"PUT"|"PATCH"|"DELETE"/);
   assert.match(source, /"POST" : "GET"/);
   assert.match(source, /workersInvocationsAdaptive/);

@@ -87,7 +87,13 @@ export function summarizeWorkerGroups(rows, expectedVersion, window) {
     invocationErrors += errors;
     if (status === 503) http503 += requests;
     if (status === 200) http200 += requests;
-    const prior = byMinute.get(minute) || { minute, fetchRequests: 0, http503: 0, http200: 0, invocationErrors: 0 };
+    const prior = byMinute.get(minute) || {
+      minute,
+      fetchRequests: 0,
+      http503: 0,
+      http200: 0,
+      invocationErrors: 0,
+    };
     prior.fetchRequests += requests;
     if (status === 503) prior.http503 += requests;
     if (status === 200) prior.http200 += requests;
@@ -151,11 +157,12 @@ export function summarizeD1QueryGroups(rows, window) {
       statement.includes("FROM eligible p JOIN edition_taxonomy_nodes et") &&
       statement.includes("COUNT(*) product_count") &&
       statement.includes("GROUP BY et.taxonomy_node_id");
-    const queryClass = commonTaxonomy && statement.includes("FROM retail_product_availability rpa")
-      ? "taxonomy-count-distinct-view"
-      : commonTaxonomy && statement.includes("FROM retail_product_availability_rows rpa")
-        ? "taxonomy-count-legal-rows"
-        : "unclassified";
+    const queryClass =
+      commonTaxonomy && statement.includes("FROM retail_product_availability rpa")
+        ? "taxonomy-count-distinct-view"
+        : commonTaxonomy && statement.includes("FROM retail_product_availability_rows rpa")
+          ? "taxonomy-count-legal-rows"
+          : "unclassified";
     const executions = finiteNonnegative(group.count, "query executions");
     const rowsRead = finiteNonnegative(group.sum?.rowsRead, "query rowsRead");
     const rowsWritten = finiteNonnegative(group.sum?.rowsWritten, "query rowsWritten");
@@ -231,43 +238,43 @@ async function fetchReadOnlyJson(path, token, graphqlQuery) {
 
 function graphqlWorker(window) {
   return (
-    "query { viewer { accounts(filter:{accountTag:\"" +
+    'query { viewer { accounts(filter:{accountTag:"' +
     ACCOUNT +
-    "\"}) { workersInvocationsAdaptive(limit:500,filter:{datetime_geq:\"" +
+    '"}) { workersInvocationsAdaptive(limit:500,filter:{datetime_geq:"' +
     window.from +
-    "\",datetime_lt:\"" +
+    '",datetime_lt:"' +
     window.to +
-    "\",scriptName:\"" +
+    '",scriptName:"' +
     WORKER +
-    "\"}) { dimensions{datetimeMinute scriptVersion httpResponseStatus eventType} sum{requests errors} } } } }"
+    '"}) { dimensions{datetimeMinute scriptVersion httpResponseStatus eventType} sum{requests errors} } } } }'
   );
 }
 
 function graphqlD1(window) {
   return (
-    "query { viewer { accounts(filter:{accountTag:\"" +
+    'query { viewer { accounts(filter:{accountTag:"' +
     ACCOUNT +
-    "\"}) { d1AnalyticsAdaptiveGroups(limit:500,filter:{datetime_geq:\"" +
+    '"}) { d1AnalyticsAdaptiveGroups(limit:500,filter:{datetime_geq:"' +
     window.from +
-    "\",datetime_lt:\"" +
+    '",datetime_lt:"' +
     window.to +
-    "\",databaseId:\"" +
+    '",databaseId:"' +
     D1 +
-    "\"}) { dimensions{datetimeMinute servedByRegion} sum{readQueries writeQueries rowsRead rowsWritten} avg{queryBatchTimeMs} } } } }"
+    '"}) { dimensions{datetimeMinute servedByRegion} sum{readQueries writeQueries rowsRead rowsWritten} avg{queryBatchTimeMs} } } } }'
   );
 }
 
 function graphqlD1Queries(window) {
   return (
-    "query { viewer { accounts(filter:{accountTag:\"" +
+    'query { viewer { accounts(filter:{accountTag:"' +
     ACCOUNT +
-    "\"}) { d1QueriesAdaptiveGroups(limit:500,filter:{datetime_geq:\"" +
+    '"}) { d1QueriesAdaptiveGroups(limit:500,filter:{datetime_geq:"' +
     window.from +
-    "\",datetime_lt:\"" +
+    '",datetime_lt:"' +
     window.to +
-    "\",databaseId:\"" +
+    '",databaseId:"' +
     D1 +
-    "\"}) { dimensions{datetimeMinute query error databaseRole servedByRegion} count sum{rowsRead rowsReturned rowsWritten queryDurationMs} } } } }"
+    '"}) { dimensions{datetimeMinute query error databaseRole servedByRegion} count sum{rowsRead rowsReturned rowsWritten queryDurationMs} } } } }'
   );
 }
 
@@ -276,12 +283,17 @@ async function collect() {
     throw new Error("Explicit protected read-only confirmation is required.");
   if (process.env.CF_ACCOUNT_ID !== ACCOUNT)
     throw new Error("Unexpected Cloudflare account; no cross-account audit.");
-  const window = validatedWindow(process.env.COVE_GRAPHQL_WINDOW_FROM, process.env.COVE_GRAPHQL_WINDOW_TO);
+  const window = validatedWindow(
+    process.env.COVE_GRAPHQL_WINDOW_FROM,
+    process.env.COVE_GRAPHQL_WINDOW_TO,
+  );
   const expected = process.env.COVE_EXPECTED_BACKEND_VERSION;
   const metadataToken = process.env.CF_WORKERS_METADATA_READ_TOKEN;
   const analyticsToken = process.env.CF_ANALYTICS_READ_TOKEN;
   if (!metadataToken || !analyticsToken)
-    throw new Error("Protected Workers Metadata Read and Account Analytics Read credentials are required.");
+    throw new Error(
+      "Protected Workers Metadata Read and Account Analytics Read credentials are required.",
+    );
   const metadata = await fetchReadOnlyJson(
     "/accounts/" + ACCOUNT + "/workers/scripts/" + WORKER + "/deployments",
     metadataToken,
@@ -289,7 +301,11 @@ async function collect() {
   const deployment = verifyPinnedDeployment(metadata, expected);
   const workerResult = await fetchReadOnlyJson("/graphql", analyticsToken, graphqlWorker(window));
   const d1Result = await fetchReadOnlyJson("/graphql", analyticsToken, graphqlD1(window));
-  const d1QueryResult = await fetchReadOnlyJson("/graphql", analyticsToken, graphqlD1Queries(window));
+  const d1QueryResult = await fetchReadOnlyJson(
+    "/graphql",
+    analyticsToken,
+    graphqlD1Queries(window),
+  );
   const workerRows = workerResult.data?.viewer?.accounts?.[0]?.workersInvocationsAdaptive;
   const d1Rows = d1Result.data?.viewer?.accounts?.[0]?.d1AnalyticsAdaptiveGroups;
   const d1QueryRows = d1QueryResult.data?.viewer?.accounts?.[0]?.d1QueriesAdaptiveGroups;
