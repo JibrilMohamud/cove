@@ -9,14 +9,17 @@ on:
       - "scripts/check-literary-dormant-publisher-config.mjs"
       - "scripts/staging/verify-literary-publisher-disabled.mjs"
       - ".github/workflows/literary-prod-publisher-dormant-deploy.yml"
-  push:
-    branches: [main]
-    paths:
-      - "wrangler.literary-publisher.prod-disabled.jsonc"
-      - "src/literary-inference-publisher.worker.ts"
-      - "scripts/check-literary-dormant-publisher-config.mjs"
-      - ".github/workflows/literary-prod-publisher-dormant-deploy.yml"
   workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        description: "Exact reviewed main commit; changes fail closed."
+        required: true
+        type: string
+      confirm_protected_cloudflare_action:
+        description: "Authorize protected Cloudflare action; not automatic on merge."
+        required: true
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -36,8 +39,14 @@ jobs:
       - run: node scripts/check-literary-dormant-publisher-config.mjs
   deploy-no-routes-no-secrets:
     needs: static-disabled-config
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm_protected_cloudflare_action == true &&
+      inputs.reviewed_main_sha == github.sha
     runs-on: ubuntu-latest
+    environment: cove-production-release-audit
     timeout-minutes: 18
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

@@ -1,0 +1,25 @@
+name: cove-protected-rollback-trigger-safety-offline
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/cove-stage-protected-worker-rollback.yml
+      - .github/workflows/cove-protected-rollback-trigger-safety-offline.yml
+      - scripts/staging/check-protected-rollback-workflow-lock.mjs
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  protected-trigger-source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Verify isolated rehearsal cannot run on branch push or without protected approval
+        run: |
+          node --check scripts/staging/check-protected-rollback-workflow-lock.mjs
+          node scripts/staging/check-protected-rollback-workflow-lock.mjs

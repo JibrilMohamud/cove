@@ -5,12 +5,17 @@ on:
       - "wrangler.storefront-strangler.customer.jsonc"
       - "scripts/check-locked-customer-gateway-no-d1.mjs"
       - ".github/workflows/deploy-locked-fast-storefront-gateway.yml"
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/deploy-locked-fast-storefront-gateway.yml"
   workflow_dispatch:
-
+    inputs:
+      reviewed_main_sha:
+        description: "Exact reviewed main commit; changes fail closed."
+        required: true
+        type: string
+      confirm_protected_cloudflare_action:
+        description: "Authorize protected Cloudflare action; not automatic on merge."
+        required: true
+        type: boolean
+        default: false
 permissions:
   contents: read
 
@@ -31,8 +36,14 @@ jobs:
       - run: node scripts/check-locked-customer-gateway-no-d1.mjs
   deploy-off-by-default:
     needs: static-gateway-proof
-    if: github.ref == 'refs/heads/main' && github.repository == 'JibrilMohamud/cove'
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm_protected_cloudflare_action == true &&
+      inputs.reviewed_main_sha == github.sha
     runs-on: ubuntu-latest
+    environment: cove-production-release-audit
     timeout-minutes: 20
     env:
       CI: "1"
