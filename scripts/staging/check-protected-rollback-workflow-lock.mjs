@@ -7,7 +7,10 @@ export function assertProtectedRollbackWorkflow(yaml) {
   const events = yaml.match(/^on:\n([\s\S]*?)(?=^permissions:)/m)?.[1];
   assert.ok(events, "Missing explicit workflow event permissions boundary");
   assert.match(events, /^  workflow_dispatch:\s*$/m);
-  assert.doesNotMatch(events, /^  (?:push|pull_request|schedule|repository_dispatch|workflow_run):/m);
+  assert.doesNotMatch(
+    events,
+    /^  (?:push|pull_request|schedule|repository_dispatch|workflow_run):/m,
+  );
   assert.match(events, /^      reviewed_main_sha:\s*$/m);
   assert.match(events, /^        required: true\s*$/m);
   assert.match(events, /^      confirm_isolated_worker_rehearsal:\s*$/m);
@@ -22,17 +25,24 @@ export function assertProtectedRollbackWorkflow(yaml) {
     "github.ref == 'refs/heads/main'",
     "inputs.confirm_isolated_worker_rehearsal == true",
     "inputs.reviewed_main_sha == github.sha",
-  ]) assert.ok(gate.includes(condition), "Missing protected branch gate: " + condition);
+  ]) {
+    assert.ok(gate.includes(condition), "Missing protected branch gate: " + condition);
+  }
   assert.match(job, /^    environment: cove-production-release-audit\s*$/m);
   assert.match(job, /^    timeout-minutes: 15\s*$/m);
-  assert.ok(job.indexOf("environment: cove-production-release-audit") <
-    job.indexOf("CLOUDFLARE_API_TOKEN:"),
-  "Cloudflare credentials must only enter a protected environment job");
+  assert.ok(
+    job.indexOf("environment: cove-production-release-audit") <
+      job.indexOf("CLOUDFLARE_API_TOKEN:"),
+    "Cloudflare credentials must only enter a protected environment job",
+  );
   assert.match(job, /test "\$\(git rev-parse HEAD\)" = "\$\{\{ inputs.reviewed_main_sha \}\}"/);
   assert.match(job, /test "\$\{\{ github.ref \}\}" = "refs\/heads\/main"/);
   assert.match(job, /test "\$\{\{ inputs.confirm_isolated_worker_rehearsal \}\}" = "true"/);
   assert.match(yaml, /^permissions:\n  contents: read\s*$/m);
-  assert.match(yaml, /- name: Delete only run-specific isolated Worker and independently confirm absence/);
+  assert.match(
+    yaml,
+    /- name: Delete only run-specific isolated Worker and independently confirm absence/,
+  );
   assert.match(yaml, /if: always\(\)/);
   return true;
 }
@@ -51,4 +61,6 @@ for (const mutation of [
   assert.notEqual(changed, source, "Regression test mutation must alter source");
   assert.throws(() => assertProtectedRollbackWorkflow(changed));
 }
-console.log("PASS: protected rollback trigger requires main, reviewed SHA, approval and guarded isolated cleanup");
+console.log(
+  "PASS: protected rollback trigger requires main, reviewed SHA, approval and guarded isolated cleanup",
+);
