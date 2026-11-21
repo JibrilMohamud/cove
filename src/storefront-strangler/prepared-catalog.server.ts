@@ -118,6 +118,53 @@ export function validateCandidateSnapshot(
   return doc as CandidateSnapshot;
 }
 
+/**
+ * The existing territory index has BINARY collation. Never wrap its indexed
+ * column in UPPER() (that forces a broad grant scan). For a trusted two-letter
+ * ASCII country, these four spellings are EXACTLY the possible values whose
+ * SQLite UPPER() equals that country. This only gates a NECESSARY retail allow
+ * grant; legal denies, term windows, DRM and contracts remain enforced by
+ * the unchanged live retail_product_availability_rows view.
+ */
+export function indexedCountrySpellings(country: string): [string, string, string, string] {
+  if (!countryCode(country)) throw Error("Invalid candidate market.");
+  return [
+    country,
+    country[0] + country[1].toLowerCase(),
+    country[0].toLowerCase() + country[1],
+    country.toLowerCase(),
+  ];
+}
+
+/** A no-possible-grant market returns zero WITHOUT walking the 82k ranked
+ * catalog. This source runs only in the isolated candidate producer, not a
+ * public request and never as a rights/entitlement authority.
+ *
+ * The at-most-one-row materialized grant gate executes first. Any positive
+ * result still executes the ORIGINAL eligibility, suppression, availability,
+ * edition and rank predicates. No grant state or country denial is cached.
+ */
+export const producerRankedCandidateSql = `WITH possible_country_allow AS MATERIALIZED (
+  SELECT 1 allowed_candidate
+  FROM rights_grant_territories rgt INDEXED BY idx_rights_grant_territories_lookup
+  JOIN rights_grants rg ON rg.id=rgt.grant_id
+  WHERE rgt.territory_code IN (?,?,?,?)
+    AND rg.sales_channel='retail' AND rg.status='active' AND rg.decision='allow'
+  LIMIT 1
+)
+SELECT d.product_id
+FROM possible_country_allow gate
+CROSS JOIN catalog_search_documents d INDEXED BY idx_search_popular_stable
+JOIN products p ON p.id=d.product_id JOIN editions e ON e.id=p.edition_id
+WHERE d.currency=? AND d.availability='available' AND d.suppressed=0
+  AND p.storefront_status='active' AND p.source_name<>'upload'
+  AND e.release_status IN ('available','preorder')
+  AND EXISTS (
+    SELECT 1 FROM retail_product_availability_rows rpa
+    WHERE rpa.product_id=p.id AND rpa.territory_code=?
+  )
+ORDER BY d.fore_bestseller_score DESC,d.external_book_id ASC,d.product_id ASC LIMIT ?`;
+
 /** Producer side. Runs outside the critical request in a future isolated job.
  * It reads catalog order/market metadata, never rights or entitlement grants.
  */
@@ -151,19 +198,8 @@ export async function produceCandidateSnapshot(
   // Every served ID is reauthorized against current PRIMARY-D1 retail rights.
   // It avoids losing sparse-market books outside the globally ranked top 128.
   const result = await db
-    .prepare(
-      `SELECT d.product_id FROM catalog_search_documents d INDEXED BY idx_search_popular_stable
-       JOIN products p ON p.id=d.product_id JOIN editions e ON e.id=p.edition_id
-       WHERE d.currency=? AND d.availability='available' AND d.suppressed=0
-         AND p.storefront_status='active' AND p.source_name<>'upload'
-         AND e.release_status IN ('available','preorder')
-         AND EXISTS (
-           SELECT 1 FROM retail_product_availability_rows rpa
-           WHERE rpa.product_id=p.id AND rpa.territory_code=?
-         )
-       ORDER BY d.fore_bestseller_score DESC,d.external_book_id ASC,d.product_id ASC LIMIT ?`,
-    )
-    .bind(currency, country, MAX_CANDIDATES)
+    .prepare(producerRankedCandidateSql)
+    .bind(...indexedCountrySpellings(country), currency, country, MAX_CANDIDATES)
     .all<{ product_id: string }>();
   const snapshot: CandidateSnapshot = {
     schema: MODEL_VERSION,
