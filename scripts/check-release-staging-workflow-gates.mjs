@@ -53,8 +53,8 @@ for (const { file, names, protections } of requirements) {
     assert.match(data, /inputs\.confirm_real_catalog_readonly == true/);
     assert.match(data, /github\.event_name == 'workflow_dispatch'/);
   } else if (file === ".github/workflows/continuous-publication-qa.yml") {
-    // Publication QA may deploy isolated Workers; forbid merge-triggered
-    // broad Cloudflare credentials, but preserve protected manual QA.
+    // Publication QA deploys isolated Workers; require reviewed main,
+    // protected environment and explicit manual approval before credential use.
     assert.doesNotMatch(data, /\n  push:\n/, "QA Worker deployment must be manual-only");
     assert.match(data, /environment: cove-production-release-audit/);
     assert.match(data, /inputs\.confirm_protected_cloudflare_action == true/);
@@ -116,7 +116,12 @@ const realCatalog = readFileSync(
   "scripts/performance/strangler-real-catalog-acceptance.mjs",
   "utf8",
 );
-assert.ok(realCatalog.includes("const prodDbId ="));
+// Do not resurrect the old direct production-primary D1 binding merely to
+// satisfy a source regex. The protected preview must use an isolated snapshot.
+assert.ok(realCatalog.includes("requireIsolatedCatalogSnapshotTarget("));
+assert.ok(realCatalog.includes("requireNoPrimaryD1PreviewBinding(config, dbId)"));
+assert.ok(realCatalog.includes("requireMinimumRealCatalogSnapshot(fixture)"));
+assert.ok(!realCatalog.includes("4bd657ac-8789-403e-a28c-93aba8d0a989"));
 assert.ok(realCatalog.includes("verifyGeoEdgeIngress(origin, process.env.GITHUB_SHA)"));
 assert.ok(realCatalog.includes('config.vars.COVE_GEO_PROBE_ENABLED = "1"'));
 const geoWorker = readFileSync("src/storefront-strangler/worker.ts", "utf8");
