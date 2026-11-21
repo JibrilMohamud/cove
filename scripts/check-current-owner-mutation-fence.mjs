@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { DatabaseSync } from "node:sqlite";
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -258,6 +258,97 @@ try {
     "the actual owner mutation journal is already ahead of the mock primary",
   );
   assert.equal(primaryRow.owner_mutation_epoch, generation);
+  // Use the ACTUAL Durable Object's current owner epoch to drive a real
+  // atomic SQLite UPDATE..RETURNING. Only primary D1 transport is local.
+  // This staged fixture remains sealed/dirty, never a paid/read authority.
+  const negativeFile = path.join(temp, "negative-primary.mjs");
+  await build({
+    entryPoints: ["src/storefront-strangler/owner-primary-denial-publication.stage.ts"],
+    outfile: negativeFile,
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    logLevel: "silent",
+  });
+  const { advanceQaPrimaryDenialEpoch, QA_NEGATIVE_PRIMARY_CAS_SQL } = await import(
+    pathToFileURL(negativeFile)
+  );
+  const negativeDb = new DatabaseSync(":memory:");
+  databases.push(negativeDb);
+  negativeDb.exec(
+    readFileSync("scripts/staging/qa-owner-negative-primary-publication.prototype.sql", "utf8"),
+  );
+  let denyPrimaryWrites = false;
+  const negativePort = {
+    withSession(mode) {
+      assert.equal(mode, "first-primary");
+      return {
+        prepare(query) {
+          const stmt = negativeDb.prepare(query);
+          let bindings = [];
+          return {
+            bind(...values) {
+              bindings = values;
+              return this;
+            },
+            async first() {
+              if (query === QA_NEGATIVE_PRIMARY_CAS_SQL && denyPrimaryWrites)
+                throw Error("injected primary CAS outage");
+              return stmt.get(...bindings) || null;
+            },
+          };
+        },
+      };
+    },
+  };
+  const negativeContext = {
+    owner: f.owner,
+    primary: negativePort,
+    secret,
+    primaryId,
+    journalVersion: version,
+  };
+  const firstPublication = await advanceQaPrimaryDenialEpoch(negativeContext);
+  assert.equal(firstPublication.ownerFirst, true);
+  assert.equal(firstPublication.negativeOnly, true);
+  assert.equal(firstPublication.authorizing, false);
+  assert.equal(firstPublication.applied, true);
+  assert.equal(firstPublication.ownerEpoch, Number((await f.read()).mutationEpoch));
+  const published = negativeDb
+    .prepare(
+      "SELECT owner_mutation_epoch,dirty,pending_withdrawals,eligibility_valid_until_ms FROM cove_qa_owner_primary_publication_fence WHERE slot=1",
+    )
+    .get();
+  assert.equal(published.owner_mutation_epoch, firstPublication.ownerEpoch);
+  assert.equal(published.dirty, 1);
+  assert.equal(published.eligibility_valid_until_ms, 0);
+  assert.equal((await advanceQaPrimaryDenialEpoch(negativeContext)).applied, false);
+  // The real owner acknowledges a new withdrawal before D1 catches up.
+  const confirmedDeny = await f.post("/market/deny-next", {
+    territory: "GB",
+    operationId: "qa-primary-actual-owner-withdraw-1",
+  });
+  assert.equal(confirmedDeny.status, 200);
+  const deniedEpoch = Number((await f.read()).mutationEpoch);
+  assert.ok(deniedEpoch > firstPublication.ownerEpoch);
+  denyPrimaryWrites = true;
+  await assert.rejects(advanceQaPrimaryDenialEpoch(negativeContext), /injected primary CAS outage/);
+  assert.equal(
+    negativeDb
+      .prepare("SELECT owner_mutation_epoch FROM cove_qa_owner_primary_publication_fence")
+      .get().owner_mutation_epoch,
+    firstPublication.ownerEpoch,
+    "D1 outage cannot roll back the already acknowledged owner denial",
+  );
+  denyPrimaryWrites = false;
+  const recoveredPublication = await advanceQaPrimaryDenialEpoch(negativeContext);
+  assert.equal(recoveredPublication.ownerEpoch, deniedEpoch);
+  assert.equal(recoveredPublication.applied, true);
+  assert.equal(
+    negativeDb.prepare("SELECT dirty FROM cove_qa_owner_primary_publication_fence").get().dirty,
+    1,
+    "a recovered denial must never automatically reopen rights",
+  );
   assert.equal((await f.post(route, { challenge: "bad" })).status, 400);
   assert.equal((await f.post(route, { challenge, extra: true })).status, 400);
   assert.equal((await f.post(route, { challenge }, "d".repeat(64))).status, 401);
