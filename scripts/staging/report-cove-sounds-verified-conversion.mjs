@@ -77,9 +77,24 @@ function decodeReportingResponse(value, contentType) {
     "Cloudflare D1 rejected or malformed the reporting result");
   return value.result;
 }
+// The scheduled aggregate reporter must never inherit a broad deploy token.
+ // Cloudflare enforces D1 Read and Account Analytics Read independently.
+ // No URL chosen by a caller can select arbitrary credential scopes.
+function scopedReportingToken(path, contentType, variables = process.env) {
+  const d1Path = "accounts/" + account + "/d1/database/" + database + "/query";
+  const analyticsPath = "accounts/" + account + "/analytics_engine/sql";
+  const token = path === d1Path && contentType === "application/json"
+    ? variables.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN
+    : path === analyticsPath && contentType === "text/plain"
+      ? variables.COVE_CF_ANALYTICS_READ_TOKEN
+      : null;
+  assert.ok(typeof token === "string" && token.length >= 20,
+    "A matching dedicated scoped Cloudflare reporting credential is required");
+  return token;
+}
 async function cloudflare(path, { method = "GET", body, contentType = "application/json" } = {}) {
-  const token = process.env.CLOUDFLARE_API_TOKEN;
-  assert.ok(token && token.length >= 10, "Cloudflare read-only reporting token not configured");
+  assert.equal(method, "POST", "Reporting API must be a bounded POST read");
+  const token = scopedReportingToken(path, contentType);
   const response = await fetch("https://api.cloudflare.com/client/v4/" + path, {
     method,
     headers: { authorization: "Bearer " + token, "content-type": contentType },
@@ -105,6 +120,20 @@ if (process.argv.includes("--self-test")) {
     /rejected or malformed/);
   assert.throws(() => decodeReportingResponse({ data: [] }, "application/json"),
     /rejected or malformed/);
+  const scoped = {
+    COVE_CF_PRODUCTION_AUDIT_READ_TOKEN: "D".repeat(32),
+    COVE_CF_ANALYTICS_READ_TOKEN: "A".repeat(32),
+    CLOUDFLARE_API_TOKEN: "UNSAFE_BROAD_TOKEN".repeat(3),
+  };
+  const d1Path = "accounts/" + account + "/d1/database/" + database + "/query";
+  const analyticsPath = "accounts/" + account + "/analytics_engine/sql";
+  assert.equal(scopedReportingToken(d1Path, "application/json", scoped), scoped.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN);
+  assert.equal(scopedReportingToken(analyticsPath, "text/plain", scoped), scoped.COVE_CF_ANALYTICS_READ_TOKEN);
+  assert.throws(() => scopedReportingToken(d1Path, "text/plain", scoped));
+  assert.throws(() => scopedReportingToken(analyticsPath, "application/json", scoped));
+  assert.throws(() => scopedReportingToken("accounts/" + account + "/tokens", "application/json", scoped));
+  assert.throws(() => scopedReportingToken(d1Path, "application/json", { CLOUDFLARE_API_TOKEN: "W".repeat(32) }));
+  assert.throws(() => scopedReportingToken(analyticsPath, "text/plain", { CLOUDFLARE_API_TOKEN: "W".repeat(32) }));
   console.log("PASS: read-only aggregate SQL, station allowlist and paid-order reporting");
 } else {
   const since = new Date(Date.now() - 7 * 86400_000).toISOString();
