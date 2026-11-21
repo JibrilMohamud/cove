@@ -107,6 +107,20 @@ try {
           `
       export default { async fetch(request, env) {
         const db = canonicalReadonlyD1(env.READ);
+        if (new URL(request.url).pathname === "/stage-burst") {
+          const replies = await Promise.all(Array.from({ length: 24 }, (_, i) =>
+            env.READ_STAGE.fetch("https://stage.internal/__cove/stage/primary-read", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ batch: [{ sql: "SELECT ? AS value", params: [i] }] }),
+            })
+          ));
+          const bodies = await Promise.all(replies.map((reply) => reply.json().catch(() => null)));
+          return Response.json({
+            statuses: replies.map((reply) => reply.status),
+            values: bodies.map((body) => body?.result?.[0]?.results?.[0]?.value ?? null),
+          });
+        }
         try {
           const a = await db.prepare("SELECT ? AS value").bind(7).first("value");
           const b = await db.batch([db.prepare("SELECT ?").bind(9), db.prepare("SELECT 42")]);
@@ -132,7 +146,9 @@ try {
   };
   mf = new Miniflare(convertV4MiniflareOptions ? convertV4MiniflareOptions(options) : options);
   const client = await mf.getWorker("client");
+  console.log("STAGE_WORKER_INTEGRATION_START");
   const result = await (await client.fetch("https://test/")).json();
+  console.log("STAGE_WORKER_SINGLE_READ_COMPLETED");
   assert.equal(result.a, 7);
   assert.deepEqual(
     result.b.map((x) => x.results[0].value),
@@ -142,6 +158,18 @@ try {
   assert.equal(result.runDenied, true);
   assert.equal(result.stageValue, 77, "Stage service fetch must read authoritative D1");
   assert.equal(calls, 4, "Three RPC requests plus one private placed fetch");
+  // Multiple independent callers must receive their own primary result.
+  // Also exercise Worker request-context isolation, not only the pure helper.
+  const beforeBurst = calls;
+  console.log("STAGE_WORKER_BURST_BEGIN");
+  const stageBurst = await (await client.fetch("https://test/stage-burst")).json();
+  console.log("STAGE_WORKER_BURST_COMPLETED");
+  assert.deepEqual(stageBurst.statuses, Array(24).fill(200));
+  assert.deepEqual(
+    stageBurst.values,
+    Array.from({ length: 24 }, (_, i) => i),
+  );
+  assert.ok(calls > beforeBurst && calls <= beforeBurst + 24);
   mode = "replica";
   assert.equal(
     (await client.fetch("https://test/")).status,
