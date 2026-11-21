@@ -1,13 +1,17 @@
 name: verify-production-disabled-owner-handshake
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "scripts/prove-production-owner-handshake.mjs"
-      - "scripts/staging/strict-ephemeral-route-denial*.mjs"
-      - ".github/workflows/verify-production-disabled-owner-handshake.yml"
   workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        description: "Approve the exact main SHA before Cloudflare API access."
+        required: true
+        type: string
+      confirm_protected_cloudflare_action:
+        description: "Explicitly approve this Cloudflare action; never auto-run on source merge."
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -20,7 +24,14 @@ concurrency:
 
 jobs:
   verify-disabled-owner:
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm_protected_cloudflare_action == true &&
+      inputs.reviewed_main_sha == github.sha
     runs-on: ubuntu-latest
+    environment: cove-production-release-audit
     timeout-minutes: 15
     env:
       CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
