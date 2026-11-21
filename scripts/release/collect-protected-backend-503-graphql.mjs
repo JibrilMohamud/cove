@@ -157,12 +157,30 @@ export function summarizeD1QueryGroups(rows, window) {
       statement.includes("FROM eligible p JOIN edition_taxonomy_nodes et") &&
       statement.includes("COUNT(*) product_count") &&
       statement.includes("GROUP BY et.taxonomy_node_id");
+    // An observed 82,247-row primary-D1 Insights SELECT matches this exact
+    // *SQL shape*. It does NOT identify the Worker or job that submitted it.
+    // In particular, the staging producer has a different D1 binding and no
+    // active cron; do not misattribute a production query to that service.
+    // Normalize ONLY in memory; never emit statement, binds or a query hash.
+    const normalized = statement.replace(/\\s+/g, " ").trim().toLowerCase();
+    const rankedCandidateScan =
+      normalized.startsWith(
+        "select d.product_id from catalog_search_documents d indexed by idx_search_popular_stable ",
+      ) &&
+      normalized.includes("join products p on p.id=d.product_id join editions e on e.id=p.edition_id") &&
+      normalized.includes("from retail_product_availability_rows rpa") &&
+      normalized.includes("rpa.product_id=p.id and rpa.territory_code=?") &&
+      normalized.endsWith(
+        "order by d.fore_bestseller_score desc,d.external_book_id asc,d.product_id asc limit ?",
+      );
     const queryClass =
       commonTaxonomy && statement.includes("FROM retail_product_availability rpa")
         ? "taxonomy-count-distinct-view"
         : commonTaxonomy && statement.includes("FROM retail_product_availability_rows rpa")
           ? "taxonomy-count-legal-rows"
-          : "unclassified";
+          : rankedCandidateScan
+            ? "ranked-candidate-eligibility-scan"
+            : "unclassified";
     const executions = finiteNonnegative(group.count, "query executions");
     const rowsRead = finiteNonnegative(group.sum?.rowsRead, "query rowsRead");
     const rowsWritten = finiteNonnegative(group.sum?.rowsWritten, "query rowsWritten");
@@ -210,6 +228,7 @@ export function makeEvidence({ window, deployment, workerRows, d1Rows, d1QueryRo
       "D1 SQL time excludes queueing, dispatch, transport and client TTFB.",
       "Query-level insights use adaptive sampling; query totals need not equal D1 minute aggregates.",
       "The recorded query class is not raw SQL and is not an individual 503 attribution.",
+      "A ranked-candidate SQL shape does not identify its invoking Worker, scheduled job or credential.",
       "No customer 503 root cause or release acceptance is established by this report.",
     ],
   };
