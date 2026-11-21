@@ -157,17 +157,19 @@ export function summarizeD1QueryGroups(rows, window) {
       statement.includes("FROM eligible p JOIN edition_taxonomy_nodes et") &&
       statement.includes("COUNT(*) product_count") &&
       statement.includes("GROUP BY et.taxonomy_node_id");
-    // An observed 82,247-row primary-D1 Insights SELECT matches this exact
+    // An observed 82,247-row production-D1 Insights SELECT matches this exact
     // *SQL shape*. It does NOT identify the Worker or job that submitted it.
     // In particular, the staging producer has a different D1 binding and no
     // active cron; do not misattribute a production query to that service.
     // Normalize ONLY in memory; never emit statement, binds or a query hash.
-    const normalized = statement.replace(/\\s+/g, " ").trim().toLowerCase();
+    const normalized = statement.replace(/\s+/g, " ").trim().toLowerCase();
     const rankedCandidateScan =
       normalized.startsWith(
         "select d.product_id from catalog_search_documents d indexed by idx_search_popular_stable ",
       ) &&
-      normalized.includes("join products p on p.id=d.product_id join editions e on e.id=p.edition_id") &&
+      normalized.includes(
+        "join products p on p.id=d.product_id join editions e on e.id=p.edition_id",
+      ) &&
       normalized.includes("from retail_product_availability_rows rpa") &&
       normalized.includes("rpa.product_id=p.id and rpa.territory_code=?") &&
       normalized.endsWith(
