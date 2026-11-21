@@ -10,6 +10,7 @@ on:
       - "src/lib/primary-d1-overload.ts"
       - "scripts/check-isolated-http-metric.mjs"
       - "scripts/check-production-http-metric-wiring.mjs"
+      - "scripts/check-staging-isolated-ops-metrics.mjs"
       - ".github/workflows/deploy-persistence-backend.yml"
       - "scripts/check-primary-d1-overload-fail-closed.mjs"
       - "scripts/check-http-audit-write-failure-signal.mjs"
@@ -37,6 +38,9 @@ on:
       - "scripts/build-persistence-backend.mjs"
       - "scripts/check-persistence-backend.mjs"
       - "scripts/check-persistence-backend-failure.mjs"
+      - "scripts/check-persistence-worker-version-override-denial.mjs"
+      - "scripts/staging/check-real-fore-fault-marker.mjs"
+      - "scripts/staging/check-context-subphase-failclosed.mjs"
       - "scripts/check-hosted-biosync-chunks.mjs"
       - "scripts/check-catalog-fetch.mjs"
       - "scripts/check-auth.mjs"
@@ -92,6 +96,9 @@ on:
       - "scripts/build-persistence-backend.mjs"
       - "scripts/check-persistence-backend.mjs"
       - "scripts/check-persistence-backend-failure.mjs"
+      - "scripts/check-persistence-worker-version-override-denial.mjs"
+      - "scripts/staging/check-real-fore-fault-marker.mjs"
+      - "scripts/staging/check-context-subphase-failclosed.mjs"
       - "scripts/check-hosted-biosync-chunks.mjs"
       - "scripts/check-catalog-fetch.mjs"
       - "scripts/check-auth.mjs"
@@ -159,6 +166,13 @@ jobs:
         run: |
           node scripts/check-isolated-http-metric.mjs
           node scripts/check-production-http-metric-wiring.mjs
+          node scripts/check-staging-isolated-ops-metrics.mjs
+      - name: Inject synthetic D1 failures through actual FORE handler and classify 503s
+        run: node scripts/staging/check-real-fore-fault-marker.mjs
+      - name: Pin actual storefront resolver contextual D1 failure identity and privacy
+        run: node scripts/staging/check-context-subphase-failclosed.mjs
+      - name: Deny client-controlled Cloudflare Worker 0% override and affinity headers
+        run: node scripts/check-persistence-worker-version-override-denial.mjs
       - name: Persistence architecture
         run: npm run test:persistence-backend
       - name: Soundtrack library rights and delivery regressions

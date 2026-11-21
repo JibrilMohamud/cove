@@ -31,9 +31,10 @@ import {ownerContractVersionSchema} from "./owner-contract-version-schema";
 import {ApiError} from "../features/fore/service";
 import {createContractVersionOwnerSchema,executeOwnerContractVersion} from "./owner-contract-version-executor";
 import {createMarketAuthoritySchema,denyMarket,marketIsWithdrawn} from "./market-authority-core";
-import { authorizeStorefrontPresentationIds,catalogIds, type CatalogDB } from "../features/fore/catalog-model.server";
+import { authorizeStorefrontPresentationIds,catalogIds, type CatalogDB, type FirstPaintD1QueryMetrics } from "../features/fore/catalog-model.server";
 import { resolveProductRights,detectRightsConflicts } from "../features/fore/rights.server";
 import {canonicalCommercialLeaseUntil} from "./canonical-commercial-lease";
+import {readOwnerNativeFirstPaintQa} from "./owner-native-first-paint-qa";
 import {createPublicationMaterializationSchema,executePublicationMaterialization} from "./publication-materialization-command";
 import type {PublishingEnv,PublishingDB} from "../features/fore/publishing.server";
 import {executePublicationPreorder} from "./publication-preorder-command";
@@ -3960,6 +3961,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/deny-next","/commercial/deny-batch","/commercial/subject/deny-next","/commercial/publish-verified",
       "/commercial/authorize-batch",
       "/storefront/authorize-batch","/storefront/publish-commercial",
+      "/qa/native-first-paint","/qa/transport-owner-ping",
       "/market/deny-next",
       "/commercial/order/deny-next","/commercial/order/verify","/commercial/order/revoke",
       "/commercial/order/settle",
@@ -3997,7 +3999,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     let raw:unknown;
     try {
       const bytes=await request.text();
-      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/create-quote"?4096:route==="/commercial/checkout/materialize-draft"?2048:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
+      if(bytes.length>(route==="/publishing/contract/save-version"?32768:route==="/commercial/checkout/create-quote"?4096:route==="/commercial/checkout/materialize-draft"?2048:route==="/qa/native-first-paint"?5000:["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
       raw=JSON.parse(bytes);
     }catch {return new Response(null,{status:400,headers:noStore});}
     const sql=this.ctx.storage.sql as unknown as AuthoritySql;
@@ -5362,6 +5364,101 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       // Mixed free and contract-backed paid shelf. The entire authorization
       // happens under one strongly consistent SQLite owner, never primary D1.
       // Missing/unpublished rows are absent, not inferred from KV/R2.
+      // QA lease only, never exposed by the disabled production legal owner.
+      // Source-controlled native primary D1 SQL, followed by owner fences.
+      // No arbitrary SQL, cache, or competing native D1 reader binding.
+      if(route==="/qa/transport-owner-ping"){
+        // No native D1 query, entitlement lookup or external call. Still
+        // traverses the same private service binding and owner DO creation
+        // behind the expiring QA lease and independent owner bearer key.
+        const routeStarted=performance.now();
+        if(!raw||typeof raw!=="object"||Array.isArray(raw)||
+           Object.keys(raw).length!==0)
+          return new Response(null,{status:400,headers:noStore});
+        const elapsed=Math.max(0,performance.now()-routeStarted);
+        const headers=new Headers(noStore);
+        if(Number.isFinite(elapsed)&&elapsed<=12000)
+          headers.set("x-cove-qa-owner-route-ms",elapsed.toFixed(2));
+        return Response.json({schema:"cove.qa.transport-owner-ping.v1"},{headers});
+      }
+      if(route==="/qa/native-first-paint"){
+        // Only a short-lived QA lease can reach this private branch. Report
+        // bounded enum diagnostics so Worker exceptions remain non-sensitive.
+        let qaPhase="start";
+        try {
+        // QA-only numeric phase timings: no identifiers, SQL text, secrets,
+        // query parameters or user data. This does not run in disabled prod.
+        const qaStarted=performance.now();
+        let qaMarketMs:number|undefined,qaSelectMs:number|undefined,
+          qaProviderSqlMs:number|undefined;
+        const safeMs=(ms:number|undefined)=>
+          typeof ms==="number"&&Number.isFinite(ms)&&ms>=0&&ms<=12000
+            ?Math.round(ms*100)/100:null;
+        const evidence=await readOwnerNativeFirstPaintQa(raw,{
+          readPrimary:async (ids,territory,currency)=>{
+            // Reuse the SINGLE QA legal-owner native binding. Primary
+            // sessions avoid any replica/lagged-market authorization path.
+            qaPhase="session";
+            const primary=env.PRIMARY_DB as CatalogDB&{
+              withSession?: (constraint:string)=>CatalogDB
+            };
+            if(typeof primary.withSession!=="function")
+              throw Error("qa_native_primary_session_unavailable");
+            const db=primary.withSession("first-primary");
+            qaPhase="market";
+            const marketStarted=performance.now();
+            const market=await db.prepare(
+              "SELECT country_code FROM storefront_markets WHERE country_code=? AND market_status='active' AND default_currency=? LIMIT 1"
+            ).bind(territory,currency).first<{country_code:string}>();
+            qaMarketMs=performance.now()-marketStarted;
+            const measurements:FirstPaintD1QueryMetrics={};
+            qaPhase="catalog";
+            const selectStarted=performance.now();
+            const rows=await authorizeStorefrontPresentationIds(
+              db,ids,territory,currency,measurements
+            );
+            qaSelectMs=performance.now()-selectStarted;
+            qaProviderSqlMs=measurements.sqlDurationMs;
+            return {rows,servedByPrimary:measurements.servedByPrimary===true,
+              activeMarket:market?.country_code===territory};
+          },
+          readOwner:(ids,territory,currency)=>{
+            qaPhase="owner";
+            const free=ids.filter(id=>id.startsWith("prd_gutenberg_"));
+            const paid=ids.filter(id=>!id.startsWith("prd_gutenberg_"));
+            return [
+              ...readAuthorizedPresentations(sql,free,territory,currency),
+              ...readCommercialStorefront(sql,paid,territory,currency)
+            ];
+          },
+          marketWithdrawn:territory=>marketIsWithdrawn(sql,territory)
+        });
+        return Response.json({...evidence,diagnostics:{
+          marketReadMs:safeMs(qaMarketMs),
+          canonicalSelectMs:safeMs(qaSelectMs),
+          providerSqlMs:safeMs(qaProviderSqlMs),
+          ownerTotalMs:safeMs(performance.now()-qaStarted)
+        }},{headers:noStore});
+        } catch(error) {
+          // Never expose a provider error, SQL text, identity or raw message.
+          const known=new Set([
+            "native_qa_primary_unverified",
+            "native_qa_owner_primary_disagree",
+            "native_qa_market_withdrawn",
+            "native_qa_invalid_offer",
+            "native_qa_malformed_authority_row",
+            "native_qa_duplicate_primary",
+            "native_qa_duplicate_owner",
+            "qa_native_primary_session_unavailable"
+          ]);
+          const reason=error instanceof Error&&known.has(error.message)
+            ?error.message:"internal";
+          const headers=new Headers(noStore);
+          headers.set("x-cove-qa-native-failure",reason);
+          headers.set("x-cove-qa-native-phase",qaPhase);
+          return new Response(null,{status:503,headers});
+        }
+      }
       if(route==="/storefront/authorize-batch"){
         const input=raw as {ids?:unknown;territory?:unknown;currency?:unknown};
         if(!input||!Array.isArray(input.ids)||input.ids.length>128||

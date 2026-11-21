@@ -9,6 +9,7 @@ import {
 import { saveTasteControls, loadTasteControls } from "./discovery-intelligence.server";
 import { validateStoredEpub } from "./stored-epub.server";
 import { createAuth, resolvedIdentity } from "./auth.server";
+import { settleErrorTelemetry } from "./failclosed-error-telemetry";
 import { handleLegalContact } from "./legal.server";
 import { mirrorUrl } from "./gutenberg-source";
 import { hasEpubDownloadWindow, mixEpubFrontier, planEpubRetry } from "./epub-retry-policy";
@@ -2955,6 +2956,7 @@ export async function handleCoveApi(
     response,
     actorKind,
     Date.now() - trace.startedMs,
+    timings,
   );
   if (isSoundsAnalyticsAck(tracedRequest, response)) {
     // Aggregate-only music interaction. No per-click primary-D1 log writes.
@@ -2993,6 +2995,19 @@ async function handleCoveRequest(
   const url = new URL(request.url);
   if (!url.pathname.startsWith("/api/fore/")) return null;
   const path = url.pathname.slice("/api/fore".length);
+  // Fixed, request-local numeric markers only. Never serialize the error,
+  // request identity, SQL, headers or input into diagnostics.
+  async function observedPreContext<T>(
+    name: "legal" | "auth" | "identity",
+    run: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await run();
+    } catch (error) {
+      timings[`fault_pre_${name}`] = 1;
+      throw error;
+    }
+  }
   try {
     if (request.method === "GET" && path === "/service-status")
       return json(await publicServiceStatus(env));
@@ -3099,18 +3114,27 @@ async function handleCoveRequest(
       const publicResponse = await handleVercelPublicRequest(request, env, path);
       if (publicResponse) return publicResponse;
     }
-    const legalResponse = await handleLegalContact(request, env, path);
+    const legalResponse = await observedPreContext("legal", () =>
+      handleLegalContact(request, env, path),
+    );
     if (legalResponse) return legalResponse;
-    const authResponse = await auth.handle(path);
+    const authResponse = await observedPreContext("auth", () => auth.handle(path));
     if (authResponse) return authResponse;
     const identityStarted = performance.now();
-    await auth.identify();
+    await observedPreContext("identity", () => auth.identify());
     timings.identity = performance.now() - identityStarted;
     // Account bootstrap already enforces its own identity and entitlement
     // boundaries. It never consumes merchandising, locale or payment settings;
     // do not serialize those D1 lookups ahead of every reader's account state.
     if (request.method === "GET" && path === "/account") return json(await account(env, request));
-    const machineDb = database(env);
+    const machineDb = (() => {
+      try {
+        return database(env);
+      } catch (error) {
+        timings.fault_pre_database = 1;
+        throw error;
+      }
+    })();
     if (path.startsWith("/machine/v1/")) {
       if (request.method !== "POST") throw new ApiError(405, "Machine endpoints require POST.");
       if (path === "/machine/v1/ops/check") {
@@ -3226,10 +3250,18 @@ async function handleCoveRequest(
         : machineDb;
     const homepageProjection: { rows: Record<string, unknown>[] | null } = { rows: null };
     const phases: Record<string, number> = {};
-    async function timed<T>(name: string, promise: Promise<T>): Promise<T> {
+    // Only these five reviewed first-paint phases may emit a failure marker.
+    // Never put the rejection, SQL, request identity, or arbitrary phase names
+    // into Server-Timing. Promise.all can have more than one rejected task;
+    // each completed rejection retains its own fixed numeric marker.
+    type FirstPaintPhase = "context" | "catalog" | "markets" | "limit" | "page";
+    async function timed<T>(name: FirstPaintPhase, promise: Promise<T>): Promise<T> {
       const started = performance.now();
       try {
         return await promise;
+      } catch (error) {
+        timings[`fault_${name}`] = 1;
+        throw error;
       } finally {
         phases[name] = performance.now() - started;
       }
@@ -3273,6 +3305,11 @@ async function handleCoveRequest(
           anonymousFirstPaint,
           (rows) => {
             homepageProjection.rows = rows;
+          },
+          // Fixed numeric markers only: no SQL, user/market identifiers,
+          // cookies, exceptions, or response bodies ever enter Server-Timing.
+          (stage) => {
+            timings[`fault_context_${stage}`] = 1;
           },
         ),
       ),
@@ -6286,9 +6323,21 @@ async function handleCoveRequest(
     return json({ error: "This action was not found." }, 404);
   } catch (e) {
     if (!(e instanceof ApiError) && !(e instanceof z.ZodError)) {
-      if (env.DB)
-        await recordErrorEvent(env.DB as any, undefined, request, e, { method: request.method });
-      await reportExternalError(env, request, e);
+      // Incident-safe: this telemetry is not an authorization or fulfillment
+      // journal. A failed or backlogged primary-D1 error write must not delay
+      // or replace the original fail-closed 503 response.
+      await settleErrorTelemetry(
+        [
+          () =>
+            env.DB
+              ? recordErrorEvent(env.DB as any, undefined, request, e, {
+                  method: request.method,
+                })
+              : undefined,
+          () => reportExternalError(env, request, e),
+        ],
+        execution,
+      );
     }
     if (e instanceof ApiError) return json({ error: e.message }, e.status);
     if (e instanceof z.ZodError)
@@ -6296,11 +6345,9 @@ async function handleCoveRequest(
         { error: "Some information is missing or invalid. Please check your entry." },
         400,
       );
-    console.error(
-      "Cove service error",
-      e instanceof Error ? e.message : "Unknown",
-      (e as any)?.cause?.code || "",
-    );
+    // Private exception messages and cause fields may contain identities or
+    // secrets. Keep the public path and Workers Logs free of raw exceptions.
+    console.error("Cove service error; request failed closed");
     return json(
       {
         error:

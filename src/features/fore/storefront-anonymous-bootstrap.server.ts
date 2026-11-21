@@ -180,6 +180,20 @@ export async function serveLeanAnonymousBootstrap(
   // Keep measured actual primary SQL duration, rows read and retries separate
   // from the full D1 service/network request duration.
   if (d1Metrics.sqlDurationMs !== undefined) timings.catalog_sql = d1Metrics.sqlDurationMs;
+  // These are request-local numbers from the verified staging read-only RPC.
+  // Never expose them on the live customer-facing bootstrap.
+  if (env.COVE_SSR_STAGING === "1") {
+    const diagnostics = {
+      catalog_rpc: d1Metrics.canonicalRpcMs,
+      catalog_rest_headers: d1Metrics.canonicalRestHeadersMs,
+      catalog_rest_body: d1Metrics.canonicalRestBodyMs,
+      catalog_rest_decode: d1Metrics.canonicalRestDecodeMs,
+    };
+    for (const [key, ms] of Object.entries(diagnostics)) {
+      if (typeof ms === "number" && Number.isFinite(ms) && ms >= 0 && ms <= 12_000)
+        timings[key] = ms;
+    }
+  }
   if (d1Metrics.publicDisplay) timings[`catalog_display_${d1Metrics.publicDisplay}`] = 0;
 
   timings.bootstrap = performance.now() - started;

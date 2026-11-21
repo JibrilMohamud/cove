@@ -1,0 +1,28 @@
+name: cove-audit-negative-writer-closure-offline
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/release/check-protected-production-rights-spot.mjs
+      - scripts/release/protected-rights-witness-policy.test.mjs
+      - .github/workflows/cove-audit-negative-writer-closure-offline.yml
+permissions:
+  contents: read
+jobs:
+  negative-fixtures-and-unchanged-writer-baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: node scripts/release/check-protected-production-rights-spot.mjs --self-test
+      - run: node --test scripts/release/protected-rights-witness-policy.test.mjs
+      - run: node scripts/test-canonical-writer-closure.mjs
+      - run: node scripts/check-canonical-writer-closure.mjs --no-new-writers
+      - run: git diff --check

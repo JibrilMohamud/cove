@@ -58,11 +58,16 @@ jobs:
           import assert from "node:assert/strict";
           import fs from "node:fs";
           const raw = fs.readFileSync(".github/workflows/deploy-persistence-backend.yml", "utf8");
-          const push = raw.split("  push:")[1]?.split("  workflow_dispatch:")[0] || "";
-          assert.ok(push.includes("src/persistence-backend.worker.ts"));
-          assert.ok(!push.includes('"package-lock.json"'));
-          assert.ok(!push.includes('".github/workflows/deploy-persistence-backend.yml"'));
-          console.log("PASS: dependency-only main merge cannot auto-deploy persistence.");
+          // Release freeze: ANY automatic persistence deployment is forbidden.
+          // A previous guard expected a narrowed push trigger, which was
+          // deliberately removed when production became manual-only.
+          assert.doesNotMatch(raw, /^  push:/m);
+          assert.doesNotMatch(raw, /^  pull_request:/m);
+          assert.match(raw, /^  workflow_dispatch:/m);
+          assert.match(raw, /inputs\.confirm_production_deploy == true/);
+          assert.match(raw, /inputs\.reviewed_main_sha == github\.sha/);
+          assert.match(raw, /environment: cove-production-release-audit/);
+          console.log("PASS: production persistence is manual-only with exact-SHA approval.");
           NODE
       - name: Install Chromium for progressive interaction QA
         run: npx playwright install --with-deps chromium

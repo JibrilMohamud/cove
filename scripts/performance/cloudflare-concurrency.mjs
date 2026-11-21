@@ -1,4 +1,13 @@
 import assert from "node:assert/strict";
+import {
+  compactCanonicalPhaseTiming,
+  PROTECTED_EDGE_CONTROLS,
+  WAVE_COUNTS,
+} from "./verify-canonical-phase-evidence.mjs";
+import {
+  CANONICAL_STAGE_THRESHOLDS,
+  canonicalStageP95Limit,
+} from "./canonical-stage-thresholds.mjs";
 import { capacityHtmlFailureKind } from "./strict-capacity-response-diagnostics.mjs";
 import fs from "node:fs";
 import { performance } from "node:perf_hooks";
@@ -12,26 +21,41 @@ import {
   validateHtml,
 } from "../check-production-storefront-performance.mjs";
 
-// Synthetic, read-only authenticated staging probe; NOT a production load test.
-// The total is capped at 60 requests to respect the Worker edge rate limiter.
-// No client IP, hostname, URL, book contents, headers or bearer key are logged.
-const waves = Object.freeze([
+// Protected phase staging must cover the full 1/4/8/16/32 release matrix.
+// Unrelated staging/canary workflows retain the existing 60-request cap and
+// 8/16 control waves. Never add a 32-wave to a customer or shared canary.
+// The protected run sends 92 licensed GETs and 40 unauthenticated 401 controls;
+// its remaining per-colo budget stays below the staging 180/60s rate cap.
+const pairedPhaseControls = process.env.COVE_CANONICAL_PHASE_STAGE_ONLY === "1";
+const legacyWaves = Object.freeze([
   { concurrency: 1, requests: 8 },
   { concurrency: 4, requests: 12 },
   { concurrency: 8, requests: 16 },
   { concurrency: 16, requests: 24 },
 ]);
+const waves = pairedPhaseControls
+  ? Object.entries(WAVE_COUNTS).map(([concurrency, requests]) => ({
+      concurrency: Number(concurrency),
+      requests,
+    }))
+  : legacyWaves;
 const total = waves.reduce((sum, wave) => sum + wave.requests, 0);
-assert.equal(total, 60, "Keep the concurrency probe below the per-colo read cap");
+assert.equal(total, pairedPhaseControls ? 92 : 60, "Unexpected protected capacity sample count");
+assert.ok(
+  total + (pairedPhaseControls ? PROTECTED_EDGE_CONTROLS : 32) < 180,
+  "Never exceed stage's per-colo request rate limiter",
+);
 const origin = productionOrigin(process.env.COVE_SSR_STAGING_ORIGIN);
 const token = process.env.COVE_SSR_STAGING_GATE_KEY;
 assert.match(token || "", /^[a-f0-9]{64}$/, "Only protected staging may be load-tested");
 assert.ok(
-  origin === "https://cove-storefront-ssr-staging.cove-jibrilmohamud.workers.dev" ||
-    origin === "https://ssr-canary.covereads.com",
-  "Only exact protected staging Worker or verified owned SSR canary may be load tested",
+  pairedPhaseControls
+    ? origin === "https://cove-storefront-phase-staging.cove-jibrilmohamud.workers.dev"
+    : origin === "https://cove-storefront-ssr-staging.cove-jibrilmohamud.workers.dev" ||
+        origin === "https://ssr-canary.covereads.com",
+  "Expanded 32-wave requires exact protected phase Worker; shared/customer origins denied",
 );
-const thresholds = { maxTtfbMs: 800, p95TtfbMs: 650 };
+const thresholds = CANONICAL_STAGE_THRESHOLDS;
 
 // The Node runner itself can queue sockets under 16 in-flight requests.
 // Measure this *per request* so an 800ms failure is never falsely attributed
@@ -132,7 +156,10 @@ async function fetchOne(concurrency) {
       totalMs,
       cfColo,
       cfRay,
-      timing: timing.timing,
+      timing:
+        process.env.COVE_CANONICAL_PHASE_STAGE_ONLY === "1"
+          ? compactCanonicalPhaseTiming(response.headers.get("server-timing"))
+          : timing.timing,
       workerMs,
       clientQueueMs,
       sentToHeadersMs,
@@ -177,9 +204,22 @@ async function runWave({ concurrency, requests }) {
   return rows.sort((a, b) => a.sequence - b.sequence);
 }
 
+// The strict protected phase comparison pairs each REAL licensed cohort
+// with an immediately following 401 edge control at the same concurrency.
+// These never count as authorized reads, or prewarm the first cold trial.
+// Other staging workflows retain their historical 8/16 controls unchanged.
+const controlWaves = pairedPhaseControls
+  ? waves.map(({ concurrency }) => ({ concurrency, requests: 8 }))
+  : [
+      { concurrency: 8, requests: 16 },
+      { concurrency: 16, requests: 16 },
+    ];
+const deniedControls = [];
 for (const wave of waves) {
   const rows = await runWave(wave);
   results.push(...rows);
+  if (pairedPhaseControls)
+    deniedControls.push(...(await runDeniedControlWave(wave.concurrency, 8)));
 }
 const summaries = waves.map(({ concurrency, requests }) => {
   const subset = results.filter((r) => r.concurrency === concurrency);
@@ -204,23 +244,26 @@ const summaries = waves.map(({ concurrency, requests }) => {
       maxMs < thresholds.maxTtfbMs &&
       p95Ms !== null &&
       // Higher load may increase p95 but may never breach the hard 800ms gate.
-      p95Ms <= (concurrency <= 8 ? thresholds.p95TtfbMs : thresholds.maxTtfbMs),
+      p95Ms <= canonicalStageP95Limit(concurrency),
   };
 });
 // Run *after* licensed tests to avoid prewarming the truly cold SSR trials.
 // A missing staging bearer must terminate at the route authorization gate
 // before D1, server entry, catalog, rights or SSR rendering is invoked.
-// These 32 bounded responses provide a same-runner/colo edge dispatch
+// These bounded responses provide a same-runner/colo edge dispatch
 // baseline; they are NOT counted as successful licensed homepage requests.
 async function deniedControl(concurrency) {
   const begin = performance.now();
+  const span = {};
   try {
-    const response = await fetch(origin + "/", {
-      method: "GET",
-      redirect: "manual",
-      headers: { Accept: "text/html", "Cache-Control": "no-store" },
-      signal: AbortSignal.timeout(15000),
-    });
+    const response = await probeContext.run(span, () =>
+      fetch(origin + "/", {
+        method: "GET",
+        redirect: "manual",
+        headers: { Accept: "text/html", "Cache-Control": "no-store" },
+        signal: AbortSignal.timeout(15000),
+      }),
+    );
     const ttfbMs = Math.round(performance.now() - begin);
     await response.text();
     return {
@@ -228,6 +271,8 @@ async function deniedControl(concurrency) {
       ttfbMs,
       status: response.status,
       colo: (response.headers.get("cf-ray") || "").match(/-([A-Z]{3})$/)?.[1] || "unknown",
+      clientQueueMs: elapsed(span.sentAt, span.createdAt),
+      sentToHeadersMs: elapsed(span.headersAt, span.sentAt),
       denied:
         response.status === 401 && /no-store/.test(response.headers.get("cache-control") || ""),
     };
@@ -237,25 +282,29 @@ async function deniedControl(concurrency) {
       ttfbMs: Math.round(performance.now() - begin),
       status: 0,
       colo: "unknown",
+      clientQueueMs: elapsed(span.sentAt, span.createdAt),
+      sentToHeadersMs: elapsed(span.headersAt, span.sentAt),
       denied: false,
     };
   }
 }
-const controlWaves = [
-  { concurrency: 8, requests: 16 },
-  { concurrency: 16, requests: 16 },
-];
-const deniedControls = [];
-for (const { concurrency, requests } of controlWaves) {
+async function runDeniedControlWave(concurrency, requests) {
+  const rows = [];
   let next = 0;
   await Promise.all(
-    Array.from({ length: concurrency }, async () => {
+    Array.from({ length: Math.min(concurrency, requests) }, async () => {
       while (next < requests) {
         next += 1;
-        deniedControls.push(await deniedControl(concurrency));
+        rows.push(await deniedControl(concurrency));
       }
     }),
   );
+  return rows;
+}
+if (!pairedPhaseControls) {
+  for (const { concurrency, requests } of controlWaves) {
+    deniedControls.push(...(await runDeniedControlWave(concurrency, requests)));
+  }
 }
 const controlSummaries = controlWaves.map(({ concurrency, requests }) => {
   const rows = deniedControls.filter((x) => x.concurrency === concurrency);
@@ -270,7 +319,10 @@ const controlSummaries = controlWaves.map(({ concurrency, requests }) => {
     colo: [...new Set(rows.map((x) => x.colo))].sort(),
   };
 });
-const controlsSecure = deniedControls.length === 32 && deniedControls.every((x) => x.denied);
+const controlsSecure =
+  deniedControls.length === (pairedPhaseControls ? PROTECTED_EDGE_CONTROLS : 32) &&
+  deniedControls.every((x) => x.denied) &&
+  controlSummaries.every((s) => s.requests === s.denied401);
 const passed = summaries.every((s) => s.pass) && controlsSecure;
 const artifact = {
   status: passed ? "pass" : "fail",
@@ -280,6 +332,8 @@ const artifact = {
   elapsedMs: Math.round(performance.now() - started),
   summaries,
   results,
+  // Statically reviewed cohort-by-cohort 401 checks, not cold prewarm or rights grants.
+  pairedPhaseControls,
   // Metadata only: no request addresses, credentials or response bodies.
   deniedControls,
   controlSummaries,
@@ -305,14 +359,16 @@ const report = [
   "",
   `Result **${passed ? "pass" : "fail"}** — ${total} bounded requests, no allowed 5xx/429/invalid rights.`,
   "",
-  "Same-runner anonymous edge control (authorization must fail closed with HTTP 401; no D1 work):",
+  pairedPhaseControls
+    ? "Immediately paired same-runner 401 edge controls after each licensed concurrency cohort (no D1 work):"
+    : "Same-runner anonymous edge control (authorization must fail closed with HTTP 401; no D1 work):",
   "| In-flight | Requests | Secure denials | p50 | p95 | Max | CF colos |",
   "| ---: | ---: | ---: | ---: | ---: | ---: | --- |",
   ...controlSummaries.map(
     (s) =>
       `| ${s.concurrency} | ${s.requests} | ${s.denied401} | ${s.p50Ms} ms | ${s.p95Ms} ms | ${s.maxMs} ms | ${s.colo.join(",")} |`,
   ),
-  `Edge control protection **${controlsSecure ? "pass" : "FAIL"}** — no authorization bypass; not included in 60 licensed samples.`,
+  `Edge control protection **${controlsSecure ? "pass" : "FAIL"}** — no authorization bypass; excluded from ${total} licensed samples.`,
   "",
   "Failed licensed samples (numeric HTTP status and bounded failure category only; no headers, response bodies or credentials):",
   ...results

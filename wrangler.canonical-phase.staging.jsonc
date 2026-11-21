@@ -1,0 +1,16 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "cove-canonical-phase-readonly-staging",
+  "main": "infra/canonical-readonly/worker.ts",
+  "compatibility_date": "2026-10-17",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [],
+  "placement": { "mode": "smart" },
+  "vars": {
+    "COVE_STAGE_READ_PHASE_DIAGNOSTICS": "1"
+  },
+  "observability": {
+    "enabled": false
+  }
+}

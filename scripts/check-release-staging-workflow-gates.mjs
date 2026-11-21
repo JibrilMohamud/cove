@@ -44,7 +44,34 @@ const requirements = [
 ];
 for (const { file, names, protections } of requirements) {
   const data = readFileSync(file, "utf8");
-  assert.match(data, /push:\n    branches: \[main\]/, file + " needs reviewed-main trigger");
+  if (file === ".github/workflows/fast-storefront-real-catalog-acceptance.yml") {
+    // Source merges cannot launch primary-D1-backed QA with privileged tokens.
+    // This campaign needs environment approval and an exact approved main SHA.
+    assert.doesNotMatch(data, /\n  push:\n/, file + " must be manual-only");
+    assert.match(data, /environment: cove-production-release-audit/);
+    assert.match(data, /inputs\.reviewed_main_sha == github\.sha/);
+    assert.match(data, /inputs\.confirm_real_catalog_readonly == true/);
+    assert.match(data, /github\.event_name == 'workflow_dispatch'/);
+  } else if (file === ".github/workflows/continuous-publication-qa.yml") {
+    // Publication QA deploys isolated Workers; require reviewed main,
+    // protected environment and explicit manual approval before credential use.
+    assert.doesNotMatch(data, /\n  push:\n/, "QA Worker deployment must be manual-only");
+    assert.match(data, /environment: cove-production-release-audit/);
+    assert.match(data, /inputs\.confirm_protected_cloudflare_action == true/);
+    assert.match(data, /inputs\.reviewed_main_sha == github\.sha/);
+    assert.match(data, /github\.event_name == 'workflow_dispatch'/);
+  } else if (file === ".github/workflows/cove-commerce-private-qa-deploy.yml") {
+    assert.doesNotMatch(data, /\n  push:\n/, file + " must not run QA D1 migrations on merge");
+    assert.equal((data.match(/environment: cove-production-release-audit/g) || []).length, 2);
+    assert.equal((data.match(/inputs\.reviewed_main_sha == github\.sha/g) || []).length, 2);
+    assert.equal(
+      (data.match(/inputs\.confirm_protected_cloudflare_action == true/g) || []).length,
+      2,
+    );
+    assert.equal((data.match(/github\.event_name == 'workflow_dispatch'/g) || []).length, 2);
+  } else {
+    assert.match(data, /push:\n    branches: \[main\]/, file + " needs reviewed-main trigger");
+  }
   assert.match(data, /workflow_dispatch:/, file + " needs explicit rerun option");
   assert.match(data, /github.ref == 'refs\/heads\/main'/, file + " must be main-only");
   assert.ok(
@@ -89,7 +116,12 @@ const realCatalog = readFileSync(
   "scripts/performance/strangler-real-catalog-acceptance.mjs",
   "utf8",
 );
-assert.ok(realCatalog.includes("const prodDbId ="));
+// Do not resurrect the old direct production-primary D1 binding merely to
+// satisfy a source regex. The protected preview must use an isolated snapshot.
+assert.ok(realCatalog.includes("requireIsolatedCatalogSnapshotTarget("));
+assert.ok(realCatalog.includes("requireNoPrimaryD1PreviewBinding(config, dbId)"));
+assert.ok(realCatalog.includes("requireMinimumRealCatalogSnapshot(fixture)"));
+assert.ok(!realCatalog.includes("4bd657ac-8789-403e-a28c-93aba8d0a989"));
 assert.ok(realCatalog.includes("verifyGeoEdgeIngress(origin, process.env.GITHUB_SHA)"));
 assert.ok(realCatalog.includes('config.vars.COVE_GEO_PROBE_ENABLED = "1"'));
 const geoWorker = readFileSync("src/storefront-strangler/worker.ts", "utf8");

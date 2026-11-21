@@ -34,24 +34,17 @@ on:
       - "scripts/check-cloudflare-production-candidate.mjs"
       - "scripts/check-cloudflare-ssr-stage-gate.mjs"
       - ".github/workflows/covereads-secure-ssr-gateway.yml"
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/covereads-secure-ssr-gateway.yml"
-      - "scripts/performance/check-owned-ssr-capacity.mjs"
-      - "scripts/performance/check-owned-ssr-capacity.test.mjs"
-      - "scripts/performance/prepare-owned-cold-trial.mjs"
-      - "scripts/check-covereads-owned-canary-live.mjs"
-      - "src/cloudflare/staging-auth-gateway.mjs"
-      - "src/server.ts"
-      - "src/lib/persistence-backend.ts"
-      - "src/features/fore/storefront-*.ts"
-      - "src/features/fore/localization.server.ts"
-      - "src/features/fore/search.server.ts"
-      - "src/features/fore/catalog-model.server.ts"
-      - "src/features/fore/Store.tsx"
-      - "src/storefront-strangler/failure.ts"
   workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        description: "Exact approved main SHA for this protected staging run."
+        required: true
+        type: string
+      confirm_isolated_stage_only:
+        description: "Run only the isolated staging load; never change customer traffic or primary D1."
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -97,11 +90,17 @@ jobs:
 
   isolated-asset-auth:
     needs: source-fail-closed
-    if: github.event_name != 'pull_request'
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm_isolated_stage_only == true &&
+      inputs.reviewed_main_sha == github.sha
     concurrency:
       group: cove-exclusive-real-primary-cold-acceptance
       queue: max
       cancel-in-progress: false
+    environment: cove-production-release-audit
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -115,6 +114,14 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
+      - name: Require exact reviewed main SHA before stage credentials or build
+        env:
+          EXPECTED_SHA: ${{ inputs.reviewed_main_sha }}
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test "$DISPATCH_SHA" = "$EXPECTED_SHA"
       - uses: actions/setup-node@v6
         with:
           node-version: "22"

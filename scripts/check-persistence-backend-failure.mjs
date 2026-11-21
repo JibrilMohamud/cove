@@ -4,9 +4,8 @@ import { transform } from "esbuild";
 
 const source = fs.readFileSync("src/lib/persistence-backend-failure.ts", "utf8");
 const { code } = await transform(source, { loader: "ts", format: "esm" });
-const { backendFailureSource, backendFailurePhase, backendFailureCategory } = await import(
-  "data:text/javascript;base64," + Buffer.from(code).toString("base64")
-);
+const { backendFailureSource, backendFailurePhase, backendFailureStage, backendFailureCategory } =
+  await import("data:text/javascript;base64," + Buffer.from(code).toString("base64"));
 
 function classify(headers) {
   return backendFailureSource(new Headers(headers));
@@ -65,6 +64,163 @@ assert.equal(
   backendFailurePhase(new Headers({ "server-timing": "cove_context;dur=4" })),
   "untraced",
 );
+// The upstream Worker emits only fixed, numeric, phase-specific failure flags.
+// On concurrent promise rejection, both phases can report failed; do not
+// guess which one was first. Reject foreign provenance and forged values.
+const flagged = (timing, extra = {}) =>
+  new Headers({ ...apiHeaders, ...extra, "server-timing": timing });
+assert.equal(
+  backendFailureStage(flagged("cove_fault_context;dur=1.0, cove_api;dur=34")),
+  "context",
+);
+assert.equal(
+  backendFailureStage(flagged("cove_fault_catalog;dur=1.0, cove_api;dur=34")),
+  "catalog",
+);
+for (const stage of ["legal", "auth", "identity", "database"]) {
+  assert.equal(
+    backendFailureStage(
+      flagged(`cove_auth;dur=3, cove_fault_pre_${stage};dur=1.0, cove_api;dur=34`),
+    ),
+    `pre-${stage}`,
+    "Only the four reviewed pre-context failures may be classified",
+  );
+}
+for (const invalid of [
+  "cove_fault_pre_other;dur=1",
+  "cove_fault_pre_identity;dur=2",
+  "cove_fault_pre_identity;dur=NaN",
+  "cove_fault_pre_identity;dur=1.1",
+]) {
+  assert.equal(backendFailureStage(flagged(`${invalid}, cove_api;dur=34`)), "unknown");
+}
+assert.equal(
+  backendFailureStage(
+    flagged("cove_fault_pre_auth;dur=1, cove_fault_pre_identity;dur=1, cove_api;dur=34"),
+  ),
+  "multiple",
+);
+assert.equal(
+  backendFailureStage(
+    flagged("cove_fault_pre_identity;dur=1, cove_fault_context;dur=1, cove_api;dur=34"),
+  ),
+  "multiple",
+);
+assert.equal(
+  backendFailureStage(
+    flagged("cove_fault_pre_identity;dur=1, cove_api;dur=34", {
+      "x-cove-persistence": "untrusted",
+    }),
+  ),
+  "unknown",
+);
+for (const stage of ["preference", "market", "locale", "currency", "details"]) {
+  assert.equal(
+    backendFailureStage(
+      flagged(`cove_fault_context;dur=1, cove_fault_context_${stage};dur=1, cove_api;dur=34`),
+    ),
+    `context-${stage}`,
+    "Reviewed context subphase must be authenticated and exact",
+  );
+}
+assert.equal(
+  backendFailureStage(flagged("cove_fault_context_market;dur=1, cove_api;dur=34")),
+  "unknown",
+  "Missing parent failure cannot assign a context subphase",
+);
+assert.equal(
+  backendFailureStage(
+    flagged("cove_fault_context;dur=1, cove_fault_context_market;dur=10, cove_api;dur=34"),
+  ),
+  "context",
+  "Untrusted or malformed numeric detail cannot alter parent attribution",
+);
+assert.equal(
+  backendFailureStage(
+    flagged(
+      "cove_fault_context;dur=1, cove_fault_context_market;dur=1, cove_fault_context_currency;dur=1, cove_api;dur=34",
+    ),
+  ),
+  "multiple",
+  "Competing context subphases must not be falsely pinpointed",
+);
+assert.equal(
+  backendFailureStage(
+    flagged(
+      "cove_fault_context;dur=1, cove_fault_catalog;dur=1, cove_fault_context_market;dur=1, cove_api;dur=34",
+    ),
+  ),
+  "multiple",
+  "Competing catalog+context failures must remain ambiguous",
+);
+assert.equal(
+  backendFailureStage(flagged("cove_fault_markets;dur=1.0, cove_api;dur=34")),
+  "markets",
+);
+assert.equal(backendFailureStage(flagged("cove_fault_limit;dur=1.0, cove_api;dur=34")), "limit");
+assert.equal(backendFailureStage(flagged("cove_fault_page;dur=1.0, cove_api;dur=34")), "page");
+assert.equal(
+  backendFailureStage(
+    flagged("cove_fault_catalog;dur=1.0, cove_fault_context;dur=1.0, cove_api;dur=34"),
+  ),
+  "multiple",
+);
+assert.equal(
+  backendFailureStage(flagged("cove_fault_catalog;dur=10.0, cove_api;dur=34")),
+  "unknown",
+);
+assert.equal(
+  backendFailureStage(flagged("cove_fault_strange;dur=1.0, cove_api;dur=34")),
+  "unknown",
+);
+assert.equal(backendFailureStage(flagged("cove_api;dur=34")), "unknown");
+assert.equal(
+  backendFailureStage(
+    flagged("cove_fault_catalog;dur=1.0, cove_api;dur=34", {
+      "x-cove-persistence": "not-from-backend",
+    }),
+  ),
+  "unknown",
+);
+const apiSource = fs.readFileSync("src/features/fore/api.server.ts", "utf8");
+// The actual Worker annotates ONLY rejected, enumerated first-paint phases.
+// Do not weaken the fail-closed exception path or emit raw exception details.
+assert.match(
+  apiSource,
+  /type FirstPaintPhase = "context" \| "catalog" \| "markets" \| "limit" \| "page"/,
+);
+assert.match(apiSource, /timings\[`fault_\$\{name\}`\] = 1/);
+assert.match(apiSource, /catch \(error\) \{\s*timings\[`fault_\$\{name\}`\] = 1;\s*throw error;/);
+assert.equal((apiSource.match(/timings\[`fault_\$\{name\}`\] = 1/g) || []).length, 1);
+assert.match(apiSource, /timings\[`fault_context_\$\{stage\}`\] = 1/);
+assert.match(apiSource, /timings\[`fault_pre_\$\{name\}`\] = 1/);
+assert.match(apiSource, /timings\.fault_pre_database = 1/);
+assert.match(apiSource, /observedPreContext\("legal",/);
+assert.match(apiSource, /observedPreContext\("auth",/);
+assert.match(apiSource, /observedPreContext\("identity",/);
+assert.doesNotMatch(apiSource, /timings\[`fault_pre_\$\{name\}`\] = (?:error|String\()/);
+const localizationSource = fs.readFileSync("src/features/fore/localization.server.ts", "utf8");
+assert.match(localizationSource, /onFailureStage\?\.\(stage\)/);
+assert.match(localizationSource, /stageRead\("market"/);
+assert.match(localizationSource, /stageRead\("currency"/);
+assert.match(localizationSource, /stageRead\("details"/);
+
+// Isolated regression of the same propagation and numeric-only marker contract.
+const signalSource = fs.readFileSync("src/lib/fore-phase-failure-signal.stage.ts", "utf8");
+const { code: signalCode } = await transform(signalSource, { loader: "ts", format: "esm" });
+const { markFailedTimedPhase } = await import(
+  "data:text/javascript;base64," + Buffer.from(signalCode).toString("base64")
+);
+const metrics = {};
+assert.equal(await markFailedTimedPhase("context", Promise.resolve("ready"), metrics), "ready");
+assert.equal(metrics.fault_context, undefined, "Successful context must not register a fault");
+const originalFault = new Error("sensitive-upstream-error-value");
+await assert.rejects(
+  markFailedTimedPhase("catalog", Promise.reject(originalFault), metrics),
+  (error) => error === originalFault,
+);
+assert.equal(metrics.fault_catalog, 1, "A catalog rejection marks its fixed numeric phase");
+assert.doesNotMatch(JSON.stringify(metrics), /sensitive-upstream-error-value/);
 const errorResponse = (error, headers = apiHeaders) =>
   Response.json({ error }, { status: 503, headers });
 for (const [error, category] of [
@@ -90,10 +246,118 @@ assert.equal(
   ),
   "other",
 );
+// A trusted 503 body is optional diagnostic evidence, not customer data.
+// Even a malicious or wedged upstream stream must not delay fail-closed 503.
+const encoded = (value) => new TextEncoder().encode(value);
+const oneKB = "x".repeat(1025);
+assert.equal(
+  await backendFailureCategory(new Response(oneKB, { status: 503, headers: apiHeaders })),
+  "other",
+  "No Content-Length must not allow an unbounded upstream body",
+);
+assert.equal(
+  await backendFailureCategory(
+    new Response("{}", {
+      status: 503,
+      headers: { ...apiHeaders, "content-length": "infinity" },
+    }),
+  ),
+  "other",
+  "Malformed content length cannot grant unbounded parsing",
+);
+assert.equal(
+  await backendFailureCategory(
+    new Response('{"error":"No active Cove storefront market is configured."}', {
+      status: 503,
+      headers: { ...apiHeaders, "content-length": "4096" },
+    }),
+  ),
+  "other",
+  "Declared oversized body is rejected without parsing",
+);
+const delayed = new ReadableStream({
+  start(controller) {
+    controller.enqueue(encoded('{"error":"No active Cove '));
+    setTimeout(() => {
+      controller.enqueue(encoded('storefront market is configured."}'));
+      controller.close();
+    }, 20);
+  },
+});
+assert.equal(
+  await backendFailureCategory(new Response(delayed, { status: 503, headers: apiHeaders })),
+  "market-configuration",
+  "Bounded split JSON within the deadline retains existing diagnostics",
+);
+const oversize = new ReadableStream({
+  start(controller) {
+    controller.enqueue(encoded(oneKB));
+    controller.close();
+  },
+});
+assert.equal(
+  await backendFailureCategory(new Response(oversize, { status: 503, headers: apiHeaders })),
+  "other",
+  "Actual byte count, not just Content-Length, must enforce 1KiB maximum",
+);
+const stalled = new ReadableStream({
+  start() {
+    // Upstream sends HTTP 503 headers but never finishes its JSON body.
+  },
+});
+const started = performance.now();
+assert.equal(
+  await Promise.race([
+    backendFailureCategory(new Response(stalled, { status: 503, headers: apiHeaders })),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Gateway 503 diagnostic read never terminated")), 800),
+    ),
+  ]),
+  "other",
+  "An indefinite upstream body may not prevent returning a fail-closed 503",
+);
+assert.ok(
+  performance.now() - started < 550,
+  "Error categorization must remain bounded independently of upstream body completion",
+);
+
 const gateway = fs.readFileSync("src/lib/persistence-backend.ts", "utf8");
 assert.match(gateway, /path === "\/api\/fore\/storefront\/bootstrap"/);
 assert.match(gateway, /backendFailureSource\(response\.headers\)/);
 assert.match(gateway, /backendFailurePhase\(response\.headers\)/);
+assert.match(gateway, /backendFailureStage\(response\.headers\)/);
 assert.match(gateway, /await backendFailureCategory\(response\)/);
+assert.doesNotMatch(gateway, /await response\.body\?\.cancel\(\)/);
+assert.match(gateway, /void response\.body\?\.cancel\(\)\.catch\(\(\) => \{\}\)/);
 assert.match(gateway, /if \(productionFallbackDenied\(env\)\)/);
+// Vercel's production log viewer displays the first message argument; the
+// second console argument was hiding the already-computed fixed cause marker.
+// Only the three reviewable, request-local literal causes may enter telemetry.
+assert.match(
+  gateway,
+  /const failureReason = deadlineExpired\s*\?\s*"backend-deadline"\s*:\s*controller\.signal\.aborted\s*\?\s*"proxy-abort"\s*:\s*"upstream-transport"/,
+);
+for (const message of [
+  "Persistent backend request failed; production bootstrap fails closed",
+  "Persistent backend request failed; production catalog fails closed",
+  "Persistent backend request failed; using development fallback",
+  "Persistent backend request failed",
+]) {
+  const occurrences = gateway.split(message + " cause=${failureReason}").length - 1;
+  assert.equal(occurrences, 1, "Fixed cause must be embedded in one message: " + message);
+}
+assert.doesNotMatch(
+  gateway,
+  /console\.error\("Invalid persistence backend configuration",\s*error\)/,
+);
+assert.match(gateway, /console\.error\("Invalid persistence backend configuration"\)/);
+assert.doesNotMatch(
+  gateway,
+  /console\.(?:error|warn)\(\s*["']Persistent backend request failed[^"']*["'],\s*(?:failureReason|error)\s*\)/,
+);
+assert.doesNotMatch(
+  gateway,
+  /failureReason\s*=\s*(?:String|error\?\.message|error\.message|requestUrl)/,
+);
+
 console.log("Read-only persistence 5xx attribution and fail-closed bootstrap: PASS");

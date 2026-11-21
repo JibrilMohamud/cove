@@ -10,14 +10,17 @@ on:
       - "scripts/prove-production-owner-handshake.mjs"
       - "scripts/check-locked-production-legal-owner.mjs"
       - ".github/workflows/production-legal-owner-locked.yml"
-  push:
-    branches: [main]
-    paths:
-      - "wrangler.legal-authority.production-locked.jsonc"
-      - "scripts/check-locked-production-legal-owner.mjs"
-      - ".github/workflows/production-legal-owner-locked.yml"
   workflow_dispatch:
-
+    inputs:
+      reviewed_main_sha:
+        description: "Exact reviewed main commit; changes fail closed."
+        required: true
+        type: string
+      confirm_protected_cloudflare_action:
+        description: "Authorize protected Cloudflare action; not automatic on merge."
+        required: true
+        type: boolean
+        default: false
 permissions:
   contents: read
 
@@ -55,8 +58,14 @@ jobs:
 
   deploy-locked-owner:
     needs: prove-locked-owner
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm_protected_cloudflare_action == true &&
+      inputs.reviewed_main_sha == github.sha
     runs-on: ubuntu-latest
+    environment: cove-production-release-audit
     timeout-minutes: 15
     env:
       CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"

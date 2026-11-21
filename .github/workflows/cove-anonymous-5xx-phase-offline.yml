@@ -1,0 +1,32 @@
+name: cove-anonymous-5xx-phase-offline
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - src/features/fore/anonymous-http-metric.server.ts
+      - src/features/fore/api.server.ts
+      - scripts/check-isolated-http-metric.mjs
+      - scripts/check-production-http-metric-wiring.mjs
+      - .github/workflows/cove-anonymous-5xx-phase-offline.yml
+permissions:
+  contents: read
+jobs:
+  numeric-only-phase-attribution:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Verify privacy-safe anomaly buckets and unchanged 5xx audit
+        run: |
+          node scripts/check-isolated-http-metric.mjs
+          node scripts/check-production-http-metric-wiring.mjs
+      - run: npm run build:backend
+      - run: npm run typecheck
+      - run: git diff --check

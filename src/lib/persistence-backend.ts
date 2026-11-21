@@ -3,6 +3,7 @@ import {
   backendFailureCategory,
   backendFailurePhase,
   backendFailureSource,
+  backendFailureStage,
 } from "./persistence-backend-failure";
 
 type PersistenceEnv = {
@@ -97,6 +98,12 @@ function gatewayHeaders(request: Request, env: PersistenceEnv, target: URL) {
     "x-cove-client-country",
     "x-cove-client-ip",
     "x-cove-backend-host",
+    // Cloudflare explicitly allows external callers to override Worker
+    // version selection, including a version assigned 0% traffic. A public
+    // Vercel visitor must NEVER force an unapproved release or influence
+    // canary affinity across the authenticated persistence gateway.
+    "cloudflare-workers-version-overrides",
+    "cloudflare-workers-version-key",
     // Only a trusted platform may assert these identities. Never proxy
     // client-controlled headers into D1 account authorization.
     "oai-authenticated-user-id",
@@ -191,7 +198,8 @@ export async function proxyPersistenceApi(
   try {
     target = backendUrl(env, requestUrl);
   } catch (error) {
-    console.error("Invalid persistence backend configuration", error);
+    // Exception text can include deployment configuration; never persist it.
+    console.error("Invalid persistence backend configuration");
     return new Response(JSON.stringify({ error: "Cove persistence is misconfigured." }), {
       status: 503,
       headers: {
@@ -202,10 +210,14 @@ export async function proxyPersistenceApi(
   }
 
   const controller = new AbortController();
+  let deadlineExpired = false;
   const abortFromCaller = () => controller.abort(request.signal.reason);
   request.signal.addEventListener("abort", abortFromCaller, { once: true });
   if (request.signal.aborted) abortFromCaller();
-  const timer = setTimeout(() => controller.abort(), requestTimeout(requestUrl.pathname));
+  const timer = setTimeout(() => {
+    deadlineExpired = true;
+    controller.abort();
+  }, requestTimeout(requestUrl.pathname));
   try {
     const init: RequestInit & { duplex?: "half" } = {
       method: request.method,
@@ -220,14 +232,18 @@ export async function proxyPersistenceApi(
     const response = await fetch(target, init);
     if ([502, 503, 504].includes(response.status) && safePublicFallback(request)) {
       if (productionFallbackDenied(env)) {
+        // Only the enumerated 502/503/504 status and the fixed, trusted
+        // classifiers are logged. Raw response headers/bodies stay private.
+        const source = backendFailureSource(response.headers);
+        const phase = backendFailurePhase(response.headers);
+        const stage = backendFailureStage(response.headers);
+        const category = await backendFailureCategory(response);
         console.warn(
-          "Persistent backend unavailable; production catalog fails closed",
-          response.status,
-          backendFailureSource(response.headers),
-          backendFailurePhase(response.headers),
-          await backendFailureCategory(response),
+          `Persistent backend unavailable; production catalog fails closed status=${response.status} source=${source} phase=${phase} stage=${stage} category=${category}`,
         );
-        await response.body?.cancel();
+        // Upstream error-body cleanup is best effort. Waiting on a stalled
+        // body cancellation after status >=502 can delay the fail-closed 503.
+        void response.body?.cancel().catch(() => {});
         return unavailablePersistenceResponse();
       }
       console.warn("Persistent backend unavailable; using development fallback", response.status);
@@ -261,20 +277,34 @@ export async function proxyPersistenceApi(
     // counting it as one pollutes outage/error telemetry and can hide real
     // Cloudflare transport failures. Preserve fail-closed behavior.
     if (request.signal.aborted) return unavailablePersistenceResponse();
+    // Report only a fixed low-cardinality cause. Raw exception messages or
+    // request URLs can contain private transport data and must not be logged.
+    const failureReason = deadlineExpired
+      ? "backend-deadline"
+      : controller.signal.aborted
+        ? "proxy-abort"
+        : "upstream-transport";
     if (safePublicFallback(request)) {
       if (productionFallbackDenied(env)) {
         // A bootstrap transport exception is a real upstream error, not a
         // cancelled losing hedge. Preserve its separate error signal while
         // the public response remains denied, without logging exception text.
         if (requestUrl.pathname === "/api/fore/storefront/bootstrap")
-          console.error("Persistent backend request failed; production bootstrap fails closed");
-        else console.warn("Persistent backend request failed; production catalog fails closed");
+          console.error(
+            `Persistent backend request failed; production bootstrap fails closed cause=${failureReason}`,
+          );
+        else
+          console.warn(
+            `Persistent backend request failed; production catalog fails closed cause=${failureReason}`,
+          );
         return unavailablePersistenceResponse();
       }
-      console.warn("Persistent backend request failed; using development fallback", error);
+      console.warn(
+        `Persistent backend request failed; using development fallback cause=${failureReason}`,
+      );
       return null;
     }
-    console.error("Persistent backend request failed", error);
+    console.error(`Persistent backend request failed cause=${failureReason}`);
     return new Response(JSON.stringify({ error: "Cove persistence is temporarily unavailable." }), {
       status: 503,
       headers: {

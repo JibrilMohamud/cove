@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { compactCanonicalPhaseTiming } from "./performance/verify-canonical-phase-evidence.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
@@ -237,6 +238,11 @@ async function probe(language, sample, sequence) {
     sequence,
     cards,
     ...safeProbeTelemetry(response.headers, ttfbMs, totalMs),
+    // Avoid the general 650-byte timing truncation in THIS isolated phase
+    // experiment; retain only known numeric markers, never the raw header.
+    ...(process.env.COVE_CANONICAL_PHASE_STAGE_ONLY === "1"
+      ? { timing: compactCanonicalPhaseTiming(response.headers.get("server-timing")) }
+      : {}),
     workerMs,
     unattributedMs: workerMs === null ? null : Math.max(0, Math.round(ttfbMs - workerMs)),
     cfColo: safeCloudflareColo(response.headers),

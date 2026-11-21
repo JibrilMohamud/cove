@@ -1,0 +1,90 @@
+name: cove-stage-protected-worker-rollback
+on:
+  # Never expose a Cloudflare deployment secret to a push-controlled branch.
+  # Protected environment approval and exact reviewed main are mandatory.
+  workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        description: "Approved exact main commit SHA; source drift refuses the rehearsal."
+        type: string
+        required: true
+      confirm_isolated_worker_rehearsal:
+        description: "Approve temporary unroutable A/B Workers and cleanup; no production changes."
+        type: boolean
+        required: true
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: cove-stage-protected-worker-rollback
+  cancel-in-progress: false
+jobs:
+  isolate-deploy-two-versions-and-restore:
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm_isolated_worker_rehearsal == true &&
+      inputs.reviewed_main_sha == github.sha
+    runs-on: ubuntu-latest
+    environment: cove-production-release-audit
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      CLOUDFLARE_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Refuse unreviewed SHA or non-main ref before any Cloudflare API request
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+          test "$(git rev-parse HEAD)" = "${{ inputs.reviewed_main_sha }}"
+          test "${{ github.ref }}" = "refs/heads/main"
+          test "${{ inputs.confirm_isolated_worker_rehearsal }}" = "true"
+      - name: Verify canonical production deploy guard and migration opt-in policy
+        run: node scripts/staging/check-protected-persistence-deploy-guard.mjs
+      - name: Validate isolated rollback controls
+        run: |
+          node --check scripts/staging/prepare-protected-worker-rollback.mjs
+          node --check scripts/staging/verify-protected-worker-rollback.mjs
+          node --check scripts/staging/cleanup-protected-worker-rollback.mjs
+          git diff --check
+          test -n "$CLOUDFLARE_API_TOKEN"
+      - name: Generate protected A/B Workers with ZERO production bindings
+        run: |
+          node scripts/staging/prepare-protected-worker-rollback.mjs
+          node --input-type=module -e '
+          import {readFileSync} from "node:fs";
+          import assert from "node:assert/strict";
+          const prefix=".output/rollback-stage/";
+          for(const version of ["A","B"]){
+            const x=JSON.parse(readFileSync(prefix+"wrangler-"+version+".jsonc","utf8"));
+            assert.equal(x.name,"cove-rollback-proof-"+process.env.GITHUB_RUN_ID+"-a"+process.env.GITHUB_RUN_ATTEMPT);
+            assert.equal(x.workers_dev,true);
+            assert.equal(x.preview_urls,false);
+            assert.deepEqual(x.routes,[]);
+            for(const k of ["d1_databases","r2_buckets","kv_namespaces",
+              "durable_objects","services","queues","triggers"]){
+              assert.equal(x[k],undefined);
+            }
+          }'
+      - name: Deploy protected isolated Worker version A
+        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config .output/rollback-stage/wrangler-A.jsonc --secrets-file .output/rollback-stage/secrets.json
+      - name: Prove A is pinned, rejects all unauthorized requests, and production version unchanged
+        run: node scripts/staging/verify-protected-worker-rollback.mjs capture-a
+      - name: Deploy protected isolated Worker version B
+        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config .output/rollback-stage/wrangler-B.jsonc --secrets-file .output/rollback-stage/secrets.json
+      - name: Route exactly 100% back to pinned Worker A, prove restored HTTP behavior
+        run: node scripts/staging/verify-protected-worker-rollback.mjs rollback-to-a
+      - name: Verify restored A remains active and production is still pinned
+        run: node scripts/staging/verify-protected-worker-rollback.mjs confirm-restored
+      - name: Delete only run-specific isolated Worker and independently confirm absence
+        if: always()
+        run: node scripts/staging/cleanup-protected-worker-rollback.mjs

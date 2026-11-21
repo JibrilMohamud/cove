@@ -1,0 +1,135 @@
+name: cove-protected-zero-traffic-worker-upload
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/release/zero-traffic-worker-version-fence.mjs
+      - scripts/release/zero-traffic-worker-version-fence.test.mjs
+      - scripts/release/protected-zero-traffic-worker-upload.mjs
+      - scripts/release/protected-zero-traffic-worker-upload.source.test.mjs
+      - scripts/release/protected-zero-traffic-worker-missing-reader.test.mjs
+      - .github/workflows/cove-protected-zero-traffic-worker-upload.yml
+  workflow_dispatch:
+    inputs:
+      confirm_zero_traffic_only:
+        description: "Upload archived version only. No deployments, migrations, customer traffic, rights or payments."
+        required: true
+        type: boolean
+        default: false
+      reviewed_source_sha:
+        description: "Enter the exact approved main source SHA; any later source drift fails closed."
+        required: true
+        type: string
+        default: "a3fd303da6f7418ceec574e0c158d62fe1245984"
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Verify immutable traffic pin, resource parity and protected workflow
+        run: |
+          node --test scripts/release/zero-traffic-worker-version-fence.test.mjs scripts/release/protected-zero-traffic-worker-upload.source.test.mjs scripts/release/protected-zero-traffic-worker-missing-reader.test.mjs
+          node --check scripts/release/protected-zero-traffic-worker-upload.mjs
+          git diff --check
+      - name: Validate pinned credential-free Wrangler package and strict-upload CLI
+        run: |
+          npm install --prefix "$RUNNER_TEMP/cove-wrangler" --no-save --ignore-scripts --no-audit --no-fund wrangler@4.151.0
+          "$RUNNER_TEMP/cove-wrangler/node_modules/.bin/wrangler" --version
+          "$RUNNER_TEMP/cove-wrangler/node_modules/.bin/wrangler" versions upload --help | grep -q -- "--strict"
+
+  upload_archived_only:
+    if: ${{ github.repository == 'JibrilMohamud/cove' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirm_zero_traffic_only == true && inputs.reviewed_source_sha == 'a3fd303da6f7418ceec574e0c158d62fe1245984' }}
+    # Only the live upload mutates Worker versions; source-only PR checks
+    # must not occupy the production D1/cold-capacity serialization lock.
+    concurrency:
+      group: cove-exclusive-real-primary-cold-acceptance
+      queue: max
+      cancel-in-progress: false
+    environment: cove-production-release-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      # Never expose production credentials to npm ci or build:backend.
+      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      COVE_APPROVED_DIAGNOSTIC_SOURCE: ${{ inputs.reviewed_source_sha }}
+      CLOUDFLARE_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Require separately scoped protected Cloudflare credentials
+        shell: bash
+        env:
+          UPLOAD_TOKEN: ${{ secrets.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN }}
+          OWNER_METADATA_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
+        run: |
+          if [ -z "$UPLOAD_TOKEN" ]; then
+            echo "::error title=Missing protected Worker upload secret::Install COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN in the cove-production-release-audit GitHub environment."
+            exit 1
+          fi
+          if [ -z "$OWNER_METADATA_TOKEN" ]; then
+            echo "::error title=Missing protected Workers metadata reader::Install COVE_CF_WORKERS_METADATA_READ_TOKEN in the cove-production-release-audit GitHub environment, scoped to Workers Metadata Read-Only. Do not broaden the upload token."
+            exit 1
+          fi
+          if [ "$UPLOAD_TOKEN" = "$OWNER_METADATA_TOKEN" ]; then
+            echo "::error title=Protected Cloudflare credentials must be distinct::Do not reuse an Editor or account-admin token for the read-only legal-owner check."
+            exit 1
+          fi
+          echo "Protected upload and read-only metadata credentials present; values never printed."
+      - run: npm ci --no-audit --no-fund
+      - name: Verify frozen reviewed source and production version 451 at exactly 100%
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN }}
+          COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
+        run: node scripts/release/protected-zero-traffic-worker-upload.mjs preflight
+      - name: Build reviewed Worker; NO customer release
+        run: npm run build:backend
+      - name: Stage pinned Wrangler WITHOUT production credentials
+        run: |
+          npm install --prefix "$RUNNER_TEMP/cove-wrangler" --no-save --ignore-scripts --no-audit --no-fund wrangler@4.151.0
+          "$RUNNER_TEMP/cove-wrangler/node_modules/.bin/wrangler" --version
+      - name: Upload an INACTIVE version only, never deploy traffic
+        env:
+          # Per-Worker Editor ONLY on cove-persistence-backend.
+          CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN }}
+        run: |
+          "$RUNNER_TEMP/cove-wrangler/node_modules/.bin/wrangler" versions upload \
+            --config wrangler.backend.deploy.toml --keep-vars --strict \
+            --tag "cove-privacy-diag-${GITHUB_RUN_ID}" \
+            --message "Cove reviewed anonymous 503 diagnostic version ${GITHUB_RUN_ID}; NO DEPLOY"
+      - name: Verify one archived version, exact binding parity, unchanged 100% production pin
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN }}
+          COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
+        run: node scripts/release/protected-zero-traffic-worker-upload.mjs verify
+      - name: ALWAYS verify no customer Worker traffic or owner activation changed
+        if: always()
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN }}
+          COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
+        run: node scripts/release/protected-zero-traffic-worker-upload.mjs fence
+      - name: Archive public identifiers only; no credential, SQL or customer data
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cove-protected-zero-traffic-${{ github.run_id }}
+          path: artifacts/protected-zero-traffic-worker-upload/evidence.json
+          retention-days: 14
+          if-no-files-found: ignore

@@ -1,14 +1,24 @@
-// Immutable-SHA hosted acceptance. Dedicated synthetic D1 only; no customer traffic.
+// Immutable-SHA stage preview. Dedicated isolated full-catalog D1 only.
+// This source-level preview is NOT legal-owner-generation or release certification.
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createHash, randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
 import { verifyGeoEdgeIngress } from "../staging/verify-geo-edge-ingress.mjs";
+import {
+  requireIsolatedCatalogSnapshotTarget,
+  requireNoPrimaryD1PreviewBinding,
+  requireMinimumRealCatalogSnapshot,
+} from "./real-catalog-snapshot-safety.mjs";
 
 const account = "d26430caa63ec55f6612e32f36aca5e9";
-const dbId = "4bd657ac-8789-403e-a28c-93aba8d0a989";
-const prodDbId = "4bd657ac-8789-403e-a28c-93aba8d0a989";
+// Fail before touching remote Worker, R2 or KV APIs if a dedicated snapshot
+// has not been created and independently approved. No default production ID.
+const { id: dbId, name: isolatedDbName } = requireIsolatedCatalogSnapshotTarget(
+  process.env.COVE_REAL_CATALOG_SNAPSHOT_D1_ID,
+  process.env.COVE_REAL_CATALOG_SNAPSHOT_D1_NAME,
+);
 const token = process.env.CLOUDFLARE_API_TOKEN;
 assert.ok(token && token.length > 16, "Isolated hosted acceptance requires Cloudflare credentials");
 assert.match(process.env.GITHUB_RUN_ID || "", /^\d+$/);
@@ -20,7 +30,7 @@ const configPath = "wrangler.strangler-real-preview-run.jsonc";
 const config = JSON.parse(fs.readFileSync("wrangler.storefront-strangler.stage.jsonc", "utf8"));
 assert.equal(config.d1_databases[0].database_id, "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3");
 config.d1_databases[0].database_id = dbId;
-config.d1_databases[0].database_name = "cove-production";
+config.d1_databases[0].database_name = isolatedDbName;
 config.vars.COVE_STRANGLER_MODE = "production-acceptance";
 config.vars.COVE_STRANGLER_DATABASE_ID = dbId;
 assert.equal(config.workers_dev, false);
@@ -69,7 +79,7 @@ if (v2) {
 }
 config.vars.COVE_SSR_DIAGNOSTICS = "1";
 const configString = JSON.stringify(config, null, 2);
-assert.ok(configString.includes(prodDbId), "Real-data preview must bind the expected D1");
+requireNoPrimaryD1PreviewBinding(config, dbId);
 assert.ok(!config.routes && !config.route && !config.queues);
 assert.equal(!!config.r2_buckets, v2);
 assert.equal(!!config.kv_namespaces, v2);
@@ -78,7 +88,9 @@ const evidence = {
   sha: process.env.GITHUB_SHA,
   worker: name,
   workers: createdWorkers,
-  readOnlyProductionD1: dbId,
+  isolatedSnapshotD1: dbId,
+  legalGenerationAttested: false,
+  releaseCertified: false,
   productionRouted: false,
   stagePrivateKvReadAccelerator: v2,
   fixtureProducts: null,
@@ -210,7 +222,7 @@ async function deployFresh(round) {
   config.name = name;
   config.vars.FORE_PUBLIC_URL = origin;
   const scopedConfig = JSON.stringify(config, null, 2);
-  assert.ok(scopedConfig.includes(prodDbId));
+  requireNoPrimaryD1PreviewBinding(config, dbId);
   fs.writeFileSync(configPath, scopedConfig);
   // Cloudflare occasionally returns 10007 while provisioning a brand-new
   // Worker name. This is a control-plane creation race, not a cold sample;
@@ -393,12 +405,20 @@ async function settleCatalog(page) {
 }
 const startedAt = performance.now();
 try {
+  // Bounded metadata counts on the ISOLATED fixture. The known 50k
+  // synth databases have zero taxonomy links and must not qualify as real.
+  // Zero-write D1 metadata is mandatory, never inferred from HTTP success.
   const fixture = await cloudflare("POST", `/accounts/${account}/d1/database/${dbId}/query`, {
-    sql: "SELECT COUNT(*) AS n FROM products",
+    sql: `SELECT
+      (SELECT COUNT(*) FROM products) AS products,
+      (SELECT COUNT(*) FROM editions) AS editions,
+      (SELECT COUNT(*) FROM edition_taxonomy_nodes) AS taxonomy_links,
+      (SELECT COUNT(*) FROM rights_grants) AS rights_grants`,
   });
-  assert.ok(Number(fixture?.[0]?.results?.[0]?.n) >= 40_000);
-
-  evidence.fixtureProducts = Number(fixture[0].results[0].n);
+  const verifiedSnapshot = requireMinimumRealCatalogSnapshot(fixture);
+  evidence.fixtureProducts = verifiedSnapshot.products;
+  evidence.snapshotPreflight = verifiedSnapshot;
+  save();
   if (v2) {
     const { seedReadOnlyPresentation } = await import("../staging/seed-versioned-presentation.mjs");
     await seedReadOnlyPresentation({
@@ -432,10 +452,10 @@ try {
   );
   const unauthorized = await fetch(origin, { signal: AbortSignal.timeout(6000) });
   assert.equal(unauthorized.status, 401, "Stage gate must reject requests without bearer");
-  // Low-volume production-D1 acceptance must never run 100-RPS synthetic load.
+  // A small isolated preview is NOT the strict protected 100-RPS acceptance.
   // The synthetic isolation suite separately proves concurrency headroom.
   evidence.bursts = [];
-  evidence.sustained = "Not run against production D1";
+  evidence.sustained = "Not run in this isolated preview";
   // Report actual rendered LCP of this deployed, bearer-gated Worker,
   // never equate a synthetic preview with the public Vercel release.
   const { chromium } = await import("@playwright/test");
@@ -717,8 +737,11 @@ try {
     save();
   }
   evidence.pass = true;
+  // A snapshot's row counts cannot prove legal epoch, full search/facet
+  // parity, owner withdrawal race, exclusive writer or strict 4-region load.
+  evidence.releaseCertified = false;
   console.log(
-    "PASS bearer-gated read-only real-catalog preview",
+    "PASS isolated real-catalog preview subgate (NOT release-certified)",
     JSON.stringify({
       cold: evidence.cold.map((x) => Math.round(x.ms)),
       bursts: evidence.bursts.map((x) => ({ n: x.concurrency, max: Math.round(x.max) })),

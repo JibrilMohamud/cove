@@ -1,7 +1,10 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
+import { boundedReadonlyPhaseMs } from "../../src/lib/readonly-transport-metric";
 
 interface Env {
   D1_READ_API_TOKEN: string;
+  // Only the separately named, protected staging read service may enable this.
+  COVE_STAGE_READ_PHASE_DIAGNOSTICS?: string;
 }
 type Statement = { sql: string; params: unknown[] };
 const endpoint =
@@ -10,8 +13,55 @@ const endpoint =
 // No native D1 binding. The credential MUST have exactly D1 Read permission.
 // Cloudflare's SQL engine denies writes even if a caller submits arbitrary SQL.
 export default class CanonicalReadonly extends WorkerEntrypoint<Env> {
-  async fetch() {
-    return new Response(null, { status: 404 });
+  // Cloudflare Smart Placement affects fetch handlers, not RPC methods.
+  // Keep the production private service's fetch surface permanently closed.
+  // Only the separately provisioned, non-routable D1 Read staging Worker
+  // may accept this exact private service-binding transport.
+  async fetch(request: Request) {
+    const denied = { "cache-control": "no-store" };
+    if (this.env.COVE_STAGE_READ_PHASE_DIAGNOSTICS !== "1")
+      return new Response(null, { status: 404, headers: denied });
+    if (
+      request.method !== "POST" ||
+      new URL(request.url).pathname !== "/__cove/stage/primary-read" ||
+      (request.headers.get("content-type") || "").split(";")[0].trim() !== "application/json"
+    )
+      return new Response(null, { status: 404, headers: denied });
+    try {
+      if (!request.body) throw new Error("Missing canonical read body");
+      // Do not trust Content-Length or materialize an unbounded request.
+      const reader = request.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let size = 0;
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          size += value.byteLength;
+          if (size > 512 * 1024) {
+            await reader.cancel();
+            throw new Error("Canonical read input too large");
+          }
+          chunks.push(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      const data = new Uint8Array(size);
+      let offset = 0;
+      for (const chunk of chunks) {
+        data.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      const payload = JSON.parse(new TextDecoder().decode(data)) as { batch?: Statement[] };
+      // query() preserves the existing primary-only D1 validation, bounded
+      // REST response, SQL duration metrics and no-write credential.
+      const result = await this.query(payload.batch as Statement[]);
+      return Response.json({ result }, { headers: denied });
+    } catch {
+      // Never echo provider diagnostics, SQL, rights, account data or token.
+      return new Response(null, { status: 503, headers: denied });
+    }
   }
 
   async query(statements: Statement[]) {
@@ -34,6 +84,7 @@ export default class CanonicalReadonly extends WorkerEntrypoint<Env> {
     if (new TextEncoder().encode(encoded).length > 512 * 1024)
       throw new Error("Canonical read request too large");
     if (!this.env.D1_READ_API_TOKEN) throw new Error("Canonical read unavailable");
+    const remoteStarted = performance.now();
     const response = await fetch(endpoint, {
       method: "POST",
       redirect: "manual",
@@ -44,6 +95,7 @@ export default class CanonicalReadonly extends WorkerEntrypoint<Env> {
       body: encoded,
       signal: AbortSignal.timeout(8_000),
     });
+    const headersAt = performance.now();
     // Do not propagate provider errors: they can contain SQL and customer values.
     if (!response.ok) {
       const details = (await response.json().catch(() => null)) as {
@@ -82,6 +134,7 @@ export default class CanonicalReadonly extends WorkerEntrypoint<Env> {
     } finally {
       reader.releaseLock();
     }
+    const bodyReadAt = performance.now();
     const data = new Uint8Array(bytes);
     let offset = 0;
     for (const chunk of chunks) {
@@ -96,6 +149,7 @@ export default class CanonicalReadonly extends WorkerEntrypoint<Env> {
         meta?: { served_by_primary?: boolean };
       }>;
     };
+    const decodedAt = performance.now();
     if (
       !body.success ||
       !Array.isArray(body.result) ||
@@ -105,6 +159,18 @@ export default class CanonicalReadonly extends WorkerEntrypoint<Env> {
       )
     )
       throw new Error("Canonical primary read unavailable");
-    return body.result;
+    // This source also backs the established shared private read service.
+    // It MUST NOT emit experimental metadata in that service. Only a
+    // separately provisioned staging service opts in; all other responses
+    // retain the original production-compatible metadata contract.
+    if (this.env.COVE_STAGE_READ_PHASE_DIAGNOSTICS !== "1") return body.result;
+    // Numeric-only timings accompany the SAME verified primary D1 result.
+    // No SQL text, parameters, identities, URLs or provider error messages.
+    const phases = {
+      cove_read_headers_ms: boundedReadonlyPhaseMs(remoteStarted, headersAt),
+      cove_read_body_ms: boundedReadonlyPhaseMs(headersAt, bodyReadAt),
+      cove_read_decode_ms: boundedReadonlyPhaseMs(bodyReadAt, decodedAt),
+    };
+    return body.result.map((row) => ({ ...row, meta: { ...row.meta, ...phases } }));
   }
 }

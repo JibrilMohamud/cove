@@ -1,0 +1,43 @@
+name: cove-precontext-failure-attribution-offline
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/features/fore/api.server.ts"
+      - "src/lib/persistence-backend-failure.ts"
+      - "src/lib/persistence-backend.ts"
+      - "scripts/check-persistence-gateway-runtime-attribution.mjs"
+      - "scripts/check-persistence-backend-failure.mjs"
+      - "scripts/release/check-precontext-writer-rereview.mjs"
+      - "docs/architecture/canonical-writer-review.json"
+      - ".github/workflows/cove-precontext-failure-attribution-offline.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  privacy-safe-attribution:
+    if: github.repository == 'JibrilMohamud/cove'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Verify all 33 reviewed SQL sites, exact source, and unchanged denial
+        run: node scripts/release/check-precontext-writer-rereview.mjs
+      - name: Fixed enum only and fail-closed 503 regression
+        run: node scripts/check-persistence-backend-failure.mjs
+      - name: Exercise 503, 504, timeout and cancellation against fake upstream only
+        run: node scripts/check-persistence-gateway-runtime-attribution.mjs
+      - name: Strict TypeScript validation
+        run: npm run typecheck
+      - name: Strict source lint baseline
+        run: npm run lint

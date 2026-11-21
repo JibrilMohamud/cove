@@ -1,0 +1,27 @@
+name: cove-protected-manual-cloudflare-stage-offline
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/cloudflare-native-ssr-staging.yml"
+      - ".github/workflows/covereads-secure-ssr-gateway.yml"
+      - ".github/workflows/cove-protected-manual-cloudflare-stage-offline.yml"
+      - "scripts/release/protected-manual-cloudflare-stage.test.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  no-automatic-real-primary-benchmarks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - run: node --test scripts/release/protected-manual-cloudflare-stage.test.mjs
+      - run: git diff --check
