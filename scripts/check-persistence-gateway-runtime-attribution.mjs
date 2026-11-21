@@ -99,7 +99,7 @@ try {
     {
       level: "warn",
       args: [
-        "Persistent backend unavailable; production catalog fails closed status=503 source=worker-api phase=pre-context stage=pre-auth category=handler-exception",
+        "Persistent backend unavailable; production catalog fails closed status=503 source=worker-api phase=pre-context stage=pre-auth category=handler-exception ray=unavailable",
       ],
     },
   ]);
@@ -118,7 +118,7 @@ try {
     {
       level: "warn",
       args: [
-        "Persistent backend unavailable; production catalog fails closed status=504 source=edge-or-runtime phase=untraced stage=unknown category=other",
+        "Persistent backend unavailable; production catalog fails closed status=504 source=edge-or-runtime phase=untraced stage=unknown category=other ray=unavailable",
       ],
     },
   ]);
