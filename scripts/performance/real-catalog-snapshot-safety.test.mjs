@@ -102,5 +102,7 @@ test("protected source never hardcodes primary D1 and checks snapshot before dep
   assert.match(workflow, /COVE_REAL_CATALOG_SNAPSHOT_D1_ID:/);
   assert.match(workflow, /COVE_REAL_CATALOG_SNAPSHOT_D1_NAME:/);
   assert.match(workflow, /real-catalog-snapshot-safety\.test\.mjs/);
-  assert.ok(!workflow.includes("cove-production"), "No production DB name in preview workflow");
+  assert.ok(!workflow.includes(PRIMARY_D1), "No primary D1 UUID in protected workflow");
+  assert.match(workflow, /offline-isolation:/);
+  assert.match(workflow, /Require isolated nonproduction D1 snapshot before any remote operations/);
 });
