@@ -66,23 +66,34 @@ function inspectTriggerDiagnostic(source) {
   // Cancel untrusted response streams without reading them or delaying D1 status receipt.
   const failedResponse = trigger.indexOf("if (!response.ok)");
   const cancel = trigger.indexOf("void response.body?.cancel().catch(() => {});");
-  const firstReceipt = trigger.indexOf('persistAudioTriggerDiagnostic(env, "audio_trigger_last_timeout"');
+  const firstReceipt = trigger.indexOf(
+    'persistAudioTriggerDiagnostic(env, "audio_trigger_last_timeout"',
+  );
   assert.ok(failedResponse >= 0 && cancel > failedResponse && firstReceipt > cancel);
   const allowed = new Set(["path", "status", "disposition"]);
   const keys = [];
   const visit = (node) => {
-    if (ts.isCallExpression(node) && node.expression.getText(file) === "persistAudioTriggerDiagnostic") {
+    if (
+      ts.isCallExpression(node) &&
+      node.expression.getText(file) === "persistAudioTriggerDiagnostic"
+    ) {
       const details = node.arguments[2];
-      assert.ok(ts.isObjectLiteralExpression(details), "Status receipt must remain a literal object");
+      assert.ok(
+        ts.isObjectLiteralExpression(details),
+        "Status receipt must remain a literal object",
+      );
       for (const property of details.properties) {
         assert.ok(ts.isPropertyAssignment(property) || ts.isShorthandPropertyAssignment(property));
         const name = property.name.getText(file);
-        assert.ok(allowed.has(name), "No upstream body, error, identities, or secrets in D1 status");
+        assert.ok(
+          allowed.has(name),
+          "No upstream body, error, identities, or secrets in D1 status",
+        );
         const value = ts.isPropertyAssignment(property) ? property.initializer.getText(file) : name;
         assert.ok(
           (name === "path" && value === "path") ||
-          (name === "status" && value === "response.status") ||
-          (name === "disposition" && value === '"in-flight"'),
+            (name === "status" && value === "response.status") ||
+            (name === "disposition" && value === '"in-flight"'),
           "Only exact reviewed fields may reach persistent status receipts",
         );
         keys.push(name);
@@ -107,16 +118,36 @@ assert.notEqual(cancelMutation, raw);
 assert.throws(() => inspectTriggerDiagnostic(cancelMutation));
 
 assert.ok(inspect(raw));
-assert.doesNotMatch(wrangler, /^\[observability(?:\.|\])/, "Production Worker log collection cannot be enabled before full imported-module and invocation-log privacy review");
+assert.doesNotMatch(
+  wrangler,
+  /^\[observability(?:\.|\])/,
+  "Production Worker log collection cannot be enabled before full imported-module and invocation-log privacy review",
+);
 for (const [existing, unsafe] of [
-  ['console.warn("Catalog search sync failed")', 'console.warn("Catalog search sync failed", error)'],
-  ['console.error("Regional EPUB repair failed")', 'console.error(String(error))'],
-  ['console.info("Cove BioSync short-track transcript cached")', 'console.info("Cove BioSync short-track transcript cached", editionId, trackId)'],
-  ['console.warn("Soundtrack import failed")', 'console.warn("Soundtrack import failed", JSON.stringify(result))'],
-  ['console.info("Cove scheduled queue tick completed")', 'console.info(JSON.stringify({ event: "cove_queue_tick", result }))'],
+  [
+    'console.warn("Catalog search sync failed")',
+    'console.warn("Catalog search sync failed", error)',
+  ],
+  ['console.error("Regional EPUB repair failed")', "console.error(String(error))"],
+  [
+    'console.info("Cove BioSync short-track transcript cached")',
+    'console.info("Cove BioSync short-track transcript cached", editionId, trackId)',
+  ],
+  [
+    'console.warn("Soundtrack import failed")',
+    'console.warn("Soundtrack import failed", JSON.stringify(result))',
+  ],
+  [
+    'console.info("Cove scheduled queue tick completed")',
+    'console.info(JSON.stringify({ event: "cove_queue_tick", result }))',
+  ],
 ]) {
   assert.ok(raw.includes(existing), "Expected log regression site must be present");
   assert.throws(() => inspect(raw.replace(existing, unsafe)));
 }
-console.log("PASS: Worker entrypoint logs include no raw exceptions, entitlement/catalog IDs, rights objects or queue result payloads.");
-console.log("BLOCKED: production Workers Logs cannot be enabled without full imported-module/invocation-log review.");
+console.log(
+  "PASS: Worker entrypoint logs include no raw exceptions, entitlement/catalog IDs, rights objects or queue result payloads.",
+);
+console.log(
+  "BLOCKED: production Workers Logs cannot be enabled without full imported-module/invocation-log review.",
+);
