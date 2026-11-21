@@ -45,10 +45,32 @@ const scopes = {
 const d1 = "/d1/database/4bd657ac-8789-403e-a28c-93aba8d0a989/query";
 const sql = { sql: "SELECT key,value FROM cove_runtime_config" };
 const worker = "/workers/scripts/cove-persistence-backend/deployments";
-assert.equal(literaryActivationReadCredential("POST", d1, sql, scopes), scopes.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN);
-assert.equal(literaryActivationReadCredential("GET", worker, undefined, scopes), scopes.COVE_CF_WORKERS_METADATA_READ_TOKEN);
-assert.equal(literaryActivationReadCredential("GET", "/workers/workers/cove-literary-infer-isolated-disabled", undefined, scopes), scopes.COVE_CF_WORKERS_METADATA_READ_TOKEN);
-assert.equal(literaryActivationReadCredential("POST", "/d1/database/400c3af3-5d40-41fd-83cc-98228e40ddac/query", { sql: "PRAGMA table_info(literary_inference_jobs)" }, scopes), scopes.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN);
+assert.equal(
+  literaryActivationReadCredential("POST", d1, sql, scopes),
+  scopes.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN,
+);
+assert.equal(
+  literaryActivationReadCredential("GET", worker, undefined, scopes),
+  scopes.COVE_CF_WORKERS_METADATA_READ_TOKEN,
+);
+assert.equal(
+  literaryActivationReadCredential(
+    "GET",
+    "/workers/workers/cove-literary-infer-isolated-disabled",
+    undefined,
+    scopes,
+  ),
+  scopes.COVE_CF_WORKERS_METADATA_READ_TOKEN,
+);
+assert.equal(
+  literaryActivationReadCredential(
+    "POST",
+    "/d1/database/400c3af3-5d40-41fd-83cc-98228e40ddac/query",
+    { sql: "PRAGMA table_info(literary_inference_jobs)" },
+    scopes,
+  ),
+  scopes.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN,
+);
 for (const [method, path, body] of [
   ["POST", d1, { sql: "UPDATE cove_runtime_config SET value='1'" }],
   ["POST", d1, { sql: "SELECT 1; UPDATE x SET y=1" }],
@@ -68,16 +90,13 @@ for (const [method, path, body] of [
     "Deny unreviewed literary audit endpoint " + method + " " + path,
   );
 }
+const broadOnly = { CLOUDFLARE_API_TOKEN: "W".repeat(32) };
 assert.throws(
-  () => literaryActivationReadCredential("POST", d1, sql, {
-    CLOUDFLARE_API_TOKEN: "W".repeat(32),
-  }),
+  () => literaryActivationReadCredential("POST", d1, sql, broadOnly),
   /literary_activation_scoped_read_credential_unavailable/,
 );
 assert.throws(
-  () => literaryActivationReadCredential("GET", worker, undefined, {
-    CLOUDFLARE_API_TOKEN: "W".repeat(32),
-  }),
+  () => literaryActivationReadCredential("GET", worker, undefined, broadOnly),
   /literary_activation_scoped_read_credential_unavailable/,
 );
 
