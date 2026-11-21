@@ -38,7 +38,9 @@ test("production and existing incomplete 50k fixtures can NEVER back a Worker pr
     undefined,
     "",
     PRIMARY_D1,
+    PRIMARY_D1.toUpperCase(),
     "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
+    "E4CBB0EF-6288-4FA1-9DBB-FB42FE01D4F3",
     "cc842ee5-c526-431e-96ee-5e093fb45e6d",
     "arbitrary-db",
     "00000000-0000-0000-0000-000000000000;DELETE",
@@ -61,6 +63,12 @@ test("deny multiple bindings, customer routes and production IDs even outside DB
     },
     (c) => {
       c.vars.SOURCE_PRIMARY = PRIMARY_D1;
+    },
+    (c) => {
+      c.vars.SOURCE_PRIMARY = PRIMARY_D1.toUpperCase();
+    },
+    (c) => {
+      c.d1_databases[0].database_id = PRIMARY_D1.toUpperCase();
     },
     (c) => {
       c.routes = ["covereads.com/*"];
@@ -104,6 +112,9 @@ test("minimum snapshot metadata cannot certify incomplete, synthetic or mutated 
     },
     (x) => {
       x[0].meta.changed_db = true;
+    },
+    (x) => {
+      x[0].meta.rows_written = 1;
     },
     (x) => {
       delete x[0].meta.changed_db;
