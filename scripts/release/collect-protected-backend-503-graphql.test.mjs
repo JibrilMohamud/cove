@@ -327,10 +327,7 @@ test("never classify a missing-rights-check or different rank order as the produ
     RANKED_CANDIDATE_SQL + " ; DELETE FROM rights_grants",
   ];
   for (const sql of altered) {
-    const evidence = summarizeD1QueryGroups(
-      [d1Query("2026-11-17T20:45:00Z", sql)],
-      WINDOW,
-    );
+    const evidence = summarizeD1QueryGroups([d1Query("2026-11-17T20:45:00Z", sql)], WINDOW);
     assert.equal(evidence.hotspots[0].queryClass, "unclassified");
     assert.ok(!JSON.stringify(evidence).includes("rights_grants"));
   }
