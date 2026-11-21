@@ -179,12 +179,20 @@ export async function withCurrentQaOwnerPrimaryRead<T>(
   validSetup(x);
   if (typeof alreadyRightsAuthorizedRead !== "function") fail();
   const now = x.nowMs || Date.now;
+  let previousTime = 0;
+  const currentTime = () => {
+    const value = now();
+    // A missing, invalid or rewinding clock cannot extend eligibility.
+    if (!Number.isSafeInteger(value) || value < 1 || value < previousTime) fail();
+    previousTime = value;
+    return value;
+  };
   const firstOwner = await ownerEpoch(x);
-  const db = await checkedPrimary(x, firstOwner, now());
+  const db = await checkedPrimary(x, firstOwner, currentTime());
   const result = await alreadyRightsAuthorizedRead(db);
   // Fresh primary session, not a possibly stale bookmark from the catalog
   // session. An accepted D1 snapshot does not substitute for the owner check.
-  await checkedPrimary(x, firstOwner, now());
+  await checkedPrimary(x, firstOwner, currentTime());
   const latestOwner = await ownerEpoch(x);
   if (
     latestOwner.epoch !== firstOwner.epoch ||
@@ -194,6 +202,6 @@ export async function withCurrentQaOwnerPrimaryRead<T>(
   )
     fail();
   // A horizon can expire while the last owner RPC is in flight.
-  await checkedPrimary(x, latestOwner, now());
+  await checkedPrimary(x, latestOwner, currentTime());
   return result;
 }
