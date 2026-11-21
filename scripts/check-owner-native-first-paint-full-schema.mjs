@@ -99,16 +99,34 @@ try {
   };
   const sql={exec:execSql};
   let servedPrimary=true,afterD1=null,reads=0;
+  // A D1 first-primary session only guarantees the first statement is
+  // primary: independent sessions are required for separate legal reads.
+  let checkConcurrent=false,marketStarted=false,catalogStarted=false;
+  let failMarket=false,failCatalog=false;
+  const issuedPrimarySessions=[];
   const binding={
     withSession(anchor){
       assert.equal(anchor,"first-primary");
-      return this;
+      const session={prepare:this.prepare};
+      issuedPrimarySessions.push(session);
+      return session;
     },
     prepare(statement){
       return {bind(...args){
         return {
-          async first(){return primary.prepare(statement).get(...args)??null;},
+          async first(){
+            if(checkConcurrent){
+              marketStarted=true;
+              await new Promise(resolve=>setImmediate(resolve));
+              assert.equal(catalogStarted,true,
+                "Catalog must dispatch while the independent primary market read remains pending");
+            }
+            if(failMarket)throw Error("synthetic_market_primary_failure");
+            return primary.prepare(statement).get(...args)??null;
+          },
           async all(){
+            if(checkConcurrent)catalogStarted=true;
+            if(failCatalog)throw Error("synthetic_catalog_primary_failure");
             reads++;
             const rows=primary.prepare(statement).all(...args);
             if(afterD1){const callback=afterD1;afterD1=null;callback();}
@@ -203,7 +221,12 @@ try {
     "Native QA owner fetch must expose measured service-binding header delay");
   assert.equal((await proxyRead.json()).rows.length,2,
     "Service-bound native results must remain the intersection of canonical and current owner legal proof");
+  const beforePrimarySessions=issuedPrimarySessions.length;
   let response=await call(request);
+  assert.equal(issuedPrimarySessions.length-beforePrimarySessions,2,
+    "Each authorization must use two distinct primary-first read sessions");
+  assert.notEqual(issuedPrimarySessions.at(-1),issuedPrimarySessions.at(-2),
+    "Market and catalog may not share one primary-first session");
   assert.equal(response.status,200,"Actual full-schema D1+owner handler must accept synthetic fixture");
   let result=await response.json();
   assert.equal(result.schema,"cove.qa.owner-native-first-paint.v1");
@@ -216,6 +239,21 @@ try {
   assert.equal(JSON.parse(result.rows[1].offer_json).type,"purchase",
     "Full-schema owner may publish the exact canonical paid purchase offer");
   assert.ok(reads>0,"Endpoint must execute the real prepared native D1 SELECT");
+  checkConcurrent=true;
+  response=await call(request);
+  assert.equal(response.status,200,
+    "Both fresh primary reads must complete before current owner authorization");
+  assert.equal(marketStarted,true);
+  assert.equal(catalogStarted,true);
+  checkConcurrent=false;
+  failMarket=true;
+  assert.equal((await call(request)).status,503,
+    "Market D1 failure must deny, never rely on catalog approval alone");
+  failMarket=false;
+  failCatalog=true;
+  assert.equal((await call(request)).status,503,
+    "Catalog D1 failure must deny, never rely on market approval alone");
+  failCatalog=false;
   assert.equal((await call(request,"0".repeat(64))).status,401,
     "The synthetic owner route never admits an untrusted service binding");
   response=await call({...request,ids:[freeBook.id],sql:"SELECT 1"});
@@ -225,7 +263,7 @@ try {
   assert.equal(response.status,503,"Unverified replica must deny");
   assert.equal(response.headers.get("x-cove-qa-native-failure"),
     "native_qa_primary_unverified");
-  assert.equal(response.headers.get("x-cove-qa-native-phase"),"catalog");
+  assert.equal(response.headers.get("x-cove-qa-native-phase"),"primary-pair");
   servedPrimary=true;
   afterD1=()=>free.persistSourceWithdrawal(sql,{
     sourceId:"2701",territory:"*",operationId:"qa:full-schema-free-withdrawal"
@@ -253,7 +291,7 @@ try {
   env.COVE_RIGHTS_OWNER_ENABLED="1";
   env.COVE_RIGHTS_OWNER_TEST_EXPIRES_AT=String(Date.now()-1);
   assert.equal((await call(request)).status,503);
-  console.log("PASS full-schema owner-native-read: real 95-migration SQL, exact offers, primary session, paid+free intersection, in-flight global withdrawal, paid contract denial, disabled/expired QA owner");
+  console.log("PASS full-schema owner-native-read: real 95-migration SQL, two distinct first-primary sessions, overlapping market/catalog reads, partial failure denial, exact offers, in-flight global withdrawal, paid contract denial, disabled/expired QA owner");
 } finally {
   primary.close();ownerDb.close();
   rmSync(dir,{recursive:true,force:true});
