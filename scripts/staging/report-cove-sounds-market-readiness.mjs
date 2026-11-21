@@ -20,6 +20,12 @@ const sql = [
 ].join(" ");
 assert.match(sql.trim(), /^SELECT\b/);
 assert.doesNotMatch(sql, /;|\b(INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|REPLACE)\b/i);
+function requireScopedD1ReadToken(variables = process.env) {
+  const token = variables.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN;
+  assert.ok(typeof token === "string" && token.length >= 20,
+    "COVE_CF_PRODUCTION_AUDIT_READ_TOKEN is required for rights inventory reads");
+  return token;
+}
 function render(rows) {
   const out = [
     "# Cove Sounds: live rights-based market eligibility",
@@ -48,12 +54,16 @@ if (process.argv.includes("--self-test")) {
     { territory:"GB", commons_ready:0, external_ready:0 }]);
   assert.match(example, /GB \| 0 \| 0 \| No licensed inventory/);
   assert.match(example, /US \| 206 \| 0 \| Seeded US pilot/);
+  const safe = "R".repeat(32);
+  assert.equal(requireScopedD1ReadToken({
+    COVE_CF_PRODUCTION_AUDIT_READ_TOKEN: safe,
+    CLOUDFLARE_API_TOKEN: "B".repeat(32),
+  }), safe);
+  assert.throws(() => requireScopedD1ReadToken({ CLOUDFLARE_API_TOKEN: "B".repeat(32) }));
   console.log("PASS: licensed territorial inventory and non-US fallback status");
 } else {
-  // D1 Read only: never accept the broad deployment token as a fallback.
-  const token = process.env.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN;
-  assert.ok(typeof token === "string" && token.length >= 20,
-    "COVE_CF_PRODUCTION_AUDIT_READ_TOKEN is required for rights inventory reads");
+  // A provider-enforced D1 Read credential cannot become a physical writer.
+  const token = requireScopedD1ReadToken();
   const response = await fetch(
     "https://api.cloudflare.com/client/v4/accounts/" + account + "/d1/database/" + database + "/query",
     { method:"POST", headers:{ authorization:"Bearer " + token, "content-type":"application/json" },
