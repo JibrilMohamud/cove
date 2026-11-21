@@ -59,8 +59,7 @@ export function verifySecretJobGuard(source, name) {
   for (const credential of credentials) {
     assert.ok(job.includes(credential), "Protected job missing reviewed credential: " + credential);
     assert.ok(
-      job.indexOf("environment: cove-production-release-audit") <
-        job.indexOf(credential),
+      job.indexOf("environment: cove-production-release-audit") < job.indexOf(credential),
     );
   }
   assert.match(source, /^permissions:\n  contents: read\s*$/m);
