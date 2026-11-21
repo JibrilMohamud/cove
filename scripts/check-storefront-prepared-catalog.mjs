@@ -25,6 +25,7 @@ try {
   const { handleCoveApi } = await import(path.join(root, "api.js"));
   const {
     produceCandidateSnapshot,
+    producerRankedCandidateSql,
     servePreparedCatalog,
     privateCandidateKey,
     validateCandidateSnapshot,
@@ -49,6 +50,39 @@ try {
     },
   };
   const db = localBindings(root).DB;
+  // Keep the exact original ranked SQL as an independent parity oracle.
+  // The new one-row necessary-grant gate must NEVER change candidate IDs,
+  // ordering, current deny-first availability, or territory distribution.
+  const originalProducerSql = `SELECT d.product_id
+    FROM catalog_search_documents d INDEXED BY idx_search_popular_stable
+    JOIN products p ON p.id=d.product_id
+    JOIN editions e ON e.id=p.edition_id
+    WHERE d.currency=? AND d.availability='available' AND d.suppressed=0
+      AND p.storefront_status='active' AND p.source_name<>'upload'
+      AND e.release_status IN ('available','preorder')
+      AND EXISTS (
+        SELECT 1 FROM retail_product_availability_rows rpa
+        WHERE rpa.product_id=p.id AND rpa.territory_code=?
+      )
+    ORDER BY d.fore_bestseller_score DESC,d.external_book_id ASC,d.product_id ASC
+    LIMIT ?`;
+  assert.match(producerRankedCandidateSql, /possible_country_allow AS MATERIALIZED/);
+  assert.match(producerRankedCandidateSql, /CROSS JOIN catalog_search_documents/);
+  assert.match(producerRankedCandidateSql, /FROM retail_product_availability_rows rpa/);
+  async function assertCandidateQueryParity(country, currency) {
+    const original = await db.prepare(originalProducerSql).bind(currency, country, 128).all();
+    const guarded = await db
+      .prepare(producerRankedCandidateSql)
+      .bind(country, currency, country, 128)
+      .all();
+    assert.deepEqual(
+      guarded.results.map((row) => String(row.product_id)),
+      original.results.map((row) => String(row.product_id)),
+      `The grant-existence gate must never alter ordered, legally eligible candidates for ${country}/${currency}`,
+    );
+    return guarded.results.length;
+  }
+
   const env = {
     ...localBindings(root),
     DB: db,
@@ -136,6 +170,11 @@ try {
     );
     assert.equal(projected.count, projected.results.length);
     assert.ok(result.candidates <= 128);
+    const candidateDoc = JSON.parse(objects.get(privateCandidateKey(country)));
+    assert.equal(
+      await assertCandidateQueryParity(country, candidateDoc.currency),
+      result.candidates,
+    );
     const htmlResponse = await worker.fetch(request(country), env);
     assert.equal(htmlResponse.status, 200, country);
     const html = await htmlResponse.text();
@@ -145,6 +184,11 @@ try {
       projected.results.map((book) => book.productId),
     );
   }
+  assert.equal(
+    await assertCandidateQueryParity("ZZ", "USD"),
+    0,
+    "Zero-grant countries must remain empty without a full ranked catalog eligibility scan",
+  );
   const usKey = privateCandidateKey("US");
   const valid = JSON.parse(objects.get(usKey));
   const original = objects.get(usKey);
