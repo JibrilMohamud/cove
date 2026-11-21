@@ -5,6 +5,7 @@ on:
       - "src/storefront-strangler/**"
       - "scripts/build-storefront-strangler.mjs"
       - "scripts/check-storefront-strangler.mjs"
+      - "scripts/check-storefront-prepared-catalog.mjs"
       - "scripts/test-storefront-strangler-browser.mjs"
       - "scripts/performance/strangler-integrated-acceptance.mjs"
       - "wrangler.storefront-strangler.stage.jsonc"
@@ -48,6 +49,8 @@ jobs:
         run: npx prettier --check scripts/performance/strangler-integrated-acceptance.mjs src/storefront-strangler/synthetic-client.ts
       - name: Prove config isolation, bearer delegation, primary rights and revocation
         run: node scripts/check-storefront-strangler.mjs
+      - name: Prove indexed candidate ranking parity and deny-first prepared presentation
+        run: node scripts/check-storefront-prepared-catalog.mjs
       - name: Protect current checkout, reader and legal rights
         run: |
           npm run test:rights
