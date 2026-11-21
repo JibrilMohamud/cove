@@ -1,23 +1,27 @@
-# Cove — unpatched picomatch ReDoS exposure and honest release gating
+# Cove — picomatch advisory withdrawal and strict dependency verification
 
-**Last reviewed:** November 18, 2026 (UTC)  
-**Advisory:** `GHSA-fc5q-39xc-vjpf` / `CVE-2026-112366`  
-**Release status:** **NO-GO**; high-severity `npm audit` is mandatory, with no exception, suppression, or skipped check.
+**Updated:** November 21, 2026 (UTC)
+**Advisory:** [GHSA-fc5q-39xc-vjpf](https://github.com/advisories/GHSA-fc5q-39xc-vjpf) / CVE-2026-112366
+**Cove release status:** **NO-GO** — independent production legal, commerce, performance, 503 and rollback gates remain open.
 
-## Verified state
+## Verified change after the November 18 investigation
 
-The currently published latest upstream `micromatch/picomatch` release remains `4.0.7`, within the advisory's affected range. No confirmed patched npm release exists at the time of this review. The advisory concerns pathological repeated single-branch extglob patterns and potentially attacker-controlled glob input. The npm package is installed transitively by build and tooling packages in Cove's lockfile, including `vite`, `tinyglobby`, `unplugin`, `@tanstack/start-plugin-core`, and `@tanstack/devtools-vite`. It is **not** correct to declare the dependency non-exploitable merely because these consumers look like tooling.
+GitHub **withdrew** this advisory on **November 18, 2026** (last updated November 19), stating explicitly that the reported behavior is *not a security issue*. The advisory URL remains published for historical reference. It lists no patched version because the advisory was withdrawn, **not** because an active security issue was silently waived.
 
-The source-only `scripts/security/check-glob-matcher-runtime-exposure.mjs` records the currently installed version(s) and exact lockfile consumers, then parses customer-serving `src/`, `app/`, and `server/` JavaScript/TypeScript source with the TypeScript compiler. It fails if they directly import, re-export, dynamically import or `require` `picomatch`, `tinyglobby`, or `unplugin`. Mutation/negative fixtures verify direct imports cannot slip past the scanner. This is **one narrow defense-in-depth measure only**, not a proof that compiled dependencies, runtime imports, config paths, or user inputs cannot reach picomatch indirectly.
+Before withdrawal, Cove's complete `npm audit --audit-level=high` reported high findings cascading through `picomatch` consumers. The audit had to stay red while the finding was active. After the authoritative withdrawal, the **unchanged complete-install audit** was independently rerun on dependency-remediation draft PR #770 (head `7b98cce85bddbb70636b90d8dfbb2ae6981b8c23`):
 
-## Mandatory honest path to a green release
+- [Security workflow #44261766158](https://github.com/JibrilMohamud/cove/actions/runs/44261766158): `dependency-audit`, `source-checks` and required `supply-chain` all **PASS** on the rerun.
+- [Zod compatibility workflow #44261766077](https://github.com/JibrilMohamud/cove/actions/runs/44261766077): previously audit-blocked `secured-v4-runtime` **PASS** on the rerun.
+- This is exact-branch evidence. **Main** still has its older dependency tree until the candidate is reviewed and safely promoted. Do not treat the advisory withdrawal as proof that unpatched, separately identified esbuild/serializer/parser vulnerabilities in main are gone.
 
-1. Wait for a genuine upstream npm release outside the advisory's affected range **or** replace the vulnerable dependency with a trusted, separately assessed implementation that truly resolves the ReDoS behavior.
-2. Regenerate and review npm's lockfile; verify integrity and expected dependency trees, including production and development installs.
-3. Run deterministic ReDoS regression cases in bounded, sandboxed child processes in addition to upstream compatibility tests; do **not** run pathological patterns on the live server or in CI's main Node event loop.
-4. Require the unchanged `npm audit --audit-level=high` to succeed with the same complete install and all independent source checks. The existing `supply-chain` job must continue to fail whenever either dependency audit or source tests fail or are skipped.
-5. Repeat browser, SSR, legal-owner, storefront 503, protected staging, geographic latency/100-RPS and protected rollback acceptance independently.
+No `npm audit` suppression, `--omit=dev`, advisory allowlist, package rename, fork pretending to be an upstream fix, status override or reduced severity threshold was used.
 
-Do **not** create an alias/fork solely to rename the vulnerable package or hide it from npm audit, add `--omit=dev` as a release workaround, introduce advisory allowlists, or change GitHub's required `supply-chain` status. None of those actions would prove Cove secure.
+## Continuing defense in depth
 
-No production deployment, D1 schema, legal rights, Stripe, Cloudflare Worker, token, routing, or monitoring setting is part of this source-only review.
+The existing `scripts/security/check-glob-matcher-runtime-exposure.mjs` inspects the installed lockfile and parses customer-serving `src/`, `app/` and `server/` source; it rejects direct imports, re-exports and dynamic/requires of `picomatch`, `tinyglobby` and `unplugin`. Mutation cases verify that the check fails for introduced imports. This is a **narrow source-level boundary**, not a claim about all indirect runtime imports or all possible glob expressions.
+
+Keep the complete mandatory `npm audit --audit-level=high`, source security, pinned dependencies, secret scanning, TypeScript, domain, rights and browser QA on every release candidate. If another high/critical issue appears, the required `supply-chain` must fail normally. Never downgrade or bypass the protection.
+
+## Independent NO-GO gates
+
+A clean dependency audit on #770 does **not** certify production: legal owner remains disabled; exclusive primary-D1 writer is unproven; LIVE Stripe entitlement/refund/revocation needs owner proof; real storefront 503 elimination and the unchanged strict four-region <800ms / two 100-RPS phases are unpassed; protected, legal/payment-compatible rollback has not been rehearsed. The update changes only draft source documentation; it does not touch production traffic, Worker settings, tokens, D1, rights, entitlements or payments.
