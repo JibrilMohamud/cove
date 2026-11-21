@@ -100,7 +100,7 @@ export async function advanceQaPrimaryDenialEpoch(
   // Source of truth is the current owner, never a caller-provided epoch.
   const owner=await currentQaOwnerEpochForNegativePublication(context);
   const prior=await readPrimary(context);
-  if(!matchingRow(prior,context,owner))deny();
+  if(!matchingRow(prior,context,owner))throw Error("qa_owner_primary_negative_publication_denied");
   const previousEpoch=epoch(prior.owner_mutation_epoch);
   const previousRevision=epoch(prior.publication_revision);
   const pending=epoch(prior.pending_withdrawals);
@@ -133,7 +133,7 @@ export async function advanceQaPrimaryDenialEpoch(
   const latest=await readPrimary(context);
   if(!matchingRow(latest,context,owner)||
      latest.owner_mutation_epoch!==owner.epoch||latest.dirty!==1||
-     latest.pending_withdrawals<1||latest.eligibility_valid_until_ms!==0)
+     epoch(latest.pending_withdrawals)<1||latest.eligibility_valid_until_ms!==0)
     deny();
   const again=await currentQaOwnerEpochForNegativePublication(context);
   if(again.epoch!==owner.epoch||again.version!==owner.version||
