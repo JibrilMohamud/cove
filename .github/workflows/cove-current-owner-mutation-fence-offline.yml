@@ -5,6 +5,8 @@ on:
       - "src/storefront-strangler/**"
       - "scripts/check-current-owner-mutation-fence.mjs"
       - "scripts/check-current-owner-primary-read-bracket.mjs"
+      - "scripts/check-qa-negative-owner-primary-publication.mjs"
+      - "scripts/staging/qa-owner-negative-primary-publication.prototype.sql"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/cove-current-owner-mutation-fence-offline.yml"
@@ -24,6 +26,8 @@ jobs:
         run: node scripts/check-current-owner-mutation-fence.mjs
       - name: Independently bracket an authorized primary read with two current owner challenges
         run: node scripts/check-current-owner-primary-read-bracket.mjs
+      - name: Prove one-statement monotonic negative publication, replay and SQLite rollback
+        run: node scripts/check-qa-negative-owner-primary-publication.mjs
       - name: Paid fulfillment, refund and disabled-production regression
         run: |
           node scripts/check-paid-owner-worker-handlers.mjs
