@@ -16,7 +16,7 @@
  */
 export const QA_OWNER_PRIMARY_FENCE_SCHEMA = "cove.qa.owner-primary-read-bracket.v1";
 export const QA_OWNER_PRIMARY_FENCE_SQL =
-  "SELECT primary_id,owner_journal_version,owner_mutation_epoch," +
+  "SELECT publication_schema,primary_id,owner_journal_version,owner_mutation_epoch," +
   "owner_rehearsal_revision,dirty,pending_withdrawals,pending_writes," +
   "eligibility_valid_until_ms FROM cove_qa_owner_primary_publication_fence WHERE slot=1";
 
@@ -145,6 +145,7 @@ async function checkedPrimary(
   const row = await db.prepare(QA_OWNER_PRIMARY_FENCE_SQL).first<PrimaryRow>();
   if (
     !row ||
+    row.publication_schema !== QA_OWNER_PRIMARY_FENCE_SCHEMA ||
     row.primary_id !== owner.primaryId ||
     row.owner_journal_version !== owner.version ||
     row.owner_mutation_epoch !== owner.epoch ||
