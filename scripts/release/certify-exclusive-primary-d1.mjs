@@ -49,26 +49,32 @@ async function proveUnreviewedUserGroupsReadOnly(get,userToken,userTokens){
     .flatMap(t=>t.policies.flatMap(p=>p.permission_groups))
     .filter(group=>!PRIVILEGED_GROUPS.has(group.name)&&
       !READ_ONLY_GROUP.test(group.name));
-  if(!unreviewed.length)return true;
-  // A missing ID cannot be trusted based on a display name alone.
-  if(unreviewed.some(group=>!GROUP_ID.test(group.id||"")))return false;
+  if(!unreviewed.length)return null;
+  if(unreviewed.some(group=>!GROUP_ID.test(group.id||"")))
+    return "read_group_identifier_missing";
   const verifiedIds=new Map();
   for(const {name,alias,scope} of DOCUMENTED_USER_READ_GROUPS){
     let page;
     try{
       page=await get("/user/tokens/permission_groups?name="+
         encodeURIComponent(name),userToken);
-    }catch{return false;}
-    // Provider endpoint may report total_count across unfiltered groups.
-    // Require one exact named row, exact scope and a usable stable group ID.
+    }catch(error){
+      return ["writer_audit_http_401","writer_audit_http_403"].includes(error?.message)
+        ?"read_group_catalog_unauthorized":"read_group_catalog_unavailable";
+    }
     const rows=page?.result,info=page?.result_info;
-    if(!Array.isArray(rows)||rows.length!==1||
-      rows[0]?.name!==name||!GROUP_ID.test(rows[0]?.id||"")||
-      !Array.isArray(rows[0]?.scopes)||!rows[0].scopes.includes(scope)||
-      (info&&(info.page!==1||info.count!==1)))return false;
+    if(!Array.isArray(rows))return "read_group_catalog_shape_invalid";
+    if(rows.length!==1)return "read_group_catalog_not_singleton";
+    if(rows[0]?.name!==name)return "read_group_catalog_name_mismatch";
+    if(!GROUP_ID.test(rows[0]?.id||""))return "read_group_catalog_identifier_invalid";
+    if(!Array.isArray(rows[0]?.scopes)||!rows[0].scopes.includes(scope))
+      return "read_group_catalog_scope_mismatch";
+    if(info&&(info.page!==1||info.count!==1))
+      return "read_group_catalog_page_invalid";
     verifiedIds.set(rows[0].id,alias);
   }
-  return unreviewed.every(group=>verifiedIds.get(group.id)===group.name);
+  return unreviewed.every(group=>verifiedIds.get(group.id)===group.name)
+    ?null:"read_group_alias_identifier_mismatch";
 }
 function tokenHasUnreviewedPermissions(token){
   return Array.isArray(token?.policies)&&token.policies.some(p=>
@@ -123,8 +129,8 @@ export async function inspectUserTokenEvidence(get,userToken){
   if(userTokens.some(t=>t.status==="active"&&tokenCanMutate(t)))
     return {verified:false,reason:"active_user_token_mutation_capability"};
   if(userTokens.some(t=>t.status==="active"&&tokenHasUnreviewedPermissions(t))){
-    if(!await proveUnreviewedUserGroupsReadOnly(get,userToken,userTokens))
-      return {verified:false,reason:"active_user_token_permission_unreviewed"};
+    const detail=await proveUnreviewedUserGroupsReadOnly(get,userToken,userTokens);
+    if(detail)return {verified:false,reason:"active_user_token_permission_unreviewed",detail};
   }
   return {verified:true,reason:"current_user_inventory_clear"};
 }
@@ -382,6 +388,7 @@ async function main(){
     bindingEvidenceSource:"active-immutable-versions",
     activeVersionCount:workers.reduce((sum,worker)=>sum+worker.activeVersionCount,0),
     userTokenEvidenceReason:userEvidence.reason,
+    userTokenEvidenceDetail:userEvidence.detail||null,
     userPrincipalEvidenceReason:principalEvidence.reason,
     userPrincipalScope:principalEvidence.verified?"verified-single-member":"unverified",
     requestStats:transport.stats(),
@@ -391,8 +398,27 @@ async function main(){
   }));
   if(!report.certified)process.exitCode=1;
 }
+// Diagnostic-only: five fixed metadata GETs at most, no Worker enumeration.
+// A successful user inventory is never a physical writer/identity certificate.
+export async function userTokenPreflight(env=process.env,get){
+  assert.equal(env.GITHUB_REPOSITORY,"JibrilMohamud/cove");
+  assert.equal(env.GITHUB_EVENT_NAME,"workflow_dispatch");
+  assert.equal(env.GITHUB_REF,"refs/heads/main");
+  assert.equal(env.CF_ACCOUNT_ID,ACCOUNT);
+  assert.ok(typeof env.CF_USER_AUDIT_TOKEN==="string"&&env.CF_USER_AUDIT_TOKEN.length>=20,
+    "Missing protected scoped User API Tokens Read credential");
+  const transport=get?null:createPhysicalWriterReadTransport();
+  const evidence=await inspectUserTokenEvidence(get||transport.get,env.CF_USER_AUDIT_TOKEN);
+  return {schema:"cove.user-token-readonly-preflight.v1",...evidence,
+    requestStats:transport?.stats()||null,principalCoverageCertified:false,releaseCertified:false};
+}
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
   if(process.argv.includes("--self-test"))selfTest();
+  else if(process.argv.slice(2).join(" ")==="--user-token-preflight"){
+    userTokenPreflight().then(report=>{console.log(JSON.stringify(report));
+      if(!report.verified)process.exitCode=1;
+    }).catch(()=>{console.error("BLOCKED: protected user-token preflight unavailable");process.exitCode=1;});
+  }
   else main().catch(e=>{
     // Do not print auth headers, raw API responses, URL, credentials or ids.
     console.error("BLOCKED: production writer inventory could not be certified: "+
