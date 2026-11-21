@@ -30,12 +30,12 @@ for (const invalid of [
 }
 assert.equal(validatedBackendFailureRay(new Headers()), "unavailable");
 assert.equal(
-  validatedBackendFailureRay({ get: () => knownRay + "\\r\\nCookie: secret" }),
+  validatedBackendFailureRay({ get: () => knownRay + String.fromCharCode(13, 10) + "Cookie: secret" }),
   "unavailable",
 );
 const gatewaySource = fs.readFileSync("src/lib/persistence-backend.ts", "utf8");
 assert.equal(
-  (gatewaySource.match(/validatedBackendFailureRay\\(response\\.headers\\)/g) || []).length,
+  gatewaySource.split("validatedBackendFailureRay(response.headers)").length - 1,
   1,
 );
 assert.ok(
