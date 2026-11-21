@@ -41,14 +41,28 @@ export function verifySecretJobGuard(source, name) {
     assert.ok(admission.includes(clause), "Missing gate: " + clause);
   }
   assert.match(job, /^    environment: cove-production-release-audit\s*$/m);
-  assert.ok(
-    job.includes("secrets.CLOUDFLARE_API_TOKEN"),
-    "Protected job must use explicitly inventoried credential",
-  );
-  assert.ok(
-    job.indexOf("environment: cove-production-release-audit") <
-      job.indexOf("secrets.CLOUDFLARE_API_TOKEN"),
-  );
+  // The reviewed literary audit now uses TWO independent provider-enforced
+  // read-only credentials. Other protected consumer jobs retain the existing
+  // broad-token inventory check until their own separately reviewed cutover.
+  const credentials =
+    name === "protected-activation-readonly"
+      ? [
+          "secrets.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN",
+          "secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN",
+        ]
+      : ["secrets.CLOUDFLARE_API_TOKEN"];
+  if (name === "protected-activation-readonly")
+    assert.ok(
+      !job.includes("secrets.CLOUDFLARE_API_TOKEN"),
+      "Read-only literary audit must never receive the broad deployment token",
+    );
+  for (const credential of credentials) {
+    assert.ok(job.includes(credential), "Protected job missing reviewed credential: " + credential);
+    assert.ok(
+      job.indexOf("environment: cove-production-release-audit") <
+        job.indexOf(credential),
+    );
+  }
   assert.match(source, /^permissions:\n  contents: read\s*$/m);
   return true;
 }
@@ -86,6 +100,18 @@ for (const [stem, name] of PRIVILEGED_JOBS) {
     const modified = mutateJob(source, name, from, to);
     assert.notEqual(modified, source);
     assert.throws(() => verifySecretJobGuard(modified, name));
+  }
+  if (name === "protected-activation-readonly") {
+    for (const credential of [
+      "secrets.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN",
+      "secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN",
+    ]) {
+      const missing = mutateJob(source, name, credential, "secrets.CLOUDFLARE_API_TOKEN");
+      assert.throws(
+        () => verifySecretJobGuard(missing, name),
+        "Returning either read-only role to broad token must be rejected",
+      );
+    }
   }
 }
 console.log(
