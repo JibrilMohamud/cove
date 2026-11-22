@@ -109,8 +109,8 @@ test("changed source rows, missing grants and audit regression block publication
   x.grants[0].grant_rows++;
   x.grants[0].active_allows++;
   x.external[0].grant_audit_events=4;
-  assert.ok(sourceCoverageReport(x,structuredClone(x),NOW).blockers.includes(
-    "external_source_grant_audit_incomplete"));
+  assert.throws(()=>sourceCoverageReport(x,structuredClone(x),NOW),
+    /chronology_coverage/,"A shortened event history cannot explain existing reactivations");
 });
 test("unresolved source identity, new source, invalid status and clock fail closed",()=>{
   for(const mutate of [
