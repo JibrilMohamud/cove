@@ -35,6 +35,10 @@ test("missing advanced rights witnesses always fail closed", () => {
     absent.policyCohorts[cohort].uniquelySelected = 0;
     assert.throws(() => assertSyntheticRightsDifferentialCoverage(absent), /cohort/);
 
+    const unselected = fixture();
+    unselected.policyCohorts[cohort].uniquelySelected = 0;
+    assert.throws(() => assertSyntheticRightsDifferentialCoverage(unselected), /cohort/);
+
     const missing = fixture();
     delete missing.policyCohorts[cohort];
     assert.throws(() => assertSyntheticRightsDifferentialCoverage(missing), /cohort/);
