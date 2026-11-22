@@ -279,24 +279,49 @@ try {
 
   // A current allow cannot resurrect terminal, tied-timestamp or backdated
   // rights history merely because an R2 EPUB object is present.
+  // The production trigger rightly refuses suspended -> active writes
+  // without independent legal authority. To test *historical* contradictions,
+  // append adversarial audit snapshots in the isolated database instead.
+  // Never fabricate positive history or disable real rights triggers.
+  async function appendFixtureHistory(id, eventId, status, recordedAt, notes) {
+    await env.DB.prepare(
+      "INSERT INTO rights_grant_audit(id,grant_id,action,snapshot_json,recorded_at)" +
+        " SELECT ?,grant_id,'update'," +
+        " json_set(snapshot_json,'$.status',?,'$.notes',?),?" +
+        " FROM rights_grant_audit WHERE grant_id=? ORDER BY rowid LIMIT 1",
+    )
+      .bind(
+        "rga_fixture_" + eventId,
+        status,
+        notes,
+        recordedAt,
+        "rg_test_" + id,
+      )
+      .run();
+  }
   const reactivated = await seed("pgau_9100010");
-  await env.DB.prepare(
-    "UPDATE rights_grants SET status='suspended',updated_at=? WHERE id=?",
-  ).bind("2026-10-21T00:00:00.000Z", "rg_test_pgau_9100010").run();
-  await env.DB.prepare(
-    "UPDATE rights_grants SET status='active',updated_at=? WHERE id=?",
-  ).bind("2026-10-22T00:00:00.000Z", "rg_test_pgau_9100010").run();
+  await appendFixtureHistory(
+    "pgau_9100010", "terminal", "suspended",
+    "2026-10-21T00:00:00.000Z", "terminal",
+  );
+  await appendFixtureHistory(
+    "pgau_9100010", "regrant", "active",
+    "2026-10-22T00:00:00.000Z", "no independently proven reauthorization",
+  );
   const tiedTimestamp = await seed("pgau_9100011");
-  await env.DB.prepare(
-    "UPDATE rights_grants SET notes='a',updated_at=? WHERE id=?",
-  ).bind("2026-10-23T00:00:00.000Z", "rg_test_pgau_9100011").run();
-  await env.DB.prepare(
-    "UPDATE rights_grants SET notes='b',updated_at=? WHERE id=?",
-  ).bind("2026-10-23T00:00:00.000Z", "rg_test_pgau_9100011").run();
+  await appendFixtureHistory(
+    "pgau_9100011", "tie_a", "active",
+    "2026-10-23T00:00:00.000Z", "a",
+  );
+  await appendFixtureHistory(
+    "pgau_9100011", "tie_b", "active",
+    "2026-10-23T00:00:00.000Z", "b",
+  );
   const backdated = await seed("pgau_9100012");
-  await env.DB.prepare(
-    "UPDATE rights_grants SET notes='backdated',updated_at=? WHERE id=?",
-  ).bind("2026-10-19T00:00:00.000Z", "rg_test_pgau_9100012").run();
+  await appendFixtureHistory(
+    "pgau_9100012", "backdate", "active",
+    "2026-10-19T00:00:00.000Z", "earlier than initial insert",
+  );
   const cleanHistory = await seed("pgau_9100013");
   const quarantined = await repairRegionalEpubAssets(envWithR2, {
     after: "pgau_9100009",
