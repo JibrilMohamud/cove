@@ -61,6 +61,7 @@ try{
   await blocked(req(),{...env(),COVE_BIOSYNC_QA_GATEWAY_EXPIRES_AT:String(Date.now()+60*60*1000)},503);
   await blocked(req(),{...env(),DB:{prepare(){throw Error("never")}}},503);
   await blocked(req(),{...env(),PRIMARY_DB:{prepare(){throw Error("never")}}},503);
+  await blocked(req(),{...env(),UNEXPECTED_D1:{prepare(){throw Error("never")}}},503);
   await blocked(req(),{...env(),LEGAL_AUTHORITY:undefined},503);
   await blocked(req(),{...env(),COVE_RIGHTS_OWNER_SECRET:"wrong"},503);
   await blocked(req(data,{secret:"bad"}),env(),401);
