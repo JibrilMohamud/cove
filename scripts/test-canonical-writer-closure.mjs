@@ -30,8 +30,12 @@ try{
   assert.ok(names.length>=120, "Every protected rights, finance and media table must be inventoried");
   assert.equal(names.length,new Set(names).size,"Duplicate canonical protected-table registry name");
   assert.ok(result.scannedFiles>50);
-  assert.ok(!result.findings.some(row=>row.file.startsWith("scripts/test-")),
+  assert.ok(!result.findings.some(row=>row.file.startsWith("scripts/test-")||
+      row.file.endsWith(".test.mjs")),
     "Unit-test SQL must never masquerade as production canonical writer evidence");
+  // Only explicit test suffixes are excluded: source/server .mjs, .ts and
+  // live runtime mutation candidates remain covered by the 483-site lock.
+  assert.match(scanner, /path\.endsWith\("\.test\.mjs"\)/);
   assert.ok(result.unresolvedDirectWrites>80,
     "Unexpectedly empty writer audit: do not certify production from a broken scanner");
   for(const path of [
