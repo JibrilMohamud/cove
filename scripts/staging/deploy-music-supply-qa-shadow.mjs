@@ -12,9 +12,7 @@ const deployToken = process.env.CLOUDFLARE_API_TOKEN;
 const metadataToken = process.env.COVE_CF_WORKERS_METADATA_READ_TOKEN;
 const qaReadToken = process.env.COVE_CF_STAGE_D1_READ_TOKEN;
 assert.ok(
-  [deployToken, metadataToken, qaReadToken].every(
-    (x) => typeof x === "string" && x.length >= 20,
-  ),
+  [deployToken, metadataToken, qaReadToken].every((x) => typeof x === "string" && x.length >= 20),
   "Stage Worker deploy, metadata, and D1-read permissions must use scoped credentials",
 );
 assert.equal(
