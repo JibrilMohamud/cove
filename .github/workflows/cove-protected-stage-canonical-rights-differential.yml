@@ -76,14 +76,14 @@ jobs:
           test "$(git rev-parse HEAD)" = "${{ inputs.reviewed_main_sha }}"
           test "${{ github.ref }}" = "refs/heads/main"
       - run: npm ci --no-audit --no-fund
-      - name: Require separately scoped synthetic-D1 Read credential
+      - name: Require independent D1 Read-only credential (fixed stage D1 ID in script)
         shell: bash
         env:
           COVE_CF_STAGE_D1_READ_TOKEN: ${{ secrets.COVE_CF_STAGE_D1_READ_TOKEN }}
         run: |
           set -euo pipefail
           if [ "${#COVE_CF_STAGE_D1_READ_TOKEN}" -lt 20 ]; then
-            echo "::error title=Missing protected stage D1 Read token::Install a dedicated least-privilege D1 Read token for the isolated synthetic D1 only; do NOT substitute the deploy or primary-write token."
+            echo "::error title=Missing protected stage D1 Read token::Install a dedicated D1 Read-only token. Cloudflare account-token D1 Read may be account-wide; the audit script strictly pins the synthetic D1 ID. Do NOT substitute the deploy or primary-write token."
             exit 1
           fi
       - name: Differentially compare required legal policy cohorts (READ ONLY)
