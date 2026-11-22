@@ -28,6 +28,10 @@ const ignore=(name,path)=>
   path.startsWith("scripts/staging/")||path.startsWith("scripts/check-")||
   path.startsWith("scripts/test-")||
   path.includes("__tests__")||path.endsWith(".test.ts")||
+  // A specifically reviewed offline SQLite fixture has intentional SQL
+  // mutations. NEVER broadly exempt all .test.mjs files: an unexpected
+  // future importer or disguised writer must still fail source drift review.
+  path==="scripts/release/primary-grant-event-replay-policy.test.mjs"||
   path.endsWith(".spec.ts")||path.endsWith(".d.ts")||
   path.startsWith("src/storefront-strangler/legal-quarantine-qa.writer.ts")||
   path.startsWith("src/storefront-strangler/legal-authority.worker.ts");

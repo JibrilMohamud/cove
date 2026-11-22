@@ -3190,9 +3190,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "58db73e9f2bbf8533c3eaf9005e0591c770387fb6117f4d5c70609f1998048a2",
+      "siteId": "a11c5d0f484e751b0c1b8007510ca0504619370d24008dfffdc7bf81667279f1",
       "file": "src/features/fore/regional-epub-asset-repair.server.ts",
-      "line": 144,
+      "line": 175,
       "functionName": "repairRegionalEpubAssets",
       "table": "digital_assets",
       "operation": "INSERT OR IGNORE INTO",
@@ -3203,9 +3203,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "105d534e590cf85116644e8031e095b85a5ccb657ddaac8c301e4bc97d4b9d87",
+      "siteId": "cd523e732697cd534fc08f8948311ac40c8d8d8e135c42c281dd73f224b6fdc6",
       "file": "src/features/fore/regional-epub-asset-repair.server.ts",
-      "line": 157,
+      "line": 188,
       "functionName": "repairRegionalEpubAssets",
       "table": "asset_versions",
       "operation": "INSERT OR IGNORE INTO",
@@ -3216,9 +3216,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "212c92dd7829f43594ae47c0136bc129ae3aee21d027e5abf2eef74571fe971f",
+      "siteId": "11a7da232d003e47e85effdc2d27d056304d850d78cf83521884fd224e2e7614",
       "file": "src/features/fore/regional-epub-asset-repair.server.ts",
-      "line": 173,
+      "line": 204,
       "functionName": "repairRegionalEpubAssets",
       "table": "asset_versions",
       "operation": "UPDATE",
@@ -3229,9 +3229,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "50a711c57b82a6d9d7d162ad92d30f729be4f7eb83ad12b56ea5c2410b23d57e",
+      "siteId": "d4893e28a6420a14fa70ffccc9b50cdb8b90ec7ca56fb983e16e1fb6c1c7d889",
       "file": "src/features/fore/regional-epub-asset-repair.server.ts",
-      "line": 179,
+      "line": 210,
       "functionName": "repairRegionalEpubAssets",
       "table": "digital_assets",
       "operation": "UPDATE",
