@@ -4,12 +4,17 @@ import fs from "node:fs";
 import { randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
+import {
+  checkedStranglerAcceptanceCredentials,
+  stranglerAcceptanceTokenFor,
+} from "./strangler-acceptance-credentials.mjs";
 
 const account = "d26430caa63ec55f6612e32f36aca5e9";
 const dbId = "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
 const prodDbId = "4bd657ac-8789-403e-a28c-93aba8d0a989";
-const token = process.env.CLOUDFLARE_API_TOKEN;
-assert.ok(token && token.length > 16, "Isolated hosted acceptance requires Cloudflare credentials");
+const credentials = checkedStranglerAcceptanceCredentials(process.env);
+const fixtureSql =
+  "SELECT COUNT(*) AS n, SUM(CASE WHEN id NOT LIKE 'perf-synth-%' THEN 1 ELSE 0 END) AS bad FROM products";
 assert.match(process.env.GITHUB_RUN_ID || "", /^\d+$/);
 const namePrefix = "cove-strangler-perf-" + process.env.GITHUB_RUN_ID;
 let name = namePrefix + "-1";
@@ -51,6 +56,17 @@ const save = () =>
   );
 let stageKey = "";
 function command(args, input) {
+  // Only the ephemeral, synthetic staging config may be deployed or receive one secret.
+  const deploy =
+    args.length === 3 && args[0] === "deploy" && args[1] === "--config" && args[2] === configPath;
+  const secret =
+    args.length === 5 &&
+    args[0] === "secret" &&
+    args[1] === "put" &&
+    args[2] === "COVE_SSR_STAGING_GATE_KEY" &&
+    args[3] === "--config" &&
+    args[4] === configPath;
+  assert.ok(deploy || secret, "Unreviewed Wrangler operation is forbidden");
   const run = spawnSync(
     "npm",
     ["exec", "--yes", "--package=wrangler@4.151.0", "--", "wrangler", ...args],
@@ -72,6 +88,9 @@ function command(args, input) {
     );
 }
 async function cloudflare(method, path, body) {
+  const token = stranglerAcceptanceTokenFor(method, path, credentials);
+  if (method === "POST")
+    assert.deepEqual(body, { sql: fixtureSql }, "Only bounded synthetic COUNT SELECT allowed");
   const response = await fetch("https://api.cloudflare.com/client/v4" + path, {
     method,
     headers: {
@@ -177,7 +196,7 @@ async function deployFresh(round) {
 const startedAt = performance.now();
 try {
   const fixture = await cloudflare("POST", `/accounts/${account}/d1/database/${dbId}/query`, {
-    sql: "SELECT COUNT(*) AS n, SUM(CASE WHEN id NOT LIKE 'perf-synth-%' THEN 1 ELSE 0 END) AS bad FROM products",
+    sql: fixtureSql,
   });
   assert.ok(Number(fixture?.[0]?.results?.[0]?.n) >= 40_000);
   assert.equal(Number(fixture?.[0]?.results?.[0]?.bad), 0);
