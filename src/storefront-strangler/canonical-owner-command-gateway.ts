@@ -108,7 +108,7 @@ const routes={
   "commerce.publish-entitlement":{path:"/commercial/entitlement/publish-verified",schema:z.object({
     entitlementId:ownerId,userId:ownerId,productId:product,territory,channel:z.literal("retail")}).strict()},
   "biosync.publish-checked":{path:"/biosync/publish-checked",schema:z.object({
-    editionId:subject,trackId:subject,jobId:subject,
+    editionId:subject,trackId:z.string().regex(/^[a-zA-Z0-9_-]{1,160}$/),jobId:subject,
     mapSha256:z.string().regex(/^[0-9a-f]{64}$/)
   }).strict()},
   "partner.process-feed":{path:"/publishing/partner/process-feed",schema:z.object({
