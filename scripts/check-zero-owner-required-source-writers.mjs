@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Final source-exact owner-writer closure audit, never a release approval. */
 import assert from "node:assert/strict";
+import {expectedCurrentOwnerIntegrationHash} from "./release/owner-integration-source-pins.mjs";
 import {createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
 const read=p=>readFileSync(p,"utf8");
@@ -14,7 +15,7 @@ assert.equal(lineage.releaseApproval,false);
 assert.equal(lineage.productionCertified,false);
 assert.equal(lineage.sourceBefore,1);
 assert.equal(lineage.sourceAfter,0);
-assert.equal(createHash("sha256").update(src).digest("hex"),lineage.currentSha256);
+assert.equal(createHash("sha256").update(src).digest("hex"),expectedCurrentOwnerIntegrationHash("src/features/fore/api.server.ts",lineage.currentSha256));
 assert.equal(lineage.retired.length,1);
 assert.equal(lineage.retired[0].table,"gutenberg_source_cache");
 assert.ok(!review.sites.some(r=>r.siteId===lineage.retired[0].siteId));
