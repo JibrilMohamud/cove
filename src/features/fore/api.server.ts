@@ -1,3 +1,4 @@
+import { dispatchCanonicalOwnerCommand } from "../../storefront-strangler/canonical-owner-command-gateway";
 import { createStageOwnerCheckoutQuote } from "../../storefront-strangler/owner-checkout-quote.server";
 import { saveStageOwnerContractVersion } from "../../storefront-strangler/owner-contract-version.server";
 import { executeStageOwnerMonetaryAdmin } from "../../storefront-strangler/owner-commerce-admin.server";
@@ -511,6 +512,7 @@ export type CoveEnv = {
   LEGAL_QUARANTINE_WRITER?: { fetch(request: Request): Promise<Response> };
   // Protected private QA only; never inherited by production frontend.
   COVE_LEGAL_CONSUMER_STAGE_ENABLED?: string;
+  COVE_BIOSYNC_OWNER_STAGE_ENABLED?: string;
   COVE_PUBLICATION_COMMANDS_ENABLED?: string;
   COVE_PUBLICATION_COMMAND_TERRITORY?: string;
   COVE_PUBLICATION_COMMAND_CURRENCY?: string;
@@ -3137,6 +3139,26 @@ async function handleCoveRequest(
     })();
     if (path.startsWith("/machine/v1/")) {
       if (request.method !== "POST") throw new ApiError(405, "Machine endpoints require POST.");
+      if (path === "/machine/v1/biosync/publish-checked") {
+        // The scheduled canary must never submit SQL to primary D1. Only the
+        // temporary isolated staging owner can publish this one immutable
+        // checked R2 map; production remains disabled pending writer closure.
+        if (
+          env.COVE_SSR_STAGING !== "1" ||
+          env.COVE_CANONICAL_LEGAL_WRITE_LOCK !== "1" ||
+          env.COVE_BIOSYNC_OWNER_STAGE_ENABLED !== "1" ||
+          !env.LEGAL_AUTHORITY?.getByName ||
+          !/^[0-9a-f]{64}$/.test(env.COVE_RIGHTS_OWNER_SECRET || "")
+        )
+          throw new ApiError(503, "BioSync owner publication is unavailable.");
+        await requireServiceScope(machineDb, request, "audio.align.publish");
+        return json(await dispatchCanonicalOwnerCommand(
+          env.LEGAL_AUTHORITY.getByName("cove-staged-legal-global-v1"),
+          env.COVE_RIGHTS_OWNER_SECRET!,
+          "biosync.publish-checked",
+          await body(request)
+        ));
+      }
       if (path === "/machine/v1/ops/check") {
         const principal = await requireServiceScope(machineDb, request, "operations.check");
         return json(
