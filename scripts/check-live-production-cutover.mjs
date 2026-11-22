@@ -141,18 +141,19 @@ async function main() {
   const auditOnly=process.argv.includes("--audit");
   const release=process.argv.includes("--release-gate");
   if(auditOnly===release)throw Error("Specify exactly one of --audit or --release-gate");
-  const token=process.env.CLOUDFLARE_API_TOKEN;
+  const token=process.env.COVE_CF_WORKERS_METADATA_READ_TOKEN;
+  const zoneToken=process.env.COVE_CF_ZONE_ROUTES_READ_TOKEN;
   const account=process.env.CLOUDFLARE_ACCOUNT_ID;
   const zone=process.env.CLOUDFLARE_ZONE_ID;
-  if(!token||!/^[a-f0-9]{32}$/.test(account||"")||
+  if(!token||!zoneToken||token===zoneToken||!/^[a-f0-9]{32}$/.test(account||"")||
      !/^[a-f0-9]{32}$/.test(zone||""))
-    throw Error("Cloudflare API token and exact account/zone IDs are required");
+    throw Error("Distinct Worker metadata/zone-route read tokens and exact account/zone IDs are required");
   const base="/accounts/"+account;
   const [backend,frontend,owner,routes,domains]=await Promise.all([
     cloudflareGet(base+"/workers/scripts/"+PRIMARY+"/settings",token),
     cloudflareGet(base+"/workers/scripts/cove/settings",token,{optional:true}),
     cloudflareGet(base+"/workers/scripts/"+OWNER_SCRIPT+"/settings",token,{optional:true}),
-    cloudflareGet("/zones/"+zone+"/workers/routes",token),
+    cloudflareGet("/zones/"+zone+"/workers/routes",zoneToken),
     cloudflareGet(base+"/workers/domains",token),
   ]);
   let publicOrigin=null;
