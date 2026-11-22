@@ -1,0 +1,69 @@
+name: cove-protected-full-primary-historical-rights
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/release/primary-historical-rights-inventory-policy.mjs"
+      - "scripts/release/primary-historical-rights-inventory-policy.test.mjs"
+      - "scripts/release/protected-primary-historical-rights-inventory.mjs"
+      - ".github/workflows/cove-protected-full-primary-historical-rights.yml"
+  workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        required: true
+        type: string
+        description: "Review the exact main commit before primary D1 read-only access."
+      confirm_historical_readonly:
+        required: true
+        type: boolean
+        default: false
+        description: "Confirm aggregate-only full-primary read; never activate owner, rights or payment."
+permissions:
+  contents: read
+concurrency:
+  group: cove-protected-primary-d1-legal-audit
+  cancel-in-progress: false
+jobs:
+  offline-legal-history-contract:
+    if: github.repository == 'JibrilMohamud/cove'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22" }
+      - run: node --check scripts/release/protected-primary-historical-rights-inventory.mjs
+      - run: node scripts/release/protected-primary-historical-rights-inventory.mjs --self-test
+      - run: node --test scripts/release/primary-historical-rights-inventory-policy.test.mjs
+      - run: git diff --check
+  protected-historical-inventory:
+    needs: offline-legal-history-contract
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.reviewed_main_sha == github.sha &&
+      inputs.confirm_historical_readonly == true
+    environment: cove-production-release-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22" }
+      - name: Inventory full production historical primary rights, no mutations
+        run: node scripts/release/protected-primary-historical-rights-inventory.mjs --live
+        env:
+          CF_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+          COVE_PRODUCTION_D1_ID: 4bd657ac-8789-403e-a28c-93aba8d0a989
+          COVE_PRODUCTION_LEGAL_AUDIT_ONLY: "1"
+          COVE_CF_PRODUCTION_AUDIT_READ_TOKEN: ${{ secrets.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cove-primary-historical-rights-${{ github.run_id }}
+          path: artifacts/production-rights-history/inventory.json
+          if-no-files-found: ignore
+          retention-days: 30
