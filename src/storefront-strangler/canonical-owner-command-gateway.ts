@@ -111,6 +111,10 @@ const routes={
     orderId:ownerId,userId:ownerId,territory,channel:z.literal("retail")}).strict()},
   "commerce.publish-entitlement":{path:"/commercial/entitlement/publish-verified",schema:z.object({
     entitlementId:ownerId,userId:ownerId,productId:product,territory,channel:z.literal("retail")}).strict()},
+  "biosync.publish-checked":{path:"/biosync/publish-checked",schema:z.object({
+    editionId:subject,trackId:z.string().regex(/^[a-zA-Z0-9_-]{1,160}$/),jobId:subject,
+    mapSha256:z.string().regex(/^[0-9a-f]{64}$/)
+  }).strict()},
   "partner.process-feed":{path:"/publishing/partner/process-feed",schema:z.object({
     limit:z.number().int().min(1).max(25),operationId:shortOperation
   }).strict()},
@@ -774,6 +778,13 @@ export async function dispatchCanonicalOwnerCommand(
            Number.isSafeInteger(n)&&Number(n)>=0&&Number(n)<=Number(body.limit))||
          Number(ack.applied)+Number(ack.failed)!==Number(ack.leased)||
          Number(ack.sandbox)!==Number(ack.leased))
+        throw Error("canonical_command_receipt_mismatch");
+      break;
+    case "biosync.publish-checked":
+      if(ack.schema!=="cove.owner-biosync-checked-publication.v1"||
+         ack.editionId!==body.editionId||ack.trackId!==body.trackId||
+         ack.jobId!==body.jobId||ack.mapSha256!==body.mapSha256||
+         ack.committed!==true||typeof ack.replay!=="boolean")
         throw Error("canonical_command_receipt_mismatch");
       break;
     case "catalog.normalize-gutenberg":

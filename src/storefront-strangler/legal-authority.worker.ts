@@ -1,4 +1,5 @@
 /* eslint-disable prettier/prettier -- Private legal-authority boundary is security-sensitive. */
+import {publishCheckedBiosyncOwned} from "./owner-biosync-checked-publication.stage";
 import {validateStoredEpub} from "../features/fore/stored-epub.server";
 import {canonicalizeRegionalEpub} from "../features/fore/gutenberg-federation.server";
 import JSZip from "jszip";
@@ -17715,6 +17716,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/entitlement/publish-verified",
       "/commercial/entitlement/publish-order-verified",
       "/publishing/partner/process-feed",
+      "/biosync/publish-checked",
       "/catalog/normalize-gutenberg",
       "/catalog/personal-import",
       "/publishing/audio/register-upload",
@@ -17911,6 +17913,10 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           return Response.json({schema:"cove.owner-partner-feed-sandbox.v1",
             ownerFirst:true,operationId:q.operationId,...outcome},{headers:noStore});
         }finally{this.partnerFeedRunning=false;}
+      }
+      if(route==="/biosync/publish-checked") {
+        const receipt=await publishCheckedBiosyncOwned(env.PRIMARY_DB,env.BUCKET,raw);
+        return Response.json(receipt,{headers:noStore});
       }
       if(route==="/catalog/normalize-gutenberg") {
         const input=raw as {sourceId?:unknown;operationId?:unknown}|null;
