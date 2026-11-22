@@ -71,6 +71,7 @@ type LegalAuthorityEnv = {
   BUCKET?:PublishingEnv["BUCKET"];
   FORE_PUBLISHING_AUTO_APPROVE_LOW_RISK?:string;
   COVE_QA_OWNER_JOURNAL_VERSION?: string;
+  COVE_QA_OWNER_ISOLATED_RUN?: string;
   COVE_QA_OWNER_REHEARSAL_REVISION?: string;
   COVE_QA_OWNER_POSITIVE_CERTIFICATE_ONLY?: string;
   COVE_RIGHTS_OWNER_SECRET?: string;
@@ -5786,6 +5787,14 @@ export default {
       return new Response(null,{status:503,headers:{"cache-control":"no-store"}});
     if(request.headers.get("authorization")!=="Bearer "+env.COVE_RIGHTS_OWNER_SECRET)
       return new Response(null,{status:401,headers:{"cache-control":"no-store"}});
-    return env.LEGAL_AUTHORITY.getByName("cove-staged-legal-global-v1").fetch(request);
+    // Fixed isolated QA Workers need a fresh object on every run. Production
+    // disabled-owner routing above is unchanged and cannot opt into this path.
+    const isolatedRun=env.COVE_QA_OWNER_ISOLATED_RUN;
+    if(isolatedRun!==undefined && (!/^[a-f0-9]{64}$/.test(isolatedRun) ||
+       isolatedRun!==env.COVE_QA_OWNER_JOURNAL_VERSION ||
+       env.COVE_RIGHTS_OWNER_PRIMARY_ID!=="7c7ab994-f6b3-419d-a72d-71eb9ea22e7e"))
+      return new Response(null,{status:503,headers:{"cache-control":"no-store"}});
+    return env.LEGAL_AUTHORITY.getByName(isolatedRun?
+      "cove-paid-isolated-"+isolatedRun:"cove-staged-legal-global-v1").fetch(request);
   }
 };

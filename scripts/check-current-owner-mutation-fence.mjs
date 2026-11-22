@@ -166,6 +166,30 @@ try {
       },
     };
   }
+  // Fixed isolated Workers route every campaign to a different Durable Object.
+  // Invalid/mismatched run identities must fail before contacting any object.
+  const isolated = fixture();
+  const routedNames = [];
+  isolated.env.LEGAL_AUTHORITY = {
+    getByName(name) {
+      routedNames.push(name);
+      return { fetch: async () => new Response(null, { status: 204 }) };
+    },
+  };
+  for (const run of ["d".repeat(64), "e".repeat(64)]) {
+    isolated.env.COVE_QA_OWNER_JOURNAL_VERSION = run;
+    isolated.env.COVE_QA_OWNER_ISOLATED_RUN = run;
+    assert.equal((await isolated.post(route, { challenge })).status, 204);
+  }
+  assert.deepEqual(routedNames, [
+    "cove-paid-isolated-" + "d".repeat(64),
+    "cove-paid-isolated-" + "e".repeat(64),
+  ]);
+  for (const invalid of ["", "malformed", "f".repeat(64)]) {
+    isolated.env.COVE_QA_OWNER_ISOLATED_RUN = invalid;
+    assert.equal((await isolated.post(route, { challenge })).status, 503);
+  }
+  assert.equal(routedNames.length, 2);
   const f = fixture();
   assert.equal((await f.read()).mutationEpoch, "0");
   for (const [r, command] of commands) {

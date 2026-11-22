@@ -8,6 +8,8 @@ import {pathToFileURL} from "node:url";
 import {readPaidOwnerFence,paidOwnerRollbackEvidence} from "./paid-owner-rollback-evidence.mjs";
 import {isPaidOwnerQaSchemaTable} from "./paid-owner-schema-policy.mjs";
 import {provisionPublishedQaAudio} from "./provision-original-audio-qa.mjs";
+import {QA_ACCOUNT,QA_DATABASE,QA_SCHEMA_SOURCE,QA_SCHEMA_SQL,QA_BUCKET,QA_WORKERS,createPaidQaControlPlane,paidQaDeployEnvironment,assertPaidQaConfig} from "./paid-qa-isolation.mjs";
+import {PARKING_RECEIPT,restorePaidQa} from "./park-paid-qa.mjs";
 import JSZip from "jszip";
 import {build} from "esbuild";
 import {spawnSync,spawn} from "node:child_process";
@@ -17,24 +19,27 @@ import {createServer} from "node:http";
 // payments, owners and order idempotency keys by the actual attempt as well.
 // Never reuse a prior attempt's potentially paid or refunded QA order.
 const runId=process.env.GITHUB_RUN_ID+"-"+(process.env.GITHUB_RUN_ATTEMPT||"1");
-const token=process.env.CLOUDFLARE_API_TOKEN;
+const control=createPaidQaControlPlane(process.env);
 const account=process.env.CLOUDFLARE_ACCOUNT_ID;
 assert.match(runId||"",/^\d{8,15}-\d{1,5}$/);
 assert.match(account||"",/^[a-f0-9]{32}$/);
 assert.equal(account,"d26430caa63ec55f6612e32f36aca5e9");
-assert.ok(token,"Cloudflare QA authorization required");
+assert.equal(account,QA_ACCOUNT);
 const stripeSecret=process.env.COVE_SANDBOX_SECRET_KEY||"";
 assert.match(stripeSecret,/^(?:sk|rk|rkcs)_test_[A-Za-z0-9]+$/,"Independent owner requires a real TEST Stripe credential");
 const interruptTrigger="qa_settlement_interrupt_"+runId.replaceAll("-","_");
 let interruptTriggerCreated=false;
-const ownerName="cove-paid-legal-owner-"+runId;
-const callerName="cove-paid-legal-caller-"+runId;
-const writerName="cove-paid-legal-writer-"+runId;
-const settlementName="cove-paid-settlement-qa-"+runId;
-const mediaBucketName="cove-paid-private-media-qa-"+runId;
+const ownerName=QA_WORKERS.owner;
+const callerName=QA_WORKERS.caller;
+const writerName=QA_WORKERS.writer;
+const settlementName=QA_WORKERS.settlement;
+const mediaBucketName=QA_BUCKET;
+const fixtureOrigin="https://"+QA_WORKERS.fixture+".cove-jibrilmohamud.workers.dev";
+const fixtureGate=randomBytes(32).toString("hex");
+let fixtureAttempted=false,parkingSnapshot=null;
 const settlementOrigin="https://"+settlementName+".cove-jibrilmohamud.workers.dev";
 const origin="https://"+callerName+".cove-jibrilmohamud.workers.dev";
-const primary="7c7ab994-f6b3-419d-a72d-71eb9ea22e7e";
+const primary=QA_DATABASE;
 const primaryName="cove-paid-commerce-legal-qa-20261027";
 const gate=randomBytes(32).toString("hex");
 const secret=randomBytes(32).toString("hex");
@@ -63,23 +68,41 @@ const test={
 };
 const cli=(args)=>{
   const result=spawnSync("npm",["exec","--yes","--package=wrangler@4.151.0","--","wrangler",...args],{
-    encoding:"utf8",timeout:160000,env:{...process.env,CLOUDFLARE_SEND_METRICS:"false"}
+    encoding:"utf8",timeout:160000,env:paidQaDeployEnvironment(process.env)
   });
   if(result.status!==0)throw Error("wrangler_"+args[0]+"_failed "+
     String(result.stderr||"").replace(/Bearer\s+\S+/g,"Bearer [redacted]").slice(-450));
 };
-const api=async(method,resource,body)=>{
-  const r=await fetch("https://api.cloudflare.com/client/v4/accounts/"+account+resource,{
-    method,headers:{authorization:"Bearer "+token,
-      "content-type":"application/json"},
-    ...(body?{body:JSON.stringify(body)}:{}),
-    signal:AbortSignal.timeout(18000)
-  });
-  const j=await r.json().catch(()=>null);
-  if(!r.ok||!j?.success)throw Error("Cloudflare control plane "+method+" "+r.status+" "+JSON.stringify((j?.errors||[]).map(e=>({code:e.code,message:String(e.message).slice(0,220)}))).slice(0,400));
-  return j.result;
+const api=control.api;
+const fixtureCall=async(route,body)=>{
+  const r=await fetch(fixtureOrigin+route,{method:body===undefined?"GET":"POST",
+    redirect:"error",headers:{authorization:"Bearer "+fixtureGate,"content-type":"application/json"},
+    ...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(18000)});
+  if(r.status!==200)throw Error("paid_qa_native_fixture_failed_"+r.status);
+  return r.json();
 };
+async function activateFixture(){
+  const metadata={main_module:"fixture.mjs",compatibility_date:"2026-10-25",bindings:[
+    {name:"QA_DB",type:"d1",id:primary},
+    {name:"QA_MEDIA",type:"r2_bucket",bucket_name:mediaBucketName},
+    {name:"QA_DATABASE_ID",type:"plain_text",text:primary},
+    {name:"QA_BUCKET_NAME",type:"plain_text",text:mediaBucketName},
+    {name:"QA_EXPIRES_AT",type:"plain_text",text:String(Date.now()+29*60_000)},
+    {name:"QA_GATE",type:"secret_text",text:fixtureGate},
+  ]};
+  const form=new FormData();
+  form.set("metadata",new Blob([JSON.stringify(metadata)],{type:"application/json"}));
+  form.set("fixture.mjs",new Blob([fs.readFileSync("scripts/staging/paid-qa-fixture.worker.mjs","utf8")],{type:"application/javascript+module"}),"fixture.mjs");
+  fixtureAttempted=true;
+  await api("PUT","/workers/scripts/"+QA_WORKERS.fixture,form);
+  await api("POST","/workers/scripts/"+QA_WORKERS.fixture+"/subdomain",{enabled:true,previews_enabled:false});
+  for(let attempt=0;attempt<20;attempt++){
+    try{const r=await fixtureCall("/ready");assert.deepEqual(r,{ready:true,database:primary,bucket:mediaBucketName,authorizing:false});return;}
+    catch(e){if(attempt===19)throw e;await new Promise(resolve=>setTimeout(resolve,1000));}
+  }
+}
 const deploy=async(file,secrets)=>{
+  assertPaidQaConfig(JSON.parse(fs.readFileSync(file,"utf8")));
   const keyfile=path.join(temp,path.basename(file)+".secrets.json");
   fs.writeFileSync(keyfile,JSON.stringify(secrets),{mode:0o600});
   try {
@@ -99,9 +122,9 @@ const deploy=async(file,secrets)=>{
   }finally { fs.rmSync(keyfile,{force:true}); }
 };
 const qaSql=async(sql,params=[])=>{
-  const results=await api("POST","/d1/database/"+primary+"/query",{sql,params});
-  assert.equal(results?.[0]?.success,true,"Only the dedicated synthetic legal QA D1 may be used");
-  return results[0];
+  const result=await fixtureCall("/query",{sql,params});
+  assert.equal(result?.success,true,"Only the dedicated native synthetic QA binding may be used");
+  return result;
 };
 /**
  * QA ONLY: copy schema, never rows, from the separate synthetic catalog
@@ -110,10 +133,10 @@ const qaSql=async(sql,params=[])=>{
  * no ledger, royalties, outbox, retail events or reader state schema.
  * This is a strict source/destination allowlist; never use a production D1.
  */
-const schemaSource="e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
+const schemaSource=QA_SCHEMA_SOURCE;
 async function prepareInitialCommerceQaSchema(){
   const records=await api("POST","/d1/database/"+schemaSource+"/query",{
-    sql:"SELECT type,name,tbl_name,sql FROM sqlite_master WHERE sql IS NOT NULL AND type IN ('table','index') ORDER BY CASE type WHEN 'table' THEN 0 ELSE 1 END,name"
+    sql:QA_SCHEMA_SQL
   });
   assert.equal(records?.[0]?.success,true);
   const present=(await qaSql("SELECT type,name FROM sqlite_master WHERE type IN ('table','index')")).results;
@@ -319,6 +342,12 @@ const stripeRequest=async(route,body)=>{
   return result;
 };
 try {
+  const preflight=await control.preflight();
+  assert.match(process.env.GITHUB_SHA||"",/^[a-f0-9]{40}$/);
+  parkingSnapshot={runId,sha:process.env.GITHUB_SHA,parked:preflight.parked};
+  fs.mkdirSync(path.dirname(PARKING_RECEIPT),{recursive:true});
+  fs.writeFileSync(PARKING_RECEIPT,JSON.stringify(parkingSnapshot,null,2)+"\n");
+  await activateFixture();
   await prepareInitialCommerceQaSchema();
   await seedInitialPendingOrder();
   // Schema-only bootstrap can take minutes; the *authorization* lifetime
@@ -332,6 +361,7 @@ try {
   original.vars.STRIPE_LIVEMODE="false";
   original.vars.STRIPE_TAX_ENABLED="false";
   original.vars.COVE_QA_OWNER_JOURNAL_VERSION=journalVersion;
+  original.vars.COVE_QA_OWNER_ISOLATED_RUN=journalVersion;
   original.vars.COVE_QA_OWNER_REHEARSAL_REVISION="A";
   fs.writeFileSync(ownerCfg,JSON.stringify(original));
   ownerCreated=true;
@@ -373,7 +403,7 @@ try {
   await readyOwner();
   const initialFence=await readPaidOwnerFence(read,journalVersion,"A");
   assert.equal(initialFence.mutationEpoch,"0","Fresh per-run owner must start empty");
-  const rollback=rehearseRollback?paidOwnerRollbackEvidence({runId,journalVersion,api,post:read}):null;
+  const rollback=rehearseRollback?paidOwnerRollbackEvidence({runId,journalVersion,api,post:read,ownerName}):null;
   await rollback?.captureA();
   // Confirm the *writer* route has propagated independently of the owner read
   // route. An empty JSON object is rejected by the writer's validation before
@@ -785,20 +815,16 @@ try {
     audioFile=path.join(temp,"qa-chapter.wav");
   fs.writeFileSync(epubFile,epubBytes,{mode:0o600});
   fs.writeFileSync(audioFile,audioBytes,{mode:0o600});
-  cli(["r2","bucket","create",mediaBucketName]);
   mediaBucketCreated=true;
-  cli(["r2","object","put",mediaBucketName+"/qa/book.epub",
-    "--file",epubFile,"--remote"]);
-  cli(["r2","object","put",mediaBucketName+"/qa/chapter.wav",
-    "--file",audioFile,"--remote"]);
+  await fixtureCall("/media/put",{key:"qa/book.epub",base64:epubBytes.toString("base64")});
+  await fixtureCall("/media/put",{key:"qa/chapter.wav",base64:audioBytes.toString("base64")});
   const rightsBytes=Buffer.from(
     "This recording is generated synthetic silence for the isolated Cove QA campaign "+runId+
     ". No outside recording, narrator or publication rights are claimed.\n","utf8"
   );
   const rightsFile=path.join(temp,"qa-rights.txt");
   fs.writeFileSync(rightsFile,rightsBytes,{mode:0o600});
-  cli(["r2","object","put",mediaBucketName+"/qa/rights.txt",
-    "--file",rightsFile,"--remote"]);
+  await fixtureCall("/media/put",{key:"qa/rights.txt",base64:rightsBytes.toString("base64")});
   const digest=bytes=>createHash("sha256").update(bytes).digest("hex");
   const epubSha=digest(epubBytes),audioSha=digest(audioBytes);
   // The ORIGINAL delivery service resolves the buyer's real canonical
@@ -1516,18 +1542,16 @@ try {
   if(webhookServer)await new Promise(resolve=>webhookServer.close(resolve));
   if(mediaBucketCreated){
     for(const key of ["qa/book.epub","qa/chapter.wav","qa/rights.txt"]){
-      try{cli(["r2","object","delete",mediaBucketName+"/"+key,"--remote"]);}
+      try{await fixtureCall("/media/delete",{key});}
       catch(e){cleanupError=e;console.error("Ephemeral private media object cleanup failed");}
     }
-    try{cli(["r2","bucket","delete",mediaBucketName]);}
-    catch(e){cleanupError=e;console.error("Ephemeral private R2 bucket cleanup failed");}
   }
-  // Physically distinct QA scripts and expiring credentials prevent production
-  // exposure. DELETE is limited to names built from this exact CI run ID.
+  // Fixed, admin-provisioned QA scripts are parked, never deleted/recreated by CI.
+  // Per-run owner object identity prevents reuse of old authorization history.
   for(const [name,created] of [[settlementName,settlementCreated],[callerName,callerCreated],[writerName,writerCreated],[ownerName,ownerCreated]]){
     if(!created)continue;
-    try{await api("DELETE","/workers/scripts/"+name);}
-    catch(e){cleanupError=e;console.error("QA script cleanup failed: "+name);}
+    try{await api("POST","/workers/scripts/"+name+"/subdomain",{enabled:false,previews_enabled:false});}
+    catch(e){cleanupError=e;console.error("QA ingress parking failed: "+name);}
   }
   // Revert the exact synthetic order link, even if the signed event fails.
   if(paymentIntentId){
@@ -1540,11 +1564,19 @@ try {
   // paid customers. Reinstate its test row after all ephemeral owner/writer
   // routes are gone, so cancellation recovery and later campaigns are safe.
   try {
-    await qaSql(
+    if(fixtureAttempted)await qaSql(
       "UPDATE entitlements SET status='active' WHERE id=? AND user_id=? AND product_id=? AND source='commerce' AND entitlement_type='purchase' AND status='revoked'",
       [test.entitlementId,test.userId,test.productId]
     );
   }catch(e){cleanupError=e;console.error("Synthetic QA entitlement restoration failed");}
+  if(fixtureAttempted){
+    try{await api("POST","/workers/scripts/"+QA_WORKERS.fixture+"/subdomain",{enabled:false,previews_enabled:false});}
+    catch(e){cleanupError=e;console.error("QA fixture ingress parking failed");}
+  }
+  if(parkingSnapshot){
+    try{await restorePaidQa(parkingSnapshot,api);}
+    catch(e){cleanupError=e;console.error("Independent QA disabled-version restoration failed");}
+  }
   fs.rmSync(ownerCfg,{force:true});
   fs.rmSync(callerCfg,{force:true});
   fs.rmSync(writerCfg,{force:true});

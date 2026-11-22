@@ -39,6 +39,10 @@ on:
       - "scripts/check-offline-audio-issuer-authorization.mjs"
       - "scripts/check-stripe-terminal-order-states.mjs"
       - "scripts/staging/prove-private-paid-owner.mjs"
+      - "scripts/staging/paid-qa-isolation.mjs"
+      - "scripts/staging/paid-qa-fixture.worker.mjs"
+      - "scripts/staging/paid-qa-isolation.test.mjs"
+      - "scripts/staging/park-paid-qa.mjs"
       - "scripts/staging/paid-owner-schema-policy.mjs"
       - "scripts/check-qa-synthetic-audio.mjs"
       - "scripts/staging/provision-original-audio-qa.mjs"
@@ -86,6 +90,10 @@ on:
       - "drizzle/0088_paid_repurchase_fresh_entitlement.sql"
       - "scripts/check-customer-media-owner-order.mjs"
       - "scripts/staging/prove-private-paid-owner.mjs"
+      - "scripts/staging/paid-qa-isolation.mjs"
+      - "scripts/staging/paid-qa-fixture.worker.mjs"
+      - "scripts/staging/paid-qa-isolation.test.mjs"
+      - "scripts/staging/park-paid-qa.mjs"
       - "scripts/staging/paid-owner-schema-policy.mjs"
       - "scripts/staging/provision-original-audio-qa.mjs"
       - "scripts/check-qa-synthetic-audio.mjs"
@@ -123,6 +131,7 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci --no-audit --no-fund
+      - run: node --test scripts/staging/paid-qa-isolation.test.mjs
       - run: node scripts/check-paid-stage-initial-identity.mjs
       - run: node scripts/check-qa-synthetic-audio.mjs
       - run: node scripts/check-owner-checkout-draft.mjs
@@ -144,7 +153,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
+      COVE_CF_STAGE_D1_READ_TOKEN: ${{ secrets.COVE_CF_STAGE_D1_READ_TOKEN }}
+      COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
+      COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN: ${{ secrets.COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
       CLOUDFLARE_SEND_METRICS: "false"
     steps:
@@ -212,25 +224,6 @@ jobs:
           path: artifacts/owner-native-qa/
           retention-days: 14
           if-no-files-found: ignore
-      - name: Independently verify that all per-run QA Worker ingress was removed
-        if: always()
-        run: |
-          node --input-type=module -e '
-          import assert from "node:assert/strict";
-          // Reruns share RUN_ID, not RUN_ATTEMPT: verify this exact invocation.
-          const id=process.env.GITHUB_RUN_ID+"-"+(process.env.GITHUB_RUN_ATTEMPT||"1");
-          assert.match(id||"",/^\d{8,15}-\d{1,5}$/);
-          const account=process.env.CLOUDFLARE_ACCOUNT_ID;
-          const token=process.env.CLOUDFLARE_API_TOKEN;
-          assert.match(account||"",/^[a-f0-9]{32}$/);
-          assert.ok(token);
-          const url="https://api.cloudflare.com/client/v4/accounts/"+account+"/workers/scripts";
-          const reply=await fetch(url,{headers:{authorization:"Bearer "+token},signal:AbortSignal.timeout(20000)});
-          assert.equal(reply.status,200);
-          const result=await reply.json();
-          assert.equal(result.success,true);
-          const expected=["cove-paid-legal-owner-","cove-paid-legal-caller-","cove-paid-legal-writer-","cove-paid-settlement-qa-"].map(prefix=>prefix+id);
-          const remains=(result.result||[]).map(s=>s.id).filter(name=>expected.includes(name));
-          assert.deepEqual(remains,[],"Temporary paid QA worker scripts must all be deleted");
-          console.log("PASS: full paid-owner acceptance cleaned all four ephemeral QA Workers");
-          '
+      - name: Independently restore and verify all five disabled QA versions
+        if: always() && hashFiles('artifacts/owner-native-qa/credential-isolation-parking.json') != ''
+        run: node scripts/staging/park-paid-qa.mjs

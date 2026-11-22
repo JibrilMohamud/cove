@@ -31,6 +31,7 @@ export async function readPaidOwnerFence(post, journalVersion, revision) {
 /** Only the exact run's synthetic owner can receive a deployment POST. */
 export function paidOwnerRollbackEvidence({
   runId,
+  ownerName,
   journalVersion,
   api,
   post,
@@ -39,7 +40,8 @@ export function paidOwnerRollbackEvidence({
 }) {
   assert.match(runId, /^\d{8,15}-[1-9]\d{0,4}$/);
   assert.match(journalVersion, /^[a-f0-9]{64}$/);
-  const name = "cove-paid-legal-owner-" + runId;
+  assert.ok(ownerName === undefined || ownerName === "cove-paid-isolated-owner");
+  const name = ownerName || "cove-paid-legal-owner-" + runId;
   const path = "/workers/scripts/" + name;
   let versionA, versionB, namespace, initialEpoch;
   async function current(worker) {
