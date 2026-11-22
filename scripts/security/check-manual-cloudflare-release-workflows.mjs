@@ -42,11 +42,28 @@ export function verifyProtectedWorkflow(yaml, jobName) {
     assert.ok(gate.includes(condition), "Missing admission condition: " + condition);
   }
   assert.match(job, /^    environment: cove-production-release-audit\s*$/m);
-  assert.ok(
-    job.indexOf("environment: cove-production-release-audit") <
-      job.indexOf("CLOUDFLARE_API_TOKEN:"),
-    "Environment approval must precede deployment-secret availability",
-  );
+  // The literary audit now uses four independent narrow read principals,
+  // while the other seven legacy deployment jobs still require an explicit
+  // (not necessarily broad) Wrangler API bearer behind the same environment.
+  const secretNames =
+    jobName === "protected-live-readonly-audit"
+      ? [
+          "COVE_CF_PRODUCTION_AUDIT_READ_TOKEN:",
+          "COVE_CF_WORKERS_METADATA_READ_TOKEN:",
+          "COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN:",
+          "COVE_CF_STAGE_DATA_PLANE_READ_TOKEN:",
+        ]
+      : ["CLOUDFLARE_API_TOKEN:"];
+  const approvedAt = job.indexOf("environment: cove-production-release-audit");
+  for (const secretName of secretNames) {
+    assert.ok(
+      job.indexOf(secretName) > approvedAt,
+      "Environment approval must precede deployment-secret availability: " + secretName,
+    );
+  }
+  if (jobName === "protected-live-readonly-audit")
+    assert.ok(!job.includes("CLOUDFLARE_API_TOKEN:"),
+      "Read-only literary audit must never receive the broad deployment bearer");
   assert.match(yaml, /^permissions:\n  contents: read\s*$/m);
   return true;
 }
