@@ -1,7 +1,7 @@
 /* eslint-disable prettier/prettier -- Intentionally compact topology assertions. */
 import {test} from "node:test";
 import assert from "node:assert/strict";
-import {assessProductionCutover,coversPublicWww,PRODUCTION_D1} from "./check-live-production-cutover.mjs";
+import {assessProductionCutover,coversPublicWww,PRODUCTION_D1,chooseCutoverReadToken} from "./check-live-production-cutover.mjs";
 
 const healthyBackend={bindings:[{name:"DB",type:"d1",id:PRODUCTION_D1}]};
 const caseData={canonicalCandidates:458,backend:healthyBackend,frontend:null,owner:null,
@@ -73,3 +73,23 @@ test("exact production namespace is bound even when Cloudflare omits script_name
     {name:"COVE_RIGHTS_OWNER_ENABLED",type:"plain_text",text:"1"}]}}).safeToMaintainCurrentRoute,false);
 });
 
+
+test("production topology uses metadata-only Worker reader and separate zone routes principal",()=>{
+  const account="d26430caa63ec55f6612e32f36aca5e9";
+  const zone="07e218b2e74bc522122e0994b8e37576";
+  const principals={metadataToken:"scoped-worker-metadata-principal",
+    routesToken:"zone-scoped-worker-routes-principal"};
+  for(const path of [
+    "/accounts/"+account+"/workers/scripts/cove-persistence-backend/settings",
+    "/accounts/"+account+"/workers/scripts/cove-legal-authority-production/settings",
+    "/accounts/"+account+"/workers/domains"])
+    assert.equal(chooseCutoverReadToken(path,principals),principals.metadataToken);
+  assert.equal(chooseCutoverReadToken("/zones/"+zone+"/workers/routes",principals),
+    principals.routesToken);
+  for(const path of [
+    "/accounts/"+account+"/d1/database/"+PRODUCTION_D1+"/query",
+    "/accounts/"+account+"/workers/scripts/cove-persistence-backend/settings?mutation=true",
+    "/zones/"+zone+"/workers/routes/random",
+    "/accounts/"+account+"/workers/scripts/cove-persistence-backend/secrets"])
+    assert.throws(()=>chooseCutoverReadToken(path,principals));
+});
