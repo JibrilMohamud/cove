@@ -69,12 +69,16 @@ test("no arbitrary SQL, missing data, negative or unsafe counts",()=>{
   assert.throws(()=>verifyHistoricalPrimaryInventory(null,null));
 });
 test("D1 must explicitly attest zero writes and exactly one result",()=>{
-  const okay={success:true,result:[{success:true,results:[{n:1}],meta:{changed_db:false,changes:0}}]};
+  const okay={success:true,result:[{success:true,results:[{n:1}],meta:{changed_db:false,changes:0,rows_written:0,served_by_primary:true}}]};
   assert.deepEqual(checkedHistoricalD1Response(okay),[{n:1}]);
   for(const mutate of [
     o=>{o.result[0].meta.changed_db=true;},
     o=>{delete o.result[0].meta.changed_db;},
     o=>{o.result[0].meta.changes=1;},
+    o=>{o.result[0].meta.rows_written=1;},
+    o=>{delete o.result[0].meta.rows_written;},
+    o=>{o.result[0].meta.served_by_primary=false;},
+    o=>{delete o.result[0].meta.served_by_primary;},
     o=>{o.result[0].success=false;},
     o=>{o.result=[];},
     o=>{o.result.push(o.result[0]);},
