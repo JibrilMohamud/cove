@@ -8,7 +8,7 @@
  * No book IDs, rightsholder details, URLs, source snapshots or bearer tokens
  * may be exposed by the protected report.
  */
-export const SOURCE_WITHDRAWAL_SCHEMA="cove.external-source-withdrawal-coverage.v1";
+export const SOURCE_WITHDRAWAL_SCHEMA="cove.external-source-withdrawal-coverage.v2";
 export const SOURCE_SQL=Object.freeze({
   sources: `SELECT s.id source_id,s.enabled,COALESCE(st.status,'absent') scan_status,
     st.last_success_at,st.last_run_at,s.refresh_seconds
@@ -51,6 +51,37 @@ export const SOURCE_SQL=Object.freeze({
     (SELECT COUNT(*) FROM rights_decisions WHERE decision='deny') explicit_decision_denials,
     (SELECT COUNT(*) FROM rights_grant_audit) grant_audit_events,
     (SELECT COUNT(*) FROM rights_grants) grant_rows`,
+  chronology: `SELECT * FROM (WITH ambiguous AS (
+      SELECT DISTINCT grant_id FROM (
+        SELECT grant_id FROM rights_grant_audit
+        GROUP BY grant_id,recorded_at HAVING COUNT(DISTINCT snapshot_json)>1
+      )
+    ), events AS (
+      SELECT grant_id,recorded_at,json_extract(snapshot_json,'$.status') status,
+        LAG(json_extract(snapshot_json,'$.status'))
+          OVER (PARTITION BY grant_id ORDER BY rowid) previous_status,
+        LAG(recorded_at) OVER (PARTITION BY grant_id ORDER BY rowid) previous_time
+      FROM rights_grant_audit
+    ), reactivated AS (
+      SELECT DISTINCT grant_id FROM events
+      WHERE previous_status IN ('suspended','revoked','expired') AND status='active'
+    ), backdated AS (
+      SELECT DISTINCT grant_id FROM events WHERE previous_time IS NOT NULL
+        AND julianday(recorded_at)<julianday(previous_time)
+    ) SELECT
+      (SELECT COUNT(*) FROM ambiguous) ambiguous_grants,
+      (SELECT COUNT(*) FROM reactivated) reactivated_grants,
+      (SELECT COUNT(*) FROM backdated) backdated_grants,
+      (SELECT COUNT(*) FROM ambiguous a JOIN reactivated r USING(grant_id))
+        ambiguous_reactivated_overlap,
+      (SELECT COUNT(*) FROM ambiguous a JOIN backdated b USING(grant_id))
+        ambiguous_backdated_overlap,
+      (SELECT COUNT(*) FROM reactivated r JOIN backdated b USING(grant_id))
+        reactivated_backdated_overlap,
+      (SELECT COUNT(*) FROM ambiguous a JOIN rights_grants g ON g.id=a.grant_id
+        WHERE g.status='active') ambiguous_active_grants,
+      (SELECT COUNT(*) FROM ambiguous a JOIN rights_grants g ON g.id=a.grant_id
+        WHERE g.status='suspended') ambiguous_suspended_grants)`,
 });
 const SHAPES=Object.freeze({
   sources:["source_id","enabled","scan_status","last_success_at","last_run_at","refresh_seconds"],
@@ -58,6 +89,10 @@ const SHAPES=Object.freeze({
   cache:["source_id","cache_rows","pending_rows","quarantine_rows","missing_sha256_content","first_seen_at","last_seen_at"],
   external:["copyright_notices","copyright_complaints","rights_disputes","dispute_events",
     "explicit_decision_denials","grant_audit_events","grant_rows"],
+  chronology:["ambiguous_grants","reactivated_grants","backdated_grants",
+    "ambiguous_reactivated_overlap","ambiguous_backdated_overlap",
+    "reactivated_backdated_overlap","ambiguous_active_grants",
+    "ambiguous_suspended_grants"],
 });
 const KNOWN=["pg_au","pg_ca","pg_eu","pg_us"];
 const deny=(reason)=>{throw Error("external_source_coverage_denied_"+reason);};
@@ -83,7 +118,8 @@ export function checkedSourceCoverageRows(kind,rows){
   if(!Object.prototype.hasOwnProperty.call(SHAPES,kind)||
     !Array.isArray(rows)||rows.length>(kind==="grants"?28:kind==="sources"?8:8))
     deny("unreviewed_response");
-  if(kind==="external"&&rows.length!==1)deny("external_summary_missing");
+  if(["external","chronology"].includes(kind)&&rows.length!==1)
+    deny("aggregate_summary_missing");
   if(["sources","grants","cache"].includes(kind)&&!rows.length)
     deny("empty_source_set");
   if(rows.some(r=>!r||typeof r!=="object"||Array.isArray(r)||!shape(kind,r)))
@@ -122,6 +158,15 @@ export function checkedSourceCoverageRows(kind,rows){
   if(kind==="external"){
     for(const k of SHAPES.external)if(!integer(rows[0][k]))deny("external_count");
   }
+  if(kind==="chronology"){
+    const c=rows[0];
+    for(const k of SHAPES.chronology)if(!integer(c[k]))deny("chronology_count");
+    if(c.ambiguous_reactivated_overlap>Math.min(c.ambiguous_grants,c.reactivated_grants)||
+       c.ambiguous_backdated_overlap>Math.min(c.ambiguous_grants,c.backdated_grants)||
+       c.reactivated_backdated_overlap>Math.min(c.reactivated_grants,c.backdated_grants)||
+       c.ambiguous_active_grants+c.ambiguous_suspended_grants>c.ambiguous_grants)
+      deny("chronology_partition");
+  }
   return JSON.parse(json(rows));
 }
 export function sourceCoverageReport(first,second,nowMs=Date.now()){
@@ -152,7 +197,17 @@ export function sourceCoverageReport(first,second,nowMs=Date.now()){
     if(r.source_id==="unresolved")
       blockers.push("external_source_grant_mapping_unresolved");
   }
-  const e=data.external[0];
+  const e=data.external[0],c=data.chronology[0];
+  if(c.ambiguous_grants>e.grant_rows||c.reactivated_grants>e.grant_audit_events||
+     c.backdated_grants>e.grant_audit_events||
+     c.ambiguous_active_grants>activeGrants)
+    deny("chronology_coverage");
+  if(c.ambiguous_active_grants>0)
+    blockers.push("historical_ambiguous_active_grants_unverified");
+  if(c.reactivated_grants>0)
+    blockers.push("historical_terminal_reactivation_authority_missing");
+  if(c.backdated_grants>0)
+    blockers.push("historical_backdated_legal_event_order_unresolved");
   if(totalGrants!==e.grant_rows)
     blockers.push("external_source_grant_cohort_incomplete");
   if(e.grant_audit_events<totalGrants)
@@ -186,7 +241,7 @@ export function sourceCoverageReport(first,second,nowMs=Date.now()){
     activeGrantRows:activeGrants,
     recordedGrantRows:totalGrants,
     evidence:{sources:data.sources,grantCohorts:data.grants,cache:data.cache,
-      externalSummary:e},
+      externalSummary:e,conflictingChronology:c},
     unchangedAcrossRead:!data.changedDuringRead,
     authorizing:false,permitsPublication:false,
     currentOwnerVerified:false,externalWithdrawalHistoryComplete:false,
