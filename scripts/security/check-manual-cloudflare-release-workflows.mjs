@@ -62,8 +62,10 @@ export function verifyProtectedWorkflow(yaml, jobName) {
     );
   }
   if (jobName === "protected-live-readonly-audit")
-    assert.ok(!job.includes("CLOUDFLARE_API_TOKEN:"),
-      "Read-only literary audit must never receive the broad deployment bearer");
+    assert.ok(
+      !job.includes("CLOUDFLARE_API_TOKEN:"),
+      "Read-only literary audit must never receive the broad deployment bearer",
+    );
   assert.match(yaml, /^permissions:\n  contents: read\s*$/m);
   return true;
 }
