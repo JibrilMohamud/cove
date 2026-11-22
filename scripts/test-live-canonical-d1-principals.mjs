@@ -487,3 +487,41 @@ test("retired Sounds, SSR and literary direct D1 bindings cannot be regranted by
   }
 });
 console.log("PASS: deployed principal account-wide audit is read-only, fail-closed, and cannot self-certify production authorization");
+
+test("bulk D1 principal inventory uses metadata-only principal; routes use zone read",async()=>{
+  const account="d26430caa63ec55f6612e32f36aca5e9";
+  const zone="07e218b2e74bc522122e0994b8e37576";
+  const prefix="/client/v4/accounts/"+account;
+  const metadataToken="metadata-read-only-principal";
+  const routesToken="zone-routes-read-only-principal";
+  const legacyToken="legacy-broad-write-principal";
+  const calls=[];
+  const responses=new Map([
+    [prefix+"/workers/scripts",[{id:OWNER_SCRIPT}]],
+    [prefix+"/workers/scripts/"+OWNER_SCRIPT+"/settings",owner],
+    [prefix+"/workers/scripts/"+OWNER_SCRIPT+"/schedules",{schedules:[]}],
+    [prefix+"/workers/scripts/"+OWNER_SCRIPT+"/subdomain",{enabled:false}],
+    [prefix+"/workers/domains",[]],
+    ["/client/v4/zones/"+zone+"/workers/routes",[]]
+  ]);
+  const fetcher=async(url,options)=>{
+    const path=new URL(url).pathname;
+    assert.ok(responses.has(path),"Unexpected Cloudflare inventory request: "+path);
+    const token=String(options.headers.authorization).slice("Bearer ".length);
+    calls.push({path,token});
+    if(path.startsWith("/client/v4/zones/"))
+      assert.equal(token,routesToken,"Zone route access must use separate read-only principal");
+    else
+      assert.equal(token,metadataToken,"Every Worker metadata GET must use read-only principal");
+    return Response.json({success:true,result:responses.get(path)});
+  };
+  const report=await collectCanonicalD1Fleet({
+    fetcher,token:legacyToken,metadataToken,routesToken,account,zone
+  });
+  assert.equal(report.workerScriptsInspected,1);
+  assert.ok(calls.length>=6);
+  assert.equal(calls.filter(x=>x.token===legacyToken).length,0,
+    "The broad credential must never be used while both scoped readers are provided");
+  assert.ok(calls.some(x=>x.token===routesToken));
+  assert.ok(calls.some(x=>x.token===metadataToken));
+});
