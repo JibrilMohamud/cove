@@ -6,6 +6,7 @@ import path from "node:path";
 import {randomBytes,createHash,generateKeyPairSync} from "node:crypto";
 import {pathToFileURL} from "node:url";
 import {readPaidOwnerFence,paidOwnerRollbackEvidence} from "./paid-owner-rollback-evidence.mjs";
+import {checkedPaidQaCredentials,paidQaApiTokenFor,paidQaWranglerTokenFor} from "./paid-qa-cloudflare-credentials.mjs";
 import {isPaidOwnerQaSchemaTable} from "./paid-owner-schema-policy.mjs";
 import {provisionPublishedQaAudio} from "./provision-original-audio-qa.mjs";
 import JSZip from "jszip";
@@ -17,12 +18,12 @@ import {createServer} from "node:http";
 // payments, owners and order idempotency keys by the actual attempt as well.
 // Never reuse a prior attempt's potentially paid or refunded QA order.
 const runId=process.env.GITHUB_RUN_ID+"-"+(process.env.GITHUB_RUN_ATTEMPT||"1");
-const token=process.env.CLOUDFLARE_API_TOKEN;
+const qaCredentials=checkedPaidQaCredentials(process.env);
 const account=process.env.CLOUDFLARE_ACCOUNT_ID;
 assert.match(runId||"",/^\d{8,15}-\d{1,5}$/);
 assert.match(account||"",/^[a-f0-9]{32}$/);
 assert.equal(account,"d26430caa63ec55f6612e32f36aca5e9");
-assert.ok(token,"Cloudflare QA authorization required");
+assert.equal(qaCredentials.run,runId);
 const stripeSecret=process.env.COVE_SANDBOX_SECRET_KEY||"";
 assert.match(stripeSecret,/^(?:sk|rk|rkcs)_test_[A-Za-z0-9]+$/,"Independent owner requires a real TEST Stripe credential");
 const interruptTrigger="qa_settlement_interrupt_"+runId.replaceAll("-","_");
@@ -63,14 +64,15 @@ const test={
 };
 const cli=(args)=>{
   const result=spawnSync("npm",["exec","--yes","--package=wrangler@4.151.0","--","wrangler",...args],{
-    encoding:"utf8",timeout:160000,env:{...process.env,CLOUDFLARE_SEND_METRICS:"false"}
+    encoding:"utf8",timeout:160000,env:{...process.env,
+      CLOUDFLARE_API_TOKEN:paidQaWranglerTokenFor(args,qaCredentials),CLOUDFLARE_SEND_METRICS:"false"}
   });
   if(result.status!==0)throw Error("wrangler_"+args[0]+"_failed "+
     String(result.stderr||"").replace(/Bearer\s+\S+/g,"Bearer [redacted]").slice(-450));
 };
 const api=async(method,resource,body)=>{
   const r=await fetch("https://api.cloudflare.com/client/v4/accounts/"+account+resource,{
-    method,headers:{authorization:"Bearer "+token,
+    method,headers:{authorization:"Bearer "+paidQaApiTokenFor(method,resource,qaCredentials),
       "content-type":"application/json"},
     ...(body?{body:JSON.stringify(body)}:{}),
     signal:AbortSignal.timeout(18000)
