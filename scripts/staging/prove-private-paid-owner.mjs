@@ -10,6 +10,7 @@ import {checkedPaidQaCredentials,paidQaApiTokenFor,paidQaWranglerTokenFor,QA_ACC
 import {syntheticD1GatewayConfig} from "./synthetic-qa-d1-gateway-config.mjs";
 import {bindPaidQaTemplateToIsolatedPrimary} from "./paid-qa-template-binding.mjs";
 import {isPaidOwnerQaSchemaTable} from "./paid-owner-schema-policy.mjs";
+import {preparePaidQaRetailCatalog} from "./paid-qa-retail-catalog.mjs";
 import {provisionPublishedQaAudio} from "./provision-original-audio-qa.mjs";
 import JSZip from "jszip";
 import {build} from "esbuild";
@@ -174,6 +175,11 @@ async function prepareInitialCommerceQaSchema(){
   const settlementDdl=fs.readFileSync("drizzle/0089_atomic_paid_settlement.sql","utf8").replace(/--[^\n]*/g,"");
   for(const statement of settlementDdl.split(";").map(x=>x.trim()).filter(Boolean))await qaSql(statement);
   console.log("QA schema-only dependencies ready: "+installed+" missing tables/indexes added");
+  const catalog=await preparePaidQaRetailCatalog(qaSql);
+  assert.equal(catalog.productId,test.productId);
+  assert.equal(catalog.legalViewChecked,true);
+  assert.equal(catalog.canonicalQueryChecked,true);
+  console.log("PASS: separate QA D1 owns source-exact retail legal view and synthetic paid search projection; real storefront authorization query returns exact canonical USD 399 offer");
 }
 const initialOrder="order_initial_qa_"+runId;
 const initialBuyer="user_initial_qa_"+runId;
