@@ -12,7 +12,7 @@ Status: **NO-GO**. Source controls on draft PR #827 do not establish successful 
 
 - `COVE_CF_FLEET_READ_TOKEN`: Worker script/metadata read, schedules, domain and route READ on production account; not D1 Write.
 - Existing `COVE_CF_WORKERS_METADATA_READ_TOKEN`: production owner binding checks without deploy rights.
-- `COVE_CF_PROD_WORKERS_DEPLOY_TOKEN`: manually approved production Worker deploy only; audit its Worker resource scope and avoid D1 Write/token issuance.
+- `COVE_CF_PROD_WORKERS_DEPLOY_TOKEN`: **temporary, manually approved** production Worker deploy only; audit its Worker resource scope and avoid D1 Write/token issuance. Worker deployment may itself add a runtime D1 binding even without REST `D1 Write` permission. Remove this credential from GitHub and disable/revoke it after the protected cutover before claiming exclusive physical writer authority.
 - `COVE_CF_PROD_D1_MIGRATIONS_TOKEN`: temporary, separate guarded D1 schema migration principal, removed **before** exclusivity certification; never available to unattended CI.
 - `COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN`: existing Worker deploy principal for protected staging operations that stay in the production account; verify it does not add primary D1 bindings.
 - `COVE_CF_STAGE_DATA_PLANE_READ_TOKEN`: scoped GET-only D1, R2 and Worker preflight in the existing account. The existing Cloudflare "Cove Staging Data Plane Readonly" token is a potential candidate, but confirm its Worker GET scope and store only in the protected GitHub environment.
@@ -29,7 +29,7 @@ The current `main` workflow tree includes many additional references beyond the 
 1. All legitimate GitHub workflows migrate; orphaned/disabled workflows are deleted or rendered credential-free; account-wide inventory shows no other active clients.
 2. Isolated paid end-to-end QA passes: real TEST payment, full-schema synthetic D1, original R2 byte checks, refund, denial, clean teardown and protected rollback. Repeat with isolated credentials; compare before and after Cloudflare audit events.
 3. Scoped production Worker version upload/rollback and GET-only Worker/D1 audits work with narrow credentials, with no service interruption.
-4. All direct `secrets.CLOUDFLARE_API_TOKEN` refs are **zero**, no external deploy users are outstanding, and Cloudflare audit logs show no recent operations by the broad credential after full cutover.
+4. All direct `secrets.CLOUDFLARE_API_TOKEN` refs are **zero**, no external deploy users are outstanding, and Cloudflare audit logs show no recent operations by the broad credential after full cutover. Also inventory *all* other active Workers deploy and D1 mutation principals; a token that can upload a Worker and attach primary D1 is competing potential write authority even without `D1 Write`.
 5. Disable/revoke the broad credential through protected Cloudflare administration. Verify status is disabled/revoked and all replacement workflows still pass. No automatic D1/rights publication as part of revocation.
 
 ## Separate, later business-owner gate
