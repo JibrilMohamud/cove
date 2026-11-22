@@ -12,7 +12,10 @@ for(const mode of ["paid","legal"])test(mode+" gateway only binds named syntheti
   assert.ok(x.d1_databases.every(b=>b.database_id!==""));
   assert.equal(x.vars.COVE_QA_D1_GATE_ALLOWED,mode);
   assert.equal(x.services,undefined);
-  assert.equal(x.r2_buckets,undefined);
+  if(mode==="paid"){
+    assert.deepEqual(x.r2_buckets,[{binding:"QA_MEDIA",bucket_name:"cove-paid-private-media-qa"}]);
+    assert.equal(x.vars.COVE_QA_MEDIA_RUN_ID,"45000012345-1");
+  }else assert.equal(x.r2_buckets,undefined);
   assert.equal(x.triggers,undefined);
 });
 test("reject unreviewed mode and stale or distant expiry",()=>{

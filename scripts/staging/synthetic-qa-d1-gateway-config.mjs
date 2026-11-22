@@ -15,5 +15,7 @@ export function syntheticD1GatewayConfig(mode,run,expires) {
     main:"scripts/staging/synthetic-qa-d1-gateway.worker.mjs",
     compatibility_date:"2026-10-25",workers_dev:true,preview_urls:false,routes:[],
     d1_databases:bindings,
-    vars:{COVE_QA_D1_GATE_ALLOWED:mode,COVE_QA_D1_GATE_EXPIRES_AT:String(expires)}};
+    ...(mode==="paid"?{r2_buckets:[{binding:"QA_MEDIA",bucket_name:"cove-paid-private-media-qa"}]}:{}),
+    vars:{COVE_QA_D1_GATE_ALLOWED:mode,COVE_QA_D1_GATE_EXPIRES_AT:String(expires),
+      ...(mode==="paid"?{COVE_QA_MEDIA_RUN_ID:run}:{})}};
 }
