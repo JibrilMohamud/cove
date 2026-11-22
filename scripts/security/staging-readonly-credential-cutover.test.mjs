@@ -16,6 +16,12 @@ test("staging preflight uses isolated data-plane read principal and protected ma
   assert.ok(!w.includes("secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN"),
     "The read-only job must not receive Worker deployment capability");
 });
+test("protected hosted-capacity preflight also receives read-only principal",()=>{
+  const w=read(".github/workflows/strangler-hosted-capacity-evaluation.yml");
+  assert.ok(w.includes("COVE_CF_STAGE_DATA_PLANE_READ_TOKEN: ${{ secrets.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN }}"));
+  assert.ok(w.includes("inputs.reviewed_main_sha == github.sha"));
+  assert.ok(w.includes("environment: cove-production-release-audit"));
+});
 for(const path of ["scripts/staging/check-strangler-data-plane-preflight.mjs",
   "scripts/staging/check-strangler-synthetic-producer-sql.mjs"]){
   test(path+" selects only narrow read-only data-plane principal",()=>{
