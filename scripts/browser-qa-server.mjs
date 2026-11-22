@@ -5,6 +5,9 @@ import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { createServer } from "vite";
 import JSZip from "jszip";
+import { DatabaseSync } from "node:sqlite";
+import { build } from "esbuild";
+import { pathToFileURL } from "node:url";
 import { localBindings } from "./local-api.mjs";
 
 // Never use production credentials or data. This server is not shipped in the app.
@@ -283,6 +286,98 @@ const server = await createServer({
 });
 await server.listen();
 api = await server.ssrLoadModule("/src/features/fore/api.server.ts");
+
+// Browser QA must exercise a REAL typed owner route for an allowlisted
+// *synthetic* Gutenberg edition. Never replace owner proof with a fake ACK,
+// create permanent legal authority, or put this bootstrap in a deployed app.
+// The production owner stays off. This mock Cloudflare host runs only in the
+// disposable local browser-server process and never uses Cloudflare secrets.
+const localDb = env.DB;
+const qaPrimaryId = "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e";
+const qaSecret = "b".repeat(64);
+const privateOwnerFile = path.join(scratch, ".browser-legal-owner-qa.mjs");
+await build({
+  entryPoints: [path.join(checkout, "src/storefront-strangler/legal-authority.worker.ts")],
+  outfile: privateOwnerFile,
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "node22",
+  logLevel: "silent",
+  plugins: [{
+    name: "browser-cloudflare-host",
+    setup(b) {
+      b.onResolve({ filter: /^cloudflare:workers$/ }, () => ({ path: "host", namespace: "host" }));
+      b.onLoad({ filter: /.*/, namespace: "host" }, () => ({
+        contents: "export class DurableObject{constructor(ctx,env){this.ctx=ctx;this.env=env;}}",
+      }));
+    },
+  }],
+});
+const { CoveLegalAuthority } = await import(pathToFileURL(privateOwnerFile).href);
+const legalDb = new DatabaseSync(":memory:");
+const ownerSql = {
+  exec(query, ...args) {
+    if (!args.length && /^(?:CREATE|ALTER|DROP|PRAGMA)\s/i.test(query.trimStart())) {
+      legalDb.exec(query);
+      return { toArray: () => [] };
+    }
+    const st = legalDb.prepare(query);
+    const rows = st.columns().length ? st.all(...args) : (st.run(...args), []);
+    return { toArray: () => rows };
+  },
+};
+const ownerStorage = {
+  sql: ownerSql,
+  transactionSync(fn) {
+    legalDb.exec("BEGIN");
+    try {
+      const result = fn();
+      legalDb.exec("COMMIT");
+      return result;
+    } catch (error) {
+      legalDb.exec("ROLLBACK");
+      throw error;
+    }
+  },
+};
+const ownerEnv = {
+  PRIMARY_DB: localDb,
+  COVE_RIGHTS_OWNER_ENABLED: "1",
+  COVE_RIGHTS_OWNER_PRIMARY_ID: qaPrimaryId,
+  COVE_RIGHTS_OWNER_TEST_EXPIRES_AT: String(Date.now() + 20 * 60_000),
+  COVE_RIGHTS_OWNER_SECRET: qaSecret,
+};
+const qaOwner = new CoveLegalAuthority({ storage: ownerStorage }, ownerEnv);
+const qaBook = await localDb.prepare(
+  "SELECT p.id,p.edition_id,c.rights_evidence_id,c.rights_status,c.commercial_use_status,c.copyright,c.source_id FROM products p JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE p.source_name='gutenberg' AND p.source_external_id='1342'"
+).first();
+const qaMarket = await localDb.prepare(
+  "SELECT default_currency FROM storefront_markets WHERE country_code='US' AND market_status='active'"
+).first();
+if (qaBook?.id !== "prd_gutenberg_1342" ||
+    qaBook.source_id !== "pg_us" || qaBook.copyright !== 0 ||
+    qaBook.rights_status !== "public-domain" ||
+    qaBook.commercial_use_status !== "approved" ||
+    !qaBook.rights_evidence_id || qaMarket?.default_currency !== "USD")
+  throw Error("Browser QA synthetic rights fixture failed independent primary check");
+ownerSql.exec(
+  "INSERT INTO cove_legal_fences(source_id,territory,revision,verdict) VALUES('1342','US',1,'allow')"
+);
+ownerSql.exec(
+  "INSERT INTO cove_authorized_offer_proofs(source_id,territory,currency,revision,product_id,edition_id,product_public_id,edition_public_id,offer_json) VALUES('1342','US','USD',1,?,?,NULL,NULL,?)",
+  qaBook.id, qaBook.edition_id,
+  JSON.stringify({ type: "public-domain", currency: "USD", amountMinor: 0 })
+);
+const { bindPublicationOwner } = await server.ssrLoadModule(
+  "/src/storefront-strangler/publication-owner-routing.server.ts"
+);
+env.DB = bindPublicationOwner(localDb, {
+  owner: { fetch: request => qaOwner.fetch(request) },
+  secret: qaSecret, territory: "US", currency: "USD",
+});
+// This fixture offers no authority outside its isolated synthetic source
+// and is never an external legal-history or production cutover certificate.
 await invoke("/catalog?q=pride");
 const zip = new JSZip();
 zip.file("mimetype", "application/epub+zip", { compression: "STORE" });
