@@ -1,7 +1,9 @@
 """One-shot, idempotent, independently verified BioSync production canary.
 
-GitHub Actions has enough ephemeral disk to index Cove's pinned EPUB and uses
-the existing Cloudflare API token, without copying any Vercel service secret.
+GitHub Actions has enough ephemeral disk to index Cove's pinned EPUB.
+Read-only D1 discovery and R2 map upload use separate narrow principals.
+The verified timing pointer is committed only by an authorized private owner.
+This migration is staging-only until a protected cutover is certified.
 Do not publish invented word timestamps or confidence values.
 """
 from __future__ import annotations
@@ -30,7 +32,17 @@ BASE = f"https://api.cloudflare.com/client/v4/accounts/{ACCOUNT}"
 
 
 def authorized_request(method: str, endpoint: str, payload: bytes | None = None, *, json_body=False) -> bytes:
-    token = os.environ["CLOUDFLARE_API_TOKEN"]
+    path = urllib.parse.urlparse(endpoint).path
+    if path.startswith(f"/client/v4/accounts/{ACCOUNT}/d1/"):
+        token = os.environ["COVE_BIOSYNC_D1_READ_TOKEN"]
+        if method != "POST" or not path.endswith("/query"):
+            raise RuntimeError("BioSync D1 transport is strictly read-only")
+    elif path.startswith(f"/client/v4/accounts/{ACCOUNT}/r2/"):
+        token = os.environ["COVE_BIOSYNC_R2_TOKEN"]
+        if method not in ("GET", "PUT"):
+            raise RuntimeError("Unsupported BioSync R2 operation")
+    else:
+        raise RuntimeError("BioSync Cloudflare endpoint is not allowlisted")
     headers = {"Authorization": f"Bearer {token}"}
     if json_body:
         headers["Content-Type"] = "application/json"
@@ -45,6 +57,13 @@ def authorized_request(method: str, endpoint: str, payload: bytes | None = None,
 
 
 def query(sql: str, params: list[object] | None = None) -> list[dict]:
+    # Never let this off-owner scheduled process mutate the primary.
+    # The provider credential must independently have D1 Read, not D1 Write.
+    if not re.match(r"^SELECT\\s", sql, re.IGNORECASE) or ";" in sql or re.search(
+        r"\\b(?:INSERT|UPDATE|DELETE|REPLACE|DROP|ALTER|CREATE|ATTACH|PRAGMA)\\b",
+        sql, re.IGNORECASE
+    ):
+        raise RuntimeError("BioSync scheduled D1 is SELECT-only")
     payload = json.dumps({"sql": sql, "params": params or []}).encode()
     response = json.loads(authorized_request("POST", f"{BASE}/d1/database/{DATABASE}/query", payload, json_body=True))
     if not response.get("success"):
@@ -133,9 +152,50 @@ def choose_queued_short_track() -> bool:
     return True
 
 
+def commit_checked_map_to_owner(edition: str, track: str, job: str, map_sha: str) -> dict:
+    base = urllib.parse.urlsplit(os.environ["COVE_BIOSYNC_OWNER_STAGE_URL"])
+    if (base.scheme != "https" or not base.hostname or base.username or base.password
+            or base.path not in ("", "/") or base.query or base.fragment):
+        raise RuntimeError("BioSync owner stage origin must be a bare HTTPS origin")
+    token = os.environ["COVE_BIOSYNC_MACHINE_TOKEN"]
+    if not token.startswith("fore_svc_"):
+        raise RuntimeError("A scoped Cove machine credential is required")
+    url = urllib.parse.urlunsplit((
+        "https", base.netloc, "/api/fore/machine/v1/biosync/publish-checked", "", ""
+    ))
+    payload = {
+        "editionId": edition, "trackId": track, "jobId": job, "mapSha256": map_sha,
+    }
+    request = urllib.request.Request(
+        url, data=json.dumps(payload).encode(), method="POST",
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+    )
+    class DenyRedirects(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):
+            raise RuntimeError("BioSync owner endpoint redirected")
+    try:
+        with urllib.request.build_opener(DenyRedirects()).open(request, timeout=120) as response:
+            if response.status != 200:
+                raise RuntimeError("BioSync owner refused publication")
+            receipt = json.loads(response.read(4096))
+    except urllib.error.HTTPError as error:
+        raise RuntimeError(f"BioSync owner refused publication: HTTP {error.code}") from None
+    if not isinstance(receipt, dict) or any(
+        receipt.get(key) != expected for key, expected in (
+            ("schema", "cove.owner-biosync-checked-publication.v1"),
+            ("editionId", edition), ("trackId", track), ("jobId", job),
+            ("mapSha256", map_sha), ("committed", True),
+        )
+    ) or not isinstance(receipt.get("replay"), bool):
+        raise RuntimeError("BioSync owner receipt was absent or mismatched")
+    return receipt
+
+
 def main() -> None:
-    if not os.environ.get("CLOUDFLARE_API_TOKEN"):
-        raise RuntimeError("Configure CLOUDFLARE_API_TOKEN in GitHub Actions")
+    for secret in ("COVE_BIOSYNC_D1_READ_TOKEN", "COVE_BIOSYNC_R2_TOKEN",
+                   "COVE_BIOSYNC_OWNER_STAGE_URL", "COVE_BIOSYNC_MACHINE_TOKEN"):
+        if not os.environ.get(secret):
+            raise RuntimeError(f"Configure {secret} for protected owner staging")
     if os.environ.get("BIOSYNC_AUTO_SHORT") == "1" and not choose_queued_short_track():
         return
     meta = query(
@@ -215,26 +275,11 @@ def main() -> None:
     if fresh["epub_sha256"] != epub_sha or current_track is None or current_track.get("sha256") != audio_sha:
         raise RuntimeError("Audio/text identity changed during canary publication")
 
-    first, last = mapping["words"][0], mapping["words"][-1]
-    summary = {
-        "trackId": TRACK, "sha256": map_sha, "wordCount": len(mapping["words"]),
-        "coverage": mapping["verification"]["coverage"],
-        "firstCfi": first["cfi"], "lastCfi": last["endCfi"],
-        "firstSecond": first["start"], "lastSecond": last["end"],
-    }
-    now = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
-    query(
-        "INSERT INTO audio_timing(edition_id,track_id,audio_sha256,epub_sha256,map_sha256,summary_json,updated_at) "
-        "VALUES(?,?,?,?,?,?,?) ON CONFLICT(edition_id,track_id) DO UPDATE SET "
-        "audio_sha256=excluded.audio_sha256,epub_sha256=excluded.epub_sha256,"
-        "map_sha256=excluded.map_sha256,summary_json=excluded.summary_json,updated_at=excluded.updated_at",
-        [EDITION, TRACK, audio_sha, epub_sha, map_sha, json.dumps(summary), now],
-    )
-    query(
-        "UPDATE audio_jobs SET status='done',last_error=?,lease_token=NULL,lease_until=NULL,updated_at=? "
-        "WHERE id=? AND status IN ('queued','review')",
-        [f"Verified {len(mapping['words'])} independent ASR words; {mapping['verification']['coverage']:.1%} coverage", now, JOB],
-    )
+    # One typed, owner-verified operation replaces BOTH former D1 mutations.
+    # No raw SQL, caller-chosen summary, or untrusted completion flag crosses.
+    receipt = commit_checked_map_to_owner(EDITION, TRACK, JOB, map_sha)
+    if receipt["replay"]:
+        print("The exact owner-published timing map was already committed")
     final = query("SELECT map_sha256 FROM audio_timing WHERE edition_id=? AND track_id=?", [EDITION, TRACK])
     if not final or final[0]["map_sha256"] != map_sha:
         raise RuntimeError("Published map could not be verified in D1")
