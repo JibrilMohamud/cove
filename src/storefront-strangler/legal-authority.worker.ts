@@ -148,12 +148,19 @@ type LegalAuthorityEnv = Pick<CoveEnv,"FORE_AUTH_MODE"|"SUPABASE_URL"|"SUPABASE_
 };
 // Never accept an unspecified primary binding. This is a newly provisioned,
 // completely separate canonical QA D1. Real production is NOT enrolled.
-// Only these two physically separate, synthetic QA databases can issue a
-// short-lived owner lease. The second has canonical paid-commerce schema;
-// neither is the capacity fixture or a customer production database.
+// Only these exact synthetic QA databases may issue a short-lived owner
+// lease. Legacy staging fixtures remain eligible for historical regression,
+// and their independent Cove QA replacements are also enrolled.
+// Never include the production D1 or any performance-only schema source.
 const QA_PRIMARIES = new Set([
   "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87",
   "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
+  "3ffb3c0b-72b2-4a47-b63a-18aaf77762ea",
+  "969f1ea0-5f57-4f3a-aa25-9c74e58f5af3",
+]);
+const QA_PAID_PRIMARIES = new Set([
+  "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
+  "969f1ea0-5f57-4f3a-aa25-9c74e58f5af3",
 ]);
 function qaOwnerLeaseLive(env:LegalAuthorityEnv) {
   const expires=Number(env.COVE_RIGHTS_OWNER_TEST_EXPIRES_AT);
@@ -17801,9 +17808,9 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         // Only the leased, enrolled synthetic QA owner may produce this
         // challenge-bound receipt. No flag can turn it on for production,
         // and no caller can supply a candidate, digest, epoch or allow bit.
+        const certificatePrimary=env.COVE_RIGHTS_OWNER_PRIMARY_ID;
         if(!journal||env.COVE_QA_OWNER_POSITIVE_CERTIFICATE_ONLY!=="1"||
-          env.COVE_RIGHTS_OWNER_PRIMARY_ID!==
-            "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e"||
+          !certificatePrimary||!QA_PAID_PRIMARIES.has(certificatePrimary)||
           env.COVE_QA_OWNER_REHEARSAL_REVISION===undefined)
           return new Response(null,{status:503,headers:noStore});
         const q=raw as {challenge?:unknown}|null;
@@ -17816,7 +17823,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           ownerSql:sql,
           transactionSync:fn=>storage.transactionSync(fn),
           primary:env.PRIMARY_DB as unknown as QAOwnerPrimaryDB,
-          primaryId:env.COVE_RIGHTS_OWNER_PRIMARY_ID,
+          primaryId:certificatePrimary,
           journalVersion:env.COVE_QA_OWNER_JOURNAL_VERSION as string,
           rehearsalRevision:env.COVE_QA_OWNER_REHEARSAL_REVISION,
           challenge:q.challenge,
