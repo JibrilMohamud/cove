@@ -8,6 +8,7 @@ import {pathToFileURL} from "node:url";
 import {readPaidOwnerFence,paidOwnerRollbackEvidence} from "./paid-owner-rollback-evidence.mjs";
 import {isPaidOwnerQaSchemaTable} from "./paid-owner-schema-policy.mjs";
 import {provisionPublishedQaAudio} from "./provision-original-audio-qa.mjs";
+import {safeQaHttpResponseEvidence} from "./safe-qa-http-response-evidence.mjs";
 import JSZip from "jszip";
 import {build} from "esbuild";
 import {spawnSync,spawn} from "node:child_process";
@@ -214,15 +215,14 @@ const post=async(route,body)=>{
     const ms=Number(raw);
     return Number.isFinite(ms)&&ms>=0&&ms<=12000?ms:null;
   };
-  const colo=response.headers.get("x-cove-qa-ingress-colo");
-  const placement=response.headers.get("cf-placement");
+  const provenance=safeQaHttpResponseEvidence(response.headers);
   return {status:response.status,body:parsed,headersMs,bodyMs,
     bindingHeadersMs:metric("x-cove-qa-binding-header-ms"),
     ownerRouteMs:metric("x-cove-qa-owner-route-ms"),
-    ingressColo:typeof colo==="string"&&/^[A-Z]{3}$/.test(colo)?colo:null,
-    cfPlacement:typeof placement==="string"&&/^(local|remote)-[A-Z]{3}$/.test(placement)?placement:null,
-    ray:response.headers.get("cf-ray"),
-    unavailableLayer:response.headers.get("x-cove-qa-unavailable-layer"),
+    ingressColo:provenance.ingressColo,
+    cfPlacement:provenance.cfPlacement,
+    ray:provenance.ray,
+    unavailableLayer:provenance.unavailableLayer,
     nativeFailure:response.headers.get("x-cove-qa-native-failure"),
     nativePhase:response.headers.get("x-cove-qa-native-phase")};
 };
@@ -505,6 +505,7 @@ try {
             headersMs:r.headersMs,bodyMs:r.bodyMs,
             bindingHeadersMs:r.bindingHeadersMs,ownerRouteMs:r.ownerRouteMs,
             ingressColo:r.ingressColo,cfPlacement:r.cfPlacement,
+            edgeRay:r.ray,unavailableLayer:r.unavailableLayer,
             status:r.status,valid:r.status===200&&r.body?.schema===schema&&measured};
         }catch(e){
           return {ms:Math.round((performance.now()-start)*100)/100,
@@ -522,12 +523,17 @@ try {
         samples:samples.map(x=>({ms:x.ms,headersMs:x.headersMs,bodyMs:x.bodyMs,
           bindingHeadersMs:x.bindingHeadersMs,ownerRouteMs:x.ownerRouteMs,
           ingressColo:x.ingressColo,cfPlacement:x.cfPlacement,
+          edgeRay:x.edgeRay,unavailableLayer:x.unavailableLayer,
           status:x.status,valid:x.valid,error:x.error}))};
       waves.push(wave);
       console.log("COVE_SYNTHETIC_TRANSPORT "+JSON.stringify({
         route,parallel,valid:wave.valid,errors:wave.errors,
         p50Ms:wave.p50Ms,p95Ms:wave.p95Ms,maxMs:wave.maxMs,
-        headersP95Ms:wave.headersP95Ms
+        headersP95Ms:wave.headersP95Ms,
+        invalid:samples.filter(x=>!x.valid).map(x=>({
+          status:x.status,ray:x.edgeRay??null,
+          ingress:x.ingressColo??null,layer:x.unavailableLayer??null
+        }))
       }));
     }
     transportControls.push({route,schema,waves});
@@ -548,6 +554,7 @@ try {
           headersMs:r.headersMs,bodyMs:r.bodyMs,
           bindingHeadersMs:r.bindingHeadersMs,
           ingressColo:r.ingressColo,cfPlacement:r.cfPlacement,
+          edgeRay:r.ray,unavailableLayer:r.unavailableLayer,
           status:r.status,valid:r.status===200&&phasesVerified&&
             typeof r.bindingHeadersMs==="number"&&
             r.body?.schema==="cove.qa.owner-native-first-paint.v1"&&
@@ -578,6 +585,7 @@ try {
       samples:samples.map(x=>({ms:x.ms,headersMs:x.headersMs,bodyMs:x.bodyMs,
         bindingHeadersMs:x.bindingHeadersMs,
         ingressColo:x.ingressColo,cfPlacement:x.cfPlacement,
+        edgeRay:x.edgeRay,unavailableLayer:x.unavailableLayer,
         serviceResidualMs:typeof x.bindingHeadersMs==="number"&&
           typeof x.ownerMs==="number"?
           Math.round((x.bindingHeadersMs-x.ownerMs)*100)/100:null,
