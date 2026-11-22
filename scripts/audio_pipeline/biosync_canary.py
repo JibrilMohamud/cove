@@ -43,6 +43,16 @@ def authorized_request(method: str, endpoint: str, payload: bytes | None = None,
         token = os.environ["COVE_BIOSYNC_D1_READ_TOKEN"]
         if method != "POST" or not path.endswith("/query"):
             raise RuntimeError("BioSync D1 transport is strictly read-only")
+        try:
+            statement = json.loads(payload or b"null")
+        except (TypeError, ValueError):
+            raise RuntimeError("BioSync D1 request is not valid SQL JSON") from None
+        if (not json_body or not isinstance(statement, dict)
+                or set(statement) != {"sql", "params"}
+                or not isinstance(statement["params"], list)
+                or not isinstance(statement["sql"], str)
+                or not _is_read_only_d1_sql(statement["sql"])):
+            raise RuntimeError("BioSync D1 transport cannot execute writes")
     elif path.startswith(f"/client/v4/accounts/{ACCOUNT}/r2/"):
         token = os.environ["COVE_BIOSYNC_R2_TOKEN"]
         if method not in ("GET", "PUT"):
@@ -62,13 +72,23 @@ def authorized_request(method: str, endpoint: str, payload: bytes | None = None,
         raise RuntimeError(f"Cloudflare {method} {urllib.parse.urlparse(endpoint).path} returned HTTP {error.code}") from None
 
 
+def _is_read_only_d1_sql(sql: str) -> bool:
+    # This deliberately accepts only the audited SELECT statements used by
+    # this one QA canary, not arbitrary SQL, comments or multiple statements.
+    return (
+        bool(re.match(r"^SELECT\s", sql, re.IGNORECASE))
+        and ";" not in sql
+        and not re.search(
+            r"\b(?:INSERT|UPDATE|DELETE|REPLACE|DROP|ALTER|CREATE|ATTACH|PRAGMA)\b",
+            sql, re.IGNORECASE
+        )
+    )
+
+
 def query(sql: str, params: list[object] | None = None) -> list[dict]:
-    # Never let this off-owner scheduled process mutate the primary.
-    # The provider credential must independently have D1 Read, not D1 Write.
-    if not re.match(r"^SELECT\s", sql, re.IGNORECASE) or ";" in sql or re.search(
-        r"\b(?:INSERT|UPDATE|DELETE|REPLACE|DROP|ALTER|CREATE|ATTACH|PRAGMA)\b",
-        sql, re.IGNORECASE
-    ):
+    # Verify before transport and again AT the transport boundary: no caller
+    # in this process may bypass the SELECT-only restriction by direct API.
+    if not _is_read_only_d1_sql(sql):
         raise RuntimeError("BioSync scheduled D1 is SELECT-only")
     payload = json.dumps({"sql": sql, "params": params or []}).encode()
     response = json.loads(authorized_request("POST", f"{BASE}/d1/database/{DATABASE}/query", payload, json_body=True))
