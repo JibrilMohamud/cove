@@ -110,7 +110,7 @@ export function createGrantHistoryReplay(){
   const eventHash=createHash("sha256"),stateHash=createHash("sha256");
   let auditRows=0,insertRows=0,updateRows=0,lastRowid=0;
   let grants=0,suspended=0,missing=0,disagreement=0,orphans=0;
-  let ambiguousGroups=0,terminalReactivation=0,repeatedUpdates=0;
+  let ambiguousGroups=0,terminalReactivation=0,repeatedUpdates=0,backdatedEvents=0;
   let lastGrantId="",seenCurrent=new Set();
   let finalized=false;
   const step=()=>{if(finalized)error("already_finalized");};
@@ -121,7 +121,11 @@ export function createGrantHistoryReplay(){
       !safeId(row.grant_id)||!safeTime(row.recorded_at)||
       !["insert","update"].includes(row.action))error("event_contract");
     const state=snapshot(row.snapshot_json);
+    const timestamp=Date.parse(row.recorded_at.includes("T")?
+      row.recorded_at:row.recorded_at.replace(" ","T")+"Z");
+    if(!Number.isFinite(timestamp))error("invalid_event_timestamp");
     const earlier=latest.get(row.grant_id);
+    if(earlier&&timestamp<earlier.timestamp)backdatedEvents++;
     if(row.action==="insert"){
       if(earlier)error("duplicate_grant_insert");
       insertRows++;
@@ -141,7 +145,7 @@ export function createGrantHistoryReplay(){
       }
     }else timestampGroups.set(groupKey,{state,ambiguous:false});
     const obj=JSON.parse(state);
-    latest.set(row.grant_id,{state,status:obj.status});
+    latest.set(row.grant_id,{state,status:obj.status,timestamp});
     auditRows++;lastRowid=row.event_seq;
     eventHash.update(JSON.stringify([row.event_seq,row.grant_id,row.action,
       row.recorded_at,state])+"\n");
@@ -177,6 +181,8 @@ export function createGrantHistoryReplay(){
       blockers.push("historical_grant_audit_current_state_mismatch");
     if(ambiguousGroups>0)
       blockers.push("historical_grant_timestamp_order_ambiguous");
+    if(backdatedEvents>0)
+      blockers.push("historical_grant_audit_backdated_event_time");
     if(terminalReactivation>0)
       blockers.push("historical_grant_terminal_reactivation_detected");
     // Rowid orders a present SQLite table's append operations only. It cannot
@@ -196,6 +202,7 @@ export function createGrantHistoryReplay(){
       counts:{inserts:insertRows,updates:updateRows,suspended,
         missingGrants:missing,conflictingCurrentGrants:disagreement,
         orphanReplayedGrants:orphans,ambiguousTimestampGroups:ambiguousGroups,
+        backdatedEventTimestamps:backdatedEvents,
         terminalReactivations:terminalReactivation,redundantUpdates:repeatedUpdates},
       replayEventSha256:eventHash.digest("hex"),
       currentStateSha256:stateHash.digest("hex"),
