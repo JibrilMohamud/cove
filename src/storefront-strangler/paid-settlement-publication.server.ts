@@ -6,7 +6,14 @@ import {dispatchCanonicalOwnerCommand} from "./canonical-owner-command-gateway";
 // These exact synthetic QA databases are segregated from both production and
 // the 100-RPS capacity fixture. The second has canonical paid-order schema.
 // No production D1 identifier can enable the staging customer authorization.
-const QA_PRIMARY_IDS=new Set(["5e3a6b69-6f3d-4b19-b837-01f7aa56ce87","7c7ab994-f6b3-419d-a72d-71eb9ea22e7e"]);
+// Explicitly isolated, synthetic QA primaries only. The new dedicated QA
+// account D1 is required for both pre-tender denial and positive settlement.
+// Production primary D1 must NEVER enter this gate.
+const QA_PRIMARY_IDS=new Set([
+  "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87",
+  "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
+  "969f1ea0-5f57-4f3a-aa25-9c74e58f5af3"
+]);
 const identity=/^[a-zA-Z0-9_-]{8,160}$/;
 type PaidLine={
   id:string;product_id:string;sales_channel:string;entitlement_status:string;
