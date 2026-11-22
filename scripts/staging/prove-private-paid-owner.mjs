@@ -395,7 +395,7 @@ const proveIsolatedQaCredentials=async()=>{
   try {
     const created=await call('CREATE TABLE IF NOT EXISTS "'+scratch+'" (id INTEGER PRIMARY KEY, marker TEXT NOT NULL)');
     assert.equal(created?.[0]?.success,true,"D1 mutation token could not create QA scratch table");
-    const wrote=await call('INSERT INTO "'+scratch+'" (id,marker) VALUES (1,\\'isolated-qa\\')');
+    const wrote=await call("INSERT INTO \""+scratch+"\" (id,marker) VALUES (1,'isolated-qa')");
     assert.equal(wrote?.[0]?.meta?.changes,1,"D1 QA scratch write did not commit");
     const checked=await call('SELECT marker FROM "'+scratch+'" WHERE id=1');
     assert.equal(checked?.[0]?.results?.[0]?.marker,"isolated-qa");
