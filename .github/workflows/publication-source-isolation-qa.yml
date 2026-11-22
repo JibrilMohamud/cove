@@ -12,6 +12,16 @@ on:
       - "wrangler.publication-export.stage.jsonc"
       - ".github/workflows/publication-source-isolation-qa.yml"
   workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        description: "Exact reviewed main SHA for protected Cloudflare operations"
+        type: string
+        required: true
+      confirm_protected_cloudflare_action:
+        description: "Explicitly approve protected staging or production Cloudflare operation"
+        type: boolean
+        required: true
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -19,7 +29,13 @@ concurrency:
   cancel-in-progress: true
 jobs:
   physically-isolated-publication:
-    if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022')
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm_protected_cloudflare_action == true &&
+      inputs.reviewed_main_sha == github.sha
+    environment: cove-production-release-audit
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:

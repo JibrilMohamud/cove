@@ -36,6 +36,16 @@ on:
       - "src/storefront-strangler/homepage-presentation.server.ts"
       - "scripts/check-storefront-v2-primary-prefix.mjs"
   workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        description: "Exact reviewed main SHA for protected Cloudflare operations"
+        type: string
+        required: true
+      confirm_protected_cloudflare_action:
+        description: "Explicitly approve protected stage/production Cloudflare operation"
+        type: boolean
+        required: true
+        default: false
 
 permissions:
   contents: read
@@ -71,8 +81,12 @@ jobs:
 
   protected-staging-only:
     if: >-
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-      github.ref == 'refs/heads/main'
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm_protected_cloudflare_action == true &&
+      inputs.reviewed_main_sha == github.sha
+    environment: cove-production-release-audit
     runs-on: ubuntu-latest
     timeout-minutes: 42
     env:

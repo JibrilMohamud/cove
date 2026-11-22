@@ -12,6 +12,16 @@ on:
       - ".github/workflows/storefront-strangler-safe-integration.yml"
       - "docs/architecture/SAFE_THIN_MAIN_INTEGRATION.md"
   workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        description: "Exact reviewed main SHA for protected Cloudflare operations"
+        type: string
+        required: true
+      confirm_protected_cloudflare_action:
+        description: "Explicitly approve protected staging or production Cloudflare operation"
+        type: boolean
+        required: true
+        default: false
 
 permissions:
   contents: read
@@ -89,7 +99,13 @@ jobs:
     needs: isolated-evaluation-only
     # Only the reviewed same-repository release candidate may receive a
     # scoped Cloudflare token. Forked PRs and other branches cannot deploy.
-    if: github.event_name == 'pull_request' && github.event.pull_request.number == 253 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'release/fast-storefront-live-parity-20261021'
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm_protected_cloudflare_action == true &&
+      inputs.reviewed_main_sha == github.sha
+    environment: cove-production-release-audit
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
