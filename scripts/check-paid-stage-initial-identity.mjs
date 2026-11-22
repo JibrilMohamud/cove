@@ -106,7 +106,7 @@ try{
   // Audit ALL owner-first consumer command boundaries for a shared immutable
   // synthetic D1 predicate. The previous independent hardcoded arrays let
   // checkout preflight succeed but made Stripe/webhook/refunds fail later.
-  const lockedModules=["src/storefront-strangler/legal-consumer-fence.server.ts","src/storefront-strangler/owner-paid-settlement.server.ts","src/storefront-strangler/owner-refund-accounting.server.ts","src/storefront-strangler/owner-refund-provider.server.ts","src/storefront-strangler/owner-refund-reservation.server.ts","src/storefront-strangler/owner-stripe-payment-status.server.ts","src/storefront-strangler/owner-stripe-webhook.server.ts","src/storefront-strangler/paid-order-revocation.server.ts","src/storefront-strangler/paid-settlement-publication.server.ts"];
+  const lockedModules=["src/storefront-strangler/legal-consumer-fence.server.ts","src/storefront-strangler/owner-paid-settlement.server.ts","src/storefront-strangler/owner-refund-accounting.server.ts","src/storefront-strangler/owner-refund-provider.server.ts","src/storefront-strangler/owner-refund-reservation.server.ts","src/storefront-strangler/owner-stripe-payment-status.server.ts","src/storefront-strangler/owner-stripe-webhook.server.ts","src/storefront-strangler/paid-order-revocation.server.ts","src/storefront-strangler/paid-settlement-publication.server.ts","src/storefront-strangler/owner-checkout-creation.server.ts","src/storefront-strangler/owner-checkout-payment.server.ts","src/storefront-strangler/owner-checkout-quote.server.ts","src/storefront-strangler/owner-checkout-reconciliation.server.ts","src/storefront-strangler/owner-commerce-admin.server.ts","src/storefront-strangler/owner-contract-version.server.ts"];
   for(const pathName of lockedModules){
     const code=readFileSync(pathName,"utf8");
     assert.ok(code.includes('import {isReviewedPaidQaPrimary} from "./reviewed-paid-qa-primary";'),
@@ -125,7 +125,7 @@ try{
     assert.equal(isReviewedPaidQaPrimary(id),true,"Only reviewed synthetic primaries allowed");
   for(const id of [PRODUCTION_D1,"00000000-0000-4000-8000-000000000000",null,undefined,""])
     assert.equal(isReviewedPaidQaPrimary(id),false,"No customer/unknown primary permitted");
-  console.log("PASS: all nine owner-first settlement, webhook, consumer and refund gates share one exact QA-only D1 predicate");
+  console.log("PASS: all fifteen owner-first settlement, checkout, webhook, consumer, refund and contract gates share one exact QA-only D1 predicate");
   console.log("PASS: dedicated separate-account paid QA primary reaches both safe owner stages; production and unknown D1 deny before all effects");
   console.log("PASS: real paid QA Worker rejects cross-run/buyer identities and denies attempt-scoped unpaid delivery");
 }finally{rmSync(dir,{recursive:true,force:true});}

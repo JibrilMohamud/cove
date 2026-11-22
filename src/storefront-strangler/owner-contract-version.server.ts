@@ -2,18 +2,15 @@
 import type {CoveEnv} from "../features/fore/api.server";
 import type {CatalogDB} from "../features/fore/catalog-model.server";
 import {ApiError} from "../features/fore/service";
+import {isReviewedPaidQaPrimary} from "./reviewed-paid-qa-primary";
 import {dispatchCanonicalOwnerCommand} from "./canonical-owner-command-gateway";
 import {ownerContractVersionSchema} from "./owner-contract-version-schema";
-const QA_PRIMARIES=new Set([
-  "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87",
-  "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e"
-]);
 export async function saveStageOwnerContractVersion(env:CoveEnv,db:CatalogDB,actorUserId:string,raw:unknown){
   if(env.COVE_LEGAL_CONSUMER_STAGE_ENABLED!=="1")
     throw new ApiError(503,"Distribution contract version writes require a certified canonical owner.");
   if(env.COVE_SSR_STAGING!=="1"||
      env.COVE_CANONICAL_LEGAL_WRITE_LOCK!=="1"||
-     !QA_PRIMARIES.has(env.COVE_LEGAL_WRITER_PRIMARY_ID||"")||
+     !isReviewedPaidQaPrimary(env.COVE_LEGAL_WRITER_PRIMARY_ID)||
      !/^[a-f0-9]{64}$/.test(env.COVE_RIGHTS_OWNER_SECRET||"")||
      !env.LEGAL_AUTHORITY?.getByName)
     throw new ApiError(503,"Distribution contract owner is not certified.");
