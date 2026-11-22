@@ -13,7 +13,8 @@ const account = "d26430caa63ec55f6612e32f36aca5e9";
 const dbId = "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
 const prodDbId = "4bd657ac-8789-403e-a28c-93aba8d0a989";
 const credentials = checkedStranglerAcceptanceCredentials(process.env);
-const fixtureSql = "SELECT COUNT(*) AS n, SUM(CASE WHEN id NOT LIKE 'perf-synth-%' THEN 1 ELSE 0 END) AS bad FROM products";
+const fixtureSql =
+  "SELECT COUNT(*) AS n, SUM(CASE WHEN id NOT LIKE 'perf-synth-%' THEN 1 ELSE 0 END) AS bad FROM products";
 assert.match(process.env.GITHUB_RUN_ID || "", /^\d+$/);
 const namePrefix = "cove-strangler-perf-" + process.env.GITHUB_RUN_ID;
 let name = namePrefix + "-1";
@@ -56,11 +57,18 @@ const save = () =>
 let stageKey = "";
 function command(args, input) {
   // Only the ephemeral, synthetic staging config may be deployed or receive one secret.
-  const deploy = args.length === 3 && args[0] === "deploy" &&
-    args[1] === "--config" && args[2] === configPath;
-  const secret = args.length === 5 && args[0] === "secret" &&
-    args[1] === "put" && args[2] === "COVE_SSR_STAGING_GATE_KEY" &&
-    args[3] === "--config" && args[4] === configPath;
+  const deploy =
+    args.length === 3 &&
+    args[0] === "deploy" &&
+    args[1] === "--config" &&
+    args[2] === configPath;
+  const secret =
+    args.length === 5 &&
+    args[0] === "secret" &&
+    args[1] === "put" &&
+    args[2] === "COVE_SSR_STAGING_GATE_KEY" &&
+    args[3] === "--config" &&
+    args[4] === configPath;
   assert.ok(deploy || secret, "Unreviewed Wrangler operation is forbidden");
   const run = spawnSync(
     "npm",
