@@ -53,9 +53,10 @@ if(process.argv[1] && import.meta.url===new URL("file://"+process.argv[1]).href)
 }
 
 if(process.argv.includes("--live")){
-  const token=process.env.CLOUDFLARE_API_TOKEN;
+  // Live metadata proof must not reuse even the scoped deployment bearer.
+  const token=process.env.COVE_CF_WORKERS_METADATA_READ_TOKEN;
   const account=process.env.CLOUDFLARE_ACCOUNT_ID;
-  assert.ok(token && account,"Live verification requires authenticated Cloudflare");
+  assert.ok(token && account,"Live verification requires the independent Workers Metadata Read token");
   const response=await fetch(
     "https://api.cloudflare.com/client/v4/accounts/"+
     encodeURIComponent(account)+"/workers/scripts/cove-legal-authority-production/settings",
