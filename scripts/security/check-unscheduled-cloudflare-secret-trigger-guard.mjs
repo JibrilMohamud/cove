@@ -42,16 +42,21 @@ export function verifySecretJobGuard(source, name) {
   }
   assert.match(job, /^    environment: cove-production-release-audit\s*$/m);
   // The reviewed literary audit now uses TWO independent provider-enforced
-  // read-only credentials. Other protected consumer jobs retain the existing
-  // broad-token inventory check until their own separately reviewed cutover.
+  // read-only credentials. The production disabled-owner handshake uses two separate scoped tokens.
+  // Other protected consumer jobs retain the broad-token gate until migrated.
   const credentials =
     name === "protected-activation-readonly"
       ? [
           "secrets.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN",
           "secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN",
         ]
-      : ["secrets.CLOUDFLARE_API_TOKEN"];
-  if (name === "protected-activation-readonly")
+      : name === "verify-disabled-owner"
+        ? [
+            "secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN",
+            "secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN",
+          ]
+        : ["secrets.CLOUDFLARE_API_TOKEN"];
+  if (name === "protected-activation-readonly" || name === "verify-disabled-owner")
     assert.ok(
       !job.includes("secrets.CLOUDFLARE_API_TOKEN"),
       "Read-only literary audit must never receive the broad deployment token",
@@ -98,15 +103,17 @@ for (const [stem, name] of PRIVILEGED_JOBS) {
     assert.notEqual(modified, source);
     assert.throws(() => verifySecretJobGuard(modified, name));
   }
-  if (name === "protected-activation-readonly") {
-    for (const credential of [
-      "secrets.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN",
-      "secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN",
-    ]) {
+  if (name === "protected-activation-readonly" || name === "verify-disabled-owner") {
+    const roles = name === "protected-activation-readonly"
+      ? ["secrets.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN",
+         "secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN"]
+      : ["secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN",
+         "secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN"];
+    for (const credential of roles) {
       const missing = mutateJob(source, name, credential, "secrets.CLOUDFLARE_API_TOKEN");
       assert.throws(
         () => verifySecretJobGuard(missing, name),
-        "Returning either read-only role to broad token must be rejected",
+        "Reintroducing the broad token or omitting either scoped role must be rejected",
       );
     }
   }
