@@ -128,6 +128,31 @@ on:
 permissions:
   contents: read
 jobs:
+  biosync-owner-qa-cutover-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install pinned TypeScript QA runtime
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Exercise atomic BioSync owner map and receipt
+        run: node scripts/check-owner-biosync-checked-publication.mjs
+      - name: Reject hostile and production-origin QA gateway inputs
+        run: node scripts/check-owner-biosync-qa-gateway.mjs
+      - name: Verify scheduled Python uses read-only D1
+        run: python3 -m unittest scripts.audio_pipeline.test_biosync_owner_cutover
+      - name: Verify typed owner command schema and receipts
+        run: node scripts/check-canonical-owner-command-gateway.mjs
+      - name: Validate complete integration TypeScript
+        run: npx tsc --noEmit
   inventory-and-cutover-denial:
     runs-on: ubuntu-latest
     timeout-minutes: 10
