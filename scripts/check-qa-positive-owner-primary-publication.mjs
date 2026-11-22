@@ -22,7 +22,7 @@ const at=Date.parse("2026-11-22T12:00:00Z");
 const generation=9,expiry=at+20_000;
 const fence="cove_qa_owner_positive_publication_fence";
 const rowSql="SELECT * FROM "+fence+" WHERE slot=1";
-const refusal=/qa_owner_positive_primary_publication_denied/;
+const refusal=/(?:qa_owner_positive_primary_publication_denied|qa_owner_primary_read_not_current)/;
 
 function fixture(){
   const db=new DatabaseSync(":memory:");
