@@ -1,4 +1,5 @@
 /* eslint-disable prettier/prettier -- Private legal-authority boundary is security-sensitive. */
+import {publishCheckedBiosyncOwned} from "./owner-biosync-checked-publication.stage";
 import {checkoutQuote} from "../features/fore/commerce.server";
 import {sha256 as partnerFeedSha256,partnerAudit as partnerFeedAudit,
   normalizedCountryList as partnerNormalizedCountryList} from "../features/fore/traditional-publishing.server";
@@ -4001,6 +4002,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/entitlement/publish-verified",
       "/commercial/entitlement/publish-order-verified",
       "/publishing/partner/process-feed",
+      "/biosync/publish-checked",
       "/catalog/normalize-gutenberg",
       "/catalog/personal-import",
       "/publishing/contract/save-version",
@@ -4158,6 +4160,10 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           return Response.json({schema:"cove.owner-partner-feed-sandbox.v1",
             ownerFirst:true,operationId:q.operationId,...outcome},{headers:noStore});
         }finally{this.partnerFeedRunning=false;}
+      }
+      if(route==="/biosync/publish-checked") {
+        const receipt=await publishCheckedBiosyncOwned(env.PRIMARY_DB,env.BUCKET,raw);
+        return Response.json(receipt,{headers:noStore});
       }
       if(route==="/catalog/normalize-gutenberg") {
         const input=raw as {sourceId?:unknown;operationId?:unknown}|null;
