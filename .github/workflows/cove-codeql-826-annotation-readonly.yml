@@ -1,0 +1,49 @@
+name: cove-codeql-826-annotation-readonly
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/cove-codeql-826-annotation-readonly.yml"
+permissions:
+  contents: read
+  checks: read
+  pull-requests: read
+jobs:
+  read-codeql-annotations:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inspect required CodeQL check annotations for owner migration PR, read-only
+        env:
+          GH_RO_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          const repo="JibrilMohamud/cove";
+          const endpoint="https://api.github.com/repos/"+repo;
+          const token=process.env.GH_RO_TOKEN;
+          if(!token||token.length<20)throw Error("GitHub checks read token missing");
+          async function get(path){
+            const r=await fetch(endpoint+path,{headers:{
+              authorization:"Bearer "+token,accept:"application/vnd.github+json",
+              "x-github-api-version":"2022-11-28"
+            },signal:AbortSignal.timeout(20000)});
+            if(!r.ok)throw Error("Read-only GitHub annotation fetch failed HTTP "+r.status);
+            return r.json();
+          }
+          const pr=await get("/pulls/826");
+          const runs=await get("/commits/"+pr.head.sha+"/check-runs?per_page=100");
+          const codeql=(runs.check_runs||[]).find(c=>c.name==="CodeQL");
+          if(!codeql||codeql.status!=="completed")throw Error("CodeQL check is not complete");
+          const annotations=await get("/check-runs/"+codeql.id+"/annotations?per_page=100");
+          console.log("CODEQL_CHECK_STATE",JSON.stringify({sha:pr.head.sha,id:codeql.id,conclusion:codeql.conclusion,annotationCount:annotations.length}));
+          if(!Array.isArray(annotations)||annotations.length<1)throw Error("Expected CodeQL annotations missing");
+          for(const a of annotations){
+            console.log("CODEQL_ANNOTATION",JSON.stringify({
+              path:a.path,start_line:a.start_line,end_line:a.end_line,
+              title:String(a.title||"").slice(0,180),
+              message:String(a.message||"").slice(0,700)
+            }));
+          }
+          JS
