@@ -8,6 +8,7 @@ import {pathToFileURL} from "node:url";
 import {readPaidOwnerFence,paidOwnerRollbackEvidence} from "./paid-owner-rollback-evidence.mjs";
 import {checkedPaidQaCredentials,paidQaApiTokenFor,paidQaWranglerTokenFor,QA_ACCOUNT,QA_PAID_D1,QA_SCHEMA_SOURCE_D1,PRODUCTION_ACCOUNT,PRODUCTION_D1} from "./paid-qa-cloudflare-credentials.mjs";
 import {syntheticD1GatewayConfig} from "./synthetic-qa-d1-gateway-config.mjs";
+import {bindPaidQaTemplateToIsolatedPrimary} from "./paid-qa-template-binding.mjs";
 import {isPaidOwnerQaSchemaTable} from "./paid-owner-schema-policy.mjs";
 import {provisionPublishedQaAudio} from "./provision-original-audio-qa.mjs";
 import JSZip from "jszip";
@@ -455,7 +456,8 @@ try {
   // Schema-only bootstrap can take minutes; the *authorization* lifetime
   // begins only after staging data is ready, not during isolated DDL.
   expires=Date.now()+12*60_000;
-  const original=JSON.parse(fs.readFileSync("wrangler.legal-paid-authority.example.jsonc","utf8"));
+  const original=bindPaidQaTemplateToIsolatedPrimary(JSON.parse(
+    fs.readFileSync("wrangler.legal-paid-authority.example.jsonc","utf8")));
   assertNoRoute(original);
   original.name=ownerName;
   original.vars.COVE_RIGHTS_OWNER_ENABLED="1";
@@ -468,8 +470,8 @@ try {
   ownerCreated=true;
   await deploy(ownerCfg,{COVE_RIGHTS_OWNER_SECRET:secret,STRIPE_SECRET_KEY:stripeSecret});
   await verifySecrets(ownerName,["COVE_RIGHTS_OWNER_SECRET","STRIPE_SECRET_KEY"]);
-  const writer=JSON.parse(fs.readFileSync(
-    "wrangler.legal-paid-writer.example.jsonc","utf8"));
+  const writer=bindPaidQaTemplateToIsolatedPrimary(JSON.parse(fs.readFileSync(
+    "wrangler.legal-paid-writer.example.jsonc","utf8")));
   assert.equal(writer.workers_dev,false);
   assert.deepEqual(writer.routes,[]);
   assert.equal(writer.d1_databases?.[0]?.database_id,primary);
@@ -989,8 +991,8 @@ try {
   });
   const {privateKey}=generateKeyPairSync("ec",{namedCurve:"prime256v1"});
   const offlineSigningJwk=JSON.stringify(privateKey.export({format:"jwk"}));
-  const settlement=JSON.parse(fs.readFileSync(
-    "wrangler.legal-paid-settlement-stage-qa.example.jsonc","utf8"));
+  const settlement=bindPaidQaTemplateToIsolatedPrimary(JSON.parse(fs.readFileSync(
+    "wrangler.legal-paid-settlement-stage-qa.example.jsonc","utf8")));
   assert.equal(settlement.workers_dev,false);
   assert.equal(settlement.preview_urls,false);
   assert.deepEqual(settlement.routes,[]);

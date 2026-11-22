@@ -39,6 +39,8 @@ on:
       - "scripts/check-offline-audio-issuer-authorization.mjs"
       - "scripts/check-stripe-terminal-order-states.mjs"
       - "scripts/staging/prove-private-paid-owner.mjs"
+      - "scripts/staging/paid-qa-template-binding.mjs"
+      - "scripts/staging/paid-qa-template-binding.test.mjs"
       - "scripts/staging/paid-owner-schema-policy.mjs"
       - "scripts/check-qa-synthetic-audio.mjs"
       - "scripts/staging/provision-original-audio-qa.mjs"
@@ -86,6 +88,8 @@ on:
       - "drizzle/0088_paid_repurchase_fresh_entitlement.sql"
       - "scripts/check-customer-media-owner-order.mjs"
       - "scripts/staging/prove-private-paid-owner.mjs"
+      - "scripts/staging/paid-qa-template-binding.mjs"
+      - "scripts/staging/paid-qa-template-binding.test.mjs"
       - "scripts/staging/paid-owner-schema-policy.mjs"
       - "scripts/staging/provision-original-audio-qa.mjs"
       - "scripts/check-qa-synthetic-audio.mjs"
@@ -128,6 +132,7 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci --no-audit --no-fund
+      - run: node --test scripts/staging/paid-qa-template-binding.test.mjs
       - run: node scripts/check-paid-stage-initial-identity.mjs
       - run: node scripts/check-qa-synthetic-audio.mjs
       - run: node scripts/check-owner-checkout-draft.mjs
@@ -165,15 +170,17 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - name: Require two distinct scoped QA credentials before Cloudflare operations
+      - name: Require three distinct scoped QA credentials before Cloudflare operations
         shell: bash
         run: |
           set -euo pipefail
           node --input-type=module -e '
             import {checkedPaidQaCredentials} from "./scripts/staging/paid-qa-cloudflare-credentials.mjs";
             checkedPaidQaCredentials(process.env);
-            console.log("PASS: distinct Worker/metadata QA credentials present; D1/R2 use an ephemeral bound Worker");
+            console.log("PASS: three distinct QA credentials present; D1/R2 test operations use the ephemeral bound Worker");
           '
+      - name: Validate isolated QA template rebinding before any deployment
+        run: node --test scripts/staging/paid-qa-template-binding.test.mjs
       - name: Validate denial-first paid consumer and source rules
         run: |
           node scripts/check-paid-entitlement-authority.mjs
