@@ -32,7 +32,10 @@ BASE = f"https://api.cloudflare.com/client/v4/accounts/{ACCOUNT}"
 
 
 def authorized_request(method: str, endpoint: str, payload: bytes | None = None, *, json_body=False) -> bytes:
-    path = urllib.parse.urlparse(endpoint).path
+    endpoint_parts = urllib.parse.urlsplit(endpoint)
+    if endpoint_parts.scheme != "https" or endpoint_parts.netloc != "api.cloudflare.com":
+        raise RuntimeError("BioSync Cloudflare endpoint host is not authorized")
+    path = endpoint_parts.path
     if path.startswith(f"/client/v4/accounts/{ACCOUNT}/d1/"):
         token = os.environ["COVE_BIOSYNC_D1_READ_TOKEN"]
         if method != "POST" or not path.endswith("/query"):
@@ -59,8 +62,8 @@ def authorized_request(method: str, endpoint: str, payload: bytes | None = None,
 def query(sql: str, params: list[object] | None = None) -> list[dict]:
     # Never let this off-owner scheduled process mutate the primary.
     # The provider credential must independently have D1 Read, not D1 Write.
-    if not re.match(r"^SELECT\\s", sql, re.IGNORECASE) or ";" in sql or re.search(
-        r"\\b(?:INSERT|UPDATE|DELETE|REPLACE|DROP|ALTER|CREATE|ATTACH|PRAGMA)\\b",
+    if not re.match(r"^SELECT\s", sql, re.IGNORECASE) or ";" in sql or re.search(
+        r"\b(?:INSERT|UPDATE|DELETE|REPLACE|DROP|ALTER|CREATE|ATTACH|PRAGMA)\b",
         sql, re.IGNORECASE
     ):
         raise RuntimeError("BioSync scheduled D1 is SELECT-only")
