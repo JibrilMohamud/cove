@@ -82,8 +82,8 @@ class OwnerCutoverTests(unittest.TestCase):
         )
         opener = StubOpener(payload)
         with patch.dict(os.environ, {
-            "COVE_BIOSYNC_OWNER_STAGE_URL": "https://stage.example",
-            "COVE_BIOSYNC_MACHINE_TOKEN": "fore_svc_sample.longsecret",
+            "COVE_BIOSYNC_QA_GATEWAY_URL": "https://stage.example",
+            "COVE_BIOSYNC_QA_CLIENT_SECRET": "NaN",
         }), patch.object(canary.urllib.request, "build_opener", return_value=opener):
             out = canary.commit_checked_map_to_owner(
                 "pg-19504", "02", "job_owner_02", HASH
@@ -92,7 +92,7 @@ class OwnerCutoverTests(unittest.TestCase):
         request, = opener.requests
         self.assertEqual(request.method, "POST")
         self.assertEqual(request.full_url,
-            "https://stage.example/api/fore/machine/v1/biosync/publish-checked")
+            "https://stage.example/biosync/publish-checked")
         self.assertNotIn("sql", json.loads(request.data))
         self.assertEqual(json.loads(request.data)["mapSha256"], HASH)
 
@@ -102,8 +102,8 @@ class OwnerCutoverTests(unittest.TestCase):
         ]:
             opener = StubOpener({**payload, **replacement})
             with patch.dict(os.environ, {
-                "COVE_BIOSYNC_OWNER_STAGE_URL": "https://stage.example",
-                "COVE_BIOSYNC_MACHINE_TOKEN": "fore_svc_sample.longsecret",
+                "COVE_BIOSYNC_QA_GATEWAY_URL": "https://stage.example",
+                "COVE_BIOSYNC_QA_CLIENT_SECRET": "NaN",
             }), patch.object(canary.urllib.request, "build_opener", return_value=opener):
                 with self.assertRaisesRegex(RuntimeError, "receipt"):
                     canary.commit_checked_map_to_owner(
@@ -112,20 +112,20 @@ class OwnerCutoverTests(unittest.TestCase):
 
     def test_owner_outage_and_credentials_fail_closed(self):
         with patch.dict(os.environ, {
-            "COVE_BIOSYNC_OWNER_STAGE_URL": "http://insecure.example",
-            "COVE_BIOSYNC_MACHINE_TOKEN": "fore_svc_sample.longsecret",
+            "COVE_BIOSYNC_QA_GATEWAY_URL": "http://insecure.example",
+            "COVE_BIOSYNC_QA_CLIENT_SECRET": "NaN",
         }):
             with self.assertRaisesRegex(RuntimeError, "HTTPS"):
                 canary.commit_checked_map_to_owner("pg-19504", "02", "job_owner_02", HASH)
         with patch.dict(os.environ, {
-            "COVE_BIOSYNC_OWNER_STAGE_URL": "https://stage.example",
-            "COVE_BIOSYNC_MACHINE_TOKEN": "not_a_service_token",
+            "COVE_BIOSYNC_QA_GATEWAY_URL": "https://stage.example",
+            "COVE_BIOSYNC_QA_CLIENT_SECRET": "not_a_qa_secret",
         }):
-            with self.assertRaisesRegex(RuntimeError, "scoped"):
+            with self.assertRaisesRegex(RuntimeError, "ephemeral QA"):
                 canary.commit_checked_map_to_owner("pg-19504", "02", "job_owner_02", HASH)
         with patch.dict(os.environ, {
-            "COVE_BIOSYNC_OWNER_STAGE_URL": "https://stage.example",
-            "COVE_BIOSYNC_MACHINE_TOKEN": "fore_svc_sample.longsecret",
+            "COVE_BIOSYNC_QA_GATEWAY_URL": "https://stage.example",
+            "COVE_BIOSYNC_QA_CLIENT_SECRET": "NaN",
         }):
             class FailedOpener:
                 def open(self, request, timeout=None):
