@@ -112,7 +112,8 @@ const randomChallenge=()=>Array.from(crypto.getRandomValues(new Uint8Array(16)),
   b=>b.toString(16).padStart(2,"0")).join("");
 async function boundedJson(res:Response):Promise<unknown>{
   const body=res.body;
-  if(res.status!==200||!body||
+  if(body===null)throw Error("qa_owner_positive_primary_publication_denied");
+  if(res.status!==200||
      !/\bno-store\b/i.test(res.headers.get("cache-control")||"")||
      !/^application\/json(?:;|$)/i.test(res.headers.get("content-type")||""))blocked();
   const reader=body.getReader(),decoder=new TextDecoder("utf-8",{fatal:true});
@@ -199,6 +200,7 @@ export async function publishQaOwnerPositiveGeneration(x:PositiveContext):Promis
   const owner=await currentQaOwnerEpochForNegativePublication(x);
   const c=await positiveCertificate(x,owner,started);
   const prior=await read(x);
+  if(prior===null)throw Error("qa_owner_positive_primary_publication_denied");
   if(!validFence(prior,x,owner)||Number(prior.owner_mutation_epoch)>owner.epoch||
     prior.dirty!==1||Number(prior.publication_revision)>=Number.MAX_SAFE_INTEGER)
     blocked();
@@ -210,6 +212,7 @@ export async function publishQaOwnerPositiveGeneration(x:PositiveContext):Promis
     c.sourceRevision,c.manifestSha256,c.catalogRows,c.allowRows,c.denyRows,
     c.eligibilityValidUntilMs,
   ).first<Row>();
+  if(updated===null)throw Error("qa_owner_positive_primary_publication_denied");
   if(!validFence(updated,x,owner)||updated.dirty!==0||
     updated.owner_mutation_epoch!==owner.epoch||
     updated.source_revision!==c.sourceRevision||
@@ -220,6 +223,7 @@ export async function publishQaOwnerPositiveGeneration(x:PositiveContext):Promis
     updated.publication_revision!==Number(prior.publication_revision)+1)
     blocked();
   const observed=await read(x);
+  if(observed===null)throw Error("qa_owner_positive_primary_publication_denied");
   const again=await currentQaOwnerEpochForNegativePublication(x);
   const ended=now();
   if(!validFence(observed,x,owner)||observed.dirty!==0||
