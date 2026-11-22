@@ -41,8 +41,8 @@ historical rights.
   and exact `reviewed_main_sha=github.sha`, through the existing
   protected `cove-production-release-audit` environment.
 - Uses a **separate** `COVE_CF_STAGE_D1_READ_TOKEN` environment secret
-  scoped to synthetic D1 Read. It refuses the broad deployment token
-  and refuses production D1 identity.
+  with D1 Read permissions only. Cloudflare account token policy resource wildcard `*` can include all D1 databases; **the code**, not the token resource policy, pins the isolated synthetic D1 ID. It refuses the broad deployment token
+  and refuses production D1 identity. An active account token with this name and D1 Read was seen in read-only Cloudflare inventory; its presence as a GitHub Environment secret is not yet verified.
 - All D1 SQL is bounded, paced at 75 ms between queries, limited to
   1,400 invocations, single-statement SELECT/WITH only, and refuses any
   unexpected write metadata. It logs only aggregate counts, generic
