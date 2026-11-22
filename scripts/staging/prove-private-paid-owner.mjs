@@ -36,7 +36,8 @@ const settlementName="cove-paid-settlement-qa-"+runId;
 const gatewayName="cove-paid-d1-gateway-"+runId;
 const gatewayOrigin="https://"+gatewayName+".cove-jibrilmohamud.workers.dev";
 const gatewayGate=randomBytes(32).toString("hex");
-const mediaBucketName="cove-paid-private-media-qa-"+runId;
+const mediaBucketName="cove-paid-private-media-qa";
+const mediaKey=name=>"qa/"+runId+"/"+name;
 const settlementOrigin="https://"+settlementName+".cove-jibrilmohamud.workers.dev";
 const origin="https://"+callerName+".cove-jibrilmohamud.workers.dev";
 const primary="7c7ab994-f6b3-419d-a72d-71eb9ea22e7e";
@@ -317,7 +318,22 @@ const assertNoRoute=(config)=>{
 let ownerCreated=false,callerCreated=false,writerCreated=false,settlementCreated=false;
 let gatewayCreated=false;
 let cleanupError=null,listener=null,webhookServer=null,webhookSigningSecret="";
-let paymentIntentId=null,initialPaymentIntentId=null,mediaBucketCreated=false;
+let paymentIntentId=null,initialPaymentIntentId=null,mediaUploadAttempted=false;
+const qaMedia=async(action,name,bytes)=>{
+  assert.ok(["book.epub","chapter.wav","rights.txt"].includes(name));
+  assert.ok(["put","delete","head"].includes(action));
+  if(action==="put")mediaUploadAttempted=true;
+  const response=await fetch(gatewayOrigin+"/__media-"+action,{
+    method:"POST",headers:{"authorization":"Bearer "+gatewayGate,
+      "content-type":"application/json"},
+    body:JSON.stringify({name,...(action==="put"?{base64:Buffer.from(bytes).toString("base64")}:{})}),
+    signal:AbortSignal.timeout(20000)
+  });
+  const payload=await response.json().catch(()=>null);
+  if(response.status!==200||payload?.key!==mediaKey(name))
+    throw Error("synthetic_private_media_operation_failed:"+action);
+  return payload;
+};
 let matchedPackets=[],initialOutageInjected=false;
 const until=async(check,label,ms=45000)=>{
   const end=Date.now()+ms;
@@ -358,6 +374,11 @@ try {
     .map(b=>b.id||b.database_id).sort();
   assert.deepEqual(bound,[primary,schemaSource].sort(),
     "Synthetic QA gateway binding must exclude the production D1");
+  const qaMediaBinding=(settings?.bindings||[]).filter(b=>b.name==="QA_MEDIA");
+  assert.equal(qaMediaBinding.length,1,"Synthetic QA media binding missing");
+  assert.equal(qaMediaBinding[0].type,"r2_bucket");
+  assert.equal(qaMediaBinding[0].bucket_name,mediaBucketName,
+    "Synthetic QA gateway may not bind customer media");
   let gatewayReady=false;
   for(let attempt=0;attempt<15;attempt++){
     try{
@@ -833,24 +854,16 @@ try {
   audioBytes.writeUInt32LE(8000,24);audioBytes.writeUInt32LE(16000,28);
   audioBytes.writeUInt16LE(2,32);audioBytes.writeUInt16LE(16,34);
   audioBytes.write("data",36);audioBytes.writeUInt32LE(audioBytes.length-44,40);
-  const epubFile=path.join(temp,"qa-book.epub"),
-    audioFile=path.join(temp,"qa-chapter.wav");
-  fs.writeFileSync(epubFile,epubBytes,{mode:0o600});
-  fs.writeFileSync(audioFile,audioBytes,{mode:0o600});
-  cli(["r2","bucket","create",mediaBucketName]);
-  mediaBucketCreated=true;
-  cli(["r2","object","put",mediaBucketName+"/qa/book.epub",
-    "--file",epubFile,"--remote"]);
-  cli(["r2","object","put",mediaBucketName+"/qa/chapter.wav",
-    "--file",audioFile,"--remote"]);
+  // The preprovisioned private synthetic bucket is written only through a
+  // signed, per-run key prefix on the ephemeral QA Worker binding. Neither
+  // R2 account administration nor customer-media bucket access is needed.
+  assert.equal((await qaMedia("put","book.epub",epubBytes)).saved,true);
+  assert.equal((await qaMedia("put","chapter.wav",audioBytes)).saved,true);
   const rightsBytes=Buffer.from(
     "This recording is generated synthetic silence for the isolated Cove QA campaign "+runId+
     ". No outside recording, narrator or publication rights are claimed.\n","utf8"
   );
-  const rightsFile=path.join(temp,"qa-rights.txt");
-  fs.writeFileSync(rightsFile,rightsBytes,{mode:0o600});
-  cli(["r2","object","put",mediaBucketName+"/qa/rights.txt",
-    "--file",rightsFile,"--remote"]);
+  assert.equal((await qaMedia("put","rights.txt",rightsBytes)).saved,true);
   const digest=bytes=>createHash("sha256").update(bytes).digest("hex");
   const epubSha=digest(epubBytes),audioSha=digest(audioBytes);
   // The ORIGINAL delivery service resolves the buyer's real canonical
@@ -887,7 +900,7 @@ try {
   )).results[0]?.n:0;
   await qaSql(
     "INSERT INTO asset_versions(id,asset_id,version_number,object_key,mime_type,size_bytes,sha256,created_at) VALUES(?,?,?,?,'application/epub+zip',?,?,?)",
-    [runVersion,runAsset,Number(latest)+1,"qa/book.epub",epubBytes.length,epubSha,nowSql]
+    [runVersion,runAsset,Number(latest)+1,mediaKey("book.epub"),epubBytes.length,epubSha,nowSql]
   );
   if(priorAsset)await qaSql(
     "UPDATE digital_assets SET current_version_id=?,updated_at=? WHERE id=?",
@@ -913,7 +926,7 @@ try {
   console.log("QA original EPUB/registered device private assets provisioned");
   await provisionPublishedQaAudio(qaSql,{
     runId,productId:test.productId,buyerId:initialBuyer,
-    objectKey:"qa/chapter.wav",sha:audioSha,sizeBytes:audioBytes.length,
+    objectKey:mediaKey("chapter.wav"),sha:audioSha,sizeBytes:audioBytes.length,
     evidenceSha:digest(rightsBytes),evidenceSize:rightsBytes.length
   });
   const {privateKey}=generateKeyPairSync("ec",{namedCurve:"prime256v1"});
@@ -929,6 +942,7 @@ try {
   settlement.name=settlementName;
   settlement.workers_dev=true;
   settlement.r2_buckets=[{binding:"QA_MEDIA",bucket_name:mediaBucketName}];
+  settlement.vars.COVE_PAID_QA_MEDIA_PREFIX="qa/"+runId+"/";
   settlement.services[0].service=ownerName;
   settlement.vars.COVE_PAID_STAGE_QA_ENABLED="1";
   settlement.vars.STRIPE_LIVEMODE="false";
@@ -1566,13 +1580,17 @@ try {
     }
   }
   if(webhookServer)await new Promise(resolve=>webhookServer.close(resolve));
-  if(mediaBucketCreated){
-    for(const key of ["qa/book.epub","qa/chapter.wav","qa/rights.txt"]){
-      try{cli(["r2","object","delete",mediaBucketName+"/"+key,"--remote"]);}
-      catch(e){cleanupError=e;console.error("Ephemeral private media object cleanup failed");}
+  if(mediaUploadAttempted){
+    for(const name of ["book.epub","chapter.wav","rights.txt"]){
+      try{
+        assert.equal((await qaMedia("delete",name)).deleted,true);
+        assert.equal((await qaMedia("head",name)).exists,false,
+          "Synthetic paid QA bytes must be physically absent after cleanup");
+      }catch(e){
+        cleanupError=e;
+        console.error("Attempt-scoped private QA media cleanup failed: "+name);
+      }
     }
-    try{cli(["r2","bucket","delete",mediaBucketName]);}
-    catch(e){cleanupError=e;console.error("Ephemeral private R2 bucket cleanup failed");}
   }
   // Physically distinct QA scripts and expiring credentials prevent production
   // exposure. DELETE is limited to names built from this exact CI run ID.
