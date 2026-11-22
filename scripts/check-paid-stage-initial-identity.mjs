@@ -1,7 +1,7 @@
 /* eslint-disable prettier/prettier -- Exact isolated paid QA identity boundary regression. */
 import assert from "node:assert/strict";
 import {build} from "esbuild";
-import {mkdtempSync,rmSync} from "node:fs";
+import {mkdtempSync,rmSync,readFileSync} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {pathToFileURL} from "node:url";
@@ -103,6 +103,29 @@ try{
         "Customer or unreviewed D1 must never enter synthetic settlement");
     }
   }
+  // Audit ALL owner-first consumer command boundaries for a shared immutable
+  // synthetic D1 predicate. The previous independent hardcoded arrays let
+  // checkout preflight succeed but made Stripe/webhook/refunds fail later.
+  const lockedModules=["src/storefront-strangler/legal-consumer-fence.server.ts","src/storefront-strangler/owner-paid-settlement.server.ts","src/storefront-strangler/owner-refund-accounting.server.ts","src/storefront-strangler/owner-refund-provider.server.ts","src/storefront-strangler/owner-refund-reservation.server.ts","src/storefront-strangler/owner-stripe-payment-status.server.ts","src/storefront-strangler/owner-stripe-webhook.server.ts","src/storefront-strangler/paid-order-revocation.server.ts","src/storefront-strangler/paid-settlement-publication.server.ts"];
+  for(const pathName of lockedModules){
+    const code=readFileSync(pathName,"utf8");
+    assert.ok(code.includes('import {isReviewedPaidQaPrimary} from "./reviewed-paid-qa-primary";'),
+      "Owner-first consumer must use the shared audited QA primary allowlist: "+pathName);
+    assert.ok(code.includes("!isReviewedPaidQaPrimary(env.COVE_LEGAL_WRITER_PRIMARY_ID)"),
+      "Owner-first consumer must reject any unreviewed primary: "+pathName);
+    assert.doesNotMatch(code,/const QA_(?:PRIMARY|DB)_IDS=new Set|5e3a6b69|7c7ab994|969f1ea0/,
+      "No private payment service may keep a diverging hardcoded QA D1 list: "+pathName);
+  }
+  const listFile=path.join(dir,"reviewed-paid-qa-primary.mjs");
+  await build({entryPoints:["src/storefront-strangler/reviewed-paid-qa-primary.ts"],
+    outfile:listFile,bundle:true,format:"esm",platform:"node",target:"node22",logLevel:"silent"});
+  const {isReviewedPaidQaPrimary}=await import(pathToFileURL(listFile).href);
+  for(const id of ["5e3a6b69-6f3d-4b19-b837-01f7aa56ce87",
+    "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",QA_PAID_D1])
+    assert.equal(isReviewedPaidQaPrimary(id),true,"Only reviewed synthetic primaries allowed");
+  for(const id of [PRODUCTION_D1,"00000000-0000-4000-8000-000000000000",null,undefined,""])
+    assert.equal(isReviewedPaidQaPrimary(id),false,"No customer/unknown primary permitted");
+  console.log("PASS: all nine owner-first settlement, webhook, consumer and refund gates share one exact QA-only D1 predicate");
   console.log("PASS: dedicated separate-account paid QA primary reaches both safe owner stages; production and unknown D1 deny before all effects");
   console.log("PASS: real paid QA Worker rejects cross-run/buyer identities and denies attempt-scoped unpaid delivery");
 }finally{rmSync(dir,{recursive:true,force:true});}

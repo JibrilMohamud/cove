@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Owner proof is a customer-access trust boundary. */
 import {ApiError} from "../features/fore/service";
+import {isReviewedPaidQaPrimary} from "./reviewed-paid-qa-primary";
 
 export type StageLegalConsumerEnv={
   COVE_SSR_STAGING?:string;
@@ -18,7 +19,6 @@ const productPattern=/^prd_gutenberg_(?:[0-9]{1,10}|(?:pgca|pgau|pgeu)_[a-z0-9_]
 // These exact synthetic QA databases are segregated from both production and
 // the 100-RPS capacity fixture. The second has canonical paid-order schema.
 // No production D1 identifier can enable the staging customer authorization.
-const QA_PRIMARY_IDS=new Set(["5e3a6b69-6f3d-4b19-b837-01f7aa56ce87","7c7ab994-f6b3-419d-a72d-71eb9ea22e7e"]);
 /** A paid buyer's delivery is authorized only if BOTH the current paid
  * product grant and exact buyer entitlement are present in the same private
  * owner snapshot. This is a single RPC + a single indexed SQLite read;
@@ -34,7 +34,7 @@ export async function requireStagePaidEntitlementAccess(
   if(env.COVE_LEGAL_CONSUMER_STAGE_ENABLED!=="1")return;
   if(env.COVE_SSR_STAGING!=="1" ||
      env.COVE_CANONICAL_LEGAL_WRITE_LOCK!=="1" ||
-     !QA_PRIMARY_IDS.has(env.COVE_LEGAL_WRITER_PRIMARY_ID||"") ||
+     !isReviewedPaidQaPrimary(env.COVE_LEGAL_WRITER_PRIMARY_ID) ||
      !/^[a-f0-9]{64}$/.test(env.COVE_RIGHTS_OWNER_SECRET||"") ||
      !env.LEGAL_AUTHORITY?.getByName ||
      !input||typeof input.entitlementId!=="string"||
@@ -182,7 +182,7 @@ export async function requireStageLegalConsumerProof(
   if(env.COVE_LEGAL_CONSUMER_STAGE_ENABLED!=="1")return;
   if(env.COVE_SSR_STAGING!=="1"||
      env.COVE_CANONICAL_LEGAL_WRITE_LOCK!=="1" ||
-     !QA_PRIMARY_IDS.has(env.COVE_LEGAL_WRITER_PRIMARY_ID||"") ||
+     !isReviewedPaidQaPrimary(env.COVE_LEGAL_WRITER_PRIMARY_ID) ||
      !/^[a-f0-9]{64}$/.test(env.COVE_RIGHTS_OWNER_SECRET||"") ||
      !env.LEGAL_AUTHORITY?.getByName ||
      !/^[A-Z]{2}$/.test(territory)||!/^[A-Z]{3}$/.test(currency))
