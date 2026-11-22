@@ -20,6 +20,34 @@ export async function repairRegionalEpubAssets(
   const limit = Math.max(1, Math.min(16, Math.floor(options.limit ?? 8) || 8));
   // Source-level approval is insufficient: a separate operator could revoke
   // every live territorial grant without modifying the Gutenberg source row.
+  // Never normalize a previously terminal/reinstated or ambiguous
+  // historical grant into a reader asset merely because it is active now.
+  // A signed external reauthorization, full withdrawal-history reconciliation
+  // and a current owner-denial epoch are still missing in production.
+  // An indexed per-grant audit check is intentionally used only in this
+  // disabled-by-default operator repair, not in customer-critical reads.
+  // No matching INSERT audit, conflicting same-instant snapshots, backdated
+  // event, malformed timestamp, or terminal-to-active history => DENY.
+  const historyIsUnambiguous =
+    " EXISTS(SELECT 1 FROM rights_grant_audit h" +
+    " WHERE h.grant_id=g.id AND h.action='insert')" +
+    " AND NOT EXISTS(SELECT 1 FROM rights_grant_audit h" +
+    " WHERE h.grant_id=g.id GROUP BY julianday(h.recorded_at)" +
+    " HAVING COUNT(DISTINCT h.snapshot_json)>1)" +
+    " AND NOT EXISTS(SELECT 1 FROM (" +
+    " SELECT julianday(h.recorded_at) event_time," +
+    " LAG(julianday(h.recorded_at)) OVER (ORDER BY h.rowid) prior_time," +
+    " json_extract(h.snapshot_json,'$.status') event_status," +
+    " LAG(json_extract(h.snapshot_json,'$.status'))" +
+    " OVER (ORDER BY h.rowid) prior_status" +
+    " FROM rights_grant_audit h WHERE h.grant_id=g.id" +
+    " ) history WHERE history.event_time IS NULL" +
+    " OR (history.prior_time IS NOT NULL" +
+    " AND history.event_time<history.prior_time)" +
+    " OR history.event_status IS NULL" +
+    " OR history.event_status NOT IN ('draft','active','suspended','revoked','expired')" +
+    " OR (history.prior_status IN ('suspended','revoked','expired')" +
+    " AND history.event_status IN ('draft','active')))";
   // The candidate scan and EACH mutation require a currently valid grant.
   const liveGrant =
     " EXISTS(SELECT 1 FROM rights_grants g" +
@@ -38,7 +66,10 @@ export async function repairRegionalEpubAssets(
     " AND deny.sales_channel='retail' AND deny.status='active'" +
     " AND deny.decision='deny' AND deny.territory_code=g.territory_code" +
     " AND (deny.starts_at IS NULL OR datetime(deny.starts_at)<=datetime('now'))" +
-    " AND (deny.ends_at IS NULL OR datetime(deny.ends_at)>datetime('now'))))";
+    " AND (deny.ends_at IS NULL OR datetime(deny.ends_at)>datetime('now')))" +
+    " AND" +
+    historyIsUnambiguous +
+    ")";
 
   const rows = (
     await env.DB.prepare(
