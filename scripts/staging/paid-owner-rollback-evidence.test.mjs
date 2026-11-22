@@ -25,9 +25,12 @@ function fixture(patch = {}, dependencies = {}) {
     if (method === "POST") {
       state.writes.push({ method, path, body });
       assert.equal(path, "/workers/scripts/" + name + "/deployments");
-      assert.deepEqual(body.versions, [{ version_id: a, percentage: 100 }]);
-      state.version = a;
-      state.revision = "A";
+      assert.equal(body.versions.length, 1);
+      assert.ok([a, b].includes(body.versions[0].version_id));
+      assert.equal(body.versions[0].percentage, 100);
+      assert.deepEqual(body.code_update_strategy, { mode: "immediate" });
+      state.version = body.versions[0].version_id;
+      state.revision = state.version === a ? "A" : "B";
       return {};
     }
     assert.equal(method, "GET");
@@ -262,4 +265,36 @@ test("503 propagation may recover but can never count as a valid journal receipt
   const result = await f.proof.waitForRevision("B");
   assert.equal(result.rehearsalRevision, "B");
   assert.equal(time, 2000);
+});
+test("both real version transitions explicitly apply immediate DO update to the exact QA owner", async () => {
+  const f = fixture();
+  await f.proof.captureA();
+  f.state.version = b;
+  await f.proof.captureBDeployment();
+  assert.equal(f.state.writes.length, 0);
+  await f.proof.activateBImmediate();
+  assert.equal((await f.proof.waitForRevision("B")).rehearsalRevision, "B");
+  f.state.epoch = "23";
+  await f.proof.captureB();
+  await f.proof.restoreA("23");
+  assert.equal((await f.proof.waitForRevision("A")).rehearsalRevision, "A");
+  assert.equal((await f.proof.verifyRestored("23")).denialEpochPreserved, true);
+  assert.equal(f.state.writes.length, 2);
+  assert.deepEqual(
+    f.state.writes.map((x) => x.body.versions[0].version_id),
+    [b, a],
+  );
+  assert.ok(f.state.writes.every((x) => x.path === "/workers/scripts/" + name + "/deployments"));
+});
+test("B activation refuses production drift and an unexpected serving version before any POST", async () => {
+  for (const drift of ["production", "qa"]) {
+    const f = fixture();
+    await f.proof.captureA();
+    f.state.version = b;
+    await f.proof.captureBDeployment();
+    if (drift === "production") f.state.prodDrift = true;
+    else f.state.version = a;
+    await assert.rejects(f.proof.activateBImmediate());
+    assert.equal(f.state.writes.length, 0);
+  }
 });

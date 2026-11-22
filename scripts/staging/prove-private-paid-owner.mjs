@@ -1403,6 +1403,7 @@ try {
     // Verify the actual B deployment/namespace before runtime readiness. Keep
     // propagation failures distinct from an invalid journal/challenge proof.
     await rollback.captureBDeployment();
+    await rollback.activateBImmediate();
     await rollback.waitForRevision("B");
     await rollback.captureB();
   }

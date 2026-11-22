@@ -107,6 +107,20 @@ export function paidOwnerRollbackEvidence({
       await shape(versionB, "B");
       await unchangedProduction();
     },
+    async activateBImmediate() {
+      assert.ok(versionA && versionB);
+      assert.equal(await current(name), versionB, "unexpected deployment before B activation");
+      await unchangedProduction();
+      // Active DOs now defer code changes by default. Apply this policy to
+      // this exact synthetic deployment only; it is not inherited by rollback.
+      await api("POST", path + "/deployments", {
+        strategy: "percentage",
+        versions: [{ version_id: versionB, percentage: 100 }],
+        code_update_strategy: { mode: "immediate" },
+        annotations: { "workers/message": "Protected synthetic paid-owner B activation" },
+      });
+      assert.equal(await current(name), versionB);
+    },
     async waitForRevision(revision) {
       assert.ok(revision === "A" || revision === "B");
       assert.ok(versionA && versionB, "both immutable versions must be captured first");
@@ -151,6 +165,7 @@ export function paidOwnerRollbackEvidence({
       await api("POST", path + "/deployments", {
         strategy: "percentage",
         versions: [{ version_id: versionA, percentage: 100 }],
+        code_update_strategy: { mode: "immediate" },
         annotations: {
           "workers/message": "Protected synthetic paid-owner rollback; preserve denial state",
         },
