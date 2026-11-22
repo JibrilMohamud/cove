@@ -111,10 +111,11 @@ const validNumber=(v:unknown,min=0)=>typeof v==="number"&&Number.isSafeInteger(v
 const randomChallenge=()=>Array.from(crypto.getRandomValues(new Uint8Array(16)),
   b=>b.toString(16).padStart(2,"0")).join("");
 async function boundedJson(res:Response):Promise<unknown>{
-  if(res.status!==200||!res.body||
+  const body=res.body;
+  if(res.status!==200||!body||
      !/\bno-store\b/i.test(res.headers.get("cache-control")||"")||
      !/^application\/json(?:;|$)/i.test(res.headers.get("content-type")||""))blocked();
-  const reader=res.body.getReader(),decoder=new TextDecoder("utf-8",{fatal:true});
+  const reader=body.getReader(),decoder=new TextDecoder("utf-8",{fatal:true});
   let raw="",bytes=0;
   try{
     while(true){
@@ -170,7 +171,7 @@ function firstPrimary(x:PositiveContext){
 const read=(x:PositiveContext)=>firstPrimary(x).prepare(FENCE_SELECT).first<Row>();
 function validFence(row:Row|null,x:PositiveContext,owner:{
   epoch:number;version:string;primaryId:string;rehearsal:"A"|"B"
-}){
+}):row is Row{
   return !!row&&row.publication_schema===FENCE_SCHEMA&&
     row.primary_id===QA_PRIMARY_ID&&row.primary_id===x.primaryId&&
     row.owner_journal_version===owner.version&&
