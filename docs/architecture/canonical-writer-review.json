@@ -397,16 +397,16 @@
       "reason": "Evaluation history is written after resolving rights. Authorization re-evaluates grants; the recorded decision is not a reusable positive grant."
     },
     {
-      "siteId": "207c8a25174f9f7d5222412edca827ed504fa3cd81d5180283c70166342e3b2d",
+      "siteId": "0a7911527e8c3405baded6e715b3419ec2f057753e6b354dc08c92898413c8f7",
       "file": "src/features/fore/search.server.ts",
-      "line": 2064,
+      "line": 2094,
       "functionName": "refreshSearchQualitySignals",
       "table": "catalog_search_documents",
       "operation": "UPDATE",
       "sqlSha256": "b44b6a38f0afbbebca207293beeb8f920a9ab2f4d9429e3735fd6df1735d4846",
       "disposition": "non-authorizing-write",
       "productionOwnerGuarded": false,
-      "reason": "This exact projection UPDATE changes ratings, ranking scores or taxonomy text only. It does not change rights, offers, suppression or permission; candidate delivery still needs current legal authorization."
+      "reason": "This exact projection UPDATE changes ratings, ranking scores or taxonomy text only. It does not change rights, offers, suppression or permission; candidate delivery still needs current legal authorization. Re-reviewed 2026-11-13 after the same-file facet SELECT-only planner change. This SQL digest, table, write scope, and non-authorizing classification remain unchanged."
     },
     {
       "siteId": "dfac1bd5bf6b7d2a8c7847c4c345889af57dc800dbf2c1031b9a36baa10e670d",

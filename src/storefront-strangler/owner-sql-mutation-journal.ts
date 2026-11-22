@@ -13,6 +13,7 @@ import type { AuthoritySql } from "./legal-authority-core";
 
 export const OWNER_SQL_MUTATION_SCHEMA = "cove.qa.current-owner-sql-journal.v1";
 export const OWNER_SQL_MUTATION_TABLES = [
+  "cove_audio_metadata_command_receipts",
   "cove_authorized_offer_proofs",
   "cove_commercial_authority",
   "cove_commercial_retired_evidence",
@@ -21,6 +22,7 @@ export const OWNER_SQL_MUTATION_TABLES = [
   "cove_commercial_subject_denial_ops",
   "cove_commercial_subject_denials",
   "cove_commercial_withdrawal_ops",
+  "cove_finance_command_receipts",
   "cove_legal_denial_operations",
   "cove_legal_fences",
   "cove_market_withdrawal_ops",
