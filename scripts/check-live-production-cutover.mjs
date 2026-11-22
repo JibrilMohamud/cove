@@ -13,6 +13,7 @@ import {mkdtempSync,readFileSync,rmSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join,resolve} from "node:path";
 import {fileURLToPath} from "node:url";
+import {createTopologyReader} from "./release/topology-readonly-transport.mjs";
 
 export const PRODUCTION_D1="4bd657ac-8789-403e-a28c-93aba8d0a989";
 export const QA_D1=new Set([
@@ -106,18 +107,6 @@ export function assessProductionCutover({
     }};
 }
 
-async function cloudflareGet(path,token,{optional=false}={}) {
-  const response=await fetch("https://api.cloudflare.com/client/v4"+path,{
-    headers:{authorization:"Bearer "+token,accept:"application/json"},
-    signal:AbortSignal.timeout(12000),
-  });
-  if(optional&&response.status===404)return null;
-  if(!response.ok)throw Error("Cloudflare read failed (HTTP "+response.status+") on "+path.split("?")[0]);
-  const json=await response.json();
-  if(!json.success)throw Error("Cloudflare read returned API failure on "+path.split("?")[0]);
-  return json.result;
-}
-
 function scanCanonicalWriters() {
   const temp=mkdtempSync(join(tmpdir(),"cove-production-owner-audit-"));
   try {
@@ -141,19 +130,16 @@ async function main() {
   const auditOnly=process.argv.includes("--audit");
   const release=process.argv.includes("--release-gate");
   if(auditOnly===release)throw Error("Specify exactly one of --audit or --release-gate");
-  const token=process.env.CLOUDFLARE_API_TOKEN;
   const account=process.env.CLOUDFLARE_ACCOUNT_ID;
   const zone=process.env.CLOUDFLARE_ZONE_ID;
-  if(!token||!/^[a-f0-9]{32}$/.test(account||"")||
-     !/^[a-f0-9]{32}$/.test(zone||""))
-    throw Error("Cloudflare API token and exact account/zone IDs are required");
+  const cloudflareGet=createTopologyReader(process.env);
   const base="/accounts/"+account;
   const [backend,frontend,owner,routes,domains]=await Promise.all([
-    cloudflareGet(base+"/workers/scripts/"+PRIMARY+"/settings",token),
-    cloudflareGet(base+"/workers/scripts/cove/settings",token,{optional:true}),
-    cloudflareGet(base+"/workers/scripts/"+OWNER_SCRIPT+"/settings",token,{optional:true}),
-    cloudflareGet("/zones/"+zone+"/workers/routes",token),
-    cloudflareGet(base+"/workers/domains",token),
+    cloudflareGet(base+"/workers/scripts/"+PRIMARY+"/settings"),
+    cloudflareGet(base+"/workers/scripts/cove/settings",{optional:true}),
+    cloudflareGet(base+"/workers/scripts/"+OWNER_SCRIPT+"/settings"),
+    cloudflareGet("/zones/"+zone+"/workers/routes"),
+    cloudflareGet(base+"/workers/domains"),
   ]);
   let publicOrigin=null;
   try {
