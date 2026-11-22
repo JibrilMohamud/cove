@@ -22,7 +22,7 @@ assert.ok(!src.includes("UPDATE commerce_orders SET stripe_tax_transaction_id=")
 assert.ok(!src.includes("UPDATE commerce_refunds SET tax_reversal_id="));
 assert.ok(src.includes("await confirmStageOwnerStripeTax(env,"));
 assert.ok(owner.includes('if(route==="/commercial/tax/confirm")'));
-assert.ok(owner.includes("https://api.stripe.com/v1/tax/transactions/"));
+assert.match(owner,/\bconst provider=await fetch\(\s*"https:\/\/api\.stripe\.com\/v1\/tax\/transactions\/"\s*\+\s*encodeURIComponent\(input\.taxTransactionId\)/);
 assert.ok(owner.includes('tx.object!=="tax.transaction"'));
 assert.ok(owner.includes("tx.reference!==expectedRef"));
 assert.ok(owner.includes("tx.reversal?.original_transaction!==order.stripe_tax_transaction_id"));
