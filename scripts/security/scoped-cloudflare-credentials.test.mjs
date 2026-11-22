@@ -82,3 +82,16 @@ test("paid real-schema QA is manual, separate-principal and fail-closed", () => 
     "environment: cove-production-release-audit"])
     assert.ok(paid.includes(value),"Unreviewed QA credential or admission change: "+value);
 });
+
+test("older private legal-owner QA never exposes a deploy or D1 secret to PR code",()=>{
+  const src=readFileSync(".github/workflows/legal-authority-private-qa.yml","utf8");
+  assert.ok(!src.includes("secrets.CLOUDFLARE_API_TOKEN"));
+  assert.ok(src.includes("needs: offline-private-owner"));
+  assert.ok(src.includes("environment: cove-production-release-audit"));
+  assert.ok(src.includes("github.event_name == 'workflow_dispatch'"));
+  assert.ok(src.includes("inputs.reviewed_main_sha == github.sha"));
+  assert.ok(src.includes("inputs.confirm_protected_cloudflare_action == true"));
+  assert.ok(src.includes("secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN"));
+  assert.ok(src.includes("secrets.COVE_CF_PAID_QA_D1_WRITE_TOKEN"));
+  assert.ok(src.includes("secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN"));
+});
