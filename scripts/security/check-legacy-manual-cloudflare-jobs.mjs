@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Exact negative-string mutations preserve audited admission guards. */
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 

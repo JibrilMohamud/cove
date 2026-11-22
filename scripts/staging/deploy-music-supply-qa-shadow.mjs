@@ -8,13 +8,20 @@ const musicDb = "fe9a9dd2-64b8-451c-a356-9ec71d9ee211";
 const primary = "4bd657ac-8789-403e-a28c-93aba8d0a989";
 const name = "cove-music-supply-isolated-qa";
 assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, account);
-const deployToken=process.env.CLOUDFLARE_API_TOKEN;
-const metadataToken=process.env.COVE_CF_WORKERS_METADATA_READ_TOKEN;
-const qaReadToken=process.env.COVE_CF_STAGE_D1_READ_TOKEN;
-assert.ok([deployToken,metadataToken,qaReadToken].every(x=>typeof x==="string"&&x.length>=20),
-  "Stage Worker deploy, metadata, and D1-read permissions must use scoped credentials");
-assert.equal(new Set([deployToken,metadataToken,qaReadToken]).size,3,
-  "Isolated music QA must not reuse a Cloudflare write principal for reads");
+const deployToken = process.env.CLOUDFLARE_API_TOKEN;
+const metadataToken = process.env.COVE_CF_WORKERS_METADATA_READ_TOKEN;
+const qaReadToken = process.env.COVE_CF_STAGE_D1_READ_TOKEN;
+assert.ok(
+  [deployToken, metadataToken, qaReadToken].every(
+    (x) => typeof x === "string" && x.length >= 20,
+  ),
+  "Stage Worker deploy, metadata, and D1-read permissions must use scoped credentials",
+);
+assert.equal(
+  new Set([deployToken, metadataToken, qaReadToken]).size,
+  3,
+  "Isolated music QA must not reuse a Cloudflare write principal for reads",
+);
 const config = JSON.parse(fs.readFileSync("wrangler.music-supply.qa.jsonc", "utf8"));
 assert.equal(config.name, name);
 assert.equal(config.workers_dev, false);
