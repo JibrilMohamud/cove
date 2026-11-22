@@ -1,0 +1,34 @@
+name: cove-independent-external-legal-history-chain
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/release/independent-source-legal-event-chain.mjs"
+      - "scripts/release/independent-source-legal-event-chain.test.mjs"
+      - ".github/workflows/cove-independent-external-legal-chain.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  signed-legal-history-denials:
+    if: github.repository == 'JibrilMohamud/cove'
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Verify independent signature and gap-free history, no self-authorizing grants
+        run: |
+          node --no-warnings --test scripts/release/independent-source-legal-event-chain.test.mjs
+          node --check scripts/release/independent-source-legal-event-chain.mjs
+          node --check scripts/release/independent-source-legal-event-chain.test.mjs
+          git diff --check
+      - name: Explain immutable provenance boundary
+        run: |
+          echo "Verified signed test envelopes are NOT valid production legal history."
+          echo "No real-source signer is pinned, no 116 grant cases adjudicated and no owner epoch attested."
+          echo "Workflow uses no provider tokens, D1 queries, production traffic, deployments or mutations."
