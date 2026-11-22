@@ -71,8 +71,14 @@ for (const token of [
   assert.ok(delivery.includes(token), `delivery server missing ${token}`);
 assert.match(delivery, /token_hash/);
 assert.doesNotMatch(migration, /signed_url/i);
-assert.match(delivery, /uses=uses\+1/);
-assert.match(delivery, /uses<max_uses/);
+// EPUB consumption moved to the typed private owner command. Do not
+// reintroduce a primary-D1 increment from the customer-facing backend.
+assert.match(delivery, /dispatchPrivateCommercialEpubConsumption/);
+assert.match(delivery, /Number\(grant\.uses\) >= Number\(grant\.max_uses\)/);
+assert.doesNotMatch(delivery, /UPDATE commercial_delivery_grants SET uses=uses\+1/);
+const ownerRouting = read("src/storefront-strangler/publication-owner-routing.server.ts");
+assert.match(ownerRouting, /"delivery\.consume-epub-grant"/);
+assert.match(ownerRouting, /ack\.consumed!==true/);
 assert.ok(delivery.includes("commercial_entitlement_delivery_usage"));
 assert.ok(delivery.includes("temporary_rights_expired"));
 assert.ok(delivery.includes("commercial_entitlement_devices"));
