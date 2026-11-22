@@ -67,10 +67,10 @@ test("R2 bucket provision is protected and never acquires stage D1 write", () =>
 test("production Worker deploy avoids broad D1-write credential; paid QA remains a blocker", () => {
   const production = readFileSync(".github/workflows/deploy-persistence-backend.yml", "utf8");
   const paid = readFileSync(".github/workflows/paid-legal-full-schema-private-qa.yml", "utf8");
-  assert.doesNotMatch(production, /secrets\\.CLOUDFLARE_API_TOKEN/);
-  assert.match(production, /secrets\\.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
+  assert.doesNotMatch(production, /secrets\.CLOUDFLARE_API_TOKEN/);
+  assert.match(production, /secrets\.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
   assert.match(production, /Deny direct production D1 schema migration/);
-  assert.doesNotMatch(production, /retry-production-d1-migrations\\.mjs/);
-  assert.match(paid, /secrets\\.CLOUDFLARE_API_TOKEN/);
+  assert.doesNotMatch(production, /retry-production-d1-migrations\.mjs/);
+  assert.match(paid, /secrets\.CLOUDFLARE_API_TOKEN/);
   // Paid QA still needs independent credential and synthetic D1 write isolation.
 });

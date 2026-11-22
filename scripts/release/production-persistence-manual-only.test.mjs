@@ -41,11 +41,11 @@ test("production migrations are forbidden and backend Worker deployment is scope
   assert.match(workflow, /inputs\.apply_migrations == true/);
   assert.match(workflow, /Deny direct production D1 schema migration/);
   assert.match(workflow, /exit 1/);
-  assert.doesNotMatch(workflow, /retry-production-d1-migrations\\.mjs/);
-  assert.doesNotMatch(workflow, /secrets\\.CLOUDFLARE_API_TOKEN/);
-  assert.match(workflow, /secrets\\.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
-  assert.match(workflow, /secrets\\.COVE_CF_WORKERS_METADATA_READ_TOKEN/);
-  assert.match(workflow, /secrets\\.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN/);
+  assert.doesNotMatch(workflow, /retry-production-d1-migrations\.mjs/);
+  assert.doesNotMatch(workflow, /secrets\.CLOUDFLARE_API_TOKEN/);
+  assert.match(workflow, /secrets\.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
+  assert.match(workflow, /secrets\.COVE_CF_WORKERS_METADATA_READ_TOKEN/);
+  assert.match(workflow, /secrets\.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN/);
   assert.match(workflow, /cove-persistence-backend/);
   assert.match(workflow, /cove-production-media/);
 });
