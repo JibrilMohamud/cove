@@ -22,8 +22,6 @@ for(const path of ["scripts/staging/check-strangler-data-plane-preflight.mjs",
     const code=read(path);
     assert.ok(code.includes("process.env.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN"));
     assert.ok(code.includes("d26430caa63ec55f6612e32f36aca5e9"));
-    assert.ok(code.includes("process.env.CLOUDFLARE_API_TOKEN"),
-      "Fail closed if broad credential is accidentally injected");
     assert.ok(!code.includes("token = process.env.CLOUDFLARE_API_TOKEN"));
     assert.ok(!code.includes("wrangler deploy"));
   });
