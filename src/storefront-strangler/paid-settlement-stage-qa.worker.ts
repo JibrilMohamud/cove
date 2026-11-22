@@ -24,6 +24,7 @@ type Env={
   STRIPE_LIVEMODE?:string;
   COVE_PAID_INITIAL_ORDER?:string;
   COVE_PAID_INITIAL_BUYER?:string;
+  COVE_PAID_QA_MEDIA_PREFIX?:string;
   COVE_SSR_STAGING?:string;
   COVE_CANONICAL_LEGAL_WRITE_LOCK?:string;
   COVE_LEGAL_CONSUMER_STAGE_ENABLED?:string;
@@ -314,7 +315,11 @@ export default {
         if(url.pathname==="/qa/epub-bytes" || url.pathname==="/qa/audio-bytes"){
           const epub=url.pathname==="/qa/epub-bytes";
           if(!env.QA_MEDIA?.get)return new Response(null,{status:503,headers});
-          const object=await env.QA_MEDIA.get(epub?"qa/book.epub":"qa/chapter.wav");
+          const run=env.COVE_PAID_INITIAL_ORDER?.slice("order_initial_qa_".length)||"";
+          const prefix=env.COVE_PAID_QA_MEDIA_PREFIX||"";
+          if(!/^\d{8,15}-\d{1,5}$/.test(run)||prefix!=="qa/"+run+"/")
+            return new Response(null,{status:503,headers});
+          const object=await env.QA_MEDIA.get(prefix+(epub?"book.epub":"chapter.wav"));
           if(!object)return new Response(null,{status:503,headers});
           const bytes=await object.arrayBuffer();
           return new Response(bytes,{headers:{
