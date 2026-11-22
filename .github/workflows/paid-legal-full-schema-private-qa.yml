@@ -150,9 +150,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
-      COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      COVE_CF_QA_WORKERS_DEPLOY_TOKEN: ${{ secrets.COVE_CF_QA_WORKERS_DEPLOY_TOKEN }}
+      COVE_CF_QA_D1_MUTATION_TOKEN: ${{ secrets.COVE_CF_QA_D1_MUTATION_TOKEN }}
+      COVE_CF_QA_R2_STORAGE_TOKEN: ${{ secrets.COVE_CF_QA_R2_STORAGE_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: f51e8ccbc394e2d6016ff8c2c303d54b
+      COVE_CF_QA_WORKERS_DEV_DOMAIN: cove-qa-reads.workers.dev
       CLOUDFLARE_SEND_METRICS: "false"
     steps:
       - uses: actions/checkout@v6
@@ -237,15 +239,15 @@ jobs:
           const id=process.env.GITHUB_RUN_ID+"-"+(process.env.GITHUB_RUN_ATTEMPT||"1");
           assert.match(id||"",/^\d{8,15}-\d{1,5}$/);
           const account=process.env.CLOUDFLARE_ACCOUNT_ID;
-          const token=process.env.CLOUDFLARE_API_TOKEN;
-          assert.match(account||"",/^[a-f0-9]{32}$/);
+          const token=process.env.COVE_CF_QA_WORKERS_DEPLOY_TOKEN;
+          assert.equal(account,"f51e8ccbc394e2d6016ff8c2c303d54b");
           assert.ok(token);
           const url="https://api.cloudflare.com/client/v4/accounts/"+account+"/workers/scripts";
           const reply=await fetch(url,{headers:{authorization:"Bearer "+token},signal:AbortSignal.timeout(20000)});
           assert.equal(reply.status,200);
           const result=await reply.json();
           assert.equal(result.success,true);
-          const expected=["cove-paid-legal-owner-","cove-paid-legal-caller-","cove-paid-legal-writer-","cove-paid-settlement-qa-"].map(prefix=>prefix+id);
+          const expected=["cove-paid-legal-owner-","cove-paid-legal-caller-","cove-paid-legal-writer-","cove-paid-settlement-qa-","cove-paid-d1-gateway-"].map(prefix=>prefix+id);
           const remains=(result.result||[]).map(s=>s.id).filter(name=>expected.includes(name));
           assert.deepEqual(remains,[],"Temporary paid QA worker scripts must all be deleted");
           console.log("PASS: full paid-owner acceptance cleaned all four ephemeral QA Workers");
