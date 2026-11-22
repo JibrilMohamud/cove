@@ -79,5 +79,5 @@ test("protected SSR verification segregates Worker version reads from account AP
   assert.match(job,/secrets\.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN/);
   assert.match(job,/secrets\.COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN/);
   assert.match(job,/CLOUDFLARE_API_TOKEN" != "\$COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN"/);
-  assert.match(checker,/path\.startsWith\("tokens\/"\)\?accountInventoryToken:token/);
+  assert.match(checker,/path\.startsWith\("tokens\/"\)\s*\?\s*accountInventoryToken\s*:\s*token/);
 });
