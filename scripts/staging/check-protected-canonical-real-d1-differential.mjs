@@ -210,11 +210,17 @@ try {
   };
   for (const id of ids) {
     // Neither the canonical results nor product ID is logged or archived.
-    const canonical = await resolveProductRights(db, id, "US", {
-      salesChannel: "retail",
-      at: now,
-      persist: false,
-    });
+    let canonical;
+    try {
+      canonical = await resolveProductRights(db, id, "US", {
+        salesChannel: "retail",
+        at: now,
+        persist: false,
+      });
+    } catch {
+      // Never let a lower-layer D1 or resolver error leak legal SQL or IDs.
+      throw new Error("Isolated rights resolver unavailable; comparison denied");
+    }
     const view = await readOnlySql(RETAIL_VIEW, [id, "US"]);
     const current = Number(view[0]?.permitted || 0) === 1;
     output.checked += 1;
