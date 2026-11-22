@@ -15,6 +15,12 @@ test("paid QA uses three distinct, capability-separated credentials",()=>{
   assert.match(qa,/assert\.notEqual\(workerToken,qaD1Token/);
   assert.match(qa,/assert\.notEqual\(qaD1Token,r2Token/);
   assert.match(qa,/process\.env\.CLOUDFLARE_API_TOKEN,undefined/);
+  assert.match(qa,/assert\.notEqual\(account,forbiddenProductionAccount/);
+  assert.match(qa,/assert\.notEqual\(primary,"4bd657ac-8789-403e-a28c-93aba8d0a989"/);
+  assert.match(qa,/bindIsolatedQaPrimary\(original\)/);
+  assert.match(qa,/bindIsolatedQaPrimary\(writer\)/);
+  assert.match(qa,/bindIsolatedQaPrimary\(settlement\)/);
+  assert.match(paid,/vars\.COVE_CF_QA_ACCOUNT_ID/);
   assert.match(qa,/resource\.startsWith\("\/d1\/database\/"\)\?qaD1Token:workerToken/);
   assert.match(qa,/CLOUDFLARE_API_TOKEN:args\[0\]==="r2"\?r2Token:workerToken/);
 });
