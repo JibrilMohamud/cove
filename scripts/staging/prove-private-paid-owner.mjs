@@ -17,12 +17,23 @@ import {createServer} from "node:http";
 // payments, owners and order idempotency keys by the actual attempt as well.
 // Never reuse a prior attempt's potentially paid or refunded QA order.
 const runId=process.env.GITHUB_RUN_ID+"-"+(process.env.GITHUB_RUN_ATTEMPT||"1");
-const token=process.env.CLOUDFLARE_API_TOKEN;
-const account=process.env.CLOUDFLARE_ACCOUNT_ID;
+// Privileges are isolated by operation. No shared account-admin bearer is accepted.
+const workerToken=process.env.COVE_CF_QA_WORKERS_DEPLOY_TOKEN;
+const qaD1Token=process.env.COVE_CF_QA_D1_MUTATION_TOKEN;
+const r2Token=process.env.COVE_CF_QA_R2_STORAGE_TOKEN;
+const account=process.env.COVE_CF_QA_ACCOUNT_ID;
+const forbiddenProductionAccount="d26430caa63ec55f6612e32f36aca5e9";
 assert.match(runId||"",/^\d{8,15}-\d{1,5}$/);
 assert.match(account||"",/^[a-f0-9]{32}$/);
-assert.equal(account,"d26430caa63ec55f6612e32f36aca5e9");
-assert.ok(token,"Cloudflare QA authorization required");
+assert.notEqual(account,forbiddenProductionAccount,
+  "Paid D1 mutation QA MUST run in a different Cloudflare account");
+for(const [label,value] of [["Worker",workerToken],["D1",qaD1Token],["R2",r2Token]])
+  assert.ok(typeof value==="string"&&value.length>=20,label+" scoped QA credential required");
+assert.notEqual(workerToken,qaD1Token,"Worker and synthetic D1 authority must be separate");
+assert.notEqual(workerToken,r2Token,"Worker and private R2 authority must be separate");
+assert.notEqual(qaD1Token,r2Token,"D1 and R2 authority must be separate");
+assert.equal(process.env.CLOUDFLARE_API_TOKEN,undefined,
+  "Do not supply a broad Cloudflare bearer to protected QA");
 const stripeSecret=process.env.COVE_SANDBOX_SECRET_KEY||"";
 assert.match(stripeSecret,/^(?:sk|rk|rkcs)_test_[A-Za-z0-9]+$/,"Independent owner requires a real TEST Stripe credential");
 const interruptTrigger="qa_settlement_interrupt_"+runId.replaceAll("-","_");
@@ -32,10 +43,20 @@ const callerName="cove-paid-legal-caller-"+runId;
 const writerName="cove-paid-legal-writer-"+runId;
 const settlementName="cove-paid-settlement-qa-"+runId;
 const mediaBucketName="cove-paid-private-media-qa-"+runId;
-const settlementOrigin="https://"+settlementName+".cove-jibrilmohamud.workers.dev";
-const origin="https://"+callerName+".cove-jibrilmohamud.workers.dev";
-const primary="7c7ab994-f6b3-419d-a72d-71eb9ea22e7e";
-const primaryName="cove-paid-commerce-legal-qa-20261027";
+const qaWorkersDomain=process.env.COVE_CF_QA_WORKERS_DEV_DOMAIN||"";
+assert.match(qaWorkersDomain,/^[a-z0-9-]+\.workers\.dev$/);
+assert.notEqual(qaWorkersDomain,"cove-jibrilmohamud.workers.dev",
+  "Paid owner QA cannot use production-account workers.dev");
+const settlementOrigin="https://"+settlementName+"."+qaWorkersDomain;
+const origin="https://"+callerName+"."+qaWorkersDomain;
+const templatePrimary="7c7ab994-f6b3-419d-a72d-71eb9ea22e7e";
+const templatePrimaryName="cove-paid-commerce-legal-qa-20261027";
+const primary=process.env.COVE_CF_QA_PRIMARY_D1_ID||"";
+const primaryName=process.env.COVE_CF_QA_PRIMARY_D1_NAME||"";
+assert.match(primary,/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/);
+assert.match(primaryName,/^[a-zA-Z0-9_-]{3,90}$/);
+assert.notEqual(primary,"4bd657ac-8789-403e-a28c-93aba8d0a989",
+  "QA must never bind the production primary D1");
 const gate=randomBytes(32).toString("hex");
 const secret=randomBytes(32).toString("hex");
 const journalVersion=randomBytes(32).toString("hex");
@@ -63,14 +84,17 @@ const test={
 };
 const cli=(args)=>{
   const result=spawnSync("npm",["exec","--yes","--package=wrangler@4.151.0","--","wrangler",...args],{
-    encoding:"utf8",timeout:160000,env:{...process.env,CLOUDFLARE_SEND_METRICS:"false"}
+    encoding:"utf8",timeout:160000,env:{...process.env,
+      CLOUDFLARE_ACCOUNT_ID:account,
+      CLOUDFLARE_API_TOKEN:args[0]==="r2"?r2Token:workerToken,
+      CLOUDFLARE_SEND_METRICS:"false"}
   });
   if(result.status!==0)throw Error("wrangler_"+args[0]+"_failed "+
     String(result.stderr||"").replace(/Bearer\s+\S+/g,"Bearer [redacted]").slice(-450));
 };
 const api=async(method,resource,body)=>{
   const r=await fetch("https://api.cloudflare.com/client/v4/accounts/"+account+resource,{
-    method,headers:{authorization:"Bearer "+token,
+    method,headers:{authorization:"Bearer "+(resource.startsWith("/d1/database/")?qaD1Token:workerToken),
       "content-type":"application/json"},
     ...(body?{body:JSON.stringify(body)}:{}),
     signal:AbortSignal.timeout(18000)
@@ -110,7 +134,10 @@ const qaSql=async(sql,params=[])=>{
  * no ledger, royalties, outbox, retail events or reader state schema.
  * This is a strict source/destination allowlist; never use a production D1.
  */
-const schemaSource="e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
+const schemaSource=process.env.COVE_CF_QA_SCHEMA_SOURCE_D1_ID||"";
+assert.match(schemaSource,/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/);
+assert.notEqual(schemaSource,primary,"QA schema source and mutable paid D1 must be distinct");
+assert.notEqual(schemaSource,"4bd657ac-8789-403e-a28c-93aba8d0a989");
 async function prepareInitialCommerceQaSchema(){
   const records=await api("POST","/d1/database/"+schemaSource+"/query",{
     sql:"SELECT type,name,tbl_name,sql FROM sqlite_master WHERE sql IS NOT NULL AND type IN ('table','index') ORDER BY CASE type WHEN 'table' THEN 0 ELSE 1 END,name"
@@ -283,9 +310,24 @@ const assertNoRoute=(config)=>{
   assert.equal(config.workers_dev,false);
   assert.equal(config.preview_urls,false);
   assert.deepEqual(config.routes,[]);
-  assert.equal(config.d1_databases?.[0]?.database_id,primary);
-  assert.equal(config.d1_databases?.[0]?.database_name,primaryName);
+  assert.equal(config.d1_databases?.[0]?.database_id,templatePrimary);
+  assert.equal(config.d1_databases?.[0]?.database_name,templatePrimaryName);
   assert.equal(config.vars?.COVE_RIGHTS_OWNER_ENABLED,"0");
+};
+// Pinned synthetic fixtures only. Remote production D1 IDs and routes are denied.
+const bindIsolatedQaPrimary=config=>{
+  assert.equal(config.d1_databases?.length,1);
+  const db=config.d1_databases[0];
+  assert.equal(db.binding,"PRIMARY_DB");
+  assert.equal(db.database_id,templatePrimary);
+  assert.equal(db.database_name,templatePrimaryName);
+  db.database_id=primary;
+  db.database_name=primaryName;
+  for(const key of ["COVE_RIGHTS_OWNER_PRIMARY_ID","COVE_LEGAL_WRITER_PRIMARY_ID"])
+    if(Object.hasOwn(config.vars||{},key)){
+      assert.equal(config.vars[key],templatePrimary);
+      config.vars[key]=primary;
+    }
 };
 let ownerCreated=false,callerCreated=false,writerCreated=false,settlementCreated=false;
 let cleanupError=null,listener=null,webhookServer=null,webhookSigningSecret="";
@@ -326,6 +368,7 @@ try {
   expires=Date.now()+12*60_000;
   const original=JSON.parse(fs.readFileSync("wrangler.legal-paid-authority.example.jsonc","utf8"));
   assertNoRoute(original);
+  bindIsolatedQaPrimary(original);
   original.name=ownerName;
   original.vars.COVE_RIGHTS_OWNER_ENABLED="1";
   original.vars.COVE_RIGHTS_OWNER_TEST_EXPIRES_AT=String(expires);
@@ -341,7 +384,8 @@ try {
     "wrangler.legal-paid-writer.example.jsonc","utf8"));
   assert.equal(writer.workers_dev,false);
   assert.deepEqual(writer.routes,[]);
-  assert.equal(writer.d1_databases?.[0]?.database_id,primary);
+  assert.equal(writer.d1_databases?.[0]?.database_id,templatePrimary);
+  bindIsolatedQaPrimary(writer);
   assert.equal(writer.vars?.COVE_LEGAL_WRITER_ENABLED,"0");
   assert.equal(writer.services?.[0]?.service,"cove-paid-legal-authority-qa");
   writer.name=writerName;
@@ -871,7 +915,8 @@ try {
   assert.equal(settlement.workers_dev,false);
   assert.equal(settlement.preview_urls,false);
   assert.deepEqual(settlement.routes,[]);
-  assert.equal(settlement.d1_databases?.[0]?.database_id,primary);
+  assert.equal(settlement.d1_databases?.[0]?.database_id,templatePrimary);
+  bindIsolatedQaPrimary(settlement);
   assert.equal(settlement.vars?.COVE_PAID_STAGE_QA_ENABLED,"0");
   assert.equal(settlement.services?.[0]?.service,"cove-paid-legal-authority-qa");
   settlement.name=settlementName;

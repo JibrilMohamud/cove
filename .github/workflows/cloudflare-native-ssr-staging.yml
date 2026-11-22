@@ -188,7 +188,8 @@ jobs:
     env:
       COVE_CLOUDFLARE_SSR_PILOT: "1"
       VERCEL: "0"
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
+      COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN: ${{ secrets.COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
       CLOUDFLARE_SEND_METRICS: "false"
       COVE_SSR_STAGING_ORIGIN: "https://cove-storefront-ssr-staging.cove-jibrilmohamud.workers.dev"
@@ -215,7 +216,10 @@ jobs:
           set -euo pipefail
           test -n "$CLOUDFLARE_API_TOKEN" || { echo "Cloudflare credential unavailable"; exit 1; }
       - name: Verify independently deployed primary-only D1 Read provider credential and private service
-        run: node scripts/staging/verify-canonical-readonly-service.mjs
+        run: |
+          test -n "$COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN" || { echo "::error::Missing scoped account-token reader"; exit 1; }
+          test "$CLOUDFLARE_API_TOKEN" != "$COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN" || { echo "::error::Worker deploy and account token reader must be different"; exit 1; }
+          node scripts/staging/verify-canonical-readonly-service.mjs
       - name: Build immutable reviewed production-source staging artifact
         run: npm run build
       - name: Deploy staging only (no custom domain or traffic migration)
