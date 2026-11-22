@@ -154,17 +154,17 @@ try{
   const ids=(bindingCheck?.bindings||[]).filter(b=>b.type==="d1").map(b=>b.id||b.database_id);
   assert.deepEqual(ids,["5e3a6b69-6f3d-4b19-b837-01f7aa56ce87"],
     "Private legal QA gateway must bind only the isolated synthetic database");
-  let ready=false;
+  let d1GatewayReady=false;
   for(let attempt=0;attempt<15;attempt++){
     try{
       const response=await fetch(d1GatewayOrigin+"/__health",{
         headers:{"authorization":"Bearer "+d1GatewaySecret},signal:AbortSignal.timeout(10000)});
-      if(response.status===200&&(await response.json()).ready===true){ready=true;break;}
+      if(response.status===200&&(await response.json()).ready===true){d1GatewayReady=true;break;}
       if(![404,503].includes(response.status))break;
     }catch{}
     await sleep(1200);
   }
-  assert.ok(ready,"Synthetic legal D1 gateway unavailable before any rights QA mutation");
+  assert.ok(d1GatewayReady,"Synthetic legal D1 gateway unavailable before any rights QA mutation");
   const owner=JSON.parse(fs.readFileSync("wrangler.legal-authority.example.jsonc","utf8"));
   assert.equal(owner.workers_dev,false);
   assert.deepEqual(owner.routes,[]);
