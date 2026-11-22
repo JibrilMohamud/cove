@@ -91,6 +91,16 @@ function normalizedRows(raw:Row[]):CandidateRow[]{
   if(rows.some((r,i)=>i>0&&rows[i-1].productId>=r.productId))fail();
   return rows;
 }
+export type QAOwnerDecisionProof=
+  | {productId:string;territory:"US";allowed:1;revision:number;
+      editionId:string;offerJson:string}
+  | {productId:string;territory:"US";allowed:0;revision:number;
+      operationId:string;operationRevision:number};
+export async function qaOwnerDecisionDigest(proof:QAOwnerDecisionProof):Promise<string>{
+  const data=JSON.stringify({schema:"cove.qa.owner-current-decision-proof.v1",proof});
+  const hash=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(data));
+  return Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,"0")).join("");
+}
 export async function qaPositiveCandidateDigest(
   candidate:{
     generation:number;primaryId:string;journalVersion:string;ownerEpoch:number;
@@ -142,7 +152,7 @@ const LEGAL_SQL=`SELECT product_id FROM retail_product_availability_rows
 function checkedEpoch(x:ReconcileContext):Journal{
   return readOwnerSqlMutationJournal(x.ownerSql,x.transactionSync,x.journalVersion);
 }
-function verifyOwner(x:ReconcileContext,c:Candidate,rows:CandidateRow[]){
+function verifyOwner(x:ReconcileContext,rows:CandidateRow[]):QAOwnerDecisionProof[]{
   return x.transactionSync(()=>{
     if(marketIsWithdrawn(x.ownerSql,"US"))fail();
     const allowed=rows.filter(r=>r.allowed===1);
@@ -150,6 +160,7 @@ function verifyOwner(x:ReconcileContext,c:Candidate,rows:CandidateRow[]){
       allowed.map(r=>r.productId),"US","USD");
     if(authorized.length!==allowed.length)fail();
     const indexed=new Map(authorized.map(row=>[row.product_id,row]));
+    const evidence:QAOwnerDecisionProof[]=[];
     for(const row of rows){
       const sourceId=row.productId.slice("prd_gutenberg_".length);
       const verdict=readAuthority(x.ownerSql,sourceId,"US");
@@ -165,18 +176,27 @@ function verifyOwner(x:ReconcileContext,c:Candidate,rows:CandidateRow[]){
           (offer as Row).type!=="public-domain"||
           (offer as Row).currency!=="USD"||
           (offer as Row).amountMinor!==0)fail();
+        evidence.push({productId:row.productId,territory:"US",allowed:1,
+          revision:verdict.revision as number,editionId:proof.edition_id,
+          offerJson:proof.offer_json});
       }else{
         // An uninitialized owner is NOT a legal DENY archive. Demand an
         // acknowledged, journaled negative operation for this exact source.
-        const history=x.ownerSql.exec<{one:number}>(
-          "SELECT 1 one FROM cove_legal_denial_operations "+
-          "WHERE source_id=? AND territory IN ('US','*') AND revision<=? LIMIT 1",
+        const history=x.ownerSql.exec<{operation_id:string;revision:number}>(
+          "SELECT operation_id,revision FROM cove_legal_denial_operations "+
+          "WHERE source_id=? AND territory IN ('US','*') AND revision<=? "+
+          "ORDER BY revision DESC,operation_id DESC LIMIT 1",
           sourceId,verdict.revision
         ).toArray();
-        if(history.length!==1)fail();
+        if(history.length!==1||!integer(history[0].revision,1)||
+          typeof history[0].operation_id!=="string"||
+          history[0].operation_id.length===0)fail();
+        evidence.push({productId:row.productId,territory:"US",allowed:0,
+          revision:verdict.revision as number,
+          operationId:history[0].operation_id,operationRevision:history[0].revision});
       }
     }
-    return true;
+    return evidence;
   });
 }
 export async function issueQaOwnerPositiveGenerationCertificate(x:ReconcileContext){
@@ -214,7 +234,11 @@ export async function issueQaOwnerPositiveGenerationCertificate(x:ReconcileConte
   if(available.some((r,i)=>r.product_id!==allow[i]))fail();
   const hash=await qaPositiveCandidateDigest(shape(c),rows);
   if(hash!==c.manifest_sha256)fail();
-  verifyOwner(x,c,rows);
+  // A candidate cannot self-certify arbitrary 64-character legal fingerprints.
+  // Hash actual per-book owner fence and offer/denial receipts independently.
+  const ownerProofs=verifyOwner(x,rows);
+  const digests=await Promise.all(ownerProofs.map(qaOwnerDecisionDigest));
+  if(rows.some((r,i)=>r.proofSha256!==digests[i]))fail();
   const [latestSource,latestCandidate]=await Promise.all([
     one(x,SOURCE_SQL),one(x,CANDIDATE_SQL)
   ]);
