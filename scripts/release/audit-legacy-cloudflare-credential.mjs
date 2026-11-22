@@ -2,7 +2,6 @@
 import assert from "node:assert/strict";
 import {readFileSync,readdirSync} from "node:fs";
 import {join} from "node:path";
-import {fileURLToPath} from "node:url";
 
 export function inventoryLegacyCloudflareCredential({root=process.cwd()}={}) {
   const dir=join(root,".github","workflows");
