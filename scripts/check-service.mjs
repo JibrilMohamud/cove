@@ -184,7 +184,8 @@ assert.equal(
   (
     await env.DB.prepare(
       "SELECT status FROM entitlements WHERE user_id=? AND product_id=(SELECT product_id FROM personal_imports WHERE id=?)",
-    ).bind("test-reader-a", qaOwnedBook)
+    )
+      .bind("test-reader-a", qaOwnedBook)
       .first()
   ).status,
   "active",
