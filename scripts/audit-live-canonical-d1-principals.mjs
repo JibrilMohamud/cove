@@ -213,7 +213,14 @@ export function compareKnownUnsafeFleet(report,baseline){
 
 /** Read-only. Abort the entire audit if even one Worker settings or owner
  * schedule request is inaccessible: incomplete evidence is not a pass. */
-export async function collectCanonicalD1Fleet({fetcher=fetch,token,account,zone}){
+export async function collectCanonicalD1Fleet({fetcher=fetch,token,metadataToken=token,routesToken=token,account,zone}){
+  // The bulk Worker inventory is read with the independent read-only
+  // Metadata principal. Zone route data has its own zone-scoped principal.
+  // The legacy token is only a transitional last-resort route-read fallback.
+  assert.ok(typeof metadataToken==="string"&&metadataToken.length>=20,
+    "Missing independent Workers metadata read credential");
+  assert.ok(typeof routesToken==="string"&&routesToken.length>=20,
+    "Missing zone Worker routes read credential");
   assert.ok(typeof token==="string"&&token.length>=20,"Cloudflare credential required");
   assert.match(account||"",idPattern);
   assert.match(zone||"",idPattern);
@@ -227,7 +234,7 @@ export async function collectCanonicalD1Fleet({fetcher=fetch,token,account,zone}
   // attempts still blocks the audit. No partial inventory is accepted.
   let sorted,settingsList;
   for(let attempt=0;attempt<3;attempt++){
-    const scripts=await apiGet(fetcher,token,root+"/workers/scripts");
+    const scripts=await apiGet(fetcher,metadataToken,root+"/workers/scripts");
     assert.ok(Array.isArray(scripts)&&scripts.length>0&&scripts.length<1000,
       "Ambiguous Cloudflare Worker listing; fail closed rather than truncate");
     assert.equal(new Set(scripts.map(w=>w.id)).size,scripts.length,
@@ -235,7 +242,7 @@ export async function collectCanonicalD1Fleet({fetcher=fetch,token,account,zone}
     // The collection returns the full account-level list (not a page cursor).
     sorted=[...scripts].sort((a,b)=>a.id.localeCompare(b.id));
     settingsList=await mapBounded(sorted,12,async w=>
-      apiGet(fetcher,token,root+"/workers/scripts/"+safeWorker(w.id)+"/settings",
+      apiGet(fetcher,metadataToken,root+"/workers/scripts/"+safeWorker(w.id)+"/settings",
         {optional:true}));
     const missing=sorted.filter((w,i)=>settingsList[i]===null).map(w=>w.id);
     if(!missing.length)break;
@@ -244,7 +251,7 @@ export async function collectCanonicalD1Fleet({fetcher=fetch,token,account,zone}
         missing.slice(0,5).join(","));
     // Independently verify disappearance. A listed but inaccessible
     // handshake may have live DB access, so it MUST fail closed too.
-    const current=await apiGet(fetcher,token,root+"/workers/scripts");
+    const current=await apiGet(fetcher,metadataToken,root+"/workers/scripts");
     assert.ok(Array.isArray(current)&&current.length>0&&current.length<1000,
       "Cannot independently verify expired handshake deletion");
     const present=new Set(current.map(w=>w.id));
@@ -268,14 +275,14 @@ export async function collectCanonicalD1Fleet({fetcher=fetch,token,account,zone}
   const details=await mapBounded(targets,12,async w=>{
     const name=safeWorker(w.id);
     const [schedule,subdomain]=await Promise.all([
-      apiGet(fetcher,token,root+"/workers/scripts/"+name+"/schedules"),
-      apiGet(fetcher,token,root+"/workers/scripts/"+name+"/subdomain")
+      apiGet(fetcher,metadataToken,root+"/workers/scripts/"+name+"/schedules"),
+      apiGet(fetcher,metadataToken,root+"/workers/scripts/"+name+"/subdomain")
     ]);
     return {name:w.id,schedules:(schedule?.schedules||[]).map(s=>s.cron),subdomain};
   });
   const [routes,domains]=await Promise.all([
-    apiGet(fetcher,token,"/zones/"+zone+"/workers/routes"),
-    apiGet(fetcher,token,root+"/workers/domains")
+    apiGet(fetcher,routesToken,"/zones/"+zone+"/workers/routes"),
+    apiGet(fetcher,metadataToken,root+"/workers/domains")
   ]);
   assert.ok(Array.isArray(routes)&&Array.isArray(domains));
   const scheduleMap=Object.fromEntries(details.map(d=>[d.name,d.schedules]));
@@ -292,6 +299,10 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).hr
   try {
     const report=await collectCanonicalD1Fleet({
       token:process.env.CLOUDFLARE_API_TOKEN,
+      metadataToken:process.env.COVE_CF_WORKERS_METADATA_READ_TOKEN||
+        process.env.CLOUDFLARE_API_TOKEN,
+      routesToken:process.env.COVE_CF_WORKERS_ROUTES_READ_TOKEN||
+        process.env.CLOUDFLARE_API_TOKEN,
       account:process.env.CLOUDFLARE_ACCOUNT_ID,
       zone:process.env.CLOUDFLARE_ZONE_ID
     });
