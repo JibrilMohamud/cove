@@ -65,13 +65,20 @@ test("R2 bucket provision is protected and never acquires stage D1 write", () =>
     "Staging bucket code must not select production D1");
 });
 
-test("production Worker deploy avoids broad D1-write credential; paid QA remains a blocker", () => {
-  const production = readFileSync(".github/workflows/deploy-persistence-backend.yml", "utf8");
-  const paid = readFileSync(".github/workflows/paid-legal-full-schema-private-qa.yml", "utf8");
-  assert.doesNotMatch(production, /secrets\.CLOUDFLARE_API_TOKEN/);
-  assert.match(production, /secrets\.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
-  assert.match(production, /Deny direct production D1 schema migration/);
-  assert.doesNotMatch(production, /retry-production-d1-migrations\.mjs/);
-  assert.match(paid, /secrets\.CLOUDFLARE_API_TOKEN/);
-  // Paid QA still needs independent credential and synthetic D1 write isolation.
+test("paid real-schema QA is manual, separate-principal and fail-closed", () => {
+  const production = readFileSync(".github/workflows/deploy-persistence-backend.yml","utf8");
+  const paid = readFileSync(".github/workflows/paid-legal-full-schema-private-qa.yml","utf8");
+  assert.ok(!production.includes("secrets.CLOUDFLARE_API_TOKEN"));
+  assert.ok(production.includes("secrets.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN"));
+  assert.ok(production.includes("Deny direct production D1 schema migration"));
+  assert.ok(!paid.includes("secrets.CLOUDFLARE_API_TOKEN"));
+  for(const value of ["secrets.COVE_CF_PAID_QA_D1_WRITE_TOKEN",
+    "secrets.COVE_CF_PAID_QA_R2_WRITE_TOKEN",
+    "secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN",
+    "secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN",
+    "inputs.reviewed_main_sha == github.sha",
+    "inputs.confirm_isolated_qa == true",
+    "github.event_name == 'workflow_dispatch'",
+    "environment: cove-production-release-audit"])
+    assert.ok(paid.includes(value),"Unreviewed QA credential or admission change: "+value);
 });

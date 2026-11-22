@@ -96,9 +96,14 @@ on:
   workflow_dispatch:
     inputs:
       reviewed_main_sha:
-        description: "Exact reviewed main SHA, required for the owner-state rollback rehearsal."
-        required: false
+        description: "Exact reviewed main SHA required for ALL protected paid QA."
+        required: true
         type: string
+      confirm_isolated_qa:
+        description: "Explicitly authorize synthetic-only Workers, D1, R2 and Stripe TEST QA."
+        required: true
+        default: false
+        type: boolean
       confirm_owner_state_rollback:
         description: "Run actual synthetic paid-owner A/B/A version rollback after TEST refund; no production changes."
         required: true
@@ -137,14 +142,18 @@ jobs:
   real-test-payment-to-private-owner:
     if: >-
       github.repository == 'JibrilMohamud/cove' &&
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.event_name == 'workflow_dispatch' &&
       github.ref == 'refs/heads/main' &&
-      (inputs.confirm_owner_state_rollback != true || inputs.reviewed_main_sha == github.sha)
+      inputs.confirm_isolated_qa == true &&
+      inputs.reviewed_main_sha == github.sha
     environment: cove-production-release-audit
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
+      COVE_CF_PAID_QA_D1_WRITE_TOKEN: ${{ secrets.COVE_CF_PAID_QA_D1_WRITE_TOKEN }}
+      COVE_CF_PAID_QA_R2_WRITE_TOKEN: ${{ secrets.COVE_CF_PAID_QA_R2_WRITE_TOKEN }}
+      COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
       CLOUDFLARE_SEND_METRICS: "false"
     steps:
@@ -156,6 +165,15 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci --no-audit --no-fund
+      - name: Require four distinct scoped QA credentials before Cloudflare operations
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module -e '
+            import {checkedPaidQaCredentials} from "./scripts/staging/paid-qa-cloudflare-credentials.mjs";
+            checkedPaidQaCredentials(process.env);
+            console.log("PASS: distinct QA credentials present; this does not certify Cloudflare authorization");
+          '
       - name: Validate denial-first paid consumer and source rules
         run: |
           node scripts/check-paid-entitlement-authority.mjs
