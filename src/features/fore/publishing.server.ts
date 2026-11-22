@@ -913,9 +913,20 @@ async function inspectEpub(bytes: Uint8Array) {
   const cleanText = (v: string) =>
     v
       .replace(/<[^>]+>/g, " ")
-      .replace(/&amp;/gi, "&")
-      .replace(/&lt;/gi, "<")
-      .replace(/&gt;/gi, ">")
+      // Decode XML entities in one pass: chained replacements can turn
+      // &amp;lt;script&amp;gt; into a tag after markup stripping.
+      .replace(/&(amp|lt|gt);/gi, (entity) => {
+        switch (entity.toLowerCase()) {
+          case "&amp;":
+            return "&";
+          case "&lt;":
+            return "<";
+          case "&gt;":
+            return ">";
+          default:
+            return entity;
+        }
+      })
       .replace(/\s+/g, " ")
       .trim();
   const metaValues = (property: string) =>

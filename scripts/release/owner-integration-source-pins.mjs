@@ -10,7 +10,7 @@ const integrated=Object.freeze({
  "src/features/fore/commerce.server.ts":"52ba9bb4feec5b2b7c5586687d72cd3498751a0601061823b95a5adbc6ac955f",
  "src/features/fore/localization.server.ts":"02852814c24e749359ed751717a8387ab6dc75ba4ecba78d6058ecbbfba919e1",
  "src/features/fore/promotions.server.ts":"05c37488918235a18839605db9873bc9f645b465e238ffcf9680bbd4b0618047",
- "src/features/fore/publishing.server.ts":"228ca01545a8c1cd1726cca8de49c8ec2bd4155c178bd7c3fa35c8e1b84a5139",
+ "src/features/fore/publishing.server.ts":"0518338b3a9512c82075dc89fcba927f80d04b54ec7e57ba8a3b3726d069b2a8",
  "src/features/fore/publishing-trust.server.ts":"7b712809bd58a2d0456ad38da3b0ecb75621688dedd070a2f8687ebef6765590",
  "src/features/fore/regional-epub-asset-repair.server.ts":"27322f92d09b409c0913cdc96e523f0b610999a685a325fd3a0642fdb98c0443",
  "src/features/fore/rights.server.ts":"a7839d53ae20ffa3351bd6fbef797bd3d06dfb30c7d390168c195be8680e5fa2",
