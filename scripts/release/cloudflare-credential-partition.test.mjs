@@ -57,3 +57,18 @@ test("protected rollback, disabled owner, private legal QA and no-D1 gateway do 
       name+" must require protected manual approval");
   }
 });
+
+test("staging SSR, protected GET preflight, R2 provision no longer need an account-admin token",()=>{
+  const ssr=read(".github/workflows/cloudflare-native-ssr-staging.yml");
+  const dp=read(".github/workflows/strangler-data-plane-preflight.yml");
+  const r2=read(".github/workflows/strangler-stage-private-bucket-provision.yml");
+  for(const source of [ssr,dp,r2])assert.doesNotMatch(source,/secrets\.CLOUDFLARE_API_TOKEN/);
+  assert.match(ssr,/secrets\.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN/);
+  assert.match(dp,/secrets\.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN/);
+  assert.match(r2,/secrets\.COVE_CF_STAGE_R2_PROVISION_TOKEN/);
+  for(const source of [dp,r2]){
+    assert.match(source,/environment: cove-production-release-audit/);
+    assert.match(source,/github\.event_name == 'workflow_dispatch'/);
+    assert.match(source,/github\.ref == 'refs\/heads\/main'/);
+  }
+});
