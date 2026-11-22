@@ -47,7 +47,7 @@ try{
     import(pathToFileURL(path.join(folder,"issuer.mjs")).href),
   ]);
   async function make({noPositive=false,missingOwnerProof=false,tamperManifest=false,
-    productionId=false}={}){
+    tamperDecisionProof=false,missingDenialHistory=false,productionId=false}={}){
     const ownerDb=new DatabaseSync(":memory:");
     const primaryDb=new DatabaseSync(":memory:");
     const context={ownerDb,primaryDb,owner:null,env:null,closed:false};
@@ -110,7 +110,8 @@ try{
       }
     }
     sql.exec("INSERT INTO cove_legal_fences VALUES('2703','*',1,'deny')");
-    sql.exec("INSERT INTO cove_legal_denial_operations VALUES('history-2703','2703','*',1)");
+    if(!missingDenialHistory)
+      sql.exec("INSERT INTO cove_legal_denial_operations VALUES('history-2703','2703','*',1)");
     const epoch=ownerDb.prepare(
       "SELECT epoch FROM cove_qa_current_owner_mutation_fence WHERE slot=1").get().epoch;
     assert.ok(epoch>=5);
@@ -125,7 +126,8 @@ try{
     const ownerDigests=await Promise.all(ownerDecisions.map(qaOwnerDecisionDigest));
     const rows=["2701","2702","2703"].map((n,i)=>({
       generation:9,productId:"prd_gutenberg_"+n,territory:"US",
-      allowed:i===2?0:1,proofSha256:ownerDigests[i],
+      allowed:i===2?0:1,
+      proofSha256:tamperDecisionProof&&i===1?"0".repeat(64):ownerDigests[i],
     }));
     const header={generation:9,primaryId:qaId,journalVersion:version,
       ownerEpoch:epoch,rehearsalRevision:"A",sourceRevision:7,
@@ -138,7 +140,7 @@ try{
     for(const [i,stub] of ["d","e","f"].entries()){
       const legacyProof="'"+stub.repeat(64)+"'";
       assert.equal(source.split(legacyProof).length,2);
-      source=source.replace(legacyProof,"'"+ownerDigests[i]+"'");
+      source=source.replace(legacyProof,"'"+rows[i].proofSha256+"'");
     }
     const oldLine=" 5,'A',7,";
     assert.equal(source.split(oldLine).length,2);
@@ -223,6 +225,9 @@ try{
   const tests=[
     ["owner issuer opt-in absent",{noPositive:true},503],
     ["positive owner offer proof missing",{missingOwnerProof:true},503],
+    ["historical denial operation missing",{missingDenialHistory:true},503],
+    ["candidate digest forged but internally manifest-consistent",
+      {tamperDecisionProof:true},503],
     ["candidate cryptographic manifest mismatch",{tamperManifest:true},503],
   ];
   for(const [label,opts,expected] of tests){
