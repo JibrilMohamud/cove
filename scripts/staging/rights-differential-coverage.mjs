@@ -44,7 +44,7 @@ export function assertSyntheticRightsDifferentialCoverage(result) {
       !Number.isSafeInteger(entry.candidates) ||
       entry.candidates < 1 ||
       !Number.isSafeInteger(entry.uniquelySelected) ||
-      entry.uniquelySelected < 0 ||
+      entry.uniquelySelected < 1 ||
       entry.uniquelySelected > entry.candidates ||
       entry.candidates > (cohort === "explicit_deny" || cohort === "ranked" ? 24 : 12)
     )
