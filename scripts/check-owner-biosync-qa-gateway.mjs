@@ -39,7 +39,7 @@ try{
   assert.deepEqual(await ok.json(),ack);
   assert.equal(ok.headers.get("cache-control"),"no-store");
   assert.deepEqual(calls,[{
-    url:"https://cove-owner.internal/biosync/publish-checked",
+    url:"https://legal-authority.internal/biosync/publish-checked",
     method:"POST",authorization:"Bearer "+ownerSecret,body:data
   }]);
   let denies=0;
