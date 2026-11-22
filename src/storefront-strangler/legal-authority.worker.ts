@@ -12,7 +12,7 @@ import {FORE_AI_POLICY_VERSION,FORE_RIGHTS_POLICY_VERSION,assessSubmissionConten
 import {commercialAudioReadiness,commercialAudioSubmissionEvidence,saveCommercialBiosyncLink} from "../features/fore/commercial-audio.server";
 import {assessUsageRisk,effectivePublisherWithholding,assessPayoutRisk,assessPublisherRisk} from "../features/fore/risk-tax.server";
 import {ensurePreorderReleasePlan} from "../features/fore/preorder.server";
-import {hasPublicationOwner,dispatchPublicationActivation,dispatchPublicationPreorder,dispatchPublicationRecovery,dispatchPublicationMaterialization,dispatchPublishingOnboardingReview,dispatchPublishingOwnerValidationJob} from "./publication-owner-routing.server";
+import {bindPublicationOwner,hasPublicationOwner,dispatchPublicationActivation,dispatchPublicationPreorder,dispatchPublicationRecovery,dispatchPublicationMaterialization,dispatchPublishingOnboardingReview,dispatchPublishingOwnerValidationJob} from "./publication-owner-routing.server";
 import {uploadPublishingAsset,publishingUploadLimit} from "../features/fore/publishing.server";
 import {checkoutQuote} from "../features/fore/commerce.server";
 import {sha256 as partnerFeedSha256,partnerAudit as partnerFeedAudit,
@@ -20768,7 +20768,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         const order=await db.prepare(
           "SELECT * FROM commerce_orders WHERE id=? AND user_id=? AND quote_id=?"
         ).bind(input.orderId,input.userId,input.quoteId)
-          .first<{id:string;user_id:string;quote_id:string;status:string;capture_method:string;
+          .first<{id:string;user_id:string;quote_id:string;territory_code:string;status:string;capture_method:string;
             risk_assessment_id:string|null;risk_action:string|null;
             gift_card_minor:number;store_credit_minor:number;promo_discount_minor:number;
             stripe_due_minor:number;currency:string;
@@ -20819,7 +20819,18 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         // is owner-invoked, rather than a stale caller-supplied risk verdict.
         const risk=order.risk_assessment_id&&order.risk_action?
           {action:order.risk_action}:
-          await assessBuyerOrderRisk(db,order.id);
+          // This invocation is already inside the authenticated private owner.
+          // Brand only this request's D1 facade with a service-local owner port:
+          // the risk engine's fixed apply-assessment/hold commands must return
+          // to the SAME owner and independently recheck current policy, rather
+          // than attempting unenrolled backend SQL or accepting a fake receipt.
+          await assessBuyerOrderRisk(
+            bindPublicationOwner(db as unknown as CatalogDB,{
+              owner:{fetch:(request:Request)=>this.fetch(request)},
+              secret:env.COVE_RIGHTS_OWNER_SECRET,
+              territory:order.territory_code,
+              currency:order.currency
+            }),order.id);
         if(!["allow","monitor","challenge","hold","block"].includes(risk.action))
           throw Error("owner_checkout_unknown_risk_action");
         if(risk.action==="block"||
