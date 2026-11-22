@@ -285,7 +285,30 @@ const server = await createServer({
   plugins: [fixturePlugin],
 });
 await server.listen();
-api = await server.ssrLoadModule("/src/features/fore/api.server.ts");
+// One immutable, test-only bundle must own BOTH the API handler and the
+// private owner-command WeakMap. Vite may instantiate the same source module
+// separately in its SSR graph; branding a D1 facade in one module instance
+// cannot authorize a call into another. Do not bypass the owner or fake a
+// receipt: exercise the real typed command with shared canonical identity.
+const qaApiFile = path.join(scratch, ".browser-qa-canonical-api.mjs");
+await build({
+  stdin: {
+    contents:
+      'export {handleCoveApi} from "./src/features/fore/api.server.ts";' +
+      'export {bindPublicationOwner} from "./src/storefront-strangler/publication-owner-routing.server.ts";',
+    resolveDir: checkout,
+    sourcefile: "browser-qa-canonical-api.ts",
+    loader: "ts",
+  },
+  outfile: qaApiFile,
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "node22",
+  logLevel: "silent",
+});
+const { handleCoveApi, bindPublicationOwner } = await import(pathToFileURL(qaApiFile).href);
+api = { handleCoveApi };
 
 // Browser QA must exercise a REAL typed owner route for an allowlisted
 // *synthetic* Gutenberg edition. Never replace owner proof with a fake ACK,
@@ -368,9 +391,6 @@ ownerSql.exec(
   "INSERT INTO cove_authorized_offer_proofs(source_id,territory,currency,revision,product_id,edition_id,product_public_id,edition_public_id,offer_json) VALUES('1342','US','USD',1,?,?,NULL,NULL,?)",
   qaBook.id, qaBook.edition_id,
   JSON.stringify({ type: "public-domain", currency: "USD", amountMinor: 0 })
-);
-const { bindPublicationOwner } = await server.ssrLoadModule(
-  "/src/storefront-strangler/publication-owner-routing.server.ts"
 );
 env.DB = bindPublicationOwner(localDb, {
   owner: { fetch: request => qaOwner.fetch(request) },
