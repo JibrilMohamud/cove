@@ -77,7 +77,10 @@ try {
   });
   assert.equal(ownerlessAcquisition.status, 503, JSON.stringify(ownerlessAcquisition));
   assert.equal(
-    await db.prepare("SELECT id FROM entitlements WHERE user_id=? AND product_id=?").bind(alice, product.id).first(),
+    await db
+      .prepare("SELECT id FROM entitlements WHERE user_id=? AND product_id=?")
+      .bind(alice, product.id)
+      .first(),
     null,
     "Ownerless Gutenberg acquisition must not create a canonical entitlement",
   );
