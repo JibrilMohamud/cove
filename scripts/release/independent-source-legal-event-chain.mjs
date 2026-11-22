@@ -91,7 +91,7 @@ function signatureChecked(row,k){
   if(bytes.length<64||bytes.length>80||
     bytes.toString("base64url")!==row.signature||
     !verify("sha256",canonicalLegalBytes(row),k,bytes))
-    no("independent_source_signature_invalid");
+    no("signature_invalid");
 }
 function sourceValid(row,issuer,source){
   if(row.issuer!==issuer||row.source!==source)
