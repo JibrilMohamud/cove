@@ -40,7 +40,7 @@ on:
         default: "https://cove-puce-theta.vercel.app"
         type: string
       apply_migrations:
-        description: "DANGEROUS: explicitly opt in to production D1 migrations (off by default)"
+        description: "DEPRECATED: production D1 migrations are forbidden in Worker deployment CI"
         required: true
         default: false
         type: boolean
@@ -238,30 +238,30 @@ jobs:
         id: deploy_auth
         shell: bash
         env:
-          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_TOKEN: ${{ secrets.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN }}
+          CF_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
+          CF_PROBE_WORKERS_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
         run: |
-          if [ -n "$CF_TOKEN" ]; then
+          if [ -n "$CF_TOKEN" ] && [ -n "$CF_METADATA_READ_TOKEN" ] && [ -n "$CF_PROBE_WORKERS_TOKEN" ] && [ "$CF_TOKEN" != "$CF_METADATA_READ_TOKEN" ] && [ "$CF_TOKEN" != "$CF_PROBE_WORKERS_TOKEN" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Cloudflare deployment skipped until CLOUDFLARE_API_TOKEN is configured in repository Actions secrets."
+            echo "::warning::Protected production deploy requires distinct scoped backend Editor, metadata reader and ephemeral-handshake Worker credentials."
           fi
 
-      - name: Apply pending D1 migrations
-        # Code/cron push releases must not run unrelated production D1 migrations.
-        # Only an explicitly requested workflow dispatch may apply schema changes.
-        if: ${{ steps.deploy_auth.outputs.enabled == 'true' && github.event_name == 'workflow_dispatch' && inputs.apply_migrations == true }}
+      - name: Deny direct production D1 schema migration from deployment CI
+        # No production D1-write token may enter this pipeline. Use a
+        # separately certified owner-authorized migration mechanism instead.
+        if: ${{ inputs.apply_migrations == true }}
         shell: bash
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
-          D1_DATABASE_ID: ${{ inputs.d1_database_id || '4bd657ac-8789-403e-a28c-93aba8d0a989' }}
-        run: node scripts/staging/retry-production-d1-migrations.mjs
+        run: |
+          echo "::error::Direct production D1 schema migration is disabled in Worker deployment CI."
+          exit 1
 
       - name: Verify exact disabled production owner before binding
         if: ${{ steps.deploy_auth.outputs.enabled == 'true' && (inputs.worker_name == '' || inputs.worker_name == 'cove-persistence-backend') && (inputs.d1_database_id == '' || inputs.d1_database_id == '4bd657ac-8789-403e-a28c-93aba8d0a989') }}
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
         run: node scripts/check-production-owner-binding.mjs --before-deploy
 
@@ -270,21 +270,22 @@ jobs:
         id: deploy
         uses: cloudflare/wrangler-action@v4
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          apiToken: ${{ secrets.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN }}
           accountId: "d26430caa63ec55f6612e32f36aca5e9"
           command: deploy --config wrangler.backend.deploy.toml --keep-vars
 
       - name: Verify production persistence binding after deployment
         if: ${{ steps.deploy_auth.outputs.enabled == 'true' && (inputs.worker_name == '' || inputs.worker_name == 'cove-persistence-backend') && (inputs.d1_database_id == '' || inputs.d1_database_id == '4bd657ac-8789-403e-a28c-93aba8d0a989') }}
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
         run: node scripts/check-production-owner-binding.mjs --after-deploy
 
       - name: Prove live production backend credential and disabled owner handshake
         if: ${{ steps.deploy_auth.outputs.enabled == 'true' && (inputs.worker_name == '' || inputs.worker_name == 'cove-persistence-backend') && (inputs.d1_database_id == '' || inputs.d1_database_id == '4bd657ac-8789-403e-a28c-93aba8d0a989') }}
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
+          COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
         run: node scripts/prove-production-owner-handshake.mjs
 
