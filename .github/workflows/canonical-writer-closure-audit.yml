@@ -148,6 +148,8 @@ jobs:
         run: |
           node scripts/test-stage-distribution-owner.mjs
           node scripts/test-legal-admin-owner-commands.mjs
+      - name: Show strictly read-only historical source attestation drift
+        run: node scripts/release/audit-owner-integration-attestations.mjs
       - name: Reconcile every candidate without approving production ownership
         run: |
           node scripts/reconcile-canonical-writers.mjs

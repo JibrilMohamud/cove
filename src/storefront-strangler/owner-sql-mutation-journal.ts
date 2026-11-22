@@ -71,7 +71,7 @@ function exactTables(rows: SchemaRow[], enrolled: boolean) {
     .map((r) => r.name)
     .sort();
   if (actual.join("\n") !== expected.join("\n") || rows.some((r) => r.type === "view"))
-    throw Error("qa_current_owner_mutation_schema_unreviewed");
+    throw Error("qa_current_owner_mutation_schema_unreviewed:"+JSON.stringify({missing:expected.filter(t=>!actual.includes(t)),extra:actual.filter(t=>!expected.includes(t)),viewCount:rows.filter(r=>r.type==="view").length}));
 }
 function triggerDdl(table: string, index: number, op: string, version: string) {
   const name = `qa_current_owner_mutation_${index}_${op.toLowerCase()}`;
