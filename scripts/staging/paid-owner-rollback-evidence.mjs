@@ -1,10 +1,19 @@
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
-import {QA_PAID_D1,QA_ACCOUNT,PRODUCTION_ACCOUNT,PRODUCTION_D1} from "./paid-qa-cloudflare-credentials.mjs";
+import {
+  QA_PAID_D1,
+  QA_ACCOUNT,
+  PRODUCTION_ACCOUNT,
+  PRODUCTION_D1,
+} from "./paid-qa-cloudflare-credentials.mjs";
 
 export const PAID_QA_PRIMARY = QA_PAID_D1;
-assert.notEqual(QA_ACCOUNT,PRODUCTION_ACCOUNT,"Protected paid QA must never use production account");
-assert.notEqual(PAID_QA_PRIMARY,PRODUCTION_D1,"Protected paid QA must never bind production D1");
+assert.notEqual(
+  QA_ACCOUNT,
+  PRODUCTION_ACCOUNT,
+  "Protected paid QA must never use production account",
+);
+assert.notEqual(PAID_QA_PRIMARY, PRODUCTION_D1, "Protected paid QA must never bind production D1");
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 
 /** Fresh challenge over the private QA service, never an authorization proof. */
@@ -42,7 +51,7 @@ export function paidOwnerRollbackEvidence({
   const path = "/workers/scripts/" + name;
   let versionA, versionB, namespace, initialEpoch;
   async function current(worker) {
-    assert.equal(worker,name,"Only this run's synthetic QA Worker may be inspected");
+    assert.equal(worker, name, "Only this run's synthetic QA Worker may be inspected");
     const list = await api("GET", "/workers/scripts/" + worker + "/deployments");
     const d = list?.deployments?.[0];
     assert.equal(d?.strategy, "percentage");
