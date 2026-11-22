@@ -12,19 +12,19 @@ const account=process.env.CLOUDFLARE_ACCOUNT_ID;
 const creds=checkedPrivateLegalQaCredentials(process.env);
 const token=creds.workers;
 const runId=process.env.GITHUB_RUN_ID;
-assert.match(account||"",/^[a-f0-9]{32}$/);
+assert.equal(account,"f51e8ccbc394e2d6016ff8c2c303d54b");
 assert.ok(token&&/^\d{8,15}$/.test(runId||""));
 const ownerCfg="wrangler.legal-authority.proof.jsonc";
 const callerCfg="wrangler.legal-authority.proof-caller.jsonc";
 const writerCfg="wrangler.legal-authority.proof-writer.jsonc";
 const writerName="cove-legal-quarantine-qa-private";
 const d1GatewayName="cove-legal-d1-gateway-"+runId;
-const d1GatewayOrigin="https://"+d1GatewayName+".cove-jibrilmohamud.workers.dev";
+const d1GatewayOrigin="https://"+d1GatewayName+".cove-qa-reads.workers.dev";
 const d1GatewaySecret=randomBytes(32).toString("hex");
 const d1GatewayCfg="wrangler.legal-qa-gateway-"+runId+".jsonc";
 let d1GatewayCreated=false;
 const caller="cove-private-legal-proof-"+runId;
-const origin="https://"+caller+".cove-jibrilmohamud.workers.dev";
+const origin="https://"+caller+".cove-qa-reads.workers.dev";
 const gate=randomBytes(32).toString("hex");
 const secret=randomBytes(32).toString("hex");
 const writerKey=randomBytes(32).toString("hex");
@@ -47,7 +47,7 @@ const api=async(method,path,body=undefined)=>{
   // All mutable SQL now runs through the explicitly synthetic D1 binding of
   // the short-lived private QA gateway; not a D1 Write account API token.
   const qaSql="/accounts/"+account+
-    "/d1/database/5e3a6b69-6f3d-4b19-b837-01f7aa56ce87/query";
+    "/d1/database/3ffb3c0b-72b2-4a47-b63a-18aaf77762ea/query";
   if(path.startsWith("/accounts/"+account+"/d1/")){
     assert.equal(method,"POST");
     assert.equal(path,qaSql,"Refuse any non-synthetic D1 control plane path");
@@ -152,7 +152,7 @@ try{
   const bindingCheck=await api("GET","/accounts/"+account+
     "/workers/scripts/"+d1GatewayName+"/settings");
   const ids=(bindingCheck?.bindings||[]).filter(b=>b.type==="d1").map(b=>b.id||b.database_id);
-  assert.deepEqual(ids,["5e3a6b69-6f3d-4b19-b837-01f7aa56ce87"],
+  assert.deepEqual(ids,["3ffb3c0b-72b2-4a47-b63a-18aaf77762ea"],
     "Private legal QA gateway must bind only the isolated synthetic database");
   let d1GatewayReady=false;
   for(let attempt=0;attempt<15;attempt++){
@@ -168,7 +168,7 @@ try{
   const owner=JSON.parse(fs.readFileSync("wrangler.legal-authority.example.jsonc","utf8"));
   assert.equal(owner.workers_dev,false);
   assert.deepEqual(owner.routes,[]);
-  assert.equal(owner.d1_databases[0].database_id,"5e3a6b69-6f3d-4b19-b837-01f7aa56ce87");
+  assert.equal(owner.d1_databases[0].database_id,"3ffb3c0b-72b2-4a47-b63a-18aaf77762ea");
   assert.equal(owner.vars.COVE_RIGHTS_OWNER_ENABLED,"0");
   owner.vars.COVE_RIGHTS_OWNER_ENABLED="1";
   owner.vars.COVE_RIGHTS_OWNER_TEST_EXPIRES_AT=String(expires);
@@ -182,7 +182,7 @@ try{
   assert.equal(writer.workers_dev,false);
   assert.deepEqual(writer.routes,[]);
   assert.equal(writer.d1_databases[0].database_id,
-    "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87");
+    "3ffb3c0b-72b2-4a47-b63a-18aaf77762ea");
   assert.equal(writer.services[0].service,owner.name);
   assert.equal(writer.vars.COVE_LEGAL_WRITER_ENABLED,"0");
   writer.vars.COVE_LEGAL_WRITER_ENABLED="1";
@@ -242,7 +242,7 @@ try{
   // provision an isolated exact-scope synthetic market for this one test,
   // with a mandatory cleanup in finally. Production D1 is never touched.
   const qaD1="/accounts/"+account+
-    "/d1/database/5e3a6b69-6f3d-4b19-b837-01f7aa56ce87/query";
+    "/d1/database/3ffb3c0b-72b2-4a47-b63a-18aaf77762ea/query";
   const marketTable=await api("POST",qaD1,{
     sql:"SELECT name FROM sqlite_master WHERE type='table' AND name='storefront_markets'"
   });
@@ -584,14 +584,14 @@ try{
   if(marketSchemaCreated){
     try{
       const qa="/accounts/"+account+
-        "/d1/database/5e3a6b69-6f3d-4b19-b837-01f7aa56ce87/query";
+        "/d1/database/3ffb3c0b-72b2-4a47-b63a-18aaf77762ea/query";
       await api("POST",qa,{sql:"DROP TABLE IF EXISTS storefront_markets"});
     }catch(e){errors.push("market_qa_table_cleanup_"+String(e.message).slice(0,120));}
   }
   if(seeded){
     try{
       await api("POST","/accounts/"+account+
-        "/d1/database/5e3a6b69-6f3d-4b19-b837-01f7aa56ce87/query",{
+        "/d1/database/3ffb3c0b-72b2-4a47-b63a-18aaf77762ea/query",{
           sql:"DELETE FROM gutenberg_source_cache WHERE id=?",params:[sourceId]
         });
     }catch(e){errors.push("synthetic_source_cleanup_"+String(e.message).slice(0,120));}
@@ -599,7 +599,7 @@ try{
   if(seededRetractions){
     try {
       await api("POST","/accounts/"+account+
-        "/d1/database/5e3a6b69-6f3d-4b19-b837-01f7aa56ce87/query",{
+        "/d1/database/3ffb3c0b-72b2-4a47-b63a-18aaf77762ea/query",{
           sql:"DELETE FROM gutenberg_source_cache WHERE id IN (?,?)",params:retractIds
         });
     }catch(e){errors.push("synthetic_retractions_cleanup_"+String(e.message).slice(0,120));}
@@ -607,7 +607,7 @@ try{
   if(seededEvidence){
     try{
       const qa="/accounts/"+account+
-        "/d1/database/5e3a6b69-6f3d-4b19-b837-01f7aa56ce87/query";
+        "/d1/database/3ffb3c0b-72b2-4a47-b63a-18aaf77762ea/query";
       await api("POST",qa,{sql:"DELETE FROM gutenberg_rights_evidence WHERE id=?",params:[evidenceId]});
       await api("POST",qa,{sql:"DELETE FROM rights_grants WHERE edition_id=? AND source='gutenberg-pg_us-public-domain'",
         params:["ed_gutenberg_"+evidenceSourceId]});

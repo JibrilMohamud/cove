@@ -1,7 +1,7 @@
 /* eslint-disable prettier/prettier -- Fixed synthetic D1 bindings only. No runtime-selected primary databases. */
 import assert from "node:assert/strict";
-import {QA_PAID_D1,QA_SCHEMA_SOURCE_D1,PRODUCTION_D1} from "./paid-qa-cloudflare-credentials.mjs";
-const LEGAL_QA_DB="5e3a6b69-6f3d-4b19-b837-01f7aa56ce87";
+import {QA_PAID_D1,QA_SCHEMA_SOURCE_D1,QA_LEGAL_D1,PRODUCTION_D1} from "./paid-qa-cloudflare-credentials.mjs";
+
 export function syntheticD1GatewayConfig(mode,run,expires) {
   assert.ok(mode==="paid"||mode==="legal");
   assert.match(run,/^\d{8,15}(?:-\d{1,5})?$/);
@@ -9,7 +9,7 @@ export function syntheticD1GatewayConfig(mode,run,expires) {
   const bindings=mode==="paid"?[
     {binding:"QA_PRIMARY_DB",database_name:"cove-qa-paid-owner-primary-20261122",database_id:QA_PAID_D1},
     {binding:"QA_SCHEMA_DB",database_name:"cove-qa-full-schema-source-20261122",database_id:QA_SCHEMA_SOURCE_D1},
-  ]:[{binding:"QA_PRIMARY_DB",database_name:"cove-canonical-publication-qa-20261025",database_id:LEGAL_QA_DB}];
+  ]:[{binding:"QA_PRIMARY_DB",database_name:"cove-qa-legal-owner-primary-20261122",database_id:QA_LEGAL_D1}];
   assert.ok(bindings.every(b=>b.database_id!==PRODUCTION_D1));
   return {name:(mode==="paid"?"cove-paid-d1-gateway-":"cove-legal-d1-gateway-")+run,
     main:"scripts/staging/synthetic-qa-d1-gateway.worker.mjs",

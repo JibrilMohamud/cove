@@ -20,7 +20,9 @@ type QaWriterEnv={
 // Exact private QA databases only; never customer primary or load-test fixture.
 const QA_PRIMARIES=new Set([
   "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87",
-  "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e"
+  "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
+  "3ffb3c0b-72b2-4a47-b63a-18aaf77762ea",
+  "969f1ea0-5f57-4f3a-aa25-9c74e58f5af3"
 ]);
 const sourceIdRegex=/^(?:[0-9]{1,10}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90})$/;
 const opIdRegex=/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/;

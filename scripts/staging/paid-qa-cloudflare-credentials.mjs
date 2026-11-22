@@ -5,6 +5,7 @@ import {basename} from "node:path";
 export const PRODUCTION_ACCOUNT="d26430caa63ec55f6612e32f36aca5e9";
 export const QA_ACCOUNT="f51e8ccbc394e2d6016ff8c2c303d54b";
 export const QA_PAID_D1="969f1ea0-5f57-4f3a-aa25-9c74e58f5af3";
+export const QA_LEGAL_D1="3ffb3c0b-72b2-4a47-b63a-18aaf77762ea";
 export const QA_SCHEMA_SOURCE_D1="d6f616c2-c832-439c-8f4f-e1454ab88c64";
 export const PRODUCTION_D1="4bd657ac-8789-403e-a28c-93aba8d0a989";
 const RUN=/^\d{8,15}-\d{1,5}$/;

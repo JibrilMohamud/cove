@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import {syntheticD1GatewayConfig} from "./synthetic-qa-d1-gateway-config.mjs";
+import {QA_LEGAL_D1} from "./paid-qa-cloudflare-credentials.mjs";
 for(const mode of ["paid","legal"])test(mode+" gateway only binds named synthetic D1",()=>{
   const x=syntheticD1GatewayConfig(mode,"45000012345-1",Date.now()+10*60_000);
   assert.equal(x.name,(mode==="paid"?"cove-paid-d1-gateway-":"cove-legal-d1-gateway-")+"45000012345-1");
@@ -15,7 +16,11 @@ for(const mode of ["paid","legal"])test(mode+" gateway only binds named syntheti
   if(mode==="paid"){
     assert.deepEqual(x.r2_buckets,[{binding:"QA_MEDIA",bucket_name:"cove-paid-private-media-qa"}]);
     assert.equal(x.vars.COVE_QA_MEDIA_RUN_ID,"45000012345-1");
-  }else assert.equal(x.r2_buckets,undefined);
+  }else {
+    assert.equal(x.r2_buckets,undefined);
+    assert.deepEqual(x.d1_databases,[{binding:"QA_PRIMARY_DB",
+      database_name:"cove-qa-legal-owner-primary-20261122",database_id:QA_LEGAL_D1}]);
+  }
   assert.equal(x.triggers,undefined);
 });
 test("reject unreviewed mode and stale or distant expiry",()=>{
