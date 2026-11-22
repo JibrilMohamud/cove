@@ -1573,7 +1573,11 @@ try {
       refundDenied:true,replayDenied:true,journalBefore:initialFence.mutationEpoch,
       journalAfterRefund:denialFence.mutationEpoch
     },null,2)+"\n");
-    console.log("PASS: protected actual paid-owner A/B/A rollback retained SQLite journal, refund denial and D1 paid state; production versions unchanged; synthetic QA only");
+    assert.equal(evidence.productionVersionsUnchanged,false,
+      "The isolated QA credential cannot certify production version immutability");
+    assert.equal(evidence.productionVersionsNotInspected,true,
+      "An independent production read-only audit remains mandatory");
+    console.log("PASS: protected actual paid-owner A/B/A rollback retained SQLite journal, refund denial and D1 paid state; production deployments NOT INSPECTED; synthetic QA only");
   }
   assert.equal((await postSettlement("/authorize-initial",
     initialOrder,initialBuyer)).status,451,
