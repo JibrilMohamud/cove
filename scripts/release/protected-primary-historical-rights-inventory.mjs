@@ -75,8 +75,23 @@ if(process.argv.includes("--self-test")){
   permission();
   const token=process.env.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN;
   const throttle=createProtectedD1ReadThrottle({
-    maxAttempts:8,max429Responses:0,minRequestGapMs:750,
+    maxAttempts:10,max429Responses:2,maxRetryWaitMs:360_000,minRequestGapMs:2500,
+    onThrottle:({retry,delayMs})=>console.log(
+      JSON.stringify({event:"protected_history_read_throttled",retry,delayMs})),
   });
+  const artifact="artifacts/production-rights-history/inventory.json";
+  const progress={phase:"first-capture",aggregatesCompleted:0};
+  function checkpoint(failureClass){
+    mkdirSync("artifacts/production-rights-history",{recursive:true});
+    writeFileSync(artifact,JSON.stringify({
+      schema:"cove.primary-historical-rights-inventory-incomplete.v1",
+      complete:false,...progress,...throttle.stats(),
+      ...(failureClass?{failureClass}:{}),at:new Date().toISOString(),
+      historicalRightsReconciled:false,currentOwnerVerified:false,
+      authorizing:false,permitsPublication:false,releaseCertified:false,
+    },null,2)+"\n");
+  }
+  checkpoint();
   async function read(kind){
     const sql=HISTORICAL_SQL[kind];
     if(!KINDS.includes(kind)||!sql||!/^SELECT\b/.test(sql))
@@ -91,17 +106,26 @@ if(process.argv.includes("--self-test")){
   }
   async function capture(){
     const data={};
-    for(const kind of KINDS)data[kind]=await read(kind);
+    for(const kind of KINDS){
+      data[kind]=await read(kind);
+      progress.aggregatesCompleted++;
+      checkpoint();
+    }
     return data;
   }
-  const first=await capture(),second=await capture();
+  try{
+  const first=await capture();
+  progress.phase="second-capture";checkpoint();
+  const second=await capture();
   const result=verifyHistoricalPrimaryInventory(first,second);
   const digest=createHash("sha256").update(JSON.stringify({first,second})).digest("hex");
-  const report={...result,aggregateSha256:digest,
+  const report={...result,complete:true,sourceReadOnly:true,aggregateSha256:digest,
     primaryReadRequests:throttle.stats().httpAttempts,
+    rateLimitedResponses:throttle.stats().rateLimitedResponses,
+    rateLimitWaitMs:throttle.stats().rateLimitWaitMs,
     at:new Date().toISOString()};
   mkdirSync("artifacts/production-rights-history",{recursive:true});
-  writeFileSync("artifacts/production-rights-history/inventory.json",
+  writeFileSync(artifact,
     JSON.stringify(report,null,2)+"\n");
   const summary=[
     "## Protected primary historical-rights inventory (NOT release approval)",
@@ -126,4 +150,14 @@ if(process.argv.includes("--self-test")){
   // fails the diagnostic run; the report itself remains NO-GO always.
   if(!result.historicalInventoryConsistent)
     throw Error("historical_primary_source_structure_not_reconciled");
+  }catch(error){
+    // Preserve bounded progress only, never an upstream exception/body/SQL.
+    const message=error instanceof Error?error.message:"";
+    const failureClass=/rate_limited/.test(message)?"rate-limited":
+      /http_(401|403)$/.test(message)?"authentication-denied":
+      /source_structure_not_reconciled/.test(message)?"structural-inconsistency":
+      /Timeout|Abort/.test(message)?"transport-timeout":"protocol-or-transport-failed";
+    if(failureClass!=="structural-inconsistency")checkpoint(failureClass);
+    throw Error("historical_primary_inventory_failed_"+failureClass);
+  }
 }

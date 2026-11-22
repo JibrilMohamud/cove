@@ -81,6 +81,28 @@ snapshot parity leaves `historicalRightsReconciled`, `currentOwnerVerified`,
 
 ## Evidence still absent
 
+[Protected replay 44979272523](https://github.com/JibrilMohamud/cove/actions/runs/44979272523)
+completed after the primary/zero-write response attestations were enforced.
+It replayed all 87,742 events and compared all 82,246 current grants with
+zero missing, orphaned or mismatched grants and identical boundary counts.
+There were 226 HTTP attempts, one HTTP 429 and a bounded 20-second retry wait.
+The earlier complete diagnostic scan had identical event/current/cohort
+fingerprints. This establishes repeatable physical state parity only.
+
+The replay still reports 116 ambiguous timestamp groups, two backdated events,
+and **114 suspended-to-active transitions without verified legal reinstatement
+history**. These transitions must not be interpreted as authorized grants.
+The unresolved union is still 116 grants, of which 112 are currently
+active/allow. All authorization/publication/release flags remain false.
+
+[Provenance inventory 44979337633](https://github.com/JibrilMohamud/cove/actions/runs/44979337633)
+then stopped on HTTP 429; the previous eight-attempt/no-retry adapter emitted
+no artifact. The corrective inventory adapter uses the same 2.5-second pacing,
+at most two bounded 429 retries (ten total HTTP attempts for eight fixed
+aggregate reads), and safe incomplete checkpoints. Authentication, 5xx,
+transport failures, replica reads and write attestations still fail closed.
+The inventory is not complete until a protected run emits `complete:true`.
+
 Resolving the 116 grants requires authentic source/owner records identifying
 the legally authoritative order and all withdrawals/reinstatements, including
 territory, format, contract/version and effective-time scope. Current public
