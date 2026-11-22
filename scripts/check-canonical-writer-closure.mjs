@@ -28,6 +28,9 @@ const ignore=(name,path)=>
   path.startsWith("scripts/staging/")||path.startsWith("scripts/check-")||
   path.startsWith("scripts/test-")||
   path.includes("__tests__")||path.endsWith(".test.ts")||
+  // Executable adversarial fixtures exercise SQL mutations only in isolated
+  // test databases. They are not deployable canonical D1 writer surfaces.
+  path.endsWith(".test.mjs")||
   path.endsWith(".spec.ts")||path.endsWith(".d.ts")||
   path.startsWith("src/storefront-strangler/legal-quarantine-qa.writer.ts")||
   path.startsWith("src/storefront-strangler/legal-authority.worker.ts");
