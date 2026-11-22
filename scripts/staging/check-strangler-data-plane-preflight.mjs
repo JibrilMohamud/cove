@@ -27,7 +27,7 @@ assert.match(bucket || "", /^cove-strangler-private-presentation-stage$/);
 assert.match(core || "", /^cove-thin-core-staging$/);
 const account = process.env.CLOUDFLARE_ACCOUNT_ID || "";
 const token = process.env.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN || "";
-if (account !== "d26430caa63ec55f6612e32f36aca5e9" || token.length < 20 )
+if (account !== "d26430caa63ec55f6612e32f36aca5e9" || token.length < 20)
   throw Error("Missing authorized Cloudflare staging read credentials in CI.");
 
 async function check(label, endpoint, expectedId = "") {
