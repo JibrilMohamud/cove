@@ -10,6 +10,7 @@ on:
       - "scripts/release/primary-historical-rights-inventory-policy.mjs"
       - "scripts/release/primary-historical-rights-inventory-policy.test.mjs"
       - ".github/workflows/cove-protected-primary-grant-event-replay.yml"
+      - ".github/workflows/cove-protected-full-primary-historical-rights.yml"
   workflow_dispatch:
     inputs:
       reviewed_main_sha:
@@ -23,9 +24,6 @@ on:
         required: true
 permissions:
   contents: read
-concurrency:
-  group: cove-protected-primary-d1-legal-audit
-  cancel-in-progress: false
 jobs:
   offline-full-grant-history-protocol:
     if: github.repository == 'JibrilMohamud/cove'
@@ -61,6 +59,9 @@ jobs:
       inputs.reviewed_main_sha == github.sha &&
       inputs.confirm_select_only_replay == true
     environment: cove-production-release-audit
+    concurrency:
+      group: cove-protected-primary-d1-legal-audit
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
