@@ -1,9 +1,12 @@
 /* eslint-disable prettier/prettier -- Isolated legal QA must never obtain production D1 SQL authority. */
 import assert from "node:assert/strict";
-import {QA_ACCOUNT,PRODUCTION_D1} from "./paid-qa-cloudflare-credentials.mjs";
+import {PRODUCTION_ACCOUNT,PRODUCTION_D1} from "./paid-qa-cloudflare-credentials.mjs";
+// Legacy, individually protected legal QA still uses a nonprimary synthetic D1
+// in the production account; it must never silently inherit paid QA account IDs.
+const LEGAL_QA_ACCOUNT=PRODUCTION_ACCOUNT;
 const QA_DB="5e3a6b69-6f3d-4b19-b837-01f7aa56ce87";
 export function checkedPrivateLegalQaCredentials(env){
-  assert.equal(env?.CLOUDFLARE_ACCOUNT_ID,QA_ACCOUNT);
+  assert.equal(env?.CLOUDFLARE_ACCOUNT_ID,LEGAL_QA_ACCOUNT);
   assert.match(String(env?.GITHUB_RUN_ID||""),/^\d{8,15}$/);
   const workers=env?.CLOUDFLARE_API_TOKEN,
     metadata=env?.COVE_CF_WORKERS_METADATA_READ_TOKEN;
@@ -16,7 +19,7 @@ export function checkedPrivateLegalQaCredentials(env){
 export function legalQaTokenFor(method,path,c){
   if(typeof path!=="string"||path.includes("..")||path.includes("?"))
     throw Error("legal_qa_path_not_reviewed");
-  const root="/accounts/"+QA_ACCOUNT;
+  const root="/accounts/"+LEGAL_QA_ACCOUNT;
   
   if(path.startsWith(root+"/d1/")||path.includes(PRODUCTION_D1))
     throw Error("legal_qa_direct_d1_forbidden_use_synthetic_gateway");
