@@ -20827,7 +20827,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           await assessBuyerOrderRisk(
             bindPublicationOwner(db as unknown as CatalogDB,{
               owner:{fetch:(request:Request)=>this.fetch(request)},
-              secret:env.COVE_RIGHTS_OWNER_SECRET,
+              secret:env.COVE_RIGHTS_OWNER_SECRET||"",
               territory:order.territory_code,
               currency:order.currency
             }),order.id);
