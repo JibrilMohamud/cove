@@ -6,6 +6,8 @@ import type {PartnerProduct} from "../features/fore/traditional-publishing.serve
 import type {CoveEnv} from "../features/fore/api.server";
 import {ownerSettlementDiagnostic} from "./owner-settlement-diagnostic";
 import {enrollOwnerSqlMutationJournal,readOwnerSqlMutationJournal} from "./owner-sql-mutation-journal";
+import {issueQaOwnerPositiveGenerationCertificate,QA_POSITIVE_CERTIFICATE_PATH,
+  type QAOwnerPrimaryDB} from "./qa-owner-positive-certificate-issuer.stage";
 import { DurableObject } from "cloudflare:workers";
 import {DISABLED_OWNER_ATTEST_ROUTE,PRODUCTION_OWNER_OBJECT,isDisabledProductionOwner,validOwnerChallenge,disabledOwnerReceipt} from "./production-disabled-owner-attestation";
 import {publishVerifiedPaidOrderAtomic,type VerifiedPaidOrderLine} from "./paid-order-atomic-publication";
@@ -70,6 +72,7 @@ type LegalAuthorityEnv = {
   FORE_PUBLISHING_AUTO_APPROVE_LOW_RISK?:string;
   COVE_QA_OWNER_JOURNAL_VERSION?: string;
   COVE_QA_OWNER_REHEARSAL_REVISION?: string;
+  COVE_QA_OWNER_POSITIVE_CERTIFICATE_ONLY?: string;
   COVE_RIGHTS_OWNER_SECRET?: string;
   COVE_RIGHTS_OWNER_ENABLED?: string;
   COVE_RIGHTS_OWNER_PRIMARY_ID?: string;
@@ -3974,6 +3977,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/authorize-batch",
       "/storefront/authorize-batch","/storefront/publish-commercial",
       "/qa/native-first-paint","/qa/transport-owner-ping","/qa/current-mutation-fence",
+      QA_POSITIVE_CERTIFICATE_PATH,
       "/market/deny-next",
       "/commercial/order/deny-next","/commercial/order/verify","/commercial/order/revoke",
       "/commercial/order/settle",
@@ -4037,6 +4041,32 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         return Response.json({...journal,challenge:q.challenge,
           ...(revision===undefined?{}:{rehearsalRevision:revision}),
           primaryId:env.COVE_RIGHTS_OWNER_PRIMARY_ID},{headers:noStore});
+      }
+      if(route===QA_POSITIVE_CERTIFICATE_PATH){
+        // Only the leased, enrolled synthetic QA owner may produce this
+        // challenge-bound receipt. No flag can turn it on for production,
+        // and no caller can supply a candidate, digest, epoch or allow bit.
+        if(!journal||env.COVE_QA_OWNER_POSITIVE_CERTIFICATE_ONLY!=="1"||
+          env.COVE_RIGHTS_OWNER_PRIMARY_ID!==
+            "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e"||
+          env.COVE_QA_OWNER_REHEARSAL_REVISION===undefined)
+          return new Response(null,{status:503,headers:noStore});
+        const q=raw as {challenge?:unknown}|null;
+        if(!q||Object.keys(q).join(",")!=="challenge"||!validOwnerChallenge(q.challenge))
+          return new Response(null,{status:400,headers:noStore});
+        const storage=this.ctx.storage as typeof this.ctx.storage&{
+          transactionSync<T>(fn:()=>T):T;
+        };
+        const receipt=await issueQaOwnerPositiveGenerationCertificate({
+          ownerSql:sql,
+          transactionSync:fn=>storage.transactionSync(fn),
+          primary:env.PRIMARY_DB as unknown as QAOwnerPrimaryDB,
+          primaryId:env.COVE_RIGHTS_OWNER_PRIMARY_ID,
+          journalVersion:env.COVE_QA_OWNER_JOURNAL_VERSION as string,
+          rehearsalRevision:env.COVE_QA_OWNER_REHEARSAL_REVISION,
+          challenge:q.challenge,
+        });
+        return Response.json(receipt,{headers:noStore});
       }
       if(route==="/commercial/order/recover-settlements"){
         const input=raw as {limit?:unknown}|null;
