@@ -6,7 +6,7 @@ import path from "node:path";
 import {randomBytes,createHash,generateKeyPairSync} from "node:crypto";
 import {pathToFileURL} from "node:url";
 import {readPaidOwnerFence,paidOwnerRollbackEvidence} from "./paid-owner-rollback-evidence.mjs";
-import {checkedPaidQaCredentials,paidQaApiTokenFor,paidQaWranglerTokenFor} from "./paid-qa-cloudflare-credentials.mjs";
+import {checkedPaidQaCredentials,paidQaApiTokenFor,paidQaWranglerTokenFor,QA_ACCOUNT,QA_PAID_D1,QA_SCHEMA_SOURCE_D1,PRODUCTION_ACCOUNT,PRODUCTION_D1} from "./paid-qa-cloudflare-credentials.mjs";
 import {syntheticD1GatewayConfig} from "./synthetic-qa-d1-gateway-config.mjs";
 import {isPaidOwnerQaSchemaTable} from "./paid-owner-schema-policy.mjs";
 import {provisionPublishedQaAudio} from "./provision-original-audio-qa.mjs";
@@ -23,7 +23,10 @@ const qaCredentials=checkedPaidQaCredentials(process.env);
 const account=process.env.CLOUDFLARE_ACCOUNT_ID;
 assert.match(runId||"",/^\d{8,15}-\d{1,5}$/);
 assert.match(account||"",/^[a-f0-9]{32}$/);
-assert.equal(account,"d26430caa63ec55f6612e32f36aca5e9");
+assert.equal(account,QA_ACCOUNT);
+assert.notEqual(account,PRODUCTION_ACCOUNT);
+assert.notEqual(QA_PAID_D1,PRODUCTION_D1);
+assert.notEqual(QA_SCHEMA_SOURCE_D1,PRODUCTION_D1);
 assert.equal(qaCredentials.run,runId);
 const stripeSecret=process.env.COVE_SANDBOX_SECRET_KEY||"";
 assert.match(stripeSecret,/^(?:sk|rk|rkcs)_test_[A-Za-z0-9]+$/,"Independent owner requires a real TEST Stripe credential");
@@ -34,14 +37,14 @@ const callerName="cove-paid-legal-caller-"+runId;
 const writerName="cove-paid-legal-writer-"+runId;
 const settlementName="cove-paid-settlement-qa-"+runId;
 const gatewayName="cove-paid-d1-gateway-"+runId;
-const gatewayOrigin="https://"+gatewayName+".cove-jibrilmohamud.workers.dev";
+const gatewayOrigin="https://"+gatewayName+".cove-qa-reads.workers.dev";
 const gatewayGate=randomBytes(32).toString("hex");
 const mediaBucketName="cove-paid-private-media-qa";
 const mediaKey=name=>"qa/"+runId+"/"+name;
-const settlementOrigin="https://"+settlementName+".cove-jibrilmohamud.workers.dev";
-const origin="https://"+callerName+".cove-jibrilmohamud.workers.dev";
-const primary="7c7ab994-f6b3-419d-a72d-71eb9ea22e7e";
-const primaryName="cove-paid-commerce-legal-qa-20261027";
+const settlementOrigin="https://"+settlementName+".cove-qa-reads.workers.dev";
+const origin="https://"+callerName+".cove-qa-reads.workers.dev";
+const primary=QA_PAID_D1;
+const primaryName="cove-qa-paid-owner-primary-20261122";
 const gate=randomBytes(32).toString("hex");
 const secret=randomBytes(32).toString("hex");
 const journalVersion=randomBytes(32).toString("hex");
@@ -138,7 +141,7 @@ const qaSql=async(sql,params=[])=>{
  * no ledger, royalties, outbox, retail events or reader state schema.
  * This is a strict source/destination allowlist; never use a production D1.
  */
-const schemaSource="e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
+const schemaSource=QA_SCHEMA_SOURCE_D1;
 async function prepareInitialCommerceQaSchema(){
   const records=await api("POST","/d1/database/"+schemaSource+"/query",{
     sql:"SELECT type,name,tbl_name,sql FROM sqlite_master WHERE sql IS NOT NULL AND type IN ('table','index') ORDER BY CASE type WHEN 'table' THEN 0 ELSE 1 END,name"
@@ -362,7 +365,62 @@ const stripeRequest=async(route,body)=>{
       "Provider refund must never be in live mode");
   return result;
 };
+// Real authenticated capability proof for all three independently scoped QA
+// credentials. This is isolated to Cove QA and runs BEFORE any Stripe TEST charge.
+const qaControlPlane=async(token,method,resource,body)=>{
+  const response=await fetch("https://api.cloudflare.com/client/v4/accounts/"+
+    QA_ACCOUNT+resource,{
+    method,
+    headers:{authorization:"Bearer "+token,
+      ...(body?{"content-type":"application/json"}:{})},
+    ...(body?{body:JSON.stringify(body)}:{}),
+    signal:AbortSignal.timeout(25000)
+  });
+  const json=await response.json().catch(()=>null);
+  assert.equal(response.status>=200&&response.status<300,true,
+    "Isolated QA Cloudflare capability proof failed: "+method+" "+resource+
+    " HTTP "+response.status);
+  assert.equal(json?.success,true,"Isolated QA token refused: "+method+" "+resource);
+  return json.result;
+};
+const proveIsolatedQaCredentials=async()=>{
+  // Exercise actual D1 Write, not only metadata, using a per-run scratch table.
+  const scratch="qa_credential_probe_"+runId.replaceAll("-","_");
+  const target="/d1/database/"+QA_PAID_D1+"/query";
+  const call=sql=>qaControlPlane(qaCredentials.tokens.d1,"POST",target,{sql});
+  const schema=await qaControlPlane(qaCredentials.tokens.d1,"POST",
+    "/d1/database/"+QA_SCHEMA_SOURCE_D1+"/query",
+    {sql:"SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table'"});
+  assert.equal(schema?.[0]?.success,true,"Synthetic schema read unavailable");
+  try {
+    const created=await call('CREATE TABLE IF NOT EXISTS "'+scratch+'" (id INTEGER PRIMARY KEY, marker TEXT NOT NULL)');
+    assert.equal(created?.[0]?.success,true,"D1 mutation token could not create QA scratch table");
+    const wrote=await call('INSERT INTO "'+scratch+'" (id,marker) VALUES (1,\\'isolated-qa\\')');
+    assert.equal(wrote?.[0]?.meta?.changes,1,"D1 QA scratch write did not commit");
+    const checked=await call('SELECT marker FROM "'+scratch+'" WHERE id=1');
+    assert.equal(checked?.[0]?.results?.[0]?.marker,"isolated-qa");
+  } finally {
+    const dropped=await call('DROP TABLE IF EXISTS "'+scratch+'"');
+    assert.equal(dropped?.[0]?.success,true,"D1 QA scratch cleanup failed");
+  }
+  // Exercise actual R2 bucket creation/deletion under the separate QA token.
+  const r2=qaCredentials.tokens.r2;
+  const probe="cove-qa-r2-token-proof-"+runId;
+  await qaControlPlane(r2,"POST","/r2/buckets",{name:probe});
+  try {
+    const listed=await qaControlPlane(r2,"GET","/r2/buckets");
+    assert.ok(Array.isArray(listed?.buckets)&&listed.buckets.some(b=>b.name===probe),
+      "QA R2 write-token scratch bucket not listed");
+  } finally {
+    await qaControlPlane(r2,"DELETE","/r2/buckets/"+probe);
+  }
+  const listed=await qaControlPlane(r2,"GET","/r2/buckets");
+  if(!listed?.buckets?.some(b=>b.name===mediaBucketName))
+    await qaControlPlane(r2,"POST","/r2/buckets",{name:mediaBucketName});
+  console.log("PASS: isolated QA Workers principal present, D1 mutation and R2 create/delete proven; no production credentials");
+};
 try {
+  await proveIsolatedQaCredentials();
   // Signed gateway has only the two synthetic D1 bindings. Its credential is
   // never a Cloudflare account-wide D1 Write token and never selects an ID.
   fs.writeFileSync(gatewayCfg,JSON.stringify(syntheticD1GatewayConfig(
