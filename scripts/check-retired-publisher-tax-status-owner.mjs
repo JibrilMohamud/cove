@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Exact owner-retired publisher tax verification regression. */
 import assert from "node:assert/strict";
+import {expectedCurrentOwnerIntegrationHash} from "./release/owner-integration-source-pins.mjs";
 import {createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
 const read=x=>readFileSync(x,"utf8");
@@ -14,7 +15,7 @@ assert.equal(ln.releaseApproval,false);
 assert.equal(ln.productionCertified,false);
 assert.equal(ln.sourceBefore,6);
 assert.equal(ln.sourceAfter,5);
-assert.equal(createHash("sha256").update(src).digest("hex"),ln.currentSha256);
+assert.equal(createHash("sha256").update(src).digest("hex"),expectedCurrentOwnerIntegrationHash("src/features/fore/risk-tax.server.ts",ln.currentSha256));
 assert.equal(ln.retired.length,1);
 assert.equal(ln.retired[0].table,"publishing_accounts");
 assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=5);

@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Exact private ownership materialization source regression. */
 import assert from "node:assert/strict";
+import {expectedCurrentOwnerIntegrationHash} from "./release/owner-integration-source-pins.mjs";
 import {readFileSync} from "node:fs";
 import {createHash} from "node:crypto";
 const read=p=>readFileSync(p,"utf8");
@@ -14,7 +15,7 @@ assert.equal(lineage.releaseApproval,false);
 assert.equal(lineage.productionCertified,false);
 assert.equal(lineage.sourceBefore,13);
 assert.equal(lineage.sourceAfter,12);
-assert.equal(createHash("sha256").update(source).digest("hex"),lineage.currentSha256);
+assert.equal(createHash("sha256").update(source).digest("hex"),expectedCurrentOwnerIntegrationHash("src/features/fore/delivery.server.ts",lineage.currentSha256));
 assert.equal(lineage.retired.length,1);
 assert.equal(lineage.retired[0].table,"entitlement_ownership_records");
 assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=12);

@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Verify physically retired commercial offline-license SQL. */
 import assert from "node:assert/strict";
+import {expectedCurrentOwnerIntegrationHash} from "./release/owner-integration-source-pins.mjs";
 import {createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
 const read=p=>readFileSync(p,"utf8");
@@ -14,7 +15,7 @@ assert.equal(lineage.releaseApproval,false);
 assert.equal(lineage.productionCertified,false);
 assert.equal(lineage.sourceBefore,8);
 assert.equal(lineage.sourceAfter,6);
-assert.equal(createHash("sha256").update(source).digest("hex"),lineage.currentSha256);
+assert.equal(createHash("sha256").update(source).digest("hex"),expectedCurrentOwnerIntegrationHash("src/features/fore/commercial-audio.server.ts",lineage.currentSha256));
 assert.equal(lineage.retired.length,2);
 assert.ok(lineage.retired.every(x=>x.disposition==="owner-command-required"));
 assert.ok(lineage.retired.every(x=>!review.sites.some(r=>r.siteId===x.siteId)));

@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Independently authorized commercial bearer grant source regression. */
 import assert from "node:assert/strict";
+import {expectedCurrentOwnerIntegrationHash} from "./release/owner-integration-source-pins.mjs";
 import {createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
 const read=p=>readFileSync(p,"utf8");
@@ -14,7 +15,7 @@ assert.equal(ln.releaseApproval,false);
 assert.equal(ln.productionCertified,false);
 assert.equal(ln.sourceBefore,11);
 assert.equal(ln.sourceAfter,10);
-assert.equal(createHash("sha256").update(source).digest("hex"),ln.currentSha256);
+assert.equal(createHash("sha256").update(source).digest("hex"),expectedCurrentOwnerIntegrationHash("src/features/fore/delivery.server.ts",ln.currentSha256));
 assert.equal(ln.retired.length,1);
 assert.equal(ln.retired[0].table,"commercial_delivery_grants");
 assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=10);

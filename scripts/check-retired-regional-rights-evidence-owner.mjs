@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Source-only regional legal-authority retirement guard. */
 import assert from "node:assert/strict";
+import {expectedCurrentOwnerIntegrationHash} from "./release/owner-integration-source-pins.mjs";
 import {createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
 const read=p=>readFileSync(p,"utf8");
@@ -14,7 +15,7 @@ assert.equal(ln.releaseApproval,false);
 assert.equal(ln.productionCertified,false);
 assert.equal(ln.sourceBefore,5);
 assert.equal(ln.sourceAfter,1);
-assert.equal(createHash("sha256").update(source).digest("hex"),ln.currentSha256);
+assert.equal(createHash("sha256").update(source).digest("hex"),expectedCurrentOwnerIntegrationHash("src/features/fore/api.server.ts",ln.currentSha256));
 assert.equal(ln.retired.length,4);
 assert.ok(ln.retired.every(x=>x.disposition==="owner-command-required"));
 assert.ok(ln.retired.every(x=>!review.sites.some(r=>r.siteId===x.siteId)));

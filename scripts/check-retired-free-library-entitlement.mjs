@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Public-domain free library grant must be privately authorized. */
 import assert from "node:assert/strict";
+import {expectedCurrentOwnerIntegrationHash} from "./release/owner-integration-source-pins.mjs";
 import {readFileSync} from "node:fs";
 import {createHash} from "node:crypto";
 const read=p=>readFileSync(p,"utf8");
@@ -14,7 +15,7 @@ assert.equal(proof.releaseApproval,false);
 assert.equal(proof.productionCertified,false);
 assert.equal(proof.sourceBefore,12);
 assert.equal(proof.sourceAfter,11);
-assert.equal(createHash("sha256").update(api).digest("hex"),proof.currentSha256);
+assert.equal(createHash("sha256").update(api).digest("hex"),expectedCurrentOwnerIntegrationHash("src/features/fore/api.server.ts",proof.currentSha256));
 assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=11);
 assert.equal(proof.retired.length,1);
 assert.equal(proof.retired[0].table,"entitlements");

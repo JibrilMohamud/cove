@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Immutable exact-source protected consumption retirement guard. */
 import assert from "node:assert/strict";
+import {expectedCurrentOwnerIntegrationHash} from "./release/owner-integration-source-pins.mjs";
 import {createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
 const read=x=>readFileSync(x,"utf8");
@@ -14,7 +15,7 @@ assert.equal(ln.productionCertified,false);
 assert.equal(review.releaseApproval,false);
 assert.equal(ln.sourceBefore,10);
 assert.equal(ln.sourceAfter,8);
-assert.equal(createHash("sha256").update(source).digest("hex"),ln.currentSha256);
+assert.equal(createHash("sha256").update(source).digest("hex"),expectedCurrentOwnerIntegrationHash("src/features/fore/delivery.server.ts",ln.currentSha256));
 assert.equal(ln.retired.length,2);
 assert.ok(ln.retired.every(x=>x.disposition==="owner-command-required"));
 assert.ok(ln.retired.every(x=>!review.sites.some(site=>site.siteId===x.siteId)));

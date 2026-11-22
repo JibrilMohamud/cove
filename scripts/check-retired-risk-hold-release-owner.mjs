@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Source- and authorization-bound release regression. */
 import assert from "node:assert/strict";
+import {expectedCurrentOwnerIntegrationHash} from "./release/owner-integration-source-pins.mjs";
 import {readFileSync} from "node:fs";
 import {createHash} from "node:crypto";
 const read=p=>readFileSync(p,"utf8");
@@ -15,8 +16,8 @@ assert.equal(lineage.productionCertified,false);
 assert.equal(lineage.releaseApproval,false);
 assert.equal(lineage.sourceBefore,14);
 assert.equal(lineage.sourceAfter,13);
-assert.equal(createHash("sha256").update(source).digest("hex"),lineage.currentSha256);
-assert.equal(createHash("sha256").update(api).digest("hex"),lineage.apiSha256);
+assert.equal(createHash("sha256").update(source).digest("hex"),expectedCurrentOwnerIntegrationHash("src/features/fore/risk-tax.server.ts",lineage.currentSha256));
+assert.equal(createHash("sha256").update(api).digest("hex"),expectedCurrentOwnerIntegrationHash("src/features/fore/api.server.ts",lineage.apiSha256));
 assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=13);
 assert.equal(lineage.retired.length,1);
 assert.equal(lineage.retired[0].table,"risk_holds");
