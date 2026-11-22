@@ -5,6 +5,7 @@ import {
   readPaidOwnerFence,
   PAID_QA_PRIMARY,
 } from "./paid-owner-rollback-evidence.mjs";
+import {QA_PAID_D1,PRODUCTION_D1} from "./paid-qa-cloudflare-credentials.mjs";
 
 const runId = "44942070208-1",
   journalVersion = "a".repeat(64);
@@ -22,6 +23,9 @@ function fixture(patch = {}, dependencies = {}) {
     ...patch,
   };
   const api = async (method, path, body) => {
+    assert.ok(path === "/workers/scripts/" + name ||
+      path.startsWith("/workers/scripts/" + name + "/"),
+      "Rollback may never query or mutate production or other QA Workers");
     if (method === "POST") {
       state.writes.push({ method, path, body });
       assert.equal(path, "/workers/scripts/" + name + "/deployments");
@@ -35,18 +39,14 @@ function fixture(patch = {}, dependencies = {}) {
     }
     assert.equal(method, "GET");
     if (path.endsWith("/deployments")) {
-      const id = path.includes("cove-persistence-backend")
-        ? "401f2af2-6e69-4611-8110-1d127af6eecf"
-        : path.includes("cove-legal-authority-production")
-          ? "3463ff93-f077-40bf-a4d5-fb7bfc143cd5"
-          : state.version;
+      const id = state.version;
       return {
         deployments: [
           {
             strategy: "percentage",
             versions: [
               {
-                version_id: state.prodDrift && path.includes("-production") ? a : id,
+                version_id: id,
                 percentage: 100,
               },
             ],
@@ -85,7 +85,7 @@ function fixture(patch = {}, dependencies = {}) {
       body: {
         schema: "cove.qa.current-owner-sql-journal.v1",
         journalVersion,
-        primaryId: PAID_QA_PRIMARY,
+        primaryId: state.fencePrimary || PAID_QA_PRIMARY,
         authorizing: false,
         tables: 24,
         triggers: 78,
@@ -109,7 +109,7 @@ function fixture(patch = {}, dependencies = {}) {
   };
 }
 
-test("actual A/B/A pins, independent production invariance and current epoch are mandatory", async () => {
+test("actual isolated QA A/B/A retains denial epoch without claiming production version proof", async () => {
   const f = fixture();
   await f.proof.captureA();
   await f.stageB();
@@ -120,14 +120,31 @@ test("actual A/B/A pins, independent production invariance and current epoch are
   assert.equal(r.versionB, b);
   assert.equal(r.denialEpochPreserved, true);
   assert.equal(r.productionRollbackCertified, false);
+  assert.equal(r.productionVersionsUnchanged, false);
+  assert.equal(r.productionVersionsNotInspected, true);
+  assert.equal(r.qaAccountIsolated, true);
   assert.equal(r.releaseCertified, false);
   assert.equal(f.state.writes.length, 1);
 });
-test("production D1 or production-version drift blocks capture before any POST", async () => {
-  for (const patch of [{ db: "4bd657ac-8789-403e-a28c-93aba8d0a989" }, { prodDrift: true }]) {
-    const f = fixture(patch);
+test("production and stale legacy QA D1 are both rejected before any mutation", async () => {
+  assert.equal(PAID_QA_PRIMARY, QA_PAID_D1);
+  assert.notEqual(PAID_QA_PRIMARY, PRODUCTION_D1);
+  for (const patch of [
+    {db: PRODUCTION_D1},
+    {db: "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e"},
+  ]) {
+    const f=fixture(patch);
     await assert.rejects(f.proof.captureA());
-    assert.equal(f.state.writes.length, 0);
+    assert.equal(f.state.writes.length,0);
+  }
+});
+test("forged legacy or production primary in live current-denial fence fails closed",async()=>{
+  for(const fencePrimary of [
+    "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",PRODUCTION_D1
+  ]){
+    const f=fixture({fencePrimary});
+    await assert.rejects(readPaidOwnerFence(f.post,journalVersion,"A"));
+    assert.equal(f.state.writes.length,0);
   }
 });
 test("namespace replacement and non-distinct B are rejected", async () => {
@@ -286,15 +303,15 @@ test("both real version transitions explicitly apply immediate DO update to the 
   );
   assert.ok(f.state.writes.every((x) => x.path === "/workers/scripts/" + name + "/deployments"));
 });
-test("B activation refuses production drift and an unexpected serving version before any POST", async () => {
-  for (const drift of ["production", "qa"]) {
-    const f = fixture();
+test("B activation refuses unexpected serving version or unsafe QA D1 before any POST", async () => {
+  for (const drift of ["version","database"]) {
+    const f=fixture();
     await f.proof.captureA();
-    f.state.version = b;
+    f.state.version=b;
     await f.proof.captureBDeployment();
-    if (drift === "production") f.state.prodDrift = true;
-    else f.state.version = a;
+    if(drift==="version")f.state.version=a;
+    else f.state.db=PRODUCTION_D1;
     await assert.rejects(f.proof.activateBImmediate());
-    assert.equal(f.state.writes.length, 0);
+    assert.equal(f.state.writes.length,0);
   }
 });
