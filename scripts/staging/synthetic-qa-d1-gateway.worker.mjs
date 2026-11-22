@@ -17,6 +17,41 @@ export default {
       return deny(401);
     if(request.method==="GET"&&url.pathname==="/__health")
       return new Response(JSON.stringify({ready:true}),{status:200,headers:noStore});
+    if(["/__media-put","/__media-delete","/__media-head"].includes(url.pathname)){
+      if(env.COVE_QA_D1_GATE_ALLOWED!=="paid"||
+         !/^\d{8,15}-\d{1,5}$/.test(env.COVE_QA_MEDIA_RUN_ID||"")||
+         !env.QA_MEDIA?.put||!env.QA_MEDIA?.delete||!env.QA_MEDIA?.head||
+         request.method!=="POST"||url.search)
+        return deny(503);
+      let payload;
+      try{
+        const raw=await request.text();
+        if(raw.length>120000)return deny(413);
+        payload=JSON.parse(raw);
+      }catch{return deny(400);}
+      if(!payload||!["book.epub","chapter.wav","rights.txt"].includes(payload.name))
+        return deny(400);
+      const key="qa/"+env.COVE_QA_MEDIA_RUN_ID+"/"+payload.name;
+      try{
+        if(url.pathname==="/__media-put"){
+          if(typeof payload.base64!=="string"||payload.base64.length>100000||
+             !/^[A-Za-z0-9+/]+={0,2}$/.test(payload.base64))return deny(400);
+          const raw=atob(payload.base64);
+          const bytes=Uint8Array.from(raw,c=>c.charCodeAt(0));
+          if(bytes.length===0||bytes.length>75000)return deny(400);
+          const types={"book.epub":"application/epub+zip",
+            "chapter.wav":"audio/wav","rights.txt":"text/plain"};
+          await env.QA_MEDIA.put(key,bytes,{httpMetadata:{contentType:types[payload.name]}});
+          return new Response(JSON.stringify({saved:true,key,size:bytes.length}),{headers:noStore});
+        }
+        if(url.pathname==="/__media-delete"){
+          await env.QA_MEDIA.delete(key);
+          return new Response(JSON.stringify({deleted:true,key}),{headers:noStore});
+        }
+        const object=await env.QA_MEDIA.head(key);
+        return new Response(JSON.stringify({exists:!!object,key}),{headers:noStore});
+      }catch{return deny(503);}
+    }
     if(request.method!=="POST"||url.pathname!=="/__query"||url.search)
       return deny(404);
     if(Number(request.headers.get("content-length")||0)>24576)return deny(413);

@@ -31,3 +31,23 @@ test("only private query endpoint and paid/schema fixtures can be used",async()=
   assert.equal((await gateway.fetch(req("/__query",{database:"qa",sql:"ATTACH DATABASE 'x' AS production",params:[]}),env)).status,400);
   assert.equal((await gateway.fetch(req("/__query?inspect=true",{database:"qa",sql:"SELECT 1",params:[]}),env)).status,404);
 });
+
+test("private paid QA R2 media is restricted to three exact per-run keys",async()=>{
+  const bucket=new Map(),mediaEnv={...env,COVE_QA_MEDIA_RUN_ID:"45000012345-1",
+    QA_MEDIA:{put:async(key,bytes)=>bucket.set(key,bytes),
+      head:async key=>bucket.get(key)||null,delete:async key=>bucket.delete(key)}};
+  const media=(route,body)=>req(route,body);
+  const put=await gateway.fetch(media("/__media-put",{
+    name:"book.epub",base64:btoa("QA EPUB TEST")}),mediaEnv);
+  assert.equal(put.status,200);
+  assert.equal((await put.json()).key,"qa/45000012345-1/book.epub");
+  assert.equal(bucket.size,1);
+  assert.equal((await gateway.fetch(media("/__media-put",{
+    name:"../books/customer.epub",base64:btoa("BAD")}),mediaEnv)).status,400);
+  assert.equal((await gateway.fetch(media("/__media-head",{name:"book.epub"}),mediaEnv)).status,200);
+  const removed=await gateway.fetch(media("/__media-delete",{name:"book.epub"}),mediaEnv);
+  assert.equal(removed.status,200);
+  assert.equal(bucket.size,0);
+  assert.equal((await gateway.fetch(media("/__media-put",{
+    name:"book.epub",base64:btoa("BAD")}),{...mediaEnv,COVE_QA_D1_GATE_ALLOWED:"legal"})).status,503);
+});
