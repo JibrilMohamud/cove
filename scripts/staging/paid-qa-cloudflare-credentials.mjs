@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- All paid QA privileges are isolated in the separate Cove QA Cloudflare account. */
 import assert from "node:assert/strict";
+import {basename} from "node:path";
 
 export const PRODUCTION_ACCOUNT="d26430caa63ec55f6612e32f36aca5e9";
 export const QA_ACCOUNT="f51e8ccbc394e2d6016ff8c2c303d54b";
@@ -48,8 +49,10 @@ export function paidQaApiTokenFor(method,resource,credentials) {
 }
 export function paidQaWranglerTokenFor(args,credentials) {
   assert.ok(Array.isArray(args)&&args.length>=1);
+  const names=["owner-proof","writer-proof","caller-proof","settlement-proof","d1-gateway"];
   if(args[0]==="deploy"&&args[1]==="--config"&&
-     /^\.cove-paid-(?:owner|writer|caller|settlement|d1-gateway)-proof-\d{8,15}-\d{1,5}\.jsonc$/.test(args[2]))
+     args[3]==="--secrets-file"&&typeof args[4]==="string"&&
+     names.some(n=>basename(args[2])===".cove-paid-"+n+"-"+credentials.run+".jsonc"))
     return credentials.tokens.workers;
   throw Error("paid_qa_wrangler_operation_not_reviewed");
 }
