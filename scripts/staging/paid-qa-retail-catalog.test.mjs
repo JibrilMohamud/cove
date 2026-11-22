@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Keep source-exact QA SQL and deny-first fixture readable alongside existing protected scripts. */
 import assert from "node:assert/strict";
 import test from "node:test";
 import {DatabaseSync} from "node:sqlite";
