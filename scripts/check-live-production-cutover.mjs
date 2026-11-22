@@ -106,6 +106,21 @@ export function assessProductionCutover({
     }};
 }
 
+export function chooseCutoverReadToken(path,{metadataToken,routesToken}){
+  if(/^\/accounts\/[a-f0-9]{32}\/workers\/scripts\/[A-Za-z0-9_-]{1,128}\/settings$/.test(path)||
+     /^\/accounts\/[a-f0-9]{32}\/workers\/domains$/.test(path)){
+    assert.ok(typeof metadataToken==="string"&&metadataToken.length>=20,
+      "Workers metadata reader required for live topology audit");
+    return metadataToken;
+  }
+  if(/^\/zones\/[a-f0-9]{32}\/workers\/routes$/.test(path)){
+    assert.ok(typeof routesToken==="string"&&routesToken.length>=20,
+      "Zone Workers Routes Read token required for topology audit");
+    return routesToken;
+  }
+  throw Error("Unreviewed Cloudflare topology read path");
+}
+
 async function cloudflareGet(path,token,{optional=false}={}) {
   const response=await fetch("https://api.cloudflare.com/client/v4"+path,{
     headers:{authorization:"Bearer "+token,accept:"application/json"},
@@ -142,18 +157,23 @@ async function main() {
   const release=process.argv.includes("--release-gate");
   if(auditOnly===release)throw Error("Specify exactly one of --audit or --release-gate");
   const token=process.env.CLOUDFLARE_API_TOKEN;
+  const metadataToken=process.env.COVE_CF_WORKERS_METADATA_READ_TOKEN||token;
+  const routesToken=process.env.COVE_CF_WORKERS_ROUTES_READ_TOKEN||token;
   const account=process.env.CLOUDFLARE_ACCOUNT_ID;
   const zone=process.env.CLOUDFLARE_ZONE_ID;
   if(!token||!/^[a-f0-9]{32}$/.test(account||"")||
      !/^[a-f0-9]{32}$/.test(zone||""))
     throw Error("Cloudflare API token and exact account/zone IDs are required");
   const base="/accounts/"+account;
+  const credentials={metadataToken,routesToken};
+  const read=(path,options)=>cloudflareGet(path,
+    chooseCutoverReadToken(path,credentials),options);
   const [backend,frontend,owner,routes,domains]=await Promise.all([
-    cloudflareGet(base+"/workers/scripts/"+PRIMARY+"/settings",token),
-    cloudflareGet(base+"/workers/scripts/cove/settings",token,{optional:true}),
-    cloudflareGet(base+"/workers/scripts/"+OWNER_SCRIPT+"/settings",token,{optional:true}),
-    cloudflareGet("/zones/"+zone+"/workers/routes",token),
-    cloudflareGet(base+"/workers/domains",token),
+    read(base+"/workers/scripts/"+PRIMARY+"/settings"),
+    read(base+"/workers/scripts/cove/settings",{optional:true}),
+    read(base+"/workers/scripts/"+OWNER_SCRIPT+"/settings",{optional:true}),
+    read("/zones/"+zone+"/workers/routes"),
+    read(base+"/workers/domains"),
   ]);
   let publicOrigin=null;
   try {
