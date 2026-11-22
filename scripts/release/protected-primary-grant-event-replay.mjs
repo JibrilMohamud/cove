@@ -142,6 +142,7 @@ if(process.argv.includes("--self-test")){
     "Audit events: "+result.eventsReplayed+"; current grants: "+result.grantsCompared,
     "Inserts: "+result.counts.inserts+"; updates: "+result.counts.updates,
     "Ambiguous event-timestamp cohorts: "+result.counts.ambiguousTimestampGroups,
+    "Backdated audit events: "+result.counts.backdatedEventTimestamps,
     "Mismatched current grant snapshots: "+result.counts.conflictingCurrentGrants,
     "Lost/current grant IDs: "+result.counts.missingGrants,
     "Replay boundary identical: "+result.scanBoundaryIdentical,
