@@ -220,6 +220,34 @@ const fixturePlugin = {
         req.headers["oai-authenticated-user-email"] = `${user.username}@example.invalid`;
         req.headers["oai-authenticated-user-full-name"] = user.name;
       }
+      // Browser HTTP requests must use the same canonical owner-bound API as
+      // the server-side synthetic seed. Vite's ordinary development API plugin
+      // owns a DIFFERENT local DB and has no typed legal-owner binding; routing
+      // these requests there turns valid user reading-state updates into 503s.
+      // Keep every request in the disposable loopback QA process, with server-
+      // verified synthetic identity and real private-owner authorization.
+      if (url.pathname.startsWith("/api/fore/")) {
+        if (!ready || !api?.handleCoveApi)
+          return send(res, { error: "Browser QA owner not ready" }, 503);
+        try {
+          const method = req.method || "GET";
+          const input = new Request(url.href, {
+            method,
+            headers: req.headers,
+            ...(["GET", "HEAD"].includes(method) ? {} : { body: req, duplex: "half" }),
+          });
+          const reply = await api.handleCoveApi(input, env);
+          if (!reply) return next();
+          res.statusCode = reply.status;
+          for (const [key, value] of reply.headers) res.setHeader(key, value);
+          if (method !== "HEAD" && reply.body)
+            for await (const chunk of reply.body) res.write(Buffer.from(chunk));
+          return res.end();
+        } catch (error) {
+          console.error("Browser QA canonical API failed", error instanceof Error ? error.name : "unknown");
+          return send(res, { error: "Browser QA API failed closed" }, 503);
+        }
+      }
       next();
     });
   },
