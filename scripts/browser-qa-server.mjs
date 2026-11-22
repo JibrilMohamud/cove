@@ -345,7 +345,7 @@ const ownerEnv = {
   PRIMARY_DB: localDb,
   COVE_RIGHTS_OWNER_ENABLED: "1",
   COVE_RIGHTS_OWNER_PRIMARY_ID: qaPrimaryId,
-  COVE_RIGHTS_OWNER_TEST_EXPIRES_AT: String(Date.now() + 20 * 60_000),
+  COVE_RIGHTS_OWNER_TEST_EXPIRES_AT: String(Date.now() + 10 * 60_000),
   COVE_RIGHTS_OWNER_SECRET: qaSecret,
 };
 const qaOwner = new CoveLegalAuthority({ storage: ownerStorage }, ownerEnv);
