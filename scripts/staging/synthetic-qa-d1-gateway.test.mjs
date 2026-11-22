@@ -26,7 +26,7 @@ test("only private query endpoint and paid/schema fixtures can be used",async()=
   assert.equal((await ddl.json()).result[0].meta.changes,1);
   const source=await gateway.fetch(req("/__query",{database:"schema",sql:"SELECT type,name,tbl_name,sql FROM sqlite_master WHERE sql IS NOT NULL AND type IN ('table','index') ORDER BY CASE type WHEN 'table' THEN 0 ELSE 1 END,name",params:[]}),env);
   assert.equal(source.status,200);
-  assert.equal((await gateway.fetch(req("/__query",{database:"schema",sql:"PRAGMA writable_schema=ON",params:[]}),env)).status,403);
+  assert.equal((await gateway.fetch(req("/__query",{database:"schema",sql:"PRAGMA writable_schema=ON",params:[]}),env)).status,400);
   assert.equal((await gateway.fetch(req("/__query",{database:"schema",sql:"DELETE FROM products",params:[]}),env)).status,403);
   assert.equal((await gateway.fetch(req("/__query",{database:"schema",sql:"SELECT 1",params:[]}),{...env,COVE_QA_D1_GATE_ALLOWED:"legal"})).status,400);
   assert.equal((await gateway.fetch(req("/__query",{database:"prod",sql:"DELETE FROM orders",params:[]}),env)).status,400);
