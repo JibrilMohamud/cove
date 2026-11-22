@@ -35,7 +35,10 @@ try{
     "Unit-test SQL must never masquerade as production canonical writer evidence");
   // Only explicit test suffixes are excluded: source/server .mjs, .ts and
   // live runtime mutation candidates remain covered by the 483-site lock.
-  assert.match(scanner, /path\.endsWith\("\.test\.mjs"\)/);
+  assert.match(scanner,
+    /path==="scripts\/release\/primary-grant-event-replay-policy\.test\.mjs"/);
+  assert.doesNotMatch(scanner,/path\.endsWith\("\.test\.mjs"\)/,
+    "A broad test-file exemption could conceal an unauthorized new writer");
   assert.ok(result.unresolvedDirectWrites>80,
     "Unexpectedly empty writer audit: do not certify production from a broken scanner");
   for(const path of [
