@@ -13,7 +13,7 @@ const worker = "cove-literary-handoff-isolated-disabled";
 const oldWorker = "cove-persistence-backend";
 const bucket = "cove-literary-originals-isolated-20261024";
 const credentials = checkedLiteraryCutoverReadOnlyCredentials(process.env);
-assert.equal(credentials.account,account);
+assert.equal(credentials.account, account);
 assert.match(process.env.GITHUB_SHA || "", /^[0-9a-f]{40}$/);
 const base = "https://api.cloudflare.com/client/v4";
 async function api(path, method = "GET", body) {
