@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const requirePattern = (source, pattern) => assert.ok(pattern.test(source), "Required stage audit guard missing");
-const forbidPattern = (source, pattern) => assert.ok(!pattern.test(source), "Forbidden stage audit authority detected");
+const requirePattern = (source, pattern) =>
+  assert.ok(pattern.test(source), "Required stage audit guard missing");
+const forbidPattern = (source, pattern) =>
+  assert.ok(!pattern.test(source), "Forbidden stage audit authority detected");
 
 const audit = readFileSync(
   "scripts/staging/check-protected-canonical-real-d1-differential.mjs",
@@ -23,7 +25,7 @@ requirePattern(audit, /READ_PACE_MS = 75/);
 requirePattern(audit, /Write-capable or multi-statement SQL is forbidden/);
 requirePattern(audit, /assertSyntheticRightsDifferentialCoverage\(output\)/);
 requirePattern(audit, /if \(!advancedPolicyStrataCovered\)/);
-requirePattern(audit, /fullProductionRightsParityCertified:\\s*false/);
+requirePattern(audit, /fullProductionRightsParityCertified:\s*false/);
 forbidPattern(audit, /\.run\(\)|\.exec\(/);
 requirePattern(workflow, /workflow_dispatch:/);
 requirePattern(workflow, /github\.ref == 'refs\/heads\/main'/);
