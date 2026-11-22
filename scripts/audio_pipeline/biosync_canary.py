@@ -23,8 +23,11 @@ from .align import align
 from .epub_index import build
 
 ACCOUNT = "d26430caa63ec55f6612e32f36aca5e9"
-DATABASE = "4bd657ac-8789-403e-a28c-93aba8d0a989"
-BUCKET = "cove-production-media"
+# Never read/write the production D1 or R2 during QA owner enrollment.
+QA_DATABASES = {"5e3a6b69-6f3d-4b19-b837-01f7aa56ce87",
+                "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e"}
+DATABASE = os.environ.get("COVE_BIOSYNC_QA_DATABASE_ID", "")
+BUCKET = os.environ.get("COVE_BIOSYNC_QA_BUCKET", "")
 EDITION = "pg-19504"
 TRACK = "02"
 JOB = "align-pg-19504-02-7fb5b7e4c4a400b1"
@@ -195,6 +198,10 @@ def commit_checked_map_to_owner(edition: str, track: str, job: str, map_sha: str
 
 
 def main() -> None:
+    if DATABASE not in QA_DATABASES or not re.fullmatch(
+        r"cove-[a-z0-9-]{1,90}-biosync-qa", BUCKET
+    ):
+        raise RuntimeError("BioSync stage may access only its approved synthetic QA D1/R2")
     for secret in ("COVE_BIOSYNC_D1_READ_TOKEN", "COVE_BIOSYNC_R2_TOKEN",
                    "COVE_BIOSYNC_OWNER_STAGE_URL", "COVE_BIOSYNC_MACHINE_TOKEN"):
         if not os.environ.get(secret):
