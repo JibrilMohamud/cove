@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Cleanup must never delete a live or unrelated Worker. */
 import assert from "node:assert/strict";
+import {QA_ACCOUNT} from "./paid-qa-cloudflare-credentials.mjs";
 
 const prefix=/^cove-private-legal-proof-\d{8,15}$/;
 export function isExpiredIsolatedLegalQaCaller(name,bindings,now=Date.now()) {
@@ -29,9 +30,11 @@ if(process.argv.includes("--self-test")){
   console.log("PASS: sweeper cannot touch valid leases, unrelated Workers or other service bindings");
 }else{
   const account=process.env.CLOUDFLARE_ACCOUNT_ID;
-  const token=process.env.CLOUDFLARE_API_TOKEN;
-  assert.match(account||"",/^[a-f0-9]{32}$/);
-  assert.ok(token);
+  const token=process.env.COVE_CF_QA_WORKERS_DEPLOY_TOKEN;
+  assert.equal(account,QA_ACCOUNT,"QA sweeper may not list/delete production Workers");
+  assert.ok(typeof token==="string"&&token.length>=20);
+  assert.equal(process.env.CLOUDFLARE_API_TOKEN,token,
+    "Wrangler may use only the same scoped QA Worker token");
   const base="https://api.cloudflare.com/client/v4/accounts/"+account+"/workers/scripts";
   async function request(method,resource){
     const response=await fetch(resource,{
