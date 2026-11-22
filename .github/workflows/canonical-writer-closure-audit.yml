@@ -151,6 +151,8 @@ jobs:
         run: python3 -m unittest scripts.audio_pipeline.test_biosync_owner_cutover
       - name: Verify typed owner command schema and receipts
         run: node scripts/check-canonical-owner-command-gateway.mjs
+      - name: Real-schema public-domain grant requires current private owner legal and source proof
+        run: node scripts/check-owner-free-library-full-schema.mjs
       - name: Validate complete integration TypeScript
         run: npx tsc --noEmit
   inventory-and-cutover-denial:
