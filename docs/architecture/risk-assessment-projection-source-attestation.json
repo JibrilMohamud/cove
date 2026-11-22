@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "retirementEvidence": "docs/architecture/retired-risk-assessment-projection-lineage.json",
+  "rationale": "Two shared risk assessment mutations were migrated into a typed QA-private legal owner that independently checks the newest immutable buyer/publisher assessment, matching subject, current effective policy and threshold-derived action/level. SQL writes repeat latest-assessment and policy predicates and refuse optimistic risk clearance around active holds. The two remaining protected risk-tax SQL sites retain byte-identical SQL/function/disposition with full-file SHA reattested. This is source retirement, not production ownership certification. The only subsequent source change formats the static import; both surviving protected source SQL sites have updated exact source fingerprints.",
+  "files": [
+    {
+      "path": "src/features/fore/risk-tax.server.ts",
+      "sha256": "5f0956bdb9e37a6b88042b19961a1095ec3e629c6f7bd132011afc1f9767d4f8",
+      "review": "Two exact protected SQL sites retired and two surviving site identities re-fingerprinted. Formatting-only risk import update: original protected SQL literals and containing functions remain identical."
+    }
+  ]
+}

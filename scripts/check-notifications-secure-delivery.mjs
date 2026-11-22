@@ -99,17 +99,35 @@ for (const token of [
 ])
   assert.ok(commerce.includes(token), `commerce wiring missing ${token}`);
 const preorder = read("src/features/fore/preorder.server.ts");
-assert.ok(preorder.includes("preorder_released"));
-assert.ok(preorder.includes("ensureOwnershipSnapshot"));
-const publishing = read("src/features/fore/publishing.server.ts");
-assert.ok(publishing.includes("publisher_book_approved"));
-assert.ok(publishing.includes("publisher_book_rejected"));
-const finance = read("src/features/fore/finance.server.ts");
+const preorderOwner = read("src/storefront-strangler/legal-authority.worker.ts");
+// Preorder notifications and ownership snapshots have moved with the writer
+// to the separately bound QA-only owner, never a public D1 fallback.
+assert.ok(preorder.includes("dispatchPrivatePreorderAction"));
+assert.ok(preorderOwner.includes("preorder_released"));
+assert.ok(preorderOwner.includes("ensureOwnershipSnapshot"));
+assert.ok(
+  preorderOwner.includes(
+    "Preorder release requires independently verified paid owner authorization.",
+  ),
+);
+assert.ok(preorderOwner.includes('if(route==="/preorder/private-action")'));
+const publishingOwner = read("src/storefront-strangler/legal-authority.worker.ts");
+const publishingEditor = publishingOwner.slice(
+  publishingOwner.indexOf("const privatePublishingEditor="),
+  publishingOwner.indexOf("const privateTraditionalPartner="),
+);
+assert.ok(publishingEditor.includes("publisher_book_approved"));
+assert.ok(publishingEditor.includes("publisher_book_rejected"));
+const finance = read("src/storefront-strangler/legal-authority.worker.ts");
 assert.ok(finance.includes("payout_sent"));
 const reporting = read("src/features/fore/creator-reporting.server.ts");
 assert.ok(reporting.includes("royalty_statement_ready"));
 const moderation = read("src/features/fore/moderation.server.ts");
-assert.ok(moderation.includes("review_moderated"));
+// Protected moderation actions and their notifications now originate from the
+// independently authorized private owner, never the shared API writer.
+assert.ok(!moderation.includes("review_moderated"));
+assert.ok(publishingOwner.includes("const privateModeration="));
+assert.ok(publishingOwner.includes("review_moderated"));
 const account = read("src/features/fore/account-management.server.ts");
 assert.ok(account.includes("account_security_alert"));
 const auth = read("src/features/fore/auth.server.ts");

@@ -8,7 +8,14 @@ const port=readFileSync("src/storefront-strangler/owner-checkout-quote.server.ts
 assert.match(api,/path === "\/checkout\/quote"[\s\S]{0,350}createStageOwnerCheckoutQuote\(env/);
 assert.match(api,/env\.COVE_LEGAL_CONSUMER_STAGE_ENABLED\s*===\s*"1"[\s\S]{0,200}createStageOwnerCheckoutQuote/);
 assert.match(owner,/route==="\/commercial\/checkout\/create-quote"[\s\S]{0,1800}checkoutQuote\(ownerEnv/);
-assert.match(owner,/quote=await checkoutQuote\(ownerEnv,[\s\S]{0,1500}owner_checkout_quote_commit_unconfirmed/);
+const start=owner.indexOf('if(route==="/commercial/checkout/create-quote")');
+const end=owner.indexOf('if(route==="/commercial/checkout/materialize-draft")',start);
+assert.ok(start>=0&&end>start,"Missing private quote owner route");
+const checkoutOwner=owner.slice(start,end);
+assert.match(checkoutOwner,/const quote=await checkoutQuote\(ownerEnv,/);
+assert.match(checkoutOwner,/INSERT INTO commerce_checkout_quotes/);
+assert.match(checkoutOwner,/const stored=await env\.PRIMARY_DB\.prepare\(/);
+assert.match(checkoutOwner,/owner_checkout_quote_commit_unconfirmed/);
 assert.match(gateway,/"commerce.create-quote":\{path:"\/commercial\/checkout\/create-quote"/);
 assert.match(gateway,/case "commerce.create-quote":[\s\S]{0,1000}canonical_command_receipt_mismatch/);
 assert.match(port,/QA_IDS\.has\(env\.COVE_LEGAL_WRITER_PRIMARY_ID/);

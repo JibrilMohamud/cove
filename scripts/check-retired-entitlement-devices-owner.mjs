@@ -1,0 +1,26 @@
+/* eslint-disable prettier/prettier -- Exact delivery device ownership source migration evidence. */
+import assert from "node:assert/strict";
+import {createHash} from "node:crypto";
+import {readFileSync} from "node:fs";
+const read=p=>readFileSync(p,"utf8");
+const delivery=read("src/features/fore/delivery.server.ts");
+const owner=read("src/storefront-strangler/legal-authority.worker.ts");
+const routing=read("src/storefront-strangler/publication-owner-routing.server.ts");
+const gateway=read("src/storefront-strangler/canonical-owner-command-gateway.ts");
+const review=JSON.parse(read("docs/architecture/canonical-writer-review.json"));
+const lineage=JSON.parse(read("docs/architecture/retired-combined-entitlement-devices-owner-lineage.json"));
+assert.equal(review.releaseApproval,false);
+assert.equal(lineage.sourceBefore,27);
+assert.equal(lineage.sourceAfter,25);
+assert.equal(lineage.retired.length,2);
+assert.equal(createHash("sha256").update(delivery).digest("hex"),lineage.currentSha256);
+assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=25);
+for(const site of lineage.retired)assert.ok(!review.sites.some(x=>x.siteId===site.siteId));
+assert.doesNotMatch(delivery,/UPDATE commercial_entitlement_devices SET last_used_at/);
+assert.doesNotMatch(delivery,/INSERT INTO commercial_entitlement_devices/);
+assert.ok(owner.includes('if(route==="/delivery/register-entitlement-device")'));
+assert.match(owner,/JOIN devices d ON d\.id=ced\.device_id/);
+assert.match(owner,/status='active' AND \(e\.starts_at IS NULL/);
+assert.match(gateway,/case "delivery.register-entitlement-device":/);
+assert.match(routing,/dispatchPrivateEntitlementDevice/);
+console.log("PASS: two entitlement-device canonical SQL sites retired under scoped private owner; production still locked");

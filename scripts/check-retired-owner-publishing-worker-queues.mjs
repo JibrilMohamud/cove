@@ -1,0 +1,51 @@
+/* eslint-disable prettier/prettier -- Exact private queue retirement and live denial. */
+import {assertPublishingOwnerSourceLineage} from "./check-publishing-owner-source-lineage.mjs";
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+import {createHash} from "node:crypto";
+const read=p=>readFileSync(p,"utf8");
+const evidence=JSON.parse(read("docs/architecture/retired-owner-publishing-worker-queues-attestation-20261030.json"));
+const lineage=JSON.parse(read("docs/architecture/retired-owner-publishing-worker-queues-lineage.json"));
+const review=JSON.parse(read("docs/architecture/canonical-writer-review.json"));
+for(const row of evidence.files){
+  const actual=createHash("sha256").update(read(row.path)).digest("hex");
+  if(row.path==="src/features/fore/publishing.server.ts"){
+    assert.notEqual(actual,row.sha256,"Earlier publishing-queue SHA is immutable historical evidence");
+    assert.equal(actual,assertPublishingOwnerSourceLineage(),"New publishing helper source attestation is required");
+  }else if(row.path==="src/features/fore/publishing-trust.server.ts"){
+    // This worker-queue retirement attests the preceding historical version.
+    // The newer 38-site legal owner branch has a separately pinned exact SHA.
+    const trust=JSON.parse(read("docs/architecture/retired-private-trust-owner-lineage.json"));
+    assert.notEqual(actual,row.sha256,"Private copyright owner must change historical source identity");
+    assert.equal(actual,trust.currentSourceSha256,"New private trust source SHA must be audited");
+  }else assert.equal(actual,row.sha256);
+}
+assert.equal(lineage.retiredCount,9);
+assert.equal(review.releaseApproval,false);
+assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=230,"Later source-verified retirements may only reduce count");
+for(const row of lineage.rows)assert.ok(!review.sites.some(s=>s.siteId===row.siteId));
+for(const [path,names] of [
+  ["src/features/fore/publishing.server.ts",["leasePublishingValidationJobs","completePublishingValidationJob"]],
+  ["src/features/fore/publishing-trust.server.ts",["leaseRightsEvidenceScanJobs","completeRightsEvidenceScanJob"]]
+]){
+  const source=read(path);
+  for(const name of names){
+    const start=source.indexOf("export async function "+name+"(");
+    assert.ok(start>=0,"Missing public wrapper "+name);
+    const end=source.indexOf("\n}\n",start);
+    const fn=source.slice(start,end+3);
+    assert.match(fn,/dispatchPublishingOwnerValidationJob\(db,/);
+    assert.doesNotMatch(fn,/\b(?:UPDATE|INSERT INTO|DELETE FROM)\s+publishing_/i);
+  }
+}
+const owner=read("src/storefront-strangler/legal-authority.worker.ts");
+const gateway=read("src/storefront-strangler/canonical-owner-command-gateway.ts");
+const routing=read("src/storefront-strangler/publication-owner-routing.server.ts");
+assert.ok(owner.includes('if(route==="/publishing/worker/jobs")'));
+assert.match(owner,/privatePublishingWorkQueues/);
+assert.match(owner,/if \(!qaOwnerLeaseLive\(env\)\)/);
+assert.match(gateway,/"publishing\.worker-jobs":\{path:"\/publishing\/worker\/jobs"/);
+assert.match(gateway,/case "publishing\.worker-jobs":/);
+assert.match(routing,/dispatchPublishingOwnerValidationJob/);
+assert.match(routing,/if\(!context\)throw new ApiError\(503,"Publishing validation requires its private owner."\)/);
+console.log("PASS: 9 formerly shared publisher validation/rights-scan writes private QA owner, 230 remain; production locked");

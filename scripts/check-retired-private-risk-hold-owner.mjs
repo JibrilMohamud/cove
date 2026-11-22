@@ -1,0 +1,27 @@
+/* eslint-disable prettier/prettier -- Source-bound deny-only risk hold retirement. */
+import assert from "node:assert/strict";
+import {createHash} from "node:crypto";
+import {readFileSync} from "node:fs";
+const read=p=>readFileSync(p,"utf8");
+const source=read("src/features/fore/risk-tax.server.ts");
+const owner=read("src/storefront-strangler/legal-authority.worker.ts");
+const routing=read("src/storefront-strangler/publication-owner-routing.server.ts");
+const gateway=read("src/storefront-strangler/canonical-owner-command-gateway.ts");
+const review=JSON.parse(read("docs/architecture/canonical-writer-review.json"));
+const lineage=JSON.parse(read("docs/architecture/retired-private-risk-hold-owner-lineage.json"));
+assert.equal(review.releaseApproval,false);
+assert.equal(lineage.sourceBefore,25);
+assert.equal(lineage.sourceAfter,24);
+assert.equal(lineage.retired.length,1);
+assert.equal(createHash("sha256").update(source).digest("hex"),lineage.currentSha256);
+assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=24);
+assert.ok(!review.sites.some(x=>x.siteId===lineage.retired[0].siteId));
+assert.doesNotMatch(source,/INSERT INTO risk_holds\(/);
+assert.ok(source.includes("dispatchPrivateRiskHold(db, String(a.id), scope, reasonCode)"));
+assert.ok(owner.includes('if(route==="/risk/private-create-hold")'));
+assert.ok(owner.includes("a.action IN ('hold','block')"));
+assert.ok(owner.includes("NOT EXISTS(SELECT 1 FROM risk_assessments newer"));
+assert.ok(owner.includes("NOT EXISTS(SELECT 1 FROM risk_holds h"));
+assert.ok(gateway.includes('case "risk.create-hold":'));
+assert.ok(routing.includes("export async function dispatchPrivateRiskHold"));
+console.log("PASS: negative-only risk-hold creation privately verified and idempotent; production owner locked");

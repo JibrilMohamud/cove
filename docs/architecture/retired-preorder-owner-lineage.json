@@ -1,0 +1,107 @@
+{
+  "schema": "cove.retired-preorder-qa-owner.v1",
+  "source": "src/features/fore/preorder.server.ts",
+  "owner": "src/storefront-strangler/legal-authority.worker.ts",
+  "retiredCount": 15,
+  "previousFindings": 209,
+  "currentFindings": 194,
+  "productionEnabled": false,
+  "retiredSites": [
+    {
+      "siteId": "f0f58bf6b4755bf22fa39bce766f4b6316b92d907eb9e93302efe18a9c951dd9",
+      "operation": "INSERT INTO",
+      "table": "publishing_outbox",
+      "sqlSha256": "8dbc03d2d109032ce7595cfa9523317e838f8d2e15c5e62295294d6536d47dc2"
+    },
+    {
+      "siteId": "e59b0c6b10ca1ccb68149f0750c9f13e8b50c0d9e20120b05ae770e5155d3676",
+      "operation": "INSERT INTO",
+      "table": "preorders",
+      "sqlSha256": "a20f605957b5b8a5ad3b0df8a4949ef0210ec78f20d3376b520e9c149bb62a49"
+    },
+    {
+      "siteId": "f600af6a88b25c000debc3e5a95dc7c0e72a3d338d135d8cbf70f18d17353b72",
+      "operation": "UPDATE",
+      "table": "commerce_order_items",
+      "sqlSha256": "a4bbd4c1738010feefed7e11290c0cc4ba09f18daa1a7ff0f53527bd1d7f4923"
+    },
+    {
+      "siteId": "9e5a0827b8f876224069d290a8afae0e3535e54c0a5423ff235b855c1a923ea6",
+      "operation": "INSERT INTO",
+      "table": "publishing_outbox",
+      "sqlSha256": "1b690d14080819aca8f4b8c4af1bc28a2956e26081497c528cbbf8d08beb0e84"
+    },
+    {
+      "siteId": "a0638f1900d0b7f7c7a67001603f8cb4a85f3b46ce27363ebef1ddd4be7f726f",
+      "operation": "INSERT INTO",
+      "table": "entitlements",
+      "sqlSha256": "f1528b72c8b2f0169a660f4f7bb7d0972f835c9ee82f24bffa73f0538bab5667"
+    },
+    {
+      "siteId": "2b75a78019542808c63b12a4fad62b785bb6f48db32d8f57aeaceb71d11f5e08",
+      "operation": "INSERT OR IGNORE INTO",
+      "table": "publishing_entitlement_version_pins",
+      "sqlSha256": "d158da657a9dbcc669ac7fa6ca1c0b6e2b9b3de0132802e482d17533b8f6dbbc"
+    },
+    {
+      "siteId": "b48d7aba8412d31bb20dec594635635f0a6a7e267f448afadb51979cbac91b67",
+      "operation": "INSERT INTO",
+      "table": "publishing_owner_version_events",
+      "sqlSha256": "1bfa5f94a6e994a36603007722a61a4e26e5927d7d48e679a48853ad70a5d760"
+    },
+    {
+      "siteId": "5b4732e12310abf987762a28aaf4333ad7edc73e7e3e583183e2924355c4f1d6",
+      "operation": "UPDATE",
+      "table": "commerce_order_items",
+      "sqlSha256": "0cc13255ed6ece6f2173aaa8946d1cf9354e162960ded9097095547c7eb794b9"
+    },
+    {
+      "siteId": "e150dc1960cef19fe0245a90782d5bc1b04a461e7833aca12cf8c0549157ea4a",
+      "operation": "UPDATE",
+      "table": "preorders",
+      "sqlSha256": "fe52402e2e04d0c19870bbb1a1b9fdcdefa1760b2efa626f98f35411871694dd"
+    },
+    {
+      "siteId": "456ecc5aaa03e58cfef3b31fc910334b897afda71fbce3a1ff5ff3d901e0e7ca",
+      "operation": "INSERT INTO",
+      "table": "publishing_outbox",
+      "sqlSha256": "aa10dd70814724d0d98ad62fab12fcba18ce524052fe60230dc1557e368b58dd"
+    },
+    {
+      "siteId": "8dabda673f3a05b4117fffbd25f285a31e83b444c2a43dda62ee191e9173e2b2",
+      "operation": "UPDATE",
+      "table": "preorders",
+      "sqlSha256": "c15949cc272d4010b102b6402d1926b12e9304f7173aa1e705b65619ae279e22"
+    },
+    {
+      "siteId": "757c6ef0e9c175efe11402429101b7a4a544aa502c59c3e4abddc928e152d82a",
+      "operation": "UPDATE",
+      "table": "preorders",
+      "sqlSha256": "e3f56b7f67b0328b9e83c3d4c414ebf696c02b869c3105f94c6ed4eb5db575b9"
+    },
+    {
+      "siteId": "ed13aff326eb3ba54c6e64d082ac1022c1c38630fb1de73d6ae18278eef81d1b",
+      "operation": "UPDATE",
+      "table": "preorders",
+      "sqlSha256": "be0f554a1cd92861a1c8ee3db5714049ecba6641d187c027231e35cacb027d29"
+    },
+    {
+      "siteId": "cec24b9a4b25187271aec5e3b76d60e4ce78bf945f3b9d82e3d56d9f731d4d58",
+      "operation": "UPDATE",
+      "table": "preorders",
+      "sqlSha256": "aeedeb77fdd1fc2a8a4620d21e505a04111255a0a5951b8cecc3b1d795425dca"
+    },
+    {
+      "siteId": "38c9a1642a774d76d9a970fac70790f7c11d16ab0fcef2ce408738daecc40ad6",
+      "operation": "UPDATE",
+      "table": "preorders",
+      "sqlSha256": "613021ded40b985ea4bc5153b39bdeed9325c80a3459cef1160a71cd59e04eb3"
+    }
+  ],
+  "blocked": [
+    "No trusted paid preorder registration without owner-verified Stripe settlement",
+    "No release entitlement or paid owner-version pinning without independent legal proof",
+    "No preorder refund success from caller-supplied provider reference",
+    "Nonleased production and alternate direct-D1 paths remain disabled"
+  ]
+}
