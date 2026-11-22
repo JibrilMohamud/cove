@@ -56,6 +56,11 @@ The corrective change:
   most two retried 429 responses in the entire scan, using the existing tested
   same-query throttle, honoring Retry-After within a six-minute total wait
   budget. Never retry authentication failures or transport/5xx errors.
+- Use fixed 768-row keyset pages to halve API calls. An independent aggregate
+  measured the maximum serialized event at 1,202 UTF-8 bytes (923,136 bytes
+  for 768 worst-case observed rows, plus the small response envelope). Retain
+  the hard 1-MiB response cap: future oversized rows fail closed. Pagination
+  regression tests cross the new bound; no rows or fields are omitted.
 - Preserve aggregate-only incomplete checkpoints from before the first read
   and after every page; a partial scan cannot appear complete. Never retain
   private grant IDs, snapshots, exception payloads or credentials.

@@ -36,8 +36,8 @@ function sqlContract(){
     if(!sql.startsWith("SELECT ")||/;|\b(?:UPDATE|DELETE|INSERT|REPLACE|CREATE|ALTER|DROP|PRAGMA|ATTACH|VACUUM)\b/i.test(sql))
       throw Error("protected_grant_history_sql_mutation_denied");
   }
-  assert.match(HISTORY_EVENTS_SQL,/ORDER BY rowid LIMIT 384$/);
-  assert.match(HISTORY_CURRENT_SQL,/ORDER BY g.id LIMIT 384$/);
+  assert.match(HISTORY_EVENTS_SQL,/ORDER BY rowid LIMIT 768$/);
+  assert.match(HISTORY_CURRENT_SQL,/ORDER BY g.id LIMIT 768$/);
 }
 async function bounded(response){
   if(!response.body)throw Error("protected_grant_history_missing_body");

@@ -13,7 +13,7 @@
 import {createHash} from "node:crypto";
 
 export const PRIMARY_GRANT_HISTORY_REPLAY_SCHEMA="cove.primary-grant-event-replay.v1";
-export const HISTORY_BATCH_SIZE=384;
+export const HISTORY_BATCH_SIZE=768;
 export const AUDIT_KEYS=Object.freeze([
   "contractId","contractReference","decision","drmRequirement",
   "editionId","endsAt","exclusivity","format","libraryPermitted",
@@ -31,7 +31,7 @@ export const HISTORY_BOUNDARY_SQL=[
 ].join(" ");
 export const HISTORY_EVENTS_SQL=[
   "SELECT rowid event_seq,grant_id,action,snapshot_json,recorded_at",
-  "FROM rights_grant_audit WHERE rowid>? ORDER BY rowid LIMIT 384",
+  "FROM rights_grant_audit WHERE rowid>? ORDER BY rowid LIMIT 768",
 ].join(" ");
 /** Reconstruct the EXACT audited JSON projection of each current grant.
  * Audit history omits contract_version_id, and it does not encode
@@ -54,7 +54,7 @@ export const HISTORY_CURRENT_SQL=[
   "THEN json(g.promotion_restrictions_json) ELSE json('{}') END,",
   "'contractReference',g.contract_reference,'source',g.source,",
   "'sourceEvidenceId',g.source_evidence_id,'notes',g.notes)",
-  "snapshot_json FROM rights_grants g WHERE g.id>? ORDER BY g.id LIMIT 384",
+  "snapshot_json FROM rights_grants g WHERE g.id>? ORDER BY g.id LIMIT 768",
 ].join(" ");
 const banned=/;|\b(?:INSERT|UPDATE|DELETE|REPLACE|CREATE|ALTER|DROP|ATTACH|PRAGMA|VACUUM|RETURNING)\b/i;
 for(const sql of [HISTORY_BOUNDARY_SQL,HISTORY_EVENTS_SQL,HISTORY_CURRENT_SQL]){

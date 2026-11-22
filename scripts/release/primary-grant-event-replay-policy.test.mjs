@@ -34,7 +34,7 @@ function fixture(){
   let serial=0;
   const snapshots=()=>db.prepare(HISTORY_CURRENT_SQL).all("");
   function record(id,action,time){
-    const byId=HISTORY_CURRENT_SQL.replace("WHERE g.id>? ORDER BY g.id LIMIT 384",
+    const byId=HISTORY_CURRENT_SQL.replace("WHERE g.id>? ORDER BY g.id LIMIT 768",
       "WHERE g.id=?");
     const state=db.prepare(byId).get(id);
     assert.ok(state);
@@ -249,7 +249,7 @@ test("page boundaries, replay changes and count fences deny drift",()=>{
     }
   }finally{f.close();}
 });
-test("full keyset pagination crosses 384 events and current grants without loss",()=>{
+test("full keyset pagination crosses 768 events and current grants without loss",()=>{
   const f=fixture();
   try{
     for(let i=0;i<HISTORY_BATCH_SIZE+3;i++)
@@ -265,11 +265,11 @@ test("full keyset pagination crosses 384 events and current grants without loss"
   }finally{f.close();}
 });
 test("transport SQL is read-only and keyset-bounded, not dynamic",()=>{
-  assert.equal(HISTORY_BATCH_SIZE,384);
+  assert.equal(HISTORY_BATCH_SIZE,768);
   for(const sql of [HISTORY_BOUNDARY_SQL,HISTORY_EVENTS_SQL,HISTORY_CURRENT_SQL]){
     assert.match(sql,/^SELECT\b/);
     assert.doesNotMatch(sql,/;|\b(?:INSERT|UPDATE|DELETE|REPLACE|CREATE|ALTER|DROP|PRAGMA|ATTACH|VACUUM)\b/i);
   }
-  assert.match(HISTORY_EVENTS_SQL,/WHERE rowid>\? ORDER BY rowid LIMIT 384$/);
-  assert.match(HISTORY_CURRENT_SQL,/WHERE g.id>\? ORDER BY g.id LIMIT 384$/);
+  assert.match(HISTORY_EVENTS_SQL,/WHERE rowid>\? ORDER BY rowid LIMIT 768$/);
+  assert.match(HISTORY_CURRENT_SQL,/WHERE g.id>\? ORDER BY g.id LIMIT 768$/);
 });
