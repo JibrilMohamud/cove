@@ -4,6 +4,8 @@ on:
     paths:
       - ".github/workflows/literary-live-cutover-preflight.yml"
       - "scripts/staging/audit-literary-cutover-preflight.mjs"
+      - "scripts/staging/literary-cutover-readonly-credentials.mjs"
+      - "scripts/staging/literary-cutover-readonly-credentials.test.mjs"
       - "scripts/check-literary-live-cutover-preflight.mjs"
   workflow_dispatch:
     inputs:
@@ -32,6 +34,7 @@ jobs:
       - uses: actions/setup-node@v6
         with: { node-version: "22" }
       - run: node --check scripts/staging/audit-literary-cutover-preflight.mjs
+      - run: node --test scripts/staging/literary-cutover-readonly-credentials.test.mjs
       - run: node scripts/check-literary-live-cutover-preflight.mjs
   protected-live-readonly-audit:
     needs: no-credentials-static-validation
@@ -46,13 +49,18 @@ jobs:
     timeout-minutes: 10
     env:
       CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      COVE_CF_PRODUCTION_AUDIT_READ_TOKEN: ${{ secrets.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN }}
+      COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
+      COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN: ${{ secrets.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN }}
+      COVE_CF_STAGE_DATA_PLANE_READ_TOKEN: ${{ secrets.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN }}
     steps:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
       - uses: actions/setup-node@v6
         with: { node-version: "22" }
+      - name: Reject broad token and require four independent scoped Cloudflare readers
+        run: node --input-type=module -e 'import {checkedLiteraryCutoverReadOnlyCredentials} from "./scripts/staging/literary-cutover-readonly-credentials.mjs"; checkedLiteraryCutoverReadOnlyCredentials(process.env);'
       - name: Audit primary and independent literary domain without any write
         run: node scripts/staging/audit-literary-cutover-preflight.mjs
       - uses: actions/upload-artifact@v4
