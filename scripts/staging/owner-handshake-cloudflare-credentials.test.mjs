@@ -29,10 +29,7 @@ test("metadata and script mutations require distinct scoped principals", () => {
     },
     { COVE_CF_WORKERS_METADATA_READ_TOKEN: read },
   ]) {
-    assert.throws(
-      () => checkedOwnerHandshakeTokens(env),
-      /scoped_cloudflare_credentials_required/,
-    );
+    assert.throws(() => checkedOwnerHandshakeTokens(env), /scoped_cloudflare_credentials_required/);
   }
 });
 
@@ -52,10 +49,7 @@ test("the protected audit cannot use D1 or mutate production owner", () => {
     ["PUT", base + "cove-legal-authority-production"],
     ["DELETE", base + "cove-persistence-backend"],
     ["PATCH", base + worker + "/settings"],
-    [
-      "POST",
-      `/accounts/${COVE_ACCOUNT}/d1/database/4bd657ac-8789-403e-a28c-93aba8d0a989/query`,
-    ],
+    ["POST", `/accounts/${COVE_ACCOUNT}/d1/database/4bd657ac-8789-403e-a28c-93aba8d0a989/query`],
     ["GET", `/accounts/${COVE_ACCOUNT}/tokens`],
     ["GET", base + "cove-legal-authority-production/script"],
     ["POST", base + worker],
