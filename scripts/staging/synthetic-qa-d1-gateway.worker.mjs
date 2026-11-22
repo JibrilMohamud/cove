@@ -68,6 +68,14 @@ export default {
        input.params.some(x=>x!==null&&typeof x!=="number"&&typeof x!=="string"&&typeof x!=="boolean")||
        /\b(?:ATTACH|DETACH|writable_schema)\b/i.test(input.sql))
       return deny(400);
+    // The separate catalog-acceptance schema source is strictly read-only.
+    // WITH/PRAGMA are not a safe general read-only classifier; a CTE can
+    // modify rows and PRAGMA has writable forms. Accept only the reviewed
+    // schema extraction query and never call run() on the source fixture.
+    const schemaQuery="SELECT type,name,tbl_name,sql FROM sqlite_master WHERE sql IS NOT NULL AND type IN ('table','index') ORDER BY CASE type WHEN 'table' THEN 0 ELSE 1 END,name";
+    if(input.database==="schema"&&
+       (input.sql!==schemaQuery||input.params.length!==0))
+      return deny(403);
     const db=input.database==="schema"?env.QA_SCHEMA_DB:env.QA_PRIMARY_DB;
     if(!db?.prepare)return deny(503);
     try{
