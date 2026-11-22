@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Independent re-review of the regional EPUB repair candidate and four existing protected asset mutation sites after adding a restrictive, indexed rights-grant audit-history predicate. This is an additional denial-only source guard and does not certify legacy writers, external withdrawal authority, the production owner-denial epoch or entitlement publication. No canonical mutation SQL literal, SQL operation, table or approved release status is being changed; all four still require legally authorized owner-command migration.",
+  "files": [
+    {
+      "path": "src/features/fore/regional-epub-asset-repair.server.ts",
+      "sha256": "c2195b566697640fd13b7ab1911d7e1cb1395acde759b3bebe417c9adc2163a2",
+      "review": "Four preexisting `INSERT OR IGNORE` / `UPDATE` asset publication sites retain their exact SQL literal digests and owner-command-required, productionOwnerGuarded=false status. The newly added read-only historical audit exclusion is ANDed with live rights in both candidate and conditional mutation eligibility checks. In isolated SQLite regression, signed-like but historically contradicted active AU grants are skipped; positive authority remains impossible to infer from source review."
+    }
+  ],
+  "retirementEvidence": null
+}
