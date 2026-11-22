@@ -14,6 +14,10 @@ on:
       - scripts/security/check-manual-cloudflare-release-workflows.mjs
       - scripts/security/check-legacy-manual-cloudflare-jobs.mjs
       - scripts/staging/deploy-music-supply-qa-shadow.mjs
+      - .github/workflows/deployed-commerce-browser-acceptance.yml
+      - .github/workflows/strangler-data-plane-preflight.yml
+      - .github/workflows/publication-source-isolation-qa.yml
+      - .github/workflows/storefront-strangler-safe-integration.yml
       - .github/workflows/literary-drain-worker-deploy.yml
       - .github/workflows/literary-guarded-owner-drain.yml
       - .github/workflows/literary-isolated-replay-handoff-deploy.yml

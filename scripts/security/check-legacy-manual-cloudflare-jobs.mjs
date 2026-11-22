@@ -11,6 +11,10 @@ const jobs=[
   ["literary-remote-staging-e2e","protected-real-d1-r2-canary"],
   ["hosted-music-supply-disabled-qa","verify-nonpublic-shadow"],
   ["strangler-hosted-capacity-evaluation","protected-staging-only"],
+  ["deployed-commerce-browser-acceptance","authenticated-commerce"],
+  ["strangler-data-plane-preflight","verify-existing-isolated-stage-resources"],
+  ["publication-source-isolation-qa","physically-isolated-publication"],
+  ["storefront-strangler-safe-integration","hosted-acceptance"],
 ];
 const guards=[
   "github.repository == 'JibrilMohamud/cove'",
@@ -64,4 +68,4 @@ assert.ok(inspector.includes("authorization: \"Bearer \" + metadataToken"));
 assert.ok(inspector.includes("authorization: \"Bearer \" + qaReadToken"));
 assert.ok(inspector.includes("new Set([deployToken,metadataToken,qaReadToken]).size,3"));
 assert.ok(!inspector.includes('authorization: "Bearer " + process.env.CLOUDFLARE_API_TOKEN'));
-console.log("PASS: eight legacy privileged jobs require exact-main protected manual authorization; disabled music QA splits deploy/metadata/D1-read principals");
+console.log("PASS: twelve legacy privileged jobs require exact-main protected manual authorization; disabled music QA splits deploy/metadata/D1-read principals");
