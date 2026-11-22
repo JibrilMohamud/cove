@@ -72,3 +72,12 @@ test("staging SSR, protected GET preflight, R2 provision no longer need an accou
     assert.match(source,/github\.ref == 'refs\/heads\/main'/);
   }
 });
+
+test("protected SSR verification segregates Worker version reads from account API-token reads",()=>{
+  const job=read(".github/workflows/cloudflare-native-ssr-staging.yml");
+  const checker=read("scripts/staging/verify-canonical-readonly-service.mjs");
+  assert.match(job,/secrets\.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN/);
+  assert.match(job,/secrets\.COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN/);
+  assert.match(job,/CLOUDFLARE_API_TOKEN" != "\$COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN"/);
+  assert.match(checker,/path\.startsWith\("tokens\/"\)\?accountInventoryToken:token/);
+});
