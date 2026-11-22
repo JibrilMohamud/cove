@@ -104,11 +104,16 @@ for (const [stem, name] of PRIVILEGED_JOBS) {
     assert.throws(() => verifySecretJobGuard(modified, name));
   }
   if (name === "protected-activation-readonly" || name === "verify-disabled-owner") {
-    const roles = name === "protected-activation-readonly"
-      ? ["secrets.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN",
-         "secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN"]
-      : ["secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN",
-         "secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN"];
+    const roles =
+      name === "protected-activation-readonly"
+        ? [
+            "secrets.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN",
+            "secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN",
+          ]
+        : [
+            "secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN",
+            "secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN",
+          ];
     for (const credential of roles) {
       const missing = mutateJob(source, name, credential, "secrets.CLOUDFLARE_API_TOKEN");
       assert.throws(
