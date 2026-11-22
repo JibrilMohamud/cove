@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
-import {checkedLiteraryCutoverReadOnlyCredentials,literaryCutoverTokenFor} from "./literary-cutover-readonly-credentials.mjs";
+import {
+  checkedLiteraryCutoverReadOnlyCredentials,
+  literaryCutoverTokenFor,
+} from "./literary-cutover-readonly-credentials.mjs";
 
 const account = "d26430caa63ec55f6612e32f36aca5e9";
 const primary = "4bd657ac-8789-403e-a28c-93aba8d0a989";
@@ -9,12 +12,12 @@ const content = "400c3af3-5d40-41fd-83cc-98228e40ddac";
 const worker = "cove-literary-handoff-isolated-disabled";
 const oldWorker = "cove-persistence-backend";
 const bucket = "cove-literary-originals-isolated-20261024";
-const credentials=checkedLiteraryCutoverReadOnlyCredentials(process.env);
+const credentials = checkedLiteraryCutoverReadOnlyCredentials(process.env);
 assert.equal(credentials.account,account);
 assert.match(process.env.GITHUB_SHA || "", /^[0-9a-f]{40}$/);
 const base = "https://api.cloudflare.com/client/v4";
 async function api(path, method = "GET", body) {
-  const token=literaryCutoverTokenFor(method,path,credentials);
+  const token = literaryCutoverTokenFor(method, path, credentials);
   const response = await fetch(base + path, {
     method,
     headers: {
