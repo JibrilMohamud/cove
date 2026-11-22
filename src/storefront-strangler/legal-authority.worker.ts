@@ -4053,8 +4053,9 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         // Only the leased, enrolled synthetic QA owner may produce this
         // challenge-bound receipt. No flag can turn it on for production,
         // and no caller can supply a candidate, digest, epoch or allow bit.
+        const certificatePrimary=env.COVE_RIGHTS_OWNER_PRIMARY_ID;
         if(!journal||env.COVE_QA_OWNER_POSITIVE_CERTIFICATE_ONLY!=="1"||
-          !QA_PAID_PRIMARIES.has(env.COVE_RIGHTS_OWNER_PRIMARY_ID||"")||
+          !certificatePrimary||!QA_PAID_PRIMARIES.has(certificatePrimary)||
           env.COVE_QA_OWNER_REHEARSAL_REVISION===undefined)
           return new Response(null,{status:503,headers:noStore});
         const q=raw as {challenge?:unknown}|null;
@@ -4067,7 +4068,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           ownerSql:sql,
           transactionSync:fn=>storage.transactionSync(fn),
           primary:env.PRIMARY_DB as unknown as QAOwnerPrimaryDB,
-          primaryId:env.COVE_RIGHTS_OWNER_PRIMARY_ID,
+          primaryId:certificatePrimary,
           journalVersion:env.COVE_QA_OWNER_JOURNAL_VERSION as string,
           rehearsalRevision:env.COVE_QA_OWNER_REHEARSAL_REVISION,
           challenge:q.challenge,
