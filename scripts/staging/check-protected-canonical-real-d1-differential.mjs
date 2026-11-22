@@ -145,7 +145,8 @@ try {
       const id=String(row.product_id||"");
       if(!/^perf-synth-[A-Za-z0-9_-]{1,120}$/.test(id))
         throw Error("Unapproved legal witness identifier");
-      if(selected.size>=BUDGET)break;
+      // Reserve a bounded share for every required legal-policy stratum.
+      if(added>=8||selected.size>=BUDGET)break;
       if(!selected.has(id)){selected.add(id);added++;}
     }
     coverage[cohort.name]={candidates:rows.length,uniquelySelected:added};
