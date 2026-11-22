@@ -61,7 +61,7 @@ try {
   paidEnt.createPaidEntitlementSchema(sql);
   const secret="e".repeat(64),auth="f".repeat(64),operations=[];
   let failPrimary=false,failPrimaryBatch=false,failPrimaryWrite=false,failOwner=false;
-  let failRetailOffer=false;
+  let failRetailOffer=false,failRetailRightsConflict=false;
   const publicationCalls=[];
   const owner={async fetch(request){
     operations.push("authority");
@@ -77,6 +77,8 @@ try {
         "Canonical commercial positive publisher requires explicit retail channel");
       if(pathname==="/storefront/publish-commercial"&&failRetailOffer)
         return new Response(null,{status:503});
+      if(pathname==="/commercial/publish-verified"&&failRetailRightsConflict)
+        return new Response(null,{status:409});
       return Response.json({applied:true,epoch:1});
     }
     if(pathname==="/commercial/deny-next"){
@@ -493,17 +495,34 @@ try {
       productId:publish.productId,territory:"US",currency:"USD",channel:"retail"}}
   ],"Publisher cannot inject a cached price or contract");
   failRetailOffer=true;publicationCalls.length=0;
-  assert.equal((await post({...publish,operationId:"qa:retail:a17:failed"},
-    {},"/commercial/retail/publish-verified")).status,503);
+  const failedOffer=await post({...publish,operationId:"qa:retail:a17:failed"},
+    {},"/commercial/retail/publish-verified");
+  assert.equal(failedOffer.status,503);
+  assert.equal(failedOffer.headers.get("x-cove-qa-retail-phase"),"offer");
+  assert.equal(failedOffer.headers.get("x-cove-qa-retail-owner-status"),"503");
+  assert.equal(failedOffer.headers.get("x-cove-qa-retail-owner-reason"),"unclassified");
   assert.equal(publicationCalls.length,2,"No positive offer receipt on second-stage failure");
+  assert.equal(await failedOffer.text(),"","No internal failure details may escape QA writer");
   failRetailOffer=false;
+  failRetailRightsConflict=true;publicationCalls.length=0;
+  const deniedRights=await post({...publish,operationId:"qa:retail:a17:denied"},
+    {},"/commercial/retail/publish-verified");
+  assert.equal(deniedRights.status,503,"Owner rejection must remain fail-closed");
+  assert.equal(deniedRights.headers.get("x-cove-qa-retail-phase"),"rights");
+  assert.equal(deniedRights.headers.get("x-cove-qa-retail-owner-status"),"409");
+  assert.equal(publicationCalls.length,1,"Owner rights denial must prevent any offer publication");
+  failRetailRightsConflict=false;
   assert.equal((await post({...publish,productId:"prd_gutenberg_2701"},
     {},"/commercial/retail/publish-verified")).status,400);
   assert.equal((await post({...publish,currency:"XX"},
     {},"/commercial/retail/publish-verified")).status,400);
   operations.length=0;failOwner=true;
-  assert.equal((await post({...publish,operationId:"qa:retail:a17:owner-down"},
-    {},"/commercial/retail/publish-verified")).status,503);
+  const failedRights=await post({...publish,operationId:"qa:retail:a17:owner-down"},
+    {},"/commercial/retail/publish-verified");
+  assert.equal(failedRights.status,503);
+  assert.equal(failedRights.headers.get("x-cove-qa-retail-phase"),"rights");
+  assert.equal(failedRights.headers.get("x-cove-qa-retail-owner-status"),"503");
+  assert.equal(failedRights.headers.get("x-cove-qa-retail-owner-reason"),"unclassified");
   assert.deepEqual(operations,["authority"],"Owner outage cannot permit publication");
   failOwner=false;
   // Off-sale authorization must precede ALL primary catalog offer writes.
