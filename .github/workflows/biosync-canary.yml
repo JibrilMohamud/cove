@@ -33,8 +33,8 @@ jobs:
         env:
           COVE_BIOSYNC_QA_DATABASE_ID: ${{ vars.COVE_BIOSYNC_QA_DATABASE_ID }}
           COVE_BIOSYNC_QA_BUCKET: ${{ vars.COVE_BIOSYNC_QA_BUCKET }}
-          COVE_BIOSYNC_OWNER_STAGE_URL: ${{ vars.COVE_BIOSYNC_OWNER_STAGE_URL }}
+          COVE_BIOSYNC_QA_GATEWAY_URL: ${{ vars.COVE_BIOSYNC_QA_GATEWAY_URL }}
           COVE_BIOSYNC_D1_READ_TOKEN: ${{ secrets.COVE_BIOSYNC_D1_READ_TOKEN }}
           COVE_BIOSYNC_R2_TOKEN: ${{ secrets.COVE_BIOSYNC_R2_TOKEN }}
-          COVE_BIOSYNC_MACHINE_TOKEN: ${{ secrets.COVE_BIOSYNC_MACHINE_TOKEN }}
+          COVE_BIOSYNC_QA_CLIENT_SECRET: ${{ secrets.COVE_BIOSYNC_QA_CLIENT_SECRET }}
         run: python3 -m scripts.audio_pipeline.biosync_canary
