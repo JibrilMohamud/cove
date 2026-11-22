@@ -6,6 +6,7 @@ on:
       - "scripts/release/primary-grant-event-replay-policy.mjs"
       - "scripts/release/primary-grant-event-replay-policy.test.mjs"
       - "scripts/release/protected-primary-grant-event-replay.mjs"
+      - "scripts/release/protected-primary-grant-event-replay.test.mjs"
       - ".github/workflows/cove-protected-primary-grant-event-replay.yml"
   workflow_dispatch:
     inputs:
@@ -36,7 +37,11 @@ jobs:
         with:
           node-version: "22"
       - name: Deny-first SQLite replay, terminal revocation and event-order checks
-        run: node --no-warnings --test scripts/release/primary-grant-event-replay-policy.test.mjs
+        run: >-
+          node --no-warnings --test
+          scripts/release/primary-grant-event-replay-policy.test.mjs
+          scripts/release/protected-primary-grant-event-replay.test.mjs
+          scripts/release/protected-d1-read-throttle.test.mjs
       - name: Confirm protected manual mode and fixed SELECT contracts
         run: node --no-warnings scripts/release/protected-primary-grant-event-replay.mjs --self-test
       - name: No generated mutation or formatting errors
@@ -54,7 +59,7 @@ jobs:
       inputs.confirm_select_only_replay == true
     environment: cove-production-release-audit
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v6
         with:

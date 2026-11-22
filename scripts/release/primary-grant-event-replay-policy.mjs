@@ -71,8 +71,19 @@ const expectedBoundaryKeys=[
 ].sort().join("|");
 const safeId=(x)=>typeof x==="string"&&x.length>=1&&x.length<=200&&
   !/[\x00-\x1f\x7f]/.test(x);
-const safeTime=(x)=>typeof x==="string"&&x.length>=10&&x.length<=64&&
-  /^\d{4}-\d\d-\d\d[T ]\d\d:\d\d:\d\d/.test(x);
+// These are the two UTC encodings emitted by the reviewed primary writers.
+// Reject local-time/offset/precision variants rather than silently rounding or
+// letting Date.parse normalize an impossible calendar date.
+function utcTimestamp(x){
+  if(typeof x!=="string"||
+    !/^(?:\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z|\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)$/.test(x))
+    error("invalid_event_timestamp");
+  const iso=x.includes("T")?x:x.replace(" ","T")+".000Z";
+  const timestamp=Date.parse(iso);
+  if(!Number.isFinite(timestamp)||new Date(timestamp).toISOString()!==iso)
+    error("invalid_event_timestamp");
+  return timestamp;
+}
 export function checkedGrantHistoryBoundary(rows){
   if(!Array.isArray(rows)||rows.length!==1||!rows[0]||
     keys(rows[0])!==expectedBoundaryKeys)error("boundary_shape");
@@ -107,25 +118,27 @@ function snapshot(raw){
 }
 export function createGrantHistoryReplay(){
   const latest=new Map(), timestampGroups=new Map();
+  const unresolved=new Set();
   const eventHash=createHash("sha256"),stateHash=createHash("sha256");
   let auditRows=0,insertRows=0,updateRows=0,lastRowid=0;
   let grants=0,suspended=0,missing=0,disagreement=0,orphans=0;
   let ambiguousGroups=0,terminalReactivation=0,repeatedUpdates=0,backdatedEvents=0;
   let lastGrantId="",seenCurrent=new Set();
-  let finalized=false;
+  let finalized=false,currentPhase=false,unresolvedActive=0;
   const step=()=>{if(finalized)error("already_finalized");};
   function audit(row){
     step();
+    if(currentPhase)error("audit_after_current_scan");
     if(!row||typeof row!=="object"||keys(row)!==expectedEventKeys||
       !uint(row.event_seq)||row.event_seq<=lastRowid||
-      !safeId(row.grant_id)||!safeTime(row.recorded_at)||
+      !safeId(row.grant_id)||
       !["insert","update"].includes(row.action))error("event_contract");
     const state=snapshot(row.snapshot_json);
-    const timestamp=Date.parse(row.recorded_at.includes("T")?
-      row.recorded_at:row.recorded_at.replace(" ","T")+"Z");
-    if(!Number.isFinite(timestamp))error("invalid_event_timestamp");
+    const timestamp=utcTimestamp(row.recorded_at);
     const earlier=latest.get(row.grant_id);
-    if(earlier&&timestamp<earlier.timestamp)backdatedEvents++;
+    if(earlier&&timestamp<earlier.timestamp){
+      backdatedEvents++;unresolved.add(row.grant_id);
+    }
     if(row.action==="insert"){
       if(earlier)error("duplicate_grant_insert");
       insertRows++;
@@ -137,11 +150,11 @@ export function createGrantHistoryReplay(){
         ["draft","active"].includes(JSON.parse(state).status))
         terminalReactivation++;
     }
-    const groupKey=row.grant_id+"\u0000"+row.recorded_at;
+    const groupKey=row.grant_id+"\u0000"+timestamp;
     const group=timestampGroups.get(groupKey);
     if(group){
       if(group.state!==state&&!group.ambiguous){
-        group.ambiguous=true;ambiguousGroups++;
+        group.ambiguous=true;ambiguousGroups++;unresolved.add(row.grant_id);
       }
     }else timestampGroups.set(groupKey,{state,ambiguous:false});
     const obj=JSON.parse(state);
@@ -152,6 +165,7 @@ export function createGrantHistoryReplay(){
   }
   function current(row){
     step();
+    currentPhase=true;
     if(!row||typeof row!=="object"||keys(row)!==expectedCurrentKeys||
       !safeId(row.grant_id)||row.grant_id<=lastGrantId||
       seenCurrent.has(row.grant_id))error("current_grant_contract");
@@ -161,7 +175,10 @@ export function createGrantHistoryReplay(){
     if(!previous)missing++;
     else if(previous.state!==state)disagreement++;
     else latest.delete(row.grant_id);
-    if(JSON.parse(state).status==="suspended")suspended++;
+    const value=JSON.parse(state);
+    if(value.status==="suspended")suspended++;
+    if(unresolved.has(row.grant_id)&&value.status==="active"&&
+      value.decision==="allow")unresolvedActive++;
     grants++;lastGrantId=row.grant_id;
     stateHash.update(JSON.stringify([row.grant_id,state])+"\n");
   }
@@ -206,6 +223,12 @@ export function createGrantHistoryReplay(){
         terminalReactivations:terminalReactivation,redundantUpdates:repeatedUpdates},
       replayEventSha256:eventHash.digest("hex"),
       currentStateSha256:stateHash.digest("hex"),
+      // This is a diagnostic exclusion cohort, never a production mutation or
+      // legal disposition. Do not infer the remaining grants are lawful.
+      chronologyUnresolvedGrants:unresolved.size,
+      chronologyUnresolvedActiveAllowGrants:unresolvedActive,
+      chronologyUnresolvedCohortSha256:createHash("sha256").update(
+        JSON.stringify([...unresolved].sort())).digest("hex"),
       scanBoundaryIdentical:JSON.stringify(first)===JSON.stringify(last),
       auditedStateEqualsCurrent:JSON.stringify(first)===JSON.stringify(last) &&
         auditRows===first.audit_rows&&insertRows===first.grant_rows&&
