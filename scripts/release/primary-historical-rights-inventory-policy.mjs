@@ -160,7 +160,9 @@ export function checkedHistoricalD1Response(body){
   if(!body||body.success!==true||!Array.isArray(body.result)||body.result.length!==1||
      body.result[0]?.success!==true||!Array.isArray(body.result[0]?.results)||
      body.result[0]?.meta?.changed_db!==false||
-     body.result[0]?.meta?.changes!==0)
+     body.result[0]?.meta?.changes!==0||
+     body.result[0]?.meta?.rows_written!==0||
+     body.result[0]?.meta?.served_by_primary!==true)
     throw Error("historical_primary_non_readonly_or_invalid_d1_response");
   return body.result[0].results;
 }

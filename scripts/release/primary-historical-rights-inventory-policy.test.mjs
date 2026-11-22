@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Adversarial aggregate-only primary rights test. */
 import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
 import {test} from "node:test";
 import {HISTORICAL_SQL,checkedHistoricalAggregate,checkedHistoricalD1Response,
   verifyHistoricalPrimaryInventory} from "./primary-historical-rights-inventory-policy.mjs";
@@ -69,12 +70,16 @@ test("no arbitrary SQL, missing data, negative or unsafe counts",()=>{
   assert.throws(()=>verifyHistoricalPrimaryInventory(null,null));
 });
 test("D1 must explicitly attest zero writes and exactly one result",()=>{
-  const okay={success:true,result:[{success:true,results:[{n:1}],meta:{changed_db:false,changes:0}}]};
+  const okay={success:true,result:[{success:true,results:[{n:1}],meta:{changed_db:false,changes:0,rows_written:0,served_by_primary:true}}]};
   assert.deepEqual(checkedHistoricalD1Response(okay),[{n:1}]);
   for(const mutate of [
     o=>{o.result[0].meta.changed_db=true;},
     o=>{delete o.result[0].meta.changed_db;},
     o=>{o.result[0].meta.changes=1;},
+    o=>{o.result[0].meta.rows_written=1;},
+    o=>{delete o.result[0].meta.rows_written;},
+    o=>{o.result[0].meta.served_by_primary=false;},
+    o=>{delete o.result[0].meta.served_by_primary;},
     o=>{o.result[0].success=false;},
     o=>{o.result=[];},
     o=>{o.result.push(o.result[0]);},
@@ -82,5 +87,21 @@ test("D1 must explicitly attest zero writes and exactly one result",()=>{
   ]){
     const x=structuredClone(okay);mutate(x);
     assert.throws(()=>checkedHistoricalD1Response(x),/non_readonly_or_invalid/);
+  }
+});
+test("only protected live history jobs share the D1 mutex; offline PR proofs cannot cancel one another",()=>{
+  for(const [file,job] of [
+    ["cove-protected-full-primary-historical-rights.yml","protected-historical-inventory"],
+    ["cove-protected-primary-grant-event-replay.yml","protected-full-primary-grant-replay"],
+  ]){
+    const source=readFileSync(new URL("../../.github/workflows/"+file,import.meta.url),"utf8");
+    assert.doesNotMatch(source.split("\njobs:\n")[0],/^concurrency:/m);
+    const [offline,live]=source.split("\n  "+job+":\n");
+    assert.ok(live,"reviewed protected job must exist");
+    assert.doesNotMatch(offline,/^    concurrency:/m);
+    assert.match(live,/environment: cove-production-release-audit/);
+    assert.match(live,/github.event_name == 'workflow_dispatch'/);
+    assert.match(live,/inputs.reviewed_main_sha == github.sha/);
+    assert.match(live,/    concurrency:\n      group: cove-protected-primary-d1-legal-audit\n      cancel-in-progress: false/);
   }
 });

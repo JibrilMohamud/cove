@@ -43,7 +43,9 @@ function runFixture(mode){
         recorded_at:'2026-10-09T00:00:00.000Z'}];}
       if(sql===HISTORY_CURRENT_SQL){assert.deepEqual(params,['']);rows=[{
         grant_id:'private-grant',snapshot_json:state}];}
-      const meta={changed_db:mode==='mutated',changes:mode==='mutated'?1:0};
+      const meta={changed_db:mode==='mutated',changes:mode==='mutated'?1:0,
+        rows_written:0,served_by_primary:mode!=='replica'};
+      if(mode==='unattested')delete meta.served_by_primary;
       return Response.json({success:true,result:[{success:true,results:rows,meta}]});
     };
   `);
@@ -98,8 +100,8 @@ test("mid-replay timeout preserves aggregate progress without exception details"
   assert.equal(report.eventsReplayed,1);
   assert.equal(report.grantsCompared,0);
 });
-test("authentication errors are never retried and mutation metadata fails closed",()=>{
-  for(const mode of ["forbidden","mutated"]){
+test("authentication, mutation, replica or missing primary attestation fail closed",()=>{
+  for(const mode of ["forbidden","mutated","replica","unattested"]){
     const {report,status}=runFixture(mode);
     assert.notEqual(status,0);
     assert.equal(report.complete,false);
