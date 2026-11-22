@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Exact negative catalog retirement source assertions. */
 import assert from "node:assert/strict";
+import {expectedCurrentOwnerIntegrationHash} from "./release/owner-integration-source-pins.mjs";
 import {readFileSync} from "node:fs";
 import {createHash} from "node:crypto";
 const read=p=>readFileSync(p,"utf8"),sha=s=>createHash("sha256").update(s).digest("hex");
@@ -11,7 +12,7 @@ const routing=read("src/storefront-strangler/publication-owner-routing.server.ts
 assert.equal(lineage.retired.length,7);
 assert.equal(review.releaseApproval,false);
 assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=52);
-assert.equal(sha(source),lineage.currentSha256);
+assert.equal(sha(source),expectedCurrentOwnerIntegrationHash("src/features/fore/api.server.ts",lineage.currentSha256));
 for(const site of lineage.retired)assert.ok(!review.sites.some(x=>x.siteId===site.siteId));
 for(const token of [
  "UPDATE products SET storefront_status='inactive',updated_at=?",

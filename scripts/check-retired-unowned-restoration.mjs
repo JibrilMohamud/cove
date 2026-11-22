@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Source-exact prevention of unauthorised positive restoration. */
 import assert from "node:assert/strict";
+import {expectedCurrentOwnerIntegrationHash} from "./release/owner-integration-source-pins.mjs";
 import {readFileSync} from "node:fs";
 import {createHash} from "node:crypto";
 const source=readFileSync("src/features/fore/publishing-trust.server.ts","utf8");
@@ -7,7 +8,7 @@ const sha=txt=>createHash("sha256").update(txt).digest("hex");
 const lineage=JSON.parse(readFileSync("docs/architecture/retired-unowned-restoration-lineage.json","utf8"));
 const review=JSON.parse(readFileSync("docs/architecture/canonical-writer-review.json","utf8"));
 const att=JSON.parse(readFileSync("docs/architecture/retired-unowned-restoration-source-attestation-20261030.json","utf8"));
-assert.equal(sha(source),JSON.parse(readFileSync("docs/architecture/retired-private-trust-owner-lineage.json","utf8")).currentSourceSha256,"New trust source must match its exact stage attestation");
+assert.equal(sha(source),expectedCurrentOwnerIntegrationHash("src/features/fore/publishing-trust.server.ts",JSON.parse(readFileSync("docs/architecture/retired-private-trust-owner-lineage.json","utf8")).currentSourceSha256),"New trust source must match its exact stage attestation");
 assert.notEqual(sha(source),att.files[0].sha256,"Historical trust source SHA must differ from the new owner version");
 assert.equal(lineage.updatedSourceSha256,att.files[0].sha256,"Historical 11-site evidence remains frozen");
 assert.equal(lineage.retiredCount,11);

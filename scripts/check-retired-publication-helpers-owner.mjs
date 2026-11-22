@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Prove complete shared helper removal and executable private source lineage. */
 import assert from "node:assert/strict";
+import {expectedCurrentOwnerIntegrationHash} from "./release/owner-integration-source-pins.mjs";
 import {readFileSync} from "node:fs";
 import {createHash} from "node:crypto";
 import {build} from "esbuild";
@@ -11,7 +12,7 @@ assert.equal(lineage.retiredCount,14);assert.equal(lineage.productionOwnerCertif
 assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=70,"New owner-required site appeared after publication retirement");
 assert.equal(new Set(lineage.retired.map(x=>x.siteId)).size,14);
 for(const row of lineage.retired)assert.ok(!review.sites.some(x=>x.siteId===row.siteId));
-for(const row of lineage.sources){assert.equal(sha(read(row.file)),row.currentSha256);assert.ok(!review.sites.some(x=>x.file===row.file));}
+for(const row of lineage.sources){assert.equal(sha(read(row.file)),expectedCurrentOwnerIntegrationHash(row.file,row.currentSha256));assert.ok(!review.sites.some(x=>x.file===row.file));}
 assertPublishingOwnerSourceLineage();
 const pub=read(lineage.sources[0].file),repair=read(lineage.sources[1].file),owner=read("src/storefront-strangler/legal-authority.worker.ts");
 for(const name of ["recordPublicationActivation","ensureCatalogParties","transitionPublishingLifecycle","recordInlineResult","refreshAssetValidationSummary"])

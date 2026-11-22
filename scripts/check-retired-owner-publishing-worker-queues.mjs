@@ -1,6 +1,7 @@
 /* eslint-disable prettier/prettier -- Exact private queue retirement and live denial. */
 import {assertPublishingOwnerSourceLineage} from "./check-publishing-owner-source-lineage.mjs";
 import assert from "node:assert/strict";
+import {expectedCurrentOwnerIntegrationHash} from "./release/owner-integration-source-pins.mjs";
 import {readFileSync} from "node:fs";
 import {createHash} from "node:crypto";
 const read=p=>readFileSync(p,"utf8");
@@ -17,7 +18,7 @@ for(const row of evidence.files){
     // The newer 38-site legal owner branch has a separately pinned exact SHA.
     const trust=JSON.parse(read("docs/architecture/retired-private-trust-owner-lineage.json"));
     assert.notEqual(actual,row.sha256,"Private copyright owner must change historical source identity");
-    assert.equal(actual,trust.currentSourceSha256,"New private trust source SHA must be audited");
+    assert.equal(actual,expectedCurrentOwnerIntegrationHash(row.path,trust.currentSourceSha256),"New private trust source SHA must be audited");
   }else assert.equal(actual,row.sha256);
 }
 assert.equal(lineage.retiredCount,9);
