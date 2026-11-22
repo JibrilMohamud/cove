@@ -1,0 +1,37 @@
+name: cove-actual-qa-owner-positive-certificate
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/storefront-strangler/qa-owner-positive-certificate-issuer.stage.ts"
+      - "src/storefront-strangler/legal-authority.worker.ts"
+      - "scripts/check-actual-qa-owner-positive-certificate.mjs"
+      - ".github/workflows/cove-actual-qa-owner-positive-certificate.yml"
+permissions:
+  contents: read
+jobs:
+  actual-qa-owner-issuance:
+    if: github.repository == 'JibrilMohamud/cove'
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Actual legal owner handler to independently checked QA positive D1 generation
+        run: node --no-warnings scripts/check-actual-qa-owner-positive-certificate.mjs
+      - name: Enforce negative journal, rollback and monotonic owner withdrawal
+        run: |
+          node --no-warnings scripts/check-current-owner-primary-read-bracket.mjs
+          node --no-warnings scripts/check-qa-negative-owner-primary-publication.mjs
+          node --no-warnings scripts/check-qa-positive-owner-primary-publication.mjs
+      - name: Type and writer-boundary guarantees
+        run: |
+          npm run typecheck
+          node scripts/check-canonical-writer-closure.mjs --no-new-writers
+      - run: git diff --check
