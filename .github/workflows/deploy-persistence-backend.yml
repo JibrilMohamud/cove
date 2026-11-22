@@ -245,6 +245,7 @@ jobs:
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
             echo "::error::Protected production Worker deploy token missing; no broad fallback."
+            exit 1
           fi
 
       - name: Apply pending D1 migrations
