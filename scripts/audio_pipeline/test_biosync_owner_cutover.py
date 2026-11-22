@@ -83,7 +83,7 @@ class OwnerCutoverTests(unittest.TestCase):
         opener = StubOpener(payload)
         with patch.dict(os.environ, {
             "COVE_BIOSYNC_QA_GATEWAY_URL": "https://stage.example",
-            "COVE_BIOSYNC_QA_CLIENT_SECRET": "NaN",
+            "COVE_BIOSYNC_QA_CLIENT_SECRET": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
         }), patch.object(canary.urllib.request, "build_opener", return_value=opener):
             out = canary.commit_checked_map_to_owner(
                 "pg-19504", "02", "job_owner_02", HASH
@@ -103,7 +103,7 @@ class OwnerCutoverTests(unittest.TestCase):
             opener = StubOpener({**payload, **replacement})
             with patch.dict(os.environ, {
                 "COVE_BIOSYNC_QA_GATEWAY_URL": "https://stage.example",
-                "COVE_BIOSYNC_QA_CLIENT_SECRET": "NaN",
+                "COVE_BIOSYNC_QA_CLIENT_SECRET": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
             }), patch.object(canary.urllib.request, "build_opener", return_value=opener):
                 with self.assertRaisesRegex(RuntimeError, "receipt"):
                     canary.commit_checked_map_to_owner(
@@ -113,7 +113,7 @@ class OwnerCutoverTests(unittest.TestCase):
     def test_owner_outage_and_credentials_fail_closed(self):
         with patch.dict(os.environ, {
             "COVE_BIOSYNC_QA_GATEWAY_URL": "http://insecure.example",
-            "COVE_BIOSYNC_QA_CLIENT_SECRET": "NaN",
+            "COVE_BIOSYNC_QA_CLIENT_SECRET": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
         }):
             with self.assertRaisesRegex(RuntimeError, "HTTPS"):
                 canary.commit_checked_map_to_owner("pg-19504", "02", "job_owner_02", HASH)
@@ -125,7 +125,7 @@ class OwnerCutoverTests(unittest.TestCase):
                 canary.commit_checked_map_to_owner("pg-19504", "02", "job_owner_02", HASH)
         with patch.dict(os.environ, {
             "COVE_BIOSYNC_QA_GATEWAY_URL": "https://stage.example",
-            "COVE_BIOSYNC_QA_CLIENT_SECRET": "NaN",
+            "COVE_BIOSYNC_QA_CLIENT_SECRET": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
         }):
             class FailedOpener:
                 def open(self, request, timeout=None):
