@@ -36,8 +36,8 @@ function sqlContract(){
     if(!sql.startsWith("SELECT ")||/;|\b(?:UPDATE|DELETE|INSERT|REPLACE|CREATE|ALTER|DROP|PRAGMA|ATTACH|VACUUM)\b/i.test(sql))
       throw Error("protected_grant_history_sql_mutation_denied");
   }
-  assert.match(HISTORY_EVENTS_SQL,/ORDER BY rowid LIMIT 384$/);
-  assert.match(HISTORY_CURRENT_SQL,/ORDER BY g.id LIMIT 384$/);
+  assert.match(HISTORY_EVENTS_SQL,/ORDER BY rowid LIMIT 768$/);
+  assert.match(HISTORY_CURRENT_SQL,/ORDER BY g.id LIMIT 768$/);
 }
 async function bounded(response){
   if(!response.body)throw Error("protected_grant_history_missing_body");
@@ -71,8 +71,25 @@ if(process.argv.includes("--self-test")){
   const replay=createGrantHistoryReplay();
   const token=process.env.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN;
   const throttle=createProtectedD1ReadThrottle({
-    maxAttempts:700,max429Responses:0,minRequestGapMs:850,
+    maxAttempts:700,max429Responses:2,maxRetryWaitMs:360_000,
+    minRequestGapMs:2500,
+    onThrottle:({retry,delayMs})=>console.log(
+      JSON.stringify({event:"protected_replay_read_throttled",retry,delayMs})),
   });
+  const artifact="artifacts/production-rights-history/grant-event-replay.json";
+  const progress={phase:"boundary",eventsReplayed:0,grantsCompared:0};
+  function checkpoint(failureClass){
+    mkdirSync("artifacts/production-rights-history",{recursive:true});
+    writeFileSync(artifact,JSON.stringify({
+      schema:"cove.primary-grant-event-replay-incomplete.v1",
+      complete:false,...progress,...throttle.stats(),
+      ...(failureClass?{failureClass}:{}),
+      inspectedAt:new Date().toISOString(),
+      historicalRightsReconciled:false,currentOwnerVerified:false,
+      authorizing:false,permitsPublication:false,releaseCertified:false,
+    },null,2)+"\n");
+  }
+  checkpoint();
   async function query(sql,params=[]){
     if(![HISTORY_BOUNDARY_SQL,HISTORY_EVENTS_SQL,HISTORY_CURRENT_SQL].includes(sql))
       throw Error("protected_grant_history_unreviewed_sql");
@@ -93,7 +110,9 @@ if(process.argv.includes("--self-test")){
     const parsed=await bounded(response);
     return checkedHistoricalD1Response(parsed);
   }
+  try{
   const first=checkedGrantHistoryBoundary(await query(HISTORY_BOUNDARY_SQL));
+  progress.phase="audit-events";
   let seq=0,events=0;
   const maxAuditPages=Math.ceil(first.audit_rows/HISTORY_BATCH_SIZE)+1;
   for(let page=0;page<maxAuditPages;page++){
@@ -104,7 +123,9 @@ if(process.argv.includes("--self-test")){
       replay.audit(row);
       seq=row.event_seq;
       events++;
+      progress.eventsReplayed=events;
     }
+    checkpoint();
     if(events>first.audit_rows)
       throw Error("protected_grant_history_audit_count_changed");
     if(rows.length<HISTORY_BATCH_SIZE)break;
@@ -112,6 +133,7 @@ if(process.argv.includes("--self-test")){
       throw Error("protected_grant_history_audit_pagination_unbounded");
   }
   let grantId="",grants=0;
+  progress.phase="current-grants";
   const maxGrantPages=Math.ceil(first.grant_rows/HISTORY_BATCH_SIZE)+1;
   for(let page=0;page<maxGrantPages;page++){
     const rows=await query(HISTORY_CURRENT_SQL,[grantId]);
@@ -121,20 +143,25 @@ if(process.argv.includes("--self-test")){
       replay.current(row);
       grantId=row.grant_id;
       grants++;
+      progress.grantsCompared=grants;
     }
+    checkpoint();
     if(grants>first.grant_rows)
       throw Error("protected_grant_history_grants_count_changed");
     if(rows.length<HISTORY_BATCH_SIZE)break;
     if(page===maxGrantPages-1)
       throw Error("protected_grant_history_grants_pagination_unbounded");
   }
+  progress.phase="final-boundary";checkpoint();
   const second=checkedGrantHistoryBoundary(await query(HISTORY_BOUNDARY_SQL));
   const reviewed=replay.result(first,second);
-  const result={...reviewed,sourceReadOnly:true,
+  const result={...reviewed,complete:true,sourceReadOnly:true,
     primaryHttpAttempts:throttle.stats().httpAttempts,
+    rateLimitedResponses:throttle.stats().rateLimitedResponses,
+    rateLimitWaitMs:throttle.stats().rateLimitWaitMs,
     inspectedAt:new Date().toISOString()};
   mkdirSync("artifacts/production-rights-history",{recursive:true});
-  writeFileSync("artifacts/production-rights-history/grant-event-replay.json",
+  writeFileSync(artifact,
     JSON.stringify(result,null,2)+"\n");
   const summary=[
     "## Protected full primary grant-event replay — diagnostic only",
@@ -143,6 +170,8 @@ if(process.argv.includes("--self-test")){
     "Inserts: "+result.counts.inserts+"; updates: "+result.counts.updates,
     "Ambiguous event-timestamp cohorts: "+result.counts.ambiguousTimestampGroups,
     "Backdated audit events: "+result.counts.backdatedEventTimestamps,
+    "Grants with unresolved chronology: "+result.chronologyUnresolvedGrants,
+    "Currently active/allow in that unresolved cohort: "+result.chronologyUnresolvedActiveAllowGrants,
     "Mismatched current grant snapshots: "+result.counts.conflictingCurrentGrants,
     "Lost/current grant IDs: "+result.counts.missingGrants,
     "Replay boundary identical: "+result.scanBoundaryIdentical,
@@ -160,4 +189,15 @@ if(process.argv.includes("--self-test")){
     throw Error("protected_grant_history_current_parity_failed");
   // Even a perfectly replayed grant audit CANNOT be used to publish rights.
   // The missing independent owner denial and real provenance remain blockers.
+  }catch(error){
+    // Never copy an exception body (which might carry SQL, a URL or evidence)
+    // to the artifact. Preserve only a fixed error class and aggregate progress.
+    const message=error instanceof Error?error.message:"";
+    const failureClass=/rate_limited/.test(message)?"rate-limited":
+      /http_(401|403)$/.test(message)?"authentication-denied":
+      /current_parity_failed/.test(message)?"current-parity-failed":
+      /Timeout|Abort/.test(message)?"transport-timeout":"protocol-or-transport-failed";
+    if(failureClass!=="current-parity-failed")checkpoint(failureClass);
+    throw Error("protected_grant_history_incomplete_"+failureClass);
+  }
 }

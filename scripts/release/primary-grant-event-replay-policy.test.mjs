@@ -34,7 +34,7 @@ function fixture(){
   let serial=0;
   const snapshots=()=>db.prepare(HISTORY_CURRENT_SQL).all("");
   function record(id,action,time){
-    const byId=HISTORY_CURRENT_SQL.replace("WHERE g.id>? ORDER BY g.id LIMIT 384",
+    const byId=HISTORY_CURRENT_SQL.replace("WHERE g.id>? ORDER BY g.id LIMIT 768",
       "WHERE g.id=?");
     const state=db.prepare(byId).get(id);
     assert.ok(state);
@@ -111,6 +111,8 @@ test("equal-time DISTINCT snapshots are ambiguous and block positive legal repla
     assert.ok(r.blockers.includes("historical_grant_timestamp_order_ambiguous"));
     assert.equal(r.historicalRightsReconciled,false);
     assert.equal(r.counts.conflictingCurrentGrants,0);
+    assert.equal(r.chronologyUnresolvedGrants,1);
+    assert.equal(r.chronologyUnresolvedActiveAllowGrants,0);
   }finally{f.close();}
 });
 test("backdated legal audit event timestamp is an explicit blocker",()=>{
@@ -122,6 +124,56 @@ test("backdated legal audit event timestamp is an explicit blocker",()=>{
     assert.equal(result.counts.backdatedEventTimestamps,1);
     assert.ok(result.blockers.includes("historical_grant_audit_backdated_event_time"));
     assert.equal(result.historicalRightsReconciled,false);
+    assert.equal(result.chronologyUnresolvedGrants,1);
+  }finally{f.close();}
+});
+test("equivalent SQLite and ISO UTC times cannot hide a conflicting cohort",()=>{
+  const f=fixture();
+  try{
+    f.insert("grant_01","active","2026-10-09T00:00:00.000Z");
+    f.update("grant_01","suspended","2026-10-09 00:00:00");
+    const r=f.scan();
+    assert.equal(r.counts.ambiguousTimestampGroups,1);
+    assert.equal(r.chronologyUnresolvedGrants,1);
+    assert.equal(r.authorizing,false);
+    assert.ok(!JSON.stringify(r).includes("grant_01"));
+  }finally{f.close();}
+});
+test("unresolved cohort is deduplicated across collisions and backdating",()=>{
+  const f=fixture();
+  try{
+    f.insert("grant_01");
+    f.db.exec("UPDATE rights_grants SET notes='changed' WHERE id='grant_01'");
+    f.record("grant_01","update","2026-10-09 00:00:00");
+    f.db.exec("UPDATE rights_grants SET notes='again' WHERE id='grant_01'");
+    f.record("grant_01","update","2026-10-08 00:00:00");
+    const r=f.scan();
+    assert.equal(r.chronologyUnresolvedGrants,1);
+    assert.equal(r.chronologyUnresolvedActiveAllowGrants,1);
+    assert.equal(r.counts.ambiguousTimestampGroups,1);
+    assert.equal(r.counts.backdatedEventTimestamps,1);
+    assert.equal(r.permitsPublication,false);
+  }finally{f.close();}
+});
+test("invalid dates, local time and unreviewed precision fail closed",()=>{
+  for(const time of ["2026-02-30T00:00:00.000Z","2026-10-09T00:00:00",
+    "2026-10-09T00:00:00.0001Z","2026-10-09T00:00:00.000+00:00"]){
+    const f=fixture();
+    try{
+      f.insert("grant_01","active",time);
+      assert.throws(()=>f.scan(),/invalid_event_timestamp/);
+    }finally{f.close();}
+  }
+});
+test("current comparison seals the audit phase against additional events",()=>{
+  const f=fixture();
+  try{
+    f.insert("grant_01");
+    const r=createGrantHistoryReplay();
+    const event=f.db.prepare(HISTORY_EVENTS_SQL).get(0);
+    r.audit(event);r.current(f.snapshots()[0]);
+    assert.throws(()=>r.audit({...event,event_seq:2,action:"update"}),
+      /audit_after_current_scan/);
   }finally{f.close();}
 });
 test("a current unjournaled primary D1 rights edit mismatches replay",()=>{
@@ -197,7 +249,7 @@ test("page boundaries, replay changes and count fences deny drift",()=>{
     }
   }finally{f.close();}
 });
-test("full keyset pagination crosses 384 events and current grants without loss",()=>{
+test("full keyset pagination crosses 768 events and current grants without loss",()=>{
   const f=fixture();
   try{
     for(let i=0;i<HISTORY_BATCH_SIZE+3;i++)
@@ -213,11 +265,11 @@ test("full keyset pagination crosses 384 events and current grants without loss"
   }finally{f.close();}
 });
 test("transport SQL is read-only and keyset-bounded, not dynamic",()=>{
-  assert.equal(HISTORY_BATCH_SIZE,384);
+  assert.equal(HISTORY_BATCH_SIZE,768);
   for(const sql of [HISTORY_BOUNDARY_SQL,HISTORY_EVENTS_SQL,HISTORY_CURRENT_SQL]){
     assert.match(sql,/^SELECT\b/);
     assert.doesNotMatch(sql,/;|\b(?:INSERT|UPDATE|DELETE|REPLACE|CREATE|ALTER|DROP|PRAGMA|ATTACH|VACUUM)\b/i);
   }
-  assert.match(HISTORY_EVENTS_SQL,/WHERE rowid>\? ORDER BY rowid LIMIT 384$/);
-  assert.match(HISTORY_CURRENT_SQL,/WHERE g.id>\? ORDER BY g.id LIMIT 384$/);
+  assert.match(HISTORY_EVENTS_SQL,/WHERE rowid>\? ORDER BY rowid LIMIT 768$/);
+  assert.match(HISTORY_CURRENT_SQL,/WHERE g.id>\? ORDER BY g.id LIMIT 768$/);
 });
