@@ -14,7 +14,7 @@ import {HISTORICAL_SQL,checkedHistoricalAggregate,checkedHistoricalD1Response,
 const ACCOUNT="d26430caa63ec55f6612e32f36aca5e9";
 const PRIMARY="4bd657ac-8789-403e-a28c-93aba8d0a989";
 const URL="https://api.cloudflare.com/client/v4/accounts/"+ACCOUNT+"/d1/database/"+PRIMARY+"/query";
-const KINDS=Object.freeze(["state","evidence","exposure"]);
+const KINDS=Object.freeze(["state","evidence","cache","exposure"]);
 const MAX_BYTES=16_384;
 function permission(env=process.env,args=process.argv){
   if(args.length!==3||args[2]!=="--live"||
@@ -61,6 +61,9 @@ if(process.argv.includes("--self-test")){
     active_uncovered:0,inactive_without_grant:1,contracts:0,contract_versions:0,
     active_markets:1}],evidence:[{joined_grants:1,missing_evidence:0,
     unapproved_or_mismatched:0,legacy_evidence_hashes:1,other_evidence_types:0}],
+    cache:[{joined_grants:1,missing_cache_or_source:0,active_uncleared_cache:0,
+      active_unapproved_commercial_cache:0,disabled_source_grants:0,
+      source_evidence_pointer_mismatch:0,legacy_cache_content_hashes:1}],
     exposure:[{retail_rows:1,scoped_grants:1,scoped_territories:1,
       explicit_deny_grants:0,copyright_notices:0}]};
   const data=Object.fromEntries(KINDS.map(k=>[k,checkedHistoricalAggregate(k,sample[k])]));
@@ -72,7 +75,7 @@ if(process.argv.includes("--self-test")){
   permission();
   const token=process.env.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN;
   const throttle=createProtectedD1ReadThrottle({
-    maxAttempts:6,max429Responses:0,minRequestGapMs:750,
+    maxAttempts:8,max429Responses:0,minRequestGapMs:750,
   });
   async function read(kind){
     const sql=HISTORICAL_SQL[kind];
@@ -108,6 +111,9 @@ if(process.argv.includes("--self-test")){
     "Grants: "+first.state.grant_total+"; suspended: "+first.state.suspended_grants+
       "; approved evidence linkage gaps: "+first.evidence.missing_evidence,
     "Legacy non-SHA-256 evidence fingerprints: "+first.evidence.legacy_evidence_hashes,
+    "Legacy non-SHA-256 cache content hashes: "+first.cache.legacy_cache_content_hashes,
+    "Active grants lacking currently approved source cache: "+
+      (first.cache.active_uncleared_cache+first.cache.active_unapproved_commercial_cache),
     "Historical aggregate structural consistency: "+result.historicalInventoryConsistent,
     "Current owner authorization: NOT PROVEN. Atomic publication: NOT PROVEN.",
     "Release decision: NO-GO; aggregate fingerprint: "+digest,
