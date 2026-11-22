@@ -105,6 +105,14 @@ try {
     logLevel: "silent",
   });
   const { stageRecomputeOwnerPositiveRetail } = await import(pathToFileURL(ownerOutfile).href);
+  // This fixture is also used by other main-branch rights tests. Its
+  // opaque product/offer IDs are intentionally not a legal identity or
+  // authority proof; resolve the currently seeded identifiers instead of
+  // copying stale sample IDs from the unmerged historical PR.
+  const productId = (await db.prepare("SELECT id FROM products LIMIT 1").first())?.id;
+  const offerId = (await db.prepare("SELECT id FROM offers LIMIT 1").first())?.id;
+  assert.match(productId || "", /^[A-Za-z0-9_-]{2,160}$/);
+  assert.match(offerId || "", /^[A-Za-z0-9_-]{2,160}$/);
   const scenarios = [
     ["baseline", true, "ACTIVE_GRANT"],
     ["explicit-deny", false, "EXPLICIT_DENY"],
@@ -126,7 +134,7 @@ try {
   ];
   for (const [scenario, allowed, reason] of scenarios) {
     await rpc({ op: "scenario", name: scenario });
-    const resolved = await resolveProductRights(db, "p_fixture", "US", {
+    const resolved = await resolveProductRights(db, productId, "US", {
       salesChannel: "retail",
       at: "2026-11-15T15:00:00.000Z",
       persist: false,
@@ -135,14 +143,14 @@ try {
     assert.equal(resolved.reasonCode, reason, "Wrong deny-first code for " + scenario);
     assert.equal(resolved.salesChannel, "retail");
     assert.equal(resolved.territory, "US");
-    assert.equal(resolved.productId, "p_fixture");
+    assert.equal(resolved.productId, productId);
     const writer = await stageRecomputeOwnerPositiveRetail(
       {
         DB: ownerDb,
         COVE_STAGE_OWNER_CAS_ONLY: "1",
         COVE_STAGE_OWNER_DB_ID: "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
       },
-      "p_fixture",
+      productId,
       "US",
       "USD",
     );
@@ -156,7 +164,7 @@ try {
       .prepare(
         "SELECT product_id,amount_minor,current_offer_id,valid_until FROM cove_stage_owner_retail_authority WHERE product_id=?",
       )
-      .bind("p_fixture")
+      .bind(productId)
       .first();
     assert.equal(
       Boolean(row),
@@ -164,7 +172,7 @@ try {
       "Stored positive disagrees with policy " + scenario,
     );
     if (publicationExpected) {
-      assert.equal(row.current_offer_id, "o_fixture");
+      assert.equal(row.current_offer_id, offerId);
       assert.equal(row.amount_minor, 599);
       const leaseMs = Date.parse(row.valid_until.replace(" ", "T") + "Z") - Date.now();
       assert.ok(leaseMs > -1000, "Lease must not already be expired");
@@ -202,7 +210,7 @@ try {
           COVE_STAGE_OWNER_CAS_ONLY: "1",
           COVE_STAGE_OWNER_DB_ID: "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
         },
-        "p_fixture",
+        productId,
         "US",
       );
     } finally {
