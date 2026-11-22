@@ -66,6 +66,6 @@ for(const field of ["COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN","COVE_CF_WORKERS_METADA
 const inspector=readFileSync("scripts/staging/deploy-music-supply-qa-shadow.mjs","utf8");
 assert.ok(inspector.includes("authorization: \"Bearer \" + metadataToken"));
 assert.ok(inspector.includes("authorization: \"Bearer \" + qaReadToken"));
-assert.ok(inspector.includes("new Set([deployToken,metadataToken,qaReadToken]).size,3"));
+assert.match(inspector, /new Set\(\[deployToken,\s*metadataToken,\s*qaReadToken\]\)\.size,\s*3/);
 assert.ok(!inspector.includes('authorization: "Bearer " + process.env.CLOUDFLARE_API_TOKEN'));
 console.log("PASS: twelve legacy privileged jobs require exact-main protected manual authorization; disabled music QA splits deploy/metadata/D1-read principals");
