@@ -34,6 +34,22 @@ export const HISTORICAL_SQL = Object.freeze({
     "SUM(CASE WHEN ev.evidence_type<>'source-catalog' THEN 1 ELSE 0 END) other_evidence_types",
     "FROM rights_grants rg LEFT JOIN gutenberg_rights_evidence ev ON ev.id=rg.source_evidence_id",
   ].join(" "),
+  cache: [
+    "SELECT COUNT(*) joined_grants,",
+    "SUM(CASE WHEN c.id IS NULL OR s.id IS NULL THEN 1 ELSE 0 END) missing_cache_or_source,",
+    "SUM(CASE WHEN rg.status='active' AND c.rights_status NOT IN ('public-domain','permission')",
+    "THEN 1 ELSE 0 END) active_uncleared_cache,",
+    "SUM(CASE WHEN rg.status='active' AND c.commercial_use_status<>'approved'",
+    "THEN 1 ELSE 0 END) active_unapproved_commercial_cache,",
+    "SUM(CASE WHEN s.enabled<>1 THEN 1 ELSE 0 END) disabled_source_grants,",
+    "SUM(CASE WHEN c.rights_evidence_id<>ev.id OR c.source_id<>ev.source_id",
+    "THEN 1 ELSE 0 END) source_evidence_pointer_mismatch,",
+    "SUM(CASE WHEN COALESCE(length(c.content_hash),0)<>64 OR",
+    "c.content_hash GLOB '*[^0-9a-f]*' THEN 1 ELSE 0 END) legacy_cache_content_hashes",
+    "FROM rights_grants rg JOIN gutenberg_rights_evidence ev ON ev.id=rg.source_evidence_id",
+    "LEFT JOIN gutenberg_source_cache c ON c.id=ev.cache_id",
+    "LEFT JOIN gutenberg_sources s ON s.id=ev.source_id",
+  ].join(" "),
   exposure: [
     "SELECT (SELECT COUNT(*) FROM retail_product_availability_rows) retail_rows,",
     "(SELECT COUNT(*) FROM rights_grant_territories) scoped_grants,",
@@ -52,6 +68,11 @@ const EXPECTED = Object.freeze({
   evidence: Object.freeze([
     "joined_grants","missing_evidence","unapproved_or_mismatched",
     "legacy_evidence_hashes","other_evidence_types",
+  ]),
+  cache: Object.freeze([
+    "joined_grants","missing_cache_or_source","active_uncleared_cache",
+    "active_unapproved_commercial_cache","disabled_source_grants",
+    "source_evidence_pointer_mismatch","legacy_cache_content_hashes",
   ]),
   exposure: Object.freeze([
     "retail_rows","scoped_grants","scoped_territories",
@@ -84,7 +105,7 @@ export function verifyHistoricalPrimaryInventory(first,second){
     checkedHistoricalAggregate(kind,[first[kind]]);
     checkedHistoricalAggregate(kind,[second[kind]]);
   }
-  const x=first.state,e=first.evidence,v=first.exposure;
+  const x=first.state,e=first.evidence,c=first.cache,v=first.exposure;
   const blockers=[];
   if(JSON.stringify(first)!==JSON.stringify(second))
     blockers.push("historical_primary_changed_during_inventory");
@@ -99,6 +120,10 @@ export function verifyHistoricalPrimaryInventory(first,second){
   if(e.joined_grants!==x.grant_total||e.missing_evidence!==0||
      e.unapproved_or_mismatched!==0)
     blockers.push("historical_primary_evidence_lineage_incomplete");
+  if(c.joined_grants!==x.grant_total||c.missing_cache_or_source!==0||
+     c.active_uncleared_cache!==0||c.active_unapproved_commercial_cache!==0||
+     c.disabled_source_grants!==0||c.source_evidence_pointer_mismatch!==0)
+    blockers.push("historical_primary_current_source_cache_conflict");
   if(v.scoped_grants<x.grant_total||v.scoped_territories<1)
     blockers.push("historical_primary_territory_scope_incomplete");
   if(v.retail_rows<0||v.explicit_deny_grants>x.grant_total)
@@ -107,6 +132,8 @@ export function verifyHistoricalPrimaryInventory(first,second){
   // provenance. This remains a separate unsatisfied positive-release gate.
   if(e.legacy_evidence_hashes>0)
     blockers.push("historical_legacy_evidence_fingerprints_not_sha256");
+  if(c.legacy_cache_content_hashes>0)
+    blockers.push("historical_legacy_cache_content_hashes_not_sha256");
   // Neither D1 historical counts nor a catalog view proves current DO denial,
   // rightsholder authority, historical change-log completeness or full policy
   // parity. They MUST NEVER be converted into an allow receipt.
@@ -118,7 +145,7 @@ export function verifyHistoricalPrimaryInventory(first,second){
     source:"production-primary-d1-read-only",
     sampleBased:false,
     scannedProductCount:x.product_total,
-    counts:{...x,...e,...v},
+    counts:{state:x,evidence:e,cache:c,exposure:v},
     historicalInventoryConsistent:!blockers.some(b=>b.startsWith("historical_primary_")),
     historicalRightsReconciled:false,
     currentOwnerVerified:false,
