@@ -213,8 +213,10 @@ export function compareKnownUnsafeFleet(report,baseline){
 
 /** Read-only. Abort the entire audit if even one Worker settings or owner
  * schedule request is inaccessible: incomplete evidence is not a pass. */
-export async function collectCanonicalD1Fleet({fetcher=fetch,token,account,zone}){
-  assert.ok(typeof token==="string"&&token.length>=20,"Cloudflare credential required");
+export async function collectCanonicalD1Fleet({fetcher=fetch,token,zoneToken,account,zone}){
+  assert.ok(typeof token==="string"&&token.length>=20,"Worker metadata credential required");
+  assert.ok(typeof zoneToken==="string"&&zoneToken.length>=20,"Independent zone routes read credential required");
+  assert.notEqual(token,zoneToken,"Worker metadata and zone route read credentials must be distinct");
   assert.match(account||"",idPattern);
   assert.match(zone||"",idPattern);
   const root="/accounts/"+account;
@@ -274,7 +276,7 @@ export async function collectCanonicalD1Fleet({fetcher=fetch,token,account,zone}
     return {name:w.id,schedules:(schedule?.schedules||[]).map(s=>s.cron),subdomain};
   });
   const [routes,domains]=await Promise.all([
-    apiGet(fetcher,token,"/zones/"+zone+"/workers/routes"),
+    apiGet(fetcher,zoneToken,"/zones/"+zone+"/workers/routes"),
     apiGet(fetcher,token,root+"/workers/domains")
   ]);
   assert.ok(Array.isArray(routes)&&Array.isArray(domains));
@@ -291,7 +293,8 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).hr
   if(release===audit)throw Error("Specify exactly one of --audit or --release-gate");
   try {
     const report=await collectCanonicalD1Fleet({
-      token:process.env.CLOUDFLARE_API_TOKEN,
+      token:process.env.COVE_CF_WORKERS_METADATA_READ_TOKEN,
+      zoneToken:process.env.COVE_CF_ZONE_ROUTES_READ_TOKEN,
       account:process.env.CLOUDFLARE_ACCOUNT_ID,
       zone:process.env.CLOUDFLARE_ZONE_ID
     });

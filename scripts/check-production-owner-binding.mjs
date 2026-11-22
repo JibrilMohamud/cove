@@ -39,7 +39,7 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href) {
   if(before||after) {
     // Prefer the independent metadata-only principal. Existing legacy callers
     // can be migrated individually without interrupting their workflows.
-    const token=process.env.COVE_CF_WORKERS_METADATA_READ_TOKEN || process.env.CLOUDFLARE_API_TOKEN;
+    const token=process.env.COVE_CF_WORKERS_METADATA_READ_TOKEN;
     const account=process.env.CLOUDFLARE_ACCOUNT_ID;
     assert.ok(token&&/^[a-f0-9]{32}$/.test(account||""),"Authenticated Cloudflare account is required");
     const get=async name=>{
