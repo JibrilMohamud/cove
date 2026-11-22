@@ -128,6 +128,9 @@ export default {
            !/^[A-Z]{2}$/.test(cmd.territory)
          : typeof cmd.message!=="string"||cmd.message.length>500)))
       return new Response(null,{status:400,headers});
+    let retailPhase:"preflight"|"rights"|"offer"|"epoch"="preflight";
+    let retailOwnerStatus="unknown";
+    let retailOwnerReason="unclassified";
     try{
       if(isMarketWithdrawal){
         const territory=cmd.territory as string;
@@ -248,6 +251,7 @@ export default {
           territory:cmd.territory as string,currency:cmd.currency as string,
           channel:"retail" as const};
         const verify=async(route:string)=>{
+          retailPhase=route==="/commercial/publish-verified"?"rights":"offer";
           const reply=await env.LEGAL_PRIVATE.fetch(new Request(
             "https://legal-authority.internal"+route,{
               method:"POST",headers:{
@@ -256,7 +260,19 @@ export default {
               },body:JSON.stringify(publication)
             }
           ));
-          if(reply.status!==200)throw Error("positive_owner_publication_unavailable");
+          if(reply.status!==200){
+            retailOwnerStatus=[400,401,403,404,409,429,500,502,503,504].includes(reply.status)?
+              String(reply.status):"other";
+            const reason=reply.headers.get("x-cove-qa-retail-owner-reason");
+            if(reason&&[
+              "canonical_lease_unfresh_evaluation",
+              "canonical_lease_primary_unverified",
+              "canonical_lease_invalid_transition",
+              "canonical_lease_transition_imminent",
+              "unclassified"
+            ].includes(reason))retailOwnerReason=reason;
+            throw Error("positive_owner_publication_unavailable");
+          }
           const result=await reply.json() as {applied?:boolean;epoch?:number};
           if(result.applied!==true||!Number.isSafeInteger(result.epoch)||
              result.epoch!<=0)
@@ -265,6 +281,7 @@ export default {
         };
         const rightsEpoch=await verify("/commercial/publish-verified");
         const offerEpoch=await verify("/storefront/publish-commercial");
+        retailPhase="epoch";
         if(rightsEpoch!==offerEpoch)throw Error("commercial_storefront_epoch_changed");
         return Response.json({published:true,ownerEpoch:offerEpoch},{status:200,headers});
       }
@@ -494,7 +511,13 @@ export default {
       return Response.json({quarantined:true,sourceId:cmd.sourceId},{status:200,headers});
     }catch{
       // Unknown owner / unavailable D1 / stale denied op always fail closed.
-      return new Response(null,{status:503,headers});
+      // Only the expiring synthetic paid-QA writer includes fixed enum
+      // diagnostics in headers. Do not expose raw exceptions, SQL or IDs.
+      const safeHeaders=isRetailPublication?{...headers,
+        "x-cove-qa-retail-phase":retailPhase,
+        "x-cove-qa-retail-owner-status":retailOwnerStatus,
+        "x-cove-qa-retail-owner-reason":retailOwnerReason}:headers;
+      return new Response(null,{status:503,headers:safeHeaders});
     }
   }
 };
