@@ -279,10 +279,8 @@ try {
 
   // A current allow cannot resurrect terminal, tied-timestamp or backdated
   // rights history merely because an R2 EPUB object is present.
-  // The production trigger rightly refuses suspended -> active writes
-  // without independent legal authority. To test *historical* contradictions,
-  // append adversarial audit snapshots in the isolated database instead.
-  // Never fabricate positive history or disable real rights triggers.
+  // The real trigger refuses suspended -> active without independent authority.
+  // Model legacy contradictions by appending historical audit snapshots only.
   async function appendFixtureHistory(id, eventId, status, recordedAt, notes) {
     await env.DB.prepare(
       "INSERT INTO rights_grant_audit(id,grant_id,action,snapshot_json,recorded_at)" +
@@ -290,37 +288,34 @@ try {
         " json_set(snapshot_json,'$.status',?,'$.notes',?),?" +
         " FROM rights_grant_audit WHERE grant_id=? ORDER BY rowid LIMIT 1",
     )
-      .bind(
-        "rga_fixture_" + eventId,
-        status,
-        notes,
-        recordedAt,
-        "rg_test_" + id,
-      )
+      .bind("rga_fixture_" + eventId, status, notes, recordedAt, "rg_test_" + id)
       .run();
   }
   const reactivated = await seed("pgau_9100010");
   await appendFixtureHistory(
-    "pgau_9100010", "terminal", "suspended",
-    "2026-10-21T00:00:00.000Z", "terminal",
+    "pgau_9100010",
+    "terminal",
+    "suspended",
+    "2026-10-21T00:00:00.000Z",
+    "terminal",
   );
   await appendFixtureHistory(
-    "pgau_9100010", "regrant", "active",
-    "2026-10-22T00:00:00.000Z", "no independently proven reauthorization",
+    "pgau_9100010",
+    "regrant",
+    "active",
+    "2026-10-22T00:00:00.000Z",
+    "no independently proven reauthorization",
   );
   const tiedTimestamp = await seed("pgau_9100011");
-  await appendFixtureHistory(
-    "pgau_9100011", "tie_a", "active",
-    "2026-10-23T00:00:00.000Z", "a",
-  );
-  await appendFixtureHistory(
-    "pgau_9100011", "tie_b", "active",
-    "2026-10-23T00:00:00.000Z", "b",
-  );
+  await appendFixtureHistory("pgau_9100011", "tie_a", "active", "2026-10-23T00:00:00.000Z", "a");
+  await appendFixtureHistory("pgau_9100011", "tie_b", "active", "2026-10-23T00:00:00.000Z", "b");
   const backdated = await seed("pgau_9100012");
   await appendFixtureHistory(
-    "pgau_9100012", "backdate", "active",
-    "2026-10-19T00:00:00.000Z", "earlier than initial insert",
+    "pgau_9100012",
+    "backdate",
+    "active",
+    "2026-10-19T00:00:00.000Z",
+    "earlier than initial insert",
   );
   const cleanHistory = await seed("pgau_9100013");
   const quarantined = await repairRegionalEpubAssets(envWithR2, {
@@ -330,24 +325,15 @@ try {
   assert.equal(quarantined.scanned, 1, "only unambiguous grants enter repair");
   assert.equal(quarantined.repaired, 1, "clean grant retains normal repair");
   for (const edition of [reactivated, tiedTimestamp, backdated]) {
-    assert.equal(
-      (
-        await env.DB.prepare(
-          "SELECT COUNT(*) n FROM digital_assets WHERE edition_id=?",
-        ).bind(edition).first()
-      ).n,
-      0,
-      "historically unresolved active grants never gain EPUB pointers",
-    );
+    const row = await env.DB.prepare("SELECT COUNT(*) n FROM digital_assets WHERE edition_id=?")
+      .bind(edition)
+      .first();
+    assert.equal(row.n, 0, "historically unresolved active grants never gain EPUB pointers");
   }
-  assert.equal(
-    (
-      await env.DB.prepare(
-        "SELECT COUNT(*) n FROM digital_assets WHERE edition_id=?",
-      ).bind(cleanHistory).first()
-    ).n,
-    1,
-  );
+  const clean = await env.DB.prepare("SELECT COUNT(*) n FROM digital_assets WHERE edition_id=?")
+    .bind(cleanHistory)
+    .first();
+  assert.equal(clean.n, 1);
 
   const repairSource = fs.readFileSync(
     "src/features/fore/regional-epub-asset-repair.server.ts",
