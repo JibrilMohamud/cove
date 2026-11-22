@@ -58,10 +58,7 @@ let stageKey = "";
 function command(args, input) {
   // Only the ephemeral, synthetic staging config may be deployed or receive one secret.
   const deploy =
-    args.length === 3 &&
-    args[0] === "deploy" &&
-    args[1] === "--config" &&
-    args[2] === configPath;
+    args.length === 3 && args[0] === "deploy" && args[1] === "--config" && args[2] === configPath;
   const secret =
     args.length === 5 &&
     args[0] === "secret" &&
