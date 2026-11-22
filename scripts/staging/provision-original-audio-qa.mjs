@@ -20,7 +20,8 @@ export async function provisionPublishedQaAudio(qaSql,{runId,productId,
   assert.match(runId,/^[0-9]{8,15}-[0-9]{1,5}$/);
   assert.equal(productId,"prd_paid_qa_20261027");
   assert.equal(buyerId,"user_initial_qa_"+runId);
-  assert.equal(objectKey,"qa/chapter.wav");
+  assert.equal(objectKey,"qa/"+runId+"/chapter.wav",
+    "Only this protected run\u0027s private audio object is permitted");
   assert.match(sha,/^[a-f0-9]{64}$/);
   assert.match(evidenceSha,/^[a-f0-9]{64}$/);
   assert.ok(Number.isSafeInteger(evidenceSize)&&evidenceSize>0);
@@ -60,7 +61,7 @@ export async function provisionPublishedQaAudio(qaSql,{runId,productId,
   );
   await qaSql(
     "INSERT INTO publishing_rights_evidence(id,declaration_id,account_id,evidence_type,description,original_filename,mime_type,size_bytes,object_key,sha256,scan_status,verification_status,issued_by,created_by_user_id,created_at) VALUES(?,?,?,'other','Test-generated audio and narration authorization only','qa-rights.txt','text/plain',?,?,?,'clean','verified','QA test fixture',?,?)",
-    [evidence,declaration,account,evidenceSize,"qa/rights.txt",evidenceSha,buyerId,time]
+    [evidence,declaration,account,evidenceSize,"qa/"+runId+"/rights.txt",evidenceSha,buyerId,time]
   );
   await qaSql(
     "INSERT INTO commercial_audio_narrators(id,edition_id,display_name,narration_type,created_at) VALUES(?,?,'Generated QA Silence','synthetic',?)",
