@@ -86,7 +86,7 @@ function normalizedRows(raw:Row[]):CandidateRow[]{
       typeof r.proof_sha256!=="string"||!digestRE.test(r.proof_sha256))
       fail();
     return {generation:r.generation as number,productId:r.product_id as string,
-      territory:"US",allowed:r.allowed,proofSha256:r.proof_sha256 as string};
+      territory:"US",allowed:r.allowed as 0|1,proofSha256:r.proof_sha256 as string};
   });
   if(rows.some((r,i)=>i>0&&rows[i-1].productId>=r.productId))fail();
   return rows;
@@ -156,7 +156,8 @@ function verifyOwner(x:ReconcileContext,c:Candidate,rows:CandidateRow[]){
       if(!integer(verdict.revision,1)||verdict.allowed!==(row.allowed===1))fail();
       if(row.allowed===1){
         const proof=indexed.get(row.productId);
-        if(!proof||proof.edition_id!=="ed_gutenberg_"+sourceId)fail();
+        if(!proof)throw Error("qa_owner_positive_certificate_not_reconciled");
+        if(proof.edition_id!=="ed_gutenberg_"+sourceId)fail();
         let offer:unknown;
         try{offer=JSON.parse(proof.offer_json);}catch{fail();}
         if(!offer||typeof offer!=="object"||Array.isArray(offer)||
