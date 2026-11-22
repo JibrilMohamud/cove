@@ -31,7 +31,7 @@ assert.match(workflow, /secrets\.COVE_CF_STAGE_D1_READ_TOKEN/);
 assert.doesNotMatch(workflow, /secrets\.CLOUDFLARE_API_TOKEN/);
 assert.doesNotMatch(workflow, /workflow_call:/);
 const offline = workflow.split("  protected-stage-only:")[0];
-assert.doesNotMatch(offline, /secrets\\.|COVE_CF_STAGE_D1_READ_TOKEN/);
+assert.doesNotMatch(offline, /secrets\.|COVE_CF_STAGE_D1_READ_TOKEN/);
 console.log(
   "PASS: exact isolated D1 identity, hard read budget, protected main SHA, " +
     "independent scoped D1 Read credential and mandatory legal-policy cohorts",
