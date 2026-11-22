@@ -36,6 +36,12 @@ jobs:
         run: node scripts/check-owner-biosync-checked-publication.mjs
       - name: Prove existing canonical owner transport still refuses forged receipts
         run: node scripts/check-canonical-owner-command-gateway.mjs
+      - name: Keep legal withdrawals, paid settlement, and refunds fail-closed
+        run: |
+          node scripts/test-stage-distribution-owner.mjs
+          node scripts/check-owner-stripe-webhook.mjs
+          node scripts/check-owner-refund-accounting.mjs
+          node scripts/check-owner-paid-settlement.mjs
       - name: Prove scheduled Python cannot submit direct D1 writes
         run: python3 -m unittest scripts.audio_pipeline.test_biosync_owner_cutover
       - name: Validate source types
