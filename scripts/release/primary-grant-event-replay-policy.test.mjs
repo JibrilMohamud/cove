@@ -34,7 +34,9 @@ function fixture(){
   let serial=0;
   const snapshots=()=>db.prepare(HISTORY_CURRENT_SQL).all("");
   function record(id,action,time){
-    const state=snapshots().find(r=>r.grant_id===id);
+    const byId=HISTORY_CURRENT_SQL.replace("WHERE g.id>? ORDER BY g.id LIMIT 384",
+      "WHERE g.id=?");
+    const state=db.prepare(byId).get(id);
     assert.ok(state);
     db.prepare("INSERT INTO rights_grant_audit VALUES(?,?,?,?,?)").run(
       "evt_"+(++serial),id,action,state.snapshot_json,time);
@@ -51,8 +53,20 @@ function fixture(){
   function scan(){
     const f=checkedGrantHistoryBoundary(db.prepare(HISTORY_BOUNDARY_SQL).all());
     const r=createGrantHistoryReplay();
-    for(const row of db.prepare(HISTORY_EVENTS_SQL).all(0))r.audit(row);
-    for(const row of snapshots())r.current(row);
+    let sequence=0;
+    for(let page=0;page<1000;page++){
+      const rows=db.prepare(HISTORY_EVENTS_SQL).all(sequence);
+      for(const row of rows){r.audit(row);sequence=row.event_seq;}
+      if(rows.length<HISTORY_BATCH_SIZE)break;
+      if(page===999)throw Error("fixture_audit_pagination_unbounded");
+    }
+    let grantId="";
+    for(let page=0;page<1000;page++){
+      const rows=db.prepare(HISTORY_CURRENT_SQL).all(grantId);
+      for(const row of rows){r.current(row);grantId=row.grant_id;}
+      if(rows.length<HISTORY_BATCH_SIZE)break;
+      if(page===999)throw Error("fixture_current_pagination_unbounded");
+    }
     return r.result(f,checkedGrantHistoryBoundary(
       db.prepare(HISTORY_BOUNDARY_SQL).all()));
   }
@@ -181,6 +195,21 @@ test("page boundaries, replay changes and count fences deny drift",()=>{
       const x=structuredClone(b);change(x);
       assert.throws(()=>checkedGrantHistoryBoundary([x]));
     }
+  }finally{f.close();}
+});
+test("full keyset pagination crosses 384 events and current grants without loss",()=>{
+  const f=fixture();
+  try{
+    for(let i=0;i<HISTORY_BATCH_SIZE+3;i++)
+      f.insert("grant_"+String(i).padStart(4,"0"));
+    const r=f.scan();
+    assert.equal(r.eventsReplayed,HISTORY_BATCH_SIZE+3);
+    assert.equal(r.grantsCompared,HISTORY_BATCH_SIZE+3);
+    assert.equal(r.counts.missingGrants,0);
+    assert.equal(r.counts.conflictingCurrentGrants,0);
+    assert.equal(r.counts.orphanReplayedGrants,0);
+    assert.equal(r.auditedStateEqualsCurrent,true);
+    assert.equal(r.authorizing,false);
   }finally{f.close();}
 });
 test("transport SQL is read-only and keyset-bounded, not dynamic",()=>{
