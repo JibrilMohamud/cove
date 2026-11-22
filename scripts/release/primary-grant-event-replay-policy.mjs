@@ -200,7 +200,9 @@ export function createGrantHistoryReplay(){
       replayEventSha256:eventHash.digest("hex"),
       currentStateSha256:stateHash.digest("hex"),
       scanBoundaryIdentical:JSON.stringify(first)===JSON.stringify(last),
-      auditedStateEqualsCurrent:!blockers.some(b=>b.startsWith("historical_grant_audit_")) &&
+      auditedStateEqualsCurrent:JSON.stringify(first)===JSON.stringify(last) &&
+        auditRows===first.audit_rows&&insertRows===first.grant_rows&&
+        grants===first.grant_rows&&suspended===first.suspended_grants&&
         missing===0&&disagreement===0&&orphans===0,
       historicalRightsReconciled:false,currentOwnerVerified:false,
       authorizing:false,permitsPublication:false,releaseCertified:false,
