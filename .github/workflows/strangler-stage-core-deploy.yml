@@ -1,7 +1,24 @@
 name: strangler-stage-core-deploy
 on:
   workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        description: "Exact reviewed main SHA; staging only."
+        required: true
+        type: string
+      confirm_isolated_stage_only:
+        description: "Approve unroutable, synthetic staging Worker; no production changes."
+        required: true
+        default: false
+        type: boolean
   workflow_call:
+    inputs:
+      reviewed_main_sha:
+        required: true
+        type: string
+      confirm_isolated_stage_only:
+        required: true
+        type: boolean
 
 permissions:
   contents: read
@@ -12,11 +29,18 @@ concurrency:
 
 jobs:
   deploy-private-authenticated-real-core:
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call') &&
+      inputs.reviewed_main_sha == github.sha &&
+      inputs.confirm_isolated_stage_only == true
+    environment: cove-production-release-audit
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
       CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
       CLOUDFLARE_SEND_METRICS: "false"
       COVE_CLOUDFLARE_SSR_PILOT: "1"
       VERCEL: "0"
@@ -35,6 +59,8 @@ jobs:
         run: npm run build
       - name: Local platform compatibility only
         run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.storefront-core.stage.toml
+      - name: Refuse missing isolated staging credential before any Cloudflare action
+        run: test -n "$CLOUDFLARE_API_TOKEN"
       - name: Publish internal Worker without DNS or workers.dev
         run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.storefront-core.stage.toml
       - name: Install distinct random stage-only gate credential
