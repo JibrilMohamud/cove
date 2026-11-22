@@ -67,6 +67,8 @@ jobs:
         run: |
           npm run test:rights
           npm run test:commerce
+      - name: Reject broad Worker/D1 credentials and unreviewed Worker mutations
+        run: node --test scripts/performance/strangler-acceptance-credentials.test.mjs
       - name: Ensure dependency-only integration cannot trigger production backend deploy
         run: |
           node --input-type=module <<'NODE'
