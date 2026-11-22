@@ -277,6 +277,53 @@ try {
     "completed receipts do not create duplicate repair work",
   );
 
+  // A current allow cannot resurrect terminal, tied-timestamp or backdated
+  // rights history merely because an R2 EPUB object is present.
+  const reactivated = await seed("pgau_9100010");
+  await env.DB.prepare(
+    "UPDATE rights_grants SET status='suspended',updated_at=? WHERE id=?",
+  ).bind("2026-10-21T00:00:00.000Z", "rg_test_pgau_9100010").run();
+  await env.DB.prepare(
+    "UPDATE rights_grants SET status='active',updated_at=? WHERE id=?",
+  ).bind("2026-10-22T00:00:00.000Z", "rg_test_pgau_9100010").run();
+  const tiedTimestamp = await seed("pgau_9100011");
+  await env.DB.prepare(
+    "UPDATE rights_grants SET notes='a',updated_at=? WHERE id=?",
+  ).bind("2026-10-23T00:00:00.000Z", "rg_test_pgau_9100011").run();
+  await env.DB.prepare(
+    "UPDATE rights_grants SET notes='b',updated_at=? WHERE id=?",
+  ).bind("2026-10-23T00:00:00.000Z", "rg_test_pgau_9100011").run();
+  const backdated = await seed("pgau_9100012");
+  await env.DB.prepare(
+    "UPDATE rights_grants SET notes='backdated',updated_at=? WHERE id=?",
+  ).bind("2026-10-19T00:00:00.000Z", "rg_test_pgau_9100012").run();
+  const cleanHistory = await seed("pgau_9100013");
+  const quarantined = await repairRegionalEpubAssets(envWithR2, {
+    after: "pgau_9100009",
+    limit: 8,
+  });
+  assert.equal(quarantined.scanned, 1, "only unambiguous grants enter repair");
+  assert.equal(quarantined.repaired, 1, "clean grant retains normal repair");
+  for (const edition of [reactivated, tiedTimestamp, backdated]) {
+    assert.equal(
+      (
+        await env.DB.prepare(
+          "SELECT COUNT(*) n FROM digital_assets WHERE edition_id=?",
+        ).bind(edition).first()
+      ).n,
+      0,
+      "historically unresolved active grants never gain EPUB pointers",
+    );
+  }
+  assert.equal(
+    (
+      await env.DB.prepare(
+        "SELECT COUNT(*) n FROM digital_assets WHERE edition_id=?",
+      ).bind(cleanHistory).first()
+    ).n,
+    1,
+  );
+
   const repairSource = fs.readFileSync(
     "src/features/fore/regional-epub-asset-repair.server.ts",
     "utf8",
@@ -285,6 +332,9 @@ try {
   assert.match(repairSource, /CROSS JOIN products p ON p.source_external_id=c.id/);
   assert.match(repairSource, /suppliedAfter > "pga"/);
   assert.match(repairSource, /NOT EXISTS\(SELECT 1 FROM rights_grants deny/);
+  assert.match(repairSource, /COUNT\(DISTINCT h\.snapshot_json\)>1/);
+  assert.match(repairSource, /LAG\(julianday\(h\.recorded_at\)\)/);
+  assert.match(repairSource, /history\.prior_status IN/);
   assert.match(repairSource, /crypto\.subtle\.digest\("SHA-256", bytes\)/);
   const workerSource = fs.readFileSync("src/persistence-backend.worker.ts", "utf8");
   const endpoint = workerSource.slice(
