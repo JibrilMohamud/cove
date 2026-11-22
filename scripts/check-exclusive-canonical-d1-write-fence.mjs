@@ -45,6 +45,17 @@ try{
   assert.equal(scopeExclusiveCanonicalD1(plain),plain,
     "Unconfigured deployments must have byte-for-byte unchanged DB identity and no overhead");
   assert.equal(scopeExclusiveCanonicalD1({...plain,COVE_OWNER_EXCLUSIVE_WRITER_FENCE:"0"}).DB,raw);
+  // Production enrollment cannot request an owner write lock while leaving
+  // the legacy backend native write capability unfenced, even by omission.
+  for(const flag of [undefined,"0","disabled"]){
+    assert.throws(()=>scopeExclusiveCanonicalD1({...plain,
+      COVE_CANONICAL_LEGAL_WRITE_LOCK:"1",
+      COVE_OWNER_EXCLUSIVE_WRITER_FENCE:flag}),/cutover_not_certified/);
+  }
+  // The preexisting isolated staging-only legal lock remains independently
+  // responsible for those synthetic D1 reads and writes.
+  assert.equal(scopeExclusiveCanonicalD1({...plain,
+    COVE_CANONICAL_LEGAL_WRITE_LOCK:"1",COVE_SSR_STAGING:"1"}).DB,raw);
   const strict={...plain,COVE_OWNER_EXCLUSIVE_WRITER_FENCE:"1",
     COVE_CANONICAL_LEGAL_WRITE_LOCK:"1",
     COVE_LEGAL_WRITER_PRIMARY_ID:"4bd657ac-8789-403e-a28c-93aba8d0a989"};
