@@ -1,0 +1,34 @@
+name: cove-qa-owner-positive-primary-generation
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/storefront-strangler/qa-owner-positive-generation-cas.stage.ts"
+      - "scripts/staging/qa-owner-positive-primary-generation.prototype.sql"
+      - "scripts/check-qa-positive-owner-primary-publication.mjs"
+      - ".github/workflows/cove-qa-owner-positive-primary-generation.yml"
+permissions:
+  contents: read
+jobs:
+  qa-positive-generation-cas:
+    if: github.repository == 'JibrilMohamud/cove'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Enforce real SQLite single-statement positive generation and withdrawal CAS
+        run: node --no-warnings scripts/check-qa-positive-owner-primary-publication.mjs
+      - name: Regression of sealed negative-only QA fence
+        run: node --no-warnings scripts/check-qa-negative-owner-primary-publication.mjs
+      - name: Independently challenge current owner journal and first-primary read
+        run: node --no-warnings scripts/check-current-owner-primary-read-bracket.mjs
+      - name: Reject type and dependency boundary regressions
+        run: npm run typecheck
+      - run: git diff --check
