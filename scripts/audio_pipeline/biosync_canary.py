@@ -34,6 +34,11 @@ JOB = "align-pg-19504-02-7fb5b7e4c4a400b1"
 BASE = f"https://api.cloudflare.com/client/v4/accounts/{ACCOUNT}"
 
 
+class DenyRedirects(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        raise RuntimeError("BioSync credential-bearing requests never follow redirects")
+
+
 def authorized_request(method: str, endpoint: str, payload: bytes | None = None, *, json_body=False) -> bytes:
     endpoint_parts = urllib.parse.urlsplit(endpoint)
     if endpoint_parts.scheme != "https" or endpoint_parts.netloc != "api.cloudflare.com":
@@ -66,7 +71,7 @@ def authorized_request(method: str, endpoint: str, payload: bytes | None = None,
         headers["Content-Type"] = "application/octet-stream"
     request = urllib.request.Request(endpoint, data=payload, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(request, timeout=120) as response:
+        with urllib.request.build_opener(DenyRedirects()).open(request, timeout=120) as response:
             return response.read()
     except urllib.error.HTTPError as error:
         raise RuntimeError(f"Cloudflare {method} {urllib.parse.urlparse(endpoint).path} returned HTTP {error.code}") from None
@@ -196,9 +201,6 @@ def commit_checked_map_to_owner(edition: str, track: str, job: str, map_sha: str
         url, data=json.dumps(payload).encode(), method="POST",
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
     )
-    class DenyRedirects(urllib.request.HTTPRedirectHandler):
-        def redirect_request(self, *args, **kwargs):
-            raise RuntimeError("BioSync owner endpoint redirected")
     try:
         with urllib.request.build_opener(DenyRedirects()).open(request, timeout=120) as response:
             if response.status != 200:
