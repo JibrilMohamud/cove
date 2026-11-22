@@ -5,21 +5,17 @@ import {checkedPaidQaCredentials,paidQaApiTokenFor,paidQaWranglerTokenFor,QA_PAI
 const env={CLOUDFLARE_ACCOUNT_ID:"d26430caa63ec55f6612e32f36aca5e9",
   GITHUB_RUN_ID:"45000012345",GITHUB_RUN_ATTEMPT:"2",
   CLOUDFLARE_API_TOKEN:"worker-scoped-credential-xxx",
-  COVE_CF_PAID_QA_D1_WRITE_TOKEN:"qa-only-d1-sql-credential-xx",
   COVE_CF_PAID_QA_R2_WRITE_TOKEN:"qa-only-r2-object-credential",
   COVE_CF_WORKERS_METADATA_READ_TOKEN:"readonly-metadata-token-xxx"};
 test("QA credentials fail closed on absence, equality, or wrong account",()=>{
   assert.throws(()=>checkedPaidQaCredentials({...env,CLOUDFLARE_ACCOUNT_ID:"other"}));
-  assert.throws(()=>checkedPaidQaCredentials({...env,COVE_CF_PAID_QA_D1_WRITE_TOKEN:""}));
-  assert.throws(()=>checkedPaidQaCredentials({...env,COVE_CF_PAID_QA_D1_WRITE_TOKEN:env.CLOUDFLARE_API_TOKEN}));
+  assert.throws(()=>checkedPaidQaCredentials({...env,COVE_CF_PAID_QA_R2_WRITE_TOKEN:""}));
+  assert.throws(()=>checkedPaidQaCredentials({...env,COVE_CF_PAID_QA_R2_WRITE_TOKEN:env.CLOUDFLARE_API_TOKEN}));
 });
-test("only fixed QA D1 IDs receive SQL token, never production or other D1",()=>{
+test("all direct D1 control-plane paths are forbidden even for synthetic IDs",()=>{
   const c=checkedPaidQaCredentials(env);
-  for(const id of [QA_PAID_D1,QA_SCHEMA_SOURCE_D1])
-    assert.equal(paidQaApiTokenFor("POST","/d1/database/"+id+"/query",c),c.tokens.d1);
-  for(const id of [PRODUCTION_D1,"00000000-0000-0000-0000-000000000000"])
+  for(const id of [QA_PAID_D1,QA_SCHEMA_SOURCE_D1,PRODUCTION_D1])
     assert.throws(()=>paidQaApiTokenFor("POST","/d1/database/"+id+"/query",c));
-  assert.throws(()=>paidQaApiTokenFor("DELETE","/d1/database/"+QA_PAID_D1+"/query",c));
 });
 test("only exact ephemeral paid QA Workers are mutable",()=>{
   const c=checkedPaidQaCredentials(env);
