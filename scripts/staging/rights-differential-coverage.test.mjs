@@ -16,10 +16,7 @@ function fixture() {
     advancedPolicyStrataCovered: true,
     fullProductionRightsParityCertified: false,
     policyCohorts: Object.fromEntries(
-      REQUIRED_RIGHTS_COHORTS.map((cohort) => [
-        cohort,
-        { candidates: 3, uniquelySelected: 2 },
-      ]),
+      REQUIRED_RIGHTS_COHORTS.map((cohort) => [cohort, { candidates: 3, uniquelySelected: 2 }]),
     ),
   };
 }
