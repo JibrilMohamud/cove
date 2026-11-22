@@ -112,7 +112,10 @@ const preorderOwner = read("src/storefront-strangler/legal-authority.worker.ts")
 // to the separately bound QA-only owner, never a public D1 fallback.
 assert.ok(preorder.includes("dispatchPrivatePreorderAction"));
 assert.ok(preorderOwner.includes("preorder_released"));
-assert.ok(preorderOwner.includes("ensureOwnershipSnapshot"));
+// Owner-only fulfillment now uses a typed private ownership command rather
+// than calling the old backend ownership snapshot helper.
+assert.match(ownerRouting, /"delivery\.record-ownership"/);
+assert.match(ownerRouting, /receipt\.saved!==true/);
 assert.ok(
   preorderOwner.includes(
     "Preorder release requires independently verified paid owner authorization.",
