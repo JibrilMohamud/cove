@@ -69,7 +69,8 @@ test("actual SQLite audit matches current grants, and never authorizes",()=>{
     assert.deepEqual(result.counts,{
       inserts:2,updates:1,suspended:1,missingGrants:0,
       conflictingCurrentGrants:0,orphanReplayedGrants:0,
-      ambiguousTimestampGroups:0,terminalReactivations:0,redundantUpdates:0,
+      ambiguousTimestampGroups:0,backdatedEventTimestamps:0,
+      terminalReactivations:0,redundantUpdates:0,
     });
     assert.equal(result.scanBoundaryIdentical,true);
     assert.equal(result.auditedStateEqualsCurrent,true);
@@ -96,6 +97,17 @@ test("equal-time DISTINCT snapshots are ambiguous and block positive legal repla
     assert.ok(r.blockers.includes("historical_grant_timestamp_order_ambiguous"));
     assert.equal(r.historicalRightsReconciled,false);
     assert.equal(r.counts.conflictingCurrentGrants,0);
+  }finally{f.close();}
+});
+test("backdated legal audit event timestamp is an explicit blocker",()=>{
+  const f=fixture();
+  try{
+    f.insert("grant_01", "active", "2026-10-10T00:00:00.000Z");
+    f.update("grant_01","suspended","2026-10-09T00:00:00.000Z");
+    const result=f.scan();
+    assert.equal(result.counts.backdatedEventTimestamps,1);
+    assert.ok(result.blockers.includes("historical_grant_audit_backdated_event_time"));
+    assert.equal(result.historicalRightsReconciled,false);
   }finally{f.close();}
 });
 test("a current unjournaled primary D1 rights edit mismatches replay",()=>{
