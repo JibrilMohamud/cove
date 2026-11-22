@@ -15,12 +15,11 @@ export function checkedPaidQaCredentials(env) {
   assert.match(run,RUN);
   const tokens={
     workers:env?.CLOUDFLARE_API_TOKEN,
-    r2:env?.COVE_CF_PAID_QA_R2_WRITE_TOKEN,
     metadata:env?.COVE_CF_WORKERS_METADATA_READ_TOKEN,
   };
   assert.ok(Object.values(tokens).every(x=>typeof x==="string"&&x.length>=20),
-    "Missing distinct scoped R2, Workers or metadata QA credential");
-  assert.equal(new Set(Object.values(tokens)).size,4,
+    "Missing distinct scoped Workers and metadata QA credentials");
+  assert.equal(new Set(Object.values(tokens)).size,2,
     "Private paid QA must use distinct Cloudflare principals");
   return {run,tokens};
 }
@@ -46,8 +45,6 @@ export function paidQaApiTokenFor(method,resource,credentials) {
 export function paidQaWranglerTokenFor(args,credentials) {
   assert.ok(Array.isArray(args)&&args.length>=1);
   if(args[0]==="deploy")return credentials.tokens.workers;
-  if(args[0]==="r2" && ["bucket","object"].includes(args[1]) &&
-    ["create","delete","put","get"].includes(args[2]||""))
-    return credentials.tokens.r2;
+
   throw Error("paid_qa_wrangler_operation_not_reviewed");
 }

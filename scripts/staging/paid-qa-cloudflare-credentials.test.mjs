@@ -5,12 +5,11 @@ import {checkedPaidQaCredentials,paidQaApiTokenFor,paidQaWranglerTokenFor,QA_PAI
 const env={CLOUDFLARE_ACCOUNT_ID:"d26430caa63ec55f6612e32f36aca5e9",
   GITHUB_RUN_ID:"45000012345",GITHUB_RUN_ATTEMPT:"2",
   CLOUDFLARE_API_TOKEN:"worker-scoped-credential-xxx",
-  COVE_CF_PAID_QA_R2_WRITE_TOKEN:"qa-only-r2-object-credential",
   COVE_CF_WORKERS_METADATA_READ_TOKEN:"readonly-metadata-token-xxx"};
 test("QA credentials fail closed on absence, equality, or wrong account",()=>{
   assert.throws(()=>checkedPaidQaCredentials({...env,CLOUDFLARE_ACCOUNT_ID:"other"}));
-  assert.throws(()=>checkedPaidQaCredentials({...env,COVE_CF_PAID_QA_R2_WRITE_TOKEN:""}));
-  assert.throws(()=>checkedPaidQaCredentials({...env,COVE_CF_PAID_QA_R2_WRITE_TOKEN:env.CLOUDFLARE_API_TOKEN}));
+  assert.throws(()=>checkedPaidQaCredentials({...env,COVE_CF_WORKERS_METADATA_READ_TOKEN:""}));
+  assert.throws(()=>checkedPaidQaCredentials({...env,COVE_CF_WORKERS_METADATA_READ_TOKEN:env.CLOUDFLARE_API_TOKEN}));
 });
 test("all direct D1 control-plane paths are forbidden even for synthetic IDs",()=>{
   const c=checkedPaidQaCredentials(env);
@@ -27,10 +26,9 @@ test("only exact ephemeral paid QA Workers are mutable",()=>{
     assert.throws(()=>paidQaApiTokenFor("DELETE","/workers/scripts/"+bad,c));
   assert.throws(()=>paidQaApiTokenFor("POST","/workers/scripts/"+name+"/settings",c));
 });
-test("Wrangler R2 commands use a different principal from Worker deploy",()=>{
+test("Wrangler may deploy isolated QA Workers, never run direct R2 or D1",()=>{
   const c=checkedPaidQaCredentials(env);
   assert.equal(paidQaWranglerTokenFor(["deploy","--config","safe.jsonc"],c),c.tokens.workers);
-  assert.equal(paidQaWranglerTokenFor(["r2","object","delete","bucket/object"],c),c.tokens.r2);
-  assert.equal(paidQaWranglerTokenFor(["r2","bucket","create","bucket"],c),c.tokens.r2);
+  assert.throws(()=>paidQaWranglerTokenFor(["r2","object","delete","bucket/object"],c));
   assert.throws(()=>paidQaWranglerTokenFor(["d1","migrations","apply"],c));
 });
