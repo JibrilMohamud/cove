@@ -255,6 +255,20 @@ const post=async(route,body)=>{
     cfPlacement:typeof placement==="string"&&/^(local|remote)-[A-Z]{3}$/.test(placement)?placement:null,
     ray:response.headers.get("cf-ray"),
     unavailableLayer:response.headers.get("x-cove-qa-unavailable-layer"),
+    retailFailurePhase:(()=>{
+      const x=response.headers.get("x-cove-qa-retail-phase");
+      return ["preflight","rights","offer","epoch"].includes(x||"")?x:null;
+    })(),
+    retailOwnerStatus:(()=>{
+      const x=response.headers.get("x-cove-qa-retail-owner-status");
+      return ["400","401","403","404","409","429","500","502","503","504","other","unknown"].includes(x||"")?x:null;
+    })(),
+    retailOwnerReason:(()=>{
+      const x=response.headers.get("x-cove-qa-retail-owner-reason");
+      return ["canonical_lease_unfresh_evaluation","canonical_lease_primary_unverified",
+        "canonical_lease_invalid_transition","canonical_lease_transition_imminent",
+        "unclassified"].includes(x||"")?x:null;
+    })(),
     nativeFailure:response.headers.get("x-cove-qa-native-failure"),
     nativePhase:response.headers.get("x-cove-qa-native-phase")};
 };
@@ -558,7 +572,9 @@ try {
     console.warn("QA retail writer route propagation: "+publication404.length+
       " non-mutating HTTP 404 responses before final status "+publish.status);
   assert.equal(publish.status,200,"Private positive canonical retail writer unavailable "+
-    JSON.stringify({status:publish.status,ray:publish.ray,layer:publish.unavailableLayer}));
+    JSON.stringify({status:publish.status,ray:publish.ray,layer:publish.unavailableLayer,
+      phase:publish.retailFailurePhase,upstreamStatus:publish.retailOwnerStatus,
+      ownerReason:publish.retailOwnerReason}));
   assert.equal(publish.body?.published,true);
   assert.ok(Number.isSafeInteger(publish.body?.ownerEpoch)&&publish.body.ownerEpoch>0);
   const rights=await read("/commercial/authorize-batch",{

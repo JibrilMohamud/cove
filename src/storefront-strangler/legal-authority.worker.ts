@@ -5769,8 +5769,25 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       return Response.json(verdict,{status:200,headers:noStore});
     } catch(error) {
       console.error("cove_legal_authority_closed",error instanceof Error?error.name:"unknown");
+      // Synthetic, bearer-gated QA only. Report a fixed non-sensitive reason
+      // for failed positive publication; never expose raw SQL, IDs or errors.
+      // Production mode cannot enter this route (owner disabled).
+      const qaRetail=route==="/commercial/publish-verified" &&
+        QA_PAID_PRIMARIES.has(env.COVE_RIGHTS_OWNER_PRIMARY_ID||"") &&
+        qaOwnerLeaseLive(env);
+      const reason=error instanceof Error?error.message:"";
+      const safeReasons=new Set([
+        "canonical_lease_unfresh_evaluation",
+        "canonical_lease_primary_unverified",
+        "canonical_lease_invalid_transition",
+        "canonical_lease_transition_imminent",
+      ]);
+      const qaHeaders=qaRetail?{
+        ...noStore,
+        "x-cove-qa-retail-owner-reason":safeReasons.has(reason)?reason:"unclassified",
+      }:noStore;
       return new Response(null,{status:503,headers:route==="/commercial/order/settle"?
-        {...noStore,"x-cove-owner-settlement-failure":ownerSettlementDiagnostic(error)}:noStore});
+        {...noStore,"x-cove-owner-settlement-failure":ownerSettlementDiagnostic(error)}:qaHeaders});
     }
   }
 }
