@@ -45,7 +45,9 @@ async function readOnlySql(sql, params = []) {
   if (
     !/^\s*(SELECT|WITH)\b/i.test(sql) ||
     /;/.test(sql) ||
-    /\b(?:INSERT|UPDATE|DELETE|REPLACE|CREATE|ALTER|DROP|ATTACH|DETACH|PRAGMA|VACUUM|REINDEX)\b/i.test(sql)
+    /\b(?:INSERT|UPDATE|DELETE|REPLACE|CREATE|ALTER|DROP|ATTACH|DETACH|PRAGMA|VACUUM|REINDEX)\b/i.test(
+      sql,
+    )
   )
     throw new Error("Write-capable or multi-statement SQL is forbidden");
   queryCount += 1;
@@ -99,64 +101,93 @@ try {
   const { resolveProductRights } = await import(pathToFileURL(outfile).href);
   assert.equal(typeof resolveProductRights, "function");
 
-
   // Prior 48 matches were 24 positive and 24 EXPLICIT_DENY only. That
   // cannot certify contract versions, scoped languages, DRM or timed rights.
   // Prioritize independent bounded policy cohorts, keeping all source data
   // and IDs private and restricting evaluation to the isolated synthetic D1.
-  const cohorts=[
-    {name:"contract_version",limit:12,sql:`
+  const cohorts = [
+    {
+      name: "contract_version",
+      limit: 12,
+      sql: `
       SELECT DISTINCT p.id product_id FROM products p
       JOIN rights_grants rg ON rg.edition_id=p.edition_id
       JOIN rights_contract_versions v ON v.contract_id=rg.contract_id
-      WHERE p.id LIKE 'perf-synth-%' ORDER BY p.id LIMIT 12`},
-    {name:"contract_language",limit:12,sql:`
+      WHERE p.id LIKE 'perf-synth-%' ORDER BY p.id LIMIT 12`,
+    },
+    {
+      name: "contract_language",
+      limit: 12,
+      sql: `
       SELECT DISTINCT p.id product_id FROM products p
       JOIN rights_grants rg ON rg.edition_id=p.edition_id
       JOIN rights_contract_languages l ON l.contract_id=rg.contract_id
-      WHERE p.id LIKE 'perf-synth-%' ORDER BY p.id LIMIT 12`},
-    {name:"nontrivial_drm",limit:12,sql:`
+      WHERE p.id LIKE 'perf-synth-%' ORDER BY p.id LIMIT 12`,
+    },
+    {
+      name: "nontrivial_drm",
+      limit: 12,
+      sql: `
       SELECT DISTINCT p.id product_id FROM products p
       JOIN rights_grants rg ON rg.edition_id=p.edition_id
       WHERE p.id LIKE 'perf-synth-%'
         AND lower(COALESCE(rg.drm_requirement,'')) NOT IN ('none','optional','any','')
-      ORDER BY p.id LIMIT 12`},
-    {name:"contract_bound",limit:12,sql:`
+      ORDER BY p.id LIMIT 12`,
+    },
+    {
+      name: "contract_bound",
+      limit: 12,
+      sql: `
       SELECT DISTINCT p.id product_id FROM products p
       JOIN rights_grants rg ON rg.edition_id=p.edition_id
       WHERE p.id LIKE 'perf-synth-%' AND rg.contract_id IS NOT NULL
-      ORDER BY p.id LIMIT 12`},
-    {name:"explicit_deny",limit:24,sql:`
+      ORDER BY p.id LIMIT 12`,
+    },
+    {
+      name: "explicit_deny",
+      limit: 24,
+      sql: `
       SELECT DISTINCT p.id product_id FROM products p
       JOIN rights_grants rg ON rg.edition_id=p.edition_id
       WHERE p.id LIKE 'perf-synth-%' AND rg.decision='deny'
-      ORDER BY p.id LIMIT 24`},
-    {name:"ranked",limit:24,sql:`
+      ORDER BY p.id LIMIT 24`,
+    },
+    {
+      name: "ranked",
+      limit: 24,
+      sql: `
       SELECT product_id FROM catalog_search_documents
       WHERE product_id LIKE 'perf-synth-%'
-      ORDER BY fore_bestseller_score DESC,external_book_id ASC,product_id ASC LIMIT 24`},
+      ORDER BY fore_bestseller_score DESC,external_book_id ASC,product_id ASC LIMIT 24`,
+    },
   ];
-  const selected=new Set(),coverage=Object.create(null);
-  for(const cohort of cohorts){
-    const rows=await readOnlySql(cohort.sql);
-    if(rows.length>cohort.limit)throw Error("Unbounded isolated legal witness group");
-    let added=0;
-    for(const row of rows){
-      const id=String(row.product_id||"");
-      if(!/^perf-synth-[A-Za-z0-9_-]{1,120}$/.test(id))
+  const selected = new Set();
+  const coverage = Object.create(null);
+  for (const cohort of cohorts) {
+    const rows = await readOnlySql(cohort.sql);
+    if (rows.length > cohort.limit) throw Error("Unbounded isolated legal witness group");
+    let added = 0;
+    for (const row of rows) {
+      const id = String(row.product_id || "");
+      if (!/^perf-synth-[A-Za-z0-9_-]{1,120}$/.test(id))
         throw Error("Unapproved legal witness identifier");
       // Reserve a bounded share for every required legal-policy stratum.
-      if(added>=8||selected.size>=BUDGET)break;
-      if(!selected.has(id)){selected.add(id);added++;}
+      if (added >= 8 || selected.size >= BUDGET) break;
+      if (!selected.has(id)) {
+        selected.add(id);
+        added++;
+      }
     }
-    coverage[cohort.name]={candidates:rows.length,uniquelySelected:added};
+    coverage[cohort.name] = { candidates: rows.length, uniquelySelected: added };
   }
-  const ids=[...selected];
-  if(ids.length<12||ids.length>BUDGET)
+  const ids = [...selected];
+  if (ids.length < 12 || ids.length > BUDGET)
     throw Error("Insufficient bounded synthetic policy witnesses");
-  const advancedPolicyStrataCovered=
-    ["contract_version","contract_language","nontrivial_drm"]
-      .every(name=>coverage[name].candidates>0);
+  const advancedPolicyStrataCovered = [
+    "contract_version",
+    "contract_language",
+    "nontrivial_drm",
+  ].every((name) => coverage[name].candidates > 0);
   if (!advancedPolicyStrataCovered)
     throw new Error("Required staged contract, language or DRM legal witnesses are missing");
   const now = new Date().toISOString();
@@ -173,9 +204,9 @@ try {
     mismatchedCanonicalPositive: 0,
     denied: 0,
     reasons,
-    policyCohorts:coverage,
+    policyCohorts: coverage,
     advancedPolicyStrataCovered,
-    fullProductionRightsParityCertified:false,
+    fullProductionRightsParityCertified: false,
   };
   for (const id of ids) {
     // Neither the canonical results nor product ID is logged or archived.
