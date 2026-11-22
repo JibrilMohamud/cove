@@ -10,6 +10,9 @@ const valid=()=>({
     inactive_without_grant:1,contracts:0,contract_versions:0,active_markets:23},
   evidence:{joined_grants:82246,missing_evidence:0,unapproved_or_mismatched:0,
     legacy_evidence_hashes:77656,other_evidence_types:0},
+  cache:{joined_grants:82246,missing_cache_or_source:0,active_uncleared_cache:0,
+    active_unapproved_commercial_cache:0,disabled_source_grants:0,
+    source_evidence_pointer_mismatch:0,legacy_cache_content_hashes:910},
   exposure:{retail_rows:81909,scoped_grants:82246,scoped_territories:3,
     explicit_deny_grants:0,copyright_notices:0},
 });
@@ -24,6 +27,7 @@ test("the entire historical production inventory remains nonauthorizing",()=>{
   assert.equal(r.releaseCertified,false);
   assert.equal(r.historicalRightsReconciled,false);
   assert.ok(r.blockers.includes("historical_legacy_evidence_fingerprints_not_sha256"));
+  assert.ok(r.blockers.includes("historical_legacy_cache_content_hashes_not_sha256"));
   assert.ok(r.blockers.includes("current_owner_denial_epoch_not_proven"));
 });
 test("stale counts and unexplained positive coverage never pass as consistent",()=>{
@@ -33,6 +37,9 @@ test("stale counts and unexplained positive coverage never pass as consistent",(
     ["state","active_products",81910,"historical_primary_product_partition"],
     ["evidence","joined_grants",82245,"historical_primary_evidence_lineage_incomplete"],
     ["evidence","unapproved_or_mismatched",1,"historical_primary_evidence_lineage_incomplete"],
+    ["cache","active_uncleared_cache",1,"historical_primary_current_source_cache_conflict"],
+    ["cache","active_unapproved_commercial_cache",1,"historical_primary_current_source_cache_conflict"],
+    ["cache","source_evidence_pointer_mismatch",1,"historical_primary_current_source_cache_conflict"],
     ["exposure","scoped_grants",0,"historical_primary_territory_scope_incomplete"],
   ]){
     const x=valid();x[kind][key]=value;
