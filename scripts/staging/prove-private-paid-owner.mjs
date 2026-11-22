@@ -17,12 +17,21 @@ import {createServer} from "node:http";
 // payments, owners and order idempotency keys by the actual attempt as well.
 // Never reuse a prior attempt's potentially paid or refunded QA order.
 const runId=process.env.GITHUB_RUN_ID+"-"+(process.env.GITHUB_RUN_ATTEMPT||"1");
-const token=process.env.CLOUDFLARE_API_TOKEN;
+// Privileges are isolated by operation. No shared account-admin bearer is accepted.
+const workerToken=process.env.COVE_CF_QA_WORKERS_DEPLOY_TOKEN;
+const qaD1Token=process.env.COVE_CF_QA_D1_MUTATION_TOKEN;
+const r2Token=process.env.COVE_CF_QA_R2_STORAGE_TOKEN;
 const account=process.env.CLOUDFLARE_ACCOUNT_ID;
 assert.match(runId||"",/^\d{8,15}-\d{1,5}$/);
 assert.match(account||"",/^[a-f0-9]{32}$/);
 assert.equal(account,"d26430caa63ec55f6612e32f36aca5e9");
-assert.ok(token,"Cloudflare QA authorization required");
+for(const [label,value] of [["Worker",workerToken],["D1",qaD1Token],["R2",r2Token]])
+  assert.ok(typeof value==="string"&&value.length>=20,label+" scoped QA credential required");
+assert.notEqual(workerToken,qaD1Token,"Worker and synthetic D1 authority must be separate");
+assert.notEqual(workerToken,r2Token,"Worker and private R2 authority must be separate");
+assert.notEqual(qaD1Token,r2Token,"D1 and R2 authority must be separate");
+assert.equal(process.env.CLOUDFLARE_API_TOKEN,undefined,
+  "Do not supply a broad Cloudflare bearer to protected QA");
 const stripeSecret=process.env.COVE_SANDBOX_SECRET_KEY||"";
 assert.match(stripeSecret,/^(?:sk|rk|rkcs)_test_[A-Za-z0-9]+$/,"Independent owner requires a real TEST Stripe credential");
 const interruptTrigger="qa_settlement_interrupt_"+runId.replaceAll("-","_");
@@ -63,14 +72,16 @@ const test={
 };
 const cli=(args)=>{
   const result=spawnSync("npm",["exec","--yes","--package=wrangler@4.151.0","--","wrangler",...args],{
-    encoding:"utf8",timeout:160000,env:{...process.env,CLOUDFLARE_SEND_METRICS:"false"}
+    encoding:"utf8",timeout:160000,env:{...process.env,
+      CLOUDFLARE_API_TOKEN:args[0]==="r2"?r2Token:workerToken,
+      CLOUDFLARE_SEND_METRICS:"false"}
   });
   if(result.status!==0)throw Error("wrangler_"+args[0]+"_failed "+
     String(result.stderr||"").replace(/Bearer\s+\S+/g,"Bearer [redacted]").slice(-450));
 };
 const api=async(method,resource,body)=>{
   const r=await fetch("https://api.cloudflare.com/client/v4/accounts/"+account+resource,{
-    method,headers:{authorization:"Bearer "+token,
+    method,headers:{authorization:"Bearer "+(resource.startsWith("/d1/database/")?qaD1Token:workerToken),
       "content-type":"application/json"},
     ...(body?{body:JSON.stringify(body)}:{}),
     signal:AbortSignal.timeout(18000)
