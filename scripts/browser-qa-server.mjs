@@ -244,7 +244,10 @@ const fixturePlugin = {
             for await (const chunk of reply.body) res.write(Buffer.from(chunk));
           return res.end();
         } catch (error) {
-          console.error("Browser QA canonical API failed", error instanceof Error ? error.name : "unknown");
+          console.error(
+            "Browser QA canonical API failed",
+            error instanceof Error ? error.name : "unknown",
+          );
           return send(res, { error: "Browser QA API failed closed" }, 503);
         }
       }
@@ -355,15 +358,20 @@ await build({
   format: "esm",
   target: "node22",
   logLevel: "silent",
-  plugins: [{
-    name: "browser-cloudflare-host",
-    setup(b) {
-      b.onResolve({ filter: /^cloudflare:workers$/ }, () => ({ path: "host", namespace: "host" }));
-      b.onLoad({ filter: /.*/, namespace: "host" }, () => ({
-        contents: "export class DurableObject{constructor(ctx,env){this.ctx=ctx;this.env=env;}}",
-      }));
+  plugins: [
+    {
+      name: "browser-cloudflare-host",
+      setup(b) {
+        b.onResolve({ filter: /^cloudflare:workers$/ }, () => ({
+          path: "host",
+          namespace: "host",
+        }));
+        b.onLoad({ filter: /.*/, namespace: "host" }, () => ({
+          contents: "export class DurableObject{constructor(ctx,env){this.ctx=ctx;this.env=env;}}",
+        }));
+      },
     },
-  }],
+  ],
 });
 const { CoveLegalAuthority } = await import(pathToFileURL(privateOwnerFile).href);
 const legalDb = new DatabaseSync(":memory:");
@@ -400,29 +408,40 @@ const ownerEnv = {
   COVE_RIGHTS_OWNER_SECRET: qaSecret,
 };
 const qaOwner = new CoveLegalAuthority({ storage: ownerStorage }, ownerEnv);
-const qaBook = await localDb.prepare(
-  "SELECT p.id,p.edition_id,c.rights_evidence_id,c.rights_status,c.commercial_use_status,c.copyright,c.source_id FROM products p JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE p.source_name='gutenberg' AND p.source_external_id='1342'"
-).first();
-const qaMarket = await localDb.prepare(
-  "SELECT default_currency FROM storefront_markets WHERE country_code='US' AND market_status='active'"
-).first();
-if (qaBook?.id !== "prd_gutenberg_1342" ||
-    qaBook.source_id !== "pg_us" || qaBook.copyright !== 0 ||
-    qaBook.rights_status !== "public-domain" ||
-    qaBook.commercial_use_status !== "approved" ||
-    !qaBook.rights_evidence_id || qaMarket?.default_currency !== "USD")
+const qaBook = await localDb
+  .prepare(
+    "SELECT p.id,p.edition_id,c.rights_evidence_id,c.rights_status,c.commercial_use_status,c.copyright,c.source_id FROM products p JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE p.source_name='gutenberg' AND p.source_external_id='1342'",
+  )
+  .first();
+const qaMarket = await localDb
+  .prepare(
+    "SELECT default_currency FROM storefront_markets WHERE country_code='US' AND market_status='active'",
+  )
+  .first();
+if (
+  qaBook?.id !== "prd_gutenberg_1342" ||
+  qaBook.source_id !== "pg_us" ||
+  qaBook.copyright !== 0 ||
+  qaBook.rights_status !== "public-domain" ||
+  qaBook.commercial_use_status !== "approved" ||
+  !qaBook.rights_evidence_id ||
+  qaMarket?.default_currency !== "USD"
+)
   throw Error("Browser QA synthetic rights fixture failed independent primary check");
 ownerSql.exec(
-  "INSERT INTO cove_legal_fences(source_id,territory,revision,verdict) VALUES('1342','US',1,'allow')"
+  "INSERT INTO cove_legal_fences(source_id,territory,revision,verdict) VALUES('1342','US',1,'allow')",
 );
 ownerSql.exec(
   "INSERT INTO cove_authorized_offer_proofs(source_id,territory,currency,revision,product_id,edition_id,product_public_id,edition_public_id,offer_json) VALUES('1342','US','USD',1,?,?,NULL,NULL,?)",
-  qaBook.id, qaBook.edition_id,
-  JSON.stringify({ type: "public-domain", currency: "USD", amountMinor: 0 })
+  qaBook.id,
+  qaBook.edition_id,
+  JSON.stringify({ type: "public-domain", currency: "USD", amountMinor: 0 }),
 );
 env.DB = bindPublicationOwner(localDb, {
-  owner: { fetch: request => qaOwner.fetch(request) },
-  secret: qaSecret, territory: "US", currency: "USD",
+  owner: { fetch: (request) => qaOwner.fetch(request) },
+  secret: qaSecret,
+  territory: "US",
+  currency: "USD",
 });
 // This fixture offers no authority outside its isolated synthetic source
 // and is never an external legal-history or production cutover certificate.

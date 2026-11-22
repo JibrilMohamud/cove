@@ -46,13 +46,16 @@ assert.equal((await req("/account", "GET", undefined, null)).data.user, null);
 assert.equal((await req("/library", "POST", { bookId: "1342" }, null)).status, 401);
 assert.equal((await req("/profile", "POST", { name: "Test Reader" })).status, 200);
 assert.equal(
-  (await req("/library", "POST", {bookId: "1342"})).status, 503,
+  (await req("/library", "POST", { bookId: "1342" })).status,
+  503,
   "A public-domain acquisition without the current legal owner must fail closed",
 );
 assert.equal(
   await env.DB.prepare(
-    "SELECT id FROM entitlements WHERE user_id=? AND product_id='prd_gutenberg_1342'"
-  ).bind("test-reader-a").first(),
+    "SELECT id FROM entitlements WHERE user_id=? AND product_id='prd_gutenberg_1342'",
+  )
+    .bind("test-reader-a")
+    .first(),
   null,
   "Ownerless acquisition must never create a free public-domain entitlement",
 );
@@ -175,12 +178,13 @@ assert.equal(
   200,
 );
 assert.equal((await req("/account")).data.annotations.length, 0);
-assert.equal((await req("/library/"+qaOwnedBook, "DELETE", {})).status, 200);
+assert.equal((await req("/library/" + qaOwnedBook, "DELETE", {})).status, 200);
 assert.equal((await req("/account")).data.library.length, 0);
 assert.equal(
   (
-    await env.DB.prepare("SELECT status FROM entitlements WHERE user_id=? AND product_id=(SELECT product_id FROM personal_imports WHERE id=?)")
-      .bind("test-reader-a", qaOwnedBook)
+    await env.DB.prepare(
+      "SELECT status FROM entitlements WHERE user_id=? AND product_id=(SELECT product_id FROM personal_imports WHERE id=?)",
+    ).bind("test-reader-a", qaOwnedBook)
       .first()
   ).status,
   "active",
