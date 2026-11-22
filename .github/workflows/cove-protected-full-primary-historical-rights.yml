@@ -6,6 +6,9 @@ on:
       - "scripts/release/primary-historical-rights-inventory-policy.mjs"
       - "scripts/release/primary-historical-rights-inventory-policy.test.mjs"
       - "scripts/release/protected-primary-historical-rights-inventory.mjs"
+      - "scripts/release/protected-primary-historical-rights-inventory.test.mjs"
+      - "scripts/release/protected-d1-read-throttle.mjs"
+      - "scripts/release/protected-d1-read-throttle.test.mjs"
       - ".github/workflows/cove-protected-full-primary-historical-rights.yml"
       - ".github/workflows/cove-protected-primary-grant-event-replay.yml"
   workflow_dispatch:
@@ -34,6 +37,7 @@ jobs:
       - run: node --check scripts/release/protected-primary-historical-rights-inventory.mjs
       - run: node scripts/release/protected-primary-historical-rights-inventory.mjs --self-test
       - run: node --test scripts/release/primary-historical-rights-inventory-policy.test.mjs
+      - run: node --test scripts/release/protected-primary-historical-rights-inventory.test.mjs scripts/release/protected-d1-read-throttle.test.mjs
       - run: git diff --check
   protected-historical-inventory:
     needs: offline-legal-history-contract
