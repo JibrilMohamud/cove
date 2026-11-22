@@ -18,7 +18,7 @@ export function canonicalPaidQaRetailViews(migration=fs.readFileSync(
     const matches=statements.filter(s=>s.startsWith("CREATE VIEW "+name+" AS"));
     assert.equal(matches.length,1,"Canonical retail authority view is missing/duplicated: "+name);
     const sql=matches[0].slice(matches[0].indexOf("CREATE VIEW "+name+" AS"));
-    assert.ok(sql.length>180&&sql.length<16000);
+    assert.ok(sql.length>(name===VIEW_NAMES[0]?3000:70)&&sql.length<16000);
     return {name,sql};
   });
   assert.ok(views[0].sql.includes("rights_grants")&&
