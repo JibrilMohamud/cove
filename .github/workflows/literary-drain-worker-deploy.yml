@@ -13,6 +13,16 @@ on:
     paths:
       - ".github/workflows/literary-drain-worker-deploy.yml"
   workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        description: "Exact reviewed main SHA for protected Cloudflare operations"
+        type: string
+        required: true
+      confirm_protected_cloudflare_action:
+        description: "Explicitly approve protected stage/production Cloudflare operation"
+        type: boolean
+        required: true
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -32,7 +42,13 @@ jobs:
       - run: node scripts/check-literary-drain-deploy-policy.mjs
   protected-deploy:
     needs: static
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm_protected_cloudflare_action == true &&
+      inputs.reviewed_main_sha == github.sha
+    environment: cove-production-release-audit
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
