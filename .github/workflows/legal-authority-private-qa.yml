@@ -64,9 +64,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
-      COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      COVE_CF_QA_WORKERS_DEPLOY_TOKEN: ${{ secrets.COVE_CF_QA_WORKERS_DEPLOY_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_QA_WORKERS_DEPLOY_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: f51e8ccbc394e2d6016ff8c2c303d54b
       CLOUDFLARE_SEND_METRICS: "false"
     steps:
       - uses: actions/checkout@v6
@@ -77,7 +77,7 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - name: Refuse missing or reused Worker/metadata credentials
+      - name: Require QA-only Worker token and account, reject production D1 access
         run: node --input-type=module -e 'import {checkedPrivateLegalQaCredentials} from "./scripts/staging/legal-qa-cloudflare-credentials.mjs"; checkedPrivateLegalQaCredentials(process.env);'
       - name: Verify owner core, legal writer, and locked staging
         run: |
