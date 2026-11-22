@@ -106,6 +106,7 @@ export function paidOwnerRollbackEvidence({
     async activateBImmediate() {
       assert.ok(versionA && versionB);
       assert.equal(await current(name), versionB, "unexpected deployment before B activation");
+      await shape(versionB, "B"); // Revalidate immutable QA D1, DO, journal and private ingress before POST.
       // Active DOs now defer code changes by default. Apply this policy to
       // this exact synthetic deployment only; it is not inherited by rollback.
       await api("POST", path + "/deployments", {
@@ -156,6 +157,8 @@ export function paidOwnerRollbackEvidence({
       assert.ok(versionA && versionB);
       assert.ok(BigInt(denialEpoch) > BigInt(initialEpoch), "no actual paid mutation evidence");
       assert.equal(await current(name), versionB, "unexpected deployment before rollback");
+      await shape(versionA, "A"); // Never restore an unchecked version, even after a clean A capture.
+      await shape(versionB, "B");
       await api("POST", path + "/deployments", {
         strategy: "percentage",
         versions: [{ version_id: versionA, percentage: 100 }],
