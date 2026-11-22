@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Keep source-exact QA SQL and deny-first fixture readable alongside existing protected scripts. */
 /* The QA storefront uses the same canonical rights view and search document
  * authorization query as production. These fixtures are synthetic only.
  * Never copy rights data from the production account or invent grant rows.
