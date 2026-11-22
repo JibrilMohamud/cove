@@ -37,3 +37,23 @@ test("production deploy, ephemeral handshake and explicit D1 migration have sepa
   assert.match(prod,/github\.event_name == 'workflow_dispatch'/);
   assert.match(prod,/inputs\.apply_migrations == true/);
 });
+
+test("protected rollback, disabled owner, private legal QA and no-D1 gateway do not use broad credential",()=>{
+  const source=["cove-stage-protected-worker-rollback.yml",
+    "deploy-locked-fast-storefront-gateway.yml","production-legal-owner-locked.yml",
+    "legal-authority-private-qa.yml"].map(x=>read(".github/workflows/"+x));
+  for(const workflow of source)
+    assert.doesNotMatch(workflow,/secrets\.CLOUDFLARE_API_TOKEN/);
+  assert.match(source[0],/secrets\.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN/);
+  assert.match(source[1],/secrets\.COVE_CF_PROD_WORKERS_DEPLOY_TOKEN/);
+  assert.match(source[1],/secrets\.COVE_CF_WORKERS_METADATA_READ_TOKEN/);
+  assert.match(source[2],/secrets\.COVE_CF_FLEET_READ_TOKEN/);
+  assert.match(source[3],/secrets\.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN/);
+  for(const [name,input] of [["cove-stage-protected-worker-rollback.yml",source[0]],
+    ["production-legal-owner-locked.yml",source[2]],
+    ["deploy-locked-fast-storefront-gateway.yml",source[1]]]){
+    assert.match(input,/environment: cove-production-release-audit/);
+    assert.match(input,/github\.event_name == 'workflow_dispatch'/,
+      name+" must require protected manual approval");
+  }
+});
