@@ -32,7 +32,7 @@ function fixture(){
   const qaSql=async(sql,params=[])=>{
     const statement=db.prepare(sql);
     if(/^\s*(SELECT|WITH|PRAGMA)\b/i.test(sql))
-      return {success:true,results:statement.all(...params)};
+      return {success:true,results:statement.all(...params).map(row=>({...row}))};
     return {success:true,results:[],meta:statement.run(...params)};
   };
   return {db,qaSql};
