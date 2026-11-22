@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import {build} from "esbuild";
 import {DatabaseSync} from "node:sqlite";
-import {mkdtempSync,rmSync} from "node:fs";
+import {cpSync,mkdtempSync,rmSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {pathToFileURL} from "node:url";
@@ -21,6 +21,7 @@ try{
       }));
     }}]});
   const {CoveLegalAuthority}=await import(pathToFileURL(output).href);
+  cpSync("drizzle",join(folder,"drizzle"),{recursive:true});
   const fixture=localBindings(folder);
   const sql={exec(query,...args){
     if(!args.length&&/^(?:CREATE|ALTER|DROP|PRAGMA)\s/i.test(query.trimStart())){
