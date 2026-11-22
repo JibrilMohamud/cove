@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Fixed historical risk inventory; reductions remain mandatory. */
 import assert from "node:assert/strict";
 import {readdirSync,readFileSync} from "node:fs";
 
@@ -47,7 +48,7 @@ assert.ok(matches.every(name=>knownUnsafe.has(name)),
 assert.ok(matches.length<=knownUnsafe.size,
   "Broad Cloudflare token references increased since baseline");
 const removed=[...knownUnsafe].filter(name=>!matches.includes(name)).sort();
-assert.ok(removed.includes("hosted-music-supply-disabled-qa"),
+assert.ok(!matches.includes("hosted-music-supply-disabled-qa"),
   "The isolated music QA must never regain the broad token");
 console.log("BROAD_CF_TOKEN_REMAINING="+matches.length);
 console.log("BROAD_CF_TOKEN_REMOVED="+removed.length);
