@@ -42,6 +42,10 @@ on:
       - "scripts/staging/paid-qa-template-binding.mjs"
       - "scripts/staging/paid-qa-template-binding.test.mjs"
       - "scripts/staging/paid-owner-schema-policy.mjs"
+      - "scripts/staging/paid-qa-retail-catalog.mjs"
+      - "scripts/staging/paid-qa-retail-catalog.test.mjs"
+      - "drizzle/0074_flatten_retail_membership.sql"
+      - "src/features/fore/catalog-model.server.ts"
       - "scripts/check-qa-synthetic-audio.mjs"
       - "scripts/staging/provision-original-audio-qa.mjs"
       - "scripts/check-paid-stage-initial-identity.mjs"
@@ -91,6 +95,10 @@ on:
       - "scripts/staging/paid-qa-template-binding.mjs"
       - "scripts/staging/paid-qa-template-binding.test.mjs"
       - "scripts/staging/paid-owner-schema-policy.mjs"
+      - "scripts/staging/paid-qa-retail-catalog.mjs"
+      - "scripts/staging/paid-qa-retail-catalog.test.mjs"
+      - "drizzle/0074_flatten_retail_membership.sql"
+      - "src/features/fore/catalog-model.server.ts"
       - "scripts/staging/provision-original-audio-qa.mjs"
       - "scripts/check-qa-synthetic-audio.mjs"
       - "scripts/check-paid-stage-initial-identity.mjs"
@@ -143,6 +151,7 @@ jobs:
       - run: node scripts/check-offline-audio-issuer-authorization.mjs
       - run: node scripts/check-customer-media-owner-order.mjs
       - run: node --test scripts/staging/paid-owner-rollback-evidence.test.mjs
+      - run: node --test scripts/staging/paid-qa-retail-catalog.test.mjs
       - run: node scripts/check-current-owner-mutation-fence.mjs
   real-test-payment-to-private-owner:
     if: >-
