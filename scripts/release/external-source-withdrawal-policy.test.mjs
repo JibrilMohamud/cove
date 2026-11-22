@@ -40,13 +40,25 @@ const data=()=>({
     dispute_events:0,explicit_decision_denials:0,grant_audit_events:87742,
     grant_rows:82246,
   }],
+  chronology:[{
+    ambiguous_grants:116,reactivated_grants:114,backdated_grants:2,
+    ambiguous_reactivated_overlap:114,ambiguous_backdated_overlap:2,
+    reactivated_backdated_overlap:2,ambiguous_active_grants:112,
+    ambiguous_suspended_grants:4,
+  }],
 });
 test("live-shaped aggregates remain nonauthorizing even with no local external notices",()=>{
   const x=data(),r=sourceCoverageReport(x,structuredClone(x),NOW);
-  assert.equal(r.schema,"cove.external-source-withdrawal-coverage.v1");
+  assert.equal(r.schema,"cove.external-source-withdrawal-coverage.v2");
   assert.equal(r.sourceCount,4);
   assert.equal(r.activeGrantRows,81909);
   assert.equal(r.recordedGrantRows,82246);
+  assert.deepEqual(r.evidence.conflictingChronology,{
+    ambiguous_grants:116,reactivated_grants:114,backdated_grants:2,
+    ambiguous_reactivated_overlap:114,ambiguous_backdated_overlap:2,
+    reactivated_backdated_overlap:2,ambiguous_active_grants:112,
+    ambiguous_suspended_grants:4,
+  });
   assert.equal(r.unchangedAcrossRead,true);
   assert.equal(r.authorizing,false);
   assert.equal(r.currentOwnerVerified,false);
@@ -57,6 +69,9 @@ test("live-shaped aggregates remain nonauthorizing even with no local external n
   assert.ok(r.blockers.includes("external_source_cached_items_stale:pg_au"));
   assert.ok(r.blockers.includes("external_source_legacy_evidence_fingerprint:pg_us"));
   assert.ok(r.blockers.includes("external_withdrawal_source_history_not_attested"));
+  assert.ok(r.blockers.includes("historical_ambiguous_active_grants_unverified"));
+  assert.ok(r.blockers.includes("historical_terminal_reactivation_authority_missing"));
+  assert.ok(r.blockers.includes("historical_backdated_legal_event_order_unresolved"));
   assert.ok(r.blockers.includes("external_withdrawals_not_reconciled_to_current_owner_epoch"));
   assert.ok(!r.blockers.some(b=>b.includes("pg_eu")),
     "degraded source with zero live grants does not prove or disprove current retail");
@@ -94,8 +109,8 @@ test("changed source rows, missing grants and audit regression block publication
   x.grants[0].grant_rows++;
   x.grants[0].active_allows++;
   x.external[0].grant_audit_events=4;
-  assert.ok(sourceCoverageReport(x,structuredClone(x),NOW).blockers.includes(
-    "external_source_grant_audit_incomplete"));
+  assert.throws(()=>sourceCoverageReport(x,structuredClone(x),NOW),
+    /chronology_coverage/,"A shortened event history cannot explain existing reactivations");
 });
 test("unresolved source identity, new source, invalid status and clock fail closed",()=>{
   for(const mutate of [
@@ -113,6 +128,13 @@ test("unresolved source identity, new source, invalid status and clock fail clos
     x=>{x.cache[0].last_seen_at="not-a-date";},
     x=>{x.external[0].copyright_notices="0";},
     x=>{x.external[0].unknown=7;},
+    x=>{x.chronology[0].ambiguous_grants=-1;},
+    x=>{x.chronology[0].ambiguous_reactivated_overlap=115;},
+    x=>{x.chronology[0].backdated_grants=3;
+      x.chronology[0].ambiguous_backdated_overlap=4;},
+    x=>{x.chronology[0].ambiguous_active_grants=118;
+      x.chronology[0].ambiguous_suspended_grants=5;},
+    x=>{x.chronology[0].unknown=true;},
   ]){
     const x=data();mutate(x);
     assert.throws(()=>sourceCoverageReport(x,structuredClone(x),NOW),
@@ -121,8 +143,8 @@ test("unresolved source identity, new source, invalid status and clock fail clos
   assert.throws(()=>sourceCoverageReport(data(),data(),0),/evaluation_clock/);
   assert.throws(()=>checkedSourceCoverageRows("fake",[]),/unreviewed_response/);
 });
-test("four fixed SQLs only, no writes or customer-identifying columns",()=>{
-  assert.deepEqual(Object.keys(SOURCE_SQL).sort(),["cache","external","grants","sources"]);
+test("five fixed SQLs only, no writes or customer-identifying columns",()=>{
+  assert.deepEqual(Object.keys(SOURCE_SQL).sort(),["cache","chronology","external","grants","sources"]);
   verifySourceSql();
   for(const sql of Object.values(SOURCE_SQL)){
     assert.match(sql,/^SELECT\b/);

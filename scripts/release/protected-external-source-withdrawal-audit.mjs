@@ -15,7 +15,7 @@ const ACCOUNT="d26430caa63ec55f6612e32f36aca5e9";
 const PRIMARY="4bd657ac-8789-403e-a28c-93aba8d0a989";
 const URL="https://api.cloudflare.com/client/v4/accounts/"+ACCOUNT+
   "/d1/database/"+PRIMARY+"/query";
-const KINDS=["sources","grants","cache","external"];
+const KINDS=["sources","grants","cache","external","chronology"];
 const MAX_BYTES=48_000;
 const REPORT="artifacts/production-rights-history/external-source-withdrawal-coverage.json";
 function permission(env=process.env,args=process.argv){
@@ -99,6 +99,10 @@ if(process.argv.includes("--self-test")){
       "Source registry rows: "+result.sourceCount,
       "Active primary grants: "+result.activeGrantRows,
       "Total primary grants: "+result.recordedGrantRows,
+      "Ambiguous historical grant IDs: "+result.evidence.conflictingChronology.ambiguous_grants,
+      "Currently active ambiguous grants: "+result.evidence.conflictingChronology.ambiguous_active_grants,
+      "Historical terminal-to-active grants: "+result.evidence.conflictingChronology.reactivated_grants,
+      "Historical backdated grants: "+result.evidence.conflictingChronology.backdated_grants,
       "Double-read unchanged: "+result.unchangedAcrossRead,
       "External withdrawal ledger independently complete: NO",
       "Owner denial epoch current/verified: NO",
