@@ -14,7 +14,8 @@ Status: **NO-GO**. Source controls on draft PR #827 do not establish successful 
 - Existing `COVE_CF_WORKERS_METADATA_READ_TOKEN`: production owner binding checks without deploy rights.
 - `COVE_CF_PROD_WORKERS_DEPLOY_TOKEN`: manually approved production Worker deploy only; audit its Worker resource scope and avoid D1 Write/token issuance.
 - `COVE_CF_PROD_D1_MIGRATIONS_TOKEN`: temporary, separate guarded D1 schema migration principal, removed **before** exclusivity certification; never available to unattended CI.
-- `COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN`: Worker deploy in properly isolated staging scope; verify it has NO ability to modify primary production database.
+- `COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN`: existing Worker deploy principal for protected staging operations that stay in the production account; verify it does not add primary D1 bindings.
+- `COVE_CF_QA_WORKERS_DEPLOY_TOKEN`: **different Cloudflare account** from production, for isolated paid QA Worker upload, version deployment, secret setup and cleanup. Never reuse or broaden `COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN`.
 - `COVE_CF_QA_D1_MUTATION_TOKEN` and `COVE_CF_QA_R2_STORAGE_TOKEN`: dedicated **separate Cloudflare account**, not the production account. Required protected variables: `COVE_CF_QA_ACCOUNT_ID`, `COVE_CF_QA_PRIMARY_D1_ID`, `COVE_CF_QA_PRIMARY_D1_NAME`, `COVE_CF_QA_SCHEMA_SOURCE_D1_ID`, and `COVE_CF_QA_WORKERS_DEV_DOMAIN`. The staging fixture source and target D1 must be provisioned independently in that account. The script rejects the production account, production primary D1 and production workers.dev domain *before* network traffic.
 
 ## Remaining consumers to migrate

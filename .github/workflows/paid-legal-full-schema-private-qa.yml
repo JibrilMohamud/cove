@@ -144,7 +144,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      COVE_CF_QA_WORKERS_DEPLOY_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
+      COVE_CF_QA_WORKERS_DEPLOY_TOKEN: ${{ secrets.COVE_CF_QA_WORKERS_DEPLOY_TOKEN }}
       COVE_CF_QA_D1_MUTATION_TOKEN: ${{ secrets.COVE_CF_QA_D1_MUTATION_TOKEN }}
       COVE_CF_QA_R2_STORAGE_TOKEN: ${{ secrets.COVE_CF_QA_R2_STORAGE_TOKEN }}
       # Mutable QA must use an account with no production Cove resources.

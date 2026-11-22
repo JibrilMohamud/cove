@@ -10,7 +10,7 @@ const fleet=read(".github/workflows/deployed-canonical-d1-principal-audit.yml");
 const topology=read(".github/workflows/production-cutover-topology-audit.yml");
 test("paid QA uses three distinct, capability-separated credentials",()=>{
   assert.doesNotMatch(paid,/secrets\.CLOUDFLARE_API_TOKEN/);
-  for(const name of ["COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN","COVE_CF_QA_D1_MUTATION_TOKEN","COVE_CF_QA_R2_STORAGE_TOKEN"])
+  for(const name of ["COVE_CF_QA_WORKERS_DEPLOY_TOKEN","COVE_CF_QA_D1_MUTATION_TOKEN","COVE_CF_QA_R2_STORAGE_TOKEN"])
     assert.ok(paid.includes("secrets."+name),name+" not wired");
   assert.match(qa,/assert\.notEqual\(workerToken,qaD1Token/);
   assert.match(qa,/assert\.notEqual\(qaD1Token,r2Token/);
