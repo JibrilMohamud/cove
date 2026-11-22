@@ -5,6 +5,7 @@ import {mkdtempSync,rmSync} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {pathToFileURL} from "node:url";
+import {QA_PAID_D1,PRODUCTION_D1} from "./staging/paid-qa-cloudflare-credentials.mjs";
 
 // Exercise the real deployed-stage Worker entrypoint, not a reimplemented
 // regex or a mock authorization function. No Cloudflare or Stripe resources.
@@ -57,5 +58,51 @@ try{
     "A mixed deployment config must reject the buyer");
   assert.equal(dbReads,1,"Only the exact scoped unpaid buyer may reach D1");
   assert.equal(ownerCalls,0,"No unpaid or malformed buyer should reach the owner");
+  // Real deployed settlement stage has its own pre-tender and positive owner
+  // guards. Both must admit the dedicated *separate-account* QA primary,
+  // while the customer production D1 and unknown IDs remain fail-closed.
+  // A denied preflight is a successful safety probe: only owner verification
+  // may run; neither a Stripe tender nor a database mutation is attempted.
+  const paidOrder="order_paid_qa_20261027",paidBuyer="user_paid_qa_20261027";
+  async function paidGateProbe(primaryId,route){
+    let verified=0,canonicalReads=0;
+    const scope={...env,COVE_LEGAL_WRITER_PRIMARY_ID:primaryId,
+      PRIMARY_DB:{prepare(sql){
+        canonicalReads++;
+        assert.match(sql,/SELECT id,user_id,territory_code,status FROM commerce_orders/);
+        return {bind(...params){return {async first(){
+          assert.deepEqual(params,route==="/certify-paid"?[paidOrder,paidBuyer]:[paidOrder]);
+          return null;
+        }};}};
+      }},
+      LEGAL_PRIVATE:{async fetch(request){
+        verified++;
+        assert.equal(new URL(request.url).pathname,"/commercial/order/verify");
+        assert.equal(request.headers.get("authorization"),"Bearer "+env.COVE_RIGHTS_OWNER_SECRET);
+        assert.equal((await request.json()).orderId,paidOrder);
+        return Response.json({schema:"cove.paid-order-permission.v1",orderId:paidOrder,allowed:false});
+      }}
+    };
+    const req=new Request("https://private.stage.invalid"+route,{
+      method:"POST",headers:{"content-type":"application/json",
+        authorization:"Bearer "+scope.COVE_PAID_STAGE_QA_GATE},
+      body:JSON.stringify({orderId:paidOrder,userId:paidBuyer})
+    });
+    const response=await worker.fetch(req,scope);
+    return {status:response.status,verified,canonicalReads};
+  }
+  for(const route of ["/preflight-paid","/certify-paid"]){
+    const current=await paidGateProbe(QA_PAID_D1,route);
+    assert.equal(current.status,409,"Dedicated QA primary must pass stage preflight and reach the canonical safety denial");
+    assert.equal(current.verified,route==="/preflight-paid"?1:0,
+      "Owner verification precedes any canonical paid preflight DB access");
+    assert.equal(current.canonicalReads,route==="/certify-paid"?1:0,
+      "Paid settlement must first check the real order, not trust caller payment claims");
+    for(const id of [PRODUCTION_D1,"00000000-0000-4000-8000-000000000000"]){
+      assert.deepEqual(await paidGateProbe(id,route),{status:503,verified:0,canonicalReads:0},
+        "Customer or unreviewed D1 must never enter synthetic settlement");
+    }
+  }
+  console.log("PASS: dedicated separate-account paid QA primary reaches both safe owner stages; production and unknown D1 deny before all effects");
   console.log("PASS: real paid QA Worker rejects cross-run/buyer identities and denies attempt-scoped unpaid delivery");
 }finally{rmSync(dir,{recursive:true,force:true});}
