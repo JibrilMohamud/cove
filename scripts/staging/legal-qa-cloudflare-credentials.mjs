@@ -5,28 +5,28 @@ const QA_DB="5e3a6b69-6f3d-4b19-b837-01f7aa56ce87";
 export function checkedPrivateLegalQaCredentials(env){
   assert.equal(env?.CLOUDFLARE_ACCOUNT_ID,QA_ACCOUNT);
   assert.match(String(env?.GITHUB_RUN_ID||""),/^\d{8,15}$/);
-  const workers=env?.CLOUDFLARE_API_TOKEN,d1=env?.COVE_CF_PAID_QA_D1_WRITE_TOKEN,
+  const workers=env?.CLOUDFLARE_API_TOKEN,
     metadata=env?.COVE_CF_WORKERS_METADATA_READ_TOKEN;
-  assert.ok([workers,d1,metadata].every(x=>typeof x==="string"&&x.length>=20),
-    "Private legal QA requires independent Workers, D1 and metadata credentials");
-  assert.equal(new Set([workers,d1,metadata]).size,3,
+  assert.ok([workers,metadata].every(x=>typeof x==="string"&&x.length>=20),
+    "Private legal QA requires independent Workers and metadata credentials");
+  assert.equal(new Set([workers,metadata]).size,2,
     "Private legal QA credential reuse is forbidden");
-  return {workers,d1,metadata,run:env.GITHUB_RUN_ID};
+  return {workers,metadata,run:env.GITHUB_RUN_ID};
 }
 export function legalQaTokenFor(method,path,c){
   if(typeof path!=="string"||path.includes("..")||path.includes("?"))
     throw Error("legal_qa_path_not_reviewed");
   const root="/accounts/"+QA_ACCOUNT;
-  if(path===root+"/d1/database/"+QA_DB+"/query"&&method==="POST")return c.d1;
+  
   if(path.startsWith(root+"/d1/")||path.includes(PRODUCTION_D1))
-    throw Error("legal_qa_production_d1_forbidden");
+    throw Error("legal_qa_direct_d1_forbidden_use_synthetic_gateway");
   const prefix=root+"/workers/scripts";
   if(path===prefix&&method==="GET")return c.workers;
   if(!path.startsWith(prefix+"/"))throw Error("legal_qa_resource_not_reviewed");
   const tail=path.slice(prefix.length+1);
   const segments=tail.split("/");
   const worker=segments[0],suffix=segments.slice(1).join("/");
-  const allowed=new Set(["cove-legal-authority-private-qa-example","cove-legal-quarantine-qa-private","cove-private-legal-proof-"+c.run]);
+  const allowed=new Set(["cove-legal-authority-private-qa-example","cove-legal-quarantine-qa-private","cove-private-legal-proof-"+c.run,"cove-legal-d1-gateway-"+c.run]);
   if(!allowed.has(worker))throw Error("legal_qa_worker_not_reviewed");
   if(method==="GET"&&suffix==="settings")return c.metadata;
   if(method==="GET"&&["","subdomain","deployments"].includes(suffix))return c.workers;
