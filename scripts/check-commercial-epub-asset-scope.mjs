@@ -95,9 +95,16 @@ try {
     assert.equal(outcome.calls.r2,0,"Private R2 is never requested on invalid asset identity");
     assert.deepEqual(outcome.audits,[{event:"denied",reason:"asset_missing"}]);
   }
-  const success=await redeem("version_buyer");
-  assert.equal(success.result.response?.status,200,"Valid EPUB for purchased edition must still stream");
-  assert.equal(success.calls.r2,1);
-  assert.equal(success.result.response.headers.get("cache-control"),"private, no-store");
-  console.log("PASS: actual commercial EPUB redemption refuses foreign-edition and non-EPUB asset versions before R2, valid purchased EPUB still streams");
+  // Even a same-edition EPUB remains undeliverable when the private legal
+  // owner has not acknowledged consumption. Asset identity alone is never a
+  // positive purchase/rights certificate; the owner-positive proof runs in
+  // the isolated full-schema QA suite.
+  const ownerless=await redeem("version_buyer");
+  assert.equal(ownerless.result.error?.status,503,
+    "Valid purchased asset must be denied without private-owner consumption");
+  assert.equal(ownerless.result.response,undefined);
+  assert.equal(ownerless.calls.r2,1,
+    "The valid in-scope asset may be looked up but must never be delivered");
+  assert.deepEqual(ownerless.audits,[]);
+  console.log("PASS: foreign/non-EPUB asset denied before R2; ownerless valid asset denied before delivery");
 } finally{db.close();rmSync(folder,{recursive:true,force:true});}
