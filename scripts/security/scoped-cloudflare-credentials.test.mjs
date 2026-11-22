@@ -72,6 +72,7 @@ test("paid real-schema QA is manual, separate-principal and fail-closed", () => 
   assert.ok(production.includes("secrets.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN"));
   assert.ok(production.includes("Deny direct production D1 schema migration"));
   assert.ok(!paid.includes("secrets.CLOUDFLARE_API_TOKEN"));
+  assert.ok(!paid.includes("secrets.COVE_CF_PAID_QA_D1_WRITE_TOKEN"));
   for(const value of ["secrets.COVE_CF_PAID_QA_D1_WRITE_TOKEN",
     "secrets.COVE_CF_PAID_QA_R2_WRITE_TOKEN",
     "secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN",
