@@ -34,10 +34,17 @@ try{
     outfile:path.join(folder,"publish.mjs"),bundle:true,platform:"node",
     format:"esm",target:"node22",logLevel:"silent",
   });
+  await build({
+    entryPoints:["src/storefront-strangler/qa-owner-positive-certificate-issuer.stage.ts"],
+    outfile:path.join(folder,"issuer.mjs"),bundle:true,platform:"node",
+    format:"esm",target:"node22",logLevel:"silent",
+  });
   const [{CoveLegalAuthority,default:entry},
-    {publishQaOwnerPositiveGeneration}]=await Promise.all([
+    {publishQaOwnerPositiveGeneration},
+    {qaPositiveCandidateDigest}]=await Promise.all([
     import(pathToFileURL(path.join(folder,"owner.mjs")).href),
     import(pathToFileURL(path.join(folder,"publish.mjs")).href),
+    import(pathToFileURL(path.join(folder,"issuer.mjs")).href),
   ]);
   async function make({noPositive=false,missingOwnerProof=false,tamperManifest=false,
     productionId=false}={}){
@@ -114,8 +121,6 @@ try{
     const header={generation:9,primaryId:qaId,journalVersion:version,
       ownerEpoch:epoch,rehearsalRevision:"A",sourceRevision:7,
       territory:"US",catalogRows:3,allowRows:2,denyRows:1};
-    const {qaPositiveCandidateDigest}=await import(
-      pathToFileURL(path.join(folder,"owner.mjs")).href);
     const digest=await qaPositiveCandidateDigest(header,rows);
     let source=readFileSync(
       "scripts/staging/qa-owner-positive-primary-generation.prototype.sql","utf8");
@@ -172,6 +177,11 @@ try{
     assert.ok(body.eligibilityValidUntilMs<=Date.now()+26_000);
     assert.equal((await positive.post(positiveRoute,{challenge,allow:true})).status,400);
     assert.equal((await positive.post(positiveRoute,{challenge},"bad")).status,401);
+    const previousId=positive.env.COVE_RIGHTS_OWNER_PRIMARY_ID;
+    positive.env.COVE_RIGHTS_OWNER_PRIMARY_ID=prodId;
+    assert.equal((await positive.post(positiveRoute,{challenge})).status,503,
+      "production primary ID must never access QA issuer");
+    positive.env.COVE_RIGHTS_OWNER_PRIMARY_ID=previousId;
     // The real owner's authenticated, challenge-bound certificate now drives
     // the actual isolated QA primary-D1 single-statement generation CAS.
     const committed=await positive.publisher();
@@ -200,7 +210,6 @@ try{
     ["owner issuer opt-in absent",{noPositive:true},503],
     ["positive owner offer proof missing",{missingOwnerProof:true},503],
     ["candidate cryptographic manifest mismatch",{tamperManifest:true},503],
-    ["production identity cannot obtain QA lease",{productionId:true},503],
   ];
   for(const [label,opts,expected] of tests){
     const x=await make(opts);
