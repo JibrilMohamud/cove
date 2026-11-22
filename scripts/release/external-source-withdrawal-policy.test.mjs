@@ -88,9 +88,11 @@ test("changed source rows, missing grants and audit regression block publication
   assert.equal(drift.unchangedAcrossRead,false);
   assert.ok(drift.blockers.includes("external_source_inventory_changed_during_read"));
   x.grants[0].grant_rows--;
+  x.grants[0].active_allows--;
   assert.ok(sourceCoverageReport(x,structuredClone(x),NOW).blockers.includes(
     "external_source_grant_cohort_incomplete"));
   x.grants[0].grant_rows++;
+  x.grants[0].active_allows++;
   x.external[0].grant_audit_events=4;
   assert.ok(sourceCoverageReport(x,structuredClone(x),NOW).blockers.includes(
     "external_source_grant_audit_incomplete"));
