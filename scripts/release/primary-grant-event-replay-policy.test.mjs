@@ -127,7 +127,7 @@ test("replay rejects missing inserts, duplicate inserts and terminal resurrectio
 test("an orphan audit event cannot be silently ignored",()=>{
   const f=fixture();
   try{
-    f.insert("grant_01");
+    f.insert("grant_01");f.insert("grant_02");
     f.db.exec("DELETE FROM rights_grants WHERE id='grant_01'");
     const result=f.scan();
     assert.equal(result.counts.orphanReplayedGrants,1);
