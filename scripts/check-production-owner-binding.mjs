@@ -37,7 +37,10 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href) {
   assert.match(config,/\[\[durable_objects\.bindings\]\]\s*name = "LEGAL_AUTHORITY"\s*class_name = "CoveLegalAuthority"\s*script_name = "cove-legal-authority-production"/);
   const before=process.argv.includes("--before-deploy"),after=process.argv.includes("--after-deploy");
   if(before||after) {
-    const token=process.env.CLOUDFLARE_API_TOKEN,account=process.env.CLOUDFLARE_ACCOUNT_ID;
+    // Prefer the independent metadata-only principal. Existing legacy callers
+    // can be migrated individually without interrupting their workflows.
+    const token=process.env.COVE_CF_WORKERS_METADATA_READ_TOKEN || process.env.CLOUDFLARE_API_TOKEN;
+    const account=process.env.CLOUDFLARE_ACCOUNT_ID;
     assert.ok(token&&/^[a-f0-9]{32}$/.test(account||""),"Authenticated Cloudflare account is required");
     const get=async name=>{
       const response=await fetch(`https://api.cloudflare.com/client/v4/accounts/${account}/workers/scripts/${name}/settings`,{
