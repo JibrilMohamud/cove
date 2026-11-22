@@ -19,16 +19,24 @@ export async function readPaidOwnerFence(post, journalVersion, revision) {
   assert.equal(r.journalVersion, journalVersion);
   assert.equal(r.primaryId, PAID_QA_PRIMARY);
   assert.equal(r.authorizing, false);
-  assert.equal(r.rehearsalRevision, revision);
   assert.equal(r.tables, 24);
   assert.equal(r.triggers, 78);
   assert.match(r.mutationEpoch, /^(?:0|[1-9][0-9]{0,15})$/);
   assert.ok(Number.isSafeInteger(Number(r.mutationEpoch)));
+  assert.ok(r.rehearsalRevision === "A" || r.rehearsalRevision === "B");
+  assert.equal(r.rehearsalRevision, revision, "paid_owner_revision_not_current");
   return r;
 }
 
 /** Only the exact run's synthetic owner can receive a deployment POST. */
-export function paidOwnerRollbackEvidence({ runId, journalVersion, api, post }) {
+export function paidOwnerRollbackEvidence({
+  runId,
+  journalVersion,
+  api,
+  post,
+  now = () => Date.now(),
+  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+}) {
   assert.match(runId, /^\d{8,15}-[1-9]\d{0,4}$/);
   assert.match(journalVersion, /^[a-f0-9]{64}$/);
   const name = "cove-paid-legal-owner-" + runId;
@@ -83,14 +91,71 @@ export function paidOwnerRollbackEvidence({ runId, journalVersion, api, post }) 
       initialEpoch = (await readPaidOwnerFence(post, journalVersion, "A")).mutationEpoch;
     },
     async captureB() {
-      assert.ok(versionA && !versionB);
-      versionB = await current(name);
-      assert.notEqual(versionB, versionA, "B must be an actual distinct Worker version");
+      assert.ok(versionA);
+      if (!versionB) await this.captureBDeployment();
+      assert.equal(await current(name), versionB);
       await shape(versionB, "B");
       const r = await readPaidOwnerFence(post, journalVersion, "B");
       assert.ok(BigInt(r.mutationEpoch) >= BigInt(initialEpoch), "B lost owner history");
       await unchangedProduction();
       return r;
+    },
+    async captureBDeployment() {
+      assert.ok(versionA && !versionB);
+      versionB = await current(name);
+      assert.notEqual(versionB, versionA, "B must be an actual distinct Worker version");
+      await shape(versionB, "B");
+      await unchangedProduction();
+    },
+    async activateBImmediate() {
+      assert.ok(versionA && versionB);
+      assert.equal(await current(name), versionB, "unexpected deployment before B activation");
+      await unchangedProduction();
+      // Active DOs now defer code changes by default. Apply this policy to
+      // this exact synthetic deployment only; it is not inherited by rollback.
+      await api("POST", path + "/deployments", {
+        strategy: "percentage",
+        versions: [{ version_id: versionB, percentage: 100 }],
+        code_update_strategy: { mode: "immediate" },
+        annotations: { "workers/message": "Protected synthetic paid-owner B activation" },
+      });
+      assert.equal(await current(name), versionB);
+    },
+    async waitForRevision(revision) {
+      assert.ok(revision === "A" || revision === "B");
+      assert.ok(versionA && versionB, "both immutable versions must be captured first");
+      const end = now() + 60_000,
+        counts = {};
+      for (let attempt = 0; attempt < 30 && now() < end; attempt++) {
+        let status;
+        try {
+          return await readPaidOwnerFence(
+            async (route, body) => {
+              const response = await post(route, body);
+              status = response.status;
+              return response;
+            },
+            journalVersion,
+            revision,
+          );
+        } catch (error) {
+          // Only an authenticated, otherwise valid prior revision or route
+          // propagation status may be retried. Corrupt/stale proofs fail now.
+          const pending =
+            status === 200 && error?.message?.startsWith("paid_owner_revision_not_current");
+          const reason = pending
+            ? "valid_prior_revision"
+            : status === 404
+              ? "route_404"
+              : status === 503
+                ? "unavailable_503"
+                : null;
+          if (!reason) throw Error("paid_owner_revision_invalid_receipt");
+          counts[reason] = (counts[reason] || 0) + 1;
+        }
+        if (attempt < 29 && now() < end) await sleep(Math.min(2000, end - now()));
+      }
+      throw Error("paid_owner_revision_not_ready:" + JSON.stringify(counts));
     },
     async restoreA(denialEpoch) {
       assert.ok(versionA && versionB);
@@ -100,6 +165,7 @@ export function paidOwnerRollbackEvidence({ runId, journalVersion, api, post }) 
       await api("POST", path + "/deployments", {
         strategy: "percentage",
         versions: [{ version_id: versionA, percentage: 100 }],
+        code_update_strategy: { mode: "immediate" },
         annotations: {
           "workers/message": "Protected synthetic paid-owner rollback; preserve denial state",
         },
