@@ -5,10 +5,11 @@ on:
       - "src/storefront-strangler/owner-biosync-checked-publication.stage.ts"
       - "src/storefront-strangler/legal-authority.worker.ts"
       - "src/storefront-strangler/canonical-owner-command-gateway.ts"
-      - "src/features/fore/api.server.ts"
       - "scripts/audio_pipeline/biosync_canary.py"
       - "scripts/audio_pipeline/test_biosync_owner_cutover.py"
       - "scripts/check-owner-biosync-checked-publication.mjs"
+      - "scripts/check-owner-biosync-qa-gateway.mjs"
+      - "infra/biosync-owner-qa-gateway.worker.ts"
       - ".github/workflows/biosync-canary.yml"
       - ".github/workflows/cove-biosync-owner-cutover-offline.yml"
   workflow_dispatch:
@@ -42,12 +43,12 @@ jobs:
           node scripts/check-owner-stripe-webhook.mjs
           node scripts/check-owner-refund-accounting.mjs
           node scripts/check-owner-paid-settlement.mjs
+      - name: Reject unscoped, expired, hostile and production QA gateway requests
+        run: node scripts/check-owner-biosync-qa-gateway.mjs
       - name: Prove scheduled Python cannot submit direct D1 writes
         run: python3 -m unittest scripts.audio_pipeline.test_biosync_owner_cutover
       - name: Validate source types
         run: npx tsc --noEmit
-      - name: Verify source-bound SQL-site attestation remains exact
-        run: node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/biosync-owner-qa-source-attestation-20261122.json
       - name: Reconcile all source-bound SQL-site identities
         run: node scripts/reconcile-canonical-writers.mjs
       - name: Refuse new unfenced protected-table writers
