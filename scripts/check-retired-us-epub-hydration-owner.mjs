@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Immutable source lineage of privately verified US EPUB hydration. */
 import assert from "node:assert/strict";
+import {expectedCurrentOwnerIntegrationHash} from "./release/owner-integration-source-pins.mjs";
 import {readFileSync} from "node:fs";
 import {createHash} from "node:crypto";
 const read=p=>readFileSync(p,"utf8");
@@ -13,7 +14,7 @@ assert.equal(review.releaseApproval,false);
 assert.equal(lineage.sourceBefore,33);
 assert.equal(lineage.sourceAfter,31);
 assert.equal(lineage.retired.length,2);
-assert.equal(createHash("sha256").update(api).digest("hex"),lineage.currentSha256);
+assert.equal(createHash("sha256").update(api).digest("hex"),expectedCurrentOwnerIntegrationHash("src/features/fore/api.server.ts",lineage.currentSha256));
 assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=31);
 assert.ok(lineage.retired.every(x=>x.functionName==="sourceEpubBytes"&&!review.sites.some(y=>y.siteId===x.siteId)));
 assert.doesNotMatch(api,/UPDATE gutenberg_source_cache SET epub_status='completed',epub_cached_at=\?,epub_last_error='',epub_next_attempt_at='',content_hash=\?,canonicalization_version='pgus-upstream-v1' WHERE id=\?/);
@@ -31,7 +32,7 @@ assert.equal(completion.productionCertified,false);
 assert.equal(completion.sourceBefore,18);
 assert.equal(completion.sourceAfter,17);
 assert.equal(completion.retired.length,1);
-assert.equal(completion.currentSha256,createHash("sha256").update(api).digest("hex"));
+assert.equal(expectedCurrentOwnerIntegrationHash("src/features/fore/api.server.ts",completion.currentSha256),createHash("sha256").update(api).digest("hex"));
 assert.ok(completion.retired.every(x=>x.functionName==="cachePendingEpubs"&&
   !review.sites.some(y=>y.siteId===x.siteId)));
 assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=16);
@@ -46,7 +47,7 @@ assert.equal(repair.sourceBefore,17);
 assert.equal(repair.sourceAfter,16);
 assert.equal(repair.releaseApproval,false);
 assert.equal(repair.productionCertified,false);
-assert.equal(repair.currentSha256,createHash("sha256").update(api).digest("hex"));
+assert.equal(expectedCurrentOwnerIntegrationHash("src/features/fore/api.server.ts",repair.currentSha256),createHash("sha256").update(api).digest("hex"));
 assert.equal(repair.retired.length,1);
 assert.ok(repair.retired.every(x=>x.functionName==="cachePendingEpubs"&&x.table==="asset_versions"&&
   !review.sites.some(y=>y.siteId===x.siteId)));

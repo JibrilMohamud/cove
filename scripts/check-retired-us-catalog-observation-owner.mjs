@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Byte-bound private catalog observation source lineage. */
 import assert from "node:assert/strict";
+import {expectedCurrentOwnerIntegrationHash} from "./release/owner-integration-source-pins.mjs";
 import {readFileSync} from "node:fs";
 import {createHash} from "node:crypto";
 const read=p=>readFileSync(p,"utf8"),sha=s=>createHash("sha256").update(s).digest("hex");
@@ -10,7 +11,7 @@ const gateway=read("src/storefront-strangler/canonical-owner-command-gateway.ts"
 const routing=read("src/storefront-strangler/publication-owner-routing.server.ts");
 assert.equal(review.releaseApproval,false);
 assert.equal(lineage.retired.length,3);
-assert.equal(sha(api),lineage.currentSha256);
+assert.equal(sha(api),expectedCurrentOwnerIntegrationHash("src/features/fore/api.server.ts",lineage.currentSha256));
 assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=43);
 assert.ok(lineage.retired.every(x=>x.functionName==="runCatalogIngestion"));
 assert.ok(lineage.retired.every(x=>!review.sites.some(y=>y.siteId===x.siteId)));

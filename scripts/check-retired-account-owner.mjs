@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Exact retired account source, original SQL lineage and private-only execution. */
 import assert from "node:assert/strict";
+import {expectedCurrentOwnerIntegrationHash} from "./release/owner-integration-source-pins.mjs";
 import {readFileSync} from "node:fs";
 import {createHash} from "node:crypto";
 import {build} from "esbuild";
@@ -10,7 +11,7 @@ assert.equal(lineage.retiredOwnerCount,8);assert.equal(lineage.retiredSqlCount,9
 assert.equal(lineage.retired.filter(x=>x.disposition==="non-authorizing-write").length,1);
 assert.equal(new Set(lineage.retired.map(x=>x.siteId)).size,9);
 assert.equal(review.releaseApproval,false);assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=84);
-const source=read(lineage.source.file);assert.equal(sha(source),lineage.source.currentSha256);
+const source=read(lineage.source.file);assert.equal(sha(source),expectedCurrentOwnerIntegrationHash(lineage.source.file,lineage.source.currentSha256));
 assert.ok(!review.sites.some(x=>x.file===lineage.source.file));
 for(const row of lineage.retired)assert.ok(!review.sites.some(x=>x.siteId===row.siteId));
 assert.doesNotMatch(source,/\b(?:INSERT(?: OR IGNORE)? INTO|UPDATE|DELETE FROM)\s+(?:devices|audio_offline_licenses|commerce_customers|products|editions)\b/i);

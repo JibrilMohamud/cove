@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Independently byte-bound regional EPUB owner metadata retirement. */
 import assert from "node:assert/strict";
+import {expectedCurrentOwnerIntegrationHash} from "./release/owner-integration-source-pins.mjs";
 import {createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
 const read=p=>readFileSync(p,"utf8");
@@ -14,7 +15,7 @@ assert.equal(proof.releaseApproval,false);
 assert.equal(proof.productionCertified,false);
 assert.equal(proof.sourceBefore,15);
 assert.equal(proof.sourceAfter,14);
-assert.equal(createHash("sha256").update(api).digest("hex"),proof.currentSha256);
+assert.equal(createHash("sha256").update(api).digest("hex"),expectedCurrentOwnerIntegrationHash("src/features/fore/api.server.ts",proof.currentSha256));
 assert.equal(proof.retired.length,1);
 assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=14);
 assert.ok(proof.retired.every(x=>x.functionName==="cachePendingEpubs"&&
