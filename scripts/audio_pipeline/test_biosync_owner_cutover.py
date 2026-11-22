@@ -64,6 +64,13 @@ class OwnerCutoverTests(unittest.TestCase):
                     "DELETE",
                     canary.BASE + "/d1/database/" + canary.DATABASE + "/query"
                 )
+            with self.assertRaisesRegex(RuntimeError, "cannot execute writes"):
+                canary.authorized_request(
+                    "POST",
+                    canary.BASE + "/d1/database/" + canary.DATABASE + "/query",
+                    json.dumps({"sql": "UPDATE audio_jobs SET status='done'", "params": []}).encode(),
+                    json_body=True
+                )
         with self.assertRaisesRegex(RuntimeError, "allowlisted"):
             canary.authorized_request("PUT", canary.BASE + "/tokens/key")
 
