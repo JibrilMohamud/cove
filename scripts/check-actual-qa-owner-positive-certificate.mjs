@@ -41,7 +41,7 @@ try{
   });
   const [{CoveLegalAuthority,default:entry},
     {publishQaOwnerPositiveGeneration},
-    {qaPositiveCandidateDigest}]=await Promise.all([
+    {qaPositiveCandidateDigest,qaOwnerDecisionDigest}]=await Promise.all([
     import(pathToFileURL(path.join(folder,"owner.mjs")).href),
     import(pathToFileURL(path.join(folder,"publish.mjs")).href),
     import(pathToFileURL(path.join(folder,"issuer.mjs")).href),
@@ -114,9 +114,18 @@ try{
     const epoch=ownerDb.prepare(
       "SELECT epoch FROM cove_qa_current_owner_mutation_fence WHERE slot=1").get().epoch;
     assert.ok(epoch>=5);
+    const ownerDecisions=["2701","2702"].map(n=>({
+      productId:"prd_gutenberg_"+n,territory:"US",allowed:1,
+      revision:1,editionId:"ed_gutenberg_"+n,offerJson:offer,
+    }));
+    ownerDecisions.push({
+      productId:"prd_gutenberg_2703",territory:"US",allowed:0,
+      revision:1,operationId:"history-2703",operationRevision:1,
+    });
+    const ownerDigests=await Promise.all(ownerDecisions.map(qaOwnerDecisionDigest));
     const rows=["2701","2702","2703"].map((n,i)=>({
       generation:9,productId:"prd_gutenberg_"+n,territory:"US",
-      allowed:i===2?0:1,proofSha256:["d","e","f"][i].repeat(64),
+      allowed:i===2?0:1,proofSha256:ownerDigests[i],
     }));
     const header={generation:9,primaryId:qaId,journalVersion:version,
       ownerEpoch:epoch,rehearsalRevision:"A",sourceRevision:7,
@@ -126,6 +135,11 @@ try{
       "scripts/staging/qa-owner-positive-primary-generation.prototype.sql","utf8");
     for(const [n,id] of [["p1","2701"],["p2","2702"],["p3","2703"]])
       source=source.replaceAll("'"+n+"'","'prd_gutenberg_"+id+"'");
+    for(const [i,stub] of ["d","e","f"].entries()){
+      const legacyProof="'"+stub.repeat(64)+"'";
+      assert.equal(source.split(legacyProof).length,2);
+      source=source.replace(legacyProof,"'"+ownerDigests[i]+"'");
+    }
     const oldLine=" 5,'A',7,";
     assert.equal(source.split(oldLine).length,2);
     source=source.replace(oldLine," "+epoch+",'A',7,");
