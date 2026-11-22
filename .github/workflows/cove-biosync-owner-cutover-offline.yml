@@ -40,5 +40,9 @@ jobs:
         run: python3 -m unittest scripts.audio_pipeline.test_biosync_owner_cutover
       - name: Validate source types
         run: npx tsc --noEmit
+      - name: Verify source-bound SQL-site attestation remains exact
+        run: node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/biosync-owner-qa-source-attestation-20261122.json
+      - name: Reconcile all source-bound SQL-site identities
+        run: node scripts/reconcile-canonical-writers.mjs
       - name: Refuse new unfenced protected-table writers
         run: node scripts/check-canonical-writer-closure.mjs --no-new-writers
