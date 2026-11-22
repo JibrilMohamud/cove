@@ -180,8 +180,7 @@ jobs:
       - name: Reconcile every candidate without approving production ownership
         run: |
           node scripts/reconcile-canonical-writers.mjs
-          node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/catalog-negative-source-attestation.json
-          node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/rights-config-source-attestation.json
+          node scripts/release/check-owner-integration-current-source.mjs
           node scripts/test-canonical-writer-review.mjs
           node scripts/test-canonical-writer-rebase.mjs
           node scripts/test-canonical-owner-workflow-inventory.mjs
@@ -190,9 +189,6 @@ jobs:
           node scripts/check-duplicate-market-writer-retirement.mjs
           node scripts/check-retired-checkout-money-writers.mjs
           node scripts/check-retired-legacy-commerce-write-family.mjs
-          node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/retired-legacy-commerce-source-attestation-20261030.json
-          node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/retired-checkout-money-source-attestation-20261030.json
-          node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/duplicate-market-writer-source-attestation-20261030.json
           node scripts/check-retired-finance-owner.mjs
           node scripts/test-owner-finance.mjs
           node scripts/check-retired-account-owner.mjs
@@ -211,11 +207,6 @@ jobs:
           node scripts/check-retired-publisher-tax-status-owner.mjs
           node scripts/check-retired-regional-rights-evidence-owner.mjs
           node scripts/check-zero-owner-required-source-writers.mjs
-          node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/catalog-source-ingest-owner-source-attestation.json
-          node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/regional-rights-evidence-owner-source-attestation.json
-          node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/publisher-tax-owner-source-attestation.json
-          node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/offline-audio-owner-source-attestation.json
-          node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/epub-consumption-source-attestation.json
           node scripts/check-retired-ingestion-state-owner.mjs
           node scripts/check-retired-delivery-expiry-owner.mjs
           node scripts/check-retired-entitlement-devices-owner.mjs
@@ -239,7 +230,6 @@ jobs:
           node scripts/check-owner-checkout-quote-routing.mjs
           node scripts/check-owner-refund-accounting.mjs
           node scripts/check-private-refund-accounting-parity.mjs
-          node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/retired-shared-refund-accounting-attestation-20261030.json
           node scripts/check-owner-paid-settlement.mjs
           node scripts/check-owner-refund-provider.mjs
           node scripts/check-owner-contract-version.mjs
