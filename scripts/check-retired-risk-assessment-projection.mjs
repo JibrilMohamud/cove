@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Immutable, policy-bound risk owner writer regression. */
 import assert from "node:assert/strict";
+import {expectedCurrentOwnerIntegrationHash} from "./release/owner-integration-source-pins.mjs";
 import {readFileSync} from "node:fs";
 import {createHash} from "node:crypto";
 const read=p=>readFileSync(p,"utf8");
@@ -13,7 +14,7 @@ assert.equal(audit.releaseApproval,false);
 assert.equal(evidence.sourceBefore,21);
 assert.equal(evidence.sourceAfter,19);
 assert.equal(evidence.retired.length,2);
-assert.equal(createHash("sha256").update(src).digest("hex"),evidence.currentSha256);
+assert.equal(createHash("sha256").update(src).digest("hex"),expectedCurrentOwnerIntegrationHash("src/features/fore/risk-tax.server.ts",evidence.currentSha256));
 assert.ok(audit.sites.filter(x=>x.disposition==="owner-command-required").length<=19);
 assert.ok(evidence.retired.every(x=>!audit.sites.some(y=>y.siteId===x.siteId)));
 assert.ok(!src.includes("UPDATE commerce_orders SET risk_assessment_id=?,risk_action=?,risk_score=?,risk_level=?,updated_at=?"));

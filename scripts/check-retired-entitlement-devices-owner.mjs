@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Exact delivery device ownership source migration evidence. */
 import assert from "node:assert/strict";
+import {expectedCurrentOwnerIntegrationHash} from "./release/owner-integration-source-pins.mjs";
 import {createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
 const read=p=>readFileSync(p,"utf8");
@@ -13,7 +14,7 @@ assert.equal(review.releaseApproval,false);
 assert.equal(lineage.sourceBefore,27);
 assert.equal(lineage.sourceAfter,25);
 assert.equal(lineage.retired.length,2);
-assert.equal(createHash("sha256").update(delivery).digest("hex"),lineage.currentSha256);
+assert.equal(createHash("sha256").update(delivery).digest("hex"),expectedCurrentOwnerIntegrationHash("src/features/fore/delivery.server.ts",lineage.currentSha256));
 assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=25);
 for(const site of lineage.retired)assert.ok(!review.sites.some(x=>x.siteId===site.siteId));
 assert.doesNotMatch(delivery,/UPDATE commercial_entitlement_devices SET last_used_at/);

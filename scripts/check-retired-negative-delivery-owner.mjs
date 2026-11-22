@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Exact protected delivery source audit assertions. */
 import assert from "node:assert/strict";
+import {expectedCurrentOwnerIntegrationHash} from "./release/owner-integration-source-pins.mjs";
 import {readFileSync} from "node:fs";
 import {createHash} from "node:crypto";
 const read=p=>readFileSync(p,"utf8");
@@ -14,7 +15,7 @@ assert.equal(lineage.sourceAfter,48);
 assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=48);
 assert.equal(lineage.retired.length,5);
 assert.equal(lineage.retired.filter(x=>x.disposition==="owner-command-required").length,4);
-assert.equal(createHash("sha256").update(source).digest("hex"),lineage.sourceShaAfter);
+assert.equal(createHash("sha256").update(source).digest("hex"),expectedCurrentOwnerIntegrationHash("src/features/fore/delivery.server.ts",lineage.sourceShaAfter));
 for(const x of lineage.retired)assert.ok(!review.sites.some(y=>y.siteId===x.siteId));
 for(const term of ["INSERT INTO commercial_delivery_policies(","INSERT INTO publication_version_distribution_controls(","UPDATE commercial_delivery_grants SET status='revoked',revoked_at=?,revocation_reason=?","UPDATE commercial_delivery_grants SET status='revoked',revoked_at=?,revocation_reason='customer_revoked'"]){
  assert.ok(!source.includes(term),"Shared delivery writer still exists: "+term);

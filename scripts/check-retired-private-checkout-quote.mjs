@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Source identity of private checkout quote retirement. */
 import assert from "node:assert/strict";
+import {expectedCurrentOwnerIntegrationHash} from "./release/owner-integration-source-pins.mjs";
 import {readFileSync} from "node:fs";
 import {createHash} from "node:crypto";
 const read=p=>readFileSync(p,"utf8");
@@ -11,7 +12,7 @@ assert.equal(review.releaseApproval,false);
 assert.equal(lineage.sourceBefore,24);
 assert.equal(lineage.sourceAfter,23);
 assert.equal(lineage.retired.length,1);
-assert.equal(createHash("sha256").update(src).digest("hex"),lineage.currentSha256);
+assert.equal(createHash("sha256").update(src).digest("hex"),expectedCurrentOwnerIntegrationHash("src/features/fore/commerce.server.ts",lineage.currentSha256));
 assert.ok(!src.includes("INSERT INTO commerce_checkout_quotes("));
 assert.ok(src.includes("if(!persistOwnerQuote)"));
 assert.ok(src.includes("await persistOwnerQuote({"));

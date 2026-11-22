@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Source-bound deny-only risk hold retirement. */
 import assert from "node:assert/strict";
+import {expectedCurrentOwnerIntegrationHash} from "./release/owner-integration-source-pins.mjs";
 import {createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
 const read=p=>readFileSync(p,"utf8");
@@ -13,7 +14,7 @@ assert.equal(review.releaseApproval,false);
 assert.equal(lineage.sourceBefore,25);
 assert.equal(lineage.sourceAfter,24);
 assert.equal(lineage.retired.length,1);
-assert.equal(createHash("sha256").update(source).digest("hex"),lineage.currentSha256);
+assert.equal(createHash("sha256").update(source).digest("hex"),expectedCurrentOwnerIntegrationHash("src/features/fore/risk-tax.server.ts",lineage.currentSha256));
 assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=24);
 assert.ok(!review.sites.some(x=>x.siteId===lineage.retired[0].siteId));
 assert.doesNotMatch(source,/INSERT INTO risk_holds\(/);

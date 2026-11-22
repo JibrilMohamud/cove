@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Exact delivery denial source retirement evidence. */
 import assert from "node:assert/strict";
+import {expectedCurrentOwnerIntegrationHash} from "./release/owner-integration-source-pins.mjs";
 import {createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
 const read=p=>readFileSync(p,"utf8");
@@ -12,7 +13,7 @@ assert.equal(review.releaseApproval,false);
 assert.equal(lineage.sourceBefore,29);
 assert.equal(lineage.sourceAfter,27);
 assert.equal(lineage.retired.length,2);
-assert.equal(createHash("sha256").update(api).digest("hex"),lineage.currentSha256);
+assert.equal(createHash("sha256").update(api).digest("hex"),expectedCurrentOwnerIntegrationHash("src/features/fore/delivery.server.ts",lineage.currentSha256));
 assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=27);
 assert.ok(lineage.retired.every(x=>!review.sites.some(y=>y.siteId===x.siteId)));
 assert.ok(!api.includes("UPDATE commercial_delivery_grants SET status='expired' WHERE id=? AND status='active'"));

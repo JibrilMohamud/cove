@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Exact canonical ingestion-state SQL audit assertions. */
 import assert from "node:assert/strict";
+import {expectedCurrentOwnerIntegrationHash} from "./release/owner-integration-source-pins.mjs";
 import {readFileSync} from "node:fs";
 import {createHash} from "node:crypto";
 const read=p=>readFileSync(p,"utf8");
@@ -13,7 +14,7 @@ assert.equal(review.releaseApproval,false);
 assert.equal(lineage.retired.length,9);
 assert.equal(lineage.sourceBefore,48);
 assert.equal(lineage.sourceAfter,39);
-assert.equal(createHash("sha256").update(source).digest("hex"),lineage.currentSha256);
+assert.equal(createHash("sha256").update(source).digest("hex"),expectedCurrentOwnerIntegrationHash("src/features/fore/api.server.ts",lineage.currentSha256));
 assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=39);
 for(const site of lineage.retired){assert.ok(!review.sites.some(x=>x.siteId===site.siteId));}
 for(const sql of ["Recovered after an interrupted EPUB download.",

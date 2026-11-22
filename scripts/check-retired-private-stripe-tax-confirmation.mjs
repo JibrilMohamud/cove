@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Stripe Tax provider-independent owner migration audit. */
 import assert from "node:assert/strict";
+import {expectedCurrentOwnerIntegrationHash} from "./release/owner-integration-source-pins.mjs";
 import {readFileSync} from "node:fs";
 import {createHash} from "node:crypto";
 const read=p=>readFileSync(p,"utf8");
@@ -13,7 +14,7 @@ assert.equal(reviewed.releaseApproval,false);
 assert.equal(lineage.sourceBefore,23);
 assert.equal(lineage.sourceAfter,21);
 assert.equal(lineage.retired.length,2);
-assert.equal(createHash("sha256").update(src).digest("hex"),lineage.currentSha256);
+assert.equal(createHash("sha256").update(src).digest("hex"),expectedCurrentOwnerIntegrationHash("src/features/fore/commerce.server.ts",lineage.currentSha256));
 assert.equal(reviewed.sites.filter(x=>x.file==="src/features/fore/commerce.server.ts").length,0);
 assert.ok(reviewed.sites.filter(x=>x.disposition==="owner-command-required").length<=21);
 assert.ok(lineage.retired.every(x=>!reviewed.sites.some(s=>s.siteId===x.siteId)));
