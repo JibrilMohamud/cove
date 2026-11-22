@@ -147,8 +147,8 @@ try {
       assert.equal(receipt.challenge, challenge);
       assert.equal(receipt.authorizing, false);
       assert.equal(receipt.primaryId, primaryId);
-      assert.equal(receipt.tables, 26);
-      assert.equal(receipt.triggers, 84);
+      assert.equal(receipt.tables, 27);
+      assert.equal(receipt.triggers, 87);
       assert.equal(receipt.journalVersion, version);
       return receipt;
     };
