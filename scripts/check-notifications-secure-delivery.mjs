@@ -81,7 +81,9 @@ assert.match(ownerRouting, /"delivery\.consume-epub-grant"/);
 assert.match(ownerRouting, /ack\.consumed!==true/);
 assert.ok(delivery.includes("commercial_entitlement_delivery_usage"));
 assert.ok(delivery.includes("temporary_rights_expired"));
-assert.ok(delivery.includes("commercial_entitlement_devices"));
+assert.ok(delivery.includes("dispatchPrivateEntitlementDevice"));
+assert.match(ownerRouting, /"delivery\.register-entitlement-device"/);
+assert.match(ownerRouting, /ack\.saved!==true/);
 const api = read("src/features/fore/api.server.ts");
 for (const token of [
   "/notifications/preferences",
