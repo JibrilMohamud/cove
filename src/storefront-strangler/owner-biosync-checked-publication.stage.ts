@@ -11,7 +11,6 @@ type Command=z.infer<typeof biosyncPublicationCommand>;
 type Bucket={get(key:string):Promise<{arrayBuffer():Promise<ArrayBuffer>}|null>};
 type EditionJob={epub_sha256:string|null;tracks_json:string;status:string;kind:string;payload_json:string};
 type TimingRow={map_sha256:string};
-const fail=(reason:string):never=>{throw Error("owner_biosync_"+reason);};
 const digest=async(bytes:ArrayBuffer)=>[...new Uint8Array(await crypto.subtle.digest("SHA-256",bytes))]
   .map(b=>b.toString(16).padStart(2,"0")).join("");
 const dict=(x:unknown):x is Record<string,unknown>=>!!x&&typeof x==="object"&&!Array.isArray(x);
@@ -26,15 +25,15 @@ export async function publishCheckedBiosyncOwned(
   db:CatalogDB,bucket:Bucket|undefined,raw:unknown
 ) {
   const x:Command=biosyncPublicationCommand.parse(raw);
-  if(!bucket)fail("bucket_unavailable");
+  if(!bucket)throw Error("owner_biosync_bucket_unavailable");
   const object=await bucket.get("biosync/maps/"+x.mapSha256+".json");
-  if(!object)fail("map_missing");
+  if(!object)throw Error("owner_biosync_map_missing");
   const bytes=await object.arrayBuffer();
-  if(bytes.byteLength<512||bytes.byteLength>8_000_000)fail("map_size_invalid");
-  if(await digest(bytes)!==x.mapSha256)fail("map_digest_mismatch");
+  if(bytes.byteLength<512||bytes.byteLength>8_000_000)throw Error("owner_biosync_map_size_invalid");
+  if(await digest(bytes)!==x.mapSha256)throw Error("owner_biosync_map_digest_mismatch");
   let map:unknown;
   try{map=JSON.parse(new TextDecoder().decode(bytes));}
-  catch{fail("map_invalid_json");}
+  catch{throw Error("owner_biosync_map_invalid_json");}
   if(!dict(map)||!dict(map.verification)||!Array.isArray(map.words)||
      map.version!==2||map.status!=="checked"||map.trackId!==x.trackId||
      map.engine!=="cloudflare-workers-ai-whisper"||
@@ -51,7 +50,7 @@ export async function publishCheckedBiosyncOwned(
      !Number.isFinite(map.duration)||Number(map.duration)<=0||
      Number(map.duration)>43_200||
      !sha.safeParse(map.audioSha256).success||
-     !sha.safeParse(map.epubSha256).success)fail("verification_invalid");
+     !sha.safeParse(map.epubSha256).success)throw Error("owner_biosync_verification_invalid");
   let previousEnd=-1,previousIndex=-1;
   for(const item of map.words){
     if(!dict(item)||!Number.isSafeInteger(item.wordIndex)||Number(item.wordIndex)<=previousIndex||
@@ -62,7 +61,7 @@ export async function publishCheckedBiosyncOwned(
        typeof item.cfi!=="string"||!item.cfi.startsWith("epubcfi(")||
        typeof item.endCfi!=="string"||!item.endCfi.startsWith("epubcfi(")||
        typeof item.text!=="string"||item.text.length===0||item.text.length>250)
-      fail("word_identity_invalid");
+      throw Error("owner_biosync_word_identity_invalid");
     previousEnd=Number(item.end);previousIndex=Number(item.wordIndex);
   }
   const row=await db.prepare(
@@ -70,28 +69,28 @@ export async function publishCheckedBiosyncOwned(
     "FROM audio_editions e JOIN audio_jobs j ON j.id=? WHERE e.id=?"
   ).bind(x.jobId,x.editionId).first<EditionJob>();
   if(!row||row.kind!=="align"||!["queued","review","done"].includes(row.status))
-    fail("job_not_eligible");
+    throw Error("owner_biosync_job_not_eligible");
   let tracks:unknown,payload:unknown;
   try{tracks=JSON.parse(row.tracks_json);payload=JSON.parse(row.payload_json);}
-  catch{fail("job_identity_invalid");}
+  catch{throw Error("owner_biosync_job_identity_invalid");}
   if(!Array.isArray(tracks)||!dict(payload)||
      payload.editionId!==x.editionId||payload.trackId!==x.trackId||
      payload.audioSha256!==map.audioSha256||row.epub_sha256!==map.epubSha256)
-    fail("job_identity_mismatch");
+    throw Error("owner_biosync_job_identity_mismatch");
   const track=tracks.find(t=>dict(t)&&t.id===x.trackId);
   if(!dict(track)||track.sha256!==map.audioSha256||
      !Number.isFinite(Number(track.duration))||
      Math.abs(Number(track.duration)-Number(map.duration))>1)
-    fail("recording_changed");
+    throw Error("owner_biosync_recording_changed");
   const old=await db.prepare(
     "SELECT map_sha256 FROM audio_timing WHERE edition_id=? AND track_id=?"
   ).bind(x.editionId,x.trackId).first<TimingRow>();
-  if(old&&old.map_sha256!==x.mapSha256)fail("conflicting_publication");
+  if(old&&old.map_sha256!==x.mapSha256)throw Error("owner_biosync_conflicting_publication");
   if(row.status==="done"){
-    if(!old||old.map_sha256!==x.mapSha256)fail("incomplete_prior_publication");
+    if(!old||old.map_sha256!==x.mapSha256)throw Error("owner_biosync_incomplete_prior_publication");
     return {schema:"cove.owner-biosync-checked-publication.v1",...x,committed:true,replay:true};
   }
-  if(old)fail("timing_without_completed_job");
+  if(old)throw Error("owner_biosync_timing_without_completed_job");
   const first=map.words[0] as Record<string,unknown>;
   const last=map.words[map.words.length-1] as Record<string,unknown>;
   const summary=JSON.stringify({
@@ -133,6 +132,6 @@ export async function publishCheckedBiosyncOwned(
     db.prepare("SELECT status FROM audio_jobs WHERE id=?").bind(x.jobId).first<{status:string}>()
   ]);
   if(finalTiming?.map_sha256!==x.mapSha256||finalJob?.status!=="done")
-    fail("atomic_commit_not_confirmed");
+    throw Error("owner_biosync_atomic_commit_not_confirmed");
   return {schema:"cove.owner-biosync-checked-publication.v1",...x,committed:true,replay:false};
 }
