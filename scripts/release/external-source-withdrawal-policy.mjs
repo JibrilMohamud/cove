@@ -143,7 +143,9 @@ export function sourceCoverageReport(first,second,nowMs=Date.now()){
     activeGrants+=r.active_allows;
     if(r.active_allows)activeBySource.set(r.source_id,
       (activeBySource.get(r.source_id)||0)+r.active_allows);
-    if(r.invalid_source_lineage)
+    // Suspended/quarantined grants are correctly denied. Only invalid
+    // *currently active* grants threaten an allow decision.
+    if(r.invalid_source_lineage&&r.active_allows)
       blockers.push("external_source_current_lineage_invalid:"+r.source_id);
     if(r.non_sha256_evidence&&r.active_allows)
       blockers.push("external_source_legacy_evidence_fingerprint:"+r.source_id);
