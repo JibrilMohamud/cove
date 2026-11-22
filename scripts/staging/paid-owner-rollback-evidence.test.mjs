@@ -24,8 +24,7 @@ function fixture(patch = {}, dependencies = {}) {
   };
   const api = async (method, path, body) => {
     assert.ok(
-      path === "/workers/scripts/" + name ||
-        path.startsWith("/workers/scripts/" + name + "/"),
+      path === "/workers/scripts/" + name || path.startsWith("/workers/scripts/" + name + "/"),
       "Rollback may never query or mutate production or other QA Workers",
     );
     if (method === "POST") {
