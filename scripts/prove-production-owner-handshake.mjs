@@ -5,20 +5,21 @@ import {mkdirSync,writeFileSync} from "node:fs";
 import {verifyProductionOwnerBinding,PRODUCTION_OWNER_SCRIPT} from "./check-production-owner-binding.mjs";
 import {requireWorkerCredentialDenial} from "./staging/strict-credential-denial.mjs";
 import {requirePrivateVerifierNotFound} from "./staging/strict-ephemeral-route-denial.mjs";
+import {checkedOwnerHandshakeTokens,ownerHandshakeTokenFor} from "./staging/owner-handshake-cloudflare-credentials.mjs";
 
 const account=process.env.CLOUDFLARE_ACCOUNT_ID;
-const token=process.env.CLOUDFLARE_API_TOKEN;
+const credentials=checkedOwnerHandshakeTokens(process.env);
 assert.equal(account,"d26430caa63ec55f6612e32f36aca5e9");
-assert.ok(token,"Authenticated Cloudflare control-plane access is required");
 const name="cove-owner-handshake-"+randomBytes(8).toString("hex");
 const gate=randomBytes(32).toString("hex");
 const expires=Date.now()+180_000;
 const base=`/accounts/${account}/workers/scripts/`;
+const tokenFor=(method,path)=>ownerHandshakeTokenFor(method,path,name,credentials);
 const evidence={schema:"cove.production-owner-handshake.v1",startedAt:new Date().toISOString(),
   worker:name,productionOwnerEnabled:false,authorizing:false,passed:false,cleanedUp:false};
 async function api(method,path,body) {
   const response=await fetch("https://api.cloudflare.com/client/v4"+path,{
-    method,headers:{authorization:"Bearer "+token,...(body instanceof FormData||body===undefined?{}:{"content-type":"application/json"})},
+    method,headers:{authorization:"Bearer "+tokenFor(method,path),...(body instanceof FormData||body===undefined?{}:{"content-type":"application/json"})},
     body:body instanceof FormData?body:body===undefined?undefined:JSON.stringify(body),
     signal:AbortSignal.timeout(20_000)});
   const data=await response.json();
@@ -83,7 +84,7 @@ try {
     if(attempted) {
       await api("DELETE",base+name);
       const absent=await fetch("https://api.cloudflare.com/client/v4"+base+name+"/settings",{
-        headers:{authorization:"Bearer "+token},signal:AbortSignal.timeout(15_000)});
+        headers:{authorization:"Bearer "+tokenFor("GET",base+name+"/settings")},signal:AbortSignal.timeout(15_000)});
       assert.equal(absent.status,404,"Ephemeral production verifier must be independently absent");
     }
     evidence.cleanedUp=true;
