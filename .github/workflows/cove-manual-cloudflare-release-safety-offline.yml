@@ -13,6 +13,8 @@ on:
       - .github/workflows/cove-manual-cloudflare-release-safety-offline.yml
       - scripts/security/check-manual-cloudflare-release-workflows.mjs
       - scripts/security/check-legacy-manual-cloudflare-jobs.mjs
+      - scripts/security/check-broad-cloudflare-token-consumers.mjs
+      - ".github/workflows/**"
       - scripts/staging/deploy-music-supply-qa-shadow.mjs
       - .github/workflows/deployed-commerce-browser-acceptance.yml
       - .github/workflows/strangler-data-plane-preflight.yml
@@ -43,3 +45,4 @@ jobs:
           node --check scripts/security/check-manual-cloudflare-release-workflows.mjs
           node scripts/security/check-manual-cloudflare-release-workflows.mjs
           node scripts/security/check-legacy-manual-cloudflare-jobs.mjs
+          node scripts/security/check-broad-cloudflare-token-consumers.mjs
