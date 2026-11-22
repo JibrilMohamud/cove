@@ -7,6 +7,7 @@ import {randomBytes,createHash,generateKeyPairSync} from "node:crypto";
 import {pathToFileURL} from "node:url";
 import {readPaidOwnerFence,paidOwnerRollbackEvidence} from "./paid-owner-rollback-evidence.mjs";
 import {checkedPaidQaCredentials,paidQaApiTokenFor,paidQaWranglerTokenFor} from "./paid-qa-cloudflare-credentials.mjs";
+import {syntheticD1GatewayConfig} from "./synthetic-qa-d1-gateway-config.mjs";
 import {isPaidOwnerQaSchemaTable} from "./paid-owner-schema-policy.mjs";
 import {provisionPublishedQaAudio} from "./provision-original-audio-qa.mjs";
 import JSZip from "jszip";
@@ -32,6 +33,9 @@ const ownerName="cove-paid-legal-owner-"+runId;
 const callerName="cove-paid-legal-caller-"+runId;
 const writerName="cove-paid-legal-writer-"+runId;
 const settlementName="cove-paid-settlement-qa-"+runId;
+const gatewayName="cove-paid-d1-gateway-"+runId;
+const gatewayOrigin="https://"+gatewayName+".cove-jibrilmohamud.workers.dev";
+const gatewayGate=randomBytes(32).toString("hex");
 const mediaBucketName="cove-paid-private-media-qa-"+runId;
 const settlementOrigin="https://"+settlementName+".cove-jibrilmohamud.workers.dev";
 const origin="https://"+callerName+".cove-jibrilmohamud.workers.dev";
@@ -56,6 +60,7 @@ const ownerCfg=path.join(process.cwd(),".cove-paid-owner-proof-"+runId+".jsonc")
 const callerCfg=path.join(process.cwd(),".cove-paid-caller-proof-"+runId+".jsonc");
 const writerCfg=path.join(process.cwd(),".cove-paid-writer-proof-"+runId+".jsonc");
 const settlementCfg=path.join(process.cwd(),".cove-paid-settlement-proof-"+runId+".jsonc");
+const gatewayCfg=path.join(process.cwd(),".cove-paid-d1-gateway-"+runId+".jsonc");
 const test={
   productId:"prd_paid_qa_20261027",
   entitlementId:"ent_paid_qa_20261027",
@@ -71,6 +76,26 @@ const cli=(args)=>{
     String(result.stderr||"").replace(/Bearer\s+\S+/g,"Bearer [redacted]").slice(-450));
 };
 const api=async(method,resource,body)=>{
+  // Synthetic database access is executed through the temporary, signed
+  // Worker binding. No D1 Write account token is present in this QA job.
+  if(resource.startsWith("/d1/")){
+    const source="/d1/database/"+schemaSource+"/query";
+    const target="/d1/database/"+primary+"/query";
+    assert.equal(method,"POST");
+    assert.ok(resource===source||resource===target,
+      "Only the two fixed synthetic D1 fixtures can be queried");
+    const response=await fetch(gatewayOrigin+"/__query",{
+      method:"POST",headers:{"authorization":"Bearer "+gatewayGate,
+        "content-type":"application/json"},
+      body:JSON.stringify({database:resource===source?"schema":"qa",
+        sql:body?.sql,params:body?.params||[]}),
+      signal:AbortSignal.timeout(20000)
+    });
+    const result=await response.json().catch(()=>null);
+    if(response.status!==200||result?.success!==true)
+      throw Error("isolated_qa_d1_gateway_unavailable");
+    return result.result;
+  }
   const r=await fetch("https://api.cloudflare.com/client/v4/accounts/"+account+resource,{
     method,headers:{authorization:"Bearer "+paidQaApiTokenFor(method,resource,qaCredentials),
       "content-type":"application/json"},
@@ -290,6 +315,7 @@ const assertNoRoute=(config)=>{
   assert.equal(config.vars?.COVE_RIGHTS_OWNER_ENABLED,"0");
 };
 let ownerCreated=false,callerCreated=false,writerCreated=false,settlementCreated=false;
+let gatewayCreated=false;
 let cleanupError=null,listener=null,webhookServer=null,webhookSigningSecret="";
 let paymentIntentId=null,initialPaymentIntentId=null,mediaBucketCreated=false;
 let matchedPackets=[],initialOutageInjected=false;
@@ -321,6 +347,30 @@ const stripeRequest=async(route,body)=>{
   return result;
 };
 try {
+  // Signed gateway has only the two synthetic D1 bindings. Its credential is
+  // never a Cloudflare account-wide D1 Write token and never selects an ID.
+  fs.writeFileSync(gatewayCfg,JSON.stringify(syntheticD1GatewayConfig(
+    "paid",runId,Date.now()+35*60_000)));
+  gatewayCreated=true;
+  await deploy(gatewayCfg,{COVE_QA_D1_GATE:gatewayGate});
+  const settings=await api("GET","/workers/scripts/"+gatewayName+"/settings");
+  const bound=(settings?.bindings||[]).filter(b=>b.type==="d1")
+    .map(b=>b.id||b.database_id).sort();
+  assert.deepEqual(bound,[primary,schemaSource].sort(),
+    "Synthetic QA gateway binding must exclude the production D1");
+  let gatewayReady=false;
+  for(let attempt=0;attempt<15;attempt++){
+    try{
+      const response=await fetch(gatewayOrigin+"/__health",{
+        headers:{"authorization":"Bearer "+gatewayGate},signal:AbortSignal.timeout(10000)});
+      if(response.status===200&&(await response.json()).ready===true){
+        gatewayReady=true;break;
+      }
+      if(![404,503].includes(response.status))break;
+    }catch{}
+    await new Promise(resolve=>setTimeout(resolve,1200));
+  }
+  assert.ok(gatewayReady,"Synthetic QA D1 gateway not ready; do not initialize QA or charge TEST Stripe");
   await prepareInitialCommerceQaSchema();
   await seedInitialPendingOrder();
   // Schema-only bootstrap can take minutes; the *authorization* lifetime
@@ -1547,6 +1597,11 @@ try {
       [test.entitlementId,test.userId,test.productId]
     );
   }catch(e){cleanupError=e;console.error("Synthetic QA entitlement restoration failed");}
+  if(gatewayCreated){
+    try{await api("DELETE","/workers/scripts/"+gatewayName);}
+    catch(e){cleanupError=e;console.error("Synthetic QA D1 gateway cleanup failed");}
+  }
+  fs.rmSync(gatewayCfg,{force:true});
   fs.rmSync(ownerCfg,{force:true});
   fs.rmSync(callerCfg,{force:true});
   fs.rmSync(writerCfg,{force:true});
