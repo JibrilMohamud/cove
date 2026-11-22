@@ -5,7 +5,7 @@ import {
   readPaidOwnerFence,
   PAID_QA_PRIMARY,
 } from "./paid-owner-rollback-evidence.mjs";
-import {QA_PAID_D1,PRODUCTION_D1} from "./paid-qa-cloudflare-credentials.mjs";
+import { QA_PAID_D1, PRODUCTION_D1 } from "./paid-qa-cloudflare-credentials.mjs";
 
 const runId = "44942070208-1",
   journalVersion = "a".repeat(64);
@@ -23,9 +23,11 @@ function fixture(patch = {}, dependencies = {}) {
     ...patch,
   };
   const api = async (method, path, body) => {
-    assert.ok(path === "/workers/scripts/" + name ||
-      path.startsWith("/workers/scripts/" + name + "/"),
-      "Rollback may never query or mutate production or other QA Workers");
+    assert.ok(
+      path === "/workers/scripts/" + name ||
+        path.startsWith("/workers/scripts/" + name + "/"),
+      "Rollback may never query or mutate production or other QA Workers",
+    );
     if (method === "POST") {
       state.writes.push({ method, path, body });
       assert.equal(path, "/workers/scripts/" + name + "/deployments");
@@ -129,22 +131,17 @@ test("actual isolated QA A/B/A retains denial epoch without claiming production 
 test("production and stale legacy QA D1 are both rejected before any mutation", async () => {
   assert.equal(PAID_QA_PRIMARY, QA_PAID_D1);
   assert.notEqual(PAID_QA_PRIMARY, PRODUCTION_D1);
-  for (const patch of [
-    {db: PRODUCTION_D1},
-    {db: "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e"},
-  ]) {
-    const f=fixture(patch);
+  for (const patch of [{ db: PRODUCTION_D1 }, { db: "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e" }]) {
+    const f = fixture(patch);
     await assert.rejects(f.proof.captureA());
-    assert.equal(f.state.writes.length,0);
+    assert.equal(f.state.writes.length, 0);
   }
 });
-test("forged legacy or production primary in live current-denial fence fails closed",async()=>{
-  for(const fencePrimary of [
-    "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",PRODUCTION_D1
-  ]){
-    const f=fixture({fencePrimary});
-    await assert.rejects(readPaidOwnerFence(f.post,journalVersion,"A"));
-    assert.equal(f.state.writes.length,0);
+test("forged legacy or production primary in live current-denial fence fails closed", async () => {
+  for (const fencePrimary of ["7c7ab994-f6b3-419d-a72d-71eb9ea22e7e", PRODUCTION_D1]) {
+    const f = fixture({ fencePrimary });
+    await assert.rejects(readPaidOwnerFence(f.post, journalVersion, "A"));
+    assert.equal(f.state.writes.length, 0);
   }
 });
 test("namespace replacement and non-distinct B are rejected", async () => {
@@ -304,14 +301,14 @@ test("both real version transitions explicitly apply immediate DO update to the 
   assert.ok(f.state.writes.every((x) => x.path === "/workers/scripts/" + name + "/deployments"));
 });
 test("B activation refuses unexpected serving version or unsafe QA D1 before any POST", async () => {
-  for (const drift of ["version","database"]) {
-    const f=fixture();
+  for (const drift of ["version", "database"]) {
+    const f = fixture();
     await f.proof.captureA();
-    f.state.version=b;
+    f.state.version = b;
     await f.proof.captureBDeployment();
-    if(drift==="version")f.state.version=a;
-    else f.state.db=PRODUCTION_D1;
+    if (drift === "version") f.state.version = a;
+    else f.state.db = PRODUCTION_D1;
     await assert.rejects(f.proof.activateBImmediate());
-    assert.equal(f.state.writes.length,0);
+    assert.equal(f.state.writes.length, 0);
   }
 });
