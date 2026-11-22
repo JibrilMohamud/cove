@@ -119,13 +119,13 @@ try {
     owned.edition_id,
   );
   const finish = await request(alice, "/library", "POST", {
-    bookId: owned.public_id,
+    bookId: ownedBook,
     status: "finished",
     progress: 1,
   });
   assert.equal(finish.status, 200, JSON.stringify(finish));
   const finishedAgain = await request(alice, "/library", "POST", {
-    bookId: owned.public_id,
+    bookId: ownedBook,
     status: "finished",
     progress: 1,
   });
