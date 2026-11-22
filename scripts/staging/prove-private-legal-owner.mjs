@@ -6,6 +6,7 @@ import path from "node:path";
 import {randomBytes} from "node:crypto";
 import {spawnSync} from "node:child_process";
 import {checkedPrivateLegalQaCredentials,legalQaTokenFor} from "./legal-qa-cloudflare-credentials.mjs";
+import {syntheticD1GatewayConfig} from "./synthetic-qa-d1-gateway-config.mjs";
 
 const account=process.env.CLOUDFLARE_ACCOUNT_ID;
 const creds=checkedPrivateLegalQaCredentials(process.env);
@@ -17,6 +18,11 @@ const ownerCfg="wrangler.legal-authority.proof.jsonc";
 const callerCfg="wrangler.legal-authority.proof-caller.jsonc";
 const writerCfg="wrangler.legal-authority.proof-writer.jsonc";
 const writerName="cove-legal-quarantine-qa-private";
+const d1GatewayName="cove-legal-d1-gateway-"+runId;
+const d1GatewayOrigin="https://"+d1GatewayName+".cove-jibrilmohamud.workers.dev";
+const d1GatewaySecret=randomBytes(32).toString("hex");
+const d1GatewayCfg="wrangler.legal-qa-gateway-"+runId+".jsonc";
+let d1GatewayCreated=false;
 const caller="cove-private-legal-proof-"+runId;
 const origin="https://"+caller+".cove-jibrilmohamud.workers.dev";
 const gate=randomBytes(32).toString("hex");
@@ -38,6 +44,24 @@ const cli=(args,input)=>{
     String(result.stderr||"").replace(/Bearer\s+\S+/g,"Bearer [masked]").slice(-600));
 };
 const api=async(method,path,body=undefined)=>{
+  // All mutable SQL now runs through the explicitly synthetic D1 binding of
+  // the short-lived private QA gateway; not a D1 Write account API token.
+  const qaSql="/accounts/"+account+
+    "/d1/database/5e3a6b69-6f3d-4b19-b837-01f7aa56ce87/query";
+  if(path.startsWith("/accounts/"+account+"/d1/")){
+    assert.equal(method,"POST");
+    assert.equal(path,qaSql,"Refuse any non-synthetic D1 control plane path");
+    const response=await fetch(d1GatewayOrigin+"/__query",{
+      method:"POST",headers:{"authorization":"Bearer "+d1GatewaySecret,
+        "content-type":"application/json"},
+      body:JSON.stringify({database:"qa",sql:body?.sql,params:body?.params||[]}),
+      signal:AbortSignal.timeout(20000)
+    });
+    const json=await response.json().catch(()=>null);
+    if(response.status!==200||json?.success!==true)
+      throw Error("legal_qa_signed_synthetic_d1_gateway_unavailable");
+    return json.result;
+  }
   const response=await fetch("https://api.cloudflare.com/client/v4"+path,{
     method,headers:{authorization:"Bearer "+legalQaTokenFor(method,path,creds),
       ...(body===undefined?{}:{"content-type":"application/json"})},
@@ -121,6 +145,26 @@ const readOwner=async(path,body,authorization=gate,expected=200)=>{
   return reply;
 };
 try{
+  fs.writeFileSync(d1GatewayCfg,JSON.stringify(syntheticD1GatewayConfig(
+    "legal",runId,Date.now()+35*60_000)));
+  d1GatewayCreated=true;
+  deployWithSecrets(d1GatewayCfg,{COVE_QA_D1_GATE:d1GatewaySecret});
+  const bindingCheck=await api("GET","/accounts/"+account+
+    "/workers/scripts/"+d1GatewayName+"/settings");
+  const ids=(bindingCheck?.bindings||[]).filter(b=>b.type==="d1").map(b=>b.id||b.database_id);
+  assert.deepEqual(ids,["5e3a6b69-6f3d-4b19-b837-01f7aa56ce87"],
+    "Private legal QA gateway must bind only the isolated synthetic database");
+  let ready=false;
+  for(let attempt=0;attempt<15;attempt++){
+    try{
+      const response=await fetch(d1GatewayOrigin+"/__health",{
+        headers:{"authorization":"Bearer "+d1GatewaySecret},signal:AbortSignal.timeout(10000)});
+      if(response.status===200&&(await response.json()).ready===true){ready=true;break;}
+      if(![404,503].includes(response.status))break;
+    }catch{}
+    await sleep(1200);
+  }
+  assert.ok(ready,"Synthetic legal D1 gateway unavailable before any rights QA mutation");
   const owner=JSON.parse(fs.readFileSync("wrangler.legal-authority.example.jsonc","utf8"));
   assert.equal(owner.workers_dev,false);
   assert.deepEqual(owner.routes,[]);
@@ -589,7 +633,11 @@ try{
     const scripts=await api("GET","/accounts/"+account+"/workers/scripts");
     assert.equal(scripts?.some(worker=>worker.id===caller),false);
   }catch(e){errors.push("rollback_verification_"+String(e.message).slice(0,120));}
-  for(const file of [ownerCfg,callerCfg,writerCfg])try{fs.unlinkSync(file);}catch{}
+  if(d1GatewayCreated){
+    try{await api("DELETE","/accounts/"+account+"/workers/scripts/"+d1GatewayName);}
+    catch(e){errors.push("signed_synthetic_d1_gateway_cleanup_"+String(e.message).slice(0,120));}
+  }
+  for(const file of [ownerCfg,callerCfg,writerCfg,d1GatewayCfg])try{fs.unlinkSync(file);}catch{}
   if(errors.length)throw Error("legal_qa_rollback_failed:"+errors.join(","));
   console.log("PASS: legal owner and quarantine writer disabled, both secrets deleted, synthetic D1 row cleaned and public QA caller deleted");
 }
