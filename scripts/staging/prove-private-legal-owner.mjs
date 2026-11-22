@@ -5,9 +5,11 @@ import os from "node:os";
 import path from "node:path";
 import {randomBytes} from "node:crypto";
 import {spawnSync} from "node:child_process";
+import {checkedPrivateLegalQaCredentials,legalQaTokenFor} from "./legal-qa-cloudflare-credentials.mjs";
 
 const account=process.env.CLOUDFLARE_ACCOUNT_ID;
-const token=process.env.CLOUDFLARE_API_TOKEN;
+const creds=checkedPrivateLegalQaCredentials(process.env);
+const token=creds.workers;
 const runId=process.env.GITHUB_RUN_ID;
 assert.match(account||"",/^[a-f0-9]{32}$/);
 assert.ok(token&&/^\d{8,15}$/.test(runId||""));
@@ -37,7 +39,7 @@ const cli=(args,input)=>{
 };
 const api=async(method,path,body=undefined)=>{
   const response=await fetch("https://api.cloudflare.com/client/v4"+path,{
-    method,headers:{authorization:"Bearer "+token,
+    method,headers:{authorization:"Bearer "+legalQaTokenFor(method,path,creds),
       ...(body===undefined?{}:{"content-type":"application/json"})},
     body:body===undefined?undefined:JSON.stringify(body),
     signal:AbortSignal.timeout(15000)});
