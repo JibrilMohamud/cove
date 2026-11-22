@@ -1,0 +1,78 @@
+name: cove-protected-external-source-withdrawal-audit
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/release/external-source-withdrawal-policy.mjs"
+      - "scripts/release/external-source-withdrawal-policy.test.mjs"
+      - "scripts/release/protected-external-source-withdrawal-audit.mjs"
+      - "scripts/release/primary-historical-rights-inventory-policy.mjs"
+      - ".github/workflows/cove-protected-external-source-withdrawal-audit.yml"
+  workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        description: "Exact reviewed main SHA; independently authorizes SELECT-only inventory, never sales"
+        type: string
+        required: true
+      confirm_external_source_readonly:
+        description: "Confirm protected read-only source/withdrawal-gap audit without owner activation or D1 writes"
+        type: boolean
+        required: true
+        default: false
+permissions:
+  contents: read
+jobs:
+  offline-source-withdrawal-denials:
+    if: github.repository == 'JibrilMohamud/cove'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Adversarial source lineage, source freshness and nonauthorizing denials
+        run: node --no-warnings --test scripts/release/external-source-withdrawal-policy.test.mjs
+      - name: Confirm reviewed SELECT-only D1 contracts and disabled default
+        run: node --no-warnings scripts/release/protected-external-source-withdrawal-audit.mjs --self-test
+      - run: |
+          node --check scripts/release/external-source-withdrawal-policy.mjs
+          node --check scripts/release/protected-external-source-withdrawal-audit.mjs
+          git diff --check
+  protected-source-withdrawal-inventory:
+    needs: offline-source-withdrawal-denials
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.reviewed_main_sha == github.sha &&
+      inputs.confirm_external_source_readonly == true
+    environment: cove-production-release-audit
+    concurrency:
+      group: cove-protected-primary-d1-legal-audit
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 17
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Audit active source evidence and current external withdrawal gaps, SELECT only
+        run: node --no-warnings scripts/release/protected-external-source-withdrawal-audit.mjs --live
+        env:
+          CF_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+          COVE_PRODUCTION_D1_ID: 4bd657ac-8789-403e-a28c-93aba8d0a989
+          COVE_PRODUCTION_EXTERNAL_SOURCE_AUDIT_ONLY: "1"
+          COVE_CF_PRODUCTION_AUDIT_READ_TOKEN: ${{ secrets.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cove-source-withdrawal-audit-${{ github.run_id }}
+          path: artifacts/production-rights-history/external-source-withdrawal-coverage.json
+          retention-days: 30
+          if-no-files-found: ignore
