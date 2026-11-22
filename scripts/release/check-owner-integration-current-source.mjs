@@ -24,7 +24,7 @@ const PINNED_CURRENT_SOURCES=Object.freeze({
   "src/features/fore/rights.server.ts":"a7839d53ae20ffa3351bd6fbef797bd3d06dfb30c7d390168c195be8680e5fa2",
   "src/features/fore/search.server.ts":"b4a435335c8b8009a27288931aea94082ba1785930636e1101958955a4c881fa",
   "src/features/fore/traditional-publishing.server.ts":"364406b8ed38f06563a6e307aa0512e64b41c926ee7236bf34e216e8f0166191",
-  "src/storefront-strangler/legal-authority.worker.ts":"0e9e42f3f6cba28afa399c431cdfc4cbcf874072878a655171ab8f44aa60e442",
+  "src/storefront-strangler/legal-authority.worker.ts":"cca53dc635be0ace8f579ae3422a6c315d804eacdc1efe276675d8748c551021",
 });
 const review=JSON.parse(readFileSync("docs/architecture/canonical-writer-review.json","utf8"));
 assert.equal(review.schema,"cove.canonical-writer-review.v1");
