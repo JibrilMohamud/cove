@@ -179,15 +179,15 @@ def choose_queued_short_track() -> bool:
 
 
 def commit_checked_map_to_owner(edition: str, track: str, job: str, map_sha: str) -> dict:
-    base = urllib.parse.urlsplit(os.environ["COVE_BIOSYNC_OWNER_STAGE_URL"])
+    base = urllib.parse.urlsplit(os.environ["COVE_BIOSYNC_QA_GATEWAY_URL"])
     if (base.scheme != "https" or not base.hostname or base.username or base.password
             or base.path not in ("", "/") or base.query or base.fragment):
         raise RuntimeError("BioSync owner stage origin must be a bare HTTPS origin")
-    token = os.environ["COVE_BIOSYNC_MACHINE_TOKEN"]
-    if not token.startswith("fore_svc_"):
-        raise RuntimeError("A scoped Cove machine credential is required")
+    token = os.environ["COVE_BIOSYNC_QA_CLIENT_SECRET"]
+    if not re.fullmatch(r"[0-9a-f]{64}", token):
+        raise RuntimeError("An enrolled ephemeral QA client secret is required")
     url = urllib.parse.urlunsplit((
-        "https", base.netloc, "/api/fore/machine/v1/biosync/publish-checked", "", ""
+        "https", base.netloc, "/biosync/publish-checked", "", ""
     ))
     payload = {
         "editionId": edition, "trackId": track, "jobId": job, "mapSha256": map_sha,
@@ -223,7 +223,7 @@ def main() -> None:
     ):
         raise RuntimeError("BioSync stage may access only its approved synthetic QA D1/R2")
     for secret in ("COVE_BIOSYNC_D1_READ_TOKEN", "COVE_BIOSYNC_R2_TOKEN",
-                   "COVE_BIOSYNC_OWNER_STAGE_URL", "COVE_BIOSYNC_MACHINE_TOKEN"):
+                   "COVE_BIOSYNC_QA_GATEWAY_URL", "COVE_BIOSYNC_QA_CLIENT_SECRET"):
         if not os.environ.get(secret):
             raise RuntimeError(f"Configure {secret} for protected owner staging")
     if os.environ.get("BIOSYNC_AUTO_SHORT") == "1" and not choose_queued_short_track():
