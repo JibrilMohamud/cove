@@ -75,6 +75,12 @@ export function readOnlyCanonicalD1<DB extends D1>(db:DB):DB {
  * rejected, rather than silently restoring a legacy writer fallback. */
 export function scopeExclusiveCanonicalD1<T extends FenceEnv>(env:T):T {
   const flag=env.COVE_OWNER_EXCLUSIVE_WRITER_FENCE;
+  // A production legal write-lock enrollment without this companion fence
+  // must NEVER silently leave the backend's native D1 mutation path open.
+  // Isolated staging retains its separate legal-primary-write-lock guard.
+  if(env.COVE_CANONICAL_LEGAL_WRITE_LOCK==="1"&&
+     env.COVE_SSR_STAGING!=="1"&&flag!=="1")
+    throw Error("canonical_d1_exclusive_cutover_not_certified");
   if(flag===undefined||flag==="0")return env;
   if(flag!=="1"||
      env.COVE_CANONICAL_LEGAL_WRITE_LOCK!=="1"||
