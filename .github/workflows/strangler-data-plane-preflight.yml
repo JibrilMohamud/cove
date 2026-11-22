@@ -35,12 +35,18 @@ jobs:
     timeout-minutes: 5
     env:
       CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      COVE_CF_STAGE_DATA_PLANE_READ_TOKEN: ${{ secrets.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Reject missing dedicated read-only staging principal
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${COVE_CF_STAGE_DATA_PLANE_READ_TOKEN:-}"
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
       - name: Check existing isolated D1 R2 and CORE resources using GET only
         run: node scripts/staging/check-strangler-data-plane-preflight.mjs
       - name: Check producer SQL in isolated staging D1 (read-only)
