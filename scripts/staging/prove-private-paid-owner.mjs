@@ -1400,10 +1400,10 @@ try {
     original.vars.COVE_QA_OWNER_REHEARSAL_REVISION="B";
     fs.writeFileSync(ownerCfg,JSON.stringify(original));
     await deploy(ownerCfg,{COVE_RIGHTS_OWNER_SECRET:secret,STRIPE_SECRET_KEY:stripeSecret});
-    await until(async()=>{
-      try{return (await readPaidOwnerFence(post,journalVersion,"B")).rehearsalRevision==="B";}
-      catch{return false;}
-    },"owner_version_b");
+    // Verify the actual B deployment/namespace before runtime readiness. Keep
+    // propagation failures distinct from an invalid journal/challenge proof.
+    await rollback.captureBDeployment();
+    await rollback.waitForRevision("B");
     await rollback.captureB();
   }
   const preRefundFence=await readPaidOwnerFence(read,journalVersion,rollback?"B":"A");
@@ -1431,10 +1431,7 @@ try {
     });
     const before=await commerceState();
     await rollback.restoreA(denialFence.mutationEpoch);
-    await until(async()=>{
-      try{return (await readPaidOwnerFence(post,journalVersion,"A")).rehearsalRevision==="A";}
-      catch{return false;}
-    },"owner_rollback_a");
+    await rollback.waitForRevision("A");
     const evidence=await rollback.verifyRestored(denialFence.mutationEpoch);
     assert.deepEqual(await commerceState(),before,"Rollback changed post-refund commerce state");
     assert.equal((await postSettlement("/authorize-initial",initialOrder,initialBuyer)).status,451,

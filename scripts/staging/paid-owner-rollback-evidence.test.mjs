@@ -11,7 +11,7 @@ const runId = "44942070208-1",
 const name = "cove-paid-legal-owner-" + runId;
 const a = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
   b = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
-function fixture(patch = {}) {
+function fixture(patch = {}, dependencies = {}) {
   const state = {
     version: a,
     revision: "A",
@@ -78,7 +78,7 @@ function fixture(patch = {}) {
   const post = async (route, { challenge }) => {
     assert.equal(route, "/qa/current-mutation-fence");
     return {
-      status: 200,
+      status: state.fenceStatus || 200,
       body: {
         schema: "cove.qa.current-owner-sql-journal.v1",
         journalVersion,
@@ -92,7 +92,7 @@ function fixture(patch = {}) {
       },
     };
   };
-  const proof = paidOwnerRollbackEvidence({ runId, journalVersion, api, post });
+  const proof = paidOwnerRollbackEvidence({ runId, journalVersion, api, post, ...dependencies });
   return {
     state,
     proof,
@@ -170,4 +170,96 @@ test("current deployment drift blocks rollback, zero real mutations cannot certi
 test("untrusted run identity cannot select a production worker", () => {
   for (const id of ["cove-persistence-backend", "44942070208-0", "44942070208-1/../../production"])
     assert.throws(() => paidOwnerRollbackEvidence({ runId: id, journalVersion }));
+});
+test("runtime B is required after independent B metadata, with fresh challenges", async () => {
+  let time = 0,
+    sleeps = 0;
+  const f = fixture(
+    {},
+    {
+      now: () => time,
+      sleep: async (ms) => {
+        time += ms;
+        sleeps++;
+        f.state.revision = "B";
+      },
+    },
+  );
+  await f.proof.captureA();
+  await assert.rejects(f.proof.waitForRevision("B"), /both immutable/);
+  f.state.version = b;
+  await f.proof.captureBDeployment();
+  const result = await f.proof.waitForRevision("B");
+  assert.equal(result.rehearsalRevision, "B");
+  assert.equal(sleeps, 1);
+  assert.equal(time, 2000);
+  assert.equal(f.state.writes.length, 0);
+});
+test("persistent prior revision produces bounded category evidence rather than silent timeout", async () => {
+  let time = 0,
+    sleeps = 0;
+  const f = fixture(
+    {},
+    {
+      now: () => time,
+      sleep: async (ms) => {
+        time += ms;
+        sleeps++;
+      },
+    },
+  );
+  await f.proof.captureA();
+  f.state.version = b;
+  await f.proof.captureBDeployment();
+  await assert.rejects(
+    f.proof.waitForRevision("B"),
+    /paid_owner_revision_not_ready:\{"valid_prior_revision":30\}/,
+  );
+  assert.equal(sleeps, 29);
+  assert.ok(time < 60000);
+});
+test("stale journal/challenge, malformed revision and auth denial fail without readiness retries", async () => {
+  for (const patch of [
+    { stale: true },
+    { epoch: "-1" },
+    { revision: "invalid" },
+    { fenceStatus: 401 },
+  ]) {
+    let sleeps = 0;
+    const f = fixture(
+      {},
+      {
+        sleep: async () => {
+          sleeps++;
+        },
+      },
+    );
+    await f.proof.captureA();
+    f.state.version = b;
+    await f.proof.captureBDeployment();
+    Object.assign(f.state, patch);
+    await assert.rejects(f.proof.waitForRevision("B"), /paid_owner_revision_invalid_receipt/);
+    assert.equal(sleeps, 0);
+  }
+});
+test("503 propagation may recover but can never count as a valid journal receipt", async () => {
+  let time = 0;
+  const f = fixture(
+    {},
+    {
+      now: () => time,
+      sleep: async (ms) => {
+        time += ms;
+        f.state.fenceStatus = 200;
+        f.state.revision = "B";
+      },
+    },
+  );
+  await f.proof.captureA();
+  f.state.version = b;
+  await f.proof.captureBDeployment();
+  f.state.fenceStatus = 503;
+  const result = await f.proof.waitForRevision("B");
+  assert.equal(result.rehearsalRevision, "B");
+  assert.equal(time, 2000);
 });
