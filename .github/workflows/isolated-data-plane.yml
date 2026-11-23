@@ -59,10 +59,13 @@ jobs:
       - run: npm run test:rights && npm run test:commerce
       - run: npm run typecheck
       - run: node scripts/build-storefront-strangler.mjs && npm run build:content-processing
-  restore-private-core:
-    if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/arch/isolated-data-plane-20261022')
-    uses: ./.github/workflows/strangler-stage-core-deploy.yml
-    secrets: inherit
+  # The former archived-branch restore-private-core reusable call was
+  # structurally invalid: its callee requires reviewed_main_sha and
+  # confirm_isolated_stage_only, which were never supplied. GitHub rejects
+  # the entire workflow at startup even when that job's condition is false.
+  # The callee is independently main-only and protected; an archived-branch
+  # caller cannot legitimately deploy it. Run that protected workflow
+  # directly for any reviewed main-only private staging restoration.
   hosted-capacity:
     needs: correctness
     # This is the only synthetic 120-second stress job across branches.
