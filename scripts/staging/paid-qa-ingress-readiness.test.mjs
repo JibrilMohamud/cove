@@ -38,8 +38,7 @@ function probeHarness(change = () => null) {
     async probe(route, body) {
       calls++;
       routes.add(route);
-      if (route === "/qa/native-first-paint")
-        assert.deepEqual(body, nativeInput);
+      if (route === "/qa/native-first-paint") assert.deepEqual(body, nativeInput);
       else assert.deepEqual(body, {});
       return change({ route, calls, wave: Math.ceil(calls / 96) }) ?? responseFor(route);
     },
@@ -97,9 +96,7 @@ test("unknown application failures, forged 200s and native-rights denial cannot 
     assert.equal(harness.sleeps, 0);
   }
   const owner = probeHarness(({ route }) =>
-    route === "/qa/transport-owner-ping"
-      ? responseFor(route, { ownerRouteMs: null })
-      : null,
+    route === "/qa/transport-owner-ping" ? responseFor(route, { ownerRouteMs: null }) : null,
   );
   await assert.rejects(
     stabilizePrivatePaidQaIngress({ ...owner, nativeInput }),
