@@ -180,10 +180,12 @@ async function seed(){
     command.jobId,JSON.stringify({editionId:command.editionId,
       trackId:command.trackId,audioSha256:audioSha}),now,now
   ]);
+  // A timed-out R2 response can still have persisted bytes; always attempt
+  // cleanup after the upload starts, even if no success receipt arrives.
+  objectUploaded=true;
   const result=await provider("PUT","/r2/buckets/"+QA_BUCKET+"/objects/"+objectKey,
     process.env.COVE_CF_QA_R2_STORAGE_TOKEN,mapBytes,false);
   if(result?.key!==objectKey)refuse("qa_map_upload_mismatched");
-  objectUploaded=true;
 }
 async function cleanup(){
   // Ephemeral scripts' QA lease expires after 14 minutes even if deletion
@@ -201,10 +203,20 @@ async function cleanup(){
        workers.some(x=>x?.id===ownerName||x?.id===gatewayName))
       failures.push("qa_ephemeral_worker_residual");
   }catch{failures.push("qa_worker_cleanup_inventory_unavailable")}
-  if(objectUploaded)try{
-    await provider("DELETE","/r2/buckets/"+QA_BUCKET+"/objects/"+objectKey,
-      process.env.COVE_CF_QA_R2_STORAGE_TOKEN);
-  }catch{failures.push("qa_r2_cleanup_failed")}
+  if(objectUploaded){
+    try{
+      await provider("DELETE","/r2/buckets/"+QA_BUCKET+"/objects/"+objectKey,
+        process.env.COVE_CF_QA_R2_STORAGE_TOKEN);
+    }catch{ /* Verify actual absence independently below. */ }
+    try{
+      const objects=await provider("GET","/r2/buckets/"+QA_BUCKET+"/objects"+
+          "?prefix="+encodeURIComponent(objectKey)+"&per_page=10",
+        process.env.COVE_CF_QA_R2_STORAGE_TOKEN);
+      const rows=Array.isArray(objects)?objects:objects?.objects;
+      if(!Array.isArray(rows)||rows.some(x=>x?.key===objectKey))
+        failures.push("qa_r2_residual_map");
+    }catch{failures.push("qa_r2_cleanup_inventory_unavailable")}
+  }
   if(seedStarted){
     for(const [q,params] of [
       ["DELETE FROM audio_timing WHERE edition_id=? AND track_id=?",
