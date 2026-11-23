@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Preserve source-exact read-only Cloudflare credential guards. */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
@@ -6,9 +7,11 @@ const primary = "4bd657ac-8789-403e-a28c-93aba8d0a989";
 const secondary = "400c3af3-5d40-41fd-83cc-98228e40ddac";
 const privateBucket = "cove-literary-originals-isolated-20261024";
 const sourceBucket = "cove-production-media";
-const token = process.env.CLOUDFLARE_API_TOKEN;
+const token = process.env.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN;
+const deployToken=process.env.CLOUDFLARE_API_TOKEN;
 assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, account);
-assert.ok(token, "Protected Cloudflare credentials required");
+assert.ok(token && deployToken && token!==deployToken,
+  "Read-only D1/R2 preflight requires separate scoped data-plane and deploy credentials");
 assert.equal(process.env.GITHUB_REF, "refs/heads/main");
 const source = readFileSync("src/lib/literary-preparation-domain.server.ts", "utf8");
 assert.ok(source.includes("env.SOURCE_BUCKET || env.BUCKET!"));
@@ -41,6 +44,10 @@ for (const [file, role] of roleFiles) {
 }
 const base = "https://api.cloudflare.com/client/v4/accounts/" + account;
 async function get(path, method = "GET", body) {
+  const isReadOnlyQuery=method==="POST" && /^\/d1\/database\/[^/]+\/query$/.test(path);
+  const isR2List=method==="GET" && path.startsWith("/r2/buckets/") && path.includes("/objects?");
+  assert.ok(isReadOnlyQuery || isR2List, "Only D1 SELECT or R2 metadata GET permitted");
+  if(isReadOnlyQuery) assert.match(String(body?.sql??"").trim(), /^SELECT\b/i);
   const response = await fetch(base + path, {
     method,
     headers: {
