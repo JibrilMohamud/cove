@@ -9,6 +9,8 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/cove-protected-bulk-certification.yml"
+      - "src/persistence-backend.worker.ts"
+      - "src/storefront-strangler/legal-authority.worker.ts"
   workflow_dispatch:
     inputs:
       reviewed_main_sha:
@@ -37,6 +39,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
+      - run: npm ci --no-audit --no-fund
       - name: Verify existing production hold, legal owner and hourly BioSync continuity
         run: |
           node scripts/release/check-production-cron-continuity.mjs --self-test
