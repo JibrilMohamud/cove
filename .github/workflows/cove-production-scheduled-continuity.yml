@@ -1,0 +1,37 @@
+name: cove-production-scheduled-continuity
+on:
+  pull_request:
+    paths:
+      - "wrangler.backend.production.toml"
+      - "src/persistence-backend.worker.ts"
+      - ".github/workflows/biosync-canary.yml"
+      - "scripts/audio_pipeline/biosync_canary.py"
+      - "scripts/release/check-production-cron-continuity.mjs"
+      - ".github/workflows/cove-production-scheduled-continuity.yml"
+  push:
+    branches: [main]
+    paths:
+      - "wrangler.backend.production.toml"
+      - "src/persistence-backend.worker.ts"
+      - ".github/workflows/biosync-canary.yml"
+      - "scripts/audio_pipeline/biosync_canary.py"
+      - "scripts/release/check-production-cron-continuity.mjs"
+      - ".github/workflows/cove-production-scheduled-continuity.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Reject skipped scheduled publication and missing business crons
+        run: node scripts/release/check-production-cron-continuity.mjs --self-test
