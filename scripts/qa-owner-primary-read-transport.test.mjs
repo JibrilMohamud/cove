@@ -132,7 +132,9 @@ test("first-primary read starts on actual D1 primary and advances owner-issued b
   const modes = [];
   let next = 0;
   const database = {
-    prepare() { throw new Error("session must own all native reads"); },
+    prepare() {
+      throw new Error("session must own all native reads");
+    },
     withSession(mode) {
       modes.push(mode);
       const version = ++next;
