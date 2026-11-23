@@ -321,7 +321,7 @@ const routes={
       device:z.object({deviceKey:z.string().min(16).max(200),name:z.string().trim().min(1).max(120),platform:z.string().trim().min(1).max(80)}).strict()}).strict(),
     z.object({action:z.literal("revoke-device"),userId:z.string().regex(/^[a-zA-Z0-9:_-]{3,160}$/),deviceId:z.string().regex(/^[a-zA-Z0-9_-]{3,160}$/)}).strict(),
     z.object({action:z.literal("erasure-tick"),limit:z.number().int().min(1).max(25)}).strict(),
-    z.object({action:z.literal("touch-session"),userId:subject,
+    z.object({action:z.literal("touch-session"),userId:z.string().regex(/^[a-zA-Z0-9:_-]{3,160}$/),
       sessionHash:z.string().regex(/^[a-f0-9]{64}$/),
       userAgentSummary:z.string().max(240),
       ipCountry:z.string().regex(/^[A-Z]{0,2}$/)}).strict()
