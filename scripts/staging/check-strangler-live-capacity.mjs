@@ -93,23 +93,26 @@ async function requestOne(route = "/") {
     // Numeric per-status evidence is preserved above; unexpected native
     // network errors are categorized from fixed known codes, never logged
     // verbatim (no bearer, URL, request metadata or customer identity).
-    const cause = error && typeof error === "object" && "cause" in error
-      ? error.cause : null;
-    const code = cause && typeof cause === "object" && "code" in cause
-      ? cause.code : error && typeof error === "object" && "code" in error
-        ? error.code : null;
-    const reason = ({
-      ECONNRESET: "connection-reset",
-      EPIPE: "broken-pipe",
-      ETIMEDOUT: "connect-timeout",
-      UND_ERR_CONNECT_TIMEOUT: "connect-timeout",
-      UND_ERR_SOCKET: "socket-closed",
-      STAGE_HTTP2_DEADLINE: "stream-deadline",
-      STAGE_HTTP2_PREMATURE_CLOSE: "stream-premature-close",
-      ERR_HTTP2_STREAM_ERROR: "http2-stream-error",
-      ERR_HTTP2_GOAWAY_SESSION: "http2-goaway",
-    })[String(code)] || (error instanceof Error && error.name === "TimeoutError"
-      ? "request-deadline" : "unclassified");
+    const cause =
+      error && typeof error === "object" && "cause" in error ? error.cause : null;
+    const code =
+      cause && typeof cause === "object" && "code" in cause
+        ? cause.code
+        : error && typeof error === "object" && "code" in error
+          ? error.code
+          : null;
+    let reason = "unclassified";
+    if (code === "ECONNRESET") reason = "connection-reset";
+    else if (code === "EPIPE") reason = "broken-pipe";
+    else if (code === "ETIMEDOUT" || code === "UND_ERR_CONNECT_TIMEOUT")
+      reason = "connect-timeout";
+    else if (code === "UND_ERR_SOCKET") reason = "socket-closed";
+    else if (code === "STAGE_HTTP2_DEADLINE") reason = "stream-deadline";
+    else if (code === "STAGE_HTTP2_PREMATURE_CLOSE") reason = "stream-premature-close";
+    else if (code === "ERR_HTTP2_STREAM_ERROR") reason = "http2-stream-error";
+    else if (code === "ERR_HTTP2_GOAWAY_SESSION") reason = "http2-goaway";
+    else if (error instanceof Error && error.name === "TimeoutError")
+      reason = "request-deadline";
     return {
       ttfbMs: Math.round(performance.now() - start),
       valid: false,
@@ -184,8 +187,10 @@ function report(name, offered, rows, dropped = 0) {
   const invalidSamples = [];
   for (const row of rows) {
     if (row.valid) continue;
-    const category = typeof row.clientFailureClass === "string"
-      ? row.clientFailureClass : "not-client-error";
+    const category =
+      typeof row.clientFailureClass === "string"
+        ? row.clientFailureClass
+        : "not-client-error";
     clientFailureClasses[category] = (clientFailureClasses[category] || 0) + 1;
     if (invalidSamples.length < 6)
       invalidSamples.push({
@@ -259,8 +264,9 @@ try {
     // connections before the strict, unmodified sample campaign so a new
     // client handshake is not mistaken for an expensive Worker/D1 query.
     // Cold-hosted acceptance still runs separately with no preconnect.
-    console.log("COVE_STAGE_TRANSPORT_READY " +
-      JSON.stringify(await primeStageTransportConnections()));
+    console.log(
+      "COVE_STAGE_TRANSPORT_READY " + JSON.stringify(await primeStageTransportConnections()),
+    );
     for (const size of [1, 4, 8, 16, 32]) await burst(size, size + "-concurrent");
     for (const rate of [25, 50, 100]) await scheduled(rate, rate === 100 ? 20 : 10);
     await burst(32, "transport-control-32", "/__cove_perf/transport");
