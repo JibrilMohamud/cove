@@ -53,7 +53,10 @@ if(process.argv[1] && import.meta.url===new URL("file://"+process.argv[1]).href)
 }
 
 if(process.argv.includes("--live")){
-  const token=process.env.CLOUDFLARE_API_TOKEN;
+  const token=process.env.COVE_CF_WORKERS_METADATA_READ_TOKEN;
+  const deploy=process.env.CLOUDFLARE_API_TOKEN;
+  assert.ok(token&&token.length>=20&&deploy&&token!==deploy,
+    "Owner binding inspection requires separate read-only Worker principal");
   const account=process.env.CLOUDFLARE_ACCOUNT_ID;
   assert.ok(token && account,"Live verification requires authenticated Cloudflare");
   const response=await fetch(
