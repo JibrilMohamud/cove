@@ -11,6 +11,8 @@ on:
       - ".github/workflows/cove-protected-bulk-certification.yml"
       - "src/persistence-backend.worker.ts"
       - "src/storefront-strangler/legal-authority.worker.ts"
+      - "scripts/staging/paid-owner-rollback-evidence.mjs"
+      - "scripts/staging/prove-biosync-hosted-owner-write.mjs"
   workflow_dispatch:
     inputs:
       reviewed_main_sha:
