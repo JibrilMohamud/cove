@@ -21,7 +21,11 @@ const gatewayName="cove-biosync-gateway-qa-"+runId;
 const ownerOrigin="https://"+gatewayName+".cove-qa-reads.workers.dev";
 const accountApi="https://api.cloudflare.com/client/v4/accounts/"+QA_ACCOUNT;
 const dir=mkdtempSync(join(tmpdir(),"cove-hosted-biosync-owner-"));
-const ownerConfig=join(dir,"owner.jsonc"),gatewayConfig=join(dir,"gateway.jsonc");
+// Wrangler resolves relative Worker main paths from the config directory.
+// Keep the ephemeral configs in the reviewed repository checkout, and remove
+// them even if a protected QA deployment fails.
+const ownerConfig=join(process.cwd(),".cove-biosync-owner-"+runId+".jsonc");
+const gatewayConfig=join(process.cwd(),".cove-biosync-gateway-"+runId+".jsonc");
 const ownerSecrets=join(dir,"owner-secrets.json"),gatewaySecrets=join(dir,"gateway-secrets.json");
 const audioSha="a".repeat(64),epubSha="b".repeat(64);
 const now=new Date().toISOString();
@@ -243,6 +247,7 @@ async function main(){
     }));
   }finally{
     await cleanup();
+    for(const file of [ownerConfig,gatewayConfig])rmSync(file,{force:true});
     rmSync(dir,{recursive:true,force:true});
     if(failures.length)throw Error("biosync_hosted_owner_cleanup_incomplete:"+[...new Set(failures)].join(","));
   }
