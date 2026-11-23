@@ -2,9 +2,12 @@ import assert from "node:assert/strict";
 
 const account = "d26430caa63ec55f6612e32f36aca5e9";
 assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, account);
-const token = process.env.CLOUDFLARE_API_TOKEN;
-assert.ok(token);
+const token = process.env.COVE_CF_WORKERS_METADATA_READ_TOKEN;
+const deployToken=process.env.CLOUDFLARE_API_TOKEN;
+assert.ok(token && deployToken && token!==deployToken,
+  "Worker metadata audit requires separate scoped metadata and deploy credentials");
 async function get(path) {
+  assert.ok(path.startsWith("/workers/"), "Metadata audit may only GET Worker configuration");
   const response = await fetch("https://api.cloudflare.com/client/v4/accounts/" + account + path, {
     headers: { authorization: "Bearer " + token },
     signal: AbortSignal.timeout(25000),
