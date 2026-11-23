@@ -16,6 +16,13 @@ const QA_PRIMARY_IDS = new Set([
   "3ffb3c0b-72b2-4a47-b63a-18aaf77762ea",
   "969f1ea0-5f57-4f3a-aa25-9c74e58f5af3",
 ]);
+// A mixed READ + typed-owner-command rehearsal may only use the two
+// independently scoped publication QA primaries already recognized by the
+// canonical publication command boundary. Never accept an arbitrary QA D1.
+const QA_TYPED_OWNER_PRIMARY_IDS = new Set([
+  "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87",
+  "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
+]);
 // Dedicated BioSync QA is not a general-purpose backend data reader.
 export const QA_OWNER_UNBOUND_READ_FLAG = "COVE_QA_OWNER_UNBOUND_READ_ENABLED";
 type QaReadEnv = CoveEnv & {
@@ -25,11 +32,21 @@ type QaReadEnv = CoveEnv & {
   COVE_RIGHTS_OWNER_TEST_EXPIRES_AT?: string;
   COVE_OWNER_EXCLUSIVE_WRITER_FENCE?: string;
   COVE_COMMERCE_OWNER_D1_FENCE?: string;
+  COVE_PUBLICATION_COMMANDS_ENABLED?: string;
+  COVE_LEGAL_WRITER_PRIMARY_ID?: string;
+  COVE_PUBLICATION_COMMAND_TERRITORY?: string;
+  COVE_PUBLICATION_COMMAND_CURRENCY?: string;
   FORE_DEFAULT_TERRITORY?: string;
 };
 export function scopeQaOwnerUnboundPrimaryRead<T extends QaReadEnv>(env: T): T {
   const flag = env.COVE_QA_OWNER_UNBOUND_READ_ENABLED;
   if (flag === undefined || flag === "0") return env;
+  // In the same DB-unbound backend, typed owner operations must traverse the
+  // existing independently validated command gateway, never the SQL facade.
+  // This enables only synthetic QA evidence, not a write delegation to D1.
+  const commandFlag = env.COVE_PUBLICATION_COMMANDS_ENABLED;
+  const typedCommands = commandFlag === "1";
+  const qaPrimary = env.COVE_RIGHTS_OWNER_PRIMARY_ID || "";
   const now = Date.now();
   const expiry = Number(env.COVE_RIGHTS_OWNER_TEST_EXPIRES_AT);
   if (
@@ -45,9 +62,13 @@ export function scopeQaOwnerUnboundPrimaryRead<T extends QaReadEnv>(env: T): T {
     !env.LEGAL_AUTHORITY?.getByName ||
     // A caller retaining a D1 binding has not proved physical isolation.
     (env.DB !== undefined && env.DB !== null) ||
-    // This phase proves read continuity only. Don't imply that legitimate
-    // business writes or mixed owner command paths have been migrated.
-    env.COVE_PUBLICATION_COMMANDS_ENABLED === "1" ||
+    // No unchecked mutation flag can turn the READ facade into a raw writer.
+    ![undefined, "0", "1"].includes(commandFlag) ||
+    (typedCommands &&
+      (!QA_TYPED_OWNER_PRIMARY_IDS.has(qaPrimary) ||
+        env.COVE_LEGAL_WRITER_PRIMARY_ID !== qaPrimary ||
+        env.COVE_PUBLICATION_COMMAND_TERRITORY !== "US" ||
+        env.COVE_PUBLICATION_COMMAND_CURRENCY !== "USD")) ||
     env.COVE_OWNER_EXCLUSIVE_WRITER_FENCE === "1" ||
     env.COVE_COMMERCE_OWNER_D1_FENCE === "1"
   )
