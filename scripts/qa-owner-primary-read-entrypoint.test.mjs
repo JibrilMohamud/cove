@@ -32,11 +32,8 @@ export {scopePublicationOwnerEnv,dispatchPublicationRecovery} from "./src/storef
 } finally {
   rmSync(folder, { force: true, recursive: true });
 }
-const {
-  scopeQaOwnerUnboundPrimaryRead,
-  scopePublicationOwnerEnv,
-  dispatchPublicationRecovery,
-} = module;
+const { scopeQaOwnerUnboundPrimaryRead, scopePublicationOwnerEnv, dispatchPublicationRecovery } =
+  module;
 const SECRET = "a".repeat(64);
 const QA_PRIMARY = "969f1ea0-5f57-4f3a-aa25-9c74e58f5af3";
 const PROD_PRIMARY = "4bd657ac-8789-403e-a28c-93aba8d0a989";
