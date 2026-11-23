@@ -38,6 +38,7 @@ on:
       - "scripts/check-customer-media-owner-order.mjs"
       - "scripts/check-offline-epub-issuer-expiry.mjs"
       - "scripts/check-offline-audio-issuer-authorization.mjs"
+      - "scripts/check-paid-bundle-offline-audio-owner.mjs"
       - "scripts/check-stripe-terminal-order-states.mjs"
       - "scripts/staging/prove-private-paid-owner.mjs"
       - "scripts/staging/synthetic-qa-d1-gateway.worker.mjs"
@@ -122,6 +123,7 @@ on:
       - "scripts/check-paid-stage-initial-identity.mjs"
       - "scripts/check-offline-epub-issuer-expiry.mjs"
       - "scripts/check-offline-audio-issuer-authorization.mjs"
+      - "scripts/check-paid-bundle-offline-audio-owner.mjs"
       - ".github/workflows/paid-legal-full-schema-private-qa.yml"
   workflow_dispatch:
     inputs:
@@ -173,6 +175,7 @@ jobs:
       - run: node scripts/check-owner-paid-settlement.mjs
       - run: node scripts/check-offline-epub-issuer-expiry.mjs
       - run: node scripts/check-offline-audio-issuer-authorization.mjs
+      - run: node scripts/check-paid-bundle-offline-audio-owner.mjs
       - run: node scripts/check-customer-media-owner-order.mjs
       - run: node --test scripts/staging/paid-owner-rollback-evidence.test.mjs
       - run: node --test scripts/staging/paid-qa-retail-catalog.test.mjs
