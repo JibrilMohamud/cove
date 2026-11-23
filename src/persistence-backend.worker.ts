@@ -1,4 +1,5 @@
 import { seedMusicProfiles } from "./features/fore/music-profiles.server";
+import { assertCronResult } from "./lib/cron-result-guard";
 import { scopePublicationOwnerEnv } from "./storefront-strangler/publication-owner-routing.server";
 import { scopeExclusiveCanonicalD1 } from "./storefront-strangler/canonical-d1-write-fence";
 import { scopeCommerceProductionD1 } from "./storefront-strangler/commerce-d1-write-fence";
@@ -439,11 +440,13 @@ async function runCommercialQueues(cron: string, env: BackendEnv) {
           }),
       ]);
   }
+  let failedOperations=0;
   for (const [, operation] of tasks) {
     try {
-      await operation();
+      assertCronResult(await operation());
       console.info("Cove scheduled queue tick completed");
     } catch (error) {
+      failedOperations+=1;
       console.error(
         isD1QuotaError(error)
           ? "Cove scheduled queue D1 quota blocked"
@@ -455,6 +458,7 @@ async function runCommercialQueues(cron: string, env: BackendEnv) {
       }
     }
   }
+  if(failedOperations)throw Error("cove_scheduled_queue_operations_failed");
 }
 async function scheduledMaintenance(env: BackendEnv) {
   const response = await maintenance(env);
@@ -614,7 +618,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
       ];
       for (const run of work) {
         try {
-          await run();
+          assertCronResult(await run());
         } catch (error) {
           console.warn("Cove minute maintenance failed");
         }
@@ -907,10 +911,14 @@ export default {
     if (controller.cron === "23 * * * *")
       ctx.waitUntil?.(
         processAccountDeletionQueue(env, 5)
-          .then(() => console.info("Account erasure tick completed"))
-          .catch(() =>
-            console.error("Account erasure tick failed; queued requests will be retried."),
-          ),
+          .then((result) => {
+            assertCronResult(result);
+            console.info("Account erasure tick completed");
+          })
+          .catch((error) => {
+            console.error("Account erasure tick failed; queued requests will be retried.");
+            throw error;
+          }),
       );
     ctx.waitUntil?.(
       runScheduled(controller.cron, env).catch((error) => {
