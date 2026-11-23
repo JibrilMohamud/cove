@@ -276,6 +276,47 @@ async function cleanup(){
     }catch{failures.push("qa_d1_cleanup_inventory_unavailable")}
   }
 }
+// A transient stale control-plane listing or an interrupted cleanup receipt
+// must not incorrectly fail a run AFTER each physical QA resource is independently
+// absent. Conversely, no lost/partial DELETE is ever accepted without two
+// consecutive fresh confirmations from three separate QA principals.
+async function independentlyVerifyTeardownOnce(){
+  const workers=await provider("GET","/workers/scripts",
+    process.env.COVE_CF_QA_WORKERS_DEPLOY_TOKEN);
+  if(!Array.isArray(workers)||
+    workers.some(x=>x?.id===ownerName||x?.id===gatewayName))return false;
+  const objects=await provider("GET","/r2/buckets/"+QA_BUCKET+"/objects"+
+    "?prefix="+encodeURIComponent(objectKey)+"&per_page=10",
+    process.env.COVE_CF_QA_R2_STORAGE_TOKEN);
+  const keys=Array.isArray(objects)?objects:objects?.objects;
+  if(!Array.isArray(keys)||keys.some(x=>x?.key===objectKey))return false;
+  const counts=await sql(
+    "SELECT (SELECT COUNT(*) FROM audio_timing WHERE edition_id=? AND track_id=?) timing,"+
+    "(SELECT COUNT(*) FROM audio_jobs WHERE id=?) jobs,"+
+    "(SELECT COUNT(*) FROM audio_editions WHERE id=?) editions",
+    [command.editionId,command.trackId,command.jobId,command.editionId]);
+  return counts.results?.length===1&&
+    counts.results[0].timing===0&&counts.results[0].jobs===0&&
+    counts.results[0].editions===0;
+}
+async function confirmTeardownAfterPropagation(){
+  let consecutive=0;
+  // Bounded 12-second reconciliation window. Never retry any mutation:
+  // each request is an independently authenticated inventory read only.
+  for(let attempt=0;attempt<8;attempt++){
+    if(attempt)await new Promise(resolve=>setTimeout(resolve,1500));
+    try{
+      if(await independentlyVerifyTeardownOnce()){
+        consecutive++;
+        if(consecutive===2){
+          failures.length=0;
+          return;
+        }
+      }else consecutive=0;
+    }catch{consecutive=0;}
+  }
+  failures.push("qa_final_teardown_not_independently_verified");
+}
 let hostedPhase="initial";
 async function main(){
   hostedPhase="context";
@@ -332,7 +373,8 @@ async function main(){
       productionCutoverCertified:false,releaseCertified:false
     }));
   }finally{
-    try{await cleanup()}catch(error){hostedPhase="cleanup";throw error;}
+    try{await cleanup();await confirmTeardownAfterPropagation()}
+    catch(error){hostedPhase="cleanup";throw error;}
     for(const file of [ownerConfig,gatewayConfig])rmSync(file,{force:true});
     rmSync(dir,{recursive:true,force:true});
     if(failures.length)throw Error("biosync_hosted_owner_cleanup_incomplete:"+[...new Set(failures)].join(","));
@@ -341,8 +383,15 @@ async function main(){
 try{await main()}catch(error){
   // Print a fixed, code-owned phase ONLY; never log request data, token,
   // exception message, SQL or synthetic object keys from this protected run.
+  const diagnostic=new Set(["qa_ephemeral_worker_residual",
+    "qa_worker_cleanup_inventory_unavailable","qa_r2_residual_map",
+    "qa_r2_cleanup_inventory_unavailable","qa_d1_cleanup_failed",
+    "qa_d1_residual_synthetic_rows","qa_d1_cleanup_inventory_unavailable",
+    "qa_final_teardown_not_independently_verified"]);
+  // These fixed labels only are safe to expose; never provider error bodies.
+  const categories=[...new Set(failures)].filter(x=>diagnostic.has(x)).sort();
   console.error("BioSync isolated hosted owner proof FAILED: "+
     (String(error).includes("cleanup_incomplete")?"cleanup_incomplete":"protected_synthetic_qa")+
-    " phase="+hostedPhase);
+    " phase="+hostedPhase+(categories.length?" cleanup_classes="+categories.join(","):""));
   process.exitCode=1;
 }

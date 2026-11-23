@@ -34,6 +34,11 @@ test("Hosted owner proof cannot address the production account or primary",()=>{
     "A live 401 read-only denial must precede the first positive owner command");
   assert.match(script,/qa_r2_residual_map/);
   assert.match(script,/qa_d1_residual_synthetic_rows/);
+  assert.match(script,/async function independentlyVerifyTeardownOnce\(\)/);
+  assert.match(script,/async function confirmTeardownAfterPropagation\(\)/);
+  assert.match(script,/consecutive===2/);
+  assert.match(script,/qa_final_teardown_not_independently_verified/);
+  assert.match(script,/cleanup_classes=/);
   assert.match(script,/releaseCertified:false/);
 });
 test("Private owner command QA is manually protected, never triggered on push",()=>{

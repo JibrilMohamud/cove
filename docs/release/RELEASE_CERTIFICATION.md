@@ -5,9 +5,24 @@
 ## Contract and verified baseline
 
 - Repository: https://github.com/JibrilMohamud/cove
-- Last verified protected production branch `main`: [`4e166ec276a39855d8c25c817360a2fbfdf9b599`](https://github.com/JibrilMohamud/cove/commit/4e166ec276a39855d8c25c817360a2fbfdf9b599) (safe continuity guard #864). Its parent [`b9392468`](https://github.com/JibrilMohamud/cove/commit/b9392468e3170eaa4f26f3713e98d4da6d1c213d) includes merged #863 fail-closed cron receipt handling and #861 isolated QA gateway; source checkout is newer than the currently pinned Vercel customer deployment.
-- Integration: draft https://github.com/JibrilMohamud/cove/pull/850. Reconciled October source stack remains **unmerged** because source parity alone does not prove working production replacements or external legal rights.
+- Current reviewed `main`: [`e2e0f17a358bc939a8136a1c36669e47915ed395`](https://github.com/JibrilMohamud/cove/commit/e2e0f17a358bc939a8136a1c36669e47915ed395), merged integration #867 and exact protected QA repairs #869. This main checkout is newer than the pinned customer deployment; source acceptance is not hosted or production certification.
+- Integration: [#867](https://github.com/JibrilMohamud/cove/pull/867) **merged** (294 changed files), after historical candidate #850 and private unbound reads #866; [#869](https://github.com/JibrilMohamud/cove/pull/869) merged owner rollback/hosted BioSync diagnostics. These merges do not change production authority or legal evidence.
 - Never weaken canonical legal denials, enable LIVE payments, withdraw a right, grant publication rights, or remove primary D1 authority on the basis of synthetic tests.
+
+## Integrated hosted gate evidence — 2026-11-23 15:36 UTC
+
+The protected [11-child batch at commit e2e0f17a](https://github.com/JibrilMohamud/cove/actions/runs/45201324273) **failed**, with exact independent results. Historical QA success below is not proof that the integrated candidate passed:
+
+- **Native D1 32-concurrency bottleneck:** [paid QA #45201437474](https://github.com/JibrilMohamud/cove/actions/runs/45201437474) recorded p95 **811.5 ms**, max **811.67 ms**, SQL max **10.68 ms**, while isolated REST D1 comparator max was **316.43 ms**. This is a transport/primary contention failure, not SQL execution alone; never raise the 800 ms cap.
+- **Hosted BioSync:** [#45201436732](https://github.com/JibrilMohamud/cove/actions/runs/45201436732) failed at owner commit. A fresh [owner-authenticated run #45206851339](https://github.com/JibrilMohamud/cove/actions/runs/45206851339) successfully performed the *actual isolated QA commit*, replay, adversarial denials and pointer verification, but failed teardown verification. Independent read-only inventory afterward found **zero** run-scoped Workers, R2 map objects or synthetic D1 rows. An explicit two-successive-inventory reconciliation is required; hourly production BioSync is **not** certified.
+- **Required synthetic legal witnesses:** [#45201436991](https://github.com/JibrilMohamud/cove/actions/runs/45201436991) failed because contract-version/language/DRM cohorts were absent. Direct stage-only D1 read shows all three cohorts and contract-bound count **zero**. Do not remove those cohorts; seed isolated synthetic witness records under separately reviewed fixture authority, then compare exact canonical vs view.
+- **User-token metadata:** [#45201437094](https://github.com/JibrilMohamud/cove/actions/runs/45201437094) failed with strict fixed reason `read_group_alias_identifier_mismatch`. User API token capability cannot be assumed absent or read-only until provider ID/scope evidence proves each alias.
+- **Capacity run:** [#45201437034](https://github.com/JibrilMohamud/cove/actions/runs/45201437034) failed during read-only literary preflight due HTTP **429** *before* capacity samples and therefore generated no acceptance evidence. Bounded serialized audit reads may recover that preflight, but full 100 RPS and 1/4/8/16/32 acceptance remains mandatory.
+- **Writer exclusivity:** [#45201546177](https://github.com/JibrilMohamud/cove/actions/runs/45201546177) inspected 465 Workers, confirmed the backend's competing canonical D1 binding and active privileged account tokens, and did **not** verify all user-owned mutation authority.
+- Protected staging rollback [#45201437489](https://github.com/JibrilMohamud/cove/actions/runs/45201437489), historical primary-rights audit [#45201436772](https://github.com/JibrilMohamud/cove/actions/runs/45201436772), later grant replay and read-only withdrawal/rights spot audits passed their **bounded** checks. None supplies independent positive rights or a release permit.
+- Production LIVE payment and refund/revocation proof: **not performed**. Stripe LIVE PaymentIntents were empty and webhook endpoint enabled; that is infrastructure, not paid-flow acceptance.
+
+**Release decision remains NO-GO.** Changes to QA teardown and preflight transport do not grant rights, retire D1, revoke credentials, promote production or relax strict capacity checks. External signed rights/withdrawal evidence, host parity, LIVE commerce and exclusive physical writer proof are still required.
 
 ## Unified gate checklist
 

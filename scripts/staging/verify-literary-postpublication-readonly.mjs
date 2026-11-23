@@ -6,34 +6,52 @@ assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, account);
 assert.equal(process.env.GITHUB_REF, "refs/heads/main");
 const token = process.env.CLOUDFLARE_API_TOKEN;
 assert.ok(token, "Protected remote canary credential required");
-async function query(database, sql) {
-  assert.match(sql, /^SELECT\b/);
-  const response = await fetch(
-    "https://api.cloudflare.com/client/v4/accounts/" +
-      account +
-      "/d1/database/" +
-      database +
-      "/query",
-    {
-      method: "POST",
-      headers: {
-        authorization: "Bearer " + token,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({ sql }),
-      signal: AbortSignal.timeout(30000),
-    },
-  );
-  assert.ok(
-    response.ok,
-    "Read-only literary publication preflight " +
-      (database === primary ? "primary" : "isolated-content") +
-      " HTTP " +
-      response.status,
-  );
-  const result = await response.json();
-  assert.equal(result.success, true);
-  return result.result[0]?.results || [];
+// All read-only Cloudflare checks share one explicit request-start queue.
+ // The old parallel fan-out caused HTTP 429 before any capacity sample ran.
+ // 429 is never a pass: only a fresh provider 200 + exact data qualifies.
+let queryTail=Promise.resolve();
+let earliestNextStart=0;
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function querySerial(database,sql){
+  assert.match(sql,/^SELECT\b/);
+  const endpoint="https://api.cloudflare.com/client/v4/accounts/"+
+    account+"/d1/database/"+database+"/query";
+  const attempts=4;
+  for(let index=0;index<attempts;index++){
+    const pace=Math.max(0,earliestNextStart-Date.now());
+    if(pace)await sleep(pace);
+    earliestNextStart=Date.now()+1200;
+    const response=await fetch(endpoint,{
+      method:"POST",
+      headers:{authorization:"Bearer "+token,"content-type":"application/json"},
+      body:JSON.stringify({sql}),
+      signal:AbortSignal.timeout(30000),
+      redirect:"error"
+    });
+    if(response.status===429&&index<attempts-1){
+      // Bounded rate-limit recovery is allowed ONLY for a SELECT-only audit.
+      // Treat permanent throttling as failure, never skip a required witness.
+      try{await response.body?.cancel?.()}catch{}
+      const seconds=Number(response.headers.get("retry-after"));
+      const providerWait=Number.isFinite(seconds)&&seconds>=0?
+        Math.min(30000,Math.ceil(seconds*1000)):0;
+      await sleep(Math.max(2500*2**index,providerWait));
+      continue;
+    }
+    assert.ok(response.ok,
+      "Read-only literary publication preflight "+
+      (database===primary?"primary":"isolated-content")+" HTTP "+response.status);
+    const result=await response.json();
+    assert.equal(result.success,true);
+    assert.ok(Array.isArray(result.result?.[0]?.results));
+    return result.result[0].results;
+  }
+  throw Error("Read-only literary publication preflight exhausted");
+}
+function query(database,sql){
+  const run=queryTail.then(()=>querySerial(database,sql));
+  queryTail=run.then(()=>undefined,()=>undefined);
+  return run;
 }
 const [owner, published, frontier, cutover] = await Promise.all([
   query(
