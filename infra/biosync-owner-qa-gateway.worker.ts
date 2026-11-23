@@ -18,11 +18,9 @@ const ALLOWED_BINDINGS=new Set([
   "COVE_BIOSYNC_QA_CLIENT_SECRET",
   "COVE_RIGHTS_OWNER_SECRET",
 ]);
-const QA_PRIMARIES=new Set([
-  "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87",
-  "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
-  "969f1ea0-5f57-4f3a-aa25-9c74e58f5af3"
-]);
+// Unlike the legal owner's other synthetic fixtures, BioSync can only
+// reach its own dedicated D1 and no other QA or production principal.
+const QA_PRIMARIES=new Set(["4e17ba6f-444f-4245-801a-a7d4969045b0"]);
 const deny={"cache-control":"no-store","x-content-type-options":"nosniff"};
 function canCallOwner(env:Env){
   const now=Date.now(),expires=Number(env.COVE_BIOSYNC_QA_GATEWAY_EXPIRES_AT);

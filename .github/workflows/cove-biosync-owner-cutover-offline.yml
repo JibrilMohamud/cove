@@ -8,6 +8,9 @@ on:
       - "scripts/check-owner-biosync-checked-publication.mjs"
       - "scripts/check-owner-biosync-qa-gateway.mjs"
       - "infra/biosync-owner-qa-gateway.worker.ts"
+      - "wrangler.biosync-owner.qa.example.jsonc"
+      - "wrangler.biosync-gateway.qa.example.jsonc"
+      - "scripts/check-biosync-hosted-owner-config.mjs"
       - "scripts/audio_pipeline/biosync_owner_qa.py"
       - "scripts/audio_pipeline/test_biosync_owner_qa.py"
       - "scripts/staging/prove-biosync-qa-data-plane.mjs"
@@ -57,6 +60,8 @@ jobs:
         run: node scripts/check-owner-biosync-checked-publication.mjs
       - name: Refuse unauthorized gateway, hostile input, unknown D1 and owner outage
         run: node scripts/check-owner-biosync-qa-gateway.mjs
+      - name: Require physically split, disabled QA owner and unrouted gateway
+        run: node scripts/check-biosync-hosted-owner-config.mjs
       - name: Enforce existing canonical owner acknowledgment and legal revocation fences
         run: |
           node scripts/check-canonical-owner-command-gateway.mjs

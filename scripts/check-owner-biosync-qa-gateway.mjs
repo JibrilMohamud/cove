@@ -23,7 +23,7 @@ try{
   }};
   const env=()=>({
     COVE_BIOSYNC_QA_GATEWAY_ENABLED:"1",
-    COVE_BIOSYNC_QA_PRIMARY_ID:"7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
+    COVE_BIOSYNC_QA_PRIMARY_ID:"4e17ba6f-444f-4245-801a-a7d4969045b0",
     COVE_BIOSYNC_QA_GATEWAY_EXPIRES_AT:String(Date.now()+300_000),
     COVE_BIOSYNC_QA_CLIENT_SECRET:clientSecret,
     COVE_RIGHTS_OWNER_SECRET:ownerSecret,
@@ -57,6 +57,7 @@ try{
   await blocked(req(data,{type:"text/plain"}),env(),415);
   await blocked(req(),{...env(),COVE_BIOSYNC_QA_GATEWAY_ENABLED:"0"},503);
   await blocked(req(),{...env(),COVE_BIOSYNC_QA_PRIMARY_ID:"4bd657ac-8789-403e-a28c-93aba8d0a989"},503);
+  await blocked(req(),{...env(),COVE_BIOSYNC_QA_PRIMARY_ID:"969f1ea0-5f57-4f3a-aa25-9c74e58f5af3"},503);
   await blocked(req(),{...env(),COVE_BIOSYNC_QA_GATEWAY_EXPIRES_AT:String(Date.now()-1000)},503);
   await blocked(req(),{...env(),COVE_BIOSYNC_QA_GATEWAY_EXPIRES_AT:String(Date.now()+60*60*1000)},503);
   await blocked(req(),{...env(),DB:{prepare(){throw Error("never")}}},503);
