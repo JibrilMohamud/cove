@@ -12,6 +12,20 @@ assert.equal(lineage.retired.filter(x=>x.disposition==="non-authorizing-write").
 assert.equal(new Set(lineage.retired.map(x=>x.siteId)).size,9);
 assert.equal(review.releaseApproval,false);assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=84);
 const source=read(lineage.source.file);assert.equal(sha(source),expectedCurrentOwnerIntegrationHash(lineage.source.file,lineage.source.currentSha256));
+// Independently checked 2-hunk account session migration: authenticated callers
+// route digest-only session touches to the private owner. Reversal must recover
+// the historical reviewed account source, not merely a newer asserted hash.
+let priorAccountSource=source;
+for(const {introduced,original} of [
+  { introduced:"import {\n  dispatchAccountOwnerAction,\n  hasPublicationOwner,\n} from \"../../storefront-strangler/publication-owner-routing.server\";", original:"import { dispatchAccountOwnerAction } from \"../../storefront-strangler/publication-owner-routing.server\";" },
+  { introduced:"  // The no-D1 QA caller must never touch the database directly. The\n  // authenticated account ID, digest-only session identity and bounded\n  // platform metadata go through the privately leased owner. Production\n  // keeps the original path until all remaining operations are certified.\n  if (hasPublicationOwner(db)) {\n    const result = (await dispatchAccountOwnerAction(db, {\n      action: \"touch-session\",\n      userId,\n      sessionHash: hash,\n      userAgentSummary: ua(request),\n      ipCountry: country(request),\n    })) as { sessionId: string };\n    return result.sessionId;\n  }\n", original:"" }
+]){
+  assert.equal(priorAccountSource.split(introduced).length,2,
+    "Account caller migration differs from exact reviewed operation-only delta");
+  priorAccountSource=priorAccountSource.replace(introduced,original);
+}
+assert.equal(sha(priorAccountSource),lineage.source.currentSha256,
+  "Digest-only account session migration must restore the historical current source pin");
 assert.ok(!review.sites.some(x=>x.file===lineage.source.file));
 for(const row of lineage.retired)assert.ok(!review.sites.some(x=>x.siteId===row.siteId));
 assert.doesNotMatch(source,/\b(?:INSERT(?: OR IGNORE)? INTO|UPDATE|DELETE FROM)\s+(?:devices|audio_offline_licenses|commerce_customers|products|editions)\b/i);
