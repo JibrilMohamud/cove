@@ -36,12 +36,20 @@ jobs:
           npx --no-install prettier --write \
             src/features/fore/account-management.server.ts \
             src/storefront-strangler/qa-owner-primary-read-entrypoint.ts \
+            src/storefront-strangler/qa-owner-primary-read-transport.mjs \
+            src/storefront-strangler/qa-owner-primary-read-transport.d.mts \
+            scripts/qa-owner-primary-read-transport.test.mjs \
+            scripts/qa-owner-primary-read-entrypoint.test.mjs \
             scripts/release/check-integrated-qa-owner-cutover-continuity.mjs >/dev/null
           node --input-type=module -e '
             import fs from "node:fs";
             for (const path of [
               "src/features/fore/account-management.server.ts",
               "src/storefront-strangler/qa-owner-primary-read-entrypoint.ts",
+              "src/storefront-strangler/qa-owner-primary-read-transport.mjs",
+              "src/storefront-strangler/qa-owner-primary-read-transport.d.mts",
+              "scripts/qa-owner-primary-read-transport.test.mjs",
+              "scripts/qa-owner-primary-read-entrypoint.test.mjs",
               "scripts/release/check-integrated-qa-owner-cutover-continuity.mjs"
             ]) console.log("COVE_INTEGRATED_FORMAT " + path + " " +
               fs.readFileSync(path).toString("base64"));
