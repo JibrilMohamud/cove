@@ -7,9 +7,13 @@ const primary = "4bd657ac-8789-403e-a28c-93aba8d0a989";
 const secondary = "400c3af3-5d40-41fd-83cc-98228e40ddac";
 const bucket = "cove-literary-originals-isolated-20261024";
 const name = "cove-literary-handoff-isolated-disabled";
-const token = process.env.CLOUDFLARE_API_TOKEN;
+const deployToken = process.env.CLOUDFLARE_API_TOKEN;
+const d1ReadToken = process.env.COVE_CF_STAGE_D1_READ_TOKEN;
+const workerReadToken = process.env.COVE_CF_WORKERS_METADATA_READ_TOKEN;
 assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, account);
-assert.ok(token, "Cloudflare deploy credential unavailable");
+assert.ok(deployToken && d1ReadToken && workerReadToken, "Scoped dormant deployment principals required");
+assert.ok(new Set([deployToken,d1ReadToken,workerReadToken]).size===3,
+  "D1 read, Worker metadata read and deploy credentials must be distinct");
 const file = "wrangler.content-literary-handoff.prod-disabled.jsonc";
 const config = JSON.parse(fs.readFileSync(file, "utf8"));
 assert.equal(config.name, name);
@@ -37,6 +41,10 @@ assert.ok(
 );
 
 async function request(method, path, body) {
+  const d1Query=method==="POST" && path.startsWith(`/accounts/${account}/d1/database/`) && path.endsWith("/query");
+  const workerRead=method==="GET" && path.startsWith(`/accounts/${account}/workers/`);
+  const token=d1Query?d1ReadToken:workerRead?workerReadToken:null;
+  assert.ok(token, "Unexpected API route in dormant literary owner audit");
   const response = await fetch("https://api.cloudflare.com/client/v4" + path, {
     method,
     headers: {
@@ -53,10 +61,11 @@ async function request(method, path, body) {
   );
   return data.result;
 }
-const query = (db, sql) =>
-  request("POST", `/accounts/${account}/d1/database/${db}/query`, { sql }).then(
-    (x) => x[0].results,
-  );
+const query = (db, sql) => {
+  assert.match(sql.trim(), /^SELECT\\b/i, "Dormant owner preflight may only read D1");
+  return request("POST", `/accounts/${account}/d1/database/${db}/query`, {sql})
+    .then(x=>x[0].results);
+};
 const [identity, frontier, productionOwner] = await Promise.all([
   query(secondary, "SELECT domain,schema_version FROM literary_budget_domain_identity WHERE id=1"),
   query(secondary, "SELECT status,after_job_id FROM literary_legacy_reconcile_frontier WHERE id=1"),
