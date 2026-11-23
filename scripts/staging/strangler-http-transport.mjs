@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { connect } from "node:http2";
 import { performance } from "node:perf_hooks";
-import { brotliDecompressSync, gunzipSync, inflateSync } from "node:zlib";
+import { brotliDecompress, gunzip, inflate } from "node:zlib";
+import { promisify } from "node:util";
+const decodeBrotli = promisify(brotliDecompress);
+const decodeGzip = promisify(gunzip);
+const decodeDeflate = promisify(inflate);
 
 // A separate diagnostic arm. Default requests retain native fetch/HTTP1.
 // Both arms enforce identical status, body, rights and hard latency checks.
@@ -184,19 +188,24 @@ export async function stageFetch(url, options = {}) {
       spans.set(response, span);
       resolve(response);
     });
-    stream.once("end", () => {
+    stream.once("end", async () => {
       finished = true;
       cleanup();
       try {
         const encoded = Buffer.concat(chunks);
         const options = { maxOutputLength: 4 * 1024 * 1024 };
+        // Decode asynchronously on libuv's worker pool: 2,000 concurrent
+        // valid HTML bodies must still be read and checked, but one large
+        // Brotli response must not block the same event loop that timestamps
+        // *other* in-flight HTTP/2 response headers. No retry, truncation,
+        // body omission or change to the 4 MiB cap is permitted here.
         const decoded =
           encoding === "br"
-            ? brotliDecompressSync(encoded, options)
+            ? await decodeBrotli(encoded, options)
             : encoding === "gzip"
-              ? gunzipSync(encoded, options)
+              ? await decodeGzip(encoded, options)
               : encoding === "deflate"
-                ? inflateSync(encoded, options)
+                ? await decodeDeflate(encoded, options)
                 : encoding === "identity"
                   ? encoded
                   : null;
