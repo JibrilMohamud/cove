@@ -1,0 +1,36 @@
+name: cove-integrated-owner-qa-continuity-offline
+on:
+  pull_request:
+    paths:
+      - "src/persistence-backend.worker.ts"
+      - "src/storefront-strangler/legal-authority.worker.ts"
+      - "src/storefront-strangler/publication-owner-routing.server.ts"
+      - "src/storefront-strangler/qa-owner-primary-read-entrypoint.ts"
+      - "scripts/release/check-integrated-qa-owner-cutover-continuity.mjs"
+      - ".github/workflows/cove-integrated-owner-qa-continuity-offline.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/persistence-backend.worker.ts"
+      - "src/storefront-strangler/legal-authority.worker.ts"
+      - "src/storefront-strangler/publication-owner-routing.server.ts"
+      - "src/storefront-strangler/qa-owner-primary-read-entrypoint.ts"
+      - "scripts/release/check-integrated-qa-owner-cutover-continuity.mjs"
+      - ".github/workflows/cove-integrated-owner-qa-continuity-offline.yml"
+permissions:
+  contents: read
+jobs:
+  source-continuity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Inspect current source without any Cloudflare production credentials
+        run: node scripts/release/check-integrated-qa-owner-cutover-continuity.mjs
+      - name: Prove no silent loss of scheduler and genuine hourly BioSync
+        run: node scripts/release/check-production-cron-continuity.mjs --self-test
