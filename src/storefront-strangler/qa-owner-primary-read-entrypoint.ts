@@ -40,7 +40,7 @@ export function scopeQaOwnerUnboundPrimaryRead<T extends QaReadEnv>(env:T):T {
      !/^[a-f0-9]{64}$/.test(env.COVE_RIGHTS_OWNER_SECRET||"")||
      !env.LEGAL_AUTHORITY?.getByName||
      // A caller retaining a D1 binding has not proved physical isolation.
-     env.DB!==undefined&&env.DB!==null||
+     (env.DB!==undefined&&env.DB!==null)||
      // This phase proves read continuity only. Don't imply that legitimate
      // business writes or mixed owner command paths have been migrated.
      env.COVE_PUBLICATION_COMMANDS_ENABLED==="1"||
@@ -52,5 +52,5 @@ export function scopeQaOwnerUnboundPrimaryRead<T extends QaReadEnv>(env:T):T {
     throw Error("qa_unbound_primary_read_not_certified");
   return {...env,
     DB:createQaOwnerReadOnlyD1(owner,env.COVE_RIGHTS_OWNER_SECRET!)
-  };
+  } as T;
 }
