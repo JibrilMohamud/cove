@@ -16,6 +16,18 @@ function checkedReadReceipt(route, response) {
   // A 404 *without* the authenticated Worker's marker may be edge version
   // propagation. A 404 from inside the Worker is an application failure.
   if (response?.status === 404 && response.ingressColo === null) return "edge_404";
+  // This endpoint never touches owner/D1, cannot mutate anything and emits
+  // its ingress marker before every successful response. Only an unmarked
+  // 500 on the exact caller-only ping can delay pre-measurement readiness.
+  // Other 5xx, any 500 from owner/native routes or any marked 500 fails now.
+  if (
+    route === "/qa/transport-caller-ping" &&
+    response?.status === 500 &&
+    response.ingressColo === null &&
+    response.bindingHeadersMs === null &&
+    response.ownerRouteMs === null
+  )
+    return "edge_500";
   const expected =
     response?.status === 200 &&
     response.body?.schema === definition.schema &&
@@ -38,7 +50,8 @@ function checkedReadReceipt(route, response) {
  * Every wave exercises three fixed read-only paths at the full 32-request
  * parallelism. Two *consecutive* entirely clean waves are required, with no
  * selected/discarded latency samples. Uncertain network/owner/5xx failures
- * fail immediately. A persistent provider edge 404 fails after a hard bound.
+ * fail immediately; only an unmarked 500 from the nonmutating, no-D1 caller
+ * ping is treated as not-ready. Persistent 404/500 fails after a hard bound.
  */
 export async function stabilizePrivatePaidQaIngress({
   probe,
@@ -63,6 +76,7 @@ export async function stabilizePrivatePaidQaIngress({
     throw Error("paid_qa_ingress_unsafe_configuration");
   let clean = 0;
   let edge404 = 0;
+  let edge500 = 0;
   for (let round = 1; round <= rounds; round++) {
     let entireWaveReady = true;
     for (const { route } of PAID_QA_READ_PROBES) {
@@ -71,15 +85,17 @@ export async function stabilizePrivatePaidQaIngress({
         Array.from({ length: parallel }, () => probe(route, requestBody)),
       );
       for (const response of receipts) {
-        if (checkedReadReceipt(route, response) === "edge_404") {
+        const verdict = checkedReadReceipt(route, response);
+        if (verdict !== "ready") {
           entireWaveReady = false;
-          edge404++;
+          if (verdict === "edge_404") edge404++;
+          else if (verdict === "edge_500") edge500++;
         }
       }
     }
     clean = entireWaveReady ? clean + 1 : 0;
-    if (clean === stableWaves) return { globallyReady: true, completeWaves: round, edge404 };
+    if (clean === stableWaves) return { globallyReady: true, completeWaves: round, edge404, edge500 };
     if (round < rounds) await sleep(3000);
   }
-  throw Error("paid_qa_ingress_edge_404_unstable:observed=" + edge404);
+  throw Error("paid_qa_ingress_readonly_unstable:edge404=" + edge404 + ":edge500=" + edge500);
 }
