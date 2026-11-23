@@ -52,6 +52,7 @@ const mapBytes=Buffer.from(JSON.stringify(map));
 command.mapSha256=createHash("sha256").update(mapBytes).digest("hex");
 const objectKey="biosync/maps/"+command.mapSha256+".json";
 let ownerDeployed=false,gatewayDeployed=false,seedStarted=false,objectUploaded=false;
+let primaryFailure=null,provisioningFailureClass="none";
 const failures=[];
 const tokenNames=[
   "COVE_CF_QA_WORKERS_DEPLOY_TOKEN",
@@ -86,8 +87,36 @@ function wrangler(args,token=process.env.COVE_CF_QA_WORKERS_DEPLOY_TOKEN){
     env:{...process.env,CLOUDFLARE_API_TOKEN:token,
       CLOUDFLARE_ACCOUNT_ID:QA_ACCOUNT,CLOUDFLARE_SEND_METRICS:"false"}});
   if(out.status!==0){
-    // Never log raw provider responses, which could contain secrets.
-    throw Error("biosync_hosted_owner_wrangler_"+args[0]+"_failed");
+    // Classify ONLY known bounded Cloudflare/wrangler condition codes.
+    // NEVER print the provider payload: it may contain a token, hostname,
+    // resource ID, SQL or synthetic rightsholder metadata.
+    const providerText=String(out.stderr||"")+" "+String(out.stdout||"");
+    const safeCategory=out.error?.code==="ETIMEDOUT"?"timeout":
+      /(?:Worker does not exist|(?:code|error)[: ]+10007)\b/i.test(providerText)
+        ?"worker_version_10007":
+      /(?:HTTP[_ :]*403|authentication error|permission denied)/i.test(providerText)
+        ?"credential_permission":
+      /(?:HTTP[_ :]*409|already exists)/i.test(providerText)
+        ?"resource_conflict":"unclassified";
+    const failure=Error("biosync_hosted_owner_wrangler_"+args[0]+"_failed");
+    failure.coveSafeCategory=safeCategory;
+    throw failure;
+  }
+}
+// Both deploys target ephemeral, run-scoped QA Workers with NO production
+// routes. Cloudflare versions sometimes return 10007 immediately after a
+// fresh Worker is created. Retry ONLY that explicit control-plane race, not
+// timeouts, auth failures, 5xx, the actual owner command, R2 or D1 mutations.
+async function deployIsolatedQaWorker(config,secrets){
+  if(![ownerConfig,gatewayConfig].includes(config)||!secrets)refuse("invalid_deploy_target");
+  for(let attempt=1;attempt<=3;attempt++){
+    try{
+      wrangler(["deploy","--config",config,"--secrets-file",secrets]);
+      return;
+    }catch(error){
+      if(error?.coveSafeCategory!=="worker_version_10007"||attempt===3)throw error;
+      await new Promise(resolve=>setTimeout(resolve,1500*attempt));
+    }
   }
 }
 async function provider(method,endpoint,token,body=null,asJson=true){
@@ -334,10 +363,10 @@ async function main(){
     // Use the normal compiled legal Worker and exact gateway, never a mock.
     ownerDeployed=true;
     hostedPhase="owner_deploy";
-    wrangler(["deploy","--config",ownerConfig,"--secrets-file",ownerSecrets]);
+    await deployIsolatedQaWorker(ownerConfig,ownerSecrets);
     gatewayDeployed=true;
     hostedPhase="gateway_deploy";
-    wrangler(["deploy","--config",gatewayConfig,"--secrets-file",gatewaySecrets]);
+    await deployIsolatedQaWorker(gatewayConfig,gatewaySecrets);
     hostedPhase="gateway_readiness";
     await waitForAuthenticatedGateway();
     hostedPhase="owner_commit";
@@ -372,12 +401,28 @@ async function main(){
       productionAccess:false,rightsGranted:false,
       productionCutoverCertified:false,releaseCertified:false
     }));
+  }catch(error){
+    primaryFailure=error;
+    if(["owner_deploy","gateway_deploy"].includes(hostedPhase)&&
+       ["worker_version_10007","credential_permission","resource_conflict","timeout","unclassified"]
+         .includes(error?.coveSafeCategory))
+      provisioningFailureClass=error.coveSafeCategory;
+    throw error;
   }finally{
+    let cleanupError=null;
     try{await cleanup();await confirmTeardownAfterPropagation()}
-    catch(error){hostedPhase="cleanup";throw error;}
+    catch(error){cleanupError=error;}
     for(const file of [ownerConfig,gatewayConfig])rmSync(file,{force:true});
     rmSync(dir,{recursive:true,force:true});
-    if(failures.length)throw Error("biosync_hosted_owner_cleanup_incomplete:"+[...new Set(failures)].join(","));
+    if(cleanupError||failures.length){
+      // Never mask an earlier deployment/owner/payment error. Physical
+      // synthetic cleanup failures are nevertheless fatal independently.
+      if(primaryFailure)console.error("BioSync protected QA teardown also failed");
+      else {
+        hostedPhase="cleanup";
+        throw Error("biosync_hosted_owner_cleanup_incomplete");
+      }
+    }
   }
 }
 try{await main()}catch(error){
@@ -392,6 +437,8 @@ try{await main()}catch(error){
   const categories=[...new Set(failures)].filter(x=>diagnostic.has(x)).sort();
   console.error("BioSync isolated hosted owner proof FAILED: "+
     (String(error).includes("cleanup_incomplete")?"cleanup_incomplete":"protected_synthetic_qa")+
-    " phase="+hostedPhase+(categories.length?" cleanup_classes="+categories.join(","):""));
+    " phase="+hostedPhase+
+    (provisioningFailureClass!=="none"?" provisioning_class="+provisioningFailureClass:"")+
+    (categories.length?" cleanup_classes="+categories.join(","):""));
   process.exitCode=1;
 }

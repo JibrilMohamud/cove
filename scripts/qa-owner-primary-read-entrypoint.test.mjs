@@ -12,7 +12,15 @@ let module;
 try {
   const outfile = join(folder, "qa-read-entrypoint.mjs");
   await build({
-    entryPoints: ["src/storefront-strangler/qa-owner-primary-read-entrypoint.ts"],
+    // Bundle read seam and typed owner dispatcher together, so both exercise
+    // the same private WeakMap owner context as the real backend.
+    stdin: {
+      contents: `export {scopeQaOwnerUnboundPrimaryRead} from "./src/storefront-strangler/qa-owner-primary-read-entrypoint.ts";
+export {scopePublicationOwnerEnv,dispatchPublicationRecovery} from "./src/storefront-strangler/publication-owner-routing.server.ts";`,
+      resolveDir: process.cwd(),
+      sourcefile: "qa-integrated-owner-main.ts",
+      loader: "ts",
+    },
     outfile,
     bundle: true,
     platform: "node",
@@ -24,7 +32,8 @@ try {
 } finally {
   rmSync(folder, { force: true, recursive: true });
 }
-const { scopeQaOwnerUnboundPrimaryRead } = module;
+const { scopeQaOwnerUnboundPrimaryRead, scopePublicationOwnerEnv, dispatchPublicationRecovery } =
+  module;
 const SECRET = "a".repeat(64);
 const QA_PRIMARY = "969f1ea0-5f57-4f3a-aa25-9c74e58f5af3";
 const PROD_PRIMARY = "4bd657ac-8789-403e-a28c-93aba8d0a989";
@@ -88,6 +97,91 @@ test("without any D1 binding a signed, QA-only backend performs catalog SELECT v
   assert.equal(x.DB.withSession("first-primary").getBookmark(), null);
   assert.equal(Object.hasOwn(x, "PRIMARY_DB"), false);
 });
+test("integrated #867 DB-unbound QA backend can perform one typed owner command but NEVER raw SQL mutation", async () => {
+  const primary = "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87";
+  const paths = [];
+  const original = qaEnv({
+    COVE_RIGHTS_OWNER_PRIMARY_ID: primary,
+    COVE_LEGAL_WRITER_PRIMARY_ID: primary,
+    COVE_PUBLICATION_COMMANDS_ENABLED: "1",
+    COVE_PUBLICATION_COMMAND_TERRITORY: "US",
+    COVE_PUBLICATION_COMMAND_CURRENCY: "USD",
+    LEGAL_AUTHORITY: {
+      getByName(name) {
+        assert.equal(name, "cove-staged-legal-global-v1");
+        return {
+          async fetch(request) {
+            const path = new URL(request.url).pathname;
+            paths.push(path);
+            assert.equal(request.headers.get("authorization"), "Bearer " + SECRET);
+            if (path === "/qa/private-primary-read")
+              return serveQaOwnerPrimaryRead(request, fakeD1(), SECRET, true);
+            assert.equal(path, "/publication/recover-recorded");
+            assert.equal(request.headers.get("cache-control"), "no-store");
+            const body = await request.json();
+            assert.match(body.operationId, /^publication-recovery:[a-f0-9-]{36}$/);
+            return Response.json(
+              {
+                schema: "cove.publication-recovery.v1",
+                ownerFirst: true,
+                operationId: body.operationId,
+                checked: 2,
+                recovered: 1,
+                blocked: 1,
+              },
+              { headers: { "cache-control": "no-store" } },
+            );
+          },
+        };
+      },
+    },
+  });
+  assert.equal(Object.hasOwn(original, "DB"), false);
+  const unbound = scopeQaOwnerUnboundPrimaryRead(original);
+  const env = scopePublicationOwnerEnv(unbound);
+  assert.equal((await env.DB.prepare("SELECT 1").first()).ok, 1);
+  assert.throws(
+    () => env.DB.prepare("UPDATE legal_rows SET state='granted'"),
+    /qa_owner_read_denied/,
+  );
+  assert.throws(() => env.DB.prepare("SELECT 1").run(), /qa_owner_read_denied/);
+  assert.throws(() => env.DB.exec("DELETE FROM qa_probe_rows"), /qa_owner_read_denied/);
+  const ack = await dispatchPublicationRecovery(env.DB);
+  assert.deepEqual(ack, { checked: 2, recovered: 1, blocked: 1 });
+  assert.deepEqual(paths, ["/qa/private-primary-read", "/publication/recover-recorded"]);
+  assert.equal(Object.hasOwn(unbound, "PRIMARY_DB"), false);
+  assert.equal(Object.hasOwn(env, "PRIMARY_DB"), false);
+});
+
+test("mixed owner QA cannot be enabled on other primaries or with an unreviewed legal/territory lease", () => {
+  const primary = "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87";
+  const good = {
+    COVE_RIGHTS_OWNER_PRIMARY_ID: primary,
+    COVE_LEGAL_WRITER_PRIMARY_ID: primary,
+    COVE_PUBLICATION_COMMANDS_ENABLED: "1",
+    COVE_PUBLICATION_COMMAND_TERRITORY: "US",
+    COVE_PUBLICATION_COMMAND_CURRENCY: "USD",
+  };
+  for (const bad of [
+    { COVE_LEGAL_WRITER_PRIMARY_ID: "969f1ea0-5f57-4f3a-aa25-9c74e58f5af3" },
+    {
+      COVE_RIGHTS_OWNER_PRIMARY_ID: "969f1ea0-5f57-4f3a-aa25-9c74e58f5af3",
+      COVE_LEGAL_WRITER_PRIMARY_ID: "969f1ea0-5f57-4f3a-aa25-9c74e58f5af3",
+    },
+    { COVE_PUBLICATION_COMMAND_TERRITORY: "CA" },
+    { COVE_PUBLICATION_COMMAND_CURRENCY: "EUR" },
+    { COVE_PUBLICATION_COMMANDS_ENABLED: "yes" },
+    { DB: fakeD1() },
+    { FORE_ENVIRONMENT: "production" },
+    { COVE_COMMERCE_OWNER_D1_FENCE: "1" },
+    { COVE_OWNER_EXCLUSIVE_WRITER_FENCE: "1" },
+  ])
+    assert.throws(
+      () => scopeQaOwnerUnboundPrimaryRead(qaEnv({ ...good, ...bad })),
+      /qa_unbound_primary_read_not_certified/,
+      "unsafe mixed owner QA accepted: " + JSON.stringify(Object.keys(bad)),
+    );
+});
 test("absence of a QA flag is a strict no-op, including the real legacy native DB", () => {
   const real = { DB: fakeD1(), COVE_QA_OWNER_UNBOUND_READ_ENABLED: "0" };
   assert.equal(scopeQaOwnerUnboundPrimaryRead(real), real);
@@ -127,6 +221,12 @@ test("the backend still scopes both cron and HTTP, while production D1 and owner
   assert.equal(
     backend.split("scopeExclusiveCanonicalD1(scopePublicationOwnerEnv(env))").length - 1,
     2,
+  );
+  const scheduled = backend.slice(backend.indexOf("  async scheduled(controller:"));
+  assert.ok(
+    scheduled.indexOf("scopeQaOwnerUnboundPrimaryRead(env)") <
+      scheduled.indexOf("scopePublicationOwnerEnv(env)"),
+    "Both cron and HTTP must establish private READ transport before typed dispatch",
   );
   assert.match(config, /binding = "DB"/);
   assert.match(config, /database_id = "4bd657ac-8789-403e-a28c-93aba8d0a989"/);

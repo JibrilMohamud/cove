@@ -898,9 +898,11 @@ async function hostedBiosyncTranscript(
 
 export default {
   async scheduled(controller: { cron: string }, env: BackendEnv, ctx: ExecutionContextLike) {
-    env = scopeCommerceProductionD1(scopeExclusiveCanonicalD1(scopePublicationOwnerEnv(env)));
-    // Opt-in isolated QA only. Production remains bound to primary D1.
+    // A physically D1-unbound QA backend must obtain its leased private
+    // owner READ facade before independently gated typed owner commands.
+    // Production remains natively DB-bound and these guards remain no-ops.
     env = scopeQaOwnerUnboundPrimaryRead(env);
+    env = scopeCommerceProductionD1(scopeExclusiveCanonicalD1(scopePublicationOwnerEnv(env)));
     if (controller.cron === "*/10 * * * *") {
       // Bounded social-only bracket authority. Winner snapshots, next-round
       // pairings, and optimistic CAS commit in one D1 transaction.

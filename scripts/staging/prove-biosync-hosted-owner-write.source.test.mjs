@@ -40,6 +40,17 @@ test("Hosted owner proof cannot address the production account or primary",()=>{
   assert.match(script,/qa_final_teardown_not_independently_verified/);
   assert.match(script,/cleanup_classes=/);
   assert.match(script,/releaseCertified:false/);
+  assert.match(script,/async function deployIsolatedQaWorker\(config,secrets\)/);
+  assert.match(script,/worker_version_10007/);
+  assert.match(script,/attempt<=3/);
+  assert.match(script,/error\?\.coveSafeCategory!=="worker_version_10007"/);
+  assert.match(script,/primaryFailure=error/);
+  assert.match(script,/if\(primaryFailure\)console\.error/);
+  assert.match(script,/provisioning_class=/);
+  // No retry is allowed on an uncertain owner command, provider write, R2,
+  // payment or D1 mutation: the repeat wrapper is deployment-only.
+  assert.match(script,/wrangler\(\["deploy","--config",config,"--secrets-file",secrets\]\)/);
+  assert.doesNotMatch(script,/retry.*(?:callOwner|await sql|seed\()/i);
 });
 test("Private owner command QA is manually protected, never triggered on push",()=>{
   const job=flow.split("  hosted-qa-owner-atomic-write:")[1];
