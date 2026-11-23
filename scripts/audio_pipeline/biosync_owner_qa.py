@@ -25,7 +25,7 @@ from .epub_index import build
 ACCOUNT = "f51e8ccbc394e2d6016ff8c2c303d54b"
 # Physically independent QA account and its known synthetic-only D1.
 # Never select the production account, primary D1 or R2 bucket.
-QA_DATABASES = {"969f1ea0-5f57-4f3a-aa25-9c74e58f5af3"}
+QA_DATABASES = {"4e17ba6f-444f-4245-801a-a7d4969045b0"}
 DATABASE = os.environ.get("COVE_BIOSYNC_QA_DATABASE_ID", "")
 BUCKET = os.environ.get("COVE_BIOSYNC_QA_BUCKET", "")
 EDITION = "pg-19504"
