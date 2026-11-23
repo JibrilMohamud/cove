@@ -16,6 +16,7 @@ on:
       - "scripts/staging/prove-biosync-qa-data-plane.mjs"
       - "scripts/staging/prove-biosync-qa-data-plane.test.mjs"
       - "scripts/staging/prove-biosync-hosted-owner-write.mjs"
+      - "scripts/staging/prove-biosync-hosted-owner-write.source.test.mjs"
       - ".github/workflows/cove-biosync-owner-cutover-offline.yml"
   push:
     branches: [main]
@@ -28,6 +29,7 @@ on:
       - "scripts/staging/prove-biosync-qa-data-plane.mjs"
       - "scripts/staging/prove-biosync-qa-data-plane.test.mjs"
       - "scripts/staging/prove-biosync-hosted-owner-write.mjs"
+      - "scripts/staging/prove-biosync-hosted-owner-write.source.test.mjs"
       - ".github/workflows/cove-biosync-owner-cutover-offline.yml"
   workflow_dispatch:
     inputs:
@@ -80,6 +82,8 @@ jobs:
         run: node --test scripts/staging/prove-biosync-qa-data-plane.test.mjs
       - name: Compile-check protected hosted synthetic owner proof without executing it
         run: node --check scripts/staging/prove-biosync-hosted-owner-write.mjs
+      - name: Verify exact QA-only source and fail-closed protected workflow contract
+        run: node --test scripts/staging/prove-biosync-hosted-owner-write.source.test.mjs
       - name: Check source types and legal owner write fence
         run: |
           npx tsc --noEmit
@@ -155,6 +159,7 @@ jobs:
           node scripts/check-owner-biosync-checked-publication.mjs
           node scripts/check-owner-biosync-qa-gateway.mjs
           node --check scripts/staging/prove-biosync-hosted-owner-write.mjs
+          node --test scripts/staging/prove-biosync-hosted-owner-write.source.test.mjs
       - name: Build the actual canonical owner code and private QA gateway
         run: |
           node scripts/build-storefront-strangler.mjs
