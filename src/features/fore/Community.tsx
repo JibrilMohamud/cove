@@ -1451,10 +1451,7 @@ function Journey({ id }: { id: string }) {
               </label>
               <label>
                 {ui("Theme")}
-                <select
-                  value={draft.theme}
-                  onChange={(e) => patchDraft({ theme: e.target.value })}
-                >
+                <select value={draft.theme} onChange={(e) => patchDraft({ theme: e.target.value })}>
                   {["paper", "night", "forest", "sunset", "ink"].map((x) => (
                     <option key={x}>{x}</option>
                   ))}
