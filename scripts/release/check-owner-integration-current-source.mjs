@@ -24,7 +24,7 @@ const PINNED_CURRENT_SOURCES=Object.freeze({
   "src/features/fore/rights.server.ts":"a7839d53ae20ffa3351bd6fbef797bd3d06dfb30c7d390168c195be8680e5fa2",
   "src/features/fore/search.server.ts":"b4a435335c8b8009a27288931aea94082ba1785930636e1101958955a4c881fa",
   "src/features/fore/traditional-publishing.server.ts":"364406b8ed38f06563a6e307aa0512e64b41c926ee7236bf34e216e8f0166191",
-  "src/storefront-strangler/legal-authority.worker.ts":"c95a96993301de008ab4b9530b52a9408e871497402c1a27efdf4c4c6cddf6a5",
+  "src/storefront-strangler/legal-authority.worker.ts":"64146e35c7fdacdeace9d13e98595e1eba64a893b233f0b23e20e80e88cac65b",
 });
 const review=JSON.parse(readFileSync("docs/architecture/canonical-writer-review.json","utf8"));
 assert.equal(review.schema,"cove.canonical-writer-review.v1");
@@ -43,6 +43,39 @@ for(const [path,pin] of Object.entries(PINNED_CURRENT_SOURCES)){
   const actual=createHash("sha256").update(readFileSync(path,"utf8")).digest("hex");
   assert.equal(actual,pin,"New current source change requires independent legal/caller review: "+path);
 }
+// Independent byte-exact re-review of the post-October BioSync QA owner
+// isolation. The 1MB account/catalog/commerce implementation was previously
+// pinned byte-for-byte. Reversing only FOUR reviewed deny-first additions
+// must reproduce that exact previous file SHA; no unrelated SQL, caller,
+// commerce or publication code may change while refreshing this pin.
+const ownerPath="src/storefront-strangler/legal-authority.worker.ts";
+let priorOwner=readFileSync(ownerPath,"utf8");
+const guardedBioSyncAdditions=[
+  `  // Dedicated synthetic BioSync QA account primary; never production.
+  "4e17ba6f-444f-4245-801a-a7d4969045b0",
+`,
+  `// Dedicated BioSync QA cannot execute commerce, catalog or rights commands.
+const BIOSYNC_QA_PRIMARY="4e17ba6f-444f-4245-801a-a7d4969045b0";
+`,
+  `    if(env.COVE_RIGHTS_OWNER_PRIMARY_ID===BIOSYNC_QA_PRIMARY &&
+       route!=="/biosync/publish-checked")
+      return new Response(null,{status:404,headers:noStore});
+`,
+  `    // The synthetic BioSync owner must never become a general-purpose legal,
+    // commerce, catalog, entitlement or account writer by abusing its QA lease.
+    if(env.COVE_RIGHTS_OWNER_PRIMARY_ID===BIOSYNC_QA_PRIMARY &&
+       new URL(request.url).pathname!=="/biosync/publish-checked")
+      return new Response(null,{status:404,headers:{"cache-control":"no-store"}});
+`,
+];
+for(const addition of guardedBioSyncAdditions) {
+  assert.equal(priorOwner.split(addition).length,2,
+    "Expected exactly one narrowly reviewed BioSync QA owner guard");
+  priorOwner=priorOwner.replace(addition,"");
+}
+assert.equal(createHash("sha256").update(priorOwner,"utf8").digest("hex"),
+  "c95a96993301de008ab4b9530b52a9408e871497402c1a27efdf4c4c6cddf6a5",
+  "BioSync owner changes must be ONLY reviewed QA enroll/deny additions");
 assert.equal(current.filter(s=>s.file==="src/features/fore/api.server.ts").length,0,
   "Shared API regained a direct protected SQL site");
 console.log("PASS: 12 exact integrated source pins; 46 literal SQL sites reconciled (0 owner-required); 38 historical attestation claims remain historical, not recertified.");
