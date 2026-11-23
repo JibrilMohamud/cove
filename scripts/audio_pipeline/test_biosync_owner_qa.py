@@ -73,11 +73,17 @@ class OwnerCutoverTests(unittest.TestCase):
                 )
         with self.assertRaisesRegex(RuntimeError, "allowlisted"):
             canary.authorized_request("PUT", canary.BASE + "/tokens/key")
+        with patch.dict(os.environ, {"COVE_BIOSYNC_R2_TOKEN": "fake"}):
+            with self.assertRaisesRegex(RuntimeError, "dedicated QA bucket"):
+                canary.authorized_request(
+                    "GET", canary.BASE + "/r2/buckets/other-qa-bucket/objects"
+                )
 
     def test_isolated_account_scope(self):
         self.assertEqual(canary.ACCOUNT, "f51e8ccbc394e2d6016ff8c2c303d54b")
         self.assertEqual(canary.QA_DATABASES, {"4e17ba6f-444f-4245-801a-a7d4969045b0"})
         self.assertNotIn("4bd657ac-8789-403e-a28c-93aba8d0a989", canary.QA_DATABASES)
+        self.assertEqual(canary.QA_BUCKET, "cove-owner-biosync-qa")
 
     def test_owner_receipt_identity_and_exact_request(self):
         payload = dict(
@@ -152,22 +158,28 @@ class OwnerCutoverTests(unittest.TestCase):
 
 
 class ReviewedShortTrackSelectionTests(unittest.TestCase):
-    def _select(self, review_enabled: bool, transcript_present: bool = True):
+    def _select(self, review_enabled: bool, transcript_present: bool = True, epub_present: bool = True):
         seen = []
         candidate = {
             "job_id": "align-qa-short-reviewed-001",
             "edition_id": "pg-qa-short-reviewed-001",
             "track_id": "01",
             "audio_sha": "a" * 64,
+            "epub_sha": "b" * 64,
         }
         prefix = "biosync/transcripts/cloudflare-whisper-v1/"
-        rows = [{
+        epub_prefix = "biosync/text/"
+        transcript_rows = [{
             "key": prefix + candidate["audio_sha"] + ".json"
         }] if transcript_present else []
+        epub_rows = [{
+            "key": epub_prefix + candidate["epub_sha"] + ".epub"
+        }] if epub_present else []
 
         def fake_request(method, url, *args, **kwargs):
             self.assertEqual(method, "GET")
-            self.assertIn("/r2/buckets/", url)
+            self.assertIn("/r2/buckets/" + canary.QA_BUCKET + "/objects", url)
+            rows = epub_rows if "biosync%2Ftext%2F" in url else transcript_rows
             return json.dumps({"success": True, "result": rows}).encode()
 
         def fake_query(sql):
@@ -213,6 +225,8 @@ class ReviewedShortTrackSelectionTests(unittest.TestCase):
         self.assertIn("j.status IN ('queued','review')", sql[0])
         unavailable, _ = self._select(review_enabled=True, transcript_present=False)
         self.assertFalse(unavailable)
+        missing_epub, _ = self._select(review_enabled=True, epub_present=False)
+        self.assertFalse(missing_epub)
 
 if __name__ == "__main__":
     unittest.main()
