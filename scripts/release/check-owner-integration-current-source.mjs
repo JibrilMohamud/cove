@@ -24,7 +24,7 @@ const PINNED_CURRENT_SOURCES=Object.freeze({
   "src/features/fore/rights.server.ts":"a7839d53ae20ffa3351bd6fbef797bd3d06dfb30c7d390168c195be8680e5fa2",
   "src/features/fore/search.server.ts":"b4a435335c8b8009a27288931aea94082ba1785930636e1101958955a4c881fa",
   "src/features/fore/traditional-publishing.server.ts":"364406b8ed38f06563a6e307aa0512e64b41c926ee7236bf34e216e8f0166191",
-  "src/storefront-strangler/legal-authority.worker.ts":"64146e35c7fdacdeace9d13e98595e1eba64a893b233f0b23e20e80e88cac65b",
+  "src/storefront-strangler/legal-authority.worker.ts":"d8872ecce04958036b03036995c934dfe9d4de615a612a6714fc11b3573f8c9e",
 });
 const review=JSON.parse(readFileSync("docs/architecture/canonical-writer-review.json","utf8"));
 assert.equal(review.schema,"cove.canonical-writer-review.v1");
@@ -50,6 +50,29 @@ for(const [path,pin] of Object.entries(PINNED_CURRENT_SOURCES)){
 // commerce or publication code may change while refreshing this pin.
 const ownerPath="src/storefront-strangler/legal-authority.worker.ts";
 let priorOwner=readFileSync(ownerPath,"utf8");
+// Independently inspect the exact five-entry owner integration delta before
+// accepting the new current pin: the only allowed changes compared with the
+// previously reviewed 1MB owner are the QA SELECT transport, private route
+// forwarding and digest-only, denial-checked session touch. Reversing ONLY
+// these exact byte ranges must recover the prior pinned owner file. The old
+// October source attestations remain historical and releaseApproval=false.
+// This is source integrity, never authority to enable production grants.
+const qaReadAndSessionOnlyDelta=Object.freeze([
+  { introduced:"import { QA_OWNER_PRIMARY_READ_ROUTE, serveQaOwnerPrimaryRead } from \"./qa-owner-primary-read-transport.mjs\";\n", original:"" },
+  { introduced:"    // Existing synthetic-only, short-lived QA lease. Disabled production\n    // and dedicated BioSync QA cannot serve arbitrary owner primary reads.\n    if(route===QA_OWNER_PRIMARY_READ_ROUTE){\n      if(env.COVE_RIGHTS_OWNER_PRIMARY_ID===BIOSYNC_QA_PRIMARY)\n        return new Response(null,{status:404,headers:noStore});\n      return serveQaOwnerPrimaryRead(request,env.PRIMARY_DB,\n        env.COVE_RIGHTS_OWNER_SECRET!,qaOwnerLeaseLive(env));\n    }\n", original:"" },
+  { introduced:"          z.object({action:z.literal(\"erasure-tick\"),limit:z.number().int().min(1).max(25)}).strict(),\n          // Digest only. Reject the original cookie, mutable session IDs and\n          // caller-selected timestamps before any owner-side storage.\n          z.object({action:z.literal(\"touch-session\"),userId:z.string().regex(/^[a-zA-Z0-9:_-]{3,160}$/),\n            sessionHash:z.string().regex(/^[a-f0-9]{64}$/),\n            userAgentSummary:z.string().max(240),\n            ipCountry:z.string().regex(/^[A-Z]{0,2}$/)}).strict()", original:"          z.object({action:z.literal(\"erasure-tick\"),limit:z.number().int().min(1).max(25)}).strict()" },
+  { introduced:"            if(input.action===\"touch-session\"){\n              // This metadata-only operation has a natural idempotency key:\n              // (verified account, SHA-256 cookie/session fingerprint). A\n              // retry cannot create a second session or revive a revoked one.\n              const at=new Date().toISOString();\n              const sessionId=\"sess_\"+crypto.randomUUID();\n              await db.prepare(\n                \"INSERT INTO account_sessions(id,user_id,provider_session_id_hash,user_agent_summary,ip_country,created_at,last_seen_at) VALUES(?,?,?,?,?,?,?) \"+\n                \"ON CONFLICT(user_id,provider_session_id_hash) DO UPDATE SET \"+\n                \"last_seen_at=CASE WHEN excluded.last_seen_at>account_sessions.last_seen_at THEN excluded.last_seen_at ELSE account_sessions.last_seen_at END,\"+\n                \"user_agent_summary=excluded.user_agent_summary,ip_country=excluded.ip_country \"+\n                \"WHERE account_sessions.revoked_at IS NULL\")\n                .bind(sessionId,input.userId,input.sessionHash,input.userAgentSummary,input.ipCountry,at,at)\n                .run();\n              const current=await db.prepare(\n                \"SELECT id,revoked_at FROM account_sessions WHERE user_id=? AND provider_session_id_hash=?\")\n                .bind(input.userId,input.sessionHash).first<{id:string;revoked_at:string|null}>();\n              // A concurrent legal owner denial must never be mistaken for\n              // permission merely because a D1 metadata write committed.\n              const deniedAfter=sql.exec(\n                \"SELECT 1 ok FROM cove_account_access_denials WHERE user_id=?\",input.userId\n              ).toArray().length;\n              if(!current||current.revoked_at||deniedAfter)\n                return new Response(null,{status:403,headers:noStore});\n              result={sessionId:current.id};\n            }else{\n              // Cookies and caller-selected identity headers never cross this\n              // protocol. The authenticated API supplies its verified app ID.\n              const auditRequest=new Request(\"https://legal-authority.internal/account/device\");\n              result=input.action===\"register-device\"?\n                await privateAccount.registerDevice(db,input.userId,auditRequest,input.device):\n                await privateAccount.revokeDevice(db,input.userId,input.deviceId,auditRequest);\n            }", original:"            // Cookies and caller-selected identity headers never cross this\n            // protocol. The authenticated API supplies its verified app ID.\n            const auditRequest=new Request(\"https://legal-authority.internal/account/device\");\n            result=input.action===\"register-device\"?\n              await privateAccount.registerDevice(db,input.userId,auditRequest,input.device):\n              await privateAccount.revokeDevice(db,input.userId,input.deviceId,auditRequest);" },
+  { introduced:"    if(new URL(request.url).pathname===QA_OWNER_PRIMARY_READ_ROUTE){\n      if(!qaOwnerLeaseLive(env)||!env.LEGAL_AUTHORITY?.getByName||\n         env.COVE_RIGHTS_OWNER_PRIMARY_ID===BIOSYNC_QA_PRIMARY)\n        return new Response(null,{status:503,headers:{\"cache-control\":\"no-store\"}});\n      if(request.headers.get(\"authorization\")!==\"Bearer \"+env.COVE_RIGHTS_OWNER_SECRET)\n        return new Response(null,{status:401,headers:{\"cache-control\":\"no-store\"}});\n      return env.LEGAL_AUTHORITY.getByName(\"cove-staged-legal-global-v1\").fetch(request);\n    }\n", original:"" }
+]);
+for(const {introduced,original} of qaReadAndSessionOnlyDelta){
+  assert.equal(priorOwner.split(introduced).length,2,
+    "Owner integration drifted from the specifically reviewed QA read/session changes");
+  priorOwner=priorOwner.replace(introduced,original);
+}
+assert.equal(createHash("sha256").update(priorOwner,"utf8").digest("hex"),
+  "64146e35c7fdacdeace9d13e98595e1eba64a893b233f0b23e20e80e88cac65b",
+  "Integrated legal owner must revert byte-exactly to the prior reviewed owner source");
+
 const guardedBioSyncAdditions=[
   `  // Dedicated synthetic BioSync QA account primary; never production.
   "4e17ba6f-444f-4245-801a-a7d4969045b0",
@@ -78,5 +101,5 @@ assert.equal(createHash("sha256").update(priorOwner,"utf8").digest("hex"),
   "BioSync owner changes must be ONLY reviewed QA enroll/deny additions");
 assert.equal(current.filter(s=>s.file==="src/features/fore/api.server.ts").length,0,
   "Shared API regained a direct protected SQL site");
-console.log("PASS: 12 exact integrated source pins; 46 literal SQL sites reconciled (0 owner-required); 38 historical attestation claims remain historical, not recertified.");
+console.log("PASS: 12 exact integrated source pins plus five byte-exact reversible owner edits; 46 literal SQL sites reconciled (0 owner-required); 38 historical attestation claims remain historical, not recertified.");
 console.log("NO-GO: source closure is not active D1 binding/token exclusivity or current rightsholder authority.");
