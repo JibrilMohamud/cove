@@ -26,6 +26,7 @@ ACCOUNT = "f51e8ccbc394e2d6016ff8c2c303d54b"
 # Physically independent QA account and its known synthetic-only D1.
 # Never select the production account, primary D1 or R2 bucket.
 QA_DATABASES = {"4e17ba6f-444f-4245-801a-a7d4969045b0"}
+QA_BUCKET = "cove-owner-biosync-qa"
 DATABASE = os.environ.get("COVE_BIOSYNC_QA_DATABASE_ID", "")
 BUCKET = os.environ.get("COVE_BIOSYNC_QA_BUCKET", "")
 EDITION = "pg-19504"
@@ -59,6 +60,9 @@ def authorized_request(method: str, endpoint: str, payload: bytes | None = None,
                 or not _is_read_only_d1_sql(statement["sql"])):
             raise RuntimeError("BioSync D1 transport cannot execute writes")
     elif path.startswith(f"/client/v4/accounts/{ACCOUNT}/r2/"):
+        exact = f"/client/v4/accounts/{ACCOUNT}/r2/buckets/{QA_BUCKET}/objects"
+        if path != exact and not path.startswith(exact + "/"):
+            raise RuntimeError("BioSync R2 requests cannot leave the dedicated QA bucket")
         token = os.environ["COVE_BIOSYNC_R2_TOKEN"]
         if method not in ("GET", "PUT"):
             raise RuntimeError("Unsupported BioSync R2 operation")
@@ -141,45 +145,69 @@ def check_map(mapping: dict, audio_sha: str, epub_sha: str, duration: float) -> 
 
 
 def choose_queued_short_track() -> bool:
-    """Pick an independently transcribed and pinned short queued track."""
+    """Pick a short cached input, with held-for-review jobs opt-in QA only.
+
+    'review' means a previous alignment did not prove exact coverage. Never
+    turn it into a successful publication merely because files are cached.
+    The independent verifier, pinned EPUB CFIs and owner recheck still apply,
+    and scheduled operation keeps review rechecks DISABLED by default.
+    """
     global EDITION, TRACK, JOB
     prefix = "biosync/transcripts/cloudflare-whisper-v1/"
-    try:
+    epub_prefix = "biosync/text/"
+
+    def cached_keys(source_prefix: str) -> set[str]:
         result = json.loads(authorized_request(
-            "GET", f"{BASE}/r2/buckets/{BUCKET}/objects?prefix={urllib.parse.quote(prefix)}&per_page=1000"
+            "GET", f"{BASE}/r2/buckets/{BUCKET}/objects?"
+            f"prefix={urllib.parse.quote(source_prefix, safe='')}&per_page=1000"
         ))
-    except RuntimeError as error:
-        print(f"Short BioSync auto-selector unavailable: {error}")
+        if result.get("success") is not True:
+            raise RuntimeError("R2 source inventory was not authenticated")
+        objects = result.get("result", [])
+        if isinstance(objects, dict):
+            objects = objects.get("objects", [])
+        if not isinstance(objects, list) or len(objects) >= 1000:
+            raise RuntimeError("R2 source inventory unavailable or incomplete")
+        return {str(item.get("key", "")) for item in objects if isinstance(item, dict)}
+
+    try:
+        transcripts = cached_keys(prefix)
+        epubs = cached_keys(epub_prefix)
+    except (RuntimeError, ValueError, TypeError, KeyError) as error:
+        print(f"Short BioSync auto-selector unavailable: {type(error).__name__}")
         return False
-    objects = result.get("result", [])
-    if isinstance(objects, dict):
-        objects = objects.get("objects", [])
-    cached = {str(item.get("key", "")) for item in objects if isinstance(item, dict)}
-    if not cached:
-        print("No independently hosted short-track ASR transcript is cached yet.")
+    if not transcripts or not epubs:
+        print("No complete, independently hosted short-track transcript and pinned EPUB pair is cached.")
         return False
+    # These are literal reviewed SQL branches, never caller-provided SQL.
+    # A review-stage job was deliberately held for insufficient exact-word
+    # coverage/anchors, so it is never included by the ordinary auto-selector.
+    review_recheck = os.environ.get("BIOSYNC_RECHECK_REVIEW") == "1"
+    allowed_statuses = "('queued','review')" if review_recheck else "('queued')"
     candidates = query(
         "SELECT j.id job_id,e.id edition_id,json_extract(t.value,'$.id') track_id,"
-        "json_extract(t.value,'$.sha256') audio_sha FROM audio_jobs j "
+        "json_extract(t.value,'$.sha256') audio_sha,e.epub_sha256 epub_sha FROM audio_jobs j "
         "JOIN audio_editions e ON e.id=json_extract(j.payload_json,'$.editionId') "
         "JOIN json_each(e.tracks_json) t ON json_extract(t.value,'$.id')=json_extract(j.payload_json,'$.trackId') "
         "LEFT JOIN audio_timing m ON m.edition_id=e.id AND m.track_id=json_extract(t.value,'$.id') "
-        "WHERE j.kind='align' AND j.status='queued' AND j.attempts<6 "
+        "WHERE j.kind='align' AND j.status IN " + allowed_statuses + " AND j.attempts<6 "
+        "AND j.lease_token IS NULL AND j.lease_until IS NULL "
         "AND e.epub_sha256 IS NOT NULL "
         "AND CAST(json_extract(t.value,'$.duration') AS REAL)>0 "
         "AND CAST(json_extract(t.value,'$.duration') AS REAL)<=240 "
         "AND m.map_sha256 IS NULL ORDER BY CAST(json_extract(t.value,'$.duration') AS REAL),j.id LIMIT 250"
     )
     possible = [x for x in candidates
-                if f"{prefix}{x['audio_sha']}.json" in cached]
+                if f"{prefix}{x['audio_sha']}.json" in transcripts
+                and f"{epub_prefix}{x['epub_sha']}.epub" in epubs]
     if not possible:
-        print("No queued short BioSync tracks have a complete hosted transcript and EPUB yet.")
+        print("No eligible short BioSync input has a complete hosted transcript; review remains held unless explicitly rechecked.")
         return False
     # Rotate only among actually transcribed candidates. A track failing
     # exact-text verification never blocks other candidates indefinitely.
     chosen = possible[(int(datetime.now(timezone.utc).timestamp()) // 3600) % len(possible)]
     EDITION, TRACK, JOB = chosen["edition_id"], chosen["track_id"], chosen["job_id"]
-    print(f"Checking short BioSync candidate: {EDITION} / {TRACK}")
+    print(f"Independently rechecking short BioSync input: {EDITION} / {TRACK}")
     return True
 
 
@@ -222,9 +250,7 @@ def commit_checked_map_to_owner(edition: str, track: str, job: str, map_sha: str
 
 
 def main() -> None:
-    if DATABASE not in QA_DATABASES or not re.fullmatch(
-        r"cove-[a-z0-9-]{1,90}-biosync-qa", BUCKET
-    ):
+    if DATABASE not in QA_DATABASES or BUCKET != QA_BUCKET:
         raise RuntimeError("BioSync stage may access only its approved synthetic QA D1/R2")
     for secret in ("COVE_BIOSYNC_D1_READ_TOKEN", "COVE_BIOSYNC_R2_TOKEN",
                    "COVE_BIOSYNC_QA_GATEWAY_URL", "COVE_BIOSYNC_QA_CLIENT_SECRET"):
@@ -246,6 +272,10 @@ def main() -> None:
         raise RuntimeError("Canary recording or pinned EPUB is not ready")
     if row["status"] == "running":
         raise RuntimeError("Refusing to override an active BioSync job lease")
+    if row["status"] not in ("queued", "review", "done"):
+        raise RuntimeError("BioSync job status is not eligible for publication")
+    if row["status"] == "review" and os.environ.get("BIOSYNC_RECHECK_REVIEW") != "1":
+        raise RuntimeError("Review-stage BioSync requires explicit QA recheck")
     audio_sha, epub_sha = track["sha256"], row["epub_sha256"]
     existing = query("SELECT map_sha256 FROM audio_timing WHERE edition_id=? AND track_id=? AND audio_sha256=? AND epub_sha256=? LIMIT 1",
              [EDITION, TRACK, audio_sha, epub_sha])
