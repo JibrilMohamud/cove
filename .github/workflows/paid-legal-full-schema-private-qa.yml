@@ -45,6 +45,8 @@ on:
       - "scripts/staging/synthetic-qa-d1-gateway.test.mjs"
       - "scripts/staging/paid-qa-gateway-readiness.mjs"
       - "scripts/staging/paid-qa-gateway-readiness.test.mjs"
+      - "scripts/staging/paid-qa-ingress-readiness.mjs"
+      - "scripts/staging/paid-qa-ingress-readiness.test.mjs"
       - "scripts/staging/paid-qa-template-binding.mjs"
       - "scripts/staging/paid-qa-template-binding.test.mjs"
       - "scripts/staging/paid-owner-schema-policy.mjs"
@@ -105,6 +107,8 @@ on:
       - "scripts/staging/synthetic-qa-d1-gateway.test.mjs"
       - "scripts/staging/paid-qa-gateway-readiness.mjs"
       - "scripts/staging/paid-qa-gateway-readiness.test.mjs"
+      - "scripts/staging/paid-qa-ingress-readiness.mjs"
+      - "scripts/staging/paid-qa-ingress-readiness.test.mjs"
       - "scripts/staging/paid-qa-template-binding.mjs"
       - "scripts/staging/paid-qa-template-binding.test.mjs"
       - "scripts/staging/paid-owner-schema-policy.mjs"
@@ -159,6 +163,8 @@ jobs:
         run: node --test scripts/staging/synthetic-qa-d1-gateway.test.mjs
       - name: Prove stable read-only POST routing before any synthetic QA D1 write
         run: node --test scripts/staging/paid-qa-gateway-readiness.test.mjs
+      - name: Prove private edge propagation is stable without waiving a measured sample
+        run: node --test scripts/staging/paid-qa-ingress-readiness.test.mjs
       - run: node scripts/check-paid-stage-initial-identity.mjs
       - run: node scripts/check-qa-synthetic-audio.mjs
       - run: node scripts/check-owner-checkout-draft.mjs
