@@ -25,7 +25,7 @@ assert.match(backend,/runScheduled\(controller\.cron, env\)/);
 assert.match(backend,/processAccountDeletionQueue\(env, 5\)/);
 assert.match(backend,/assertCronSettled/);
 assert.match(owner,/serveQaOwnerPrimaryRead\(request,env\.PRIMARY_DB,/);
-assert.match(owner,/if\(!qaOwnerLeaseLive\(env\)\)/);
+assert.match(owner,/if\s*\(!qaOwnerLeaseLive\(env\)\)/);
 assert.match(owner,/env\.COVE_RIGHTS_OWNER_PRIMARY_ID===BIOSYNC_QA_PRIMARY/);
 assert.match(owner,/route===QA_OWNER_PRIMARY_READ_ROUTE/);
 assert.match(publication,/dispatchCanonicalOwnerCommand/);
