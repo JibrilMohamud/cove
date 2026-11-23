@@ -43,7 +43,9 @@ export function verifySecretJobGuard(source, name) {
   assert.match(job, /^    environment: cove-production-release-audit\s*$/m);
   // The reviewed literary audit now uses TWO independent provider-enforced
   // read-only credentials. The production disabled-owner handshake uses two separate scoped tokens.
-  // Other protected consumer jobs retain the broad-token gate until migrated.
+  // Continuous publication QA is now third-party read-only D1/R2 and
+  // metadata-only Worker GETs, with a separate scoped Workers deploy token.
+  // Never regress any of these jobs to an account-wide D1-write bearer.
   const credentials =
     name === "protected-activation-readonly"
       ? [
@@ -55,11 +57,17 @@ export function verifySecretJobGuard(source, name) {
             "secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN",
             "secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN",
           ]
-        : ["secrets.CLOUDFLARE_API_TOKEN"];
-  if (name === "protected-activation-readonly" || name === "verify-disabled-owner")
+        : name === "private-qa"
+          ? [
+              "secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN",
+              "secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN",
+              "secrets.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN",
+            ]
+          : ["secrets.CLOUDFLARE_API_TOKEN"];
+  if (["protected-activation-readonly", "verify-disabled-owner", "private-qa"].includes(name))
     assert.ok(
       !job.includes("secrets.CLOUDFLARE_API_TOKEN"),
-      "Read-only literary audit must never receive the broad deployment token",
+      "Scoped protected jobs must never receive the broad D1-write token",
     );
   for (const credential of credentials) {
     assert.ok(job.includes(credential), "Protected job missing reviewed credential: " + credential);
@@ -103,17 +111,23 @@ for (const [stem, name] of PRIVILEGED_JOBS) {
     assert.notEqual(modified, source);
     assert.throws(() => verifySecretJobGuard(modified, name));
   }
-  if (name === "protected-activation-readonly" || name === "verify-disabled-owner") {
+  if (["protected-activation-readonly", "verify-disabled-owner", "private-qa"].includes(name)) {
     const roles =
       name === "protected-activation-readonly"
         ? [
             "secrets.COVE_CF_PRODUCTION_AUDIT_READ_TOKEN",
             "secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN",
           ]
-        : [
-            "secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN",
-            "secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN",
-          ];
+        : name === "verify-disabled-owner"
+          ? [
+              "secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN",
+              "secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN",
+            ]
+          : [
+              "secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN",
+              "secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN",
+              "secrets.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN",
+            ];
     for (const credential of roles) {
       const missing = mutateJob(source, name, credential, "secrets.CLOUDFLARE_API_TOKEN");
       assert.throws(
@@ -124,5 +138,5 @@ for (const [stem, name] of PRIVILEGED_JOBS) {
   }
 }
 console.log(
-  "PASS: three unscheduled Cloudflare consumers require protected manual-only token access",
+  "PASS: three unscheduled Cloudflare consumers require distinct scoped credentials and protected manual-only access",
 );
