@@ -35,6 +35,12 @@ The protected [11-child batch at commit e2e0f17a](https://github.com/JibrilMoham
 
 **NO-GO remains authoritative.** Hosted synthetic results must not be represented as signed legal grants, approved customer commerce, or production readiness.
 
+## 2026-11-23 16:36 UTC — full-schema progress and root cause
+
+The [protected paid full-schema QA #45217818119](https://github.com/JibrilMohamud/cove/actions/runs/45217818119) proved real Stripe TEST settlement, refund, signed webhook deduplication and legal-owner publication, then FAILED on original customer EPUB grant HTTP 503. A QA-only raw-D1 facade lacked the actual private-owner command context needed by original delivery handlers. The release fix explicitly binds their exact private-owner context; all original paid EPUB/audio/offline/refund/replay gates remain mandatory.
+
+This run also recorded 32/32 native D1 read responses valid, maximum **572.59 ms**, SQL maximum **5.71 ms**. These are preliminary synthetic QA samples, not full ORD/LAX/IAD/DFW and 100-RPS certification. Protected capacity remains blocked by absent `COVE_CF_STAGE_DATA_PLANE_READ_TOKEN` in the protected GitHub environment. User-token inventory reports an unrecognized active permission group; never assume it is read-only. **Production NO-GO.**
+
 ## Unified gate checklist
 
 | Gate | Status | Current evidence / remaining contract |
