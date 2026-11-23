@@ -18,7 +18,9 @@ test("Hosted owner proof cannot address the production account or primary",()=>{
   assert.match(script,/new Set\(tokens\)\.size!==tokens\.length/);
   assert.match(script,/COVE_BIOSYNC_REVIEWED_MAIN_SHA!==process\.env\.GITHUB_SHA/);
   assert.match(script,/GITHUB_REF!=="refs\/heads\/main"/);
-  assert.match(script,/GITHUB_EVENT_NAME!=="workflow_dispatch"/);
+  assert.match(script,/\["workflow_dispatch","issue_comment"\]\.includes\(event\)/);
+  assert.match(script,/if\(event==="issue_comment"\)/);
+  assert.match(script,/checkHostedCommentEnvironment\(process\.env\)/);
   assert.match(script,/qa_ephemeral_worker_residual/);
   // Require a real edge-service propagation proof, never blind deployment
   // success followed by a positive owner write during a not-yet-live route.
