@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 // These are a *new* review boundary, not edits to historical attestations and
 // NEVER evidence of current external legal authority or production exclusivity.
 const integrated=Object.freeze({
- "src/features/fore/account-management.server.ts":"a783663ff441fdf5849db89a48ed3c30125a7f6cdd59046a20fb7f9de0d13b1b",
+ "src/features/fore/account-management.server.ts":"53e136af17170a9e05bf111a20b3ebebd6d950a2c0ad5a9a9ed0ed4a7664bfb5",
  "src/features/fore/api.server.ts":"022315ddbdb21071b73be68005adf2cc55e6be4e8874563d2d75bf086a6c812f",
  "src/features/fore/catalog-model.server.ts":"c4d03da0a2428d5290c000d5d39f6129f2491254335c975e3acb0a340c0f172b",
  "src/features/fore/commerce.server.ts":"52ba9bb4feec5b2b7c5586687d72cd3498751a0601061823b95a5adbc6ac955f",
