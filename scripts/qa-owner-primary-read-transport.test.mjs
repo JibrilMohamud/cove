@@ -68,14 +68,14 @@ test("verified all() batches preserve server D1 read batch, never allow foreign 
 });
 test("reject DML, CTEs, SQL comments, stacked queries, administrative statements and malformed params",()=>{
   const attempts=[
-    "INSERT INTO rights_grants VALUES(1)",
-    "UPDATE entitlements SET status='active'",
-    "DELETE FROM catalog_search_documents",
-    "REPLACE INTO rights_grants VALUES(1)",
+    "INSERT INTO qa_probe_rows VALUES(1)",
+    "UPDATE qa_probe_rows SET status='active'",
+    "DELETE FROM qa_probe_rows",
+    "REPLACE INTO qa_probe_rows VALUES(1)",
     "WITH change AS (DELETE FROM entitlement) SELECT * FROM change",
     "PRAGMA writable_schema=ON",
     "EXPLAIN SELECT * FROM users",
-    "SELECT 1; DROP TABLE rights_grants",
+    "SELECT 1; DROP TABLE qa_probe_rows",
     "SELECT 1 -- comment",
     "SELECT 1 /* hidden UPDATE */",
     "SELECT load_extension('bad')",
@@ -122,7 +122,7 @@ test("negative commands cannot get around protocol with raw requests or mixed ba
   const db=ownerDb();
   const probes=[
     [{sql:"SELECT 1",params:[],mode:"run"}],
-    [{sql:"SELECT 1;UPDATE rights_grants SET status='active'",params:[],mode:"all"}],
+    [{sql:"SELECT 1;UPDATE qa_probe_rows SET status='active'",params:[],mode:"all"}],
     [{sql:"SELECT 1",params:[],mode:"first"},{sql:"SELECT 2",params:[],mode:"all"}],
     Array(25).fill({sql:"SELECT 1",params:[],mode:"all"}),
   ];
