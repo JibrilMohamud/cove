@@ -1,33 +1,40 @@
-name: biosync-production-canary
+name: biosync-owner-qa-protected
 
+# Replaces the hourly production D1 writer. A scheduled caller must not retain
+# an account-wide token or silently fall back to D1 REST mutations. This
+# isolated replay is manual until its owner service, R2 fixture and scoped
+# service principal are independently attested.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'scripts/audio_pipeline/biosync_canary.py'
-      - '.github/workflows/biosync-canary.yml'
-  schedule:
-    - cron: '42 * * * *'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: cove-biosync-production-canary
+  group: cove-biosync-owner-qa
   cancel-in-progress: false
 
 jobs:
   verify:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 12
+    environment: cove-protected-biosync-owner-qa
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - name: Publish independently verified BioSync canary
+      - name: Validate isolated command protocol and no direct primary D1 writers
+        run: python3 -m unittest scripts.audio_pipeline.test_biosync_owner_cutover
+      - name: Publish checked BioSync map only through the enrolled QA owner
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          BIOSYNC_AUTO_SHORT: ${{ github.event_name == 'schedule' && '1' || '0' }}
+          COVE_BIOSYNC_QA_DATABASE_ID: ${{ vars.COVE_BIOSYNC_QA_DATABASE_ID }}
+          COVE_BIOSYNC_QA_BUCKET: ${{ vars.COVE_BIOSYNC_QA_BUCKET }}
+          COVE_BIOSYNC_QA_GATEWAY_URL: ${{ vars.COVE_BIOSYNC_QA_GATEWAY_URL }}
+          COVE_BIOSYNC_D1_READ_TOKEN: ${{ secrets.COVE_BIOSYNC_D1_READ_TOKEN }}
+          COVE_BIOSYNC_R2_TOKEN: ${{ secrets.COVE_BIOSYNC_R2_TOKEN }}
+          COVE_BIOSYNC_QA_CLIENT_SECRET: ${{ secrets.COVE_BIOSYNC_QA_CLIENT_SECRET }}
         run: python3 -m scripts.audio_pipeline.biosync_canary

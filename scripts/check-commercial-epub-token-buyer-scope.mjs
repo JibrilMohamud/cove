@@ -81,11 +81,13 @@ try{
   const revoked=await attempt({status:"revoked"});
   assert.equal(revoked.result.error?.status,403);
   assert.equal(revoked.calls.storage,0);
-  const success=await attempt();
-  assert.ok(success.result.response instanceof Response,"Same-buyer active entitlement must still deliver");
-  assert.equal(success.result.response.status,200);
-  assert.equal(success.calls.storage,1);
-  assert.deepEqual(success.audits,[{eventType:"stream_started",reasonCode:""}]);
-  assert.equal(success.result.response.headers.get("cache-control"),"private, no-store");
-  console.log("PASS: production EPUB redemption refuses active entitlements for another buyer/product before R2; same buyer succeeds and revocation denies");
+  // Ownerless fixtures must never mint a positive licensed EPUB response.
+  // A separate private-owner QA exercises genuine positive consumption.
+  const ownerless=await attempt();
+  assert.equal(ownerless.result.error?.status,503,
+    "Even the correct buyer must be denied without owner consumption authority");
+  assert.equal(ownerless.result.response,undefined,"No licensed bytes may be returned");
+  assert.deepEqual(ownerless.audits,[],
+    "A failed owner consumption must not emit a completed stream audit");
+  console.log("PASS: wrong buyer/product denied before private R2; same buyer denied without owner consumption; revoked entitlement denied");
 }finally{rmSync(directory,{recursive:true,force:true});}

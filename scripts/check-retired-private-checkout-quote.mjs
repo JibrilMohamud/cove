@@ -1,0 +1,25 @@
+/* eslint-disable prettier/prettier -- Source identity of private checkout quote retirement. */
+import assert from "node:assert/strict";
+import {expectedCurrentOwnerIntegrationHash} from "./release/owner-integration-source-pins.mjs";
+import {readFileSync} from "node:fs";
+import {createHash} from "node:crypto";
+const read=p=>readFileSync(p,"utf8");
+const src=read("src/features/fore/commerce.server.ts");
+const owner=read("src/storefront-strangler/legal-authority.worker.ts");
+const review=JSON.parse(read("docs/architecture/canonical-writer-review.json"));
+const lineage=JSON.parse(read("docs/architecture/retired-private-checkout-quote-owner-lineage.json"));
+assert.equal(review.releaseApproval,false);
+assert.equal(lineage.sourceBefore,24);
+assert.equal(lineage.sourceAfter,23);
+assert.equal(lineage.retired.length,1);
+assert.equal(createHash("sha256").update(src).digest("hex"),expectedCurrentOwnerIntegrationHash("src/features/fore/commerce.server.ts",lineage.currentSha256));
+assert.ok(!src.includes("INSERT INTO commerce_checkout_quotes("));
+assert.match(src,/if\s*\(\s*!persistOwnerQuote\s*\)\s*throw new ApiError\(503,/s);
+assert.ok(src.includes("await persistOwnerQuote({"));
+assert.ok(owner.includes('if(route==="/commercial/checkout/create-quote")'));
+assert.ok(owner.includes('const quote=await checkoutQuote(ownerEnv,{id:command.userId},command.request,async row=>'));
+assert.ok(owner.includes("INSERT INTO commerce_checkout_quotes("));
+assert.ok(owner.includes("private_checkout_quote_insert_unconfirmed"));
+assert.ok(!review.sites.some(x=>x.siteId===lineage.retired[0].siteId));
+assert.equal(review.sites.filter(x=>x.disposition==="owner-command-required").length<=23,true);
+console.log("PASS: private owner checkout quote persists only owner-calculated prices and taxes");

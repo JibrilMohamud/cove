@@ -3,13 +3,12 @@ import assert from "node:assert/strict";
 import {readFileSync,readdirSync} from "node:fs";
 import {join} from "node:path";
 import {DatabaseSync} from "node:sqlite";
-import ts from "typescript";
 import {currentWriterSites,REVIEW_PATH} from "./reconcile-canonical-writers.mjs";
 
 const review=JSON.parse(readFileSync(REVIEW_PATH,"utf8"));
 const current=currentWriterSites();
 const lifecycle=current.filter(x=>x.table==="publishing_lifecycle_events");
-assert.ok(lifecycle.length>0 && lifecycle.length<=9,
+assert.ok(lifecycle.length<=9,
   "Only physically retired owner-command SQL may reduce restoration-sensitive lifecycle history counts");
 for(const site of lifecycle){
   const row=review.sites.find(x=>x.siteId===site.siteId);
@@ -20,35 +19,28 @@ for(const site of lifecycle){
 // An authenticated staff restoration consumes historical from_state and can
 // change the real current lifecycle; the source demonstrates history is NOT
 // harmless telemetry. Keep all remaining direct lifecycle events authorizing until owner-first migration.
-const moderation=readFileSync("src/features/fore/moderation.server.ts","utf8");
+const moderation=readFileSync("src/storefront-strangler/legal-authority.worker.ts","utf8");
+const retiredModeration=JSON.parse(readFileSync("docs/architecture/retired-moderation-owner-lineage.json","utf8"));
+assert.equal(retiredModeration.retired.filter(x=>x.table==="publishing_lifecycle_events").length,1,
+  "Removed lifecycle event must have immutable owner-only source lineage");
+assert.match(moderation,/const privateModeration=/);
+assert.doesNotMatch(readFileSync("src/features/fore/moderation.server.ts","utf8"),/INSERT INTO publishing_lifecycle_events/);
 assert.match(moderation,/SELECT from_state FROM publishing_lifecycle_events WHERE lifecycle_id=\? AND to_state IN \('suppressed','takedown'\)/);
 assert.match(moderation,/restoredFrom\s*=\s*prior\?\.from_state/);
 assert.match(moderation,/const target\s*=\s*restoring\s*&&\s*restoredFrom/);
 
 const table="publication_version_distribution_events";
 const historical=current.filter(x=>x.table===table);
-assert.equal(historical.length,1);
-const site=historical[0],row=review.sites.find(x=>x.siteId===site.siteId);
-assert.equal(row?.disposition,"non-authorizing-write");
-assert.equal(row?.productionOwnerGuarded,false);
-assert.equal(site.file,"src/features/fore/delivery.server.ts");
-assert.equal(site.functionName,"setDistributionControl");
-assert.equal(site.operation,"INSERT INTO");
-const source=readFileSync(site.file,"utf8"),
-  tree=ts.createSourceFile(site.file,source,ts.ScriptTarget.Latest,true),
-  literalNodes=[];
-function visit(node){
-  if(ts.isStringLiteral(node)||ts.isNoSubstitutionTemplateLiteral(node))literalNodes.push(node);
-  ts.forEachChild(node,visit);
-}
-visit(tree);
-const from=tree.getPositionOfLineAndCharacter(site.line-1,0),to=source.indexOf("\n",from);
-const choices=literalNodes.filter(node=>node.getStart(tree)<=to&&node.end>from&&node.text.includes(table));
-assert.equal(choices.length,1);
-const sql=choices[0].text;
-assert.equal(sql,
-  "INSERT INTO publication_version_distribution_events(id,publication_version_id,from_status,to_status,allow_existing_owners,reason_code,reason_detail,actor_user_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
-  "The only nonauthorizing writer must append the exact reviewed history fields");
+assert.equal(historical.length,0,"Distribution events must be owned privately");
+const lineage=JSON.parse(readFileSync("docs/architecture/retired-negative-commercial-delivery-owner-lineage.json","utf8"));
+const retired=lineage.retired.filter(x=>x.table===table&&x.disposition==="non-authorizing-write");
+assert.equal(retired.length,1,"Distribution history must retain immutable owner-only lineage");
+assert.ok(!review.sites.some(x=>x.siteId===retired[0].siteId));
+const worker=readFileSync("src/storefront-strangler/legal-authority.worker.ts","utf8");
+const sql="INSERT OR IGNORE INTO publication_version_distribution_events(id,publication_version_id,from_status,to_status,allow_existing_owners,reason_code,reason_detail,actor_user_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)";
+assert.ok(worker.includes(sql),"Owner must append immutable history during withdrawal");
+assert.match(worker,/if\(route==="\/delivery\/private-negative"\)/);
+assert.doesNotMatch(readFileSync("src/features/fore/delivery.server.ts","utf8"),/INSERT INTO publication_version_distribution_events/);
 
 const db=new DatabaseSync(":memory:");
 try{
@@ -79,4 +71,4 @@ for(const path of walk("src")){
     "Distribution event history became a read dependency: "+path);
 }
 assert.equal(review.releaseApproval,false);
-console.log("PASS: one distribution history projection never grants access; all "+lifecycle.length+" remaining restoration-sensitive publishing lifecycle events remain owner-required");
+console.log("PASS: private distribution history projection never grants access; all "+lifecycle.length+" remaining restoration-sensitive publishing lifecycle events remain owner-required");

@@ -16,7 +16,10 @@ const exact={
 };
 const target=currentWriterSites().filter(x=>x.table==="commercial_audio_playback"&&
   Object.hasOwn(exact,x.file));
-assert.equal(target.length,3);
+assert.equal(target.length,2);
+const accountLineage=JSON.parse(readFileSync("docs/architecture/retired-account-owner-lineage.json","utf8"));
+assert.equal(accountLineage.retired.filter(x=>x.table==="commercial_audio_playback"&&x.disposition==="non-authorizing-write").length,1);
+assert.ok(readFileSync("src/storefront-strangler/legal-authority.worker.ts","utf8").includes(exact["src/features/fore/account-management.server.ts"][0]));
 const review=JSON.parse(readFileSync(REVIEW_PATH,"utf8"));
 for(const site of target){
   const row=review.sites.find(x=>x.siteId===site.siteId);
@@ -67,4 +70,4 @@ try{
     "Listening progress never restores a paid entitlement");
 }finally{db.close();}
 assert.equal(review.releaseApproval,false);
-console.log("PASS: three exact production playback writes change only authenticated, version-scoped reading position or remove deleted account progress; paid access unchanged");
+console.log("PASS: two exact shared playback writes remain; account progress erasure retains exact private-owner lineage; authenticated versioned playback never restores paid access");

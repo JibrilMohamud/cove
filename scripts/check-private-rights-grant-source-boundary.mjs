@@ -26,7 +26,7 @@ assert.match(stub,/throw new ApiError\(503/);
 assert.doesNotMatch(stub,/\.prepare\(|\.batch\(|\.run\(/);
 assert.equal(review.sites.filter(x=>x.file==="src/features/fore/rights.server.ts"&&x.functionName==="upsertRightsGrant").length,0);
 const remaining=review.sites.filter(x=>x.disposition==="owner-command-required").length;
-assert.ok(remaining<=371 && remaining>0,
+assert.equal(remaining,0,
   "A genuine SQL retirement may lower the owner-required count; grant source parity and exact global reconciliation still apply");
 assert.equal(review.releaseApproval,false);
 console.log("PASS: six grant SQL sites retired to unexported owner, legacy API fail closed, "+remaining+" remain, release blocked");

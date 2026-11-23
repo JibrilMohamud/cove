@@ -1,0 +1,28 @@
+/* eslint-disable prettier/prettier -- R2 and exact source-bound private Biosync owner. */
+import assert from "node:assert/strict";
+import {createHash} from "node:crypto";
+import {readFileSync} from "node:fs";
+const read=p=>readFileSync(p,"utf8");
+const src=read("src/features/fore/commercial-audio.server.ts");
+const owner=read("src/storefront-strangler/legal-authority.worker.ts");
+const gateway=read("src/storefront-strangler/canonical-owner-command-gateway.ts");
+const helper=read("src/storefront-strangler/owner-biosync-verification.server.ts");
+const review=JSON.parse(read("docs/architecture/canonical-writer-review.json"));
+const lineage=JSON.parse(read("docs/architecture/retired-private-biosync-owner-lineage.json"));
+assert.equal(review.releaseApproval,false);
+assert.equal(lineage.sourceBefore,21);
+assert.equal(lineage.sourceAfter,20);
+assert.equal(lineage.retired.length,1);
+assert.equal(createHash("sha256").update(src).digest("hex"),lineage.currentSha256);
+assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=20);
+assert.ok(!review.sites.some(x=>x.siteId===lineage.retired[0].siteId));
+assert.ok(!src.includes("INSERT INTO commercial_biosync_links("));
+assert.ok(src.includes("await persistVerified({"));
+assert.ok(owner.includes('if(route==="/publishing/audio/biosync-verify")'));
+assert.ok(owner.includes("perms.permission IN ('audio.qc.review','staff.manage')"));
+assert.ok(owner.includes('await saveCommercialBiosyncLink('));
+assert.ok(owner.includes("INSERT OR IGNORE INTO commercial_biosync_links("));
+assert.ok(owner.includes("verified_biosync_owner_commit_mismatch"));
+assert.ok(gateway.includes('case "audio.verify-biosync":'));
+assert.ok(helper.includes('env.COVE_CANONICAL_LEGAL_WRITE_LOCK!=="1"'));
+console.log("PASS: staff-gated verified Biosync link privately inserted after owner R2/source validation; production denied");

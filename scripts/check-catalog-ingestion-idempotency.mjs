@@ -61,7 +61,10 @@ assert.match(owner,/if\(route==="\/catalog\/normalize-gutenberg"\)/);
 assert.match(owner,/source\.commercial_use_status!=="approved"/);
 assert.match(api,/for \(const book of accepted\)\s*await syncEditionTaxonomy/,
   "Even an unchanged book MUST recheck taxonomy and incomplete prior publication");
-assert.match(api,/last_seen_at=\?,source_updated_at=\?/);
+assert.match(api,/dispatchCatalogObservation\(db,/);
+assert.doesNotMatch(api,/UPDATE gutenberg_source_cache SET last_seen_at=\?,source_updated_at=\?/);
+assert.match(owner,/last_seen_at=\?,source_updated_at=\?/);
+assert.match(owner,/c\.source_id=\x27pg_us\x27 AND c\.copyright=0/);
 assert.match(api,/JOIN catalog_search_documents d ON d\.product_id=/);
 assert.match(api,/JOIN products p ON p\.id=d\.product_id/);
 assert.match(api,/\bunchanged: unchanged\.length\b/);

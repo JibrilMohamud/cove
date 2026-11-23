@@ -1,3 +1,22 @@
+import { dispatchVerifiedFreeLibraryEntitlement } from "../../storefront-strangler/publication-owner-routing.server";
+import {
+  dispatchCatalogObservation,
+  dispatchPrivateCatalogSourceBatch,
+} from "../../storefront-strangler/publication-owner-routing.server";
+import {
+  dispatchCatalogRegionalState,
+  dispatchPrivateRegionalRightsEvidence,
+} from "../../storefront-strangler/publication-owner-routing.server";
+import {
+  dispatchCatalogVerifiedUsEpub,
+  dispatchCatalogCompletedUsEpub,
+  dispatchVerifiedRegionalEpubMetadata,
+} from "../../storefront-strangler/publication-owner-routing.server";
+import { dispatchCatalogIngestState } from "../../storefront-strangler/publication-owner-routing.server";
+import {
+  dispatchCatalogNegativeSource,
+  dispatchCatalogStaleWithdrawal,
+} from "../../storefront-strangler/publication-owner-routing.server";
 import { createStageOwnerCheckoutQuote } from "../../storefront-strangler/owner-checkout-quote.server";
 import { saveStageOwnerContractVersion } from "../../storefront-strangler/owner-contract-version.server";
 import { executeStageOwnerMonetaryAdmin } from "../../storefront-strangler/owner-commerce-admin.server";
@@ -803,13 +822,21 @@ type CatalogSourceOptions = {
   sourceMetadata?: Record<string, unknown>;
   contentHash?: string;
 };
+/** A source observation is never itself proof of copyright or distribution.
+ * The private legal owner owns the only UPSERT after independent checks. */
+export type CatalogSourceObservation = {
+  cacheId: string;
+  sourceId: "pg_us" | "pg_ca" | "pg_au" | "pg_eu";
+  fields: Array<string | number | null>;
+};
 export function catalogInsert(
   db: CoveEnv["DB"],
   book: any,
   sourceUrl: string,
   at: string,
   options: CatalogSourceOptions = {},
-) {
+): CatalogSourceObservation {
+  void db;
   const formats = book.formats || {};
   const sourceId = options.sourceId || "pg_us";
   const source =
@@ -825,47 +852,10 @@ export function catalogInsert(
   const commercialUseStatus =
     options.commercialUseStatus ||
     (sourceId === "pg_us" && book.copyright === false ? "approved" : "pending");
-  return db
-    .prepare(
-      `INSERT INTO gutenberg_source_cache(
-        id,title,authors_json,summary,subjects_json,bookshelves_json,languages_json,formats_json,download_count,copyright,
-        source_url,source_updated_at,first_ingested_at,updated_at,last_seen_at,ingest_status,ingest_attempts,last_error,
-        epub_status,epub_attempts,epub_next_attempt_at,epub_cached_at,epub_last_error,
-        source_id,source_item_id,source_project,source_license_url,rights_status,rights_territories_json,rights_evidence_url,
-        rights_checked_at,rights_evidence_id,commercial_use_status,trademark_cleanup_required,canonicalization_version,source_metadata_json,content_hash
-      ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-      ON CONFLICT(id) DO UPDATE SET
-        title=excluded.title,authors_json=excluded.authors_json,summary=excluded.summary,subjects_json=excluded.subjects_json,
-        bookshelves_json=excluded.bookshelves_json,languages_json=excluded.languages_json,formats_json=excluded.formats_json,
-        download_count=excluded.download_count,copyright=excluded.copyright,source_url=excluded.source_url,
-        source_updated_at=excluded.source_updated_at,updated_at=excluded.updated_at,last_seen_at=excluded.last_seen_at,
-        ingest_status='active',ingest_attempts=0,last_error='',source_id=excluded.source_id,source_item_id=excluded.source_item_id,
-        source_project=excluded.source_project,source_license_url=excluded.source_license_url,
-        rights_territories_json=excluded.rights_territories_json,rights_evidence_url=excluded.rights_evidence_url,
-        source_metadata_json=excluded.source_metadata_json,content_hash=CASE WHEN gutenberg_source_cache.formats_json=excluded.formats_json AND gutenberg_source_cache.rights_territories_json=excluded.rights_territories_json AND gutenberg_source_cache.rights_evidence_url=excluded.rights_evidence_url AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'') THEN CASE WHEN excluded.content_hash<>'' THEN excluded.content_hash ELSE gutenberg_source_cache.content_hash END ELSE excluded.content_hash END,
-        trademark_cleanup_required=excluded.trademark_cleanup_required,
-        rights_status=CASE WHEN gutenberg_source_cache.commercial_use_status='approved' AND gutenberg_source_cache.rights_status='public-domain'
-          AND gutenberg_source_cache.rights_territories_json=excluded.rights_territories_json AND gutenberg_source_cache.rights_evidence_url=excluded.rights_evidence_url AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'')
-          THEN gutenberg_source_cache.rights_status ELSE excluded.rights_status END,
-        commercial_use_status=CASE WHEN gutenberg_source_cache.commercial_use_status='approved' AND gutenberg_source_cache.rights_status='public-domain'
-          AND gutenberg_source_cache.rights_territories_json=excluded.rights_territories_json AND gutenberg_source_cache.rights_evidence_url=excluded.rights_evidence_url AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'')
-          THEN 'approved' ELSE excluded.commercial_use_status END,
-        rights_evidence_id=CASE WHEN gutenberg_source_cache.rights_territories_json=excluded.rights_territories_json
-          AND gutenberg_source_cache.rights_evidence_url=excluded.rights_evidence_url AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'') THEN COALESCE(gutenberg_source_cache.rights_evidence_id,excluded.rights_evidence_id) ELSE excluded.rights_evidence_id END,
-        rights_checked_at=CASE WHEN gutenberg_source_cache.rights_territories_json=excluded.rights_territories_json
-          AND gutenberg_source_cache.rights_evidence_url=excluded.rights_evidence_url AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'') THEN COALESCE(gutenberg_source_cache.rights_checked_at,excluded.rights_checked_at) ELSE excluded.rights_checked_at END,
-        canonicalization_version=CASE WHEN gutenberg_source_cache.formats_json=excluded.formats_json AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'') THEN gutenberg_source_cache.canonicalization_version ELSE excluded.canonicalization_version END,
-        epub_status=CASE WHEN gutenberg_source_cache.epub_status='downloading' AND gutenberg_source_cache.formats_json=excluded.formats_json THEN 'downloading' WHEN gutenberg_source_cache.epub_status='completed' AND gutenberg_source_cache.formats_json=excluded.formats_json
-          AND gutenberg_source_cache.rights_territories_json=excluded.rights_territories_json AND gutenberg_source_cache.rights_evidence_url=excluded.rights_evidence_url AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'')
-          THEN 'completed' WHEN excluded.epub_status='unavailable' THEN 'unavailable' ELSE 'pending' END,
-        epub_next_attempt_at=CASE WHEN gutenberg_source_cache.epub_status='completed' AND gutenberg_source_cache.formats_json=excluded.formats_json
-          AND gutenberg_source_cache.rights_territories_json=excluded.rights_territories_json AND gutenberg_source_cache.rights_evidence_url=excluded.rights_evidence_url AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'')
-          THEN gutenberg_source_cache.epub_next_attempt_at ELSE '' END,
-        epub_last_error=CASE WHEN gutenberg_source_cache.epub_status='completed' AND gutenberg_source_cache.formats_json=excluded.formats_json
-          AND gutenberg_source_cache.rights_territories_json=excluded.rights_territories_json AND gutenberg_source_cache.rights_evidence_url=excluded.rights_evidence_url AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'')
-          THEN gutenberg_source_cache.epub_last_error ELSE '' END`,
-    )
-    .bind(
+  return {
+    cacheId: String(book.id),
+    sourceId,
+    fields: [
       String(book.id),
       book.title,
       JSON.stringify(book.authors || []),
@@ -903,7 +893,8 @@ export function catalogInsert(
       options.canonicalizationVersion || "",
       JSON.stringify(options.sourceMetadata || {}),
       options.contentHash || "",
-    );
+    ],
+  };
 }
 
 async function ensureCatalogState(env: CoveEnv) {
@@ -924,7 +915,7 @@ async function seedCatalog(env: CoveEnv) {
   const statements = books.map((book) =>
     catalogInsert(db, book, "https://www.gutenberg.org/ebooks/" + book.id + "/", at),
   );
-  if (statements.length) await db.batch(statements);
+  if (statements.length) await dispatchPrivateCatalogSourceBatch(db, statements);
   for (const book of books) {
     await dispatchCatalogFreeNormalization(db, String(book.id), at);
     await syncEditionTaxonomy(db, catalogIds(String(book.id)).editionId);
@@ -961,7 +952,7 @@ async function getBook(env: CoveEnv, id: string, userId?: string): Promise<Catal
   const seeded = seedBook(id);
   if (seeded) {
     const at = now();
-    await db.batch([
+    await dispatchPrivateCatalogSourceBatch(db, [
       catalogInsert(db, seeded, "https://www.gutenberg.org/ebooks/" + seeded.id + "/", at),
     ]);
     await dispatchCatalogFreeNormalization(db, String(seeded.id), at);
@@ -979,7 +970,7 @@ async function getBook(env: CoveEnv, id: string, userId?: string): Promise<Catal
   if (!book?.id || book.copyright !== false)
     throw new ApiError(404, "This edition is not confirmed public domain.");
   const at = now();
-  await db.batch([
+  await dispatchPrivateCatalogSourceBatch(db, [
     catalogInsert(
       db,
       book,
@@ -1300,98 +1291,22 @@ async function insertRegionalEvidence(
   contentHash: string,
   canonicalizationVersion: string,
 ) {
+  // The private owner independently reopens the stored R2 EPUB, obtains fresh
+  // country-level evidence from the configured legal verifier, and performs
+  // the entire evidence/cache/suspend/normalize/reactivate sequence. No shared
+  // D1 positive-rights SQL survives, and missing verifier proof fails closed.
   const db = database(env);
-  const territories = parseJsonArray(row.rights_territories_json)
-    .map((x) => String(x).toUpperCase())
-    .filter((x) => /^[A-Z]{2}$/.test(x));
-  if (!territories.length)
-    throw new Error("No country-level rights evidence was supplied for this item.");
-  const checkedAt = now();
-  const sourceMetadata = parseJsonObject(row.source_metadata_json || "{}");
-  let firstEvidenceId = "";
-  for (const territory of territories) {
-    const evidenceHash = await sha256Hex(
-      JSON.stringify({
-        sourceId: row.source_id,
-        sourceItemId: row.source_item_id,
-        territory,
-        evidenceUrl: row.rights_evidence_url,
-        itemFingerprint: sourceMetadata.rightsFingerprint || "",
-        evidenceDigest: sourceMetadata.evidenceDigest || "",
-        catalogHash: sourceMetadata.catalogHash || "",
-        canonicalContentHash: contentHash,
-      }),
-    );
-    const evidenceId = `gre_${String(row.source_id).replace(/[^a-z0-9_]/gi, "_")}_${territory.toLowerCase()}_${String(row.id).replace(/[^a-z0-9_]/gi, "_")}_${evidenceHash.slice(0, 12)}`;
-    await db
-      .prepare(
-        `INSERT OR IGNORE INTO gutenberg_rights_evidence(
-      id,source_id,cache_id,source_item_id,determination,territory_code,evidence_url,evidence_type,evidence_hash,parser_version,status,checked_at,created_at
-    ) VALUES(?,?,?,?, 'public-domain',?,?,?,?,'regional-gutenberg-v1','approved',?,?)`,
-      )
-      .bind(
-        evidenceId,
-        row.source_id,
-        row.id,
-        row.source_item_id,
-        territory,
-        row.rights_evidence_url || row.source_url,
-        row.source_id === "pg_eu" ? "operator-review" : "source-catalog",
-        evidenceHash,
-        checkedAt,
-        checkedAt,
-      )
-      .run();
-    if (!firstEvidenceId) firstEvidenceId = evidenceId;
-  }
-  await db
-    .prepare(
-      `UPDATE gutenberg_source_cache SET rights_status='public-domain',commercial_use_status='approved',rights_checked_at=?,rights_evidence_id=?,
-    canonicalization_version=?,content_hash=?,epub_status='completed',epub_cached_at=?,epub_last_error='',epub_next_attempt_at='',ingest_status='active',last_error='' WHERE id=?`,
-    )
-    .bind(checkedAt, firstEvidenceId, canonicalizationVersion, contentHash, checkedAt, row.id)
-    .run();
-  const editionId = catalogIds(String(row.id)).editionId;
-  const grantSource = `gutenberg-${String(row.source_id)}-public-domain`;
-  // Suspend the previous source-derived grant set before rebuilding it from this exact evidence
-  // snapshot. This prevents an old country grant from surviving if upstream jurisdiction evidence
-  // is narrowed on a later verification pass.
-  await db
-    .prepare(
-      `UPDATE rights_grants SET status='suspended',updated_at=? WHERE edition_id=? AND source=? AND status='active'`,
-    )
-    .bind(checkedAt, editionId, grantSource)
-    .run();
-  await dispatchCatalogFreeNormalization(db, String(row.id), checkedAt);
-  await db
-    .prepare(
-      `UPDATE rights_grants SET status='active',updated_at=?,source_evidence_id=(
-      SELECT ge.id FROM gutenberg_rights_evidence ge JOIN gutenberg_source_cache c ON c.id=ge.cache_id
-      WHERE ge.cache_id=? AND ge.status='approved' AND ge.determination='public-domain'
-        AND upper(ge.territory_code)=upper(rights_grants.territory_code)
-        AND EXISTS(SELECT 1 FROM json_each(c.rights_territories_json) jt WHERE upper(jt.value)=upper(ge.territory_code))
-      ORDER BY ge.checked_at DESC,ge.created_at DESC,ge.id DESC LIMIT 1
-    ) WHERE edition_id=? AND source=? AND EXISTS(
-      SELECT 1 FROM gutenberg_rights_evidence ge JOIN gutenberg_source_cache c ON c.id=ge.cache_id
-      WHERE ge.cache_id=? AND ge.status='approved' AND ge.determination='public-domain'
-        AND upper(ge.territory_code)=upper(rights_grants.territory_code)
-        AND EXISTS(SELECT 1 FROM json_each(c.rights_territories_json) jt WHERE upper(jt.value)=upper(ge.territory_code))
-    )`,
-    )
-    .bind(checkedAt, row.id, editionId, grantSource, row.id)
-    .run();
-  await syncEditionTaxonomy(db, editionId);
-  return { territories, evidenceId: firstEvidenceId };
+  const evidence = await dispatchPrivateRegionalRightsEvidence(db, {
+    cacheId: String(row.id),
+    sha256: contentHash,
+    canonicalizationVersion,
+  });
+  await syncEditionTaxonomy(db, catalogIds(String(row.id)).editionId);
+  return evidence;
 }
 
 async function quarantineRegionalItem(env: CoveEnv, id: string, message: string) {
-  await database(env)
-    .prepare(
-      `UPDATE gutenberg_source_cache SET rights_status='quarantined',commercial_use_status='quarantined',ingest_status='quarantined',
-    epub_status='failed',epub_last_error=?,last_error=?,updated_at=? WHERE id=?`,
-    )
-    .bind(message.slice(0, 500), message.slice(0, 500), now(), id)
-    .run();
+  await dispatchCatalogNegativeSource(database(env), "quarantine-regional", id, message);
 }
 
 async function cachePendingEpubs(
@@ -1404,15 +1319,7 @@ async function cachePendingEpubs(
   if (!env.BUCKET || !safeLimit || !hasEpubDownloadWindow(deadlineMs))
     return { attempted: 0, downloaded: 0, failed: 0, quarantined: 0 };
   const db = database(env);
-  const staleDownloadBefore = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-  await db
-    .prepare(
-      `UPDATE gutenberg_source_cache
-    SET epub_status='retry',epub_next_attempt_at='',epub_last_error='Recovered after an interrupted EPUB download.',updated_at=?
-    WHERE epub_status='downloading' AND updated_at<?`,
-    )
-    .bind(now(), staleDownloadBefore)
-    .run();
+  await dispatchCatalogIngestState(db, "recover-interrupted", {});
   const sources = await db
     .prepare(
       `SELECT s.id FROM gutenberg_sources s LEFT JOIN gutenberg_source_states st ON st.source_id=s.id
@@ -1479,27 +1386,14 @@ async function cachePendingEpubs(
           : null
         : canonicalAssetSource(formats);
     if (!sourceAsset) {
-      await db
-        .prepare(
-          "UPDATE gutenberg_source_cache SET epub_status='unavailable',epub_last_error='No supported source asset was provided.' WHERE id=?",
-        )
-        .bind(id)
-        .run();
+      await dispatchCatalogIngestState(db, "mark-unavailable", { cacheId: id });
       continue;
     }
-    const claim = await db
-      .prepare(
-        "UPDATE gutenberg_source_cache SET epub_status='downloading',epub_last_error='',updated_at=? WHERE id=? AND epub_status IN ('pending','retry') AND (epub_next_attempt_at='' OR epub_next_attempt_at<=?) RETURNING id",
-      )
-      .bind(now(), id, now())
-      .first<{ id: string }>();
-    if (!claim) continue;
+    const claim = await dispatchCatalogIngestState(db, "claim-download", { cacheId: id });
+    if (!claim.claimed) continue;
     attempted++;
     onAttempt?.();
-    await db
-      .prepare("UPDATE gutenberg_source_states SET epub_last_attempt_at=? WHERE source_id=?")
-      .bind(now(), sourceId)
-      .run();
+    await dispatchCatalogIngestState(db, "touch-attempt", { sourceId });
     try {
       if (sourceId === "pg_eu") {
         const metadata = parseJsonObject(row.source_metadata_json || "{}");
@@ -1529,10 +1423,7 @@ async function cachePendingEpubs(
               ),
             ),
         ).toISOString();
-        await db
-          .prepare("UPDATE gutenberg_source_states SET epub_retry_after=? WHERE source_id=?")
-          .bind(until, sourceId)
-          .run();
+        await dispatchCatalogIngestState(db, "set-backoff", { sourceId, retryAt: until });
         pausedSources.add(sourceId);
       }
       if (!response.ok) {
@@ -1594,61 +1485,34 @@ async function cachePendingEpubs(
         },
       });
       if (sourceId === "pg_us") {
-        await db
-          .prepare(
-            "UPDATE gutenberg_source_cache SET epub_status='completed',epub_cached_at=?,epub_last_error='',epub_next_attempt_at='',content_hash=?,canonicalization_version=? WHERE id=?",
-          )
-          .bind(now(), contentHash, canonicalizationVersion, id)
-          .run();
+        // The owner re-reads primary rights evidence and verifies actual R2 EPUB bytes
+        // before marking this source completed. A missing QA owner fails closed.
+        await dispatchCatalogCompletedUsEpub(db, { cacheId: id, sha256: contentHash });
         await dispatchCatalogFreeNormalization(db, id, now());
       } else {
         if (canonicalMetadata) {
-          const authorsJson = JSON.stringify(canonicalMetadata.authors);
-          const languagesJson = JSON.stringify(canonicalMetadata.languages);
-          await db
-            .prepare(
-              `UPDATE gutenberg_source_cache SET
-            title=CASE WHEN ?<>'' THEN ? ELSE title END,
-            authors_json=CASE WHEN ?<>'[]' THEN ? ELSE authors_json END,
-            languages_json=CASE WHEN ?<>'[]' THEN ? ELSE languages_json END,updated_at=? WHERE id=?`,
-            )
-            .bind(
-              canonicalMetadata.title,
-              canonicalMetadata.title,
-              authorsJson,
-              authorsJson,
-              languagesJson,
-              languagesJson,
-              now(),
-              id,
-            )
-            .run();
+          // Source metadata is never accepted as owner evidence. The private
+          // owner reopens and independently canonicalizes the stored EPUB.
+          await dispatchVerifiedRegionalEpubMetadata(db, { cacheId: id, sha256: contentHash });
         }
         await insertRegionalEvidence(env, row, contentHash, canonicalizationVersion);
       }
-      // Ensure the canonical asset version points to Cove-controlled storage after successful validation.
-      try {
-        await db
-          .prepare(
-            "UPDATE asset_versions SET object_key=?,sha256=? WHERE asset_id=? AND version_number=1",
-          )
-          .bind(`epubs/${id}.epub`, contentHash, `asset_epub_gutenberg_${id}`)
-          .run();
-      } catch {
-        /* asset row may not exist until the next normalization pass */
-      }
+      // The private normalizer (called above for both US and regional EPUBs)
+      // owns asset_versions INSERT/UPSERT, including object_key and SHA-256.
+      // Never repair canonical asset metadata with a shared D1 fallback.
       downloaded++;
     } catch (error) {
       const attempts = Number(row.epub_attempts || 0) + 1;
       const message =
         error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500);
       const { terminal, retryAt } = planEpubRetry(message, attempts);
-      await db
-        .prepare(
-          "UPDATE gutenberg_source_cache SET epub_status=?,epub_attempts=?,epub_next_attempt_at=?,epub_last_error=? WHERE id=?",
-        )
-        .bind(terminal ? "failed" : "retry", attempts, retryAt, message, id)
-        .run();
+      await dispatchCatalogIngestState(db, "mark-failure", {
+        cacheId: id,
+        attempts,
+        status: terminal ? "failed" : "retry",
+        retryAt,
+        message,
+      });
       failed++;
     }
   }
@@ -1711,16 +1575,13 @@ export async function runRegionalCatalogIngestion(
   if (!due) return { skipped: "regional-sources-fresh" };
   const sourceId = String(due.id) as RegionalSourceId;
   const lease = crypto.randomUUID();
-  const leaseUntil = new Date(Date.now() + 5 * 60 * 1000).toISOString();
   const runId = `gir_${crypto.randomUUID()}`;
   let cursorBefore = Math.max(0, Number.parseInt(String(due.cursor || "0"), 10) || 0);
-  const acquired = await db
-    .prepare(
-      `UPDATE gutenberg_source_states SET status='running',lease_token=?,lease_until=?,last_run_at=?,last_error='',updated_at=? WHERE source_id=? AND (lease_until IS NULL OR lease_until='' OR lease_until<?) AND (next_run_at IS NULL OR next_run_at='' OR next_run_at<=?) RETURNING source_id`,
-    )
-    .bind(lease, leaseUntil, current, current, sourceId, current, current)
-    .first<{ source_id: string }>();
-  if (!acquired) return { skipped: "regional-source-running" };
+  const acquired = await dispatchCatalogIngestState(db, "acquire-regional", {
+    sourceId,
+    leaseToken: lease,
+  });
+  if (!acquired.claimed) return { skipped: "regional-source-running" };
   await db
     .prepare(
       `INSERT INTO gutenberg_ingest_runs(id,source_id,started_at,status,cursor_before,error) VALUES(?,?,?,'running',?,'')`,
@@ -1736,12 +1597,11 @@ export async function runRegionalCatalogIngestion(
     const result = await fetchRegionalCatalog(sourceId, env, headers, deadlineMs);
     if (result.status === "degraded") {
       const next = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
-      await db
-        .prepare(
-          `UPDATE gutenberg_source_states SET status='degraded',last_error=?,next_run_at=?,lease_token=NULL,lease_until=NULL,updated_at=? WHERE source_id=? AND lease_token=?`,
-        )
-        .bind(result.warning, next, now(), sourceId, lease)
-        .run();
+      await dispatchCatalogIngestState(db, "mark-degraded", {
+        sourceId,
+        leaseToken: lease,
+        message: result.warning,
+      });
       await db
         .prepare(
           `UPDATE gutenberg_ingest_runs SET completed_at=?,status='partial',cursor_after=?,error=? WHERE id=?`,
@@ -1757,13 +1617,13 @@ export async function runRegionalCatalogIngestion(
     }
     if (result.status === "not-modified") {
       const next = new Date(Date.now() + Number(due.refresh_seconds || 86400) * 1000).toISOString();
-      await db
-        .prepare(
-          `UPDATE gutenberg_source_states SET status='idle',cursor=NULL,cycle_started_at=NULL,last_success_at=?,attempts=0,next_run_at=?,lease_token=NULL,lease_until=NULL,
-        etag=COALESCE(NULLIF(?,''),etag),last_modified=COALESCE(NULLIF(?,''),last_modified),updated_at=? WHERE source_id=? AND lease_token=?`,
-        )
-        .bind(now(), next, result.etag, result.lastModified, now(), sourceId, lease)
-        .run();
+      await dispatchCatalogRegionalState(db, {
+        action: "unchanged",
+        sourceId,
+        leaseToken: lease,
+        runId,
+        data: { next, etag: result.etag, lastModified: result.lastModified },
+      });
       await db
         .prepare(
           `UPDATE gutenberg_ingest_runs SET completed_at=?,status='not-modified',cursor_after=NULL,response_etag=?,response_last_modified=? WHERE id=?`,
@@ -1787,22 +1647,18 @@ export async function runRegionalCatalogIngestion(
     ) {
       const completed = now();
       const next = new Date(Date.now() + Number(due.refresh_seconds || 86400) * 1000).toISOString();
-      await db
-        .prepare(
-          `UPDATE gutenberg_source_states SET status='idle',cursor=NULL,cycle_started_at=NULL,last_success_at=?,last_error='',attempts=0,next_run_at=?,lease_token=NULL,lease_until=NULL,
-        etag=?,last_modified=?,content_hash=?,updated_at=? WHERE source_id=? AND lease_token=?`,
-        )
-        .bind(
-          completed,
+      await dispatchCatalogRegionalState(db, {
+        action: "same-snapshot",
+        sourceId,
+        leaseToken: lease,
+        runId,
+        data: {
           next,
-          result.etag,
-          result.lastModified,
-          result.bodyHash,
-          completed,
-          sourceId,
-          lease,
-        )
-        .run();
+          etag: result.etag,
+          lastModified: result.lastModified,
+          bodyHash: result.bodyHash,
+        },
+      });
       await db
         .prepare(
           `UPDATE gutenberg_ingest_runs SET completed_at=?,status='not-modified',cursor_after=NULL,fetched_count=?,response_etag=?,response_last_modified=?,response_hash=? WHERE id=?`,
@@ -1865,7 +1721,7 @@ export async function runRegionalCatalogIngestion(
           sourceMetadata: { ...(item.metadata || {}), catalogHash: result.bodyHash },
         }),
       );
-      if (statements.length) await db.batch(statements);
+      if (statements.length) await dispatchPrivateCatalogSourceBatch(db, statements);
       accepted += statements.length;
     }
 
@@ -1877,81 +1733,41 @@ export async function runRegionalCatalogIngestion(
       ? new Date(Date.now() + Number(due.refresh_seconds || 86400) * 1000).toISOString()
       : new Date(Date.now() + 60 * 1000).toISOString();
 
-    let staleCount = 0;
-    if (complete) {
-      const stale = await db
-        .prepare(
-          `SELECT COUNT(*) count FROM gutenberg_source_cache
-        WHERE source_id=? AND last_seen_at<? AND ingest_status NOT IN ('stale','quarantined')`,
-        )
-        .bind(sourceId, cycleStartedAt)
-        .first<any>();
-      staleCount = Number(stale?.count || 0);
-      if (staleCount) {
-        // Source retractions/corrections fail closed. Keep the canonical object for audit, but
-        // remove storefront eligibility until the item is observed and re-verified again.
-        await db
-          .prepare(
-            `UPDATE gutenberg_source_cache SET ingest_status='stale',rights_status='quarantined',commercial_use_status='quarantined',
-          epub_status='pending',epub_next_attempt_at='',last_error='Source item was absent from the latest complete catalog snapshot.',updated_at=?
-          WHERE source_id=? AND last_seen_at<? AND ingest_status NOT IN ('stale','quarantined')`,
-          )
-          .bind(completed, sourceId, cycleStartedAt)
-          .run();
-        await db
-          .prepare(
-            `UPDATE products SET storefront_status='inactive',updated_at=? WHERE source_name='gutenberg' AND source_external_id IN
-          (SELECT id FROM gutenberg_source_cache WHERE source_id=? AND ingest_status='stale')`,
-          )
-          .bind(completed, sourceId)
-          .run();
-        await db
-          .prepare(
-            `UPDATE offers SET active=0,updated_at=? WHERE product_id IN
-          (SELECT p.id FROM products p JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE p.source_name='gutenberg' AND c.source_id=? AND c.ingest_status='stale')`,
-          )
-          .bind(completed, sourceId)
-          .run();
-        await db
-          .prepare(
-            `UPDATE editions SET release_status='unavailable',updated_at=? WHERE id IN
-          (SELECT p.edition_id FROM products p JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE p.source_name='gutenberg' AND c.source_id=? AND c.ingest_status='stale')`,
-          )
-          .bind(completed, sourceId)
-          .run();
-        await db
-          .prepare(
-            `UPDATE rights_grants SET status='suspended',updated_at=? WHERE source=? AND edition_id IN
-          (SELECT p.edition_id FROM products p JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE p.source_name='gutenberg' AND c.source_id=? AND c.ingest_status='stale')`,
-          )
-          .bind(completed, `gutenberg-${sourceId}-public-domain`, sourceId)
-          .run();
-      }
-    }
+    // Source-lease verification and all five deny-first table mutations occur
+    // together at the private legal owner. A public catalog caller cannot
+    // declare stale books or activate rights by writing the shared primary.
+    const staleCount = complete
+      ? (
+          await dispatchCatalogStaleWithdrawal(db, {
+            sourceId,
+            cycleStartedAt,
+            leaseToken: lease,
+            runId,
+          })
+        ).staleCount
+      : 0;
 
-    await db
-      .prepare(
-        `UPDATE gutenberg_source_states SET status='idle',cursor=?,cycle_started_at=?,last_success_at=?,last_error='',attempts=0,total_catalog_count=?,
-      seen_count=seen_count+?,accepted_count=accepted_count+?,quarantined_count=quarantined_count+?,next_run_at=?,lease_token=NULL,lease_until=NULL,
-      etag=?,last_modified=?,content_hash=?,updated_at=? WHERE source_id=? AND lease_token=?`,
-      )
-      .bind(
+    await dispatchCatalogRegionalState(db, {
+      action: "complete",
+      sourceId,
+      leaseToken: lease,
+      runId,
+      data: {
         cursorAfter,
-        complete ? null : cycleStartedAt,
-        complete ? completed : due.last_success_at || null,
-        result.items.length,
-        items.length,
-        accepted,
-        staleCount,
+        cycleStartedAt: complete ? null : cycleStartedAt,
+        snapshotStart: cycleStartedAt,
+        lastSuccessAt: complete ? completed : due.last_success_at || null,
+        complete,
+        totalCatalogCount: result.items.length,
+        seenCount: items.length,
+        acceptedCount: accepted,
+        quarantinedCount: staleCount,
         next,
-        result.etag,
-        result.lastModified,
-        result.bodyHash,
-        completed,
-        sourceId,
-        lease,
-      )
-      .run();
+        etag: result.etag,
+        lastModified: result.lastModified,
+        bodyHash: result.bodyHash,
+      },
+    });
     await db
       .prepare(
         `UPDATE gutenberg_ingest_runs SET completed_at=?,status=?,cursor_before=?,cursor_after=?,fetched_count=?,accepted_count=?,quarantined_count=?,
@@ -1999,12 +1815,13 @@ export async function runRegionalCatalogIngestion(
           Math.min(30 * 60_000, Math.pow(2, Math.min(attempts - 1, 5)) * 60_000),
         ),
     ).toISOString();
-    await db
-      .prepare(
-        `UPDATE gutenberg_source_states SET status='failed',last_error=?,attempts=?,next_run_at=?,lease_token=NULL,lease_until=NULL,updated_at=? WHERE source_id=? AND lease_token=?`,
-      )
-      .bind(message, attempts, retryAt, now(), sourceId, lease)
-      .run();
+    await dispatchCatalogIngestState(db, "mark-regional-failed", {
+      sourceId,
+      leaseToken: lease,
+      attempts,
+      retryAt,
+      message,
+    });
     await db
       .prepare(
         `UPDATE gutenberg_ingest_runs SET completed_at=?,status='failed',cursor_before=?,cursor_after=?,error=? WHERE id=?`,
@@ -2160,50 +1977,26 @@ export async function runCatalogIngestion(
     // Preserve it even for unchanged rows, without triggering canonical FTS
     // rebuilds, changing normalized updated_at, or reissuing rights grants.
     if (unchanged.length) {
-      await db
-        .prepare(
-          `UPDATE gutenberg_source_cache SET last_seen_at=?,source_updated_at=?
-         WHERE id IN (${unchanged.map(() => "?").join(",")})`,
-        )
-        .bind(at, at, ...unchanged.map((book: CatalogBook) => String(book.id)))
-        .run();
-    }
-    // Gutenberg download counts change frequently without changing a book's
-    // description, rights, source files or existing canonical publication.
-    // Bypass heavy graph+FTS reconstruction in that single proven case.
-    // Compare-and-swap BOTH rows so an intervening rights withdrawal or new
-    // canonical version cannot be overwritten by a stale popularity heartbeat.
-    if (popularityOnly.length) {
-      const popularityWrites = popularityOnly.flatMap((book: CatalogBook) => {
-        const row = previous.get(String(book.id))!;
-        const id = String(book.id);
-        const count = Number(book.download_count);
-        return [
-          db
-            .prepare(
-              `UPDATE gutenberg_source_cache
-            SET download_count=?,source_updated_at=?,last_seen_at=?,updated_at=?
-            WHERE id=? AND updated_at=? AND ingest_status='active'
-              AND rights_status='public-domain'
-              AND commercial_use_status='approved'
-              AND rights_territories_json='["US"]'`,
-            )
-            .bind(count, at, at, at, id, row.updated_at),
-          db
-            .prepare(
-              `UPDATE catalog_search_documents
-            SET download_count=?,updated_at=?
-            WHERE product_id=? AND updated_at=?
-              AND EXISTS(SELECT 1 FROM gutenberg_source_cache c
-                WHERE c.id=? AND c.updated_at=? AND c.download_count=?
-                  AND c.rights_status='public-domain'
-                  AND c.commercial_use_status='approved'
-                  AND c.rights_territories_json='["US"]')`,
-            )
-            .bind(count, at, `prd_gutenberg_${id}`, row.projection_updated_at, id, at, count),
-        ];
+      await dispatchCatalogObservation(db, {
+        action: "heartbeat",
+        books: unchanged.map((book: CatalogBook) => ({ id: String(book.id) })),
       });
-      await db.batch(popularityWrites);
+    }
+    // A private compare-and-swap of BOTH rows prevents a stale popularity
+    // observation from reviving a withdrawn or superseded canonical edition.
+    if (popularityOnly.length) {
+      await dispatchCatalogObservation(db, {
+        action: "popularity",
+        books: popularityOnly.map((book: CatalogBook) => {
+          const row = previous.get(String(book.id))!;
+          return {
+            id: String(book.id),
+            count: Number(book.download_count),
+            expectedUpdatedAt: String(row.updated_at),
+            expectedProjectionUpdatedAt: String(row.projection_updated_at),
+          };
+        }),
+      });
     }
     const statements = changed.map((book: CatalogBook) =>
       catalogInsert(
@@ -2213,9 +2006,8 @@ export async function runCatalogIngestion(
         at,
       ),
     );
-    if (statements.length) await db.batch(statements);
-    for (const book of changed)
-      await dispatchCatalogFreeNormalization(db, String(book.id), at);
+    if (statements.length) await dispatchPrivateCatalogSourceBatch(db, statements);
+    for (const book of changed) await dispatchCatalogFreeNormalization(db, String(book.id), at);
     // This must run even when the source and canonical rows were unchanged:
     // a previous run may have failed *after* canonical normalization but
     // before taxonomy/outbox publication, and mapping rules may have changed.
@@ -2356,12 +2148,7 @@ async function sourceEpubBytes(env: CoveEnv, product: any, asset: any, externalI
       // different publisher/import/regional edition or bypass its rights gate.
       if (product.source_name !== "gutenberg" || /^(?:pgca|pgau|pgeu)_/.test(externalId))
         throw new ApiError(503, "This stored EPUB failed validation. Please contact support.");
-      await database(env)
-        .prepare(
-          "UPDATE gutenberg_source_cache SET epub_status='retry',epub_next_attempt_at='',epub_last_error='Stored EPUB failed validation; repair required.' WHERE id=? AND ingest_status<>'quarantined'",
-        )
-        .bind(externalId)
-        .run();
+      await dispatchCatalogNegativeSource(database(env), "mark-us-retry", externalId);
     }
   }
   if (product.source_name === "upload")
@@ -2390,16 +2177,11 @@ async function sourceEpubBytes(env: CoveEnv, product: any, asset: any, externalI
     await env.BUCKET.put(key, bytes, {
       httpMetadata: { contentType: "application/epub+zip", cacheControl: "31536000" },
     });
-  await database(env).batch([
-    database(env)
-      .prepare(
-        "UPDATE gutenberg_source_cache SET epub_status='completed',epub_cached_at=?,epub_last_error='',epub_next_attempt_at='',content_hash=?,canonicalization_version='pgus-upstream-v1' WHERE id=? AND source_id='pg_us' AND ingest_status<>'quarantined'",
-      )
-      .bind(now(), contentHash, externalId),
-    database(env)
-      .prepare("UPDATE asset_versions SET object_key=?,sha256=? WHERE id=?")
-      .bind(key, contentHash, asset.asset_version_id),
-  ]);
+  await dispatchCatalogVerifiedUsEpub(database(env), {
+    cacheId: externalId,
+    assetVersionId: String(asset.asset_version_id),
+    sha256: contentHash,
+  });
   return { bytes, key, mimeType: asset.mime_type || "application/epub+zip" };
 }
 async function activeEntitlement(
@@ -3544,12 +3326,7 @@ async function handleCoveRequest(
         // a simultaneous positive market activation or metadata edit.
         if (input && typeof input === "object" && !Array.isArray(input) && "ownerAction" in input)
           return json(await executeStageMarketEditorPause(env, input));
-        if (env.COVE_SSR_STAGING === "1" || env.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1")
-          throw new ApiError(
-            503,
-            "Staging market edits require a verified owner-first pause command.",
-          );
-        return json(await upsertMarket(db, staff.userId, input));
+        return json(await upsertMarket(db, staff.userId, input, who));
       }
       if (request.method === "POST" && path === "/admin/localization/taxonomy") {
         const staff = await requireStaffPermission(db, who, "localization.manage", request);
@@ -3736,7 +3513,7 @@ async function handleCoveRequest(
       }
       if (request.method === "POST" && path === "/admin/risk/hold/release") {
         const staff = await requireStaffPermission(db, who, "risk.hold.manage");
-        return json(await releaseRiskHold(db, staff.userId, await body(request)));
+        return json(await releaseRiskHold(db, staff.userId, await body(request), who));
       }
       if (request.method === "POST" && path === "/admin/risk/link") {
         await requireStaffPermission(db, who, "risk.link.manage");
@@ -4028,7 +3805,14 @@ async function handleCoveRequest(
         const staff = await requireStaffPermission(db, who, "finance.contract.manage");
         const input = (await body(request)) as Record<string, unknown>;
         return json(
-          await createRoyaltyContractVersion(db, { ...input, createdByUserId: staff.userId }),
+          await createRoyaltyContractVersion(
+            db,
+            { ...input, createdByUserId: staff.userId },
+            {
+              userId: staff.userId,
+              operationId: request.headers.get("Idempotency-Key") || undefined,
+            },
+          ),
         );
       }
       if (request.method === "POST" && path === "/admin/publishing/distribution-contract-version") {
@@ -4064,22 +3848,42 @@ async function handleCoveRequest(
         return json(await refreshCreatorDailyMetrics(db, await body(request)));
       }
       if (request.method === "POST" && path === "/admin/publishing/usage-event") {
-        await requireStaffPermission(db, who, "finance.usage.ingest");
-        return json(await recordUsageEvent(db, await body(request)));
+        const staff = await requireStaffPermission(db, who, "finance.usage.ingest");
+        return json(
+          await recordUsageEvent(db, await body(request), {
+            userId: staff.userId,
+            operationId: request.headers.get("Idempotency-Key") || undefined,
+          }),
+        );
       }
       if (request.method === "POST" && path === "/admin/publishing/usage-event/process") {
-        await requireStaffPermission(db, who, "finance.usage.ingest");
+        const staff = await requireStaffPermission(db, who, "finance.usage.ingest");
         const x = z.object({ usageEventId: z.string().min(1) }).parse(await body(request));
-        return json(await processUsageEventRoyalty(db, x.usageEventId));
+        return json(
+          await processUsageEventRoyalty(db, x.usageEventId, {
+            userId: staff.userId,
+            operationId: request.headers.get("Idempotency-Key") || undefined,
+          }),
+        );
       }
       if (request.method === "POST" && path === "/admin/publishing/usage-pool") {
-        await requireStaffPermission(db, who, "finance.usage.ingest");
-        return json(await createUsagePool(db, await body(request)));
+        const staff = await requireStaffPermission(db, who, "finance.usage.ingest");
+        return json(
+          await createUsagePool(db, await body(request), {
+            userId: staff.userId,
+            operationId: request.headers.get("Idempotency-Key") || undefined,
+          }),
+        );
       }
       if (request.method === "POST" && path === "/admin/publishing/usage-pool/allocate") {
-        await requireStaffPermission(db, who, "finance.usage.ingest");
+        const staff = await requireStaffPermission(db, who, "finance.usage.ingest");
         const x = z.object({ poolId: z.string().min(1) }).parse(await body(request));
-        return json(await allocateUsagePool(db, x.poolId));
+        return json(
+          await allocateUsagePool(db, x.poolId, {
+            userId: staff.userId,
+            operationId: request.headers.get("Idempotency-Key") || undefined,
+          }),
+        );
       }
       if (request.method === "POST" && path === "/admin/publishing/tax-document") {
         await requireStaffPermission(db, who, "finance.tax_document.manage");
@@ -4679,7 +4483,11 @@ async function handleCoveRequest(
               path.includes("price-schedule")
             ? "finance.manage"
             : "commerce.manage";
-      await requireCommerceAdmin(request, env, commercePermission);
+      const financeStaff = await requireCommerceAdmin(request, env, commercePermission);
+      const financeActor = {
+        userId: financeStaff.userId,
+        operationId: request.headers.get("Idempotency-Key") || undefined,
+      };
       if (request.method === "GET" && path === "/admin/commerce/status") {
         const [commerce, finance, pricing, rights] = await Promise.all([
           commerceAdminSnapshot(database(env)),
@@ -4703,9 +4511,13 @@ async function handleCoveRequest(
         return json(await executeStageCanonicalAdminCommand(env, command));
       }
       if (request.method === "POST" && path === "/admin/commerce/rights-party")
-        return json(await upsertRightsParty(database(env), await body(request)));
+        return json(
+          await upsertRightsParty(database(env), await body(request), financeStaff.userId),
+        );
       if (request.method === "POST" && path === "/admin/commerce/territory-set")
-        return json(await upsertTerritorySet(database(env), await body(request)));
+        return json(
+          await upsertTerritorySet(database(env), await body(request), financeStaff.userId),
+        );
       if (request.method === "POST" && path === "/admin/commerce/territory-expand")
         return json(await territoryExpansionPreview(database(env), await body(request)));
       if (request.method === "POST" && path === "/admin/commerce/rights-contract") {
@@ -4736,17 +4548,17 @@ async function handleCoveRequest(
       if (request.method === "POST" && path === "/admin/commerce/rights-check")
         return json(await rightsAvailabilityCheck(database(env), await body(request)));
       if (request.method === "POST" && path === "/admin/commerce/finance-party")
-        return json(await createFinanceParty(database(env), await body(request)));
+        return json(await createFinanceParty(database(env), await body(request), financeActor));
       if (request.method === "POST" && path === "/admin/commerce/royalty-contract")
-        return json(await createRoyaltyContract(database(env), await body(request)));
+        return json(await createRoyaltyContract(database(env), await body(request), financeActor));
       if (request.method === "POST" && path === "/admin/commerce/payout-batch")
-        return json(await createPayoutBatch(database(env), await body(request)));
+        return json(await createPayoutBatch(database(env), await body(request), financeActor));
       if (request.method === "POST" && path === "/admin/commerce/payout-approve") {
         const x = z.object({ batchId: z.string().min(1) }).parse(await body(request));
-        return json(await approvePayoutBatch(database(env), x.batchId));
+        return json(await approvePayoutBatch(database(env), x.batchId, financeActor));
       }
       if (request.method === "POST" && path === "/admin/commerce/payout-settle")
-        return json(await settlePayoutBatch(database(env), await body(request)));
+        return json(await settlePayoutBatch(database(env), await body(request), financeActor));
       if (request.method === "POST" && path === "/admin/commerce/fx-rate")
         return json(await upsertFxRate(database(env), await body(request)));
       if (request.method === "POST" && path === "/admin/commerce/price-schedule")
@@ -5864,14 +5676,13 @@ async function handleCoveRequest(
         });
         if (!rights.allowed)
           throw new ApiError(404, "This edition is not available in your storefront.");
-        await db
-          .prepare(
-            `INSERT INTO entitlements(id,user_id,product_id,entitlement_type,status,source,granted_at,updated_at)
-            VALUES(?,?,?,'public-domain','active','gutenberg',?,?)
-            ON CONFLICT(user_id,product_id,entitlement_type) WHERE status='active' DO UPDATE SET status='active',updated_at=excluded.updated_at`,
-          )
-          .bind(crypto.randomUUID(), user.id, product.id, at, at)
-          .run();
+        // The private legal owner checks the current positive jurisdictional
+        // proof and live canonical item before granting free library access.
+        await dispatchVerifiedFreeLibraryEntitlement(db, {
+          userId: String(user.id),
+          productId: String(product.id),
+          territory: storefrontTerritory,
+        });
       } else {
         const entitlement = await db
           .prepare(

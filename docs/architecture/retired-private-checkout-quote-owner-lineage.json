@@ -1,0 +1,22 @@
+{
+  "schema": "cove.retired-private-checkout-quote-owner-lineage.v1",
+  "releaseApproval": false,
+  "productionCertified": false,
+  "sourceBefore": 24,
+  "sourceAfter": 23,
+  "sourceFile": "src/features/fore/commerce.server.ts",
+  "previousSha256": "116f24a42a463947939e120919db25ebcbc5ac09a3ef8fb3d8a2b769031e70d8",
+  "currentSha256": "7d9cf94252eb2758d3861d8ab2a347bc249f3ba8840ec117b119c2ba166cd146",
+  "retired": [
+    {
+      "file": "src/features/fore/commerce.server.ts",
+      "line": 640,
+      "functionName": "checkoutQuote",
+      "table": "commerce_checkout_quotes",
+      "operation": "INSERT INTO",
+      "siteId": "126ef1f8feae9c3b47d03eec99b2bba1fe137b1e6174c4dc3443752d6bb7ac15",
+      "sqlSha256": "6270c73f8008e1339434ec98e8d9c8aae6b2befebc1c7f9bcbab1248c436537d",
+      "ownerRoute": "/commercial/checkout/create-quote"
+    }
+  ]
+}

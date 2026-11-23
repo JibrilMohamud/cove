@@ -66,23 +66,51 @@ for (const token of [
   "timing manifest checksum",
   "commercial_audio_qc_jobs",
 ])
-  assert.ok(audio.includes(token), `commercial audio missing ${token}`);
-assert.match(audio, /quarantined/);
-assert.match(audio, /errors\.length\s*\?\s*[\"\']rejected[\"\']\s*:\s*[\"\']clean[\"\']/);
-assert.match(audio, /performance-rights territory must match/i);
-assert.match(audio, /ISBN-13 is invalid/);
-assert.match(audio, /subscription distribution/);
+  assert.ok(
+    (["malwareClean", "content checksum does not match", "commercial_audio_qc_jobs"].includes(token)
+      ? read("src/storefront-strangler/legal-authority.worker.ts")
+      : audio
+    ).includes(token),
+    `audio owner invariant missing ${token}`,
+  );
+assert.match(read("src/storefront-strangler/legal-authority.worker.ts"), /quarantined/);
+assert.match(
+  read("src/storefront-strangler/legal-authority.worker.ts"),
+  /errors\.length\s*\?\s*[\"\']rejected[\"\']\s*:\s*[\"\']clean[\"\']/,
+);
+const ownerAudio = read("src/storefront-strangler/legal-authority.worker.ts");
+for (const invariant of [
+  /performance-rights territory must match/i,
+  /ISBN-13 is invalid/,
+  /subscription distribution/,
+])
+  assert.match(
+    ownerAudio,
+    invariant,
+    "Private QA owner must retain the formerly shared verified-rights validators",
+  );
+assert.match(audio, /dispatchCommercialAudioMetadata/);
+assert.doesNotMatch(audio, /async function refreshAgreementStatus\(/);
 const account = read("src/features/fore/account-management.server.ts");
 for (const token of [
   "accountDataExport",
   "account_deletion_requests",
-  "blocked_legal_hold",
-  "Active staff identity",
-  "Publisher ownership/admin authority",
   "account_security_events",
   "account_billing_methods",
 ])
   assert.ok(account.includes(token), `account management missing ${token}`);
+const owner = read("src/storefront-strangler/legal-authority.worker.ts");
+const accountOwner = owner.slice(
+  owner.indexOf("const privateAccount="),
+  owner.indexOf("async function repairRegionalEpubAssetsPrivate("),
+);
+for (const token of [
+  "blocked_legal_hold",
+  "Active staff identity",
+  "Publisher ownership/admin authority",
+])
+  assert.ok(accountOwner.includes(token), `private account owner missing ${token}`);
+assert.match(account, /dispatchAccountOwnerAction/);
 assert.match(account, /rating_steps/);
 assert.match(account, /contributor_id/);
 assert.doesNotMatch(account, /SELECT id,book_id,rating,body,status/);

@@ -1,3 +1,9 @@
+import {
+  dispatchPrivateRiskHold,
+  dispatchPrivateRiskAssessmentUpdate,
+  dispatchPrivateRiskHoldRelease,
+  dispatchPrivatePublisherTaxVerification,
+} from "../../storefront-strangler/publication-owner-routing.server";
 import { z } from "zod/v3";
 import { ApiError } from "./service";
 import type { CatalogDB } from "./catalog-model.server";
@@ -229,27 +235,7 @@ export async function createRiskHold(
     .bind(a.subjectType, a.subjectId, scope)
     .first<any>();
   if (active) return active;
-  const id = uid("risk_hold"),
-    at = now();
-  await db
-    .prepare(
-      "INSERT INTO risk_holds(id,assessment_id,domain,subject_type,subject_id,hold_scope,reason_code,status,amount_minor,currency,release_conditions_json,created_by_type,created_at,expires_at) VALUES(?,?,?,?,?,?,?,'active',?,?,?,'system',?,?)",
-    )
-    .bind(
-      id,
-      a.id,
-      a.domain,
-      a.subjectType,
-      a.subjectId,
-      scope,
-      reasonCode,
-      opts.amountMinor ?? null,
-      opts.currency?.toUpperCase() || null,
-      JSON.stringify({ manualReview: true }),
-      at,
-      opts.expiresAt || null,
-    )
-    .run();
+  const id = await dispatchPrivateRiskHold(db, String(a.id), scope, reasonCode);
   await ensureRiskCase(db, a, {
     publishingAccountId: opts.publishingAccountId,
     summary: opts.summary || `${a.domain} risk ${a.action}: ${reasonCode}`,
@@ -398,12 +384,7 @@ export async function assessBuyerOrderRisk(
     },
     { stripe: provider || {} },
   );
-  await db
-    .prepare(
-      "UPDATE commerce_orders SET risk_assessment_id=?,risk_action=?,risk_score=?,risk_level=?,updated_at=? WHERE id=?",
-    )
-    .bind(a.id, a.action, a.score, a.level, now(), orderId)
-    .run();
+  await dispatchPrivateRiskAssessmentUpdate(db, "buyer", orderId, a.id);
   await recordRiskEvent(db, {
     domain: "buyer",
     eventType: provider ? "processor_risk_update" : "checkout_assessed",
@@ -636,10 +617,7 @@ export async function assessPublisherRisk(db: CatalogDB, accountId: string, reas
     status: arow.status,
     reason,
   });
-  await db
-    .prepare("UPDATE publishing_accounts SET risk_score=?,risk_level=?,updated_at=? WHERE id=?")
-    .bind(asmt.score, asmt.level, now(), accountId)
-    .run();
+  await dispatchPrivateRiskAssessmentUpdate(db, "publisher", accountId, asmt.id);
   await recordRiskEvent(db, {
     domain: "publisher",
     eventType: "account_assessed",
@@ -822,50 +800,41 @@ export async function assessPayoutRisk(db: CatalogDB, payoutItemId: string) {
   return a;
 }
 
-export async function releaseRiskHold(db: CatalogDB, staffUserId: string, raw: unknown) {
+/** Risk holds are never released from shared D1. A private, independently
+ * authenticated owner must re-evaluate risk and atomically commit the release. */
+export async function releaseRiskHold(
+  db: CatalogDB,
+  staffUserId: string,
+  raw: unknown,
+  identity?: {
+    id: string;
+    authProvider?: string;
+    authSubject?: string;
+    aal?: "aal1" | "aal2" | null;
+  } | null,
+) {
   const x = z
-      .object({ holdId: z.string().min(1), note: z.string().trim().min(3).max(4000) })
-      .parse(raw),
-    h = await db.prepare("SELECT * FROM risk_holds WHERE id=?").bind(x.holdId).first<any>();
-  if (!h) throw new ApiError(404, "Risk hold not found.");
-  if (h.status !== "active") return { id: h.id, status: h.status };
-  if (h.hold_scope === "payout" && h.subject_type === "payout_item") {
-    const reassessment = await assessPayoutRisk(db, String(h.subject_id));
-    if (["hold", "block"].includes(reassessment.action))
-      throw new ApiError(
-        409,
-        "This payout still fails fraud, tax, payout-verification, or rights controls and cannot be released.",
-      );
-  }
-  const at = now();
-  await db
-    .prepare(
-      "UPDATE risk_holds SET status='released',released_at=?,released_by_user_id=?,release_note=? WHERE id=?",
-    )
-    .bind(at, staffUserId, x.note, h.id)
-    .run();
-  if (h.hold_scope === "payout" && h.subject_type === "payout_item")
-    await db
-      .prepare(
-        "UPDATE payout_items SET status='pending',hold_reason_code='' WHERE id=? AND status='held'",
-      )
-      .bind(h.subject_id)
-      .run();
-  await db
-    .prepare(
-      "INSERT INTO risk_case_events(id,case_id,event_type,actor_type,actor_user_id,payload_json,created_at) SELECT ?,id,'hold_released','staff',?,?,? FROM risk_cases WHERE domain=? AND subject_type=? AND subject_id=? AND status NOT IN ('resolved','closed') ORDER BY opened_at DESC LIMIT 1",
-    )
-    .bind(
-      uid("risk_ce"),
-      staffUserId,
-      JSON.stringify({ holdId: h.id, note: x.note }),
-      at,
-      h.domain,
-      h.subject_type,
-      h.subject_id,
-    )
-    .run();
-  return { id: h.id, status: "released" };
+    .object({ holdId: z.string().min(3).max(180), note: z.string().trim().min(3).max(4000) })
+    .strict()
+    .parse(raw);
+  if (
+    !identity ||
+    identity.id !== staffUserId ||
+    !identity.authProvider ||
+    !identity.authSubject ||
+    !["aal1", "aal2"].includes(identity.aal || "")
+  )
+    throw new ApiError(503, "Risk hold release requires verified staff authority.");
+  return dispatchPrivateRiskHoldRelease(db, {
+    holdId: x.holdId,
+    note: x.note,
+    actor: {
+      userId: staffUserId,
+      authProvider: identity.authProvider,
+      authSubject: identity.authSubject,
+      aal: identity.aal as "aal1" | "aal2",
+    },
+  });
 }
 
 export async function manageRiskCase(db: CatalogDB, staffUserId: string, raw: unknown) {
@@ -1215,95 +1184,10 @@ export async function upsertTaxRegistration(db: CatalogDB, raw: unknown) {
   return { id };
 }
 
+/** Financial tax status is a private-owner command. The caller may never
+ * change tax verification or withholding through its shared D1 binding. */
 export async function registerPublisherTaxVerification(db: CatalogDB, raw: unknown) {
-  const x = z
-      .object({
-        profileId: z.string().min(1),
-        provider: z.string().min(1).max(80),
-        providerEventId: z.string().min(1).max(240),
-        status: z.enum(["pending", "verified", "failed", "expired", "manual_review"]),
-        providerVerificationStatus: z.string().max(80).default(""),
-        formStatus: z.string().max(80).default(""),
-        entityType: z.string().max(80).default("unknown"),
-        taxResidencyCountry: z
-          .string()
-          .regex(/^[A-Za-z]{2}$/)
-          .default("US"),
-        tinLast4: z
-          .string()
-          .regex(/^\d{0,4}$/)
-          .default(""),
-        reportable: z.boolean().default(true),
-        withholdingBps: z.number().int().min(0).max(10000).default(0),
-        treatyRateBps: z.number().int().min(0).max(10000).nullable().optional(),
-        backupWithholdingBps: z.number().int().min(0).max(10000).default(0),
-        reasonCode: z.string().max(120).default(""),
-        validFrom: z.string().datetime().nullable().optional(),
-        expiresAt: z.string().datetime().nullable().optional(),
-        nextReviewAt: z.string().datetime().nullable().optional(),
-        normalized: z.record(z.string(), z.unknown()).default({}),
-      })
-      .parse(raw),
-    profile = await db
-      .prepare("SELECT * FROM publishing_tax_profiles WHERE id=?")
-      .bind(x.profileId)
-      .first<any>();
-  if (!profile) throw new ApiError(404, "Publisher tax profile not found.");
-  const effective =
-      x.status === "verified"
-        ? (x.treatyRateBps ?? x.withholdingBps)
-        : Math.max(x.withholdingBps, x.backupWithholdingBps),
-    at = now(),
-    payload = JSON.stringify(x.normalized);
-  await db.batch([
-    db
-      .prepare(
-        `UPDATE publishing_tax_profiles SET status=?,withholding_bps=?,valid_from=?,expires_at=?,validated_at=?,reason_code=?,updated_at=?,entity_type=?,tax_residency_country=?,tin_last4=?,provider_verification_status=?,form_status=?,reportable=?,treaty_rate_bps=?,backup_withholding_bps=?,effective_withholding_bps=?,compliance_snapshot_json=?,next_review_at=? WHERE id=?`,
-      )
-      .bind(
-        x.status,
-        x.withholdingBps,
-        x.validFrom || profile.valid_from || null,
-        x.expiresAt || null,
-        x.status === "verified" ? at : null,
-        x.reasonCode,
-        at,
-        x.entityType,
-        x.taxResidencyCountry.toUpperCase(),
-        x.tinLast4,
-        x.providerVerificationStatus || x.status,
-        x.formStatus || x.status,
-        x.reportable ? 1 : 0,
-        x.treatyRateBps ?? null,
-        x.backupWithholdingBps,
-        effective,
-        payload,
-        x.nextReviewAt || null,
-        x.profileId,
-      ),
-    db
-      .prepare("UPDATE publishing_accounts SET tax_status=?,updated_at=? WHERE id=?")
-      .bind(x.status, at, profile.account_id),
-    db
-      .prepare(
-        "INSERT OR IGNORE INTO publisher_tax_verification_events(id,tax_profile_id,provider,provider_event_id,event_type,status,reason_code,payload_hash,normalized_json,occurred_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-      )
-      .bind(
-        uid("ptaxevt"),
-        x.profileId,
-        x.provider,
-        x.providerEventId,
-        "verification_update",
-        x.status,
-        x.reasonCode,
-        await sha256(payload),
-        payload,
-        at,
-        at,
-      ),
-  ]);
-  await assessPublisherRisk(db, String(profile.account_id), "tax_verification_update");
-  return { profileId: x.profileId, status: x.status, effectiveWithholdingBps: effective };
+  return dispatchPrivatePublisherTaxVerification(db, raw);
 }
 
 export async function effectivePublisherWithholding(db: CatalogDB, partyId: string, at = now()) {

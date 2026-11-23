@@ -100,3 +100,25 @@ test("older private legal-owner QA never exposes a deploy or D1 secret to PR cod
   assert.ok(!src.includes("secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN"));
   assert.ok(!src.includes("secrets.COVE_CF_PAID_QA_D1_WRITE_TOKEN"));
 });
+
+test("disabled production legal owner uses three distinct non-D1 principals",()=>{
+  const workflow=readFileSync(".github/workflows/production-legal-owner-locked.yml","utf8");
+  const checker=readFileSync("scripts/check-locked-production-legal-owner.mjs","utf8");
+  assertScopedStageWorkerWorkflow(workflow);
+  for(const credential of [
+    "secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN",
+    "secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN",
+    "secrets.COVE_CF_ZONE_ROUTES_READ_TOKEN",
+  ]) assert.ok(workflow.includes(credential),"Missing independent scoped credential: "+credential);
+  assert.doesNotMatch(workflow,/secrets\.CLOUDFLARE_API_TOKEN\b/,
+    "Disabled owner must not deploy using broad D1-write credential");
+  assert.ok(workflow.includes('test "$CLOUDFLARE_API_TOKEN" != "$COVE_CF_WORKERS_METADATA_READ_TOKEN"'));
+  assert.ok(workflow.includes('test "$CLOUDFLARE_API_TOKEN" != "$COVE_CF_ZONE_ROUTES_READ_TOKEN"'));
+  assert.ok(workflow.includes('test "$COVE_CF_WORKERS_METADATA_READ_TOKEN" != "$COVE_CF_ZONE_ROUTES_READ_TOKEN"'));
+  assert.ok(checker.includes("process.env.COVE_CF_WORKERS_METADATA_READ_TOKEN"));
+  assert.ok(!checker.includes("process.env.CLOUDFLARE_API_TOKEN"),
+    "Live owner settings check must not reuse privileged deploy principal");
+  assert.ok(workflow.includes("node scripts/check-locked-production-legal-owner.mjs --live"));
+  assert.ok(workflow.includes("node scripts/check-live-production-cutover.mjs --audit"));
+  assert.ok(workflow.includes("inputs.confirm_protected_cloudflare_action == true"));
+});
