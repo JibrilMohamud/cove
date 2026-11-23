@@ -6,6 +6,8 @@ on:
       - "src/lib/persistence-backend.ts"
       - "src/lib/persistence-backend-failure.ts"
       - "src/persistence-backend.worker.ts"
+      - "src/lib/cron-result-guard.ts"
+      - "scripts/test-cron-result-guard.mjs"
       - "src/lib/catalog-ingestion-backpressure.ts"
       - "src/lib/primary-d1-overload.ts"
       - "scripts/check-isolated-http-metric.mjs"
@@ -73,6 +75,8 @@ on:
       - "src/lib/persistence-backend.ts"
       - "src/lib/persistence-backend-failure.ts"
       - "src/persistence-backend.worker.ts"
+      - "src/lib/cron-result-guard.ts"
+      - "scripts/test-cron-result-guard.mjs"
       - "src/lib/catalog-ingestion-backpressure.ts"
       - "src/lib/primary-d1-overload.ts"
       - "scripts/check-primary-d1-overload-fail-closed.mjs"
@@ -152,8 +156,10 @@ jobs:
         run: node --test scripts/staging/strict-credential-denial.test.mjs
       - name: Require exact private verifier 404 across transient Worker edge responses
         run: node --test scripts/staging/strict-ephemeral-route-denial.test.mjs
+      - name: Scheduled owner receipts and cron failures are fail-closed
+        run: node scripts/test-cron-result-guard.mjs
       - name: Persistence TypeScript lint
-        run: npx eslint src/lib/persistence-backend.ts src/persistence-backend.worker.ts
+        run: npx eslint src/lib/persistence-backend.ts src/persistence-backend.worker.ts src/lib/cron-result-guard.ts
       - name: Primary D1 overload does not trigger recursive error writes
         run: node scripts/check-primary-d1-overload-fail-closed.mjs
       - name: Failed public HTTP audit records cannot disappear silently
