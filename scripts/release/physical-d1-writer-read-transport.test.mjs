@@ -92,15 +92,20 @@ test('canonical read-group queries are fixed GET-only; arbitrary or mutation loo
  for(const name of ['API Tokens Read','User Details Read','Account Analytics Read']){
    await client.get('/user/tokens/permission_groups?name='+encodeURIComponent(name),TOKEN);
  }
- assert.equal(requested.length,3);
+ // A single exact list of the provider's CURRENT immutable permission IDs is
+ // permitted for read-only alias proof. It never accepts a query, token write,
+ // owner configuration, scope escalation or arbitrary API endpoint.
+ await client.get('/user/tokens/permission_groups',TOKEN);
+ assert.equal(requested.length,4);
  for(const path of [
-   '/user/tokens/permission_groups',
+   '/user/tokens/permission_groups?name=Account%20Settings%20Read',
+   '/user/tokens/permission_groups?scope=com.cloudflare.api.account',
    '/user/tokens/permission_groups?name=D1%20Write',
    '/user/tokens/permission_groups?name=Account%20Analytics%20Write',
    '/user/tokens/permission_groups?name=Account%20Analytics%20Read&page=2',
    '/user/tokens/permission_groups?name=API%20Tokens%20Write'
  ])await assert.rejects(()=>client.get(path,TOKEN),/writer_audit_endpoint_denied/);
- assert.equal(requested.length,3);
+ assert.equal(requested.length,4);
 });
 test('release script requires separate protected scopes and repeats Worker revision list',()=>{
  const code=readFileSync('scripts/release/certify-exclusive-primary-d1.mjs','utf8');
