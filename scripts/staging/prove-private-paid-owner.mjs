@@ -316,7 +316,14 @@ const read=async(route,body)=>{
   for(let i=0;i<10;i++){
     try {result=await post(route,body);}
     catch(e){if(i===9)throw e;await pause(800);continue;}
-    if(result.status===200||![404,503].includes(result.status))return result;
+    // One QA journal challenge is read-only, carries no positive authority,
+    // and has a signed nonce checked by readPaidOwnerFence. Transient DO
+    // bootstrap HTTP 500 may be retried ONLY for that exact audit route.
+    // Never retry ambiguous 500s for payments, rights or owner mutations.
+    const journalRead=route==="/qa/current-mutation-fence" &&
+      typeof body?.challenge==="string" && /^[a-f0-9]{32}$/.test(body.challenge);
+    if(result.status===200||
+       ![404,503,...(journalRead?[500]:[])].includes(result.status))return result;
     if(i<9)await pause(800);
   }
   return result;

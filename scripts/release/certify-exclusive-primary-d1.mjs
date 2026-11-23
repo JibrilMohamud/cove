@@ -73,8 +73,16 @@ async function proveUnreviewedUserGroupsReadOnly(get,userToken,userTokens){
       return "read_group_catalog_page_invalid";
     verifiedIds.set(rows[0].id,alias);
   }
-  return unreviewed.every(group=>verifiedIds.get(group.id)===group.name)
-    ?null:"read_group_alias_identifier_mismatch";
+  // Provider-scoped alias diagnostics expose only one of four code-owned
+  // categories, never group IDs, names, token identities or raw payloads.
+  const mismatch=unreviewed.find(group=>verifiedIds.get(group.id)!==group.name);
+  if(!mismatch)return null;
+  const category={
+    "API Tokens":"api_tokens",
+    "User Details":"user_details",
+    "Account Analytics":"account_analytics",
+  }[mismatch.name]||"unrecognized";
+  return "read_group_alias_identifier_mismatch_"+category;
 }
 function tokenHasUnreviewedPermissions(token){
   return Array.isArray(token?.policies)&&token.policies.some(p=>
