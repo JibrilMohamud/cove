@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Preserve verified fail-closed credential routing during the scoped cutover. */
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { spawnSync } from "node:child_process";
