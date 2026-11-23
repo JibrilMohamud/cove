@@ -1,0 +1,18 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Remove ten duplicate shared publishing helper SQL sites while connecting verified materialization and activation to the existing unexported private helpers. Move four R2-verified regional asset-repair sites into a fixed private owner command and test the actual owner/caller path. Preserve original SQL identities and immutable prior source lineage; no scanner exemption or deployed production certification is added.",
+  "retirementEvidence": "docs/architecture/retired-publication-helpers-owner.md",
+  "files": [
+    {
+      "path": "src/features/fore/publishing.server.ts",
+      "sha256": "228ca01545a8c1cd1726cca8de49c8ec2bd4155c178bd7c3fa35c8e1b84a5139",
+      "review": "Verified public HTTP, scheduler, operator and private materialization/activation call paths. Shared publishing lifecycle creation and private-party executors are removed; regional repair forwards only cursor/limit and has no local canonical SQL fallback. Read-only lifecycle lookup is retained."
+    },
+    {
+      "path": "src/features/fore/regional-epub-asset-repair.server.ts",
+      "sha256": "27322f92d09b409c0913cdc96e523f0b610999a685a325fd3a0642fdb98c0443",
+      "review": "Verified public HTTP, scheduler, operator and private materialization/activation call paths. Shared publishing lifecycle creation and private-party executors are removed; regional repair forwards only cursor/limit and has no local canonical SQL fallback. Read-only lifecycle lookup is retained."
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+name: private-support-owner-retirement
+on:
+  pull_request:
+    paths:
+      - "src/features/fore/support.server.ts"
+      - "src/storefront-strangler/legal-authority.worker.ts"
+      - "src/storefront-strangler/publication-owner-routing.server.ts"
+      - "src/storefront-strangler/canonical-owner-command-gateway.ts"
+      - "docs/architecture/canonical-writer-review.json"
+      - "scripts/check-retired-support-owner-actions.mjs"
+      - ".github/workflows/private-support-owner-retirement.yml"
+permissions: {contents: read}
+jobs:
+  source-owner-lock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v6
+        with: {node-version: "22"}
+      - run: npm ci --no-audit --no-fund
+      - run: node scripts/check-retired-support-owner-actions.mjs
+      - run: node scripts/test-owner-support-actions.mjs
+      - run: node scripts/reconcile-canonical-writers.mjs
+      - run: npm run typecheck

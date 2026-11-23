@@ -54,7 +54,7 @@ function fixture(){
           schema:"cove.qa.current-owner-sql-journal.v1",
           authorizing:false,challenge:body.challenge,journalVersion:version,
           mutationEpoch:String(state.epoch),primaryId:qaId,
-          rehearsalRevision:state.revision,tables:24,triggers:78,
+          rehearsalRevision:state.revision,tables:27,triggers:87,
         },{headers:{"cache-control":"no-store"}});
       }
       assert.equal(route,"/qa/positive-generation-certificate");

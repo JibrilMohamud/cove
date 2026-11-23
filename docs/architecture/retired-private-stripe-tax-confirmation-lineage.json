@@ -1,0 +1,32 @@
+{
+  "schema": "cove.retired-private-stripe-tax-confirmation-lineage.v1",
+  "releaseApproval": false,
+  "productionCertified": false,
+  "sourceBefore": 23,
+  "sourceAfter": 21,
+  "sourceFile": "src/features/fore/commerce.server.ts",
+  "previousSha256": "65f167c2bdf252936372106347084a1523fed98d507717c746d4c31b8db2c81c",
+  "currentSha256": "7d9cf94252eb2758d3861d8ab2a347bc249f3ba8840ec117b119c2ba166cd146",
+  "retired": [
+    {
+      "file": "src/features/fore/commerce.server.ts",
+      "line": 978,
+      "functionName": "recordTaxTransaction",
+      "table": "commerce_orders",
+      "operation": "UPDATE",
+      "siteId": "90eb4489d8b1446c2f259c8bedf8ee5b63d69f90cef92d0b1b0044baf54e4985",
+      "sqlSha256": "b8c477d89f0540052006925b994bb8b0ca92af9df8e7f624c8e67b028503f404",
+      "ownerRoute": "/commercial/tax/confirm"
+    },
+    {
+      "file": "src/features/fore/commerce.server.ts",
+      "line": 1620,
+      "functionName": "applyRefundSuccess",
+      "table": "commerce_refunds",
+      "operation": "UPDATE",
+      "siteId": "5499f90521da010d28dd078a58fc8b14299b2ddeb619f537039e84ca4acae76f",
+      "sqlSha256": "a71e875a1964881481e902d291526f1241e0fc5f71090962402962fe700505a7",
+      "ownerRoute": "/commercial/tax/confirm"
+    }
+  ]
+}

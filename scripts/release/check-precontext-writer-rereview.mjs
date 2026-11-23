@@ -32,6 +32,34 @@ const originalFile=execFileSync("git",["show",BASE+":"+SOURCE],{
   encoding:"utf8",maxBuffer:1024*1024,
 });
 const candidate=readFileSync(SOURCE,"utf8");
+// The October owner migration deliberately removes the 33 historical API
+// canonical writers. The old diagnostic-only proof (below) cannot claim this
+// API file is unchanged. Admit ONLY the independently pinned integrated source
+// bytes, and require an exact zero-authorizing-site review plus all four
+// precontext diagnostics. Any further code edit requires a new source review;
+// neither path is production release approval.
+// Re-reviewed 2026-11-23: guest-only single-snapshot/R2 deferral; zero protected
+// API SQL writers, original four precontext denial markers unchanged.
+const INTEGRATED_API_SHA256="ba30108f629d7e8c6c488ac34f831ce1f36814f96c4c4f9c0763418db78ed262";
+if(createHash("sha256").update(candidate).digest("hex")===INTEGRATED_API_SHA256){
+  assert.ok(candidate.includes(HELPER),"Integrated API lost bounded diagnostic helper");
+  for(const [added] of PATCHES)
+    assert.ok(candidate.includes(added),"Integrated API lost a reviewed precontext marker");
+  const integratedReview=JSON.parse(readFileSync(REVIEW,"utf8"));
+  assert.equal(integratedReview.releaseApproval,false);
+  const integratedSites=currentWriterSites();
+  const integratedResult=reconcileWriterSites(integratedSites,integratedReview);
+  assert.deepEqual(integratedResult.unknown,[],"Integrated source contains unreviewed protected SQL");
+  assert.deepEqual(integratedResult.stale,[],"Reviewed integrated SQL sites drifted");
+  assert.equal(integratedSites.filter(x=>x.file===SOURCE).length,0,
+    "Integrated API must have no remaining protected source SQL");
+  assert.equal(integratedReview.sites.filter(x=>x.disposition==="owner-command-required").length,0,
+    "Owner migration cannot leave direct protected source writers");
+  assert.ok(integratedReview.sites.every(x=>x.productionOwnerGuarded===false),
+    "A source proof cannot claim physical production ownership");
+  console.log("PASS: exact pinned migrated API, zero owner-required source SQL, and unchanged bounded precontext diagnostics; deployed authority still NO-GO.");
+  process.exit(0);
+}
 function exactReplaceOnce(haystack,needle,replacement) {
   assert.ok(needle.length>0&&haystack.split(needle).length===2,
     "Expected one and only one reviewed diagnostic insertion");

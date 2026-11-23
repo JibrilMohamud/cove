@@ -1,0 +1,35 @@
+/* eslint-disable prettier/prettier -- Owner QA is no substitute for a production positive proof. */
+import {assertPublishingOwnerSourceLineage} from "./check-publishing-owner-source-lineage.mjs";
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+import {createHash} from "node:crypto";
+const get=p=>readFileSync(p,"utf8");
+const source=get("src/features/fore/publishing.server.ts"),owner=get("src/storefront-strangler/legal-authority.worker.ts");
+const gateway=get("src/storefront-strangler/canonical-owner-command-gateway.ts");
+const routing=get("src/storefront-strangler/publication-owner-routing.server.ts");
+const review=JSON.parse(get("docs/architecture/canonical-writer-review.json")),lineage=JSON.parse(get("docs/architecture/retired-owner-publishing-onboarding-lineage.json"));
+const evidence=JSON.parse(get("docs/architecture/retired-owner-publishing-onboarding-attestation-20261030.json"));
+const stagedSourceSha=assertPublishingOwnerSourceLineage();
+assert.equal(createHash("sha256").update(source).digest("hex"),stagedSourceSha,
+ "The 30-site publisher editor source requires exact new SHA attestation");
+assert.notEqual(stagedSourceSha,evidence.files[0].sha256,
+ "The old four-site publisher onboarding attestation must remain historically frozen");
+assert.equal(lineage.updatedSourceSha256,evidence.files[0].sha256);
+assert.equal(lineage.retiredCount,4);assert.equal(review.releaseApproval,false);
+assert.ok(review.sites.filter(x=>x.disposition==="owner-command-required").length<=245,"Subsequent independently certified retirements may only reduce owner-required count");
+assert.equal(review.sites.filter(x=>x.file==="src/features/fore/publishing.server.ts"&&x.disposition==="owner-command-required").length,0);
+for(const r of lineage.rows)assert.ok(!review.sites.some(x=>x.siteId===r.siteId));
+const method=source.slice(source.indexOf("export async function reviewPublishingOnboarding("),source.indexOf("export async function publishingSnapshot("));
+assert.match(method,/if \(!hasPublicationOwner\(db\)\)/);
+assert.match(method,/dispatchPublishingOnboardingReview\(db,/);
+assert.doesNotMatch(method,/\b(?:UPDATE|DELETE FROM|INSERT INTO)\s+publishing_/i);
+assert.match(gateway,/"publishing\.review-onboarding":\{path:"\/publishing\/onboarding\/review"/);
+assert.match(gateway,/case "publishing\.review-onboarding":/);
+assert.match(routing,/"publishing\.review-onboarding",\{\.\.\.command,operationId\}/);
+assert.ok(owner.includes('if(route==="/publishing/onboarding/review")'));
+assert.match(owner,/SELECT user_id FROM staff_principals WHERE user_id=\? AND status='active'/);
+assert.match(owner,/SELECT p.permission FROM staff_principal_roles pr JOIN staff_role_permissions p/);
+assert.match(owner,/if\(input.status==="verified"\|\|input.withholdingBps!==undefined/);
+assert.match(owner,/await env.PRIMARY_DB.batch\(statements\)/);
+assert.match(owner,/if \(!qaOwnerLeaseLive\(env\)\)/);
+console.log("PASS: historical onboarding and lifecycle helpers are private QA only; shared publishing authorizing writers are retired and production remains locked");

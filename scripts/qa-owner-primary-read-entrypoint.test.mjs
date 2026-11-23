@@ -84,7 +84,8 @@ test("without any D1 binding a signed, QA-only backend performs catalog SELECT v
   assert.equal((await x.DB.prepare("SELECT id FROM products").all()).results.length, 1);
   assert.equal((await x.DB.batch([x.DB.prepare("SELECT 1"), x.DB.prepare("SELECT 2")])).length, 2);
   assert.throws(() => x.DB.prepare("UPDATE qa_probe_rows SET id='x'"), /qa_owner_read_denied/);
-  assert.throws(() => x.DB.withSession("first-primary"), /qa_owner_read_denied/);
+  assert.throws(() => x.DB.withSession("first-unconstrained"), /qa_owner_read_denied/);
+  assert.equal(x.DB.withSession("first-primary").getBookmark(), null);
   assert.equal(Object.hasOwn(x, "PRIMARY_DB"), false);
 });
 test("absence of a QA flag is a strict no-op, including the real legacy native DB", () => {

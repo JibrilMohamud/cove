@@ -8,6 +8,7 @@
  */
 import type { CoveEnv } from "../features/fore/api.server";
 import { createQaOwnerReadOnlyD1 } from "./qa-owner-primary-read-transport.mjs";
+import { bindPublicationOwner } from "./publication-owner-routing.server";
 
 const QA_PRIMARY_IDS = new Set([
   "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87",
@@ -24,6 +25,7 @@ type QaReadEnv = CoveEnv & {
   COVE_RIGHTS_OWNER_TEST_EXPIRES_AT?: string;
   COVE_OWNER_EXCLUSIVE_WRITER_FENCE?: string;
   COVE_COMMERCE_OWNER_D1_FENCE?: string;
+  FORE_DEFAULT_TERRITORY?: string;
 };
 export function scopeQaOwnerUnboundPrimaryRead<T extends QaReadEnv>(env: T): T {
   const flag = env.COVE_QA_OWNER_UNBOUND_READ_ENABLED;
@@ -53,5 +55,13 @@ export function scopeQaOwnerUnboundPrimaryRead<T extends QaReadEnv>(env: T): T {
   const owner = env.LEGAL_AUTHORITY.getByName("cove-staged-legal-global-v1");
   if (!owner || typeof owner.fetch !== "function")
     throw Error("qa_unbound_primary_read_not_certified");
-  return { ...env, DB: createQaOwnerReadOnlyD1(owner, env.COVE_RIGHTS_OWNER_SECRET!) } as T;
+  return {
+    ...env,
+    DB: bindPublicationOwner(createQaOwnerReadOnlyD1(owner, env.COVE_RIGHTS_OWNER_SECRET!), {
+      owner,
+      secret: env.COVE_RIGHTS_OWNER_SECRET!,
+      territory: env.FORE_DEFAULT_TERRITORY || "US",
+      currency: "USD",
+    }),
+  } as T;
 }

@@ -1,0 +1,55 @@
+{
+  "schema": "cove.retired-moderation-owner-lineage.v1",
+  "base": "security/retire-publication-helpers-owner-20261031",
+  "sourceCountBefore": 70,
+  "sourceCountAfter": 65,
+  "productionCertified": false,
+  "releaseApproval": false,
+  "retired": [
+    {
+      "file": "src/features/fore/moderation.server.ts",
+      "siteId": "e1161ab209f2b7f5b6b91c0e29cca5e8a0f447ea07d085cf8b063252d9438735",
+      "line": 976,
+      "table": "publishing_accounts",
+      "operation": "UPDATE",
+      "sqlSha256": "ec6dae2877a380fe00a287c991b7181439140fcc0eb41027e0ace894085142e0",
+      "privateExecutor": "CoveLegalAuthority.privateModeration.executeModerationAction"
+    },
+    {
+      "file": "src/features/fore/moderation.server.ts",
+      "siteId": "d60e4744a7f42c367a9946b9a8f9174db28639c2f8c087c9d3b01446444c5814",
+      "line": 1036,
+      "table": "publishing_release_lifecycles",
+      "operation": "UPDATE",
+      "sqlSha256": "ca0ffd6aa75023548cf6a39486e6dc4638ff6226ac2447d9094de1242d3b4664",
+      "privateExecutor": "CoveLegalAuthority.privateModeration.executeModerationAction"
+    },
+    {
+      "file": "src/features/fore/moderation.server.ts",
+      "siteId": "bb9e9b4503011d6517541c7cd04deba7af220b57e6d2c829994d29159a45fd12",
+      "line": 1051,
+      "table": "products",
+      "operation": "UPDATE",
+      "sqlSha256": "7afa591b41b01a8dfe658ab7a56764c263aefbb5f88f564fe0b65fb8a0edc870",
+      "privateExecutor": "CoveLegalAuthority.privateModeration.executeModerationAction"
+    },
+    {
+      "file": "src/features/fore/moderation.server.ts",
+      "siteId": "104706ae5db917e5c3c79f34128862be4b4480717bd3e2a72b96a71702134d9a",
+      "line": 1059,
+      "table": "editions",
+      "operation": "UPDATE",
+      "sqlSha256": "eabb9b9a1d85e27c614cbf187b591853ad341e4b4319d15241f25df5a47e9501",
+      "privateExecutor": "CoveLegalAuthority.privateModeration.executeModerationAction"
+    },
+    {
+      "file": "src/features/fore/moderation.server.ts",
+      "siteId": "1287233d24566fca60b5a994a1ae0329b67a40f3187d378024fd6f050a6b1b18",
+      "line": 1066,
+      "table": "publishing_lifecycle_events",
+      "operation": "INSERT INTO",
+      "sqlSha256": "99098fc21a53291ad304735f04c950f5af7bde4acfb82ec445808835b33e5824",
+      "privateExecutor": "CoveLegalAuthority.privateModeration.executeModerationAction"
+    }
+  ]
+}

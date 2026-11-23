@@ -88,7 +88,7 @@ test("verified all() batches preserve server D1 read batch, never allow foreign 
   await assert.rejects(db.batch([]), /qa_owner_read_denied/);
   await assert.rejects(db.batch(Array(25).fill(a)), /qa_owner_read_denied/);
 });
-test("reject DML, CTEs, SQL comments, stacked queries, administrative statements and malformed params", () => {
+test("reject DML, mutating CTEs, SQL comments, stacked queries, administrative statements and malformed params", () => {
   const attempts = [
     "INSERT INTO qa_probe_rows VALUES(1)",
     "UPDATE qa_probe_rows SET status='active'",
@@ -112,15 +112,122 @@ test("reject DML, CTEs, SQL comments, stacked queries, administrative statements
   for (const sql of attempts) assert.throws(() => d.prepare(sql), /qa_owner_read_denied/);
   assert.throws(() => d.prepare("SELECT 1").bind({ a: 1 }), /qa_owner_read_denied/);
 });
-test("no raw D1, mutating run, exec or faux first-primary session can escape", () => {
+test("no raw D1, mutating run, exec or unsupported session can escape", () => {
   const d = createQaOwnerReadOnlyD1(leasedOwner(), SECRET);
   assert.throws(() => d.prepare("SELECT 1").run(), /qa_owner_read_denied/);
   assert.throws(() => d.prepare("SELECT 1").raw(), /qa_owner_read_denied/);
   assert.throws(() => d.exec("SELECT 1"), /qa_owner_read_denied/);
-  assert.throws(() => d.withSession("first-primary"), /qa_owner_read_denied/);
+  assert.throws(() => d.withSession("first-unconstrained"), /qa_owner_read_denied/);
+  assert.throws(() => d.withSession("unknown"), /qa_owner_read_denied/);
+  assert.throws(
+    () => d.withSession("first-primary").withSession("first-primary"),
+    /qa_owner_read_denied/,
+  );
   assert.throws(
     () => createQaOwnerReadOnlyD1({ fetch: async () => {} }, "wrong"),
     /qa_owner_read_denied/,
+  );
+});
+test("first-primary read starts on actual D1 primary and advances owner-issued bookmark across requests", async () => {
+  const modes = [];
+  let next = 0;
+  const database = {
+    prepare() {
+      throw new Error("session must own all native reads");
+    },
+    withSession(mode) {
+      modes.push(mode);
+      const version = ++next;
+      const prepare = (sql, args = []) => ({
+        bind(...params) {
+          return prepare(sql, params);
+        },
+        async first() {
+          return { version, sql, args };
+        },
+        async all() {
+          return { results: [{ version, sql, args }] };
+        },
+      });
+      return {
+        prepare,
+        async batch(statements) {
+          return Promise.all(statements.map((statement) => statement.all()));
+        },
+        getBookmark() {
+          return "owner_bm_" + version;
+        },
+      };
+    },
+  };
+  const session = createQaOwnerReadOnlyD1(leasedOwner(database), SECRET).withSession(
+    "first-primary",
+  );
+  assert.equal(session.getBookmark(), null);
+  const first = await session
+    .prepare("WITH eligible AS (SELECT id FROM products) SELECT id FROM eligible")
+    .first();
+  assert.equal(first.version, 1);
+  assert.equal(session.getBookmark(), "owner_bm_1");
+  const nextRead = await session.prepare("SELECT * FROM works").all();
+  assert.equal(nextRead.results[0].version, 2);
+  assert.equal(session.getBookmark(), "owner_bm_2");
+  assert.deepEqual(modes, ["first-primary", "owner_bm_1"]);
+  const two = await session.batch([
+    session.prepare("SELECT id FROM books WHERE id=?").bind("bk_1"),
+    session.prepare("SELECT id FROM books WHERE id=?").bind("bk_2"),
+  ]);
+  assert.equal(two.length, 2);
+  assert.deepEqual(modes, ["first-primary", "owner_bm_1", "owner_bm_2"]);
+  assert.equal(session.getBookmark(), "owner_bm_3");
+  assert.throws(() => session.prepare("UPDATE qa_probe_rows SET id='bad'"), /qa_owner_read_denied/);
+  assert.throws(() => session.prepare("SELECT 1").run(), /qa_owner_read_denied/);
+});
+test("overlapping bookmarked reads serialize and a lost owner acknowledgment poisons the whole session", async () => {
+  const seen = [];
+  const deferred = [];
+  const gateway = {
+    async fetch(request) {
+      const body = await request.json();
+      seen.push(body.session?.bookmark ?? null);
+      return new Promise((resolve) => deferred.push(resolve));
+    },
+  };
+  const session = createQaOwnerReadOnlyD1(gateway, SECRET).withSession("first-primary");
+  const first = session.prepare("SELECT 1").first();
+  const second = session.prepare("SELECT 2").first();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(seen, [null], "Concurrent session requests may not reuse a bookmark");
+  deferred.shift()(
+    Response.json(
+      { schema: QA_OWNER_PRIMARY_READ_SCHEMA, result: [{ ok: 1 }], bookmark: "owner_bm_1" },
+      { headers: { "cache-control": "no-store" } },
+    ),
+  );
+  await first;
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(seen, [null, "owner_bm_1"]);
+  deferred.shift()(
+    Response.json(
+      { schema: QA_OWNER_PRIMARY_READ_SCHEMA, result: [{ ok: 2 }], bookmark: "owner_bm_2" },
+      { headers: { "cache-control": "no-store" } },
+    ),
+  );
+  assert.equal((await second).ok, 2);
+  const failing = createQaOwnerReadOnlyD1(
+    {
+      async fetch() {
+        return new Response(null, { status: 503 });
+      },
+    },
+    SECRET,
+  ).withSession("first-primary");
+  await assert.rejects(failing.prepare("SELECT 1").first(), /qa_owner_read_denied/);
+  assert.equal(failing.getBookmark(), null);
+  await assert.rejects(
+    failing.prepare("SELECT 2").first(),
+    /qa_owner_read_denied/,
+    "A failed session cannot start fresh after a lost response",
   );
 });
 test("denied lease, wrong secret, wrong path, wrong method, malformed schemas fail before native D1", async () => {
@@ -219,5 +326,5 @@ test("transport rejects unavailable owner, forged receipt, missing no-store and 
   }
 });
 console.log(
-  "PASS: QA-only D1-unbound owner read transport rejects write, forged receipts, unsafe sessions and missing authorization",
+  "PASS: QA owner D1 read transport preserves primary bookmarks, serializes sessions and rejects unauthorized writes and malformed receipts",
 );

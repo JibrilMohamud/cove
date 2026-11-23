@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Reviewed 11 historical owner-required protected SQL mutation sites and confirmed exact physical removal of the shared D1 restoration, royalty release and timer-driven positive reinstatement. Their replacement is deliberately unavailable, the staff entry point rejects all restoration/royalty release before other writes, and due timer events fail conspicuously without false restored notices. All other copyright takedown and notice sites remain owner-required and unmodified. This is not live owner certification.",
+  "files": [
+    {
+      "path": "src/features/fore/publishing-trust.server.ts",
+      "sha256": "005a41726dda1ec55d44b468aff3a54744190af8ea3dd587ae111cdeaba26595",
+      "review": "Source-level owner-required retirement audited against the exact original site IDs and SQL digests; no shared trust restoration, finance release or deadline mutation remains, and the two caller branches reject positive authority before side effects."
+    }
+  ],
+  "retirementEvidence": "docs/architecture/retired-unowned-restoration-20261030.md"
+}

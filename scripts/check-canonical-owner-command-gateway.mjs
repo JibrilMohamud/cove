@@ -87,6 +87,24 @@ try{
       productId,editionId:"ed_gateway_01",workId:"wrk_gateway_01",releaseState:"live",versionNumber:1,
       ownerUpdatePolicy:"auto_update",accessPublished:true
     }]);
+  tests.push(["finance.owner-action",{action:"createFinanceParty",args:[{type:"publisher",displayName:"QA"}],
+    actorUserId:userId,operationId:"finance:"+"a".repeat(64)},"/finance/private-action",{
+    schema:"cove.private-finance-qa.v1",ownerFirst:true,action:"createFinanceParty",actorUserId:userId,
+    operationId:"finance:"+"a".repeat(64),result:{id:"party_qa"}
+  }]);
+  tests.push(["account.owner-action",{action:"erasure-tick",limit:5},"/account/private-action",{
+    schema:"cove.private-account-qa.v1",ownerFirst:true,action:"erasure-tick",userId:null,
+    result:{processed:2,completed:1,blocked:1,retrying:0}
+  }]);
+  tests.push(["account.owner-action",{action:"touch-session",userId,
+    sessionHash:"c".repeat(64),userAgentSummary:"QA reader",ipCountry:"US"},
+    "/account/private-action",{schema:"cove.private-account-qa.v1",
+      ownerFirst:true,action:"touch-session",userId,
+      result:{sessionId:"sess_00000000-0000-4000-8000-000000000001"}}]);
+  tests.push(["catalog.repair-regional-assets",{after:"",limit:2},"/catalog/repair-regional-assets",{
+    schema:"cove.private-regional-epub-repair.v1",ownerFirst:true,after:"",limit:2,
+    result:{scanned:1,repaired:1,missingOrMismatched:0,conflicts:0,nextAfter:"pgau_123",maybeMore:false}
+  }]);
   let calls=0;
   for(const [kind,body,path,receipt] of tests){
     const writer=kind.startsWith("rights.");
@@ -120,6 +138,14 @@ try{
       operations:[{sourceId:"123",operationId},{sourceId:"123",operationId:"replay:02"}]}],
     ["rights.publish-retail",{...tests[12][1],productId:"prd_gutenberg_123"}]
   ];
+  invalid.push(["account.owner-action",{
+    action:"touch-session",userId,sessionHash:"not_a_digest",
+    userAgentSummary:"QA reader",ipCountry:"US"
+  }]);
+  invalid.push(["account.owner-action",{
+    action:"touch-session",userId,sessionHash:"c".repeat(64),
+    userAgentSummary:"QA reader",ipCountry:"US",cookie:"raw_cookie"
+  }]);
   for(const [kind,payload] of invalid){
     let called=false;
     await assert.rejects(()=>invoke({async fetch(){called=true;throw Error("unexpected");}},

@@ -1,0 +1,75 @@
+{
+  "schema": "cove.retired-support-owner-actions.v1",
+  "releaseApproval": false,
+  "fromOwnerRequired": 217,
+  "toOwnerRequired": 209,
+  "retiredSiteIds": [
+    "5419ff9f014ba6273be37a2b8aeec07feaa54a32eaa4d0d55bf7588c8fb69600",
+    "ac94bdf2d8d1e5b937186610f0a17bf40e9fce2f4c68f2237352c8c78023fc8a",
+    "a62d7cfeac5ffa3a8c2776407ec8e0dad5e503e4fe47a65d1990cf926017302d",
+    "08ef97ce0967e76555ac7ed63618d0905b8ebfc155d85e8bbf9e9e8e14aab1d7",
+    "7c4327603065f0fb37d64760b314264fe3389ca5103973042a13e4f57be04dbc",
+    "315a011cf72b4956b56c57b80a00f5b26bb2c3e8cebc846c66ddeea5a29b4e8a",
+    "036918e08ec9506174bf368a9d1b879680d0a34957a4c3ea66b2ac8af92757a2",
+    "7352c578cacd28f79733fa7e4da7ab34380d2a019b168d2b0edeea14a0d80348"
+  ],
+  "retiredSites": [
+    {
+      "functionName": "executeSupportAction",
+      "table": "publishing_outbox",
+      "operation": "INSERT INTO",
+      "sqlSha256": "5721922c5fdba23924f626d30b3c9b548617d86abec3cd3edf2a10202ff43078"
+    },
+    {
+      "functionName": "executeSupportAction",
+      "table": "entitlements",
+      "operation": "UPDATE",
+      "sqlSha256": "88d4191c000c38500705bf73918181d10e405acb426c415854b92981d6d9825c"
+    },
+    {
+      "functionName": "executeSupportAction",
+      "table": "audio_offline_licenses",
+      "operation": "UPDATE",
+      "sqlSha256": "5ac6ed2a3ba6839ef31cf48f8a2383fa1f2efc9b1d2874a520790a68122cbcca"
+    },
+    {
+      "functionName": "executeSupportAction",
+      "table": "devices",
+      "operation": "UPDATE",
+      "sqlSha256": "7e460771cdffda31fb5f421bcf88b2c31594b630d9fea50129dfa61214c5f4bf"
+    },
+    {
+      "functionName": "executeSupportAction",
+      "table": "audio_offline_licenses",
+      "operation": "UPDATE",
+      "sqlSha256": "3d5c46f1e7689be2ed62ac29cadd204069fab536589e2d5f0f84e12a863cb6ac"
+    },
+    {
+      "functionName": "executeSupportAction",
+      "table": "publishing_release_lifecycles",
+      "operation": "UPDATE",
+      "sqlSha256": "41d2ccdf4ca6cc8ceddfb3183b58849d1cb9a5c87c91fa01bb32bed012d9adff"
+    },
+    {
+      "functionName": "executeSupportAction",
+      "table": "publishing_edition_drafts",
+      "operation": "UPDATE",
+      "sqlSha256": "f1a99f4fd18e97d196d33caf251a1049fca752e504f89211161cb5d35921ccc0"
+    },
+    {
+      "functionName": "executeSupportAction",
+      "table": "audio_offline_licenses",
+      "operation": "UPDATE",
+      "sqlSha256": "863944bdef0466356a46833733cdcd390533a77e1e81426d4b5a194e5445a5df"
+    }
+  ],
+  "currentSource": "src/features/fore/support.server.ts",
+  "ownerSource": "src/storefront-strangler/legal-authority.worker.ts",
+  "operationalLimits": [
+    "QA Durable Object lease only",
+    "No positive entitlement restoration",
+    "Refunds require separate provider certification",
+    "Production owner switch remains 0",
+    "No protected rollback certification"
+  ]
+}

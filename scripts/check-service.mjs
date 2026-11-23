@@ -16,6 +16,16 @@ await build({
 });
 const { handleCoveApi } = await import(path.join(scratch, "api.mjs"));
 const env = localBindings(scratch);
+const qaOwnedBook = "upload_11111111-1111-4111-8111-111111111111";
+env.seedLocalPersonalImport({
+  id: qaOwnedBook,
+  userId: "test-reader-a",
+  objectKey: "uploads/test-reader-a/ownerless-local-library-qa.epub",
+  title: "Synthetic Private Reader Copy",
+  author: "Local QA",
+  language: "en",
+  createdAt: new Date().toISOString(),
+});
 async function req(path, method = "GET", body, user = "test-reader-a") {
   const headers = { "Content-Type": "application/json", Origin: "https://fore.test" };
   if (user) {
@@ -36,9 +46,24 @@ assert.equal((await req("/account", "GET", undefined, null)).data.user, null);
 assert.equal((await req("/library", "POST", { bookId: "1342" }, null)).status, 401);
 assert.equal((await req("/profile", "POST", { name: "Test Reader" })).status, 200);
 assert.equal(
+  (await req("/library", "POST", { bookId: "1342" })).status,
+  503,
+  "A public-domain acquisition without the current legal owner must fail closed",
+);
+assert.equal(
+  await env.DB.prepare(
+    "SELECT id FROM entitlements WHERE user_id=? AND product_id='prd_gutenberg_1342'",
+  )
+    .bind("test-reader-a")
+    .first(),
+  null,
+  "Ownerless acquisition must never create a free public-domain entitlement",
+);
+
+assert.equal(
   (
     await req("/library", "POST", {
-      bookId: "1342",
+      bookId: qaOwnedBook,
       status: "reading",
       cfi: "epubcfi(/6/4!/4/2:1)",
       progress: 0.25,
@@ -56,12 +81,12 @@ assert.equal(canonicalBook.data.offer.amountMinor, 0);
 assert.equal(
   (
     await env.DB.prepare(
-      "SELECT entitlement_type FROM entitlements WHERE user_id=? AND product_id=? AND status='active'",
+      "SELECT entitlement_type FROM entitlements WHERE user_id=? AND product_id=(SELECT product_id FROM personal_imports WHERE id=?) AND status='active'",
     )
-      .bind("test-reader-a", "prd_gutenberg_1342")
+      .bind("test-reader-a", qaOwnedBook)
       .first()
   ).entitlement_type,
-  "public-domain",
+  "personal-import",
 );
 assert.equal(
   await env.DB.prepare(
@@ -70,7 +95,7 @@ assert.equal(
   null,
 );
 const added = await req("/annotations", "POST", {
-  bookId: "1342",
+  bookId: qaOwnedBook,
   quote: "It is a truth universally acknowledged",
   cfi: "epubcfi(/6/4!/4/2:1)",
   chapter: "Chapter I",
@@ -94,7 +119,7 @@ assert.equal(
     await req("/definitions", "POST", {
       word: "acknowledged",
       meaning: "Recognized as true.",
-      bookId: "1342",
+      bookId: qaOwnedBook,
       cfi: "epubcfi(/6/4!/4/2:1)",
     })
   ).status,
@@ -153,19 +178,21 @@ assert.equal(
   200,
 );
 assert.equal((await req("/account")).data.annotations.length, 0);
-assert.equal((await req("/library/1342", "DELETE", {})).status, 200);
+assert.equal((await req("/library/" + qaOwnedBook, "DELETE", {})).status, 200);
 assert.equal((await req("/account")).data.library.length, 0);
 assert.equal(
   (
-    await env.DB.prepare("SELECT status FROM entitlements WHERE user_id=? AND product_id=?")
-      .bind("test-reader-a", "prd_gutenberg_1342")
+    await env.DB.prepare(
+      "SELECT status FROM entitlements WHERE user_id=? AND product_id=(SELECT product_id FROM personal_imports WHERE id=?)",
+    )
+      .bind("test-reader-a", qaOwnedBook)
       .first()
   ).status,
   "active",
 );
-assert.equal((await req("/library", "POST", { bookId: "1342" })).status, 200);
+assert.equal((await req("/library", "POST", { bookId: qaOwnedBook })).status, 200);
 console.log(
-  "PASS: anonymous reads, authentication gates, persistent profiles/library/notes/definitions, ownership isolation, input limits, cross-origin rejection, and annotation lifecycle.",
+  "PASS: anonymous reads, strict ownerless Gutenberg acquisition denial, self-owned synthetic private library persistence, authentication, notes, definitions, isolation, input bounds, CSRF and annotation lifecycle.",
 );
 
 fs.rmSync(scratch, { recursive: true, force: true });

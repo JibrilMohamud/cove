@@ -71,11 +71,19 @@ for (const token of [
   assert.ok(delivery.includes(token), `delivery server missing ${token}`);
 assert.match(delivery, /token_hash/);
 assert.doesNotMatch(migration, /signed_url/i);
-assert.match(delivery, /uses=uses\+1/);
-assert.match(delivery, /uses<max_uses/);
+// EPUB consumption moved to the typed private owner command. Do not
+// reintroduce a primary-D1 increment from the customer-facing backend.
+assert.match(delivery, /dispatchPrivateCommercialEpubConsumption/);
+assert.match(delivery, /Number\(grant\.uses\) >= Number\(grant\.max_uses\)/);
+assert.doesNotMatch(delivery, /UPDATE commercial_delivery_grants SET uses=uses\+1/);
+const ownerRouting = read("src/storefront-strangler/publication-owner-routing.server.ts");
+assert.match(ownerRouting, /"delivery\.consume-epub-grant"/);
+assert.match(ownerRouting, /ack\.consumed!==true/);
 assert.ok(delivery.includes("commercial_entitlement_delivery_usage"));
 assert.ok(delivery.includes("temporary_rights_expired"));
-assert.ok(delivery.includes("commercial_entitlement_devices"));
+assert.ok(delivery.includes("dispatchPrivateEntitlementDevice"));
+assert.match(ownerRouting, /"delivery\.register-entitlement-device"/);
+assert.match(ownerRouting, /ack\.saved!==true/);
 const api = read("src/features/fore/api.server.ts");
 for (const token of [
   "/notifications/preferences",
@@ -99,17 +107,38 @@ for (const token of [
 ])
   assert.ok(commerce.includes(token), `commerce wiring missing ${token}`);
 const preorder = read("src/features/fore/preorder.server.ts");
-assert.ok(preorder.includes("preorder_released"));
-assert.ok(preorder.includes("ensureOwnershipSnapshot"));
-const publishing = read("src/features/fore/publishing.server.ts");
-assert.ok(publishing.includes("publisher_book_approved"));
-assert.ok(publishing.includes("publisher_book_rejected"));
-const finance = read("src/features/fore/finance.server.ts");
+const preorderOwner = read("src/storefront-strangler/legal-authority.worker.ts");
+// Preorder notifications and ownership snapshots have moved with the writer
+// to the separately bound QA-only owner, never a public D1 fallback.
+assert.ok(preorder.includes("dispatchPrivatePreorderAction"));
+assert.ok(preorderOwner.includes("preorder_released"));
+// Owner-only fulfillment now uses a typed private ownership command rather
+// than calling the old backend ownership snapshot helper.
+assert.match(ownerRouting, /"delivery\.record-ownership"/);
+assert.match(ownerRouting, /receipt\.saved!==true/);
+assert.ok(
+  preorderOwner.includes(
+    "Preorder release requires independently verified paid owner authorization.",
+  ),
+);
+assert.ok(preorderOwner.includes('if(route==="/preorder/private-action")'));
+const publishingOwner = read("src/storefront-strangler/legal-authority.worker.ts");
+const publishingEditor = publishingOwner.slice(
+  publishingOwner.indexOf("const privatePublishingEditor="),
+  publishingOwner.indexOf("const privateTraditionalPartner="),
+);
+assert.ok(publishingEditor.includes("publisher_book_approved"));
+assert.ok(publishingEditor.includes("publisher_book_rejected"));
+const finance = read("src/storefront-strangler/legal-authority.worker.ts");
 assert.ok(finance.includes("payout_sent"));
 const reporting = read("src/features/fore/creator-reporting.server.ts");
 assert.ok(reporting.includes("royalty_statement_ready"));
 const moderation = read("src/features/fore/moderation.server.ts");
-assert.ok(moderation.includes("review_moderated"));
+// Protected moderation actions and their notifications now originate from the
+// independently authorized private owner, never the shared API writer.
+assert.ok(!moderation.includes("review_moderated"));
+assert.ok(publishingOwner.includes("const privateModeration="));
+assert.ok(publishingOwner.includes("review_moderated"));
 const account = read("src/features/fore/account-management.server.ts");
 assert.ok(account.includes("account_security_alert"));
 const auth = read("src/features/fore/auth.server.ts");

@@ -43,6 +43,16 @@ on:
       - "src/storefront-strangler/legal-primary-write-lock.ts"
       - "docs/architecture/canonical-writer-workflow-migration-v2.md"
       - "scripts/test-canonical-writer-review.mjs"
+      - "scripts/check-zero-owner-required-source-writers.mjs"
+      - "docs/architecture/catalog-source-ingest-owner-source-attestation.json"
+      - "scripts/check-retired-regional-rights-evidence-owner.mjs"
+      - "docs/architecture/regional-rights-evidence-owner-source-attestation.json"
+      - "scripts/check-retired-publisher-tax-status-owner.mjs"
+      - "docs/architecture/publisher-tax-owner-source-attestation.json"
+      - "scripts/check-retired-offline-audio-license.mjs"
+      - "docs/architecture/offline-audio-owner-source-attestation.json"
+      - "scripts/check-retired-epub-consumption.mjs"
+      - "docs/architecture/epub-consumption-source-attestation.json"
       - "scripts/rebase-canonical-writer-review.mjs"
       - "scripts/test-canonical-writer-rebase.mjs"
       - "scripts/check-audio-progress-nonauthorizing.mjs"
@@ -96,6 +106,16 @@ on:
       - "src/storefront-strangler/legal-primary-write-lock.ts"
       - "docs/architecture/canonical-writer-workflow-migration-v2.md"
       - "scripts/test-canonical-writer-review.mjs"
+      - "scripts/check-zero-owner-required-source-writers.mjs"
+      - "docs/architecture/catalog-source-ingest-owner-source-attestation.json"
+      - "scripts/check-retired-regional-rights-evidence-owner.mjs"
+      - "docs/architecture/regional-rights-evidence-owner-source-attestation.json"
+      - "scripts/check-retired-publisher-tax-status-owner.mjs"
+      - "docs/architecture/publisher-tax-owner-source-attestation.json"
+      - "scripts/check-retired-offline-audio-license.mjs"
+      - "docs/architecture/offline-audio-owner-source-attestation.json"
+      - "scripts/check-retired-epub-consumption.mjs"
+      - "docs/architecture/epub-consumption-source-attestation.json"
       - "scripts/rebase-canonical-writer-review.mjs"
       - "scripts/test-canonical-writer-rebase.mjs"
       - "scripts/check-audio-progress-nonauthorizing.mjs"
@@ -108,6 +128,33 @@ on:
 permissions:
   contents: read
 jobs:
+  biosync-owner-qa-cutover-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install pinned TypeScript QA runtime
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Exercise atomic BioSync owner map and receipt
+        run: node scripts/check-owner-biosync-checked-publication.mjs
+      - name: Reject hostile and production-origin QA gateway inputs
+        run: node scripts/check-owner-biosync-qa-gateway.mjs
+      - name: Verify scheduled Python uses read-only D1
+        run: python3 -m unittest scripts.audio_pipeline.test_biosync_owner_cutover
+      - name: Verify typed owner command schema and receipts
+        run: node scripts/check-canonical-owner-command-gateway.mjs
+      - name: Real-schema public-domain grant requires current private owner legal and source proof
+        run: node scripts/check-owner-free-library-full-schema.mjs
+      - name: Validate complete integration TypeScript
+        run: npx tsc --noEmit
   inventory-and-cutover-denial:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -128,9 +175,12 @@ jobs:
         run: |
           node scripts/test-stage-distribution-owner.mjs
           node scripts/test-legal-admin-owner-commands.mjs
+      - name: Show strictly read-only historical source attestation drift
+        run: node scripts/release/audit-owner-integration-attestations.mjs
       - name: Reconcile every candidate without approving production ownership
         run: |
           node scripts/reconcile-canonical-writers.mjs
+          node scripts/release/check-owner-integration-current-source.mjs
           node scripts/test-canonical-writer-review.mjs
           node scripts/test-canonical-writer-rebase.mjs
           node scripts/test-canonical-owner-workflow-inventory.mjs
@@ -139,13 +189,47 @@ jobs:
           node scripts/check-duplicate-market-writer-retirement.mjs
           node scripts/check-retired-checkout-money-writers.mjs
           node scripts/check-retired-legacy-commerce-write-family.mjs
-          node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/retired-legacy-commerce-source-attestation-20261030.json
-          node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/retired-checkout-money-source-attestation-20261030.json
-          node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/duplicate-market-writer-source-attestation-20261030.json
+          node scripts/check-retired-finance-owner.mjs
+          node scripts/test-owner-finance.mjs
+          node scripts/check-retired-account-owner.mjs
+          node scripts/check-retired-regional-checkpoints-owner.mjs
+          node scripts/check-retired-promotion-owner.mjs
+          node scripts/check-retired-us-catalog-observation-owner.mjs
+          node scripts/check-retired-us-epub-hydration-owner.mjs
+          node scripts/check-retired-private-market-admin.mjs
+          node scripts/check-retired-regional-epub-metadata.mjs
+          node scripts/check-retired-risk-hold-release-owner.mjs
+          node scripts/check-retired-commercial-ownership-snapshot.mjs
+          node scripts/check-retired-free-library-entitlement.mjs
+          node scripts/check-retired-commercial-epub-grant.mjs
+          node scripts/check-retired-epub-consumption.mjs
+          node scripts/check-retired-offline-audio-license.mjs
+          node scripts/check-retired-publisher-tax-status-owner.mjs
+          node scripts/check-retired-regional-rights-evidence-owner.mjs
+          node scripts/check-zero-owner-required-source-writers.mjs
+          node scripts/check-retired-ingestion-state-owner.mjs
+          node scripts/check-retired-delivery-expiry-owner.mjs
+          node scripts/check-retired-entitlement-devices-owner.mjs
+          node scripts/check-retired-private-stripe-tax-confirmation.mjs
+          node scripts/check-retired-private-checkout-quote.mjs
+          node scripts/check-retired-risk-assessment-projection.mjs
+          node scripts/check-retired-private-risk-hold-owner.mjs
+          node scripts/check-retired-negative-delivery-owner.mjs
+          node scripts/check-retired-catalog-negative-owner.mjs
+          node scripts/check-retired-rights-config-owner.mjs
+          node scripts/check-retired-moderation-owner.mjs
+          node scripts/check-retired-publication-helpers-owner.mjs
+          node scripts/test-owner-publication-helpers.mjs
+          node scripts/test-regional-epub-owner-routing.mjs
+          node scripts/check-regional-epub-asset-repair.mjs
+          node scripts/test-owner-account.mjs
+          node scripts/test-account-owner-routing.mjs
+          node scripts/check-revoked-device-registration.mjs
+          node scripts/test-finance-owner-routing.mjs
+          node scripts/check-refund-royalty-atomic.mjs
           node scripts/check-owner-checkout-quote-routing.mjs
           node scripts/check-owner-refund-accounting.mjs
           node scripts/check-private-refund-accounting-parity.mjs
-          node scripts/rebase-canonical-writer-review.mjs --review-attestation=docs/architecture/retired-shared-refund-accounting-attestation-20261030.json
           node scripts/check-owner-paid-settlement.mjs
           node scripts/check-owner-refund-provider.mjs
           node scripts/check-owner-contract-version.mjs
@@ -159,6 +243,17 @@ jobs:
           node scripts/check-nonauthorizing-legal-history.mjs
           node scripts/check-audio-playback-remaining-nonauthorizing.mjs
           node scripts/check-nonauthorizing-owner-version-history.mjs
+          node scripts/check-retired-unowned-restoration.mjs
+          node scripts/check-retired-owner-publishing-onboarding.mjs
+          node scripts/check-retired-owner-commercial-audio-metadata.mjs
+          node scripts/check-retired-owner-publishing-worker-queues.mjs
+          node scripts/check-retired-owner-commercial-audio-qc.mjs
+          node scripts/check-retired-private-biosync-owner.mjs
+          node scripts/check-retired-owner-commercial-audio-upload.mjs
+          node scripts/test-owner-commercial-audio-qc.mjs
+          node scripts/test-owner-publishing-work-queues.mjs
+          node scripts/test-owner-audio-metadata.mjs
+          node scripts/test-owner-publishing-onboarding.mjs
       - name: Export source-bound workflow migration inventory
         env:
           COVE_WORKFLOW_AUDIT_OUTPUT: ${{ runner.temp }}/cove-canonical-workflow-inventory.json

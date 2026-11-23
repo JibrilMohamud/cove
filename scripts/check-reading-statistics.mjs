@@ -40,6 +40,19 @@ try {
     );
     return { status: response.status, data: await response.json() };
   }
+  // This suite validates statistics and ordinary reading behavior using an
+  // isolated self-owned import, not a forged commercial/public-domain grant.
+  // The legal owner is deliberately absent from the local service harness.
+  const ownedBook = "upload_11111111-1111-4111-8111-111111111112";
+  env.seedLocalPersonalImport({
+    id: ownedBook,
+    userId: alice,
+    objectKey: "uploads/" + alice + "/statistics-synthetic-ownerless.epub",
+    title: "Statistics synthetic personal copy",
+    author: "QA only",
+    language: "en",
+    createdAt: at,
+  });
   const run = (sql, ...args) =>
     db
       .prepare(sql)
@@ -52,6 +65,25 @@ try {
     .prepare("SELECT id,public_id,edition_id FROM products WHERE source_external_id='1342'")
     .first();
   assert.ok(product?.public_id, "canonical product must expose a Cove public ID");
+  const owned = await db
+    .prepare("SELECT id,public_id,edition_id FROM products WHERE source_external_id=?")
+    .bind(ownedBook)
+    .first();
+  assert.ok(owned?.id && owned?.public_id && owned?.edition_id);
+  const ownerlessAcquisition = await request(alice, "/library", "POST", {
+    bookId: product.public_id,
+    status: "finished",
+    progress: 1,
+  });
+  assert.equal(ownerlessAcquisition.status, 503, JSON.stringify(ownerlessAcquisition));
+  assert.equal(
+    await db
+      .prepare("SELECT id FROM entitlements WHERE user_id=? AND product_id=?")
+      .bind(alice, product.id)
+      .first(),
+    null,
+    "Ownerless Gutenberg acquisition must not create a canonical entitlement",
+  );
   const metrics = await request(alice, "/metrics", "PUT", {
     bookId: product.public_id,
     wordCount: 119999,
@@ -73,7 +105,7 @@ try {
   await run(
     "INSERT INTO book_metrics(user_id,book_id,word_count,reading_level,language,method,updated_at) VALUES(?,?,?,?,?,'legacy',?)",
     alice,
-    product.public_id,
+    owned.public_id,
     119999,
     7.5,
     "en",
@@ -84,16 +116,16 @@ try {
   );
   await run(
     "INSERT OR IGNORE INTO edition_categories(edition_id,category_id,position) VALUES(?,'category_stats',0)",
-    product.edition_id,
+    owned.edition_id,
   );
   const finish = await request(alice, "/library", "POST", {
-    bookId: product.public_id,
+    bookId: ownedBook,
     status: "finished",
     progress: 1,
   });
   assert.equal(finish.status, 200, JSON.stringify(finish));
   const finishedAgain = await request(alice, "/library", "POST", {
-    bookId: product.public_id,
+    bookId: ownedBook,
     status: "finished",
     progress: 1,
   });
@@ -137,7 +169,7 @@ try {
   assert.ok(boundary, "found recent local midnight");
   const recent = {
     id: randomUUID(),
-    bookId: "1342",
+    bookId: ownedBook,
     mode: "read",
     startedAt: new Date(boundary - 60000).toISOString(),
     endedAt: new Date(boundary + 60000).toISOString(),
@@ -232,7 +264,7 @@ try {
   assert.equal(totals.data.totals.sessions, 2, "repeat saves must be idempotent");
   assert.equal(totals.data.totals.listenSeconds, 100);
   console.log(
-    "PASS: public metrics, legacy joins, category genres, midnight/DST apportionment, commercial sessions, access control and idempotency",
+    "PASS: source ID metrics, denied ownerless public-domain grants, self-owned reading completion, legacy joins, category genres, midnight/DST apportionment, commercial sessions, access control and idempotency",
   );
 } finally {
   fs.rmSync(root, { recursive: true, force: true });

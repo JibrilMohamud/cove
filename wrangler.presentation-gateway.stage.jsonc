@@ -1,0 +1,20 @@
+{
+  "name": "cove-presentation-r2-proof-20261114",
+  "main": "scripts/staging/presentation-candidate-gateway.worker.ts",
+  "compatibility_date": "2026-11-14",
+  "workers_dev": false,
+  "preview_urls": false,
+  "services": [
+    {
+      "binding": "CANDIDATE",
+      "service": "cove-presentation-r2-candidate-stage",
+    },
+  ],
+  "vars": { "COVE_SSR_STAGING": "1" },
+  "observability": {
+    "enabled": true,
+    "redact_query_string": true,
+    "logs": { "enabled": true, "invocation_logs": false },
+    "traces": { "enabled": true, "head_sampling_rate": 0.1 },
+  },
+}

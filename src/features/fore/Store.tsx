@@ -656,6 +656,9 @@ export type CatalogResponse = {
   preview?: boolean;
   warning?: string;
   ingestion?: { status: string; cachedBooks: number; totalCatalogCount: number };
+  facetsPending?: boolean;
+  /** Count is only a proven lower bound while the exact catalog total refreshes. */
+  countPending?: boolean;
   facets?: {
     categories: FacetValue[];
     languages: FacetValue[];
@@ -1236,17 +1239,23 @@ export function StorePage({
     queryFn: ({ signal }) => api("/catalog?" + params, "GET", undefined, { signal }),
     // Wait for the small live-rights shelf (or its explicit failure) before
     // starting the 20s cold COUNT/facet request on an unbootstrapped homepage.
+    // During SSR, never duplicate the verified first-paint bootstrap with
+    // an expensive exact COUNT/facet catalog request. Browser hydration
+    // retains its existing fallback and progressive count/facet refresh.
     enabled:
       !fastAnonymousHome ||
-      !!matchingInitial?.catalog ||
-      !!fastPreview ||
-      fastShelf.isError ||
-      catalogFallbackReady,
+      (typeof window !== "undefined" &&
+        (!!matchingInitial?.catalog || !!fastPreview || fastShelf.isError || catalogFallbackReady)),
     placeholderData: fastAnonymousHome ? fastPreview : undefined,
     // A brief first-paint grace period prevents 24-card preview hydration
     // from competing with the very next server request for D1 capacity.
     // A bounded background refresh follows once the visual path has settled.
     staleTime: initialPreview ? 4_000 : 5 * 60_000,
+    // The limited public facet projection may legitimately return pending
+    // while one background lease refreshes labels. Retry the real catalog
+    // until complete; never cache or treat an empty shell as definitive.
+    refetchInterval: (query) =>
+      query.state.data?.facetsPending || query.state.data?.countPending ? 5_000 : false,
     gcTime: typeof window === "undefined" ? Infinity : 60 * 60_000,
     refetchOnWindowFocus: false,
     retry: false,

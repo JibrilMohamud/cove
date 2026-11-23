@@ -1,4 +1,5 @@
 /* eslint-disable prettier/prettier -- Security boundary deliberately minimizes the exposed D1 API. */
+import {carryPublicationOwnerContext} from "./publication-owner-routing.server";
 /**
  * Transitional execution fence, NOT production authorizing ownership.
  *
@@ -50,7 +51,8 @@ export function readOnlyCanonicalD1<DB extends D1>(db:DB):DB {
     prepared.set(exposed,original);
     return exposed;
   }
-  return Object.freeze({
+  const openSession=(db as D1 & {withSession?:(mode:"first-primary"|"first-unconstrained")=>D1}).withSession;
+  const facade=Object.freeze({
     prepare(sql:string){
       if(!safeSelect(sql))throw Error("canonical_d1_nonowner_mutation_denied");
       return wrap(db.prepare(sql));
@@ -65,8 +67,12 @@ export function readOnlyCanonicalD1<DB extends D1>(db:DB):DB {
         return original;
       });
       return db.batch(originals);
-    }
+    },
+    ...(typeof openSession==="function"?{withSession(mode:"first-primary"|"first-unconstrained"){
+      return readOnlyCanonicalD1(openSession.call(db,mode));
+    }}:{})
   }) as unknown as DB;
+  return carryPublicationOwnerContext(facade,db);
 }
 
 /** Defaults to an exact no-op in every existing deployment. Never enable this

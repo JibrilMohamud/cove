@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "retirementEvidence": "docs/architecture/retired-us-epub-hydration-owner-lineage.json",
+  "rationale": "Two shared public-US EPUB hydration canonical SQL writes are replaced by an authenticated fixed private QA legal-owner command. The private owner checks current source copyright, approval and territory conditions, exact Gutenberg-to-edition/EPUB-asset-version binding, bounded R2 bytes, full EPUB archive validity and SHA-256. Two guarded primary D1 writes execute atomically and cannot be redirected by shared callers. The nine surviving canonical API SQL sites retain exact SQL/function/operation/disposition with new whole-file SHA fingerprints. This is not production certification; independent paid-rights and rollback release gates remain blocked.",
+  "files": [
+    {
+      "path": "src/features/fore/api.server.ts",
+      "sha256": "8de4594b1d450baba197706399ec2c57292ee4f2fe37d22bf8d904f2f13505de",
+      "review": "Two exact shared US EPUB hydration SQL sites removed after private byte-verified owner replacement. Nine surviving protected API SQL sites independently re-fingerprinted with original function/SQL identities."
+    }
+  ]
+}

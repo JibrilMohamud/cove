@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "retirementEvidence": "docs/architecture/retired-free-library-entitlement-owner-lineage.json",
+  "rationale": "Removed direct shared D1 insertion of free Gutenberg library entitlements. The typed private-owner command checks a currently active market, strongly consistent legal authority offer and withdrawal fence, canonical source rights, verified territorial evidence, and rejects entitlement revocation reopening. It only inserts exact public-domain grants, with idempotent retries. Five remaining API owner-required mutations retain their original SQL and function identity and re-fingerprinted source SHA. Positive access is not permitted in production; independent customer QA and exclusive production ownership remain incomplete.",
+  "files": [
+    {
+      "path": "src/features/fore/api.server.ts",
+      "sha256": "3fb00372e365cd872fd78d04ccb3d25101b57cc6fa769f809c4135b504598981",
+      "review": "Exact direct free-library entitlement SQL removed; all five remaining canonical API protected SQL literals retain their original SQL and owner-required classifications."
+    }
+  ]
+}

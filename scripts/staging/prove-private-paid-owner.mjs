@@ -81,6 +81,9 @@ const cli=(args)=>{
   if(result.status!==0)throw Error("wrangler_"+args[0]+"_failed "+
     String(result.stderr||"").replace(/Bearer\s+\S+/g,"Bearer [redacted]").slice(-450));
 };
+// Exact approved source-schema SELECT: the ONLY query allowed a bounded 404
+// propagation retry; mutating SQL is never replayed on uncertain transport.
+const qaReadinessSchemaSql="SELECT type,name,tbl_name,sql FROM sqlite_master WHERE sql IS NOT NULL AND type IN ('table','index') ORDER BY CASE type WHEN 'table' THEN 0 ELSE 1 END,name LIMIT 40 OFFSET ?";
 const api=async(method,resource,body)=>{
   // Synthetic database access is executed through the temporary, signed
   // Worker binding. No D1 Write account token is present in this QA job.
@@ -90,17 +93,31 @@ const api=async(method,resource,body)=>{
     assert.equal(method,"POST");
     assert.ok(resource===source||resource===target,
       "Only the two fixed synthetic D1 fixtures can be queried");
-    const response=await fetch(gatewayOrigin+"/__query",{
-      method:"POST",headers:{"authorization":"Bearer "+gatewayGate,
-        "content-type":"application/json"},
-      body:JSON.stringify({database:resource===source?"schema":"qa",
-        sql:body?.sql,params:body?.params||[]}),
-      signal:AbortSignal.timeout(20000)
-    });
-    const result=await response.json().catch(()=>null);
-    if(response.status!==200||result?.success!==true)
+    // Cloudflare may expose a newly created Workers.dev deployment at one
+    // edge before a second edge has its POST route. Only the exact fixed,
+    // non-mutating schema SELECT can retry a 404; never retry any QA DDL,
+    // financial mutation, owner operation or uncertain D1 write.
+    const safeSchemaRead=resource===source&&body?.sql===qaReadinessSchemaSql&&
+      Array.isArray(body?.params)&&body.params.length===1&&
+      Number.isSafeInteger(body.params[0])&&body.params[0]>=0&&
+      body.params[0]<1200&&body.params[0]%40===0;
+    for(let attempt=0;attempt<5;attempt++){
+      const response=await fetch(gatewayOrigin+"/__query",{
+        method:"POST",headers:{"authorization":"Bearer "+gatewayGate,
+          "content-type":"application/json"},
+        body:JSON.stringify({database:resource===source?"schema":"qa",
+          sql:body?.sql,params:body?.params||[]}),
+        signal:AbortSignal.timeout(20000)
+      });
+      const result=await response.json().catch(()=>null);
+      if(response.status===200&&result?.success===true)return result.result;
+      if(response.status===404&&safeSchemaRead&&attempt<4){
+        await new Promise(resolve=>setTimeout(resolve,500*(attempt+1)));
+        continue;
+      }
       throw Error("isolated_qa_d1_gateway_unavailable:HTTP_"+response.status);
-    return result.result;
+    }
+    throw Error("isolated_qa_d1_gateway_read_retries_exhausted");
   }
   const r=await fetch("https://api.cloudflare.com/client/v4/accounts/"+account+resource,{
     method,headers:{authorization:"Bearer "+paidQaApiTokenFor(method,resource,qaCredentials),
@@ -147,7 +164,7 @@ const schemaSource=QA_SCHEMA_SOURCE_D1;
 async function prepareInitialCommerceQaSchema(){
   // Read the pinned synthetic schema in bounded, deterministic pages. One
   // unbounded response used to hide gateway/secondary-binding failures.
-  const schemaSql="SELECT type,name,tbl_name,sql FROM sqlite_master WHERE sql IS NOT NULL AND type IN ('table','index') ORDER BY CASE type WHEN 'table' THEN 0 ELSE 1 END,name LIMIT 40 OFFSET ?";
+  const schemaSql=qaReadinessSchemaSql;
   const schemaRows=[];
   let completed=false;
   for(let offset=0;offset<1200;offset+=40){
@@ -480,9 +497,24 @@ try {
       const response=await fetch(gatewayOrigin+"/__health",{
         headers:{"authorization":"Bearer "+gatewayGate},signal:AbortSignal.timeout(10000)});
       if(response.status===200&&(await response.json()).ready===true){
-        gatewayReady=true;break;
-      }
-      if(![404,503].includes(response.status))break;
+        // Both native D1 bindings must be functional AND the authenticated
+        // POST SQL route must serve through Workers.dev before first use.
+        // A GET-only health success previously preceded a QA 404.
+        const probe=await fetch(gatewayOrigin+"/__query",{
+          method:"POST",
+          headers:{"authorization":"Bearer "+gatewayGate,
+            "content-type":"application/json"},
+          body:JSON.stringify({database:"schema",sql:qaReadinessSchemaSql,params:[0]}),
+          signal:AbortSignal.timeout(10000)
+        });
+        const payload=await probe.json().catch(()=>null);
+        if(probe.status===200&&payload?.success===true&&
+           payload?.result?.[0]?.success===true&&
+           Array.isArray(payload.result[0].results)){
+          gatewayReady=true;break;
+        }
+        if(![404,503].includes(probe.status))break;
+      }else if(![404,503].includes(response.status))break;
     }catch{}
     await new Promise(resolve=>setTimeout(resolve,1200));
   }
