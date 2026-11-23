@@ -34,9 +34,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'import { scopeStageLegalWriterEnv }' src/server.ts
+          # The production-blocking write fence is imported only under its
+          # explicit stage flag. Requiring a static import would reintroduce
+          # expensive legal code into every cold anonymous SSR request.
+          grep -q 'await import("./storefront-strangler/legal-primary-write-lock")' src/server.ts
           grep -q 'nativeEnv.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1"' src/server.ts
           grep -q 'production_legal_writer_cutover_not_certified' src/storefront-strangler/legal-primary-write-lock.ts
+          node scripts/check-cold-ssr-private-owner-boundary.mjs
       - name: Exercise all protected SQL, comments and D1 binding batch guards
         run: |
           node scripts/test-legal-primary-write-lock.mjs
