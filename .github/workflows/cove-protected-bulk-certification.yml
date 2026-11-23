@@ -3,8 +3,9 @@ on:
   pull_request:
     paths:
       - ".github/workflows/cove-protected-bulk-certification.yml"
-  # One protected, single-approval batch for the merged integration.
-  # Push on main triggers only when THIS orchestration file is introduced/changed.
+  # SHA-pinned protected batch on reviewed changes to release-critical
+  # transport, owner mutation, legal witnesses, and token authority checks.
+  # Protected environment and all eleven child fail-closed gates remain intact.
   push:
     branches: [main]
     paths:
@@ -13,6 +14,12 @@ on:
       - "src/storefront-strangler/legal-authority.worker.ts"
       - "scripts/staging/paid-owner-rollback-evidence.mjs"
       - "scripts/staging/prove-biosync-hosted-owner-write.mjs"
+      - "scripts/staging/prove-private-paid-owner.mjs"
+      - "scripts/staging/verify-literary-postpublication-readonly.mjs"
+      - "scripts/staging/check-strangler-data-plane-preflight.mjs"
+      - "scripts/staging/check-protected-canonical-real-d1-differential.mjs"
+      - "scripts/staging/rights-differential-coverage.mjs"
+      - "scripts/release/certify-exclusive-primary-d1.mjs"
   workflow_dispatch:
     inputs:
       reviewed_main_sha:

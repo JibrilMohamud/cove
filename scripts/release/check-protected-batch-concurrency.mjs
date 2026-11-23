@@ -8,6 +8,18 @@ assert.match(source,/timeout-minutes: 120/);
 assert.match(source,/environment: cove-production-release-audit/);
 assert.match(source,/github\.ref == 'refs\/heads\/main'/);
 assert.match(source,/inputs\.reviewed_main_sha == github\.sha/);
+// These are the exact protected source families that previously merged
+// without triggering hosted evidence. No test-only or PR event may dispatch
+// the manually protected child workflows.
+for(const file of [
+  "scripts/staging/prove-private-paid-owner.mjs",
+  "scripts/staging/verify-literary-postpublication-readonly.mjs",
+  "scripts/staging/check-strangler-data-plane-preflight.mjs",
+  "scripts/staging/check-protected-canonical-real-d1-differential.mjs",
+  "scripts/staging/rights-differential-coverage.mjs",
+  "scripts/release/certify-exclusive-primary-d1.mjs"
+])assert.ok(source.includes('      - "'+file+'"'),
+  "A production certification-sensitive source file is missing from main batch dispatch");
 const start=source.indexOf("      - name: Dispatch and verify child workflows in concurrency-safe lanes");
 const first=source.indexOf("        run: |\n",start);
 const end=source.indexOf("      - uses: actions/upload-artifact@v4",first);
