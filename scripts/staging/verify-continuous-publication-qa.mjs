@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Fail-closed D1/R2 read-only continuous publication proof. */
 // Verify an actual continuously scheduled, isolated QA publication pipeline.
 // Neither the source nor the serving customer database is mutated here.
 import assert from "node:assert/strict";
@@ -6,13 +7,26 @@ const account = "d26430caa63ec55f6612e32f36aca5e9";
 const source = "1825b4a1-0329-408d-9cc2-a40e6a17c822";
 const ledger = "34cf996a-830d-4ec3-8071-8cc3ec7b6df9";
 const prefix = "feed/qa/continuous/private/presentation/v2/home/";
-const token = process.env.CLOUDFLARE_API_TOKEN;
-assert.ok(token && process.env.CLOUDFLARE_ACCOUNT_ID === account);
+const dataReadToken = process.env.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN;
+const deployToken = process.env.CLOUDFLARE_API_TOKEN;
+const metadataReadToken = process.env.COVE_CF_WORKERS_METADATA_READ_TOKEN;
+assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, account);
+assert.ok(dataReadToken && deployToken && metadataReadToken,
+  "Only independent scoped D1/R2 read and Worker deployment credentials are accepted");
+assert.equal(new Set([dataReadToken, deployToken, metadataReadToken]).size, 3,
+  "QA read and deployment credentials must be distinct");
 async function api(method, path, payload) {
+  assert.equal(method, "POST", "Continuous QA verifier may only query D1 via read-only API");
+  assert.match(path, /^\/accounts\/[a-f0-9]{32}\/d1\/database\/[a-f0-9-]{36}\/query$/);
+  assert.ok([source, ledger].some(id =>
+    path === `/accounts/${account}/d1/database/${id}/query`),
+    "Read-only continuous QA may only inspect its two isolated D1 databases");
+  assert.match(String(payload?.sql || "").trim(), /^SELECT\b/i,
+    "Continuous QA verifier may never mutate D1");
   const result = await fetch("https://api.cloudflare.com/client/v4" + path, {
     method,
     headers: {
-      authorization: "Bearer " + token,
+      authorization: "Bearer " + dataReadToken,
       ...(payload ? { "content-type": "application/json" } : {}),
     },
     ...(payload ? { body: JSON.stringify(payload) } : {}),
@@ -105,7 +119,7 @@ for (const country of ["US", "CA", "JP", "SA"]) {
   const response = await fetch(
     `https://api.cloudflare.com/client/v4/accounts/${account}/r2/buckets/cove-strangler-private-presentation-stage/objects/${prefix}${country}.json`,
     {
-      headers: { authorization: "Bearer " + token },
+      headers: { authorization: "Bearer " + dataReadToken },
       signal: AbortSignal.timeout(25000),
     },
   );
