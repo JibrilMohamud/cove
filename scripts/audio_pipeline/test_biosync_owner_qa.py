@@ -150,5 +150,69 @@ class OwnerCutoverTests(unittest.TestCase):
                     )
 
 
+
+class ReviewedShortTrackSelectionTests(unittest.TestCase):
+    def _select(self, review_enabled: bool, transcript_present: bool = True):
+        seen = []
+        candidate = {
+            "job_id": "align-qa-short-reviewed-001",
+            "edition_id": "pg-qa-short-reviewed-001",
+            "track_id": "01",
+            "audio_sha": "a" * 64,
+        }
+        prefix = "biosync/transcripts/cloudflare-whisper-v1/"
+        rows = [{
+            "key": prefix + candidate["audio_sha"] + ".json"
+        }] if transcript_present else []
+
+        def fake_request(method, url, *args, **kwargs):
+            self.assertEqual(method, "GET")
+            self.assertIn("/r2/buckets/", url)
+            return json.dumps({"success": True, "result": rows}).encode()
+
+        def fake_query(sql):
+            seen.append(sql)
+            self.assertTrue(sql.startswith("SELECT "))
+            self.assertNotIn("UPDATE ", sql)
+            self.assertIn("j.attempts<6", sql)
+            self.assertIn("j.lease_token IS NULL", sql)
+            self.assertIn("j.lease_until IS NULL", sql)
+            self.assertIn("<=240", sql)
+            self.assertIn("m.map_sha256 IS NULL", sql)
+            if "('queued','review')" in sql:
+                return [candidate]
+            return []
+
+        previous = (canary.EDITION, canary.TRACK, canary.JOB)
+        try:
+            with patch.dict(os.environ, {
+                "BIOSYNC_RECHECK_REVIEW": "1" if review_enabled else "",
+            }), patch.object(canary, "authorized_request", side_effect=fake_request), patch.object(
+                canary, "query", side_effect=fake_query
+            ):
+                selected = canary.choose_queued_short_track()
+                if selected:
+                    self.assertEqual(canary.EDITION, candidate["edition_id"])
+                    self.assertEqual(canary.TRACK, candidate["track_id"])
+                    self.assertEqual(canary.JOB, candidate["job_id"])
+        finally:
+            canary.EDITION, canary.TRACK, canary.JOB = previous
+        return selected, seen
+
+    def test_held_review_never_automatically_selected(self):
+        selected, sql = self._select(review_enabled=False)
+        self.assertFalse(selected)
+        self.assertEqual(len(sql), 1)
+        self.assertIn("j.status IN ('queued')", sql[0])
+        self.assertNotIn("'review'", sql[0])
+
+    def test_explicit_qa_recheck_still_requires_cached_source(self):
+        selected, sql = self._select(review_enabled=True, transcript_present=True)
+        self.assertTrue(selected)
+        self.assertEqual(len(sql), 1)
+        self.assertIn("j.status IN ('queued','review')", sql[0])
+        unavailable, _ = self._select(review_enabled=True, transcript_present=False)
+        self.assertFalse(unavailable)
+
 if __name__ == "__main__":
     unittest.main()
