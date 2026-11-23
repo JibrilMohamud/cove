@@ -216,3 +216,81 @@ test("spoofed or unavailable permission-group catalog cannot certify an alias", 
     );
   }
 });
+
+const ADDITIONAL_READ={
+  id:"d".repeat(32),name:"Workers KV Storage Read",
+  scopes:["com.cloudflare.api.account"],
+};
+const WRITE_SPOOF={
+  id:"e".repeat(32),name:"Workers Scripts Write",
+  scopes:["com.cloudflare.api.account"],
+};
+function catalogTransport(groups, entries=[ADDITIONAL_READ,WRITE_SPOOF], resultInfo){
+  const known=aliasTransport([]);
+  return async (path,credential)=>{
+    assert.equal(credential,USER_TOKEN);
+    if(path==="/user/tokens")return page([{
+      name:"redacted",status:"active",policies:[{permission_groups:groups}],
+    }]);
+    if(path==="/user/tokens/permission_groups")return {
+      result:entries,
+      result_info:resultInfo??{page:1,count:entries.length,total_count:entries.length},
+    };
+    return known(path,credential);
+  };
+}
+test("additional provider read alias is safe only after full live ID catalog with exact read capability",async()=>{
+  const receipt=await inspectUserTokenEvidence(catalogTransport([
+    {id:ADDITIONAL_READ.id,name:"Workers KV Storage"}
+  ]),USER_TOKEN);
+  assert.deepEqual(receipt,{verified:true,reason:"current_user_inventory_clear"});
+});
+test("same account permission label with a WRITE ID cannot be declared read-only",async()=>{
+  for(const group of [
+    {id:WRITE_SPOOF.id,name:"Workers Scripts"},
+    {id:"f".repeat(32),name:"Workers KV Storage"},
+    {id:ADDITIONAL_READ.id,name:"Unrelated Capability"},
+  ]){
+    const evidence=await inspectUserTokenEvidence(catalogTransport([group]),USER_TOKEN);
+    assert.deepEqual(evidence,{
+      verified:false,reason:"active_user_token_permission_unreviewed",
+      detail:"read_group_alias_identifier_mismatch_unrecognized",
+    });
+  }
+});
+test("incomplete, repeated, unknown scoped and forged provider catalog rows fail closed",async()=>{
+  const group={id:ADDITIONAL_READ.id,name:"Workers KV Storage"};
+  const cases=[
+    [[],undefined,"read_group_catalog_shape_invalid"],
+    [[ADDITIONAL_READ],{page:1,count:1,total_count:2},"read_group_catalog_incomplete"],
+    [[ADDITIONAL_READ],{page:2,count:1,total_count:1},"read_group_catalog_incomplete"],
+    [[ADDITIONAL_READ],{page:1,count:0,total_count:1},"read_group_catalog_incomplete"],
+    [[ADDITIONAL_READ,ADDITIONAL_READ],undefined,"read_group_catalog_shape_invalid"],
+    [[{...ADDITIONAL_READ,scopes:["com.cloudflare.r2.write"]}],undefined,"read_group_catalog_shape_invalid"],
+    [[{...ADDITIONAL_READ,id:"not-immutable"}],undefined,"read_group_catalog_shape_invalid"],
+  ];
+  for(const [catalog,meta,detail] of cases){
+    const evidence=await inspectUserTokenEvidence(catalogTransport([group],catalog,meta),USER_TOKEN);
+    assert.deepEqual(evidence,{
+      verified:false,reason:"active_user_token_permission_unreviewed",detail,
+    });
+  }
+});
+test("new catalog lookup is optional but unavailable or unauthorized catalogs never clear unknown principals",async()=>{
+  const group={id:ADDITIONAL_READ.id,name:"Workers KV Storage"};
+  for(const [error,expected] of [
+    ["writer_audit_http_403","read_group_catalog_unauthorized"],
+    ["private upstream incident","read_group_catalog_unavailable"],
+  ]){
+    const get=async (path,credential)=>{
+      if(path==="/user/tokens/permission_groups")throw Error(error);
+      return catalogTransport([group])(path,credential);
+    };
+    const receipt=await inspectUserTokenEvidence(get,USER_TOKEN);
+    assert.deepEqual(receipt,{
+      verified:false,reason:"active_user_token_permission_unreviewed",
+      detail:expected,
+    });
+    assert.doesNotMatch(JSON.stringify(receipt),/upstream|private|redacted|Bearer/);
+  }
+});
