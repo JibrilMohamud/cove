@@ -55,3 +55,25 @@ test("safe client classes, every invalid response and independent Worker/transpo
   ])assert.match(harness,pattern);
   assert.match(harness,/closeStageTransport\(\)/);
 });
+
+test("100RPS campaign validates every decompressed response off the runner's header event loop",()=>{
+  for(const name of ["brotliDecompress","gunzip","inflate"])
+    assert.match(transport,new RegExp("promisify\\("+name+"\\)"));
+  assert.doesNotMatch(transport,/(?:brotliDecompressSync|gunzipSync|inflateSync)/,
+    "Synchronous body inflation starves concurrent TTFB event-loop measurements");
+  assert.match(transport,/await decodeBrotli\(encoded, options\)/);
+  assert.match(transport,/await decodeGzip\(encoded, options\)/);
+  assert.match(transport,/await decodeDeflate\(encoded, options\)/);
+  assert.match(transport,/maxOutputLength: 4 \* 1024 \* 1024/,
+    "Decoded bodies must still obey the original strict 4 MiB byte bound");
+  assert.match(transport,/bodyResolve\(decoded\.toString\("utf8"\)\)/,
+    "Every full HTML response still must be decoded and checked");
+  assert.match(harness,/const html = await resp\.text\(\)/);
+  assert.match(harness,/\/data-product=\"\//,
+    "Canonical product marker must still be required from the real HTML body");
+  assert.match(harness,/monitorEventLoopDelay\(\{ resolution: 20 \}\)/);
+  assert.match(harness,/runnerEventLoopMaxMs/);
+  assert.match(harness,/runnerEventLoopP99Ms/);
+  for(const phase of ["cove_limit","cove_presentation","cove_context","cove_catalog","cove_catalog_sql"])
+    assert.ok(harness.includes(phase),"Worst samples must retain the numeric "+phase+" Worker phase");
+});
