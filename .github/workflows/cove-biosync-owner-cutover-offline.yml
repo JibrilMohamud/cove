@@ -1,0 +1,57 @@
+name: cove-biosync-owner-cutover-offline
+on:
+  pull_request:
+    paths:
+      - "src/storefront-strangler/owner-biosync-checked-publication.stage.ts"
+      - "src/storefront-strangler/legal-authority.worker.ts"
+      - "src/storefront-strangler/canonical-owner-command-gateway.ts"
+      - "scripts/check-owner-biosync-checked-publication.mjs"
+      - "scripts/check-owner-biosync-qa-gateway.mjs"
+      - "infra/biosync-owner-qa-gateway.worker.ts"
+      - "scripts/audio_pipeline/biosync_owner_qa.py"
+      - "scripts/audio_pipeline/test_biosync_owner_qa.py"
+      - ".github/workflows/cove-biosync-owner-cutover-offline.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/storefront-strangler/owner-biosync-checked-publication.stage.ts"
+      - "src/storefront-strangler/legal-authority.worker.ts"
+      - "src/storefront-strangler/canonical-owner-command-gateway.ts"
+      - ".github/workflows/cove-biosync-owner-cutover-offline.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qa-owner-atomicity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Prove map digest, exact track/job, atomic publication and idempotent replay
+        run: node scripts/check-owner-biosync-checked-publication.mjs
+      - name: Refuse unauthorized gateway, hostile input, unknown D1 and owner outage
+        run: node scripts/check-owner-biosync-qa-gateway.mjs
+      - name: Enforce existing canonical owner acknowledgment and legal revocation fences
+        run: |
+          node scripts/check-canonical-owner-command-gateway.mjs
+          node scripts/check-owner-paid-settlement.mjs
+          node scripts/check-owner-refund-accounting.mjs
+      - name: Prove isolated Python client is SELECT-only and owner-receipt exact
+        run: python3 -m unittest scripts.audio_pipeline.test_biosync_owner_qa
+      - name: Check source types and legal owner write fence
+        run: |
+          npx tsc --noEmit
+          node scripts/check-canonical-writer-closure.mjs --no-new-writers
+      - name: Never invoke production D1, API tokens or Stripe LIVE in synthetic proof
+        run: |
+          echo "QA owner transport source-only. Production BioSync scheduled publishing unchanged until separate protected owner cutover."
