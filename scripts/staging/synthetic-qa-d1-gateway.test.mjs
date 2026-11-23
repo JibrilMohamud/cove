@@ -3,13 +3,22 @@ import assert from "node:assert/strict";
 import {test} from "node:test";
 import gateway from "./synthetic-qa-d1-gateway.worker.mjs";
 const secret="a".repeat(64);
+let unexpectedEmptyBinds=0;
+function prepared(sql,params=[]){
+  return {
+    first:async()=>({cove_qa_ready:1}),
+    all:async()=>({results:[{sql,params}],meta:{changes:0}}),
+    run:async()=>({results:[],meta:{changes:1}}),
+    bind(...next){
+      if(!next.length){unexpectedEmptyBinds++;throw Error("D1 mock rejects zero-argument bind");}
+      return prepared(sql,next);
+    }
+  };
+}
 const env={COVE_QA_D1_GATE_ALLOWED:"paid",COVE_QA_D1_GATE:secret,
   COVE_QA_D1_GATE_EXPIRES_AT:String(Date.now()+12*60_000),
-  QA_PRIMARY_DB:{prepare(sql){return {first:async()=>({cove_qa_ready:1}),bind(...params){return {
-    all:async()=>({results:[{sql,params}],meta:{changes:0}}),
-    run:async()=>({results:[],meta:{changes:1}})
-  }}}}},
-  QA_SCHEMA_DB:{prepare(sql){return {first:async()=>({cove_qa_ready:1}),bind(...params){return {all:async()=>({results:[{sql,params}]}),run:async()=>({meta:{changes:1}})}}}}}};
+  QA_PRIMARY_DB:{prepare:sql=>prepared(sql)},
+  QA_SCHEMA_DB:{prepare:sql=>prepared(sql)}};
 const req=(path,body,token=secret)=>new Request("https://temporary-qa.workers.dev"+path,{
   method:body?"POST":"GET",headers:{"authorization":"Bearer "+token,"content-type":"application/json"},
   ...(body?{body:JSON.stringify(body)}:{})
@@ -29,6 +38,7 @@ test("only private query endpoint and paid/schema fixtures can be used",async()=
   const good=await gateway.fetch(req("/__query",{database:"qa",sql:"SELECT id FROM orders",params:[]}),env);
   assert.equal(good.status,200);
   assert.equal((await good.json()).result[0].results[0].sql,"SELECT id FROM orders");
+  assert.equal(unexpectedEmptyBinds,0,"Zero-parameter D1 SQL must execute without bind()");
   const ddl=await gateway.fetch(req("/__query",{database:"qa",sql:"CREATE TABLE t(id TEXT)",params:[]}),env);
   assert.equal((await ddl.json()).result[0].meta.changes,1);
   const schemaSql="SELECT type,name,tbl_name,sql FROM sqlite_master WHERE sql IS NOT NULL AND type IN ('table','index') ORDER BY CASE type WHEN 'table' THEN 0 ELSE 1 END,name LIMIT 40 OFFSET ?";
