@@ -3,6 +3,7 @@ import { assertCronResult, assertCronSettled } from "./lib/cron-result-guard";
 import { scopePublicationOwnerEnv } from "./storefront-strangler/publication-owner-routing.server";
 import { scopeExclusiveCanonicalD1 } from "./storefront-strangler/canonical-d1-write-fence";
 import { scopeCommerceProductionD1 } from "./storefront-strangler/commerce-d1-write-fence";
+import { scopeQaOwnerUnboundPrimaryRead } from "./storefront-strangler/qa-owner-primary-read-entrypoint";
 import {
   attestDisabledOwnerFromBackend,
   DISABLED_OWNER_ATTEST_ROUTE,
@@ -898,6 +899,10 @@ async function hostedBiosyncTranscript(
 export default {
   async scheduled(controller: { cron: string }, env: BackendEnv, ctx: ExecutionContextLike) {
     env = scopeCommerceProductionD1(scopeExclusiveCanonicalD1(scopePublicationOwnerEnv(env)));
+    // QA-only, explicit opt-in; fails if a caller still binds native D1.
+    // Production remains on its existing binding until all real cron and
+    // customer writes are migrated and independently accepted.
+    env = scopeQaOwnerUnboundPrimaryRead(env);
     if (controller.cron === "*/10 * * * *") {
       // Bounded social-only bracket authority. Winner snapshots, next-round
       // pairings, and optimistic CAS commit in one D1 transaction.
@@ -940,6 +945,10 @@ export default {
       return json({ error: "Persistence gateway authorization required." }, 401);
     }
     env = scopeCommerceProductionD1(scopeExclusiveCanonicalD1(scopePublicationOwnerEnv(env)));
+    // QA-only, explicit opt-in; fails if a caller still binds native D1.
+    // Production remains on its existing binding until all real cron and
+    // customer writes are migrated and independently accepted.
+    env = scopeQaOwnerUnboundPrimaryRead(env);
 
     const path = new URL(request.url).pathname;
     // This endpoint runs only AFTER persistence gateway authentication.
