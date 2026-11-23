@@ -8,6 +8,7 @@ import {pathToFileURL} from "node:url";
 import {readPaidOwnerFence,paidOwnerRollbackEvidence} from "./paid-owner-rollback-evidence.mjs";
 import {checkedPaidQaCredentials,paidQaApiTokenFor,paidQaWranglerTokenFor,QA_ACCOUNT,QA_PAID_D1,QA_SCHEMA_SOURCE_D1,PRODUCTION_ACCOUNT,PRODUCTION_D1} from "./paid-qa-cloudflare-credentials.mjs";
 import {syntheticD1GatewayConfig} from "./synthetic-qa-d1-gateway-config.mjs";
+import {awaitPaidQaGatewayReadiness,retryableQaBootstrapRead} from "./paid-qa-gateway-readiness.mjs";
 import {bindPaidQaTemplateToIsolatedPrimary} from "./paid-qa-template-binding.mjs";
 import {isPaidOwnerQaSchemaTable} from "./paid-owner-schema-policy.mjs";
 import {preparePaidQaRetailCatalog} from "./paid-qa-retail-catalog.mjs";
@@ -93,14 +94,11 @@ const api=async(method,resource,body)=>{
     assert.equal(method,"POST");
     assert.ok(resource===source||resource===target,
       "Only the two fixed synthetic D1 fixtures can be queried");
-    // Cloudflare may expose a newly created Workers.dev deployment at one
-    // edge before a second edge has its POST route. Only the exact fixed,
-    // non-mutating schema SELECT can retry a 404; never retry any QA DDL,
-    // financial mutation, owner operation or uncertain D1 write.
-    const safeSchemaRead=resource===source&&body?.sql===qaReadinessSchemaSql&&
-      Array.isArray(body?.params)&&body.params.length===1&&
-      Number.isSafeInteger(body.params[0])&&body.params[0]>=0&&
-      body.params[0]<1200&&body.params[0]%40===0;
+    // Routes may propagate across colos after one initial positive POST.
+    // Retry only the two reviewed exact first-contact sqlite_master SELECTs.
+    // Any uncertain DDL, INSERT, UPDATE, refund or owner write fails closed.
+    const retryableRead=retryableQaBootstrapRead(resource,body,
+      source,target,qaReadinessSchemaSql);
     for(let attempt=0;attempt<5;attempt++){
       const response=await fetch(gatewayOrigin+"/__query",{
         method:"POST",headers:{"authorization":"Bearer "+gatewayGate,
@@ -111,7 +109,7 @@ const api=async(method,resource,body)=>{
       });
       const result=await response.json().catch(()=>null);
       if(response.status===200&&result?.success===true)return result.result;
-      if(response.status===404&&safeSchemaRead&&attempt<4){
+      if(response.status===404&&retryableRead&&attempt<4){
         await new Promise(resolve=>setTimeout(resolve,500*(attempt+1)));
         continue;
       }
@@ -498,34 +496,16 @@ try {
   assert.equal(qaMediaBinding[0].type,"r2_bucket");
   assert.equal(qaMediaBinding[0].bucket_name,mediaBucketName,
     "Synthetic QA gateway may not bind customer media");
-  let gatewayReady=false;
-  for(let attempt=0;attempt<15;attempt++){
-    try{
-      const response=await fetch(gatewayOrigin+"/__health",{
-        headers:{"authorization":"Bearer "+gatewayGate},signal:AbortSignal.timeout(10000)});
-      if(response.status===200&&(await response.json()).ready===true){
-        // Both native D1 bindings must be functional AND the authenticated
-        // POST SQL route must serve through Workers.dev before first use.
-        // A GET-only health success previously preceded a QA 404.
-        const probe=await fetch(gatewayOrigin+"/__query",{
-          method:"POST",
-          headers:{"authorization":"Bearer "+gatewayGate,
-            "content-type":"application/json"},
-          body:JSON.stringify({database:"schema",sql:qaReadinessSchemaSql,params:[0]}),
-          signal:AbortSignal.timeout(10000)
-        });
-        const payload=await probe.json().catch(()=>null);
-        if(probe.status===200&&payload?.success===true&&
-           payload?.result?.[0]?.success===true&&
-           Array.isArray(payload.result[0].results)){
-          gatewayReady=true;break;
-        }
-        if(![404,503].includes(probe.status))break;
-      }else if(![404,503].includes(response.status))break;
-    }catch{}
-    await new Promise(resolve=>setTimeout(resolve,1200));
-  }
-  assert.ok(gatewayReady,"Synthetic QA D1 gateway not ready; do not initialize QA or charge TEST Stripe");
+  // A health 200 plus one schema SELECT is insufficient: the first PRIMARY
+  // read historically failed HTTP 404 after those probes. Require THREE
+  // consecutive authenticated GET, schema POST and primary POST positives
+  // before any DDL, financial write or synthetic Stripe TEST charge.
+  const readiness=await awaitPaidQaGatewayReadiness({
+    origin:gatewayOrigin,gate:gatewayGate,schemaSql:qaReadinessSchemaSql
+  });
+  if(Object.keys(readiness.transient).length)
+    console.warn("Synthetic QA D1 route warmup recovered: "+
+      JSON.stringify(readiness.transient));
   await prepareInitialCommerceQaSchema();
   await seedInitialPendingOrder();
   // Schema-only bootstrap can take minutes; the *authorization* lifetime
