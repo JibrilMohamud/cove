@@ -101,7 +101,7 @@ export function commerceRestrictedCanonicalD1<T extends DB>(db:T):T {
     originals.set(facade,statement);
     return facade;
   };
-  const openSession=(db as D1 & {withSession?:(mode:"first-primary"|"first-unconstrained")=>D1}).withSession;
+  const openSession=(db as DB & {withSession?:(mode:"first-primary"|"first-unconstrained")=>DB}).withSession;
   const facade=Object.freeze({
     prepare(sql:string){
       commerceSqlAllowed(sql);
