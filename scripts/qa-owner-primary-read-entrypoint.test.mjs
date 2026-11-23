@@ -64,7 +64,7 @@ test("without any D1 binding a signed, QA-only backend performs catalog SELECT v
   assert.equal((await x.DB.batch([
     x.DB.prepare("SELECT 1"),x.DB.prepare("SELECT 2")
   ])).length,2);
-  assert.throws(()=>x.DB.prepare("UPDATE products SET id='x'"),/qa_owner_read_denied/);
+  assert.throws(()=>x.DB.prepare("UPDATE qa_probe_rows SET id='x'"),/qa_owner_read_denied/);
   assert.throws(()=>x.DB.withSession("first-primary"),/qa_owner_read_denied/);
   assert.equal(Object.hasOwn(x,"PRIMARY_DB"),false);
 });
