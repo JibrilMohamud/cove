@@ -8,8 +8,10 @@ import {pathToFileURL} from "node:url";
 const folder=mkdtempSync(join(tmpdir(),"cove-account-routing-"));
 try{
  const file=join(folder,"client.mjs");await build({stdin:{contents:`export {registerDevice,revokeDevice,processAccountDeletionQueue} from "./src/features/fore/account-management.server";
- export {bindPublicationOwner} from "./src/storefront-strangler/publication-owner-routing.server";`,resolveDir:resolve("."),loader:"ts"},outfile:file,bundle:true,platform:"node",format:"esm",logLevel:"silent"});
- const client=await import(pathToFileURL(file).href),raw={prepare(){throw Error("forbidden_local_sql");},batch(){throw Error("forbidden_local_batch");}};
+ export {bindPublicationOwner,hasPublicationOwner} from "./src/storefront-strangler/publication-owner-routing.server";
+ export {readOnlyCanonicalD1} from "./src/storefront-strangler/canonical-d1-write-fence";
+ export {commerceRestrictedCanonicalD1} from "./src/storefront-strangler/commerce-d1-write-fence";`,resolveDir:resolve("."),loader:"ts"},outfile:file,bundle:true,platform:"node",format:"esm",logLevel:"silent"});
+ const client=await import(pathToFileURL(file).href),raw={prepare(){throw Error("forbidden_local_sql");},batch(){throw Error("forbidden_local_batch");},withSession(mode){assert.equal(mode,"first-primary");return this;}};
  let forge=false,outage=false;const seen=[],port={async fetch(request){
   if(outage)throw Error("owner_outage");assert.equal(new URL(request.url).pathname,"/account/private-action");
   const cmd=await request.json();seen.push(cmd);
@@ -24,7 +26,19 @@ try{
  assert.equal((await client.processAccountDeletionQueue({DB:db},5)).processed,0);
  assert.deepEqual(seen[2],{action:"erasure-tick",limit:5});
  assert.ok(!JSON.stringify(seen).includes("private_session_never_forwarded"));
+ // A restrictive D1 facade must retain the private canonical-owner route even
+ // when two independent fences are composed or a first-primary session opens.
+ const exclusive=client.readOnlyCanonicalD1(db);
+ const restricted=client.commerceRestrictedCanonicalD1(exclusive);
+ assert.equal(client.hasPublicationOwner(raw),false);
+ assert.equal(client.hasPublicationOwner(exclusive),true);
+ assert.equal(client.hasPublicationOwner(restricted),true);
+ assert.equal(client.hasPublicationOwner(restricted.withSession("first-primary")),true);
+ assert.throws(()=>exclusive.prepare("DELETE FROM entitlements"),/canonical_d1_nonowner_mutation_denied/);
+ assert.throws(()=>restricted.prepare("UPDATE entitlements SET id='other'"),/canonical_d1_commerce_nonowner_write_denied/);
+ assert.equal((await client.registerDevice(restricted,user,req,device)).id,"device_qa");
+ assert.equal((await client.registerDevice(restricted.withSession("first-primary"),user,req,device)).id,"device_qa");
  forge=true;await assert.rejects(client.registerDevice(db,user,req,device),/canonical_command_receipt_mismatch/);
  forge=false;outage=true;await assert.rejects(client.revokeDevice(db,user,"device_qa",req),/owner_outage/);
- console.log("PASS: account API/cron facades reject unbound D1, forward fixed commands and Supabase app IDs, bind receipts and do not forward cookies");
+ console.log("PASS: account API/cron facades retain canonical-owner routing through exclusive/commerce D1 fences and primary sessions while denying local SQL and private cookies");
 }finally{rmSync(folder,{recursive:true,force:true});}
