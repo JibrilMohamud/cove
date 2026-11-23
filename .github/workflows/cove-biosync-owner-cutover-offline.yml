@@ -10,6 +10,8 @@ on:
       - "infra/biosync-owner-qa-gateway.worker.ts"
       - "scripts/audio_pipeline/biosync_owner_qa.py"
       - "scripts/audio_pipeline/test_biosync_owner_qa.py"
+      - "scripts/staging/prove-biosync-qa-data-plane.mjs"
+      - "scripts/staging/prove-biosync-qa-data-plane.test.mjs"
       - ".github/workflows/cove-biosync-owner-cutover-offline.yml"
   push:
     branches: [main]
@@ -17,8 +19,22 @@ on:
       - "src/storefront-strangler/owner-biosync-checked-publication.stage.ts"
       - "src/storefront-strangler/legal-authority.worker.ts"
       - "src/storefront-strangler/canonical-owner-command-gateway.ts"
+      - "scripts/audio_pipeline/biosync_owner_qa.py"
+      - "scripts/audio_pipeline/test_biosync_owner_qa.py"
+      - "scripts/staging/prove-biosync-qa-data-plane.mjs"
+      - "scripts/staging/prove-biosync-qa-data-plane.test.mjs"
       - ".github/workflows/cove-biosync-owner-cutover-offline.yml"
   workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        description: "Exact reviewed protected main SHA for read-only isolated QA inventory"
+        required: true
+        type: string
+      confirm_isolated_biosync_qa:
+        description: "Approve read-only QA D1/R2 inventory; no writes or production access"
+        required: true
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -48,6 +64,8 @@ jobs:
           node scripts/check-owner-refund-accounting.mjs
       - name: Prove isolated Python client is SELECT-only and owner-receipt exact
         run: python3 -m unittest scripts.audio_pipeline.test_biosync_owner_qa
+      - name: Prove isolated QA resource identity rejects missing schema, writes and shared secrets
+        run: node --test scripts/staging/prove-biosync-qa-data-plane.test.mjs
       - name: Check source types and legal owner write fence
         run: |
           npx tsc --noEmit
@@ -55,3 +73,28 @@ jobs:
       - name: Never invoke production D1, API tokens or Stripe LIVE in synthetic proof
         run: |
           echo "QA owner transport source-only. Production BioSync scheduled publishing unchanged until separate protected owner cutover."
+
+  # Explicit manual protected QA inventory only. The two credential principals
+  # are never exposed to PR jobs and can only inspect the isolated QA account.
+  # A green preflight is NOT evidence that the owner accepted a real mutation.
+  hosted-qa-data-plane-readonly:
+    needs: qa-owner-atomicity
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm_isolated_biosync_qa == true &&
+      inputs.reviewed_main_sha == github.sha
+    environment: cove-production-release-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      COVE_CF_QA_D1_MUTATION_TOKEN: ${{ secrets.COVE_CF_QA_D1_MUTATION_TOKEN }}
+      COVE_CF_QA_R2_STORAGE_TOKEN: ${{ secrets.COVE_CF_QA_R2_STORAGE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22" }
+      - name: Verify explicit synthetic QA account and six production-shaped audio schema objects
+        run: node scripts/staging/prove-biosync-qa-data-plane.mjs
