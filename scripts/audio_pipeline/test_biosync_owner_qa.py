@@ -199,9 +199,9 @@ class ReviewedShortTrackSelectionTests(unittest.TestCase):
         try:
             with patch.dict(os.environ, {
                 "BIOSYNC_RECHECK_REVIEW": "1" if review_enabled else "",
-            }), patch.object(canary, "authorized_request", side_effect=fake_request), patch.object(
-                canary, "query", side_effect=fake_query
-            ):
+            }), patch.object(canary, "BUCKET", canary.QA_BUCKET), patch.object(
+                canary, "authorized_request", side_effect=fake_request
+            ), patch.object(canary, "query", side_effect=fake_query):
                 selected = canary.choose_queued_short_track()
                 if selected:
                     self.assertEqual(canary.EDITION, candidate["edition_id"])
