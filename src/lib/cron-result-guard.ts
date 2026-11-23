@@ -11,3 +11,12 @@ export function assertCronResult<T>(result: T): T {
   }
   return result;
 }
+
+/** Rejected parallel scheduled jobs must remain observable as a failed cron,
+ * even if other jobs completed. Errors are intentionally not surfaced here:
+ * upstream exceptions can contain secrets, tokens or private request data. */
+export function assertCronSettled<T>(settled: PromiseSettledResult<T>[]): void {
+  if (settled.some((task) => task.status === "rejected")) {
+    throw Error("cove_scheduled_parallel_tasks_failed");
+  }
+}

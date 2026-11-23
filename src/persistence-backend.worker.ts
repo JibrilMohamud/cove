@@ -1,5 +1,5 @@
 import { seedMusicProfiles } from "./features/fore/music-profiles.server";
-import { assertCronResult } from "./lib/cron-result-guard";
+import { assertCronResult, assertCronSettled } from "./lib/cron-result-guard";
 import { scopePublicationOwnerEnv } from "./storefront-strangler/publication-owner-routing.server";
 import { scopeExclusiveCanonicalD1 } from "./storefront-strangler/canonical-d1-write-fence";
 import { scopeCommerceProductionD1 } from "./storefront-strangler/commerce-d1-write-fence";
@@ -709,8 +709,10 @@ async function runScheduled(cron: string, env: BackendEnv) {
           }
           if ("skipped" in rights) break;
         } catch (error) {
+          // This is a rights-sensitive withdrawal audit. A failed source read
+          // cannot be acknowledged as a successful scheduled inspection.
           console.warn("Published soundtrack rights audit failed");
-          break;
+          throw error;
         }
       }
       return;
@@ -750,10 +752,13 @@ async function runScheduled(cron: string, env: BackendEnv) {
       return;
     }
     if (cron === "23 * * * *") {
-      await Promise.allSettled([
+      const results = await Promise.allSettled([
         warmOneShortBiosyncTranscript(env),
         triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-align"),
       ]);
+      // Do not expose upstream exception payloads. Every failed scheduled
+      // task must produce a negative cron receipt, not a green silent skip.
+      assertCronSettled(results);
       return;
     }
     if (cron === "17 3 * * *") {

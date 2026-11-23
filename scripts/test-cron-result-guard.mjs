@@ -10,7 +10,7 @@ try {
   const outfile = join(folder, "cron.mjs");
   await build({
     stdin: {
-      contents: 'export {assertCronResult} from "./src/lib/cron-result-guard";',
+      contents: 'export {assertCronResult,assertCronSettled} from "./src/lib/cron-result-guard";',
       resolveDir: resolve("."),
       loader: "ts",
     },
@@ -20,7 +20,7 @@ try {
     format: "esm",
     logLevel: "silent",
   });
-  const { assertCronResult } = await import(pathToFileURL(outfile).href);
+  const { assertCronResult, assertCronSettled } = await import(pathToFileURL(outfile).href);
   assert.equal(assertCronResult(undefined), undefined);
   assert.equal(assertCronResult(null), null);
   assert.deepEqual(assertCronResult({ ok: true, processed: 2 }), {
@@ -32,6 +32,19 @@ try {
     /cove_scheduled_operation_reported_failure/,
   );
   assert.throws(() => assertCronResult({ ok: false }), /cove_scheduled_operation_reported_failure/);
+  assert.doesNotThrow(() => assertCronSettled([{ status: "fulfilled", value: undefined }]));
+  assert.throws(
+    () => assertCronSettled([{ status: "rejected", reason: "private-context-must-not-escape" }]),
+    (error) => error?.message === "cove_scheduled_parallel_tasks_failed" &&
+      !error.message.includes("private-context"),
+  );
+  assert.throws(
+    () => assertCronSettled([
+      { status: "fulfilled", value: 1 },
+      { status: "rejected", reason: new Error("private-owner-secret") },
+    ]),
+    /cove_scheduled_parallel_tasks_failed/,
+  );
   const worker = readFileSync("src/persistence-backend.worker.ts", "utf8");
   assert.match(worker, /assertCronResult\(await operation\(\)\)/);
   assert.match(
@@ -46,8 +59,10 @@ try {
     worker,
     /Account erasure tick failed; queued requests will be retried\."\);\s*throw error/,
   );
+  assert.match(worker, /Published soundtrack rights audit failed"\);\s*throw error/);
+  assert.match(worker, /assertCronSettled\(results\)/);
   console.log(
-    "PASS: negative scheduled owner receipts fail closed in queue and erasure jobs without false cron success",
+    "PASS: negative owner receipts, rights audit errors and parallel scheduled rejections all fail closed",
   );
 } finally {
   rmSync(folder, { recursive: true, force: true });
