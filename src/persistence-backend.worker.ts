@@ -665,6 +665,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
           }
         }
         if (catalogResult.status === "rejected") throw catalogResult.reason;
+        assertCronSettled(audioResults);
         return;
       }
       const trackState = await audioTrackTriggerSlots(env);
@@ -686,6 +687,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
       if (catalogResult.status === "rejected") {
         throw catalogResult.reason;
       }
+      assertCronSettled(audioResults);
       return;
     }
     if (cron === "2-59/5 * * * *") {

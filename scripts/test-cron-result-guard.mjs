@@ -63,6 +63,11 @@ try {
   );
   assert.match(worker, /Published soundtrack rights audit failed"\);\s*throw error/);
   assert.match(worker, /assertCronSettled\(results\)/);
+  assert.equal(
+    (worker.match(/assertCronSettled\\(audioResults\\)/g) || []).length,
+    2,
+    "Both five-minute audio pathways must surface rejected task receipts",
+  );
   console.log(
     "PASS: negative owner receipts, rights audit errors and parallel scheduled rejections all fail closed",
   );
