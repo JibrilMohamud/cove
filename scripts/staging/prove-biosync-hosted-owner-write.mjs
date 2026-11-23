@@ -188,21 +188,42 @@ async function seed(){
 async function cleanup(){
   // Ephemeral scripts' QA lease expires after 14 minutes even if deletion
   // fails. Every cleanup is scoped to our run-derived QA names only.
+  // Delete on *attempted* upload, including when Wrangler fails after
+  // creating a Worker but before returning a successful deploy receipt.
   if(gatewayDeployed)try{wrangler(["delete","--config",gatewayConfig,"--force"])}
-  catch{failures.push("qa_gateway_cleanup_failed")}
+  catch{ /* Independent provider inventory below resolves partial creation. */ }
   if(ownerDeployed)try{wrangler(["delete","--config",ownerConfig,"--force"])}
-  catch{failures.push("qa_owner_cleanup_failed")}
+  catch{ /* Independent provider inventory below resolves partial creation. */ }
+  if(ownerDeployed||gatewayDeployed)try{
+    const workers=await provider("GET","/workers/scripts",
+      process.env.COVE_CF_QA_WORKERS_DEPLOY_TOKEN);
+    if(!Array.isArray(workers)||
+       workers.some(x=>x?.id===ownerName||x?.id===gatewayName))
+      failures.push("qa_ephemeral_worker_residual");
+  }catch{failures.push("qa_worker_cleanup_inventory_unavailable")}
   if(objectUploaded)try{
     await provider("DELETE","/r2/buckets/"+QA_BUCKET+"/objects/"+objectKey,
       process.env.COVE_CF_QA_R2_STORAGE_TOKEN);
   }catch{failures.push("qa_r2_cleanup_failed")}
-  if(seedStarted)for(const [q,params] of [
-    ["DELETE FROM audio_timing WHERE edition_id=? AND track_id=?",
-      [command.editionId,command.trackId]],
-    ["DELETE FROM audio_jobs WHERE id=?",[command.jobId]],
-    ["DELETE FROM audio_editions WHERE id=?",[command.editionId]]
-  ])try{await sql(q,params)}
-  catch{failures.push("qa_d1_cleanup_failed")}
+  if(seedStarted){
+    for(const [q,params] of [
+      ["DELETE FROM audio_timing WHERE edition_id=? AND track_id=?",
+        [command.editionId,command.trackId]],
+      ["DELETE FROM audio_jobs WHERE id=?",[command.jobId]],
+      ["DELETE FROM audio_editions WHERE id=?",[command.editionId]]
+    ])try{await sql(q,params)}
+    catch{failures.push("qa_d1_cleanup_failed")}
+    try{
+      const count=await sql("SELECT (SELECT COUNT(*) FROM audio_timing WHERE edition_id=?) timing,"+
+        "(SELECT COUNT(*) FROM audio_jobs WHERE id=?) jobs,"+
+        "(SELECT COUNT(*) FROM audio_editions WHERE id=?) editions",[
+          command.editionId,command.jobId,command.editionId
+        ]);
+      if(count.results?.length!==1||count.results[0].timing!==0||
+         count.results[0].jobs!==0||count.results[0].editions!==0)
+        failures.push("qa_d1_residual_synthetic_rows");
+    }catch{failures.push("qa_d1_cleanup_inventory_unavailable")}
+  }
 }
 async function main(){
   validInput();
@@ -214,10 +235,10 @@ async function main(){
   try{
     await seed();
     // Use the normal compiled legal Worker and exact gateway, never a mock.
-    wrangler(["deploy","--config",ownerConfig,"--secrets-file",ownerSecrets]);
     ownerDeployed=true;
-    wrangler(["deploy","--config",gatewayConfig,"--secrets-file",gatewaySecrets]);
+    wrangler(["deploy","--config",ownerConfig,"--secrets-file",ownerSecrets]);
     gatewayDeployed=true;
+    wrangler(["deploy","--config",gatewayConfig,"--secrets-file",gatewaySecrets]);
     const first=await callOwner(command,client);
     assert.equal(first.status,200,"Actual private owner must acknowledge checked map");
     checkedOwnerReceipt(first.data,false);
