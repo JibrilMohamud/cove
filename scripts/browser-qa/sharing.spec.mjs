@@ -543,7 +543,17 @@ test("journeys show their audience and enforce named-member links", async ({
     await alice
       .getByRole("combobox", { name: "Journey visibility", exact: true })
       .selectOption("private");
+    // In a real Firefox trace, the old "followers" draft was sent as a
+    // successful PATCH before React committed the private selection.
+    // Checking only the eventual label missed the exact privacy mutation.
+    const saveRequest = alice.waitForRequest(
+      (request) =>
+        request.method() === "PATCH" &&
+        new URL(request.url()).pathname === `/api/fore/social/journeys/${fixture.journeyId}`,
+    );
     await alice.getByRole("button", { name: "Save journey settings", exact: true }).click();
+    const submitted = JSON.parse((await saveRequest).postData() || "{}");
+    expect(submitted.visibility).toBe("private");
     await expect(alice.getByText("Current audience:", { exact: false })).toContainText("Private");
     await alice.getByLabel("Member username").fill(fixture.people.bob.username);
     await alice.getByRole("button", { name: "Find member", exact: true }).click();
