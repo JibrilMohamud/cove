@@ -36,6 +36,28 @@ jobs:
         with:
           node-version: "22"
       - run: npm ci --no-audit --no-fund
+      - name: Emit reviewed Prettier formatting for new QA source only (temporary)
+        run: |
+          npx --no-install prettier --write \
+            src/storefront-strangler/qa-owner-primary-read-transport.mjs \
+            src/storefront-strangler/qa-owner-primary-read-transport.d.mts \
+            src/storefront-strangler/qa-owner-primary-read-entrypoint.ts \
+            scripts/qa-owner-primary-read-transport.test.mjs \
+            scripts/qa-owner-primary-read-entrypoint.test.mjs >/dev/null
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const paths = [
+              "src/storefront-strangler/qa-owner-primary-read-transport.mjs",
+              "src/storefront-strangler/qa-owner-primary-read-transport.d.mts",
+              "src/storefront-strangler/qa-owner-primary-read-entrypoint.ts",
+              "scripts/qa-owner-primary-read-transport.test.mjs",
+              "scripts/qa-owner-primary-read-entrypoint.test.mjs"
+            ];
+            for (const path of paths) {
+              console.log("COVE_FORMATTED_FILE " + path + " " +
+                fs.readFileSync(path).toString("base64"));
+            }
+          '
       - name: Check isolated transport syntax
         run: |
           node --check src/storefront-strangler/qa-owner-primary-read-transport.mjs
