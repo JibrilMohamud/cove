@@ -35,7 +35,7 @@ async function api(method, path, body) {
   return data.result;
 }
 async function query(database, sql) {
-  assert.match(sql.trim(), /^SELECT\\b/i, "Dormant publisher preflight may only read D1");
+  assert.match(sql.trim(), /^SELECT\b/i, "Dormant publisher preflight may only read D1");
   const rows = await api("POST", "/d1/database/" + database + "/query", { sql });
   assert.ok(Array.isArray(rows) && rows.every((x) => x.success));
   return rows[0].results;
