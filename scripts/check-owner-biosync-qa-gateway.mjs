@@ -29,8 +29,9 @@ try{
     COVE_RIGHTS_OWNER_SECRET:ownerSecret,
     LEGAL_AUTHORITY:owner
   });
-  const req=(body=data,{secret=clientSecret,method="POST",path="/biosync/publish-checked",type="application/json"}={})=>
-    new Request("https://qa.example"+path,{
+  const qaHost="cove-biosync-gateway-qa-45104567891-1.cove-qa-reads.workers.dev";
+  const req=(body=data,{secret=clientSecret,method="POST",path="/biosync/publish-checked",type="application/json",host=qaHost,scheme="https"}={})=>
+    new Request(scheme+"://"+host+path,{
       method,headers:{"authorization":"Bearer "+secret,"content-type":type},
       ...(method==="POST"?{body:JSON.stringify(body)}:{})
     });
@@ -50,6 +51,11 @@ try{
     assert.equal(calls.length,before,"Rejected request must not reach the owner");
     denies++;
   }
+  await blocked(req(data,{host:"api.covereads.com"}),env(),404);
+  await blocked(req(data,{host:"cove-persistence-backend.cove-qa-reads.workers.dev"}),env(),404);
+  await blocked(req(data,{host:"cove-biosync-gateway-qa-45104567891-1.preview.workers.dev"}),env(),404);
+  await blocked(req(data,{host:"cove-biosync-gateway-qa-45104567891-1.cove-qa-reads.workers.dev:443"}),env(),404);
+  await blocked(req(data,{scheme:"http"}),env(),404);
   await blocked(req(data,{path:"/other"}),env(),404);
   await blocked(req(data,{path:"/biosync/publish-checked?sql=UPDATE"}),env(),404);
   await blocked(req(data,{method:"GET"}),env(),405);
