@@ -7,7 +7,8 @@ import {tmpdir} from "node:os";
 import {pathToFileURL} from "node:url";
 const folder=mkdtempSync(join(tmpdir(),"cove-account-routing-"));
 try{
- const file=join(folder,"client.mjs");await build({stdin:{contents:`export {registerDevice,revokeDevice,processAccountDeletionQueue} from "./src/features/fore/account-management.server";
+ const file=join(folder,"client.mjs");await build({stdin:{contents:`export {registerDevice,revokeDevice,processAccountDeletionQueue,touchAccountSession} from "./src/features/fore/account-management.server";
+ export {scopeQaOwnerUnboundPrimaryRead} from "./src/storefront-strangler/qa-owner-primary-read-entrypoint";
  export {bindPublicationOwner,hasPublicationOwner} from "./src/storefront-strangler/publication-owner-routing.server";
  export {readOnlyCanonicalD1} from "./src/storefront-strangler/canonical-d1-write-fence";
  export {commerceRestrictedCanonicalD1} from "./src/storefront-strangler/commerce-d1-write-fence";`,resolveDir:resolve("."),loader:"ts"},outfile:file,bundle:true,platform:"node",format:"esm",logLevel:"silent"});
@@ -15,7 +16,7 @@ try{
  let forge=false,outage=false;const seen=[],port={async fetch(request){
   if(outage)throw Error("owner_outage");assert.equal(new URL(request.url).pathname,"/account/private-action");
   const cmd=await request.json();seen.push(cmd);
-  const result=cmd.action==="register-device"?{id:"device_qa",name:cmd.device.name,platform:cmd.device.platform}:cmd.action==="revoke-device"?{revoked:true}:{processed:0,completed:0,blocked:0,retrying:0};
+  const result=cmd.action==="register-device"?{id:"device_qa",name:cmd.device.name,platform:cmd.device.platform}:cmd.action==="revoke-device"?{revoked:true}:cmd.action==="touch-session"?{sessionId:"sess_00000000-0000-4000-8000-000000000001"}:{processed:0,completed:0,blocked:0,retrying:0};
   return Response.json({schema:"cove.private-account-qa.v1",ownerFirst:true,action:cmd.action,userId:forge?"other_user":cmd.userId??null,result});
  }};
  const db=client.bindPublicationOwner(raw,{owner:port,secret:"a".repeat(64),territory:"US",currency:"USD"}),user="sb:00000000-0000-4000-8000-000000000001",device={deviceKey:"public_device_key_qa",name:"Reader",platform:"reader"};
@@ -25,6 +26,27 @@ try{
  assert.equal((await client.revokeDevice(db,user,"device_qa",req)).revoked,true);
  assert.equal((await client.processAccountDeletionQueue({DB:db},5)).processed,0);
  assert.deepEqual(seen[2],{action:"erasure-tick",limit:5});
+ // Account overview first touches the provider session. A D1-unbound QA
+ // caller must use a private typed owner command, never a local SQL update.
+ const sessionId="sess_00000000-0000-4000-8000-000000000001";
+ assert.equal(await client.touchAccountSession(db,user,req),sessionId);
+ assert.equal(seen[3].action,"touch-session");
+ assert.equal(seen[3].userId,user);
+ assert.match(seen[3].sessionHash,/^[a-f0-9]{64}$/);
+ assert.equal(seen[3].ipCountry,"");
+ const unbound=client.scopeQaOwnerUnboundPrimaryRead({
+   COVE_QA_OWNER_UNBOUND_READ_ENABLED:"1",COVE_SSR_STAGING:"1",
+   FORE_ENVIRONMENT:"staging",COVE_RIGHTS_OWNER_ENABLED:"1",
+   COVE_RIGHTS_OWNER_PRIMARY_ID:"969f1ea0-5f57-4f3a-aa25-9c74e58f5af3",
+   COVE_RIGHTS_OWNER_TEST_EXPIRES_AT:String(Date.now()+60000),
+   COVE_RIGHTS_OWNER_SECRET:"a".repeat(64),
+   LEGAL_AUTHORITY:{getByName(){return port;}}
+ });
+ assert.equal(await client.touchAccountSession(unbound.DB,user,req),sessionId);
+ assert.equal(seen[4].action,"touch-session");
+ assert.equal(client.hasPublicationOwner(unbound.DB),true);
+ assert.throws(()=>unbound.DB.prepare("UPDATE account_sessions SET id='unsafe'"),
+   /qa_owner_read_denied/);
  assert.ok(!JSON.stringify(seen).includes("private_session_never_forwarded"));
  // A restrictive D1 facade must retain the private canonical-owner route even
  // when two independent fences are composed or a first-primary session opens.
