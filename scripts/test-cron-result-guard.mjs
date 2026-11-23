@@ -17,7 +17,7 @@ try {
   assert.throws(()=>assertCronResult({ok:false}),/cove_scheduled_operation_reported_failure/);
   const worker=readFileSync("src/persistence-backend.worker.ts","utf8");
   assert.match(worker,/assertCronResult\(await operation\(\)\)/);
-  assert.match(worker,/if\(failedOperations\)throw Error\("cove_scheduled_queue_operations_failed"\)/);
+  assert.match(worker,/if\s*\(failedOperations\)\s*throw Error\("cove_scheduled_queue_operations_failed"\)/);
   assert.match(worker,/assertCronResult\(result\);\s*console\.info\("Account erasure tick completed"\)/);
   assert.match(worker,/Account erasure tick failed; queued requests will be retried\."\);\s*throw error/);
   console.log("PASS: negative scheduled owner receipts fail closed in queue and erasure jobs without false cron success");

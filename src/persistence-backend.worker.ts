@@ -440,13 +440,13 @@ async function runCommercialQueues(cron: string, env: BackendEnv) {
           }),
       ]);
   }
-  let failedOperations=0;
+  let failedOperations = 0;
   for (const [, operation] of tasks) {
     try {
       assertCronResult(await operation());
       console.info("Cove scheduled queue tick completed");
     } catch (error) {
-      failedOperations+=1;
+      failedOperations += 1;
       console.error(
         isD1QuotaError(error)
           ? "Cove scheduled queue D1 quota blocked"
@@ -458,7 +458,7 @@ async function runCommercialQueues(cron: string, env: BackendEnv) {
       }
     }
   }
-  if(failedOperations)throw Error("cove_scheduled_queue_operations_failed");
+  if (failedOperations) throw Error("cove_scheduled_queue_operations_failed");
 }
 async function scheduledMaintenance(env: BackendEnv) {
   const response = await maintenance(env);
