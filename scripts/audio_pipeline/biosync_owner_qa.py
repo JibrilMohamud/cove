@@ -141,7 +141,13 @@ def check_map(mapping: dict, audio_sha: str, epub_sha: str, duration: float) -> 
 
 
 def choose_queued_short_track() -> bool:
-    """Pick an independently transcribed and pinned short queued track."""
+    """Pick a short cached input, with held-for-review jobs opt-in QA only.
+
+    'review' means a previous alignment did not prove exact coverage. Never
+    turn it into a successful publication merely because files are cached.
+    The independent verifier, pinned EPUB CFIs and owner recheck still apply,
+    and scheduled operation keeps review rechecks DISABLED by default.
+    """
     global EDITION, TRACK, JOB
     prefix = "biosync/transcripts/cloudflare-whisper-v1/"
     try:
@@ -158,13 +164,19 @@ def choose_queued_short_track() -> bool:
     if not cached:
         print("No independently hosted short-track ASR transcript is cached yet.")
         return False
+    # These are literal reviewed SQL branches, never caller-provided SQL.
+    # A review-stage job was deliberately held for insufficient exact-word
+    # coverage/anchors, so it is never included by the ordinary auto-selector.
+    review_recheck = os.environ.get("BIOSYNC_RECHECK_REVIEW") == "1"
+    allowed_statuses = "('queued','review')" if review_recheck else "('queued')"
     candidates = query(
         "SELECT j.id job_id,e.id edition_id,json_extract(t.value,'$.id') track_id,"
         "json_extract(t.value,'$.sha256') audio_sha FROM audio_jobs j "
         "JOIN audio_editions e ON e.id=json_extract(j.payload_json,'$.editionId') "
         "JOIN json_each(e.tracks_json) t ON json_extract(t.value,'$.id')=json_extract(j.payload_json,'$.trackId') "
         "LEFT JOIN audio_timing m ON m.edition_id=e.id AND m.track_id=json_extract(t.value,'$.id') "
-        "WHERE j.kind='align' AND j.status='queued' AND j.attempts<6 "
+        "WHERE j.kind='align' AND j.status IN " + allowed_statuses + " AND j.attempts<6 "
+        "AND j.lease_token IS NULL AND j.lease_until IS NULL "
         "AND e.epub_sha256 IS NOT NULL "
         "AND CAST(json_extract(t.value,'$.duration') AS REAL)>0 "
         "AND CAST(json_extract(t.value,'$.duration') AS REAL)<=240 "
@@ -173,13 +185,13 @@ def choose_queued_short_track() -> bool:
     possible = [x for x in candidates
                 if f"{prefix}{x['audio_sha']}.json" in cached]
     if not possible:
-        print("No queued short BioSync tracks have a complete hosted transcript and EPUB yet.")
+        print("No eligible short BioSync input has a complete hosted transcript; review remains held unless explicitly rechecked.")
         return False
     # Rotate only among actually transcribed candidates. A track failing
     # exact-text verification never blocks other candidates indefinitely.
     chosen = possible[(int(datetime.now(timezone.utc).timestamp()) // 3600) % len(possible)]
     EDITION, TRACK, JOB = chosen["edition_id"], chosen["track_id"], chosen["job_id"]
-    print(f"Checking short BioSync candidate: {EDITION} / {TRACK}")
+    print(f"Independently rechecking short BioSync input: {EDITION} / {TRACK}")
     return True
 
 
