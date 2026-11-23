@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { performance } from "node:perf_hooks";
-import { stageFetch, stageTransport, closeStageTransport } from "./strangler-http-transport.mjs";
+import {
+  stageFetch,
+  stageTransport,
+  stageTransportSpan,
+  primeStageTransportConnections,
+  closeStageTransport,
+} from "./strangler-http-transport.mjs";
 
 const origin = "https://cove-strangler-m1-staging.cove-jibrilmohamud.workers.dev";
 const key = process.env.COVE_STRANGLER_STAGE_KEY || "";
@@ -65,6 +71,13 @@ async function requestOne(route = "/") {
     // request authorization, or page content. All responses still count.
     const ray = resp.headers.get("cf-ray") || "";
     const edgeRay = /^[a-f0-9]{12,32}-[A-Z]{3}$/.test(ray) ? ray : null;
+    const span = stageTransportSpan(resp);
+    const transportWaitMs =
+      typeof span?.sent === "number" ? Math.max(0, Math.round(span.sent - span.created)) : null;
+    const transportWireMs =
+      typeof span?.received === "number" && typeof span?.sent === "number"
+        ? Math.max(0, Math.round(span.received - span.sent))
+        : null;
     const declaredKind = resp.headers.get("x-cove-stage-failure-kind");
     return {
       ttfbMs: Math.round(headersAt - start),
@@ -72,13 +85,36 @@ async function requestOne(route = "/") {
       status: resp.status,
       edgeRay,
       serverTiming,
+      transportWaitMs,
+      transportWireMs,
       failureKind: !valid && fixedFailureKinds.has(declaredKind) ? declaredKind : null,
     };
   } catch (error) {
+    // Numeric per-status evidence is preserved above; unexpected native
+    // network errors are categorized from fixed known codes, never logged
+    // verbatim (no bearer, URL, request metadata or customer identity).
+    const cause = error && typeof error === "object" && "cause" in error
+      ? error.cause : null;
+    const code = cause && typeof cause === "object" && "code" in cause
+      ? cause.code : error && typeof error === "object" && "code" in error
+        ? error.code : null;
+    const reason = ({
+      ECONNRESET: "connection-reset",
+      EPIPE: "broken-pipe",
+      ETIMEDOUT: "connect-timeout",
+      UND_ERR_CONNECT_TIMEOUT: "connect-timeout",
+      UND_ERR_SOCKET: "socket-closed",
+      STAGE_HTTP2_DEADLINE: "stream-deadline",
+      STAGE_HTTP2_PREMATURE_CLOSE: "stream-premature-close",
+      ERR_HTTP2_STREAM_ERROR: "http2-stream-error",
+      ERR_HTTP2_GOAWAY_SESSION: "http2-goaway",
+    })[String(code)] || (error instanceof Error && error.name === "TimeoutError"
+      ? "request-deadline" : "unclassified");
     return {
       ttfbMs: Math.round(performance.now() - start),
       valid: false,
       error: error instanceof Error ? error.name : "unknown",
+      clientFailureClass: reason,
     };
   }
 }
@@ -141,7 +177,24 @@ function report(name, offered, rows, dropped = 0) {
       residualMs: Number.isFinite(row.serverTiming?.cove_bootstrap)
         ? Math.max(0, Math.round(row.ttfbMs - row.serverTiming.cove_bootstrap))
         : null,
+      transportWaitMs: row.transportWaitMs ?? null,
+      transportWireMs: row.transportWireMs ?? null,
     }));
+  const clientFailureClasses = {};
+  const invalidSamples = [];
+  for (const row of rows) {
+    if (row.valid) continue;
+    const category = typeof row.clientFailureClass === "string"
+      ? row.clientFailureClass : "not-client-error";
+    clientFailureClasses[category] = (clientFailureClasses[category] || 0) + 1;
+    if (invalidSamples.length < 6)
+      invalidSamples.push({
+        status: Number.isInteger(row.status) ? row.status : null,
+        clientFailureClass: category,
+        ttfbMs: row.ttfbMs,
+        ray: row.edgeRay ?? null,
+      });
+  }
   const output = {
     name,
     offered,
@@ -150,6 +203,8 @@ function report(name, offered, rows, dropped = 0) {
     dropped,
     invalidStatusCounts,
     invalidFailureKinds,
+    clientFailureClasses,
+    invalidSamples,
     p95Ms,
     p99Ms,
     maxMs,
@@ -200,6 +255,12 @@ try {
     for (let i = 0; i < 20; i++) rows.push(await requestOne());
     report("new-deployment-cold-20", 20, rows);
   } else {
+    // The HTTP/2 client has a fixed 16-session pool. Establish its TLS/h2
+    // connections before the strict, unmodified sample campaign so a new
+    // client handshake is not mistaken for an expensive Worker/D1 query.
+    // Cold-hosted acceptance still runs separately with no preconnect.
+    console.log("COVE_STAGE_TRANSPORT_READY " +
+      JSON.stringify(await primeStageTransportConnections()));
     for (const size of [1, 4, 8, 16, 32]) await burst(size, size + "-concurrent");
     for (const rate of [25, 50, 100]) await scheduled(rate, rate === 100 ? 20 : 10);
     await burst(32, "transport-control-32", "/__cove_perf/transport");
