@@ -99,7 +99,7 @@ const api=async(method,resource,body)=>{
     });
     const result=await response.json().catch(()=>null);
     if(response.status!==200||result?.success!==true)
-      throw Error("isolated_qa_d1_gateway_unavailable");
+      throw Error("isolated_qa_d1_gateway_unavailable:HTTP_"+response.status);
     return result.result;
   }
   const r=await fetch("https://api.cloudflare.com/client/v4/accounts/"+account+resource,{
@@ -145,10 +145,26 @@ const qaSql=async(sql,params=[])=>{
  */
 const schemaSource=QA_SCHEMA_SOURCE_D1;
 async function prepareInitialCommerceQaSchema(){
-  const records=await api("POST","/d1/database/"+schemaSource+"/query",{
-    sql:"SELECT type,name,tbl_name,sql FROM sqlite_master WHERE sql IS NOT NULL AND type IN ('table','index') ORDER BY CASE type WHEN 'table' THEN 0 ELSE 1 END,name"
-  });
-  assert.equal(records?.[0]?.success,true);
+  // Read the pinned synthetic schema in bounded, deterministic pages. One
+  // unbounded response used to hide gateway/secondary-binding failures.
+  const schemaSql="SELECT type,name,tbl_name,sql FROM sqlite_master WHERE sql IS NOT NULL AND type IN ('table','index') ORDER BY CASE type WHEN 'table' THEN 0 ELSE 1 END,name LIMIT 40 OFFSET ?";
+  const schemaRows=[];
+  let completed=false;
+  for(let offset=0;offset<1200;offset+=40){
+    const page=await api("POST","/d1/database/"+schemaSource+"/query",{
+      sql:schemaSql,params:[offset]
+    });
+    assert.equal(page?.[0]?.success,true);
+    const rows=page[0].results;
+    assert.ok(Array.isArray(rows)&&rows.length<=40,
+      "Synthetic schema source returned an invalid page");
+    schemaRows.push(...rows);
+    if(rows.length<40){completed=true;break;}
+  }
+  assert.ok(completed,"Synthetic schema metadata exceeds reviewed 1200-row bound");
+  assert.equal(new Set(schemaRows.map(x=>x.type+":"+x.name)).size,schemaRows.length,
+    "Synthetic source schema changed during paginated read");
+  const records=[{results:schemaRows}];
   const present=(await qaSql("SELECT type,name FROM sqlite_master WHERE type IN ('table','index')")).results;
   const existing=new Set(present.map(x=>x.type+":"+x.name));
   const allowed=isPaidOwnerQaSchemaTable;

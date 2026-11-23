@@ -3,13 +3,22 @@ import assert from "node:assert/strict";
 import {test} from "node:test";
 import gateway from "./synthetic-qa-d1-gateway.worker.mjs";
 const secret="a".repeat(64);
+let unexpectedEmptyBinds=0;
+function prepared(sql,params=[]){
+  return {
+    first:async()=>({cove_qa_ready:1}),
+    all:async()=>({results:[{sql,params}],meta:{changes:0}}),
+    run:async()=>({results:[],meta:{changes:1}}),
+    bind(...next){
+      if(!next.length){unexpectedEmptyBinds++;throw Error("D1 mock rejects zero-argument bind");}
+      return prepared(sql,next);
+    }
+  };
+}
 const env={COVE_QA_D1_GATE_ALLOWED:"paid",COVE_QA_D1_GATE:secret,
   COVE_QA_D1_GATE_EXPIRES_AT:String(Date.now()+12*60_000),
-  QA_PRIMARY_DB:{prepare(sql){return {bind(...params){return {
-    all:async()=>({results:[{sql,params}],meta:{changes:0}}),
-    run:async()=>({results:[],meta:{changes:1}})
-  }}}}},
-  QA_SCHEMA_DB:{prepare(sql){return {bind(...params){return {all:async()=>({results:[{sql,params}]}),run:async()=>({meta:{changes:1}})}}}}}};
+  QA_PRIMARY_DB:{prepare:sql=>prepared(sql)},
+  QA_SCHEMA_DB:{prepare:sql=>prepared(sql)}};
 const req=(path,body,token=secret)=>new Request("https://temporary-qa.workers.dev"+path,{
   method:body?"POST":"GET",headers:{"authorization":"Bearer "+token,"content-type":"application/json"},
   ...(body?{body:JSON.stringify(body)}:{})
@@ -17,15 +26,30 @@ const req=(path,body,token=secret)=>new Request("https://temporary-qa.workers.de
 test("deny forged token and expired gateway before D1 access",async()=>{
   assert.equal((await gateway.fetch(req("/__health",null,"bad"),env)).status,401);
   assert.equal((await gateway.fetch(req("/__health"),{...env,COVE_QA_D1_GATE_EXPIRES_AT:String(Date.now()-1)})).status,503);
+  assert.equal((await gateway.fetch(req("/__health"),env)).status,200);
+  assert.equal((await gateway.fetch(req("/__health"),{...env,QA_SCHEMA_DB:undefined})).status,503);
+  assert.equal((await gateway.fetch(req("/__health"),{...env,QA_SCHEMA_DB:{prepare(){return {first:async()=>{throw Error("synthetic schema D1 outage")}}}}})).status,503);
+  assert.equal((await gateway.fetch(req("/__health"),{...env,QA_PRIMARY_DB:{prepare(){return {first:async()=>null}}}})).status,503);
+  // No leak of provider errors, table contents or query SQL in the response.
+  const unavailable=await gateway.fetch(req("/__health"),{...env,QA_SCHEMA_DB:undefined});
+  assert.deepEqual(await unavailable.json(),{success:false});
 });
 test("only private query endpoint and paid/schema fixtures can be used",async()=>{
   const good=await gateway.fetch(req("/__query",{database:"qa",sql:"SELECT id FROM orders",params:[]}),env);
   assert.equal(good.status,200);
   assert.equal((await good.json()).result[0].results[0].sql,"SELECT id FROM orders");
+  assert.equal(unexpectedEmptyBinds,0,"Zero-parameter D1 SQL must execute without bind()");
   const ddl=await gateway.fetch(req("/__query",{database:"qa",sql:"CREATE TABLE t(id TEXT)",params:[]}),env);
   assert.equal((await ddl.json()).result[0].meta.changes,1);
-  const source=await gateway.fetch(req("/__query",{database:"schema",sql:"SELECT type,name,tbl_name,sql FROM sqlite_master WHERE sql IS NOT NULL AND type IN ('table','index') ORDER BY CASE type WHEN 'table' THEN 0 ELSE 1 END,name",params:[]}),env);
+  const schemaSql="SELECT type,name,tbl_name,sql FROM sqlite_master WHERE sql IS NOT NULL AND type IN ('table','index') ORDER BY CASE type WHEN 'table' THEN 0 ELSE 1 END,name LIMIT 40 OFFSET ?";
+  const source=await gateway.fetch(req("/__query",{database:"schema",sql:schemaSql,params:[0]}),env);
   assert.equal(source.status,200);
+  assert.equal((await gateway.fetch(req("/__query",{database:"schema",sql:schemaSql,params:[40]}),env)).status,200);
+  for(const params of [[],[-40],[1],[39],[1200],["0"],[0,40]]){
+    assert.equal((await gateway.fetch(req("/__query",{database:"schema",sql:schemaSql,params}),env)).status,403,
+      "Schema source paging must deny an unreviewed offset: "+JSON.stringify(params));
+  }
+  assert.equal((await gateway.fetch(req("/__query",{database:"schema",sql:schemaSql.replace("LIMIT 40","LIMIT 400"),params:[0]}),env)).status,403);
   assert.equal((await gateway.fetch(req("/__query",{database:"schema",sql:"PRAGMA writable_schema=ON",params:[]}),env)).status,400);
   assert.equal((await gateway.fetch(req("/__query",{database:"schema",sql:"DELETE FROM products",params:[]}),env)).status,403);
   assert.equal((await gateway.fetch(req("/__query",{database:"schema",sql:"SELECT 1",params:[]}),{...env,COVE_QA_D1_GATE_ALLOWED:"legal"})).status,400);
