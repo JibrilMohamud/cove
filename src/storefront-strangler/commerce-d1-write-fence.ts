@@ -1,4 +1,5 @@
 /* eslint-disable prettier/prettier -- Domain security boundary: deny commerce SQL before the D1 driver. */
+import {carryPublicationOwnerContext} from "./publication-owner-routing.server";
 /**
  * Commerce-specific production cutover containment, disabled by default.
  *
@@ -100,7 +101,8 @@ export function commerceRestrictedCanonicalD1<T extends DB>(db:T):T {
     originals.set(facade,statement);
     return facade;
   };
-  return Object.freeze({
+  const openSession=(db as D1 & {withSession?:(mode:"first-primary"|"first-unconstrained")=>D1}).withSession;
+  const facade=Object.freeze({
     prepare(sql:string){
       commerceSqlAllowed(sql);
       return wrap(db.prepare(sql));
@@ -115,8 +117,12 @@ export function commerceRestrictedCanonicalD1<T extends DB>(db:T):T {
         return original;
       });
       return db.batch(checked);
-    }
+    },
+    ...(typeof openSession==="function"?{withSession(mode:"first-primary"|"first-unconstrained"){
+      return commerceRestrictedCanonicalD1(openSession.call(db,mode));
+    }}:{})
   }) as unknown as T;
+  return carryPublicationOwnerContext(facade,db);
 }
 
 /** Strict opt-in. Disabled deployments preserve original DB object identity
