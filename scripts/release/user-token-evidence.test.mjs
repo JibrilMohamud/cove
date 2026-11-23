@@ -217,7 +217,6 @@ test("spoofed or unavailable permission-group catalog cannot certify an alias", 
   }
 });
 
-
 const ADDITIONAL_READ = {
   id: "d".repeat(32),
   name: "Workers KV Storage Read",
