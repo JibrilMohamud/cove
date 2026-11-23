@@ -17,6 +17,9 @@ on:
       - "scripts/staging/prove-biosync-qa-data-plane.test.mjs"
       - "scripts/staging/prove-biosync-hosted-owner-write.mjs"
       - "scripts/staging/prove-biosync-hosted-owner-write.source.test.mjs"
+      - "scripts/staging/authorize-biosync-owner-comment.mjs"
+      - "scripts/staging/authorize-biosync-owner-comment.test.mjs"
+      - ".github/workflows/cove-biosync-owner-comment-qa.yml"
       - ".github/workflows/cove-biosync-owner-cutover-offline.yml"
   push:
     branches: [main]
@@ -30,6 +33,9 @@ on:
       - "scripts/staging/prove-biosync-qa-data-plane.test.mjs"
       - "scripts/staging/prove-biosync-hosted-owner-write.mjs"
       - "scripts/staging/prove-biosync-hosted-owner-write.source.test.mjs"
+      - "scripts/staging/authorize-biosync-owner-comment.mjs"
+      - "scripts/staging/authorize-biosync-owner-comment.test.mjs"
+      - ".github/workflows/cove-biosync-owner-comment-qa.yml"
       - ".github/workflows/cove-biosync-owner-cutover-offline.yml"
   workflow_dispatch:
     inputs:
@@ -84,6 +90,8 @@ jobs:
         run: node --check scripts/staging/prove-biosync-hosted-owner-write.mjs
       - name: Verify exact QA-only source and fail-closed protected workflow contract
         run: node --test scripts/staging/prove-biosync-hosted-owner-write.source.test.mjs
+      - name: Prove authenticated owner comment cannot be spoofed or retargeted
+        run: node --test scripts/staging/authorize-biosync-owner-comment.test.mjs
       - name: Check source types and legal owner write fence
         run: |
           npx tsc --noEmit
