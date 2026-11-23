@@ -1,6 +1,7 @@
 /* eslint-disable prettier/prettier -- Exact QA account and credential isolation tests. */
 import assert from "node:assert/strict";
 import {test} from "node:test";
+import {readFileSync} from "node:fs";
 import {checkedPaidQaCredentials,paidQaApiTokenFor,paidQaWranglerTokenFor,QA_ACCOUNT,QA_PAID_D1,QA_SCHEMA_SOURCE_D1,PRODUCTION_ACCOUNT,PRODUCTION_D1} from "./paid-qa-cloudflare-credentials.mjs";
 const env={CLOUDFLARE_ACCOUNT_ID:QA_ACCOUNT,
   GITHUB_RUN_ID:"45000012345",GITHUB_RUN_ATTEMPT:"2",
@@ -38,4 +39,20 @@ test("Wrangler may deploy only exactly named temporary QA Worker config",()=>{
   assert.throws(()=>paidQaWranglerTokenFor(["deploy","--config","wrangler.production.jsonc","--secrets-file","/tmp/qa"],c));
   assert.throws(()=>paidQaWranglerTokenFor(["r2","object","delete","bucket/object"],c));
   assert.throws(()=>paidQaWranglerTokenFor(["d1","migrations","apply"],c));
+});
+
+test("QA cleanup removes public ingress first, retains private owner until fixture restoration and never masks root failure",()=>{
+  const proof=readFileSync("scripts/staging/prove-private-paid-owner.mjs","utf8");
+  const tail=proof.slice(proof.lastIndexOf(" } finally {"));
+  const publicDelete=tail.indexOf("[[settlementName,settlementCreated],[callerName,callerCreated]]");
+  const restore=tail.indexOf('"UPDATE entitlements SET status=\'active\'');
+  const privateDelete=tail.indexOf("[[writerName,writerCreated],[ownerName,ownerCreated]]");
+  const gatewayDelete=tail.indexOf('if(gatewayCreated){');
+  assert.ok(publicDelete>=0&&publicDelete<restore&&restore<privateDelete&&
+    privateDelete<gatewayDelete,"Synthetic fixture can only be reactivated after public ingress is removed");
+  assert.match(tail,/if\(publicIngressRemoved\)/);
+  assert.match(proof,/primaryFailure=error;/);
+  assert.match(tail,/if\(primaryFailure\)console\.error/);
+  assert.doesNotMatch(tail,/COVE_CF_QA_D1_MUTATION_TOKEN/,
+    "Teardown must not bypass the scoped QA Worker and use direct D1 mutation tokens");
 });

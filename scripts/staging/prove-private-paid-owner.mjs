@@ -381,7 +381,7 @@ const assertNoRoute=(config)=>{
 };
 let ownerCreated=false,callerCreated=false,writerCreated=false,settlementCreated=false;
 let gatewayCreated=false;
-let cleanupError=null,listener=null,webhookServer=null,webhookSigningSecret="";
+let cleanupError=null,primaryFailure=null,listener=null,webhookServer=null,webhookSigningSecret="";
 let paymentIntentId=null,initialPaymentIntentId=null,mediaUploadAttempted=false;
 const qaMedia=async(action,name,bytes)=>{
   assert.ok(["book.epub","chapter.wav","rights.txt"].includes(name));
@@ -1710,6 +1710,12 @@ try {
   console.log("PASS: genuine initial pending_payment to original Stripe webhook, full canonical ledger and outbox, injected postpaid owner outage, replay and concurrency dedupe, buyer lease, provider refund and immediate owner revocation");
   console.log("PASS: private R2 EPUB/WAV exact SHA256 bytes from isolated paid order, wrong-buyer and outage denial, original EPUB/audio receipt expiry and audio renewal, prepayment and refund byte/license veto; isolated QA adapters and original handlers, not production certification");
 
+ } catch(error){
+  // Never allow a secondary teardown failure to conceal the first
+  // source/owner/Stripe failure. Preserve the original exception and always
+  // attempt all physical QA cleanup operations independently.
+  primaryFailure=error;
+  throw error;
  } finally {
   if(interruptTriggerCreated){
     try{await qaSql("DROP TRIGGER IF EXISTS "+interruptTrigger);interruptTriggerCreated=false;}
@@ -1733,12 +1739,18 @@ try {
       }
     }
   }
-  // Physically distinct QA scripts and expiring credentials prevent production
-  // exposure. DELETE is limited to names built from this exact CI run ID.
-  for(const [name,created] of [[settlementName,settlementCreated],[callerName,callerCreated],[writerName,writerCreated],[ownerName,ownerCreated]]){
+  // Remove both public QA ingress Workers BEFORE restoring any fixture.
+  // The owner and writer remain nonroutable and are removed only after D1
+  // cleanup; deleting all four at once caused unrelated gateway 404 tails.
+  // Every DELETE uses the strictly allowlisted, run-scoped worker token.
+  let publicIngressRemoved=true;
+  for(const [name,created] of [[settlementName,settlementCreated],[callerName,callerCreated]]){
     if(!created)continue;
     try{await api("DELETE","/workers/scripts/"+name);}
-    catch(e){cleanupError=e;console.error("QA script cleanup failed: "+name);}
+    catch(e){
+      publicIngressRemoved=false;cleanupError=e;
+      console.error("QA public ingress cleanup failed: "+name);
+    }
   }
   // Revert the exact synthetic order link, even if the signed event fails.
   if(paymentIntentId){
@@ -1750,12 +1762,32 @@ try {
   // This database contains only our fixed synthetic QA fixture, never live
   // paid customers. Reinstate its test row after all ephemeral owner/writer
   // routes are gone, so cancellation recovery and later campaigns are safe.
-  try {
-    await qaSql(
-      "UPDATE entitlements SET status='active' WHERE id=? AND user_id=? AND product_id=? AND source='commerce' AND entitlement_type='purchase' AND status='revoked'",
-      [test.entitlementId,test.userId,test.productId]
-    );
-  }catch(e){cleanupError=e;console.error("Synthetic QA entitlement restoration failed");}
+  if(publicIngressRemoved){
+    try {
+      // Confirm this exact authorized QA gateway can still serve primary D1
+      // before one bounded, idempotent fixture restoration. Never retry an
+      // uncertain mutation, and never use a direct account-wide D1 writer.
+      const probe=await qaSql(
+        "SELECT status FROM entitlements WHERE id=? AND user_id=? AND product_id=? LIMIT 1",
+        [test.entitlementId,test.userId,test.productId]
+      );
+      assert.equal(probe.results?.length,1,
+        "Original synthetic QA entitlement must remain uniquely identifiable");
+      await qaSql(
+        "UPDATE entitlements SET status='active' WHERE id=? AND user_id=? AND product_id=? AND source='commerce' AND entitlement_type='purchase' AND status='revoked'",
+        [test.entitlementId,test.userId,test.productId]
+      );
+    }catch(e){cleanupError=e;console.error("Synthetic QA entitlement restoration failed");}
+  }else{
+    console.error("Synthetic QA entitlement restoration held until public ingress removal");
+  }
+  // Private owner/writer have no public ingress. Remove them only after
+  // all synthetic D1 reconciliation attempts have completed.
+  for(const [name,created] of [[writerName,writerCreated],[ownerName,ownerCreated]]){
+    if(!created)continue;
+    try{await api("DELETE","/workers/scripts/"+name);}
+    catch(e){cleanupError=e;console.error("QA private worker cleanup failed: "+name);}
+  }
   if(gatewayCreated){
     try{await api("DELETE","/workers/scripts/"+gatewayName);}
     catch(e){cleanupError=e;console.error("Synthetic QA D1 gateway cleanup failed");}
@@ -1766,5 +1798,8 @@ try {
   fs.rmSync(writerCfg,{force:true});
   fs.rmSync(settlementCfg,{force:true});
   fs.rmSync(temp,{force:true,recursive:true});
-  if(cleanupError)throw cleanupError;
+  if(cleanupError){
+    if(primaryFailure)console.error("QA cleanup also failed; retaining original protected failure");
+    else throw cleanupError;
+  }
 }
