@@ -50,7 +50,8 @@ try{
  assert.equal(scoped.id,touched.sessionId,"Actual owner and full schema must agree on remote read");
  assert.equal(scoped.revoked_at,null);
  assert.throws(()=>remote.prepare("UPDATE qa_probe_rows SET id='unsafe'"),/qa_owner_read_denied/);
- assert.throws(()=>remote.withSession("first-primary"),/qa_owner_read_denied/);
+ assert.throws(()=>remote.withSession("first-unconstrained"),/qa_owner_read_denied/);
+ assert.equal(remote.withSession("first-primary").getBookmark(),null);
  assert.match(touched.sessionId,/^sess_[a-f0-9-]{36}$/);
  assert.equal(session.primary.prepare("SELECT COUNT(*) n FROM account_sessions WHERE user_id=?")
    .get(session.user).n,1);
