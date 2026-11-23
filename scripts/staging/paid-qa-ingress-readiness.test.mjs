@@ -59,7 +59,7 @@ test("requires two consecutive complete 32-way valid waves on three fixed privat
     ...harness,
     nativeInput,
   });
-  assert.deepEqual(result, { globallyReady: true, completeWaves: 3, edge404: 32 });
+  assert.deepEqual(result, { globallyReady: true, completeWaves: 3, edge404: 32, edge500: 0 });
   assert.equal(harness.calls, 3 * 3 * 32);
   assert.equal(harness.sleeps, 2);
   assert.deepEqual([...harness.routes].sort(), PAID_QA_READ_PROBES.map((x) => x.route).sort());
@@ -73,10 +73,68 @@ test("even a single intermittent edge 404 prevents success and fails at hard bou
   });
   await assert.rejects(
     stabilizePrivatePaidQaIngress({ ...harness, nativeInput }),
-    /paid_qa_ingress_edge_404_unstable/,
+    /paid_qa_ingress_readonly_unstable:edge404=12:edge500=0/,
   );
   assert.equal(harness.calls, 12 * 3 * 32);
   assert.equal(harness.sleeps, 11);
+});
+
+test("only an unmarked 500 on the read-only caller ping can delay readiness without passing an unsafe wave", async () => {
+  const harness = probeHarness(({ route, wave }) => {
+    if (wave === 1 && route === "/qa/transport-caller-ping")
+      return responseFor(route, {
+        status: 500,
+        ingressColo: null,
+        bindingHeadersMs: null,
+        ownerRouteMs: null,
+        body: null,
+      });
+    return null;
+  });
+  const result = await stabilizePrivatePaidQaIngress({ ...harness, nativeInput });
+  assert.deepEqual(result, { globallyReady: true, completeWaves: 3, edge404: 0, edge500: 32 });
+  assert.equal(harness.calls, 3 * 3 * 32);
+  assert.equal(harness.sleeps, 2);
+});
+
+test("a persistent unmarked caller 500 still hard-fails after all 12 full-parallel waves", async () => {
+  const harness = probeHarness(({ route, calls }) =>
+    route === "/qa/transport-caller-ping" && calls % 96 === 1
+      ? responseFor(route, {
+          status: 500,
+          ingressColo: null,
+          bindingHeadersMs: null,
+          ownerRouteMs: null,
+          body: null,
+        })
+      : null,
+  );
+  await assert.rejects(
+    stabilizePrivatePaidQaIngress({ ...harness, nativeInput }),
+    /paid_qa_ingress_readonly_unstable:edge404=0:edge500=12/,
+  );
+  assert.equal(harness.calls, 12 * 3 * 32);
+  assert.equal(harness.sleeps, 11);
+});
+
+test("any 500 from owner/native, a marked caller 500 or unrecognized 5xx fails immediately", async () => {
+  for (const [route, receipt] of [
+    ["/qa/transport-caller-ping", { status: 500, ingressColo: "IAD" }],
+    ["/qa/transport-caller-ping", { status: 500, ingressColo: null, bindingHeadersMs: 1 }],
+    ["/qa/transport-owner-ping", { status: 500, ingressColo: null }],
+    ["/qa/native-first-paint", { status: 500, ingressColo: null }],
+    ["/qa/transport-caller-ping", { status: 502, ingressColo: null }],
+    ["/qa/transport-caller-ping", { status: 503, ingressColo: null }],
+  ]) {
+    const harness = probeHarness(({ route: observed }) =>
+      observed === route ? responseFor(observed, receipt) : null,
+    );
+    await assert.rejects(
+      stabilizePrivatePaidQaIngress({ ...harness, nativeInput }),
+      /paid_qa_ingress_probe_contract_denied/,
+    );
+    assert.equal(harness.sleeps, 0);
+  }
 });
 
 test("unknown application failures, forged 200s and native-rights denial cannot be retried as propagation", async () => {
