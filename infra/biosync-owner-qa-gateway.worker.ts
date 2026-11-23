@@ -46,8 +46,9 @@ function canCallOwner(env:Env){
 export default {
   async fetch(request:Request,env:Env):Promise<Response>{
     const url=new URL(request.url);
+    const readOnlyOwnerProbe=url.pathname==="/qa/owner-bound-ready";
     if(url.protocol!=="https:"||url.port||!QA_WORKERS_DEV_HOST.test(url.hostname)||
-       url.pathname!=="/biosync/publish-checked"||url.search)
+       (!readOnlyOwnerProbe&&url.pathname!=="/biosync/publish-checked")||url.search)
       return new Response(null,{status:404,headers:deny});
     if(!canCallOwner(env))return new Response(null,{status:503,headers:deny});
     if(request.method!=="POST")return new Response(null,{status:405,headers:deny});
@@ -60,6 +61,24 @@ export default {
     try{
       const encoded=await request.text();
       if(encoded.length>1024)return new Response(null,{status:413,headers:deny});
+      // The only readiness probe follows the SAME private owner service
+      // binding and independently authenticated owner/DO as the write.
+      // GET is rejected by that owner with 405 BEFORE body parsing, D1, R2,
+      // any publication command or durable receipt. It cannot acknowledge
+      // or replay an uncertain positive commit.
+      if(readOnlyOwnerProbe){
+        if(encoded!=="{}")return new Response(null,{status:400,headers:deny});
+        const owner=await env.LEGAL_AUTHORITY!.fetch(new Request(
+          "https://legal-authority.internal/biosync/publish-checked",{
+            method:"GET",
+            headers:{"authorization":"Bearer "+env.COVE_RIGHTS_OWNER_SECRET}
+          }
+        ));
+        if(owner.status!==405||owner.headers.get("cache-control")!=="no-store")
+          return new Response(null,{status:503,headers:deny});
+        return Response.json({schema:"cove.qa.biosync-owner-binding-readiness.v1"},
+          {status:200,headers:deny});
+      }
       const raw=JSON.parse(encoded);
       const receipt=await dispatchCanonicalOwnerCommand(
         env.LEGAL_AUTHORITY!,env.COVE_RIGHTS_OWNER_SECRET!,
