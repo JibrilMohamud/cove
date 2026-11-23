@@ -28,7 +28,11 @@ export async function readPaidOwnerFence(post, journalVersion, revision) {
   assert.equal(r.primaryId, PAID_QA_PRIMARY);
   assert.equal(r.authorizing, false);
   assert.equal(r.tables, 27, "all 27 reviewed owner SQL tables must be journaled");
-  assert.equal(r.triggers, 87, "each reviewed table needs all three DML triggers, plus six immutable fence/manifest triggers");
+  assert.equal(
+    r.triggers,
+    87,
+    "each reviewed table needs all three DML triggers, plus six immutable fence/manifest triggers",
+  );
   assert.match(r.mutationEpoch, /^(?:0|[1-9][0-9]{0,15})$/);
   assert.ok(Number.isSafeInteger(Number(r.mutationEpoch)));
   assert.ok(r.rehearsalRevision === "A" || r.rehearsalRevision === "B");
