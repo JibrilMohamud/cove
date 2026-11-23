@@ -40,6 +40,9 @@ on:
       - "scripts/check-offline-audio-issuer-authorization.mjs"
       - "scripts/check-stripe-terminal-order-states.mjs"
       - "scripts/staging/prove-private-paid-owner.mjs"
+      - "scripts/staging/synthetic-qa-d1-gateway.worker.mjs"
+      - "scripts/staging/synthetic-qa-d1-gateway-config.mjs"
+      - "scripts/staging/synthetic-qa-d1-gateway.test.mjs"
       - "scripts/staging/paid-qa-template-binding.mjs"
       - "scripts/staging/paid-qa-template-binding.test.mjs"
       - "scripts/staging/paid-owner-schema-policy.mjs"
@@ -95,6 +98,9 @@ on:
       - "drizzle/0088_paid_repurchase_fresh_entitlement.sql"
       - "scripts/check-customer-media-owner-order.mjs"
       - "scripts/staging/prove-private-paid-owner.mjs"
+      - "scripts/staging/synthetic-qa-d1-gateway.worker.mjs"
+      - "scripts/staging/synthetic-qa-d1-gateway-config.mjs"
+      - "scripts/staging/synthetic-qa-d1-gateway.test.mjs"
       - "scripts/staging/paid-qa-template-binding.mjs"
       - "scripts/staging/paid-qa-template-binding.test.mjs"
       - "scripts/staging/paid-owner-schema-policy.mjs"
@@ -145,6 +151,8 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: node --test scripts/staging/paid-qa-template-binding.test.mjs
+      - name: Synthetic D1 gateway requires real schema and primary readiness
+        run: node --test scripts/staging/synthetic-qa-d1-gateway.test.mjs
       - run: node scripts/check-paid-stage-initial-identity.mjs
       - run: node scripts/check-qa-synthetic-audio.mjs
       - run: node scripts/check-owner-checkout-draft.mjs
@@ -195,6 +203,8 @@ jobs:
           '
       - name: Validate isolated QA template rebinding before any deployment
         run: node --test scripts/staging/paid-qa-template-binding.test.mjs
+      - name: Recheck gateway D1 probes and bounded source SQL before protected QA
+        run: node --test scripts/staging/synthetic-qa-d1-gateway.test.mjs
       - name: Validate denial-first paid consumer and source rules
         run: |
           node scripts/check-paid-entitlement-authority.mjs
