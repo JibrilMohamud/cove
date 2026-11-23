@@ -6,6 +6,16 @@ name: biosync-owner-qa-protected
 # service principal are independently attested.
 on:
   workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        description: "Exact protected main SHA for isolated QA-only BioSync owner proof"
+        required: true
+        type: string
+      confirm_private_biosync_qa:
+        description: "Explicitly approve isolated QA only; NEVER production D1 or sales"
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -16,7 +26,12 @@ concurrency:
 
 jobs:
   verify:
-    if: github.ref == 'refs/heads/main'
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.reviewed_main_sha == github.sha &&
+      inputs.confirm_private_biosync_qa == true
     runs-on: ubuntu-latest
     timeout-minutes: 12
     environment: cove-protected-biosync-owner-qa
@@ -31,8 +46,8 @@ jobs:
         run: python3 -m unittest scripts.audio_pipeline.test_biosync_owner_cutover
       - name: Publish checked BioSync map only through the enrolled QA owner
         env:
-          COVE_BIOSYNC_QA_DATABASE_ID: ${{ vars.COVE_BIOSYNC_QA_DATABASE_ID }}
-          COVE_BIOSYNC_QA_BUCKET: ${{ vars.COVE_BIOSYNC_QA_BUCKET }}
+          COVE_BIOSYNC_QA_DATABASE_ID: 4e17ba6f-444f-4245-801a-a7d4969045b0
+          COVE_BIOSYNC_QA_BUCKET: cove-owner-biosync-qa
           COVE_BIOSYNC_QA_GATEWAY_URL: ${{ vars.COVE_BIOSYNC_QA_GATEWAY_URL }}
           COVE_BIOSYNC_D1_READ_TOKEN: ${{ secrets.COVE_BIOSYNC_D1_READ_TOKEN }}
           COVE_BIOSYNC_R2_TOKEN: ${{ secrets.COVE_BIOSYNC_R2_TOKEN }}
