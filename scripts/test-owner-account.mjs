@@ -32,6 +32,33 @@ try{
   const queue=(id="erase_account_qa",u=user)=>primary.prepare("INSERT INTO account_deletion_requests(id,user_id,status,requested_at,execute_after,confirmation_hash,created_at,updated_at) VALUES(?,?,'queued',?,'2000-01-01','qa',?,?)").run(id,u,at,at,at);
   return {primary,durable,sql,env,user,other,at,request,call,queue,restart,stored,storageFail(v){storageFail=v;},inject(i){fail=i;},loseAck(){lost=true;},deletes:()=>deletes,retry(id="erase_account_qa"){primary.prepare("UPDATE account_deletion_requests SET next_retry_at=NULL,lease_expires_at=NULL WHERE id=?").run(id);}};
  }
+ const session=fixture(),touch={action:"touch-session",userId:session.user,
+   sessionHash:"c".repeat(64),userAgentSummary:"QA reader",ipCountry:"US"};
+ assert.equal((await session.request({...touch,sessionHash:"raw-cookie"})).status,503,
+   "No raw cookie or unverified session ID may cross the owner boundary");
+ assert.equal((await session.request({...touch,userId:session.other,ipCountry:"??"})).status,503);
+ assert.equal((await session.request({...touch,createdAt:"2025-01-01"})).status,503,
+   "Caller cannot choose owner timestamps");
+ const touched=await session.call(touch);
+ assert.match(touched.sessionId,/^sess_[a-f0-9-]{36}$/);
+ assert.equal(session.primary.prepare("SELECT COUNT(*) n FROM account_sessions WHERE user_id=?")
+   .get(session.user).n,1);
+ session.restart();
+ assert.equal((await session.call(touch)).sessionId,touched.sessionId,
+   "Same session digest must replay without a duplicate");
+ assert.equal(session.primary.prepare("SELECT COUNT(*) n FROM account_sessions WHERE user_id=?")
+   .get(session.user).n,1);
+ const otherSession=await session.call({...touch,userId:session.other});
+ assert.notEqual(otherSession.sessionId,touched.sessionId,"Separate account requires separate session");
+ session.primary.prepare("UPDATE account_sessions SET revoked_at=? WHERE id=?")
+   .run(new Date().toISOString(),touched.sessionId);
+ assert.equal((await session.request(touch)).status,403,
+   "Revocation is terminal for an existing digest");
+ assert.ok(session.primary.prepare("SELECT revoked_at FROM account_sessions WHERE id=?")
+   .get(touched.sessionId).revoked_at);
+ session.env.COVE_RIGHTS_OWNER_ENABLED="0";
+ assert.equal((await session.request(touch)).status,503,
+   "Disabled production-like owner must reject even metadata-only mutation");
  const f=fixture(),device={deviceKey:"permanent-device-key-qa-001",name:"QA reader",platform:"reader"};
  assert.equal((await f.request({action:"register-device",userId:f.user,device},"b".repeat(64))).status,401);
  assert.equal((await f.request({action:"register-device",userId:"unknown_user",device})).status,403);
