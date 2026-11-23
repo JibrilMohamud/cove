@@ -2,9 +2,12 @@ import assert from "node:assert/strict";
 const account = "d26430caa63ec55f6612e32f36aca5e9";
 assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, account);
 assert.equal(process.env.GITHUB_REF, "refs/heads/main");
-const token = process.env.CLOUDFLARE_API_TOKEN;
-assert.ok(token);
+const token = process.env.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN;
+const deployToken=process.env.CLOUDFLARE_API_TOKEN;
+assert.ok(token && deployToken && token!==deployToken,
+  "Replay preflight requires separate read-only D1 and Worker-deployment credentials");
 async function query(db, sql) {
+  assert.match(sql.trim(), /^SELECT\b/i, "Replay preflight may only read D1");
   const res = await fetch(
     "https://api.cloudflare.com/client/v4/accounts/" + account + "/d1/database/" + db + "/query",
     {
