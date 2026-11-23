@@ -270,12 +270,12 @@ def main() -> None:
     track = next((t for t in json.loads(row["tracks_json"]) if t["id"] == TRACK), None)
     if not track or not track.get("sha256") or not track.get("duration") or not row["epub_sha256"]:
         raise RuntimeError("Canary recording or pinned EPUB is not ready")
+    if row["status"] == "running":
+        raise RuntimeError("Refusing to override an active BioSync job lease")
     if row["status"] not in ("queued", "review", "done"):
         raise RuntimeError("BioSync job status is not eligible for publication")
     if row["status"] == "review" and os.environ.get("BIOSYNC_RECHECK_REVIEW") != "1":
         raise RuntimeError("Review-stage BioSync requires explicit QA recheck")
-    if row["status"] == "running":
-        raise RuntimeError("Refusing to override an active BioSync job lease")
     audio_sha, epub_sha = track["sha256"], row["epub_sha256"]
     existing = query("SELECT map_sha256 FROM audio_timing WHERE edition_id=? AND track_id=? AND audio_sha256=? AND epub_sha256=? LIMIT 1",
              [EDITION, TRACK, audio_sha, epub_sha])
