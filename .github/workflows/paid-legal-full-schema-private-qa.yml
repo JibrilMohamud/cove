@@ -43,6 +43,8 @@ on:
       - "scripts/staging/synthetic-qa-d1-gateway.worker.mjs"
       - "scripts/staging/synthetic-qa-d1-gateway-config.mjs"
       - "scripts/staging/synthetic-qa-d1-gateway.test.mjs"
+      - "scripts/staging/paid-qa-gateway-readiness.mjs"
+      - "scripts/staging/paid-qa-gateway-readiness.test.mjs"
       - "scripts/staging/paid-qa-template-binding.mjs"
       - "scripts/staging/paid-qa-template-binding.test.mjs"
       - "scripts/staging/paid-owner-schema-policy.mjs"
@@ -101,6 +103,8 @@ on:
       - "scripts/staging/synthetic-qa-d1-gateway.worker.mjs"
       - "scripts/staging/synthetic-qa-d1-gateway-config.mjs"
       - "scripts/staging/synthetic-qa-d1-gateway.test.mjs"
+      - "scripts/staging/paid-qa-gateway-readiness.mjs"
+      - "scripts/staging/paid-qa-gateway-readiness.test.mjs"
       - "scripts/staging/paid-qa-template-binding.mjs"
       - "scripts/staging/paid-qa-template-binding.test.mjs"
       - "scripts/staging/paid-owner-schema-policy.mjs"
@@ -153,6 +157,8 @@ jobs:
       - run: node --test scripts/staging/paid-qa-template-binding.test.mjs
       - name: Synthetic D1 gateway requires real schema and primary readiness
         run: node --test scripts/staging/synthetic-qa-d1-gateway.test.mjs
+      - name: Prove stable read-only POST routing before any synthetic QA D1 write
+        run: node --test scripts/staging/paid-qa-gateway-readiness.test.mjs
       - run: node scripts/check-paid-stage-initial-identity.mjs
       - run: node scripts/check-qa-synthetic-audio.mjs
       - run: node scripts/check-owner-checkout-draft.mjs
@@ -205,6 +211,8 @@ jobs:
         run: node --test scripts/staging/paid-qa-template-binding.test.mjs
       - name: Recheck gateway D1 probes and bounded source SQL before protected QA
         run: node --test scripts/staging/synthetic-qa-d1-gateway.test.mjs
+      - name: Fail closed on gateway propagation without replaying commerce mutations
+        run: node --test scripts/staging/paid-qa-gateway-readiness.test.mjs
       - name: Validate denial-first paid consumer and source rules
         run: |
           node scripts/check-paid-entitlement-authority.mjs
