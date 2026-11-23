@@ -17,6 +17,9 @@ const EXACT_USER_READ_GROUP_LOOKUPS=new Set([
   '/user/tokens/permission_groups?name=Account%20Analytics%20Read',
 ]);
 function safePath(path){
+  // Unfiltered provider permission catalog is ID evidence only: GET,
+  // immutable endpoint, no token creations, no unsafe caller-controlled path.
+  if(path==='/user/tokens/permission_groups')return true;
   if(EXACT_USER_READ_GROUP_LOOKUPS.has(path))return true;
   if(path==='/user/tokens'||path==='/user')return true;
   if(path==='/accounts/'+ACCOUNT+'/members')return true;

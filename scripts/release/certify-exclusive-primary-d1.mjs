@@ -44,6 +44,55 @@ const DOCUMENTED_USER_READ_GROUPS=[
   {name:"Account Analytics Read",alias:"Account Analytics",scope:"com.cloudflare.api.account"},
 ];
 const GROUP_ID=/^[a-f0-9]{32}$/;
+const CATALOG_SCOPES=new Set([
+  "com.cloudflare.api.user","com.cloudflare.api.account",
+  "com.cloudflare.api.account.zone","com.cloudflare.edge.r2.bucket",
+]);
+/**
+ * Cloudflare's user-token policies can report display-only aliases while the
+ * permission-group catalog names the effective capability by immutable ID.
+ * A provider-authenticated, complete catalog can independently prove one
+ * OTHER alias read-only only when its canonical name is exactly the alias
+ * plus " Read" or " Read-Only". Never infer safety from policy labels.
+ *
+ * Fail closed on pagination, duplicated/malformed IDs, mutation-capable
+ * catalog names, unexpected scopes, unknown IDs or stale metadata. This
+ * audit cannot establish coverage of any OTHER Cloudflare user principal.
+ */
+async function proveAdditionalUserReadAliases(get,userToken,unknown){
+  let page;
+  try{page=await get("/user/tokens/permission_groups",userToken);}
+  catch(error){
+    return ["writer_audit_http_401","writer_audit_http_403"].includes(error?.message)
+      ?"read_group_catalog_unauthorized":"read_group_catalog_unavailable";
+  }
+  const rows=page?.result,info=page?.result_info;
+  if(!Array.isArray(rows)||rows.length===0||rows.length>3000)
+    return "read_group_catalog_shape_invalid";
+  if(!info||info.page!==1||info.count!==rows.length||
+     (info.total_pages!==undefined&&info.total_pages!==1)||
+     !Number.isSafeInteger(info.total_count)||info.total_count!==rows.length)
+    return "read_group_catalog_incomplete";
+  const indexed=new Map();
+  for(const row of rows){
+    if(!GROUP_ID.test(row?.id||"")||typeof row?.name!=="string"||
+       !Array.isArray(row.scopes)||!row.scopes.length||
+       !row.scopes.every(scope=>CATALOG_SCOPES.has(scope))||
+       indexed.has(row.id))
+      return "read_group_catalog_shape_invalid";
+    indexed.set(row.id,row);
+  }
+  for(const group of unknown){
+    if(typeof group.name!=="string"||!READ_ONLY_GROUP.test(group.name+" Read"))
+      return "read_group_alias_identifier_mismatch_unrecognized";
+    const canonical=indexed.get(group.id);
+    if(!canonical||!READ_ONLY_GROUP.test(canonical.name)||
+       ![group.name+" Read",group.name+" Read-Only"].includes(canonical.name))
+      return "read_group_alias_identifier_mismatch_unrecognized";
+  }
+  return null;
+}
+
 async function proveUnreviewedUserGroupsReadOnly(get,userToken,userTokens){
   const unreviewed=userTokens.filter(t=>t.status==="active")
     .flatMap(t=>t.policies.flatMap(p=>p.permission_groups))
@@ -75,14 +124,25 @@ async function proveUnreviewedUserGroupsReadOnly(get,userToken,userTokens){
   }
   // Provider-scoped alias diagnostics expose only one of four code-owned
   // categories, never group IDs, names, token identities or raw payloads.
-  const mismatch=unreviewed.find(group=>verifiedIds.get(group.id)!==group.name);
-  if(!mismatch)return null;
-  const category={
-    "API Tokens":"api_tokens",
-    "User Details":"user_details",
-    "Account Analytics":"account_analytics",
-  }[mismatch.name]||"unrecognized";
-  return "read_group_alias_identifier_mismatch_"+category;
+  const knownAliases=new Set(DOCUMENTED_USER_READ_GROUPS.map(g=>g.alias));
+  // An old known alias with the WRONG provider ID is not an opportunity to
+  // probe a broader catalog. Preserve the existing exact-ID denial.
+  const knownMismatch=unreviewed.find(g=>
+    knownAliases.has(g.name)&&verifiedIds.get(g.id)!==g.name);
+  if(knownMismatch){
+    const category={
+      "API Tokens":"api_tokens",
+      "User Details":"user_details",
+      "Account Analytics":"account_analytics",
+    }[knownMismatch.name];
+    return "read_group_alias_identifier_mismatch_"+category;
+  }
+  const other=unreviewed.filter(g=>!knownAliases.has(g.name));
+  // A cosmetic alias for a KNOWN provider ID but an unexpected label is
+  // already proven inconsistent; do not relabel it as a newly safe scope.
+  if(other.some(g=>verifiedIds.has(g.id)))
+    return "read_group_alias_identifier_mismatch_unrecognized";
+  return other.length?proveAdditionalUserReadAliases(get,userToken,other):null;
 }
 function tokenHasUnreviewedPermissions(token){
   return Array.isArray(token?.policies)&&token.policies.some(p=>
