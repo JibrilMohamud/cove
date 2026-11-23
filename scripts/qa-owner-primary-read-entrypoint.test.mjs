@@ -135,7 +135,7 @@ test("integrated #867 DB-unbound QA backend can perform one typed owner command 
   assert.throws(() => env.DB.prepare("UPDATE legal_rows SET state='granted'"),
     /qa_owner_read_denied/);
   assert.throws(() => env.DB.prepare("SELECT 1").run(), /qa_owner_read_denied/);
-  assert.throws(() => env.DB.exec("DELETE FROM entitlements"), /qa_owner_read_denied/);
+  assert.throws(() => env.DB.exec("DELETE FROM qa_probe_rows"), /qa_owner_read_denied/);
   const ack = await dispatchPublicationRecovery(env.DB);
   assert.deepEqual(ack, { checked: 2, recovered: 1, blocked: 1 });
   assert.deepEqual(paths, ["/qa/private-primary-read", "/publication/recover-recorded"]);
