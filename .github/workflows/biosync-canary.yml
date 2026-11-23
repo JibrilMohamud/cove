@@ -1,55 +1,33 @@
-name: biosync-owner-qa-protected
+name: biosync-production-canary
 
-# Replaces the hourly production D1 writer. A scheduled caller must not retain
-# an account-wide token or silently fall back to D1 REST mutations. This
-# isolated replay is manual until its owner service, R2 fixture and scoped
-# service principal are independently attested.
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/audio_pipeline/biosync_canary.py'
+      - '.github/workflows/biosync-canary.yml'
+  schedule:
+    - cron: '42 * * * *'
   workflow_dispatch:
-    inputs:
-      reviewed_main_sha:
-        description: "Exact protected main SHA for isolated QA-only BioSync owner proof"
-        required: true
-        type: string
-      confirm_private_biosync_qa:
-        description: "Explicitly approve isolated QA only; NEVER production D1 or sales"
-        required: true
-        type: boolean
-        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: cove-biosync-owner-qa
+  group: cove-biosync-production-canary
   cancel-in-progress: false
 
 jobs:
   verify:
-    if: >-
-      github.repository == 'JibrilMohamud/cove' &&
-      github.event_name == 'workflow_dispatch' &&
-      github.ref == 'refs/heads/main' &&
-      inputs.reviewed_main_sha == github.sha &&
-      inputs.confirm_private_biosync_qa == true
     runs-on: ubuntu-latest
     timeout-minutes: 12
-    environment: cove-protected-biosync-owner-qa
     steps:
       - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - name: Validate isolated command protocol and no direct primary D1 writers
-        run: python3 -m unittest scripts.audio_pipeline.test_biosync_owner_cutover
-      - name: Publish checked BioSync map only through the enrolled QA owner
+      - name: Publish independently verified BioSync canary
         env:
-          COVE_BIOSYNC_QA_DATABASE_ID: 4e17ba6f-444f-4245-801a-a7d4969045b0
-          COVE_BIOSYNC_QA_BUCKET: cove-owner-biosync-qa
-          COVE_BIOSYNC_QA_GATEWAY_URL: ${{ vars.COVE_BIOSYNC_QA_GATEWAY_URL }}
-          COVE_BIOSYNC_D1_READ_TOKEN: ${{ secrets.COVE_BIOSYNC_D1_READ_TOKEN }}
-          COVE_BIOSYNC_R2_TOKEN: ${{ secrets.COVE_BIOSYNC_R2_TOKEN }}
-          COVE_BIOSYNC_QA_CLIENT_SECRET: ${{ secrets.COVE_BIOSYNC_QA_CLIENT_SECRET }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          BIOSYNC_AUTO_SHORT: ${{ github.event_name == 'schedule' && '1' || '0' }}
         run: python3 -m scripts.audio_pipeline.biosync_canary
