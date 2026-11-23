@@ -18,8 +18,20 @@ test("Hosted owner proof cannot address the production account or primary",()=>{
   assert.match(script,/new Set\(tokens\)\.size!==tokens\.length/);
   assert.match(script,/COVE_BIOSYNC_REVIEWED_MAIN_SHA!==process\.env\.GITHUB_SHA/);
   assert.match(script,/GITHUB_REF!=="refs\/heads\/main"/);
-  assert.match(script,/GITHUB_EVENT_NAME!=="workflow_dispatch"/);
+  assert.match(script,/\["workflow_dispatch","issue_comment"\]\.includes\(event\)/);
+  assert.match(script,/if\(event==="issue_comment"\)/);
+  assert.match(script,/checkHostedCommentEnvironment\(process\.env\)/);
   assert.match(script,/qa_ephemeral_worker_residual/);
+  // Require a real edge-service propagation proof, never blind deployment
+  // success followed by a positive owner write during a not-yet-live route.
+  assert.match(script,/async function waitForAuthenticatedGateway\(\)/);
+  assert.match(script,/authorization":"Bearer invalid-ready-probe"/);
+  assert.match(script,/result\.status===401/);
+  assert.match(script,/unauthenticated_gateway_accepted_request/);
+  assert.match(script,/authenticated_gateway_not_ready_/);
+  assert.ok(script.indexOf("await waitForAuthenticatedGateway();") <
+    script.indexOf("const first=await callOwner(command,client);"),
+    "A live 401 read-only denial must precede the first positive owner command");
   assert.match(script,/qa_r2_residual_map/);
   assert.match(script,/qa_d1_residual_synthetic_rows/);
   assert.match(script,/releaseCertified:false/);

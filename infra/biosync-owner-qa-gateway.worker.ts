@@ -22,6 +22,9 @@ const ALLOWED_BINDINGS=new Set([
 // reach its own dedicated D1 and no other QA or production principal.
 const QA_PRIMARIES=new Set(["4e17ba6f-444f-4245-801a-a7d4969045b0"]);
 const deny={"cache-control":"no-store","x-content-type-options":"nosniff"};
+// Never allow an accidental production zone route or arbitrary preview/custom
+// domain to become a public ingress for this temporary authenticated QA owner.
+const QA_WORKERS_DEV_HOST=/^cove-biosync-gateway-qa-\d{8,15}-\d{1,5}\.cove-qa-reads\.workers\.dev$/;
 function canCallOwner(env:Env){
   const now=Date.now(),expires=Number(env.COVE_BIOSYNC_QA_GATEWAY_EXPIRES_AT);
   return env.COVE_BIOSYNC_QA_GATEWAY_ENABLED==="1" &&
@@ -43,7 +46,9 @@ function canCallOwner(env:Env){
 export default {
   async fetch(request:Request,env:Env):Promise<Response>{
     const url=new URL(request.url);
-    if(url.pathname!=="/biosync/publish-checked"||url.search)return new Response(null,{status:404,headers:deny});
+    if(url.protocol!=="https:"||url.port||!QA_WORKERS_DEV_HOST.test(url.hostname)||
+       url.pathname!=="/biosync/publish-checked"||url.search)
+      return new Response(null,{status:404,headers:deny});
     if(!canCallOwner(env))return new Response(null,{status:503,headers:deny});
     if(request.method!=="POST")return new Response(null,{status:405,headers:deny});
     if(request.headers.get("authorization")!=="Bearer "+env.COVE_BIOSYNC_QA_CLIENT_SECRET)

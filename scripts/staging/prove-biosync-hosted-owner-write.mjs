@@ -14,6 +14,7 @@ import {join} from "node:path";
 import {spawnSync} from "node:child_process";
 import {QA_ACCOUNT,QA_DATABASE,QA_BUCKET} from "./prove-biosync-qa-data-plane.mjs";
 import {proveBiosyncQaDataPlane} from "./prove-biosync-qa-data-plane.mjs";
+import {checkHostedCommentEnvironment} from "./authorize-biosync-owner-comment.mjs";
 
 const runId=process.env.GITHUB_RUN_ID+"-"+(process.env.GITHUB_RUN_ATTEMPT||"1");
 const ownerName="cove-biosync-owner-qa-"+runId;
@@ -59,8 +60,14 @@ const tokenNames=[
 ];
 function refuse(message){throw Error("biosync_hosted_owner_qa_denied_"+message);}
 function validInput(){
+  const event=process.env.GITHUB_EVENT_NAME;
+  if(event==="issue_comment"){
+    // Even a workflow condition typo cannot cause a write on the strength of
+    // any other person's comment or a stale/unreviewed main commit.
+    checkHostedCommentEnvironment(process.env);
+  }
   if(process.env.GITHUB_REPOSITORY!=="JibrilMohamud/cove"||
-     process.env.GITHUB_EVENT_NAME!=="workflow_dispatch"||
+     !["workflow_dispatch","issue_comment"].includes(event)||
      process.env.GITHUB_REF!=="refs/heads/main"||
      !/^[a-f0-9]{40}$/.test(process.env.GITHUB_SHA||"")||
      process.env.COVE_BIOSYNC_REVIEWED_MAIN_SHA!==process.env.GITHUB_SHA||
@@ -123,6 +130,38 @@ async function callOwner(body,authorization,route="/biosync/publish-checked",met
   const data=r.status===200?await r.json():null;
   return {status:r.status,data};
 }
+/**
+ * The control-plane deployment receipt may precede per-colo public DNS and
+ * service-binding propagation. A wrong-token probe is strictly non-mutating:
+ * the authenticated gateway must return 401 before forwarding to the owner.
+ * Never issue the first positive command until this exact boundary is live.
+ */
+async function waitForAuthenticatedGateway(){
+  let last="unavailable";
+  for(let attempt=0;attempt<24;attempt++){
+    try{
+      const result=await fetch(ownerOrigin+"/biosync/publish-checked",{
+        method:"POST",
+        headers:{"authorization":"Bearer invalid-ready-probe",
+          "content-type":"application/json"},
+        body:"{}",
+        redirect:"error",
+        signal:AbortSignal.timeout(5000)
+      });
+      if(result.status===401)return;
+      if(result.status===200)refuse("unauthenticated_gateway_accepted_request");
+      last="http_"+result.status;
+      if(![404,429,500,502,503,504].includes(result.status))
+        refuse("unexpected_gateway_readiness_status_"+result.status);
+    }catch(error){
+      if(String(error).includes("biosync_hosted_owner_qa_denied_"))throw error;
+      last="network_unready";
+    }
+    if(attempt!==23)await new Promise(resolve=>setTimeout(resolve,1300));
+  }
+  refuse("authenticated_gateway_not_ready_"+last);
+}
+
 function configuration(){
   const owner=JSON.parse(
     requireTemplate("wrangler.biosync-owner.qa.example.jsonc"));
@@ -251,6 +290,7 @@ async function main(){
     wrangler(["deploy","--config",ownerConfig,"--secrets-file",ownerSecrets]);
     gatewayDeployed=true;
     wrangler(["deploy","--config",gatewayConfig,"--secrets-file",gatewaySecrets]);
+    await waitForAuthenticatedGateway();
     const first=await callOwner(command,client);
     assert.equal(first.status,200,"Actual private owner must acknowledge checked map");
     checkedOwnerReceipt(first.data,false);

@@ -1,0 +1,90 @@
+# A second, owner-authenticated trigger for the same protected QA test.
+# This is NOT an issue-comment bot capable of general deployments. It runs
+# ONLY on a comment created by the repository owner on reviewed PR #859 with
+# exact default-branch SHA and two explicit synthetic QA confirmations.
+# The protected environment still governs all secrets; never accept PR code.
+name: cove-biosync-owner-qa-reviewed-comment
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+jobs:
+  authorize-owner-comment:
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'issue_comment' &&
+      github.event.action == 'created' &&
+      github.ref == 'refs/heads/main' &&
+      github.actor == 'JibrilMohamud' &&
+      github.event.sender.login == 'JibrilMohamud' &&
+      github.event.comment.user.login == 'JibrilMohamud' &&
+      github.event.comment.author_association == 'OWNER' &&
+      github.event.issue.number == 859 &&
+      github.event.issue.pull_request != null &&
+      startsWith(github.event.comment.body, '/cove-biosync-hosted-qa ')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with: { node-version: "22" }
+      - name: Check GitHub-supplied event against exact current reviewed main SHA
+        run: node scripts/staging/authorize-biosync-owner-comment.mjs
+      - name: Prove malicious comment variants cannot authorize a protected QA write
+        run: node --test scripts/staging/authorize-biosync-owner-comment.test.mjs
+
+  hosted-isolated-owner-atomic-write:
+    needs: authorize-owner-comment
+    if: needs.authorize-owner-comment.result == 'success'
+    concurrency:
+      group: cove-biosync-hosted-owner-qa
+      cancel-in-progress: false
+    environment: cove-production-release-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CLOUDFLARE_ACCOUNT_ID: f51e8ccbc394e2d6016ff8c2c303d54b
+      COVE_CF_QA_WORKERS_DEPLOY_TOKEN: ${{ secrets.COVE_CF_QA_WORKERS_DEPLOY_TOKEN }}
+      COVE_CF_QA_D1_MUTATION_TOKEN: ${{ secrets.COVE_CF_QA_D1_MUTATION_TOKEN }}
+      COVE_CF_QA_R2_STORAGE_TOKEN: ${{ secrets.COVE_CF_QA_R2_STORAGE_TOKEN }}
+      COVE_BIOSYNC_REVIEWED_MAIN_SHA: ${{ github.sha }}
+      COVE_BIOSYNC_PROTECTED_ENV: cove-production-release-audit
+      CLOUDFLARE_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Independently revalidate signed GitHub owner authorization in protected job
+        run: node scripts/staging/authorize-biosync-owner-comment.mjs
+      - name: Require production-denying and isolated QA security contracts
+        run: |
+          node scripts/check-biosync-hosted-owner-config.mjs
+          node --test scripts/staging/authorize-biosync-owner-comment.test.mjs
+          node --test scripts/staging/prove-biosync-qa-data-plane.test.mjs
+          node --test scripts/staging/prove-biosync-hosted-owner-write.source.test.mjs
+          node scripts/check-owner-biosync-checked-publication.mjs
+          node scripts/check-owner-biosync-qa-gateway.mjs
+          node scripts/check-locked-production-legal-owner.mjs
+      - name: Check real isolated QA D1 schema and R2 bucket using distinct scoped tokens
+        run: node scripts/staging/prove-biosync-qa-data-plane.mjs
+      - name: Build the reviewed canonical legal owner, not a mock
+        run: |
+          node scripts/build-storefront-strangler.mjs
+          node --input-type=module -e '
+            import {build} from "esbuild";
+            await build({entryPoints:["infra/biosync-owner-qa-gateway.worker.ts"],
+              bundle:true,format:"esm",platform:"neutral",
+              outfile:".output/strangler/biosync-owner-qa-gateway.mjs"});
+          '
+      - name: Verify actual owner commit, typed D1 pointer, idempotent replay, invalid requests and teardown
+        run: node scripts/staging/prove-biosync-hosted-owner-write.mjs
