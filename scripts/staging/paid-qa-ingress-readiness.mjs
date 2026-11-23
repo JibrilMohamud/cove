@@ -94,7 +94,8 @@ export async function stabilizePrivatePaidQaIngress({
       }
     }
     clean = entireWaveReady ? clean + 1 : 0;
-    if (clean === stableWaves) return { globallyReady: true, completeWaves: round, edge404, edge500 };
+    if (clean === stableWaves)
+      return { globallyReady: true, completeWaves: round, edge404, edge500 };
     if (round < rounds) await sleep(3000);
   }
   throw Error("paid_qa_ingress_readonly_unstable:edge404=" + edge404 + ":edge500=" + edge500);
