@@ -228,5 +228,39 @@ class ReviewedShortTrackSelectionTests(unittest.TestCase):
         missing_epub, _ = self._select(review_enabled=True, epub_present=False)
         self.assertFalse(missing_epub)
 
+    def test_direct_job_invocation_never_bypasses_review_hold_or_active_lease(self):
+        # main() can also run with an explicitly selected job. The review
+        # hold must apply there, not only to the short auto-selector.
+        env = {
+            "COVE_BIOSYNC_D1_READ_TOKEN": "qa-only-read",
+            "COVE_BIOSYNC_R2_TOKEN": "qa-only-r2",
+            "COVE_BIOSYNC_QA_GATEWAY_URL": "https://cove-biosync-gateway.cove-qa-reads.workers.dev",
+            "COVE_BIOSYNC_QA_CLIENT_SECRET": "f" * 64,
+            "BIOSYNC_RECHECK_REVIEW": "",
+            "BIOSYNC_AUTO_SHORT": "",
+        }
+        for status, reason in [
+            ("review", "requires explicit QA recheck"),
+            ("running", "active BioSync job lease"),
+            ("failed", "not eligible"),
+        ]:
+            row = {
+                "book_id": "qa-only-book",
+                "epub_sha256": "b" * 64,
+                "language": "en",
+                "tracks_json": json.dumps([{"id": canary.TRACK, "sha256": "a" * 64, "duration": 30}]),
+                "status": status,
+            }
+            with self.subTest(status=status), patch.dict(os.environ, env), patch.object(
+                canary, "DATABASE", next(iter(canary.QA_DATABASES))
+            ), patch.object(canary, "BUCKET", canary.QA_BUCKET), patch.object(
+                canary, "query", return_value=[row]
+            ) as lookup, patch.object(canary, "authorized_request") as network:
+                with self.assertRaisesRegex(RuntimeError, reason):
+                    canary.main()
+                self.assertEqual(lookup.call_count, 1)
+                network.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()
