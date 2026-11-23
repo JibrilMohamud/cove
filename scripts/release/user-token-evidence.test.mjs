@@ -233,7 +233,9 @@ function catalogTransport(groups, overrides = {}) {
   const get = async (path, credential) => {
     assert.equal(credential, USER_TOKEN);
     if (path === "/user/tokens")
-      return page([{ name: "redacted", status: "active", policies: [{ permission_groups: groups }] }]);
+      return page([
+        { name: "redacted", status: "active", policies: [{ permission_groups: groups }] },
+      ]);
     if (path.startsWith("/user/tokens/permission_groups?name=")) {
       const name = decodeURIComponent(path.split("?name=")[1]);
       if (name === "Workers KV Storage Read" || name === "Workers KV Storage Read-Only") {
@@ -271,8 +273,14 @@ test("filtered name catalog counts only matches, never demands provider global t
 test("a WRITE ID, unknown ID, or unrelated alias cannot be declared read-only", async () => {
   for (const [group, detail] of [
     [{ id: WRITE_SPOOF.id, name: "Workers Scripts" }, "read_group_catalog_shape_invalid"],
-    [{ id: "f".repeat(32), name: "Workers KV Storage" }, "read_group_alias_identifier_mismatch_unrecognized"],
-    [{ id: ADDITIONAL_READ.id, name: "Unrelated Capability" }, "read_group_alias_identifier_mismatch_unrecognized"],
+    [
+      { id: "f".repeat(32), name: "Workers KV Storage" },
+      "read_group_alias_identifier_mismatch_unrecognized",
+    ],
+    [
+      { id: ADDITIONAL_READ.id, name: "Unrelated Capability" },
+      "read_group_alias_identifier_mismatch_unrecognized",
+    ],
   ]) {
     const t = catalogTransport([group]);
     const evidence = await inspectUserTokenEvidence(t.get, USER_TOKEN);
@@ -288,10 +296,22 @@ test("malformed, multiple, changed-label and cross-scope name-filtered catalog p
   const expected = "Workers KV Storage Read";
   const cases = [
     [{ result: [ADDITIONAL_READ, ADDITIONAL_READ] }, "read_group_catalog_shape_invalid"],
-    [{ result: [ADDITIONAL_READ], result_info: { page: 2, count: 1 } }, "read_group_catalog_page_invalid"],
-    [{ result: [ADDITIONAL_READ], result_info: { page: 1, count: 0 } }, "read_group_catalog_page_invalid"],
-    [{ result: [{ ...ADDITIONAL_READ, scopes: ["com.cloudflare.api.write"] }] }, "read_group_catalog_shape_invalid"],
-    [{ result: [{ ...ADDITIONAL_READ, name: "Workers KV Storage Write" }] }, "read_group_catalog_shape_invalid"],
+    [
+      { result: [ADDITIONAL_READ], result_info: { page: 2, count: 1 } },
+      "read_group_catalog_page_invalid",
+    ],
+    [
+      { result: [ADDITIONAL_READ], result_info: { page: 1, count: 0 } },
+      "read_group_catalog_page_invalid",
+    ],
+    [
+      { result: [{ ...ADDITIONAL_READ, scopes: ["com.cloudflare.api.write"] }] },
+      "read_group_catalog_shape_invalid",
+    ],
+    [
+      { result: [{ ...ADDITIONAL_READ, name: "Workers KV Storage Write" }] },
+      "read_group_catalog_shape_invalid",
+    ],
     [{ result: [{ ...ADDITIONAL_READ, id: "not-immutable" }] }, "read_group_catalog_shape_invalid"],
   ];
   for (const [response, detail] of cases) {
