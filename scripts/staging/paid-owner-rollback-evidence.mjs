@@ -1,11 +1,19 @@
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
+import {
+  QA_PAID_D1,
+  QA_ACCOUNT,
+  PRODUCTION_ACCOUNT,
+  PRODUCTION_D1,
+} from "./paid-qa-cloudflare-credentials.mjs";
 
-export const PAID_QA_PRIMARY = "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e";
-const productionPins = {
-  "cove-persistence-backend": "401f2af2-6e69-4611-8110-1d127af6eecf",
-  "cove-legal-authority-production": "3463ff93-f077-40bf-a4d5-fb7bfc143cd5",
-};
+export const PAID_QA_PRIMARY = QA_PAID_D1;
+assert.notEqual(
+  QA_ACCOUNT,
+  PRODUCTION_ACCOUNT,
+  "Protected paid QA must never use production account",
+);
+assert.notEqual(PAID_QA_PRIMARY, PRODUCTION_D1, "Protected paid QA must never bind production D1");
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 
 /** Fresh challenge over the private QA service, never an authorization proof. */
@@ -43,7 +51,7 @@ export function paidOwnerRollbackEvidence({
   const path = "/workers/scripts/" + name;
   let versionA, versionB, namespace, initialEpoch;
   async function current(worker) {
-    assert.ok(worker === name || Object.hasOwn(productionPins, worker));
+    assert.equal(worker, name, "Only this run's synthetic QA Worker may be inspected");
     const list = await api("GET", "/workers/scripts/" + worker + "/deployments");
     const d = list?.deployments?.[0];
     assert.equal(d?.strategy, "percentage");
@@ -52,10 +60,10 @@ export function paidOwnerRollbackEvidence({
     assert.match(d.versions[0].version_id, uuid);
     return d.versions[0].version_id;
   }
-  async function unchangedProduction() {
-    for (const [worker, expected] of Object.entries(productionPins))
-      assert.equal(await current(worker), expected, "production version drift: " + worker);
-  }
+  // This isolated QA account cannot inspect production deployments. Its only
+  // Worker control-plane path is this attempt's synthetic owner. A separate
+  // production-account read-only audit must prove live production immutability;
+  // never claim it from a QA-only token or weaken the account boundary.
   async function shape(version, revision) {
     const metadata = await api("GET", path + "/versions/" + version);
     assert.equal(metadata.id, version);
@@ -85,7 +93,6 @@ export function paidOwnerRollbackEvidence({
   return {
     async captureA() {
       assert.equal(versionA, undefined);
-      await unchangedProduction();
       versionA = await current(name);
       await shape(versionA, "A");
       initialEpoch = (await readPaidOwnerFence(post, journalVersion, "A")).mutationEpoch;
@@ -97,7 +104,6 @@ export function paidOwnerRollbackEvidence({
       await shape(versionB, "B");
       const r = await readPaidOwnerFence(post, journalVersion, "B");
       assert.ok(BigInt(r.mutationEpoch) >= BigInt(initialEpoch), "B lost owner history");
-      await unchangedProduction();
       return r;
     },
     async captureBDeployment() {
@@ -105,12 +111,11 @@ export function paidOwnerRollbackEvidence({
       versionB = await current(name);
       assert.notEqual(versionB, versionA, "B must be an actual distinct Worker version");
       await shape(versionB, "B");
-      await unchangedProduction();
     },
     async activateBImmediate() {
       assert.ok(versionA && versionB);
       assert.equal(await current(name), versionB, "unexpected deployment before B activation");
-      await unchangedProduction();
+      await shape(versionB, "B"); // Revalidate immutable QA D1, DO, journal and private ingress before POST.
       // Active DOs now defer code changes by default. Apply this policy to
       // this exact synthetic deployment only; it is not inherited by rollback.
       await api("POST", path + "/deployments", {
@@ -161,7 +166,8 @@ export function paidOwnerRollbackEvidence({
       assert.ok(versionA && versionB);
       assert.ok(BigInt(denialEpoch) > BigInt(initialEpoch), "no actual paid mutation evidence");
       assert.equal(await current(name), versionB, "unexpected deployment before rollback");
-      await unchangedProduction();
+      await shape(versionA, "A"); // Never restore an unchecked version, even after a clean A capture.
+      await shape(versionB, "B");
       await api("POST", path + "/deployments", {
         strategy: "percentage",
         versions: [{ version_id: versionA, percentage: 100 }],
@@ -178,14 +184,15 @@ export function paidOwnerRollbackEvidence({
       const r = await readPaidOwnerFence(post, journalVersion, "A");
       assert.equal(r.mutationEpoch, denialEpoch, "rollback changed the durable denial epoch");
       assert.equal(await current(name), versionA);
-      await unchangedProduction();
       return {
         schema: "cove.qa.paid-owner-state-rollback.v1",
         versionA,
         versionB,
         namespacePreserved: true,
         denialEpochPreserved: true,
-        productionVersionsUnchanged: true,
+        productionVersionsUnchanged: false,
+        productionVersionsNotInspected: true,
+        qaAccountIsolated: true,
         productionRollbackCertified: false,
         releaseCertified: false,
       };

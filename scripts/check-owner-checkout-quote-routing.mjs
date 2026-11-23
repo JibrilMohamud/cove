@@ -11,7 +11,9 @@ assert.match(owner,/route==="\/commercial\/checkout\/create-quote"[\s\S]{0,1800}
 assert.match(owner,/quote=await checkoutQuote\(ownerEnv,[\s\S]{0,1500}owner_checkout_quote_commit_unconfirmed/);
 assert.match(gateway,/"commerce.create-quote":\{path:"\/commercial\/checkout\/create-quote"/);
 assert.match(gateway,/case "commerce.create-quote":[\s\S]{0,1000}canonical_command_receipt_mismatch/);
-assert.match(port,/QA_IDS\.has\(env\.COVE_LEGAL_WRITER_PRIMARY_ID/);
+assert.match(port,/!isReviewedPaidQaPrimary\(env\.COVE_LEGAL_WRITER_PRIMARY_ID\)/);
+assert.match(port,/import \{isReviewedPaidQaPrimary\} from "\.\/reviewed-paid-qa-primary"/);
+assert.doesNotMatch(port,/const QA_IDS|5e3a6b69|7c7ab994/);
 assert.match(port,/COVE_CANONICAL_LEGAL_WRITE_LOCK/);
 assert.match(port,/throw new ApiError\(503,"Canonical checkout quote could not be verified or persisted/);
 assert.doesNotMatch(port,/env\.DB\s*\.\s*prepare|env\.DB\s*\.\s*batch/);

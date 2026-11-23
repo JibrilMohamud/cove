@@ -120,20 +120,22 @@ for (const configPath of [
   const config = fs.readFileSync(configPath, "utf8");
   assert.match(config, /"\*\/5 \* \* \* \*", "\*\/10 \* \* \* \*", "7-57\/10 \* \* \* \*"/);
 }
-// Production cron-only and backend code pushes must never silently re-run
-// primary D1 migrations. Schema migration remains an explicit dispatch.
+// Production cron-only and backend code pushes must never run schema
+// migrations. An explicit attempt is rejected by the protected workflow;
+// privilege is not available via a generic Worker deployment token.
 const migrationWorkflow = fs.readFileSync(
   ".github/workflows/deploy-persistence-backend.yml",
   "utf8",
 );
 const migrationGuard = migrationWorkflow.slice(
-  migrationWorkflow.indexOf("- name: Apply pending D1 migrations"),
+  migrationWorkflow.indexOf("- name: Deny direct production D1 schema migration"),
   migrationWorkflow.indexOf("- name: Verify exact disabled production owner"),
 );
-assert.ok(migrationGuard.startsWith("- name: Apply pending D1 migrations"));
-assert.match(migrationGuard, /github\.event_name == 'workflow_dispatch'/);
+assert.ok(migrationGuard.startsWith("- name: Deny direct production D1 schema migration"));
 assert.match(migrationGuard, /inputs\.apply_migrations == true/);
-assert.doesNotMatch(migrationGuard, /github\.event_name == 'push'/);
+assert.match(migrationGuard, /exit 1/);
+assert.doesNotMatch(migrationGuard, /retry-production-d1-migrations/);
+assert.doesNotMatch(migrationWorkflow, /secrets\.CLOUDFLARE_API_TOKEN/);
 console.log(
   "Derived-search and minute maintenance admission: safe canonical rights ingestion, bounded retryable deferral PASS",
 );

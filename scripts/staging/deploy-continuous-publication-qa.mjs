@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Source-exact private Cloudflare deployment credential boundary. */
 // Production routing is never touched. Continuous publication QA is composed
 // from the default-disabled, nonroutable private Worker templates.
 import assert from "node:assert/strict";
@@ -10,8 +11,14 @@ const canonical = "4bd657ac-8789-403e-a28c-93aba8d0a989";
 const source = "1825b4a1-0329-408d-9cc2-a40e6a17c822";
 const ledger = "34cf996a-830d-4ec3-8071-8cc3ec7b6df9";
 const prefix = "feed/qa/continuous/";
-const token = process.env.CLOUDFLARE_API_TOKEN;
-assert.ok(token && process.env.CLOUDFLARE_ACCOUNT_ID === account);
+const deployToken = process.env.CLOUDFLARE_API_TOKEN;
+const dataReadToken = process.env.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN;
+const metadataReadToken = process.env.COVE_CF_WORKERS_METADATA_READ_TOKEN;
+assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, account);
+assert.ok(deployToken && dataReadToken && metadataReadToken,
+  "Independent Cloudflare deploy, D1 read and Worker metadata principals required");
+assert.equal(new Set([deployToken, dataReadToken, metadataReadToken]).size, 3,
+  "No Cloudflare QA principal may be reused");
 assert.equal(new Set([canonical, source, ledger]).size, 3);
 
 function template(lane) {
@@ -64,8 +71,13 @@ function template(lane) {
 }
 
 async function api(path) {
+  const d1Read = path === `/accounts/${account}/d1/database/${ledger}`;
+  const workerRead = path.startsWith(`/accounts/${account}/workers/scripts/cove-pub-qa-continuous-`) &&
+    (path.endsWith("/settings") || path.endsWith("/schedules"));
+  assert.ok(d1Read || workerRead, "Unexpected Cloudflare QA preflight API path");
+  const bearer = d1Read ? dataReadToken : metadataReadToken;
   const response = await fetch("https://api.cloudflare.com/client/v4" + path, {
-    headers: { authorization: "Bearer " + token },
+    headers: { authorization: "Bearer " + bearer },
     signal: AbortSignal.timeout(20000),
   });
   const body = await response.json();

@@ -18,11 +18,14 @@ assert.equal(producer.preview_urls, false);
 assert.equal(service.preview_urls, false);
 assert.ok(!producer.routes && !producer.triggers && !service.routes);
 const account = process.env.CLOUDFLARE_ACCOUNT_ID || "";
-const token = process.env.CLOUDFLARE_API_TOKEN || "";
-if (!/^[0-9a-f]{32}$/.test(account) || !token)
-  throw Error("Missing staging Cloudflare CI credentials");
+const d1Token = process.env.COVE_CF_STAGE_D1_READ_TOKEN || "";
+const r2Token = process.env.COVE_CF_STAGE_R2_BUCKET_PROVISION_TOKEN || "";
+if (!/^[0-9a-f]{32}$/.test(account) || !d1Token || !r2Token)
+  throw Error("Missing independently scoped staging D1 read or R2 provision credential");
+if (d1Token === r2Token)
+  throw Error("Synthetic D1 inspection and R2 bucket provisioning require distinct tokens");
 const base = `https://api.cloudflare.com/client/v4/accounts/${account}`;
-async function api(method, path, body) {
+async function api(method, path, token, body) {
   const response = await fetch(base + path, {
     method,
     headers: {
@@ -35,15 +38,15 @@ async function api(method, path, body) {
   const data = await response.json();
   return { status: response.status, data };
 }
-const stage = await api("GET", "/d1/database/" + dbId);
+const stage = await api("GET", "/d1/database/" + dbId, d1Token);
 if (!stage.data.success || stage.data.result?.uuid !== dbId)
   throw Error("Isolated staging D1 unavailable; no bucket may be created.");
 const path = "/r2/buckets/" + bucket;
-const existing = await api("GET", path);
+const existing = await api("GET", path, r2Token);
 if (existing.status === 200 && existing.data.success) {
   console.log("COVE_PRIVATE_STAGE_BUCKET: already exists");
 } else if (existing.status === 404) {
-  const result = await api("POST", "/r2/buckets", { name: bucket });
+  const result = await api("POST", "/r2/buckets", r2Token, { name: bucket });
   console.log("COVE_PRIVATE_STAGE_BUCKET_CREATE " + result.status);
   if (
     !result.data.success ||
@@ -54,7 +57,7 @@ if (existing.status === 200 && existing.data.success) {
 } else {
   throw Error("Cannot verify bucket absence: HTTP " + existing.status);
 }
-const verify = await api("GET", path);
+const verify = await api("GET", path, r2Token);
 if (verify.status !== 200 || !verify.data.success || verify.data.result?.name !== bucket)
   throw Error("Dedicated stage bucket verification failed after creation");
 console.log(

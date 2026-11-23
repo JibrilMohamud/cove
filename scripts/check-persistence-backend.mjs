@@ -204,7 +204,12 @@ assert.match(wrangler, /FORE_INGESTION_SIGNING_KEY/);
 assert.doesNotMatch(wrangler, /FORE_BACKEND_TOKEN\s*$/m);
 
 assert.match(deployWorkflow, /cloudflare\/wrangler-action@v4/);
-assert.match(deployWorkflow, /run: node scripts\/staging\/retry-production-d1-migrations\.mjs/);
+// Production Worker deployment must never have primary-D1 mutation authority.
+assert.match(deployWorkflow, /Deny direct production D1 schema migration/);
+assert.ok(deployWorkflow.includes("inputs.apply_migrations == true"));
+assert.ok(!deployWorkflow.includes("run: node scripts/staging/retry-production-d1-migrations.mjs"));
+assert.ok(!deployWorkflow.includes("secrets.CLOUDFLARE_API_TOKEN"));
+assert.ok(deployWorkflow.includes("secrets.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN"));
 assert.match(
   deployWorkflow,
   /deploy:\s*\n(?:\s*#[^\n]*\n)*\s*concurrency:\s*\n\s*group: cove-exclusive-real-primary-cold-acceptance/,

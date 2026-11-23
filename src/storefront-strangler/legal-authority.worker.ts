@@ -1,4 +1,5 @@
 /* eslint-disable prettier/prettier -- Private legal-authority boundary is security-sensitive. */
+import {publishCheckedBiosyncOwned} from "./owner-biosync-checked-publication.stage";
 import {checkoutQuote} from "../features/fore/commerce.server";
 import {sha256 as partnerFeedSha256,partnerAudit as partnerFeedAudit,
   normalizedCountryList as partnerNormalizedCountryList} from "../features/fore/traditional-publishing.server";
@@ -85,12 +86,23 @@ type LegalAuthorityEnv = {
 };
 // Never accept an unspecified primary binding. This is a newly provisioned,
 // completely separate canonical QA D1. Real production is NOT enrolled.
-// Only these two physically separate, synthetic QA databases can issue a
-// short-lived owner lease. The second has canonical paid-commerce schema;
-// neither is the capacity fixture or a customer production database.
+// Only these exact synthetic QA databases may issue a short-lived owner
+// lease. Legacy staging fixtures remain eligible for historical regression,
+// and their independent Cove QA replacements are also enrolled.
+// Never include the production D1 or any performance-only schema source.
 const QA_PRIMARIES = new Set([
   "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87",
   "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
+  "3ffb3c0b-72b2-4a47-b63a-18aaf77762ea",
+  "969f1ea0-5f57-4f3a-aa25-9c74e58f5af3",
+  // Dedicated synthetic BioSync QA account primary; never production.
+  "4e17ba6f-444f-4245-801a-a7d4969045b0",
+]);
+// Dedicated BioSync QA cannot execute commerce, catalog or rights commands.
+const BIOSYNC_QA_PRIMARY="4e17ba6f-444f-4245-801a-a7d4969045b0";
+const QA_PAID_PRIMARIES = new Set([
+  "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
+  "969f1ea0-5f57-4f3a-aa25-9c74e58f5af3",
 ]);
 function qaOwnerLeaseLive(env:LegalAuthorityEnv) {
   const expires=Number(env.COVE_RIGHTS_OWNER_TEST_EXPIRES_AT);
@@ -3972,6 +3984,9 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       return new Response(null,{status:401,headers:noStore});
     if(request.method!=="POST") return new Response(null,{status:405,headers:noStore});
     const route=new URL(request.url).pathname;
+    if(env.COVE_RIGHTS_OWNER_PRIMARY_ID===BIOSYNC_QA_PRIMARY &&
+       route!=="/biosync/publish-checked")
+      return new Response(null,{status:404,headers:noStore});
     if(!["/deny","/deny-next","/deny-next-batch","/verify","/publish-allow","/authorize-batch",
       "/commercial/deny-next","/commercial/deny-batch","/commercial/subject/deny-next","/commercial/publish-verified",
       "/commercial/authorize-batch",
@@ -4001,6 +4016,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/entitlement/publish-verified",
       "/commercial/entitlement/publish-order-verified",
       "/publishing/partner/process-feed",
+      "/biosync/publish-checked",
       "/catalog/normalize-gutenberg",
       "/catalog/personal-import",
       "/publishing/contract/save-version",
@@ -4046,9 +4062,9 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         // Only the leased, enrolled synthetic QA owner may produce this
         // challenge-bound receipt. No flag can turn it on for production,
         // and no caller can supply a candidate, digest, epoch or allow bit.
+        const certificatePrimary=env.COVE_RIGHTS_OWNER_PRIMARY_ID;
         if(!journal||env.COVE_QA_OWNER_POSITIVE_CERTIFICATE_ONLY!=="1"||
-          env.COVE_RIGHTS_OWNER_PRIMARY_ID!==
-            "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e"||
+          !certificatePrimary||!QA_PAID_PRIMARIES.has(certificatePrimary)||
           env.COVE_QA_OWNER_REHEARSAL_REVISION===undefined)
           return new Response(null,{status:503,headers:noStore});
         const q=raw as {challenge?:unknown}|null;
@@ -4061,7 +4077,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           ownerSql:sql,
           transactionSync:fn=>storage.transactionSync(fn),
           primary:env.PRIMARY_DB as unknown as QAOwnerPrimaryDB,
-          primaryId:env.COVE_RIGHTS_OWNER_PRIMARY_ID,
+          primaryId:certificatePrimary,
           journalVersion:env.COVE_QA_OWNER_JOURNAL_VERSION as string,
           rehearsalRevision:env.COVE_QA_OWNER_REHEARSAL_REVISION,
           challenge:q.challenge,
@@ -4158,6 +4174,13 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           return Response.json({schema:"cove.owner-partner-feed-sandbox.v1",
             ownerFirst:true,operationId:q.operationId,...outcome},{headers:noStore});
         }finally{this.partnerFeedRunning=false;}
+      }
+      if(route==="/biosync/publish-checked") {
+        // An owner-leased QA metadata command, never a production entitlement.
+        // The single canonical DO revalidates signed bytes and atomically
+        // commits the exact timing pointer and its source job state.
+        const receipt=await publishCheckedBiosyncOwned(env.PRIMARY_DB,env.BUCKET,raw);
+        return Response.json(receipt,{headers:noStore});
       }
       if(route==="/catalog/normalize-gutenberg") {
         const input=raw as {sourceId?:unknown;operationId?:unknown}|null;
@@ -5762,8 +5785,25 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       return Response.json(verdict,{status:200,headers:noStore});
     } catch(error) {
       console.error("cove_legal_authority_closed",error instanceof Error?error.name:"unknown");
+      // Synthetic, bearer-gated QA only. Report a fixed non-sensitive reason
+      // for failed positive publication; never expose raw SQL, IDs or errors.
+      // Production mode cannot enter this route (owner disabled).
+      const qaRetail=route==="/commercial/publish-verified" &&
+        QA_PAID_PRIMARIES.has(env.COVE_RIGHTS_OWNER_PRIMARY_ID||"") &&
+        qaOwnerLeaseLive(env);
+      const reason=error instanceof Error?error.message:"";
+      const safeReasons=new Set([
+        "canonical_lease_unfresh_evaluation",
+        "canonical_lease_primary_unverified",
+        "canonical_lease_invalid_transition",
+        "canonical_lease_transition_imminent",
+      ]);
+      const qaHeaders=qaRetail?{
+        ...noStore,
+        "x-cove-qa-retail-owner-reason":safeReasons.has(reason)?reason:"unclassified",
+      }:noStore;
       return new Response(null,{status:503,headers:route==="/commercial/order/settle"?
-        {...noStore,"x-cove-owner-settlement-failure":ownerSettlementDiagnostic(error)}:noStore});
+        {...noStore,"x-cove-owner-settlement-failure":ownerSettlementDiagnostic(error)}:qaHeaders});
     }
   }
 }
@@ -5784,6 +5824,11 @@ export default {
     }
     if(!qaOwnerLeaseLive(env) || !env.LEGAL_AUTHORITY?.getByName)
       return new Response(null,{status:503,headers:{"cache-control":"no-store"}});
+    // The synthetic BioSync owner must never become a general-purpose legal,
+    // commerce, catalog, entitlement or account writer by abusing its QA lease.
+    if(env.COVE_RIGHTS_OWNER_PRIMARY_ID===BIOSYNC_QA_PRIMARY &&
+       new URL(request.url).pathname!=="/biosync/publish-checked")
+      return new Response(null,{status:404,headers:{"cache-control":"no-store"}});
     if(request.headers.get("authorization")!=="Bearer "+env.COVE_RIGHTS_OWNER_SECRET)
       return new Response(null,{status:401,headers:{"cache-control":"no-store"}});
     return env.LEGAL_AUTHORITY.getByName("cove-staged-legal-global-v1").fetch(request);

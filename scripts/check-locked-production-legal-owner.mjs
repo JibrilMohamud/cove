@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 
 export const PROD_D1="4bd657ac-8789-403e-a28c-93aba8d0a989";
-const QA_D1=["5e3a6b69-6f3d-4b19-b837-01f7aa56ce87","7c7ab994-f6b3-419d-a72d-71eb9ea22e7e"];
+const QA_D1=["5e3a6b69-6f3d-4b19-b837-01f7aa56ce87","7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
+  "3ffb3c0b-72b2-4a47-b63a-18aaf77762ea","969f1ea0-5f57-4f3a-aa25-9c74e58f5af3",
+  "4e17ba6f-444f-4245-801a-a7d4969045b0"];
 export const CONFIG="wrangler.legal-authority.production-locked.jsonc";
 
 /**
@@ -32,6 +34,8 @@ export function verifyLockedOwnerConfig(config,source){
     tag:"legal-authority-production-locked-v1",new_sqlite_classes:["CoveLegalAuthority"],
   }]);
   assert.ok(!source.includes(PROD_D1),"Production database must not be allowed through QA lease");
+  assert.ok(!source.includes("d6f616c2-c832-439c-8f4f-e1454ab88c64"),
+    "The staging schema-only database cannot issue an owner QA lease");
   for(const id of QA_D1)
     assert.ok(source.includes(id),"Existing isolated-QA lease guard must remain");
   assert.match(source,/if\s*\(!qaOwnerLeaseLive\(env\)\)/,
@@ -50,7 +54,10 @@ if(process.argv[1] && import.meta.url===new URL("file://"+process.argv[1]).href)
 }
 
 if(process.argv.includes("--live")){
-  const token=process.env.CLOUDFLARE_API_TOKEN;
+  const token=process.env.COVE_CF_WORKERS_METADATA_READ_TOKEN;
+  const deploy=process.env.CLOUDFLARE_API_TOKEN;
+  assert.ok(token&&token.length>=20&&deploy&&token!==deploy,
+    "Owner binding inspection requires separate read-only Worker principal");
   const account=process.env.CLOUDFLARE_ACCOUNT_ID;
   assert.ok(token && account,"Live verification requires authenticated Cloudflare");
   const response=await fetch(

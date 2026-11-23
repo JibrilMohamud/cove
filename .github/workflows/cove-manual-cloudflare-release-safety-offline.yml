@@ -12,6 +12,22 @@ on:
       - .github/workflows/cove-commerce-private-qa-deploy.yml
       - .github/workflows/cove-manual-cloudflare-release-safety-offline.yml
       - scripts/security/check-manual-cloudflare-release-workflows.mjs
+      - scripts/security/check-legacy-manual-cloudflare-jobs.mjs
+      - scripts/security/check-broad-cloudflare-token-consumers.mjs
+      - ".github/workflows/**"
+      - scripts/staging/deploy-music-supply-qa-shadow.mjs
+      - .github/workflows/deployed-commerce-browser-acceptance.yml
+      - .github/workflows/strangler-data-plane-preflight.yml
+      - .github/workflows/publication-source-isolation-qa.yml
+      - .github/workflows/storefront-strangler-safe-integration.yml
+      - .github/workflows/literary-drain-worker-deploy.yml
+      - .github/workflows/literary-guarded-owner-drain.yml
+      - .github/workflows/literary-isolated-replay-handoff-deploy.yml
+      - .github/workflows/literary-private-binding-stage-canary.yml
+      - .github/workflows/literary-progressive-canonical-publication.yml
+      - .github/workflows/literary-remote-staging-e2e.yml
+      - .github/workflows/hosted-music-supply-disabled-qa.yml
+      - .github/workflows/strangler-hosted-capacity-evaluation.yml
 permissions:
   contents: read
 jobs:
@@ -28,3 +44,5 @@ jobs:
         run: |
           node --check scripts/security/check-manual-cloudflare-release-workflows.mjs
           node scripts/security/check-manual-cloudflare-release-workflows.mjs
+          node scripts/security/check-legacy-manual-cloudflare-jobs.mjs
+          node scripts/security/check-broad-cloudflare-token-consumers.mjs

@@ -13,6 +13,7 @@ on:
       - "src/storefront-strangler/canonical-owner-command-gateway.ts"
       - "src/storefront-strangler/legal-quarantine-qa.writer.ts"
       - "src/storefront-strangler/paid-settlement-publication.server.ts"
+      - "src/storefront-strangler/reviewed-paid-qa-primary.ts"
       - "src/storefront-strangler/legal-consumer-fence.server.ts"
       - "src/features/fore/commerce.server.ts"
       - "src/features/fore/paid-settlement-transaction.server.ts"
@@ -39,9 +40,19 @@ on:
       - "scripts/check-offline-audio-issuer-authorization.mjs"
       - "scripts/check-stripe-terminal-order-states.mjs"
       - "scripts/staging/prove-private-paid-owner.mjs"
+      - "scripts/staging/synthetic-qa-d1-gateway.worker.mjs"
+      - "scripts/staging/synthetic-qa-d1-gateway-config.mjs"
+      - "scripts/staging/synthetic-qa-d1-gateway.test.mjs"
+      - "scripts/staging/paid-qa-template-binding.mjs"
+      - "scripts/staging/paid-qa-template-binding.test.mjs"
       - "scripts/staging/paid-owner-schema-policy.mjs"
+      - "scripts/staging/paid-qa-retail-catalog.mjs"
+      - "scripts/staging/paid-qa-retail-catalog.test.mjs"
+      - "drizzle/0074_flatten_retail_membership.sql"
+      - "src/features/fore/catalog-model.server.ts"
       - "scripts/check-qa-synthetic-audio.mjs"
       - "scripts/staging/provision-original-audio-qa.mjs"
+      - "scripts/staging/provision-original-audio-qa.test.mjs"
       - "scripts/check-paid-stage-initial-identity.mjs"
       - "scripts/build-storefront-strangler.mjs"
       - "wrangler.legal-paid-*.example.jsonc"
@@ -63,6 +74,7 @@ on:
       - "src/storefront-strangler/canonical-owner-command-gateway.ts"
       - "src/storefront-strangler/legal-quarantine-qa.writer.ts"
       - "src/storefront-strangler/paid-settlement-publication.server.ts"
+      - "src/storefront-strangler/reviewed-paid-qa-primary.ts"
       - "src/storefront-strangler/legal-consumer-fence.server.ts"
       - "src/features/fore/commerce.server.ts"
       - "src/features/fore/paid-settlement-transaction.server.ts"
@@ -86,8 +98,18 @@ on:
       - "drizzle/0088_paid_repurchase_fresh_entitlement.sql"
       - "scripts/check-customer-media-owner-order.mjs"
       - "scripts/staging/prove-private-paid-owner.mjs"
+      - "scripts/staging/synthetic-qa-d1-gateway.worker.mjs"
+      - "scripts/staging/synthetic-qa-d1-gateway-config.mjs"
+      - "scripts/staging/synthetic-qa-d1-gateway.test.mjs"
+      - "scripts/staging/paid-qa-template-binding.mjs"
+      - "scripts/staging/paid-qa-template-binding.test.mjs"
       - "scripts/staging/paid-owner-schema-policy.mjs"
+      - "scripts/staging/paid-qa-retail-catalog.mjs"
+      - "scripts/staging/paid-qa-retail-catalog.test.mjs"
+      - "drizzle/0074_flatten_retail_membership.sql"
+      - "src/features/fore/catalog-model.server.ts"
       - "scripts/staging/provision-original-audio-qa.mjs"
+      - "scripts/staging/provision-original-audio-qa.test.mjs"
       - "scripts/check-qa-synthetic-audio.mjs"
       - "scripts/check-paid-stage-initial-identity.mjs"
       - "scripts/check-offline-epub-issuer-expiry.mjs"
@@ -96,9 +118,14 @@ on:
   workflow_dispatch:
     inputs:
       reviewed_main_sha:
-        description: "Exact reviewed main SHA, required for the owner-state rollback rehearsal."
-        required: false
+        description: "Exact reviewed main SHA required for ALL protected paid QA."
+        required: true
         type: string
+      confirm_isolated_qa:
+        description: "Explicitly authorize synthetic-only Workers, D1, R2 and Stripe TEST QA."
+        required: true
+        default: false
+        type: boolean
       confirm_owner_state_rollback:
         description: "Run actual synthetic paid-owner A/B/A version rollback after TEST refund; no production changes."
         required: true
@@ -123,6 +150,9 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci --no-audit --no-fund
+      - run: node --test scripts/staging/paid-qa-template-binding.test.mjs
+      - name: Synthetic D1 gateway requires real schema and primary readiness
+        run: node --test scripts/staging/synthetic-qa-d1-gateway.test.mjs
       - run: node scripts/check-paid-stage-initial-identity.mjs
       - run: node scripts/check-qa-synthetic-audio.mjs
       - run: node scripts/check-owner-checkout-draft.mjs
@@ -133,19 +163,25 @@ jobs:
       - run: node scripts/check-offline-audio-issuer-authorization.mjs
       - run: node scripts/check-customer-media-owner-order.mjs
       - run: node --test scripts/staging/paid-owner-rollback-evidence.test.mjs
+      - run: node --test scripts/staging/paid-qa-retail-catalog.test.mjs
+      - run: node --test scripts/staging/provision-original-audio-qa.test.mjs
       - run: node scripts/check-current-owner-mutation-fence.mjs
   real-test-payment-to-private-owner:
     if: >-
       github.repository == 'JibrilMohamud/cove' &&
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.event_name == 'workflow_dispatch' &&
       github.ref == 'refs/heads/main' &&
-      (inputs.confirm_owner_state_rollback != true || inputs.reviewed_main_sha == github.sha)
+      inputs.confirm_isolated_qa == true &&
+      inputs.reviewed_main_sha == github.sha
     environment: cove-production-release-audit
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      COVE_CF_QA_WORKERS_DEPLOY_TOKEN: ${{ secrets.COVE_CF_QA_WORKERS_DEPLOY_TOKEN }}
+      COVE_CF_QA_D1_MUTATION_TOKEN: ${{ secrets.COVE_CF_QA_D1_MUTATION_TOKEN }}
+      COVE_CF_QA_R2_STORAGE_TOKEN: ${{ secrets.COVE_CF_QA_R2_STORAGE_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: f51e8ccbc394e2d6016ff8c2c303d54b
+      COVE_CF_QA_WORKERS_DEV_DOMAIN: cove-qa-reads.workers.dev
       CLOUDFLARE_SEND_METRICS: "false"
     steps:
       - uses: actions/checkout@v6
@@ -156,6 +192,19 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci --no-audit --no-fund
+      - name: Require three distinct scoped QA credentials before Cloudflare operations
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module -e '
+            import {checkedPaidQaCredentials} from "./scripts/staging/paid-qa-cloudflare-credentials.mjs";
+            checkedPaidQaCredentials(process.env);
+            console.log("PASS: three distinct QA credentials present; D1/R2 test operations use the ephemeral bound Worker");
+          '
+      - name: Validate isolated QA template rebinding before any deployment
+        run: node --test scripts/staging/paid-qa-template-binding.test.mjs
+      - name: Recheck gateway D1 probes and bounded source SQL before protected QA
+        run: node --test scripts/staging/synthetic-qa-d1-gateway.test.mjs
       - name: Validate denial-first paid consumer and source rules
         run: |
           node scripts/check-paid-entitlement-authority.mjs
@@ -221,15 +270,15 @@ jobs:
           const id=process.env.GITHUB_RUN_ID+"-"+(process.env.GITHUB_RUN_ATTEMPT||"1");
           assert.match(id||"",/^\d{8,15}-\d{1,5}$/);
           const account=process.env.CLOUDFLARE_ACCOUNT_ID;
-          const token=process.env.CLOUDFLARE_API_TOKEN;
-          assert.match(account||"",/^[a-f0-9]{32}$/);
+          const token=process.env.COVE_CF_QA_WORKERS_DEPLOY_TOKEN;
+          assert.equal(account,"f51e8ccbc394e2d6016ff8c2c303d54b");
           assert.ok(token);
           const url="https://api.cloudflare.com/client/v4/accounts/"+account+"/workers/scripts";
           const reply=await fetch(url,{headers:{authorization:"Bearer "+token},signal:AbortSignal.timeout(20000)});
           assert.equal(reply.status,200);
           const result=await reply.json();
           assert.equal(result.success,true);
-          const expected=["cove-paid-legal-owner-","cove-paid-legal-caller-","cove-paid-legal-writer-","cove-paid-settlement-qa-"].map(prefix=>prefix+id);
+          const expected=["cove-paid-legal-owner-","cove-paid-legal-caller-","cove-paid-legal-writer-","cove-paid-settlement-qa-","cove-paid-d1-gateway-"].map(prefix=>prefix+id);
           const remains=(result.result||[]).map(s=>s.id).filter(name=>expected.includes(name));
           assert.deepEqual(remains,[],"Temporary paid QA worker scripts must all be deleted");
           console.log("PASS: full paid-owner acceptance cleaned all four ephemeral QA Workers");

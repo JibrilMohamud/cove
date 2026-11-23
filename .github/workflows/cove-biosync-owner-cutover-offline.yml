@@ -1,0 +1,181 @@
+name: cove-biosync-owner-cutover-offline
+on:
+  pull_request:
+    paths:
+      - "src/storefront-strangler/owner-biosync-checked-publication.stage.ts"
+      - "src/storefront-strangler/legal-authority.worker.ts"
+      - "src/storefront-strangler/canonical-owner-command-gateway.ts"
+      - "scripts/check-owner-biosync-checked-publication.mjs"
+      - "scripts/check-owner-biosync-qa-gateway.mjs"
+      - "infra/biosync-owner-qa-gateway.worker.ts"
+      - "wrangler.biosync-owner.qa.example.jsonc"
+      - "wrangler.biosync-gateway.qa.example.jsonc"
+      - "scripts/check-biosync-hosted-owner-config.mjs"
+      - "scripts/audio_pipeline/biosync_owner_qa.py"
+      - "scripts/audio_pipeline/test_biosync_owner_qa.py"
+      - "scripts/staging/prove-biosync-qa-data-plane.mjs"
+      - "scripts/staging/prove-biosync-qa-data-plane.test.mjs"
+      - "scripts/staging/prove-biosync-hosted-owner-write.mjs"
+      - "scripts/staging/prove-biosync-hosted-owner-write.source.test.mjs"
+      - "scripts/staging/authorize-biosync-owner-comment.mjs"
+      - "scripts/staging/authorize-biosync-owner-comment.test.mjs"
+      - ".github/workflows/cove-biosync-owner-comment-qa.yml"
+      - ".github/workflows/cove-biosync-owner-cutover-offline.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/storefront-strangler/owner-biosync-checked-publication.stage.ts"
+      - "src/storefront-strangler/legal-authority.worker.ts"
+      - "src/storefront-strangler/canonical-owner-command-gateway.ts"
+      - "scripts/audio_pipeline/biosync_owner_qa.py"
+      - "scripts/audio_pipeline/test_biosync_owner_qa.py"
+      - "scripts/staging/prove-biosync-qa-data-plane.mjs"
+      - "scripts/staging/prove-biosync-qa-data-plane.test.mjs"
+      - "scripts/staging/prove-biosync-hosted-owner-write.mjs"
+      - "scripts/staging/prove-biosync-hosted-owner-write.source.test.mjs"
+      - "scripts/staging/authorize-biosync-owner-comment.mjs"
+      - "scripts/staging/authorize-biosync-owner-comment.test.mjs"
+      - ".github/workflows/cove-biosync-owner-comment-qa.yml"
+      - ".github/workflows/cove-biosync-owner-cutover-offline.yml"
+  workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        description: "Exact reviewed protected main SHA for read-only isolated QA inventory"
+        required: true
+        type: string
+      confirm_isolated_biosync_qa:
+        description: "Approve separate synthetic QA D1/R2 inventory (not production)"
+        required: true
+        type: boolean
+        default: false
+      confirm_hosted_owner_write:
+        description: "Approve ephemeral synthetic-only D1/R2 fixture, leased owner command, replay, and cleanup"
+        required: true
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  qa-owner-atomicity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Prove map digest, exact track/job, atomic publication and idempotent replay
+        run: node scripts/check-owner-biosync-checked-publication.mjs
+      - name: Refuse unauthorized gateway, hostile input, unknown D1 and owner outage
+        run: node scripts/check-owner-biosync-qa-gateway.mjs
+      - name: Require physically split, disabled QA owner and unrouted gateway
+        run: node scripts/check-biosync-hosted-owner-config.mjs
+      - name: Enforce existing canonical owner acknowledgment and legal revocation fences
+        run: |
+          node scripts/check-canonical-owner-command-gateway.mjs
+          node scripts/check-owner-paid-settlement.mjs
+          node scripts/check-owner-refund-accounting.mjs
+      - name: Prove isolated Python client is SELECT-only and owner-receipt exact
+        run: python3 -m unittest scripts.audio_pipeline.test_biosync_owner_qa
+      - name: Prove isolated QA resource identity rejects missing schema, writes and shared secrets
+        run: node --test scripts/staging/prove-biosync-qa-data-plane.test.mjs
+      - name: Compile-check protected hosted synthetic owner proof without executing it
+        run: node --check scripts/staging/prove-biosync-hosted-owner-write.mjs
+      - name: Verify exact QA-only source and fail-closed protected workflow contract
+        run: node --test scripts/staging/prove-biosync-hosted-owner-write.source.test.mjs
+      - name: Prove authenticated owner comment cannot be spoofed or retargeted
+        run: node --test scripts/staging/authorize-biosync-owner-comment.test.mjs
+      - name: Check source types and legal owner write fence
+        run: |
+          npx tsc --noEmit
+          node scripts/check-canonical-writer-closure.mjs --no-new-writers
+      - name: Never invoke production D1, API tokens or Stripe LIVE in synthetic proof
+        run: |
+          echo "QA owner transport source-only. Production BioSync scheduled publishing unchanged until separate protected owner cutover."
+
+  # Explicit manual protected QA inventory only. The two credential principals
+  # are never exposed to PR jobs and can only inspect the isolated QA account.
+  # A green preflight is NOT evidence that the owner accepted a real mutation.
+  hosted-qa-data-plane-readonly:
+    needs: qa-owner-atomicity
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm_isolated_biosync_qa == true &&
+      inputs.reviewed_main_sha == github.sha
+    environment: cove-production-release-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      COVE_CF_QA_D1_MUTATION_TOKEN: ${{ secrets.COVE_CF_QA_D1_MUTATION_TOKEN }}
+      COVE_CF_QA_R2_STORAGE_TOKEN: ${{ secrets.COVE_CF_QA_R2_STORAGE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22" }
+      - name: Verify explicit synthetic QA account and six production-shaped audio schema objects
+        run: node scripts/staging/prove-biosync-qa-data-plane.mjs
+
+  # Strict, one-run synthetic QA only: the account, R2 bucket and D1 are
+  # physically separate from production, and the Worker names are run-scoped.
+  # The gateway is authenticated, the DO lease expires within 14 minutes,
+  # and both Workers, synthetic SQL rows and map object are removed.
+  # This does not certify real rightsholder authority, LIVE payments, or a
+  # production scheduler. Never auto-run a positive owner mutation on a PR.
+  hosted-qa-owner-atomic-write:
+    needs: [qa-owner-atomicity, hosted-qa-data-plane-readonly]
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.reviewed_main_sha == github.sha &&
+      inputs.confirm_isolated_biosync_qa == true &&
+      inputs.confirm_hosted_owner_write == true
+    concurrency:
+      group: cove-biosync-hosted-owner-qa
+      cancel-in-progress: false
+    environment: cove-production-release-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CLOUDFLARE_ACCOUNT_ID: f51e8ccbc394e2d6016ff8c2c303d54b
+      COVE_CF_QA_WORKERS_DEPLOY_TOKEN: ${{ secrets.COVE_CF_QA_WORKERS_DEPLOY_TOKEN }}
+      COVE_CF_QA_D1_MUTATION_TOKEN: ${{ secrets.COVE_CF_QA_D1_MUTATION_TOKEN }}
+      COVE_CF_QA_R2_STORAGE_TOKEN: ${{ secrets.COVE_CF_QA_R2_STORAGE_TOKEN }}
+      COVE_BIOSYNC_REVIEWED_MAIN_SHA: ${{ inputs.reviewed_main_sha }}
+      COVE_BIOSYNC_PROTECTED_ENV: cove-production-release-audit
+      CLOUDFLARE_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Require isolated schema, exact QA Worker leases and no production legal owner
+        run: |
+          node scripts/check-biosync-hosted-owner-config.mjs
+          node --test scripts/staging/prove-biosync-qa-data-plane.test.mjs
+          node scripts/check-owner-biosync-checked-publication.mjs
+          node scripts/check-owner-biosync-qa-gateway.mjs
+          node --check scripts/staging/prove-biosync-hosted-owner-write.mjs
+          node --test scripts/staging/prove-biosync-hosted-owner-write.source.test.mjs
+      - name: Build the actual canonical owner code and private QA gateway
+        run: |
+          node scripts/build-storefront-strangler.mjs
+          node --input-type=module -e '
+            import {build} from "esbuild";
+            await build({entryPoints:["infra/biosync-owner-qa-gateway.worker.ts"],
+              bundle:true,format:"esm",platform:"neutral",
+              outfile:".output/strangler/biosync-owner-qa-gateway.mjs"});
+          '
+      - name: Commit one synthetic checked map through actual leased owner, verify replay and clean all resources
+        run: node scripts/staging/prove-biosync-hosted-owner-write.mjs

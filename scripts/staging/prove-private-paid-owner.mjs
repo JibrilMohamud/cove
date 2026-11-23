@@ -6,7 +6,11 @@ import path from "node:path";
 import {randomBytes,createHash,generateKeyPairSync} from "node:crypto";
 import {pathToFileURL} from "node:url";
 import {readPaidOwnerFence,paidOwnerRollbackEvidence} from "./paid-owner-rollback-evidence.mjs";
+import {checkedPaidQaCredentials,paidQaApiTokenFor,paidQaWranglerTokenFor,QA_ACCOUNT,QA_PAID_D1,QA_SCHEMA_SOURCE_D1,PRODUCTION_ACCOUNT,PRODUCTION_D1} from "./paid-qa-cloudflare-credentials.mjs";
+import {syntheticD1GatewayConfig} from "./synthetic-qa-d1-gateway-config.mjs";
+import {bindPaidQaTemplateToIsolatedPrimary} from "./paid-qa-template-binding.mjs";
 import {isPaidOwnerQaSchemaTable} from "./paid-owner-schema-policy.mjs";
+import {preparePaidQaRetailCatalog} from "./paid-qa-retail-catalog.mjs";
 import {provisionPublishedQaAudio} from "./provision-original-audio-qa.mjs";
 import JSZip from "jszip";
 import {build} from "esbuild";
@@ -17,12 +21,15 @@ import {createServer} from "node:http";
 // payments, owners and order idempotency keys by the actual attempt as well.
 // Never reuse a prior attempt's potentially paid or refunded QA order.
 const runId=process.env.GITHUB_RUN_ID+"-"+(process.env.GITHUB_RUN_ATTEMPT||"1");
-const token=process.env.CLOUDFLARE_API_TOKEN;
+const qaCredentials=checkedPaidQaCredentials(process.env);
 const account=process.env.CLOUDFLARE_ACCOUNT_ID;
 assert.match(runId||"",/^\d{8,15}-\d{1,5}$/);
 assert.match(account||"",/^[a-f0-9]{32}$/);
-assert.equal(account,"d26430caa63ec55f6612e32f36aca5e9");
-assert.ok(token,"Cloudflare QA authorization required");
+assert.equal(account,QA_ACCOUNT);
+assert.notEqual(account,PRODUCTION_ACCOUNT);
+assert.notEqual(QA_PAID_D1,PRODUCTION_D1);
+assert.notEqual(QA_SCHEMA_SOURCE_D1,PRODUCTION_D1);
+assert.equal(qaCredentials.run,runId);
 const stripeSecret=process.env.COVE_SANDBOX_SECRET_KEY||"";
 assert.match(stripeSecret,/^(?:sk|rk|rkcs)_test_[A-Za-z0-9]+$/,"Independent owner requires a real TEST Stripe credential");
 const interruptTrigger="qa_settlement_interrupt_"+runId.replaceAll("-","_");
@@ -31,11 +38,15 @@ const ownerName="cove-paid-legal-owner-"+runId;
 const callerName="cove-paid-legal-caller-"+runId;
 const writerName="cove-paid-legal-writer-"+runId;
 const settlementName="cove-paid-settlement-qa-"+runId;
-const mediaBucketName="cove-paid-private-media-qa-"+runId;
-const settlementOrigin="https://"+settlementName+".cove-jibrilmohamud.workers.dev";
-const origin="https://"+callerName+".cove-jibrilmohamud.workers.dev";
-const primary="7c7ab994-f6b3-419d-a72d-71eb9ea22e7e";
-const primaryName="cove-paid-commerce-legal-qa-20261027";
+const gatewayName="cove-paid-d1-gateway-"+runId;
+const gatewayOrigin="https://"+gatewayName+".cove-qa-reads.workers.dev";
+const gatewayGate=randomBytes(32).toString("hex");
+const mediaBucketName="cove-paid-private-media-qa";
+const mediaKey=name=>"qa/"+runId+"/"+name;
+const settlementOrigin="https://"+settlementName+".cove-qa-reads.workers.dev";
+const origin="https://"+callerName+".cove-qa-reads.workers.dev";
+const primary=QA_PAID_D1;
+const primaryName="cove-qa-paid-owner-primary-20261122";
 const gate=randomBytes(32).toString("hex");
 const secret=randomBytes(32).toString("hex");
 const journalVersion=randomBytes(32).toString("hex");
@@ -55,6 +66,7 @@ const ownerCfg=path.join(process.cwd(),".cove-paid-owner-proof-"+runId+".jsonc")
 const callerCfg=path.join(process.cwd(),".cove-paid-caller-proof-"+runId+".jsonc");
 const writerCfg=path.join(process.cwd(),".cove-paid-writer-proof-"+runId+".jsonc");
 const settlementCfg=path.join(process.cwd(),".cove-paid-settlement-proof-"+runId+".jsonc");
+const gatewayCfg=path.join(process.cwd(),".cove-paid-d1-gateway-"+runId+".jsonc");
 const test={
   productId:"prd_paid_qa_20261027",
   entitlementId:"ent_paid_qa_20261027",
@@ -63,14 +75,35 @@ const test={
 };
 const cli=(args)=>{
   const result=spawnSync("npm",["exec","--yes","--package=wrangler@4.151.0","--","wrangler",...args],{
-    encoding:"utf8",timeout:160000,env:{...process.env,CLOUDFLARE_SEND_METRICS:"false"}
+    encoding:"utf8",timeout:160000,env:{...process.env,
+      CLOUDFLARE_API_TOKEN:paidQaWranglerTokenFor(args,qaCredentials),CLOUDFLARE_SEND_METRICS:"false"}
   });
   if(result.status!==0)throw Error("wrangler_"+args[0]+"_failed "+
     String(result.stderr||"").replace(/Bearer\s+\S+/g,"Bearer [redacted]").slice(-450));
 };
 const api=async(method,resource,body)=>{
+  // Synthetic database access is executed through the temporary, signed
+  // Worker binding. No D1 Write account token is present in this QA job.
+  if(resource.startsWith("/d1/")){
+    const source="/d1/database/"+schemaSource+"/query";
+    const target="/d1/database/"+primary+"/query";
+    assert.equal(method,"POST");
+    assert.ok(resource===source||resource===target,
+      "Only the two fixed synthetic D1 fixtures can be queried");
+    const response=await fetch(gatewayOrigin+"/__query",{
+      method:"POST",headers:{"authorization":"Bearer "+gatewayGate,
+        "content-type":"application/json"},
+      body:JSON.stringify({database:resource===source?"schema":"qa",
+        sql:body?.sql,params:body?.params||[]}),
+      signal:AbortSignal.timeout(20000)
+    });
+    const result=await response.json().catch(()=>null);
+    if(response.status!==200||result?.success!==true)
+      throw Error("isolated_qa_d1_gateway_unavailable:HTTP_"+response.status);
+    return result.result;
+  }
   const r=await fetch("https://api.cloudflare.com/client/v4/accounts/"+account+resource,{
-    method,headers:{authorization:"Bearer "+token,
+    method,headers:{authorization:"Bearer "+paidQaApiTokenFor(method,resource,qaCredentials),
       "content-type":"application/json"},
     ...(body?{body:JSON.stringify(body)}:{}),
     signal:AbortSignal.timeout(18000)
@@ -110,12 +143,28 @@ const qaSql=async(sql,params=[])=>{
  * no ledger, royalties, outbox, retail events or reader state schema.
  * This is a strict source/destination allowlist; never use a production D1.
  */
-const schemaSource="e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
+const schemaSource=QA_SCHEMA_SOURCE_D1;
 async function prepareInitialCommerceQaSchema(){
-  const records=await api("POST","/d1/database/"+schemaSource+"/query",{
-    sql:"SELECT type,name,tbl_name,sql FROM sqlite_master WHERE sql IS NOT NULL AND type IN ('table','index') ORDER BY CASE type WHEN 'table' THEN 0 ELSE 1 END,name"
-  });
-  assert.equal(records?.[0]?.success,true);
+  // Read the pinned synthetic schema in bounded, deterministic pages. One
+  // unbounded response used to hide gateway/secondary-binding failures.
+  const schemaSql="SELECT type,name,tbl_name,sql FROM sqlite_master WHERE sql IS NOT NULL AND type IN ('table','index') ORDER BY CASE type WHEN 'table' THEN 0 ELSE 1 END,name LIMIT 40 OFFSET ?";
+  const schemaRows=[];
+  let completed=false;
+  for(let offset=0;offset<1200;offset+=40){
+    const page=await api("POST","/d1/database/"+schemaSource+"/query",{
+      sql:schemaSql,params:[offset]
+    });
+    assert.equal(page?.[0]?.success,true);
+    const rows=page[0].results;
+    assert.ok(Array.isArray(rows)&&rows.length<=40,
+      "Synthetic schema source returned an invalid page");
+    schemaRows.push(...rows);
+    if(rows.length<40){completed=true;break;}
+  }
+  assert.ok(completed,"Synthetic schema metadata exceeds reviewed 1200-row bound");
+  assert.equal(new Set(schemaRows.map(x=>x.type+":"+x.name)).size,schemaRows.length,
+    "Synthetic source schema changed during paginated read");
+  const records=[{results:schemaRows}];
   const present=(await qaSql("SELECT type,name FROM sqlite_master WHERE type IN ('table','index')")).results;
   const existing=new Set(present.map(x=>x.type+":"+x.name));
   const allowed=isPaidOwnerQaSchemaTable;
@@ -142,6 +191,11 @@ async function prepareInitialCommerceQaSchema(){
   const settlementDdl=fs.readFileSync("drizzle/0089_atomic_paid_settlement.sql","utf8").replace(/--[^\n]*/g,"");
   for(const statement of settlementDdl.split(";").map(x=>x.trim()).filter(Boolean))await qaSql(statement);
   console.log("QA schema-only dependencies ready: "+installed+" missing tables/indexes added");
+  const catalog=await preparePaidQaRetailCatalog(qaSql);
+  assert.equal(catalog.productId,test.productId);
+  assert.equal(catalog.legalViewChecked,true);
+  assert.equal(catalog.canonicalQueryChecked,true);
+  console.log("PASS: separate QA D1 owns source-exact retail legal view and synthetic paid search projection; real storefront authorization query returns exact canonical USD 399 offer");
 }
 const initialOrder="order_initial_qa_"+runId;
 const initialBuyer="user_initial_qa_"+runId;
@@ -223,6 +277,20 @@ const post=async(route,body)=>{
     cfPlacement:typeof placement==="string"&&/^(local|remote)-[A-Z]{3}$/.test(placement)?placement:null,
     ray:response.headers.get("cf-ray"),
     unavailableLayer:response.headers.get("x-cove-qa-unavailable-layer"),
+    retailFailurePhase:(()=>{
+      const x=response.headers.get("x-cove-qa-retail-phase");
+      return ["preflight","rights","offer","epoch"].includes(x||"")?x:null;
+    })(),
+    retailOwnerStatus:(()=>{
+      const x=response.headers.get("x-cove-qa-retail-owner-status");
+      return ["400","401","403","404","409","429","500","502","503","504","other","unknown"].includes(x||"")?x:null;
+    })(),
+    retailOwnerReason:(()=>{
+      const x=response.headers.get("x-cove-qa-retail-owner-reason");
+      return ["canonical_lease_unfresh_evaluation","canonical_lease_primary_unverified",
+        "canonical_lease_invalid_transition","canonical_lease_transition_imminent",
+        "unclassified"].includes(x||"")?x:null;
+    })(),
     nativeFailure:response.headers.get("x-cove-qa-native-failure"),
     nativePhase:response.headers.get("x-cove-qa-native-phase")};
 };
@@ -288,8 +356,24 @@ const assertNoRoute=(config)=>{
   assert.equal(config.vars?.COVE_RIGHTS_OWNER_ENABLED,"0");
 };
 let ownerCreated=false,callerCreated=false,writerCreated=false,settlementCreated=false;
+let gatewayCreated=false;
 let cleanupError=null,listener=null,webhookServer=null,webhookSigningSecret="";
-let paymentIntentId=null,initialPaymentIntentId=null,mediaBucketCreated=false;
+let paymentIntentId=null,initialPaymentIntentId=null,mediaUploadAttempted=false;
+const qaMedia=async(action,name,bytes)=>{
+  assert.ok(["book.epub","chapter.wav","rights.txt"].includes(name));
+  assert.ok(["put","delete","head"].includes(action));
+  if(action==="put")mediaUploadAttempted=true;
+  const response=await fetch(gatewayOrigin+"/__media-"+action,{
+    method:"POST",headers:{"authorization":"Bearer "+gatewayGate,
+      "content-type":"application/json"},
+    body:JSON.stringify({name,...(action==="put"?{base64:Buffer.from(bytes).toString("base64")}:{})}),
+    signal:AbortSignal.timeout(20000)
+  });
+  const payload=await response.json().catch(()=>null);
+  if(response.status!==200||payload?.key!==mediaKey(name))
+    throw Error("synthetic_private_media_operation_failed:"+action);
+  return payload;
+};
 let matchedPackets=[],initialOutageInjected=false;
 const until=async(check,label,ms=45000)=>{
   const end=Date.now()+ms;
@@ -318,13 +402,98 @@ const stripeRequest=async(route,body)=>{
       "Provider refund must never be in live mode");
   return result;
 };
+// Real authenticated capability proof for all three independently scoped QA
+// credentials. This is isolated to Cove QA and runs BEFORE any Stripe TEST charge.
+const qaControlPlane=async(token,method,resource,body)=>{
+  const response=await fetch("https://api.cloudflare.com/client/v4/accounts/"+
+    QA_ACCOUNT+resource,{
+    method,
+    headers:{authorization:"Bearer "+token,
+      ...(body?{"content-type":"application/json"}:{})},
+    ...(body?{body:JSON.stringify(body)}:{}),
+    signal:AbortSignal.timeout(25000)
+  });
+  const json=await response.json().catch(()=>null);
+  assert.equal(response.status>=200&&response.status<300,true,
+    "Isolated QA Cloudflare capability proof failed: "+method+" "+resource+
+    " HTTP "+response.status);
+  assert.equal(json?.success,true,"Isolated QA token refused: "+method+" "+resource);
+  return json.result;
+};
+const proveIsolatedQaCredentials=async()=>{
+  // Exercise actual D1 Write, not only metadata, using a per-run scratch table.
+  const scratch="qa_credential_probe_"+runId.replaceAll("-","_");
+  const target="/d1/database/"+QA_PAID_D1+"/query";
+  const call=sql=>qaControlPlane(qaCredentials.tokens.d1,"POST",target,{sql});
+  const schema=await qaControlPlane(qaCredentials.tokens.d1,"POST",
+    "/d1/database/"+QA_SCHEMA_SOURCE_D1+"/query",
+    {sql:"SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table'"});
+  assert.equal(schema?.[0]?.success,true,"Synthetic schema read unavailable");
+  try {
+    const created=await call('CREATE TABLE IF NOT EXISTS "'+scratch+'" (id INTEGER PRIMARY KEY, marker TEXT NOT NULL)');
+    assert.equal(created?.[0]?.success,true,"D1 mutation token could not create QA scratch table");
+    const wrote=await call("INSERT INTO \""+scratch+"\" (id,marker) VALUES (1,'isolated-qa')");
+    assert.equal(wrote?.[0]?.meta?.changes,1,"D1 QA scratch write did not commit");
+    const checked=await call('SELECT marker FROM "'+scratch+'" WHERE id=1');
+    assert.equal(checked?.[0]?.results?.[0]?.marker,"isolated-qa");
+  } finally {
+    const dropped=await call('DROP TABLE IF EXISTS "'+scratch+'"');
+    assert.equal(dropped?.[0]?.success,true,"D1 QA scratch cleanup failed");
+  }
+  // Exercise actual R2 bucket creation/deletion under the separate QA token.
+  const r2=qaCredentials.tokens.r2;
+  const probe="cove-qa-r2-token-proof-"+runId;
+  await qaControlPlane(r2,"POST","/r2/buckets",{name:probe});
+  try {
+    const listed=await qaControlPlane(r2,"GET","/r2/buckets");
+    assert.ok(Array.isArray(listed?.buckets)&&listed.buckets.some(b=>b.name===probe),
+      "QA R2 write-token scratch bucket not listed");
+  } finally {
+    await qaControlPlane(r2,"DELETE","/r2/buckets/"+probe);
+  }
+  const listed=await qaControlPlane(r2,"GET","/r2/buckets");
+  if(!listed?.buckets?.some(b=>b.name===mediaBucketName))
+    await qaControlPlane(r2,"POST","/r2/buckets",{name:mediaBucketName});
+  console.log("PASS: isolated QA Workers principal present, D1 mutation and R2 create/delete proven; no production credentials");
+};
 try {
+  await proveIsolatedQaCredentials();
+  // Signed gateway has only the two synthetic D1 bindings. Its credential is
+  // never a Cloudflare account-wide D1 Write token and never selects an ID.
+  fs.writeFileSync(gatewayCfg,JSON.stringify(syntheticD1GatewayConfig(
+    "paid",runId,Date.now()+35*60_000)));
+  gatewayCreated=true;
+  await deploy(gatewayCfg,{COVE_QA_D1_GATE:gatewayGate});
+  const settings=await api("GET","/workers/scripts/"+gatewayName+"/settings");
+  const bound=(settings?.bindings||[]).filter(b=>b.type==="d1")
+    .map(b=>b.id||b.database_id).sort();
+  assert.deepEqual(bound,[primary,schemaSource].sort(),
+    "Synthetic QA gateway binding must exclude the production D1");
+  const qaMediaBinding=(settings?.bindings||[]).filter(b=>b.name==="QA_MEDIA");
+  assert.equal(qaMediaBinding.length,1,"Synthetic QA media binding missing");
+  assert.equal(qaMediaBinding[0].type,"r2_bucket");
+  assert.equal(qaMediaBinding[0].bucket_name,mediaBucketName,
+    "Synthetic QA gateway may not bind customer media");
+  let gatewayReady=false;
+  for(let attempt=0;attempt<15;attempt++){
+    try{
+      const response=await fetch(gatewayOrigin+"/__health",{
+        headers:{"authorization":"Bearer "+gatewayGate},signal:AbortSignal.timeout(10000)});
+      if(response.status===200&&(await response.json()).ready===true){
+        gatewayReady=true;break;
+      }
+      if(![404,503].includes(response.status))break;
+    }catch{}
+    await new Promise(resolve=>setTimeout(resolve,1200));
+  }
+  assert.ok(gatewayReady,"Synthetic QA D1 gateway not ready; do not initialize QA or charge TEST Stripe");
   await prepareInitialCommerceQaSchema();
   await seedInitialPendingOrder();
   // Schema-only bootstrap can take minutes; the *authorization* lifetime
   // begins only after staging data is ready, not during isolated DDL.
   expires=Date.now()+12*60_000;
-  const original=JSON.parse(fs.readFileSync("wrangler.legal-paid-authority.example.jsonc","utf8"));
+  const original=bindPaidQaTemplateToIsolatedPrimary(JSON.parse(
+    fs.readFileSync("wrangler.legal-paid-authority.example.jsonc","utf8")));
   assertNoRoute(original);
   original.name=ownerName;
   original.vars.COVE_RIGHTS_OWNER_ENABLED="1";
@@ -337,8 +506,8 @@ try {
   ownerCreated=true;
   await deploy(ownerCfg,{COVE_RIGHTS_OWNER_SECRET:secret,STRIPE_SECRET_KEY:stripeSecret});
   await verifySecrets(ownerName,["COVE_RIGHTS_OWNER_SECRET","STRIPE_SECRET_KEY"]);
-  const writer=JSON.parse(fs.readFileSync(
-    "wrangler.legal-paid-writer.example.jsonc","utf8"));
+  const writer=bindPaidQaTemplateToIsolatedPrimary(JSON.parse(fs.readFileSync(
+    "wrangler.legal-paid-writer.example.jsonc","utf8")));
   assert.equal(writer.workers_dev,false);
   assert.deepEqual(writer.routes,[]);
   assert.equal(writer.d1_databases?.[0]?.database_id,primary);
@@ -425,7 +594,9 @@ try {
     console.warn("QA retail writer route propagation: "+publication404.length+
       " non-mutating HTTP 404 responses before final status "+publish.status);
   assert.equal(publish.status,200,"Private positive canonical retail writer unavailable "+
-    JSON.stringify({status:publish.status,ray:publish.ray,layer:publish.unavailableLayer}));
+    JSON.stringify({status:publish.status,ray:publish.ray,layer:publish.unavailableLayer,
+      phase:publish.retailFailurePhase,upstreamStatus:publish.retailOwnerStatus,
+      ownerReason:publish.retailOwnerReason}));
   assert.equal(publish.body?.published,true);
   assert.ok(Number.isSafeInteger(publish.body?.ownerEpoch)&&publish.body.ownerEpoch>0);
   const rights=await read("/commercial/authorize-batch",{
@@ -781,24 +952,16 @@ try {
   audioBytes.writeUInt32LE(8000,24);audioBytes.writeUInt32LE(16000,28);
   audioBytes.writeUInt16LE(2,32);audioBytes.writeUInt16LE(16,34);
   audioBytes.write("data",36);audioBytes.writeUInt32LE(audioBytes.length-44,40);
-  const epubFile=path.join(temp,"qa-book.epub"),
-    audioFile=path.join(temp,"qa-chapter.wav");
-  fs.writeFileSync(epubFile,epubBytes,{mode:0o600});
-  fs.writeFileSync(audioFile,audioBytes,{mode:0o600});
-  cli(["r2","bucket","create",mediaBucketName]);
-  mediaBucketCreated=true;
-  cli(["r2","object","put",mediaBucketName+"/qa/book.epub",
-    "--file",epubFile,"--remote"]);
-  cli(["r2","object","put",mediaBucketName+"/qa/chapter.wav",
-    "--file",audioFile,"--remote"]);
+  // The preprovisioned private synthetic bucket is written only through a
+  // signed, per-run key prefix on the ephemeral QA Worker binding. Neither
+  // R2 account administration nor customer-media bucket access is needed.
+  assert.equal((await qaMedia("put","book.epub",epubBytes)).saved,true);
+  assert.equal((await qaMedia("put","chapter.wav",audioBytes)).saved,true);
   const rightsBytes=Buffer.from(
     "This recording is generated synthetic silence for the isolated Cove QA campaign "+runId+
     ". No outside recording, narrator or publication rights are claimed.\n","utf8"
   );
-  const rightsFile=path.join(temp,"qa-rights.txt");
-  fs.writeFileSync(rightsFile,rightsBytes,{mode:0o600});
-  cli(["r2","object","put",mediaBucketName+"/qa/rights.txt",
-    "--file",rightsFile,"--remote"]);
+  assert.equal((await qaMedia("put","rights.txt",rightsBytes)).saved,true);
   const digest=bytes=>createHash("sha256").update(bytes).digest("hex");
   const epubSha=digest(epubBytes),audioSha=digest(audioBytes);
   // The ORIGINAL delivery service resolves the buyer's real canonical
@@ -835,7 +998,7 @@ try {
   )).results[0]?.n:0;
   await qaSql(
     "INSERT INTO asset_versions(id,asset_id,version_number,object_key,mime_type,size_bytes,sha256,created_at) VALUES(?,?,?,?,'application/epub+zip',?,?,?)",
-    [runVersion,runAsset,Number(latest)+1,"qa/book.epub",epubBytes.length,epubSha,nowSql]
+    [runVersion,runAsset,Number(latest)+1,mediaKey("book.epub"),epubBytes.length,epubSha,nowSql]
   );
   if(priorAsset)await qaSql(
     "UPDATE digital_assets SET current_version_id=?,updated_at=? WHERE id=?",
@@ -861,13 +1024,13 @@ try {
   console.log("QA original EPUB/registered device private assets provisioned");
   await provisionPublishedQaAudio(qaSql,{
     runId,productId:test.productId,buyerId:initialBuyer,
-    objectKey:"qa/chapter.wav",sha:audioSha,sizeBytes:audioBytes.length,
+    objectKey:mediaKey("chapter.wav"),sha:audioSha,sizeBytes:audioBytes.length,
     evidenceSha:digest(rightsBytes),evidenceSize:rightsBytes.length
   });
   const {privateKey}=generateKeyPairSync("ec",{namedCurve:"prime256v1"});
   const offlineSigningJwk=JSON.stringify(privateKey.export({format:"jwk"}));
-  const settlement=JSON.parse(fs.readFileSync(
-    "wrangler.legal-paid-settlement-stage-qa.example.jsonc","utf8"));
+  const settlement=bindPaidQaTemplateToIsolatedPrimary(JSON.parse(fs.readFileSync(
+    "wrangler.legal-paid-settlement-stage-qa.example.jsonc","utf8")));
   assert.equal(settlement.workers_dev,false);
   assert.equal(settlement.preview_urls,false);
   assert.deepEqual(settlement.routes,[]);
@@ -877,6 +1040,7 @@ try {
   settlement.name=settlementName;
   settlement.workers_dev=true;
   settlement.r2_buckets=[{binding:"QA_MEDIA",bucket_name:mediaBucketName}];
+  settlement.vars.COVE_PAID_QA_MEDIA_PREFIX="qa/"+runId+"/";
   settlement.services[0].service=ownerName;
   settlement.vars.COVE_PAID_STAGE_QA_ENABLED="1";
   settlement.vars.STRIPE_LIVEMODE="false";
@@ -1447,7 +1611,11 @@ try {
       refundDenied:true,replayDenied:true,journalBefore:initialFence.mutationEpoch,
       journalAfterRefund:denialFence.mutationEpoch
     },null,2)+"\n");
-    console.log("PASS: protected actual paid-owner A/B/A rollback retained SQLite journal, refund denial and D1 paid state; production versions unchanged; synthetic QA only");
+    assert.equal(evidence.productionVersionsUnchanged,false,
+      "The isolated QA credential cannot certify production version immutability");
+    assert.equal(evidence.productionVersionsNotInspected,true,
+      "An independent production read-only audit remains mandatory");
+    console.log("PASS: protected actual paid-owner A/B/A rollback retained SQLite journal, refund denial and D1 paid state; production deployments NOT INSPECTED; synthetic QA only");
   }
   assert.equal((await postSettlement("/authorize-initial",
     initialOrder,initialBuyer)).status,451,
@@ -1514,13 +1682,17 @@ try {
     }
   }
   if(webhookServer)await new Promise(resolve=>webhookServer.close(resolve));
-  if(mediaBucketCreated){
-    for(const key of ["qa/book.epub","qa/chapter.wav","qa/rights.txt"]){
-      try{cli(["r2","object","delete",mediaBucketName+"/"+key,"--remote"]);}
-      catch(e){cleanupError=e;console.error("Ephemeral private media object cleanup failed");}
+  if(mediaUploadAttempted){
+    for(const name of ["book.epub","chapter.wav","rights.txt"]){
+      try{
+        assert.equal((await qaMedia("delete",name)).deleted,true);
+        assert.equal((await qaMedia("head",name)).exists,false,
+          "Synthetic paid QA bytes must be physically absent after cleanup");
+      }catch(e){
+        cleanupError=e;
+        console.error("Attempt-scoped private QA media cleanup failed: "+name);
+      }
     }
-    try{cli(["r2","bucket","delete",mediaBucketName]);}
-    catch(e){cleanupError=e;console.error("Ephemeral private R2 bucket cleanup failed");}
   }
   // Physically distinct QA scripts and expiring credentials prevent production
   // exposure. DELETE is limited to names built from this exact CI run ID.
@@ -1545,6 +1717,11 @@ try {
       [test.entitlementId,test.userId,test.productId]
     );
   }catch(e){cleanupError=e;console.error("Synthetic QA entitlement restoration failed");}
+  if(gatewayCreated){
+    try{await api("DELETE","/workers/scripts/"+gatewayName);}
+    catch(e){cleanupError=e;console.error("Synthetic QA D1 gateway cleanup failed");}
+  }
+  fs.rmSync(gatewayCfg,{force:true});
   fs.rmSync(ownerCfg,{force:true});
   fs.rmSync(callerCfg,{force:true});
   fs.rmSync(writerCfg,{force:true});

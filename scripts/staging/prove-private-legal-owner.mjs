@@ -5,18 +5,26 @@ import os from "node:os";
 import path from "node:path";
 import {randomBytes} from "node:crypto";
 import {spawnSync} from "node:child_process";
+import {checkedPrivateLegalQaCredentials,legalQaTokenFor} from "./legal-qa-cloudflare-credentials.mjs";
+import {syntheticD1GatewayConfig} from "./synthetic-qa-d1-gateway-config.mjs";
 
 const account=process.env.CLOUDFLARE_ACCOUNT_ID;
-const token=process.env.CLOUDFLARE_API_TOKEN;
+const creds=checkedPrivateLegalQaCredentials(process.env);
+const token=creds.workers;
 const runId=process.env.GITHUB_RUN_ID;
-assert.match(account||"",/^[a-f0-9]{32}$/);
+assert.equal(account,"f51e8ccbc394e2d6016ff8c2c303d54b");
 assert.ok(token&&/^\d{8,15}$/.test(runId||""));
 const ownerCfg="wrangler.legal-authority.proof.jsonc";
 const callerCfg="wrangler.legal-authority.proof-caller.jsonc";
 const writerCfg="wrangler.legal-authority.proof-writer.jsonc";
 const writerName="cove-legal-quarantine-qa-private";
+const d1GatewayName="cove-legal-d1-gateway-"+runId;
+const d1GatewayOrigin="https://"+d1GatewayName+".cove-qa-reads.workers.dev";
+const d1GatewaySecret=randomBytes(32).toString("hex");
+const d1GatewayCfg="wrangler.legal-qa-gateway-"+runId+".jsonc";
+let d1GatewayCreated=false;
 const caller="cove-private-legal-proof-"+runId;
-const origin="https://"+caller+".cove-jibrilmohamud.workers.dev";
+const origin="https://"+caller+".cove-qa-reads.workers.dev";
 const gate=randomBytes(32).toString("hex");
 const secret=randomBytes(32).toString("hex");
 const writerKey=randomBytes(32).toString("hex");
@@ -36,8 +44,26 @@ const cli=(args,input)=>{
     String(result.stderr||"").replace(/Bearer\s+\S+/g,"Bearer [masked]").slice(-600));
 };
 const api=async(method,path,body=undefined)=>{
+  // All mutable SQL now runs through the explicitly synthetic D1 binding of
+  // the short-lived private QA gateway; not a D1 Write account API token.
+  const qaSql="/accounts/"+account+
+    "/d1/database/3ffb3c0b-72b2-4a47-b63a-18aaf77762ea/query";
+  if(path.startsWith("/accounts/"+account+"/d1/")){
+    assert.equal(method,"POST");
+    assert.equal(path,qaSql,"Refuse any non-synthetic D1 control plane path");
+    const response=await fetch(d1GatewayOrigin+"/__query",{
+      method:"POST",headers:{"authorization":"Bearer "+d1GatewaySecret,
+        "content-type":"application/json"},
+      body:JSON.stringify({database:"qa",sql:body?.sql,params:body?.params||[]}),
+      signal:AbortSignal.timeout(20000)
+    });
+    const json=await response.json().catch(()=>null);
+    if(response.status!==200||json?.success!==true)
+      throw Error("legal_qa_signed_synthetic_d1_gateway_unavailable");
+    return json.result;
+  }
   const response=await fetch("https://api.cloudflare.com/client/v4"+path,{
-    method,headers:{authorization:"Bearer "+token,
+    method,headers:{authorization:"Bearer "+legalQaTokenFor(method,path,creds),
       ...(body===undefined?{}:{"content-type":"application/json"})},
     body:body===undefined?undefined:JSON.stringify(body),
     signal:AbortSignal.timeout(15000)});
@@ -119,10 +145,30 @@ const readOwner=async(path,body,authorization=gate,expected=200)=>{
   return reply;
 };
 try{
+  fs.writeFileSync(d1GatewayCfg,JSON.stringify(syntheticD1GatewayConfig(
+    "legal",runId,Date.now()+35*60_000)));
+  d1GatewayCreated=true;
+  deployWithSecrets(d1GatewayCfg,{COVE_QA_D1_GATE:d1GatewaySecret});
+  const bindingCheck=await api("GET","/accounts/"+account+
+    "/workers/scripts/"+d1GatewayName+"/settings");
+  const ids=(bindingCheck?.bindings||[]).filter(b=>b.type==="d1").map(b=>b.id||b.database_id);
+  assert.deepEqual(ids,["3ffb3c0b-72b2-4a47-b63a-18aaf77762ea"],
+    "Private legal QA gateway must bind only the isolated synthetic database");
+  let d1GatewayReady=false;
+  for(let attempt=0;attempt<15;attempt++){
+    try{
+      const response=await fetch(d1GatewayOrigin+"/__health",{
+        headers:{"authorization":"Bearer "+d1GatewaySecret},signal:AbortSignal.timeout(10000)});
+      if(response.status===200&&(await response.json()).ready===true){d1GatewayReady=true;break;}
+      if(![404,503].includes(response.status))break;
+    }catch{}
+    await sleep(1200);
+  }
+  assert.ok(d1GatewayReady,"Synthetic legal D1 gateway unavailable before any rights QA mutation");
   const owner=JSON.parse(fs.readFileSync("wrangler.legal-authority.example.jsonc","utf8"));
   assert.equal(owner.workers_dev,false);
   assert.deepEqual(owner.routes,[]);
-  assert.equal(owner.d1_databases[0].database_id,"5e3a6b69-6f3d-4b19-b837-01f7aa56ce87");
+  assert.equal(owner.d1_databases[0].database_id,"3ffb3c0b-72b2-4a47-b63a-18aaf77762ea");
   assert.equal(owner.vars.COVE_RIGHTS_OWNER_ENABLED,"0");
   owner.vars.COVE_RIGHTS_OWNER_ENABLED="1";
   owner.vars.COVE_RIGHTS_OWNER_TEST_EXPIRES_AT=String(expires);
@@ -136,7 +182,7 @@ try{
   assert.equal(writer.workers_dev,false);
   assert.deepEqual(writer.routes,[]);
   assert.equal(writer.d1_databases[0].database_id,
-    "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87");
+    "3ffb3c0b-72b2-4a47-b63a-18aaf77762ea");
   assert.equal(writer.services[0].service,owner.name);
   assert.equal(writer.vars.COVE_LEGAL_WRITER_ENABLED,"0");
   writer.vars.COVE_LEGAL_WRITER_ENABLED="1";
@@ -196,7 +242,7 @@ try{
   // provision an isolated exact-scope synthetic market for this one test,
   // with a mandatory cleanup in finally. Production D1 is never touched.
   const qaD1="/accounts/"+account+
-    "/d1/database/5e3a6b69-6f3d-4b19-b837-01f7aa56ce87/query";
+    "/d1/database/3ffb3c0b-72b2-4a47-b63a-18aaf77762ea/query";
   const marketTable=await api("POST",qaD1,{
     sql:"SELECT name FROM sqlite_master WHERE type='table' AND name='storefront_markets'"
   });
@@ -538,14 +584,14 @@ try{
   if(marketSchemaCreated){
     try{
       const qa="/accounts/"+account+
-        "/d1/database/5e3a6b69-6f3d-4b19-b837-01f7aa56ce87/query";
+        "/d1/database/3ffb3c0b-72b2-4a47-b63a-18aaf77762ea/query";
       await api("POST",qa,{sql:"DROP TABLE IF EXISTS storefront_markets"});
     }catch(e){errors.push("market_qa_table_cleanup_"+String(e.message).slice(0,120));}
   }
   if(seeded){
     try{
       await api("POST","/accounts/"+account+
-        "/d1/database/5e3a6b69-6f3d-4b19-b837-01f7aa56ce87/query",{
+        "/d1/database/3ffb3c0b-72b2-4a47-b63a-18aaf77762ea/query",{
           sql:"DELETE FROM gutenberg_source_cache WHERE id=?",params:[sourceId]
         });
     }catch(e){errors.push("synthetic_source_cleanup_"+String(e.message).slice(0,120));}
@@ -553,7 +599,7 @@ try{
   if(seededRetractions){
     try {
       await api("POST","/accounts/"+account+
-        "/d1/database/5e3a6b69-6f3d-4b19-b837-01f7aa56ce87/query",{
+        "/d1/database/3ffb3c0b-72b2-4a47-b63a-18aaf77762ea/query",{
           sql:"DELETE FROM gutenberg_source_cache WHERE id IN (?,?)",params:retractIds
         });
     }catch(e){errors.push("synthetic_retractions_cleanup_"+String(e.message).slice(0,120));}
@@ -561,7 +607,7 @@ try{
   if(seededEvidence){
     try{
       const qa="/accounts/"+account+
-        "/d1/database/5e3a6b69-6f3d-4b19-b837-01f7aa56ce87/query";
+        "/d1/database/3ffb3c0b-72b2-4a47-b63a-18aaf77762ea/query";
       await api("POST",qa,{sql:"DELETE FROM gutenberg_rights_evidence WHERE id=?",params:[evidenceId]});
       await api("POST",qa,{sql:"DELETE FROM rights_grants WHERE edition_id=? AND source='gutenberg-pg_us-public-domain'",
         params:["ed_gutenberg_"+evidenceSourceId]});
@@ -587,7 +633,11 @@ try{
     const scripts=await api("GET","/accounts/"+account+"/workers/scripts");
     assert.equal(scripts?.some(worker=>worker.id===caller),false);
   }catch(e){errors.push("rollback_verification_"+String(e.message).slice(0,120));}
-  for(const file of [ownerCfg,callerCfg,writerCfg])try{fs.unlinkSync(file);}catch{}
+  if(d1GatewayCreated){
+    try{await api("DELETE","/accounts/"+account+"/workers/scripts/"+d1GatewayName);}
+    catch(e){errors.push("signed_synthetic_d1_gateway_cleanup_"+String(e.message).slice(0,120));}
+  }
+  for(const file of [ownerCfg,callerCfg,writerCfg,d1GatewayCfg])try{fs.unlinkSync(file);}catch{}
   if(errors.length)throw Error("legal_qa_rollback_failed:"+errors.join(","));
   console.log("PASS: legal owner and quarantine writer disabled, both secrets deleted, synthetic D1 row cleaned and public QA caller deleted");
 }

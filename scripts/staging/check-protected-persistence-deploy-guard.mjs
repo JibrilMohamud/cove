@@ -39,18 +39,13 @@ verify({R2_BUCKET_NAME:"cove-stage-media"},false,"Production R2 must be pinned")
 verify({PUBLIC_URL:"https://staging.example.com"},false,"Worker cannot shift canonical trusted public URL");
 const migration=source.match(/apply_migrations:\s*\n(?:.*\n){0,6}?\s*default:\s*(true|false)/);
 assert.equal(migration?.[1],"false","Migrations must NEVER be default-on");
-assert.match(source,
-  /github\.event_name == 'workflow_dispatch' && inputs\.apply_migrations == true/,
-  "Production migrations require exact manual opt-in");
-assert.match(source,/branches: \[main\]/);
-assert.match(
-  source,
-  /if: \$\{\{ github\.event_name == 'workflow_dispatch' \|\| \(github\.ref == 'refs\/heads\/main' && vars\.COVE_PRODUCTION_PERSISTENCE_AUTO_DEPLOY == '1'\) \}\}/,
-  "Production deployment must be locked on main unless explicit repository variable is 1",
-);
-assert.doesNotMatch(
-  source,
-  /if: \$\{\{ github\.event_name == 'push' \}\}/,
-  "Push-only Worker deploy bypass must not exist",
-);
-console.log("PASS: production main auto-deploy OFF by default; exact resource guard and explicit migration opt-in");
+assert.match(source,/inputs\.apply_migrations == true/);
+assert.match(source,/Deny direct production D1 schema migration/);
+assert.doesNotMatch(source,/retry-production-d1-migrations\.mjs/);
+assert.doesNotMatch(source,/secrets\.CLOUDFLARE_API_TOKEN/);
+assert.match(source,/secrets\.COVE_CF_WORKERS_VERSION_UPLOAD_TOKEN/);
+assert.match(source,/github\.event_name == 'workflow_dispatch'/);
+assert.match(source,/github\.ref == 'refs\/heads\/main'/);
+assert.doesNotMatch(source,/COVE_PRODUCTION_PERSISTENCE_AUTO_DEPLOY/);
+assert.doesNotMatch(source,/^  push:/m);
+console.log("PASS: protected manual-only backend Editor deployment and no direct D1 migrations");

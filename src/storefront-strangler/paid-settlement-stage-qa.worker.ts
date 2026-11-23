@@ -24,12 +24,16 @@ type Env={
   STRIPE_LIVEMODE?:string;
   COVE_PAID_INITIAL_ORDER?:string;
   COVE_PAID_INITIAL_BUYER?:string;
+  COVE_PAID_QA_MEDIA_PREFIX?:string;
   COVE_SSR_STAGING?:string;
   COVE_CANONICAL_LEGAL_WRITE_LOCK?:string;
   COVE_LEGAL_CONSUMER_STAGE_ENABLED?:string;
   COVE_LEGAL_WRITER_PRIMARY_ID?:string;
 };
-const FULL_SCHEMA_QA="7c7ab994-f6b3-419d-a72d-71eb9ea22e7e";
+const FULL_SCHEMA_QA=new Set([
+  "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
+  "969f1ea0-5f57-4f3a-aa25-9c74e58f5af3"
+]);
 const ORDER="order_paid_qa_20261027";
 const BUYER="user_paid_qa_20261027";
 const ENTITLEMENT="ent_paid_qa_20261027";
@@ -49,7 +53,7 @@ function available(env:Env):boolean{
     env.COVE_SSR_STAGING==="1" &&
     env.COVE_CANONICAL_LEGAL_WRITE_LOCK==="1" &&
     env.COVE_LEGAL_CONSUMER_STAGE_ENABLED==="1" &&
-    env.COVE_LEGAL_WRITER_PRIMARY_ID===FULL_SCHEMA_QA &&
+    FULL_SCHEMA_QA.has(env.COVE_LEGAL_WRITER_PRIMARY_ID||"") &&
     /^[a-f0-9]{64}$/.test(env.COVE_PAID_STAGE_QA_GATE||"") &&
     /^[a-f0-9]{64}$/.test(env.COVE_RIGHTS_OWNER_SECRET||"") &&
     Number.isSafeInteger(exp)&&exp>Date.now()&&exp<=Date.now()+20*60_000 &&
@@ -314,7 +318,11 @@ export default {
         if(url.pathname==="/qa/epub-bytes" || url.pathname==="/qa/audio-bytes"){
           const epub=url.pathname==="/qa/epub-bytes";
           if(!env.QA_MEDIA?.get)return new Response(null,{status:503,headers});
-          const object=await env.QA_MEDIA.get(epub?"qa/book.epub":"qa/chapter.wav");
+          const run=env.COVE_PAID_INITIAL_ORDER?.slice("order_initial_qa_".length)||"";
+          const prefix=env.COVE_PAID_QA_MEDIA_PREFIX||"";
+          if(!/^\d{8,15}-\d{1,5}$/.test(run)||prefix!=="qa/"+run+"/")
+            return new Response(null,{status:503,headers});
+          const object=await env.QA_MEDIA.get(prefix+(epub?"book.epub":"chapter.wav"));
           if(!object)return new Response(null,{status:503,headers});
           const bytes=await object.arrayBuffer();
           return new Response(bytes,{headers:{

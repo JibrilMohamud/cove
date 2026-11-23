@@ -1,0 +1,114 @@
+/* eslint-disable prettier/prettier -- Ephemeral, signed synthetic D1 gateway. Never bind production D1 or route customer traffic. */
+const noStore={"cache-control":"no-store","content-type":"application/json"};
+const deny=status=>new Response(JSON.stringify({success:false}),{status,headers:noStore});
+// The schema source cannot be queried by arbitrary SQL; only bounded pages
+// of its reviewed, synthetic-only metadata are available to the paid QA run.
+const schemaPageSql="SELECT type,name,tbl_name,sql FROM sqlite_master WHERE sql IS NOT NULL AND type IN ('table','index') ORDER BY CASE type WHEN 'table' THEN 0 ELSE 1 END,name LIMIT 40 OFFSET ?";
+function validEnvironment(env){
+  return ["paid","legal"].includes(env.COVE_QA_D1_GATE_ALLOWED)&&
+    /^[a-f0-9]{64}$/.test(env.COVE_QA_D1_GATE||"")&&
+    /^\d{13}$/.test(env.COVE_QA_D1_GATE_EXPIRES_AT||"")&&
+    Date.now()<Number(env.COVE_QA_D1_GATE_EXPIRES_AT)&&
+    Number(env.COVE_QA_D1_GATE_EXPIRES_AT)-Date.now()<=45*60_000 &&
+    env.QA_PRIMARY_DB?.prepare;
+}
+export default {
+  async fetch(request,env){
+    if(!validEnvironment(env))return deny(503);
+    const url=new URL(request.url);
+    if(request.headers.get("authorization")!=="Bearer "+env.COVE_QA_D1_GATE)
+      return deny(401);
+    if(request.method==="GET"&&url.pathname==="/__health"){
+      // A deployed Worker is not ready just because its primary binding exists.
+      // The previous test passed health while its separate schema-source D1
+      // failed immediately on the first real query.
+      const databases=env.COVE_QA_D1_GATE_ALLOWED==="paid"
+        ?[env.QA_PRIMARY_DB,env.QA_SCHEMA_DB]:[env.QA_PRIMARY_DB];
+      if(databases.some(db=>!db?.prepare))return deny(503);
+      try{
+        await Promise.all(databases.map(async db=>{
+          const result=await db.prepare("SELECT 1 AS cove_qa_ready").first();
+          if(result?.cove_qa_ready!==1)throw Error("qa_d1_probe_not_ready");
+        }));
+      }catch{return deny(503);}
+      return new Response(JSON.stringify({ready:true}),{status:200,headers:noStore});
+    }
+    if(["/__media-put","/__media-delete","/__media-head"].includes(url.pathname)){
+      if(env.COVE_QA_D1_GATE_ALLOWED!=="paid"||
+         !/^\d{8,15}-\d{1,5}$/.test(env.COVE_QA_MEDIA_RUN_ID||"")||
+         !env.QA_MEDIA?.put||!env.QA_MEDIA?.delete||!env.QA_MEDIA?.head||
+         request.method!=="POST"||url.search)
+        return deny(503);
+      let payload;
+      try{
+        const raw=await request.text();
+        if(raw.length>120000)return deny(413);
+        payload=JSON.parse(raw);
+      }catch{return deny(400);}
+      if(!payload||!["book.epub","chapter.wav","rights.txt"].includes(payload.name))
+        return deny(400);
+      const key="qa/"+env.COVE_QA_MEDIA_RUN_ID+"/"+payload.name;
+      try{
+        if(url.pathname==="/__media-put"){
+          if(typeof payload.base64!=="string"||payload.base64.length>100000||
+             !/^[A-Za-z0-9+/]+={0,2}$/.test(payload.base64))return deny(400);
+          const raw=atob(payload.base64);
+          const bytes=Uint8Array.from(raw,c=>c.charCodeAt(0));
+          if(bytes.length===0||bytes.length>75000)return deny(400);
+          const types={"book.epub":"application/epub+zip",
+            "chapter.wav":"audio/wav","rights.txt":"text/plain"};
+          await env.QA_MEDIA.put(key,bytes,{httpMetadata:{contentType:types[payload.name]}});
+          return new Response(JSON.stringify({saved:true,key,size:bytes.length}),{headers:noStore});
+        }
+        if(url.pathname==="/__media-delete"){
+          await env.QA_MEDIA.delete(key);
+          return new Response(JSON.stringify({deleted:true,key}),{headers:noStore});
+        }
+        const object=await env.QA_MEDIA.head(key);
+        return new Response(JSON.stringify({exists:!!object,key}),{headers:noStore});
+      }catch{return deny(503);}
+    }
+    if(request.method!=="POST"||url.pathname!=="/__query"||url.search)
+      return deny(404);
+    if(Number(request.headers.get("content-length")||0)>24576)return deny(413);
+    let input;
+    try{
+      const raw=await request.text();
+      if(raw.length>24576)return deny(413);
+      input=JSON.parse(raw);
+    }catch{return deny(400);}
+    if(!input||Array.isArray(input)||!["qa","schema"].includes(input.database)||
+       (input.database==="schema"&&env.COVE_QA_D1_GATE_ALLOWED!=="paid")||
+       typeof input.sql!=="string"||input.sql.length<4||input.sql.length>20000||
+       !Array.isArray(input.params)||input.params.length>64||
+       input.params.some(x=>x!==null&&typeof x!=="number"&&typeof x!=="string"&&typeof x!=="boolean")||
+       /\b(?:ATTACH|DETACH|writable_schema)\b/i.test(input.sql))
+      return deny(400);
+    // The separate catalog-acceptance schema source is strictly read-only.
+    // WITH/PRAGMA are not a safe general read-only classifier; a CTE can
+    // modify rows and PRAGMA has writable forms. Accept only the reviewed
+    // schema extraction query and never call run() on the source fixture.
+    if(input.database==="schema"&&(
+       input.sql!==schemaPageSql||input.params.length!==1||
+       !Number.isSafeInteger(input.params[0])||input.params[0]<0||
+       input.params[0]>=1200||input.params[0]%40!==0))
+      return deny(403);
+    const db=input.database==="schema"?env.QA_SCHEMA_DB:env.QA_PRIMARY_DB;
+    if(!db?.prepare)return deny(503);
+    try{
+      // Cloudflare D1 allows unbound statements. Calling bind() with zero
+      // arguments is not the same contract as running the prepared statement;
+      // the reviewed paged schema read uses exactly one bound offset.
+      const prepared=db.prepare(input.sql);
+      const statement=input.params.length?prepared.bind(...input.params):prepared;
+      const read=/^\s*(?:SELECT|PRAGMA|WITH)\b/i.test(input.sql);
+      const outcome=read?await statement.all():await statement.run();
+      return new Response(JSON.stringify({success:true,result:[{
+        success:true,results:outcome.results||[],meta:outcome.meta||{}
+      }]}),{status:200,headers:noStore});
+    }catch{
+      // Suppress SQL and identity from a publicly reachable ephemeral service.
+      return deny(503);
+    }
+  }
+};

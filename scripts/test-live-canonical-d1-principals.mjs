@@ -330,6 +330,13 @@ test("missing binding/schedule/public ingress or duplicate Worker inventory fail
   assert.throws(()=>assessDeployedCanonicalD1Principals({...params,
     scripts:[...params.scripts,...params.scripts]}),/Duplicate Worker names/);
 });
+test("worker metadata and zone route scopes must be independent",async()=>{
+  await assert.rejects(()=>collectCanonicalD1Fleet({
+    token:"z".repeat(30),zoneToken:"z".repeat(30),
+    account:"a".repeat(32),zone:"b".repeat(32),
+    fetcher:async()=>{throw Error("must not make any network call");}
+  }),/must be distinct/);
+});
 test("Cloudflare network audit calls every Worker, never ignores non-Cove principals",async()=>{
   const calls=[];
   const settings={
@@ -351,15 +358,15 @@ test("Cloudflare network audit calls every Worker, never ignores non-Cove princi
     ["/accounts/"+account+"/workers/domains"]:[]
   };
   const fetcher=async(url,opts)=>{
-    assert.equal(opts.headers.authorization,"Bearer "+"z".repeat(30));
-    assert.equal(opts.method,"GET");
     const path=new URL(url).pathname.replace(/^\/client\/v4/,"");
+    assert.equal(opts.headers.authorization,"Bearer "+(path.startsWith("/zones/")?"y":"z").repeat(30));
+    assert.equal(opts.method,"GET");
     calls.push(path);
     if(!(path in replies))return Response.json({success:false},{status:404});
     return Response.json({success:true,result:replies[path]});
   };
   const r=await collectCanonicalD1Fleet({
-    fetcher,token:"z".repeat(30),account,zone});
+    fetcher,token:"z".repeat(30),zoneToken:"y".repeat(30),account,zone});
   assert.equal(r.workerScriptsInspected,3);
   assert.equal(r.directCanonicalBindings,2);
   assert.equal(r.nonOwnerBindings,1);
@@ -373,7 +380,7 @@ test("Cloudflare network audit calls every Worker, never ignores non-Cove princi
 test("failed Cloudflare settings response must abort the entire audit",async()=>{
   let requests=0;
   await assert.rejects(()=>collectCanonicalD1Fleet({
-    account:"a".repeat(32),zone:"b".repeat(32),token:"x".repeat(30),
+    account:"a".repeat(32),zone:"b".repeat(32),token:"x".repeat(30),zoneToken:"y".repeat(30),
     fetcher:async(url)=>{
       requests++;
       return url.endsWith("/workers/scripts")
@@ -414,7 +421,7 @@ test("an independently absent 16-hex owner handshake triggers a COMPLETE rescan,
     return Response.json({success:true,result:payload[path]});
   };
   const result=await collectCanonicalD1Fleet({
-    fetcher,token:"z".repeat(30),account,zone});
+    fetcher,token:"z".repeat(30),zoneToken:"y".repeat(30),account,zone});
   assert.equal(listRequests,3,"Original, verification and complete fresh scan are required");
   assert.equal(result.workerScriptsInspected,2);
   assert.equal(result.nonOwnerBindings,1,
@@ -427,7 +434,7 @@ test("still-listed disappearing handshake, arbitrary 404 and authorization failu
   const account="a".repeat(32),zone="b".repeat(32),
     base="/accounts/"+account+"/workers/scripts",vanished="cove-owner-handshake-abcdef0123456789";
   const attempt=(name,status,listAfter)=>collectCanonicalD1Fleet({
-    account,zone,token:"z".repeat(30),
+    account,zone,token:"z".repeat(30),zoneToken:"y".repeat(30),
     fetcher:async url=>{
       const path=new URL(url).pathname.replace(/^\/client\/v4/,"");
       if(path===base)return Response.json({success:true,result:listAfter?

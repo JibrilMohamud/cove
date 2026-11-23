@@ -14,13 +14,13 @@
   "d1_databases": [
     {
       "binding": "PRIMARY_DB",
-      "database_name": "cove-canonical-publication-qa-20261025",
-      "database_id": "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87"
+      "database_name": "cove-qa-legal-owner-primary-20261122",
+      "database_id": "3ffb3c0b-72b2-4a47-b63a-18aaf77762ea"
     }
   ],
   "vars": {
     "COVE_LEGAL_WRITER_ENABLED": "0",
-    "COVE_LEGAL_WRITER_PRIMARY_ID": "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87",
+    "COVE_LEGAL_WRITER_PRIMARY_ID": "3ffb3c0b-72b2-4a47-b63a-18aaf77762ea",
     "COVE_LEGAL_WRITER_EXPIRES_AT": "0"
   }
 }
