@@ -25,7 +25,9 @@ export function verifyScheduledProductionContinuity({
   // Until a protected owner-only read route is proven, the backend requires
   // its existing primary DB binding for legitimate customer/catalog reads.
   assert.ok(
-    backendConfig.includes('binding = "DB"\\ndatabase_name = "cove-production"\\ndatabase_id = "4bd657ac-8789-403e-a28c-93aba8d0a989"'),
+    backendConfig.includes('binding = "DB"') &&
+      backendConfig.includes('database_name = "cove-production"') &&
+      backendConfig.includes('database_id = "4bd657ac-8789-403e-a28c-93aba8d0a989"'),
     "Direct backend reads cannot be disconnected before a proven replacement",
   );
   const observed = JSON.parse(schedules[1]);
