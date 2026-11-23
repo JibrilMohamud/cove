@@ -27,6 +27,13 @@ export function bindPublicationOwner<T extends CatalogDB>(db:T,context:Context):
   owners.set(facade,context);return facade;
 }
 export function hasPublicationOwner(db:object){return owners.has(db);}
+/** Preserve private owner routing across restrictive D1 facades without exposing
+ * the underlying binding or weakening either facade's SQL restrictions. */
+export function carryPublicationOwnerContext<T extends object>(facade:T,source:object):T {
+  const context=owners.get(source);
+  if(context)owners.set(facade,context);
+  return facade;
+}
 export async function dispatchPublicationRecovery(db:object) {
   const context=owners.get(db);
   if(!context)throw new ApiError(503,"Publication owner is not configured.");
