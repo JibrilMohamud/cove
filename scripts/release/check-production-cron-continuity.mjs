@@ -52,7 +52,9 @@ export function verifyScheduledProductionContinuity({
     "The existing hourly BioSync production trigger must remain active",
   );
   assert.ok(
-    biosyncWorkflow.includes("BIOSYNC_AUTO_SHORT: ${{ github.event_name == 'schedule' && '1' || '0' }}"),
+    biosyncWorkflow.includes(
+      "BIOSYNC_AUTO_SHORT: ${{ github.event_name == 'schedule' && '1' || '0' }}",
+    ),
     "The hourly canary must retain autonomous queued-short-track discovery",
   );
   assert.ok(
@@ -96,15 +98,44 @@ if (process.argv.includes("--self-test")) {
   const negative = [
     { backendConfig: actual.backendConfig.replace('"41 4 * * *"', '"0 4 * * *"') },
     { backendConfig: actual.backendConfig.replace('binding = "DB"', 'binding = "QA_DB"') },
-    { backendWorker: actual.backendWorker.replace("runScheduled(controller.cron, env)", "undefined") },
-    { backendWorker: actual.backendWorker.replace("runCommercialQueues(controller.cron, env)", "undefined") },
+    {
+      backendWorker: actual.backendWorker.replace(
+        "runScheduled(controller.cron, env)",
+        "undefined",
+      ),
+    },
+    {
+      backendWorker: actual.backendWorker.replace(
+        "runCommercialQueues(controller.cron, env)",
+        "undefined",
+      ),
+    },
     { biosyncWorkflow: actual.biosyncWorkflow.replace("  schedule:", "  # schedule:") },
-    { biosyncWorkflow: actual.biosyncWorkflow.replace("name: biosync-production-canary", "name: biosync-owner-qa-protected") },
-    { biosyncWorkflow: actual.biosyncWorkflow.replace("python3 -m scripts.audio_pipeline.biosync_canary", "python3 -m scripts.audio_pipeline.biosync_owner_qa") },
+    {
+      biosyncWorkflow: actual.biosyncWorkflow.replace(
+        "name: biosync-production-canary",
+        "name: biosync-owner-qa-protected",
+      ),
+    },
+    {
+      biosyncWorkflow: actual.biosyncWorkflow.replace(
+        "python3 -m scripts.audio_pipeline.biosync_canary",
+        "python3 -m scripts.audio_pipeline.biosync_owner_qa",
+      ),
+    },
     { biosyncWorkflow: actual.biosyncWorkflow.replace("BIOSYNC_AUTO_SHORT:", "BIOSYNC_QA_ONLY:") },
-    { biosyncWorkflow: actual.biosyncWorkflow.replace("CLOUDFLARE_API_TOKEN:", "COVE_FAKE_TOKEN:") },
-    { biosyncCanary: actual.biosyncCanary.replace('DATABASE = "4bd657ac-8789-403e-a28c-93aba8d0a989"', 'DATABASE = "4e17ba6f-444f-4245-801a-a7d4969045b0"') },
-    { biosyncCanary: actual.biosyncCanary.replace("UPDATE audio_jobs SET status='done'", "QA-only") },
+    {
+      biosyncWorkflow: actual.biosyncWorkflow.replace("CLOUDFLARE_API_TOKEN:", "COVE_FAKE_TOKEN:"),
+    },
+    {
+      biosyncCanary: actual.biosyncCanary.replace(
+        'DATABASE = "4bd657ac-8789-403e-a28c-93aba8d0a989"',
+        'DATABASE = "4e17ba6f-444f-4245-801a-a7d4969045b0"',
+      ),
+    },
+    {
+      biosyncCanary: actual.biosyncCanary.replace("UPDATE audio_jobs SET status='done'", "QA-only"),
+    },
   ];
   for (const [index, patch] of negative.entries()) {
     assert.throws(
