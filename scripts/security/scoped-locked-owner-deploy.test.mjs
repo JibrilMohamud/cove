@@ -20,7 +20,10 @@ test("locked production owner uses separate deployment, metadata and zone-route 
   assert.ok(!w.includes("secrets.CLOUDFLARE_API_TOKEN"));
   assert.ok(!w.includes("secrets.COVE_CF_PROD_D1_MIGRATIONS_TOKEN"));
   assert.ok(owner.includes("process.env.COVE_CF_WORKERS_METADATA_READ_TOKEN"));
-  assert.ok(owner.includes("token!==deploy"));
+  // The protected workflow proves all three credentials are pairwise distinct.
+  // The read-only checker MUST NOT even access the deploy credential.
+  assert.ok(owner.includes("process.env.COVE_CF_WORKERS_METADATA_READ_TOKEN"));
+  assert.ok(!owner.includes("process.env.CLOUDFLARE_API_TOKEN"));
   assert.ok(!owner.includes("const token=process.env.CLOUDFLARE_API_TOKEN"));
   assert.ok(w.includes("node scripts/check-live-production-cutover.mjs --audit"));
 });

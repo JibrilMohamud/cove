@@ -5,6 +5,9 @@ import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { createServer } from "vite";
 import JSZip from "jszip";
+import { DatabaseSync } from "node:sqlite";
+import { build } from "esbuild";
+import { pathToFileURL } from "node:url";
 import { localBindings } from "./local-api.mjs";
 
 // Never use production credentials or data. This server is not shipped in the app.
@@ -217,6 +220,37 @@ const fixturePlugin = {
         req.headers["oai-authenticated-user-email"] = `${user.username}@example.invalid`;
         req.headers["oai-authenticated-user-full-name"] = user.name;
       }
+      // Browser HTTP requests must use the same canonical owner-bound API as
+      // the server-side synthetic seed. Vite's ordinary development API plugin
+      // owns a DIFFERENT local DB and has no typed legal-owner binding; routing
+      // these requests there turns valid user reading-state updates into 503s.
+      // Keep every request in the disposable loopback QA process, with server-
+      // verified synthetic identity and real private-owner authorization.
+      if (url.pathname.startsWith("/api/fore/")) {
+        if (!ready || !api?.handleCoveApi)
+          return send(res, { error: "Browser QA owner not ready" }, 503);
+        try {
+          const method = req.method || "GET";
+          const input = new Request(url.href, {
+            method,
+            headers: req.headers,
+            ...(["GET", "HEAD"].includes(method) ? {} : { body: req, duplex: "half" }),
+          });
+          const reply = await api.handleCoveApi(input, env);
+          if (!reply) return next();
+          res.statusCode = reply.status;
+          for (const [key, value] of reply.headers) res.setHeader(key, value);
+          if (method !== "HEAD" && reply.body)
+            for await (const chunk of reply.body) res.write(Buffer.from(chunk));
+          return res.end();
+        } catch (error) {
+          console.error(
+            "Browser QA canonical API failed",
+            error instanceof Error ? error.name : "unknown",
+          );
+          return send(res, { error: "Browser QA API failed closed" }, 503);
+        }
+      }
       next();
     });
   },
@@ -282,7 +316,135 @@ const server = await createServer({
   plugins: [fixturePlugin],
 });
 await server.listen();
-api = await server.ssrLoadModule("/src/features/fore/api.server.ts");
+// One immutable, test-only bundle must own BOTH the API handler and the
+// private owner-command WeakMap. Vite may instantiate the same source module
+// separately in its SSR graph; branding a D1 facade in one module instance
+// cannot authorize a call into another. Do not bypass the owner or fake a
+// receipt: exercise the real typed command with shared canonical identity.
+const qaApiFile = path.join(scratch, ".browser-qa-canonical-api.mjs");
+await build({
+  stdin: {
+    contents:
+      'export {handleCoveApi} from "./src/features/fore/api.server.ts";' +
+      'export {bindPublicationOwner} from "./src/storefront-strangler/publication-owner-routing.server.ts";',
+    resolveDir: checkout,
+    sourcefile: "browser-qa-canonical-api.ts",
+    loader: "ts",
+  },
+  outfile: qaApiFile,
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "node22",
+  logLevel: "silent",
+});
+const { handleCoveApi, bindPublicationOwner } = await import(pathToFileURL(qaApiFile).href);
+api = { handleCoveApi };
+
+// Browser QA must exercise a REAL typed owner route for an allowlisted
+// *synthetic* Gutenberg edition. Never replace owner proof with a fake ACK,
+// create permanent legal authority, or put this bootstrap in a deployed app.
+// The production owner stays off. This mock Cloudflare host runs only in the
+// disposable local browser-server process and never uses Cloudflare secrets.
+const localDb = env.DB;
+const qaPrimaryId = "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e";
+const qaSecret = "b".repeat(64);
+const privateOwnerFile = path.join(scratch, ".browser-legal-owner-qa.mjs");
+await build({
+  entryPoints: [path.join(checkout, "src/storefront-strangler/legal-authority.worker.ts")],
+  outfile: privateOwnerFile,
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "node22",
+  logLevel: "silent",
+  plugins: [
+    {
+      name: "browser-cloudflare-host",
+      setup(b) {
+        b.onResolve({ filter: /^cloudflare:workers$/ }, () => ({
+          path: "host",
+          namespace: "host",
+        }));
+        b.onLoad({ filter: /.*/, namespace: "host" }, () => ({
+          contents: "export class DurableObject{constructor(ctx,env){this.ctx=ctx;this.env=env;}}",
+        }));
+      },
+    },
+  ],
+});
+const { CoveLegalAuthority } = await import(pathToFileURL(privateOwnerFile).href);
+const legalDb = new DatabaseSync(":memory:");
+const ownerSql = {
+  exec(query, ...args) {
+    if (!args.length && /^(?:CREATE|ALTER|DROP|PRAGMA)\s/i.test(query.trimStart())) {
+      legalDb.exec(query);
+      return { toArray: () => [] };
+    }
+    const st = legalDb.prepare(query);
+    const rows = st.columns().length ? st.all(...args) : (st.run(...args), []);
+    return { toArray: () => rows };
+  },
+};
+const ownerStorage = {
+  sql: ownerSql,
+  transactionSync(fn) {
+    legalDb.exec("BEGIN");
+    try {
+      const result = fn();
+      legalDb.exec("COMMIT");
+      return result;
+    } catch (error) {
+      legalDb.exec("ROLLBACK");
+      throw error;
+    }
+  },
+};
+const ownerEnv = {
+  PRIMARY_DB: localDb,
+  COVE_RIGHTS_OWNER_ENABLED: "1",
+  COVE_RIGHTS_OWNER_PRIMARY_ID: qaPrimaryId,
+  COVE_RIGHTS_OWNER_TEST_EXPIRES_AT: String(Date.now() + 10 * 60_000),
+  COVE_RIGHTS_OWNER_SECRET: qaSecret,
+};
+const qaOwner = new CoveLegalAuthority({ storage: ownerStorage }, ownerEnv);
+const qaBook = await localDb
+  .prepare(
+    "SELECT p.id,p.edition_id,c.rights_evidence_id,c.rights_status,c.commercial_use_status,c.copyright,c.source_id FROM products p JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE p.source_name='gutenberg' AND p.source_external_id='1342'",
+  )
+  .first();
+const qaMarket = await localDb
+  .prepare(
+    "SELECT default_currency FROM storefront_markets WHERE country_code='US' AND market_status='active'",
+  )
+  .first();
+if (
+  qaBook?.id !== "prd_gutenberg_1342" ||
+  qaBook.source_id !== "pg_us" ||
+  qaBook.copyright !== 0 ||
+  qaBook.rights_status !== "public-domain" ||
+  qaBook.commercial_use_status !== "approved" ||
+  !qaBook.rights_evidence_id ||
+  qaMarket?.default_currency !== "USD"
+)
+  throw Error("Browser QA synthetic rights fixture failed independent primary check");
+ownerSql.exec(
+  "INSERT INTO cove_legal_fences(source_id,territory,revision,verdict) VALUES('1342','US',1,'allow')",
+);
+ownerSql.exec(
+  "INSERT INTO cove_authorized_offer_proofs(source_id,territory,currency,revision,product_id,edition_id,product_public_id,edition_public_id,offer_json) VALUES('1342','US','USD',1,?,?,NULL,NULL,?)",
+  qaBook.id,
+  qaBook.edition_id,
+  JSON.stringify({ type: "public-domain", currency: "USD", amountMinor: 0 }),
+);
+env.DB = bindPublicationOwner(localDb, {
+  owner: { fetch: (request) => qaOwner.fetch(request) },
+  secret: qaSecret,
+  territory: "US",
+  currency: "USD",
+});
+// This fixture offers no authority outside its isolated synthetic source
+// and is never an external legal-history or production cutover certificate.
 await invoke("/catalog?q=pride");
 const zip = new JSZip();
 zip.file("mimetype", "application/epub+zip", { compression: "STORE" });

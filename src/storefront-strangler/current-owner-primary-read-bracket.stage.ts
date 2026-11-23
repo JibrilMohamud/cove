@@ -146,8 +146,8 @@ async function ownerEpoch(x: QaOwnerReadBracket): Promise<OwnerEpoch> {
     receipt.primaryId !== x.primaryId ||
     receipt.journalVersion !== x.journalVersion ||
     receipt.authorizing !== false ||
-    receipt.tables !== 24 ||
-    receipt.triggers !== 78 ||
+    receipt.tables !== 27 ||
+    receipt.triggers !== 87 ||
     (receipt.rehearsalRevision !== "A" && receipt.rehearsalRevision !== "B")
   )
     fail();

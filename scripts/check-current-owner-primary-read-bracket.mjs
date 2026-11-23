@@ -52,8 +52,8 @@ function fixture() {
         journalVersion: state.journalVersion,
         mutationEpoch: String(state.ownerEpoch),
         authorizing: false,
-        tables: 24,
-        triggers: 78,
+        tables: 27,
+        triggers: 87,
         challenge: body.challenge,
         rehearsalRevision: state.revision,
         primaryId: state.primaryId,
@@ -151,8 +151,8 @@ for (const alter of [
   (r) => ({ ...r, mutationEpoch: "04" }),
   (r) => ({ ...r, mutationEpoch: "9007199254740992" }),
   (r) => ({ ...r, mutationEpoch: 4 }),
-  (r) => ({ ...r, tables: 23 }),
-  (r) => ({ ...r, triggers: 77 }),
+  (r) => ({ ...r, tables: 26 }),
+  (r) => ({ ...r, triggers: 86 }),
   (r) => ({ ...r, rehearsalRevision: "C" }),
   (r) => {
     const { rehearsalRevision: ignored, ...noRevision } = r;

@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "retirementEvidence": "docs/architecture/retired-catalog-source-ingest-owner-lineage.json",
+  "rationale": "The last owner-required source SQL site (gutenberg_source_cache upsert in catalogInsert) is physically retired from shared API and moved to typed, strongly fenced, QA-private canonical owner. Untrusted catalog metadata is not legal approval; the owner keeps or suspends rights only from existing independently approved evidence and strong market precedence. Exact before/after source and immutable SQL-site lineage retained. Zero SOURCE findings does not indicate production or monetary certification.",
+  "files": [
+    {
+      "path": "src/features/fore/api.server.ts",
+      "sha256": "8de4594b1d450baba197706399ec2c57292ee4f2fe37d22bf8d904f2f13505de",
+      "review": "All former original API canonical SQL sites are removed; existing nonauthorizing candidates preserve unchanged disposition and are re-fingerprinted as necessary by current audit; no shared positive source grant fallback."
+    }
+  ]
+}

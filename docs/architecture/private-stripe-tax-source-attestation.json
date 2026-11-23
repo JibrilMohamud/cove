@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "retirementEvidence": "docs/architecture/retired-private-stripe-tax-confirmation-lineage.json",
+  "rationale": "Two residual protected commerce tax SQL updates were removed from the shared module and placed behind an authenticated QA-only canonical owner command. The owner independently retrieves Stripe Tax transaction/reversal objects from Stripe's official GET /v1/tax/transactions/{id} endpoint using its own TEST secret. It validates receipt ID, type, live/test mode, currency, order/reference, metadata and original transaction on refund reversal, then performs a scope-guarded idempotent canonical D1 update. Caller cannot choose a SQL statement or bypass owner verification. Full-source SHA of commerce.server.ts is attested; the shared module has zero remaining protected SQL statements. Production owner activation, independent Stripe live and customer authorization certification and rollback remain blocked.",
+  "files": [
+    {
+      "path": "src/features/fore/commerce.server.ts",
+      "sha256": "7d9cf94252eb2758d3861d8ab2a347bc249f3ba8840ec117b119c2ba166cd146",
+      "review": "Two exact direct Stripe Tax write sites retired; zero canonical protected SQL now remains in the shared commerce module."
+    }
+  ]
+}

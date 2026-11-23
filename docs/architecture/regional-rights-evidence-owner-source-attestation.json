@@ -1,0 +1,13 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "retirementEvidence": "docs/architecture/retired-regional-rights-evidence-owner-lineage.json",
+  "rationale": "Four canonical shared D1 mutations that establish regional legal authority and activate country-level rights grants are physically removed from the regional EPUB pipeline. The private owner now verifies actual R2 content, independently fresh and positive source/territory rights evidence and revocation precedence, then owns evidence/cache/grant SQL with no direct fallback; missing verifier proof denies. This is staging-only source retirement, not a production permission to publish.",
+  "files": [
+    {
+      "path": "src/features/fore/api.server.ts",
+      "sha256": "8de4594b1d450baba197706399ec2c57292ee4f2fe37d22bf8d904f2f13505de",
+      "review": "The remaining exact protected SQL is catalogInsert's source-cache UPSERT, retained as owner-required until separately migrated. Its original SQL is unchanged and its new source-bound site identity is re-fingerprinted."
+    }
+  ]
+}

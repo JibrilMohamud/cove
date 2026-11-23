@@ -38,7 +38,7 @@ function fixture(){
         schema:"cove.qa.current-owner-sql-journal.v1",
         authorizing:false,challenge,journalVersion:VERSION,
         mutationEpoch:String(state.epoch),primaryId:QA_ID,
-        rehearsalRevision:state.revision,tables:24,triggers:78
+        rehearsalRevision:state.revision,tables:27,triggers:87
       },{status:state.ownerStatus,headers:{"cache-control":"no-store"}});
     }
   };
