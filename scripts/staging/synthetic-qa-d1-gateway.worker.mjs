@@ -96,7 +96,11 @@ export default {
     const db=input.database==="schema"?env.QA_SCHEMA_DB:env.QA_PRIMARY_DB;
     if(!db?.prepare)return deny(503);
     try{
-      const statement=db.prepare(input.sql).bind(...input.params);
+      // Cloudflare D1 allows unbound statements. Calling bind() with zero
+      // arguments is not the same contract as running the prepared statement;
+      // the reviewed paged schema read uses exactly one bound offset.
+      const prepared=db.prepare(input.sql);
+      const statement=input.params.length?prepared.bind(...input.params):prepared;
       const read=/^\s*(?:SELECT|PRAGMA|WITH)\b/i.test(input.sql);
       const outcome=read?await statement.all():await statement.run();
       return new Response(JSON.stringify({success:true,result:[{
