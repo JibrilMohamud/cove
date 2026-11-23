@@ -40,6 +40,12 @@ assert.deepEqual(gateway.vars,{
   COVE_BIOSYNC_QA_GATEWAY_EXPIRES_AT:"0"
 });
 assert.ok(source.includes('"'+id+'"'),"Owner QA lease must admit exact new primary");
+assert.ok(source.includes('const BIOSYNC_QA_PRIMARY="'+id+'";'),
+  "The owner must pin the exact BioSync-only synthetic primary");
+assert.match(source,/env\.COVE_RIGHTS_OWNER_PRIMARY_ID===BIOSYNC_QA_PRIMARY\s*&&\s*route!==\"\/biosync\/publish-checked\"/,
+  "The private Durable Object must refuse all non-BioSync commands");
+assert.match(source,/env\.COVE_RIGHTS_OWNER_PRIMARY_ID===BIOSYNC_QA_PRIMARY\s*&&\s*new URL\(request\.url\)\.pathname!==\"\/biosync\/publish-checked\"/,
+  "The private Worker ingress must refuse other legal, commerce and account routes");
 assert.ok(ingress.includes('new Set(["'+id+'"])'),
   "Gateway must admit only the BioSync QA primary, never paid QA");
 assert.ok(!ingress.includes('"969f1ea0-5f57-4f3a-aa25-9c74e58f5af3"'));
