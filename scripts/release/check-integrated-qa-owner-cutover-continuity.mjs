@@ -17,6 +17,10 @@ for(const [name,marker] of [
   ["isolated-reader", "scopeQaOwnerUnboundPrimaryRead(env)"],
 ])assert.equal(counts(backend,marker),2,name+": both HTTP and cron must scope");
 assert.match(backend,/runCommercialQueues\(controller\.cron, env\)/);
+const fetchEntry=backend.slice(backend.indexOf("  async fetch(request: Request, env: BackendEnv"));
+assert.ok(fetchEntry.indexOf("scopeQaOwnerUnboundPrimaryRead(env)")>0 &&
+  fetchEntry.indexOf("scopeQaOwnerUnboundPrimaryRead(env)")<fetchEntry.indexOf("await authorized(request, env)"),
+  "The no-D1 QA backend must resolve its owner read port before auth DB fallback");
 assert.match(backend,/runScheduled\(controller\.cron, env\)/);
 assert.match(backend,/processAccountDeletionQueue\(env, 5\)/);
 assert.match(backend,/assertCronSettled/);
