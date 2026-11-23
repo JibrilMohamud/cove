@@ -7,6 +7,20 @@ import path from "node:path";
 import {pathToFileURL} from "node:url";
 
 const directory=mkdtempSync(path.join(os.tmpdir(),"cove-paid-settlement-owner-"));
+// The real QA customer media entrypoint must use an owner-bound, read-only
+// carrier for all original delivery calls. No fallback to the raw D1 handle.
+const paidQaSource=readFileSync("src/storefront-strangler/paid-settlement-stage-qa.worker.ts","utf8");
+const originalMedia=paidQaSource.split('if(url.pathname.startsWith("/original/"))')[1]
+  ?.split("    let body:unknown;")[0]||"";
+assert.match(paidQaSource,/import \{bindPublicationOwner\} from/);
+assert.match(originalMedia,/const originalFacade=\{\.\.\.facade,DB:bindPublicationOwner\(facade\.DB,/);
+for(const call of [
+  "issueCommercialEpubGrant(originalFacade,",
+  "serveCommercialEpubGrant(\n            originalFacade,",
+  "issueOfflineEpubLicense(\n            originalFacade,",
+  "resolveProductRights(originalFacade.DB,PRODUCT,",
+  "audioRequest,originalFacade,path+segment,"
+])assert.ok(originalMedia.includes(call),"Original delivery cannot bypass private owner binding");
 try{
   const outfile=path.join(directory,"owner.mjs");
   await build({entryPoints:["src/storefront-strangler/paid-settlement-publication.server.ts"],

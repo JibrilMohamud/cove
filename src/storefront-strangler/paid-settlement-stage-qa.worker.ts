@@ -2,6 +2,7 @@
 import {certifyStagePaidSettlement,assertStagePaidOrderNotWithdrawn} from "./paid-settlement-publication.server";
 import type {CoveEnv} from "../features/fore/api.server";
 import {requireStagePaidEntitlementAccess} from "./legal-consumer-fence.server";
+import {bindPublicationOwner} from "./publication-owner-routing.server";
 import {stripeWebhook} from "../features/fore/commerce.server";
 import {issueCommercialEpubGrant,serveCommercialEpubGrant} from "../features/fore/delivery.server";
 import {issueOfflineEpubLicense} from "../features/fore/offline-epub.server";
@@ -164,9 +165,17 @@ export default {
         method:"GET",headers:{"x-fore-device-id":deviceId}
       });
       try{
+        // Original commercial-delivery mutations use the private owner.
+        // A raw D1 handle has no command context, and must fail closed.
+        // This narrow, expiring QA facade mirrors the real customer binding.
+        const originalFacade={...facade,DB:bindPublicationOwner(facade.DB,{
+          owner:facade.LEGAL_AUTHORITY!.getByName("cove-staged-legal-global-v1"),
+          secret:env.COVE_RIGHTS_OWNER_SECRET!,
+          territory:"US",currency:"USD"
+        })} as CoveEnv;
         if(url.pathname==="/original/epub-grant"){
           if(raw.token!==undefined)return new Response(null,{status:400,headers});
-          const grant=await issueCommercialEpubGrant(facade,
+          const grant=await issueCommercialEpubGrant(originalFacade,
             env.COVE_PAID_INITIAL_BUYER!,{
               productId:PRODUCT,purpose:"download",deviceId
             },realRequest);
@@ -177,7 +186,7 @@ export default {
              !/^[A-Za-z0-9_-]{32,200}$/.test(raw.token))
             return new Response(null,{status:400,headers});
           const response=await serveCommercialEpubGrant(
-            facade,raw.token,realRequest
+            originalFacade,raw.token,realRequest
           );
           return new Response(response.body,{status:response.status,
             headers:{...Object.fromEntries(response.headers),...headers}});
@@ -185,14 +194,14 @@ export default {
         if(url.pathname==="/original/offline-epub-license"){
           if(raw.token!==undefined)return new Response(null,{status:400,headers});
           const license=await issueOfflineEpubLicense(
-            facade,env.COVE_PAID_INITIAL_BUYER!,{
+            originalFacade,env.COVE_PAID_INITIAL_BUYER!,{
               productId:PRODUCT,deviceKey
             },realRequest
           );
           return Response.json(license,{headers});
         }
         if(url.pathname==="/original/audio-preflight"){
-          const legal=await resolveProductRights(facade.DB,PRODUCT,"US",{
+          const legal=await resolveProductRights(originalFacade.DB,PRODUCT,"US",{
             salesChannel:"retail"
           });
           const source=await facade.DB.prepare(
@@ -238,7 +247,7 @@ export default {
           const segment=isStream?"/tracks/"+trackId:
             "/offline-license"+(isIssue?"":"/verify");
           const response=await handleCommercialAudio(
-            audioRequest,facade,path+segment,env.COVE_PAID_INITIAL_BUYER!,"US"
+            audioRequest,originalFacade,path+segment,env.COVE_PAID_INITIAL_BUYER!,"US"
           );
           if(!response)return new Response(null,{status:404,headers});
           return new Response(response.body,{status:response.status,
