@@ -276,33 +276,45 @@ async function cleanup(){
     }catch{failures.push("qa_d1_cleanup_inventory_unavailable")}
   }
 }
+let hostedPhase="initial";
 async function main(){
+  hostedPhase="context";
   validInput();
+  hostedPhase="qa_data_plane";
   await proveBiosyncQaDataPlane({
     COVE_CF_QA_D1_MUTATION_TOKEN:process.env.COVE_CF_QA_D1_MUTATION_TOKEN,
     COVE_CF_QA_R2_STORAGE_TOKEN:process.env.COVE_CF_QA_R2_STORAGE_TOKEN
   });
+  hostedPhase="configuration";
   const {client}=configuration();
   try{
+    hostedPhase="seed";
     await seed();
     // Use the normal compiled legal Worker and exact gateway, never a mock.
     ownerDeployed=true;
+    hostedPhase="owner_deploy";
     wrangler(["deploy","--config",ownerConfig,"--secrets-file",ownerSecrets]);
     gatewayDeployed=true;
+    hostedPhase="gateway_deploy";
     wrangler(["deploy","--config",gatewayConfig,"--secrets-file",gatewaySecrets]);
+    hostedPhase="gateway_readiness";
     await waitForAuthenticatedGateway();
+    hostedPhase="owner_commit";
     const first=await callOwner(command,client);
     assert.equal(first.status,200,"Actual private owner must acknowledge checked map");
     checkedOwnerReceipt(first.data,false);
+    hostedPhase="owner_replay";
     const replay=await callOwner(command,client);
     assert.equal(replay.status,200,"Replay must be acknowledged");
     checkedOwnerReceipt(replay.data,true);
+    hostedPhase="adversarial_denials";
     for(const outcome of [
       await callOwner(command,"invalid"),
       await callOwner(command,client,"/commercial/order/settle"),
       await callOwner(command,client,"/biosync/publish-checked","GET"),
       await callOwner({...command,mapSha256:"f".repeat(64)},client)
     ])assert.notEqual(outcome.status,200,"Hostile or unverifiable command must fail closed");
+    hostedPhase="atomicity_readback";
     const timing=await sql(
       "SELECT map_sha256,audio_sha256,epub_sha256 FROM audio_timing WHERE edition_id=? AND track_id=?",
       [command.editionId,command.trackId]);
@@ -311,6 +323,7 @@ async function main(){
     }]);
     const job=await sql("SELECT status FROM audio_jobs WHERE id=?",[command.jobId]);
     assert.deepEqual(job.results,[{status:"done"}]);
+    hostedPhase="receipt";
     console.log(JSON.stringify({
       schema:"cove.biosync-hosted-owner-proof.v1",synthetic:true,
       account:"isolated-qa",ownerCommit:true,replay:true,
@@ -319,14 +332,17 @@ async function main(){
       productionCutoverCertified:false,releaseCertified:false
     }));
   }finally{
-    await cleanup();
+    try{await cleanup()}catch(error){hostedPhase="cleanup";throw error;}
     for(const file of [ownerConfig,gatewayConfig])rmSync(file,{force:true});
     rmSync(dir,{recursive:true,force:true});
     if(failures.length)throw Error("biosync_hosted_owner_cleanup_incomplete:"+[...new Set(failures)].join(","));
   }
 }
 try{await main()}catch(error){
+  // Print a fixed, code-owned phase ONLY; never log request data, token,
+  // exception message, SQL or synthetic object keys from this protected run.
   console.error("BioSync isolated hosted owner proof FAILED: "+
-    (String(error).includes("cleanup_incomplete")?"cleanup_incomplete":"protected_synthetic_qa"));
+    (String(error).includes("cleanup_incomplete")?"cleanup_incomplete":"protected_synthetic_qa")+
+    " phase="+hostedPhase);
   process.exitCode=1;
 }
