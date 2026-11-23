@@ -17,7 +17,7 @@ import {createHash,createPublicKey,verify} from "node:crypto";
 
 export const EVENT_SCHEMA="cove.independent-source-legal-event.v1";
 export const CHECKPOINT_SCHEMA="cove.independent-source-legal-checkpoint.v1";
-export const CHAIN_REPORT_SCHEMA="cove.independent-source-chain-review.v1";
+export const CHAIN_REPORT_SCHEMA="cove.independent-source-chain-review.v2";
 const EVENT_FIELDS=[
   "action","basisDigest","effectiveAt","eventId","format","issuer",
   "previousDigest","recordedAt","reinstatesEventId","salesChannel",
@@ -124,6 +124,8 @@ const statusKey=(row)=>[
 /**
  * The caller must inject a previously independently vetted provider public
  * key and its out-of-band pinned SPKI SHA256, never values from the archive.
+ * Required coverage dates also come from the independent review, never the
+ * archive. A source cannot choose its own cutoff or attest future withdrawals.
  * Checked replay is bounded, chronological and gap-free. Signed checkpoints
  * must attest an exhaustive continuous source stream from sequence 1.
  *
@@ -131,11 +133,20 @@ const statusKey=(row)=>[
  * D1 canonical parity, external publisher scope, currently effective legal
  * basis, current owner epoch, and exclusive owner writer are separate proofs.
  */
-export function reviewIndependentExternalLegalHistory(archive,trust){
+export function reviewIndependentExternalLegalHistory(archive,trust,nowMs=Date.now()){
   if(!trust||typeof trust!=="object"||
     !trustedIssuerRe.test(trust.issuer)||!sourceRe.test(trust.source))
     no("independent_source_trust_unconfigured");
   const key=checkedSigner(trust.publicKeyPem,trust.expectedSpkiSha256);
+  if(!uint(nowMs,1)||!Number.isFinite(new Date(nowMs).getTime()))
+    no("independent_review_clock_invalid");
+  if(typeof trust.requiredCoverageFrom!=="string"||
+    typeof trust.requiredCoverageThrough!=="string")
+    no("independent_coverage_window_unconfigured");
+  const requiredFrom=strictUtc(trust.requiredCoverageFrom);
+  const requiredThrough=strictUtc(trust.requiredCoverageThrough);
+  if(requiredFrom>requiredThrough||requiredThrough>nowMs)
+    no("independent_coverage_window_invalid");
   if(!archive||typeof archive!=="object"||Array.isArray(archive)||
     names(archive)!=="checkpoint|events"||
     !Array.isArray(archive.events)||archive.events.length<1||
@@ -155,6 +166,9 @@ export function reviewIndependentExternalLegalHistory(archive,trust){
   const through=strictUtc(checkpoint.coverageThrough);
   if(through<coverageFrom)no("coverage_clock_invalid");
   signatureChecked(checkpoint,key);
+  if(through>nowMs)no("future_source_checkpoint");
+  if(coverageFrom>requiredFrom||through<requiredThrough)
+    no("source_checkpoint_required_coverage_missing");
   const state=new Map(),eventIds=new Set();
   let lastSeq=0,lastDigest=ZERO,lastRecorded=-1;
   const counts={initialGrant:0,withdraw:0,expire:0,reinstate:0};
@@ -202,10 +216,14 @@ export function reviewIndependentExternalLegalHistory(archive,trust){
     eventKinds:counts,
     coverageFrom:checkpoint.coverageFrom,
     coverageThrough:checkpoint.coverageThrough,
+    requiredCoverageFrom:trust.requiredCoverageFrom,
+    requiredCoverageThrough:trust.requiredCoverageThrough,
+    reviewedAt:new Date(nowMs).toISOString(),
     validatedDigest:lastDigest,
     signerPublicKeyFingerprint:trust.expectedSpkiSha256,
     sourceHistoryIntegrityVerified:true,
     sourceAuthorityIndependentlyEstablished:false,
+    externalWithdrawalHistoryComplete:false,
     canonicalGrantHistoryReconciled:false,
     currentOwnerDenialEpochVerified:false,
     canonicalWriterExclusive:false,

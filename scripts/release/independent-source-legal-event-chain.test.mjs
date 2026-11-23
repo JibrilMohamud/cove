@@ -4,13 +4,19 @@ import {test} from "node:test";
 import {createHash,generateKeyPairSync,sign} from "node:crypto";
 import {
   EVENT_SCHEMA,CHECKPOINT_SCHEMA,CHAIN_REPORT_SCHEMA,canonicalLegalBytes,
-  reviewIndependentExternalLegalHistory
+  reviewIndependentExternalLegalHistory as reviewHistory
 } from "./independent-source-legal-event-chain.mjs";
+
+const REVIEWED_AT=Date.parse("2026-11-22T12:00:00.000Z");
+const reviewIndependentExternalLegalHistory=(archive,trust)=>
+  reviewHistory(archive,trust,REVIEWED_AT);
 
 function fixture(input={}){
   const {privateKey,publicKey}=generateKeyPairSync("ec",{namedCurve:"prime256v1"});
   const trust={
     issuer:"independent.pg.au.rights-source",source:"pg_au",
+    requiredCoverageFrom:"2026-09-01T00:00:00.000Z",
+    requiredCoverageThrough:"2026-11-22T00:00:00.000Z",
     publicKeyPem:publicKey.export({format:"pem",type:"spki"}),
     expectedSpkiSha256:createHash("sha256")
       .update(publicKey.export({format:"der",type:"spki"})).digest("hex")
@@ -47,7 +53,7 @@ function fixture(input={}){
     schema:CHECKPOINT_SCHEMA,issuer:trust.issuer,source:trust.source,
     complete:true,eventCount:events.length,lastSequence:events.length,
     lastDigest:digest,coverageFrom:"2026-09-01T00:00:00.000Z",
-    coverageThrough:"2026-11-22T23:59:59.999Z",
+    coverageThrough:"2026-11-22T00:00:00.000Z",
   });
   return {trust,archive:{events,checkpoint},signed};
 }
@@ -67,6 +73,10 @@ test("authentic continuous signed archive is STILL never legal or release author
     {initialGrant:1,withdraw:1,expire:0,reinstate:1});
   assert.equal(result.sourceHistoryIntegrityVerified,true);
   assert.equal(result.sourceAuthorityIndependentlyEstablished,false);
+  assert.equal(result.externalWithdrawalHistoryComplete,false);
+  assert.equal(result.reviewedAt,"2026-11-22T12:00:00.000Z");
+  assert.equal(result.requiredCoverageFrom,f.trust.requiredCoverageFrom);
+  assert.equal(result.requiredCoverageThrough,f.trust.requiredCoverageThrough);
   assert.equal(result.canonicalGrantHistoryReconciled,false);
   assert.equal(result.currentOwnerDenialEpochVerified,false);
   assert.equal(result.canonicalWriterExclusive,false);
@@ -75,7 +85,8 @@ test("authentic continuous signed archive is STILL never legal or release author
   assert.equal(result.releaseCertified,false);
   const report=JSON.stringify(result);
   assert.ok(!report.includes("pgau_1"));
-  assert.ok(!report.includes("e1"));
+  // Match a complete JSON value: random fingerprints can contain hex "e1".
+  assert.ok(!report.includes('"e1"'));
   assert.ok(!report.includes("privateKey"));
   assert.ok(!report.includes("signature"));
   assert.ok(result.blockers.includes("complete_external_withdrawals_not_reconciled_to_primary_grants"));
@@ -168,4 +179,43 @@ test("unsupported fabricated legal stream is never inferred from raw audit rows"
   },f.trust),/signed_envelope_shape/);
   assert.throws(()=>reviewIndependentExternalLegalHistory({...f.archive,
     unsafeAllow:true},f.trust),/incomplete_external_event_archive/);
+});
+
+test("a genuinely signed future checkpoint cannot attest complete future withdrawals",()=>{
+  expectDenied(f=>{
+    f.archive.checkpoint=f.signed({...f.archive.checkpoint,
+      coverageThrough:"2026-11-22T12:00:00.001Z"});
+  },"future_source_checkpoint");
+});
+
+test("the source cannot choose a stale cutoff or omit the independently required period",()=>{
+  expectDenied(f=>{
+    f.archive.checkpoint=f.signed({...f.archive.checkpoint,
+      coverageThrough:"2026-11-21T23:59:59.999Z"});
+  },"source_checkpoint_required_coverage_missing");
+  expectDenied(f=>{
+    f.archive.checkpoint=f.signed({...f.archive.checkpoint,
+      coverageFrom:"2026-09-01T00:00:00.001Z"});
+  },"source_checkpoint_required_coverage_missing");
+  expectDenied(f=>{delete f.trust.requiredCoverageThrough;},
+    "independent_coverage_window_unconfigured");
+  expectDenied(f=>{f.trust.requiredCoverageFrom="2026-11-23T00:00:00.000Z";},
+    "independent_coverage_window_invalid");
+  expectDenied(f=>{f.trust.requiredCoverageThrough="2026-11-22T12:00:00.001Z";},
+    "independent_coverage_window_invalid");
+});
+
+test("review clock is validated and exact signed coverage boundaries remain nonauthorizing",()=>{
+  const f=fixture();
+  for(const now of [NaN,Infinity,0,-1,1.5,Number.MAX_SAFE_INTEGER]){
+    assert.throws(()=>reviewHistory(f.archive,f.trust,now),
+      /independent_review_clock_invalid/);
+  }
+  f.archive.checkpoint=f.signed({...f.archive.checkpoint,
+    coverageThrough:"2026-11-22T12:00:00.000Z"});
+  const report=reviewIndependentExternalLegalHistory(f.archive,f.trust);
+  assert.equal(report.sourceHistoryIntegrityVerified,true);
+  assert.equal(report.externalWithdrawalHistoryComplete,false);
+  assert.equal(report.authorizing,false);
+  assert.equal(report.releaseCertified,false);
 });
