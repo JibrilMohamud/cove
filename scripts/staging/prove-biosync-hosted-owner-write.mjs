@@ -15,6 +15,7 @@ import {spawnSync} from "node:child_process";
 import {QA_ACCOUNT,QA_DATABASE,QA_BUCKET} from "./prove-biosync-qa-data-plane.mjs";
 import {proveBiosyncQaDataPlane} from "./prove-biosync-qa-data-plane.mjs";
 import {checkHostedCommentEnvironment} from "./authorize-biosync-owner-comment.mjs";
+import {stabilizeBiosyncOwnerBinding} from "./biosync-owner-binding-readiness.mjs";
 
 const runId=process.env.GITHUB_RUN_ID+"-"+(process.env.GITHUB_RUN_ATTEMPT||"1");
 const ownerName="cove-biosync-owner-qa-"+runId;
@@ -189,6 +190,25 @@ async function waitForAuthenticatedGateway(){
     if(attempt!==23)await new Promise(resolve=>setTimeout(resolve,1300));
   }
   refuse("authenticated_gateway_not_ready_"+last);
+}
+/**
+ * Explicitly verify the PRIVATE owner service binding and owner Durable
+ * Object after gateway propagation. This is POST to a QA-only, authenticated
+ * READINESS route; the gateway makes a signed GET to the real private owner.
+ * The real owner must return 405 before any SQL/commit. Never repeat positive
+ * publish-checked POSTs to compensate for an ambiguous first commit.
+ */
+async function waitForBoundOwnerReadiness(client){
+  const evidence=await stabilizeBiosyncOwnerBinding(async()=>{
+    const r=await fetch(ownerOrigin+"/qa/owner-bound-ready",{
+      method:"POST",
+      headers:{"authorization":"Bearer "+client,"content-type":"application/json"},
+      body:"{}",redirect:"error",signal:AbortSignal.timeout(10000)
+    });
+    const body=r.status===200?await r.json().catch(()=>null):null;
+    return {status:r.status,body,noStore:r.headers.get("cache-control")==="no-store"};
+  },ms=>new Promise(resolve=>setTimeout(resolve,ms)));
+  console.log(JSON.stringify(evidence));
 }
 
 function configuration(){
@@ -369,6 +389,8 @@ async function main(){
     await deployIsolatedQaWorker(gatewayConfig,gatewaySecrets);
     hostedPhase="gateway_readiness";
     await waitForAuthenticatedGateway();
+    hostedPhase="owner_binding_readiness";
+    await waitForBoundOwnerReadiness(client);
     hostedPhase="owner_commit";
     const first=await callOwner(command,client);
     assert.equal(first.status,200,"Actual private owner must acknowledge checked map");

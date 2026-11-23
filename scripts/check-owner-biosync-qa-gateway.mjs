@@ -16,8 +16,12 @@ try{
   const data={editionId:"pg-19504",trackId:"02",
     jobId:"align-pg-19504-02-7fb5b7e4c4a400b1",mapSha256:"c".repeat(64)};
   const ack={schema:"cove.owner-biosync-checked-publication.v1",...data,committed:true,replay:false};
-  const calls=[];
+  const calls=[],ownerReadProbes=[];
   const owner={async fetch(req){
+    if(req.method==="GET"){
+      ownerReadProbes.push({url:req.url,method:req.method,authorization:req.headers.get("authorization")});
+      return new Response(null,{status:405,headers:{"cache-control":"no-store"}});
+    }
     calls.push({url:req.url,method:req.method,authorization:req.headers.get("authorization"),body:await req.json()});
     return Response.json(ack);
   }};
@@ -43,12 +47,26 @@ try{
     url:"https://legal-authority.internal/biosync/publish-checked",
     method:"POST",authorization:"Bearer "+ownerSecret,body:data
   }]);
+  const probe=()=>req({}, {path:"/qa/owner-bound-ready"});
+  const readiness=await gateway.fetch(probe(),env());
+  assert.equal(readiness.status,200);
+  assert.deepEqual(await readiness.json(),{
+    schema:"cove.qa.biosync-owner-binding-readiness.v1"
+  });
+  assert.equal(readiness.headers.get("cache-control"),"no-store");
+  assert.deepEqual(ownerReadProbes,[{
+    url:"https://legal-authority.internal/biosync/publish-checked",
+    method:"GET",authorization:"Bearer "+ownerSecret
+  }]);
+  assert.equal(calls.length,1,"A read-only owner binding probe must not commit a map");
   let denies=0;
   async function blocked(request,environment,status){
-    const before=calls.length;
+    const before=calls.length,probeBefore=ownerReadProbes.length;
     const response=await gateway.fetch(request,environment);
     assert.equal(response.status,status);
-    assert.equal(calls.length,before,"Rejected request must not reach the owner");
+    assert.equal(calls.length,before,"Rejected request must not reach owner publication");
+    assert.equal(ownerReadProbes.length,probeBefore,
+      "Rejected request must not invoke private owner even by GET");
     denies++;
   }
   await blocked(req(data,{host:"api.covereads.com"}),env(),404);
@@ -57,6 +75,14 @@ try{
   await blocked(req(data,{host:"cove-biosync-gateway-qa-45104567891-1.cove-qa-reads.workers.dev:8443"}),env(),404);
   await blocked(req(data,{scheme:"http"}),env(),404);
   await blocked(req(data,{path:"/other"}),env(),404);
+  await blocked(req(data,{path:"/qa/owner-bound-ready?sql=SELECT"}),env(),404);
+  await blocked(req(data,{path:"/qa/owner-bound-ready"}),env(),400);
+  await blocked(req({}, {path:"/qa/owner-bound-ready",secret:"bad"}),env(),401);
+  await blocked(req({}, {path:"/qa/owner-bound-ready",method:"GET"}),env(),405);
+  await blocked(req({}, {path:"/qa/owner-bound-ready",host:"api.covereads.com"}),env(),404);
+  await blocked(req({}, {path:"/qa/owner-bound-ready"}),{...env(),DB:{}},503);
+  await blocked(req({}, {path:"/qa/owner-bound-ready"}),
+    {...env(),COVE_BIOSYNC_QA_GATEWAY_EXPIRES_AT:String(Date.now()-1)},503);
   await blocked(req(data,{path:"/biosync/publish-checked?sql=UPDATE"}),env(),404);
   await blocked(req(data,{method:"GET"}),env(),405);
   await blocked(req(data,{secret:"d".repeat(64)}),env(),401);
@@ -75,6 +101,23 @@ try{
   const badInput=await gateway.fetch(req({...data,sql:"UPDATE entitlements SET status='active'"}),env());
   assert.equal(badInput.status,503,"Raw SQL must never reach the owner");
   assert.equal(calls.length,1);
+  for(const [response,label] of [
+    [new Response(null,{status:503}),"outage"],
+    [new Response(null,{status:404}),"binding missing"],
+    [Response.json({schema:"cove.qa.biosync-owner-binding-readiness.v1"}),"forged ack"],
+    [new Response(null,{status:405}),"forged no-store"]
+  ]){
+    const before=calls.length;
+    const result=await gateway.fetch(probe(),{...env(),LEGAL_AUTHORITY:{
+      async fetch(req){
+        assert.equal(req.method,"GET");
+        assert.equal(req.headers.get("authorization"),"Bearer "+ownerSecret);
+        return response.clone();
+      }
+    }});
+    assert.equal(result.status,503,label+" must fail closed");
+    assert.equal(calls.length,before,label+" must not execute a publication");
+  }
   const down=await gateway.fetch(req(),{...env(),LEGAL_AUTHORITY:{async fetch(){return new Response(null,{status:503})}}});
   assert.equal(down.status,503,"Owner outage must fail closed");
   const forged=await gateway.fetch(req(),{...env(),LEGAL_AUTHORITY:{async fetch(){return Response.json({...ack,committed:false})}}});

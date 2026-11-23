@@ -17,6 +17,8 @@ on:
       - "scripts/staging/prove-biosync-qa-data-plane.test.mjs"
       - "scripts/staging/prove-biosync-hosted-owner-write.mjs"
       - "scripts/staging/prove-biosync-hosted-owner-write.source.test.mjs"
+      - "scripts/staging/biosync-owner-binding-readiness.mjs"
+      - "scripts/staging/biosync-owner-binding-readiness.test.mjs"
       - "scripts/staging/authorize-biosync-owner-comment.mjs"
       - "scripts/staging/authorize-biosync-owner-comment.test.mjs"
       - ".github/workflows/cove-biosync-owner-comment-qa.yml"
@@ -33,6 +35,8 @@ on:
       - "scripts/staging/prove-biosync-qa-data-plane.test.mjs"
       - "scripts/staging/prove-biosync-hosted-owner-write.mjs"
       - "scripts/staging/prove-biosync-hosted-owner-write.source.test.mjs"
+      - "scripts/staging/biosync-owner-binding-readiness.mjs"
+      - "scripts/staging/biosync-owner-binding-readiness.test.mjs"
       - "scripts/staging/authorize-biosync-owner-comment.mjs"
       - "scripts/staging/authorize-biosync-owner-comment.test.mjs"
       - ".github/workflows/cove-biosync-owner-comment-qa.yml"
@@ -90,6 +94,8 @@ jobs:
         run: node --check scripts/staging/prove-biosync-hosted-owner-write.mjs
       - name: Verify exact QA-only source and fail-closed protected workflow contract
         run: node --test scripts/staging/prove-biosync-hosted-owner-write.source.test.mjs
+      - name: Require strict 32-way authenticated owner-binding preflight and no retries of writes
+        run: node --test scripts/staging/biosync-owner-binding-readiness.test.mjs
       - name: Prove authenticated owner comment cannot be spoofed or retargeted
         run: node --test scripts/staging/authorize-biosync-owner-comment.test.mjs
       - name: Check source types and legal owner write fence
@@ -168,6 +174,7 @@ jobs:
           node scripts/check-owner-biosync-qa-gateway.mjs
           node --check scripts/staging/prove-biosync-hosted-owner-write.mjs
           node --test scripts/staging/prove-biosync-hosted-owner-write.source.test.mjs
+          node --test scripts/staging/biosync-owner-binding-readiness.test.mjs
       - name: Build the actual canonical owner code and private QA gateway
         run: |
           node scripts/build-storefront-strangler.mjs
