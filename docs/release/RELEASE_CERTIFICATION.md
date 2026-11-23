@@ -41,6 +41,10 @@ The [protected paid full-schema QA #45217818119](https://github.com/JibrilMohamu
 
 This run also recorded 32/32 native D1 read responses valid, maximum **572.59 ms**, SQL maximum **5.71 ms**. These are preliminary synthetic QA samples, not full ORD/LAX/IAD/DFW and 100-RPS certification. Protected capacity remains blocked by absent `COVE_CF_STAGE_DATA_PLANE_READ_TOKEN` in the protected GitHub environment. User-token inventory reports an unrecognized active permission group; never assume it is read-only. **Production NO-GO.**
 
+## 2026-11-23 16:53 UTC — protected QA gateway sequencing
+
+The [exact merged-main full-schema rerun #45220874689](https://github.com/JibrilMohamud/cove/actions/runs/45220874689) failed before customer EPUB grant due `isolated_qa_d1_gateway_unavailable:HTTP_404`. A secondary **synthetic entitlement restoration failure in teardown masked the initial error**. This patch removes public ephemeral QA ingress before reinstating any synthetic entitlement, retains nonroutable owner/writer until D1 cleanup completes, confirms the authenticated QA gateway read path before the one-shot restoration, and preserves the original exception. It **does not** retry ambiguous mutations, use direct D1 tokens, change real production, or turn this protected run green without end-to-end proof.
+
 ## Unified gate checklist
 
 | Gate | Status | Current evidence / remaining contract |
