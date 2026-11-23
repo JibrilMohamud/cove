@@ -469,7 +469,7 @@ async function main(){
   }));
   if(!report.certified)process.exitCode=1;
 }
-// Diagnostic-only: five fixed metadata GETs at most, no Worker enumeration.
+// Diagnostic-only: at most sixteen scoped read-only metadata GETs, no Worker enumeration.
 // A successful user inventory is never a physical writer/identity certificate.
 export async function userTokenPreflight(env=process.env,get){
   assert.equal(env.GITHUB_REPOSITORY,"JibrilMohamud/cove");
