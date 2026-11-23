@@ -35,14 +35,16 @@ try {
   assert.doesNotThrow(() => assertCronSettled([{ status: "fulfilled", value: undefined }]));
   assert.throws(
     () => assertCronSettled([{ status: "rejected", reason: "private-context-must-not-escape" }]),
-    (error) => error?.message === "cove_scheduled_parallel_tasks_failed" &&
+    (error) =>
+      error?.message === "cove_scheduled_parallel_tasks_failed" &&
       !error.message.includes("private-context"),
   );
   assert.throws(
-    () => assertCronSettled([
-      { status: "fulfilled", value: 1 },
-      { status: "rejected", reason: new Error("private-owner-secret") },
-    ]),
+    () =>
+      assertCronSettled([
+        { status: "fulfilled", value: 1 },
+        { status: "rejected", reason: new Error("private-owner-secret") },
+      ]),
     /cove_scheduled_parallel_tasks_failed/,
   );
   const worker = readFileSync("src/persistence-backend.worker.ts", "utf8");
