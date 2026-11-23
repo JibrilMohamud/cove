@@ -95,6 +95,8 @@ const QA_PRIMARIES = new Set([
   "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
   "3ffb3c0b-72b2-4a47-b63a-18aaf77762ea",
   "969f1ea0-5f57-4f3a-aa25-9c74e58f5af3",
+  // Dedicated synthetic BioSync QA account primary; never production.
+  "4e17ba6f-444f-4245-801a-a7d4969045b0",
 ]);
 const QA_PAID_PRIMARIES = new Set([
   "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
