@@ -9,6 +9,7 @@ import {readPaidOwnerFence,paidOwnerRollbackEvidence} from "./paid-owner-rollbac
 import {checkedPaidQaCredentials,paidQaApiTokenFor,paidQaWranglerTokenFor,QA_ACCOUNT,QA_PAID_D1,QA_SCHEMA_SOURCE_D1,PRODUCTION_ACCOUNT,PRODUCTION_D1} from "./paid-qa-cloudflare-credentials.mjs";
 import {syntheticD1GatewayConfig} from "./synthetic-qa-d1-gateway-config.mjs";
 import {awaitPaidQaGatewayReadiness,retryableQaBootstrapRead} from "./paid-qa-gateway-readiness.mjs";
+import {stabilizePrivatePaidQaIngress} from "./paid-qa-ingress-readiness.mjs";
 import {bindPaidQaTemplateToIsolatedPrimary} from "./paid-qa-template-binding.mjs";
 import {isPaidOwnerQaSchemaTable} from "./paid-owner-schema-policy.mjs";
 import {preparePaidQaRetailCatalog} from "./paid-qa-retail-catalog.mjs";
@@ -671,6 +672,18 @@ try {
   });
   assert.equal(nativeWrongMarket.status,503,
     "An unlaunched country must fail closed, not inherit US storefront permission");
+
+  // Cloudflare may acknowledge a new ephemeral Workers.dev script in one
+  // colo while other edge colos return 404 before entering our Worker.
+  // This source-bound pre-measurement gate uses only three authenticated
+  // read-only routes (including a current owner-authorized first paint).
+  // Require two uninterrupted clean 32-way waves across ALL routes before
+  // beginning the unchanged 1/4/8/16/32 measured samples. Never retry or
+  // discard a sample inside the acceptance waves, and never replay a write.
+  const ingressReadiness=await stabilizePrivatePaidQaIngress({
+    probe:post,sleep:pause,nativeInput
+  });
+  console.log("COVE_PAID_QA_INGRESS_READY "+JSON.stringify(ingressReadiness));
 
   // Separate outer HTTP ingress, private service-binding/DO dispatch,
   // and D1/legal authorization. All three stay behind the same expiring
