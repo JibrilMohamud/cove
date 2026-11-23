@@ -15,15 +15,21 @@ export function bindPublicationOwner<T extends CatalogDB>(db:T,context:Context):
   // Do not mutate or globally brand the underlying D1 handle. The owner
   // itself receives its independently bound raw PRIMARY_DB, without this
   // caller facade, so it cannot recursively dispatch back into itself.
-  const facade=new Proxy(db,{get(target,key){
+  // A D1 facade may be frozen to make its read-only methods tamperproof.
+  // Proxying that frozen object directly and returning bound methods violates
+  // JavaScript's non-configurable/read-only property invariant. Use a frozen,
+  // empty carrier instead; dispatch stays bound to the private D1 facade,
+  // and no native D1 object is mutated or exposed.
+  const carrier=Object.freeze(Object.create(null));
+  const facade=new Proxy(carrier,{get(_target,key){
     if(key==="withSession") {
-      const open=Reflect.get(target,key,target);
+      const open=Reflect.get(db,key,db);
       if(typeof open!=="function")return undefined;
-      return (...args:unknown[])=>bindPublicationOwner(open.apply(target,args),context);
+      return (...args:unknown[])=>bindPublicationOwner(open.apply(db,args),context);
     }
-    const value=Reflect.get(target,key,target);
-    return typeof value==="function"?value.bind(target):value;
-  }});
+    const value=Reflect.get(db,key,db);
+    return typeof value==="function"?value.bind(db):value;
+  }}) as T;
   owners.set(facade,context);return facade;
 }
 export function hasPublicationOwner(db:object){return owners.has(db);}
