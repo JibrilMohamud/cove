@@ -2,7 +2,7 @@ import { z } from "zod/v3";
 import type { CoveEnv } from "./api.server";
 import { ApiError, now } from "./service";
 import { emitNotification } from "./notifications.server";
-import { dispatchAccountOwnerAction } from "../../storefront-strangler/publication-owner-routing.server";
+import { dispatchAccountOwnerAction,hasPublicationOwner } from "../../storefront-strangler/publication-owner-routing.server";
 import { exportCustomerSupport } from "./customer-support.server";
 
 export type AccountDB = CoveEnv["DB"];
@@ -84,6 +84,20 @@ export async function touchAccountSession(
   const cookie = request.headers.get("cookie") || "";
   const hash = sessionFingerprint || (cookie ? await sha256(cookie) : "");
   if (!hash) return null;
+  // The no-D1 QA caller must never touch the database directly. The
+  // authenticated account ID, digest-only session identity and bounded
+  // platform metadata go through the privately leased owner. Production
+  // keeps the original path until all remaining operations are certified.
+  if (hasPublicationOwner(db)) {
+    const result = await dispatchAccountOwnerAction(db, {
+      action: "touch-session",
+      userId,
+      sessionHash: hash,
+      userAgentSummary: ua(request),
+      ipCountry: country(request),
+    }) as {sessionId:string};
+    return result.sessionId;
+  }
   const at = now();
   const existing = await db
     .prepare("SELECT id FROM account_sessions WHERE user_id=? AND provider_session_id_hash=?")
