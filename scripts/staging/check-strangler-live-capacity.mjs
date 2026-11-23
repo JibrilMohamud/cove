@@ -93,8 +93,7 @@ async function requestOne(route = "/") {
     // Numeric per-status evidence is preserved above; unexpected native
     // network errors are categorized from fixed known codes, never logged
     // verbatim (no bearer, URL, request metadata or customer identity).
-    const cause =
-      error && typeof error === "object" && "cause" in error ? error.cause : null;
+    const cause = error && typeof error === "object" && "cause" in error ? error.cause : null;
     const code =
       cause && typeof cause === "object" && "code" in cause
         ? cause.code
@@ -104,15 +103,13 @@ async function requestOne(route = "/") {
     let reason = "unclassified";
     if (code === "ECONNRESET") reason = "connection-reset";
     else if (code === "EPIPE") reason = "broken-pipe";
-    else if (code === "ETIMEDOUT" || code === "UND_ERR_CONNECT_TIMEOUT")
-      reason = "connect-timeout";
+    else if (code === "ETIMEDOUT" || code === "UND_ERR_CONNECT_TIMEOUT") reason = "connect-timeout";
     else if (code === "UND_ERR_SOCKET") reason = "socket-closed";
     else if (code === "STAGE_HTTP2_DEADLINE") reason = "stream-deadline";
     else if (code === "STAGE_HTTP2_PREMATURE_CLOSE") reason = "stream-premature-close";
     else if (code === "ERR_HTTP2_STREAM_ERROR") reason = "http2-stream-error";
     else if (code === "ERR_HTTP2_GOAWAY_SESSION") reason = "http2-goaway";
-    else if (error instanceof Error && error.name === "TimeoutError")
-      reason = "request-deadline";
+    else if (error instanceof Error && error.name === "TimeoutError") reason = "request-deadline";
     return {
       ttfbMs: Math.round(performance.now() - start),
       valid: false,
@@ -188,9 +185,7 @@ function report(name, offered, rows, dropped = 0) {
   for (const row of rows) {
     if (row.valid) continue;
     const category =
-      typeof row.clientFailureClass === "string"
-        ? row.clientFailureClass
-        : "not-client-error";
+      typeof row.clientFailureClass === "string" ? row.clientFailureClass : "not-client-error";
     clientFailureClasses[category] = (clientFailureClasses[category] || 0) + 1;
     if (invalidSamples.length < 6)
       invalidSamples.push({
