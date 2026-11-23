@@ -143,7 +143,7 @@ export function createQaOwnerReadOnlyD1(owner,secret) {
       async first() {return (await send([{mode:"first",sql,params}]))[0];},
       async all() {
         const value=(await send([{mode:"all",sql,params}]))[0];
-        if(!exactKeys(value,["results"])&&!Array.isArray(value?.results))deny();
+        if(!value||typeof value!=="object"||!Array.isArray(value.results))deny();
         return value;
       },
       run:deny,raw:deny,
