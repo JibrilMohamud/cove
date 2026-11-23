@@ -76,7 +76,7 @@ class OwnerCutoverTests(unittest.TestCase):
 
     def test_isolated_account_scope(self):
         self.assertEqual(canary.ACCOUNT, "f51e8ccbc394e2d6016ff8c2c303d54b")
-        self.assertEqual(canary.QA_DATABASES, {"969f1ea0-5f57-4f3a-aa25-9c74e58f5af3"})
+        self.assertEqual(canary.QA_DATABASES, {"4e17ba6f-444f-4245-801a-a7d4969045b0"})
         self.assertNotIn("4bd657ac-8789-403e-a28c-93aba8d0a989", canary.QA_DATABASES)
 
     def test_owner_receipt_identity_and_exact_request(self):
