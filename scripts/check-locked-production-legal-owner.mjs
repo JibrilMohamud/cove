@@ -4,7 +4,8 @@ import {readFileSync} from "node:fs";
 
 export const PROD_D1="4bd657ac-8789-403e-a28c-93aba8d0a989";
 const QA_D1=["5e3a6b69-6f3d-4b19-b837-01f7aa56ce87","7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
-  "3ffb3c0b-72b2-4a47-b63a-18aaf77762ea","969f1ea0-5f57-4f3a-aa25-9c74e58f5af3"];
+  "3ffb3c0b-72b2-4a47-b63a-18aaf77762ea","969f1ea0-5f57-4f3a-aa25-9c74e58f5af3",
+  "4e17ba6f-444f-4245-801a-a7d4969045b0"];
 export const CONFIG="wrangler.legal-authority.production-locked.jsonc";
 
 /**

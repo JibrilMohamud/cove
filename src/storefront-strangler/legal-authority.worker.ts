@@ -157,7 +157,11 @@ const QA_PRIMARIES = new Set([
   "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
   "3ffb3c0b-72b2-4a47-b63a-18aaf77762ea",
   "969f1ea0-5f57-4f3a-aa25-9c74e58f5af3",
+  // Dedicated synthetic BioSync QA account primary; never production.
+  "4e17ba6f-444f-4245-801a-a7d4969045b0",
 ]);
+// Dedicated BioSync QA cannot execute commerce, catalog or rights commands.
+const BIOSYNC_QA_PRIMARY="4e17ba6f-444f-4245-801a-a7d4969045b0";
 const QA_PAID_PRIMARIES = new Set([
   "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
   "969f1ea0-5f57-4f3a-aa25-9c74e58f5af3",
@@ -17692,6 +17696,9 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       return new Response(null,{status:401,headers:noStore});
     if(request.method!=="POST") return new Response(null,{status:405,headers:noStore});
     const route=new URL(request.url).pathname;
+    if(env.COVE_RIGHTS_OWNER_PRIMARY_ID===BIOSYNC_QA_PRIMARY &&
+       route!=="/biosync/publish-checked")
+      return new Response(null,{status:404,headers:noStore});
     if(!["/deny","/deny-next","/deny-next-batch","/verify","/publish-allow","/authorize-batch",
       "/commercial/deny-next","/commercial/deny-batch","/commercial/subject/deny-next","/commercial/publish-verified",
       "/commercial/authorize-batch",
@@ -22192,6 +22199,11 @@ export default {
     }
     if(!qaOwnerLeaseLive(env) || !env.LEGAL_AUTHORITY?.getByName)
       return new Response(null,{status:503,headers:{"cache-control":"no-store"}});
+    // The synthetic BioSync owner must never become a general-purpose legal,
+    // commerce, catalog, entitlement or account writer by abusing its QA lease.
+    if(env.COVE_RIGHTS_OWNER_PRIMARY_ID===BIOSYNC_QA_PRIMARY &&
+       new URL(request.url).pathname!=="/biosync/publish-checked")
+      return new Response(null,{status:404,headers:{"cache-control":"no-store"}});
     if(request.headers.get("authorization")!=="Bearer "+env.COVE_RIGHTS_OWNER_SECRET)
       return new Response(null,{status:401,headers:{"cache-control":"no-store"}});
     return env.LEGAL_AUTHORITY.getByName("cove-staged-legal-global-v1").fetch(request);
