@@ -18146,7 +18146,13 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           z.object({action:z.literal("register-device"),userId:z.string().regex(/^[a-zA-Z0-9:_-]{3,160}$/),
             device:z.object({deviceKey:z.string().min(16).max(200),name:z.string().trim().min(1).max(120),platform:z.string().trim().min(1).max(80)}).strict()}).strict(),
           z.object({action:z.literal("revoke-device"),userId:z.string().regex(/^[a-zA-Z0-9:_-]{3,160}$/),deviceId:z.string().regex(/^[a-zA-Z0-9_-]{3,160}$/)}).strict(),
-          z.object({action:z.literal("erasure-tick"),limit:z.number().int().min(1).max(25)}).strict()
+          z.object({action:z.literal("erasure-tick"),limit:z.number().int().min(1).max(25)}).strict(),
+          // Digest only. Reject the original cookie, mutable session IDs and
+          // caller-selected timestamps before any owner-side storage.
+          z.object({action:z.literal("touch-session"),userId:z.string().regex(/^[a-zA-Z0-9:_-]{3,160}$/),
+            sessionHash:z.string().regex(/^[a-f0-9]{64}$/),
+            userAgentSummary:z.string().max(240),
+            ipCountry:z.string().regex(/^[A-Z]{0,2}$/)}).strict()
         ]).parse(raw);
         if(this.accountExecution){
           if(input.action==="erasure-tick")return Response.json({schema:"cove.private-account-qa.v1",ownerFirst:true,action:input.action,userId:null,
@@ -18164,12 +18170,39 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
               .bind(input.userId).first<{app_id:string;disabled_at:string|null}>();
             const denied=sql.exec("SELECT 1 ok FROM cove_account_access_denials WHERE user_id=?",input.userId).toArray().length;
             if(!user||user.disabled_at||denied)return new Response(null,{status:403,headers:noStore});
-            // Cookies and caller-selected identity headers never cross this
-            // protocol. The authenticated API supplies its verified app ID.
-            const auditRequest=new Request("https://legal-authority.internal/account/device");
-            result=input.action==="register-device"?
-              await privateAccount.registerDevice(db,input.userId,auditRequest,input.device):
-              await privateAccount.revokeDevice(db,input.userId,input.deviceId,auditRequest);
+            if(input.action==="touch-session"){
+              // This metadata-only operation has a natural idempotency key:
+              // (verified account, SHA-256 cookie/session fingerprint). A
+              // retry cannot create a second session or revive a revoked one.
+              const at=new Date().toISOString();
+              const sessionId="sess_"+crypto.randomUUID();
+              await db.prepare(
+                "INSERT INTO account_sessions(id,user_id,provider_session_id_hash,user_agent_summary,ip_country,created_at,last_seen_at) VALUES(?,?,?,?,?,?,?) "+
+                "ON CONFLICT(user_id,provider_session_id_hash) DO UPDATE SET "+
+                "last_seen_at=CASE WHEN excluded.last_seen_at>account_sessions.last_seen_at THEN excluded.last_seen_at ELSE account_sessions.last_seen_at END,"+
+                "user_agent_summary=excluded.user_agent_summary,ip_country=excluded.ip_country "+
+                "WHERE account_sessions.revoked_at IS NULL")
+                .bind(sessionId,input.userId,input.sessionHash,input.userAgentSummary,input.ipCountry,at,at)
+                .run();
+              const current=await db.prepare(
+                "SELECT id,revoked_at FROM account_sessions WHERE user_id=? AND provider_session_id_hash=?")
+                .bind(input.userId,input.sessionHash).first<{id:string;revoked_at:string|null}>();
+              // A concurrent legal owner denial must never be mistaken for
+              // permission merely because a D1 metadata write committed.
+              const deniedAfter=sql.exec(
+                "SELECT 1 ok FROM cove_account_access_denials WHERE user_id=?",input.userId
+              ).toArray().length;
+              if(!current||current.revoked_at||deniedAfter)
+                return new Response(null,{status:403,headers:noStore});
+              result={sessionId:current.id};
+            }else{
+              // Cookies and caller-selected identity headers never cross this
+              // protocol. The authenticated API supplies its verified app ID.
+              const auditRequest=new Request("https://legal-authority.internal/account/device");
+              result=input.action==="register-device"?
+                await privateAccount.registerDevice(db,input.userId,auditRequest,input.device):
+                await privateAccount.revokeDevice(db,input.userId,input.deviceId,auditRequest);
+            }
           }
           return Response.json({schema:"cove.private-account-qa.v1",ownerFirst:true,action:input.action,
             userId:input.action==="erasure-tick"?null:input.userId,result},{headers:noStore});
