@@ -1,0 +1,58 @@
+name: cove-qa-owner-primary-read-transport-offline
+on:
+  pull_request:
+    paths:
+      - "src/storefront-strangler/qa-owner-primary-read-transport.mjs"
+      - "src/storefront-strangler/qa-owner-primary-read-transport.d.mts"
+      - "src/storefront-strangler/qa-owner-primary-read-entrypoint.ts"
+      - "src/storefront-strangler/legal-authority.worker.ts"
+      - "src/persistence-backend.worker.ts"
+      - "scripts/qa-owner-primary-read-transport.test.mjs"
+      - "scripts/qa-owner-primary-read-entrypoint.test.mjs"
+      - ".github/workflows/cove-qa-owner-primary-read-transport-offline.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/storefront-strangler/qa-owner-primary-read-transport.mjs"
+      - "src/storefront-strangler/qa-owner-primary-read-transport.d.mts"
+      - "src/storefront-strangler/qa-owner-primary-read-entrypoint.ts"
+      - "src/storefront-strangler/legal-authority.worker.ts"
+      - "src/persistence-backend.worker.ts"
+      - "scripts/qa-owner-primary-read-transport.test.mjs"
+      - "scripts/qa-owner-primary-read-entrypoint.test.mjs"
+      - ".github/workflows/cove-qa-owner-primary-read-transport-offline.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qa-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - run: npm ci --no-audit --no-fund
+      - name: Check isolated transport syntax
+        run: |
+          node --check src/storefront-strangler/qa-owner-primary-read-transport.mjs
+          node --check scripts/qa-owner-primary-read-transport.test.mjs
+      - name: Prove strict private owner READ transport with no caller D1
+        run: node --test scripts/qa-owner-primary-read-transport.test.mjs
+      - name: Prove backend with no D1 binding can read QA owner without production enrollment
+        run: node --test scripts/qa-owner-primary-read-entrypoint.test.mjs
+      - name: Deny production cutover from QA-only read-transport source
+        run: |
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            const backend=fs.readFileSync("wrangler.backend.production.toml","utf8");
+            const owner=fs.readFileSync("wrangler.legal-authority.production-locked.jsonc","utf8");
+            assert.match(backend,/binding = "DB"/);
+            assert.match(backend,/database_id = "4bd657ac-8789-403e-a28c-93aba8d0a989"/);
+            assert.match(owner,/"COVE_RIGHTS_OWNER_ENABLED"/);
+            console.log("PASS: this QA contract has not removed production D1 or enabled rights");
+          '
