@@ -2,7 +2,10 @@ import { z } from "zod/v3";
 import type { CoveEnv } from "./api.server";
 import { ApiError, now } from "./service";
 import { emitNotification } from "./notifications.server";
-import { dispatchAccountOwnerAction,hasPublicationOwner } from "../../storefront-strangler/publication-owner-routing.server";
+import {
+  dispatchAccountOwnerAction,
+  hasPublicationOwner,
+} from "../../storefront-strangler/publication-owner-routing.server";
 import { exportCustomerSupport } from "./customer-support.server";
 
 export type AccountDB = CoveEnv["DB"];
@@ -89,13 +92,13 @@ export async function touchAccountSession(
   // platform metadata go through the privately leased owner. Production
   // keeps the original path until all remaining operations are certified.
   if (hasPublicationOwner(db)) {
-    const result = await dispatchAccountOwnerAction(db, {
+    const result = (await dispatchAccountOwnerAction(db, {
       action: "touch-session",
       userId,
       sessionHash: hash,
       userAgentSummary: ua(request),
       ipCountry: country(request),
-    }) as {sessionId:string};
+    })) as { sessionId: string };
     return result.sessionId;
   }
   const at = now();

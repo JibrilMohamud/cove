@@ -11,7 +11,7 @@ export declare function checkedQaOwnerReadParams(
 export declare function createQaOwnerReadOnlyD1(
   owner: { fetch(request: Request): Promise<Response> },
   secret: string,
-): CatalogDB & {withSession(mode: "first-primary"): CatalogDB & {getBookmark(): string | null}};
+): CatalogDB & { withSession(mode: "first-primary"): CatalogDB & { getBookmark(): string | null } };
 /** The real owner must positively pass its short-lived QA-lease check. */
 export declare function serveQaOwnerPrimaryRead(
   request: Request,

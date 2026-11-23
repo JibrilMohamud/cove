@@ -119,7 +119,10 @@ test("no raw D1, mutating run, exec or unsupported session can escape", () => {
   assert.throws(() => d.exec("SELECT 1"), /qa_owner_read_denied/);
   assert.throws(() => d.withSession("first-unconstrained"), /qa_owner_read_denied/);
   assert.throws(() => d.withSession("unknown"), /qa_owner_read_denied/);
-  assert.throws(() => d.withSession("first-primary").withSession("first-primary"), /qa_owner_read_denied/);
+  assert.throws(
+    () => d.withSession("first-primary").withSession("first-primary"),
+    /qa_owner_read_denied/,
+  );
   assert.throws(
     () => createQaOwnerReadOnlyD1({ fetch: async () => {} }, "wrong"),
     /qa_owner_read_denied/,
@@ -129,6 +132,7 @@ test("first-primary read starts on actual D1 primary and advances owner-issued b
   const modes = [];
   let next = 0;
   const database = {
+    prepare() { throw new Error("session must own all native reads"); },
     withSession(mode) {
       modes.push(mode);
       const version = ++next;
@@ -154,11 +158,13 @@ test("first-primary read starts on actual D1 primary and advances owner-issued b
       };
     },
   };
-  const session = createQaOwnerReadOnlyD1(leasedOwner(database), SECRET).withSession("first-primary");
+  const session = createQaOwnerReadOnlyD1(leasedOwner(database), SECRET).withSession(
+    "first-primary",
+  );
   assert.equal(session.getBookmark(), null);
-  const first = await session.prepare(
-    "WITH eligible AS (SELECT id FROM products) SELECT id FROM eligible",
-  ).first();
+  const first = await session
+    .prepare("WITH eligible AS (SELECT id FROM products) SELECT id FROM eligible")
+    .first();
   assert.equal(first.version, 1);
   assert.equal(session.getBookmark(), "owner_bm_1");
   const nextRead = await session.prepare("SELECT * FROM works").all();
@@ -190,25 +196,37 @@ test("overlapping bookmarked reads serialize and a lost owner acknowledgment poi
   const second = session.prepare("SELECT 2").first();
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(seen, [null], "Concurrent session requests may not reuse a bookmark");
-  deferred.shift()(Response.json(
-    { schema: QA_OWNER_PRIMARY_READ_SCHEMA, result: [{ ok: 1 }], bookmark: "owner_bm_1" },
-    { headers: { "cache-control": "no-store" } },
-  ));
+  deferred.shift()(
+    Response.json(
+      { schema: QA_OWNER_PRIMARY_READ_SCHEMA, result: [{ ok: 1 }], bookmark: "owner_bm_1" },
+      { headers: { "cache-control": "no-store" } },
+    ),
+  );
   await first;
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(seen, [null, "owner_bm_1"]);
-  deferred.shift()(Response.json(
-    { schema: QA_OWNER_PRIMARY_READ_SCHEMA, result: [{ ok: 2 }], bookmark: "owner_bm_2" },
-    { headers: { "cache-control": "no-store" } },
-  ));
+  deferred.shift()(
+    Response.json(
+      { schema: QA_OWNER_PRIMARY_READ_SCHEMA, result: [{ ok: 2 }], bookmark: "owner_bm_2" },
+      { headers: { "cache-control": "no-store" } },
+    ),
+  );
   assert.equal((await second).ok, 2);
-  const failing = createQaOwnerReadOnlyD1({
-    async fetch() {return new Response(null, { status: 503 });},
-  }, SECRET).withSession("first-primary");
+  const failing = createQaOwnerReadOnlyD1(
+    {
+      async fetch() {
+        return new Response(null, { status: 503 });
+      },
+    },
+    SECRET,
+  ).withSession("first-primary");
   await assert.rejects(failing.prepare("SELECT 1").first(), /qa_owner_read_denied/);
   assert.equal(failing.getBookmark(), null);
-  await assert.rejects(failing.prepare("SELECT 2").first(), /qa_owner_read_denied/,
-    "A failed session cannot start fresh after a lost response");
+  await assert.rejects(
+    failing.prepare("SELECT 2").first(),
+    /qa_owner_read_denied/,
+    "A failed session cannot start fresh after a lost response",
+  );
 });
 test("denied lease, wrong secret, wrong path, wrong method, malformed schemas fail before native D1", async () => {
   reads = 0;

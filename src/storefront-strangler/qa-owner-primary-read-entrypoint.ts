@@ -8,7 +8,7 @@
  */
 import type { CoveEnv } from "../features/fore/api.server";
 import { createQaOwnerReadOnlyD1 } from "./qa-owner-primary-read-transport.mjs";
-import {bindPublicationOwner} from "./publication-owner-routing.server";
+import { bindPublicationOwner } from "./publication-owner-routing.server";
 
 const QA_PRIMARY_IDS = new Set([
   "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87",
@@ -57,14 +57,11 @@ export function scopeQaOwnerUnboundPrimaryRead<T extends QaReadEnv>(env: T): T {
     throw Error("qa_unbound_primary_read_not_certified");
   return {
     ...env,
-    DB: bindPublicationOwner(
-      createQaOwnerReadOnlyD1(owner, env.COVE_RIGHTS_OWNER_SECRET!),
-      {
-        owner,
-        secret: env.COVE_RIGHTS_OWNER_SECRET!,
-        territory: env.FORE_DEFAULT_TERRITORY || "US",
-        currency: "USD",
-      },
-    ),
+    DB: bindPublicationOwner(createQaOwnerReadOnlyD1(owner, env.COVE_RIGHTS_OWNER_SECRET!), {
+      owner,
+      secret: env.COVE_RIGHTS_OWNER_SECRET!,
+      territory: env.FORE_DEFAULT_TERRITORY || "US",
+      currency: "USD",
+    }),
   } as T;
 }

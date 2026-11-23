@@ -100,26 +100,36 @@ export async function serveQaOwnerPrimaryRead(request, primary, secret, qaLeaseL
     if (body.length > MAX_BODY_CHARS) return json({ error: "qa_owner_read_too_large" }, 413);
     input = JSON.parse(body);
     const sessionMode = exactKeys(input, ["schema", "ops", "session"]);
-    if ((!sessionMode && !exactKeys(input, ["schema", "ops"])) ||
-        input.schema !== QA_OWNER_PRIMARY_READ_SCHEMA)
+    if (
+      (!sessionMode && !exactKeys(input, ["schema", "ops"])) ||
+      input.schema !== QA_OWNER_PRIMARY_READ_SCHEMA
+    )
       return json({ error: "qa_owner_read_bad_schema" }, 400);
     const ops = checkedOps(input.ops);
     let active = primary;
     if (sessionMode) {
       const session = input.session;
-      if (!exactKeys(session, ["mode", "bookmark"]) ||
-          session.mode !== "first-primary" ||
-          !(session.bookmark === null ||
-            (typeof session.bookmark === "string" &&
-             session.bookmark.length > 0 && session.bookmark.length <= 1024 &&
-             /^[a-zA-Z0-9+/_:=.-]+$/.test(session.bookmark) &&
-             session.bookmark !== "first-unconstrained" &&
-             session.bookmark !== "first-primary")) ||
-          typeof primary.withSession !== "function")
+      if (
+        !exactKeys(session, ["mode", "bookmark"]) ||
+        session.mode !== "first-primary" ||
+        !(
+          session.bookmark === null ||
+          (typeof session.bookmark === "string" &&
+            session.bookmark.length > 0 &&
+            session.bookmark.length <= 1024 &&
+            /^[a-zA-Z0-9+/_:=.-]+$/.test(session.bookmark) &&
+            session.bookmark !== "first-unconstrained" &&
+            session.bookmark !== "first-primary")
+        ) ||
+        typeof primary.withSession !== "function"
+      )
         return json({ error: "qa_owner_read_session_denied" }, 400);
       active = primary.withSession(session.bookmark ?? "first-primary");
-      if (!active || typeof active.prepare !== "function" ||
-          typeof active.getBookmark !== "function")
+      if (
+        !active ||
+        typeof active.prepare !== "function" ||
+        typeof active.getBookmark !== "function"
+      )
         return json({ error: "qa_owner_read_session_unavailable" }, 503);
     }
     const statements = ops.map((op) => active.prepare(op.sql).bind(...op.params));
@@ -139,13 +149,19 @@ export async function serveQaOwnerPrimaryRead(request, primary, secret, qaLeaseL
       result.push(ops[0].mode === "first" ? await statement.first() : await statement.all());
     }
     const bookmark = sessionMode ? active.getBookmark() : null;
-    if (sessionMode && (typeof bookmark !== "string" ||
-        bookmark.length < 1 || bookmark.length > 1024 ||
-        !/^[a-zA-Z0-9+/_:=.-]+$/.test(bookmark)))
+    if (
+      sessionMode &&
+      (typeof bookmark !== "string" ||
+        bookmark.length < 1 ||
+        bookmark.length > 1024 ||
+        !/^[a-zA-Z0-9+/_:=.-]+$/.test(bookmark))
+    )
       return json({ error: "qa_owner_read_bookmark_unavailable" }, 503);
-    const output = JSON.stringify(sessionMode
-      ? { schema: QA_OWNER_PRIMARY_READ_SCHEMA, result, bookmark }
-      : { schema: QA_OWNER_PRIMARY_READ_SCHEMA, result });
+    const output = JSON.stringify(
+      sessionMode
+        ? { schema: QA_OWNER_PRIMARY_READ_SCHEMA, result, bookmark }
+        : { schema: QA_OWNER_PRIMARY_READ_SCHEMA, result },
+    );
     if (output.length > MAX_RESULT_CHARS)
       return json({ error: "qa_owner_read_result_too_large" }, 503);
     return new Response(output, {
@@ -173,9 +189,7 @@ export function createQaOwnerReadOnlyD1(owner, secret) {
       const body = {
         schema: QA_OWNER_PRIMARY_READ_SCHEMA,
         ops,
-        ...(session
-          ? { session: { mode: "first-primary", bookmark: session.bookmark } }
-          : {}),
+        ...(session ? { session: { mode: "first-primary", bookmark: session.bookmark } } : {}),
       };
       const response = await owner.fetch(
         new Request("https://cove-owner.internal" + QA_OWNER_PRIMARY_READ_ROUTE, {
@@ -278,7 +292,13 @@ export function createQaOwnerReadOnlyD1(owner, secret) {
         if (session || mode !== "first-primary") deny();
         return makeFacade({ bookmark: null, poisoned: false, tail: Promise.resolve() });
       },
-      ...(session ? { getBookmark() { return session.bookmark; } } : {}),
+      ...(session
+        ? {
+            getBookmark() {
+              return session.bookmark;
+            },
+          }
+        : {}),
       exec: deny,
     });
   }

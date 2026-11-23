@@ -31,29 +31,6 @@ jobs:
         with:
           node-version: "22"
       - run: npm ci --no-audit --no-fund
-      - name: Inspect exact Prettier output of newly changed owner migration sources (temporary)
-        run: |
-          npx --no-install prettier --write \
-            src/features/fore/account-management.server.ts \
-            src/storefront-strangler/qa-owner-primary-read-entrypoint.ts \
-            src/storefront-strangler/qa-owner-primary-read-transport.mjs \
-            src/storefront-strangler/qa-owner-primary-read-transport.d.mts \
-            scripts/qa-owner-primary-read-transport.test.mjs \
-            scripts/qa-owner-primary-read-entrypoint.test.mjs \
-            scripts/release/check-integrated-qa-owner-cutover-continuity.mjs >/dev/null
-          node --input-type=module -e '
-            import fs from "node:fs";
-            for (const path of [
-              "src/features/fore/account-management.server.ts",
-              "src/storefront-strangler/qa-owner-primary-read-entrypoint.ts",
-              "src/storefront-strangler/qa-owner-primary-read-transport.mjs",
-              "src/storefront-strangler/qa-owner-primary-read-transport.d.mts",
-              "scripts/qa-owner-primary-read-transport.test.mjs",
-              "scripts/qa-owner-primary-read-entrypoint.test.mjs",
-              "scripts/release/check-integrated-qa-owner-cutover-continuity.mjs"
-            ]) console.log("COVE_INTEGRATED_FORMAT " + path + " " +
-              fs.readFileSync(path).toString("base64"));
-          '
       - name: Inspect current source without any Cloudflare production credentials
         run: node scripts/release/check-integrated-qa-owner-cutover-continuity.mjs
       - name: Prove no silent loss of scheduler and genuine hourly BioSync

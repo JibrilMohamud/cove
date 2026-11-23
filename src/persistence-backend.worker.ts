@@ -947,7 +947,6 @@ export default {
     }
     env = scopeCommerceProductionD1(scopeExclusiveCanonicalD1(scopePublicationOwnerEnv(env)));
 
-
     const path = new URL(request.url).pathname;
     // This endpoint runs only AFTER persistence gateway authentication.
     // It cannot enable the owner or authorize a commercial action: the
