@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Preserve verified fail-closed credential routing during the scoped cutover. */
 import assert from "node:assert/strict";
 
 const account = "d26430caa63ec55f6612e32f36aca5e9";
@@ -8,10 +9,18 @@ const publisher = "cove-literary-publisher-isolated-disabled";
 const mode = process.argv[2];
 assert.ok(mode === "pre" || mode === "post", "Use pre or post");
 assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, account);
-const token = process.env.CLOUDFLARE_API_TOKEN;
-assert.ok(token, "Protected deployment credential unavailable");
+const deployToken = process.env.CLOUDFLARE_API_TOKEN;
+const d1ReadToken = process.env.COVE_CF_STAGE_D1_READ_TOKEN;
+const workerReadToken = process.env.COVE_CF_WORKERS_METADATA_READ_TOKEN;
+assert.ok(deployToken && d1ReadToken && workerReadToken, "Scoped dormant publisher principals required");
+assert.ok(new Set([deployToken,d1ReadToken,workerReadToken]).size===3,
+  "D1 read, Worker metadata read and deploy credentials must be distinct");
 const base = "https://api.cloudflare.com/client/v4/accounts/" + account;
 async function api(method, path, body) {
+  const d1Query=method==="POST" && path.startsWith("/d1/database/") && path.endsWith("/query");
+  const workerRead=method==="GET" && path.startsWith("/workers/");
+  const token=d1Query?d1ReadToken:workerRead?workerReadToken:null;
+  assert.ok(token, "Unexpected API route in dormant publisher verification");
   const response = await fetch(base + path, {
     method,
     headers: {
@@ -27,6 +36,7 @@ async function api(method, path, body) {
   return data.result;
 }
 async function query(database, sql) {
+  assert.match(sql.trim(), /^SELECT\b/i, "Dormant publisher preflight may only read D1");
   const rows = await api("POST", "/d1/database/" + database + "/query", { sql });
   assert.ok(Array.isArray(rows) && rows.every((x) => x.success));
   return rows[0].results;
