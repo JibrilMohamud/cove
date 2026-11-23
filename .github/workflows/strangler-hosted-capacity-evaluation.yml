@@ -5,6 +5,7 @@ on:
       - "scripts/staging/prepare-strangler-capacity-config.mjs"
       - "scripts/staging/seed-strangler-private-stage.mjs"
       - "scripts/staging/strangler-http-transport.mjs"
+      - "scripts/staging/strangler-capacity-transport-contract.test.mjs"
       - "scripts/staging/check-strangler-live-capacity.mjs"
       - "scripts/staging/assert-strangler-capacity-evidence.mjs"
       - "scripts/staging/verify-literary-postpublication-readonly.mjs"
@@ -78,6 +79,7 @@ jobs:
           node scripts/check-storefront-strangler.mjs
           node scripts/check-storefront-prepared-catalog.mjs
           node scripts/check-storefront-v2-primary-prefix.mjs
+          node --test scripts/staging/strangler-capacity-transport-contract.test.mjs
 
   protected-staging-only:
     if: >-

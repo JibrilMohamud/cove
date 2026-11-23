@@ -1504,9 +1504,20 @@ try {
   assert.deepEqual(Buffer.from(await audioRange.arrayBuffer()),
     audioBytes.subarray(0,128),
     "Original chapter streaming must return exact R2 PCM bytes, not merely a 206 header");
+  // Verify this fixture is a genuine dual-format ebook purchase, not a
+  // synthetic audiobook-only SKU that sidesteps the original EPUB path.
+  // Its audio entitlement is backed by the frozen narrator/publisher
+  // publication already verified by the ORIGINAL audio-track handler.
+  const paidProductFormat=await qaSql(
+    "SELECT format FROM products WHERE id=?",
+    [test.productId]);
+  assert.equal(paidProductFormat.results?.[0]?.format,"ebook",
+    "Isolated paid QA must prove original EPUB+audio bundle support");
   const audioOfflineResponse=await originalCall("/original/audio-offline");
   assert.equal(audioOfflineResponse.status,200,
-    "Original audiobook offline issuer must verify a paid, registered device");
+    "Original audiobook offline issuer must verify a paid, registered device; status="+
+    audioOfflineResponse.status+" category="+
+    String((await audioOfflineResponse.clone().json().catch(()=>null))?.qaErrorCategory||"missing"));
   let audioLicense=await audioOfflineResponse.json();
   assert.ok(audioLicense.receipt?.signature && audioLicense.licenseId &&
     audioLicense.token && audioLicense.expiresAt);

@@ -24,7 +24,7 @@ const PINNED_CURRENT_SOURCES=Object.freeze({
   "src/features/fore/rights.server.ts":"a7839d53ae20ffa3351bd6fbef797bd3d06dfb30c7d390168c195be8680e5fa2",
   "src/features/fore/search.server.ts":"6058f067527184f817f2759c0385129a344c67ea995d4fe46a58e53ea561f356",
   "src/features/fore/traditional-publishing.server.ts":"364406b8ed38f06563a6e307aa0512e64b41c926ee7236bf34e216e8f0166191",
-  "src/storefront-strangler/legal-authority.worker.ts":"d8872ecce04958036b03036995c934dfe9d4de615a612a6714fc11b3573f8c9e",
+  "src/storefront-strangler/legal-authority.worker.ts":"8b61337f1e821f59e7bf2f2eef01e6018a337c6947bfbb2a669a3239e0b7abd1",
 });
 const review=JSON.parse(readFileSync("docs/architecture/canonical-writer-review.json","utf8"));
 assert.equal(review.schema,"cove.canonical-writer-review.v1");
@@ -50,6 +50,43 @@ for(const [path,pin] of Object.entries(PINNED_CURRENT_SOURCES)){
 // commerce or publication code may change while refreshing this pin.
 const ownerPath="src/storefront-strangler/legal-authority.worker.ts";
 let priorOwner=readFileSync(ownerPath,"utf8");
+
+/*
+ * Explicit 2026-11-23 caller-and-owner source re-review of a SINGLE legal
+ * eligibility predicate for a dual-format paid publication. The customer
+ * original audio handler already accepts independent frozen licensed audio
+ * attached to a purchased ebook SKU. The owner still verifies, immediately
+ * before issuing any offline license: current paid entitlement, current
+ * withdrawal/market, ebook/audiobook format, permitted publisher source,
+ * exact frozen publication and edition, audio chapter digest, independently
+ * live offline+retail narrator agreements, registered device, buyer/order
+ * risk, max device count and atomic replacement of stale licenses.
+ *
+ * Reverting the TWO exact reviewed text ranges MUST recreate the prior
+ * exact source hash. This is engineering source-integrity evidence only,
+ * never proof of rightsholder authority, production credential exclusivity,
+ * Stripe LIVE settlement, or a release approval.
+ */
+for(const [introduced,original] of [
+  [
+    `        // A paid EPUB SKU can also carry an independently published licensed
+        // audiobook. Product format is not an audio rights grant: the exact
+        // current immutable audio publication, narration agreements, device,
+        // entitlement, market and current owner denial fences below are ALL
+        // still required before issuing any offline audio receipt.
+`,
+    ""
+  ],
+  ["p.format IN ('ebook','audiobook')","p.format='audiobook'"]
+]){
+  assert.equal(priorOwner.split(introduced).length,2,
+    "Dual-format owner change must remain one separately reviewed exact delta");
+  priorOwner=priorOwner.replace(introduced,original);
+}
+assert.equal(createHash("sha256").update(priorOwner,"utf8").digest("hex"),
+  "d8872ecce04958036b03036995c934dfe9d4de615a612a6714fc11b3573f8c9e",
+  "Dual-format owner source must revert byte-for-byte to the prior approved owner pin");
+
 // Independently inspect the exact five-entry owner integration delta before
 // accepting the new current pin: the only allowed changes compared with the
 // previously reviewed 1MB owner are the QA SELECT transport, private route

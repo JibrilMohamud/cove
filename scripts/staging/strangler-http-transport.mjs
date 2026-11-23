@@ -86,6 +86,24 @@ async function getSession(slot) {
   return slot.connecting;
 }
 
+/**
+ * Establish the ordinary 16-session load-client TLS/h2 transport BEFORE
+ * a sustained benchmark starts. Cold Worker acceptance is a separate,
+ * untouched 3-deployment check; this does not send a Worker request, create
+ * any D1 read, replay a response, or discard a measured load sample.
+ * A broken client/provider TLS session fails before the acceptance campaign.
+ */
+export async function primeStageTransportConnections() {
+  if (stageTransport !== "http2") return { mode: stageTransport, primed: 0 };
+  const sessions = await Promise.all(sessionPool.map((slot) => getSession(slot)));
+  assert.equal(sessions.length, sessionPool.length);
+  if (
+    sessions.some((session) => session.closed || session.destroyed || session.alpnProtocol !== "h2")
+  )
+    throw new Error("Protected HTTP2 transport was not ready before load");
+  return { mode: "http2", primed: sessions.length };
+}
+
 export async function stageFetch(url, options = {}) {
   assert.equal(new URL(url).origin, origin, "Never send stage credentials to another origin");
   if (stageTransport !== "http2") return fetch(url, options);

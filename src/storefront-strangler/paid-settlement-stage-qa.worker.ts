@@ -262,7 +262,11 @@ export default {
           "Commercial audiobook not found.":"audio_catalog_absent",
           "This audiobook is not available in your storefront.":"audio_rights_or_manifest_unavailable",
           "Audio chapter not found.":"audio_chapter_absent",
-          "Audio object is unavailable.":"audio_r2_object_absent"
+          "Audio object is unavailable.":"audio_r2_object_absent",
+          "Private legal owner refused offline audio license.":"audio_owner_rejected",
+          "A purchase entitlement is required for offline audio.":"audio_purchase_absent",
+          "Register an active device before requesting an offline license.":"audio_device_absent",
+          "This audiobook license does not permit offline use.":"audio_policy_denied"
         };
         const category=e instanceof Error?
           (/no such table: ([a-z_]+)/i.exec(e.message)?.[0] ||
