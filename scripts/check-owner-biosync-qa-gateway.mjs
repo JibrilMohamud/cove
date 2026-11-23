@@ -54,7 +54,7 @@ try{
   await blocked(req(data,{host:"api.covereads.com"}),env(),404);
   await blocked(req(data,{host:"cove-persistence-backend.cove-qa-reads.workers.dev"}),env(),404);
   await blocked(req(data,{host:"cove-biosync-gateway-qa-45104567891-1.preview.workers.dev"}),env(),404);
-  await blocked(req(data,{host:"cove-biosync-gateway-qa-45104567891-1.cove-qa-reads.workers.dev:443"}),env(),404);
+  await blocked(req(data,{host:"cove-biosync-gateway-qa-45104567891-1.cove-qa-reads.workers.dev:8443"}),env(),404);
   await blocked(req(data,{scheme:"http"}),env(),404);
   await blocked(req(data,{path:"/other"}),env(),404);
   await blocked(req(data,{path:"/biosync/publish-checked?sql=UPDATE"}),env(),404);
