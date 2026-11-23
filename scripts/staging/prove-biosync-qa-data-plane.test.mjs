@@ -43,7 +43,7 @@ test("actual QA resource contract can only inspect isolated D1 schema and R2 met
   assert.equal(s.calls[1].opts.redirect,"error");
   const {sql}=JSON.parse(s.calls[0].opts.body);
   assert.match(sql,/^SELECT /);
-  assert.doesNotMatch(sql,/;|\\b(?:UPDATE|INSERT|DELETE|DROP|ALTER|PRAGMA)\\b/i);
+  assert.doesNotMatch(sql,/;|\b(?:UPDATE|INSERT|DELETE|DROP|ALTER|PRAGMA)\b/i);
   assert.ok(s.calls.every(x=>!x.url.includes("d26430caa63ec55f6612e32f36aca5e9")));
   assert.ok(s.calls.every(x=>!x.url.includes("4bd657ac-8789-403e-a28c-93aba8d0a989")));
   assert.equal(s.calls[0].opts.headers.authorization,"Bearer "+env.COVE_CF_QA_D1_MUTATION_TOKEN);
