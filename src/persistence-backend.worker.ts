@@ -939,12 +939,14 @@ export default {
   },
 
   async fetch(request: Request, env: BackendEnv, ctx: ExecutionContextLike) {
+    // A D1-unbound synthetic QA backend must resolve its owner-backed read
+    // transport before legacy token-hash lookup. Production remains a no-op.
+    env = scopeQaOwnerUnboundPrimaryRead(env);
     if (!(await authorized(request, env))) {
       return json({ error: "Persistence gateway authorization required." }, 401);
     }
     env = scopeCommerceProductionD1(scopeExclusiveCanonicalD1(scopePublicationOwnerEnv(env)));
-    // Opt-in isolated QA only. Production remains bound to primary D1.
-    env = scopeQaOwnerUnboundPrimaryRead(env);
+
 
     const path = new URL(request.url).pathname;
     // This endpoint runs only AFTER persistence gateway authentication.
