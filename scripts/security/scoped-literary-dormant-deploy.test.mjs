@@ -31,7 +31,7 @@ test("dormant literary auditors partition Worker metadata GET and D1 SELECT",()=
       "process.env.CLOUDFLARE_API_TOKEN",
       "d1Query?d1ReadToken:workerRead?workerReadToken:null",
       "new Set([deployToken,d1ReadToken,workerReadToken]).size===3",
-      "assert.match(sql.trim(), /^SELECT\\\\b/i"])
+      "assert.match(sql.trim(), /^SELECT\\b/i"])
       assert.ok(source.includes(key),path+" credential separation missing "+key);
     assert.ok(!source.includes("const token = process.env.CLOUDFLARE_API_TOKEN"));
   }
