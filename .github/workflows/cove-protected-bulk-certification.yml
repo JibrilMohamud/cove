@@ -15,6 +15,11 @@ on:
       - "scripts/staging/paid-owner-rollback-evidence.mjs"
       - "scripts/staging/prove-biosync-hosted-owner-write.mjs"
       - "scripts/staging/prove-private-paid-owner.mjs"
+      # Protected ingest readiness and strict capacity harness changes must
+      # retrigger the SAME SHA-pinned paid+capacity batch, not just source CI.
+      - "scripts/staging/paid-qa-ingress-readiness.mjs"
+      - "scripts/staging/strangler-http-transport.mjs"
+      - "scripts/staging/check-strangler-live-capacity.mjs"
       - "src/storefront-strangler/paid-settlement-stage-qa.worker.ts"
       - "scripts/staging/verify-literary-postpublication-readonly.mjs"
       - "scripts/staging/check-strangler-data-plane-preflight.mjs"

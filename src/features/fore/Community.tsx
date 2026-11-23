@@ -10,7 +10,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
 import {
@@ -1019,9 +1019,17 @@ function Journey({ id }: { id: string }) {
   const [format, setFormat] = useState<"square" | "story">("square");
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<any>(null);
+  // The next click can fire before React commits the render from onChange.
+  // Do not send the previously rendered audience to the private journey API.
+  const latestDraft = useRef<any>(null);
+  const patchDraft = (patch: Record<string, unknown>) => {
+    const next = { ...(latestDraft.current ?? draft), ...patch };
+    latestDraft.current = next;
+    setDraft(next);
+  };
   useEffect(() => {
-    if (q.data)
-      setDraft({
+    if (q.data) {
+      const snapshot = {
         visibility: q.data.visibility,
         theme: q.data.theme,
         showRating: !!q.data.show_rating,
@@ -1031,13 +1039,16 @@ function Journey({ id }: { id: string }) {
         showCover: !!q.data.show_cover,
         favoriteQuote: q.data.favorite_quote || "",
         shortReview: q.data.short_review || "",
-      });
+      };
+      latestDraft.current = snapshot;
+      setDraft(snapshot);
+    }
   }, [q.data?.id, q.data?.version]);
   async function save() {
     setBusy(true);
     try {
       await api(`/social/journeys/${q.data.id}`, "PATCH", {
-        ...draft,
+        ...(latestDraft.current ?? draft),
         expectedVersion: Number(q.data.version || 1),
       });
       await q.refetch();
@@ -1431,7 +1442,7 @@ function Journey({ id }: { id: string }) {
                 <select
                   aria-label={ui("Journey visibility")}
                   value={draft.visibility}
-                  onChange={(e) => setDraft({ ...draft, visibility: e.target.value })}
+                  onChange={(e) => patchDraft({ visibility: e.target.value })}
                 >
                   <option value="public">{ui("Public")}</option>
                   <option value="followers">{ui("Followers")}</option>
@@ -1440,10 +1451,7 @@ function Journey({ id }: { id: string }) {
               </label>
               <label>
                 {ui("Theme")}
-                <select
-                  value={draft.theme}
-                  onChange={(e) => setDraft({ ...draft, theme: e.target.value })}
-                >
+                <select value={draft.theme} onChange={(e) => patchDraft({ theme: e.target.value })}>
                   {["paper", "night", "forest", "sunset", "ink"].map((x) => (
                     <option key={x}>{x}</option>
                   ))}
@@ -1460,7 +1468,7 @@ function Journey({ id }: { id: string }) {
                   <input
                     type="checkbox"
                     checked={!!draft[key]}
-                    onChange={(e) => setDraft({ ...draft, [key]: e.target.checked })}
+                    onChange={(e) => patchDraft({ [key]: e.target.checked })}
                   />
                   {label}
                 </label>
@@ -1469,7 +1477,7 @@ function Journey({ id }: { id: string }) {
                 {ui("Favorite quote")}
                 <textarea
                   value={draft.favoriteQuote}
-                  onChange={(e) => setDraft({ ...draft, favoriteQuote: e.target.value })}
+                  onChange={(e) => patchDraft({ favoriteQuote: e.target.value })}
                   maxLength={1200}
                 />
               </label>
@@ -1477,7 +1485,7 @@ function Journey({ id }: { id: string }) {
                 {ui("Short review")}
                 <textarea
                   value={draft.shortReview}
-                  onChange={(e) => setDraft({ ...draft, shortReview: e.target.value })}
+                  onChange={(e) => patchDraft({ shortReview: e.target.value })}
                   maxLength={1000}
                 />
               </label>

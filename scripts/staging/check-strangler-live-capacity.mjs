@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { performance } from "node:perf_hooks";
+import { monitorEventLoopDelay, performance } from "node:perf_hooks";
 import {
   stageFetch,
   stageTransport,
@@ -15,6 +15,11 @@ assert.match(key, /^[a-f0-9]{64}$/);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
 const maxInflight = 128;
 const strictMaximumMs = 800;
+// Every real full-body sample remains required. Monitor the load runner's
+// event loop independently so an unbounded local scheduling stall cannot
+// be misattributed to Worker SQL or Cloudflare transport. No filtering.
+const runnerDelay = monitorEventLoopDelay({ resolution: 20 });
+runnerDelay.enable();
 const fixedFailureKinds = new Set([
   "limiter-unavailable",
   "presentation-absent",
@@ -78,7 +83,9 @@ async function requestOne(route = "/") {
       typeof span?.received === "number" && typeof span?.sent === "number"
         ? Math.max(0, Math.round(span.received - span.sent))
         : null;
-    const declaredKind = resp.headers.get("x-cove-stage-failure-kind");
+    const declaredKind =
+      resp.headers.get("x-cove-stage-failure-kind") ||
+      resp.headers.get("x-cove-stage-failure-subkind");
     return {
       ttfbMs: Math.round(headersAt - start),
       valid: Boolean(valid),
@@ -144,6 +151,9 @@ function report(name, offered, rows, dropped = 0) {
   }
   const p95Ms = percentile(all, 0.95);
   const p99Ms = percentile(all, 0.99);
+  const runnerEventLoopMaxMs = Math.round(runnerDelay.max / 1e6);
+  const runnerEventLoopP99Ms = Math.round(runnerDelay.percentile(99) / 1e6);
+  runnerDelay.reset();
   // Bursts/cold rounds have an 800 ms hard maximum. The p95/p99 tail
   // requirements belong to the sustained 100-RPS, 2,000-arrival phase.
   const sustained100Rps = name === "100-rps-20s";
@@ -179,6 +189,13 @@ function report(name, offered, rows, dropped = 0) {
         : null,
       transportWaitMs: row.transportWaitMs ?? null,
       transportWireMs: row.transportWireMs ?? null,
+      // Only server-authoritative, fixed-key numeric Worker phase timers.
+      // Never copy headers, request paths, buyer IDs, offers, or book data.
+      workerPhasesMs: Object.fromEntries(
+        ["cove_limit", "cove_presentation", "cove_context", "cove_catalog", "cove_catalog_sql"]
+          .filter((key) => Number.isFinite(row.serverTiming?.[key]))
+          .map((key) => [key, row.serverTiming[key]]),
+      ),
     }));
   const clientFailureClasses = {};
   const invalidSamples = [];
@@ -208,6 +225,8 @@ function report(name, offered, rows, dropped = 0) {
     p95Ms,
     p99Ms,
     maxMs,
+    runnerEventLoopMaxMs,
+    runnerEventLoopP99Ms,
     pass,
     bootstrapSamples: observed.length,
     bootstrapP95Ms: boot.length ? Math.round(percentile(boot, 0.95)) : null,
@@ -272,6 +291,7 @@ try {
     report("real-core-delegation", 1, [core]);
   }
 } finally {
+  runnerDelay.disable();
   closeStageTransport();
   fs.mkdirSync("artifacts", { recursive: true });
   fs.writeFileSync(
