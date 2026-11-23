@@ -97,8 +97,9 @@ export async function primeStageTransportConnections() {
   if (stageTransport !== "http2") return { mode: stageTransport, primed: 0 };
   const sessions = await Promise.all(sessionPool.map((slot) => getSession(slot)));
   assert.equal(sessions.length, sessionPool.length);
-  if (sessions.some((session) => session.closed || session.destroyed ||
-       session.alpnProtocol !== "h2"))
+  if (
+    sessions.some((session) => session.closed || session.destroyed || session.alpnProtocol !== "h2")
+  )
     throw new Error("Protected HTTP2 transport was not ready before load");
   return { mode: "http2", primed: sessions.length };
 }
