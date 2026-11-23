@@ -13,6 +13,8 @@ import type { AuthoritySql } from "./legal-authority-core";
 
 export const OWNER_SQL_MUTATION_SCHEMA = "cove.qa.current-owner-sql-journal.v1";
 export const OWNER_SQL_MUTATION_TABLES = [
+  "cove_account_access_denials",
+  "cove_audio_metadata_command_receipts",
   "cove_authorized_offer_proofs",
   "cove_commercial_authority",
   "cove_commercial_retired_evidence",
@@ -21,6 +23,7 @@ export const OWNER_SQL_MUTATION_TABLES = [
   "cove_commercial_subject_denial_ops",
   "cove_commercial_subject_denials",
   "cove_commercial_withdrawal_ops",
+  "cove_finance_command_receipts",
   "cove_legal_denial_operations",
   "cove_legal_fences",
   "cove_market_withdrawal_ops",
@@ -69,7 +72,14 @@ function exactTables(rows: SchemaRow[], enrolled: boolean) {
     .map((r) => r.name)
     .sort();
   if (actual.join("\n") !== expected.join("\n") || rows.some((r) => r.type === "view"))
-    throw Error("qa_current_owner_mutation_schema_unreviewed");
+    throw Error(
+      "qa_current_owner_mutation_schema_unreviewed:" +
+        JSON.stringify({
+          missing: expected.filter((t) => !actual.includes(t)),
+          extra: actual.filter((t) => !expected.includes(t)),
+          viewCount: rows.filter((r) => r.type === "view").length,
+        }),
+    );
 }
 function triggerDdl(table: string, index: number, op: string, version: string) {
   const name = `qa_current_owner_mutation_${index}_${op.toLowerCase()}`;

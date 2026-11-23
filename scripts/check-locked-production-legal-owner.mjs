@@ -54,12 +54,15 @@ if(process.argv[1] && import.meta.url===new URL("file://"+process.argv[1]).href)
 }
 
 if(process.argv.includes("--live")){
+  // Live metadata proof must not reuse even the scoped deployment bearer.
+  // The protected workflow independently verifies the deploy, metadata and
+  // zone-route tokens are pairwise different. This read-only verifier never
+  // accesses or reuses the privileged deployment bearer.
   const token=process.env.COVE_CF_WORKERS_METADATA_READ_TOKEN;
-  const deploy=process.env.CLOUDFLARE_API_TOKEN;
-  assert.ok(token&&token.length>=20&&deploy&&token!==deploy,
-    "Owner binding inspection requires separate read-only Worker principal");
+  assert.ok(token&&token.length>=20,
+    "Live owner settings require an independent metadata-only principal");
   const account=process.env.CLOUDFLARE_ACCOUNT_ID;
-  assert.ok(token && account,"Live verification requires authenticated Cloudflare");
+  assert.ok(token && account,"Live verification requires the independent Workers Metadata Read token");
   const response=await fetch(
     "https://api.cloudflare.com/client/v4/accounts/"+
     encodeURIComponent(account)+"/workers/scripts/cove-legal-authority-production/settings",

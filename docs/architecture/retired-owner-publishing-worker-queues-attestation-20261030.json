@@ -1,0 +1,17 @@
+{
+  "schema": "cove.canonical-writer-source-attestation.v1",
+  "releaseApproval": false,
+  "rationale": "Nine direct validation and rights evidence scan SQL sites moved to a fixed QA-only private owner, preserving lease checks and source identity. Production worker identity, provider evidence and positive authorization are NOT certified.",
+  "files": [
+    {
+      "path": "src/features/fore/publishing.server.ts",
+      "sha256": "8687d2c1cd579bd23242cdf60e7de9a7a8467d1b99a11f0cbdb7b177a067495a",
+      "review": "40 remaining protected publishing writers"
+    },
+    {
+      "path": "src/features/fore/publishing-trust.server.ts",
+      "sha256": "005a41726dda1ec55d44b468aff3a54744190af8ea3dd587ae111cdeaba26595",
+      "review": "38 remaining protected publishing trust writers"
+    }
+  ]
+}

@@ -6,13 +6,12 @@ import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {pathToFileURL} from "node:url";
 import {build} from "esbuild";
+import {loadPrivateFinance} from "./test-private-finance-loader.mjs";
 const directory=mkdtempSync(join(tmpdir(),"cove-royalty-atomic-")),stores=[];
 const originalFetch=globalThis.fetch;
 try{
   const file=join(directory,"finance.mjs");
-  await build({entryPoints:["src/features/fore/finance.server.ts"],outfile:file,bundle:true,
-    platform:"node",format:"esm",target:"node22",logLevel:"silent"});
-  const {reverseRoyaltiesForRefund}=await import(pathToFileURL(file).href);
+  const {testFinance:{reverseRoyaltiesForRefund}}=await loadPrivateFinance(file);
   const commerceFile=join(directory,"commerce.mjs");
   await build({entryPoints:["src/features/fore/commerce.server.ts"],outfile:commerceFile,bundle:true,
     platform:"node",format:"esm",target:"node22",logLevel:"silent"});

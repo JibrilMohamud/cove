@@ -1,0 +1,47 @@
+{
+  "schema": "cove.retired-epub-consumption-owner-lineage.v1",
+  "releaseApproval": false,
+  "productionCertified": false,
+  "sourceBefore": 10,
+  "sourceAfter": 8,
+  "sourceFile": "src/features/fore/delivery.server.ts",
+  "previousSha256": "e3505acf284c6f626c986cba0526b4f1b09c60669b2c8de80991568fe75460fd",
+  "currentSha256": "24bc4c5b0aa66a02f2d94fd27743edc8fd80922b9a037c6ac16aaa58f1af5968",
+  "retired": [
+    {
+      "siteId": "6609e4d030be30af5d9becec104af37ed350bbe8575fbfeab876944efe799038",
+      "file": "src/features/fore/delivery.server.ts",
+      "line": 832,
+      "functionName": "serveCommercialEpubGrant",
+      "table": "commercial_entitlement_delivery_usage",
+      "operation": "INSERT INTO",
+      "sqlSha256": "7e45969347bf5eec177dff0ac98748371e6534c5bf0cf0544b2e8812d3dd7036",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "delivery.serveCommercialEpubGrant",
+      "reason": "Original protected shared-D1 bearer usage mutation retired into owner-verified consumption; source identity preserved for regression audit."
+    },
+    {
+      "siteId": "d462297a6e0538fb21c9587bce2bf8e7c640ae7b8dc9827a94b15b86516da0a8",
+      "file": "src/features/fore/delivery.server.ts",
+      "line": 856,
+      "functionName": "serveCommercialEpubGrant",
+      "table": "commercial_delivery_grants",
+      "operation": "UPDATE",
+      "sqlSha256": "5fc9864b32dc3c204b4b7b65fbd74197915109c58b75c89057868a361892fdae",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "delivery.serveCommercialEpubGrant",
+      "reason": "Original protected shared-D1 bearer usage mutation retired into owner-verified consumption; source identity preserved for regression audit."
+    }
+  ],
+  "ownerCommand": "delivery.consume-epub-grant",
+  "privateRoute": "/delivery/private-consume-epub-grant",
+  "proofs": [
+    "Real shared client no longer writes the entitlement download counter or bearer uses; private authenticated QA owner handles both.",
+    "Owner revalidates strongly consistent paid scope for token's exact canonical buyer, entitlement, product, territory and channel immediately before guarded D1 mutation.",
+    "Owner checks active entitlement, matching asset/edition, market revocation, device, buyer financial risk hold, grant status/expiry/use max and active policy download allowance.",
+    "Download count and token usage use conditional D1 batch updates, and the owner refuses any non-committed or partial result. Access bytes are never sent on a refused receipt.",
+    "Production remains disabled: this is not live Stripe, paid full-schema, rights reinstatement, exclusive D1 or rollback certification."
+  ]
+}

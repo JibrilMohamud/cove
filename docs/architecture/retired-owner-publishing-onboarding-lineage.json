@@ -1,0 +1,45 @@
+{
+  "schema": "cove.owner-publishing-onboarding-lineage.v1",
+  "productionReleaseEligible": false,
+  "originalSourceSha256": "24e9ff5840c8957f26e14c21eab0d10ea978428a021d23d08fade8ed8d8e8436",
+  "updatedSourceSha256": "8687d2c1cd579bd23242cdf60e7de9a7a8467d1b99a11f0cbdb7b177a067495a",
+  "retiredCount": 4,
+  "rows": [
+    {
+      "siteId": "b338d39f6bcb37478dbc776cbc6f3025eca8c50fcced7ad0daa8ba78ce973f2c",
+      "functionName": "reviewPublishingOnboarding",
+      "line": 3358,
+      "operation": "UPDATE",
+      "table": "publishing_identity_verifications",
+      "sqlSha256": "e0334bbfd0e930c1dbcd1469d58f4db88ab3a8deaa56449ee66b97d192126fea",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "a90886f2630d5228714555bc8abaae38785609f34ba7395bcff9686c48333f9a",
+      "functionName": "reviewPublishingOnboarding",
+      "line": 3362,
+      "operation": "UPDATE",
+      "table": "publishing_accounts",
+      "sqlSha256": "b2dd01bc82dae24196ab11b1c391ffe39be4ac6e5b6e891aa3db988c368b814c",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "dd8d9c12b840ef31b6a60fcf8eaf0ad38754b65c74de61d46996cd16b013321b",
+      "functionName": "reviewPublishingOnboarding",
+      "line": 3383,
+      "operation": "UPDATE",
+      "table": "publishing_accounts",
+      "sqlSha256": "44ecd6353ca0a2d12cac55718dc5eaed358f7db965a66c3864502d50d619459e",
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "11e3999fff9c23b18c9545a4a6f931e08e47dba1910c41cb97334c05d6f575eb",
+      "functionName": "reviewPublishingOnboarding",
+      "line": 3403,
+      "operation": "UPDATE",
+      "table": "publishing_accounts",
+      "sqlSha256": "e1a5aaedc7f66264bcd192cec790701ecfaa784ffe3f0efc70288adbaaf3784c",
+      "disposition": "owner-command-required"
+    }
+  ]
+}

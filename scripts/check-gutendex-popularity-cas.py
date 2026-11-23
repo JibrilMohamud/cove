@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
-"""Execute ACTUAL SQLite statements emitted by the popularity-only source path."""
+"""Exercise exact popularity statements from the private canonical owner."""
 import re
 import sqlite3
 from pathlib import Path
 
 api=Path("src/features/fore/api.server.ts").read_text()
+owner=Path("src/storefront-strangler/legal-authority.worker.ts").read_text()
+assert 'if(route==="/catalog/observe-us")' in owner, "Expected private US observation route"
+assert "UPDATE gutenberg_source_cache\\n            SET download_count=" not in api, "Shared source popularity UPDATE reintroduced"
+assert "UPDATE catalog_search_documents\\n            SET download_count=" not in api, "Shared projection popularity UPDATE reintroduced"
 def extract(table):
     tick=chr(96)
     pattern=r"db\s*\.\s*prepare\(\s*"+re.escape(tick)+r"(UPDATE "+table+r"\s+SET\s+download_count=\?[^`]*?)"+re.escape(tick)+r"\s*,?\s*\)"
-    match=re.search(pattern,api)
+    match=re.search(pattern,owner)
     assert match is not None, "Missing source SQL: "+table
     sql=match.group(1)
     assert "{" not in sql and ";" not in sql, "Unbounded or dynamic SQL"
@@ -63,4 +67,4 @@ reset()
 db.execute("UPDATE catalog_search_documents SET updated_at='newer-catalog'")
 assert apply()==(1,0), "Canonical projection must not be overwritten on conflicting version"
 assert db.execute("SELECT download_count FROM catalog_search_documents").fetchone()[0]==10
-print("PASS: actual popularity SQL; revocation race, concurrent publication, replay and metadata guards")
+print("PASS: exact private owner popularity SQL; revocation race, publication, replay and projection guards")

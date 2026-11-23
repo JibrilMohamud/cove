@@ -2137,7 +2137,26 @@ export async function recordRecommendationEvent(
     .prepare("SELECT id FROM products WHERE id=? AND storefront_status='active'")
     .bind(x.productId)
     .first<any>();
-  if (!product) throw new ApiError(400, "Unknown storefront product.");
+  if (!product) {
+    // A user's private EPUB import is not a retail/recommendation product.
+    // Its library and completion progress must work without publishing private
+    // reading history to storefront recommendation signals. Only the owning
+    // account may take this inert path; all other unknown/inactive products
+    // still fail closed as before.
+    if (
+      userId &&
+      ["library_add", "completion", "rating", "read_progress", "read_start"].includes(x.type)
+    ) {
+      const privateOwnedImport = await db
+        .prepare(
+          "SELECT 1 ok FROM personal_imports pi JOIN products p ON p.id=pi.product_id WHERE pi.user_id=? AND p.id=? AND p.source_name='upload' AND p.storefront_status='private' LIMIT 1",
+        )
+        .bind(userId, x.productId)
+        .first<any>();
+      if (privateOwnedImport) return { recorded: false, deduplicated: false, learned: false };
+    }
+    throw new ApiError(400, "Unknown storefront product.");
+  }
   if (x.requestId || x.type === "recommendation_impression" || x.type === "recommendation_click") {
     if (!x.requestId) throw new ApiError(400, "Recommendation attribution requires a request ID.");
     const imp = await db

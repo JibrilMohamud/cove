@@ -1,0 +1,345 @@
+{
+  "schema": "cove.publishing-editor-private-qa.v1",
+  "previousFindings": 156,
+  "currentFindings": 126,
+  "retiredCount": 30,
+  "retired": [
+    {
+      "siteId": "905b55da08f01e6d073a4cefa3f6ecc5083990f68533aaacf20c04be06c42919",
+      "functionName": "upsertPublishingAccount",
+      "operation": "UPDATE",
+      "table": "publishing_accounts",
+      "sqlSha256": "d19d6e926ee71ae1dacd75babd6311bcefdf735495435d4b3a3caeee48811125"
+    },
+    {
+      "siteId": "37d8c3e24f0a25473061c3af863fd63cb805c16af640e77cf64457463adac9f6",
+      "functionName": "upsertPublishingAccount",
+      "operation": "INSERT INTO",
+      "table": "publishing_accounts",
+      "sqlSha256": "b54aaa6bed521afa61d8de8a6823a9a63639b335f2689838b59b5965946647ad"
+    },
+    {
+      "siteId": "53d9bf73b438132669808d7a4363e0aeebb68292e613f1c2783163dbf66f877d",
+      "functionName": "upsertPublishingAccount",
+      "operation": "INSERT INTO",
+      "table": "publishing_account_members",
+      "sqlSha256": "15a843976a5c17c7ec9f1c0c329fe0d0c880e62563aeee73961c8486310f9ecf"
+    },
+    {
+      "siteId": "63b8f35eca93f1a976d6fc31b2a8e80b7f2b78cab64529204bc78ff1400c4ca3",
+      "functionName": "invitePublishingMember",
+      "operation": "INSERT INTO",
+      "table": "publishing_account_members",
+      "sqlSha256": "7eba0aac66bb97f3ec941500b4bd156d043e369330826bb3970fd3b1c26ca5c6"
+    },
+    {
+      "siteId": "73df7a2f6b322c1fd157047084c786a7e967cca47c6a891ba9ae8eaa630987ca",
+      "functionName": "startIdentityVerification",
+      "operation": "INSERT INTO",
+      "table": "publishing_identity_verifications",
+      "sqlSha256": "824e5e6d2ddd5b697937499aca6547e1d5bbe31ae39b6449fa084d97a44fe586"
+    },
+    {
+      "siteId": "fde040c651640e1e63395a547eedba2c53d2c40b1f19808267e7813c5dc366ed",
+      "functionName": "startIdentityVerification",
+      "operation": "UPDATE",
+      "table": "publishing_accounts",
+      "sqlSha256": "419d1010fc68a2f5d09e6d95ba6a2afa05d3b8786ebf0e03166db09549654357"
+    },
+    {
+      "siteId": "e04d25b626fc53ad0bfa5a211ba346ce3e396a58d1854587f041181397f0c26d",
+      "functionName": "submitTaxProfile",
+      "operation": "UPDATE",
+      "table": "publishing_accounts",
+      "sqlSha256": "265ba6c6ff61387a5b30a2b3644bd6eab18f5a1745b6d992f9a7589e898f7be5"
+    },
+    {
+      "siteId": "65ac51fbf8b6adaef0133b2c2213279171cceddf3a473afad45b026e56106bf1",
+      "functionName": "submitPayoutAccount",
+      "operation": "UPDATE",
+      "table": "publishing_accounts",
+      "sqlSha256": "b754d10f51de282c630cae704ab6d971418822eb556b664a3e83dd12daa6d129"
+    },
+    {
+      "siteId": "6561eff078e64084a752929e871739718ee3511525a605ac6ddf95d6c2f7b7fd",
+      "functionName": "savePublishingTitle",
+      "operation": "INSERT INTO",
+      "table": "publishing_titles",
+      "sqlSha256": "eed3f703deee6e5e1d10bc9f93a4970b6b15ade5a932367764e996fcf9368de8"
+    },
+    {
+      "siteId": "86186aefea48ef6eb31a4e863d3c51963ef4bdf227309038337e959f97701063",
+      "functionName": "savePublishingEdition",
+      "operation": "INSERT INTO",
+      "table": "publishing_edition_drafts",
+      "sqlSha256": "e7839131e879b885c72e22828bef10a81f36ef34d8089352f8acb495c27ff13d"
+    },
+    {
+      "siteId": "e2f59a5fb722a197be1a4b50171606b6ca01f28b77461a56e7c69ef70cc8f3e9",
+      "functionName": "uploadPublishingAsset",
+      "operation": "INSERT INTO",
+      "table": "publishing_assets",
+      "sqlSha256": "7b4fd872adb60a354835f72513616a3dc9dbd10e61a6513d25d1ab6eaf4310e5"
+    },
+    {
+      "siteId": "213e26f44fd5ed87c15af70ad33f122c96f8306a73cf26f8b7ada0eacd362e80",
+      "functionName": "uploadPublishingAsset",
+      "operation": "INSERT INTO",
+      "table": "publishing_asset_versions",
+      "sqlSha256": "ceb2248fb3cd859ef8c06470ee679b2970fb6d02242620f4b91afa0c24dfa18e"
+    },
+    {
+      "siteId": "69e93291d9cfd8840d27d6ddca0298e504b149e65181fe3e508411cd9a21ec3d",
+      "functionName": "uploadPublishingAsset",
+      "operation": "UPDATE",
+      "table": "publishing_assets",
+      "sqlSha256": "81ffe527b373dcaff5c75c2b5006b238f6e96b2ebccf104ccd3663f02d1bac19"
+    },
+    {
+      "siteId": "e9f1d21ad0f40e42d4b59cea99e30323217833744be61a14f5c7d41760fbdf9d",
+      "functionName": "uploadPublishingAsset",
+      "operation": "INSERT INTO",
+      "table": "publishing_validation_jobs",
+      "sqlSha256": "f882fa4302a4e1b1241878082e8b06d2722df3f2819cf161782f640e37956dfb"
+    },
+    {
+      "siteId": "968137e1039ac4a61598a1063d6e34653e8613879ae4bcbc79372508575aa2ae",
+      "functionName": "signPublishingAccessibilityDeclaration",
+      "operation": "INSERT INTO",
+      "table": "publishing_accessibility_declarations",
+      "sqlSha256": "b54b88082576948a96099382bb65d120528d9aeb6ee4d84212d699705215e2c0"
+    },
+    {
+      "siteId": "b6dd1264528464d5a4ebcea056c623c175a8535d67545df6d28b114d8d9fcc72",
+      "functionName": "submitPublishingEdition",
+      "operation": "INSERT INTO",
+      "table": "publishing_submission_snapshots",
+      "sqlSha256": "d610ab76b3efeb8b7e046fb0d7764ac8e1cef4a185565af46803bb34991f7bc1"
+    },
+    {
+      "siteId": "53dd0b8472d1e0c058c8688994129785853daa3164f766248fa8129ff28e2b7f",
+      "functionName": "submitPublishingEdition",
+      "operation": "UPDATE",
+      "table": "publishing_edition_drafts",
+      "sqlSha256": "ddb91d0efb2a8706b82a245cebe0a19636146dc167ff82da7777eabc38a217c8"
+    },
+    {
+      "siteId": "71162be7351eff573db28f769c44ac08cb84e74547e237fd39545b8c769fb530",
+      "functionName": "submitPublishingEdition",
+      "operation": "UPDATE",
+      "table": "publishing_titles",
+      "sqlSha256": "3129401c8a5a125f2caca2eb8a5253a46d07358039553a8e50f193c1bb97a85f"
+    },
+    {
+      "siteId": "05f78d9ebe00c893e84496eb077e5acda9aa6566d4566e0ec694d91c8f4b5fb5",
+      "functionName": "submitPublishingEdition",
+      "operation": "INSERT INTO",
+      "table": "publishing_outbox",
+      "sqlSha256": "d1b469697a53ad6854acea25582d3b9efe8bda639883cc588d9c0bcdbed01b37"
+    },
+    {
+      "siteId": "745425e5028cfc0f6cd9716746b73c477f5677d94744b0ffbfe21ce3f83e5f20",
+      "functionName": "submitPublishingEdition",
+      "operation": "INSERT INTO",
+      "table": "commercial_audio_submission_snapshots",
+      "sqlSha256": "9a3f9c3424df5aeb918018648e3da2632c53d3adf5185e0703aa4a31404abd69"
+    },
+    {
+      "siteId": "2aad27809d1d3516c74a60c67ebec61d8a09462e7b1356387d945776424c77f6",
+      "functionName": "submitPublishingEdition",
+      "operation": "UPDATE",
+      "table": "publishing_submission_snapshots",
+      "sqlSha256": "04c1c9198a8ca8e14b7f9cbc17c91a7c950b50149af742a7263993401c45fc71"
+    },
+    {
+      "siteId": "72d025bb5fc03c22e3d262978efd6d57fdd5e330a68bab5d391e3f59d562bda6",
+      "functionName": "submitPublishingEdition",
+      "operation": "UPDATE",
+      "table": "publishing_edition_drafts",
+      "sqlSha256": "83b0cf003f4e1217ce8829cacaae630fb6daa235e0cac22caba46d941a392081"
+    },
+    {
+      "siteId": "5a708a3677c860517a1a24b1578265eac5a785ace0156f3e48d811543d605fcc",
+      "functionName": "submitPublishingEdition",
+      "operation": "UPDATE",
+      "table": "publishing_submission_snapshots",
+      "sqlSha256": "8ba2a0a1a6418fd071099c8259b19893e9c32a00e89de00fbd8185f04b9ebac9"
+    },
+    {
+      "siteId": "837e7d5bd5b5a85d9dadce837ed3fa527f941f88130cdc011010bb16eb1e7bcd",
+      "functionName": "openPublishingRevision",
+      "operation": "UPDATE",
+      "table": "publishing_submission_snapshots",
+      "sqlSha256": "7624ce080ab2b68071e10ad1caca8beadd1316e7d9f22b643af988772a98d270"
+    },
+    {
+      "siteId": "976a6a24365ef88f6a223401a13c3cc93790fb67cdd65af9d942886700b41634",
+      "functionName": "openPublishingRevision",
+      "operation": "UPDATE",
+      "table": "publishing_edition_drafts",
+      "sqlSha256": "b919f8360a39e40a420bf3958a9cd264e1a0fbce929001032b090a7b34286bc7"
+    },
+    {
+      "siteId": "d0ff70bf09e7469b843c21d66fb279e5c6de5878328dc35ec1bc79a380158306",
+      "functionName": "setPublishingUpdatePolicy",
+      "operation": "UPDATE",
+      "table": "publishing_release_lifecycles",
+      "sqlSha256": "27b47f32bb386dac53efda79595fdc5aa1a365c8ac213083527f1fbf5be0b011"
+    },
+    {
+      "siteId": "b541c35ad72a13be3df73c8904eb0563e4a510584ab0936ba0260f25453d5397",
+      "functionName": "setPublishingUpdatePolicy",
+      "operation": "INSERT INTO",
+      "table": "publishing_entitlement_version_pins",
+      "sqlSha256": "98a2b7eb338c8fe7db15d567311d2375e6d7e10446039ebd6ff688a40f839b5c"
+    },
+    {
+      "siteId": "6eeb2a2612c5c95236a6ab21bc8b4a014e7412cbe2559be4c7d08d85c90ff036",
+      "functionName": "optInOwnedPublicationUpdate",
+      "operation": "INSERT INTO",
+      "table": "publishing_entitlement_version_pins",
+      "sqlSha256": "6719193bd1032497077de1facddded1687d35ab241216d9b292ba5a9050ecc5e"
+    },
+    {
+      "siteId": "07afa155332a60583c4149d813961cc925598b061ec98009568804b10e024e3f",
+      "functionName": "reviewPublishingSubmission",
+      "operation": "UPDATE",
+      "table": "publishing_submission_snapshots",
+      "sqlSha256": "bdc794f6c1bd4af85d53f7597d3e8a1cfaec0c6d7642d9d1295cfd10630e7e36"
+    },
+    {
+      "siteId": "51cb9d1f6aefb21a53508528ef11e8e5ddbffabfb676850491af364ae932ef46",
+      "functionName": "reviewPublishingSubmission",
+      "operation": "UPDATE",
+      "table": "publishing_edition_drafts",
+      "sqlSha256": "5a333bc6228a1a7c3b11ee6d0006aba05f7bcc6dd540241a753b181cdf026f06"
+    }
+  ],
+  "productionEnabled": false,
+  "notes": [
+    "Positive publishing submission, asset writes and paid version updates fail closed",
+    "Owner checks staff role separately; publisher user JWT not yet independently verified",
+    "QA private owner only; no production entitlement or rollback certification",
+    "10 unchanged authorizing writer SQL hashes reattested to new line-derived site IDs"
+  ],
+  "unchangedOwnerRequiredRebased": [
+    {
+      "table": "publishing_publication_activations",
+      "functionName": "recordPublicationActivation",
+      "operation": "INSERT INTO",
+      "sqlSha256": "594ecf16be49273ed2fc5046fe2595f5d85263a41dcd764effe84b025826ff3b",
+      "previousId": "0683df72cd1f0c4bfe9b25e7f52d13702b81556e0456f736eb4e98a6c2dfdf76",
+      "currentId": "e8309de4895826ce2689fe0c05da2cf0d10e229c144b79d76a164aae0f64a8f6",
+      "previousLine": 72,
+      "currentLine": 73
+    },
+    {
+      "table": "publishing_release_lifecycles",
+      "functionName": "ensurePublishingLifecycle",
+      "operation": "INSERT INTO",
+      "sqlSha256": "4dc14c878f563e05efa40893cce32890c84bbc36f9a08d2d0fdb88a979f348d1",
+      "previousId": "edde75ec5a5386204277fa10cf8c5c65e654232b24c0e97b40d0be0522ab6350",
+      "currentId": "6a210d17aa25a443db68dbde532a3a0cdd3f9432f28debe071ce980ad3d5cf1a",
+      "previousLine": 206,
+      "currentLine": 207
+    },
+    {
+      "table": "publishing_lifecycle_events",
+      "functionName": "ensurePublishingLifecycle",
+      "operation": "INSERT INTO",
+      "sqlSha256": "723e461d8eace2212c798c877794e79ed898b715d0ac318c35160b7b525de3f8",
+      "previousId": "ac7911adb038e0da4e379cbc682f3a8a5d153fc136f9daf1fae96539df0d669c",
+      "currentId": "dae6e70e156eab258d4fc7c496a5c20a67b86149106b35c03402029784fc13be",
+      "previousLine": 219,
+      "currentLine": 220
+    },
+    {
+      "table": "publishing_release_lifecycles",
+      "functionName": "transitionPublishingLifecycle",
+      "operation": "UPDATE",
+      "sqlSha256": "de990d6154f41595b464aadce0004a2021a30a968f71ea9d94af9ecfe2090b4a",
+      "previousId": "ea4d2fd8be835c03a3b25cbbfd0701a5fcb45b5e62a4e8067e03c4110f3e008c",
+      "currentId": "1be8f11f54eeda8664fa4a707e78ef0b0a1467e37c2f133fd22209f560683b16",
+      "previousLine": 324,
+      "currentLine": 325
+    },
+    {
+      "table": "publishing_lifecycle_events",
+      "functionName": "transitionPublishingLifecycle",
+      "operation": "INSERT INTO",
+      "sqlSha256": "18c3366b2817e58d6d1165c3ede851af7f239923e9cd860bc1ae1433072bcac3",
+      "previousId": "6e91dafe2d032f5d67d437c188fa0d7b1d5ec5d47feb219a4c2ad7a3d321023b",
+      "currentId": "a07ae5910e667a4fa409548e105e0baee28dcb5ba08998b8a5017411690fe666",
+      "previousLine": 335,
+      "currentLine": 336
+    },
+    {
+      "table": "publishing_validation_jobs",
+      "functionName": "recordInlineResult",
+      "operation": "UPDATE",
+      "sqlSha256": "40d58a0985136c7ec0a25a76472f40e67315e29fd53a2caeba4d69eef1b0dca2",
+      "previousId": "de121cab731bdc958241d0ef8d114b91f0b2dfd0b32bbb51b2329b13755167d3",
+      "currentId": "293a9f0f650dc0ce149b6d9bb1a9b9a44c476d519cb177379d82f78fa23171d6",
+      "previousLine": 1583,
+      "currentLine": 1584
+    },
+    {
+      "table": "publishing_validation_results",
+      "functionName": "recordInlineResult",
+      "operation": "INSERT INTO",
+      "sqlSha256": "1ed9afbbd757ae266ba3eed9e895e14d238dca29cf47055570480b40633d9487",
+      "previousId": "535add4d87cf3e8e8036780a74dc7a1f1fe9525b3e03850e621a2ae1943a6cc3",
+      "currentId": "1678e0fa6b992922a5b1b65c6ab5d63ebbff56a08028089a7d877097af254e68",
+      "previousLine": 1595,
+      "currentLine": 1596
+    },
+    {
+      "table": "publishing_asset_versions",
+      "functionName": "refreshAssetValidationSummary",
+      "operation": "UPDATE",
+      "sqlSha256": "f4ed8608fcec1b305c87b7d37f89959284d93adbd0291964aade50c228035c1b",
+      "previousId": "e0e8c5abc148d69abb37c90cf486573bd00b64f0bad2d8e5445565b4e1c3b0dc",
+      "currentId": "0918ce11f40a8070dd3c58ff754807bedd8b19e2296c464663932b021f291ac2",
+      "previousLine": 1633,
+      "currentLine": 1634
+    },
+    {
+      "table": "finance_parties",
+      "functionName": "ensureCatalogParties",
+      "operation": "INSERT INTO",
+      "sqlSha256": "0b9d26d746e37e0ee8800e03808f923aff74ebc094493266e113170a0f664ef2",
+      "previousId": "db05ee42287c38c664ab5ace3c7e0b6126bf04036268f63541003d3c7accdd35",
+      "currentId": "2a59bcf1b0a77b93195338c810ffdaefb69c43d32e1a0efaf2ae3b8f63bb3179",
+      "previousLine": 3000,
+      "currentLine": 2869
+    },
+    {
+      "table": "publishing_accounts",
+      "functionName": "ensureCatalogParties",
+      "operation": "UPDATE",
+      "sqlSha256": "225b6abeb9abcbc30130297613e248eb2f106d45dc88524899c753760c283fe9",
+      "previousId": "f89ad4aea482cc97496a1870df3e91ee1e0200a7b35e46930fc8cfe3958027a6",
+      "currentId": "d12abe9354048b9170f817bc0602396c152a4ea8ff6f50064f9b80e652e0c96a",
+      "previousLine": 3016,
+      "currentLine": 2885
+    }
+  ],
+  "preservedSourceLines": false,
+  "retiredNonAuthorizingHistory": [
+    {
+      "siteId": "791b3761f74d3f6dd6c3d263281d8f83c2265e19d022f63fd6e33ccf39194e0e",
+      "sqlSha256": "25b281acc8fe039350c330745631b408a0af713162574b15de1657296c47bde9",
+      "functionName": "setPublishingUpdatePolicy",
+      "disposition": "non-authorizing-write",
+      "reason": "This exact action-qualified history INSERT (policy_pin or owner_opt_in) follows a separate canonical publishing_entitlement_version_pins write. Its static SQL cannot grant a version, reinstate an entitlement, alter legal authority or satisfy the preorder grant_pin-only idempotency predicate. scripts/check-nonauthorizing-owner-version-history.mjs executes both exact statements against revoked entitlement and pinned-version fixtures, scans all production history reads and protects the grant_pin authorizing writers. The separate version-pin mutations remain owner-command-required."
+    },
+    {
+      "siteId": "ec12b41770d79b883df1b625961a24d02b62c56552a217063d884860a62695b1",
+      "sqlSha256": "062ffaaa58cfbd5ff706723f03080363cc3e292ce7f3cc1812eb79596657b402",
+      "functionName": "optInOwnedPublicationUpdate",
+      "disposition": "non-authorizing-write",
+      "reason": "This exact action-qualified history INSERT (policy_pin or owner_opt_in) follows a separate canonical publishing_entitlement_version_pins write. Its static SQL cannot grant a version, reinstate an entitlement, alter legal authority or satisfy the preorder grant_pin-only idempotency predicate. scripts/check-nonauthorizing-owner-version-history.mjs executes both exact statements against revoked entitlement and pinned-version fixtures, scans all production history reads and protects the grant_pin authorizing writers. The separate version-pin mutations remain owner-command-required."
+    }
+  ],
+  "currentSourceSha256": "73e475c7dfcbe4cbf0416b36541c7c2587fbee5526eb81a13cc2edd442889dfb"
+}

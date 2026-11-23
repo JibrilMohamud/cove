@@ -4,9 +4,11 @@ import os from "node:os";
 import path from "node:path";
 import { build } from "esbuild";
 import { localBindings } from "./local-api.mjs";
+import { loadAccountOwnerTestClient } from "./test-private-account-client.mjs";
 
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "cove-sharing-erasure-"));
 const originalFetch = globalThis.fetch;
+let accountOwnerClient;
 try {
   fs.cpSync("drizzle", path.join(scratch, "drizzle"), { recursive: true });
   await build({
@@ -34,7 +36,12 @@ try {
   });
   const api = await import(path.join(scratch, "api.server.mjs"));
   const social = await import(path.join(scratch, "social.server.mjs"));
-  const account = await import(path.join(scratch, "account-management.server.mjs"));
+  const publicAccount = await import(path.join(scratch, "account-management.server.mjs"));
+  accountOwnerClient = await loadAccountOwnerTestClient(scratch);
+  const account = {
+    ...publicAccount,
+    processAccountDeletionQueue: accountOwnerClient.processAccountDeletionQueue,
+  };
   const erasure = await import(path.join(scratch, "account-erasure.server.mjs"));
   const bridge = await import(path.join(scratch, "bridge.mjs"));
   const catalog = await import(path.join(scratch, "catalog-model.server.mjs"));
@@ -842,5 +849,6 @@ try {
   );
 } finally {
   globalThis.fetch = originalFetch;
+  accountOwnerClient?.close();
   fs.rmSync(scratch, { recursive: true, force: true });
 }

@@ -1,0 +1,98 @@
+{
+  "schema": "cove.owner-publishing-worker-queues-lineage.v1",
+  "releaseApproval": false,
+  "retiredCount": 9,
+  "files": [
+    {
+      "path": "src/features/fore/publishing.server.ts",
+      "sha256": "8687d2c1cd579bd23242cdf60e7de9a7a8467d1b99a11f0cbdb7b177a067495a"
+    },
+    {
+      "path": "src/features/fore/publishing-trust.server.ts",
+      "sha256": "005a41726dda1ec55d44b468aff3a54744190af8ea3dd587ae111cdeaba26595"
+    }
+  ],
+  "rows": [
+    {
+      "siteId": "223043b7182ee67ee074edb9ef28a095dc65f38a4848a5d7617bac645b24d879",
+      "table": "publishing_rights_evidence_scan_jobs",
+      "operation": "UPDATE",
+      "functionName": "leaseRightsEvidenceScanJobs",
+      "sqlSha256": "21630d8b9e8f57ced16f6b44dc78a41ace04efad280c7352d7d46cffb9d1b34e",
+      "line": 2235,
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "72d4c84d90f927640c1f8f1778e9632d112338a45d6de23ec58ad1998e40e073",
+      "table": "publishing_rights_evidence_scan_jobs",
+      "operation": "UPDATE",
+      "functionName": "leaseRightsEvidenceScanJobs",
+      "sqlSha256": "41bb5b3ee5b7654455bcdf1e152f847c9cd038ecee91d93bff175426de2981e7",
+      "line": 2250,
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "d8defd347981e66ef47502a152bfc85402c9fbd92b37af018937e34a1655811a",
+      "table": "publishing_rights_evidence_scan_jobs",
+      "operation": "UPDATE",
+      "functionName": "completeRightsEvidenceScanJob",
+      "sqlSha256": "f22c63ebea0910df70bfcadf6d20d6d00c983870d6ee9eed61cd1be3b2fe34dd",
+      "line": 2278,
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "0f106d194e11b7f71cc5cfd627f3b1a1f5b5bfd880c33bf3c778d3d28aa064f0",
+      "table": "publishing_rights_evidence",
+      "operation": "UPDATE",
+      "functionName": "completeRightsEvidenceScanJob",
+      "sqlSha256": "c977d0173d497f63db972a7f65d02ab26034188e4bf5c766d7a76e018dad6a36",
+      "line": 2282,
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "7240e7a301d6c5c9de21b7f0c0b9e6d2300770125a75bfb6a51bffa603834377",
+      "table": "publishing_validation_jobs",
+      "operation": "UPDATE",
+      "functionName": "leasePublishingValidationJobs",
+      "sqlSha256": "4bb8a561aa3f2bd2f6ec3f4ecbdf3948a1025f0128d606e3002c66d7d1b0749a",
+      "line": 2046,
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "a864de735632426ee4b89264e40c20e4b725836d79e1894089987182fb8d48da",
+      "table": "publishing_validation_jobs",
+      "operation": "UPDATE",
+      "functionName": "leasePublishingValidationJobs",
+      "sqlSha256": "ad000604359104660b04c3e47a5d016c5e1914a694a6db7eff3107cb304ffef5",
+      "line": 2051,
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "dc5aa6a7587bfbdeed9dcb408f6cbc17c6c5ab59b52de0193081e0c9a26b5741",
+      "table": "publishing_validation_jobs",
+      "operation": "UPDATE",
+      "functionName": "leasePublishingValidationJobs",
+      "sqlSha256": "8291b442cceeacf9ad2ab7938a0fbc9240a9d9e70af037a6e2ecccec4d256a4b",
+      "line": 2066,
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "91e33225832a9f7e4e0e7e41f7f5d3560ab371fd281b19a6ce874e3c136aca7e",
+      "table": "publishing_validation_jobs",
+      "operation": "UPDATE",
+      "functionName": "completePublishingValidationJob",
+      "sqlSha256": "a890724a8671e182406fd24024198cad421bb82c800053f538d74cb8fa8c0dd3",
+      "line": 2123,
+      "disposition": "owner-command-required"
+    },
+    {
+      "siteId": "3b88d614462646035b6c5342b482060a74357e737681fe119cf84b73389de52c",
+      "table": "publishing_validation_results",
+      "operation": "INSERT INTO",
+      "functionName": "completePublishingValidationJob",
+      "sqlSha256": "132b689c141ffbcfb767ff861835a527b15b8b70079874e885a268bf5797917f",
+      "line": 2135,
+      "disposition": "owner-command-required"
+    }
+  ]
+}
