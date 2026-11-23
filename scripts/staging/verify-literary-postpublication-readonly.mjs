@@ -43,9 +43,7 @@ async function querySerial(database, sql) {
       } catch {}
       const seconds = Number(response.headers.get("retry-after"));
       const providerWait =
-        Number.isFinite(seconds) && seconds >= 0
-          ? Math.min(30000, Math.ceil(seconds * 1000))
-          : 0;
+        Number.isFinite(seconds) && seconds >= 0 ? Math.min(30000, Math.ceil(seconds * 1000)) : 0;
       await sleep(Math.max(2500 * 2 ** index, providerWait));
       continue;
     }
@@ -65,7 +63,10 @@ async function querySerial(database, sql) {
 }
 function query(database, sql) {
   const run = queryTail.then(() => querySerial(database, sql));
-  queryTail = run.then(() => undefined, () => undefined);
+  queryTail = run.then(
+    () => undefined,
+    () => undefined,
+  );
   return run;
 }
 const [owner, published, frontier, cutover] = await Promise.all([
