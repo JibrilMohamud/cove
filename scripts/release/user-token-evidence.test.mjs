@@ -269,17 +269,17 @@ test("filtered name catalog counts only matches, never demands provider global t
   assert.equal(t.lookups.length, 2);
 });
 test("a WRITE ID, unknown ID, or unrelated alias cannot be declared read-only", async () => {
-  for (const group of [
-    { id: WRITE_SPOOF.id, name: "Workers Scripts" },
-    { id: "f".repeat(32), name: "Workers KV Storage" },
-    { id: ADDITIONAL_READ.id, name: "Unrelated Capability" },
+  for (const [group, detail] of [
+    [{ id: WRITE_SPOOF.id, name: "Workers Scripts" }, "read_group_catalog_shape_invalid"],
+    [{ id: "f".repeat(32), name: "Workers KV Storage" }, "read_group_alias_identifier_mismatch_unrecognized"],
+    [{ id: ADDITIONAL_READ.id, name: "Unrelated Capability" }, "read_group_alias_identifier_mismatch_unrecognized"],
   ]) {
     const t = catalogTransport([group]);
     const evidence = await inspectUserTokenEvidence(t.get, USER_TOKEN);
     assert.deepEqual(evidence, {
       verified: false,
       reason: "active_user_token_permission_unreviewed",
-      detail: "read_group_alias_identifier_mismatch_unrecognized",
+      detail,
     });
   }
 });
