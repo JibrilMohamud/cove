@@ -1,0 +1,124 @@
+name: cove-protected-bulk-certification
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/cove-protected-bulk-certification.yml"
+  # One protected, single-approval batch for the merged integration.
+  # Push on main triggers only when THIS orchestration file is introduced/changed.
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/cove-protected-bulk-certification.yml"
+  workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        description: "Exact reviewed main commit; any source drift refuses all dispatches."
+        required: true
+        type: string
+      confirm_protected_batch:
+        description: "Approve only isolated QA and READ-ONLY production audits; no live cutover."
+        type: boolean
+        required: true
+        default: false
+permissions:
+  contents: read
+  actions: write
+concurrency:
+  group: cove-protected-bulk-certification
+  cancel-in-progress: false
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Verify existing production hold, legal owner and hourly BioSync continuity
+        run: |
+          node scripts/release/check-production-cron-continuity.mjs --self-test
+          node scripts/check-canonical-writer-closure.mjs --no-new-writers
+          node scripts/check-locked-production-legal-owner.mjs
+          node scripts/check-biosync-hosted-owner-config.mjs
+          git diff --check
+  protected-bulk-dispatch:
+    needs: [contract]
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' ||
+        (github.event_name == 'workflow_dispatch' &&
+         inputs.confirm_protected_batch == true &&
+         inputs.reviewed_main_sha == github.sha))
+    environment: cove-production-release-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: JibrilMohamud/cove
+      REVIEWED_SHA: ${{ inputs.reviewed_main_sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Require exact approved main and refuse untrusted events
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "JibrilMohamud/cove"
+          test "$GITHUB_REF" = "refs/heads/main"
+          [[ "$GITHUB_EVENT_NAME" = "push" || "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]]
+          [[ "$REVIEWED_SHA" =~ ^[a-f0-9]{40}$ ]]
+          test "$GITHUB_SHA" = "$REVIEWED_SHA"
+          test "$(git rev-parse HEAD)" = "$REVIEWED_SHA"
+          test -n "$GH_TOKEN"
+      - name: Dispatch the complete protected QA + readonly certification batch
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/release-batch
+          dispatch() {
+            local workflow="$1"
+            shift
+            echo "Requesting protected workflow: $workflow"
+            gh workflow run "$workflow" --ref main "$@"
+            printf "%s\n" "$workflow" >> artifacts/release-batch/accepted.txt
+          }
+          # Synthetic operations are in isolated QA only, with exact existing guards.
+          dispatch paid-legal-full-schema-private-qa.yml \
+            -f "reviewed_main_sha=$REVIEWED_SHA" -f confirm_isolated_qa=true -f confirm_owner_state_rollback=true
+          dispatch cove-biosync-owner-cutover-offline.yml \
+            -f "reviewed_main_sha=$REVIEWED_SHA" -f confirm_isolated_biosync_qa=true -f confirm_hosted_owner_write=true
+          dispatch cove-stage-protected-worker-rollback.yml \
+            -f "reviewed_main_sha=$REVIEWED_SHA" -f confirm_isolated_worker_rehearsal=true
+          dispatch strangler-hosted-capacity-evaluation.yml \
+            -f "reviewed_main_sha=$REVIEWED_SHA" -f confirm_protected_cloudflare_action=true
+          # These are production SELECT/metadata audits only; never mutate rights or D1.
+          dispatch cove-exclusive-primary-d1-writer-audit.yml \
+            -f "reviewed_main_sha=$REVIEWED_SHA" -f confirm_readonly_physical_audit=true
+          dispatch cove-protected-full-primary-historical-rights.yml \
+            -f "reviewed_main_sha=$REVIEWED_SHA" -f confirm_historical_readonly=true
+          dispatch cove-protected-primary-grant-event-replay.yml \
+            -f "reviewed_main_sha=$REVIEWED_SHA" -f confirm_select_only_replay=true
+          dispatch cove-protected-external-source-withdrawal-audit.yml \
+            -f "reviewed_main_sha=$REVIEWED_SHA" -f confirm_external_source_readonly=true
+          dispatch cove-protected-user-token-readonly.yml \
+            -f "reviewed_main_sha=$REVIEWED_SHA" -f confirm_user_token_metadata_only=true
+          dispatch cove-protected-stage-canonical-rights-differential.yml \
+            -f "reviewed_main_sha=$REVIEWED_SHA" -f confirm=STAGE_RIGHTS_DIFF
+          dispatch cove-protected-real-rights-spot-readonly.yml -f confirm=RIGHTS_SPOT_AUDIT
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cove-release-batch-dispatch-${{ github.sha }}
+          path: artifacts/release-batch/accepted.txt
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Preserve strict NO-GO until all child proof results are independently accepted
+        if: always()
+        shell: bash
+        run: |
+          echo "Dispatching a child is NOT proof of its success. This batch cannot enable the legal owner, Stripe LIVE sales, production D1 cutover, release domains, or credential retirement." >> "$GITHUB_STEP_SUMMARY"
