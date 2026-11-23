@@ -10,6 +10,7 @@ import {enrollOwnerSqlMutationJournal,readOwnerSqlMutationJournal} from "./owner
 import {issueQaOwnerPositiveGenerationCertificate,QA_POSITIVE_CERTIFICATE_PATH,
   type QAOwnerPrimaryDB} from "./qa-owner-positive-certificate-issuer.stage";
 import { DurableObject } from "cloudflare:workers";
+import { QA_OWNER_PRIMARY_READ_ROUTE, serveQaOwnerPrimaryRead } from "./qa-owner-primary-read-transport.mjs";
 import {DISABLED_OWNER_ATTEST_ROUTE,PRODUCTION_OWNER_OBJECT,isDisabledProductionOwner,validOwnerChallenge,disabledOwnerReceipt} from "./production-disabled-owner-attestation";
 import {publishVerifiedPaidOrderAtomic,type VerifiedPaidOrderLine} from "./paid-order-atomic-publication";
 import {executeOwnerRefundAccounting} from "./refund-accounting-owner-executor";
@@ -3984,6 +3985,15 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       return new Response(null,{status:401,headers:noStore});
     if(request.method!=="POST") return new Response(null,{status:405,headers:noStore});
     const route=new URL(request.url).pathname;
+    // QA-only SELECT transport. Production disabled owner, absent or expired
+    // lease and dedicated BioSync fixture continue to reject this route.
+    // No production enrollment/positive legal authorization occurs here.
+    if(route===QA_OWNER_PRIMARY_READ_ROUTE){
+      if(env.COVE_RIGHTS_OWNER_PRIMARY_ID===BIOSYNC_QA_PRIMARY)
+        return new Response(null,{status:404,headers:noStore});
+      return serveQaOwnerPrimaryRead(request,env.PRIMARY_DB,
+        env.COVE_RIGHTS_OWNER_SECRET!,qaOwnerLeaseLive(env));
+    }
     if(env.COVE_RIGHTS_OWNER_PRIMARY_ID===BIOSYNC_QA_PRIMARY &&
        route!=="/biosync/publish-checked")
       return new Response(null,{status:404,headers:noStore});
@@ -5821,6 +5831,16 @@ export default {
       if(request.headers.get("authorization")!=="Bearer "+env.COVE_RIGHTS_OWNER_SECRET)
         return new Response(null,{status:401,headers:{"cache-control":"no-store"}});
       return env.LEGAL_AUTHORITY.getByName(PRODUCTION_OWNER_OBJECT).fetch(request);
+    }
+    // The QA read surface is private, separately leased, and explicitly
+    // unavailable on disabled production or the dedicated BioSync owner.
+    if(new URL(request.url).pathname===QA_OWNER_PRIMARY_READ_ROUTE){
+      if(!qaOwnerLeaseLive(env)||!env.LEGAL_AUTHORITY?.getByName||
+         env.COVE_RIGHTS_OWNER_PRIMARY_ID===BIOSYNC_QA_PRIMARY)
+        return new Response(null,{status:503,headers:{"cache-control":"no-store"}});
+      if(request.headers.get("authorization")!=="Bearer "+env.COVE_RIGHTS_OWNER_SECRET)
+        return new Response(null,{status:401,headers:{"cache-control":"no-store"}});
+      return env.LEGAL_AUTHORITY.getByName("cove-staged-legal-global-v1").fetch(request);
     }
     if(!qaOwnerLeaseLive(env) || !env.LEGAL_AUTHORITY?.getByName)
       return new Response(null,{status:503,headers:{"cache-control":"no-store"}});
