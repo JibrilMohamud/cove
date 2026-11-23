@@ -1,7 +1,12 @@
 import type { CoveEnv } from "./api.server";
 import { rateLimitSearchRequest } from "./api.server";
 import { ApiError, json } from "./service";
-import { recordCachedSearchQuery, cachedCatalogPageAllowed } from "./search.server";
+import {
+  recordCachedSearchQuery,
+  cachedCatalogPageAllowed,
+  canDeferGuestCatalogFacets,
+  parseSearchInput,
+} from "./search.server";
 import { writeCatalogCache } from "./catalog-cache.server";
 
 type Context = { waitUntil?: (work: Promise<unknown>) => void };
@@ -147,11 +152,27 @@ export async function cachedPublicApi(
   handler: Handler,
 ) {
   const cacheStarted = performance.now();
-  if (!publicCacheEligible(request)) {
+  const cacheEligible = publicCacheEligible(request);
+  const path = new URL(request.url).pathname;
+  let independentPresentation = false;
+  if (cacheEligible && path === "/api/fore/catalog" && ctx.waitUntil) {
+    try {
+      independentPresentation = canDeferGuestCatalogFacets(
+        env,
+        parseSearchInput(new URL(request.url)),
+        null,
+      );
+    } catch {
+      // Invalid searches retain the ordinary handler's validation and denial.
+    }
+  }
+  // The opt-in R2 catalog always selects current primary-rights books. Its
+  // outer cache must not reintroduce primary-D1 cache reads and three-statement
+  // prune/upsert transactions after every completed public response.
+  if (!cacheEligible || independentPresentation) {
     const response = await handler(request, env);
     return response ? decorate(response, "BYPASS") : null;
   }
-  const path = new URL(request.url).pathname;
   const key = publicCacheKey(cacheRequest, env.FORE_DEFAULT_TERRITORY || "US");
   const digest = [
     ...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(key.url))),
@@ -351,6 +372,8 @@ export async function cachedPublicApi(
     // display-only aggregation is refreshing. Never cache this temporary
     // empty-count shell for the normal 30-minute public API TTL.
     if (path === "/api/fore/taxonomy" && data.countsPending === true) return;
+    if (path === "/api/fore/catalog" && (data.facetsPending === true || data.countPending === true))
+      return;
     // A query UUID and request diagnostics belong to one request, never the shared cache.
     if (data.search && typeof data.search === "object" && "queryId" in data.search)
       data.search.queryId = null;

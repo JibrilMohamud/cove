@@ -135,7 +135,9 @@ import {
 import JSZip from "jszip";
 import seed from "./catalog-seed.json";
 import type { CatalogBook } from "./client";
+import type { PresentationR2Bucket } from "./search-presentation-r2.server";
 import {
+  canDeferGuestCatalogFacets,
   firstPaintStorefrontShelf,
   parseSearchInput,
   recordSearchClick,
@@ -505,6 +507,8 @@ type Statement = {
 export type CoveEnv = {
   AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
   DB: { prepare(sql: string): Statement; batch(s: Statement[]): Promise<unknown> };
+  FORE_ASYNC_CATALOG_FACETS?: string;
+  COVE_PUBLIC_PRESENTATION_CACHE?: PresentationR2Bucket;
   // Optional production-disabled read-model: R2/KV is never a rights authority.
   COVE_SOUNDS_SNAPSHOT_ENABLED?: string;
   COVE_SOUNDS_SNAPSHOT_MARKETS?: string;
@@ -1080,13 +1084,19 @@ async function catalog(
   url: URL,
   userId: string | null = null,
   storefrontTerritory = "US",
+  execution?: ApiExecutionContext,
 ) {
   try {
     // Production catalog initialization belongs to the ingestion scheduler.
     // Avoid an INSERT OR IGNORE and a source-cache probe on every public read.
     if (env.FORE_ENVIRONMENT !== "production") await seedCatalog(env);
     const input = { ...parseSearchInput(url), territory: storefrontTerritory };
-    const result = await searchCatalog(env, input, userId);
+    const result = await searchCatalog(
+      env,
+      input,
+      userId,
+      execution?.waitUntil ? (work) => execution.waitUntil?.(work) : undefined,
+    );
     // Never let non-authoritative ingestion progress delay or fail a
     // successful primary-rights catalog. Production skips this D1 read;
     // operator endpoints still expose independent ingestion health.
@@ -1106,6 +1116,9 @@ async function catalog(
       next,
       cached: true,
       facets: result.facets,
+      facetsPending: result.facetsPending === true,
+      // The first-page lower bound is not an exact total until leased facets settle.
+      countPending: result.countPending === true,
       search: {
         queryId: result.queryId,
         backend: result.backend,
@@ -3025,6 +3038,17 @@ async function handleCoveRequest(
       withSession?: (constraint: "first-primary" | "first-unconstrained") => typeof machineDb;
     };
     const anonymousFirstPaint = firstPaint && !currentIdentity?.id;
+    // Reuse the verified anonymous metadata snapshot for the opt-in R2 guest
+    // catalog too. Cookies/accounts retain the preference-aware resolver.
+    const anonymousCatalogContext =
+      request.method === "GET" &&
+      path === "/catalog" &&
+      !currentIdentity?.id &&
+      !request.headers.has("cookie") &&
+      !request.headers.has("authorization") &&
+      env.FORE_ASYNC_CATALOG_FACETS === "1" &&
+      !!env.COVE_PUBLIC_PRESENTATION_CACHE &&
+      canDeferGuestCatalogFacets(env, parseSearchInput(url), null);
     const configConstraint = "first-primary" as const;
     const dbForContext =
       firstPaint && !anonymousFirstPaint && typeof configDb.withSession === "function"
@@ -3084,7 +3108,7 @@ async function handleCoveRequest(
           request,
           currentIdentity?.id || null,
           env.FORE_DEFAULT_TERRITORY || "US",
-          anonymousFirstPaint,
+          anonymousFirstPaint || anonymousCatalogContext,
           (rows) => {
             homepageProjection.rows = rows;
           },
@@ -4200,7 +4224,7 @@ async function handleCoveRequest(
     if (request.method === "GET" && path === "/catalog") {
       const searchUserId = identity(request)?.id || null;
       await rateLimitSearchRequest(request, env, searchUserId, "catalog", 180);
-      const result = await catalog(env, url, searchUserId, storefrontTerritory);
+      const result = await catalog(env, url, searchUserId, storefrontTerritory, execution);
       return json(result);
     }
     if (request.method === "GET" && path === "/search/suggest") {

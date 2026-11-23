@@ -13,6 +13,20 @@ assert.match(search, /retail_product_availability_rows/);
 assert.match(search, /const runIds = async/);
 assert.match(search, /const presentationDb = replicaEligiblePresentationRead\(env.DB\)/);
 assert.match(search, /const row = await presentationDb\s+\.prepare\(/);
+
+const countStart = search.indexOf("const countLive = async () => {");
+const countEnd = search.indexOf("// Browsing totals are presentation metadata", countStart);
+assert.ok(countStart > 0 && countEnd > countStart, "Locate the exact COUNT planner scope");
+const countOnly = search.slice(countStart, countEnd);
+assert.match(
+  countOnly,
+  /const countPart = facetScanCandidateParts\(input, expression\)/,
+  "Unsorted COUNT must not inherit the forced popularity ranking index",
+);
+assert.match(countOnly, /SELECT COUNT\(\*\) count FROM \$\{countPart\.from\}/);
+assert.match(countOnly, /WHERE \$\{countPart\.where\.join\(" AND "\)\}/);
+assert.match(countOnly, /\.bind\(\.\.\.countPart\.binds\)/);
+assert.doesNotMatch(countOnly, /FROM \$\{part\.from\}/);
 assert.match(search, /selectPrimary: \(\) => execute\(env\.DB\)/);
 assert.match(search, /await env\.DB\.prepare\(scoped\.sql\)/);
 assert.match(search, /canonicalBooksByProductIds\(env.DB, ids\)/);

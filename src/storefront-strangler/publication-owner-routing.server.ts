@@ -1,6 +1,15 @@
 /* eslint-disable prettier/prettier -- A typed publication command, never a delegated SQL executor. */
 import {ApiError} from "../features/fore/service";
-import {dispatchCanonicalOwnerCommand} from "./canonical-owner-command-gateway";
+// Keep the large private owner-command validation registry off the cold public
+// and unrelated backend-read module graph. Only a verified owner operation
+// loads it, and all original typed command/receipt checks remain in force.
+type CanonicalDispatch=typeof import("./canonical-owner-command-gateway").dispatchCanonicalOwnerCommand;
+async function dispatchCanonicalOwnerCommand(
+  ...args:Parameters<CanonicalDispatch>
+):Promise<Awaited<ReturnType<CanonicalDispatch>>> {
+  const module=await import("./canonical-owner-command-gateway");
+  return module.dispatchCanonicalOwnerCommand(...args);
+}
 import type {CatalogDB} from "../features/fore/catalog-model.server";
 type OwnerPort={fetch(request:Request):Promise<Response>};
 type Context={owner:OwnerPort;secret:string;territory:string;currency:string};
