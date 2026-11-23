@@ -32,6 +32,20 @@ test("Hosted owner proof cannot address the production account or primary",()=>{
   assert.ok(script.indexOf("await waitForAuthenticatedGateway();") <
     script.indexOf("const first=await callOwner(command,client);"),
     "A live 401 read-only denial must precede the first positive owner command");
+  // A bad-token 401 alone does not prove actual service-binding and owner
+  // Durable Object readiness. Only an authenticated GET-denial through the
+  // private owner can certify pre-commit ingress stability.
+  assert.match(script,/import \{stabilizeBiosyncOwnerBinding\}/);
+  assert.match(script,/async function waitForBoundOwnerReadiness\(client\)/);
+  assert.match(script,/ownerOrigin\+"\/qa\/owner-bound-ready"/);
+  assert.match(script,/body:"\{\}"/);
+  assert.match(script,/hostedPhase="owner_binding_readiness"/);
+  assert.ok(script.indexOf("await waitForBoundOwnerReadiness(client);") >
+    script.indexOf("await waitForAuthenticatedGateway();"));
+  assert.ok(script.indexOf("await waitForBoundOwnerReadiness(client);") <
+    script.indexOf("const first=await callOwner(command,client);"));
+  assert.doesNotMatch(script,/retry.*(?:callOwner\(command|checkedOwnerReceipt)/i);
+
   assert.match(script,/qa_r2_residual_map/);
   assert.match(script,/qa_d1_residual_synthetic_rows/);
   assert.match(script,/async function independentlyVerifyTeardownOnce\(\)/);
