@@ -62,7 +62,7 @@ async function request(method, path, body) {
   return data.result;
 }
 const query = (db, sql) => {
-  assert.match(sql.trim(), /^SELECT\\b/i, "Dormant owner preflight may only read D1");
+  assert.match(sql.trim(), /^SELECT\b/i, "Dormant owner preflight may only read D1");
   return request("POST", `/accounts/${account}/d1/database/${db}/query`, {sql})
     .then(x=>x[0].results);
 };
