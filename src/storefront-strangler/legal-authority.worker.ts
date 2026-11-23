@@ -19929,8 +19929,13 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
             licenseId:x.licenseId,saved:true,expiresAt:x.expiresAt,replayed:true},
             {headers:noStore});
         }
+        // A paid EPUB SKU can also carry an independently published licensed
+        // audiobook. Product format is not an audio rights grant: the exact
+        // current immutable audio publication, narration agreements, device,
+        // entitlement, market and current owner denial fences below are ALL
+        // still required before issuing any offline audio receipt.
         const [ent,device,policy,manifestRow,market,riskAccount,riskOrder]=await Promise.all([
-          db.prepare("SELECT e.id,e.ends_at,p.format FROM entitlements e JOIN products p ON p.id=e.product_id WHERE e.id=? AND e.user_id=? AND e.product_id=? AND e.entitlement_type='purchase' AND e.status='active' AND p.format='audiobook' AND p.source_name NOT IN ('gutenberg','upload') AND (e.starts_at IS NULL OR e.starts_at<=?) AND (e.ends_at IS NULL OR e.ends_at>?)")
+          db.prepare("SELECT e.id,e.ends_at,p.format FROM entitlements e JOIN products p ON p.id=e.product_id WHERE e.id=? AND e.user_id=? AND e.product_id=? AND e.entitlement_type='purchase' AND e.status='active' AND p.format IN ('ebook','audiobook') AND p.source_name NOT IN ('gutenberg','upload') AND (e.starts_at IS NULL OR e.starts_at<=?) AND (e.ends_at IS NULL OR e.ends_at>?)")
             .bind(x.entitlementId,x.userId,x.productId,at,at).first<{id:string;ends_at:string|null;format:string}>(),
           db.prepare("SELECT id,device_key FROM devices WHERE id=? AND user_id=? AND revoked_at IS NULL")
             .bind(x.deviceId,x.userId).first<{id:string;device_key:string}>(),
