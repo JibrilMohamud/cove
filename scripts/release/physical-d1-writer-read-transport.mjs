@@ -17,10 +17,18 @@ const EXACT_USER_READ_GROUP_LOOKUPS=new Set([
   '/user/tokens/permission_groups?name=Account%20Analytics%20Read',
 ]);
 function safePath(path){
-  // Unfiltered provider permission catalog is ID evidence only: GET,
-  // immutable endpoint, no token creations, no unsafe caller-controlled path.
-  if(path==='/user/tokens/permission_groups')return true;
+  // One exact provider name-filtered READ permission is safe to enumerate.
+  // No unfiltered catalog, Write/Admin, arbitrary query keys, hidden encoded
+  // parameters, scope mutation or token update can pass this allowlist.
   if(EXACT_USER_READ_GROUP_LOOKUPS.has(path))return true;
+  const readGroup=path.match(/^\/user\/tokens\/permission_groups\?name=([A-Za-z0-9%._()+-]{1,300})$/);
+  if(readGroup){
+    let decoded;
+    try{decoded=decodeURIComponent(readGroup[1]);}catch{return false;}
+    return decoded.length<=132&&
+      /^[A-Za-z0-9][A-Za-z0-9 &/._()+-]* (?:Read|Read-Only)$/.test(decoded)&&
+      encodeURIComponent(decoded)===readGroup[1];
+  }
   if(path==='/user/tokens'||path==='/user')return true;
   if(path==='/accounts/'+ACCOUNT+'/members')return true;
   if(path==='/accounts/'+ACCOUNT+'/tokens')return true;
