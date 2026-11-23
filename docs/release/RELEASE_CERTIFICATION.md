@@ -24,6 +24,17 @@ The protected [11-child batch at commit e2e0f17a](https://github.com/JibrilMoham
 
 **Release decision remains NO-GO.** Changes to QA teardown and preflight transport do not grant rights, retire D1, revoke credentials, promote production or relax strict capacity checks. External signed rights/withdrawal evidence, host parity, LIVE commerce and exclusive physical writer proof are still required.
 
+## Protected retest and verified synthetic legal parity — 2026-11-23 16:12 UTC
+
+- Protected owner-authenticated [BioSync run #45211723774](https://github.com/JibrilMohamud/cove/actions/runs/45211723774) **passed** on merged main `95d01be2`: actual QA owner commit/replay, denials, pointer, teardown. The batch child BioSync initially failed again at owner commit; its separated re-run **passed**. This is isolated synthetic QA, **not** production hourly schedule parity.
+- Fixed-scope synthetic rights witnesses were installed in isolated stage D1 `e4cbb0ef` only: two explicitly synthetic contracts, one version, one language allow rule, and 36 existing perf-synth grants with 12 version, 12 language, 12 DRM strata. No production D1 or real rights were touched. Read-only [differential rerun #45211752806, attempt 2](https://github.com/JibrilMohamud/cove/actions/runs/45211752806) **passed**: 44 selected, 21 canonical/view positive, 23 denied, zero mismatches, all six mandatory cohorts represented, 376 select queries. Production legal authority remains **unverified**.
+- Paid full-schema [run #45211754106](https://github.com/JibrilMohamud/cove/actions/runs/45211754106) **failed** at the exact current-owner journal read HTTP 500 before irreversible TEST payment. Recovery patch permits bounded retries only for this nonce-bound QA read, while exact 27-table/87-trigger manifest and all financial commands retain their strict rules. No HTTP 500 on a mutation can be retried.
+- Protected capacity [run #45211753205](https://github.com/JibrilMohamud/cove/actions/runs/45211753205) passed real literary publication preflight but failed because `COVE_CF_STAGE_DATA_PLANE_READ_TOKEN` is absent in the protected GitHub environment. No cold/32-way/100 RPS artifacts were generated; credential must be installed and scoped before certification.
+- User-token [run #45211753146](https://github.com/JibrilMohamud/cove/actions/runs/45211753146) still rejects a permission-group ID alias mismatch. Next run reports a narrower fixed category without reducing identity or scope checks. No account-wide physical writer assertion may be made while active user-owned grants are unreviewed.
+- Both production backend direct primary-D1 binding and disabled owner persist; no LIVE charge/refund acceptance, strict geographic load pass or credential retirement.
+
+**NO-GO remains authoritative.** Hosted synthetic results must not be represented as signed legal grants, approved customer commerce, or production readiness.
+
 ## Unified gate checklist
 
 | Gate | Status | Current evidence / remaining contract |

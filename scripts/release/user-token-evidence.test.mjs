@@ -95,7 +95,10 @@ test("new or unreviewed Cloudflare permission names cannot certify user-token sa
     );
     assert.equal(evidence.verified, false);
     assert.equal(evidence.reason, "active_user_token_permission_unreviewed");
-    assert.match(evidence.detail, /^read_group_(identifier_missing|alias_identifier_mismatch)$/);
+    assert.match(
+      evidence.detail,
+      /^read_group_(identifier_missing|alias_identifier_mismatch_(api_tokens|user_details|account_analytics|unrecognized))$/,
+    );
   }
   // Unknown privileges are ignored only if the token is independently inactive.
   assert.deepEqual(
@@ -175,7 +178,9 @@ test("alias with a mutation ID, missing ID, or unknown permission remains releas
       detail:
         item.policies[0].permission_groups[0].id === undefined
           ? "read_group_identifier_missing"
-          : "read_group_alias_identifier_mismatch",
+          : item.policies[0].permission_groups[0].name === "Account Analytics"
+            ? "read_group_alias_identifier_mismatch_account_analytics"
+            : "read_group_alias_identifier_mismatch_unrecognized",
     });
   }
   const explicitWrite = aliasedPolicy("c".repeat(32), "Workers Scripts Write");
