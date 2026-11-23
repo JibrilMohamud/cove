@@ -14,6 +14,7 @@ import {join} from "node:path";
 import {spawnSync} from "node:child_process";
 import {QA_ACCOUNT,QA_DATABASE,QA_BUCKET} from "./prove-biosync-qa-data-plane.mjs";
 import {proveBiosyncQaDataPlane} from "./prove-biosync-qa-data-plane.mjs";
+import {checkHostedCommentEnvironment} from "./authorize-biosync-owner-comment.mjs";
 
 const runId=process.env.GITHUB_RUN_ID+"-"+(process.env.GITHUB_RUN_ATTEMPT||"1");
 const ownerName="cove-biosync-owner-qa-"+runId;
@@ -59,8 +60,14 @@ const tokenNames=[
 ];
 function refuse(message){throw Error("biosync_hosted_owner_qa_denied_"+message);}
 function validInput(){
+  const event=process.env.GITHUB_EVENT_NAME;
+  if(event==="issue_comment"){
+    // Even a workflow condition typo cannot cause a write on the strength of
+    // any other person's comment or a stale/unreviewed main commit.
+    checkHostedCommentEnvironment(process.env);
+  }
   if(process.env.GITHUB_REPOSITORY!=="JibrilMohamud/cove"||
-     process.env.GITHUB_EVENT_NAME!=="workflow_dispatch"||
+     !["workflow_dispatch","issue_comment"].includes(event)||
      process.env.GITHUB_REF!=="refs/heads/main"||
      !/^[a-f0-9]{40}$/.test(process.env.GITHUB_SHA||"")||
      process.env.COVE_BIOSYNC_REVIEWED_MAIN_SHA!==process.env.GITHUB_SHA||
