@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Preserve source-exact read-only Cloudflare credential guards. */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
