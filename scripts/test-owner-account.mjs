@@ -5,6 +5,7 @@ import {mkdtempSync,readdirSync,readFileSync,rmSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {loadPrivateFinance} from "./test-private-finance-loader.mjs";
+import {createQaOwnerReadOnlyD1} from "../src/storefront-strangler/qa-owner-primary-read-transport.mjs";
 const folder=mkdtempSync(join(tmpdir(),"cove-account-owner-")),stores=[];
 const oldFetch=globalThis.fetch;
 try{
@@ -30,7 +31,9 @@ try{
   const request=(body,key=secret)=>owner.fetch(new Request("https://legal-authority.internal/account/private-action",{method:"POST",headers:{authorization:"Bearer "+key,"content-type":"application/json"},body:JSON.stringify(body)}));
   const call=async body=>{const r=await request(body);assert.equal(r.status,200,await r.clone().text());return (await r.json()).result;};
   const queue=(id="erase_account_qa",u=user)=>primary.prepare("INSERT INTO account_deletion_requests(id,user_id,status,requested_at,execute_after,confirmation_hash,created_at,updated_at) VALUES(?,?,'queued',?,'2000-01-01','qa',?,?)").run(id,u,at,at,at);
-  return {primary,durable,sql,env,user,other,at,request,call,queue,restart,stored,storageFail(v){storageFail=v;},inject(i){fail=i;},loseAck(){lost=true;},deletes:()=>deletes,retry(id="erase_account_qa"){primary.prepare("UPDATE account_deletion_requests SET next_retry_at=NULL,lease_expires_at=NULL WHERE id=?").run(id);}};
+  return {primary,durable,sql,env,user,other,at,request,call,queue,restart,stored,
+   fetchOwner:(req)=>owner.fetch(req),secret,
+   storageFail(v){storageFail=v;},inject(i){fail=i;},loseAck(){lost=true;},deletes:()=>deletes,retry(id="erase_account_qa"){primary.prepare("UPDATE account_deletion_requests SET next_retry_at=NULL,lease_expires_at=NULL WHERE id=?").run(id);}};
  }
  const session=fixture(),touch={action:"touch-session",userId:session.user,
    sessionHash:"c".repeat(64),userAgentSummary:"QA reader",ipCountry:"US"};
@@ -40,6 +43,14 @@ try{
  assert.equal((await session.request({...touch,createdAt:"2025-01-01"})).status,503,
    "Caller cannot choose owner timestamps");
  const touched=await session.call(touch);
+ const remote=createQaOwnerReadOnlyD1({fetch:req=>session.fetchOwner(req)},session.secret);
+ const scoped=await remote.prepare(
+   "SELECT id,user_id,revoked_at FROM account_sessions WHERE user_id=? AND provider_session_id_hash=?")
+   .bind(session.user,touch.sessionHash).first();
+ assert.equal(scoped.id,touched.sessionId,"Actual owner and full schema must agree on remote read");
+ assert.equal(scoped.revoked_at,null);
+ assert.throws(()=>remote.prepare("UPDATE qa_probe_rows SET id='unsafe'"),/qa_owner_read_denied/);
+ assert.throws(()=>remote.withSession("first-primary"),/qa_owner_read_denied/);
  assert.match(touched.sessionId,/^sess_[a-f0-9-]{36}$/);
  assert.equal(session.primary.prepare("SELECT COUNT(*) n FROM account_sessions WHERE user_id=?")
    .get(session.user).n,1);
