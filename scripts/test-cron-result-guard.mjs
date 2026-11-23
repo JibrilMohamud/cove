@@ -31,10 +31,7 @@ try {
     () => assertCronResult({ ok: false, error: "owner_refused" }),
     /cove_scheduled_operation_reported_failure/,
   );
-  assert.throws(
-    () => assertCronResult({ ok: false }),
-    /cove_scheduled_operation_reported_failure/,
-  );
+  assert.throws(() => assertCronResult({ ok: false }), /cove_scheduled_operation_reported_failure/);
   const worker = readFileSync("src/persistence-backend.worker.ts", "utf8");
   assert.match(worker, /assertCronResult\(await operation\(\)\)/);
   assert.match(
