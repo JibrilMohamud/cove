@@ -899,9 +899,7 @@ async function hostedBiosyncTranscript(
 export default {
   async scheduled(controller: { cron: string }, env: BackendEnv, ctx: ExecutionContextLike) {
     env = scopeCommerceProductionD1(scopeExclusiveCanonicalD1(scopePublicationOwnerEnv(env)));
-    // QA-only, explicit opt-in; fails if a caller still binds native D1.
-    // Production remains on its existing binding until all real cron and
-    // customer writes are migrated and independently accepted.
+    // Opt-in isolated QA only. Production remains bound to primary D1.
     env = scopeQaOwnerUnboundPrimaryRead(env);
     if (controller.cron === "*/10 * * * *") {
       // Bounded social-only bracket authority. Winner snapshots, next-round
@@ -945,9 +943,7 @@ export default {
       return json({ error: "Persistence gateway authorization required." }, 401);
     }
     env = scopeCommerceProductionD1(scopeExclusiveCanonicalD1(scopePublicationOwnerEnv(env)));
-    // QA-only, explicit opt-in; fails if a caller still binds native D1.
-    // Production remains on its existing binding until all real cron and
-    // customer writes are migrated and independently accepted.
+    // Opt-in isolated QA only. Production remains bound to primary D1.
     env = scopeQaOwnerUnboundPrimaryRead(env);
 
     const path = new URL(request.url).pathname;
