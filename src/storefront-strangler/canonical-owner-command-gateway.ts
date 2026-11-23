@@ -320,7 +320,11 @@ const routes={
     z.object({action:z.literal("register-device"),userId:z.string().regex(/^[a-zA-Z0-9:_-]{3,160}$/),
       device:z.object({deviceKey:z.string().min(16).max(200),name:z.string().trim().min(1).max(120),platform:z.string().trim().min(1).max(80)}).strict()}).strict(),
     z.object({action:z.literal("revoke-device"),userId:z.string().regex(/^[a-zA-Z0-9:_-]{3,160}$/),deviceId:z.string().regex(/^[a-zA-Z0-9_-]{3,160}$/)}).strict(),
-    z.object({action:z.literal("erasure-tick"),limit:z.number().int().min(1).max(25)}).strict()
+    z.object({action:z.literal("erasure-tick"),limit:z.number().int().min(1).max(25)}).strict(),
+    z.object({action:z.literal("touch-session"),userId:subject,
+      sessionHash:z.string().regex(/^[a-f0-9]{64}$/),
+      userAgentSummary:z.string().max(240),
+      ipCountry:z.string().regex(/^[A-Z]{0,2}$/)}).strict()
   ])},
   "finance.owner-action":{path:"/finance/private-action",schema:z.object({
     action:z.enum(["createFinanceParty","createRoyaltyContract","createRoyaltyContractVersion",
@@ -867,6 +871,9 @@ export async function dispatchCanonicalOwnerCommand(
          ack.userId!==(body.action==="erasure-tick"?null:body.userId)||!record(accountResult)||
          (body.action==="register-device"&&(typeof accountResult.id!=="string"||typeof accountResult.name!=="string"||typeof accountResult.platform!=="string"))||
          (body.action==="revoke-device"&&accountResult.revoked!==true)||
+         (body.action==="touch-session"&&
+          (typeof accountResult.sessionId!=="string"||
+           !/^sess_[a-z0-9-]{36}$/i.test(accountResult.sessionId)))||
          (body.action==="erasure-tick"&&(["processed","completed","blocked","retrying"].some(k=>!Number.isSafeInteger(accountResult[k])||Number(accountResult[k])<0||Number(accountResult[k])>Number(body.limit))||
           Number(accountResult.completed)+Number(accountResult.blocked)+Number(accountResult.retrying)>Number(accountResult.processed))))
         throw Error("canonical_command_receipt_mismatch");
