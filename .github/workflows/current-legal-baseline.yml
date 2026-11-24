@@ -1,0 +1,30 @@
+name: Current legal baseline contract
+on:
+  pull_request:
+    paths:
+      - 'scripts/release/current-legal-baseline.mjs'
+      - 'scripts/release/current-legal-baseline.test.mjs'
+      - 'scripts/release/compile-current-legal-baseline.local.mjs'
+      - '.github/workflows/current-legal-baseline.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/release/current-legal-baseline.mjs'
+      - 'scripts/release/current-legal-baseline.test.mjs'
+      - 'scripts/release/compile-current-legal-baseline.local.mjs'
+      - '.github/workflows/current-legal-baseline.yml'
+permissions:
+  contents: read
+jobs:
+  offline-current-baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: node --check scripts/release/compile-current-legal-baseline.local.mjs
+      - run: node --test scripts/release/current-legal-baseline.test.mjs
