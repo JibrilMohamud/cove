@@ -1250,13 +1250,27 @@ try {
   // immutable purchased grant but a distinct buyer and order-item identity.
   // This exercises Cove's original first-payment finalizer, not the already
   // paid recovery path tested above.
-  const noPrematureAccess=await postSettlement("/authorize-initial",
-    initialOrder,initialBuyer);
-  assert.equal(noPrematureAccess.status,451,
+  // The hosted run on the real settlement Worker saw HTTP 404 from the
+  // workers.dev edge AFTER a successful TEST payment/refund/replay campaign.
+  // This is not application denial: these routes return 451, 200 or 503.
+  // Only a side-effect-free PRE-SETTLEMENT denial probe may be retried, and
+  // only on 404. Never treat an unready edge as authorization evidence.
+  // Never replay settlement, signed webhooks, refund or positive licenses.
+  const requireUnpaidDenial=async(route,message)=>{
+    let response;
+    for(let attempt=0;attempt<7;attempt++){
+      response=await postSettlement(route,initialOrder,initialBuyer);
+      if(response.status!==404)break;
+      console.error("QA unpaid-denial workers.dev edge 404",
+        JSON.stringify({attempt:attempt+1,ray:response.ray}));
+      if(attempt<6)await pause((attempt+1)*400);
+    }
+    assert.equal(response?.status,451,message);
+  };
+  await requireUnpaidDenial("/authorize-initial",
     "No new buyer may fetch content before initial ledger settlement");
   for(const route of ["/qa/epub-bytes","/qa/audio-bytes","/qa/offline-epub-license"]){
-    const check=await postSettlement(route,initialOrder,initialBuyer);
-    assert.equal(check.status,451,
+    await requireUnpaidDenial(route,
       "No EPUB/audio bytes or offline license may issue before Stripe settlement");
   }
   // Real payee terms are required: the atomic engine will not silently
