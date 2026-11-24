@@ -5,6 +5,7 @@ mkdirSync(".output/production-consolidation", { recursive: true });
 for (const [entry, out] of [
   ["production-consolidated-owner.worker.ts", "owner.mjs"],
   ["production-consolidated-gateway.worker.ts", "gateway.mjs"],
+  ["production-biosync-ingress.worker.ts", "biosync-ingress.mjs"],
 ]) {
   await build({
     entryPoints: ["src/storefront-strangler/" + entry],

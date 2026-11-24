@@ -17,7 +17,7 @@ import {denyCommercialProduct,denyCommercialProductsBatch,denyCommercialSubject}
 import {denyMarket} from "./market-authority-core";
 import {denyPaidOrder,denyPaidEntitlement,denyPaidEntitlementsBatch} from "./commercial-entitlement-core";
 import {assertCronSettled} from "../lib/cron-result-guard";
-import {productionPersistenceEnrolled,productionBiosyncEnrolled,productionBiosyncRequest,
+import {productionPersistenceEnrolled,productionBiosyncEnrolled,productionBiosyncBridgeEnrolled,productionBiosyncRequest,
   productionOwnerInternalRequest,maintenanceBusinessRoute,checkToken,bearer,refuse,noStore,
   PRODUCTION_OWNER_OBJECT,PRODUCTION_SCHEDULES,OWNER_SCHEDULE_PATH,OWNER_BIOSYNC_PATH,
   type ProductionPersistenceEnv} from "./production-persistence-enrollment";
@@ -88,6 +88,12 @@ function scheduleInput(raw:unknown){
 export class CoveLegalAuthority extends ExistingLegalAuthority{
   override async fetch(request:Request):Promise<Response>{
     const env=this.env as Env,route=new URL(request.url).pathname;
+    if(env.COVE_PRODUCTION_BIOSYNC_BRIDGE_ENABLED==="1"&&route===OWNER_BIOSYNC_PATH){
+      if(!productionBiosyncBridgeEnrolled(env))return refuse();
+      if(!productionOwnerInternalRequest(request,env.COVE_RIGHTS_OWNER_SECRET!))return refuse(401);
+      try{return reply(await publishCheckedBiosyncOwned(env.PRIMARY_DB,env.BUCKET,await body(request,1024)));}
+      catch{return refuse();}
+    }
     if(env.COVE_PRODUCTION_PERSISTENCE_OWNER_ENABLED!=="1")return super.fetch(request);
     if(!productionPersistenceEnrolled(env))return refuse();
     // Preserve the old explicitly nonauthorizing challenge. It is still true
@@ -157,6 +163,16 @@ export class CoveLegalAuthority extends ExistingLegalAuthority{
       });
       return reply(result,"applied" in result&&result.applied===false?409:200);
     }catch{return refuse();}
+  }
+}
+/** Named, service-binding-only ingress for the independent hourly publisher. */
+export class CoveBioSyncEntrypoint extends WorkerEntrypoint<Env>{
+  async fetch(request:Request):Promise<Response>{
+    const env=this.env;
+    if(!productionBiosyncBridgeEnrolled(env))return refuse();
+    if(!productionBiosyncRequest(request))return refuse(404);
+    if(!await checkToken(bearer(request),env.COVE_BIOSYNC_CLIENT_TOKEN_SHA256))return refuse(401);
+    try{return await ownerCall(env,OWNER_BIOSYNC_PATH,await body(request,1024));}catch{return refuse();}
   }
 }
 export class CoveBusinessEntrypoint extends WorkerEntrypoint<Env>{

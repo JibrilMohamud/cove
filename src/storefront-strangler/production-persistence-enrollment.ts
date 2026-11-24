@@ -12,6 +12,7 @@ export const PRODUCTION_SCHEDULES=Object.freeze([
 ]);
 type Port={fetch(request:Request):Promise<Response>};
 export type ProductionPersistenceEnv=Partial<BackendEnv>&{
+  COVE_PRODUCTION_BIOSYNC_BRIDGE_ENABLED?:string;
   COVE_PRODUCTION_PERSISTENCE_OWNER_ENABLED?:string;
   COVE_PRODUCTION_PERSISTENCE_CRON_ENABLED?:string;
   COVE_PRODUCTION_PERSISTENCE_BIOSYNC_ENABLED?:string;
@@ -100,4 +101,30 @@ export function productionOwnerInternalRequest(request:Request,secret:string){
   return request.method==="POST"&&request.headers.get("authorization")==="Bearer "+secret&&
     request.headers.get("content-type")?.split(";")[0]?.trim()==="application/json"&&
     !new URL(request.url).search&&!request.headers.has("cookie");
+}
+
+/** Independent production BioSync enrollment, while the customer backend
+ * and its schedules remain unchanged. This cannot enable any legal grants,
+ * customer request or ordinary business mutation. No backend secrets needed.
+ */
+export function productionBiosyncBridgeEnrolled(env:ProductionPersistenceEnv){
+  return env.COVE_PRODUCTION_BIOSYNC_BRIDGE_ENABLED==="1"&&
+    [undefined,"0"].includes(env.COVE_PRODUCTION_PERSISTENCE_OWNER_ENABLED)&&
+    [undefined,"0"].includes(env.COVE_PRODUCTION_PERSISTENCE_CRON_ENABLED)&&
+    [undefined,"0"].includes(env.COVE_PRODUCTION_PERSISTENCE_BIOSYNC_ENABLED)&&
+    env.FORE_ENVIRONMENT==="production"&&env.COVE_SSR_STAGING!=="1"&&
+    env.COVE_RIGHTS_OWNER_ENABLED==="0"&&
+    env.COVE_RIGHTS_OWNER_PRIMARY_ID===PRODUCTION_PRIMARY&&
+    !env.COVE_RIGHTS_OWNER_TEST_EXPIRES_AT&&
+    hashConfigured(env.COVE_RIGHTS_OWNER_SECRET)&&
+    hashConfigured(env.COVE_BIOSYNC_CLIENT_TOKEN_SHA256)&&
+    env.COVE_BIOSYNC_CLIENT_TOKEN_SHA256!==env.COVE_RIGHTS_OWNER_SECRET&&
+    native(env.PRIMARY_DB)&&typeof env.PRIMARY_DB?.batch==="function"&&
+    native(env.LITERARY_CONTENT_DB)&&env.PRIMARY_DB!==env.LITERARY_CONTENT_DB&&
+    !!env.BUCKET?.get&&typeof env.LEGAL_AUTHORITY?.getByName==="function"&&
+    Object.entries(env).every(([key,value])=>
+      (!native(value)||["PRIMARY_DB","LITERARY_CONTENT_DB"].includes(key))&&
+      (!key.startsWith("COVE_QA_")||value===undefined||value==="0"))&&
+    [undefined,"0"].includes(env.COVE_PUBLICATION_COMMANDS_ENABLED)&&
+    [undefined,"0"].includes(env.COVE_LEGAL_CONSUMER_STAGE_ENABLED);
 }
