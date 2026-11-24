@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 import json
 import os
 import re
+import subprocess
+from pathlib import Path
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -189,18 +191,22 @@ def commit(edition: str, track: str, job: str, sha: str) -> dict:
     payload = {"editionId": edition, "trackId": track, "jobId": job, "mapSha256": sha}
     if any(not re.fullmatch(r"[A-Za-z0-9_-]{2,160}", x) for x in (edition, track, job)) or not re.fullmatch(r"[0-9a-f]{64}", sha):
         raise RuntimeError("Invalid BioSync publication identity")
-    req = urllib.request.Request(OWNER, data=json.dumps(payload).encode(), method="POST",
-                                 headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"})
-    try:
-        with urllib.request.build_opener(DenyRedirects()).open(req, timeout=120) as response:
-            if response.status != 200 or response.headers.get("cache-control") != "no-store":
-                raise RuntimeError("Production BioSync owner did not acknowledge")
-            raw = response.read(4097)
-            if len(raw) > 4096:
-                raise RuntimeError("Production BioSync receipt exceeded limit")
-            receipt = json.loads(raw)
-    except urllib.error.HTTPError as error:
-        raise RuntimeError(f"Production BioSync owner refused: HTTP {error.code}") from None
+    # Same HTTP implementation as the activation probe; never retry a commit.
+    helper = Path(__file__).with_name("biosync_owner_https.mjs")
+    result = subprocess.run(
+        ["node", str(helper)], input=json.dumps(payload), text=True,
+        capture_output=True, timeout=135, check=False,
+        env={"PATH": os.environ.get("PATH", os.defpath),
+             "COVE_BIOSYNC_PROD_CLIENT_SECRET": token},
+    )
+    if result.returncode != 0:
+        reason = result.stderr.strip()
+        if not re.fullmatch(r"biosync_owner_[a-z0-9_]+", reason):
+            reason = "biosync_owner_transport_failed"
+        raise RuntimeError(reason)
+    if len(result.stdout.encode()) > 4096:
+        raise RuntimeError("Production BioSync receipt exceeded limit")
+    receipt = json.loads(result.stdout)
     if (not isinstance(receipt, dict) or set(receipt) != set(payload) | {"schema", "committed", "replay"}
             or receipt.get("schema") != "cove.owner-biosync-checked-publication.v1"
             or receipt.get("committed") is not True or type(receipt.get("replay")) is not bool
