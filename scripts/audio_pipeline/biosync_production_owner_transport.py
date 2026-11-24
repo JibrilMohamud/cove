@@ -15,7 +15,7 @@ BUCKET = "cove-production-media"
 API = "https://api.cloudflare.com/client/v4/accounts/" + ACCOUNT
 D1 = API + "/d1/database/" + PRIMARY + "/query"
 R2 = API + "/r2/buckets/" + BUCKET + "/objects"
-OWNER = "https://cove-persistence-backend.cove-jibrilmohamud.workers.dev/__cove/biosync/publish-checked"
+OWNER = "https://cove-biosync-production-ingress.cove-jibrilmohamud.workers.dev/__cove/biosync/publish-checked"
 SECRET_NAMES = ("COVE_BIOSYNC_PROD_D1_READ_TOKEN", "COVE_BIOSYNC_PROD_R2_TOKEN",
                 "COVE_BIOSYNC_PROD_CLIENT_SECRET")
 

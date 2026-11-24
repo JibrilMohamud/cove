@@ -6,6 +6,10 @@ on:
       - 'src/storefront-strangler/production-persistence-enrollment.ts'
       - 'scripts/release/*production-consolidation*'
       - 'wrangler.consolidated-*.production-candidate.jsonc'
+      - 'wrangler.biosync-bridge-*.production-candidate.jsonc'
+      - 'src/storefront-strangler/production-biosync-ingress.worker.ts'
+      - 'src/storefront-strangler/*-source-reader.ts'
+      - 'src/storefront-strangler/literary-owner-*.ts'
       - '.github/workflows/production-consolidated-owner-candidate.yml'
   workflow_dispatch:
 permissions:
@@ -30,7 +34,12 @@ jobs:
       - name: Exercise exact production-mode BioSync owner with disposable local bindings
         run: |
           npm exec --yes --package=wrangler@4.151.0 -- sh -c 'COVE_MINIFLARE_MODULE="$(dirname "$(command -v wrangler)")/../miniflare" node --no-warnings scripts/release/prove-production-consolidation-biosync-native.mjs'
+      - name: Exercise independent production BioSync bridge with no backend secrets
+        run: |
+          npm exec --yes --package=wrangler@4.151.0 -- sh -c 'COVE_MINIFLARE_MODULE="$(dirname "$(command -v wrangler)")/../miniflare" node --no-warnings scripts/release/prove-production-consolidation-biosync-native.mjs --bridge'
       - name: Dry-run exact production scripts, never upload or activate
         run: |
           npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.consolidated-owner.production-candidate.jsonc
           npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.consolidated-gateway.production-candidate.jsonc
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.biosync-bridge-owner.production-candidate.jsonc
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.biosync-bridge-ingress.production-candidate.jsonc

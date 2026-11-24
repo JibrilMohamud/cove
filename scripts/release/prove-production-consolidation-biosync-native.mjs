@@ -10,6 +10,7 @@ const { Miniflare, convertV4MiniflareOptions } = createRequire(import.meta.url)(
   process.env.COVE_MINIFLARE_MODULE || "miniflare",
 );
 const directory = mkdtempSync(join(tmpdir(), "cove-production-mode-local-"));
+const bridge = process.argv.includes("--bridge");
 const primaryLabel = "4bd657ac-8789-403e-a28c-93aba8d0a989";
 const localPrimary = "11111111-1111-4111-8111-111111111111";
 const localLiterary = "22222222-2222-4222-8222-222222222222";
@@ -58,16 +59,27 @@ const options = {
     {
       name: "gateway",
       modules: true,
-      scriptPath: resolve(".output/production-consolidation/gateway.mjs"),
+      scriptPath: resolve(
+        bridge
+          ? ".output/production-consolidation/biosync-ingress.mjs"
+          : ".output/production-consolidation/gateway.mjs",
+      ),
       compatibilityDate: "2026-10-17",
       compatibilityFlags: ["nodejs_compat"],
-      bindings: {
-        COVE_PRODUCTION_PERSISTENCE_GATEWAY_ENABLED: "1",
-        FORE_ENVIRONMENT: "production",
-        FORE_BACKEND_TOKEN_SHA256: tokenHash,
-        COVE_BIOSYNC_CLIENT_TOKEN_SHA256: biosyncHash,
-      },
-      serviceBindings: { BUSINESS_OWNER: { name: "owner", entrypoint: "CoveBusinessEntrypoint" } },
+      bindings: bridge
+        ? {
+            COVE_PRODUCTION_BIOSYNC_INGRESS_ENABLED: "1",
+            COVE_BIOSYNC_CLIENT_TOKEN_SHA256: biosyncHash,
+          }
+        : {
+            COVE_PRODUCTION_PERSISTENCE_GATEWAY_ENABLED: "1",
+            FORE_ENVIRONMENT: "production",
+            FORE_BACKEND_TOKEN_SHA256: tokenHash,
+            COVE_BIOSYNC_CLIENT_TOKEN_SHA256: biosyncHash,
+          },
+      serviceBindings: bridge
+        ? { BIOSYNC_OWNER: { name: "owner", entrypoint: "CoveBioSyncEntrypoint" } }
+        : { BUSINESS_OWNER: { name: "owner", entrypoint: "CoveBusinessEntrypoint" } },
     },
     {
       name: "owner",
@@ -76,16 +88,22 @@ const options = {
       compatibilityDate: "2026-10-17",
       compatibilityFlags: ["nodejs_compat"],
       bindings: {
-        COVE_PRODUCTION_PERSISTENCE_OWNER_ENABLED: "1",
-        COVE_PRODUCTION_PERSISTENCE_BIOSYNC_ENABLED: "1",
+        COVE_PRODUCTION_PERSISTENCE_OWNER_ENABLED: bridge ? "0" : "1",
+        COVE_PRODUCTION_BIOSYNC_BRIDGE_ENABLED: bridge ? "1" : "0",
+        COVE_PRODUCTION_PERSISTENCE_BIOSYNC_ENABLED: bridge ? "0" : "1",
         COVE_PRODUCTION_PERSISTENCE_CRON_ENABLED: "0",
         COVE_RIGHTS_OWNER_ENABLED: "0",
         COVE_RIGHTS_OWNER_PRIMARY_ID: primaryLabel,
         COVE_LEGAL_WRITER_PRIMARY_ID: primaryLabel,
         FORE_AUTH_MODE: "supabase",
         FORE_ENVIRONMENT: "production",
-        FORE_BACKEND_TOKEN_SHA256: tokenHash,
+        ...(!bridge ? { FORE_BACKEND_TOKEN_SHA256: tokenHash } : {}),
         COVE_RIGHTS_OWNER_SECRET: ownerSecret,
+        COVE_LITERARY_READ_SECRET: "1".repeat(64),
+        COVE_LITERARY_HANDOFF_SECRET: "2".repeat(64),
+        COVE_LITERARY_PUBLICATION_SECRET: "3".repeat(64),
+        COVE_PUBLICATION_SOURCE_READER_SECRET: "4".repeat(64),
+        COVE_SOUNDS_SOURCE_READER_SECRET: "5".repeat(64),
         COVE_BIOSYNC_CLIENT_TOKEN_SHA256: biosyncHash,
       },
       d1Databases: { PRIMARY_DB: localPrimary, LITERARY_CONTENT_DB: localLiterary },
@@ -212,7 +230,7 @@ try {
         headers: { "x-cove-backend-token": backendToken },
       })
     ).status,
-    503,
+    bridge ? 404 : 503,
     "No unverified catalog allow",
   );
   assert.equal(
@@ -221,7 +239,7 @@ try {
         headers: { "x-cove-backend-token": backendToken },
       })
     ).status,
-    200,
+    bridge ? 404 : 200,
   );
   assert.notEqual(
     (
@@ -234,6 +252,41 @@ try {
     200,
     "Default disabled owner cannot bypass named private business entrypoint",
   );
+  // These private service routes already exist on the active production owner.
+  // Require independent per-route credentials and retain their response protocol.
+  const privateCall = (route, secret, body) =>
+    owner.fetch("https://fixture.invalid" + route, {
+      method: "POST",
+      headers: { authorization: "Bearer " + secret, "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  const literaryRoute = "/__cove/literary/primary-read";
+  assert.equal(
+    (await privateCall(literaryRoute, ownerSecret, { op: "admission", args: [] })).status,
+    401,
+  );
+  const admission = await privateCall(literaryRoute, "1".repeat(64), {
+    op: "admission",
+    args: [],
+  });
+  assert.equal(admission.status, 200);
+  assert.deepEqual(await admission.json(), {
+    schema: "cove.literary-primary-read.v1",
+    op: "admission",
+    row: { ok: 1 },
+  });
+  for (const [route, credential, payload] of [
+    ["/__cove/literary/handoff-tick", "2".repeat(64), { reconcile: false }],
+    ["/__cove/literary/publish-inference", "3".repeat(64), { jobId: "a".repeat(64) }],
+    ["/__cove/publication/advisory-source", "4".repeat(64), {}],
+    ["/__cove/sounds/publication-source", "5".repeat(64), { territory: "US" }],
+  ]) {
+    assert.equal((await privateCall(route, ownerSecret, payload)).status, 401);
+    // No real handoff or publication fixture exists in this test. Verify that
+    // each reader authenticates its own credential and rejects a bad payload.
+    const invalid = await privateCall(route, credential, { sql: "SELECT 1" });
+    assert.ok([400, 503].includes(invalid.status), route + ": " + invalid.status);
+  }
   const first = await publish(biosyncToken);
   assert.equal(first.status, 200);
   assert.deepEqual(await first.json(), {
@@ -285,6 +338,9 @@ try {
     JSON.stringify({
       schema: "cove.production-mode-biosync-native.v1",
       migrations: migrations.length,
+      independentBioSyncBridge: bridge,
+      livePrivateRouteAuthentication: true,
+      literaryReadAdmission: true,
       gatewayNativeD1Bindings: 0,
       physicalPrimaryOwnerCount: 1,
       separateLiteraryStorageUntouched: true,
