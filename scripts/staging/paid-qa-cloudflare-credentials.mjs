@@ -9,7 +9,7 @@ export const QA_LEGAL_D1="3ffb3c0b-72b2-4a47-b63a-18aaf77762ea";
 export const QA_SCHEMA_SOURCE_D1="d6f616c2-c832-439c-8f4f-e1454ab88c64";
 export const PRODUCTION_D1="4bd657ac-8789-403e-a28c-93aba8d0a989";
 const RUN=/^\d{8,15}-\d{1,5}$/;
-const QA_WORKER=/^\/workers\/scripts\/(?:cove-paid-legal-owner|cove-paid-legal-writer|cove-paid-legal-caller|cove-paid-settlement-qa|cove-paid-d1-gateway)-(\d{8,15}-\d{1,5})(?:\/(settings|deployments|subdomain|versions\/[a-f0-9-]{36}))?$/;
+const QA_WORKER=/^\/workers\/scripts\/(?:cove-paid-legal-owner|cove-paid-legal-writer|cove-paid-legal-caller|cove-paid-settlement-qa|cove-paid-d1-gateway|cove-paid-business-gateway)-(\d{8,15}-\d{1,5})(?:\/(settings|deployments|subdomain|versions\/[a-f0-9-]{36}))?$/;
 
 export function checkedPaidQaCredentials(env) {
   assert.notEqual(QA_ACCOUNT,PRODUCTION_ACCOUNT);
@@ -50,7 +50,7 @@ export function paidQaApiTokenFor(method,resource,credentials) {
 }
 export function paidQaWranglerTokenFor(args,credentials) {
   assert.ok(Array.isArray(args)&&args.length>=1);
-  const names=["owner-proof","writer-proof","caller-proof","settlement-proof","d1-gateway"];
+  const names=["owner-proof","writer-proof","caller-proof","settlement-proof","d1-gateway","business-gateway"];
   if(args[0]==="deploy"&&args[1]==="--config"&&
      args[3]==="--secrets-file"&&typeof args[4]==="string"&&
      names.some(n=>basename(args[2])===".cove-paid-"+n+"-"+credentials.run+".jsonc"))

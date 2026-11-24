@@ -46,7 +46,7 @@ function enrolled(env: OwnerEnv) {
     expiry > now &&
     expiry <= now + 15 * 60_000 &&
     env.STRIPE_LIVEMODE !== "true" &&
-    (!env.STRIPE_SECRET_KEY || env.STRIPE_SECRET_KEY.startsWith("sk_test_")) &&
+    (!env.STRIPE_SECRET_KEY || /^(?:sk|rk|rkcs)_test_[A-Za-z0-9]+$/.test(env.STRIPE_SECRET_KEY)) &&
     [undefined, "0"].includes(env.COVE_QA_OWNER_UNBOUND_READ_ENABLED) &&
     [undefined, "0"].includes(env.COVE_PUBLICATION_COMMANDS_ENABLED) &&
     [undefined, "0"].includes(env.COVE_COMMERCE_OWNER_D1_FENCE) &&

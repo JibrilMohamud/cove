@@ -41,6 +41,10 @@ on:
       - "scripts/check-paid-bundle-offline-audio-owner.mjs"
       - "scripts/check-stripe-terminal-order-states.mjs"
       - "scripts/staging/prove-private-paid-owner.mjs"
+      - "scripts/staging/paid-consolidated-business-qa.mjs"
+      - "scripts/staging/paid-consolidated-business-qa.test.mjs"
+      - "src/storefront-strangler/consolidated-owner-qa.worker.ts"
+      - "src/storefront-strangler/consolidated-gateway-qa.worker.ts"
       - "scripts/staging/synthetic-qa-d1-gateway.worker.mjs"
       - "scripts/staging/synthetic-qa-d1-gateway-config.mjs"
       - "scripts/staging/synthetic-qa-d1-gateway.test.mjs"
@@ -103,6 +107,10 @@ on:
       - "drizzle/0088_paid_repurchase_fresh_entitlement.sql"
       - "scripts/check-customer-media-owner-order.mjs"
       - "scripts/staging/prove-private-paid-owner.mjs"
+      - "scripts/staging/paid-consolidated-business-qa.mjs"
+      - "scripts/staging/paid-consolidated-business-qa.test.mjs"
+      - "src/storefront-strangler/consolidated-owner-qa.worker.ts"
+      - "src/storefront-strangler/consolidated-gateway-qa.worker.ts"
       - "scripts/staging/synthetic-qa-d1-gateway.worker.mjs"
       - "scripts/staging/synthetic-qa-d1-gateway-config.mjs"
       - "scripts/staging/synthetic-qa-d1-gateway.test.mjs"
@@ -177,6 +185,8 @@ jobs:
       - run: node scripts/check-offline-audio-issuer-authorization.mjs
       - run: node scripts/check-paid-bundle-offline-audio-owner.mjs
       - run: node scripts/check-customer-media-owner-order.mjs
+      - run: node --test scripts/staging/paid-consolidated-business-qa.test.mjs
+      - run: node --test scripts/staging/paid-qa-cloudflare-credentials.test.mjs
       - run: node --test scripts/staging/paid-owner-rollback-evidence.test.mjs
       - run: node --test scripts/staging/paid-qa-retail-catalog.test.mjs
       - run: node --test scripts/staging/provision-original-audio-qa.test.mjs
@@ -295,8 +305,8 @@ jobs:
           assert.equal(reply.status,200);
           const result=await reply.json();
           assert.equal(result.success,true);
-          const expected=["cove-paid-legal-owner-","cove-paid-legal-caller-","cove-paid-legal-writer-","cove-paid-settlement-qa-","cove-paid-d1-gateway-"].map(prefix=>prefix+id);
+          const expected=["cove-paid-legal-owner-","cove-paid-legal-caller-","cove-paid-legal-writer-","cove-paid-settlement-qa-","cove-paid-d1-gateway-","cove-paid-business-gateway-"].map(prefix=>prefix+id);
           const remains=(result.result||[]).map(s=>s.id).filter(name=>expected.includes(name));
           assert.deepEqual(remains,[],"Temporary paid QA worker scripts must all be deleted");
-          console.log("PASS: full paid-owner acceptance cleaned all four ephemeral QA Workers");
+          console.log("PASS: full paid-owner acceptance cleaned all six ephemeral QA Workers");
           '
