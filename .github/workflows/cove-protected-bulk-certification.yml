@@ -9,7 +9,8 @@ on:
   push:
     branches: [main]
     paths:
-      - ".github/workflows/cove-protected-bulk-certification.yml"
+      # Orchestration-only changes get PR contract checks and remain manually
+      # dispatchable; they do not invalidate unchanged hosted runtime proofs.
       - "src/persistence-backend.worker.ts"
       - "src/storefront-strangler/legal-authority.worker.ts"
       - "scripts/staging/paid-owner-rollback-evidence.mjs"
@@ -25,7 +26,9 @@ on:
       - "scripts/staging/check-strangler-data-plane-preflight.mjs"
       - "scripts/staging/check-protected-canonical-real-d1-differential.mjs"
       - "scripts/staging/rights-differential-coverage.mjs"
-      - "scripts/release/certify-exclusive-primary-d1.mjs"
+      # Token-only verifier changes run the separately protected user-token
+      # workflow. They do not alter owner/commerce/rights/capacity sources.
+      # Manual full batches still require all eleven child proofs below.
   workflow_dispatch:
     inputs:
       reviewed_main_sha:

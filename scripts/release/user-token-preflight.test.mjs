@@ -25,6 +25,12 @@ test("preflight refuses every unprotected context before any request", async () 
     { GITHUB_REF: "refs/heads/topic" },
     { CF_ACCOUNT_ID: "wrong" },
     { CF_USER_AUDIT_TOKEN: "" },
+    { GITHUB_EVENT_NAME: "push", GITHUB_SHA: "a".repeat(40) },
+    {
+      GITHUB_EVENT_NAME: "push",
+      GITHUB_SHA: "a".repeat(40),
+      COVE_REVIEWED_USER_TOKEN_PUSH: "b".repeat(40),
+    },
   ]) {
     let calls = 0;
     await assert.rejects(
@@ -99,7 +105,8 @@ test("each malformed catalog yields a specific fixed category without provider b
 test("workflow keeps new diagnostic separate from full inventory and protects the only live credential", () => {
   const source = readFileSync(".github/workflows/cove-protected-user-token-readonly.yml", "utf8");
   assert.match(source, /workflow_dispatch:/);
-  assert.doesNotMatch(source, /\n  (push|schedule|pull_request_target):/);
+  assert.doesNotMatch(source, /\n  (schedule|pull_request_target):/);
+  assert.match(source, /push:\s+branches: \[main\]/);
   for (const guard of [
     "github.event_name == 'workflow_dispatch'",
     "github.ref == 'refs/heads/main'",
@@ -113,4 +120,20 @@ test("workflow keeps new diagnostic separate from full inventory and protects th
   assert.match(source, /secrets\.COVE_CF_USER_TOKENS_AUDIT_READ_TOKEN/);
   assert.doesNotMatch(source, /CLOUDFLARE_API_TOKEN|wrangler|CF_WORKERS/);
   assert.match(source, /--user-token-preflight/);
+});
+
+test("the reviewed main push runs only the same metadata inventory, with a matching immutable source SHA", async () => {
+  const sha = "a".repeat(40);
+  let calls = 0;
+  const result = await userTokenPreflight(
+    { ...env, GITHUB_EVENT_NAME: "push", GITHUB_SHA: sha, COVE_REVIEWED_USER_TOKEN_PUSH: sha },
+    async (path) => {
+      calls++;
+      assert.equal(path, "/user/tokens");
+      return page([{ name: "D1 Read" }]);
+    },
+  );
+  assert.equal(calls, 1);
+  assert.equal(result.verified, true);
+  assert.equal(result.releaseCertified, false);
 });

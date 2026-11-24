@@ -1,78 +1,67 @@
-# Cove release certification — single evidence ledger
+# Cove release certification — current evidence
 
-**Decision: NO-GO.** Checked 2026-11-23 UTC. This document is an evidence ledger, **not** a release certificate or authorization to enable production commerce.
+**NO-GO for unrestricted production release.** Updated November 23, 2026 (America/New_York). This ledger replaces its stale draft-integration checklist; older observations remain in Git history. It is not a release certificate.
 
-## Contract and verified baseline
+## Integrated baseline and retained passes
 
-- Repository: https://github.com/JibrilMohamud/cove
-- Current reviewed `main`: [`e2e0f17a358bc939a8136a1c36669e47915ed395`](https://github.com/JibrilMohamud/cove/commit/e2e0f17a358bc939a8136a1c36669e47915ed395), merged integration #867 and exact protected QA repairs #869. This main checkout is newer than the pinned customer deployment; source acceptance is not hosted or production certification.
-- Integration: [#867](https://github.com/JibrilMohamud/cove/pull/867) **merged** (294 changed files), after historical candidate #850 and private unbound reads #866; [#869](https://github.com/JibrilMohamud/cove/pull/869) merged owner rollback/hosted BioSync diagnostics. These merges do not change production authority or legal evidence.
-- Never weaken canonical legal denials, enable LIVE payments, withdraw a right, grant publication rights, or remove primary D1 authority on the basis of synthetic tests.
+The full October writer integration was merged through [#867](https://github.com/JibrilMohamud/cove/pull/867), followed by integrated QA corrections through [#886](https://github.com/JibrilMohamud/cove/pull/886). Runtime evidence below belongs to merged `54009bc47a47960809625e558360e39de215ed99`. Historical draft #850 is its predecessor, not another migration to repeat.
 
-## Integrated hosted gate evidence — 2026-11-23 15:36 UTC
-
-The protected [11-child batch at commit e2e0f17a](https://github.com/JibrilMohamud/cove/actions/runs/45201324273) **failed**, with exact independent results. Historical QA success below is not proof that the integrated candidate passed:
-
-- **Native D1 32-concurrency bottleneck:** [paid QA #45201437474](https://github.com/JibrilMohamud/cove/actions/runs/45201437474) recorded p95 **811.5 ms**, max **811.67 ms**, SQL max **10.68 ms**, while isolated REST D1 comparator max was **316.43 ms**. This is a transport/primary contention failure, not SQL execution alone; never raise the 800 ms cap.
-- **Hosted BioSync:** [#45201436732](https://github.com/JibrilMohamud/cove/actions/runs/45201436732) failed at owner commit. A fresh [owner-authenticated run #45206851339](https://github.com/JibrilMohamud/cove/actions/runs/45206851339) successfully performed the *actual isolated QA commit*, replay, adversarial denials and pointer verification, but failed teardown verification. Independent read-only inventory afterward found **zero** run-scoped Workers, R2 map objects or synthetic D1 rows. An explicit two-successive-inventory reconciliation is required; hourly production BioSync is **not** certified.
-- **Required synthetic legal witnesses:** [#45201436991](https://github.com/JibrilMohamud/cove/actions/runs/45201436991) failed because contract-version/language/DRM cohorts were absent. Direct stage-only D1 read shows all three cohorts and contract-bound count **zero**. Do not remove those cohorts; seed isolated synthetic witness records under separately reviewed fixture authority, then compare exact canonical vs view.
-- **User-token metadata:** [#45201437094](https://github.com/JibrilMohamud/cove/actions/runs/45201437094) failed with strict fixed reason `read_group_alias_identifier_mismatch`. User API token capability cannot be assumed absent or read-only until provider ID/scope evidence proves each alias.
-- **Capacity run:** [#45201437034](https://github.com/JibrilMohamud/cove/actions/runs/45201437034) failed during read-only literary preflight due HTTP **429** *before* capacity samples and therefore generated no acceptance evidence. Bounded serialized audit reads may recover that preflight, but full 100 RPS and 1/4/8/16/32 acceptance remains mandatory.
-- **Writer exclusivity:** [#45201546177](https://github.com/JibrilMohamud/cove/actions/runs/45201546177) inspected 465 Workers, confirmed the backend's competing canonical D1 binding and active privileged account tokens, and did **not** verify all user-owned mutation authority.
-- Protected staging rollback [#45201437489](https://github.com/JibrilMohamud/cove/actions/runs/45201437489), historical primary-rights audit [#45201436772](https://github.com/JibrilMohamud/cove/actions/runs/45201436772), later grant replay and read-only withdrawal/rights spot audits passed their **bounded** checks. None supplies independent positive rights or a release permit.
-- Production LIVE payment and refund/revocation proof: **not performed**. Stripe LIVE PaymentIntents were empty and webhook endpoint enabled; that is infrastructure, not paid-flow acceptance.
-
-**Release decision remains NO-GO.** Changes to QA teardown and preflight transport do not grant rights, retire D1, revoke credentials, promote production or relax strict capacity checks. External signed rights/withdrawal evidence, host parity, LIVE commerce and exclusive physical writer proof are still required.
-
-## Protected retest and verified synthetic legal parity — 2026-11-23 16:12 UTC
-
-- Protected owner-authenticated [BioSync run #45211723774](https://github.com/JibrilMohamud/cove/actions/runs/45211723774) **passed** on merged main `95d01be2`: actual QA owner commit/replay, denials, pointer, teardown. The batch child BioSync initially failed again at owner commit; its separated re-run **passed**. This is isolated synthetic QA, **not** production hourly schedule parity.
-- Fixed-scope synthetic rights witnesses were installed in isolated stage D1 `e4cbb0ef` only: two explicitly synthetic contracts, one version, one language allow rule, and 36 existing perf-synth grants with 12 version, 12 language, 12 DRM strata. No production D1 or real rights were touched. Read-only [differential rerun #45211752806, attempt 2](https://github.com/JibrilMohamud/cove/actions/runs/45211752806) **passed**: 44 selected, 21 canonical/view positive, 23 denied, zero mismatches, all six mandatory cohorts represented, 376 select queries. Production legal authority remains **unverified**.
-- Paid full-schema [run #45211754106](https://github.com/JibrilMohamud/cove/actions/runs/45211754106) **failed** at the exact current-owner journal read HTTP 500 before irreversible TEST payment. Recovery patch permits bounded retries only for this nonce-bound QA read, while exact 27-table/87-trigger manifest and all financial commands retain their strict rules. No HTTP 500 on a mutation can be retried.
-- Protected capacity [run #45211753205](https://github.com/JibrilMohamud/cove/actions/runs/45211753205) passed real literary publication preflight but failed because `COVE_CF_STAGE_DATA_PLANE_READ_TOKEN` is absent in the protected GitHub environment. No cold/32-way/100 RPS artifacts were generated; credential must be installed and scoped before certification.
-- User-token [run #45211753146](https://github.com/JibrilMohamud/cove/actions/runs/45211753146) still rejects a permission-group ID alias mismatch. Next run reports a narrower fixed category without reducing identity or scope checks. No account-wide physical writer assertion may be made while active user-owned grants are unreviewed.
-- Both production backend direct primary-D1 binding and disabled owner persist; no LIVE charge/refund acceptance, strict geographic load pass or credential retirement.
-
-**NO-GO remains authoritative.** Hosted synthetic results must not be represented as signed legal grants, approved customer commerce, or production readiness.
-
-## 2026-11-23 16:36 UTC — full-schema progress and root cause
-
-The [protected paid full-schema QA #45217818119](https://github.com/JibrilMohamud/cove/actions/runs/45217818119) proved real Stripe TEST settlement, refund, signed webhook deduplication and legal-owner publication, then FAILED on original customer EPUB grant HTTP 503. A QA-only raw-D1 facade lacked the actual private-owner command context needed by original delivery handlers. The release fix explicitly binds their exact private-owner context; all original paid EPUB/audio/offline/refund/replay gates remain mandatory.
-
-This run also recorded 32/32 native D1 read responses valid, maximum **572.59 ms**, SQL maximum **5.71 ms**. These are preliminary synthetic QA samples, not full ORD/LAX/IAD/DFW and 100-RPS certification. Protected capacity remains blocked by absent `COVE_CF_STAGE_DATA_PLANE_READ_TOKEN` in the protected GitHub environment. User-token inventory reports an unrecognized active permission group; never assume it is read-only. **Production NO-GO.**
-
-## 2026-11-23 16:53 UTC — protected QA gateway sequencing
-
-The [exact merged-main full-schema rerun #45220874689](https://github.com/JibrilMohamud/cove/actions/runs/45220874689) failed before customer EPUB grant due `isolated_qa_d1_gateway_unavailable:HTTP_404`. A secondary **synthetic entitlement restoration failure in teardown masked the initial error**. This patch removes public ephemeral QA ingress before reinstating any synthetic entitlement, retains nonroutable owner/writer until D1 cleanup completes, confirms the authenticated QA gateway read path before the one-shot restoration, and preserves the original exception. It **does not** retry ambiguous mutations, use direct D1 tokens, change real production, or turn this protected run green without end-to-end proof.
-
-## Unified gate checklist
-
-| Gate | Status | Current evidence / remaining contract |
+| Protected evidence | Result on integration `54009bc` | Boundary |
 | --- | --- | --- |
-| October owner source integration | IN REVIEW — still draft | #850 contains migrated source families, November protections and the owner-context/cron-negative-receipt fixes. Earlier integrated SHA `55934bcac97ca0ec656c4bd40bc6fbfcf3766b89` passed 64 checks (16 skipped); **fresh CI is required** after forward-merging #823 at `edbc175ebe5dda209aed1714d63a492c4f178c30`. Source tests do not prove deployed production writer operations. |
-| Hosted BioSync owner command | **PASS — isolated QA only** | Protected GitHub [run 45109625391](https://github.com/JibrilMohamud/cove/actions/runs/45109625391), pinned to `main` `96bd542bbce54b85de510967c261938565d9eee4`; re-run [45119081902](https://github.com/JibrilMohamud/cove/actions/runs/45119081902) **passed** on `main` `b9392468` via authenticated owner comment, with both authorization and hosted-write jobs green (all individual steps, including actual owner write, replay, adversarial denials and teardown). Both authorization and hosted-write jobs succeeded. Job evidence records `ownerCommit=true`, `replay=true`, `deniedAdversarialCommands=true`, `primaryPointerAtomic=true`, `productionAccess=false`, `rightsGranted=false`; teardown step succeeded. This is not a deployed hourly replacement. |
-| Production business write-owner proof | NOT CERTIFIED | Account, catalog, ingestion, checkout, refund, legal withdrawal, seven backend crons, hourly BioSync publisher, concurrent retries, recovery, exact idempotency, and rollback need protected end-to-end tests on the integrated candidate. No production cutover before all paths work without direct D1. |
-| Exclusive physical primary D1 | FAIL | Read-only production Cloudflare Worker settings still show `cove-legal-authority-production/PRIMARY_DB` and `cove-persistence-backend/DB` both bind primary `4bd657ac-8789-403e-a28c-93aba8d0a989`. `COVE_RIGHTS_OWNER_ENABLED=0`. No backend binding removal/redeployment authorized yet. |
-| Existing production schedules | PRESERVED, replacement NOT CERTIFIED | Fresh independent Cloudflare API reads on 2026-11-23 confirm exactly seven deployed backend cron triggers and the backend's direct D1 binding; [merged safety guard #864](https://github.com/JibrilMohamud/cove/pull/864) passed all 18 CI checks (including six browser profiles) but must not be mistaken for an owner cutover. The cron triggers are: `* * * * *`, `*/5 * * * *`, `*/10 * * * *`, `7-57/10 * * * *`, `23 * * * *`, `17 3 * * *`, `41 4 * * *`. BioSync scheduled replacement remains unproven. |
-| Scoped Cloudflare credentials / broad retirement | FAIL | Direct Cloudflare reads on 2026-11-23 confirmed the **separate** Cove QA account `f51e8ccbc394e2d6016ff8c2c303d54b`, four isolated QA D1 databases and three active scoped QA tokens (QA D1 Write, QA R2 Write, QA Workers Scripts Write). Production account has 13 active account tokens; the broad **Cove GitHub Deployments** credential is active with ~385 permissions including D1 Write, Workers mutation and token administration. User-token inventory returned HTTP 403, so wider credential exclusion is not proven. Do not revoke until all dependent jobs and deployments work with replacements. |
-| Independent legal grant and withdrawal evidence | FAIL — external evidence | Reconcile 87,742 historical grant-audit records and current withdrawals; independently resolve 116 equal-timestamp conflicts and two backdated events, territorially scoped authority, expiry, reinstatements and current owner-denial epoch. Merged #823 now rejects future-dated signed completeness checkpoints and requires independent coverage intervals, but **no genuine rightsholder authority or complete withdrawal archive was located**. Authentic rightsholder authorization and adjudicated ordering are still required. Quarantine every unsupported claim; no inferred positive grants. |
-| Protected full-schema Stripe TEST QA | **PASS — reviewed `main` synthetic QA only** | Protected manual run [45112906933](https://github.com/JibrilMohamud/cove/actions/runs/45112906933) succeeded on main `200bdd79e05915aa7b2a533325ebde6cbcea5c46`: both jobs passed, signed TEST payment, entitlement, EPUB/audio/offline, refund/revocation, dedupe and owner A/B/A rollback after refund. The preexisting temporary QA Worker scripts were independently absent afterward. **Not a deployed integration #850 owner acceptance or Stripe LIVE proof.** |
-| Stripe LIVE end-to-end | NOT CERTIFIED | Read-only 2026-11-23 Stripe inspection: Cove LIVE account connected; one enabled `https://www.covereads.com/api/fore/stripe/webhook` endpoint for payment/refund/dispute events. The previously inspected LIVE PaymentIntent count was zero; this count was not requeried during this audit. No charge was created. A legally permitted actual charge, refund and immediate owner revocation remain blocked by missing rights and owner cutover. |
-| Catalog/storefront reliability and 500/503 | NOT CERTIFIED | Direct Vercel runtime-error groups inspected 2026-11-23 cover the prior seven days and still show backend aborts (16), closed bootstrap failures (3) and TLS ECONNRESET (1), last observed through 2026-11-18. No new error group in the last 24 hours does not demonstrate absence of Worker 503s; no proof that intermittent storefront 503s are gone. Audit search/count/facet/filter/sort/pagination and legal eligibility parity on the exact serving version. Vercel apex redirects 308 to www; both aliases still pin `dpl_HrWWUHUhMkDQjbFmZ5TW8g8dHWBr` (commit `c959eaed64c58f7d9675c0c8b6852c70f4914dec`). |
-| Australian regional EPUB pointers | NOT CERTIFIED | Repair only externally verified object-to-rights pointers; preserve denial/quarantine on conflicts. |
-| Protected rollback | **PASS — synthetic QA owner A/B/A only; production NOT CERTIFIED** | Protected full-schema TEST run 45112906933 exercised actual isolated owner A/B/A deployment versions and verified retained negative legal/payment state. Production rollback of pinned Vercel aliases and Cloudflare Worker versions, with canonical write continuity and same-epoch withdrawal/entitlement preservation, is still mandatory and has not been executed. |
-| Performance | NOT CERTIFIED | After all safety gates: cold/warm TTFB **strictly <800 ms**, concurrency **1/4/8/16/32**, two 20-second 100-RPS phases of **2,000 valid responses each**, zero drops, p95 **<600 ms**, p99 **<750 ms**, max **<800 ms**, repeatable ORD/LAX/IAD/DFW. No excluded failures or softened definitions. |
+| Hosted BioSync owner publication/replay | [45321904423](https://github.com/JibrilMohamud/cove/actions/runs/45321904423) passed | Actual isolated synthetic owner commit, adversarial denials and cleanup; not production hourly publisher acceptance |
+| Full-schema Stripe TEST commerce | [45321902706, attempt 2](https://github.com/JibrilMohamud/cove/actions/runs/45321902706/attempts/2) passed | Signed initial payment settlement, ledger/outbox, buyer entitlement, EPUB/audio/offline access, refund/revocation, replay, concurrency and actual owner A/B/A rollback |
+| Hosted capacity | [45321902326](https://github.com/JibrilMohamud/cove/actions/runs/45321902326) passed | Isolated staging candidate, not four-region production acceptance |
+| Protected Worker rollback | [45321902888](https://github.com/JibrilMohamud/cove/actions/runs/45321902888) passed | Isolated QA, not production cutover rollback |
+| Historical primary-rights checks | [45321902227](https://github.com/JibrilMohamud/cove/actions/runs/45321902227) passed | Bounded read-only audit, not independent positive rightsholder authority |
+| Grant event replay | [45322038363](https://github.com/JibrilMohamud/cove/actions/runs/45322038363) passed | Historical sequence verification, not adjudication of disputed histories |
+| Canonical rights differential | [45321902378](https://github.com/JibrilMohamud/cove/actions/runs/45321902378) passed | Synthetic witnesses/canonical-view parity |
+| External-source withdrawal audit | [45323130879](https://github.com/JibrilMohamud/cove/actions/runs/45323130879) passed | Bounded source observations, not complete independently authoritative withdrawal history |
+| Real-rights spot check | [45323275478](https://github.com/JibrilMohamud/cove/actions/runs/45323275478) passed | Spot comparison, not whole-catalog legal certification |
 
-## Actual integrations under review
+The commerce run's first attempt stopped on an owner-readiness HTTP 500 **before any payment**. Only its failed job was rerun. Attempt 2 passed and independently verified teardown. Its 32-way native D1 samples were 32/32 valid, maximum 728.89 ms and SQL maximum 5.84 ms. These samples do not constitute geographic or sustained production performance certification. No measured requests or financial mutations were silently retried.
 
-The draft #850 currently replaces the hourly production BioSync workflow with QA-only execution, which would silently stop legitimate publishing. The separate production-continuity regression in merged #864 now prevents that unsafe merger. The draft #850 correction also preserves private routing context across first-primary sessions, read-only canonical D1, and commerce-specific D1 wrappers while keeping both raw-SQL denial fences. It also rejects resolved `{ok:false}` receipts and propagates scheduled queue/erasure failures. CI source checks and fresh cross-domain test results, **including on the latest HEAD**, are required before source-merger review. Source tests cannot certify physical writer exclusivity.
+## Physical authority and token verification
 
-## External-only evidence still required
+[Writer audit 45322445843](https://github.com/JibrilMohamud/cove/actions/runs/45322445843) inspected 465 active Worker versions. It still found two primary binders: disabled `cove-legal-authority-production/PRIMARY_DB` and `cove-persistence-backend/DB`. It also identified three privileged account credentials: `COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN`, `Cove GitHub Deployments`, and `Cove Protected Worker Version Upload`. Exclusivity is not established.
 
-Provide authoritative rightsholder grant provenance, all withdrawals including completeness/coverage and ordering for the disputed cohort, and authoritative adjudication of backdated/equal-time records. Do not substitute D1's historical audit log for independently verified rightsholder authority. Once available, run protected full replay against the then-current owner denial epoch, certify only supported rights, and leave all other titles denied.
+[User-token audit 45321902989](https://github.com/JibrilMohamud/cove/actions/runs/45321902989) failed with `active_user_token_permission_unreviewed/read_group_alias_identifier_mismatch_unrecognized`. PR #887 adds positive exact-ID evidence from four fixed provider scope catalogs, preserving all unknown/write/malformed/conflicting identity denials. Its source tests are not a real-provider pass. The new protected main-push preflight must independently establish the provider result after merge.
 
-## Production safety locks
+Token-verifier-only changes now trigger only the separately protected metadata preflight. Runtime-critical owner, commerce and capacity changes retain the full protected batch; manual full batches still require all eleven child workflows. Orchestration-only edits require source-contract checks. Completed unchanged hosted QA is retained rather than repeatedly executed for unrelated metadata logic. No omission from a partial provider catalog proves an absent or harmless capability.
 
-Production legal owner stays disabled; backend D1 binding and seven cron schedules stay deployed until tested owner replacements and protected rollback exist; broad token remains active only until safely replaceable; retail LIVE flows stay denied. **Any gate marked source-only, isolated QA or NOT CERTIFIED is a release blocker.**
+## Actual D1-unbound scheduled-operation gap
 
-Final decision can be changed to GO only after every required gate carries an exact commit SHA, workflow/job artifacts, production verification, owner/withdrawal provenance and signed release acceptance.
+Configuration of all seven production cron triggers was already verified; that completed work was not repeated. The new `scripts/release/inspect-unbound-backend-crons.mjs` executes the actual backend entrypoint and real private owner handlers against all **95 migrations**, with disposable SQLite and **no native caller DB binding or external network**. It observes the existing strict SQL rejection without bypassing it.
+
+The observed fixture run found these remaining operational writes:
+
+| Cron | Rejected direct SQL categories | Observed task result |
+| --- | --- | --- |
+| `* * * * *` | Literary and music profile leases | Errors logged; outer task fulfilled |
+| `*/5 * * * *` | Public status config, cache cleanup, catalog state | One rejected task |
+| `*/10 * * * *` | Soundtrack rights-check claim | One rejected task |
+| `7-57/10 * * * *` | Soundtrack ingestion lease | Error logged; outer task fulfilled |
+| `23 * * * *` | Author-alert scan state | One rejected task; separate empty account/partner operations returned |
+| `17 3 * * *` | None reached in this empty fixture | Audio compute deferred; no real scan proved |
+| `41 4 * * *` | Recommendation job recovery | Error caught inside maintenance; outer tasks fulfilled |
+
+This is a **local migration diagnostic**, not managed D1/Worker execution, populated queue coverage, successful production writes or a cutover permit. Fixture session bookmarks are not provider consistency evidence. Every report explicitly sets `scheduledOperationsCertified:false` and `releaseCertified:false`. Empty/no-op tasks cannot satisfy a production business-operation gate. Further populated fixtures and hosted operation proof remain necessary after the missing typed operational paths are implemented. Removing the backend binding now would break legitimate work.
+
+## Current production reliability evidence
+
+Read-only Cloudflare deployment reads before and after a 20-minute analytics query matched backend version `401f2af2-6e69-4611-8110-1d127af6eecf` at 100%, deployment `9df84b20-0599-4fe9-a14e-2c11a4f25133`.
+
+For **2026-11-24 03:55–04:15 UTC** (November 23, 10:55–11:15 p.m. EST), sampled analytics reported two HTTP 200 requests and one **HTTP 500 with one invocation error**, at 04:09 UTC. A cron invocation error was also present at 04:00 UTC. No HTTP 503 appeared in this sparse sample. This does not establish zero-503 reliability, identify the failing HTTP route or root cause, or certify the source candidate. A narrow persisted-log query returned no matching error events; it supplied no exception diagnosis. No customer traffic was generated by these analytics reads.
+
+## Remaining production gates
+
+| Gate | Status / required proof |
+| --- | --- |
+| Independent legal authority | Genuine territorial/format/channel authority, disputed history adjudication, complete withdrawals and reconciliation with a current independent owner denial epoch remain unavailable. Passing source/replay/spot workflows does not supply those records. |
+| Exclusive owner and credentials | Implement and prove every remaining account/catalog/commerce/scheduled writer and the actual hourly BioSync replacement; then activate only legally supported authority, remove competing bindings and retire privileged credentials with rollback coverage. |
+| Stripe LIVE | Controlled legally permitted real payment, fulfillment, refund and immediate revocation remain unproven. TEST evidence does not substitute for LIVE. No customer was charged here. |
+| Production reliability | Fresh backend failure remains observed. Prove catalog/search/counts/facets/filters/sorts/pagination, protected content and scheduled workloads on the exact serving candidate. |
+| Australian EPUB pointers | Repair only independently verified object-to-rights mappings; retain denials/quarantine for unsupported records. |
+| Production rollback | Verify pinned frontend/backend rollback with write continuity and preserved withdrawals, refund/revocation state and owner epochs. Isolated QA rollback is retained but does not certify production. |
+| Geographic performance | Exact serving candidate must meet ORD/LAX/IAD/DFW cold/warm TTFB strictly <800 ms at 1/4/8/16/32 concurrency, two 20-second 100-RPS phases with 2,000 valid responses each, zero drops, p95 <600 ms, p99 <750 ms and max <800 ms. |
+
+Production legal owner stays disabled, existing backend D1/schedules remain in place, and unrestricted LIVE sales remain denied. These safeguards cannot be removed using synthetic, source-only, no-op or historical evidence.

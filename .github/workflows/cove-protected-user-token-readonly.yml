@@ -1,5 +1,11 @@
 name: cove-protected-user-token-readonly
 on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/release/certify-exclusive-primary-d1.mjs"
+      - "scripts/release/physical-d1-writer-read-transport.mjs"
+      - ".github/workflows/cove-protected-user-token-readonly.yml"
   pull_request:
     paths:
       - "scripts/release/certify-exclusive-primary-d1.mjs"
@@ -15,7 +21,7 @@ on:
         required: true
         type: string
       confirm_user_token_metadata_only:
-        description: "Authorize at most 16 bounded read-only user-token/catalog GETs; no Worker inventory or mutation."
+        description: "Authorize at most 20 bounded read-only user-token/catalog GETs; no Worker inventory or mutation."
         required: true
         default: false
         type: boolean
@@ -34,10 +40,11 @@ jobs:
     needs: offline
     if: >-
       github.repository == 'JibrilMohamud/cove' &&
-      github.event_name == 'workflow_dispatch' &&
       github.ref == 'refs/heads/main' &&
-      inputs.confirm_user_token_metadata_only == true &&
-      inputs.reviewed_main_sha == github.sha
+      (github.event_name == 'push' ||
+        (github.event_name == 'workflow_dispatch' &&
+         inputs.confirm_user_token_metadata_only == true &&
+         inputs.reviewed_main_sha == github.sha))
     environment: cove-production-release-audit
     concurrency:
       group: cove-exclusive-user-token-readonly-preflight
@@ -50,9 +57,10 @@ jobs:
       - uses: actions/setup-node@v6
         with: { node-version: "22" }
       - name: Refuse source drift before the single scoped credential is available
-        run: test "$(git rev-parse HEAD)" = "${{ inputs.reviewed_main_sha }}"
+        run: test "$(git rev-parse HEAD)" = "${{ inputs.reviewed_main_sha || github.sha }}"
       - name: Fixed-category user-token evidence only, never a release certificate
         run: node scripts/release/certify-exclusive-primary-d1.mjs --user-token-preflight
         env:
           CF_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
           CF_USER_AUDIT_TOKEN: ${{ secrets.COVE_CF_USER_TOKENS_AUDIT_READ_TOKEN }}
+          COVE_REVIEWED_USER_TOKEN_PUSH: ${{ github.event_name == 'push' && github.sha || '' }}
