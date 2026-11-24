@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
 const account = "d26430caa63ec55f6612e32f36aca5e9";
@@ -26,7 +27,39 @@ function exactPermission(token, group, resource) {
     fail("token_scope");
 }
 
-export async function verifyProductionBioSyncCredentials(env, transport = fetch) {
+const r2Id = "8b44b8edebf071ba96ee47e9b34e95bc";
+const d1ExpectedId = "ba59697e28231d3ee460f382aff95454";
+
+function probeScopedR2(env) {
+  try {
+    const result = execFileSync(
+      "python3",
+      ["-m", "scripts.audio_pipeline.biosync_production_owner_transport"],
+      {
+        env: {
+          PATH: env.PATH,
+          HOME: env.HOME,
+          COVE_BIOSYNC_PROD_OWNER_MODE: "1",
+          COVE_BIOSYNC_PROD_D1_READ_TOKEN: env.COVE_BIOSYNC_PROD_D1_READ_TOKEN,
+          COVE_BIOSYNC_PROD_R2_TOKEN: env.COVE_BIOSYNC_PROD_R2_TOKEN,
+          COVE_BIOSYNC_PROD_CLIENT_SECRET: env.COVE_BIOSYNC_PROD_CLIENT_SECRET,
+        },
+        encoding: "utf8",
+        timeout: 140000,
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    return result.trim() === "cove_biosync_scoped_s3_read_verified";
+  } catch {
+    fail("r2_s3_read_failed");
+  }
+}
+
+export async function verifyProductionBioSyncCredentials(
+  env,
+  transport = fetch,
+  probeR2 = probeScopedR2,
+) {
   const d1 = env.COVE_BIOSYNC_PROD_D1_READ_TOKEN;
   const r2 = env.COVE_BIOSYNC_PROD_R2_TOKEN;
   const client = env.COVE_BIOSYNC_PROD_CLIENT_SECRET;
@@ -39,7 +72,7 @@ export async function verifyProductionBioSyncCredentials(env, transport = fetch)
   )
     fail("credentials_missing_reused_or_invalid");
 
-  async function request(path, token, body) {
+  async function request(operation, path, token, body) {
     const response = await transport(root + path, {
       method: body ? "POST" : "GET",
       headers: {
@@ -50,16 +83,15 @@ export async function verifyProductionBioSyncCredentials(env, transport = fetch)
       redirect: "error",
       signal: AbortSignal.timeout(15000),
     });
-    if (!response.ok) fail("provider_http_" + response.status);
+    if (!response.ok) fail(operation + "_http_" + response.status);
     const data = await response.json();
-    if (data?.success !== true) fail("provider_rejected");
+    if (data?.success !== true) fail(operation + "_provider_rejected");
     return data;
   }
 
-  const [d1Identity, r2Identity, inventory] = await Promise.all([
-    request("/tokens/verify", d1),
-    request("/tokens/verify", r2),
-    request("/tokens?per_page=50&page=1", audit),
+  const [d1Identity, inventory] = await Promise.all([
+    request("d1_identity", "/tokens/verify", d1),
+    request("token_inventory", "/tokens?per_page=50&page=1", audit),
   ]);
   const rows = inventory.result;
   const info = inventory.result_info;
@@ -74,15 +106,7 @@ export async function verifyProductionBioSyncCredentials(env, transport = fetch)
   )
     fail("inventory_incomplete");
   const d1Id = d1Identity.result?.id;
-  const r2Id = r2Identity.result?.id;
-  if (
-    !/^[a-f0-9]{32}$/.test(d1Id || "") ||
-    !/^[a-f0-9]{32}$/.test(r2Id || "") ||
-    d1Id === r2Id ||
-    d1Identity.result?.status !== "active" ||
-    r2Identity.result?.status !== "active"
-  )
-    fail("token_identity");
+  if (d1Id !== d1ExpectedId || d1Identity.result?.status !== "active") fail("token_identity");
   exactPermission(
     rows.find((x) => x.id === d1Id),
     "D1 Read",
@@ -94,13 +118,10 @@ export async function verifyProductionBioSyncCredentials(env, transport = fetch)
     r2Scope,
   );
 
-  const [read, list] = await Promise.all([
-    request("/d1/database/" + primary + "/query", d1, {
-      sql: "SELECT 1 AS ok",
-      params: [],
-    }),
-    request("/r2/buckets/" + bucket + "/objects?prefix=biosync%2Ftext%2F&per_page=1", r2),
-  ]);
+  const read = await request("d1_query", "/d1/database/" + primary + "/query", d1, {
+    sql: "SELECT 1 AS ok",
+    params: [],
+  });
   if (
     read.result?.length !== 1 ||
     read.result[0]?.success !== true ||
@@ -108,13 +129,14 @@ export async function verifyProductionBioSyncCredentials(env, transport = fetch)
     read.result[0]?.results[0]?.ok !== 1
   )
     fail("d1_read");
-  if (!Array.isArray(list.result) && !Array.isArray(list.result?.objects)) fail("r2_list");
+  if (!(await probeR2(env))) fail("r2_s3_read_failed");
   return {
     schema: "cove.production-biosync-credential-preflight.v1",
     exactD1ReadScope: true,
     exactR2BucketScope: true,
     realD1Read: true,
     realR2List: true,
+    r2Authentication: "s3-sigv4-exact-bucket",
     independentClientSecretShape: true,
     providerMutationAttempted: false,
     ownerPublicationProven: false,

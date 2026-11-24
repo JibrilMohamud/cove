@@ -102,6 +102,8 @@ def choose_queued_short_track() -> bool:
             "GET", f"{BASE}/r2/buckets/{BUCKET}/objects?prefix={urllib.parse.quote(prefix)}&per_page=1000"
         ))
     except RuntimeError as error:
+        if owner_transport.enabled():
+            raise
         print(f"Short BioSync auto-selector unavailable: {error}")
         return False
     objects = result.get("result", [])
@@ -163,6 +165,11 @@ def main() -> None:
     if existing:
         map_hash = existing[0]["map_sha256"]
         download_verified(f"biosync/maps/{map_hash}.json", map_hash)
+        if owner_transport.enabled() and os.environ.get("BIOSYNC_PROVE_OWNER_REPLAY") == "1":
+            receipt = owner_transport.commit(EDITION, TRACK, JOB, map_hash)
+            if receipt.get("replay") is not True:
+                raise RuntimeError("Owner replay witness was not idempotent")
+            print("cove_biosync_production_owner_replay_verified")
         print("BioSync canary already published and verified in D1 and R2")
         return
 
@@ -221,7 +228,9 @@ def main() -> None:
         raise RuntimeError("Audio/text identity changed during canary publication")
 
     if owner_transport.enabled():
-        owner_transport.commit(EDITION, TRACK, JOB, map_sha)
+        receipt = owner_transport.commit(EDITION, TRACK, JOB, map_sha)
+        if receipt.get("replay") is not True:
+            print("cove_biosync_production_owner_new_commit_verified")
     else:
         first, last = mapping["words"][0], mapping["words"][-1]
         summary = {
