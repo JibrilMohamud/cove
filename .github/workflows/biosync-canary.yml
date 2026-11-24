@@ -42,6 +42,7 @@ jobs:
           COVE_BIOSYNC_PROD_R2_TOKEN: ${{ secrets.COVE_BIOSYNC_PROD_R2_TOKEN }}
           COVE_BIOSYNC_PROD_CLIENT_SECRET: ${{ secrets.COVE_BIOSYNC_PROD_CLIENT_SECRET }}
         run: |
+          set -euo pipefail
           BIOSYNC_AUTO_SHORT=0 BIOSYNC_PROVE_OWNER_REPLAY=1 python3 -m scripts.audio_pipeline.biosync_canary | tee /tmp/cove-biosync-replay.log
           grep -Fx cove_biosync_production_owner_replay_verified /tmp/cove-biosync-replay.log
           BIOSYNC_AUTO_SHORT=1 python3 -m scripts.audio_pipeline.biosync_canary

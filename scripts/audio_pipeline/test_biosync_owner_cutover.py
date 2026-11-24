@@ -1,9 +1,8 @@
 """Separate the live scheduled BioSync producer from synthetic owner QA.
 
-The production canary and its hourly workflow must remain operational until a
-protected production-equivalent replacement, real rights authority and rollback
-have been independently certified. QA still verifies typed owner operations in
-the physically separate Cove QA account; a synthetic success is not cutover.
+The production owner bridge has passed real replay and rollback. The hourly
+publisher retains its live account, bucket and scheduled duties without direct
+D1 writes. QA still runs on separate resources and does not certify production.
 """
 import unittest
 from unittest.mock import patch

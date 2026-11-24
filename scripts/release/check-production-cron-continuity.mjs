@@ -58,15 +58,21 @@ export function verifyScheduledProductionContinuity({
   );
   assert.ok(
     biosyncWorkflow.includes("BIOSYNC_AUTO_SHORT=1 python3 -m scripts.audio_pipeline.biosync_canary") &&
-      biosyncWorkflow.includes("BIOSYNC_AUTO_SHORT=0 BIOSYNC_PROVE_OWNER_REPLAY=1"),
+      biosyncWorkflow.includes(
+        "BIOSYNC_AUTO_SHORT=0 BIOSYNC_PROVE_OWNER_REPLAY=1 python3 -m scripts.audio_pipeline.biosync_canary",
+      ) &&
+      biosyncWorkflow.includes("grep -Fx cove_biosync_production_owner_replay_verified") &&
+      biosyncWorkflow.includes("set -euo pipefail"),
     "Preserve autonomous discovery and real owner replay",
   );
   assert.ok(
     biosyncWorkflow.includes("environment: cove-production-release-audit") &&
       biosyncWorkflow.includes('COVE_BIOSYNC_PROD_OWNER_MODE: "1"') &&
-      ["COVE_BIOSYNC_PROD_D1_READ_TOKEN", "COVE_BIOSYNC_PROD_R2_TOKEN", "COVE_BIOSYNC_PROD_CLIENT_SECRET"].every(
-        (name) => biosyncWorkflow.includes(name + ": ${{ secrets." + name + " }}"),
-      ) &&
+      [
+        "COVE_BIOSYNC_PROD_D1_READ_TOKEN",
+        "COVE_BIOSYNC_PROD_R2_TOKEN",
+        "COVE_BIOSYNC_PROD_CLIENT_SECRET",
+      ].every((name) => biosyncWorkflow.includes(name + ": ${{ secrets." + name + " }}")) &&
       !biosyncWorkflow.includes("CLOUDFLARE_API_TOKEN"),
     "Hourly producer must use the three scoped credentials and no legacy token",
   );
