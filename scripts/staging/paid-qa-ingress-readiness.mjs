@@ -15,6 +15,10 @@ function checkedReadReceipt(route, response) {
   if (!definition) throw Error("paid_qa_ingress_unreviewed_probe");
   // A 404 *without* the authenticated Worker's marker may be edge version
   // propagation. A 404 from inside the Worker is an application failure.
+  // A runner-side timeout on a PRE-MEASUREMENT, read-only probe is not
+  // proof of readiness or of an application denial. Do not retry the same
+  // request, issue writes, or discard any measured latency sample here.
+  if (response?.status === 0 && response.preflightTimeout === true) return "preflight_timeout";
   if (response?.status === 404 && response.ingressColo === null) return "edge_404";
   // This endpoint never touches owner/D1, cannot mutate anything and emits
   // its ingress marker before every successful response. Only an unmarked
@@ -77,12 +81,24 @@ export async function stabilizePrivatePaidQaIngress({
   let clean = 0;
   let edge404 = 0;
   let edge500 = 0;
+  let preflightTimeouts = 0;
   for (let round = 1; round <= rounds; round++) {
     let entireWaveReady = true;
     for (const { route } of PAID_QA_READ_PROBES) {
       const requestBody = route === "/qa/native-first-paint" ? nativeInput : {};
       const receipts = await Promise.all(
-        Array.from({ length: parallel }, () => probe(route, requestBody)),
+        Array.from({ length: parallel }, async () => {
+          try {
+            return await probe(route, requestBody);
+          } catch (error) {
+            // Only the standard AbortSignal.timeout error may delay this
+            // isolated READINESS wave; unknown transport/code errors still
+            // fail. No purchase, owner write, or measured sample is retried.
+            if (error instanceof Error && error.name === "TimeoutError")
+              return { status: 0, preflightTimeout: true };
+            throw error;
+          }
+        }),
       );
       for (const response of receipts) {
         const verdict = checkedReadReceipt(route, response);
@@ -90,13 +106,23 @@ export async function stabilizePrivatePaidQaIngress({
           entireWaveReady = false;
           if (verdict === "edge_404") edge404++;
           else if (verdict === "edge_500") edge500++;
+          else if (verdict === "preflight_timeout") preflightTimeouts++;
         }
       }
     }
     clean = entireWaveReady ? clean + 1 : 0;
     if (clean === stableWaves)
-      return { globallyReady: true, completeWaves: round, edge404, edge500 };
+      return {
+        globallyReady: true,
+        completeWaves: round,
+        edge404,
+        edge500,
+        ...(preflightTimeouts ? { preflightTimeouts } : {}),
+      };
     if (round < rounds) await sleep(3000);
   }
-  throw Error("paid_qa_ingress_readonly_unstable:edge404=" + edge404 + ":edge500=" + edge500);
+  throw Error(
+    "paid_qa_ingress_readonly_unstable:edge404=" + edge404 +
+      ":edge500=" + edge500 + ":timeouts=" + preflightTimeouts,
+  );
 }
