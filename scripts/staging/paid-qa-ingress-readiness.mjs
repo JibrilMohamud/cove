@@ -15,10 +15,13 @@ function checkedReadReceipt(route, response) {
   if (!definition) throw Error("paid_qa_ingress_unreviewed_probe");
   // A 404 *without* the authenticated Worker's marker may be edge version
   // propagation. A 404 from inside the Worker is an application failure.
-  // A runner-side timeout on a PRE-MEASUREMENT, read-only probe is not
-  // proof of readiness or of an application denial. Do not retry the same
+  // A runner-side timeout or exact ECONNRESET on a PRE-MEASUREMENT,
+  // read-only probe is not proof of readiness or of application denial.
+  // Do not retry the same request or count its wave as a valid sample;
   // request, issue writes, or discard any measured latency sample here.
   if (response?.status === 0 && response.preflightTimeout === true) return "preflight_timeout";
+  if (response?.status === 0 && response.preflightConnectionReset === true)
+    return "preflight_connection_reset";
   if (response?.status === 404 && response.ingressColo === null) return "edge_404";
   // This endpoint never touches owner/D1, cannot mutate anything and emits
   // its ingress marker before every successful response. Only an unmarked
@@ -53,8 +56,10 @@ function checkedReadReceipt(route, response) {
 /**
  * Every wave exercises three fixed read-only paths at the full 32-request
  * parallelism. Two *consecutive* entirely clean waves are required, with no
- * selected/discarded latency samples. Uncertain network/owner/5xx failures
- * fail immediately; only an unmarked 500 from the nonmutating, no-D1 caller
+ * selected/discarded latency samples. An exact read-only runner ECONNRESET
+ * marks a preflight wave NOT ready, never successful. Other network errors,
+ * owner/application failures and 5xx fail immediately. Only an unmarked 500
+ * from the nonmutating, no-D1 caller
  * ping is treated as not-ready. Persistent 404/500 fails after a hard bound.
  */
 export async function stabilizePrivatePaidQaIngress({
@@ -82,6 +87,7 @@ export async function stabilizePrivatePaidQaIngress({
   let edge404 = 0;
   let edge500 = 0;
   let preflightTimeouts = 0;
+  let preflightConnectionResets = 0;
   for (let round = 1; round <= rounds; round++) {
     let entireWaveReady = true;
     for (const { route } of PAID_QA_READ_PROBES) {
@@ -91,11 +97,20 @@ export async function stabilizePrivatePaidQaIngress({
           try {
             return await probe(route, requestBody);
           } catch (error) {
-            // Only the standard AbortSignal.timeout error may delay this
-            // isolated READINESS wave; unknown transport/code errors still
-            // fail. No purchase, owner write, or measured sample is retried.
+            // The fixed READ-ONLY preflight permits only an AbortSignal timeout
+            // or an exact runner ECONNRESET to invalidate a readiness wave.
+            // The request is not replayed; measured acceptance, purchases and
+            // owner mutations are still never retried or discarded.
             if (error instanceof Error && error.name === "TimeoutError")
               return { status: 0, preflightTimeout: true };
+            if (
+              error instanceof TypeError &&
+              error.message === "fetch failed" &&
+              error.cause &&
+              typeof error.cause === "object" &&
+              error.cause.code === "ECONNRESET"
+            )
+              return { status: 0, preflightConnectionReset: true };
             throw error;
           }
         }),
@@ -107,6 +122,7 @@ export async function stabilizePrivatePaidQaIngress({
           if (verdict === "edge_404") edge404++;
           else if (verdict === "edge_500") edge500++;
           else if (verdict === "preflight_timeout") preflightTimeouts++;
+          else if (verdict === "preflight_connection_reset") preflightConnectionResets++;
         }
       }
     }
@@ -118,6 +134,7 @@ export async function stabilizePrivatePaidQaIngress({
         edge404,
         edge500,
         ...(preflightTimeouts ? { preflightTimeouts } : {}),
+        ...(preflightConnectionResets ? { preflightConnectionResets } : {}),
       };
     if (round < rounds) await sleep(3000);
   }
@@ -127,6 +144,8 @@ export async function stabilizePrivatePaidQaIngress({
       ":edge500=" +
       edge500 +
       ":timeouts=" +
-      preflightTimeouts,
+      preflightTimeouts +
+      ":resets=" +
+      preflightConnectionResets,
   );
 }
