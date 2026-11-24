@@ -64,6 +64,15 @@ const PROVIDER_ALTERNATE_READ_IDS=new Map([
   ["d2afaa33feba4b6182c0135b7219ad74","Zaraz Readonly"],
   ["6dddc4763b2646c89491898cface4aa1","Cloudflare Zero Trust Read Only"],
   ["0a5ddcbf92a5430599aeec18d2a88ce0","Audit Logs Viewer"],
+  // Legacy names do not say Read. Their provider IAM definitions explicitly
+  // limit them to viewing/reading; label shape alone is never evidence.
+  ["6795348d3cef44a0be48be200828858b","Minimal Account Access"],
+  ["9ac5632ae4f449938fc2ed64a20af22c","Analytics"],
+  ["2b3124552acd4fe390a35883e20745c2","Log Share Reader"],
+  ["b446806c7314472798f9364be7619455","Email Security Reporting"],
+  ["f4df4017f4334b30a868883046a18a9d","Administrator Read Only"],
+  ["98d2b0c4bd3b4a2c842fcd2a81273ee9","Domain Administrator Read Only"],
+  ["bd837b12789e45cdb2e3867bc4e41377","Cloudflare One Connector Read and Monitor: cloudflared"],
 ]);
 
 // Cloudflare states permission-group names are cosmetic. Verify unexpected
@@ -115,10 +124,17 @@ async function proveReadIdsByScope(get,userToken,groups){
   for(const group of groups){
     const match=observed.get(group.id);
     if(!match)return "read_group_alias_identifier_mismatch_unrecognized";
-    if(PRIVILEGED_GROUPS.has(match.name)||match.name.trim()!==match.name||
-       !(PROVIDER_CANONICAL_READ_GROUP.test(match.name)||
-         PROVIDER_ALTERNATE_READ_IDS.get(group.id)===match.name))
+    if(match.name.trim()!==match.name)
       return "read_group_provider_capability_not_readonly";
+    const readonly=PROVIDER_CANONICAL_READ_GROUP.test(match.name)||
+      PROVIDER_ALTERNATE_READ_IDS.get(group.id)===match.name;
+    if(PRIVILEGED_GROUPS.has(match.name)||!readonly){
+      // Identify an actual provider-confirmed mutation without logging any
+      // token/policy label, ID, resource selector or permission name.
+      if(PRIVILEGED_GROUPS.has(match.name)||/\b(?:Write|Edit|Admin|Editor|Administrator)$/.test(match.name))
+        return "read_group_provider_mutation_capability";
+      return "read_group_provider_capability_not_readonly";
+    }
   }
   return null;
 }
