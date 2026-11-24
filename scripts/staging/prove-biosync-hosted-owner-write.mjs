@@ -201,20 +201,26 @@ async function waitForAuthenticatedGateway(){
 async function waitForBoundOwnerReadiness(client){
   try{
     const evidence=await stabilizeBiosyncOwnerBinding(async()=>{
-      const r=await fetch(ownerOrigin+"/qa/owner-bound-ready",{
-        method:"POST",
-        headers:{"authorization":"Bearer "+client,"content-type":"application/json"},
-        body:"{}",redirect:"error",signal:AbortSignal.timeout(10000)
-      });
-      const body=r.status===200?await r.json().catch(()=>null):null;
-      return {status:r.status,body,noStore:r.headers.get("cache-control")==="no-store"};
+      try{
+        const r=await fetch(ownerOrigin+"/qa/owner-bound-ready",{
+          method:"POST",
+          headers:{"authorization":"Bearer "+client,"content-type":"application/json"},
+          body:"{}",redirect:"error",signal:AbortSignal.timeout(10000)
+        });
+        const body=r.status===200?await r.json().catch(()=>null):null;
+        return {status:r.status,body,noStore:r.headers.get("cache-control")==="no-store"};
+      }catch(error){
+        if(error instanceof Error&&error.name==="TimeoutError")
+          return {status:0,preflightTimeout:true};
+        throw error;
+      }
     },ms=>new Promise(resolve=>setTimeout(resolve,ms)));
     console.log(JSON.stringify(evidence));
   }catch(error){
     // Report only local finite-category denial evidence. No provider body,
     // caller token, owner credential, URL, SQL, map, identity or stack.
     const message=error instanceof Error?error.message:"";
-    const allowed=/^biosync_owner_binding_readiness_(?:receipt_denied:HTTP_[0-9]{3}|unstable:[0-9]{1,3}:[0-9]{1,3}(?::edge502=[0-9]{1,3}:edge504=[0-9]{1,3})?)$/;
+    const allowed=/^biosync_owner_binding_readiness_(?:receipt_denied:HTTP_[0-9]{3}|unstable:[0-9]{1,3}:[0-9]{1,3}(?::edge502=[0-9]{1,3}:edge504=[0-9]{1,3})?(?::timeouts=[0-9]{1,3})?)$/;
     console.error("COVE_BIOSYNC_BINDING_READINESS_DENIED "+
       (allowed.test(message)?message:"network_or_unclassified"));
     throw error;
