@@ -25,18 +25,25 @@ export async function refreshLeasedSearchFacets(
   const refreshKey = PREFIX + displayKey.slice("search-facets:v2:".length);
   const owner = crypto.randomUUID();
   const remoteAcquire = dispatchQaOperationalWrite(db, {
-    kind: "cache.lease-acquire", key: refreshKey, owner, expiresAt: nowMs() + LEASE_MS,
+    kind: "cache.lease-acquire",
+    key: refreshKey,
+    owner,
+    expiresAt: nowMs() + LEASE_MS,
   });
-  const lease = remoteAcquire ? ((await remoteAcquire) ? { body: owner } : null) : await db
-    .prepare(
-      `INSERT INTO api_cache(key,body,expires_at) VALUES(?,?,?)
+  const lease = remoteAcquire
+    ? (await remoteAcquire)
+      ? { body: owner }
+      : null
+    : await db
+        .prepare(
+          `INSERT INTO api_cache(key,body,expires_at) VALUES(?,?,?)
        ON CONFLICT(key) DO UPDATE SET
          body=excluded.body,expires_at=excluded.expires_at
        WHERE api_cache.expires_at<=?
        RETURNING body`,
-    )
-    .bind(refreshKey, owner, nowMs() + LEASE_MS, nowMs())
-    .first<{ body: string }>();
+        )
+        .bind(refreshKey, owner, nowMs() + LEASE_MS, nowMs())
+        .first<{ body: string }>();
   if (lease?.body !== owner) return false;
   try {
     // A multi-million-row presentation scan must not pile onto a D1 queue
@@ -55,7 +62,11 @@ export async function refreshLeasedSearchFacets(
     return true;
   } finally {
     // Never delete another refresh's replacement lease after timeout.
-    const remoteRelease = dispatchQaOperationalWrite(db, { kind: "cache.lease-release", key: refreshKey, owner });
+    const remoteRelease = dispatchQaOperationalWrite(db, {
+      kind: "cache.lease-release",
+      key: refreshKey,
+      owner,
+    });
     if (remoteRelease) await remoteRelease.catch(() => undefined);
     else
       await db

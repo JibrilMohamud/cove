@@ -59,18 +59,25 @@ async function refreshPresentationCounts(
   // an older request may NOT delete a newer owner's lease after takeover.
   const owner = crypto.randomUUID();
   const remoteAcquire = dispatchQaOperationalWrite(db, {
-    kind: "cache.lease-acquire", key: refreshKey, owner, expiresAt: nowMs() + LEASE_MS,
+    kind: "cache.lease-acquire",
+    key: refreshKey,
+    owner,
+    expiresAt: nowMs() + LEASE_MS,
   });
-  const acquired = remoteAcquire ? ((await remoteAcquire) ? { body: owner } : null) : await db
-    .prepare(
-      `INSERT INTO api_cache(key,body,expires_at) VALUES(?,?,?)
+  const acquired = remoteAcquire
+    ? (await remoteAcquire)
+      ? { body: owner }
+      : null
+    : await db
+        .prepare(
+          `INSERT INTO api_cache(key,body,expires_at) VALUES(?,?,?)
        ON CONFLICT(key) DO UPDATE SET
          body=excluded.body,expires_at=excluded.expires_at
        WHERE api_cache.expires_at<=?
        RETURNING body`,
-    )
-    .bind(refreshKey, owner, nowMs() + LEASE_MS, nowMs())
-    .first<{ body: string }>();
+        )
+        .bind(refreshKey, owner, nowMs() + LEASE_MS, nowMs())
+        .first<{ body: string }>();
   if (acquired?.body !== owner) return;
 
   try {
@@ -89,7 +96,11 @@ async function refreshPresentationCounts(
     );
   } finally {
     // Protect a replacement lease from completion of an older request.
-    const remoteRelease = dispatchQaOperationalWrite(db, { kind: "cache.lease-release", key: refreshKey, owner });
+    const remoteRelease = dispatchQaOperationalWrite(db, {
+      kind: "cache.lease-release",
+      key: refreshKey,
+      owner,
+    });
     if (remoteRelease) await remoteRelease.catch(() => undefined);
     else
       await db

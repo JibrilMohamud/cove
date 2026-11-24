@@ -12,9 +12,18 @@ export async function writeCatalogCache(
   guard?: { key: string; owner: string; nowMs: number },
 ) {
   const remote = dispatchQaOperationalWrite(db, {
-    kind: "cache.write", key, body, expiresAt,
-    prefix: prefix as "search-counts:v1:" | "search-facets:v2:" | "search-page:v1:" | "taxonomy-counts:v1:" | "public-api:v2:",
-    limit: limit as 128 | 256, guard,
+    kind: "cache.write",
+    key,
+    body,
+    expiresAt,
+    prefix: prefix as
+      | "search-counts:v1:"
+      | "search-facets:v2:"
+      | "search-page:v1:"
+      | "taxonomy-counts:v1:"
+      | "public-api:v2:",
+    limit: limit as 128 | 256,
+    guard,
   });
   if (remote) {
     await remote;
