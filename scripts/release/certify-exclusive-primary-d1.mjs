@@ -81,7 +81,7 @@ async function proveAdditionalUserReadAliases(get,userToken,unknown){
         return "read_group_catalog_shape_invalid";
       // total_count is unfiltered provider inventory size, NOT a filtered
       // page count. Name uniqueness + page/count is the completeness proof.
-      if(info&&(info.page!==1||info.count!==rows.length))
+      if(!info||info.page!==1||info.count!==rows.length)
         return "read_group_catalog_page_invalid";
       if(rows.length===0)continue;
       const candidate=rows[0];
