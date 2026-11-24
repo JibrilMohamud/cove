@@ -75,6 +75,26 @@ class ProductionBioSyncTransportTests(unittest.TestCase):
             self.assertTrue(json.loads(result)["success"])
             call.assert_called_once_with("PUT", "biosync/maps/" + sha + ".json", {}, content, "r" * 32)
 
+    def test_owner_commit_only_passes_client_secret_and_exact_command(self):
+        from subprocess import CompletedProcess
+        payload = {"editionId": "pg-19504", "trackId": "02", "jobId": "align-test",
+                   "mapSha256": "a" * 64}
+        receipt = {**payload, "schema": "cove.owner-biosync-checked-publication.v1",
+                   "committed": True, "replay": True}
+        with patch.object(t.subprocess, "run", return_value=CompletedProcess(
+                args=[], returncode=0, stdout=json.dumps(receipt), stderr="")) as run:
+            self.assertEqual(t.commit("pg-19504", "02", "align-test", "a" * 64), receipt)
+            args, kwargs = run.call_args
+            self.assertEqual(args[0][0], "node")
+            self.assertEqual(json.loads(kwargs["input"]), payload)
+            self.assertEqual(set(kwargs["env"]), {"PATH", "COVE_BIOSYNC_PROD_CLIENT_SECRET"})
+            self.assertEqual(kwargs["env"]["COVE_BIOSYNC_PROD_CLIENT_SECRET"], "a" * 64)
+        with patch.object(t.subprocess, "run", return_value=CompletedProcess(
+                args=[], returncode=1, stdout="", stderr="biosync_owner_edge_or_transport_http_403")) as run:
+            with self.assertRaisesRegex(RuntimeError, "biosync_owner_edge_or_transport_http_403"):
+                t.commit("pg-19504", "02", "align-test", "a" * 64)
+            self.assertEqual(run.call_count, 1)
+
     def test_no_legacy_token_or_missing_secrets(self):
         with patch.dict(os.environ, {"CLOUDFLARE_API_TOKEN": "broad"}):
             with self.assertRaises(RuntimeError):
