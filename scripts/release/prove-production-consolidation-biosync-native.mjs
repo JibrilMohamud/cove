@@ -51,13 +51,15 @@ function compactSql(input) {
   return out;
 }
 
+// Pinned Wrangler workerd supports dates through October 19. Production
+// deployment remains October 25; this test is only local runtime evidence.
 const options = {
   workers: [
     {
       name: "gateway",
       modules: true,
       scriptPath: resolve(".output/production-consolidation/gateway.mjs"),
-      compatibilityDate: "2026-10-25",
+      compatibilityDate: "2026-10-17",
       compatibilityFlags: ["nodejs_compat"],
       bindings: {
         COVE_PRODUCTION_PERSISTENCE_GATEWAY_ENABLED: "1",
@@ -71,7 +73,7 @@ const options = {
       name: "owner",
       modules: true,
       scriptPath: resolve(".output/production-consolidation/owner.mjs"),
-      compatibilityDate: "2026-10-25",
+      compatibilityDate: "2026-10-17",
       compatibilityFlags: ["nodejs_compat"],
       bindings: {
         COVE_PRODUCTION_PERSISTENCE_OWNER_ENABLED: "1",
@@ -148,7 +150,8 @@ try {
   const migrations = readdirSync("drizzle")
     .filter((name) => name.endsWith(".sql"))
     .sort();
-  for (const name of migrations) await db.exec(compactSql(readFileSync(join("drizzle", name), "utf8")));
+  for (const name of migrations)
+    await db.exec(compactSql(readFileSync(join("drizzle", name), "utf8")));
   await literary.exec("CREATE TABLE separate_literary_sentinel (id INTEGER PRIMARY KEY)");
   await literary.exec("INSERT INTO separate_literary_sentinel VALUES (1)");
   await db
@@ -176,7 +179,12 @@ try {
     .prepare(
       "INSERT INTO audio_jobs(id,kind,payload_json,status,attempts,next_attempt_at,lease_token,lease_until,last_error,updated_at) VALUES(?,'align',?,'queued',0,?,NULL,NULL,'',?)",
     )
-    .bind(job, JSON.stringify({ editionId: edition, trackId: track, audioSha256: audioSha }), at, at)
+    .bind(
+      job,
+      JSON.stringify({ editionId: edition, trackId: track, audioSha256: audioSha }),
+      at,
+      at,
+    )
     .run();
   const bucket = await mf.getR2Bucket("BUCKET", "owner");
   await bucket.put("biosync/maps/" + mapSha + ".json", bytes);
@@ -190,8 +198,14 @@ try {
     });
   assert.equal((await publish(backendToken)).status, 401);
   assert.equal((await publish("wrong-client-token-not-valid")).status, 401);
-  assert.equal((await publish(biosyncToken, { ...command, mapSha256: "f".repeat(64) })).status, 503);
-  assert.equal((await db.prepare("SELECT status FROM audio_jobs WHERE id=?").bind(job).first()).status, "queued");
+  assert.equal(
+    (await publish(biosyncToken, { ...command, mapSha256: "f".repeat(64) })).status,
+    503,
+  );
+  assert.equal(
+    (await db.prepare("SELECT status FROM audio_jobs WHERE id=?").bind(job).first()).status,
+    "queued",
+  );
   assert.equal(
     (
       await gateway.fetch("https://fixture.invalid/api/fore/catalog", {
@@ -237,11 +251,22 @@ try {
     replay: true,
   });
   assert.equal(
-    (await db.prepare("SELECT map_sha256 FROM audio_timing WHERE edition_id=? AND track_id=?").bind(edition, track).first()).map_sha256,
+    (
+      await db
+        .prepare("SELECT map_sha256 FROM audio_timing WHERE edition_id=? AND track_id=?")
+        .bind(edition, track)
+        .first()
+    ).map_sha256,
     mapSha,
   );
-  assert.equal((await db.prepare("SELECT status FROM audio_jobs WHERE id=?").bind(job).first()).status, "done");
-  assert.equal((await literary.prepare("SELECT count(*) n FROM separate_literary_sentinel").first()).n, 1);
+  assert.equal(
+    (await db.prepare("SELECT status FROM audio_jobs WHERE id=?").bind(job).first()).status,
+    "done",
+  );
+  assert.equal(
+    (await literary.prepare("SELECT count(*) n FROM separate_literary_sentinel").first()).n,
+    1,
+  );
   assert.equal((await literary.prepare("SELECT count(*) n FROM sqlite_master WHERE name='audio_timing'").first()).n, 0);
   await mf.dispose();
   mf = open();
@@ -259,6 +284,7 @@ try {
       committed: true,
       replayAfterRestart: true,
       protectedCatalogDenied: true,
+      runtimeCompatibilityDate: "2026-10-17",
       productionAccess: false,
       releaseCertified: false,
     }),

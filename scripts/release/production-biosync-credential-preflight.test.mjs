@@ -10,6 +10,7 @@ const env = {
   COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN: "i".repeat(32),
 };
 const ids = ["1".repeat(32), "2".repeat(32)];
+const r2Scope = "com.cloudflare.edge.r2.bucket." + account + "_default_cove-production-media";
 function fixture(change = (x) => x, calls = []) {
   return async (url, options) => {
     calls.push({ url, method: options.method, body: options.body });
@@ -17,7 +18,10 @@ function fixture(change = (x) => x, calls = []) {
     let result;
     let info;
     if (url.endsWith("/tokens/verify")) {
-      result = { id: ids[bearer === env.COVE_BIOSYNC_PROD_D1_READ_TOKEN ? 0 : 1], status: "active" };
+      result = {
+        id: ids[bearer === env.COVE_BIOSYNC_PROD_D1_READ_TOKEN ? 0 : 1],
+        status: "active",
+      };
     } else if (url.endsWith("/tokens?per_page=50&page=1")) {
       assert.equal(bearer, env.COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN);
       result = [
@@ -40,7 +44,7 @@ function fixture(change = (x) => x, calls = []) {
               effect: "allow",
               permission_groups: [{ name: "Workers R2 Storage Bucket Item Write" }],
               resources: {
-                ["com.cloudflare.edge.r2.bucket." + account + "_default_cove-production-media"]: "*",
+                [r2Scope]: "*",
               },
             },
           ],
