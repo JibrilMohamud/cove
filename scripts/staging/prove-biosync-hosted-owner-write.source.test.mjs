@@ -40,6 +40,9 @@ test("Hosted owner proof cannot address the production account or primary",()=>{
   assert.match(script,/ownerOrigin\+"\/qa\/owner-bound-ready"/);
   assert.match(script,/body:"\{\}"/);
   assert.match(script,/hostedPhase="owner_binding_readiness"/);
+  assert.match(script,/error\.name==="TimeoutError"/);
+  assert.match(script,/status:0,preflightTimeout:true/);
+  assert.match(script,/COVE_BIOSYNC_BINDING_READINESS_DENIED/);
   assert.ok(script.indexOf("await waitForBoundOwnerReadiness(client);") >
     script.indexOf("await waitForAuthenticatedGateway();"));
   assert.ok(script.indexOf("await waitForBoundOwnerReadiness(client);") <
