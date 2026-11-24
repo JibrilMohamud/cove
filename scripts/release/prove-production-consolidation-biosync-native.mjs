@@ -267,7 +267,14 @@ try {
     (await literary.prepare("SELECT count(*) n FROM separate_literary_sentinel").first()).n,
     1,
   );
-  assert.equal((await literary.prepare("SELECT count(*) n FROM sqlite_master WHERE name='audio_timing'").first()).n, 0);
+  assert.equal(
+    (
+      await literary
+        .prepare("SELECT count(*) n FROM sqlite_master WHERE name='audio_timing'")
+        .first()
+    ).n,
+    0,
+  );
   await mf.dispose();
   mf = open();
   gateway = await mf.getWorker("gateway");

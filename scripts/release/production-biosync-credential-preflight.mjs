@@ -83,8 +83,16 @@ export async function verifyProductionBioSyncCredentials(env, transport = fetch)
     r2Identity.result?.status !== "active"
   )
     fail("token_identity");
-  exactPermission(rows.find((x) => x.id === d1Id), "D1 Read", accountScope);
-  exactPermission(rows.find((x) => x.id === r2Id), "Workers R2 Storage Bucket Item Write", r2Scope);
+  exactPermission(
+    rows.find((x) => x.id === d1Id),
+    "D1 Read",
+    accountScope,
+  );
+  exactPermission(
+    rows.find((x) => x.id === r2Id),
+    "Workers R2 Storage Bucket Item Write",
+    r2Scope,
+  );
 
   const [read, list] = await Promise.all([
     request("/d1/database/" + primary + "/query", d1, {
