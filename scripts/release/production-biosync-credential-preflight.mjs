@@ -36,7 +36,14 @@ function probeScopedR2(env) {
       "python3",
       ["-m", "scripts.audio_pipeline.biosync_production_owner_transport"],
       {
-        env: { ...env, COVE_BIOSYNC_PROD_OWNER_MODE: "1" },
+        env: {
+          PATH: env.PATH,
+          HOME: env.HOME,
+          COVE_BIOSYNC_PROD_OWNER_MODE: "1",
+          COVE_BIOSYNC_PROD_D1_READ_TOKEN: env.COVE_BIOSYNC_PROD_D1_READ_TOKEN,
+          COVE_BIOSYNC_PROD_R2_TOKEN: env.COVE_BIOSYNC_PROD_R2_TOKEN,
+          COVE_BIOSYNC_PROD_CLIENT_SECRET: env.COVE_BIOSYNC_PROD_CLIENT_SECRET,
+        },
         encoding: "utf8",
         timeout: 140000,
         stdio: ["ignore", "pipe", "pipe"],
@@ -99,11 +106,7 @@ export async function verifyProductionBioSyncCredentials(
   )
     fail("inventory_incomplete");
   const d1Id = d1Identity.result?.id;
-  if (
-    d1Id !== d1ExpectedId ||
-    d1Identity.result?.status !== "active"
-  )
-    fail("token_identity");
+  if (d1Id !== d1ExpectedId || d1Identity.result?.status !== "active") fail("token_identity");
   exactPermission(
     rows.find((x) => x.id === d1Id),
     "D1 Read",
