@@ -27,6 +27,9 @@ jobs:
       - run: python3 -m unittest scripts.audio_pipeline.test_biosync_production_owner_transport
       - run: python3 -m py_compile scripts/audio_pipeline/biosync_canary.py scripts/audio_pipeline/biosync_production_owner_transport.py
       - run: node scripts/release/build-production-consolidation.mjs
+      - name: Exercise exact production-mode BioSync owner with disposable local bindings
+        run: |
+          npm exec --yes --package=wrangler@4.151.0 -- sh -c 'COVE_MINIFLARE_MODULE="$(dirname "$(command -v wrangler)")/../miniflare" node --no-warnings scripts/release/prove-production-consolidation-biosync-native.mjs'
       - name: Dry-run exact production scripts, never upload or activate
         run: |
           npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.consolidated-owner.production-candidate.jsonc
