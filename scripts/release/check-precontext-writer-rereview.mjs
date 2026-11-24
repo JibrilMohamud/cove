@@ -40,7 +40,7 @@ const candidate=readFileSync(SOURCE,"utf8");
 // neither path is production release approval.
 // Re-reviewed 2026-11-23: guest-only single-snapshot/R2 deferral; zero protected
 // API SQL writers, original four precontext denial markers unchanged.
-const INTEGRATED_API_SHA256="df7ad110cd00308a3d079cbc8dcc8b738e5a4d259b932d88a0c27146d1e415a2";
+const INTEGRATED_API_SHA256="9082ea9d354c964ee4955c11fb26472b637092806d30f7b2ec9cbaba15749a85";
 if(createHash("sha256").update(candidate).digest("hex")===INTEGRATED_API_SHA256){
   assert.ok(candidate.includes(HELPER),"Integrated API lost bounded diagnostic helper");
   for(const [added] of PATCHES)
