@@ -236,6 +236,10 @@ function catalogTransport(groups, overrides = {}) {
       return page([
         { name: "redacted", status: "active", policies: [{ permission_groups: groups }] },
       ]);
+    if (path.startsWith("/user/tokens/permission_groups?scope=")) {
+      const scope = path.split("?scope=")[1];
+      return { result: [ADDITIONAL_READ, WRITE_SPOOF].filter((g) => g.scopes.includes(scope)) };
+    }
     if (path.startsWith("/user/tokens/permission_groups?name=")) {
       const name = decodeURIComponent(path.split("?name=")[1]);
       if (name === "Workers KV Storage Read" || name === "Workers KV Storage Read-Only") {
@@ -279,15 +283,11 @@ test("provider's documented optional result_info still requires the exact immuta
   assert.deepEqual(receipt, { verified: true, reason: "current_user_inventory_clear" });
   assert.deepEqual(t.lookups, ["Workers KV Storage Read", "Workers KV Storage Read-Only"]);
 });
-test("a WRITE ID, unknown ID, or unrelated alias cannot be declared read-only", async () => {
+test("a WRITE ID or an unknown ID cannot be declared read-only", async () => {
   for (const [group, detail] of [
     [{ id: WRITE_SPOOF.id, name: "Workers Scripts" }, "read_group_catalog_shape_invalid"],
     [
       { id: "f".repeat(32), name: "Workers KV Storage" },
-      "read_group_alias_identifier_mismatch_unrecognized",
-    ],
-    [
-      { id: ADDITIONAL_READ.id, name: "Unrelated Capability" },
       "read_group_alias_identifier_mismatch_unrecognized",
     ],
   ]) {
@@ -377,4 +377,66 @@ test("filtered canonical group lookup outages fail closed and never disclose cre
     });
     assert.doesNotMatch(JSON.stringify(evidence), /private|upstream|redacted|Bearer/);
   }
+});
+
+test("cosmetic label drift resolves only by positive immutable ID in fresh fixed-scope provider results", async () => {
+  for (const label of ["Unrelated Capability", "Provider: Cosmetic Label"]) {
+    const t = catalogTransport([{ id: ADDITIONAL_READ.id, name: label }]);
+    let scopeCalls = 0;
+    const evidence = await inspectUserTokenEvidence(async (path, key) => {
+      if (path.includes("?scope=")) {
+        scopeCalls++;
+        const result = await t.get(path, key);
+        // total_count is global; an incomplete filtered listing can prove a
+        // matching ID, but NEVER the safety/absence of an omitted ID.
+        return { ...result, result_info: { page: 1, count: result.result.length, total_count: 9000 } };
+      }
+      return t.get(path, key);
+    }, USER_TOKEN);
+    assert.deepEqual(evidence, { verified: true, reason: "current_user_inventory_clear" });
+    assert.equal(scopeCalls, 4);
+    assert.doesNotMatch(JSON.stringify(evidence), /Cosmetic|Capability|dddddd/);
+  }
+});
+
+test("scope resolver never treats missing ID, write capability, malformed or conflicting provider data as safe", async () => {
+  const badScope = "com.cloudflare.api.account";
+  const group = { id: ADDITIONAL_READ.id, name: "Unrelated Capability" };
+  const cases = [
+    [{ result: [] }, "read_group_alias_identifier_mismatch_unrecognized"],
+    [{ result: [{ ...ADDITIONAL_READ, name: "D1 Write" }] }, "read_group_provider_capability_not_readonly"],
+    [{ result: [ADDITIONAL_READ, ADDITIONAL_READ] }, "read_group_catalog_shape_invalid"],
+    [{ result: [{ ...ADDITIONAL_READ, scopes: [] }] }, "read_group_catalog_shape_invalid"],
+    [{ result: [ADDITIONAL_READ], result_info: { page: 1, count: 0 } }, "read_group_catalog_page_invalid"],
+    [{ result: [{ ...ADDITIONAL_READ, id: "bad-id" }] }, "read_group_catalog_shape_invalid"],
+    [{ result: "not-an-array" }, "read_group_catalog_shape_invalid"],
+  ];
+  for (const [payload, detail] of cases) {
+    const t = catalogTransport([group]);
+    const evidence = await inspectUserTokenEvidence(async (path, key) =>
+      path === "/user/tokens/permission_groups?scope=" + badScope ? payload : t.get(path, key),
+    USER_TOKEN);
+    assert.deepEqual(evidence, { verified: false, reason: "active_user_token_permission_unreviewed", detail });
+  }
+  for (const message of ["writer_audit_http_403", "private provider error"]) {
+    const t = catalogTransport([group]);
+    const evidence = await inspectUserTokenEvidence(async (path, key) => {
+      if (path.includes("?scope=")) throw Error(message);
+      return t.get(path, key);
+    }, USER_TOKEN);
+    assert.equal(evidence.verified, false);
+    assert.equal(evidence.detail, message.endsWith("403") ? "read_group_catalog_unauthorized" : "read_group_catalog_unavailable");
+  }
+  const scopes = ["com.cloudflare.api.user", "com.cloudflare.api.account"];
+  const t = catalogTransport([group]);
+  const evidence = await inspectUserTokenEvidence(async (path, key) => {
+    if (path.includes("?scope=")) {
+      const scope = path.split("?scope=")[1];
+      return { result: scopes.includes(scope) ? [{ ...ADDITIONAL_READ,
+        name: scope === scopes[0] ? "Canonical Read" : "Canonical Write", scopes }] : [] };
+    }
+    return t.get(path, key);
+  }, USER_TOKEN);
+  assert.equal(evidence.verified, false);
+  assert.equal(evidence.detail, "read_group_catalog_identity_conflict");
 });

@@ -97,15 +97,21 @@ test('canonical read-group queries are fixed GET-only; arbitrary or mutation loo
  for(const name of ['Workers KV Storage Read','Workers KV Storage Read-Only'])
    await client.get('/user/tokens/permission_groups?name='+encodeURIComponent(name),TOKEN);
  assert.equal(requested.length,5);
+ for(const scope of ['com.cloudflare.api.user','com.cloudflare.api.account',
+   'com.cloudflare.api.account.zone','com.cloudflare.edge.r2.bucket'])
+   await client.get('/user/tokens/permission_groups?scope='+scope,TOKEN);
+ assert.equal(requested.length,9);
  for(const path of [
    '/user/tokens/permission_groups',
-   '/user/tokens/permission_groups?scope=com.cloudflare.api.account',
+   '/user/tokens/permission_groups?scope=com.cloudflare.api.account&name=D1%20Write',
+   '/user/tokens/permission_groups?scope=com.cloudflare.api.account&page=2',
+   '/user/tokens/permission_groups?scope=arbitrary',
    '/user/tokens/permission_groups?name=D1%20Write',
    '/user/tokens/permission_groups?name=Account%20Analytics%20Write',
    '/user/tokens/permission_groups?name=Account%20Analytics%20Read&page=2',
    '/user/tokens/permission_groups?name=API%20Tokens%20Write'
  ])await assert.rejects(()=>client.get(path,TOKEN),/writer_audit_endpoint_denied/);
- assert.equal(requested.length,5);
+ assert.equal(requested.length,9);
 });
 test('release script requires separate protected scopes and repeats Worker revision list',()=>{
  const code=readFileSync('scripts/release/certify-exclusive-primary-d1.mjs','utf8');

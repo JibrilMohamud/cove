@@ -48,23 +48,68 @@ const CATALOG_SCOPES=new Set([
   "com.cloudflare.api.user","com.cloudflare.api.account",
   "com.cloudflare.api.account.zone","com.cloudflare.edge.r2.bucket",
 ]);
+// A scope-filtered catalog need not be exhaustive to prove a POSITIVE exact-ID
+// match. Missing IDs never prove absence or safety. Provider display labels
+// can differ from the canonical catalog name; authorization follows the ID.
+async function proveReadIdsByScope(get,userToken,groups){
+  const observed=new Map();
+  for(const scope of CATALOG_SCOPES){
+    let page;
+    try{
+      page=await get("/user/tokens/permission_groups?scope="+scope,userToken);
+    }catch(error){
+      return ["writer_audit_http_401","writer_audit_http_403"].includes(error?.message)
+        ?"read_group_catalog_unauthorized":"read_group_catalog_unavailable";
+    }
+    const rows=page?.result,info=page?.result_info;
+    if(!Array.isArray(rows)||rows.length>2048)
+      return "read_group_catalog_shape_invalid";
+    if(info&&(info.page!==1||info.count!==rows.length))
+      return "read_group_catalog_page_invalid";
+    const seen=new Set();
+    for(const row of rows){
+      if(!GROUP_ID.test(row?.id||"")||typeof row.name!=="string"||
+         row.name.length>160||!Array.isArray(row.scopes)||
+         !row.scopes.includes(scope)||
+         !row.scopes.every(value=>CATALOG_SCOPES.has(value))||seen.has(row.id))
+        return "read_group_catalog_shape_invalid";
+      seen.add(row.id);
+      const proof=JSON.stringify([row.name,[...row.scopes].sort()]);
+      if(observed.has(row.id)&&observed.get(row.id).proof!==proof)
+        return "read_group_catalog_identity_conflict";
+      observed.set(row.id,{proof,name:row.name});
+    }
+  }
+  for(const group of groups){
+    const match=observed.get(group.id);
+    if(!match)return "read_group_alias_identifier_mismatch_unrecognized";
+    if(PRIVILEGED_GROUPS.has(match.name)||!READ_ONLY_GROUP.test(match.name))
+      return "read_group_provider_capability_not_readonly";
+  }
+  return null;
+}
 /**
  * Cloudflare returns total_count for ALL possible permission groups even
  * for a one-result name-filtered query. The full unfiltered list is not
  * complete enough to verify an arbitrary immutable ID; refuse to use it.
  *
- * Instead query ONLY canonical "<alias> Read" and "<alias> Read-Only" names.
- * Require an exact live provider ID, canonical label and approved scope.
+ * First query canonical "<alias> Read" and "<alias> Read-Only" names.
+ * If the cosmetic label has no matching canonical name, query the four
+ * fixed provider scopes and require positive exact-ID read-only evidence.
  * An unmatched, malformed, ambiguous, privileged or unavailable query
  * remains a release blocker. The protected transport admits no mutation
  * endpoints and no arbitrary query fields.
  */
 async function proveAdditionalUserReadAliases(get,userToken,unknown){
   if(unknown.length>6)return "read_group_alias_budget_exceeded";
+  const unresolved=[];
   for(const group of unknown){
-    if(typeof group.name!=="string"||group.name.length>120||
-       !READ_ONLY_GROUP.test(group.name+" Read"))
+    if(typeof group.name!=="string"||group.name.length>120)
       return "read_group_alias_identifier_mismatch_unrecognized";
+    if(!READ_ONLY_GROUP.test(group.name+" Read")){
+      unresolved.push(group);
+      continue;
+    }
     let matched=false;
     for(const suffix of [" Read"," Read-Only"]){
       const canonicalName=group.name+suffix;
@@ -94,9 +139,9 @@ async function proveAdditionalUserReadAliases(get,userToken,unknown){
         return "read_group_catalog_shape_invalid";
       if(candidate.id===group.id)matched=true;
     }
-    if(!matched)return "read_group_alias_identifier_mismatch_unrecognized";
+    if(!matched)unresolved.push(group);
   }
-  return null;
+  return unresolved.length?proveReadIdsByScope(get,userToken,unresolved):null;
 }
 
 async function proveUnreviewedUserGroupsReadOnly(get,userToken,userTokens){
@@ -472,7 +517,7 @@ async function main(){
   }));
   if(!report.certified)process.exitCode=1;
 }
-// Diagnostic-only: at most sixteen scoped read-only metadata GETs, no Worker enumeration.
+// Diagnostic-only: at most twenty scoped read-only metadata GETs, no Worker enumeration.
 // A successful user inventory is never a physical writer/identity certificate.
 export async function userTokenPreflight(env=process.env,get){
   assert.equal(env.GITHUB_REPOSITORY,"JibrilMohamud/cove");

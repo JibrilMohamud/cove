@@ -16,11 +16,16 @@ const EXACT_USER_READ_GROUP_LOOKUPS=new Set([
   '/user/tokens/permission_groups?name=User%20Details%20Read',
   '/user/tokens/permission_groups?name=Account%20Analytics%20Read',
 ]);
+const EXACT_USER_SCOPE_LOOKUPS=new Set([
+  'com.cloudflare.api.user','com.cloudflare.api.account',
+  'com.cloudflare.api.account.zone','com.cloudflare.edge.r2.bucket',
+].map(scope=>'/user/tokens/permission_groups?scope='+scope));
 function safePath(path){
   // One exact provider name-filtered READ permission is safe to enumerate.
   // No unfiltered catalog, Write/Admin, arbitrary query keys, hidden encoded
   // parameters, scope mutation or token update can pass this allowlist.
   if(EXACT_USER_READ_GROUP_LOOKUPS.has(path))return true;
+  if(EXACT_USER_SCOPE_LOOKUPS.has(path))return true;
   const readGroup=path.match(/^\/user\/tokens\/permission_groups\?name=([A-Za-z0-9%._()+-]{1,300})$/);
   if(readGroup){
     let decoded;
