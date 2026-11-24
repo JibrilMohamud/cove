@@ -57,7 +57,9 @@ export function verifyScheduledProductionContinuity({
     "The existing hourly BioSync production trigger must remain active",
   );
   assert.ok(
-    biosyncWorkflow.includes("BIOSYNC_AUTO_SHORT=1 python3 -m scripts.audio_pipeline.biosync_canary") &&
+    biosyncWorkflow.includes(
+      "BIOSYNC_AUTO_SHORT=1 python3 -m scripts.audio_pipeline.biosync_canary",
+    ) &&
       biosyncWorkflow.includes(
         "BIOSYNC_AUTO_SHORT=0 BIOSYNC_PROVE_OWNER_REPLAY=1 python3 -m scripts.audio_pipeline.biosync_canary",
       ) &&
@@ -139,9 +141,14 @@ if (process.argv.includes("--self-test")) {
         "python3 -m scripts.audio_pipeline.biosync_owner_qa",
       ),
     },
-    { biosyncWorkflow: actual.biosyncWorkflow.replace("BIOSYNC_AUTO_SHORT=1", "BIOSYNC_QA_ONLY=1") },
     {
-      biosyncWorkflow: actual.biosyncWorkflow.replace("COVE_BIOSYNC_PROD_D1_READ_TOKEN:", "COVE_FAKE_TOKEN:"),
+      biosyncWorkflow: actual.biosyncWorkflow.replace("BIOSYNC_AUTO_SHORT=1", "BIOSYNC_QA_ONLY=1"),
+    },
+    {
+      biosyncWorkflow: actual.biosyncWorkflow.replace(
+        "COVE_BIOSYNC_PROD_D1_READ_TOKEN:",
+        "COVE_FAKE_TOKEN:",
+      ),
     },
     {
       biosyncCanary: actual.biosyncCanary.replace(
@@ -150,7 +157,10 @@ if (process.argv.includes("--self-test")) {
       ),
     },
     {
-      biosyncCanary: actual.biosyncCanary.replace("owner_transport.commit(EDITION, TRACK, JOB, map_sha)", "QA-only"),
+      biosyncCanary: actual.biosyncCanary.replace(
+        "owner_transport.commit(EDITION, TRACK, JOB, map_sha)",
+        "QA-only",
+      ),
     },
     { biosyncWorkflow: actual.biosyncWorkflow + "\n# CLOUDFLARE_API_TOKEN" },
     { biosyncCanary: actual.biosyncCanary + "\n# UPDATE audio_jobs SET status='done'" },
