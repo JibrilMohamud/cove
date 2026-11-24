@@ -102,6 +102,8 @@ def choose_queued_short_track() -> bool:
             "GET", f"{BASE}/r2/buckets/{BUCKET}/objects?prefix={urllib.parse.quote(prefix)}&per_page=1000"
         ))
     except RuntimeError as error:
+        if owner_transport.enabled():
+            raise
         print(f"Short BioSync auto-selector unavailable: {error}")
         return False
     objects = result.get("result", [])

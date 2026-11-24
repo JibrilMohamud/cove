@@ -9,7 +9,7 @@ const env = {
   COVE_BIOSYNC_PROD_CLIENT_SECRET: "a".repeat(64),
   COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN: "i".repeat(32),
 };
-const ids = ["1".repeat(32), "2".repeat(32)];
+const ids = ["ba59697e28231d3ee460f382aff95454", "8b44b8edebf071ba96ee47e9b34e95bc"];
 const r2Scope = "com.cloudflare.edge.r2.bucket." + account + "_default_cove-production-media";
 function fixture(change = (x) => x, calls = []) {
   return async (url, options) => {
@@ -67,11 +67,11 @@ function fixture(change = (x) => x, calls = []) {
 }
 test("checks actual identity, exact independent scopes and only read operations", async () => {
   const calls = [];
-  const r = await verifyProductionBioSyncCredentials(env, fixture(undefined, calls));
+  const r = await verifyProductionBioSyncCredentials(env, fixture(undefined, calls), () => true);
   assert.equal(r.exactD1ReadScope, true);
   assert.equal(r.exactR2BucketScope, true);
   assert.equal(r.ownerPublicationProven, false);
-  assert.equal(calls.length, 5);
+  assert.equal(calls.length, 3);
   assert.equal(calls.filter((x) => x.method === "POST").length, 1);
 });
 test("rejects elevated D1 access, account-wide R2 access and token reuse", async () => {
@@ -105,5 +105,16 @@ test("rejects elevated D1 access, account-wide R2 access and token reuse", async
       fixture(),
     ),
     /credentials_missing/,
+  );
+});
+
+test("S3 failure is not accepted as a scoped credential pass", async () => {
+  await assert.rejects(
+    verifyProductionBioSyncCredentials(env, fixture(), () => false),
+    /r2_s3_read_failed/,
+  );
+  await assert.rejects(
+    verifyProductionBioSyncCredentials(env, async () => new Response(null, { status: 403 })),
+    /(?:d1_identity|token_inventory)_http_403/,
   );
 });
