@@ -1,4 +1,10 @@
-import { checkToken, bearer, productionBiosyncRequest, hashConfigured, refuse } from "./production-persistence-enrollment";
+import {
+  checkToken,
+  bearer,
+  productionBiosyncRequest,
+  hashConfigured,
+  refuse,
+} from "./production-persistence-enrollment";
 
 type Env = {
   COVE_PRODUCTION_BIOSYNC_INGRESS_ENABLED?: string;

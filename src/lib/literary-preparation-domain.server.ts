@@ -106,7 +106,9 @@ export async function requireIsolatedDomain(env: PreparationEnv): Promise<D1> {
   return env.CONTENT_DB;
 }
 async function eligible(env: PreparationEnv, productId: string, editionId: string) {
-  return env.DB.prepare(literaryPreparationSourceSql).bind(productId, editionId).first<EligibleSource>();
+  return env.DB.prepare(literaryPreparationSourceSql)
+    .bind(productId, editionId)
+    .first<EligibleSource>();
 }
 
 /** Operator-only seed. Does not write primary D1; never publishes a profile. */
