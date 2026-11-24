@@ -49,46 +49,49 @@ const CATALOG_SCOPES=new Set([
   "com.cloudflare.api.account.zone","com.cloudflare.edge.r2.bucket",
 ]);
 /**
- * Cloudflare's user-token policies can report display-only aliases while the
- * permission-group catalog names the effective capability by immutable ID.
- * A provider-authenticated, complete catalog can independently prove one
- * OTHER alias read-only only when its canonical name is exactly the alias
- * plus " Read" or " Read-Only". Never infer safety from policy labels.
+ * Cloudflare returns total_count for ALL possible permission groups even
+ * for a one-result name-filtered query. The full unfiltered list is not
+ * complete enough to verify an arbitrary immutable ID; refuse to use it.
  *
- * Fail closed on pagination, duplicated/malformed IDs, mutation-capable
- * catalog names, unexpected scopes, unknown IDs or stale metadata. This
- * audit cannot establish coverage of any OTHER Cloudflare user principal.
+ * Instead query ONLY canonical "<alias> Read" and "<alias> Read-Only" names.
+ * Require an exact live provider ID, canonical label and approved scope.
+ * An unmatched, malformed, ambiguous, privileged or unavailable query
+ * remains a release blocker. The protected transport admits no mutation
+ * endpoints and no arbitrary query fields.
  */
 async function proveAdditionalUserReadAliases(get,userToken,unknown){
-  let page;
-  try{page=await get("/user/tokens/permission_groups",userToken);}
-  catch(error){
-    return ["writer_audit_http_401","writer_audit_http_403"].includes(error?.message)
-      ?"read_group_catalog_unauthorized":"read_group_catalog_unavailable";
-  }
-  const rows=page?.result,info=page?.result_info;
-  if(!Array.isArray(rows)||rows.length===0||rows.length>3000)
-    return "read_group_catalog_shape_invalid";
-  if(!info||info.page!==1||info.count!==rows.length||
-     (info.total_pages!==undefined&&info.total_pages!==1)||
-     !Number.isSafeInteger(info.total_count)||info.total_count!==rows.length)
-    return "read_group_catalog_incomplete";
-  const indexed=new Map();
-  for(const row of rows){
-    if(!GROUP_ID.test(row?.id||"")||typeof row?.name!=="string"||
-       !Array.isArray(row.scopes)||!row.scopes.length||
-       !row.scopes.every(scope=>CATALOG_SCOPES.has(scope))||
-       indexed.has(row.id))
-      return "read_group_catalog_shape_invalid";
-    indexed.set(row.id,row);
-  }
+  if(unknown.length>6)return "read_group_alias_budget_exceeded";
   for(const group of unknown){
-    if(typeof group.name!=="string"||!READ_ONLY_GROUP.test(group.name+" Read"))
+    if(typeof group.name!=="string"||group.name.length>120||
+       !READ_ONLY_GROUP.test(group.name+" Read"))
       return "read_group_alias_identifier_mismatch_unrecognized";
-    const canonical=indexed.get(group.id);
-    if(!canonical||!READ_ONLY_GROUP.test(canonical.name)||
-       ![group.name+" Read",group.name+" Read-Only"].includes(canonical.name))
-      return "read_group_alias_identifier_mismatch_unrecognized";
+    let matched=false;
+    for(const suffix of [" Read"," Read-Only"]){
+      const canonicalName=group.name+suffix;
+      let page;
+      try{
+        page=await get("/user/tokens/permission_groups?name="+
+          encodeURIComponent(canonicalName),userToken);
+      }catch(error){
+        return ["writer_audit_http_401","writer_audit_http_403"].includes(error?.message)
+          ?"read_group_catalog_unauthorized":"read_group_catalog_unavailable";
+      }
+      const rows=page?.result,info=page?.result_info;
+      if(!Array.isArray(rows)||rows.length>1)
+        return "read_group_catalog_shape_invalid";
+      // total_count is unfiltered provider inventory size, NOT a filtered
+      // page count. Name uniqueness + page/count is the completeness proof.
+      if(!info||info.page!==1||info.count!==rows.length)
+        return "read_group_catalog_page_invalid";
+      if(rows.length===0)continue;
+      const candidate=rows[0];
+      if(candidate?.name!==canonicalName||!GROUP_ID.test(candidate.id||"")||
+         !Array.isArray(candidate.scopes)||!candidate.scopes.length||
+         !candidate.scopes.every(scope=>CATALOG_SCOPES.has(scope)))
+        return "read_group_catalog_shape_invalid";
+      if(candidate.id===group.id)matched=true;
+    }
+    if(!matched)return "read_group_alias_identifier_mismatch_unrecognized";
   }
   return null;
 }
@@ -466,7 +469,7 @@ async function main(){
   }));
   if(!report.certified)process.exitCode=1;
 }
-// Diagnostic-only: five fixed metadata GETs at most, no Worker enumeration.
+// Diagnostic-only: at most sixteen scoped read-only metadata GETs, no Worker enumeration.
 // A successful user inventory is never a physical writer/identity certificate.
 export async function userTokenPreflight(env=process.env,get){
   assert.equal(env.GITHUB_REPOSITORY,"JibrilMohamud/cove");

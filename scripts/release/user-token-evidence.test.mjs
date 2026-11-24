@@ -227,67 +227,63 @@ const WRITE_SPOOF = {
   name: "Workers Scripts Write",
   scopes: ["com.cloudflare.api.account"],
 };
-function catalogTransport(groups, entries = [ADDITIONAL_READ, WRITE_SPOOF], resultInfo) {
+function catalogTransport(groups, overrides = {}) {
   const known = aliasTransport([]);
-  return async (path, credential) => {
+  const lookups = [];
+  const get = async (path, credential) => {
     assert.equal(credential, USER_TOKEN);
     if (path === "/user/tokens")
       return page([
-        {
-          name: "redacted",
-          status: "active",
-          policies: [{ permission_groups: groups }],
-        },
+        { name: "redacted", status: "active", policies: [{ permission_groups: groups }] },
       ]);
-    if (path === "/user/tokens/permission_groups")
-      return {
-        result: entries,
-        result_info: resultInfo ?? { page: 1, count: entries.length, total_count: entries.length },
-      };
+    if (path.startsWith("/user/tokens/permission_groups?name=")) {
+      const name = decodeURIComponent(path.split("?name=")[1]);
+      if (name === "Workers KV Storage Read" || name === "Workers KV Storage Read-Only") {
+        lookups.push(name);
+        if (overrides[name]) return overrides[name];
+        const rows = name === "Workers KV Storage Read" ? [ADDITIONAL_READ] : [];
+        return { result: rows, result_info: { page: 1, count: rows.length, total_count: 2000 } };
+      }
+      if (name === "Workers Scripts Read" || name === "Workers Scripts Read-Only") {
+        lookups.push(name);
+        const rows = name === "Workers Scripts Read" ? [WRITE_SPOOF] : [];
+        return { result: rows, result_info: { page: 1, count: rows.length, total_count: 2000 } };
+      }
+      if (name === "Unrelated Capability Read" || name === "Unrelated Capability Read-Only") {
+        lookups.push(name);
+        return { result: [], result_info: { page: 1, count: 0, total_count: 2000 } };
+      }
+    }
     return known(path, credential);
   };
+  return { get, lookups };
 }
-test("additional provider read alias is safe only after full live ID catalog with exact read capability", async () => {
-  const receipt = await inspectUserTokenEvidence(
-    catalogTransport([{ id: ADDITIONAL_READ.id, name: "Workers KV Storage" }]),
-    USER_TOKEN,
-  );
+test("only a filtered live canonical Read group with matching immutable ID and scope clears a new alias", async () => {
+  const t = catalogTransport([{ id: ADDITIONAL_READ.id, name: "Workers KV Storage" }]);
+  const receipt = await inspectUserTokenEvidence(t.get, USER_TOKEN);
   assert.deepEqual(receipt, { verified: true, reason: "current_user_inventory_clear" });
+  assert.deepEqual(t.lookups, ["Workers KV Storage Read", "Workers KV Storage Read-Only"]);
 });
-test("same account permission label with a WRITE ID cannot be declared read-only", async () => {
-  for (const group of [
-    { id: WRITE_SPOOF.id, name: "Workers Scripts" },
-    { id: "f".repeat(32), name: "Workers KV Storage" },
-    { id: ADDITIONAL_READ.id, name: "Unrelated Capability" },
-  ]) {
-    const evidence = await inspectUserTokenEvidence(catalogTransport([group]), USER_TOKEN);
-    assert.deepEqual(evidence, {
-      verified: false,
-      reason: "active_user_token_permission_unreviewed",
-      detail: "read_group_alias_identifier_mismatch_unrecognized",
-    });
-  }
+test("filtered name catalog counts only matches, never demands provider global total_count equals one", async () => {
+  const t = catalogTransport([{ id: ADDITIONAL_READ.id, name: "Workers KV Storage" }]);
+  const receipt = await inspectUserTokenEvidence(t.get, USER_TOKEN);
+  assert.equal(receipt.verified, true);
+  assert.equal(t.lookups.length, 2);
 });
-test("incomplete, repeated, unknown scoped and forged provider catalog rows fail closed", async () => {
-  const group = { id: ADDITIONAL_READ.id, name: "Workers KV Storage" };
-  const cases = [
-    [[], undefined, "read_group_catalog_shape_invalid"],
-    [[ADDITIONAL_READ], { page: 1, count: 1, total_count: 2 }, "read_group_catalog_incomplete"],
-    [[ADDITIONAL_READ], { page: 2, count: 1, total_count: 1 }, "read_group_catalog_incomplete"],
-    [[ADDITIONAL_READ], { page: 1, count: 0, total_count: 1 }, "read_group_catalog_incomplete"],
-    [[ADDITIONAL_READ, ADDITIONAL_READ], undefined, "read_group_catalog_shape_invalid"],
+test("a WRITE ID, unknown ID, or unrelated alias cannot be declared read-only", async () => {
+  for (const [group, detail] of [
+    [{ id: WRITE_SPOOF.id, name: "Workers Scripts" }, "read_group_catalog_shape_invalid"],
     [
-      [{ ...ADDITIONAL_READ, scopes: ["com.cloudflare.r2.write"] }],
-      undefined,
-      "read_group_catalog_shape_invalid",
+      { id: "f".repeat(32), name: "Workers KV Storage" },
+      "read_group_alias_identifier_mismatch_unrecognized",
     ],
-    [[{ ...ADDITIONAL_READ, id: "not-immutable" }], undefined, "read_group_catalog_shape_invalid"],
-  ];
-  for (const [catalog, meta, detail] of cases) {
-    const evidence = await inspectUserTokenEvidence(
-      catalogTransport([group], catalog, meta),
-      USER_TOKEN,
-    );
+    [
+      { id: ADDITIONAL_READ.id, name: "Unrelated Capability" },
+      "read_group_alias_identifier_mismatch_unrecognized",
+    ],
+  ]) {
+    const t = catalogTransport([group]);
+    const evidence = await inspectUserTokenEvidence(t.get, USER_TOKEN);
     assert.deepEqual(evidence, {
       verified: false,
       reason: "active_user_token_permission_unreviewed",
@@ -295,22 +291,82 @@ test("incomplete, repeated, unknown scoped and forged provider catalog rows fail
     });
   }
 });
-test("new catalog lookup is optional but unavailable or unauthorized catalogs never clear unknown principals", async () => {
+test("malformed, multiple, changed-label and cross-scope name-filtered catalog proofs block", async () => {
   const group = { id: ADDITIONAL_READ.id, name: "Workers KV Storage" };
-  for (const [error, expected] of [
+  const expected = "Workers KV Storage Read";
+  const cases = [
+    [{ result: [ADDITIONAL_READ, ADDITIONAL_READ] }, "read_group_catalog_shape_invalid"],
+    [{ result: [ADDITIONAL_READ] }, "read_group_catalog_page_invalid"],
+    [
+      { result: [ADDITIONAL_READ], result_info: { page: 2, count: 1 } },
+      "read_group_catalog_page_invalid",
+    ],
+    [
+      { result: [ADDITIONAL_READ], result_info: { page: 1, count: 0 } },
+      "read_group_catalog_page_invalid",
+    ],
+    [
+      {
+        result: [{ ...ADDITIONAL_READ, scopes: ["com.cloudflare.api.write"] }],
+        result_info: { page: 1, count: 1, total_count: 2000 },
+      },
+      "read_group_catalog_shape_invalid",
+    ],
+    [
+      {
+        result: [{ ...ADDITIONAL_READ, name: "Workers KV Storage Write" }],
+        result_info: { page: 1, count: 1, total_count: 2000 },
+      },
+      "read_group_catalog_shape_invalid",
+    ],
+    [
+      {
+        result: [{ ...ADDITIONAL_READ, id: "not-immutable" }],
+        result_info: { page: 1, count: 1, total_count: 2000 },
+      },
+      "read_group_catalog_shape_invalid",
+    ],
+  ];
+  for (const [response, detail] of cases) {
+    const t = catalogTransport([group], { [expected]: response });
+    const evidence = await inspectUserTokenEvidence(t.get, USER_TOKEN);
+    assert.deepEqual(evidence, {
+      verified: false,
+      reason: "active_user_token_permission_unreviewed",
+      detail,
+    });
+  }
+});
+test("at most six unknown cosmetic groups may trigger at most twelve filtered READ requests", async () => {
+  const groups = Array.from({ length: 7 }, (_, i) => ({
+    id: i.toString(16).padStart(32, "0"),
+    name: "Unknown Group " + i,
+  }));
+  const t = catalogTransport(groups);
+  const evidence = await inspectUserTokenEvidence(t.get, USER_TOKEN);
+  assert.equal(evidence.verified, false);
+  assert.equal(evidence.detail, "read_group_alias_budget_exceeded");
+  assert.deepEqual(t.lookups, []);
+});
+test("filtered canonical group lookup outages fail closed and never disclose credential or token names", async () => {
+  const group = { id: ADDITIONAL_READ.id, name: "Workers KV Storage" };
+  const key = "Workers KV Storage Read";
+  for (const [error, detail] of [
     ["writer_audit_http_403", "read_group_catalog_unauthorized"],
     ["private upstream incident", "read_group_catalog_unavailable"],
   ]) {
+    const t = catalogTransport([group]);
     const get = async (path, credential) => {
-      if (path === "/user/tokens/permission_groups") throw Error(error);
-      return catalogTransport([group])(path, credential);
+      if (path === "/user/tokens/permission_groups?name=" + encodeURIComponent(key))
+        throw Error(error);
+      return t.get(path, credential);
     };
-    const receipt = await inspectUserTokenEvidence(get, USER_TOKEN);
-    assert.deepEqual(receipt, {
+    const evidence = await inspectUserTokenEvidence(get, USER_TOKEN);
+    assert.deepEqual(evidence, {
       verified: false,
       reason: "active_user_token_permission_unreviewed",
-      detail: expected,
+      detail,
     });
-    assert.doesNotMatch(JSON.stringify(receipt), /upstream|private|redacted|Bearer/);
+    assert.doesNotMatch(JSON.stringify(evidence), /private|upstream|redacted|Bearer/);
   }
 });
