@@ -1,0 +1,31 @@
+name: Production consolidated owner candidate
+on:
+  pull_request:
+    paths:
+      - 'src/storefront-strangler/production-consolidated-*.worker.ts'
+      - 'src/storefront-strangler/production-persistence-enrollment.ts'
+      - 'scripts/release/*production-consolidation*'
+      - 'wrangler.consolidated-*.production-candidate.jsonc'
+      - '.github/workflows/production-consolidated-owner-candidate.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: node --test scripts/release/production-consolidation.test.mjs
+      - run: node scripts/release/build-production-consolidation.mjs
+      - name: Dry-run exact production scripts, never upload or activate
+        run: |
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.consolidated-owner.production-candidate.jsonc
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.consolidated-gateway.production-candidate.jsonc
