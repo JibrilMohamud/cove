@@ -13,7 +13,7 @@ import {currentWriterSites,reconcileWriterSites} from "../reconcile-canonical-wr
 // These are CI-observed bytes of the 2026-11-22 integration candidate, not
 // evidence of deployed physical ownership, external rights or LIVE commerce.
 const PINNED_CURRENT_SOURCES=Object.freeze({
-  "src/features/fore/api.server.ts":"ba30108f629d7e8c6c488ac34f831ce1f36814f96c4c4f9c0763418db78ed262",
+  "src/features/fore/api.server.ts":"df7ad110cd00308a3d079cbc8dcc8b738e5a4d259b932d88a0c27146d1e415a2",
   "src/features/fore/catalog-model.server.ts":"c4d03da0a2428d5290c000d5d39f6129f2491254335c975e3acb0a340c0f172b",
   "src/features/fore/commerce.server.ts":"52ba9bb4feec5b2b7c5586687d72cd3498751a0601061823b95a5adbc6ac955f",
   "src/features/fore/localization.server.ts":"02852814c24e749359ed751717a8387ab6dc75ba4ecba78d6058ecbbfba919e1",
@@ -151,3 +151,22 @@ assert.equal(current.filter(s=>s.file==="src/features/fore/api.server.ts").lengt
   "Shared API regained a direct protected SQL site");
 console.log("PASS: 12 exact integrated source pins plus five byte-exact reversible owner edits; 46 literal SQL sites reconciled (0 owner-required); 38 historical attestation claims remain historical, not recertified.");
 console.log("NO-GO: source closure is not active D1 binding/token exclusivity or current rightsholder authority.");
+
+// 2026-11-24: a populated catalog READ must not initialize operational state.
+// Reordering only the already-existing seed existence probe before the already-
+// existing initialization MUST restore every previous API byte, including SQL,
+// every rights/auth predicate and all typed owner command calls.
+const seedReadOnly = `async function seedCatalog(env: CoveEnv) {
+  const db = database(env);
+  const row = await db.prepare("SELECT 1 present FROM gutenberg_source_cache LIMIT 1").first<any>();
+  if (row) return;
+  await ensureCatalogState(env);`;
+const previousSeed = `async function seedCatalog(env: CoveEnv) {
+  const db = database(env);
+  await ensureCatalogState(env);
+  const row = await db.prepare("SELECT 1 present FROM gutenberg_source_cache LIMIT 1").first<any>();
+  if (row) return;`;
+const currentApi=readFileSync("src/features/fore/api.server.ts","utf8");
+assert.equal(currentApi.split(seedReadOnly).length,2);
+assert.equal(createHash("sha256").update(currentApi.replace(seedReadOnly,previousSeed)).digest("hex"),
+  "ba30108f629d7e8c6c488ac34f831ce1f36814f96c4c4f9c0763418db78ed262","Only the exact read-before-initialize reordering is reviewed");

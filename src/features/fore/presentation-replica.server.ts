@@ -8,8 +8,12 @@ import type { CatalogDB } from "./catalog-model.server";
  */
 export function replicaEligiblePresentationRead(db: CatalogDB): CatalogDB {
   const capable = db as CatalogDB & {
+    covePrimaryOnlyReadTransport?: boolean;
     withSession?: (constraint: "first-unconstrained") => CatalogDB;
   };
+  // A primary-only owner READ facade is already stricter than presentation
+  // requires. Preserve it; its refusal of replicas is not an unavailable DB.
+  if (capable.covePrimaryOnlyReadTransport === true) return db;
   return typeof capable.withSession === "function"
     ? capable.withSession("first-unconstrained")
     : db;

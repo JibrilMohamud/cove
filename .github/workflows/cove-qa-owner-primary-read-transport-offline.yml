@@ -7,12 +7,15 @@ on:
       - "src/storefront-strangler/qa-owner-primary-read-entrypoint.ts"
       - "src/storefront-strangler/legal-authority.worker.ts"
       - "src/persistence-backend.worker.ts"
+      - "src/features/fore/api.server.ts"
+      - "src/features/fore/presentation-replica.server.ts"
       - "src/storefront-strangler/qa-owner-scheduled-execution.ts"
       - "src/lib/cron-result-guard.ts"
       - "src/features/fore/public-status.server.ts"
       - "src/features/fore/soundtracks.server.ts"
       - "scripts/test-qa-owner-scheduled-execution.mjs"
       - "scripts/release/inspect-unbound-backend-crons.mjs"
+      - "scripts/release/prove-native-owner-schedules.mjs"
       - "scripts/test-local-catalog-fixture.mjs"
       - "scripts/qa-owner-primary-read-transport.test.mjs"
       - "scripts/qa-owner-primary-read-entrypoint.test.mjs"
@@ -25,12 +28,15 @@ on:
       - "src/storefront-strangler/qa-owner-primary-read-entrypoint.ts"
       - "src/storefront-strangler/legal-authority.worker.ts"
       - "src/persistence-backend.worker.ts"
+      - "src/features/fore/api.server.ts"
+      - "src/features/fore/presentation-replica.server.ts"
       - "src/storefront-strangler/qa-owner-scheduled-execution.ts"
       - "src/lib/cron-result-guard.ts"
       - "src/features/fore/public-status.server.ts"
       - "src/features/fore/soundtracks.server.ts"
       - "scripts/test-qa-owner-scheduled-execution.mjs"
       - "scripts/release/inspect-unbound-backend-crons.mjs"
+      - "scripts/release/prove-native-owner-schedules.mjs"
       - "scripts/test-local-catalog-fixture.mjs"
       - "scripts/qa-owner-primary-read-transport.test.mjs"
       - "scripts/qa-owner-primary-read-entrypoint.test.mjs"
@@ -66,6 +72,9 @@ jobs:
         run: node --no-warnings scripts/release/inspect-unbound-backend-crons.mjs --owner-execution --assert-negative-owner-contract
       - name: Prove failed populated maintenance jobs remain failures rather than fulfilled promises
         run: node --no-warnings scripts/release/inspect-unbound-backend-crons.mjs --owner-execution --seeded-services --assert-owner-contract --failing-maintenance-job
+      - name: Prove all seven actual schedules in native workerd with D1 and SQLite owner journals
+        run: |
+          npm exec --yes --package=wrangler@4.151.0 -- sh -c 'COVE_MINIFLARE_MODULE="$(dirname "$(command -v wrangler)")/../miniflare" node --no-warnings scripts/release/prove-native-owner-schedules.mjs'
       - name: Deny production cutover from QA-only read-transport source
         run: |
           node --input-type=module -e '

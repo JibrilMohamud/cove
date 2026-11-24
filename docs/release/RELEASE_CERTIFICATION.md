@@ -1,24 +1,42 @@
 # Cove release certification — current evidence
 
-**NO-GO for unrestricted production release.** Updated November 23, 2026 (America/New_York). This ledger replaces its stale draft-integration checklist; older observations remain in Git history. It is not a release certificate.
+**NO-GO for unrestricted production release.** Updated November 24, 2026 (America/New_York). This ledger replaces its stale draft-integration checklist; older observations remain in Git history. It is not a release certificate.
 
 ## Integrated baseline and retained passes
 
 The full October writer integration was merged through [#867](https://github.com/JibrilMohamud/cove/pull/867), followed by integrated QA corrections through [#886](https://github.com/JibrilMohamud/cove/pull/886). Runtime evidence below belongs to merged `54009bc47a47960809625e558360e39de215ed99`. Historical draft #850 is its predecessor, not another migration to repeat.
 
-| Protected evidence | Result on integration `54009bc` | Boundary |
-| --- | --- | --- |
-| Hosted BioSync owner publication/replay | [45321904423](https://github.com/JibrilMohamud/cove/actions/runs/45321904423) passed | Actual isolated synthetic owner commit, adversarial denials and cleanup; not production hourly publisher acceptance |
-| Full-schema Stripe TEST commerce | [45321902706, attempt 2](https://github.com/JibrilMohamud/cove/actions/runs/45321902706/attempts/2) passed | Signed initial payment settlement, ledger/outbox, buyer entitlement, EPUB/audio/offline access, refund/revocation, replay, concurrency and actual owner A/B/A rollback |
-| Hosted capacity | [45321902326](https://github.com/JibrilMohamud/cove/actions/runs/45321902326) passed | Isolated staging candidate, not four-region production acceptance |
-| Protected Worker rollback | [45321902888](https://github.com/JibrilMohamud/cove/actions/runs/45321902888) passed | Isolated QA, not production cutover rollback |
-| Historical primary-rights checks | [45321902227](https://github.com/JibrilMohamud/cove/actions/runs/45321902227) passed | Bounded read-only audit, not independent positive rightsholder authority |
-| Grant event replay | [45322038363](https://github.com/JibrilMohamud/cove/actions/runs/45322038363) passed | Historical sequence verification, not adjudication of disputed histories |
-| Canonical rights differential | [45321902378](https://github.com/JibrilMohamud/cove/actions/runs/45321902378) passed | Synthetic witnesses/canonical-view parity |
-| External-source withdrawal audit | [45323130879](https://github.com/JibrilMohamud/cove/actions/runs/45323130879) passed | Bounded source observations, not complete independently authoritative withdrawal history |
-| Real-rights spot check | [45323275478](https://github.com/JibrilMohamud/cove/actions/runs/45323275478) passed | Spot comparison, not whole-catalog legal certification |
+| Protected evidence                      | Result on integration `54009bc`                                                                            | Boundary                                                                                                                                                               |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hosted BioSync owner publication/replay | [45321904423](https://github.com/JibrilMohamud/cove/actions/runs/45321904423) passed                       | Actual isolated synthetic owner commit, adversarial denials and cleanup; not production hourly publisher acceptance                                                    |
+| Full-schema Stripe TEST commerce        | [45321902706, attempt 2](https://github.com/JibrilMohamud/cove/actions/runs/45321902706/attempts/2) passed | Signed initial payment settlement, ledger/outbox, buyer entitlement, EPUB/audio/offline access, refund/revocation, replay, concurrency and actual owner A/B/A rollback |
+| Hosted capacity                         | [45321902326](https://github.com/JibrilMohamud/cove/actions/runs/45321902326) passed                       | Isolated staging candidate, not four-region production acceptance                                                                                                      |
+| Protected Worker rollback               | [45321902888](https://github.com/JibrilMohamud/cove/actions/runs/45321902888) passed                       | Isolated QA, not production cutover rollback                                                                                                                           |
+| Historical primary-rights checks        | [45321902227](https://github.com/JibrilMohamud/cove/actions/runs/45321902227) passed                       | Bounded read-only audit, not independent positive rightsholder authority                                                                                               |
+| Grant event replay                      | [45322038363](https://github.com/JibrilMohamud/cove/actions/runs/45322038363) passed                       | Historical sequence verification, not adjudication of disputed histories                                                                                               |
+| Canonical rights differential           | [45321902378](https://github.com/JibrilMohamud/cove/actions/runs/45321902378) passed                       | Synthetic witnesses/canonical-view parity                                                                                                                              |
+| External-source withdrawal audit        | [45323130879](https://github.com/JibrilMohamud/cove/actions/runs/45323130879) passed                       | Bounded source observations, not complete independently authoritative withdrawal history                                                                               |
+| Real-rights spot check                  | [45323275478](https://github.com/JibrilMohamud/cove/actions/runs/45323275478) passed                       | Spot comparison, not whole-catalog legal certification                                                                                                                 |
 
 The commerce run's first attempt stopped on an owner-readiness HTTP 500 **before any payment**. Only its failed job was rerun. Attempt 2 passed and independently verified teardown. Its 32-way native D1 samples were 32/32 valid, maximum 728.89 ms and SQL maximum 5.84 ms. These samples do not constitute geographic or sustained production performance certification. No measured requests or financial mutations were silently retried.
+
+## Fresh protected run on merged `b31200c` — November 24
+
+The seven-schedule migration merged through [#888](https://github.com/JibrilMohamud/cove/pull/888). Its protected batch [45401345441](https://github.com/JibrilMohamud/cove/actions/runs/45401345441) retained the following fresh results:
+
+| Evidence                                                                  | Result                                                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stripe TEST settlement, fulfillment, refund/revocation and owner rollback | [45401519314](https://github.com/JibrilMohamud/cove/actions/runs/45401519314) passed                                                                                                                                                                                 |
+| Hosted isolated BioSync publication/replay                                | [45401519307](https://github.com/JibrilMohamud/cove/actions/runs/45401519307) passed                                                                                                                                                                                 |
+| Isolated Worker rollback                                                  | [45401519159](https://github.com/JibrilMohamud/cove/actions/runs/45401519159) passed                                                                                                                                                                                 |
+| Canonical rights differential                                             | [45401519047](https://github.com/JibrilMohamud/cove/actions/runs/45401519047) passed                                                                                                                                                                                 |
+| Historical primary rights                                                 | [45401519059](https://github.com/JibrilMohamud/cove/actions/runs/45401519059) passed                                                                                                                                                                                 |
+| Grant event replay                                                        | [45401766557](https://github.com/JibrilMohamud/cove/actions/runs/45401766557) passed                                                                                                                                                                                 |
+| External-source withdrawal audit                                          | [45403468686](https://github.com/JibrilMohamud/cove/actions/runs/45403468686) passed                                                                                                                                                                                 |
+| Hosted capacity                                                           | [45401519641](https://github.com/JibrilMohamud/cove/actions/runs/45401519641) **failed**: second cold trial max 977 ms; native-fetch 100-RPS max 1,318 ms, with 2,000/2,000 valid and zero drops. HTTP2 100-RPS max 628 ms passed. All hard limits remain unchanged. |
+| User-token metadata                                                       | [45401519188](https://github.com/JibrilMohamud/cove/actions/runs/45401519188) **failed**, provider capability classification still unresolved.                                                                                                                       |
+
+These are isolated proofs and bounded audits of their exact recorded source, not production legal authority, principal coverage or release certification. The latest strict-capacity failure supersedes the earlier isolated capacity pass as acceptance evidence for this source.
 
 ## Physical authority and token verification
 
@@ -40,6 +58,16 @@ The same change fixes source-observation batch sizing without enlarging the owne
 
 **This is local engineering evidence.** Regional sources are marked fresh in the positive fixture; fake audio acknowledgements do not prove external audio work. Native Worker/D1 execution, populated customer-operation coverage, production hourly BioSync, legal authority and cutover remain uncertified. No production binding, cron configuration, credential or serving deployment was changed. Existing hosted passes above remain valid for their recorded source; the changed owner/backend candidate requires fresh protected hosted evidence before promotion.
 
+### Native D1-unbound API and schedule candidate
+
+The native workerd fixture now uses the current isolated QA primary ID as well as retaining the explicitly enrolled historical paid fixture. Every caller/owner identity must agree; production, legal-only QA, mismatched identity, native caller D1, LIVE Stripe and expired leases remain denied.
+
+Native execution uses the actual backend, owner, native D1, persistent SQLite Durable Objects and every one of the 95 source migrations. It covers health/context/taxonomy, populated browse and text search, filters/sorts/facets, two nonoverlapping catalog pages, all seven actual schedule families, a reclaimed populated recommendation job, failed pending-job backoff, failed-upstream receipts, successful/failed replay and runtime-restart replay without repeated application or upstream writes. Closed synthetic upstream replies do not prove supplier or audio-service integration. The pinned local runtime uses compatibility date 2026-10-17; this does not certify hosted serving behavior.
+
+This found and fixes three actual QA HTTP failures: an already populated catalog no longer initializes catalog state during a read; presentation code retains an explicitly primary-only facade rather than requesting a forbidden replica; the read SQL gate distinguishes SQLite's scalar `replace(...)` from mutating `REPLACE INTO`. All rights predicates and SQL mutation denials remain. The exact two-line API reorder must reverse byte-for-byte to the preceding reviewed source; historical attestations remain unchanged.
+
+The user-token candidate additionally recognizes a closed list of public alternate provider READ spellings only after a fresh scope catalog matches the exact immutable ID **and** exact canonical name. A cosmetic token label, unknown ID, malformed catalog, conflicting identity or any write capability cannot establish read-only authority. Fresh protected verification is still required.
+
 ## Current production reliability evidence
 
 Read-only Cloudflare deployment reads before and after a 20-minute analytics query matched backend version `401f2af2-6e69-4611-8110-1d127af6eecf` at 100%, deployment `9df84b20-0599-4fe9-a14e-2c11a4f25133`.
@@ -48,14 +76,14 @@ For **2026-11-24 03:55–04:15 UTC** (November 23, 10:55–11:15 p.m. EST), samp
 
 ## Remaining production gates
 
-| Gate | Status / required proof |
-| --- | --- |
-| Independent legal authority | Genuine territorial/format/channel authority, disputed history adjudication, complete withdrawals and reconciliation with a current independent owner denial epoch remain unavailable. Passing source/replay/spot workflows does not supply those records. |
+| Gate                            | Status / required proof                                                                                                                                                                                                                                      |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Independent legal authority     | Genuine territorial/format/channel authority, disputed history adjudication, complete withdrawals and reconciliation with a current independent owner denial epoch remain unavailable. Passing source/replay/spot workflows does not supply those records.   |
 | Exclusive owner and credentials | Implement and prove every remaining account/catalog/commerce/scheduled writer and the actual hourly BioSync replacement; then activate only legally supported authority, remove competing bindings and retire privileged credentials with rollback coverage. |
-| Stripe LIVE | Controlled legally permitted real payment, fulfillment, refund and immediate revocation remain unproven. TEST evidence does not substitute for LIVE. No customer was charged here. |
-| Production reliability | Fresh backend failure remains observed. Prove catalog/search/counts/facets/filters/sorts/pagination, protected content and scheduled workloads on the exact serving candidate. |
-| Australian EPUB pointers | Repair only independently verified object-to-rights mappings; retain denials/quarantine for unsupported records. |
-| Production rollback | Verify pinned frontend/backend rollback with write continuity and preserved withdrawals, refund/revocation state and owner epochs. Isolated QA rollback is retained but does not certify production. |
-| Geographic performance | Exact serving candidate must meet ORD/LAX/IAD/DFW cold/warm TTFB strictly <800 ms at 1/4/8/16/32 concurrency, two 20-second 100-RPS phases with 2,000 valid responses each, zero drops, p95 <600 ms, p99 <750 ms and max <800 ms. |
+| Stripe LIVE                     | Controlled legally permitted real payment, fulfillment, refund and immediate revocation remain unproven. TEST evidence does not substitute for LIVE. No customer was charged here.                                                                           |
+| Production reliability          | Fresh backend failure remains observed. Prove catalog/search/counts/facets/filters/sorts/pagination, protected content and scheduled workloads on the exact serving candidate.                                                                               |
+| Australian EPUB pointers        | Repair only independently verified object-to-rights mappings; retain denials/quarantine for unsupported records.                                                                                                                                             |
+| Production rollback             | Verify pinned frontend/backend rollback with write continuity and preserved withdrawals, refund/revocation state and owner epochs. Isolated QA rollback is retained but does not certify production.                                                         |
+| Geographic performance          | Exact serving candidate must meet ORD/LAX/IAD/DFW cold/warm TTFB strictly <800 ms at 1/4/8/16/32 concurrency, two 20-second 100-RPS phases with 2,000 valid responses each, zero drops, p95 <600 ms, p99 <750 ms and max <800 ms.                            |
 
 Production legal owner stays disabled, existing backend D1/schedules remain in place, and unrestricted LIVE sales remain denied. These safeguards cannot be removed using synthetic, source-only, no-op or historical evidence.

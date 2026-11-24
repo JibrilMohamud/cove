@@ -45,7 +45,10 @@ export function checkedQaOwnerReadSql(sql) {
     (/^\s*WITH\b/i.test(sql) && !/\bSELECT\b/i.test(sql)) ||
     /[;\u0000]/.test(sql) ||
     /--|\/\*|\*\//.test(sql) ||
-    /\b(?:INSERT|UPDATE|DELETE|REPLACE|UPSERT|CREATE|ALTER|DROP|ATTACH|DETACH|PRAGMA|VACUUM|REINDEX|ANALYZE|TRIGGER|LOAD_EXTENSION)\b/i.test(
+    // SQLite's replace(value,from,to) scalar is used by canonical ISBN
+    // search. It is a read function, unlike the REPLACE INTO statement.
+    /\bREPLACE\b(?!\s*\()/i.test(sql) ||
+    /\b(?:INSERT|UPDATE|DELETE|UPSERT|CREATE|ALTER|DROP|ATTACH|DETACH|PRAGMA|VACUUM|REINDEX|ANALYZE|TRIGGER|LOAD_EXTENSION)\b/i.test(
       sql,
     )
   )
@@ -274,6 +277,9 @@ export function createQaOwnerReadOnlyD1(owner, secret) {
       return receipt;
     }
     return Object.freeze({
+      // Capability hint only: presentation helpers must retain this stricter
+      // primary-only transport instead of asking it for a forbidden replica.
+      covePrimaryOnlyReadTransport: true,
       prepare(sql) {
         return prepared(sql, []);
       },

@@ -328,3 +328,31 @@ test("transport rejects unavailable owner, forged receipt, missing no-store and 
 console.log(
   "PASS: QA owner D1 read transport preserves primary bookmarks, serializes sessions and rejects unauthorized writes and malformed receipts",
 );
+
+test("canonical scalar replace search remains SELECT-only; every REPLACE mutation is denied", () => {
+  for (const sql of [
+    "SELECT replace('a-b','-','') AS compact",
+    "WITH matched AS (SELECT 1 AS n) SELECT replace('ISBN-1','-','') FROM matched",
+  ])
+    assert.equal(checkedQaOwnerReadSql(sql), sql);
+  for (const sql of [
+    "REPLACE INTO products(id) VALUES('forged')",
+    "WITH x AS (SELECT 1) REPLACE INTO products(id) SELECT 'forged' FROM x",
+    "SELECT replace('x','x','y'); REPLACE INTO products VALUES('forged')",
+    "SELECT replace('x','x','y') /* bypass */",
+    "SELECT replace('x','x','y'), load_extension('bad')",
+  ])
+    assert.throws(() => checkedQaOwnerReadSql(sql), /qa_owner_read_denied/);
+  const facade = createQaOwnerReadOnlyD1(
+    {
+      fetch: async () => {
+        throw Error("not_called");
+      },
+    },
+    SECRET,
+  );
+  assert.equal(facade.covePrimaryOnlyReadTransport, true);
+  assert.equal(Object.isFrozen(facade), true);
+  assert.equal(facade.withSession("first-primary").covePrimaryOnlyReadTransport, true);
+  assert.throws(() => facade.withSession("first-unconstrained"), /qa_owner_read_denied/);
+});

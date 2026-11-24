@@ -531,3 +531,47 @@ test("punctuation never allows unverified policy labels or provider WRITE/malfor
   assert.equal(unresolved.verified, false);
   assert.equal(unresolved.detail, "read_group_alias_identifier_mismatch_unrecognized");
 });
+
+test("alternate provider READ spellings require the reviewed immutable ID and fresh scoped identity", async () => {
+  const examples = [
+    ["2c627567e4b4465d862e6be258a4bb3f", "Workers Platform Metadata (Read-Only)"],
+    ["8f9a2610d2f049a4ad4eb29686b181e9", "Magic Transit (Read-only)"],
+    ["de5d07221d374ec28b4dd230a0c6a2f1", "AI Gateway Read Only"],
+    ["f15a31fae6c4433abbf43ad868aed734", "Vectorize Readonly"],
+    ["d658f06e1bfd4db1b9be75f866671ebb", "Zone Versioning Read (Account-Wide)"],
+    ["0a5ddcbf92a5430599aeec18d2a88ce0", "Audit Logs Viewer"],
+  ];
+  for (const [id, name] of examples) {
+    for (const variant of ["exact", "wrong-id", "wrong-name", "missing", "write"]) {
+      const group = {
+        id: variant === "wrong-id" ? ADDITIONAL_READ.id : id,
+        name: "Provider: Cosmetic Label",
+      };
+      const t = catalogTransport([group]);
+      const evidence = await inspectUserTokenEvidence(async (path, key) => {
+        if (path.includes("?scope="))
+          return {
+            result:
+              path.endsWith("com.cloudflare.api.account") && variant !== "missing"
+                ? [
+                    {
+                      id: group.id,
+                      name:
+                        variant === "wrong-name"
+                          ? name + " "
+                          : variant === "write"
+                            ? "D1 Write"
+                            : name,
+                      scopes: ["com.cloudflare.api.account"],
+                    },
+                  ]
+                : [],
+          };
+        return t.get(path, key);
+      }, USER_TOKEN);
+      assert.equal(evidence.verified, variant === "exact", name + ": " + variant);
+      if (variant !== "exact")
+        assert.equal(evidence.reason, "active_user_token_permission_unreviewed");
+    }
+  }
+});

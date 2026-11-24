@@ -39,6 +39,32 @@ const READ_ONLY_GROUP=/^[A-Za-z0-9][A-Za-z0-9 &/._()+-]* (?:Read|Read-Only)$/;
 // "Load Balancing: Monitors and Pools Read". This grammar is ONLY applied
 // after a fresh exact immutable-ID/scope match, never to token policy labels.
 const PROVIDER_CANONICAL_READ_GROUP=/^[A-Za-z0-9][A-Za-z0-9 &/._()+,:-]* (?:Read|Read-Only)$/;
+// Public immutable provider definitions verified in the account IAM catalog
+// on 2026-11-24. These alternate spellings are NOT accepted from policy labels:
+// a fresh user scope catalog must positively match BOTH this ID and name.
+// No generic 'Read' substring or cosmetic suffix can authorize a capability.
+const PROVIDER_ALTERNATE_READ_IDS=new Map([
+  ["4235f6841fad4eb2adf67653f2f77305","Magic Firewall (Read-only)"],
+  ["8f9a2610d2f049a4ad4eb29686b181e9","Magic Transit (Read-only)"],
+  ["1e97f15ba4b44ab3b4fa9a1af0eec7f8","Magic WAN (Read-only)"],
+  ["21c791cee0104d5894b50d8032d28550","Magic Firewall Packet Captures (Read-only)"],
+  ["8b83cc27b3f745979e7916f095a4b3b6","Websearch (Read-only)"],
+  ["de5d07221d374ec28b4dd230a0c6a2f1","AI Gateway Read Only"],
+  ["8ae474e5df114a7da74bcf4f17785fa1","Zero Trust Gateway Read Only"],
+  ["f5828b643f7d4c8da0dfa036f45dd6cd","DLS (Read-only)"],
+  ["2c627567e4b4465d862e6be258a4bb3f","Workers Platform Metadata (Read-Only)"],
+  ["762732aa993a40e6a6301f8a89dddf0b","AI Crawl Control Read Only"],
+  ["be296927020642b29f540f2db9429dbe","AI Search (Read-only)"],
+  ["edc4cc794f1e4a9d88c498992156a0a0","Workers Platform (Read-only)"],
+  ["3ad3a9ed71a2405cab2b81e4c5488be1","Email Security Readonly"],
+  ["f15a31fae6c4433abbf43ad868aed734","Vectorize Readonly"],
+  ["cc8fa7eeb40045e4b58b3468266ded55","Hyperdrive Readonly"],
+  ["d658f06e1bfd4db1b9be75f866671ebb","Zone Versioning Read (Account-Wide)"],
+  ["c695c6a83d5e4fa5afb50d66dda69a98","Network Services Read (Magic)"],
+  ["d2afaa33feba4b6182c0135b7219ad74","Zaraz Readonly"],
+  ["6dddc4763b2646c89491898cface4aa1","Cloudflare Zero Trust Read Only"],
+  ["0a5ddcbf92a5430599aeec18d2a88ce0","Audit Logs Viewer"],
+]);
 
 // Cloudflare states permission-group names are cosmetic. Verify unexpected
 // user-owned group labels against a FRESH provider catalog ID; only these three
@@ -90,7 +116,8 @@ async function proveReadIdsByScope(get,userToken,groups){
     const match=observed.get(group.id);
     if(!match)return "read_group_alias_identifier_mismatch_unrecognized";
     if(PRIVILEGED_GROUPS.has(match.name)||match.name.trim()!==match.name||
-       !PROVIDER_CANONICAL_READ_GROUP.test(match.name))
+       !(PROVIDER_CANONICAL_READ_GROUP.test(match.name)||
+         PROVIDER_ALTERNATE_READ_IDS.get(group.id)===match.name))
       return "read_group_provider_capability_not_readonly";
   }
   return null;
