@@ -116,6 +116,8 @@ try {
   const tokenHash = createHash("sha256").update(backendToken).digest("hex");
   const bindings = {
     COVE_CONSOLIDATED_OWNER_QA: "1",
+    // The DO itself must be enrolled, not just the scheduled dispatcher.
+    COVE_QA_SCHEDULE_OWNER_ENABLED: "1",
     FORE_BACKEND_TOKEN_SHA256: tokenHash,
     FORE_ENVIRONMENT: "staging",
     COVE_SSR_STAGING: "1",
@@ -291,12 +293,17 @@ try {
       counts.taxonomy >= 1,
     "Native owner operational rows: " + JSON.stringify(counts),
   );
+  console.log("PASS: native gateway HTTP parity and operational row persistence", JSON.stringify(counts));
   const scheduledTime = Date.now();
   const tick = async (cron, time = scheduledTime) => {
     try {
       const result = await ownerClient.scheduled({ cron, scheduledTime: new Date(time) });
+      if (result.outcome !== "ok") console.error("Native schedule outcome", cron, result.outcome);
       return result.outcome === "ok" ? 200 : 503;
-    } catch {
+    } catch (error) {
+      // Local synthetic runtime only: retain the exception name to distinguish
+      // harness/API errors from an actual scheduled handler failure.
+      console.error("Native schedule rejected", cron, error?.name, error?.message);
       return 503;
     }
   };
