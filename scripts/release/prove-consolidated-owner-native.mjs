@@ -293,7 +293,10 @@ try {
       counts.taxonomy >= 1,
     "Native owner operational rows: " + JSON.stringify(counts),
   );
-  console.log("PASS: native gateway HTTP parity and operational row persistence", JSON.stringify(counts));
+  console.log(
+    "PASS: native gateway HTTP parity and operational row persistence",
+    JSON.stringify(counts),
+  );
   const scheduledTime = Date.now();
   const tick = async (cron, time = scheduledTime) => {
     try {
@@ -371,11 +374,7 @@ try {
   );
   failUpstream = true;
   const unavailable = await tick("7-57/10 * * * *", scheduledTime + 60000);
-  assert.equal(
-    unavailable,
-    503,
-    "Unavailable upstream cannot acknowledge a successful tick",
-  );
+  assert.equal(unavailable, 503, "Unavailable upstream cannot acknowledge a successful tick");
   const beforeUnavailableReplay = await changes();
   assert.deepEqual(await tick("7-57/10 * * * *", scheduledTime + 60000), unavailable);
   assert.equal(await changes(), beforeUnavailableReplay);
@@ -387,11 +386,7 @@ try {
   client = await mf.getWorker("caller");
   ownerClient = await mf.getWorker("owner");
   for (const cron of crons)
-    assert.equal(
-      await tick(cron),
-      200,
-      "Durable success replay after runtime restart: " + cron,
-    );
+    assert.equal(await tick(cron), 200, "Durable success replay after runtime restart: " + cron);
   assert.deepEqual(await tick("41 4 * * *", scheduledTime + 60000), failed);
   assert.deepEqual(await tick("7-57/10 * * * *", scheduledTime + 60000), unavailable);
   assert.equal(
