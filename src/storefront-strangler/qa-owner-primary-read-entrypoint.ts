@@ -9,6 +9,7 @@
 import type { CoveEnv } from "../features/fore/api.server";
 import { createQaOwnerReadOnlyD1 } from "./qa-owner-primary-read-transport.mjs";
 import { bindPublicationOwner } from "./publication-owner-routing.server";
+import { bindQaOperationalOwner } from "./qa-owner-operational-protocol";
 
 const QA_PRIMARY_IDS = new Set([
   "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87",
@@ -27,6 +28,7 @@ const QA_TYPED_OWNER_PRIMARY_IDS = new Set([
 export const QA_OWNER_UNBOUND_READ_FLAG = "COVE_QA_OWNER_UNBOUND_READ_ENABLED";
 type QaReadEnv = CoveEnv & {
   COVE_QA_OWNER_UNBOUND_READ_ENABLED?: string;
+  COVE_QA_OPERATIONAL_OWNER_ENABLED?: string;
   COVE_RIGHTS_OWNER_ENABLED?: string;
   COVE_RIGHTS_OWNER_PRIMARY_ID?: string;
   COVE_RIGHTS_OWNER_TEST_EXPIRES_AT?: string;
@@ -40,6 +42,9 @@ type QaReadEnv = CoveEnv & {
 };
 export function scopeQaOwnerUnboundPrimaryRead<T extends QaReadEnv>(env: T): T {
   const flag = env.COVE_QA_OWNER_UNBOUND_READ_ENABLED;
+  const operational = env.COVE_QA_OPERATIONAL_OWNER_ENABLED;
+  if (![undefined, "0", "1"].includes(operational) || (operational === "1" && flag !== "1"))
+    throw Error("qa_operational_caller_not_enrolled");
   if (flag === undefined || flag === "0") return env;
   // In the same DB-unbound backend, typed owner operations must traverse the
   // existing independently validated command gateway, never the SQL facade.
@@ -76,13 +81,12 @@ export function scopeQaOwnerUnboundPrimaryRead<T extends QaReadEnv>(env: T): T {
   const owner = env.LEGAL_AUTHORITY.getByName("cove-staged-legal-global-v1");
   if (!owner || typeof owner.fetch !== "function")
     throw Error("qa_unbound_primary_read_not_certified");
-  return {
-    ...env,
-    DB: bindPublicationOwner(createQaOwnerReadOnlyD1(owner, env.COVE_RIGHTS_OWNER_SECRET!), {
-      owner,
-      secret: env.COVE_RIGHTS_OWNER_SECRET!,
-      territory: env.FORE_DEFAULT_TERRITORY || "US",
-      currency: "USD",
-    }),
-  } as T;
+  const db = bindPublicationOwner(createQaOwnerReadOnlyD1(owner, env.COVE_RIGHTS_OWNER_SECRET!), {
+    owner,
+    secret: env.COVE_RIGHTS_OWNER_SECRET!,
+    territory: env.FORE_DEFAULT_TERRITORY || "US",
+    currency: "USD",
+  });
+  if (operational === "1") bindQaOperationalOwner(db, owner, env);
+  return { ...env, DB: db } as T;
 }

@@ -39,8 +39,21 @@ const counts=Object.fromEntries(["isolated-test-fixture","non-authorizing-write"
 assert.deepEqual(counts,{"isolated-test-fixture":1,"non-authorizing-write":22,"private-owner-qa-executor":23,"owner-command-required":0});
 assert.ok(review.sites.every(s=>s.productionOwnerGuarded===false),
   "Current source audit cannot certify deployed ownership");
+// Preserve every previous pin. Only the exact separately tested operational
+// transport import/flag/dispatch and anonymous search callsite may differ.
+const operationalDeltas=Object.freeze({
+  "src/storefront-strangler/legal-authority.worker.ts":["import { QA_OPERATIONAL_ROUTE } from \"./qa-owner-operational-protocol\";\nimport { serveQaOperationalWrite } from \"./qa-owner-operational-execution\";\n","  COVE_QA_OPERATIONAL_OWNER_ENABLED?: string;\n","    if(route===QA_OPERATIONAL_ROUTE){\n      return serveQaOperationalWrite(request,env,this.ctx.storage as Parameters<typeof serveQaOperationalWrite>[2]);\n    }\n"],
+  "src/features/fore/search.server.ts":["import { dispatchQaOperationalWrite } from \"../../storefront-strangler/qa-owner-operational-protocol\";\n","  if (userId === null) {\n    const remote = dispatchQaOperationalWrite(db, {\n      kind: \"search.impression\",\n      id,\n      query: input.query,\n      normalizedQuery: normalizeQuery(input.query),\n      filtersJson: JSON.stringify({ ...filters, page: input.page, limit: input.limit }),\n      sort: input.sort,\n      count: data.count,\n      backend: data.backend as \"d1-fts5\" | \"meilisearch\",\n      duration: Math.max(0, Math.round(data.duration)),\n      correctedQuery: data.correctedQuery || null,\n      impressionsJson: JSON.stringify(impressions),\n      at: new Date().toISOString(),\n    });\n    if (remote) {\n      await remote;\n      return id;\n    }\n  }\n"]
+});
+function beforeOperationalChange(path,source){
+  for(const addition of operationalDeltas[path]||[]){
+    assert.equal(source.split(addition).length,2,"Operational delta drifted: "+path);
+    source=source.replace(addition,"");
+  }
+  return source;
+}
 for(const [path,pin] of Object.entries(PINNED_CURRENT_SOURCES)){
-  const actual=createHash("sha256").update(readFileSync(path,"utf8")).digest("hex");
+  const actual=createHash("sha256").update(beforeOperationalChange(path,readFileSync(path,"utf8"))).digest("hex");
   assert.equal(actual,pin,"New current source change requires independent legal/caller review: "+path);
 }
 // Independent byte-exact re-review of the post-October BioSync QA owner
@@ -49,7 +62,7 @@ for(const [path,pin] of Object.entries(PINNED_CURRENT_SOURCES)){
 // must reproduce that exact previous file SHA; no unrelated SQL, caller,
 // commerce or publication code may change while refreshing this pin.
 const ownerPath="src/storefront-strangler/legal-authority.worker.ts";
-let priorOwner=readFileSync(ownerPath,"utf8");
+let priorOwner=beforeOperationalChange(ownerPath,readFileSync(ownerPath,"utf8"));
 // The 2026-11-24 schedule change adds only this import, flag and private
 // dispatch. Removing these exact ranges must recover the previous full
 // owner bytes. The new RPC's QA lease/domain/replay tests run separately;

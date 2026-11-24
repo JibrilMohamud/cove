@@ -1,3 +1,4 @@
+import { dispatchQaOperationalWrite } from "../../storefront-strangler/qa-owner-operational-protocol";
 import { z } from "zod/v3";
 import { ApiError, now } from "./service";
 import { resolvePricingDecision } from "./pricing.server";
@@ -105,7 +106,24 @@ export async function recordHttpRequest(
     duration = Math.max(0, Date.now() - trace.startedMs),
     route = new URL(request.url).pathname.replace(/\b[0-9a-f]{8}-[0-9a-f-]{27,}\b/gi, ":id");
   try {
-    await db.batch([
+    const remote = dispatchQaOperationalWrite(db, {
+      kind: "audit.http",
+      requestId: trace.requestId,
+      traceId: trace.traceId,
+      spanId: trace.spanId,
+      parentSpanId: trace.parentSpanId,
+      startedAt: trace.startedAt,
+      endedAt,
+      duration,
+      method: request.method as "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS",
+      route,
+      status: response.status,
+      actorKind: (input.actorKind || "anonymous") as "anonymous" | "user",
+      storefrontCountry: input.storefrontCountry || null,
+      errorClass: input.errorClass || null,
+    });
+    if (remote) await remote;
+    else await db.batch([
       db
         .prepare(
           "INSERT OR IGNORE INTO ops_http_requests(id,request_id,trace_id,span_id,parent_span_id,method,route,status_code,duration_ms,actor_kind,storefront_country,error_class,sampled,occurred_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,1,?)",
