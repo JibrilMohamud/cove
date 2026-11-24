@@ -1,0 +1,26 @@
+name: isolated owner operational formatting report
+on:
+  push:
+    branches: ["scratch/owner-operational-format-report-20261124"]
+permissions:
+  contents: read
+jobs:
+  format-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22" }
+      - run: npm ci --no-audit --no-fund
+      - name: Print only public-source formatting deltas
+        run: |
+          npx prettier --write src/storefront-strangler/qa-owner-operational-protocol.ts src/storefront-strangler/qa-owner-operational-execution.ts src/storefront-strangler/qa-owner-primary-read-entrypoint.ts src/features/fore/catalog-cache.server.ts src/features/fore/taxonomy-counts-cache.server.ts src/features/fore/search-facet-refresh-lease.server.ts src/features/fore/search.server.ts src/features/fore/operations.server.ts scripts/check-http-audit-write-failure-signal.mjs scripts/test-qa-owner-operational-writes.mjs scripts/release/prove-native-owner-schedules.mjs .github/workflows/cove-qa-owner-primary-read-transport-offline.yml
+          echo 'COVE_FORMAT_PATCH_BEGIN'
+          git diff --no-color -- src/storefront-strangler/qa-owner-operational-protocol.ts src/storefront-strangler/qa-owner-operational-execution.ts src/storefront-strangler/qa-owner-primary-read-entrypoint.ts src/features/fore/catalog-cache.server.ts src/features/fore/taxonomy-counts-cache.server.ts src/features/fore/search-facet-refresh-lease.server.ts src/features/fore/search.server.ts src/features/fore/operations.server.ts scripts/check-http-audit-write-failure-signal.mjs scripts/test-qa-owner-operational-writes.mjs scripts/release/prove-native-owner-schedules.mjs .github/workflows/cove-qa-owner-primary-read-transport-offline.yml
+          echo 'COVE_FORMAT_PATCH_END'
+      - name: Calculate exact source site fingerprint after formatting
+        run: |
+          node --input-type=module -e 'import {currentWriterSites} from "./scripts/reconcile-canonical-writers.mjs"; console.log("COVE_FORMAT_SITE "+JSON.stringify(currentWriterSites().filter(x=>x.file==="src/features/fore/search.server.ts")));'
+      - run: npm run typecheck
