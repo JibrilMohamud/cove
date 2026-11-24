@@ -6,6 +6,7 @@ have been independently certified. QA still verifies typed owner operations in
 the physically separate Cove QA account; a synthetic success is not cutover.
 """
 import unittest
+from unittest.mock import patch
 
 from scripts.audio_pipeline import biosync_canary, biosync_owner_qa
 from scripts.audio_pipeline.test_biosync_owner_qa import OwnerCutoverTests  # noqa: F401
@@ -24,6 +25,14 @@ class LiveBioSyncContinuity(unittest.TestCase):
         self.assertEqual(biosync_canary.BUCKET, "cove-production-media")
         self.assertIsNot(biosync_canary.main, biosync_owner_qa.main)
         self.assertIsNot(biosync_canary.query, biosync_owner_qa.query)
+
+    def test_production_has_no_legacy_fallback(self):
+        with patch.dict("os.environ", {"COVE_BIOSYNC_PROD_OWNER_MODE": "0"}, clear=True):
+            with self.assertRaisesRegex(RuntimeError, "requires owner mode"):
+                biosync_canary.main()
+        with patch.object(biosync_canary.owner_transport, "request", return_value=b"scoped") as send:
+            self.assertEqual(biosync_canary.authorized_request("GET", "fixed"), b"scoped")
+            send.assert_called_once_with("GET", "fixed", None, json_body=False)
 
     def test_owner_client_is_confined_to_independent_synthetic_qa(self):
         self.assertEqual(
