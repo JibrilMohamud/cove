@@ -173,6 +173,50 @@ test("unknown application failures, forged 200s and native-rights denial cannot 
   );
 });
 
+test("one pre-measurement TimeoutError never counts as a valid wave, even when later waves recover", async () => {
+  const harness = probeHarness(({ route, wave, calls }) => {
+    if (wave === 1 && route === "/qa/native-first-paint" && calls % 96 === 65)
+      throw Object.assign(new Error("timeout"), { name: "TimeoutError" });
+    return null;
+  });
+  const result = await stabilizePrivatePaidQaIngress({ ...harness, nativeInput });
+  assert.deepEqual(result, {
+    globallyReady: true,
+    completeWaves: 3,
+    edge404: 0,
+    edge500: 0,
+    preflightTimeouts: 1,
+  });
+  assert.equal(harness.calls, 3 * 3 * 32);
+  assert.equal(harness.sleeps, 2);
+});
+
+test("one TimeoutError per round exhausts all protected pre-measurement waves", async () => {
+  const harness = probeHarness(({ route, calls }) => {
+    if (route === "/qa/native-first-paint" && calls % 96 === 65)
+      throw Object.assign(new Error("timeout"), { name: "TimeoutError" });
+    return null;
+  });
+  await assert.rejects(
+    stabilizePrivatePaidQaIngress({ ...harness, nativeInput }),
+    /paid_qa_ingress_readonly_unstable:edge404=0:edge500=0:timeouts=12/,
+  );
+  assert.equal(harness.calls, 12 * 3 * 32);
+  assert.equal(harness.sleeps, 11);
+});
+
+test("unexpected network and application failures still fail immediately", async () => {
+  const harness = probeHarness(({ route }) => {
+    if (route === "/qa/native-first-paint") throw Error("unexpected_transport");
+    return null;
+  });
+  await assert.rejects(
+    stabilizePrivatePaidQaIngress({ ...harness, nativeInput }),
+    /unexpected_transport/,
+  );
+  assert.equal(harness.sleeps, 0);
+});
+
 test("rejects weakened concurrency, rounds, scope and untrusted probe configurations before calling network", async () => {
   const modifications = [
     { parallel: 16 },

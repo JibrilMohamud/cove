@@ -47,6 +47,59 @@ test("permanent 503 owner unavailability also fails after hard finite limit",asy
     /biosync_owner_binding_readiness_unstable:0:384/);
   assert.equal(h.calls,12*32);
 });
+test("only unmarked 502/504 edge failures can delay a pre-commit, no-write readiness wave",async()=>{
+  const h=harness(({wave,calls})=>{
+    if(wave===1)return calls%2?{status:502,noStore:false}:{status:504,noStore:false};
+    return null;
+  });
+  const result=await stabilizeBiosyncOwnerBinding(h.probe,h.sleep);
+  assert.deepEqual(result,{
+    schema:"cove.qa.biosync-binding-stable.v1",completedWaves:3,
+    edge404:0,unavailable503:0,consecutive:2,edge502:16,edge504:16
+  });
+  assert.equal(h.calls,3*32);
+  assert.equal(h.sleeps,2);
+});
+test("persistent unmarked 502 never meets the two-clean-wave owner proof",async()=>{
+  const h=harness(()=>({status:502,noStore:false}));
+  await assert.rejects(stabilizeBiosyncOwnerBinding(h.probe,h.sleep),
+    /biosync_owner_binding_readiness_unstable:0:0:edge502=384:edge504=0/);
+  assert.equal(h.calls,12*32);
+  assert.equal(h.sleeps,11);
+});
+test("gateway-marked wrong route and application 502 fail without retry",async()=>{
+  for(const response of [{status:404,noStore:true},{status:502,noStore:true},
+    {status:504,noStore:true}]){
+    const h=harness(()=>response);
+    await assert.rejects(stabilizeBiosyncOwnerBinding(h.probe,h.sleep),
+      /biosync_owner_binding_readiness_receipt_denied/);
+    assert.equal(h.sleeps,0);
+  }
+});
+test("bounded authenticated readiness timeouts cannot count as a successful wave",async()=>{
+  const h=harness(({wave,calls})=>wave===1&&calls===1?
+    {status:0,preflightTimeout:true}:null);
+  const result=await stabilizeBiosyncOwnerBinding(h.probe,h.sleep);
+  assert.deepEqual(result,{
+    schema:"cove.qa.biosync-binding-stable.v1",completedWaves:3,
+    edge404:0,unavailable503:0,consecutive:2,probeTimeouts:1
+  });
+  assert.equal(h.calls,3*32);
+  assert.equal(h.sleeps,2);
+});
+test("persistently timed out owner binding never authorizes a single commit",async()=>{
+  const h=harness(()=>({status:0,preflightTimeout:true}));
+  await assert.rejects(stabilizeBiosyncOwnerBinding(h.probe,h.sleep),
+    /biosync_owner_binding_readiness_unstable:0:0:timeouts=384/);
+  assert.equal(h.calls,12*32);
+  assert.equal(h.sleeps,11);
+});
+test("untagged timeout-like receipts and wrong provenance fail without retry",async()=>{
+  const h=harness(()=>({status:0}));
+  await assert.rejects(stabilizeBiosyncOwnerBinding(h.probe,h.sleep),
+    /biosync_owner_binding_readiness_receipt_denied:HTTP_0/);
+  assert.equal(h.sleeps,0);
+});
 test("wrong owner receipt, missing no-store, forged status, bad token and network errors fail immediately",async()=>{
   for(const result of [
     {status:200,body:{schema:"wrong"},noStore:true},
