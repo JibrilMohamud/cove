@@ -20,8 +20,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 def fetch(sql, params, token, opener=None):
     if not token or os.getenv("CLOUDFLARE_ACCOUNT_ID")!=ACCOUNT:
         raise ValueError("Explicit isolated D1 reporting credential required")
-    allowed = ("SELECT", "WITH")
-    if not sql.strip().upper().startswith(allowed):
+    if not sql.startswith("SELECT ") or any(mark in sql for mark in (";", "--", "/*", "*/")):
         raise ValueError("Read-only detached reports only")
     data=json.dumps(dict(sql=sql,params=[str(x) for x in params])).encode()
     request=urllib.request.Request(URL,data=data,method="POST",headers={
@@ -95,7 +94,12 @@ def main():
     if args.dry_run:
         print(json.dumps({"dryRun":True,"customerD1Queried":False}))
         return
-    result=collect(os.environ.get("CLOUDFLARE_API_TOKEN",""))
+    if os.environ.get("CLOUDFLARE_API_TOKEN"):
+        raise RuntimeError("Broad Cloudflare credential forbidden in reporting")
+    token=os.environ.get("COVE_CF_PRODUCTION_AUDIT_READ_TOKEN","")
+    if len(token)<20:
+        raise RuntimeError("Protected D1 Read reporting credential unavailable")
+    result=collect(token)
     pathlib.Path(args.output).write_text(json.dumps(result,indent=2)+"\n")
     print(json.dumps({"stages":len(result["stages"]),"backlog":len(result["backlog"]),
                       "customerPlayableCertified":False,"output":args.output}))

@@ -2,6 +2,7 @@ import datetime as dt
 import importlib.util
 import pathlib
 import unittest
+from unittest.mock import patch
 
 spec=importlib.util.spec_from_file_location("daily_music_report",
     pathlib.Path(__file__).with_name("report-isolated-supply.py"))
@@ -38,5 +39,17 @@ class TestDetachedMusicDailyReport(unittest.TestCase):
             module.fetch("DELETE FROM music_masters",[],token="")
         with self.assertRaises(ValueError):
             module.fetch("DROP TABLE music_masters",[],token="not-an-identity")
+
+    def test_reporting_requires_scoped_principal_and_no_legacy_fallback(self):
+        with patch.dict("os.environ", {"CLOUDFLARE_API_TOKEN":"legacy-token"},clear=True), patch("sys.argv",["report"]):
+            with self.assertRaises(RuntimeError):
+                module.main()
+        with patch.dict("os.environ",{},clear=True), patch("sys.argv",["report"]):
+            with self.assertRaises(RuntimeError):
+                module.main()
+        with patch.dict("os.environ",{"CLOUDFLARE_ACCOUNT_ID":module.ACCOUNT},clear=True):
+            for sql in ("WITH x AS (SELECT 1) DELETE FROM music_masters","SELECT 1; DELETE FROM music_masters","SELECT 1 -- comment"):
+                with self.assertRaises(ValueError):
+                    module.fetch(sql,[],token="read-only-test")
 
 if __name__=="__main__":unittest.main()

@@ -17,6 +17,7 @@ assert.equal(config.r2_buckets.length, 1);
 assert.ok(!config.kv_namespaces, "KV must be attached only to the transient protected trial");
 const prefix = `campaign/${run}/synthetic/`;
 config.vars.COVE_STRANGLER_READ_MODEL = "2";
+config.vars.COVE_STAGE_PRIMARY_COHORT = "1";
 config.vars.COVE_PRESENTATION_KV_ACCELERATE = "1";
 config.vars.COVE_PRESENTATION_PREFIX = prefix;
 config.kv_namespaces = [{ binding: "PRESENTATION_KV", id: "8245d5f2116a445d9571405b41b7c8c3" }];

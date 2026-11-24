@@ -29,6 +29,8 @@ on:
       - "scripts/staging/assert-strangler-capacity-evidence.mjs"
       - "src/storefront-strangler/worker.ts"
       - "src/storefront-strangler/bootstrap-optimized.server.ts"
+      - "src/storefront-strangler/stage-primary-read-cohort.ts"
+      - "scripts/staging/stage-primary-read-cohort.test.mjs"
       - "src/storefront-strangler/prepared-catalog.server.ts"
       - "scripts/staging/seed-strangler-v2-capacity.mjs"
       - "scripts/staging/cleanup-strangler-v2-capacity.mjs"
@@ -79,6 +81,7 @@ jobs:
           node scripts/check-storefront-strangler.mjs
           node scripts/check-storefront-prepared-catalog.mjs
           node scripts/check-storefront-v2-primary-prefix.mjs
+          node --test scripts/staging/stage-primary-read-cohort.test.mjs
           node --test scripts/staging/strangler-capacity-transport-contract.test.mjs
 
   protected-staging-only:

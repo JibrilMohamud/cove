@@ -45,5 +45,21 @@
     "FORE_ENVIRONMENT": "production",
     "FORE_DEFAULT_TERRITORY": "US",
     "FORE_PUBLIC_URL": "https://cove-puce-theta.vercel.app"
-  }
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "STAGE_PRIMARY_COHORT",
+        "class_name": "CoveStagePrimaryReadCohort"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "stage-primary-cohort-v1",
+      "new_sqlite_classes": [
+        "CoveStagePrimaryReadCohort"
+      ]
+    }
+  ]
 }

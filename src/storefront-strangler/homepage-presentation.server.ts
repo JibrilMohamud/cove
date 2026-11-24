@@ -210,6 +210,7 @@ export async function authorizeHomepagePresentation(
   primary: CatalogDB,
   presentation: Awaited<ReturnType<typeof readHomepagePresentation>>,
   metrics?: FirstPaintD1QueryMetrics,
+  read = authorizeStorefrontPresentationIds,
 ) {
   const { productIds, country, currency } = presentation.candidates;
   // The live primary statement returns at most 25 ranked eligible IDs:
@@ -223,7 +224,7 @@ export async function authorizeHomepagePresentation(
   // mismatched item triggers the full 128-ID primary authorization,
   // preserving the old stable ordering and replacement candidates.
   const prefix = productIds.slice(0, 25);
-  const authorizedPrefix = await authorizeStorefrontPresentationIds(
+  const authorizedPrefix = await read(
     primary,
     prefix,
     country,
@@ -241,7 +242,7 @@ export async function authorizeHomepagePresentation(
   const rows =
     productIds.length <= 25 || completePrefix
       ? authorizedPrefix
-      : await authorizeStorefrontPresentationIds(primary, productIds, country, currency, metrics);
+      : await read(primary, productIds, country, currency, metrics);
   return assembleAuthorizedHomepagePresentation(presentation, rows);
 }
 

@@ -34,6 +34,14 @@ assert.deepEqual(ephemeral.kv_namespaces, [
   { binding: "PRESENTATION_KV", id: "8245d5f2116a445d9571405b41b7c8c3" },
 ]);
 assert.equal(ephemeral.vars?.COVE_STRANGLER_READ_MODEL, "2");
+assert.equal(ephemeral.vars?.COVE_STAGE_PRIMARY_COHORT, "1");
+assert.equal(original.vars?.COVE_STAGE_PRIMARY_COHORT, undefined);
+assert.deepEqual(ephemeral.durable_objects, {
+  bindings: [{ name: "STAGE_PRIMARY_COHORT", class_name: "CoveStagePrimaryReadCohort" }],
+});
+assert.deepEqual(ephemeral.migrations, [
+  { tag: "stage-primary-cohort-v1", new_sqlite_classes: ["CoveStagePrimaryReadCohort"] },
+]);
 assert.equal(ephemeral.vars?.COVE_PRESENTATION_KV_ACCELERATE, "1");
 assert.equal(ephemeral.vars?.COVE_SSR_STAGING, "1");
 assert.equal(ephemeral.vars?.COVE_STRANGLER_MODE, "isolated-evaluation");

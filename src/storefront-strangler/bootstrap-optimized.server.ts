@@ -8,13 +8,14 @@ import {
   authorizeHomepagePresentation,
 } from "./homepage-presentation.server";
 import { authorizeHomepageWithUnifiedOwner } from "./legal-authority-read.server";
+import { stagePrimaryCohortReader, type StageCohortEnv } from "./stage-primary-read-cohort";
 import type { FirstPaintD1QueryMetrics } from "../features/fore/catalog-model.server";
 import { networkCountry, resolveAnonymousHomepageContext } from "./localization-optimized.server";
 import { formatGenericStorefrontPageRecord } from "./page-record";
 import { firstPaintStorefrontShelf } from "../features/fore/search.server";
 import { enforceFirstPaintRateLimit } from "../features/fore/storefront-read-rate-limit.server";
 import type { CoveEnv } from "../features/fore/api.server";
-type OptimizedEnv = CoveEnv & {
+type OptimizedEnv = CoveEnv & StageCohortEnv & {
   COVE_SSR_DIAGNOSTICS?: string;
   COVE_THIN_METADATA_COALESCE?: string;
   COVE_STRANGLER_READ_MODEL?: string;
@@ -290,7 +291,7 @@ export async function serveLeanAnonymousBootstrap(
                   env.COVE_RIGHTS_OWNER_SECRET!,
                   p,
                 )
-              : authorizeHomepagePresentation(rawDb, p, d1Metrics),
+              : authorizeHomepagePresentation(rawDb, p, d1Metrics, stagePrimaryCohortReader(env)),
           ),
         )
       : model === "1"

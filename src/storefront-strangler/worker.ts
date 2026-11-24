@@ -16,6 +16,8 @@ import { renderStranglerStorefront } from "./render";
 import { bootstrapFailureKind } from "./failure";
 import { syntheticBenchmarkClient } from "./synthetic-client";
 import { readHomepagePresentation } from "./homepage-presentation.server";
+import type { StageCohortEnv } from "./stage-primary-read-cohort";
+export { CoveStagePrimaryReadCohort } from "./stage-primary-read-cohort";
 import {
   namespacedPresentationStore,
   type PrivatePresentationStore,
@@ -25,7 +27,7 @@ import {
  * Existing domain logic is reused through type-only references. This pilot is
  * deliberately non-routable: no production DNS, no customer credentials.
  */
-export type StorefrontStranglerEnv = CoveEnv & {
+export type StorefrontStranglerEnv = CoveEnv & StageCohortEnv & {
   COVE_STRANGLER_MODE?: string;
   COVE_STRANGLER_DATABASE_ID?: string;
   COVE_STRANGLER_EXPERIENCE?: string;
