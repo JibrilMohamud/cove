@@ -221,6 +221,12 @@ try {
   for (const overrides of [
     { FORE_ENVIRONMENT: "production" },
     { COVE_RIGHTS_OWNER_PRIMARY_ID: "4bd657ac-8789-403e-a28c-93aba8d0a989" },
+    { COVE_RIGHTS_OWNER_PRIMARY_ID: "969f1ea0-5f57-4f3a-aa25-9c74e58f5af3" },
+    { COVE_LEGAL_WRITER_PRIMARY_ID: "969f1ea0-5f57-4f3a-aa25-9c74e58f5af3" },
+    {
+      COVE_RIGHTS_OWNER_PRIMARY_ID: "3ffb3c0b-72b2-4a47-b63a-18aaf77762ea",
+      COVE_LEGAL_WRITER_PRIMARY_ID: "3ffb3c0b-72b2-4a47-b63a-18aaf77762ea",
+    },
     { COVE_RIGHTS_OWNER_TEST_EXPIRES_AT: "0" },
     { COVE_RIGHTS_OWNER_TEST_EXPIRES_AT: String(Date.now() + 3600000) },
     { STRIPE_LIVEMODE: "true" },

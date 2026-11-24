@@ -13,6 +13,7 @@ on:
       # dispatchable; they do not invalidate unchanged hosted runtime proofs.
       - "src/persistence-backend.worker.ts"
       - "src/storefront-strangler/legal-authority.worker.ts"
+      - "src/storefront-strangler/qa-owner-scheduled-execution.ts"
       - "scripts/staging/paid-owner-rollback-evidence.mjs"
       - "scripts/staging/prove-biosync-hosted-owner-write.mjs"
       - "scripts/staging/prove-private-paid-owner.mjs"

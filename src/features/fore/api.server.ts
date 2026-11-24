@@ -911,7 +911,11 @@ async function ensureCatalogState(env: CoveEnv) {
 }
 async function seedCatalog(env: CoveEnv) {
   const db = database(env);
-  await ensureCatalogState(env);
+  if (
+    (db as typeof db & { covePrimaryOnlyReadTransport?: boolean }).covePrimaryOnlyReadTransport !==
+    true
+  )
+    await ensureCatalogState(env);
   const row = await db.prepare("SELECT 1 present FROM gutenberg_source_cache LIMIT 1").first<any>();
   if (row) return;
   const at = now();

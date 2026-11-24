@@ -211,7 +211,7 @@ export {CoveLegalAuthority} from "./src/storefront-strangler/legal-authority.wor
         return { toArray: () => rows };
       },
     };
-    const primaryId = "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e";
+    const primaryId = "969f1ea0-5f57-4f3a-aa25-9c74e58f5af3";
     const env = {
       COVE_QA_OWNER_UNBOUND_READ_ENABLED: "1",
       ...(ownerExecution ? { COVE_QA_SCHEDULE_OWNER_ENABLED: "1" } : {}),

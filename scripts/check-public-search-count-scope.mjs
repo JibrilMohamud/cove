@@ -94,6 +94,14 @@ assert.equal(replicaEligiblePresentationRead(primary), replica);
 assert.equal(selected, "first-unconstrained");
 const fallback = { prepare() {}, async batch() {} };
 assert.equal(replicaEligiblePresentationRead(fallback), fallback);
+const primaryOnly = {
+  ...fallback,
+  covePrimaryOnlyReadTransport: true,
+  withSession() {
+    throw Error("Primary-only facade must never request a replica");
+  },
+};
+assert.equal(replicaEligiblePresentationRead(primaryOnly), primaryOnly);
 
 const scope = {
   query: "",

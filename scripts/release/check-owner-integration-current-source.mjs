@@ -13,7 +13,7 @@ import {currentWriterSites,reconcileWriterSites} from "../reconcile-canonical-wr
 // These are CI-observed bytes of the 2026-11-22 integration candidate, not
 // evidence of deployed physical ownership, external rights or LIVE commerce.
 const PINNED_CURRENT_SOURCES=Object.freeze({
-  "src/features/fore/api.server.ts":"ba30108f629d7e8c6c488ac34f831ce1f36814f96c4c4f9c0763418db78ed262",
+  "src/features/fore/api.server.ts":"9082ea9d354c964ee4955c11fb26472b637092806d30f7b2ec9cbaba15749a85",
   "src/features/fore/catalog-model.server.ts":"c4d03da0a2428d5290c000d5d39f6129f2491254335c975e3acb0a340c0f172b",
   "src/features/fore/commerce.server.ts":"52ba9bb4feec5b2b7c5586687d72cd3498751a0601061823b95a5adbc6ac955f",
   "src/features/fore/localization.server.ts":"02852814c24e749359ed751717a8387ab6dc75ba4ecba78d6058ecbbfba919e1",
@@ -151,3 +151,13 @@ assert.equal(current.filter(s=>s.file==="src/features/fore/api.server.ts").lengt
   "Shared API regained a direct protected SQL site");
 console.log("PASS: 12 exact integrated source pins plus five byte-exact reversible owner edits; 46 literal SQL sites reconciled (0 owner-required); 38 historical attestation claims remain historical, not recertified.");
 console.log("NO-GO: source closure is not active D1 binding/token exclusivity or current rightsholder authority.");
+
+// 2026-11-24: the explicitly primary-only QA facade cannot initialize state.
+// All native/writable environments retain their original initialization and
+// diagnostic semantics. Remove ONLY this guard to restore every prior API byte.
+const guardedStateInit = "  if (\n    (db as typeof db & { covePrimaryOnlyReadTransport?: boolean }).covePrimaryOnlyReadTransport !==\n    true\n  )\n    await ensureCatalogState(env);";
+const currentApi=readFileSync("src/features/fore/api.server.ts","utf8");
+assert.equal(currentApi.split(guardedStateInit).length,2);
+assert.equal(createHash("sha256").update(currentApi.replace(guardedStateInit,"  await ensureCatalogState(env);")).digest("hex"),
+  "ba30108f629d7e8c6c488ac34f831ce1f36814f96c4c4f9c0763418db78ed262",
+  "Only the primary-only QA catalog-state guard is reviewed");

@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 // NEVER evidence of current external legal authority or production exclusivity.
 const integrated=Object.freeze({
  "src/features/fore/account-management.server.ts":"53e136af17170a9e05bf111a20b3ebebd6d950a2c0ad5a9a9ed0ed4a7664bfb5",
- "src/features/fore/api.server.ts":"ba30108f629d7e8c6c488ac34f831ce1f36814f96c4c4f9c0763418db78ed262",
+ "src/features/fore/api.server.ts":"9082ea9d354c964ee4955c11fb26472b637092806d30f7b2ec9cbaba15749a85",
  "src/features/fore/catalog-model.server.ts":"c4d03da0a2428d5290c000d5d39f6129f2491254335c975e3acb0a340c0f172b",
  "src/features/fore/commerce.server.ts":"52ba9bb4feec5b2b7c5586687d72cd3498751a0601061823b95a5adbc6ac955f",
  "src/features/fore/localization.server.ts":"02852814c24e749359ed751717a8387ab6dc75ba4ecba78d6058ecbbfba919e1",

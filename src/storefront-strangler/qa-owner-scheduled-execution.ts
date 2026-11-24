@@ -22,7 +22,12 @@ export const OWNER_SCHEDULES = Object.freeze([
   "17 3 * * *",
   "41 4 * * *",
 ]);
-const QA_PRIMARY = "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e";
+// Exact paid fixtures already enrolled by the canonical owner. The second
+// is the isolated Cove QA account used by protected hosted campaigns.
+const QA_PRIMARIES = new Set([
+  "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
+  "969f1ea0-5f57-4f3a-aa25-9c74e58f5af3",
+]);
 const NO_STORE = { "cache-control": "no-store" };
 type Port = { fetch(request: Request): Promise<Response> };
 type Env = Partial<BackendEnv> & {
@@ -47,8 +52,8 @@ function enrolled(env: Env) {
     env.FORE_ENVIRONMENT === "staging" &&
     env.COVE_SSR_STAGING === "1" &&
     env.COVE_RIGHTS_OWNER_ENABLED === "1" &&
-    env.COVE_RIGHTS_OWNER_PRIMARY_ID === QA_PRIMARY &&
-    env.COVE_LEGAL_WRITER_PRIMARY_ID === QA_PRIMARY &&
+    QA_PRIMARIES.has(env.COVE_RIGHTS_OWNER_PRIMARY_ID || "") &&
+    env.COVE_LEGAL_WRITER_PRIMARY_ID === env.COVE_RIGHTS_OWNER_PRIMARY_ID &&
     env.COVE_PUBLICATION_COMMAND_TERRITORY === "US" &&
     env.COVE_PUBLICATION_COMMAND_CURRENCY === "USD" &&
     /^[a-f0-9]{64}$/.test(env.COVE_RIGHTS_OWNER_SECRET || "") &&
