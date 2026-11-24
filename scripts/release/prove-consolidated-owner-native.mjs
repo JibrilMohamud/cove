@@ -199,12 +199,23 @@ try {
   let client = await mf.getWorker("caller");
   let ownerClient = await mf.getWorker("owner");
   assert.equal((await client.fetch("https://fixture.invalid/__cove/health")).status, 401);
-  assert.equal((await client.fetch("https://fixture.invalid/__cove/health", {
-    headers: { "x-cove-backend-token": "invalid-backend-token-0000000" },
-  })).status, 401);
-  assert.notEqual((await ownerClient.fetch("https://fixture.invalid/__cove/health", {
-    headers: { "x-cove-backend-token": backendToken },
-  })).status, 200, "Legal default entrypoint must not serve business routes");
+  assert.equal(
+    (
+      await client.fetch("https://fixture.invalid/__cove/health", {
+        headers: { "x-cove-backend-token": "invalid-backend-token-0000000" },
+      })
+    ).status,
+    401,
+  );
+  assert.notEqual(
+    (
+      await ownerClient.fetch("https://fixture.invalid/__cove/health", {
+        headers: { "x-cove-backend-token": backendToken },
+      })
+    ).status,
+    200,
+    "Legal default entrypoint must not serve business routes",
+  );
   const apiRoutes = [
     "/__cove/health",
     "/api/fore/storefront/context",
@@ -217,6 +228,7 @@ try {
   ];
   const apiResults = [];
   const apiPayloads = new Map();
+  const routeFailures = [];
   for (const route of apiRoutes) {
     const response = await client.fetch("https://fixture.invalid" + route, {
       headers: {
@@ -225,7 +237,10 @@ try {
       },
     });
     const payload = await response.json();
-    assert.equal(response.status, 200, route + ": " + JSON.stringify(payload));
+    if (response.status !== 200) {
+      routeFailures.push({ route, status: response.status });
+      continue;
+    }
     if (route.includes("/catalog?"))
       assert.ok(
         Array.isArray(payload.results) && payload.results.length > 0,
@@ -234,6 +249,7 @@ try {
     apiResults.push({ route, status: response.status });
     apiPayloads.set(route, payload);
   }
+  assert.deepEqual(routeFailures, [], "All original HTTP routes must succeed");
   const firstPage = apiPayloads.get(apiRoutes[5]),
     secondPage = apiPayloads.get(apiRoutes[6]);
   assert.equal(firstPage.results.length, 6);
@@ -252,15 +268,29 @@ try {
   // just return HTTP 200 while writes fail. Allow owner waitUntil to drain.
   let counts;
   for (let attempt = 0; attempt < 40; attempt++) {
-    counts = await db.prepare(
-      "SELECT (SELECT count(*) FROM ops_http_requests) audit, (SELECT count(*) FROM search_query_events) impressions, (SELECT count(*) FROM api_cache WHERE key LIKE 'search-page:v1:%') pages, (SELECT count(*) FROM api_cache WHERE key LIKE 'search-facets:v2:%') facets, (SELECT count(*) FROM api_cache WHERE key LIKE 'taxonomy-counts:v1:%') taxonomy"
-    ).first();
-    if (counts.audit >= 1 && counts.impressions >= 1 && counts.pages >= 1 &&
-      counts.facets >= 1 && counts.taxonomy >= 1) break;
+    counts = await db
+      .prepare(
+        "SELECT (SELECT count(*) FROM ops_http_requests) audit, (SELECT count(*) FROM search_query_events) impressions, (SELECT count(*) FROM api_cache WHERE key LIKE 'search-page:v1:%') pages, (SELECT count(*) FROM api_cache WHERE key LIKE 'search-facets:v2:%') facets, (SELECT count(*) FROM api_cache WHERE key LIKE 'taxonomy-counts:v1:%') taxonomy",
+      )
+      .first();
+    if (
+      counts.audit >= 1 &&
+      counts.impressions >= 1 &&
+      counts.pages >= 1 &&
+      counts.facets >= 1 &&
+      counts.taxonomy >= 1
+    )
+      break;
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  assert.ok(counts.audit >= 1 && counts.impressions >= 1 && counts.pages >= 1 &&
-    counts.facets >= 1 && counts.taxonomy >= 1, "Native owner operational rows: " + JSON.stringify(counts));
+  assert.ok(
+    counts.audit >= 1 &&
+      counts.impressions >= 1 &&
+      counts.pages >= 1 &&
+      counts.facets >= 1 &&
+      counts.taxonomy >= 1,
+    "Native owner operational rows: " + JSON.stringify(counts),
+  );
   const scheduledTime = Date.now();
   const tick = async (cron, time = scheduledTime) => {
     try {

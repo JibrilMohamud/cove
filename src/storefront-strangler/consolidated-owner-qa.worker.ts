@@ -69,57 +69,57 @@ function enrolled(env: OwnerEnv) {
  * commerce fence intentionally denies all CTEs; native catalog reads need
  * read-only CTEs. Only the already tested strict QA SELECT/CTE recognizer
  * may route them to the legal-fenced native handle. No raw handle escapes,
- * and CTE statements may not be mixed with writes in a batch.
+ * and every non-CTE statement is independently checked by both fences.
  */
 export function nativeFencedBusinessDb(primary: CatalogDB): CatalogDB {
   const legal = makeStageLegalWriterLock(primary);
   const commerce = commerceRestrictedCanonicalD1(legal);
   type Statement = ReturnType<CatalogDB["prepare"]>;
-  const cte = new WeakMap<Statement, Statement>();
-  const ordinary = new WeakSet<Statement>();
-  const wrapCte = (statement: Statement): Statement => {
+  // Every statement has a legal-fenced native representation. Non-CTE
+  // statements are also admitted through the unchanged commerce gate before
+  // preparation. A batch of SELECTs and read-only CTEs therefore executes
+  // atomically on ONE native session, not in separate driver batches.
+  const issued = new WeakMap<Statement, { statement: Statement; readOnly: boolean }>();
+  const wrap = (statement: Statement, readOnly: boolean): Statement => {
     const wrapper: Statement = Object.freeze({
-      bind: (...values: unknown[]) => wrapCte(statement.bind(...values)),
+      bind: (...values: unknown[]) => wrap(statement.bind(...values), readOnly),
       first: <T = unknown>() => statement.first<T>(),
       all: <T = unknown>() => statement.all<T>(),
       run: async () => {
-        throw Error("consolidated_cte_write_denied");
+        if (readOnly) throw Error("consolidated_read_run_denied");
+        return statement.run();
       },
     });
-    cte.set(wrapper, statement);
+    issued.set(wrapper, { statement, readOnly });
     return wrapper;
   };
-  const wrapOrdinary = (statement: Statement): Statement => {
-    const wrapper: Statement = Object.freeze({
-      bind: (...values: unknown[]) => wrapOrdinary(statement.bind(...values)),
-      first: <T = unknown>() => statement.first<T>(),
-      all: <T = unknown>() => statement.all<T>(),
-      run: () => statement.run(),
-    });
-    ordinary.add(wrapper);
-    originals.set(wrapper, statement);
-    return wrapper;
-  };
-  const originals = new WeakMap<Statement, Statement>();
   const sessions = primary as CatalogDB & {
     withSession?: (mode: "first-primary" | "first-unconstrained") => CatalogDB;
   };
   return Object.freeze({
     prepare(sql: string) {
-      if (/^\s*WITH\b/i.test(sql)) {
+      const isCte = /^\s*WITH\b/i.test(sql);
+      if (isCte) {
         checkedQaOwnerReadSql(sql);
-        return wrapCte(legal.prepare(sql));
+      } else {
+        // Admission only: this creates a prepared handle, never executes it.
+        // Keep the commerce and legal checks on every non-CTE statement.
+        commerce.prepare(sql);
       }
-      return wrapOrdinary(commerce.prepare(sql));
+      return wrap(legal.prepare(sql), isCte || /^\s*SELECT\b/i.test(sql));
     },
     batch(statements: Statement[]) {
       if (!Array.isArray(statements) || statements.length < 1 || statements.length > 100)
         throw Error("consolidated_batch_denied");
-      if (statements.every((s) => ordinary.has(s)))
-        return commerce.batch(statements.map((s) => originals.get(s)!));
-      if (statements.every((s) => cte.has(s)))
-        return legal.batch(statements.map((s) => cte.get(s)!));
-      throw Error("consolidated_mixed_or_foreign_batch_denied");
+      const checked = statements.map((statement) => {
+        const entry = issued.get(statement);
+        if (!entry) throw Error("consolidated_foreign_batch_denied");
+        return entry;
+      });
+      // The CTE recognizer admits only read-only SQL, and every ordinary
+      // statement has already passed BOTH unchanged domain fences. Do not
+      // split a source-controlled atomic batch or admit foreign handles.
+      return legal.batch(checked.map(({ statement }) => statement));
     },
     ...(typeof sessions.withSession === "function"
       ? {
