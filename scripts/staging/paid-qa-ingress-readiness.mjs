@@ -122,7 +122,11 @@ export async function stabilizePrivatePaidQaIngress({
     if (round < rounds) await sleep(3000);
   }
   throw Error(
-    "paid_qa_ingress_readonly_unstable:edge404=" + edge404 +
-      ":edge500=" + edge500 + ":timeouts=" + preflightTimeouts,
+    "paid_qa_ingress_readonly_unstable:edge404=" +
+      edge404 +
+      ":edge500=" +
+      edge500 +
+      ":timeouts=" +
+      preflightTimeouts,
   );
 }
