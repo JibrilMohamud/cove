@@ -29,6 +29,23 @@ Production account token list was complete (14/14). All three named privileges r
 
 The separate QA account has precisely three account tokens, all scoped to that account: D1 Write, R2 Storage Write and Workers Scripts Write. Reuse these for hosted consolidation QA. The connected user-token endpoint is not authorized; the protected user-token audit remains negative. A dashboard/protected audit review must resolve the unclassified user permission without publishing token identifiers or widening allowlists.
 
+### Legacy credential dependency closure
+
+The latest source audit (run 45413906230, job 138514788057) found 21 direct references across these 17 workflows. Do not equate a green diagnostic job with a passing retirement gate.
+
+| Workflow(s) | Required replacement or retirement |
+| --- | --- |
+| biosync-canary | Owner-based scheduled publication; verify hourly real source, replay and publication before removing direct primary REST writes. |
+| literary-isolated-utc-budget | Preserve frozen day and budget rollover under the authorized owner; no standing primary D1 write token. |
+| isolated-commons-audio-technical-qa; isolated-commons-review-cases; isolated-open-license-discovery | Detach technical and discovery writes into isolated supply storage/account; retain read-only reporting through a proven read credential and canonical handoff through the checked application service. Discovery's apply mode is a write, despite its job name. |
+| cove-commerce-private-qa-deploy; deployed-commerce-browser-acceptance | Rebind synthetic fixtures into the separate QA account; preserve buyer/outsider, sandbox payment and browser checks. |
+| covereads-secure-ssr-gateway; fast-storefront-real-catalog-acceptance; strangler-hosted-capacity-evaluation | Separate read-only production snapshot from isolated QA deployment and seeding; preserve exact performance gates. Do not swap only the token while scripts still target production-account staging resources. |
+| literary-private-binding-stage-canary; literary-remote-staging-e2e; publication-source-isolation-qa | Move synthetic remote resources to QA account and use its scoped credentials. |
+| isolated-data-plane | Archived branch-only diagnostic; migrate or retire executable branch workflows and remove their legacy secret before revoking. Preserve evidence. |
+| cove-sounds-private-rollout; literary-guarded-owner-drain; literary-progressive-canonical-publication | Manual protected production changes only: temporary maintenance identity and independent audit, never standing broad secret. |
+
+There is no safe bulk text replacement: jobs with legitimate isolated D1/R2 mutations are currently targeting resources inside the production account. Rebinding the resources and their secrets must be coupled. Existing source retirement gate must ultimately report zero direct references; the independent physical audit must additionally verify actual provider privileges and complete user-token evidence. No source-only approval is sufficient.
+
 ## Phase 5: cutover
 
 ### Captured live baseline (NOT safe post-cutover rollback)

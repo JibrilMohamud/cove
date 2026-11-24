@@ -22,11 +22,19 @@ export default {
       env.COVE_SSR_STAGING !== "1" ||
       !/^[a-f0-9]{64}$/.test(env.FORE_BACKEND_TOKEN_SHA256 || "") ||
       !env.BUSINESS_OWNER?.fetch ||
-      Object.values(env).some(
-        (value) =>
-          value &&
-          typeof value === "object" &&
-          typeof (value as { prepare?: unknown }).prepare === "function",
+      // RPC service stubs synthesize methods for arbitrary property names.
+      // Checking BUSINESS_OWNER.prepare would mistake the legitimate RPC
+      // proxy for D1. Instead require the exact gateway binding-name set;
+      // any extra/renamed native D1 binding fails closed.
+      Object.keys(env).some(
+        (name) =>
+          ![
+            "COVE_CONSOLIDATED_GATEWAY_QA",
+            "FORE_ENVIRONMENT",
+            "COVE_SSR_STAGING",
+            "FORE_BACKEND_TOKEN_SHA256",
+            "BUSINESS_OWNER",
+          ].includes(name),
       )
     )
       return fail(503);
