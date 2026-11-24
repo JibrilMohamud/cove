@@ -31,11 +31,15 @@ test("only exact ephemeral paid QA Workers may be mutated",()=>{
   for(const bad of ["cove-legal-authority-production","cove-persistence-backend","cove-paid-legal-owner-999999999-1"])
     assert.throws(()=>paidQaApiTokenFor("DELETE","/workers/scripts/"+bad,c));
   assert.throws(()=>paidQaApiTokenFor("POST","/workers/scripts/"+name+"/settings",c));
+  const business="cove-paid-business-gateway-"+c.run;
+  assert.equal(paidQaApiTokenFor("DELETE","/workers/scripts/"+business,c),c.tokens.workers);
+  assert.throws(()=>paidQaApiTokenFor("DELETE","/workers/scripts/cove-paid-business-gateway-999999999-1",c));
 });
 test("Wrangler may deploy only exactly named temporary QA Worker config",()=>{
   const c=checkedPaidQaCredentials(env);
   assert.equal(paidQaWranglerTokenFor(["deploy","--config","/tmp/.cove-paid-owner-proof-"+c.run+".jsonc","--secrets-file","/tmp/qa.json"],c),c.tokens.workers);
   assert.equal(paidQaWranglerTokenFor(["deploy","--config","/tmp/.cove-paid-d1-gateway-"+c.run+".jsonc","--secrets-file","/tmp/qa.json"],c),c.tokens.workers);
+  assert.equal(paidQaWranglerTokenFor(["deploy","--config","/tmp/.cove-paid-business-gateway-"+c.run+".jsonc","--secrets-file","/tmp/qa.json"],c),c.tokens.workers);
   assert.throws(()=>paidQaWranglerTokenFor(["deploy","--config","wrangler.production.jsonc","--secrets-file","/tmp/qa"],c));
   assert.throws(()=>paidQaWranglerTokenFor(["r2","object","delete","bucket/object"],c));
   assert.throws(()=>paidQaWranglerTokenFor(["d1","migrations","apply"],c));
@@ -44,7 +48,7 @@ test("Wrangler may deploy only exactly named temporary QA Worker config",()=>{
 test("QA cleanup removes public ingress first, retains private owner until fixture restoration and never masks root failure",()=>{
   const proof=readFileSync("scripts/staging/prove-private-paid-owner.mjs","utf8");
   const tail=proof.slice(proof.lastIndexOf(" } finally {"));
-  const publicDelete=tail.indexOf("[[settlementName,settlementCreated],[callerName,callerCreated]]");
+  const publicDelete=tail.indexOf("[[settlementName,settlementCreated],[callerName,callerCreated],[businessName,businessCreated]]");
   const restore=tail.indexOf('"UPDATE entitlements SET status=\'active\'');
   const privateDelete=tail.indexOf("[[writerName,writerCreated],[ownerName,ownerCreated]]");
   const gatewayDelete=tail.indexOf('if(gatewayCreated){');

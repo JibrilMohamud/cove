@@ -1,0 +1,26 @@
+name: cove-consolidated-owner-native
+on:
+  pull_request:
+    paths:
+      - "src/storefront-strangler/consolidated-*-qa.worker.ts"
+      - "scripts/release/prove-consolidated-owner-native.mjs"
+      - ".github/workflows/cove-consolidated-owner-native.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-single-owner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - name: Prove actual native owner HTTP and all scheduled operations
+        run: |
+          npm exec --yes --package=wrangler@4.151.0 -- sh -c 'COVE_MINIFLARE_MODULE="$(dirname "$(command -v wrangler)")/../miniflare" node --no-warnings scripts/release/prove-consolidated-owner-native.mjs'

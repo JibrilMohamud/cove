@@ -13,6 +13,7 @@ import {stabilizePrivatePaidQaIngress} from "./paid-qa-ingress-readiness.mjs";
 import {bindPaidQaTemplateToIsolatedPrimary} from "./paid-qa-template-binding.mjs";
 import {isPaidOwnerQaSchemaTable} from "./paid-owner-schema-policy.mjs";
 import {preparePaidQaRetailCatalog} from "./paid-qa-retail-catalog.mjs";
+import {prepareConsolidatedBusinessFixture,consolidatedPaidConfigs,proveHostedBusiness} from "./paid-consolidated-business-qa.mjs";
 import {provisionPublishedQaAudio} from "./provision-original-audio-qa.mjs";
 import JSZip from "jszip";
 import {build} from "esbuild";
@@ -38,6 +39,10 @@ const interruptTrigger="qa_settlement_interrupt_"+runId.replaceAll("-","_");
 let interruptTriggerCreated=false;
 const ownerName="cove-paid-legal-owner-"+runId;
 const callerName="cove-paid-legal-caller-"+runId;
+const businessName="cove-paid-business-gateway-"+runId;
+const businessToken=randomBytes(32).toString("hex");
+const businessHash=createHash("sha256").update(businessToken).digest("hex");
+const businessOrigin="https://"+businessName+".cove-qa-reads.workers.dev";
 const writerName="cove-paid-legal-writer-"+runId;
 const settlementName="cove-paid-settlement-qa-"+runId;
 const gatewayName="cove-paid-d1-gateway-"+runId;
@@ -66,6 +71,7 @@ let expires=Date.now()+12*60_000;
 const temp=fs.mkdtempSync(path.join(process.cwd(),".cove-paid-proof-"));
 const ownerCfg=path.join(process.cwd(),".cove-paid-owner-proof-"+runId+".jsonc");
 const callerCfg=path.join(process.cwd(),".cove-paid-caller-proof-"+runId+".jsonc");
+const businessCfg=path.join(process.cwd(),".cove-paid-business-gateway-"+runId+".jsonc");
 const writerCfg=path.join(process.cwd(),".cove-paid-writer-proof-"+runId+".jsonc");
 const settlementCfg=path.join(process.cwd(),".cove-paid-settlement-proof-"+runId+".jsonc");
 const gatewayCfg=path.join(process.cwd(),".cove-paid-d1-gateway-"+runId+".jsonc");
@@ -379,7 +385,7 @@ const assertNoRoute=(config)=>{
   assert.equal(config.vars?.COVE_RIGHTS_OWNER_ENABLED,"0");
 };
 let ownerCreated=false,callerCreated=false,writerCreated=false,settlementCreated=false;
-let gatewayCreated=false;
+let gatewayCreated=false,businessCreated=false;
 let cleanupError=null,primaryFailure=null,listener=null,webhookServer=null,webhookSigningSecret="";
 let paymentIntentId=null,initialPaymentIntentId=null,mediaUploadAttempted=false;
 const qaMedia=async(action,name,bytes)=>{
@@ -508,6 +514,7 @@ try {
     console.warn("Synthetic QA D1 route warmup recovered: "+
       JSON.stringify(readiness.transient));
   await prepareInitialCommerceQaSchema();
+  await prepareConsolidatedBusinessFixture(qaSql);
   await seedInitialPendingOrder();
   // Schema-only bootstrap can take minutes; the *authorization* lifetime
   // begins only after staging data is ready, not during isolated DDL.
@@ -522,10 +529,17 @@ try {
   original.vars.STRIPE_TAX_ENABLED="false";
   original.vars.COVE_QA_OWNER_JOURNAL_VERSION=journalVersion;
   original.vars.COVE_QA_OWNER_REHEARSAL_REVISION="A";
+  const businessConfig=consolidatedPaidConfigs(original,runId);
   fs.writeFileSync(ownerCfg,JSON.stringify(original));
   ownerCreated=true;
-  await deploy(ownerCfg,{COVE_RIGHTS_OWNER_SECRET:secret,STRIPE_SECRET_KEY:stripeSecret});
-  await verifySecrets(ownerName,["COVE_RIGHTS_OWNER_SECRET","STRIPE_SECRET_KEY"]);
+  const ownerSecrets={COVE_RIGHTS_OWNER_SECRET:secret,STRIPE_SECRET_KEY:stripeSecret,
+    FORE_BACKEND_TOKEN_SHA256:businessHash};
+  await deploy(ownerCfg,ownerSecrets);
+  await verifySecrets(ownerName,Object.keys(ownerSecrets));
+  fs.writeFileSync(businessCfg,JSON.stringify(businessConfig));
+  businessCreated=true;
+  await deploy(businessCfg,{FORE_BACKEND_TOKEN_SHA256:businessHash});
+  await verifySecrets(businessName,["FORE_BACKEND_TOKEN_SHA256"]);
   const writer=bindPaidQaTemplateToIsolatedPrimary(JSON.parse(fs.readFileSync(
     "wrangler.legal-paid-writer.example.jsonc","utf8")));
   assert.equal(writer.workers_dev,false);
@@ -564,6 +578,7 @@ try {
   assert.equal(initialFence.mutationEpoch,"0","Fresh per-run owner must start empty");
   const rollback=rehearseRollback?paidOwnerRollbackEvidence({runId,journalVersion,api,post:read}):null;
   await rollback?.captureA();
+  await proveHostedBusiness({api,qaSql,ownerName,businessName,businessOrigin,businessToken,phase:"A",runId});
   // Confirm the *writer* route has propagated independently of the owner read
   // route. An empty JSON object is rejected by the writer's validation before
   // any owner call or D1 mutation; only HTTP 400 proves this path is live.
@@ -1620,7 +1635,7 @@ try {
   if(rollback){
     original.vars.COVE_QA_OWNER_REHEARSAL_REVISION="B";
     fs.writeFileSync(ownerCfg,JSON.stringify(original));
-    await deploy(ownerCfg,{COVE_RIGHTS_OWNER_SECRET:secret,STRIPE_SECRET_KEY:stripeSecret});
+    await deploy(ownerCfg,ownerSecrets);
     // Verify the actual B deployment/namespace before runtime readiness. Keep
     // propagation failures distinct from an invalid journal/challenge proof.
     await rollback.captureBDeployment();
@@ -1656,6 +1671,7 @@ try {
     await rollback.waitForRevision("A");
     const evidence=await rollback.verifyRestored(denialFence.mutationEpoch);
     assert.deepEqual(await commerceState(),before,"Rollback changed post-refund commerce state");
+    await proveHostedBusiness({api,qaSql,ownerName,businessName,businessOrigin,businessToken,phase:"restored-A",runId});
     assert.equal((await postSettlement("/authorize-initial",initialOrder,initialBuyer)).status,451,
       "Rolled-back actual owner must retain immediate refund denial");
     assert.notEqual((await postSettlement("/certify-initial",initialOrder,initialBuyer)).status,200,
@@ -1762,7 +1778,7 @@ try {
   // cleanup; deleting all four at once caused unrelated gateway 404 tails.
   // Every DELETE uses the strictly allowlisted, run-scoped worker token.
   let publicIngressRemoved=true;
-  for(const [name,created] of [[settlementName,settlementCreated],[callerName,callerCreated]]){
+  for(const [name,created] of [[settlementName,settlementCreated],[callerName,callerCreated],[businessName,businessCreated]]){
     if(!created)continue;
     try{await api("DELETE","/workers/scripts/"+name);}
     catch(e){
@@ -1813,6 +1829,7 @@ try {
   fs.rmSync(gatewayCfg,{force:true});
   fs.rmSync(ownerCfg,{force:true});
   fs.rmSync(callerCfg,{force:true});
+  fs.rmSync(businessCfg,{force:true});
   fs.rmSync(writerCfg,{force:true});
   fs.rmSync(settlementCfg,{force:true});
   fs.rmSync(temp,{force:true,recursive:true});

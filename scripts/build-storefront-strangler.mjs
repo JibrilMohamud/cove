@@ -104,6 +104,8 @@ await build({
 // Workers, not a route or a production rights-owner binding.
 for (const lane of [
   ["legal-authority.worker.ts", "legal-authority.mjs"],
+  ["consolidated-owner-qa.worker.ts", "consolidated-owner-qa.mjs"],
+  ["consolidated-gateway-qa.worker.ts", "consolidated-gateway-qa.mjs"],
   ["legal-quarantine-qa.writer.ts", "legal-quarantine-qa-writer.mjs"],
 ]) {
   await build({
