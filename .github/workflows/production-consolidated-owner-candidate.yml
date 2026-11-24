@@ -5,6 +5,8 @@ on:
       - 'src/storefront-strangler/production-consolidated-*.worker.ts'
       - 'src/storefront-strangler/production-persistence-enrollment.ts'
       - 'scripts/release/*production-consolidation*'
+      - 'scripts/release/archive-production-biosync-bridge*'
+      - '.github/workflows/production-biosync-bridge-version-upload.yml'
       - 'wrangler.consolidated-*.production-candidate.jsonc'
       - 'wrangler.biosync-bridge-*.production-candidate.jsonc'
       - 'src/storefront-strangler/production-biosync-ingress.worker.ts'
@@ -27,7 +29,7 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: node --test scripts/release/production-consolidation.test.mjs
+      - run: node --test scripts/release/production-consolidation.test.mjs scripts/release/archive-production-biosync-bridge.test.mjs
       - run: python3 -m unittest scripts.audio_pipeline.test_biosync_production_owner_transport
       - run: python3 -m py_compile scripts/audio_pipeline/biosync_canary.py scripts/audio_pipeline/biosync_production_owner_transport.py
       - run: node scripts/release/build-production-consolidation.mjs
