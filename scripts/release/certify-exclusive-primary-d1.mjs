@@ -79,9 +79,12 @@ async function proveAdditionalUserReadAliases(get,userToken,unknown){
       const rows=page?.result,info=page?.result_info;
       if(!Array.isArray(rows)||rows.length>1)
         return "read_group_catalog_shape_invalid";
-      // total_count is unfiltered provider inventory size, NOT a filtered
-      // page count. Name uniqueness + page/count is the completeness proof.
-      if(!info||info.page!==1||info.count!==rows.length)
+      // The documented exact-name lookup has no page argument, and the
+      // provider schema makes result_info optional. The complete filtered
+      // result must be zero or one exact canonical name/immutable ID; if the
+      // provider supplies page/count metadata, it must be self-consistent.
+      // total_count represents the unfiltered global catalog, not matches.
+      if(info&&(info.page!==1||info.count!==rows.length))
         return "read_group_catalog_page_invalid";
       if(rows.length===0)continue;
       const candidate=rows[0];

@@ -270,6 +270,15 @@ test("filtered name catalog counts only matches, never demands provider global t
   assert.equal(receipt.verified, true);
   assert.equal(t.lookups.length, 2);
 });
+test("provider's documented optional result_info still requires the exact immutable ID and unique read-only name", async () => {
+  const t = catalogTransport([{ id: ADDITIONAL_READ.id, name: "Workers KV Storage" }], {
+    "Workers KV Storage Read": { result: [ADDITIONAL_READ] },
+    "Workers KV Storage Read-Only": { result: [] },
+  });
+  const receipt = await inspectUserTokenEvidence(t.get, USER_TOKEN);
+  assert.deepEqual(receipt, { verified: true, reason: "current_user_inventory_clear" });
+  assert.deepEqual(t.lookups, ["Workers KV Storage Read", "Workers KV Storage Read-Only"]);
+});
 test("a WRITE ID, unknown ID, or unrelated alias cannot be declared read-only", async () => {
   for (const [group, detail] of [
     [{ id: WRITE_SPOOF.id, name: "Workers Scripts" }, "read_group_catalog_shape_invalid"],
@@ -296,7 +305,6 @@ test("malformed, multiple, changed-label and cross-scope name-filtered catalog p
   const expected = "Workers KV Storage Read";
   const cases = [
     [{ result: [ADDITIONAL_READ, ADDITIONAL_READ] }, "read_group_catalog_shape_invalid"],
-    [{ result: [ADDITIONAL_READ] }, "read_group_catalog_page_invalid"],
     [
       { result: [ADDITIONAL_READ], result_info: { page: 2, count: 1 } },
       "read_group_catalog_page_invalid",
