@@ -1,5 +1,11 @@
 /* eslint-disable prettier/prettier -- private production persistence candidate */
 import {WorkerEntrypoint} from "cloudflare:workers";
+import {handleLiteraryOwnerService,type LiteraryOwnerServiceEnv} from "./literary-owner-service";
+import {LITERARY_READ_ROUTE,LITERARY_HANDOFF_ROUTE,LITERARY_PUBLICATION_ROUTE} from "./literary-owner-protocol";
+import {readPublicationSource} from "./publication-source-reader";
+import {PUBLICATION_SOURCE_ROUTE} from "./publication-source-protocol";
+import {readSoundsPublicationSource} from "./sounds-source-reader";
+import {SOUNDS_SOURCE_ROUTE} from "./sounds-source-protocol";
 import legacyLegal,{CoveLegalAuthority as ExistingLegalAuthority} from "./legal-authority.worker";
 import backend,{type BackendEnv} from "../persistence-backend.worker";
 import {nativeFencedBusinessDb} from "./consolidated-owner-qa.worker";
@@ -17,7 +23,10 @@ import {productionPersistenceEnrolled,productionBiosyncEnrolled,productionBiosyn
   type ProductionPersistenceEnv} from "./production-persistence-enrollment";
 
 type LegalEnv=Parameters<typeof legacyLegal.fetch>[1];
-type Env=LegalEnv&ProductionPersistenceEnv;
+type Env=LegalEnv&ProductionPersistenceEnv&LiteraryOwnerServiceEnv&{
+  COVE_PUBLICATION_SOURCE_READER_SECRET?:string;
+  COVE_SOUNDS_SOURCE_READER_SECRET?:string;
+};
 type Port={fetch(request:Request):Promise<Response>};
 type Storage={sql:AuthoritySql;transactionSync<T>(fn:()=>T):T};
 
@@ -172,7 +181,22 @@ export class CoveBusinessEntrypoint extends WorkerEntrypoint<Env>{
 }
 export default {
   // Preserve the private original default entrypoint and disabled challenge.
-  fetch:legacyLegal.fetch,
+  async fetch(request:Request,env:Env){
+    const route=new URL(request.url).pathname;
+    // Already-live independently authenticated private services. Preserve
+    // their exact protocols even while positive legal issuance is disabled.
+    if([LITERARY_READ_ROUTE,LITERARY_HANDOFF_ROUTE,LITERARY_PUBLICATION_ROUTE,
+      PUBLICATION_SOURCE_ROUTE,SOUNDS_SOURCE_ROUTE].includes(route)){
+      if(env.COVE_RIGHTS_OWNER_ENABLED!=="0"||env.COVE_RIGHTS_OWNER_TEST_EXPIRES_AT||
+        env.COVE_SSR_STAGING==="1"||env.FORE_ENVIRONMENT!=="production")return refuse();
+      if([LITERARY_READ_ROUTE,LITERARY_HANDOFF_ROUTE,LITERARY_PUBLICATION_ROUTE].includes(route))
+        return handleLiteraryOwnerService(request,env);
+      if(route===PUBLICATION_SOURCE_ROUTE)
+        return readPublicationSource(request,env as unknown as Parameters<typeof readPublicationSource>[1]);
+      return readSoundsPublicationSource(request,env);
+    }
+    return legacyLegal.fetch(request,env);
+  },
   async scheduled(controller:{cron:string;scheduledTime:number},env:Env){
     if(!productionPersistenceEnrolled(env)||env.COVE_PRODUCTION_PERSISTENCE_CRON_ENABLED!=="1")
       throw Error("production_schedule_not_enrolled");

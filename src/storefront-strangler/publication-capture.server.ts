@@ -22,7 +22,7 @@ async function digest(body: string) {
   const value = new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode(body)));
   return [...value].map((x) => x.toString(16).padStart(2, "0")).join("");
 }
-function checkedSource(db: CanonicalDB): StorefrontDB {
+export function checkedSource(db: CanonicalDB): StorefrontDB {
   // Reopen only *read-only* source statements after a reported D1 transport
   // loss. A new session is essential: retrying the broken sticky connection
   // simply repeats the same error. Never replay writes, rights decisions or
