@@ -306,14 +306,26 @@ test("malformed, multiple, changed-label and cross-scope name-filtered catalog p
       "read_group_catalog_page_invalid",
     ],
     [
-      { result: [{ ...ADDITIONAL_READ, scopes: ["com.cloudflare.api.write"] }] },
+      {
+        result: [{ ...ADDITIONAL_READ, scopes: ["com.cloudflare.api.write"] }],
+        result_info: { page: 1, count: 1, total_count: 2000 },
+      },
       "read_group_catalog_shape_invalid",
     ],
     [
-      { result: [{ ...ADDITIONAL_READ, name: "Workers KV Storage Write" }] },
+      {
+        result: [{ ...ADDITIONAL_READ, name: "Workers KV Storage Write" }],
+        result_info: { page: 1, count: 1, total_count: 2000 },
+      },
       "read_group_catalog_shape_invalid",
     ],
-    [{ result: [{ ...ADDITIONAL_READ, id: "not-immutable" }] }, "read_group_catalog_shape_invalid"],
+    [
+      {
+        result: [{ ...ADDITIONAL_READ, id: "not-immutable" }],
+        result_info: { page: 1, count: 1, total_count: 2000 },
+      },
+      "read_group_catalog_shape_invalid",
+    ],
   ];
   for (const [response, detail] of cases) {
     const t = catalogTransport([group], { [expected]: response });
