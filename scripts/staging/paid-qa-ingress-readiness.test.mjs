@@ -205,6 +205,62 @@ test("one TimeoutError per round exhausts all protected pre-measurement waves", 
   assert.equal(harness.sleeps, 11);
 });
 
+test("a runner ECONNRESET only invalidates an unmeasured read-only wave until two clean waves", async () => {
+  const harness = probeHarness(({ route, wave, calls }) => {
+    if (wave === 1 && route === "/qa/native-first-paint" && calls % 96 === 65)
+      throw Object.assign(new TypeError("fetch failed"), {
+        cause: Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }),
+      });
+    return null;
+  });
+  const result = await stabilizePrivatePaidQaIngress({ ...harness, nativeInput });
+  assert.deepEqual(result, {
+    globallyReady: true,
+    completeWaves: 3,
+    edge404: 0,
+    edge500: 0,
+    preflightConnectionResets: 1,
+  });
+  assert.equal(harness.calls, 3 * 3 * 32);
+  assert.equal(harness.sleeps, 2);
+});
+
+test("persistent read-only ECONNRESET fails the existing hard readiness bound", async () => {
+  const harness = probeHarness(({ route, calls }) => {
+    if (route === "/qa/native-first-paint" && calls % 96 === 65)
+      throw Object.assign(new TypeError("fetch failed"), {
+        cause: Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }),
+      });
+    return null;
+  });
+  await assert.rejects(
+    stabilizePrivatePaidQaIngress({ ...harness, nativeInput }),
+    /paid_qa_ingress_readonly_unstable:edge404=0:edge500=0:timeouts=0:resets=12/,
+  );
+  assert.equal(harness.calls, 12 * 3 * 32);
+  assert.equal(harness.sleeps, 11);
+});
+
+test("only the exact Node fetch ECONNRESET shape is a preflight reset", async () => {
+  for (const error of [
+    Object.assign(new TypeError("fetch failed"), { cause: { code: "ENOTFOUND" } }),
+    Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNREFUSED" } }),
+    Object.assign(new Error("fetch failed"), { cause: { code: "ECONNRESET" } }),
+    Object.assign(new TypeError("other failure"), { cause: { code: "ECONNRESET" } }),
+    new TypeError("fetch failed"),
+  ]) {
+    const harness = probeHarness(({ route }) => {
+      if (route === "/qa/native-first-paint") throw error;
+      return null;
+    });
+    await assert.rejects(
+      stabilizePrivatePaidQaIngress({ ...harness, nativeInput }),
+      (caught) => caught === error,
+    );
+    assert.equal(harness.sleeps, 0);
+  }
+});
+
 test("unexpected network and application failures still fail immediately", async () => {
   const harness = probeHarness(({ route }) => {
     if (route === "/qa/native-first-paint") throw Error("unexpected_transport");
