@@ -409,7 +409,7 @@ test("scope resolver never treats missing ID, write capability, malformed or con
     [{ result: [] }, "read_group_alias_identifier_mismatch_unrecognized"],
     [
       { result: [{ ...ADDITIONAL_READ, name: "D1 Write" }] },
-      "read_group_provider_capability_not_readonly",
+      "read_group_provider_mutation_capability",
     ],
     [{ result: [ADDITIONAL_READ, ADDITIONAL_READ] }, "read_group_catalog_shape_invalid"],
     [{ result: [{ ...ADDITIONAL_READ, scopes: [] }] }, "read_group_catalog_shape_invalid"],
@@ -522,7 +522,12 @@ test("punctuation never allows unverified policy labels or provider WRITE/malfor
       return payload;
     }, USER_TOKEN);
     assert.equal(evidence.verified, false);
-    assert.equal(evidence.detail, "read_group_provider_capability_not_readonly");
+    assert.equal(
+      evidence.detail,
+      name.endsWith(" Write")
+        ? "read_group_provider_mutation_capability"
+        : "read_group_provider_capability_not_readonly",
+    );
   }
   const unresolved = await inspectUserTokenEvidence(async (path, key) => {
     if (path.includes("?scope=")) return { result: [] };
@@ -540,6 +545,13 @@ test("alternate provider READ spellings require the reviewed immutable ID and fr
     ["f15a31fae6c4433abbf43ad868aed734", "Vectorize Readonly"],
     ["d658f06e1bfd4db1b9be75f866671ebb", "Zone Versioning Read (Account-Wide)"],
     ["0a5ddcbf92a5430599aeec18d2a88ce0", "Audit Logs Viewer"],
+    ["6795348d3cef44a0be48be200828858b", "Minimal Account Access"],
+    ["9ac5632ae4f449938fc2ed64a20af22c", "Analytics"],
+    ["2b3124552acd4fe390a35883e20745c2", "Log Share Reader"],
+    ["b446806c7314472798f9364be7619455", "Email Security Reporting"],
+    ["f4df4017f4334b30a868883046a18a9d", "Administrator Read Only"],
+    ["98d2b0c4bd3b4a2c842fcd2a81273ee9", "Domain Administrator Read Only"],
+    ["bd837b12789e45cdb2e3867bc4e41377", "Cloudflare One Connector Read and Monitor: cloudflared"],
   ];
   for (const [id, name] of examples) {
     for (const variant of ["exact", "wrong-id", "wrong-name", "missing", "write"]) {
@@ -573,5 +585,36 @@ test("alternate provider READ spellings require the reviewed immutable ID and fr
       if (variant !== "exact")
         assert.equal(evidence.reason, "active_user_token_permission_unreviewed");
     }
+  }
+});
+
+test("public provider definitions are evidence of semantics, never token authorization or permission from a Read substring", async () => {
+  const { readFileSync } = await import("node:fs");
+  const review = JSON.parse(
+    readFileSync("docs/security/provider-legacy-read-definitions-20261124.json", "utf8"),
+  );
+  assert.equal(review.releaseApproval, false);
+  assert.equal(review.authorizationEvidence, false);
+  assert.equal(review.definitions.length, 7);
+  assert.equal(new Set(review.definitions.map((x) => x.id)).size, 7);
+  for (const definition of [...review.definitions, ...review.explicitlyExcluded]) {
+    const t = catalogTransport([{ id: definition.id, name: "Provider: Cosmetic Label" }]);
+    const evidence = await inspectUserTokenEvidence(async (path, key) => {
+      if (path.includes("?scope="))
+        return {
+          result: path.endsWith(definition.scope || "com.cloudflare.api.account")
+            ? [
+                {
+                  id: definition.id,
+                  name: definition.name,
+                  scopes: [definition.scope || "com.cloudflare.api.account"],
+                },
+              ]
+            : [],
+        };
+      return t.get(path, key);
+    }, USER_TOKEN);
+    assert.equal(evidence.verified, review.definitions.includes(definition), definition.name);
+    assert.doesNotMatch(JSON.stringify(evidence), /Cosmetic|Provider:|redacted/);
   }
 });

@@ -1,0 +1,70 @@
+{
+  "schema": "cove.public-provider-read-definition-review.v1",
+  "observedOn": "2026-11-24",
+  "source": "https://developers.cloudflare.com/api/resources/iam/subresources/permission_groups/methods/list/",
+  "apiResource": "/accounts/{account_id}/iam/permission_groups",
+  "authorizationEvidence": false,
+  "releaseApproval": false,
+  "requiredLiveProof": "Fresh scoped user permission catalog must positively match the immutable ID and exact canonical name; this public-definition review alone never certifies a token.",
+  "definitions": [
+    {
+      "id": "6795348d3cef44a0be48be200828858b",
+      "name": "Minimal Account Access",
+      "description": "Can view account, and nothing else",
+      "scope": "com.cloudflare.api.account"
+    },
+    {
+      "id": "9ac5632ae4f449938fc2ed64a20af22c",
+      "name": "Analytics",
+      "description": "Can read Analytics.",
+      "scope": "com.cloudflare.api.account"
+    },
+    {
+      "id": "2b3124552acd4fe390a35883e20745c2",
+      "name": "Log Share Reader",
+      "description": "Can read Enterprise Log Share.",
+      "scope": "com.cloudflare.api.account"
+    },
+    {
+      "id": "b446806c7314472798f9364be7619455",
+      "name": "Email Security Reporting",
+      "description": "Read access to Email Security Home, PhishGuard, and Submission Transparency",
+      "scope": "com.cloudflare.api.account"
+    },
+    {
+      "id": "f4df4017f4334b30a868883046a18a9d",
+      "name": "Administrator Read Only",
+      "description": "Can access the full account in read only mode",
+      "scope": "com.cloudflare.api.account"
+    },
+    {
+      "id": "98d2b0c4bd3b4a2c842fcd2a81273ee9",
+      "name": "Domain Administrator Read Only",
+      "description": "Grants read-only access to zones in an account, and read-only access to account-wide Firewall, Access, and Worker resources.",
+      "scope": "com.cloudflare.api.account.zone"
+    },
+    {
+      "id": "bd837b12789e45cdb2e3867bc4e41377",
+      "name": "Cloudflare One Connector Read and Monitor: cloudflared",
+      "description": "Grants read access to cloudflared connector resources including log streaming",
+      "scope": "com.cloudflare.api.account"
+    }
+  ],
+  "explicitlyExcluded": [
+    {
+      "id": "42f7377dedb84b16995efe881bb9d453",
+      "name": "Email Security Analyst",
+      "reason": "Provider grants the ability to action emails in addition to reading."
+    },
+    {
+      "id": "70cbea96c1764a40b221b1524cc3b30d",
+      "name": "Trust and Safety",
+      "reason": "Provider also grants requests for reviews; not solely read-only."
+    },
+    {
+      "id": "dbb7213ddb854cdc9d015febfebb290d",
+      "name": "Load Balancer",
+      "reason": "Provider explicitly grants editing resources."
+    }
+  ]
+}
