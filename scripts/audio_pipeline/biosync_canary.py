@@ -19,6 +19,7 @@ from pathlib import Path
 
 from .align import align
 from .epub_index import build
+from . import biosync_production_owner_transport as owner_transport
 
 ACCOUNT = "d26430caa63ec55f6612e32f36aca5e9"
 DATABASE = "4bd657ac-8789-403e-a28c-93aba8d0a989"
@@ -30,6 +31,8 @@ BASE = f"https://api.cloudflare.com/client/v4/accounts/{ACCOUNT}"
 
 
 def authorized_request(method: str, endpoint: str, payload: bytes | None = None, *, json_body=False) -> bytes:
+    if owner_transport.enabled():
+        return owner_transport.request(method, endpoint, payload, json_body=json_body)
     token = os.environ["CLOUDFLARE_API_TOKEN"]
     headers = {"Authorization": f"Bearer {token}"}
     if json_body:
@@ -134,7 +137,9 @@ def choose_queued_short_track() -> bool:
 
 
 def main() -> None:
-    if not os.environ.get("CLOUDFLARE_API_TOKEN"):
+    if owner_transport.enabled():
+        owner_transport.require_credentials()
+    elif not os.environ.get("CLOUDFLARE_API_TOKEN"):
         raise RuntimeError("Configure CLOUDFLARE_API_TOKEN in GitHub Actions")
     if os.environ.get("BIOSYNC_AUTO_SHORT") == "1" and not choose_queued_short_track():
         return
@@ -215,26 +220,29 @@ def main() -> None:
     if fresh["epub_sha256"] != epub_sha or current_track is None or current_track.get("sha256") != audio_sha:
         raise RuntimeError("Audio/text identity changed during canary publication")
 
-    first, last = mapping["words"][0], mapping["words"][-1]
-    summary = {
-        "trackId": TRACK, "sha256": map_sha, "wordCount": len(mapping["words"]),
-        "coverage": mapping["verification"]["coverage"],
-        "firstCfi": first["cfi"], "lastCfi": last["endCfi"],
-        "firstSecond": first["start"], "lastSecond": last["end"],
-    }
-    now = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
-    query(
-        "INSERT INTO audio_timing(edition_id,track_id,audio_sha256,epub_sha256,map_sha256,summary_json,updated_at) "
-        "VALUES(?,?,?,?,?,?,?) ON CONFLICT(edition_id,track_id) DO UPDATE SET "
-        "audio_sha256=excluded.audio_sha256,epub_sha256=excluded.epub_sha256,"
-        "map_sha256=excluded.map_sha256,summary_json=excluded.summary_json,updated_at=excluded.updated_at",
-        [EDITION, TRACK, audio_sha, epub_sha, map_sha, json.dumps(summary), now],
-    )
-    query(
-        "UPDATE audio_jobs SET status='done',last_error=?,lease_token=NULL,lease_until=NULL,updated_at=? "
-        "WHERE id=? AND status IN ('queued','review')",
-        [f"Verified {len(mapping['words'])} independent ASR words; {mapping['verification']['coverage']:.1%} coverage", now, JOB],
-    )
+    if owner_transport.enabled():
+        owner_transport.commit(EDITION, TRACK, JOB, map_sha)
+    else:
+        first, last = mapping["words"][0], mapping["words"][-1]
+        summary = {
+            "trackId": TRACK, "sha256": map_sha, "wordCount": len(mapping["words"]),
+            "coverage": mapping["verification"]["coverage"],
+            "firstCfi": first["cfi"], "lastCfi": last["endCfi"],
+            "firstSecond": first["start"], "lastSecond": last["end"],
+        }
+        now = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        query(
+            "INSERT INTO audio_timing(edition_id,track_id,audio_sha256,epub_sha256,map_sha256,summary_json,updated_at) "
+            "VALUES(?,?,?,?,?,?,?) ON CONFLICT(edition_id,track_id) DO UPDATE SET "
+            "audio_sha256=excluded.audio_sha256,epub_sha256=excluded.epub_sha256,"
+            "map_sha256=excluded.map_sha256,summary_json=excluded.summary_json,updated_at=excluded.updated_at",
+            [EDITION, TRACK, audio_sha, epub_sha, map_sha, json.dumps(summary), now],
+        )
+        query(
+            "UPDATE audio_jobs SET status='done',last_error=?,lease_token=NULL,lease_until=NULL,updated_at=? "
+            "WHERE id=? AND status IN ('queued','review')",
+            [f"Verified {len(mapping['words'])} independent ASR words; {mapping['verification']['coverage']:.1%} coverage", now, JOB],
+        )
     final = query("SELECT map_sha256 FROM audio_timing WHERE edition_id=? AND track_id=?", [EDITION, TRACK])
     if not final or final[0]["map_sha256"] != map_sha:
         raise RuntimeError("Published map could not be verified in D1")

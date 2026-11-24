@@ -1,0 +1,128 @@
+{
+  "name": "cove-legal-authority-production",
+  "main": ".output/production-consolidation/owner.mjs",
+  "compatibility_date": "2026-10-25",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [],
+  "keep_vars": true,
+  "limits": {
+    "cpu_ms": 300000
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "LEGAL_AUTHORITY",
+        "class_name": "CoveLegalAuthority"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "legal-authority-production-locked-v1",
+      "new_sqlite_classes": [
+        "CoveLegalAuthority"
+      ]
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "PRIMARY_DB",
+      "database_name": "cove-production",
+      "database_id": "4bd657ac-8789-403e-a28c-93aba8d0a989"
+    },
+    {
+      "binding": "LITERARY_CONTENT_DB",
+      "database_name": "cove-literary-content-isolated-20261024",
+      "database_id": "400c3af3-5d40-41fd-83cc-98228e40ddac"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "cove-production-media"
+    },
+    {
+      "binding": "SOUNDS_PRESENTATION",
+      "bucket_name": "cove-sounds-private-presentation"
+    },
+    {
+      "binding": "LITERARY_BUCKET",
+      "bucket_name": "cove-literary-originals-isolated-20261024"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "SOUNDS_PRESENTATION_KV",
+      "id": "544267f3cf604c1d8976f1b06d258e24"
+    }
+  ],
+  "analytics_engine_datasets": [
+    {
+      "binding": "OPS_ANALYTICS",
+      "dataset": "cove_public_http_ops"
+    },
+    {
+      "binding": "SOUNDS_ANALYTICS",
+      "dataset": "cove_sounds_funnel"
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "COVE_STOREFRONT_READ_LIMITER",
+      "namespace_id": "991731904",
+      "simple": {
+        "limit": 180,
+        "period": 60
+      }
+    }
+  ],
+  "ai": {
+    "binding": "AI"
+  },
+  "vars": {
+    "COVE_RIGHTS_OWNER_ENABLED": "0",
+    "COVE_RIGHTS_OWNER_PRIMARY_ID": "4bd657ac-8789-403e-a28c-93aba8d0a989",
+    "COVE_LEGAL_WRITER_PRIMARY_ID": "4bd657ac-8789-403e-a28c-93aba8d0a989",
+    "COVE_PRODUCTION_PERSISTENCE_OWNER_ENABLED": "0",
+    "COVE_PRODUCTION_PERSISTENCE_CRON_ENABLED": "0",
+    "COVE_PRODUCTION_PERSISTENCE_BIOSYNC_ENABLED": "0",
+    "STRIPE_LIVEMODE": "true",
+    "COVE_OPS_TELEMETRY_MODE": "analytics-engine",
+    "COVE_PUBLIC_ANON_HTTP_TELEMETRY": "1",
+    "FORE_ASSETS_PER_MINUTE": "32",
+    "FORE_AUDIO_ALIGN_DIRECT_URL": "https://cove-3v6omsilq-jibrilmohamuds-projects.vercel.app",
+    "FORE_AUDIO_TRACK_DIRECT_URL": "https://cove-3v6omsilq-jibrilmohamuds-projects.vercel.app",
+    "FORE_AUDIO_COMPUTE_MODE": "paused",
+    "FORE_AUDIO_MIN_INTERVAL_SECONDS": "86400",
+    "FORE_AUDIO_MONTHLY_SECONDS": "3600",
+    "FORE_AUTH_MODE": "supabase",
+    "FORE_CATALOG_EPUBS_PER_TICK": "0",
+    "FORE_CATALOG_PAGES_PER_TICK": "5",
+    "FORE_DEFAULT_TERRITORY": "US",
+    "FORE_ENVIRONMENT": "production",
+    "FORE_PUBLIC_URL": "https://cove-puce-theta.vercel.app"
+  },
+  "secrets": {
+    "required": [
+      "COVE_LITERARY_HANDOFF_SECRET",
+      "COVE_LITERARY_PUBLICATION_SECRET",
+      "COVE_LITERARY_READ_SECRET",
+      "COVE_PUBLICATION_SOURCE_READER_SECRET",
+      "COVE_RIGHTS_OWNER_SECRET",
+      "COVE_SOUNDS_SOURCE_READER_SECRET",
+      "STRIPE_SECRET_KEY",
+      "COVE_SOUNDS_SNAPSHOT_ENABLED",
+      "FORE_BACKEND_TOKEN_SHA256",
+      "FORE_INGESTION_SIGNING_KEY",
+      "FORE_OFFLINE_AUDIO_SIGNING_JWK",
+      "STRIPE_WEBHOOK_SECRET",
+      "SUPABASE_PUBLISHABLE_KEY",
+      "SUPABASE_URL",
+      "COVE_BIOSYNC_CLIENT_TOKEN_SHA256"
+    ]
+  }
+}
