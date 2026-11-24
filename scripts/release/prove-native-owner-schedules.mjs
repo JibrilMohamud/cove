@@ -115,7 +115,12 @@ try {
       contents: `
 import backend from './src/persistence-backend.worker';
 export default {async fetch(request,env){
- if(new URL(request.url).pathname!=='/tick')return backend.fetch(request,env,{waitUntil(p){p.catch(()=>{})}});
+ if(new URL(request.url).pathname!=='/tick'){
+   const tasks=[];
+   const response=await backend.fetch(request,env,{waitUntil(p){p.catch(()=>{});tasks.push(p)}});
+   await Promise.allSettled(tasks);
+   return response;
+ }
  if(Object.values(env).some(v=>v&&typeof v.prepare==='function'))throw Error('native_caller_binding');
  const input=await request.json();const tasks=[];let failed=false;
  try{await backend.scheduled(input,env,{waitUntil(p){p.catch(()=>{});tasks.push(p)}})}catch{failed=true}
@@ -126,6 +131,7 @@ export default {async fetch(request,env){
   });
   const bindings = {
     COVE_QA_SCHEDULE_OWNER_ENABLED: "1",
+    COVE_QA_OPERATIONAL_OWNER_ENABLED: "1",
     COVE_QA_OWNER_UNBOUND_READ_ENABLED: "1",
     FORE_ENVIRONMENT: "staging",
     COVE_SSR_STAGING: "1",
@@ -248,6 +254,14 @@ export default {async fetch(request,env){
     firstPage.facets && typeof firstPage.facets === "object",
     "Original catalog facets must be retained",
   );
+  // A 200 alone is not evidence that the best-effort operational writes
+  // succeeded. Inspect the actual native owner's persisted rows.
+  const counts = await db.prepare(
+    "SELECT (SELECT count(*) FROM ops_http_requests) audit, (SELECT count(*) FROM search_query_events) impressions, (SELECT count(*) FROM api_cache WHERE key LIKE 'search-page:v1:%') pages, (SELECT count(*) FROM api_cache WHERE key LIKE 'search-facets:v2:%') facets, (SELECT count(*) FROM api_cache WHERE key LIKE 'taxonomy-counts:v1:%') taxonomy"
+  ).first();
+  assert.ok(counts.audit >= 1 && counts.impressions >= 1 && counts.pages >= 1 && counts.facets >= 1 && counts.taxonomy >= 1,
+    "Actual native owner operational writes must persist: " + JSON.stringify(counts));
+  console.log("PASS: native D1-unbound HTTP audit, anonymous impressions, facet/page/taxonomy caches: " + JSON.stringify(counts));
   const scheduledTime = Date.now();
   const tick = async (cron, time = scheduledTime) => {
     const response = await client.fetch("https://fixture.invalid/tick", {

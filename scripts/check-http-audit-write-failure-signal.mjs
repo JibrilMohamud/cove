@@ -11,6 +11,7 @@ const isolatedSource = `
 const now = () => "2026-11-14T22:00:00.000Z";
 const id = () => "synthetic-audit-id";
 const isPrimaryD1Overload = error => error?.code === 7429;
+const dispatchQaOperationalWrite = () => null;
 ${source.slice(start, end)}
 `;
 const { code } = await transform(isolatedSource, { loader: "ts", format: "esm" });
