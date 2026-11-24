@@ -296,6 +296,7 @@ test("malformed, multiple, changed-label and cross-scope name-filtered catalog p
   const expected = "Workers KV Storage Read";
   const cases = [
     [{ result: [ADDITIONAL_READ, ADDITIONAL_READ] }, "read_group_catalog_shape_invalid"],
+    [{ result: [ADDITIONAL_READ] }, "read_group_catalog_page_invalid"],
     [
       { result: [ADDITIONAL_READ], result_info: { page: 2, count: 1 } },
       "read_group_catalog_page_invalid",
