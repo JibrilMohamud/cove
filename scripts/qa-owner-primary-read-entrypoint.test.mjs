@@ -222,7 +222,9 @@ test("the backend still scopes both cron and HTTP, while production D1 and owner
     backend.split("scopeExclusiveCanonicalD1(scopePublicationOwnerEnv(env))").length - 1,
     2,
   );
-  const scheduled = backend.slice(backend.indexOf("  async scheduled(controller:"));
+  const scheduledIndex = backend.indexOf("  async scheduled(");
+  assert.ok(scheduledIndex > 0, "The actual scheduled entrypoint must remain present");
+  const scheduled = backend.slice(scheduledIndex);
   assert.ok(
     scheduled.indexOf("scopeQaOwnerUnboundPrimaryRead(env)") <
       scheduled.indexOf("scopePublicationOwnerEnv(env)"),

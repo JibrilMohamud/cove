@@ -24,7 +24,7 @@ const PINNED_CURRENT_SOURCES=Object.freeze({
   "src/features/fore/rights.server.ts":"a7839d53ae20ffa3351bd6fbef797bd3d06dfb30c7d390168c195be8680e5fa2",
   "src/features/fore/search.server.ts":"6058f067527184f817f2759c0385129a344c67ea995d4fe46a58e53ea561f356",
   "src/features/fore/traditional-publishing.server.ts":"364406b8ed38f06563a6e307aa0512e64b41c926ee7236bf34e216e8f0166191",
-  "src/storefront-strangler/legal-authority.worker.ts":"8b61337f1e821f59e7bf2f2eef01e6018a337c6947bfbb2a669a3239e0b7abd1",
+  "src/storefront-strangler/legal-authority.worker.ts":"07c2c9cc392cfb933326c766dcaf14dc6e3db63b3eceb86d601ffbf49e0e6b2b",
 });
 const review=JSON.parse(readFileSync("docs/architecture/canonical-writer-review.json","utf8"));
 assert.equal(review.schema,"cove.canonical-writer-review.v1");
@@ -50,6 +50,17 @@ for(const [path,pin] of Object.entries(PINNED_CURRENT_SOURCES)){
 // commerce or publication code may change while refreshing this pin.
 const ownerPath="src/storefront-strangler/legal-authority.worker.ts";
 let priorOwner=readFileSync(ownerPath,"utf8");
+// The 2026-11-24 schedule change adds only this import, flag and private
+// dispatch. Removing these exact ranges must recover the previous full
+// owner bytes. The new RPC's QA lease/domain/replay tests run separately;
+// no existing grant, withdrawal, payment or publication handler is edited.
+for (const addition of ["import { QA_SCHEDULE_ROUTE, serveQaOwnerScheduledTick } from \"./qa-owner-scheduled-execution\";\n", "  COVE_QA_SCHEDULE_OWNER_ENABLED?: string;\n", "    if(route===QA_SCHEDULE_ROUTE){\n      return serveQaOwnerScheduledTick(request,env,\n        this.ctx.storage as Parameters<typeof serveQaOwnerScheduledTick>[2],this);\n    }\n"]) {
+  assert.equal(priorOwner.split(addition).length,2,"Scheduled QA owner dispatch delta drifted");
+  priorOwner=priorOwner.replace(addition,"");
+}
+assert.equal(createHash("sha256").update(priorOwner).digest("hex"),
+  "8b61337f1e821f59e7bf2f2eef01e6018a337c6947bfbb2a669a3239e0b7abd1","Scheduled dispatch must preserve every previous owner handler byte-for-byte");
+
 
 /*
  * Explicit 2026-11-23 caller-and-owner source re-review of a SINGLE legal

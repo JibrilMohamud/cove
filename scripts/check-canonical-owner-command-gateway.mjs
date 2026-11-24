@@ -9,9 +9,10 @@ import {pathToFileURL} from "node:url";
 const directory=mkdtempSync(join(tmpdir(),"cove-typed-owner-gateway-"));
 try{
   const outfile=join(directory,"gateway.mjs");
-  await build({entryPoints:["src/storefront-strangler/canonical-owner-command-gateway.ts"],
+  await build({stdin:{contents:`export {dispatchCanonicalOwnerCommand} from "./src/storefront-strangler/canonical-owner-command-gateway";
+export {bindPublicationOwner,dispatchPrivateCatalogSourceBatch} from "./src/storefront-strangler/publication-owner-routing.server";`,resolveDir:process.cwd(),loader:"ts"},
     outfile,bundle:true,platform:"node",format:"esm",target:"node22",logLevel:"silent"});
-  const {dispatchCanonicalOwnerCommand:invoke}=await import(pathToFileURL(outfile).href);
+  const {dispatchCanonicalOwnerCommand:invoke,bindPublicationOwner,dispatchPrivateCatalogSourceBatch}=await import(pathToFileURL(outfile).href);
   const secret="a".repeat(64),orderId="order_gateway_01",operationId="refund:gateway_01";
   const productId="prd_gateway_01",entitlementId="ent_gateway_01",userId="user_gateway_01";
   const tests=[
@@ -123,6 +124,66 @@ try{
     assert.deepEqual(await invoke(port,secret,kind,body),receipt);
   }
   assert.equal(calls,tests.length);
+  // Source observation is the existing 256-KiB owner contract. Large metadata
+  // must traverse the typed route; unrelated commands retain their 8-KiB cap.
+  const sourceRecord = { cacheId: "123", sourceId: "pg_us", fields: Array(37).fill(null) };
+  sourceRecord.fields[0] = "x".repeat(12000);
+  const sourceBody = { records: [sourceRecord] };
+  const sourceReceipt = {
+    schema: "cove.owner-catalog-source-ingest.v1",
+    ownerFirst: true,
+    saved: true,
+    count: 1,
+  };
+  assert.deepEqual(
+    await invoke(responseForSource(), secret, "catalog.observe-source-ingest", sourceBody),
+    sourceReceipt,
+  );
+  function responseForSource() {
+    return {
+      async fetch(request) {
+        assert.equal(new URL(request.url).pathname, "/catalog/private-source-ingest");
+        assert.deepEqual(await request.json(), sourceBody);
+        return Response.json(sourceReceipt);
+      },
+    };
+  }
+  let oversizedCalled = false;
+  const hugeRecord = { ...sourceRecord, fields: Array(37).fill("x".repeat(65000)) };
+  await assert.rejects(
+    () =>
+      invoke(
+        {
+          fetch: async () => {
+            oversizedCalled = true;
+          },
+        },
+        secret,
+        "catalog.observe-source-ingest",
+        { records: [hugeRecord] },
+      ),
+    /canonical_command_too_large/,
+  );
+  assert.equal(oversizedCalled, false);
+
+
+  const chunks=[];
+  const sourcePort={async fetch(request){
+    const text=await request.text();assert.ok(text.length<=262144);
+    const part=JSON.parse(text).records;assert.ok(part.length<=25);chunks.push(part);
+    return Response.json({...sourceReceipt,count:part.length});
+  }};
+  const sourceDb=bindPublicationOwner({prepare(){throw Error("no_shared_sql")},batch(){throw Error("no_shared_sql")}},
+    {owner:sourcePort,secret,territory:"US",currency:"USD"});
+  const largeRecords=Array.from({length:50},(_,i)=>({...sourceRecord,cacheId:String(i+1),
+    fields:["x".repeat(65000),...Array(36).fill(null)]}));
+  await dispatchPrivateCatalogSourceBatch(sourceDb,largeRecords);
+  assert.deepEqual(chunks.flat().map(r=>r.cacheId),largeRecords.map(r=>r.cacheId));
+  assert.ok(chunks.length>2,"Large legal observations require byte-bounded partitioning");
+  const callsBeforeHuge=chunks.length;
+  await assert.rejects(()=>dispatchPrivateCatalogSourceBatch(sourceDb,[...largeRecords,hugeRecord]),
+    /exceeds private owner limit/);
+  assert.equal(chunks.length,callsBeforeHuge,"Oversized final record must fail before any chunk commits");
   const good=tests[0];
   const response=payload=>({fetch:async()=>Response.json(payload)});
   const invalid=[

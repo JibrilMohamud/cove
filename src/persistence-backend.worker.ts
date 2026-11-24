@@ -4,6 +4,7 @@ import { scopePublicationOwnerEnv } from "./storefront-strangler/publication-own
 import { scopeExclusiveCanonicalD1 } from "./storefront-strangler/canonical-d1-write-fence";
 import { scopeCommerceProductionD1 } from "./storefront-strangler/commerce-d1-write-fence";
 import { scopeQaOwnerUnboundPrimaryRead } from "./storefront-strangler/qa-owner-primary-read-entrypoint";
+import { dispatchQaOwnerScheduledTick } from "./storefront-strangler/qa-owner-scheduled-execution";
 import {
   attestDisabledOwnerFromBackend,
   DISABLED_OWNER_ATTEST_ROUTE,
@@ -52,10 +53,11 @@ import {
   type AudioComputeEnv,
 } from "./features/fore/audio-compute-budget.server";
 
-type BackendEnv = CoveEnv &
+export type BackendEnv = CoveEnv &
   AudioComputeEnv & {
     COVE_OWNER_EXCLUSIVE_WRITER_FENCE?: string;
     COVE_COMMERCE_OWNER_D1_FENCE?: string;
+    COVE_QA_SCHEDULE_OWNER_ENABLED?: string;
     FORE_BACKEND_TOKEN?: string;
     FORE_BACKEND_TOKEN_SHA256?: string;
     FORE_PUBLIC_URL?: string;
@@ -262,10 +264,16 @@ async function catalogBatch(request: Request, env: BackendEnv) {
       console.warn("catalog_search_index_deferred");
     }
   }
+  let ok = true;
+  for (const result of [...results, regional, epubs]) {
+    try {
+      assertCronResult(result);
+    } catch {
+      ok = false;
+    }
+  }
   return json({
-    ok: !results.some(
-      (value) => value && typeof value === "object" && "failed" in value && value.failed === true,
-    ),
+    ok,
     pagesAttempted: results.length,
     results,
     regional,
@@ -280,8 +288,18 @@ async function maintenance(env: BackendEnv) {
     runPublishingReleaseMaintenance(env),
   ]);
 
+  let ok = true;
+  try {
+    assertCronSettled([recommendations, publishing]);
+    if (recommendations.status === "fulfilled") {
+      const jobs = recommendations.value.recommendations.jobs;
+      assertCronResult({ failed: jobs.failed + jobs.dead });
+    }
+  } catch {
+    ok = false;
+  }
   return json({
-    ok: recommendations.status === "fulfilled" && publishing.status === "fulfilled",
+    ok,
     recommendations:
       recommendations.status === "fulfilled"
         ? recommendations.value
@@ -407,6 +425,7 @@ async function scheduledCatalog(env: BackendEnv) {
   if (!response.ok) {
     throw new Error("Scheduled catalog ingestion failed.");
   }
+  assertCronResult(await response.json());
 }
 
 async function runCommercialQueues(cron: string, env: BackendEnv) {
@@ -464,6 +483,7 @@ async function runCommercialQueues(cron: string, env: BackendEnv) {
 async function scheduledMaintenance(env: BackendEnv) {
   const response = await maintenance(env);
   if (!response.ok) throw new Error("Scheduled Cove maintenance failed.");
+  assertCronResult(await response.json());
 }
 
 const D1_QUOTA_CACHE_KEY = new Request(
@@ -617,23 +637,33 @@ async function runScheduled(cron: string, env: BackendEnv) {
           : []),
         () => seedMusicProfiles(env),
       ];
+      let failures = 0;
       for (const run of work) {
         try {
           assertCronResult(await run());
         } catch (error) {
+          failures++;
           console.warn("Cove minute maintenance failed");
         }
       }
+      if (failures) throw Error("cove_minute_maintenance_failed");
       return;
     }
     if (cron === "*/5 * * * *") {
       // Customer health evidence must not wait for, or depend on, ingestion.
-      await refreshPublicStatus(env).catch(() =>
-        console.warn("Public service status refresh failed"),
-      );
-      await prunePublicCache(env).catch(() => console.warn("Public cache cleanup failed"));
+      const statusResults = await Promise.allSettled([
+        refreshPublicStatus(env).catch((error) => {
+          console.warn("Public service status refresh failed");
+          throw error;
+        }),
+        prunePublicCache(env).catch((error) => {
+          console.warn("Public cache cleanup failed");
+          throw error;
+        }),
+      ]);
       if (!(await audioComputeAdmission(env)).allowed) {
         await scheduledCatalog(env);
+        assertCronSettled(statusResults);
         return;
       }
       // This is the reliable primary cron, so it must make forward progress
@@ -667,6 +697,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
         }
         if (catalogResult.status === "rejected") throw catalogResult.reason;
         assertCronSettled(audioResults);
+        assertCronSettled(statusResults);
         return;
       }
       const trackState = await audioTrackTriggerSlots(env);
@@ -689,6 +720,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
         throw catalogResult.reason;
       }
       assertCronSettled(audioResults);
+      assertCronSettled(statusResults);
       return;
     }
     if (cron === "2-59/5 * * * *") {
@@ -725,20 +757,26 @@ async function runScheduled(cron: string, env: BackendEnv) {
       // catalog/regional-rights ingest, reducing simultaneous primary D1 load.
       // This must not defer withdrawals, grants, or customer operations.
       // Metadata discovery never copies an unreviewed sound recording.
-      await discoverSoundtrackCandidates(env).catch(() =>
-        console.warn("Soundtrack discovery failed"),
-      );
+      let failures = 0;
+      try {
+        assertCronResult(await discoverSoundtrackCandidates(env));
+      } catch {
+        failures++;
+        console.warn("Soundtrack discovery failed");
+      }
       // Bound imports to two verified originals per tick (12/hour). This exceeds
       // the curator's hourly maximum of eight and prevents an accumulating
       // approved-but-not-playable backlog without unbounded Worker work.
       for (let index = 0; index < 2; index++) {
         try {
           const result = await importOneReviewedSoundtrack(env);
+          assertCronResult(result);
           if ("stored" in result || "failed" in result || "invalidated" in result) {
             console.info("Cove soundtrack R2 import completed");
           }
           if ("skipped" in result || "canceled" in result) break;
         } catch (error) {
+          failures++;
           console.warn("Soundtrack import failed");
           break;
         }
@@ -749,9 +787,11 @@ async function runScheduled(cron: string, env: BackendEnv) {
       const pendingTracks = Number(backlog?.count || 0);
       if (pendingTracks >= 96) {
         console.info(`Cove audio discovery paused with ${pendingTracks} pending track jobs.`);
+        if (failures) throw Error("cove_soundtrack_operations_failed");
         return;
       }
       await triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-discover");
+      if (failures) throw Error("cove_soundtrack_operations_failed");
       return;
     }
     if (cron === "23 * * * *") {
@@ -790,7 +830,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
  * The Python alignment verifier still demands independently matching EPUB
  * words before it can publish a map.
  */
-/* eslint-disable prettier/prettier -- isolated hosted-ASR adapter; behavioral CI remains enforced */
+
 async function hostedBiosyncTranscript(
   request: Request,
   env: BackendEnv,
@@ -894,50 +934,71 @@ async function hostedBiosyncTranscript(
   return json(transcript);
 }
 
-/* eslint-enable prettier/prettier */
+// Owner execution reuses the exact scheduled business functions. Callers do not
+// supply SQL, environment values, actor identities, limits or arbitrary routes.
+export function scheduleBackendOwnedWork(
+  controller: { cron: string },
+  env: BackendEnv,
+  ctx: ExecutionContextLike,
+) {
+  if (controller.cron === "*/10 * * * *") {
+    // Bounded social-only bracket authority. Winner snapshots, next-round
+    // pairings, and optimistic CAS commit in one D1 transaction.
+    ctx.waitUntil?.(
+      advanceDueTournaments(env.DB, 5).catch((error) => {
+        console.error("Community tournament advancement failed");
+        throw error;
+      }),
+    );
+  }
+  if (
+    controller.cron === "*/10 * * * *" ||
+    controller.cron === "23 * * * *" ||
+    controller.cron === "41 4 * * *"
+  )
+    ctx.waitUntil?.(runCommercialQueues(controller.cron, env));
+
+  if (controller.cron === "23 * * * *")
+    ctx.waitUntil?.(
+      processAccountDeletionQueue(env, 5)
+        .then((result) => {
+          assertCronResult(result);
+          console.info("Account erasure tick completed");
+        })
+        .catch((error) => {
+          console.error("Account erasure tick failed; queued requests will be retried.");
+          throw error;
+        }),
+    );
+  ctx.waitUntil?.(
+    runScheduled(controller.cron, env).catch((error) => {
+      console.error("Cove scheduled ingestion failed");
+      throw error;
+    }),
+  );
+}
 
 export default {
-  async scheduled(controller: { cron: string }, env: BackendEnv, ctx: ExecutionContextLike) {
+  async scheduled(
+    controller: { cron: string; scheduledTime?: number },
+    env: BackendEnv,
+    ctx: ExecutionContextLike,
+  ) {
+    if (
+      env.COVE_QA_SCHEDULE_OWNER_ENABLED !== undefined &&
+      env.COVE_QA_SCHEDULE_OWNER_ENABLED !== "0"
+    ) {
+      const work = dispatchQaOwnerScheduledTick(controller, env);
+      ctx.waitUntil?.(work);
+      await work;
+      return;
+    }
     // A physically D1-unbound QA backend must obtain its leased private
     // owner READ facade before independently gated typed owner commands.
     // Production remains natively DB-bound and these guards remain no-ops.
     env = scopeQaOwnerUnboundPrimaryRead(env);
     env = scopeCommerceProductionD1(scopeExclusiveCanonicalD1(scopePublicationOwnerEnv(env)));
-    if (controller.cron === "*/10 * * * *") {
-      // Bounded social-only bracket authority. Winner snapshots, next-round
-      // pairings, and optimistic CAS commit in one D1 transaction.
-      ctx.waitUntil?.(
-        advanceDueTournaments(env.DB, 5).catch((error) => {
-          console.error("Community tournament advancement failed");
-          throw error;
-        }),
-      );
-    }
-    if (
-      controller.cron === "*/10 * * * *" ||
-      controller.cron === "23 * * * *" ||
-      controller.cron === "41 4 * * *"
-    )
-      ctx.waitUntil?.(runCommercialQueues(controller.cron, env));
-
-    if (controller.cron === "23 * * * *")
-      ctx.waitUntil?.(
-        processAccountDeletionQueue(env, 5)
-          .then((result) => {
-            assertCronResult(result);
-            console.info("Account erasure tick completed");
-          })
-          .catch((error) => {
-            console.error("Account erasure tick failed; queued requests will be retried.");
-            throw error;
-          }),
-      );
-    ctx.waitUntil?.(
-      runScheduled(controller.cron, env).catch((error) => {
-        console.error("Cove scheduled ingestion failed");
-        throw error;
-      }),
-    );
+    scheduleBackendOwnedWork(controller, env, ctx);
   },
 
   async fetch(request: Request, env: BackendEnv, ctx: ExecutionContextLike) {

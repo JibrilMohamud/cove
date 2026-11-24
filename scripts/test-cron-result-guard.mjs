@@ -32,7 +32,15 @@ try {
     /cove_scheduled_operation_reported_failure/,
   );
   assert.throws(() => assertCronResult({ ok: false }), /cove_scheduled_operation_reported_failure/);
+  for (const result of [{ failed: true }, { failed: 1 }, { failed: 12 }]) {
+    assert.throws(() => assertCronResult(result), /cove_scheduled_operation_reported_failure/);
+  }
+  assert.doesNotThrow(() => assertCronResult({ failed: 0 }));
   assert.doesNotThrow(() => assertCronSettled([{ status: "fulfilled", value: undefined }]));
+  assert.throws(
+    () => assertCronSettled([{ status: "fulfilled", value: { ok: false } }]),
+    /cove_scheduled_operation_reported_failure/,
+  );
   assert.throws(
     () => assertCronSettled([{ status: "rejected", reason: "private-context-must-not-escape" }]),
     (error) =>

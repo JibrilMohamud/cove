@@ -50,19 +50,20 @@ export async function refreshPublicStatus(env: CoveEnv) {
       "SELECT id FROM gutenberg_source_cache WHERE epub_status='completed' LIMIT 1",
     ).first<{ id: string }>(),
     env.DB.prepare(
-      `WITH tracks AS (
-        SELECT e.id edition_id,json_extract(t.value,'$.id') track_id,
-          CASE WHEN m.audio_present=1 AND CAST(json_extract(t.value,'$.duration') AS REAL)>0 THEN 1 ELSE 0 END prepared,
-          CASE WHEN a.map_sha256 IS NOT NULL AND m.audio_present=1 AND m.timing_present=1 AND m.timing_sha256=a.map_sha256 AND m.epub_sha256=e.epub_sha256 THEN 1 ELSE 0 END checked
-        FROM audio_editions e,json_each(e.tracks_json) t
-        LEFT JOIN audio_timing a ON a.edition_id=e.id AND a.track_id=json_extract(t.value,'$.id')
-          AND a.audio_sha256=json_extract(t.value,'$.sha256') AND a.epub_sha256=e.epub_sha256
-        LEFT JOIN audio_media_checks m ON m.edition_id=e.id AND m.track_id=json_extract(t.value,'$.id')
-          AND m.audio_sha256=json_extract(t.value,'$.sha256') AND m.checked_at>=strftime('%Y-%m-%dT%H:%M:%fZ','now','-1 day')
-      ), editions AS (SELECT edition_id,count(*) total,sum(prepared) prepared,sum(checked) checked FROM tracks GROUP BY edition_id)
-      SELECT COALESCE(sum(total),0) tracks,COALESCE(sum(prepared),0) prepared,COALESCE(sum(checked),0) maps,
+      `SELECT COALESCE(sum(total),0) tracks,COALESCE(sum(prepared),0) prepared,COALESCE(sum(checked),0) maps,
         count(*) editions,COALESCE(sum(CASE WHEN total=prepared THEN 1 ELSE 0 END),0) complete_recordings,
-        COALESCE(sum(CASE WHEN total=checked THEN 1 ELSE 0 END),0) fully_timed FROM editions`,
+        COALESCE(sum(CASE WHEN total=checked THEN 1 ELSE 0 END),0) fully_timed FROM (
+          SELECT edition_id,count(*) total,sum(prepared) prepared,sum(checked) checked FROM (
+            SELECT e.id edition_id,json_extract(t.value,'$.id') track_id,
+              CASE WHEN m.audio_present=1 AND CAST(json_extract(t.value,'$.duration') AS REAL)>0 THEN 1 ELSE 0 END prepared,
+              CASE WHEN a.map_sha256 IS NOT NULL AND m.audio_present=1 AND m.timing_present=1 AND m.timing_sha256=a.map_sha256 AND m.epub_sha256=e.epub_sha256 THEN 1 ELSE 0 END checked
+            FROM audio_editions e,json_each(e.tracks_json) t
+            LEFT JOIN audio_timing a ON a.edition_id=e.id AND a.track_id=json_extract(t.value,'$.id')
+              AND a.audio_sha256=json_extract(t.value,'$.sha256') AND a.epub_sha256=e.epub_sha256
+            LEFT JOIN audio_media_checks m ON m.edition_id=e.id AND m.track_id=json_extract(t.value,'$.id')
+              AND m.audio_sha256=json_extract(t.value,'$.sha256') AND m.checked_at>=strftime('%Y-%m-%dT%H:%M:%fZ','now','-1 day')
+          ) tracks GROUP BY edition_id
+        ) editions`,
     ).first<{
       maps: number;
       tracks: number;

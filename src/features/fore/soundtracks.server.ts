@@ -311,7 +311,7 @@ export async function discoverSoundtrackCandidates(env: CoveEnv) {
     await env.DB.prepare(
       "UPDATE soundtrack_ingestion_state SET lease_until='',lease_token='',last_error=?,last_discovery_at=? WHERE id=1 AND lease_token=?",
     ).bind(String(error).slice(0,400),now,token).run();
-    return { error: "Discovery temporarily unavailable" };
+    return { failed: true, error: "Discovery temporarily unavailable" };
   }
 }
 async function commonsFile(title: string) {

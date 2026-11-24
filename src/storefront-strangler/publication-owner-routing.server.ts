@@ -490,8 +490,23 @@ export async function dispatchPrivateCatalogSourceBatch(db:object,
 ):Promise<void>{
  const context=owners.get(db);
  if(!context)throw new ApiError(503,"Catalog source ingestion requires private legal authority.");
- for(let i=0;i<records.length;i+=25){
-  const part=records.slice(i,i+25);
+ const {SOURCE_OBSERVATION_COMMAND_MAX_CHARS}=await import("./canonical-owner-command-gateway");
+ // Partition the entire input before committing the first chunk. Both the
+ // fixed record cap and existing serialized server ceiling apply; one huge
+ // record must not strand earlier chunks after a predictable local rejection.
+ const parts:typeof records[]=[];
+ let part:typeof records=[];
+ for(const record of records){
+  if(part.length===25||JSON.stringify({records:[...part,record]}).length>SOURCE_OBSERVATION_COMMAND_MAX_CHARS){
+   if(part.length)parts.push(part);
+   part=[];
+  }
+  part.push(record);
+  if(JSON.stringify({records:part}).length>SOURCE_OBSERVATION_COMMAND_MAX_CHARS)
+   throw new ApiError(503,"Catalog source record exceeds private owner limit.");
+ }
+ if(part.length)parts.push(part);
+ for(const part of parts){
   try{
    const ack=await dispatchCanonicalOwnerCommand(context.owner,context.secret,
      "catalog.observe-source-ingest",{records:part});

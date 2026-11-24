@@ -34,6 +34,12 @@ function tokenCanMutate(token){
 // capabilities are unclassified until reviewed, independently of whether
 // the known mutation group list happens to contain the provider's new name.
 const READ_ONLY_GROUP=/^[A-Za-z0-9][A-Za-z0-9 &/._()+-]* (?:Read|Read-Only)$/;
+// Verified live provider catalogs use punctuation in canonical names, e.g.
+// "Access: Organizations, Identity Providers, and Groups Read" and
+// "Load Balancing: Monitors and Pools Read". This grammar is ONLY applied
+// after a fresh exact immutable-ID/scope match, never to token policy labels.
+const PROVIDER_CANONICAL_READ_GROUP=/^[A-Za-z0-9][A-Za-z0-9 &/._()+,:-]* (?:Read|Read-Only)$/;
+
 // Cloudflare states permission-group names are cosmetic. Verify unexpected
 // user-owned group labels against a FRESH provider catalog ID; only these three
 // independently documented Read permissions may resolve a name-only mismatch.
@@ -83,7 +89,8 @@ async function proveReadIdsByScope(get,userToken,groups){
   for(const group of groups){
     const match=observed.get(group.id);
     if(!match)return "read_group_alias_identifier_mismatch_unrecognized";
-    if(PRIVILEGED_GROUPS.has(match.name)||!READ_ONLY_GROUP.test(match.name))
+    if(PRIVILEGED_GROUPS.has(match.name)||match.name.trim()!==match.name||
+       !PROVIDER_CANONICAL_READ_GROUP.test(match.name))
       return "read_group_provider_capability_not_readonly";
   }
   return null;
