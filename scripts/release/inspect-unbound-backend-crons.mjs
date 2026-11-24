@@ -10,11 +10,23 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import {
+  seedLocalCatalogFixture,
+  markLocalRegionalSourcesFresh,
+  seedLocalScheduledRecommendationJob,
+} from "../test-local-catalog-fixture.mjs";
 
 const root = mkdtempSync(join(tmpdir(), "cove-unbound-crons-"));
 const savedFetch = globalThis.fetch;
 const savedConsole = { info: console.info, warn: console.warn, error: console.error };
 const databases = [];
+const ownerExecution = process.argv.includes("--owner-execution");
+const failingMaintenance = process.argv.includes("--failing-maintenance-job");
+const seededServices = process.argv.includes("--seeded-services");
+const assertContract = process.argv.includes("--assert-owner-contract");
+const assertNegative = process.argv.includes("--assert-negative-owner-contract");
+if (assertNegative) assert.ok(ownerExecution && !seededServices);
+if (assertContract) assert.ok(ownerExecution && seededServices);
 let observation;
 const deniedTables = new Set([
   "literary_profile_state",
@@ -98,8 +110,23 @@ export {CoveLegalAuthority} from "./src/storefront-strangler/legal-authority.wor
   const migrations = readdirSync("drizzle")
     .filter((name) => name.endsWith(".sql"))
     .sort();
-  globalThis.fetch = async () => {
+  globalThis.fetch = async (input) => {
     observation.networkAttempts++;
+    const url = new URL(typeof input === "string" ? input : input.url || String(input));
+    if (seededServices && url.origin === "https://fixture.invalid" && url.pathname === "/books/")
+      return Response.json({ results: [], count: 0, next: null, previous: null });
+    if (
+      seededServices &&
+      url.origin === "https://fixture.invalid" &&
+      /^\/api\/fore\/internal\/ingestion\/audio-(scan|discover|align|track)$/.test(url.pathname)
+    )
+      return Response.json({ ok: true });
+    if (
+      seededServices &&
+      url.origin === "https://commons.wikimedia.org" &&
+      url.pathname === "/w/api.php"
+    )
+      return Response.json({ query: { pages: {} } });
     throw Error("fixture_external_network_denied");
   };
   for (const level of Object.keys(savedConsole))
@@ -119,6 +146,14 @@ export {CoveLegalAuthority} from "./src/storefront-strangler/legal-authority.wor
       durable = new DatabaseSync(":memory:");
     databases.push(primary, durable);
     for (const name of migrations) primary.exec(readFileSync(join("drizzle", name), "utf8"));
+    if (seededServices) {
+      seedLocalCatalogFixture(primary);
+      // Positive source fixtures are synthetic local data, never production
+      // authority. Regional discovery has its own negative coverage; it is
+      // fresh here while the US metadata lease processes an empty fake feed.
+      markLocalRegionalSourcesFresh(primary);
+      if (cron === "41 4 * * *") seedLocalScheduledRecommendationJob(primary, failingMaintenance);
+    }
     let ownerReads = 0,
       ownerWrites = 0,
       ownerCommands = 0;
@@ -127,11 +162,13 @@ export {CoveLegalAuthority} from "./src/storefront-strangler/legal-authority.wor
         const bound = (params = []) => ({
           bind: (...values) => bound(values),
           async first() {
-            ownerReads++;
+            if (/^\s*(?:SELECT|WITH)\b/i.test(query)) ownerReads++;
+            else ownerWrites++;
             return primary.prepare(query).get(...params) || null;
           },
           async all() {
-            ownerReads++;
+            if (/^\s*(?:SELECT|WITH)\b/i.test(query)) ownerReads++;
+            else ownerWrites++;
             return { success: true, results: primary.prepare(query).all(...params) };
           },
           async run() {
@@ -177,6 +214,7 @@ export {CoveLegalAuthority} from "./src/storefront-strangler/legal-authority.wor
     const primaryId = "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e";
     const env = {
       COVE_QA_OWNER_UNBOUND_READ_ENABLED: "1",
+      ...(ownerExecution ? { COVE_QA_SCHEDULE_OWNER_ENABLED: "1" } : {}),
       FORE_ENVIRONMENT: "staging",
       COVE_SSR_STAGING: "1",
       COVE_RIGHTS_OWNER_ENABLED: "1",
@@ -188,8 +226,10 @@ export {CoveLegalAuthority} from "./src/storefront-strangler/legal-authority.wor
       COVE_PUBLICATION_COMMAND_TERRITORY: "US",
       COVE_PUBLICATION_COMMAND_CURRENCY: "USD",
       FORE_CATALOG_PAGES_PER_TICK: "1",
+      ...(seededServices ? { FORE_AUDIO_COMPUTE_MODE: "budgeted" } : {}),
       FORE_CATALOG_EPUBS_PER_TICK: "0",
       FORE_PUBLIC_URL: "https://fixture.invalid",
+      GUTENDEX_BASE_URL: "https://fixture.invalid",
       FORE_INGESTION_TRIGGER_TOKEN: "fixture-trigger-authentication-0000000000",
       FORE_BACKEND_TOKEN: "fixture-backend-authentication-0000000000",
     };
@@ -227,11 +267,12 @@ export {CoveLegalAuthority} from "./src/storefront-strangler/legal-authority.wor
       },
     };
     const tasks = [];
+    const scheduledTime = Date.now();
     // Attach a rejection observer immediately; retain each original rejection
     // for the final settled evidence instead of swallowing waitUntil failures.
     let entrypointFailed = false;
     try {
-      await backend.scheduled({ cron }, env, {
+      await backend.scheduled({ cron, scheduledTime }, env, {
         waitUntil(promise) {
           const task = Promise.resolve(promise);
           task.catch(() => {});
@@ -242,6 +283,80 @@ export {CoveLegalAuthority} from "./src/storefront-strangler/legal-authority.wor
       entrypointFailed = true;
     }
     const settled = await Promise.allSettled(tasks);
+    let replayRepeatedWrites = null;
+    if (assertContract) {
+      const expectedFailure = failingMaintenance && cron === "41 4 * * *";
+      assert.equal(
+        entrypointFailed,
+        expectedFailure,
+        "Actual scheduled entrypoint result: " + cron,
+      );
+      assert.equal(
+        settled.some((x) => x.status === "rejected"),
+        expectedFailure,
+        cron,
+      );
+      assert.deepEqual(observation.deniedWrites, [], cron);
+      if (cron === "41 4 * * *") {
+        const job = primary
+          .prepare("SELECT status,attempts FROM recommendation_jobs WHERE id='qa_scheduled_rec'")
+          .get();
+        assert.equal(job.status, failingMaintenance ? "pending" : "done");
+        assert.equal(
+          job.attempts,
+          2,
+          "Expired populated lease must be reclaimed and executed once",
+        );
+      }
+      const before = { ownerReads, ownerWrites };
+      const replay = () =>
+        backend.scheduled({ cron, scheduledTime }, env, {
+          waitUntil(p) {
+            p.catch(() => {});
+          },
+        });
+      if (expectedFailure) await assert.rejects(replay);
+      else await replay();
+      replayRepeatedWrites = ownerWrites !== before.ownerWrites;
+      assert.deepEqual(
+        { ownerReads, ownerWrites },
+        before,
+        "Exact tick replay must not repeat native work: " + cron,
+      );
+    }
+    if (assertNegative) {
+      const mustFail = ["*/5 * * * *", "7-57/10 * * * *"].includes(cron);
+      assert.equal(
+        entrypointFailed,
+        mustFail,
+        "Missing legal proof/upstream failures must be visible: " + cron,
+      );
+      assert.equal(
+        settled.some((x) => x.status === "rejected"),
+        mustFail,
+        cron,
+      );
+      assert.deepEqual(
+        observation.deniedWrites,
+        [],
+        "No borrower operational SQL remains: " + cron,
+      );
+      if (mustFail) {
+        const before = { ownerReads, ownerWrites };
+        await assert.rejects(() =>
+          backend.scheduled({ cron, scheduledTime }, env, {
+            waitUntil(p) {
+              p.catch(() => {});
+            },
+          }),
+        );
+        assert.deepEqual(
+          { ownerReads, ownerWrites },
+          before,
+          "Failed tick replay must not repeat side effects",
+        );
+      }
+    }
     reports.push({
       cron,
       entrypointFailed,
@@ -250,6 +365,7 @@ export {CoveLegalAuthority} from "./src/storefront-strangler/legal-authority.wor
       ownerReads,
       ownerWrites,
       ownerCommands,
+      ...(assertContract ? { replayRepeatedWrites } : {}),
       ...observation,
     });
   }
@@ -262,7 +378,9 @@ export {CoveLegalAuthority} from "./src/storefront-strangler/legal-authority.wor
         callerNativeD1Bindings: 0,
         reports,
         limits: [
-          "empty disposable schema",
+          seededServices
+            ? "synthetic catalog, populated recommendation recovery, fake US/Commons/audio triggers; fresh regional queues"
+            : "empty disposable schema",
           "no external services or R2",
           "fixture D1 bookmarks",
           "not managed Worker execution",

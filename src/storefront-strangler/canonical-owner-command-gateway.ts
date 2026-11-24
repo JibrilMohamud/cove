@@ -427,6 +427,8 @@ const routes={
     reasonCode:z.string().min(1).max(120),reasonDetail:z.string().max(2000),
     actorUserId:subject,operationId:operation}).strict()}
 } as const;
+// Match the private source-observation route's existing server ceiling.
+export const SOURCE_OBSERVATION_COMMAND_MAX_CHARS=262144;
 export type CanonicalCommandKind=keyof typeof routes;
 const isQuarantine=(kind:CanonicalCommandKind)=>kind.startsWith("rights.");
 const record=(x:unknown):x is Record<string,unknown>=>!!x&&typeof x==="object"&&!Array.isArray(x);
@@ -445,7 +447,7 @@ export async function dispatchCanonicalOwnerCommand(
     throw Error("canonical_command_binding_invalid");
   const body=definition.schema.parse(raw) as Record<string,unknown>;
   const encoded=JSON.stringify(body);
-  if(encoded.length>(["publishing.worker-jobs","publishing.audio-qc-jobs"].includes(kind)?262144:kind==="publishing.save-contract-version"?32768:8192))throw Error("canonical_command_too_large");
+  if(encoded.length>(kind==="catalog.observe-source-ingest"?SOURCE_OBSERVATION_COMMAND_MAX_CHARS:["publishing.worker-jobs","publishing.audio-qc-jobs"].includes(kind)?262144:kind==="publishing.save-contract-version"?32768:8192))throw Error("canonical_command_too_large");
   const root=isQuarantine(kind)?"https://legal-quarantine.internal":"https://legal-authority.internal";
   const response=await port.fetch(new Request(root+definition.path,{
     method:"POST",headers:{

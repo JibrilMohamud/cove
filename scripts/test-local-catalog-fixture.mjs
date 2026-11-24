@@ -709,3 +709,15 @@ export function normalizeExistingLocalCatalogSource(raw, sourceId, at) {
     throw error;
   }
 }
+
+/** Local-only schedule fixture: keep regional feeds fresh while the synthetic
+ * US feed exercises its actual ingestion lease and state transition. */
+export function markLocalRegionalSourcesFresh(db) {
+  db.prepare("UPDATE gutenberg_source_states SET next_run_at=? WHERE source_id<>'pg_us'")
+    .run(new Date(Date.now()+3600000).toISOString());
+}
+
+export function seedLocalScheduledRecommendationJob(db, failing = false) {
+  db.prepare("INSERT INTO recommendation_jobs(id,job_type,entity_id,status,attempts,queued_at,available_at,lease_until) VALUES('qa_scheduled_rec',?,'prd_gutenberg_1342','running',1,'2000-01-01T00:00:00.000Z','2000-01-01T00:00:00.000Z','2000-01-01T00:00:00.000Z')")
+    .run(failing ? 'unsupported-fixture-job' : 'product-metrics');
+}

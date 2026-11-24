@@ -26,6 +26,7 @@ import {issueQaOwnerPositiveGenerationCertificate,QA_POSITIVE_CERTIFICATE_PATH,
   type QAOwnerPrimaryDB} from "./qa-owner-positive-certificate-issuer.stage";
 import { DurableObject } from "cloudflare:workers";
 import { QA_OWNER_PRIMARY_READ_ROUTE, serveQaOwnerPrimaryRead } from "./qa-owner-primary-read-transport.mjs";
+import { QA_SCHEDULE_ROUTE, serveQaOwnerScheduledTick } from "./qa-owner-scheduled-execution";
 import {DISABLED_OWNER_ATTEST_ROUTE,PRODUCTION_OWNER_OBJECT,isDisabledProductionOwner,validOwnerChallenge,disabledOwnerReceipt} from "./production-disabled-owner-attestation";
 import {publishVerifiedPaidOrderAtomic,type VerifiedPaidOrderLine} from "./paid-order-atomic-publication";
 import {executeOwnerRefundAccounting} from "./refund-accounting-owner-executor";
@@ -135,6 +136,7 @@ type LegalAuthorityEnv = Pick<CoveEnv,"FORE_AUTH_MODE"|"SUPABASE_URL"|"SUPABASE_
   BUCKET?:PublishingEnv["BUCKET"];
   FORE_PUBLISHING_AUTO_APPROVE_LOW_RISK?:string;
   COVE_QA_OWNER_JOURNAL_VERSION?: string;
+  COVE_QA_SCHEDULE_OWNER_ENABLED?: string;
   COVE_QA_OWNER_REHEARSAL_REVISION?: string;
   COVE_QA_OWNER_POSITIVE_CERTIFICATE_ONLY?: string;
   COVE_RIGHTS_OWNER_SECRET?: string;
@@ -17697,6 +17699,10 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       return new Response(null,{status:401,headers:noStore});
     if(request.method!=="POST") return new Response(null,{status:405,headers:noStore});
     const route=new URL(request.url).pathname;
+    if(route===QA_SCHEDULE_ROUTE){
+      return serveQaOwnerScheduledTick(request,env,
+        this.ctx.storage as Parameters<typeof serveQaOwnerScheduledTick>[2],this);
+    }
     // Existing synthetic-only, short-lived QA lease. Disabled production
     // and dedicated BioSync QA cannot serve arbitrary owner primary reads.
     if(route===QA_OWNER_PRIMARY_READ_ROUTE){

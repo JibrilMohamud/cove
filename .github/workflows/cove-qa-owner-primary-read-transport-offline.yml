@@ -7,6 +7,13 @@ on:
       - "src/storefront-strangler/qa-owner-primary-read-entrypoint.ts"
       - "src/storefront-strangler/legal-authority.worker.ts"
       - "src/persistence-backend.worker.ts"
+      - "src/storefront-strangler/qa-owner-scheduled-execution.ts"
+      - "src/lib/cron-result-guard.ts"
+      - "src/features/fore/public-status.server.ts"
+      - "src/features/fore/soundtracks.server.ts"
+      - "scripts/test-qa-owner-scheduled-execution.mjs"
+      - "scripts/release/inspect-unbound-backend-crons.mjs"
+      - "scripts/test-local-catalog-fixture.mjs"
       - "scripts/qa-owner-primary-read-transport.test.mjs"
       - "scripts/qa-owner-primary-read-entrypoint.test.mjs"
       - ".github/workflows/cove-qa-owner-primary-read-transport-offline.yml"
@@ -18,6 +25,13 @@ on:
       - "src/storefront-strangler/qa-owner-primary-read-entrypoint.ts"
       - "src/storefront-strangler/legal-authority.worker.ts"
       - "src/persistence-backend.worker.ts"
+      - "src/storefront-strangler/qa-owner-scheduled-execution.ts"
+      - "src/lib/cron-result-guard.ts"
+      - "src/features/fore/public-status.server.ts"
+      - "src/features/fore/soundtracks.server.ts"
+      - "scripts/test-qa-owner-scheduled-execution.mjs"
+      - "scripts/release/inspect-unbound-backend-crons.mjs"
+      - "scripts/test-local-catalog-fixture.mjs"
       - "scripts/qa-owner-primary-read-transport.test.mjs"
       - "scripts/qa-owner-primary-read-entrypoint.test.mjs"
       - ".github/workflows/cove-qa-owner-primary-read-transport-offline.yml"
@@ -27,7 +41,7 @@ permissions:
 jobs:
   qa-contract:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v6
         with:
@@ -44,6 +58,14 @@ jobs:
         run: node --test scripts/qa-owner-primary-read-transport.test.mjs
       - name: Prove backend with no D1 binding can read QA owner without production enrollment
         run: node --test scripts/qa-owner-primary-read-entrypoint.test.mjs
+      - name: Prove schedule replay, uncertain acknowledgement, domain fences and leased QA isolation
+        run: node --no-warnings scripts/test-qa-owner-scheduled-execution.mjs
+      - name: Exercise all seven actual owner schedules across every migration and prove exact replay
+        run: node --no-warnings scripts/release/inspect-unbound-backend-crons.mjs --owner-execution --seeded-services --assert-owner-contract
+      - name: Prove source metadata cannot grant authority and failed upstream ticks cannot acknowledge success
+        run: node --no-warnings scripts/release/inspect-unbound-backend-crons.mjs --owner-execution --assert-negative-owner-contract
+      - name: Prove failed populated maintenance jobs remain failures rather than fulfilled promises
+        run: node --no-warnings scripts/release/inspect-unbound-backend-crons.mjs --owner-execution --seeded-services --assert-owner-contract --failing-maintenance-job
       - name: Deny production cutover from QA-only read-transport source
         run: |
           node --input-type=module -e '
