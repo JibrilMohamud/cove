@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import {createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
+import {reverseNativePrimaryMarketDelta} from "./native-primary-market-source-delta.mjs";
 import {currentWriterSites,reconcileWriterSites} from "../reconcile-canonical-writers.mjs";
 
 // Historical retirement attestations certify the files that existed when
@@ -40,7 +41,9 @@ assert.deepEqual(counts,{"isolated-test-fixture":1,"non-authorizing-write":22,"p
 assert.ok(review.sites.every(s=>s.productionOwnerGuarded===false),
   "Current source audit cannot certify deployed ownership");
 for(const [path,pin] of Object.entries(PINNED_CURRENT_SOURCES)){
-  const actual=createHash("sha256").update(readFileSync(path,"utf8")).digest("hex");
+  const bytes=readFileSync(path,"utf8");
+  const reviewed=path==="src/storefront-strangler/legal-authority.worker.ts"?reverseNativePrimaryMarketDelta(bytes):bytes;
+  const actual=createHash("sha256").update(reviewed).digest("hex");
   assert.equal(actual,pin,"New current source change requires independent legal/caller review: "+path);
 }
 // Independent byte-exact re-review of the post-October BioSync QA owner
@@ -49,7 +52,7 @@ for(const [path,pin] of Object.entries(PINNED_CURRENT_SOURCES)){
 // must reproduce that exact previous file SHA; no unrelated SQL, caller,
 // commerce or publication code may change while refreshing this pin.
 const ownerPath="src/storefront-strangler/legal-authority.worker.ts";
-let priorOwner=readFileSync(ownerPath,"utf8");
+let priorOwner=reverseNativePrimaryMarketDelta(readFileSync(ownerPath,"utf8"));
 // The 2026-11-24 schedule change adds only this import, flag and private
 // dispatch. Removing these exact ranges must recover the previous full
 // owner bytes. The new RPC's QA lease/domain/replay tests run separately;

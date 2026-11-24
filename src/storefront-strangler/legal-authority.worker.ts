@@ -61,6 +61,7 @@ import { authorizeStorefrontPresentationIds,catalogIds, type CatalogDB, type Fir
 import { resolveProductRights,detectRightsConflicts } from "../features/fore/rights.server";
 import {canonicalCommercialLeaseUntil} from "./canonical-commercial-lease";
 import {readOwnerNativeFirstPaintQa} from "./owner-native-first-paint-qa";
+import {readNativePrimaryMarketQa} from "./owner-native-primary-market-qa";
 import {createPublicationMaterializationSchema,executePublicationMaterialization} from "./publication-materialization-command";
 import type {PublishingEnv,PublishingDB} from "../features/fore/publishing.server";
 import {executePublicationPreorder} from "./publication-preorder-command";
@@ -21911,53 +21912,19 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
             ?Math.round(ms*100)/100:null;
         const evidence=await readOwnerNativeFirstPaintQa(raw,{
           readPrimary:async (ids,territory,currency)=>{
-            // Reuse the SINGLE QA legal-owner native binding. Primary
-            // sessions avoid any replica/lagged-market authorization path.
-            qaPhase="session";
-            const primary=env.PRIMARY_DB as CatalogDB&{
-              withSession?: (constraint:string)=>CatalogDB
-            };
-            if(typeof primary.withSession!=="function")
-              throw Error("qa_native_primary_session_unavailable");
-            // A D1 first-primary session guarantees only its FIRST read
-            // uses primary. A later SELECT may use a replica even when the
-            // market's first SELECT came from primary. Keep independent
-            // primary-first sessions for these two legal prerequisites.
-            const marketDb=primary.withSession("first-primary");
-            const catalogDb=primary.withSession("first-primary");
-            if(marketDb===catalogDb)
-              throw Error("qa_native_primary_sessions_not_independent");
-            qaPhase="primary-pair";
-            const marketStarted=performance.now();
-            const marketPending=(async()=>{
-              const market=await marketDb.prepare(
-                "SELECT country_code FROM storefront_markets WHERE country_code=? AND market_status='active' AND default_currency=? LIMIT 1"
-              ).bind(territory,currency).first<{country_code:string}>();
-              qaMarketMs=performance.now()-marketStarted;
-              return market;
-            })();
+            // Both legal prerequisites execute in one fresh primary
+            // statement. No replica fallback or cached market receipt.
+            qaPhase="primary-statement";
             const measurements:FirstPaintD1QueryMetrics={};
-            const selectStarted=performance.now();
-            const catalogPending=(async()=>{
-              const rows=await authorizeStorefrontPresentationIds(
-                catalogDb,ids,territory,currency,measurements
-              );
-              qaSelectMs=performance.now()-selectStarted;
-              return rows;
-            })();
-            // The second legal read cannot be approved from a partially
-            // completed pair. Observe BOTH results before the synchronous
-            // current-owner withdrawal and offer intersection below.
-            const [marketResult,catalogResult]=await Promise.allSettled([
-              marketPending,catalogPending
-            ]);
-            if(marketResult.status!=="fulfilled"||catalogResult.status!=="fulfilled")
-              throw Error("qa_native_primary_pair_failed");
-            const market=marketResult.value;
-            const rows=catalogResult.value;
+            const started=performance.now();
+            const result=await readNativePrimaryMarketQa(
+              env.PRIMARY_DB as CatalogDB,ids,territory,currency,measurements
+            );
+            // These fields intentionally describe the SAME shared wall time.
+            // Never add them as if two independent D1 requests occurred.
+            qaMarketMs=qaSelectMs=performance.now()-started;
             qaProviderSqlMs=measurements.sqlDurationMs;
-            return {rows,servedByPrimary:measurements.servedByPrimary===true,
-              activeMarket:market?.country_code===territory};
+            return result;
           },
           readOwner:(ids,territory,currency)=>{
             qaPhase="owner";
