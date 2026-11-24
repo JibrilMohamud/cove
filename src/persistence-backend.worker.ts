@@ -652,8 +652,14 @@ async function runScheduled(cron: string, env: BackendEnv) {
     if (cron === "*/5 * * * *") {
       // Customer health evidence must not wait for, or depend on, ingestion.
       const statusResults = await Promise.allSettled([
-        refreshPublicStatus(env),
-        prunePublicCache(env),
+        refreshPublicStatus(env).catch((error) => {
+          console.warn("Public service status refresh failed");
+          throw error;
+        }),
+        prunePublicCache(env).catch((error) => {
+          console.warn("Public cache cleanup failed");
+          throw error;
+        }),
       ]);
       if (!(await audioComputeAdmission(env)).allowed) {
         await scheduledCatalog(env);

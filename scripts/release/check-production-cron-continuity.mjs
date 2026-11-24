@@ -38,8 +38,13 @@ export function verifyScheduledProductionContinuity({
   );
   assert.match(
     backendWorker,
-    /async scheduled\(controller:/,
+    /async scheduled\(\s*controller:/,
     "The backend must retain its scheduled handler",
+  );
+  assert.match(
+    backendWorker,
+    /scheduleBackendOwnedWork\(controller, env, ctx\)/,
+    "The retained native schedule entrypoint must invoke the extracted business helper",
   );
   assert.match(backendWorker, /runScheduled\(controller\.cron, env\)/);
   assert.match(backendWorker, /runCommercialQueues\(controller\.cron, env\)/);
@@ -96,6 +101,12 @@ const actual = loadSources();
 const accepted = verifyScheduledProductionContinuity(actual);
 if (process.argv.includes("--self-test")) {
   const negative = [
+    {
+      backendWorker: actual.backendWorker.replace(
+        "scheduleBackendOwnedWork(controller, env, ctx)",
+        "undefined",
+      ),
+    },
     { backendConfig: actual.backendConfig.replace('"41 4 * * *"', '"0 4 * * *"') },
     { backendConfig: actual.backendConfig.replace('binding = "DB"', 'binding = "QA_DB"') },
     {

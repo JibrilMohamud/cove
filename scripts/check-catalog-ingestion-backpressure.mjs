@@ -112,7 +112,17 @@ const entrypoint = workerSource.slice(
   workerSource.indexOf("  async scheduled("),
   workerSource.indexOf("  async fetch(", workerSource.indexOf("  async scheduled(")),
 );
-assert.match(entrypoint, /controller\.cron === "\*\/10 \* \* \* \*"/);
+assert.match(entrypoint, /scheduleBackendOwnedWork\(controller, env, ctx\)/);
+const scheduleHelperStart = workerSource.indexOf("export function scheduleBackendOwnedWork(");
+assert.ok(scheduleHelperStart >= 0, "Scheduled business helper must exist");
+const scheduleHelper = workerSource.slice(
+  scheduleHelperStart,
+  workerSource.indexOf("export default {", scheduleHelperStart),
+);
+assert.match(scheduleHelper, /controller\.cron === "\*\/10 \* \* \* \*"/);
+assert.match(scheduleHelper, /advanceDueTournaments\(env\.DB, 5\)/);
+assert.match(scheduleHelper, /runCommercialQueues\(controller\.cron, env\)/);
+assert.match(scheduleHelper, /runScheduled\(controller\.cron, env\)/);
 for (const configPath of [
   "wrangler.backend.production.toml",
   ".github/workflows/deploy-persistence-backend.yml",

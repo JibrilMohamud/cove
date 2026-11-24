@@ -469,3 +469,65 @@ test("scope resolver never treats missing ID, write capability, malformed or con
   assert.equal(evidence.verified, false);
   assert.equal(evidence.detail, "read_group_catalog_identity_conflict");
 });
+
+// These are public canonical provider definitions observed on 2026-11-24,
+// not trusted cosmetic labels from a user's token policy.
+test("punctuated canonical provider READ names require fresh exact-ID scope proof", async () => {
+  for (const name of [
+    "Access: Organizations, Identity Providers, and Groups Read",
+    "Load Balancing: Monitors and Pools Read",
+    "Cloud Email Security: Read",
+  ]) {
+    const group = { id: ADDITIONAL_READ.id, name: "Provider: Cosmetic Label" };
+    const t = catalogTransport([group]);
+    let matches = 0;
+    const evidence = await inspectUserTokenEvidence(async (path, key) => {
+      if (path.includes("?scope=")) {
+        const payload = await t.get(path, key);
+        return {
+          ...payload,
+          result: payload.result.map((row) => {
+            if (row.id === group.id) {
+              matches++;
+              return { ...row, name };
+            }
+            return row;
+          }),
+        };
+      }
+      return t.get(path, key);
+    }, USER_TOKEN);
+    assert.deepEqual(evidence, { verified: true, reason: "current_user_inventory_clear" });
+    assert.ok(matches > 0);
+    assert.doesNotMatch(JSON.stringify(evidence), /Cosmetic|Access|Balancing|Security|dddddd/);
+  }
+});
+test("punctuation never allows unverified policy labels or provider WRITE/malformed capabilities", async () => {
+  const t = catalogTransport([{ id: ADDITIONAL_READ.id, name: "Provider: Cosmetic Label" }]);
+  for (const name of [
+    "Access: Apps Write",
+    "Access: Apps Read\n",
+    "Access: Unknown Capability",
+    "Access: Apps Read; DELETE",
+  ]) {
+    const evidence = await inspectUserTokenEvidence(async (path, key) => {
+      const payload = await t.get(path, key);
+      if (path.includes("?scope="))
+        return {
+          ...payload,
+          result: payload.result.map((row) =>
+            row.id === ADDITIONAL_READ.id ? { ...row, name } : row,
+          ),
+        };
+      return payload;
+    }, USER_TOKEN);
+    assert.equal(evidence.verified, false);
+    assert.equal(evidence.detail, "read_group_provider_capability_not_readonly");
+  }
+  const unresolved = await inspectUserTokenEvidence(async (path, key) => {
+    if (path.includes("?scope=")) return { result: [] };
+    return t.get(path, key);
+  }, USER_TOKEN);
+  assert.equal(unresolved.verified, false);
+  assert.equal(unresolved.detail, "read_group_alias_identifier_mismatch_unrecognized");
+});
