@@ -521,7 +521,9 @@ async function main(){
 // A successful user inventory is never a physical writer/identity certificate.
 export async function userTokenPreflight(env=process.env,get){
   assert.equal(env.GITHUB_REPOSITORY,"JibrilMohamud/cove");
-  assert.equal(env.GITHUB_EVENT_NAME,"workflow_dispatch");
+  assert.ok(env.GITHUB_EVENT_NAME==="workflow_dispatch"||
+    (env.GITHUB_EVENT_NAME==="push"&&/^[a-f0-9]{40}$/.test(env.GITHUB_SHA||"")&&
+      env.COVE_REVIEWED_USER_TOKEN_PUSH===env.GITHUB_SHA));
   assert.equal(env.GITHUB_REF,"refs/heads/main");
   assert.equal(env.CF_ACCOUNT_ID,ACCOUNT);
   assert.ok(typeof env.CF_USER_AUDIT_TOKEN==="string"&&env.CF_USER_AUDIT_TOKEN.length>=20,

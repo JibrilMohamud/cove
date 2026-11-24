@@ -16,10 +16,17 @@ for(const file of [
   "scripts/staging/verify-literary-postpublication-readonly.mjs",
   "scripts/staging/check-strangler-data-plane-preflight.mjs",
   "scripts/staging/check-protected-canonical-real-d1-differential.mjs",
-  "scripts/staging/rights-differential-coverage.mjs",
-  "scripts/release/certify-exclusive-primary-d1.mjs"
+  "scripts/staging/rights-differential-coverage.mjs"
 ])assert.ok(source.includes('      - "'+file+'"'),
   "A production certification-sensitive source file is missing from main batch dispatch");
+// A verifier-only edit has its own protected metadata-only push workflow;
+// preserve completed hosted proofs whose runtime/source did not change.
+const userFlow=readFileSync(".github/workflows/cove-protected-user-token-readonly.yml","utf8");
+const bulkPush=source.slice(source.indexOf("  push:"),source.indexOf("  workflow_dispatch:"));
+assert.ok(!bulkPush.includes('      - "scripts/release/certify-exclusive-primary-d1.mjs"'));
+assert.match(userFlow,/push:\s+branches: \[main\]/);
+assert.ok(userFlow.includes('      - "scripts/release/certify-exclusive-primary-d1.mjs"'));
+assert.match(userFlow,/environment: cove-production-release-audit/);
 const start=source.indexOf("      - name: Dispatch and verify child workflows in concurrency-safe lanes");
 const first=source.indexOf("        run: |\n",start);
 const end=source.indexOf("      - uses: actions/upload-artifact@v4",first);
