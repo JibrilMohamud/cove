@@ -16,11 +16,20 @@ for (const gate of [
   assert.ok(worker.includes(gate), "Missing isolated UTC gate: " + gate);
 assert.ok(worker.includes("day +"));
 assert.ok(!worker.includes("SELECT * FROM rights_grants"));
-assert.ok(workflow.includes('cron: "25 0 * * *"'));
 assert.ok(
-  workflow.includes('cron: "25 6,12,18 * * *"'),
-  "A missed midnight GitHub schedule must have protected same-day recovery runs.",
+  workflow.includes('cron: "25 * * * *"'),
+  "Missed midnight GitHub dispatches must be retried hourly by the same guarded operator.",
 );
+assert.ok(
+  !workflow.includes('cron: "25 0 * * *"') &&
+    !workflow.includes('cron: "25 6,12,18 * * *"'),
+  "The old sparse cron pattern cannot be the only source of UTC-day recovery.",
+);
+assert.ok(workflow.includes("github.event_name != 'pull_request'"));
+assert.ok(workflow.includes("github.ref == 'refs/heads/main'"));
+assert.ok(worker.includes('if (existing[0]?.status === "active")'));
+assert.ok(worker.includes('else if (previous[0]?.status !== "active")'));
+assert.ok(worker.includes('assert.deepEqual(leases, [{ jobs: 0, sweep: 0 }])'));
 assert.ok(workflow.includes("cancel-in-progress: false"));
 assert.ok(workflow.includes("github.ref == 'refs/heads/main'"));
 assert.ok(workflow.includes("persist-credentials: false"));
