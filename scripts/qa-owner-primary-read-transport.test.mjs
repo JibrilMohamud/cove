@@ -336,9 +336,9 @@ test("canonical scalar replace search remains SELECT-only; every REPLACE mutatio
   ])
     assert.equal(checkedQaOwnerReadSql(sql), sql);
   for (const sql of [
-    "REPLACE INTO products(id) VALUES('forged')",
-    "WITH x AS (SELECT 1) REPLACE INTO products(id) SELECT 'forged' FROM x",
-    "SELECT replace('x','x','y'); REPLACE INTO products VALUES('forged')",
+    "REPLACE INTO qa_probe_rows(id) VALUES('forged')",
+    "WITH x AS (SELECT 1) REPLACE INTO qa_probe_rows(id) SELECT 'forged' FROM x",
+    "SELECT replace('x','x','y'); REPLACE INTO qa_probe_rows VALUES('forged')",
     "SELECT replace('x','x','y') /* bypass */",
     "SELECT replace('x','x','y'), load_extension('bad')",
   ])
