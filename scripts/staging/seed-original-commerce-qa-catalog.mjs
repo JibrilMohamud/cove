@@ -2,17 +2,18 @@ import assert from "node:assert/strict";
 
 // Seed only the separate, non-routable customer QA database. All content is
 // synthetic and original; nobody can purchase it in customer production.
-const account = "d26430caa63ec55f6612e32f36aca5e9";
-const db = "5be15110-44a6-4090-b0a1-36599d809b28";
-const bucket = "cove-commerce-original-media-qa-20261022";
-const token = process.env.CLOUDFLARE_API_TOKEN;
+const account = "f51e8ccbc394e2d6016ff8c2c303d54b";
+const db = "f9354381-bd9f-496b-bd05-d6f62a32ec0c";
+const bucket = "cove-commerce-detached-media-qa";
+const d1Token = process.env.COVE_CF_QA_D1_MUTATION_TOKEN;
+const r2Token = process.env.COVE_CF_QA_R2_STORAGE_TOKEN;
 assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, account);
-assert.ok(token);
+assert.ok(d1Token && r2Token && d1Token !== r2Token);
 async function api(method, path, body) {
   const response = await fetch("https://api.cloudflare.com/client/v4" + path, {
     method,
     headers: {
-      authorization: "Bearer " + token,
+      authorization: "Bearer " + (path.includes("/r2/buckets/") ? r2Token : d1Token),
       ...(body ? { "content-type": "application/json" } : {}),
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
@@ -23,7 +24,7 @@ async function api(method, path, body) {
   return result.result;
 }
 const meta = await api("GET", "/accounts/" + account + "/d1/database/" + db);
-assert.equal(meta.name, "cove-commerce-customer-qa-20261022");
+assert.equal(meta.name, "cove-commerce-customer-detached-qa");
 const objects = await api(
   "GET",
   "/accounts/" + account + "/r2/buckets/" + bucket + "/objects?per_page=50",

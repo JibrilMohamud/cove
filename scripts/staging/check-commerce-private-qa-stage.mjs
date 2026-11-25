@@ -4,12 +4,13 @@ import fs from "node:fs";
 const text = fs.readFileSync("wrangler.commerce-qa.stage.toml", "utf8");
 const includes = [
   'name = "cove-commerce-customer-qa-stage"',
+  'account_id = "f51e8ccbc394e2d6016ff8c2c303d54b"',
   "workers_dev = false",
   "preview_urls = false",
   'binding = "DB"',
-  'database_id = "5be15110-44a6-4090-b0a1-36599d809b28"',
+  'database_id = "f9354381-bd9f-496b-bd05-d6f62a32ec0c"',
   'binding = "BUCKET"',
-  'bucket_name = "cove-commerce-original-media-qa-20261022"',
+  'bucket_name = "cove-commerce-detached-media-qa"',
   'COVE_SSR_STAGING = "1"',
   'FORE_AUTH_MODE = "supabase"',
   'STRIPE_LIVEMODE = "false"',
