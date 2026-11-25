@@ -54,7 +54,15 @@ function check(source,name){
     assert.ok(job.indexOf("CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_BIOSYNC_PROD_D1_READ_TOKEN }}")>approval);
     assert.ok(job.includes("CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9"));
     assert.ok(job.includes("run: node scripts/staging/verify-literary-postpublication-readonly.mjs"));
-    assert.ok(!/run:.*(?:activate-literary-drain|rollback-literary-drain|verify-literary-drain-progress)\.mjs/.test(source));
+    // Historical filenames may appear only in path filters or exact syntax-only
+    // checks. Reject execution even in a multiline shell or chained command.
+    const retiredScript=/(?:activate-literary-drain|rollback-literary-drain|verify-literary-drain-progress)\.mjs/;
+    const syntaxOnly=/^      - run: node --check scripts\/staging\/(?:activate-literary-drain|rollback-literary-drain|verify-literary-drain-progress)\.mjs$/;
+    const pathFilter=/^      - "scripts\/staging\/(?:activate-literary-drain|rollback-literary-drain|verify-literary-drain-progress)\.mjs"$/;
+    for(const line of source.split(/\r?\n/)){
+      if(retiredScript.test(line))assert.ok(syntaxOnly.test(line)||pathFilter.test(line),"Retired drain executable reference");
+    }
+    assert.ok(!retiredScript.test(job),"Protected observer must not invoke retired scripts");
     assert.ok(!/\bwrangler\b/.test(job));
     const secretRefs=[...job.matchAll(/secrets\.([A-Z0-9_]+)/g)].map(m=>m[1]);
     assert.deepEqual(secretRefs,["COVE_BIOSYNC_PROD_D1_READ_TOKEN"]);
@@ -85,7 +93,10 @@ for(const [from,to] of [
   ["secrets.COVE_BIOSYNC_PROD_D1_READ_TOKEN","secrets.CLOUDFLARE_API_TOKEN"],
   ["secrets.COVE_BIOSYNC_PROD_D1_READ_TOKEN","secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN"],
   ["run: node scripts/staging/verify-literary-postpublication-readonly.mjs","run: node scripts/staging/activate-literary-drain.mjs"],
-  ["run: node scripts/staging/verify-literary-postpublication-readonly.mjs","run: node scripts/staging/rollback-literary-drain.mjs"]
+  ["run: node scripts/staging/verify-literary-postpublication-readonly.mjs","run: node scripts/staging/rollback-literary-drain.mjs"],
+  ["run: node --check scripts/staging/activate-literary-drain.mjs","run: node scripts/staging/activate-literary-drain.mjs"],
+  ["run: node --check scripts/staging/rollback-literary-drain.mjs","run: node --check scripts/staging/rollback-literary-drain.mjs && node scripts/staging/rollback-literary-drain.mjs"],
+  ["run: node --check scripts/staging/verify-literary-drain-progress.mjs","run: |\n          node scripts/staging/verify-literary-drain-progress.mjs"]
 ]){
   const changed=retiredDrain.replace(from,to);
   assert.notEqual(changed,retiredDrain);
