@@ -15,8 +15,8 @@ const hourly="25 * * * *",probe="*/2 * * * *";
 const crons=["* * * * *","*/5 * * * *","*/10 * * * *","7-57/10 * * * *","23 * * * *","17 3 * * *","41 4 * * *"].sort();
 const root="https://api.cloudflare.com/client/v4/accounts/"+account;
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
-const active=(d,id)=>assert.deepEqual(d?.deployments?.[0]?.versions,[{version_id:id,percentage:100}],"budget_active_version_drift");
-const schedule=(s,expected)=>assert.deepEqual(s?.schedules?.map(x=>x.cron).sort(),[...expected].sort(),"budget_schedule_drift");
+const active=(d,id)=>{const rows=d?.deployments?.[0]?.versions;if(!Array.isArray(rows)||rows.length!==1||rows[0].version_id!==id||rows[0].percentage!==100)throw Error("budget_active_version_drift");};
+const schedule=(s,expected)=>{if(!Array.isArray(s?.schedules)||JSON.stringify(s.schedules.map(x=>x.cron).sort())!==JSON.stringify([...expected].sort()))throw Error("budget_schedule_drift");};
 const resource=b=>{
   if(b.type==="secret_text")return {name:b.name,type:b.type};
   if(b.type==="d1")return {name:b.name,type:b.type,database_id:b.database_id??b.id};
@@ -61,9 +61,9 @@ export function retryBudgetReads(transport=fetch,wait=pause){
     if(!read)return transport(url,options);
     for(let attempt=0;attempt<4;attempt++){
       let response;
-      try{response=await transport(url,options);}
+      try{response=await transport(url,{...options,signal:AbortSignal.timeout(15000)}); }
       catch(error){
-        if(attempt===3||!["TypeError","TimeoutError","AbortError"].includes(error?.name))throw error;
+        if(attempt===3||!["TypeError","TimeoutError"].includes(error?.name))throw error;
         console.warn("budget_read_transport_retry_"+(attempt+1));
         await wait(2000*(2**attempt));continue;
       }
@@ -136,8 +136,8 @@ export async function cutover(env,code,{transport=fetch,preflight=verifyProducti
     query(primary,"SELECT m.map_sha256 FROM audio_timing m JOIN audio_jobs j ON j.id='align-pg-19504-02-7fb5b7e4c4a400b1' AND j.status='done' JOIN audio_editions e ON e.id=m.edition_id AND e.epub_sha256=m.epub_sha256 WHERE m.edition_id='pg-19504' AND m.track_id='02' AND json_extract(j.payload_json,'$.audioSha256')=m.audio_sha256"),
     get(owner,"/versions/"+old),get(owner,"/versions/"+original),get(owner,"/versions?per_page=3")
   ]);
-  assert.deepEqual(days,[{day:previousDay,status:"active"},{day,status:"active"}],"budget_current_or_previous_day_not_active");
-  assert.deepEqual(auth,[{key:"literary_budget_domain",value:"isolated"},{key:"literary_processing_owner",value:"isolated"}],"budget_literary_authority_not_isolated");
+  if(days.length!==2||days[0].day!==previousDay||days[1].day!==day||days.some(x=>x.status!=="active"))throw Error("budget_current_or_previous_day_not_active");
+  if(auth.length!==2||auth[0].key!=="literary_budget_domain"||auth[1].key!=="literary_processing_owner"||auth.some(x=>x.value!=="isolated"))throw Error("budget_literary_authority_not_isolated");
   assert.equal(priorMap.length,1,"budget_pinned_biosync_map_missing");assert.match(priorMap[0].map_sha256,/^[a-f0-9]{64}$/,"budget_pinned_biosync_digest_invalid");
   checkpoint("existing_owner_binding_fence");
   verifyCandidate(baseVersion,previous);
