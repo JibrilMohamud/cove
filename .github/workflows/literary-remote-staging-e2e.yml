@@ -23,9 +23,6 @@ on:
         default: false
 permissions:
   contents: read
-concurrency:
-  group: cove-literary-remote-staging-qa
-  cancel-in-progress: false
 jobs:
   static-synthetic-only:
     runs-on: ubuntu-latest
@@ -40,6 +37,10 @@ jobs:
       - run: node scripts/check-literary-remote-synthetic-journey.mjs
   protected-real-d1-r2-canary:
     needs: static-synthetic-only
+    concurrency:
+      group: cove-literary-remote-staging-qa
+      queue: max
+      cancel-in-progress: false
     if: >-
       github.repository == 'JibrilMohamud/cove' &&
       github.event_name == 'workflow_dispatch' &&

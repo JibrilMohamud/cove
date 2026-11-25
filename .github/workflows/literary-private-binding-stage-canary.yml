@@ -28,9 +28,6 @@ on:
         default: false
 permissions:
   contents: read
-concurrency:
-  group: cove-literary-remote-staging-qa
-  cancel-in-progress: false
 jobs:
   static-private-qa-contract:
     runs-on: ubuntu-latest
@@ -46,6 +43,10 @@ jobs:
       - run: node scripts/check-literary-private-binding-canary.mjs
   protected-real-service-binding:
     needs: static-private-qa-contract
+    concurrency:
+      group: cove-literary-remote-staging-qa
+      queue: max
+      cancel-in-progress: false
     if: >-
       github.repository == 'JibrilMohamud/cove' &&
       github.event_name == 'workflow_dispatch' &&
