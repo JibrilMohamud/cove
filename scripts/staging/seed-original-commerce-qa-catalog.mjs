@@ -39,7 +39,8 @@ assert.ok(
   "Remote original synthetic WAV has not been verified",
 );
 const now = new Date().toISOString();
-const license = "Cove original generated QA media: US retail EPUB and audio, isolated Stripe TEST only.";
+const license =
+  "Cove original generated QA media: US retail EPUB and audio, isolated Stripe TEST only.";
 const licenseDigest = createHash("sha256").update(license).digest("hex");
 const audioManifest = JSON.stringify({
   sourceSnapshot: {

@@ -87,8 +87,14 @@ try {
   const owner = await provisionDetachedOwner(wrangler);
   fs.writeFileSync(publicConfig, owner.browserConfig(src));
   // Install the new credentials while ingress is still disabled.
-  wrangler(["secret", "put", "COVE_SSR_STAGING_GATE_KEY", "--config", "wrangler.commerce-qa.stage.toml"], gate);
-  wrangler(["secret", "put", "COVE_RIGHTS_OWNER_SECRET", "--config", "wrangler.commerce-qa.stage.toml"], owner.secret);
+  wrangler(
+    ["secret", "put", "COVE_SSR_STAGING_GATE_KEY", "--config", "wrangler.commerce-qa.stage.toml"],
+    gate,
+  );
+  wrangler(
+    ["secret", "put", "COVE_RIGHTS_OWNER_SECRET", "--config", "wrangler.commerce-qa.stage.toml"],
+    owner.secret,
+  );
   opened = true;
   wrangler(["deploy", "--config", publicConfig]);
   // A new, short-lived signer belongs ONLY to this disposable commerce QA

@@ -62,7 +62,11 @@ export async function provisionDetachedOwner(wrangler) {
   config.name = owner;
   config.account_id = account;
   config.d1_databases = [
-    { binding: "PRIMARY_DB", database_id: primary, database_name: "cove-commerce-customer-detached-qa" },
+    {
+      binding: "PRIMARY_DB",
+      database_id: primary,
+      database_name: "cove-commerce-customer-detached-qa",
+    },
   ];
   config.vars = {
     COVE_RIGHTS_OWNER_ENABLED: "1",
@@ -95,7 +99,10 @@ export async function provisionDetachedOwner(wrangler) {
   const headers = { authorization: "Bearer " + gate };
   let ready = false;
   for (let i = 0; i < 30; i++) {
-    const response = await fetch(origin + "/ready", { headers, signal: AbortSignal.timeout(5000) }).catch(() => null);
+    const response = await fetch(origin + "/ready", {
+      headers,
+      signal: AbortSignal.timeout(5000),
+    }).catch(() => null);
     if (response?.status === 204) {
       ready = true;
       break;
@@ -118,15 +125,21 @@ export async function provisionDetachedOwner(wrangler) {
       assert.ok(src.includes('database_id = "' + primary + '"'));
       assert.ok(src.includes('account_id = "' + account + '"'));
       assert.ok(src.includes("workers_dev = false"));
-      return src.replace("workers_dev = false", "workers_dev = true") +
+      return (
+        src.replace("workers_dev = false", "workers_dev = true") +
         '\nCOVE_LEGAL_CONSUMER_STAGE_ENABLED = "1"\n' +
         'COVE_CANONICAL_LEGAL_WRITE_LOCK = "1"\n' +
         'COVE_PUBLICATION_COMMANDS_ENABLED = "1"\n' +
-        'COVE_LEGAL_WRITER_PRIMARY_ID = "' + primary + '"\n' +
+        'COVE_LEGAL_WRITER_PRIMARY_ID = "' +
+        primary +
+        '"\n' +
         'COVE_PUBLICATION_COMMAND_TERRITORY = "US"\n' +
         'COVE_PUBLICATION_COMMAND_CURRENCY = "USD"\n' +
         '\n[[durable_objects.bindings]]\nname = "LEGAL_AUTHORITY"\n' +
-        'class_name = "CoveLegalAuthority"\nscript_name = "' + owner + '"\n';
+        'class_name = "CoveLegalAuthority"\nscript_name = "' +
+        owner +
+        '"\n'
+      );
     },
   };
 }
