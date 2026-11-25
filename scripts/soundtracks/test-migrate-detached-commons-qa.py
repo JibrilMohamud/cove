@@ -98,6 +98,16 @@ class Tests(unittest.TestCase):
             M.migrate(self.source,self.target,lambda key,value:M.verify_bytes(b"wrong",*value),self.quiescent)
         self.assertEqual(self.target.query("SELECT id FROM "+M.RECEIPT),[])
         self.assertEqual(self.run_copy()["objectCount"],2)
+    def test_interrupted_copy_rejects_changed_destination_without_deleting(self):
+        with self.assertRaisesRegex(RuntimeError,"commons_object_hash_mismatch"):
+            M.migrate(self.source,self.target,lambda key,value:M.verify_bytes(b"wrong",*value),self.quiescent)
+        self.target.query("UPDATE music_open_source_candidates SET last_seen_at='drift'")
+        with self.assertRaisesRegex(RuntimeError,"commons_partial_destination_drift"):
+            self.run_copy()
+        self.assertEqual(self.target.query("SELECT id FROM "+M.RECEIPT),[])
+        self.assertEqual(self.target.query("SELECT last_seen_at FROM music_open_source_candidates"),
+                         [{"last_seen_at":"drift"}])
+        self.assertEqual(len(self.target.query("SELECT candidate_id FROM music_open_review_cases")),1)
     def test_non_quiescent_and_wrong_database_fail_closed(self):
         def running():
             raise RuntimeError("commons_legacy_writer_still_running")
