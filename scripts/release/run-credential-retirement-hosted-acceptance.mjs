@@ -180,8 +180,7 @@ if (!process.argv.includes("--self-test")) {
     let failed = false;
     for (const task of lane) {
       let result;
-      if (failed)
-        result = { workflow: task.name, passed: false, conclusion: "dependency-failed" };
+      if (failed) result = { workflow: task.name, passed: false, conclusion: "dependency-failed" };
       else {
         try {
           result = await runChild(task, sha);
