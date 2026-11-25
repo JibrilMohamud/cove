@@ -58,7 +58,10 @@ test("exact private typed capture is accepted, drift fails closed", () => {
 
 test("scheduled capture requires complete fresh advanced market coverage", () => {
   const now = 1000000;
-  const initial = new Map([["US", 10], ["CA", 20]]);
+  const initial = new Map([
+    ["US", 10],
+    ["CA", 20],
+  ]);
   const rows = [
     { country: "US", generation: 11, expires_at: now + 60000 },
     { country: "CA", generation: 21, expires_at: now + 60000 },
@@ -67,7 +70,16 @@ test("scheduled capture requires complete fresh advanced market coverage", () =>
   assert.equal(freshCaptureCoverage(initial, rows, state, now), true);
   assert.equal(freshCaptureCoverage(initial, rows.slice(0, 1), state, now), false);
   assert.equal(freshCaptureCoverage(initial, [rows[0], rows[0]], state, now), false);
-  assert.equal(freshCaptureCoverage(initial, [{ ...rows[0], generation: 10 }, rows[1]], state, now), false);
-  assert.equal(freshCaptureCoverage(initial, [{ ...rows[0], expires_at: now }, rows[1]], state, now), false);
-  assert.equal(freshCaptureCoverage(initial, rows, { ...state, last_synced: now - 120001 }, now), false);
+  assert.equal(
+    freshCaptureCoverage(initial, [{ ...rows[0], generation: 10 }, rows[1]], state, now),
+    false,
+  );
+  assert.equal(
+    freshCaptureCoverage(initial, [{ ...rows[0], expires_at: now }, rows[1]], state, now),
+    false,
+  );
+  assert.equal(
+    freshCaptureCoverage(initial, rows, { ...state, last_synced: now - 120001 }, now),
+    false,
+  );
 });

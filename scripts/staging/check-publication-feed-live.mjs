@@ -156,9 +156,11 @@ try {
   }
   const initial = new Map((await captureGenerations()).map((r) => [r.country, r.generation]));
   async function readSourceState() {
-    return (await api("POST", "/accounts/" + account + "/d1/database/" + CAPTURE_SOURCE + "/query", {
-      sql: "SELECT (SELECT COUNT(*) FROM cove_publication_source_snapshots) available,(SELECT expected_markets FROM cove_publication_source_progress WHERE id=1) expected,(SELECT last_synced_at FROM cove_publication_source_identity WHERE id=1) last_synced",
-    }))[0].results[0];
+    return (
+      await api("POST", "/accounts/" + account + "/d1/database/" + CAPTURE_SOURCE + "/query", {
+        sql: "SELECT (SELECT COUNT(*) FROM cove_publication_source_snapshots) available,(SELECT expected_markets FROM cove_publication_source_progress WHERE id=1) expected,(SELECT last_synced_at FROM cove_publication_source_identity WHERE id=1) last_synced",
+      })
+    )[0].results[0];
   }
   // The immutable typed owner capture is cron-driven. Observe a complete
   // new rotation through read-only D1, never an unsupported HTTP route.
