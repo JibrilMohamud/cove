@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - "scripts/staging/deploy-continuous-publication-qa.mjs"
+      - "scripts/staging/verify-pinned-publication-capture*.mjs"
       - "scripts/staging/verify-continuous-publication-qa.mjs"
       - "scripts/security/scoped-continuous-publication-qa.test.mjs"
       - ".github/workflows/continuous-publication-qa.yml"
@@ -35,6 +36,7 @@ jobs:
           node-version: "22"
       - run: node --test scripts/security/scoped-continuous-publication-qa.test.mjs
       - run: node --check scripts/staging/deploy-continuous-publication-qa.mjs
+      - run: node --test scripts/staging/verify-pinned-publication-capture.test.mjs
       - run: node --check scripts/staging/verify-continuous-publication-qa.mjs
   private-qa:
     if: >-

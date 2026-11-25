@@ -81,6 +81,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Verify exact approved main source before build and privileged activity
+        shell: bash
         env:
           EXPECTED_SHA: ${{ inputs.reviewed_main_sha }}
           DISPATCH_SHA: ${{ github.sha }}
@@ -145,6 +146,7 @@ jobs:
           echo "ef0214c40ec039eafb207bd96f3cf21724aa3dd12dc431899930a27e640d6b49  $baseline/live-mobile.png" | sha256sum -c -
           echo "32f02dbf2c43015b87d18cff2c10ddd2b5b35e119d55fcd8179633bc15843c73  $baseline/live-desktop.png" | sha256sum -c -
       - name: Assert pinned Chromium is runnable (no Ubuntu apt downloads)
+        shell: bash
         run: |
           node --input-type=module - <<'NODE'
           import { chromium } from "@playwright/test";
