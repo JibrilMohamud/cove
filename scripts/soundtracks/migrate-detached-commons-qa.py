@@ -226,6 +226,10 @@ def migrate(source, target, transfer, quiescent):
                     re.fullmatch(r"[a-f0-9]{64}", r["source_sha256"]) and
                     type(r["object_count"]) is int and 0 <= r["object_count"] <= 2 * MAX_ROWS,
                     "commons_receipt_invalid")
+            # Until the old broad principal is physically revoked, detect any
+            # late archived-source mutation instead of silently splitting evidence.
+            require(digest(snapshot(source, columns)) == r["source_sha256"],
+                    "commons_archived_source_drift")
             return {"schema": SCHEMA, "alreadyVerified": True, "sourceMutation": False,
                     "objectCount": r["object_count"]}
     quiescent()
