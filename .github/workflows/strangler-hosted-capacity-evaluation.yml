@@ -74,6 +74,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Prove v2 experiment uses only ephemeral synthetic staging resources
         run: node scripts/staging/check-strangler-v2-capacity-config.mjs
+      - run: node --test scripts/staging/stage-presentation-storage.test.mjs
       - name: Verify independent display projection never authorizes rights
         run: |
           node scripts/check-storefront-strangler.mjs

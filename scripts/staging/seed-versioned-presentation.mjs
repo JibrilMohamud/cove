@@ -18,6 +18,7 @@ export async function seedReadOnlyPresentation({
   assert.ok(readToken && readToken.length >= 20);
   assert.equal(requireIsolatedCatalogSnapshotTarget(source, sourceName).id, source);
   assert.match(prefix, /^campaign\/\d+\/real\/$/);
+  assert.equal(prefix, `campaign/${process.env.GITHUB_RUN_ID}/real/`);
   if (kvNamespaceId) assert.equal(kvNamespaceId, "8245d5f2116a445d9571405b41b7c8c3");
   const endpoint = `https://api.cloudflare.com/client/v4/accounts/d26430caa63ec55f6612e32f36aca5e9/d1/database/${source}/query`;
   async function query(sql, params) {
@@ -35,7 +36,7 @@ export async function seedReadOnlyPresentation({
     const body = await r.json();
     assert.ok(
       r.ok && body.success && body.result[0].success,
-      "Read-only production presentation seed failed",
+      "Read-only isolated presentation seed failed",
     );
     return body.result[0];
   }
@@ -60,16 +61,16 @@ export async function seedReadOnlyPresentation({
   };
   await withStagePresentationStore("real", async (storage) => {
     await produceHomepagePresentation(db, "US", {
-    async get() {
-      throw Error("Producer must not read a serving snapshot");
-    },
-    async put(key, body) {
-      fs.mkdirSync(directory, { recursive: true });
-      const file = directory + "/private-presentation.json";
-      fs.writeFileSync(file, body);
-      assert.equal(key, "private/presentation/v2/home/US.json");
-      await storage.put("US", body);
-    },
+      async get() {
+        throw Error("Producer must not read a serving snapshot");
+      },
+      async put(key, body) {
+        fs.mkdirSync(directory, { recursive: true });
+        const file = directory + "/private-presentation.json";
+        fs.writeFileSync(file, body, { mode: 0o600 });
+        assert.equal(key, "private/presentation/v2/home/US.json");
+        await storage.put("US", body);
+      },
     });
   });
 }

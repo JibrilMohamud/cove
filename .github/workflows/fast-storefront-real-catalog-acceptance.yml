@@ -42,6 +42,7 @@ jobs:
       - name: Fail closed for direct production D1, 50k synthetic substitutes and absent snapshot
         run: |
           node --test scripts/performance/real-catalog-snapshot-safety.test.mjs
+          node --test scripts/staging/stage-presentation-storage.test.mjs
           node --check scripts/performance/strangler-real-catalog-acceptance.mjs
           git diff --check
 

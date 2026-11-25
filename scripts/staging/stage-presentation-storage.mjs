@@ -18,7 +18,12 @@ function coordinates(mode) {
   assert.ok(deploy.length >= 20 && read.length >= 20 && deploy !== read);
   const run = process.env.GITHUB_RUN_ID;
   const name = "cove-stage-presentation-" + run + "-" + process.env.GITHUB_RUN_ATTEMPT + "-" + mode;
-  return { deploy, run, name, root: "https://api.cloudflare.com/client/v4/accounts/" + account + "/workers/scripts/" + name };
+  return {
+    deploy,
+    run,
+    name,
+    root: "https://api.cloudflare.com/client/v4/accounts/" + account + "/workers/scripts/" + name,
+  };
 }
 async function provider(c, method, suffix = "", body, missingOk = false) {
   const response = await fetch(c.root + suffix, {
@@ -33,7 +38,10 @@ async function provider(c, method, suffix = "", body, missingOk = false) {
   });
   if (missingOk && response.status === 404) return null;
   const data = await response.json();
-  assert.ok(response.ok && data.success, "Stage storage Worker " + method + " rejected: " + response.status);
+  assert.ok(
+    response.ok && data.success,
+    "Stage storage Worker " + method + " rejected: " + response.status,
+  );
   return data.result ?? true;
 }
 export async function removeStagePresentationWorker(mode) {
@@ -42,7 +50,11 @@ export async function removeStagePresentationWorker(mode) {
   if (existing === null) return;
   await provider(c, "POST", "/subdomain", { enabled: false, previews_enabled: false });
   await provider(c, "DELETE", "?force=true", undefined, true);
-  assert.equal(await provider(c, "GET", "/subdomain", undefined, true), null, "Ephemeral storage Worker still exists");
+  assert.equal(
+    await provider(c, "GET", "/subdomain", undefined, true),
+    null,
+    "Ephemeral storage Worker still exists",
+  );
 }
 export async function withStagePresentationStore(mode, operation) {
   const c = coordinates(mode);
@@ -64,7 +76,16 @@ export async function withStagePresentationStore(mode, operation) {
   };
   const form = new FormData();
   form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
-  form.append("worker.mjs", new Blob([readFileSync("scripts/staging/stage-presentation-storage.worker.mjs")], { type: "application/javascript+module" }), "worker.mjs");
+  form.append(
+    "worker.mjs",
+    new Blob([readFileSync("scripts/staging/stage-presentation-storage.worker.mjs")], {
+      type: "application/javascript+module",
+    }),
+    "worker.mjs",
+  );
+  // A previous aborted operation may leave this exact run/attempt helper.
+  // Close it before provisioning the next operation with a fresh bearer.
+  await removeStagePresentationWorker(mode);
   try {
     await provider(c, "PUT", "", form);
     await provider(c, "POST", "/subdomain", { enabled: true, previews_enabled: false });
@@ -84,8 +105,16 @@ export async function withStagePresentationStore(mode, operation) {
     // Wait for the new version without using customer ingress or mutating storage.
     let ready = false;
     for (let i = 0; i < 30; i++) {
-      const response = await fetch(origin, { method: "POST", headers: { authorization: "Bearer " + gate, "x-cove-country": "US" }, signal: AbortSignal.timeout(5000) }).catch(() => null);
-      if (response?.status === 405) { ready = true; break; }
+      const response = await fetch(origin, {
+        method: "POST",
+        headers: { authorization: "Bearer " + gate, "x-cove-country": "US" },
+        signal: AbortSignal.timeout(5000),
+        redirect: "error",
+      }).catch(() => null);
+      if (response?.status === 405) {
+        ready = true;
+        break;
+      }
       await new Promise((resolve) => setTimeout(resolve, 2000));
     }
     assert.ok(ready, "Stage storage Worker did not become ready");
