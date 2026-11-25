@@ -20,6 +20,7 @@ async function send(method, body) {
       ...(body ? { "content-type": "application/json" } : {}),
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
+    redirect: "error",
     signal: AbortSignal.timeout(30_000),
   });
   if (response.status === 404) return null;

@@ -48,11 +48,10 @@ jobs:
     needs: static-private-qa-contract
     if: >-
       github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
       github.ref == 'refs/heads/main' &&
-      (github.event_name == 'push' ||
-       (github.event_name == 'workflow_dispatch' &&
-        inputs.confirm_protected_cloudflare_action == true &&
-        inputs.reviewed_main_sha == github.sha))
+      inputs.confirm_protected_cloudflare_action == true &&
+      inputs.reviewed_main_sha == github.sha
     environment: cove-production-release-audit
     runs-on: ubuntu-latest
     timeout-minutes: 30
