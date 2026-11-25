@@ -1,0 +1,11 @@
+# Final legacy Cloudflare workflow credential retirement
+
+This is source retirement, not physical revocation or release approval.
+
+Production read-only inspection on 2026-11-25 found literary processing and budget domains both isolated, 1,303 completed published inference jobs, the active inference Worker bound to isolated content and private owner services (no primary D1), and the private publisher bound to the owner (no primary D1). The earlier inference schedule is absent. Do not rerun the legacy progressive cutover or its raw SQL rollback. Those historical configs are retained for evidence, not as approved deployment or rollback targets. A replacement owner-mediated rollback procedure, retaining the isolated budget, is still a release gate; this PR does not certify or execute it.
+
+Sounds native publication is enabled, hourly at :11, one version at 100%, no native D1. The retired direct CI seed no longer runs. Protected observation verifies fresh R2/KV pairs through a short-lived, bearer-gated Worker with only the exact presentation bindings, no D1 and no write operations. Its explicit emergency disable keeps native D1 exclusion and does not grant rights. Native publication reactivation/rollback acceptance is not certified by this change.
+
+Publication capture uses the existing provider-enforced D1 Read service instead of a direct primary binding. Export/publish use independent staging databases and R2. The ephemeral driver accepts two fixed isolated-ledger operations with an identity and lease guard; no raw SQL over its control endpoint. Continuous QA uses the same safe capture template; its deployed version must be refreshed and audited separately.
+
+The workflow source inventory must report zero broad references on this branch. The existing production-account Workers Scripts Write principal can still modify Workers and attach bindings; source-level checks do not make that principal harmless. Complete hosted acceptance, verify all live immutable versions and user/account token privileges, remove old competing bindings, establish a scoped maintenance-only deployment procedure, and only then revoke the standing broad token. Never mistake a zero source-reference count for legal writer exclusivity.

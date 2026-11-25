@@ -9,9 +9,13 @@ const account = "d26430caa63ec55f6612e32f36aca5e9";
 const ledger = "b299be94-f885-47a5-9d0b-3a3ac494065a";
 const source = "4bd657ac-8789-403e-a28c-93aba8d0a989";
 const token = process.env.CLOUDFLARE_API_TOKEN,
+  readToken = process.env.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN,
   run = process.env.GITHUB_RUN_ID;
-assert.ok(token);
-assert.match(run || "", /^\d+$/);
+assert.ok(token && readToken && token !== readToken);
+assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, account);
+assert.match(run || "", /^[1-9][0-9]{7,14}$/);
+assert.equal(process.env.GITHUB_REF, "refs/heads/main");
+assert.equal(process.env.GITHUB_EVENT_NAME, "workflow_dispatch");
 assert.notEqual(source, ledger);
 const dir = "artifacts/publication-feed";
 fs.mkdirSync(dir, { recursive: true });
@@ -27,9 +31,21 @@ const evidence = {
 };
 const save = () => fs.writeFileSync(dir + "/results.json", JSON.stringify(evidence, null, 2));
 async function api(method, path, body) {
+  if (path.includes("/d1/database/")) {
+    assert.equal(method, "POST");
+    assert.match(body?.sql || "", /^SELECT\b/i);
+    assert.ok(
+      [ledger, "1825b4a1-0329-408d-9cc2-a40e6a17c822"].some(
+        (id) => path === `/accounts/${account}/d1/database/${id}/query`,
+      ),
+    );
+  }
   const r = await fetch("https://api.cloudflare.com/client/v4" + path, {
     method,
-    headers: { authorization: "Bearer " + token, "content-type": "application/json" },
+    headers: {
+      authorization: "Bearer " + (path.includes("/d1/database/") ? readToken : token),
+      "content-type": "application/json",
+    },
     ...(body ? { body: JSON.stringify(body) } : {}),
     signal: AbortSignal.timeout(30000),
   });
@@ -41,6 +57,7 @@ async function api(method, path, body) {
   return b.result;
 }
 async function sql(query, params = []) {
+  assert.match(query.trim(), /^SELECT\b/i);
   return (
     await api("POST", `/accounts/${account}/d1/database/${ledger}/query`, { sql: query, params })
   )[0];
@@ -104,13 +121,10 @@ for (const signal of ["SIGINT", "SIGTERM"])
   });
 try {
   const tables = await sql("SELECT name FROM sqlite_master WHERE type='table'");
-  if (!tables.results.some((r) => r.name === "discovery_domain_identity")) {
-    assert.ok(
-      tables.results.every((r) => r.name === "_cf_KV"),
-      "Unexpected tables in publication staging domain",
-    );
-    await sql(fs.readFileSync("infra/discovery/0001_publication_feed.sql", "utf8"));
-  }
+  assert.ok(
+    tables.results.some((r) => r.name === "discovery_domain_identity"),
+    "Existing reviewed isolated ledger migration required",
+  );
   const identity = await sql(
     "SELECT domain,schema_version FROM discovery_domain_identity WHERE id=1",
   );
@@ -120,18 +134,18 @@ try {
       ["products", "rights_grants", "users", "commerce_orders"].includes(r.name),
     ),
   );
-  // Rebuild the disposable stage ledger's markets, preserving monotonically
-  // increasing generations. Old in-flight ACKs lose their lease fence.
-  await sql(
-    "UPDATE discovery_publications SET status='delivered',attempts=0,due_at=0,lease_token='',lease_until=0",
-  );
+  // Rebuild only the disposable stage ledger after checking no live leases.
+  // Preserve monotonic generations; never steal an in-flight writer lease.
   const prefix = `feed/campaign/${run}/`;
   const capture = JSON.parse(fs.readFileSync("wrangler.publication-capture.stage.jsonc", "utf8"));
   assert.equal(capture.workers_dev, false);
   assert.equal(capture.preview_urls, false);
   assert.ok(!capture.routes && !capture.route && !capture.triggers);
   assert.equal(capture.vars.COVE_PUBLICATION_CAPTURE_ENABLED, "0");
-  assert.equal(capture.d1_databases.find((x) => x.binding === "SOURCE_DB").database_id, source);
+  assert.ok(!capture.d1_databases.some((x) => x.database_id === source));
+  assert.deepEqual(capture.services, [
+    { binding: "COVE_CANONICAL_READONLY", service: "cove-canonical-d1-readonly" },
+  ]);
   assert.equal(
     capture.d1_databases.find((x) => x.binding === "PUBLIC_SOURCE_DB").database_id,
     "1825b4a1-0329-408d-9cc2-a40e6a17c822",
@@ -172,6 +186,7 @@ try {
     await deployStage(file);
   }
   const gate = randomBytes(32).toString("hex");
+  console.log("::add-mask::" + gate);
   const name = `cove-pub-${run}-driver`;
   names.push(name);
   const config = {
@@ -186,10 +201,17 @@ try {
       { binding: "EXPORTER", service: names[1] },
       { binding: "PUBLISHER", service: names[2] },
     ],
+    d1_databases: [
+      {
+        binding: "DISCOVERY_DB",
+        database_name: "cove-discovery-publication-stage-20261022",
+        database_id: ledger,
+      },
+    ],
     r2_buckets: [
       { binding: "PRESENTATION", bucket_name: "cove-strangler-private-presentation-stage" },
     ],
-    vars: { PREFIX: prefix },
+    vars: { PREFIX: prefix, COVE_QA_EXPIRES: String(Date.now() + 20 * 60_000) },
   };
   const configPath = ".output/strangler/publication-driver.jsonc";
   fs.writeFileSync(configPath, JSON.stringify(config));
@@ -212,6 +234,7 @@ try {
   // Backfill and refresh are separate and bounded: the SOURCE_DB bound to
   // export is physically independent of the authoritative rights/catalog D1.
   // The capture worker alone reads public presentation source fields.
+  assert.deepEqual(await invoke("/reset-ledger"), { ok: true });
   const captured = [];
   let busyAttempts = 0;
   // Multiple immutable QA runs can overlap while earlier capture leases are
@@ -254,7 +277,7 @@ try {
       // while the second generation is published. This operation is never
       // performed by the export/publish workers.
       await invoke("/capture");
-      await sql("UPDATE discovery_publications SET due_at=0 WHERE status='delivered'");
+      assert.deepEqual(await invoke("/refresh-ledger"), { ok: true });
     }
     const calls = [];
     for (let turn = 0; turn < 20; turn++) {

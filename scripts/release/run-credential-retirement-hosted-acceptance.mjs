@@ -82,15 +82,17 @@ function sourceContract() {
   assert.deepEqual(matchNewRuns([fixture], new Set(), "wrong"), []);
   assert.deepEqual(matchNewRuns([fixture], new Set(), "sha"), [fixture]);
   assert.equal(
-    requiredJobsPassed([{ name: "protected", status: "completed", conclusion: "skipped" }], [
-      "protected",
-    ]),
+    requiredJobsPassed(
+      [{ name: "protected", status: "completed", conclusion: "skipped" }],
+      ["protected"],
+    ),
     false,
   );
   assert.equal(
-    requiredJobsPassed([{ name: "protected", status: "completed", conclusion: "success" }], [
-      "protected",
-    ]),
+    requiredJobsPassed(
+      [{ name: "protected", status: "completed", conclusion: "success" }],
+      ["protected"],
+    ),
     true,
   );
   assert.equal(requiredJobsPassed([], ["protected"]), false);
@@ -120,7 +122,10 @@ function requireMain(sha) {
 async function runChild(task, sha) {
   requireMain(sha);
   const prior = listRuns(task);
-  assert.ok(prior.every((run) => run.status === "completed"), "Child already active: " + task.name);
+  assert.ok(
+    prior.every((run) => run.status === "completed"),
+    "Child already active: " + task.name,
+  );
   const known = new Set(prior.map((run) => run.id));
   const fields = Object.entries({ reviewed_main_sha: sha, ...task.inputs }).flatMap(
     ([key, value]) => ["-f", key + "=" + value],
@@ -197,7 +202,10 @@ if (!process.argv.includes("--self-test")) {
     }),
   );
   assert.equal(results.length, 9);
-  assert.ok(results.every((result) => result.passed), "Hosted replacement acceptance incomplete");
+  assert.ok(
+    results.every((result) => result.passed),
+    "Hosted replacement acceptance incomplete",
+  );
   requireMain(sha);
   console.log("PASS: all nine hosted replacement checks; physical revocation NOT certified");
 }

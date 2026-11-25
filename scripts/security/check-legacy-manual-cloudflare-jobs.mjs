@@ -48,6 +48,16 @@ function check(source,name){
     const credentials=["COVE_CF_QA_D1_MUTATION_TOKEN","COVE_CF_QA_R2_STORAGE_TOKEN"];
     if(name==="protected-real-service-binding")credentials.push("COVE_CF_QA_WORKERS_DEPLOY_TOKEN");
     for(const field of credentials)assert.ok(job.indexOf(field+": ${{ secrets."+field+" }}")>approval);
+  }else if(name==="protected-publish"){
+    assert.ok(!job.includes("secrets.CLOUDFLARE_API_TOKEN"));
+    assert.ok(job.indexOf("secrets.COVE_BIOSYNC_PROD_D1_READ_TOKEN")>approval);
+    assert.ok(job.includes("run: node scripts/staging/verify-literary-postpublication-readonly.mjs"));
+    assert.ok(!/wrangler deploy|run: node scripts\/staging\/(?:promote|rollback|fence-prior)-/.test(job));
+    assert.deepEqual([...job.matchAll(/secrets\.([A-Z0-9_]+)/g)].map(m=>m[1]),["COVE_BIOSYNC_PROD_D1_READ_TOKEN"]);
+  }else if(name==="physically-isolated-publication"){
+    assert.ok(!job.includes("secrets.CLOUDFLARE_API_TOKEN"));
+    for(const token of ["COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN","COVE_CF_STAGE_DATA_PLANE_READ_TOKEN","COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN"])
+      assert.ok(job.indexOf("secrets."+token)>approval);
   }else if(name==="protected-staging-only"){
     assert.ok(!job.includes("secrets.CLOUDFLARE_API_TOKEN"));
     for(const token of ["COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN","COVE_CF_STAGE_DATA_PLANE_READ_TOKEN","COVE_BIOSYNC_PROD_D1_READ_TOKEN"])
