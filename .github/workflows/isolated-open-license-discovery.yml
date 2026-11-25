@@ -96,10 +96,15 @@ jobs:
         with: { persist-credentials: false }
       - uses: actions/setup-python@v6
         with: { python-version: "3.12" }
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
       - name: Verify detached Commons QA migration before reading or writing
         env:
           GH_TOKEN: ${{ github.token }}
           COVE_CF_STAGE_DATA_PLANE_READ_TOKEN: ${{ secrets.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN }}
+          COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN: ${{ secrets.COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN }}
+          COVE_CF_USER_TOKENS_AUDIT_READ_TOKEN: ${{ secrets.COVE_CF_USER_TOKENS_AUDIT_READ_TOKEN }}
           COVE_CF_QA_R2_STORAGE_TOKEN: ${{ secrets.COVE_CF_QA_R2_STORAGE_TOKEN }}
         run: python scripts/soundtracks/migrate-detached-commons-qa.py
       - name: Query one permitted Openverse page and corroborate exact Commons files
@@ -153,10 +158,15 @@ jobs:
         with: { persist-credentials: false }
       - uses: actions/setup-python@v6
         with: { python-version: "3.12" }
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
       - name: Verify detached Commons QA migration before reading or writing
         env:
           GH_TOKEN: ${{ github.token }}
           COVE_CF_STAGE_DATA_PLANE_READ_TOKEN: ${{ secrets.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN }}
+          COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN: ${{ secrets.COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN }}
+          COVE_CF_USER_TOKENS_AUDIT_READ_TOKEN: ${{ secrets.COVE_CF_USER_TOKENS_AUDIT_READ_TOKEN }}
           COVE_CF_QA_R2_STORAGE_TOKEN: ${{ secrets.COVE_CF_QA_R2_STORAGE_TOKEN }}
         run: python scripts/soundtracks/migrate-detached-commons-qa.py
       - name: Read only the detached music database's last 24 hours

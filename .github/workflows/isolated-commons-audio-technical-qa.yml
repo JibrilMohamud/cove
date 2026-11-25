@@ -75,10 +75,15 @@ jobs:
           python-version: "3.12"
       - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg
       - run: python -m pip install --disable-pip-version-check numpy==2.2.6 scipy==1.15.3
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
       - name: Verify detached Commons QA migration before reading or writing
         env:
           GH_TOKEN: ${{ github.token }}
           COVE_CF_STAGE_DATA_PLANE_READ_TOKEN: ${{ secrets.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN }}
+          COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN: ${{ secrets.COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN }}
+          COVE_CF_USER_TOKENS_AUDIT_READ_TOKEN: ${{ secrets.COVE_CF_USER_TOKENS_AUDIT_READ_TOKEN }}
           COVE_CF_QA_R2_STORAGE_TOKEN: ${{ secrets.COVE_CF_QA_R2_STORAGE_TOKEN }}
         run: python scripts/soundtracks/migrate-detached-commons-qa.py
       - name: Require an isolated account credential and leave all publication flags off
@@ -133,10 +138,15 @@ jobs:
         with:
           python-version: "3.12"
       - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
       - name: Verify detached Commons QA migration before reading or writing
         env:
           GH_TOKEN: ${{ github.token }}
           COVE_CF_STAGE_DATA_PLANE_READ_TOKEN: ${{ secrets.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN }}
+          COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN: ${{ secrets.COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN }}
+          COVE_CF_USER_TOKENS_AUDIT_READ_TOKEN: ${{ secrets.COVE_CF_USER_TOKENS_AUDIT_READ_TOKEN }}
           COVE_CF_QA_R2_STORAGE_TOKEN: ${{ secrets.COVE_CF_QA_R2_STORAGE_TOKEN }}
         run: python scripts/soundtracks/migrate-detached-commons-qa.py
       - name: Confirm private isolated credentials and actual FFmpeg

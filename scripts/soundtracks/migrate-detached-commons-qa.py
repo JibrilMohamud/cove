@@ -13,6 +13,7 @@ import os
 import pathlib
 import re
 import sqlite3
+import subprocess
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -195,6 +196,38 @@ def copy_object(key, value, source_token, qa_token):
     verify_bytes(existing, expected, size)
     return len(raw)
 
+ORPHAN_ID = 43097775228
+ORPHAN_SHA = "bc582cf195ccd02ff2b1b68c3ae80bff29209497"
+ORPHAN_WORKFLOW = "isolated-commons-audio-technical-qa.yml"
+
+def exact_orphan(run, workflow, status):
+    return (workflow == ORPHAN_WORKFLOW and status == "queued" and
+            run.get("id") == ORPHAN_ID and run.get("head_sha") == ORPHAN_SHA and
+            run.get("head_branch") == "main" and run.get("event") == "schedule" and
+            run.get("path") == ".github/workflows/" + ORPHAN_WORKFLOW and
+            run.get("status") == "queued")
+
+def prove_orphan_fenced(token):
+    # Queued/no jobs alone is NEVER enough. The archived source executes only
+    # direct D1 REST and Cloudflare R2 API operations. Require the live
+    # provider's complete account and user authorization inventories to prove
+    # those writes unavailable; do not assume a GitHub secret's token identity.
+    url = "https://api.github.com/repos/JibrilMohamud/cove/actions/runs/" + str(ORPHAN_ID)
+    run = json.loads(request(url, token))
+    require(exact_orphan(run, ORPHAN_WORKFLOW, "queued"), "commons_orphan_identity_changed")
+    jobs = json.loads(request(url + "/jobs?filter=all&per_page=100", token))
+    require(jobs.get("total_count") == 0 and jobs.get("jobs") == [],
+            "commons_orphan_jobs_present")
+    env = {k: os.environ.get(k, "") for k in (
+        "PATH", "COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN",
+        "COVE_CF_USER_TOKENS_AUDIT_READ_TOKEN")}
+    script = pathlib.Path(__file__).resolve().parents[1] / "release" / "verify-commons-archived-source-fence.mjs"
+    result = subprocess.run(["node", str(script)], env=env, timeout=240,
+                            capture_output=True, text=True)
+    require(result.returncode == 0 and result.stdout.strip() == "COMMONS_ARCHIVED_SOURCE_FENCED",
+            "commons_orphan_provider_write_fence_unverified")
+    print("COMMONS_ORPHAN_PROVIDER_WRITE_FENCE_VERIFIED", flush=True)
+
 def old_runs_quiescent():
     token = os.environ["GH_TOKEN"]
     current = os.environ["GITHUB_SHA"]
@@ -205,10 +238,13 @@ def old_runs_quiescent():
                    workflow + "/runs?branch=main&status=" + status + "&per_page=100")
             payload = json.loads(request(url, token))
             runs = payload.get("workflow_runs")
-            require(isinstance(runs, list) and len(runs) < 100, "commons_run_inventory_incomplete")
-            require(not any(str(x["id"]) != run_id and x["head_sha"] != current and
-                            x["event"] in ("push", "schedule", "workflow_dispatch") for x in runs),
-                    "commons_legacy_writer_still_running")
+            require(isinstance(runs, list) and len(runs) < 100 and
+                    payload.get("total_count") == len(runs), "commons_run_inventory_incomplete")
+            for run in runs:
+                if (str(run["id"]) != run_id and run["head_sha"] != current and
+                        run["event"] in ("push", "schedule", "workflow_dispatch")):
+                    require(exact_orphan(run, workflow, status), "commons_legacy_writer_still_running")
+                    prove_orphan_fenced(token)
 
 def migrate(source, target, transfer, quiescent):
     objects, columns = schema_contract()
@@ -226,8 +262,9 @@ def migrate(source, target, transfer, quiescent):
                     re.fullmatch(r"[a-f0-9]{64}", r["source_sha256"]) and
                     type(r["object_count"]) is int and 0 <= r["object_count"] <= 2 * MAX_ROWS,
                     "commons_receipt_invalid")
-            # Until the old broad principal is physically revoked, detect any
-            # late archived-source mutation instead of silently splitting evidence.
+            # Recheck the writer boundary on every use of a migrated ledger,
+            # not merely the first receipt, and reject late source drift.
+            quiescent()
             require(digest(snapshot(source, columns)) == r["source_sha256"],
                     "commons_archived_source_drift")
             return {"schema": SCHEMA, "alreadyVerified": True, "sourceMutation": False,
