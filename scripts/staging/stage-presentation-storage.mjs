@@ -131,7 +131,20 @@ export async function withStagePresentationStore(mode, operation) {
         );
       },
       async delete(country) {
-        await call("DELETE", country);
+        // Run-prefix DELETE is idempotent. Never retry an authorization denial.
+        for (let attempt = 1; ; attempt++) {
+          try {
+            await call("DELETE", country);
+            return;
+          } catch (error) {
+            const retryable =
+              [429, 500, 502, 503, 504].includes(error.actual) ||
+              error.name === "TimeoutError" ||
+              error.name === "TypeError";
+            if (!retryable || attempt === 4) throw error;
+            await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
+          }
+        }
       },
     });
   } finally {
