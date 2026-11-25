@@ -63,7 +63,9 @@ export async function recordOwnedBudgetTick(isolated:CatalogDB,receipt:Awaited<R
   const valid=await isolated.prepare("SELECT CASE WHEN "+isolatedIdentity+" THEN 1 ELSE 0 END valid").first<{valid:number}>();
   if(valid?.valid!==1)throw Error("literary_budget_binding_invalid");
   await isolated.batch([
-    isolated.prepare("CREATE TABLE IF NOT EXISTS literary_owner_budget_tick_receipt(id INTEGER PRIMARY KEY CHECK(id=1),release_sha TEXT NOT NULL,scheduled_ms INTEGER NOT NULL,cron TEXT NOT NULL,day TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('active','already_active')))"),
+    isolated.prepare("CREATE TABLE IF NOT EXISTS literary_owner_budget_tick_receipt(id INTEGER PRIMARY KEY CHECK(id=1),release_sha TEXT NOT NULL,scheduled_ms INTEGER NOT NULL,cron TEXT NOT NULL,day TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('active','already_active')))")
+  ]);
+  await isolated.batch([
     isolated.prepare("INSERT INTO literary_owner_budget_tick_receipt(id,release_sha,scheduled_ms,cron,day,state) SELECT 1,?,?,?,?,? WHERE "+isolatedIdentity+" AND EXISTS(SELECT 1 FROM literary_budget_cutover WHERE day=? AND status='active') ON CONFLICT(id) DO UPDATE SET release_sha=excluded.release_sha,scheduled_ms=excluded.scheduled_ms,cron=excluded.cron,day=excluded.day,state=excluded.state WHERE excluded.scheduled_ms>=scheduled_ms")
       .bind(release,scheduledTime,cron,receipt.day,receipt.state,receipt.day)
   ]);
