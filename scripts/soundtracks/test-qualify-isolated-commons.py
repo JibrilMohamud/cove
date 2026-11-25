@@ -221,7 +221,7 @@ class Tests(unittest.TestCase):
             with patch.dict(os.environ, {
                 "CLOUDFLARE_ACCOUNT_ID":module.ACCOUNT,
                 "COVE_MUSIC_R2_BACKEND":"cloudflare_api",
-                "CLOUDFLARE_API_TOKEN":"test-token"
+                "COVE_CF_QA_R2_STORAGE_TOKEN":"test-token"
             }):
                 remote = module.make_r2()
                 assert remote.__class__ == module.PrivateCloudflareR2
