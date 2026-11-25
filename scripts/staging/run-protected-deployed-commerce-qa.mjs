@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { randomBytes, generateKeyPairSync } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
+import { provisionDetachedOwner, cleanupDetachedOwner } from "./detached-commerce-owner.mjs";
 
 const qaWorker = "cove-commerce-customer-qa-stage";
 const account = "f51e8ccbc394e2d6016ff8c2c303d54b";
@@ -47,7 +48,7 @@ fs.mkdirSync(".output", { recursive: true });
 // Keep this temporary config at the repository root: Wrangler resolves both
 // main and assets paths relative to its config file.
 const publicConfig = ".wrangler.commerce-qa.temporary.toml";
-fs.writeFileSync(publicConfig, src.replace("workers_dev = false", "workers_dev = true"));
+
 const wrangler = (args, input) => {
   const p = spawnSync(
     "npm",
@@ -75,17 +76,27 @@ const env = {
   ...process.env,
   COVE_QA_DEPLOYED_ORIGIN: origin,
   COVE_QA_STAGE_BEARER: gate,
-  COVE_QA_EPUB_PRODUCT_ID: "qa-original-ebook-product",
-  COVE_QA_AUDIO_PRODUCT_ID: "qa-original-audio-product",
-  COVE_QA_AUDIO_PUBLIC_ID: "ca_qa-original-audio-draft",
+  COVE_QA_EPUB_PRODUCT_ID: "prd_qa_owner_v2_ebook",
+  COVE_QA_AUDIO_PRODUCT_ID: "prd_qa_owner_v2_audio",
+  COVE_QA_AUDIO_PUBLIC_ID: "ca_qa-owner-v2-audio-draft",
   COVE_QA_AUDIO_TRACK_ID: "intro",
 };
 let opened = false;
 let listener;
 try {
-  wrangler(["deploy", "--config", publicConfig]);
+  const owner = await provisionDetachedOwner(wrangler);
+  fs.writeFileSync(publicConfig, owner.browserConfig(src));
+  // Install the new credentials while ingress is still disabled.
+  wrangler(
+    ["secret", "put", "COVE_SSR_STAGING_GATE_KEY", "--config", "wrangler.commerce-qa.stage.toml"],
+    gate,
+  );
+  wrangler(
+    ["secret", "put", "COVE_RIGHTS_OWNER_SECRET", "--config", "wrangler.commerce-qa.stage.toml"],
+    owner.secret,
+  );
   opened = true;
-  wrangler(["secret", "put", "COVE_SSR_STAGING_GATE_KEY", "--config", publicConfig], gate);
+  wrangler(["deploy", "--config", publicConfig]);
   // A new, short-lived signer belongs ONLY to this disposable commerce QA
   // Worker. Never reuse a production key or print the private JWK in CI.
   const { privateKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
@@ -215,4 +226,5 @@ try {
     wrangler(["deploy", "--config", "wrangler.commerce-qa.stage.toml"]);
     console.log("PASS: protected QA workers.dev ingress disabled again.");
   }
+  await cleanupDetachedOwner();
 }

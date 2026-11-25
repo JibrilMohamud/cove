@@ -205,20 +205,25 @@ const billingAddress = {
 async function clearStaleQaFixtureCart(userId) {
   assert.match(userId, /^sb:[a-f0-9-]{36}$/);
   assert.equal(origin.hostname, "cove-commerce-customer-qa-stage.cove-qa-reads.workers.dev");
-  const knownProducts = new Set([q.COVE_QA_EPUB_PRODUCT_ID, q.COVE_QA_AUDIO_PRODUCT_ID]);
+  const knownProducts = new Set([
+    q.COVE_QA_EPUB_PRODUCT_ID,
+    q.COVE_QA_AUDIO_PRODUCT_ID,
+    "qa-original-ebook-product",
+    "qa-original-audio-product",
+  ]);
   const previous = await qaD1(
     "SELECT i.product_id FROM shopping_cart_items i JOIN shopping_carts c ON c.id=i.cart_id WHERE c.user_id=? LIMIT 20",
     [userId],
   );
-  assert.ok(previous.length <= 2, "Unexpected existing QA cart size; never clear arbitrary items");
+  assert.ok(previous.length <= 4, "Unexpected existing QA cart size; never clear arbitrary items");
   assert.ok(
     previous.every((row) => knownProducts.has(row.product_id)),
     "Unexpected QA cart product; refuse automatic cleanup",
   );
   if (previous.length) {
     await qaD1(
-      "DELETE FROM shopping_cart_items WHERE cart_id IN (SELECT id FROM shopping_carts WHERE user_id=?) AND product_id IN (?,?)",
-      [userId, q.COVE_QA_EPUB_PRODUCT_ID, q.COVE_QA_AUDIO_PRODUCT_ID],
+      "DELETE FROM shopping_cart_items WHERE cart_id IN (SELECT id FROM shopping_carts WHERE user_id=?) AND product_id IN (?,?,?,?)",
+      [userId, ...knownProducts],
     );
   }
   const remaining = await qaD1(

@@ -65,6 +65,7 @@ jobs:
       - run: node scripts/staging/check-commerce-private-qa-stage.mjs
       - run: node scripts/staging/check-commerce-qa-stage-write-gate.mjs
       - run: npm run build
+      - run: node scripts/build-storefront-strangler.mjs
       - run: npm install --global @stripe/cli
       - run: npx playwright install --with-deps chromium
       - run: node scripts/staging/verify-commerce-private-qa-stage.mjs
@@ -91,3 +92,6 @@ jobs:
       - name: Remove ephemeral EPUB signer and verify no public QA ingress
         if: always()
         run: node scripts/staging/cleanup-qa-offline-epub-signing-key.mjs
+      - name: Remove run-scoped detached commerce owner
+        if: always()
+        run: node scripts/staging/detached-commerce-owner.mjs --cleanup

@@ -1,4 +1,5 @@
 /* eslint-disable prettier/prettier -- One strong-owner transaction publishes all or none of a paid order. */
+import { ownerUserIdPattern } from "./owner-user-id";
 import type {AuthoritySql} from "./legal-authority-core";
 import {captureEntitlementEpoch,publishFreshEntitlement} from "./commercial-entitlement-core";
 import {marketIsWithdrawn} from "./market-authority-core";
@@ -27,7 +28,7 @@ export function publishVerifiedPaidOrderAtomic(
     throw Error("invalid_paid_order_atomic_inventory");
   const lines=raw as VerifiedPaidOrderLine[];
   const first=lines[0]!;
-  if(!id.test(first.orderId)||!id.test(first.userId)||
+  if(!id.test(first.orderId)||!ownerUserIdPattern.test(first.userId)||
      !/^[A-Z]{2}$/.test(first.territory)||first.channel!=="retail")
     throw Error("invalid_paid_order_atomic_scope");
   if(marketIsWithdrawn(sql,first.territory))
