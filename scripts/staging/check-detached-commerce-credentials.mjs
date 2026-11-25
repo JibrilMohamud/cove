@@ -53,10 +53,15 @@ if (process.argv.includes("--offline")) {
   const jwt = (role) => "x." + Buffer.from(JSON.stringify({ role })).toString("base64url") + ".x";
   assert.ok(publicKey(jwt("anon")));
   assert.ok(!publicKey(jwt("service_role")));
-  console.log("PASS: detached commerce account, distinct credentials, public-only authentication key");
+  console.log(
+    "PASS: detached commerce account, distinct credentials, public-only authentication key",
+  );
 } else {
   verify(process.env);
   if (process.argv.includes("--supabase"))
-    assert.ok(publicKey(process.env.QA_SUPABASE_PUBLIC || ""), "Protected Supabase public key required");
+    assert.ok(
+      publicKey(process.env.QA_SUPABASE_PUBLIC || ""),
+      "Protected Supabase public key required",
+    );
   console.log("PASS: exact detached commerce account and independent QA credentials");
 }
