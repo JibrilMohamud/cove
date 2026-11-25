@@ -43,9 +43,8 @@ for (const fragment of [
   "cancel-in-progress: false",
   "persist-credentials: false",
   "needs: static",
-  "steps.preflight.outcome == 'success'",
-  "rollback-literary-isolated-publication.mjs",
-  "verify-literary-real-publication.mjs",
+  "COVE_BIOSYNC_PROD_D1_READ_TOKEN",
+  "verify-literary-postpublication-readonly.mjs",
 ])
   assert.ok(workflow.includes(fragment));
 assert.ok(preflight.includes('literary_processing_owner: "draining"'));
@@ -56,6 +55,15 @@ assert.ok(validation.includes('coverage: "isolated_samples"'));
 assert.ok(validation.includes("job.profile_revision + 1"));
 assert.ok(rollback.includes("literary_processing_owner' AND value='isolated'"));
 assert.ok(rollback.includes("earlierInference"));
+assert.ok(!workflow.includes("secrets.CLOUDFLARE_API_TOKEN"));
+assert.doesNotMatch(
+  workflow,
+  /wrangler deploy|run: node scripts\/staging\/(?:promote|rollback|fence-prior)-/,
+);
+const retired = await import("./staging/literary-isolated-operator-lib.mjs");
+for (const method of ["GET", "POST", "PUT"])
+  await assert.rejects(retired.api(method, "/d1/database/primary/query"), /operator_retired/);
+await assert.rejects(retired.owner(), /operator_retired/);
 console.log(
-  "LITERARY_PROGRESSIVE_PUBLICATION_POLICY_PASS scoped no-route Workers, budget fence, revision proof, rollback",
+  "LITERARY_PROGRESSIVE_PUBLICATION_POLICY_PASS historical transition retired; read-only owner observation",
 );

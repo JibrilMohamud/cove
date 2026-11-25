@@ -2,10 +2,16 @@ import assert from "node:assert/strict";
 import { readActiveWorkerVersions } from "../read-active-worker-versions.mjs";
 const account = "d26430caa63ec55f6612e32f36aca5e9";
 const token = process.env.CLOUDFLARE_API_TOKEN;
+const inventoryToken = process.env.COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN || token;
 assert.ok(token, "Cloudflare credential required");
+if (process.argv.includes("--require-distinct-inventory"))
+  assert.ok(
+    inventoryToken && inventoryToken !== token,
+    "Distinct token inventory principal required",
+  );
 async function get(path) {
   const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${account}/` + path, {
-    headers: { authorization: "Bearer " + token },
+    headers: { authorization: "Bearer " + (path.startsWith("tokens/") ? inventoryToken : token) },
     signal: AbortSignal.timeout(30_000),
   });
   const data = await response.json();

@@ -7,6 +7,9 @@ on:
       - "wrangler.sounds-publication.prod-isolated.jsonc"
       - "wrangler.sounds-publication.prod-disabled.jsonc"
       - "scripts/staging/verify-canonical-readonly-service.mjs"
+      - "scripts/staging/verify-cove-sounds-activation.mjs"
+      - "scripts/staging/sounds-read-observer.worker.mjs"
+      - "scripts/staging/sounds-read-observer.test.mjs"
       - "scripts/check-sounds-readonly-principal.mjs"
       - "scripts/check-cove-sounds-snapshot.mjs"
       - "scripts/test-production-writer-topology.mjs"
@@ -18,7 +21,12 @@ on:
         required: true
         type: string
       confirm_private_sounds:
-        description: "Approve production-bound private Sounds activation; no automatic merges."
+        description: "Approve protected observation of the already active native Sounds publisher."
+        required: true
+        type: boolean
+        default: false
+      disable_private_sounds:
+        description: "Emergency only: explicitly disable snapshot serving and private publisher; no D1 mutation."
         required: true
         type: boolean
         default: false
@@ -45,6 +53,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Refuse native production D1 and verify unchanged publication semantics
         run: |
+          node --test scripts/staging/sounds-read-observer.test.mjs
           node scripts/check-sounds-readonly-principal.mjs
           node scripts/check-cove-sounds-snapshot.mjs
           node scripts/test-production-writer-topology.mjs
@@ -72,7 +81,8 @@ jobs:
     timeout-minutes: 40
     env:
       CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
+      COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN: ${{ secrets.COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN }}
       CLOUDFLARE_SEND_METRICS: "false"
     steps:
       - uses: actions/checkout@v6
@@ -93,59 +103,26 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Require private publication and rights authorization unit proofs
         run: |
-          node --test scripts/staging/cf-api-429-retry.test.mjs
+          node --test scripts/staging/cf-api-429-retry.test.mjs scripts/staging/sounds-read-observer.test.mjs
           node scripts/check-cove-sounds-discovery.mjs
           node scripts/check-cove-sounds-snapshot.mjs
           node scripts/check-sounds-readonly-principal.mjs
           node scripts/test-production-writer-topology.mjs
-      - name: Require exact active provider-enforced D1 Read service before any publication
-        run: node scripts/staging/verify-canonical-readonly-service.mjs
-      - name: Build isolated private publisher
-        run: node scripts/build-storefront-strangler.mjs
-      - name: Require Cloudflare production publication permission
-        run: test -n "$CLOUDFLARE_API_TOKEN"
-      - name: Seed private R2 and KV from read-only canonical publication metadata
-        id: seed
-        run: node scripts/staging/seed-cove-sounds-private.mjs
-      - name: Dry-run private cron Worker
-        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.sounds-publication.prod-isolated.jsonc
-      - name: Activate hourly publisher with no public endpoint
-        id: publisher
-        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.sounds-publication.prod-isolated.jsonc
-      - name: Prove active Sounds version has zero native D1 and a private D1 Read service
-        run: node scripts/staging/verify-canonical-readonly-service.mjs --sounds
-      - name: Verify all six private publications and current backend R2/KV/analytics bindings
-        id: verify
+      - name: Verify active native hourly publisher and provider-enforced canonical reader
+        if: inputs.disable_private_sounds == false
+        run: node scripts/staging/verify-canonical-readonly-service.mjs --sounds --require-distinct-inventory
+      - name: Verify six current private R2 and KV snapshots through read-only observer
+        if: inputs.disable_private_sounds == false
         run: node scripts/staging/verify-cove-sounds-activation.mjs
-      - name: Activate US-only isolated snapshot reads with secrets preserved
-        id: promote
+      - name: Explicit emergency disable, preserving all legal state and native D1 exclusion
+        if: inputs.disable_private_sounds == true
         shell: bash
         run: |
           set -euo pipefail
-          printf '1' | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put COVE_SOUNDS_SNAPSHOT_ENABLED --name cove-persistence-backend
-      - name: Verify server-feature activation did not enable customer routing
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/staging/verify-cove-sounds-activation.mjs
-          node scripts/check-storefront-strangler.mjs
-      - name: Re-disable Cove Sounds if publication or activation failed
-        if: (failure() || cancelled()) && steps.seed.outcome == 'success'
-        shell: bash
-        run: |
-          set +e
+          node scripts/check-sounds-readonly-principal.mjs
+          node scripts/build-storefront-strangler.mjs
           printf '0' | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put COVE_SOUNDS_SNAPSHOT_ENABLED --name cove-persistence-backend
           npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.sounds-publication.prod-disabled.jsonc
-          # Fail-closed rollback cannot regrant the canonical D1 connection.
-          node scripts/check-sounds-readonly-principal.mjs
-      - name: Record private release evidence
-        if: success()
-        run: |
-          {
-            echo '## Cove Sounds US private publication enabled'
-            echo '- Durable isolated R2 and KV snapshots were byte-verified.'
-            echo '- The hourly publisher has no native production D1; the private Worker uses provider-enforced primary D1 Read RPC.'
-            echo '- Canonical music playback and retail-book rights are still rechecked live.'
-            echo '- Anonymous funnel events use Analytics Engine, not primary D1 click logging.'
-            echo '- The customer homepage gateway and DNS were not changed.'
-          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Always remove exact run-scoped read observer
+        if: always() && inputs.disable_private_sounds == false
+        run: node scripts/staging/verify-cove-sounds-activation.mjs --cleanup

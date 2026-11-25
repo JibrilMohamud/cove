@@ -13,6 +13,7 @@ on:
       - "scripts/staging/verify-literary-real-publication.mjs"
       - "scripts/staging/rollback-literary-isolated-publication.mjs"
       - "scripts/check-literary-progressive-publication.mjs"
+      - "scripts/staging/verify-literary-postpublication-readonly.mjs"
   push:
     branches: [main]
     paths:
@@ -24,7 +25,7 @@ on:
         type: string
         required: true
       confirm_protected_cloudflare_action:
-        description: "Explicitly approve protected stage/production Cloudflare operation"
+        description: "Approve read-only verification of completed literary publication"
         type: boolean
         required: true
         default: false
@@ -60,49 +61,14 @@ jobs:
       inputs.reviewed_main_sha == github.sha
     environment: cove-production-release-audit
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 15
     env:
       CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_SEND_METRICS: "false"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_BIOSYNC_PROD_D1_READ_TOKEN }}
     steps:
       - uses: actions/checkout@v6
         with: { persist-credentials: false }
       - uses: actions/setup-node@v6
-        with: { node-version: "22", cache: npm }
-      - run: npm ci --no-audit --no-fund
-      - run: node scripts/check-literary-publisher-gateway.mjs
-      - run: node scripts/check-literary-isolated-inference.mjs
-      - run: node scripts/check-literary-private-publication.mjs
-      - name: Require real prepared and inferred literary evidence, intact secrets, and draining owner
-        id: preflight
-        run: node scripts/staging/preflight-literary-isolated-publication.mjs
-      - run: node scripts/build-literary-inference-publisher.mjs
-      - name: Deploy private publisher with existing scoped secrets, no public endpoint
-        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.literary-publisher.prod-isolated.jsonc
-      - name: Fence previous active AI schedule before replacing it
-        run: node scripts/staging/fence-prior-literary-infer.mjs
-      - run: npm run build:content-processing
-      - name: Deploy one owner-fenced inference and publication caller
-        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.content-literary-infer.prod-isolated.jsonc
-      - name: Verify zero public ingress, preserved secrets and single cron
-        run: node scripts/staging/verify-literary-private-publication-topology.mjs
-      - name: Switch isolated owner only after durable rights and binding evidence
-        id: promote
-        run: node scripts/staging/promote-literary-isolated-owner.mjs
-      - name: Require exact canonical version and ongoing independent reconciliation
-        id: verify
-        run: node scripts/staging/verify-literary-real-publication.mjs
-      - name: Restore draining owner, isolated-budget fence and verified inference-only Worker
-        if: (failure() || cancelled()) && steps.preflight.outcome == 'success'
-        run: node scripts/staging/rollback-literary-isolated-publication.mjs
-      - name: Re-disable publisher after rollback
-        if: (failure() || cancelled()) && steps.preflight.outcome == 'success'
-        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.literary-publisher.prod-disabled.jsonc
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: literary-real-publication-${{ github.sha }}
-          path: artifacts/literary-cutover/*.json
-          if-no-files-found: warn
-          retention-days: 45
+        with: { node-version: "22" }
+      - name: Observe completed owner-mediated canonical publication
+        run: node scripts/staging/verify-literary-postpublication-readonly.mjs
