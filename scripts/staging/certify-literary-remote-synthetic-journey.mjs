@@ -6,13 +6,15 @@ import path from "node:path";
 import { build } from "esbuild";
 import JSZip from "jszip";
 
-const account = "d26430caa63ec55f6612e32f36aca5e9";
-const primary = "24c0eda2-6a43-4d7e-b787-502745d4d781";
-const content = "fce5742c-29ca-4bc3-85da-e174dd9bf42e";
-const bucket = "cove-literary-cutover-qa-objects-20261024";
-const token = process.env.CLOUDFLARE_API_TOKEN;
+const account = "f51e8ccbc394e2d6016ff8c2c303d54b";
+const primary = "2dd68956-06a6-4b21-b729-596b94744c6b";
+const content = "d2c5673a-7497-4924-8b06-0be32f32555a";
+const bucket = "cove-literary-synthetic-objects-qa";
+const d1Token = process.env.COVE_CF_QA_D1_MUTATION_TOKEN;
+const r2Token = process.env.COVE_CF_QA_R2_STORAGE_TOKEN;
 assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, account);
-assert.ok(token, "A protected staging credential is required");
+assert.ok(d1Token && r2Token && d1Token !== r2Token, "Distinct QA credentials required");
+assert.ok(!process.env.CLOUDFLARE_API_TOKEN, "Legacy credential forbidden");
 assert.match(process.env.GITHUB_SHA || "", /^[0-9a-f]{40}$/);
 const apiRoot = "https://api.cloudflare.com/client/v4/accounts/" + account;
 const temporary = mkdtempSync(path.join(os.tmpdir(), "cove-literary-live-canary-"));
@@ -22,6 +24,10 @@ let r2Puts = 0;
 let aiCalls = 0;
 
 async function api(endpoint, method = "GET", body, contentType = "application/json") {
+  const d1 = [primary, content].some((id) => endpoint === "/d1/database/" + id + "/query");
+  const r2 = endpoint.startsWith("/r2/buckets/" + bucket + "/objects/");
+  assert.ok(d1 !== r2, "Unapproved QA resource");
+  const token = d1 ? d1Token : r2Token;
   const response = await fetch(apiRoot + endpoint, {
     method,
     headers: {
@@ -33,6 +39,7 @@ async function api(endpoint, method = "GET", body, contentType = "application/js
       : {
           body: contentType === "application/json" ? JSON.stringify(body) : body,
         }),
+    redirect: "error",
     signal: AbortSignal.timeout(45000),
   });
   if (contentType === "application/octet-stream") {
@@ -396,6 +403,7 @@ try {
     schema: "cove.literary.remote-synthetic-e2e.v1",
     committedSha: process.env.GITHUB_SHA,
     stagingOnly: true,
+    separateQaAccount: account,
     productionTouched: false,
     observedAt: new Date().toISOString(),
     databases: [primary, content],
