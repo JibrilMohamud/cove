@@ -27,13 +27,27 @@ function evidence() {
 test("exact private typed capture is accepted, drift fails closed", () => {
   assert.equal(requirePinnedCapture(evidence()).typedOwnerReader, true);
   for (const change of [
-    (x) => { x.deployment.deployments[0].versions[0].percentage = 99; },
-    (x) => { x.version.resources.bindings[0].id = "4bd657ac-8789-403e-a28c-93aba8d0a989"; },
-    (x) => { x.version.resources.bindings[1].service = "unreviewed"; },
-    (x) => { x.version.resources.bindings.push({ name: "DB", type: "d1" }); },
-    (x) => { x.subdomain.enabled = true; },
-    (x) => { x.subdomain.previews_enabled = true; },
-    (x) => { x.schedules.schedules = []; },
+    (x) => {
+      x.deployment.deployments[0].versions[0].percentage = 99;
+    },
+    (x) => {
+      x.version.resources.bindings[0].id = "4bd657ac-8789-403e-a28c-93aba8d0a989";
+    },
+    (x) => {
+      x.version.resources.bindings[1].service = "unreviewed";
+    },
+    (x) => {
+      x.version.resources.bindings.push({ name: "DB", type: "d1" });
+    },
+    (x) => {
+      x.subdomain.enabled = true;
+    },
+    (x) => {
+      x.subdomain.previews_enabled = true;
+    },
+    (x) => {
+      x.schedules.schedules = [];
+    },
   ]) {
     const x = evidence();
     change(x);

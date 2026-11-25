@@ -30,7 +30,10 @@ export function requirePinnedCapture({ deployment, version, subdomain, schedules
   assert.equal(enabled.text, "1");
   assert.equal(subdomain?.enabled, false);
   assert.equal(subdomain?.previews_enabled, false);
-  assert.deepEqual(schedules?.schedules?.map((s) => s.cron), ["* * * * *"]);
+  assert.deepEqual(
+    schedules?.schedules?.map((s) => s.cron),
+    ["* * * * *"],
+  );
   return {
     worker: CAPTURE_NAME,
     version: CAPTURE_VERSION,
@@ -53,7 +56,10 @@ export async function verifyPinnedCapture(token, { fetchImpl = fetch } = {}) {
       signal: AbortSignal.timeout(20000),
     });
     const body = await response.json();
-    assert.ok(response.ok && body.success === true, "Capture metadata unavailable: " + response.status);
+    assert.ok(
+      response.ok && body.success === true,
+      "Capture metadata unavailable: " + response.status,
+    );
     return body.result;
   }
   const deployment = await read("/deployments");
@@ -61,6 +67,9 @@ export async function verifyPinnedCapture(token, { fetchImpl = fetch } = {}) {
   const subdomain = await read("/subdomain");
   const schedules = await read("/schedules");
   const evidence = requirePinnedCapture({ deployment, version, subdomain, schedules });
-  assert.deepEqual((await read("/deployments"))?.deployments?.[0]?.versions, deployment.deployments[0].versions);
+  assert.deepEqual(
+    (await read("/deployments"))?.deployments?.[0]?.versions,
+    deployment.deployments[0].versions,
+  );
   return evidence;
 }

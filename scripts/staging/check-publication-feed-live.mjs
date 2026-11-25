@@ -148,9 +148,11 @@ try {
   // only its export, publish and driver Workers, never the capture itself.
   evidence.captureDependency = await verifyPinnedCapture(metadataToken);
   async function captureGenerations() {
-    return (await api("POST", `/accounts/${account}/d1/database/${CAPTURE_SOURCE}/query`, {
-      sql: "SELECT country,generation,expires_at FROM cove_publication_source_snapshots ORDER BY country",
-    }))[0].results;
+    return (
+      await api("POST", `/accounts/${account}/d1/database/${CAPTURE_SOURCE}/query`, {
+        sql: "SELECT country,generation,expires_at FROM cove_publication_source_snapshots ORDER BY country",
+      })
+    )[0].results;
   }
   const initial = new Map((await captureGenerations()).map((r) => [r.country, r.generation]));
   for (const lane of ["export", "publish"]) {
