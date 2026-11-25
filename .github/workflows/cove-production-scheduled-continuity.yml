@@ -6,6 +6,8 @@ on:
       - "src/persistence-backend.worker.ts"
       - ".github/workflows/biosync-canary.yml"
       - "scripts/audio_pipeline/biosync_canary.py"
+      - "scripts/audio_pipeline/test_biosync_owner_cutover.py"
+      - "scripts/audio_pipeline/biosync_production_owner_transport.py"
       - "scripts/release/check-production-cron-continuity.mjs"
       - ".github/workflows/cove-production-scheduled-continuity.yml"
   push:
@@ -15,6 +17,8 @@ on:
       - "src/persistence-backend.worker.ts"
       - ".github/workflows/biosync-canary.yml"
       - "scripts/audio_pipeline/biosync_canary.py"
+      - "scripts/audio_pipeline/test_biosync_owner_cutover.py"
+      - "scripts/audio_pipeline/biosync_production_owner_transport.py"
       - "scripts/release/check-production-cron-continuity.mjs"
       - ".github/workflows/cove-production-scheduled-continuity.yml"
   workflow_dispatch:
@@ -33,5 +37,9 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python3 -m unittest scripts.audio_pipeline.test_biosync_owner_cutover scripts.audio_pipeline.test_biosync_production_owner_transport
       - name: Reject skipped scheduled publication and missing business crons
         run: node scripts/release/check-production-cron-continuity.mjs --self-test

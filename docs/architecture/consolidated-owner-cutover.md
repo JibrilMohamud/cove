@@ -35,7 +35,7 @@ The latest source audit (run 45413906230, job 138514788057) found 21 direct refe
 
 | Workflow(s) | Required replacement or retirement |
 | --- | --- |
-| biosync-canary | Owner-based scheduled publication; verify hourly real source, replay and publication before removing direct primary REST writes. |
+| biosync-canary | Owner-only hourly production schedule; direct D1 REST mutations removed. Protected activation 45512071882 proved real replay, the exact scoped credentials and zero-D1 ingress; live owner version ed1ffa2a-5a20-40af-8f3c-4906f41f7c50. No eligible queued short tracks at cutover. Fresh real publication and post-merge hourly execution remain independent witnesses. Do not revoke other workflows' still-used broad credential. |
 | literary-isolated-utc-budget | Preserve frozen day and budget rollover under the authorized owner; no standing primary D1 write token. |
 | isolated-commons-audio-technical-qa; isolated-commons-review-cases; isolated-open-license-discovery | Detach technical and discovery writes into isolated supply storage/account; retain read-only reporting through a proven read credential and canonical handoff through the checked application service. Discovery's apply mode is a write, despite its job name. |
 | cove-commerce-private-qa-deploy; deployed-commerce-browser-acceptance | Rebind synthetic fixtures into the separate QA account; preserve buyer/outsider, sandbox payment and browser checks. |
