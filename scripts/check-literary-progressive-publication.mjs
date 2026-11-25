@@ -56,7 +56,10 @@ assert.ok(validation.includes("job.profile_revision + 1"));
 assert.ok(rollback.includes("literary_processing_owner' AND value='isolated'"));
 assert.ok(rollback.includes("earlierInference"));
 assert.ok(!workflow.includes("secrets.CLOUDFLARE_API_TOKEN"));
-assert.doesNotMatch(workflow, /wrangler deploy|run: node scripts\/staging\/(?:promote|rollback|fence-prior)-/);
+assert.doesNotMatch(
+  workflow,
+  /wrangler deploy|run: node scripts\/staging\/(?:promote|rollback|fence-prior)-/,
+);
 const retired = await import("./staging/literary-isolated-operator-lib.mjs");
 for (const method of ["GET", "POST", "PUT"])
   await assert.rejects(retired.api(method, "/d1/database/primary/query"), /operator_retired/);

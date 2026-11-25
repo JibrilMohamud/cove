@@ -25,11 +25,7 @@ export default {
       return new Response(null, { status: 404 });
     return Response.json(await scopedCapture(env));
   },
-  scheduled(
-    _controller: unknown,
-    env: Env,
-    ctx: { waitUntil(task: Promise<unknown>): void },
-  ) {
+  scheduled(_controller: unknown, env: Env, ctx: { waitUntil(task: Promise<unknown>): void }) {
     ctx.waitUntil(
       scopedCapture(env).then((value) =>
         console.info(JSON.stringify({ event: "publication_capture", value })),

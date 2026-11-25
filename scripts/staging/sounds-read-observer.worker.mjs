@@ -21,8 +21,7 @@ export default {
     if (diff) return denied(401);
     if (!Number.isSafeInteger(Number(env.EXPIRES)) || Date.now() >= Number(env.EXPIRES))
       return denied(403);
-    if (request.method !== "GET" || new URL(request.url).pathname !== "/verify")
-      return denied(404);
+    if (request.method !== "GET" || new URL(request.url).pathname !== "/verify") return denied(404);
     const rows = [];
     for (const slug of slugs) {
       const key = "sounds/v1/US/" + slug + ".json";

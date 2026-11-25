@@ -51,7 +51,10 @@ if (process.argv.includes("--cleanup")) {
   );
   assert.ok(binds.some((b) => b.name === "SOUNDS_ANALYTICS"));
   const schedule = await api("GET", "/workers/scripts/cove-sounds-publication/schedules");
-  assert.deepEqual(schedule.schedules.map((s) => s.cron), ["11 * * * *"]);
+  assert.deepEqual(
+    schedule.schedules.map((s) => s.cron),
+    ["11 * * * *"],
+  );
   const gate = randomBytes(32).toString("hex");
   console.log("::add-mask::" + gate);
   const metadata = {
