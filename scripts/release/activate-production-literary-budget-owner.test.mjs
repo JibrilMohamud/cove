@@ -2,7 +2,7 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
 import {buildBridgeMetadata} from "./archive-production-biosync-bridge.mjs";
-import {cutover,metadata,checkVersion} from "./activate-production-literary-budget-owner.mjs";
+import {cutover,metadata,checkVersion,retryBudgetReads} from "./activate-production-literary-budget-owner.mjs";
 const original="3463ff93-f077-40bf-a4d5-fb7bfc143cd5",old="ed1ffa2a-5a20-40af-8f3c-4906f41f7c50",candidate="33333333-3333-4333-8333-333333333333";
 const backend="401f2af2-6e69-4611-8110-1d127af6eecf",ingress="ca0f6663-afa3-43a0-b36d-60545d4c47f5";
 const primary="4bd657ac-8789-403e-a28c-93aba8d0a989",literary="400c3af3-5d40-41fd-83cc-98228e40ddac";
@@ -68,7 +68,7 @@ function mock({receipt=true,activeDay=true}={}){
     else throw Error("unexpected endpoint "+path);
     return Response.json({success:true,result});
   };
-  return {options:{transport,preflight:async()=>({realD1Read:true}),clock:()=>now,wait:async()=>{},replay:()=>"cove_biosync_production_owner_replay_verified"},stats:()=>({live,schedules,posts,mutations})};
+  return {options:{transport,preflight:async()=>({realD1Read:true,realR2List:true}),clock:()=>now,wait:async()=>{},replay:()=>"cove_biosync_production_owner_replay_verified"},stats:()=>({live,schedules,posts,mutations})};
 }
 test("real witness required before permanent hourly cron; never write D1 via provider",async()=>{
   const x=mock();await cutover(env,Buffer.alloc(1200),x.options);
@@ -81,4 +81,26 @@ test("missing cron witness restores previous BioSync owner and empty schedule",a
 test("nonactive day blocks all provider mutations",async()=>{
   const x=mock({activeDay:false});await assert.rejects(cutover(env,Buffer.alloc(1200),x.options));
   assert.equal(x.stats().posts,0);assert.deepEqual(x.stats().mutations,[]);
+});
+
+test("bounded retries apply only to provider reads, never deployment or cron mutations",async()=>{
+  let calls=0;const delays=[];
+  const transport=async()=>{calls++;return new Response(null,{status:calls===1?429:200,headers:{"retry-after":"1"}});};
+  const send=retryBudgetReads(transport,async ms=>delays.push(ms));
+  const root="https://api.cloudflare.com/client/v4/accounts/d26430caa63ec55f6612e32f36aca5e9";
+  assert.equal((await send(root+"/workers/scripts/x/deployments",{method:"GET"})).status,200);
+  assert.equal(calls,2);assert.deepEqual(delays,[2000]);
+  calls=0;assert.equal((await send(root+"/workers/scripts/x/deployments",{method:"POST",body:"{}"})).status,429);assert.equal(calls,1);
+  calls=0;assert.equal((await send(root+"/d1/database/x/query",{method:"POST",body:JSON.stringify({sql:"SELECT 1"})})).status,200);assert.equal(calls,2);
+  calls=0;assert.equal((await send(root+"/d1/database/x/query",{method:"POST",body:JSON.stringify({sql:"UPDATE x SET a=1"})})).status,429);assert.equal(calls,1);
+  calls=0;assert.equal((await send(root+"/workers/scripts/x/schedules",{method:"PUT",body:"[]"})).status,429);assert.equal(calls,1);
+  const denied=retryBudgetReads(async()=>{calls++;return new Response(null,{status:403});},async()=>{throw Error("unexpected retry")});
+  calls=0;assert.equal((await denied(root+"/tokens/verify",{method:"GET"})).status,403);assert.equal(calls,1);
+});
+test("preflight failure preserves exact reason, never touches provider mutation",async()=>{
+  const x=mock();
+  await assert.rejects(cutover(env,Buffer.alloc(1200),{...x.options,preflight:async()=>{throw Error("biosync_preflight_token_scope");}}),/biosync_preflight_token_scope/);
+  assert.deepEqual(x.stats().mutations,[]);
+  await assert.rejects(cutover(env,Buffer.alloc(1200),{...x.options,preflight:async()=>({realD1Read:true,realR2List:false})}),/budget_r2_read_not_proven/);
+  assert.deepEqual(x.stats().mutations,[]);
 });
