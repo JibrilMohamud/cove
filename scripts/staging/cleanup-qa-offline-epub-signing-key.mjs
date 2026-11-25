@@ -2,7 +2,7 @@
 // NEVER act on a production or differently named Worker.
 import assert from "node:assert/strict";
 
-const account = "d26430caa63ec55f6612e32f36aca5e9";
+const account = "f51e8ccbc394e2d6016ff8c2c303d54b";
 const worker = "cove-commerce-customer-qa-stage";
 const secret = "FORE_OFFLINE_AUDIO_SIGNING_JWK";
 const token = process.env.CLOUDFLARE_API_TOKEN;

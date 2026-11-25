@@ -7,10 +7,11 @@ import { randomBytes, generateKeyPairSync } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 
 const qaWorker = "cove-commerce-customer-qa-stage";
-const account = "d26430caa63ec55f6612e32f36aca5e9";
-const origin = "https://" + qaWorker + ".cove-jibrilmohamud.workers.dev/";
+const account = "f51e8ccbc394e2d6016ff8c2c303d54b";
+const origin = "https://" + qaWorker + ".cove-qa-reads.workers.dev/";
 const required = [
   "CLOUDFLARE_API_TOKEN",
+  "COVE_CF_QA_D1_MUTATION_TOKEN",
   "COVE_QA_BUYER_EMAIL",
   "COVE_QA_BUYER_PASSWORD",
   "COVE_QA_OUTSIDER_EMAIL",
@@ -32,8 +33,9 @@ assert.notEqual(
 const src = fs.readFileSync("wrangler.commerce-qa.stage.toml", "utf8");
 for (const invariant of [
   'name = "cove-commerce-customer-qa-stage"',
-  'database_id = "5be15110-44a6-4090-b0a1-36599d809b28"',
-  'bucket_name = "cove-commerce-original-media-qa-20261022"',
+  'account_id = "f51e8ccbc394e2d6016ff8c2c303d54b"',
+  'database_id = "f9354381-bd9f-496b-bd05-d6f62a32ec0c"',
+  'bucket_name = "cove-commerce-detached-media-qa"',
   'COVE_SSR_STAGING = "1"',
   'STRIPE_LIVEMODE = "false"',
   "workers_dev = false",
@@ -54,7 +56,12 @@ const wrangler = (args, input) => {
       input,
       encoding: "utf8",
       timeout: 180000,
-      env: { ...process.env, CLOUDFLARE_SEND_METRICS: "false" },
+      env: {
+        ...process.env,
+        COVE_CF_QA_D1_MUTATION_TOKEN: "",
+        COVE_CF_QA_R2_STORAGE_TOKEN: "",
+        CLOUDFLARE_SEND_METRICS: "false",
+      },
     },
   );
   assert.equal(p.status, 0, "QA Wrangler operation failed; secrets are redacted");
