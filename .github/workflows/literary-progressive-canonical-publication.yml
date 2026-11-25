@@ -13,6 +13,7 @@ on:
       - "scripts/staging/verify-literary-real-publication.mjs"
       - "scripts/staging/rollback-literary-isolated-publication.mjs"
       - "scripts/check-literary-progressive-publication.mjs"
+      - "scripts/staging/verify-literary-postpublication-readonly.mjs"
   push:
     branches: [main]
     paths:

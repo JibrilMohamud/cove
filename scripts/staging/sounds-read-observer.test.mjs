@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import worker from "./sounds-read-observer.worker.mjs";
 
-test("observer denies anonymous, expired, arbitrary and mismatched snapshot requests", async () => {
+test("observer rejects anonymous, expired, arbitrary and mismatched snapshots", async () => {
   const gate = "a".repeat(64);
   const snapshot = (key) =>
     JSON.stringify({

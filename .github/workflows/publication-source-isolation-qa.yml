@@ -7,6 +7,8 @@ on:
       - "src/storefront-strangler/publication-capture.worker.ts"
       - "src/storefront-strangler/publication-feed.server.ts"
       - "src/storefront-strangler/publication-driver.worker.ts"
+      - "scripts/check-publication-feed.mjs"
+      - "scripts/staging/verify-canonical-readonly-service.mjs"
       - "infra/publication-source/**"
       - "wrangler.publication-capture.stage.jsonc"
       - "wrangler.publication-export.stage.jsonc"
@@ -28,7 +30,19 @@ concurrency:
   group: cove-publication-source-isolation-qa
   cancel-in-progress: false
 jobs:
+  offline-publication-boundary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - run: node scripts/check-publication-feed.mjs
+      - run: node --check scripts/staging/check-publication-feed-live.mjs
   physically-isolated-publication:
+    needs: offline-publication-boundary
     if: >-
       github.repository == 'JibrilMohamud/cove' &&
       github.event_name == 'workflow_dispatch' &&
