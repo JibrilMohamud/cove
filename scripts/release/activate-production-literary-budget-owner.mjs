@@ -57,7 +57,7 @@ export function retryBudgetReads(transport=fetch,wait=pause){
     const expectedRoot="/client/v4/accounts/"+account+"/";
     const query=method==="POST"&&endpoint.pathname.startsWith(expectedRoot+"d1/database/")&&endpoint.pathname.endsWith("/query");
     const read=endpoint.origin==="https://api.cloudflare.com"&&endpoint.pathname.startsWith(expectedRoot)&&
-      (method==="GET"||(query&&/^SELECT\\b/.test(JSON.parse(options.body||"{}").sql||"")));
+      (method==="GET"||(query&&/^SELECT\b/.test(JSON.parse(options.body||"{}").sql||"")));
     if(!read)return transport(url,options);
     for(let attempt=0;attempt<4;attempt++){
       let response;
