@@ -10,7 +10,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
 import {
@@ -37,9 +37,29 @@ import { MemberPicker, type ShareMember } from "./Sharing";
 import { useStorefrontLocale } from "./localization";
 import { readArenaPost, ARENA_KINDS } from "./community-arena";
 
-// Render the Arena in the same hydration pass as its route. A separately
-// suspended SSR subtree can be interrupted by account or locale updates.
-import { CommunityArena } from "./CommunityArena";
+const ArenaTab = lazy(() =>
+  import("./CommunityArena").then((m) => ({ default: m.CommunityArena })),
+);
+
+// Keep the Arena chunk out of shared discussion and reader bundles. Render
+// the same shell on the server and during initial client hydration; only
+// mount the lazy interactive subtree after this shell has committed.
+function HydratedArena({ fullPage = false }: { fullPage?: boolean }) {
+  const ui = useUiText();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const fallback = (
+    <p className="muted" role="status">
+      {ui("Opening Community…")}
+    </p>
+  );
+  if (!mounted) return fallback;
+  return (
+    <Suspense fallback={fallback}>
+      <ArenaTab fullPage={fullPage} />
+    </Suspense>
+  );
+}
 
 type Post = {
   id: string;
@@ -2826,11 +2846,11 @@ export function CommunityPage() {
         ))}
       </nav>
       {tab === "arena" || tab === "debates" ? (
-        <CommunityArena fullPage={tab === "debates"} />
+        <HydratedArena fullPage={tab === "debates"} />
       ) : tab === "discover" ? (
         <Discover />
       ) : (
-        <CommunityArena />
+        <HydratedArena />
       )}
     </main>
   );
