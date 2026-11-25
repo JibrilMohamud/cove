@@ -8,27 +8,12 @@ export const roles = [
   "cove-literary-handoff-draining-20261025",
   "cove-literary-prepare-draining-20261025",
 ];
-const token = process.env.CLOUDFLARE_API_TOKEN;
-assert.ok(token, "Protected Cloudflare credential required");
-assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, account);
+// The one-shot legacy-to-draining transition completed before production
+// isolation. No direct database or provider mutations are legal here now.
 assert.equal(process.env.GITHUB_REF, "refs/heads/main");
-const base = "https://api.cloudflare.com/client/v4/accounts/" + account;
 export const pause = (ms) => new Promise((done) => setTimeout(done, ms));
-
-export async function api(method, path, payload) {
-  const response = await fetch(base + path, {
-    method,
-    headers: {
-      authorization: "Bearer " + token,
-      ...(payload ? { "content-type": "application/json" } : {}),
-    },
-    ...(payload ? { body: JSON.stringify(payload) } : {}),
-    signal: AbortSignal.timeout(30000),
-  });
-  assert.ok(response.ok, "Literary operator request rejected " + response.status);
-  const body = await response.json();
-  assert.equal(body.success, true, "Literary operator denied");
-  return body.result;
+export async function api(_method, _path, _payload) {
+  throw Error("literary_legacy_drain_operator_retired");
 }
 export async function query(id, sql) {
   const result = await api("POST", "/d1/database/" + id + "/query", { sql });
