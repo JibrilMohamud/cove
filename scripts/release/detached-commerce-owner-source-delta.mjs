@@ -50,6 +50,11 @@ export function assertDetachedCommerceIdentitySource(source) {
 }
 
 export function reverseDetachedCommerceOwnerDelta(source) {
+  // Reverse the quote proof context first; all historical hunks are unchanged.
+  const quoteContext="          COVE_LEGAL_CONSUMER_STAGE_ENABLED:\"1\",\n          COVE_SSR_STAGING:\"1\",\n          COVE_CANONICAL_LEGAL_WRITE_LOCK:\"1\",\n          COVE_LEGAL_WRITER_PRIMARY_ID:env.COVE_RIGHTS_OWNER_PRIMARY_ID,\n          COVE_RIGHTS_OWNER_SECRET:env.COVE_RIGHTS_OWNER_SECRET,\n          // The shared pricing function independently rechecks the exact\n          // grant/version. Resolve ONLY its read-only proofs at this same\n          // owner, not another Durable Object or an unguarded D1 fallback.\n          LEGAL_AUTHORITY:{getByName:(name:string)=>{\n            if(name!==\"cove-staged-legal-global-v1\")throw Error(\"quote_owner_namespace_invalid\");\n            return {fetch:(request:Request)=>{\n              const url=new URL(request.url);\n              if(request.method!==\"POST\"||url.hostname!==\"legal-authority.internal\"||\n                 url.search||![\"/commercial/authorize-batch\",\"/authorize-batch\"].includes(url.pathname))\n                return Promise.resolve(new Response(null,{status:404,headers:noStore}));\n              return this.fetch(request);\n            }};\n          }},\n        } as CoveEnv;\n        const quote=await checkoutQuote(ownerEnv,";
+  const previousQuoteContext="          COVE_LEGAL_CONSUMER_STAGE_ENABLED:\"1\",\n        } as CoveEnv;\n        const quote=await checkoutQuote(ownerEnv,";
+  assert.equal(source.split(quoteContext).length,2,"Detached quote owner proof context drifted");
+  source=source.replace(quoteContext,previousQuoteContext);
   for(const [introduced,original] of changes){
     assert.equal(source.split(introduced).length,2,
       "Detached commerce owner exact delta drifted");

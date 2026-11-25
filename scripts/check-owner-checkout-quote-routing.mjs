@@ -13,6 +13,17 @@ const end=owner.indexOf('if(route==="/commercial/checkout/materialize-draft")',s
 assert.ok(start>=0&&end>start,"Missing private quote owner route");
 const checkoutOwner=owner.slice(start,end);
 assert.match(checkoutOwner,/const quote=await checkoutQuote\(ownerEnv,/);
+assert.match(checkoutOwner,/COVE_SSR_STAGING:"1"/);
+assert.match(checkoutOwner,/COVE_CANONICAL_LEGAL_WRITE_LOCK:"1"/);
+assert.match(checkoutOwner,/COVE_LEGAL_WRITER_PRIMARY_ID:env\.COVE_RIGHTS_OWNER_PRIMARY_ID/);
+assert.match(checkoutOwner,/COVE_RIGHTS_OWNER_SECRET:env\.COVE_RIGHTS_OWNER_SECRET/);
+assert.match(checkoutOwner,/name!=="cove-staged-legal-global-v1"/);
+assert.match(checkoutOwner,/request\.method!=="POST"/);
+assert.match(checkoutOwner,/url\.hostname!=="legal-authority\.internal"/);
+assert.match(checkoutOwner,/url\.search\|\|!\["\/commercial\/authorize-batch","\/authorize-batch"\]\.includes\(url\.pathname\)/);
+assert.match(checkoutOwner,/return this\.fetch\(request\)/);
+assert.doesNotMatch(checkoutOwner,/COVE_LEGAL_CONSUMER_STAGE_ENABLED:"0"/);
+
 assert.match(checkoutOwner,/INSERT INTO commerce_checkout_quotes/);
 assert.match(checkoutOwner,/const stored=await env\.PRIMARY_DB\.prepare\(/);
 assert.match(checkoutOwner,/owner_checkout_quote_commit_unconfirmed/);

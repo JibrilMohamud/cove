@@ -21111,6 +21111,23 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           // This flag is minted *inside* the independently authorized QA owner,
           // never by a public backend request or its D1 capability.
           COVE_LEGAL_CONSUMER_STAGE_ENABLED:"1",
+          COVE_SSR_STAGING:"1",
+          COVE_CANONICAL_LEGAL_WRITE_LOCK:"1",
+          COVE_LEGAL_WRITER_PRIMARY_ID:env.COVE_RIGHTS_OWNER_PRIMARY_ID,
+          COVE_RIGHTS_OWNER_SECRET:env.COVE_RIGHTS_OWNER_SECRET,
+          // The shared pricing function independently rechecks the exact
+          // grant/version. Resolve ONLY its read-only proofs at this same
+          // owner, not another Durable Object or an unguarded D1 fallback.
+          LEGAL_AUTHORITY:{getByName:(name:string)=>{
+            if(name!=="cove-staged-legal-global-v1")throw Error("quote_owner_namespace_invalid");
+            return {fetch:(request:Request)=>{
+              const url=new URL(request.url);
+              if(request.method!=="POST"||url.hostname!=="legal-authority.internal"||
+                 url.search||!["/commercial/authorize-batch","/authorize-batch"].includes(url.pathname))
+                return Promise.resolve(new Response(null,{status:404,headers:noStore}));
+              return this.fetch(request);
+            }};
+          }},
         } as CoveEnv;
         const quote=await checkoutQuote(ownerEnv,{id:command.userId},command.request,async row=>{
           // Only this private owner writes canonical quotes after it has
