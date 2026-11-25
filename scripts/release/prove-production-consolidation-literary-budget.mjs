@@ -4,7 +4,7 @@ import {readFileSync} from "node:fs";
 import {DatabaseSync} from "node:sqlite";
 import {transform} from "esbuild";
 const {code}=await transform(readFileSync("src/storefront-strangler/literary-owner-budget-rollover.ts","utf8"),{loader:"ts",format:"esm"});
-const {rollOwnedLiteraryBudget}=await import("data:text/javascript;base64,"+Buffer.from(code).toString("base64"));
+const {rollOwnedLiteraryBudget,recordOwnedBudgetTick,LITERARY_BUDGET_CRON}=await import("data:text/javascript;base64,"+Buffer.from(code).toString("base64"));
 const day="2026-11-25",prev="2026-11-24",now=()=>Date.parse(day+"T12:00:00Z");
 function wrap(sqlite,{readOnly=false}={}){
   const handles=new WeakMap();
@@ -43,6 +43,12 @@ try{
   assert.deepEqual({...l.prepare("SELECT status,original_reserved_units,original_calls FROM literary_budget_cutover WHERE day=?").get(day)},{status:"active",original_reserved_units:170,original_calls:2});
   assert.equal((await rollOwnedLiteraryBudget(primary,isolated,now)).state,"already_active");
   assert.equal(p.prepare("SELECT reserved_units FROM literary_profile_budget").get().reserved_units,170);
+  const release="a".repeat(40),slot=now();
+  await recordOwnedBudgetTick(isolated,receipt,slot,release,LITERARY_BUDGET_CRON);
+  assert.deepEqual({...l.prepare("SELECT release_sha,scheduled_ms,day,state FROM literary_owner_budget_tick_receipt").get()},{release_sha:release,scheduled_ms:slot,day,state:"active"});
+  await recordOwnedBudgetTick(isolated,receipt,slot-60000,release,LITERARY_BUDGET_CRON);
+  assert.equal(l.prepare("SELECT scheduled_ms FROM literary_owner_budget_tick_receipt").get().scheduled_ms,slot);
+  await assert.rejects(recordOwnedBudgetTick(isolated,{...receipt,state:"previous_day_not_active"},slot,release,LITERARY_BUDGET_CRON),/not_proven/);
   l.prepare("UPDATE literary_budget_cutover SET status='closed' WHERE day=?").run(day);
   await assert.rejects(rollOwnedLiteraryBudget(primary,isolated,now),/closed_day/);
   l.exec("CREATE TABLE rights_grants(id TEXT)");

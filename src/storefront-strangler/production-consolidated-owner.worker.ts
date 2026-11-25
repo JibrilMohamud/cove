@@ -16,7 +16,7 @@ import {persistSourceWithdrawal,persistSourceWithdrawalsBatch,type AuthoritySql}
 import {denyCommercialProduct,denyCommercialProductsBatch,denyCommercialSubject} from "./commercial-legal-core";
 import {denyMarket} from "./market-authority-core";
 import {denyPaidOrder,denyPaidEntitlement,denyPaidEntitlementsBatch} from "./commercial-entitlement-core";
-import {LITERARY_BUDGET_CRON,rollOwnedLiteraryBudget} from "./literary-owner-budget-rollover";
+import {LITERARY_BUDGET_CRON,LITERARY_BUDGET_PROBE_CRON,rollOwnedLiteraryBudget,recordOwnedBudgetTick} from "./literary-owner-budget-rollover";
 import {assertCronSettled} from "../lib/cron-result-guard";
 import {productionPersistenceEnrolled,productionBiosyncEnrolled,productionBiosyncBridgeEnrolled,productionBiosyncRequest,
   productionOwnerInternalRequest,maintenanceBusinessRoute,checkToken,bearer,refuse,noStore,
@@ -27,6 +27,7 @@ type LegalEnv=Parameters<typeof legacyLegal.fetch>[1];
 type Env=LegalEnv&ProductionPersistenceEnv&LiteraryOwnerServiceEnv&{
   COVE_PUBLICATION_SOURCE_READER_SECRET?:string;
   COVE_PRODUCTION_LITERARY_BUDGET_CRON_ENABLED?:string;
+  COVE_PRODUCTION_LITERARY_BUDGET_RELEASE_SHA?:string;
   COVE_SOUNDS_SOURCE_READER_SECRET?:string;
 };
 type Port={fetch(request:Request):Promise<Response>};
@@ -216,10 +217,11 @@ export default {
     return legacyLegal.fetch(request,env);
   },
   async scheduled(controller:{cron:string;scheduledTime:number},env:Env){
-    if(controller.cron===LITERARY_BUDGET_CRON){
+    if([LITERARY_BUDGET_CRON,LITERARY_BUDGET_PROBE_CRON].includes(controller.cron)){
       if(env.COVE_PRODUCTION_LITERARY_BUDGET_CRON_ENABLED!=="1"||!productionBiosyncBridgeEnrolled(env))
         throw Error("literary_budget_owner_not_enrolled");
       const receipt=await rollOwnedLiteraryBudget(env.PRIMARY_DB,env.LITERARY_CONTENT_DB!);
+      await recordOwnedBudgetTick(env.LITERARY_CONTENT_DB!,receipt,controller.scheduledTime,env.COVE_PRODUCTION_LITERARY_BUDGET_RELEASE_SHA||"",controller.cron);
       console.info(JSON.stringify(receipt));
       return;
     }

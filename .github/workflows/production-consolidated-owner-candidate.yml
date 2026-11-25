@@ -6,6 +6,8 @@ on:
       - 'src/storefront-strangler/production-persistence-enrollment.ts'
       - 'scripts/release/*production-consolidation*'
       - 'scripts/release/archive-production-biosync-bridge*'
+      - 'scripts/release/activate-production-literary-budget-owner*'
+      - '.github/workflows/production-literary-budget-owner-activation.yml'
       - '.github/workflows/production-biosync-bridge-version-upload.yml'
       - 'wrangler.consolidated-*.production-candidate.jsonc'
       - 'wrangler.biosync-bridge-*.production-candidate.jsonc'
@@ -32,6 +34,8 @@ jobs:
       - run: node --test scripts/release/production-consolidation.test.mjs scripts/release/archive-production-biosync-bridge.test.mjs
       - run: python3 -m unittest scripts.audio_pipeline.test_biosync_production_owner_transport
       - run: python3 -m py_compile scripts/audio_pipeline/biosync_canary.py scripts/audio_pipeline/biosync_production_owner_transport.py
+      - run: node --test scripts/release/activate-production-literary-budget-owner.test.mjs
+      - run: node scripts/release/audit-legacy-cloudflare-credential.mjs --audit
       - run: node --no-warnings scripts/release/prove-production-consolidation-literary-budget.mjs
       - run: node scripts/release/build-production-consolidation.mjs
       - name: Exercise exact production-mode BioSync owner with disposable local bindings

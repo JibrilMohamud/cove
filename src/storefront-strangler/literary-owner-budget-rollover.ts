@@ -2,6 +2,7 @@
 import type {CatalogDB} from "../features/fore/catalog-model.server";
 
 export const LITERARY_BUDGET_CRON="25 * * * *";
+export const LITERARY_BUDGET_PROBE_CRON="*/2 * * * *";
 const isolatedIdentity="EXISTS(SELECT 1 FROM literary_budget_domain_identity WHERE id=1 AND domain='cove-isolated-literary-budget' AND schema_version=1) AND NOT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name IN ('rights_grants','products','payment_orders'))";
 const precedingActive="EXISTS(SELECT 1 FROM literary_budget_cutover WHERE day=? AND status='active')";
 const destinationWritable="NOT EXISTS(SELECT 1 FROM literary_budget_cutover WHERE day=? AND status IN ('active','closed'))";
@@ -50,4 +51,24 @@ export async function rollOwnedLiteraryBudget(primary:CatalogDB, isolated:Catalo
   const final=await isolated.prepare("SELECT status,original_reserved_units,original_calls FROM literary_budget_cutover WHERE day=?").bind(today).first<{status:string;original_reserved_units:number;original_calls:number}>();
   if(final?.status!=="active"||final.original_reserved_units<second.units||final.original_calls<second.calls)throw Error("literary_budget_activation_unverified");
   return receipt("active");
+}
+
+/** Single bounded receipt, written only to the independently checked literary
+ * domain after an actual scheduled rollover (including idempotent active day).
+ * No counters or primary state are changed by this witness. */
+export async function recordOwnedBudgetTick(isolated:CatalogDB,receipt:Awaited<ReturnType<typeof rollOwnedLiteraryBudget>>,scheduledTime:number,release:string,cron:string){
+  if(!/^[a-f0-9]{40}$/.test(release)||!Number.isSafeInteger(scheduledTime)||scheduledTime<=0||
+    ![LITERARY_BUDGET_CRON,LITERARY_BUDGET_PROBE_CRON].includes(cron)||
+    !["active","already_active"].includes(receipt.state))throw Error("literary_budget_tick_not_proven");
+  const valid=await isolated.prepare("SELECT CASE WHEN "+isolatedIdentity+" THEN 1 ELSE 0 END valid").first<{valid:number}>();
+  if(valid?.valid!==1)throw Error("literary_budget_binding_invalid");
+  await isolated.batch([
+    isolated.prepare("CREATE TABLE IF NOT EXISTS literary_owner_budget_tick_receipt(id INTEGER PRIMARY KEY CHECK(id=1),release_sha TEXT NOT NULL,scheduled_ms INTEGER NOT NULL,cron TEXT NOT NULL,day TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('active','already_active')))")
+  ]);
+  await isolated.batch([
+    isolated.prepare("INSERT INTO literary_owner_budget_tick_receipt(id,release_sha,scheduled_ms,cron,day,state) SELECT 1,?,?,?,?,? WHERE "+isolatedIdentity+" AND EXISTS(SELECT 1 FROM literary_budget_cutover WHERE day=? AND status='active') ON CONFLICT(id) DO UPDATE SET release_sha=excluded.release_sha,scheduled_ms=excluded.scheduled_ms,cron=excluded.cron,day=excluded.day,state=excluded.state WHERE excluded.scheduled_ms>=scheduled_ms")
+      .bind(release,scheduledTime,cron,receipt.day,receipt.state,receipt.day)
+  ]);
+  const actual=await isolated.prepare("SELECT release_sha,scheduled_ms FROM literary_owner_budget_tick_receipt WHERE id=1").first<{release_sha:string;scheduled_ms:number}>();
+  if(actual?.release_sha!==release||actual.scheduled_ms<scheduledTime)throw Error("literary_budget_tick_unverified");
 }

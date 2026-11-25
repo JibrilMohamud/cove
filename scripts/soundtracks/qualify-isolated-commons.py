@@ -303,7 +303,8 @@ def run(max_records=1, apply=False, profile_dsp=False, token=None, r2=None, limi
         raise ValueError("Strict isolated cohort/time cap required")
     if apply and os.environ.get("COVE_MUSIC_OPEN_QA_APPLY") != "1":
         raise ValueError("Technical QA private-R2 application explicitly disabled")
-    token = token or os.environ.get("CLOUDFLARE_API_TOKEN", "")
+    token = token or os.environ.get(
+        "CLOUDFLARE_API_TOKEN" if apply else "COVE_CF_STAGE_DATA_PLANE_READ_TOKEN", "")
     r2 = (r2 or make_r2()) if apply else None
     profiler = load("profile-audio.py", "audio_dsp_profile").analyze if profile_dsp else None
     started = time.monotonic()
