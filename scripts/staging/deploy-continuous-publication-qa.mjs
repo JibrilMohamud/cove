@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import ts from "typescript";
+import { verifyPinnedCapture } from "./verify-pinned-publication-capture.mjs";
 
 const account = "d26430caa63ec55f6612e32f36aca5e9";
 const canonical = "4bd657ac-8789-403e-a28c-93aba8d0a989";
@@ -29,16 +30,8 @@ function template(lane) {
   assert.equal(config.workers_dev, false);
   assert.equal(config.preview_urls, false);
   assert.ok(!config.routes && !config.route && !config.triggers && !config.queues);
-  if (lane === "capture") {
-    assert.equal(config.vars.COVE_PUBLICATION_CAPTURE_ENABLED, "0");
-    assert.ok(!config.d1_databases.some((b) => b.database_id === canonical));
-    assert.deepEqual(config.services, [{binding:"COVE_CANONICAL_READONLY",service:"cove-canonical-d1-readonly"}]);
-    assert.equal(
-      config.d1_databases.find((b) => b.binding === "PUBLIC_SOURCE_DB").database_id,
-      source,
-    );
-    config.vars.COVE_PUBLICATION_CAPTURE_ENABLED = "1";
-  } else {
+  assert.ok(["export", "publish"].includes(lane));
+  {
     assert.equal(config.vars.COVE_PUBLICATION_ENABLED, "0");
     assert.equal(
       config.d1_databases.find((b) => b.binding === "DISCOVERY_DB").database_id,
@@ -107,7 +100,8 @@ function deploy(path) {
 const migrated = await api(`/accounts/${account}/d1/database/${ledger}`);
 assert.equal(migrated.name, "cove-publication-continuous-ledger-qa-20261022");
 fs.mkdirSync(".output/strangler", { recursive: true });
-for (const lane of ["capture", "export", "publish"]) {
+const pinnedCapture = await verifyPinnedCapture(metadataReadToken);
+for (const lane of ["export", "publish"]) {
   const config = template(lane);
   const path = `.output/strangler/qa-continuous-${lane}.jsonc`;
   fs.writeFileSync(path, JSON.stringify(config));
@@ -116,12 +110,12 @@ for (const lane of ["capture", "export", "publish"]) {
   const schedules = await api(`/accounts/${account}/workers/scripts/${config.name}/schedules`);
   const bindings = settings.bindings || [];
   assert.ok(!bindings.some(b=>b.type==="d1"&&(b.id||b.database_id)===canonical));
-  if(lane==="capture")assert.ok(bindings.some(b=>b.type==="service"&&b.name==="COVE_CANONICAL_READONLY"&&b.service==="cove-canonical-d1-readonly"));
+
   assert.ok(
     bindings.some(
       (b) =>
         b.name ===
-          (lane === "capture" ? "COVE_PUBLICATION_CAPTURE_ENABLED" : "COVE_PUBLICATION_ENABLED") &&
+          "COVE_PUBLICATION_ENABLED" &&
         b.text === "1",
     ),
   );
@@ -138,6 +132,5 @@ for (const lane of ["capture", "export", "publish"]) {
     }),
   );
 }
-console.log(
-  "PASS: nonpublic continuous QA capture/export/publish, independent ledger, fenced rights-primary reader.",
-);
+assert.deepEqual(await verifyPinnedCapture(metadataReadToken), pinnedCapture);
+console.log("PASS: pinned private capture and independent export/publish QA deployed.");

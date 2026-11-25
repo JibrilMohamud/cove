@@ -5,13 +5,20 @@ import fs from "node:fs";
 import { randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import ts from "typescript";
+import {
+  CAPTURE_NAME,
+  CAPTURE_SOURCE,
+  verifyPinnedCapture,
+} from "./verify-pinned-publication-capture.mjs";
 const account = "d26430caa63ec55f6612e32f36aca5e9";
 const ledger = "b299be94-f885-47a5-9d0b-3a3ac494065a";
 const source = "4bd657ac-8789-403e-a28c-93aba8d0a989";
 const token = process.env.CLOUDFLARE_API_TOKEN,
   readToken = process.env.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN,
   run = process.env.GITHUB_RUN_ID;
-assert.ok(token && readToken && token !== readToken);
+const metadataToken = process.env.COVE_CF_WORKERS_METADATA_READ_TOKEN;
+assert.ok(token && readToken && metadataToken);
+assert.equal(new Set([token, readToken, metadataToken]).size, 3);
 assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, account);
 assert.match(run || "", /^[1-9][0-9]{7,14}$/);
 assert.equal(process.env.GITHUB_REF, "refs/heads/main");
@@ -137,25 +144,17 @@ try {
   // Rebuild only the disposable stage ledger after checking no live leases.
   // Preserve monotonic generations; never steal an in-flight writer lease.
   const prefix = `feed/campaign/${run}/`;
-  const capture = JSON.parse(fs.readFileSync("wrangler.publication-capture.stage.jsonc", "utf8"));
-  assert.equal(capture.workers_dev, false);
-  assert.equal(capture.preview_urls, false);
-  assert.ok(!capture.routes && !capture.route && !capture.triggers);
-  assert.equal(capture.vars.COVE_PUBLICATION_CAPTURE_ENABLED, "0");
-  assert.ok(!capture.d1_databases.some((x) => x.database_id === source));
-  assert.deepEqual(capture.services, [
-    { binding: "COVE_CANONICAL_READONLY", service: "cove-canonical-d1-readonly" },
-  ]);
-  assert.equal(
-    capture.d1_databases.find((x) => x.binding === "PUBLIC_SOURCE_DB").database_id,
-    "1825b4a1-0329-408d-9cc2-a40e6a17c822",
-  );
-  capture.name = `cove-pub-${run}-capture`;
-  capture.main = "publication-capture.mjs";
-  capture.vars.COVE_PUBLICATION_CAPTURE_ENABLED = "1";
-  names.push(capture.name);
-  fs.writeFileSync(".output/strangler/live-capture.jsonc", JSON.stringify(capture));
-  await deployStage(".output/strangler/live-capture.jsonc");
+  // Preserve the working immutable capture. The disposable campaign owns
+  // only its export, publish and driver Workers, never the capture itself.
+  evidence.captureDependency = await verifyPinnedCapture(metadataToken);
+  async function captureGenerations() {
+    return (
+      await api("POST", `/accounts/${account}/d1/database/${CAPTURE_SOURCE}/query`, {
+        sql: "SELECT country,generation,expires_at FROM cove_publication_source_snapshots ORDER BY country",
+      })
+    )[0].results;
+  }
+  const initial = new Map((await captureGenerations()).map((r) => [r.country, r.generation]));
   for (const lane of ["export", "publish"]) {
     const fileName = `wrangler.publication-${lane}.stage.jsonc`;
     const parsed = ts.parseConfigFileTextToJson(fileName, fs.readFileSync(fileName, "utf8"));
@@ -197,9 +196,9 @@ try {
     compatibility_date: "2026-10-22",
     compatibility_flags: ["nodejs_compat"],
     services: [
-      { binding: "CAPTURE", service: names[0] },
-      { binding: "EXPORTER", service: names[1] },
-      { binding: "PUBLISHER", service: names[2] },
+      { binding: "CAPTURE", service: CAPTURE_NAME },
+      { binding: "EXPORTER", service: names[0] },
+      { binding: "PUBLISHER", service: names[1] },
     ],
     d1_databases: [
       {
@@ -248,7 +247,8 @@ try {
   // export is physically independent of the authoritative rights/catalog D1.
   // The capture worker alone reads public presentation source fields.
   assert.deepEqual(await invoke("/reset-ledger"), { ok: true });
-  const captured = [];
+  const captured = new Set();
+  let freshGenerationCoverage = false;
   let busyAttempts = 0;
   // Multiple immutable QA runs can overlap while earlier capture leases are
   // still held. The real producer must never steal a live lease. Wait for its
@@ -261,9 +261,23 @@ try {
       await new Promise((resolve) => setTimeout(resolve, 5000));
       continue;
     }
-    captured.push(...result.countries);
-    if (result.complete && captured.length >= result.expected) break;
+    for (const country of result.countries) captured.add(country);
+    const fresh = await captureGenerations();
+    freshGenerationCoverage =
+      result.complete === true &&
+      Number.isSafeInteger(result.expected) &&
+      result.expected >= 1 &&
+      result.expected <= 32 &&
+      fresh.length === result.expected &&
+      fresh.every(
+        (r) =>
+          Number.isSafeInteger(r.generation) &&
+          r.generation > (initial.get(r.country) ?? 0) &&
+          r.expires_at > Date.now(),
+      );
+    if (freshGenerationCoverage) break;
   }
+  assert.ok(freshGenerationCoverage, "Every market must advance beyond its initial generation");
   const sourceState = await api(
     "POST",
     `/accounts/${account}/d1/database/1825b4a1-0329-408d-9cc2-a40e6a17c822/query`,
@@ -278,7 +292,7 @@ try {
   console.log(
     "PUBLICATION_SOURCE_CAPTURE_PASS",
     JSON.stringify({
-      captured: captured.length,
+      captured: captured.size,
       busyAttempts,
       markets: sourceRow.expected,
       separateSource: true,
@@ -379,6 +393,7 @@ try {
   assert.ok(evidence.verify.find((r) => r.country === "US")?.display > 0);
   // Anonymous callers cannot use the control plane.
   assert.equal((await fetch(origin + "/export", { method: "POST" })).status, 401);
+  assert.deepEqual(await verifyPinnedCapture(metadataToken), evidence.captureDependency);
   evidence.pass = true;
   save();
   console.log("PUBLICATION_LIVE_PASS", JSON.stringify(evidence.verify));
