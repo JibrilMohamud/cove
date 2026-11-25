@@ -1,6 +1,6 @@
 /* eslint-disable prettier/prettier -- Safe isolated fixture for legacy credential inventory. */
 import assert from "node:assert/strict";
-import {mkdtempSync,mkdirSync,writeFileSync,rmSync} from "node:fs";
+import {mkdtempSync,mkdirSync,writeFileSync,rmSync,readFileSync} from "node:fs";
 import {join} from "node:path";
 import {tmpdir} from "node:os";
 import {test} from "node:test";
@@ -32,4 +32,13 @@ test("all legacy references are counted by workflow, not hidden in secret names"
     assert.equal(report.physicalRevocationCertified,false);
     assert.equal(requireNoLegacyCloudflareWorkflowReferences(report),true);
   }finally{rmSync(root,{recursive:true,force:true});}
+});
+
+test("archived data plane retains offline correctness only, no secret or remote job",()=>{
+  const source=readFileSync(".github/workflows/isolated-data-plane.yml","utf8");
+  assert.match(source,/^  correctness:\s*$/m);
+  assert.match(source,/npm run test:isolated-data-plane/);
+  assert.match(source,/npm run test:rights && npm run test:commerce/);
+  assert.doesNotMatch(source,/^  (?:hosted-capacity|publication-feed-live|restore-private-core):/m);
+  assert.doesNotMatch(source,/secrets\s*[:.]|environment:|wrangler deploy|run: node scripts\/performance\/isolated-data-plane-acceptance\.mjs/);
 });
