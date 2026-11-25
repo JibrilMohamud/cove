@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 
-const account = "d26430caa63ec55f6612e32f36aca5e9";
+const account = "f51e8ccbc394e2d6016ff8c2c303d54b";
 const worker = "cove-literary-binding-stage-qa-20261024";
 assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, account);
-const token = process.env.CLOUDFLARE_API_TOKEN;
-assert.ok(token, "Protected staging credentials unavailable for cron cleanup");
+const token = process.env.COVE_CF_QA_WORKERS_DEPLOY_TOKEN;
+assert.ok(token, "Protected QA deploy credential unavailable for cron cleanup");
+assert.ok(!process.env.CLOUDFLARE_API_TOKEN);
 const endpoint =
   "https://api.cloudflare.com/client/v4/accounts/" +
   account +
@@ -19,6 +20,7 @@ async function send(method, body) {
       ...(body ? { "content-type": "application/json" } : {}),
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
+    redirect: "error",
     signal: AbortSignal.timeout(30_000),
   });
   if (response.status === 404) return null;
