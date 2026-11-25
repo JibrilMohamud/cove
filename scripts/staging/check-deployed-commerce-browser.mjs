@@ -19,7 +19,7 @@ const required = [
   "COVE_QA_AUDIO_PUBLIC_ID",
   "COVE_QA_AUDIO_TRACK_ID",
   "COVE_SANDBOX_SECRET_KEY",
-  "CLOUDFLARE_API_TOKEN",
+  "COVE_CF_QA_D1_MUTATION_TOKEN",
 ];
 const missing = required.filter((name) => !process.env[name]);
 assert.equal(
@@ -35,7 +35,7 @@ assert.match(origin.hostname, /(?:^|[.-])(?:qa|staging)(?:[.-])/i);
 // Allow only this one disposable, ingress-gated Cloudflare Worker as a
 // temporary test origin. Other workers.dev hosts remain rejected.
 const isEphemeralQaWorker =
-  origin.hostname === "cove-commerce-customer-qa-stage.cove-jibrilmohamud.workers.dev";
+  origin.hostname === "cove-commerce-customer-qa-stage.cove-qa-reads.workers.dev";
 if (isEphemeralQaWorker) {
   assert.match(
     q.COVE_QA_STAGE_BEARER || "",
@@ -204,7 +204,7 @@ const billingAddress = {
 // production or another user's cart.
 async function clearStaleQaFixtureCart(userId) {
   assert.match(userId, /^sb:[a-f0-9-]{36}$/);
-  assert.equal(origin.hostname, "cove-commerce-customer-qa-stage.cove-jibrilmohamud.workers.dev");
+  assert.equal(origin.hostname, "cove-commerce-customer-qa-stage.cove-qa-reads.workers.dev");
   const knownProducts = new Set([q.COVE_QA_EPUB_PRODUCT_ID, q.COVE_QA_AUDIO_PRODUCT_ID]);
   const previous = await qaD1(
     "SELECT i.product_id FROM shopping_cart_items i JOIN shopping_carts c ON c.id=i.cart_id WHERE c.user_id=? LIMIT 20",

@@ -61,6 +61,16 @@ export function verifyProtectedWorkflow(yaml, jobName) {
       "Environment approval must precede deployment-secret availability: " + secretName,
     );
   }
+  if (["private-commerce", "authenticated-commerce"].includes(jobName)) {
+    assert.ok(!job.includes("secrets.CLOUDFLARE_API_TOKEN"));
+    assert.ok(job.includes("CLOUDFLARE_ACCOUNT_ID: f51e8ccbc394e2d6016ff8c2c303d54b"));
+    for (const token of [
+      "COVE_CF_QA_WORKERS_DEPLOY_TOKEN",
+      "COVE_CF_QA_D1_MUTATION_TOKEN",
+      "COVE_CF_QA_R2_STORAGE_TOKEN",
+    ])
+      assert.ok(job.indexOf("secrets." + token) > approvedAt);
+  }
   if (jobName === "protected-live-readonly-audit")
     assert.ok(
       !job.includes("CLOUDFLARE_API_TOKEN:"),

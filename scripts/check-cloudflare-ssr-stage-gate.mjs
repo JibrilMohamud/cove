@@ -47,7 +47,7 @@ try {
     COVE_SSR_STAGING_COMMERCE_QA: "1",
     COVE_STRIPE_SIGNED_WEBHOOK_QA_ENABLED: "1",
   };
-  const qaUrl = "https://cove-commerce-customer-qa-stage.cove-jibrilmohamud.workers.dev";
+  const qaUrl = "https://cove-commerce-customer-qa-stage.cove-qa-reads.workers.dev";
   const webhook = (url = qaUrl + "/api/fore/stripe/webhook", headers = {}) =>
     new Request(url, { method: "POST", headers });
   const stripeHeaders = {
@@ -65,6 +65,13 @@ try {
     [webhook(undefined, { "content-type": "application/json" }), qa],
     [webhook(qaUrl + "/api/fore/checkout/payment", stripeHeaders), qa],
     [webhook("https://www.covereads.com/api/fore/stripe/webhook", stripeHeaders), qa],
+    [
+      webhook(
+        "https://cove-commerce-customer-qa-stage.cove-jibrilmohamud.workers.dev/api/fore/stripe/webhook",
+        stripeHeaders,
+      ),
+      qa,
+    ],
     [webhook(undefined, stripeHeaders), { ...qa, COVE_STRIPE_SIGNED_WEBHOOK_QA_ENABLED: "0" }],
     [webhook(undefined, stripeHeaders), { ...qa, COVE_SSR_STAGING_COMMERCE_QA: "0" }],
   ]) {

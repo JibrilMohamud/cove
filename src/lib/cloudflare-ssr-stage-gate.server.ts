@@ -33,7 +33,7 @@ export async function rejectUnauthenticatedStagingRequest(
   const stripeQaWebhook =
     env.COVE_SSR_STAGING_COMMERCE_QA === "1" &&
     env.COVE_STRIPE_SIGNED_WEBHOOK_QA_ENABLED === "1" &&
-    uri.hostname === "cove-commerce-customer-qa-stage.cove-jibrilmohamud.workers.dev" &&
+    uri.hostname === "cove-commerce-customer-qa-stage.cove-qa-reads.workers.dev" &&
     uri.pathname === "/api/fore/stripe/webhook" &&
     request.method === "POST" &&
     request.headers.get("content-type")?.split(";")[0]?.trim() === "application/json" &&
@@ -59,7 +59,7 @@ export async function rejectUnauthenticatedStagingRequest(
     const uri = new URL(request.url);
     const allowedQaWrite =
       env.COVE_SSR_STAGING_COMMERCE_QA === "1" &&
-      uri.hostname === "cove-commerce-customer-qa-stage.cove-jibrilmohamud.workers.dev" &&
+      uri.hostname === "cove-commerce-customer-qa-stage.cove-qa-reads.workers.dev" &&
       request.method === "POST" &&
       new Set([
         "/api/fore/auth/login",
