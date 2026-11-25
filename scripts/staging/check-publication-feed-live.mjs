@@ -13,7 +13,9 @@ const token = process.env.CLOUDFLARE_API_TOKEN,
   run = process.env.GITHUB_RUN_ID;
 assert.ok(token && readToken && token !== readToken);
 assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, account);
-assert.match(run || "", /^\d+$/);
+assert.match(run || "", /^[1-9][0-9]{7,14}$/);
+assert.equal(process.env.GITHUB_REF, "refs/heads/main");
+assert.equal(process.env.GITHUB_EVENT_NAME, "workflow_dispatch");
 assert.notEqual(source, ledger);
 const dir = "artifacts/publication-feed";
 fs.mkdirSync(dir, { recursive: true });
@@ -29,6 +31,15 @@ const evidence = {
 };
 const save = () => fs.writeFileSync(dir + "/results.json", JSON.stringify(evidence, null, 2));
 async function api(method, path, body) {
+  if (path.includes("/d1/database/")) {
+    assert.equal(method, "POST");
+    assert.match(body?.sql || "", /^SELECT\b/i);
+    assert.ok(
+      [ledger, "1825b4a1-0329-408d-9cc2-a40e6a17c822"].some(
+        (id) => path === `/accounts/${account}/d1/database/${id}/query`,
+      ),
+    );
+  }
   const r = await fetch("https://api.cloudflare.com/client/v4" + path, {
     method,
     headers: {
@@ -123,8 +134,8 @@ try {
       ["products", "rights_grants", "users", "commerce_orders"].includes(r.name),
     ),
   );
-  // Rebuild the disposable stage ledger's markets, preserving monotonically
-  // increasing generations. Old in-flight ACKs lose their lease fence.
+  // Rebuild only the disposable stage ledger after checking no live leases.
+  // Preserve monotonic generations; never steal an in-flight writer lease.
   const prefix = `feed/campaign/${run}/`;
   const capture = JSON.parse(fs.readFileSync("wrangler.publication-capture.stage.jsonc", "utf8"));
   assert.equal(capture.workers_dev, false);
@@ -175,6 +186,7 @@ try {
     await deployStage(file);
   }
   const gate = randomBytes(32).toString("hex");
+  console.log("::add-mask::" + gate);
   const name = `cove-pub-${run}-driver`;
   names.push(name);
   const config = {
@@ -190,12 +202,16 @@ try {
       { binding: "PUBLISHER", service: names[2] },
     ],
     d1_databases: [
-      { binding: "DISCOVERY_DB", database_name: "cove-discovery-publication-stage-20261022", database_id: ledger },
+      {
+        binding: "DISCOVERY_DB",
+        database_name: "cove-discovery-publication-stage-20261022",
+        database_id: ledger,
+      },
     ],
     r2_buckets: [
       { binding: "PRESENTATION", bucket_name: "cove-strangler-private-presentation-stage" },
     ],
-    vars: { PREFIX: prefix },
+    vars: { PREFIX: prefix, COVE_QA_EXPIRES: String(Date.now() + 20 * 60_000) },
   };
   const configPath = ".output/strangler/publication-driver.jsonc";
   fs.writeFileSync(configPath, JSON.stringify(config));

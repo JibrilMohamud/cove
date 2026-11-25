@@ -51,7 +51,7 @@ jobs:
         with: { node-version: "22", cache: npm }
       - run: npm ci
       - name: Verify provider-enforced canonical reader before capture
-        run: node scripts/staging/verify-canonical-readonly-service.mjs
+        run: node scripts/staging/verify-canonical-readonly-service.mjs --require-distinct-inventory
       - run: node scripts/build-storefront-strangler.mjs
       - name: Backfill an independent source and publish two fenced R2 generations
         run: node scripts/staging/check-publication-feed-live.mjs

@@ -10,7 +10,8 @@ assert.match(process.env.GITHUB_RUN_ID || "", /^[1-9][0-9]{7,14}$/);
 assert.match(process.env.GITHUB_RUN_ATTEMPT || "", /^[1-9][0-9]{0,3}$/);
 const token = process.env.CLOUDFLARE_API_TOKEN || "";
 assert.ok(token.length >= 20);
-const name = "cove-sounds-observe-" + process.env.GITHUB_RUN_ID + "-" + process.env.GITHUB_RUN_ATTEMPT;
+const name =
+  "cove-sounds-observe-" + process.env.GITHUB_RUN_ID + "-" + process.env.GITHUB_RUN_ATTEMPT;
 const root = "https://api.cloudflare.com/client/v4/accounts/" + account;
 const path = "/workers/scripts/" + name;
 async function api(method, suffix, body, missingOk = false) {

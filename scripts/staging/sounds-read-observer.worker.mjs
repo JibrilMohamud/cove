@@ -12,7 +12,13 @@ export default {
     const denied = (status) => new Response(null, { status });
     const gate = env.GATE || "";
     const supplied = request.headers.get("authorization") || "";
-    if (!/^[a-f0-9]{64}$/.test(gate) || supplied !== "Bearer " + gate) return denied(401);
+    if (!/^[a-f0-9]{64}$/.test(gate) || !/^Bearer [a-f0-9]{64}$/.test(supplied)) return denied(401);
+    const hash = async (value) =>
+      new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)));
+    const [a, b] = await Promise.all([hash(supplied), hash("Bearer " + gate)]);
+    let diff = 0;
+    for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+    if (diff) return denied(401);
     if (!Number.isSafeInteger(Number(env.EXPIRES)) || Date.now() >= Number(env.EXPIRES))
       return denied(403);
     if (request.method !== "GET" || new URL(request.url).pathname !== "/verify")

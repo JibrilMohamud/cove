@@ -31,7 +31,8 @@ function template(lane) {
   assert.ok(!config.routes && !config.route && !config.triggers && !config.queues);
   if (lane === "capture") {
     assert.equal(config.vars.COVE_PUBLICATION_CAPTURE_ENABLED, "0");
-    assert.equal(config.d1_databases.find((b) => b.binding === "SOURCE_DB").database_id, canonical);
+    assert.ok(!config.d1_databases.some((b) => b.database_id === canonical));
+    assert.deepEqual(config.services, [{binding:"COVE_CANONICAL_READONLY",service:"cove-canonical-d1-readonly"}]);
     assert.equal(
       config.d1_databases.find((b) => b.binding === "PUBLIC_SOURCE_DB").database_id,
       source,
@@ -114,6 +115,8 @@ for (const lane of ["capture", "export", "publish"]) {
   const settings = await api(`/accounts/${account}/workers/scripts/${config.name}/settings`);
   const schedules = await api(`/accounts/${account}/workers/scripts/${config.name}/schedules`);
   const bindings = settings.bindings || [];
+  assert.ok(!bindings.some(b=>b.type==="d1"&&(b.id||b.database_id)===canonical));
+  if(lane==="capture")assert.ok(bindings.some(b=>b.type==="service"&&b.name==="COVE_CANONICAL_READONLY"&&b.service==="cove-canonical-d1-readonly"));
   assert.ok(
     bindings.some(
       (b) =>

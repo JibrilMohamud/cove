@@ -11,7 +11,9 @@ type Env = Omit<CaptureEnv, "SOURCE_DB"> & {
 function scopedCapture(env: Env) {
   if (env.SOURCE_DB || typeof env.COVE_CANONICAL_READONLY?.query !== "function")
     throw Error("capture_provider_readonly_required");
-  const source = canonicalReadonlyD1(env.COVE_CANONICAL_READONLY) as unknown as CaptureEnv["SOURCE_DB"];
+  const source = canonicalReadonlyD1(
+    env.COVE_CANONICAL_READONLY,
+  ) as unknown as CaptureEnv["SOURCE_DB"];
   return capturePublicSource({ ...env, SOURCE_DB: source });
 }
 
