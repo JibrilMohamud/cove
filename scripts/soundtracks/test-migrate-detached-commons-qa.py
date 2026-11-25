@@ -116,6 +116,31 @@ class Tests(unittest.TestCase):
         self.target.query("CREATE TABLE rights_grants(id TEXT)")
         with self.assertRaisesRegex(RuntimeError,"not_dedicated"):
             self.run_copy()
+    def test_orphan_exception_exact_identity_and_provider_required(self):
+        run = {"id": M.ORPHAN_ID, "head_sha": M.ORPHAN_SHA, "head_branch": "main",
+               "event": "schedule", "path": ".github/workflows/" + M.ORPHAN_WORKFLOW,
+               "status": "queued"}
+        self.assertTrue(M.exact_orphan(run, M.ORPHAN_WORKFLOW, "queued"))
+        for k, v in (("id", 1), ("head_sha", "a"*40), ("head_branch", "other"),
+                     ("event", "push"), ("path", "other.yml"), ("status", "in_progress")):
+            self.assertFalse(M.exact_orphan({**run,k:v}, M.ORPHAN_WORKFLOW, "queued"))
+        self.assertFalse(M.exact_orphan(run, M.ORPHAN_WORKFLOW, "in_progress"))
+        self.assertFalse(M.exact_orphan(run, "other.yml", "queued"))
+        import json
+        from types import SimpleNamespace
+        responses = [json.dumps(run).encode(), b'{"total_count":0,"jobs":[]}']
+        with patch.object(M,"request",side_effect=responses), patch.object(
+                M.subprocess,"run",return_value=SimpleNamespace(returncode=1,stdout="")):
+            with self.assertRaisesRegex(RuntimeError,"provider_write_fence_unverified"):
+                M.prove_orphan_fenced("github")
+        with patch.object(M,"request",side_effect=responses), patch.object(
+                M.subprocess,"run",return_value=SimpleNamespace(
+                    returncode=0,stdout="COMMONS_ARCHIVED_SOURCE_FENCED\n")):
+            M.prove_orphan_fenced("github")
+        with patch.object(M,"request",side_effect=[responses[0],b'{"total_count":1,"jobs":[{}]}']):
+            with self.assertRaisesRegex(RuntimeError,"jobs_present"):
+                M.prove_orphan_fenced("github")
+
     def test_source_mutation_and_untrusted_keys_refused(self):
         source = M.D1(M.SOURCE_ACCOUNT,M.SOURCE_DB,"read",True)
         with self.assertRaisesRegex(RuntimeError,"source_write"):
