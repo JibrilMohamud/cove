@@ -23,7 +23,20 @@ export default {
   async fetch(request: Request, env: Env) {
     if (request.method !== "POST" || new URL(request.url).pathname !== "/run")
       return new Response(null, { status: 404 });
-    return Response.json(await scopedCapture(env));
+    try {
+      return Response.json(await scopedCapture(env));
+    } catch (error) {
+      // Only bounded categories, never upstream SQL or request details.
+      const message = error instanceof Error ? error.message : "";
+      const reason = /^capture_[a-z_]+$/.test(message)
+        ? message
+        : /^Canonical read unavailable: HTTP [0-9]{3} code [0-9]+$/.test(message)
+          ? message
+          : message === "Canonical primary read unavailable"
+            ? "canonical_primary_read_unavailable"
+            : "capture_unclassified";
+      return Response.json({ error: reason }, { status: 503 });
+    }
   },
   scheduled(_controller: unknown, env: Env, ctx: { waitUntil(task: Promise<unknown>): void }) {
     ctx.waitUntil(

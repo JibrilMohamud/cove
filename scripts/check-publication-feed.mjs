@@ -68,10 +68,12 @@ try {
     { binding: "COVE_CANONICAL_READONLY", service: "cove-canonical-d1-readonly" },
   ]);
   for (const env of [{}, { SOURCE_DB: {}, COVE_CANONICAL_READONLY: { query() {} } }]) {
-    await assert.rejects(
-      () => captureWorker.fetch(new Request("https://private/run", { method: "POST" }), env),
-      /capture_provider_readonly_required/,
+    const response = await captureWorker.fetch(
+      new Request("https://private/run", { method: "POST" }),
+      env,
     );
+    assert.equal(response.status, 503);
+    assert.deepEqual(await response.json(), { error: "capture_provider_readonly_required" });
   }
   let invoked = 0;
   const control = {

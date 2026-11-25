@@ -20,7 +20,6 @@ const lanes = [
     child("deployed-commerce-browser-acceptance", ["authenticated-commerce"]),
   ],
   [
-    child("covereads-secure-ssr-gateway", ["isolated-asset-auth"], "confirm_isolated_stage_only"),
     child(
       "fast-storefront-real-catalog-acceptance",
       ["protected-real-catalog-acceptance"],
@@ -30,6 +29,7 @@ const lanes = [
     child("cove-sounds-private-rollout", ["private-sounds-release"], "confirm_private_sounds", {
       disable_private_sounds: "false",
     }),
+    child("covereads-secure-ssr-gateway", ["isolated-asset-auth"], "confirm_isolated_stage_only"),
   ],
   [
     child("publication-source-isolation-qa", ["physically-isolated-publication"]),
@@ -176,31 +176,41 @@ if (!process.argv.includes("--self-test")) {
       directory + "/results.json",
       JSON.stringify({ sha, results, physicalRevocationCertified: false }, null, 2) + "\n",
     );
-  await Promise.all(
-    lanes.map(async (lane) => {
-      let failed = false;
-      for (const task of lane) {
-        let result;
-        if (failed)
-          result = { workflow: task.name, passed: false, conclusion: "dependency-failed" };
-        else {
-          try {
-            result = await runChild(task, sha);
-          } catch {
-            result = {
-              workflow: task.name,
-              passed: false,
-              conclusion: "dispatch-or-evidence-failure",
-            };
-          }
+  const runLane = async (lane) => {
+    let failed = false;
+    for (const task of lane) {
+      let result;
+      if (failed)
+        result = { workflow: task.name, passed: false, conclusion: "dependency-failed" };
+      else {
+        try {
+          result = await runChild(task, sha);
+        } catch {
+          result = {
+            workflow: task.name,
+            passed: false,
+            conclusion: "dispatch-or-evidence-failure",
+          };
         }
-        results.push(result);
-        save();
-        console.log(JSON.stringify(result));
-        failed ||= !result.passed;
       }
-    }),
-  );
+      results.push(result);
+      save();
+      console.log(JSON.stringify(result));
+      // Only the same fixture's dependent browser or continuous deployment
+      // is blocked. Capacity and Sounds are distinct gates.
+      if (lane === lanes[0] || lane === lanes[2]) failed ||= !result.passed;
+    }
+  };
+  // Do not overlap heavy primary reads with the publication capture, and
+  // keep old owned SSR stress last. Independent commerce still overlaps.
+  await Promise.all([
+    runLane(lanes[0]),
+    (async () => {
+      await runLane(lanes[2]);
+      await runLane(lanes[3]);
+      await runLane(lanes[1]);
+    })(),
+  ]);
   assert.equal(results.length, 9);
   assert.ok(
     results.every((result) => result.passed),
