@@ -56,7 +56,12 @@ const wrangler = (args, input) => {
       input,
       encoding: "utf8",
       timeout: 180000,
-      env: { ...process.env, CLOUDFLARE_SEND_METRICS: "false" },
+      env: {
+        ...process.env,
+        COVE_CF_QA_D1_MUTATION_TOKEN: "",
+        COVE_CF_QA_R2_STORAGE_TOKEN: "",
+        CLOUDFLARE_SEND_METRICS: "false",
+      },
     },
   );
   assert.equal(p.status, 0, "QA Wrangler operation failed; secrets are redacted");

@@ -44,7 +44,7 @@ if (process.argv.includes("--offline")) {
       assert.ok(workflow.includes("secrets." + token));
   }
   const env = { CLOUDFLARE_ACCOUNT_ID: account };
-  names.forEach((name, i) => (env[name] = String(i).repeat(32)));
+  for (const [i, name] of names.entries()) env[name] = String(i).repeat(32);
   verify(env);
   assert.throws(() => verify({ ...env, CLOUDFLARE_ACCOUNT_ID: "production" }));
   assert.throws(() => verify({ ...env, CLOUDFLARE_API_TOKEN: env[names[1]] }));

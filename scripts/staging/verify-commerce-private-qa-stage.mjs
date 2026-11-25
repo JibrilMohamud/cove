@@ -25,7 +25,12 @@ const settings = await api(
 );
 const details = await api("GET", "/accounts/" + account + "/workers/workers/" + name);
 const binds = settings.bindings || [];
-for (const secret of ["COVE_SSR_STAGING_GATE_KEY", "STRIPE_SECRET_KEY", "STRIPE_PUBLISHABLE_KEY"]) {
+for (const secret of [
+  "COVE_SSR_STAGING_GATE_KEY",
+  "STRIPE_SECRET_KEY",
+  "STRIPE_PUBLISHABLE_KEY",
+  "SUPABASE_PUBLISHABLE_KEY",
+]) {
   assert.ok(
     binds.some((b) => b.name === secret && b.type === "secret_text"),
     "Dedicated TEST staging credential not installed: " + secret,
@@ -33,7 +38,10 @@ for (const secret of ["COVE_SSR_STAGING_GATE_KEY", "STRIPE_SECRET_KEY", "STRIPE_
 }
 assert.ok(
   binds.some(
-    (b) => b.name === "DB" && b.type === "d1" && (b.id || b.database_id) === "f9354381-bd9f-496b-bd05-d6f62a32ec0c",
+    (b) =>
+      b.name === "DB" &&
+      b.type === "d1" &&
+      (b.id || b.database_id) === "f9354381-bd9f-496b-bd05-d6f62a32ec0c",
   ),
 );
 assert.ok(
@@ -44,6 +52,9 @@ assert.ok(
       b.bucket_name === "cove-commerce-detached-media-qa",
   ),
 );
+assert.equal(binds.filter((b) => b.type === "d1").length, 1);
+assert.equal(binds.filter((b) => b.type === "r2_bucket").length, 1);
+assert.equal(settings.routes?.length || 0, 0);
 assert.ok(binds.some((b) => b.name === "STRIPE_LIVEMODE" && b.text === "false"));
 assert.equal(details.subdomain?.enabled, false, "QA must not yet have an unauthenticated URL");
 assert.equal(details.subdomain?.previews_enabled, false);

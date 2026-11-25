@@ -86,6 +86,10 @@ jobs:
       - name: Verify all remote bindings remain isolated and private
         run: node scripts/staging/check-commerce-private-qa-stage.mjs
       - run: node scripts/staging/check-commerce-qa-stage-write-gate.mjs
+      - name: Validate public Supabase key before provisioning
+        env:
+          QA_SUPABASE_PUBLIC: ${{ secrets.COVE_QA_SUPABASE_PUBLISHABLE_KEY || secrets.SUPABASE_PUBLISHABLE_KEY || secrets.SUPABASE_ANON_KEY }}
+        run: node scripts/staging/check-detached-commerce-credentials.mjs --supabase
       - name: Apply full app schema to disposable QA D1 ONLY
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_QA_D1_MUTATION_TOKEN }}
@@ -184,6 +188,7 @@ jobs:
       - run: npm run build
       - run: npm install --global @stripe/cli
       - run: npx playwright install --with-deps chromium
+      - run: node scripts/staging/verify-commerce-private-qa-stage.mjs
       - name: Signed webhook, two genuine accounts, EPUB/audio, refund and revocation
         run: node scripts/staging/run-protected-deployed-commerce-qa.mjs
       - uses: actions/upload-artifact@v4

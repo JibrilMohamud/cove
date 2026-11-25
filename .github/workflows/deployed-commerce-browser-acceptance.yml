@@ -67,6 +67,7 @@ jobs:
       - run: npm run build
       - run: npm install --global @stripe/cli
       - run: npx playwright install --with-deps chromium
+      - run: node scripts/staging/verify-commerce-private-qa-stage.mjs
       - name: Signed webhook, two genuine accounts, EPUB/audio, refund and revocation
         run: node scripts/staging/run-protected-deployed-commerce-qa.mjs
       - uses: actions/upload-artifact@v4

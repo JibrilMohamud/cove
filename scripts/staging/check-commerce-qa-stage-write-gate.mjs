@@ -41,7 +41,12 @@ for (const path of allowed) {
   assert.equal(
     (
       await check(
-        req(path, "POST", true, "https://cove-commerce-customer-qa-stage.cove-jibrilmohamud.workers.dev"),
+        req(
+          path,
+          "POST",
+          true,
+          "https://cove-commerce-customer-qa-stage.cove-jibrilmohamud.workers.dev",
+        ),
         qaEnv,
       )
     ).status,
