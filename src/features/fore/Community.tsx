@@ -10,7 +10,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
 import {
@@ -37,9 +37,9 @@ import { MemberPicker, type ShareMember } from "./Sharing";
 import { useStorefrontLocale } from "./localization";
 import { readArenaPost, ARENA_KINDS } from "./community-arena";
 
-const ArenaTab = lazy(() =>
-  import("./CommunityArena").then((m) => ({ default: m.CommunityArena })),
-);
+// Render the Arena in the same hydration pass as its route. A separately
+// suspended SSR subtree can be interrupted by account or locale updates.
+import { CommunityArena } from "./CommunityArena";
 
 type Post = {
   id: string;
@@ -2826,21 +2826,11 @@ export function CommunityPage() {
         ))}
       </nav>
       {tab === "arena" || tab === "debates" ? (
-        <Suspense
-          fallback={
-            <p className="muted" role="status">
-              {ui("Opening Community…")}
-            </p>
-          }
-        >
-          <ArenaTab fullPage={tab === "debates"} />
-        </Suspense>
+        <CommunityArena fullPage={tab === "debates"} />
       ) : tab === "discover" ? (
         <Discover />
       ) : (
-        <Suspense fallback={<p className="muted">{ui("Opening Community…")}</p>}>
-          <ArenaTab />
-        </Suspense>
+        <CommunityArena />
       )}
     </main>
   );
