@@ -48,6 +48,10 @@ function check(source,name){
     const credentials=["COVE_CF_QA_D1_MUTATION_TOKEN","COVE_CF_QA_R2_STORAGE_TOKEN"];
     if(name==="protected-real-service-binding")credentials.push("COVE_CF_QA_WORKERS_DEPLOY_TOKEN");
     for(const field of credentials)assert.ok(job.indexOf(field+": ${{ secrets."+field+" }}")>approval);
+  }else if(name==="protected-staging-only"){
+    assert.ok(!job.includes("secrets.CLOUDFLARE_API_TOKEN"));
+    for(const token of ["COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN","COVE_CF_STAGE_DATA_PLANE_READ_TOKEN","COVE_BIOSYNC_PROD_D1_READ_TOKEN"])
+      assert.ok(job.indexOf("secrets."+token)>approval);
   }else if(name==="authenticated-commerce"){
     assert.ok(!job.includes("secrets.CLOUDFLARE_API_TOKEN"));
     assert.ok(job.includes("CLOUDFLARE_ACCOUNT_ID: f51e8ccbc394e2d6016ff8c2c303d54b"));
