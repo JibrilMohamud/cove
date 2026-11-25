@@ -33,11 +33,16 @@ assert.match(source, /env\.SOURCE_DB\s*\|\|/);
 assert.match(source, /COVE_CANONICAL_READONLY_RPC\s*!==\s*"1"/);
 assert.doesNotMatch(source, /env\.SOURCE_DB\.prepare\(/);
 const seed = fs.readFileSync("scripts/staging/seed-cove-sounds-private.mjs", "utf8");
-assert.match(seed, /COVE_CANONICAL_READONLY_RPC:\s*"1"/);
-assert.match(seed, /COVE_CANONICAL_READONLY:\s*seedReadService/);
-assert.match(seed, /served_by_primary !== true/);
-assert.match(seed, /rows_written !== 0/);
-assert.doesNotMatch(seed, /SOURCE_DB:\s*\{/);
+assert.match(seed, /sounds_legacy_ci_seed_retired/);
+assert.doesNotMatch(seed, /fetch\(|spawnSync|CLOUDFLARE_API_TOKEN/);
+const observer = fs.readFileSync("scripts/staging/sounds-read-observer.worker.mjs", "utf8");
+assert.doesNotMatch(observer, /\.put\(|\.delete\(|\.prepare\(/);
+const workflow = fs.readFileSync(".github/workflows/cove-sounds-private-rollout.yml", "utf8");
+assert.ok(!workflow.includes("secrets.CLOUDFLARE_API_TOKEN"));
+assert.ok(workflow.includes("secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN"));
+assert.ok(workflow.includes("secrets.COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN"));
+assert.ok(workflow.includes("inputs.disable_private_sounds == true"));
+assert.ok(!workflow.includes("run: node scripts/staging/seed-cove-sounds-private.mjs"));
 
 console.log(
   "PASS: active/disabled Sounds config has no native D1 or public route, preserves US hourly cron and private R2/KV, read service required",
