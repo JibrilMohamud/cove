@@ -96,9 +96,7 @@ test("guest navigation stays private and fits the device", async ({ page }, test
   await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
   await noOverflow(page);
   await page.goto("/community");
-  // Do not navigate away while the lazy Community root is still hydrating.
-  // WebKit can otherwise interrupt a suspended concurrent render and report
-  // a recoverable React root error unrelated to the page being tested.
+  // The outer provider marker alone does not prove Arena controls are mounted.
   await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
   await expect(page.getByRole("heading", { name: "Community", exact: true })).toBeVisible();
   const publicTabs = page.locator(".community-tabs");
@@ -107,12 +105,10 @@ test("guest navigation stays private and fits the device", async ({ page }, test
   await expect(publicTabs.getByRole("link", { name: "Following", exact: true })).toHaveCount(0);
   for (const name of ["Shared with me", "My sharing", "My profile"])
     await expect(publicTabs.getByRole("link", { name, exact: true })).toHaveCount(0);
-  // The Community heading comes from the outer route, but the real Arena is
-  // a separate React.lazy import. Wait for that module's mounted component
-  // before full-document navigation: the Firefox CI trace showed an aborted
-  // CommunityArena.tsx fetch (NS_BINDING_ABORTED) when we left sooner.
-  // A real module failure, hydration error or missing Arena still fails QA.
-  await expect(page.locator(".cove-arena")).toBeVisible();
+  // Require the real component's committed hydration effect, not SSR markup.
+  // React recovery errors remain failures, including on a successful retry.
+  await expect(page.locator('.cove-arena[data-cove-arena-ready="true"]')).toBeVisible();
+  expect(errors, "Guest Community rendered without application errors").toEqual([]);
   leavingCommunity = true;
   await page.goto("/profile?section=sharing");
   await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);

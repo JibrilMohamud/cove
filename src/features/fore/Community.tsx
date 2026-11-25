@@ -41,6 +41,26 @@ const ArenaTab = lazy(() =>
   import("./CommunityArena").then((m) => ({ default: m.CommunityArena })),
 );
 
+// Keep the Arena chunk out of shared discussion and reader bundles. Render
+// the same shell on the server and during initial client hydration; only
+// mount the lazy interactive subtree after this shell has committed.
+function HydratedArena({ fullPage = false }: { fullPage?: boolean }) {
+  const ui = useUiText();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const fallback = (
+    <p className="muted" role="status">
+      {ui("Opening Community…")}
+    </p>
+  );
+  if (!mounted) return fallback;
+  return (
+    <Suspense fallback={fallback}>
+      <ArenaTab fullPage={fullPage} />
+    </Suspense>
+  );
+}
+
 type Post = {
   id: string;
   locked?: boolean;
@@ -2826,21 +2846,11 @@ export function CommunityPage() {
         ))}
       </nav>
       {tab === "arena" || tab === "debates" ? (
-        <Suspense
-          fallback={
-            <p className="muted" role="status">
-              {ui("Opening Community…")}
-            </p>
-          }
-        >
-          <ArenaTab fullPage={tab === "debates"} />
-        </Suspense>
+        <HydratedArena fullPage={tab === "debates"} />
       ) : tab === "discover" ? (
         <Discover />
       ) : (
-        <Suspense fallback={<p className="muted">{ui("Opening Community…")}</p>}>
-          <ArenaTab />
-        </Suspense>
+        <HydratedArena />
       )}
     </main>
   );

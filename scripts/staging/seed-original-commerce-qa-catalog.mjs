@@ -99,6 +99,36 @@ const sql =
     `UPDATE publishing_release_lifecycles SET current_publication_version_id='qa-original-audio-version' WHERE id='qa-original-audio-lifecycle'`,
   ].join(";") + ";";
 await api("POST", "/accounts/" + account + "/d1/database/" + db + "/query", { sql });
+// A newly detached database has no prior search projection. Populate only
+// the two original QA fixtures, from their actual active offer and edition.
+// The catalog's FTS triggers maintain its search index. No fabricated rights.
+const indexSql = `INSERT OR IGNORE INTO catalog_search_documents(
+  product_id,external_book_id,title,description,languages_text,format,currency,
+  price_minor,availability,suppressed,first_ingested_at,updated_at)
+  SELECT p.id,p.source_external_id,e.title,COALESCE(e.description,''),
+    e.language,p.format,o.currency,o.amount_minor,'available',0,p.created_at,p.updated_at
+  FROM products p JOIN editions e ON e.id=p.edition_id
+  JOIN offers o ON o.product_id=p.id AND o.active=1 AND o.currency='USD'
+    AND o.sales_channel='retail'
+  WHERE p.id IN ('qa-original-ebook-product','qa-original-audio-product')
+    AND p.storefront_status='active' AND e.release_status IN ('available','preorder')
+    AND EXISTS (SELECT 1 FROM retail_product_availability_rows r
+      WHERE r.product_id=p.id AND r.territory_code='US')`;
+await api("POST", "/accounts/" + account + "/d1/database/" + db + "/query", { sql: indexSql });
+const indexed = await api("POST", "/accounts/" + account + "/d1/database/" + db + "/query", {
+  sql: `SELECT d.product_id,d.currency,d.price_minor FROM catalog_search_documents d
+    JOIN products p ON p.id=d.product_id
+    WHERE d.product_id IN ('qa-original-ebook-product','qa-original-audio-product')
+      AND d.availability='available' AND d.suppressed=0 AND d.currency='USD'
+      AND d.price_minor=100 AND p.storefront_status='active'
+      AND EXISTS (SELECT 1 FROM retail_product_availability_rows r
+        WHERE r.product_id=p.id AND r.territory_code='US') ORDER BY d.product_id`,
+});
+assert.deepEqual(
+  indexed[0].results.map((row) => row.product_id),
+  ["qa-original-audio-product", "qa-original-ebook-product"],
+  "Both original QA products must have real US-authorized search projections",
+);
 const rows = await api("POST", "/accounts/" + account + "/d1/database/" + db + "/query", {
   sql: "SELECT p.id,o.amount_minor,rg.territory_code,av.object_key FROM products p JOIN offers o ON o.product_id=p.id JOIN rights_grants rg ON rg.edition_id=p.edition_id JOIN digital_assets da ON da.edition_id=p.edition_id JOIN asset_versions av ON av.asset_id=da.id WHERE p.id='qa-original-ebook-product'",
 });

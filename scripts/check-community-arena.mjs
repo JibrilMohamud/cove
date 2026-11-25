@@ -465,6 +465,15 @@ try {
     fs.readFileSync("src/features/fore/Community.tsx", "utf8"),
     /import\("\.\/CommunityArena"\)/,
   );
+  const arenaMount = communityPage.split("function HydratedArena(")[1].split("type Post =")[0];
+  assert.match(arenaMount, /useState\(false\)/, "SSR and initial hydration share the same shell");
+  assert.match(arenaMount, /useEffect\(\(\) => setMounted\(true\), \[\]\)/);
+  assert.ok(
+    arenaMount.indexOf("if (!mounted) return fallback;") >= 0 &&
+      arenaMount.indexOf("if (!mounted) return fallback;") < arenaMount.indexOf("<ArenaTab"),
+    "The lazy Arena must not mount before the shell commits",
+  );
+  assert.match(communityPage, /<HydratedArena fullPage=\{tab === "debates"\} \/>/);
   assert.match(
     communityPage,
     /\^\(\?:sb:\)\?/,

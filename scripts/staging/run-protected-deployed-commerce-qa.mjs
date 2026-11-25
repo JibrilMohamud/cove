@@ -134,12 +134,15 @@ try {
   // This is browser QA (not a cold performance sample), so wait for a genuine
   // bearer-gated 200 response before attempting Supabase login and payment.
   let ingressReady = false;
+  const ingressStatuses = new Map();
   for (let attempt = 1; attempt <= 45; attempt++) {
     try {
       const response = await fetch(origin, {
         headers: { authorization: "Bearer " + gate },
         signal: AbortSignal.timeout(5000),
       });
+      const status = response.status;
+      ingressStatuses.set(status, (ingressStatuses.get(status) || 0) + 1);
       const htmlReady =
         response.status === 200 &&
         (response.headers.get("content-type") || "").includes("text/html");
@@ -166,6 +169,7 @@ try {
     }
     await new Promise((resolve) => setTimeout(resolve, 2000));
   }
+  console.log("QA_INGRESS_STATUS_COUNTS", JSON.stringify(Object.fromEntries(ingressStatuses)));
   assert.ok(ingressReady, "QA ingress never reached an authenticated HTML-ready state");
   // A synchronous child blocks this parent's event loop. Stripe CLI's piped
   // stdout/stderr then cannot drain while the browser exercises webhooks,

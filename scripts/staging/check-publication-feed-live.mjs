@@ -228,8 +228,21 @@ try {
       signal: AbortSignal.timeout(90000),
     });
     const body = await r.text();
-    assert.equal(r.status, 200, body.slice(0, 200));
-    return JSON.parse(body);
+    let receipt;
+    try {
+      receipt = JSON.parse(body);
+    } catch {
+      receipt = null;
+    }
+    const safeError =
+      typeof receipt?.error === "string" &&
+      /^(?:capture_[a-z_]+|canonical_primary_read_unavailable|Canonical read unavailable: HTTP [0-9]{3} code [0-9]+)$/.test(
+        receipt.error,
+      )
+        ? receipt.error
+        : "unclassified";
+    assert.equal(r.status, 200, path + ": " + safeError);
+    return receipt;
   }
   // Backfill and refresh are separate and bounded: the SOURCE_DB bound to
   // export is physically independent of the authoritative rights/catalog D1.
