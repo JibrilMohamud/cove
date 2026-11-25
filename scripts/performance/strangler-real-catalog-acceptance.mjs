@@ -20,6 +20,8 @@ const { id: dbId, name: isolatedDbName } = requireIsolatedCatalogSnapshotTarget(
   process.env.COVE_REAL_CATALOG_SNAPSHOT_D1_NAME,
 );
 const token = process.env.CLOUDFLARE_API_TOKEN;
+const readToken = process.env.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN;
+assert.ok(readToken && readToken.length >= 20 && readToken !== token);
 assert.ok(token && token.length > 16, "Isolated hosted acceptance requires Cloudflare credentials");
 assert.match(process.env.GITHUB_RUN_ID || "", /^\d+$/);
 const namePrefix = "cove-strangler-real-preview-" + process.env.GITHUB_RUN_ID;
@@ -134,7 +136,7 @@ async function cloudflare(method, path, body) {
   const response = await fetch("https://api.cloudflare.com/client/v4" + path, {
     method,
     headers: {
-      authorization: "Bearer " + token,
+      authorization: "Bearer " + (path.includes("/d1/database/") ? readToken : token),
       "content-type": "application/json",
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
@@ -425,8 +427,9 @@ try {
   if (v2) {
     const { seedReadOnlyPresentation } = await import("../staging/seed-versioned-presentation.mjs");
     await seedReadOnlyPresentation({
-      token,
+      readToken,
       source: dbId,
+      sourceName: isolatedDbName,
       prefix: config.vars.COVE_PRESENTATION_PREFIX,
       directory: "artifacts/strangler-acceptance",
       kvNamespaceId: "8245d5f2116a445d9571405b41b7c8c3",
