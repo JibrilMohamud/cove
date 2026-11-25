@@ -252,14 +252,24 @@ def migrate(source, target, transfer, quiescent):
                  "object_count INTEGER NOT NULL)")
     # No consumer may use this new DB without the receipt. Retry only the
     # detached rows on interrupted copies, never the archived source ledger.
-    snapshot(target, columns)
-    for table in reversed(TABLES):
-        target.query("DELETE FROM " + ident(table))
+    partial = snapshot(target, columns)
+    # A failed transfer may leave immutable evidence rows behind. Resume by
+    # exact primary-key and full-row equality, never deleting or overwriting.
+    missing = {}
+    for table in TABLES:
+        pk = [x[0] for x in sorted((x for x in columns[table] if x[3]), key=lambda x: x[3])]
+        def key(row):
+            return tuple(row[field] for field in pk)
+        expected = {key(row): row for row in rows[table]}
+        present = {key(row): row for row in partial[table]}
+        require(all(k in expected and expected[k] == row for k, row in present.items()),
+                "commons_partial_destination_drift")
+        missing[table] = [row for row in rows[table] if key(row) not in present]
     for table in TABLES:
         fields = [x[0] for x in columns[table]]
         statement = ("INSERT INTO " + ident(table) + "(" + ",".join(map(ident, fields)) +
                      ") VALUES(" + ",".join("?" for _ in fields) + ")")
-        data = rows[table]
+        data = missing[table]
         for offset in range(0, len(data), 24):
             target.batch([(statement, [row[field] for field in fields])
                           for row in data[offset:offset + 24]])
