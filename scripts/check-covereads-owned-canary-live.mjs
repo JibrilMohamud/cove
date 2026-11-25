@@ -18,10 +18,12 @@ async function query(path, init = {}) {
 // Propagation readiness probes never call SSR; they are unauthenticated
 // manifest-only requests rejected by the assets-less gateway before service.
 let ready = false;
-for (let i = 0; i < 18; i++) {
+const readinessStatuses = new Map();
+for (let i = 0; i < 36; i++) {
   try {
     const res = await query("/manifest.webmanifest");
     const code = res.status;
+    readinessStatuses.set(code, (readinessStatuses.get(code) || 0) + 1);
     await res.body?.cancel();
     if (code === 401) {
       ready = true;
@@ -30,9 +32,13 @@ for (let i = 0; i < 18; i++) {
     if (code === 200) throw Error("Public canary manifest escaped authentication");
   } catch (error) {
     if (String(error).includes("escaped authentication")) throw error;
+    const cause = String(error?.cause?.code || error?.name || "unknown");
+    const category = /^[A-Z0-9_]+$/.test(cause) ? cause : "transport-error";
+    readinessStatuses.set(category, (readinessStatuses.get(category) || 0) + 1);
   }
   await pause(10_000);
 }
+console.log("OWNED_CANARY_READINESS", JSON.stringify(Object.fromEntries(readinessStatuses)));
 assert.ok(ready, "Owned-domain TLS and fail-closed gateway never became ready");
 const observations = [];
 for (const path of [

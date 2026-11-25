@@ -32,7 +32,9 @@ await withStagePresentationStore("synthetic", async (storage) => {
   for (const { country } of manifest.objects) {
     try {
       await storage.delete(country);
-    } catch {
+    } catch (error) {
+      const status = Number.isInteger(error?.actual) ? error.actual : null;
+      console.error("COVE_STAGE_V2_DELETE_FAILED", JSON.stringify({ country, status }));
       failures++;
     }
   }

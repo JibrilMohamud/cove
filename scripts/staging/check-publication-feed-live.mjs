@@ -6,7 +6,7 @@ import { randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import ts from "typescript";
 import {
-  CAPTURE_NAME,
+  freshCaptureCoverage,
   CAPTURE_SOURCE,
   verifyPinnedCapture,
 } from "./verify-pinned-publication-capture.mjs";
@@ -155,6 +155,29 @@ try {
     )[0].results;
   }
   const initial = new Map((await captureGenerations()).map((r) => [r.country, r.generation]));
+  async function readSourceState() {
+    return (await api("POST", "/accounts/" + account + "/d1/database/" + CAPTURE_SOURCE + "/query", {
+      sql: "SELECT (SELECT COUNT(*) FROM cove_publication_source_snapshots) available,(SELECT expected_markets FROM cove_publication_source_progress WHERE id=1) expected,(SELECT last_synced_at FROM cove_publication_source_identity WHERE id=1) last_synced",
+    }))[0].results[0];
+  }
+  // The immutable typed owner capture is cron-driven. Observe a complete
+  // new rotation through read-only D1, never an unsupported HTTP route.
+  let sourceRow;
+  let freshGenerationCoverage = false;
+  for (let turn = 0; turn < 38; turn++) {
+    const fresh = await captureGenerations();
+    sourceRow = await readSourceState();
+    freshGenerationCoverage = freshCaptureCoverage(initial, fresh, sourceRow, Date.now());
+    if (freshGenerationCoverage) break;
+    await new Promise((resolve) => setTimeout(resolve, 30000));
+  }
+  assert.ok(freshGenerationCoverage, "Every market must advance beyond its initial generation");
+  evidence.captureRotation = {
+    initialMarkets: initial.size,
+    markets: sourceRow.expected,
+    scheduled: true,
+  };
+  save();
   for (const lane of ["export", "publish"]) {
     const fileName = `wrangler.publication-${lane}.stage.jsonc`;
     const parsed = ts.parseConfigFileTextToJson(fileName, fs.readFileSync(fileName, "utf8"));
@@ -196,7 +219,6 @@ try {
     compatibility_date: "2026-10-22",
     compatibility_flags: ["nodejs_compat"],
     services: [
-      { binding: "CAPTURE", service: CAPTURE_NAME },
       { binding: "EXPORTER", service: names[0] },
       { binding: "PUBLISHER", service: names[1] },
     ],
@@ -247,63 +269,12 @@ try {
   // export is physically independent of the authoritative rights/catalog D1.
   // The capture worker alone reads public presentation source fields.
   assert.deepEqual(await invoke("/reset-ledger"), { ok: true });
-  const captured = new Set();
-  let freshGenerationCoverage = false;
-  let busyAttempts = 0;
-  // Multiple immutable QA runs can overlap while earlier capture leases are
-  // still held. The real producer must never steal a live lease. Wait for its
-  // bounded 120-second expiry, then prove a *complete* new backfill.
-  for (let turn = 0; turn < 55; turn++) {
-    const result = await invoke("/capture");
-    if (result.busy) {
-      busyAttempts++;
-      if (busyAttempts > 27) throw Error("publication_capture_lease_starvation");
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-      continue;
-    }
-    for (const country of result.countries) captured.add(country);
-    const fresh = await captureGenerations();
-    freshGenerationCoverage =
-      result.complete === true &&
-      Number.isSafeInteger(result.expected) &&
-      result.expected >= 1 &&
-      result.expected <= 32 &&
-      fresh.length === result.expected &&
-      fresh.every(
-        (r) =>
-          Number.isSafeInteger(r.generation) &&
-          r.generation > (initial.get(r.country) ?? 0) &&
-          r.expires_at > Date.now(),
-      );
-    if (freshGenerationCoverage) break;
-  }
-  assert.ok(freshGenerationCoverage, "Every market must advance beyond its initial generation");
-  const sourceState = await api(
-    "POST",
-    `/accounts/${account}/d1/database/1825b4a1-0329-408d-9cc2-a40e6a17c822/query`,
-    {
-      sql: "SELECT (SELECT COUNT(*) FROM cove_publication_source_snapshots) available,(SELECT expected_markets FROM cove_publication_source_progress WHERE id=1) expected,(SELECT last_synced_at FROM cove_publication_source_identity WHERE id=1) last_synced",
-    },
-  );
-  const sourceRow = sourceState[0].results[0];
-  assert.ok(sourceRow.expected >= 1 && sourceRow.expected <= 32);
-  assert.equal(sourceRow.available, sourceRow.expected, "Incomplete physical source backfill");
-  assert.ok(sourceRow.last_synced > Date.now() - 120_000);
-  console.log(
-    "PUBLICATION_SOURCE_CAPTURE_PASS",
-    JSON.stringify({
-      captured: captured.size,
-      busyAttempts,
-      markets: sourceRow.expected,
-      separateSource: true,
-    }),
-  );
+  console.log("PUBLICATION_SOURCE_CAPTURE_PASS", JSON.stringify(evidence.captureRotation));
   for (let cycle = 1; cycle <= 2; cycle++) {
     if (cycle === 2) {
-      // Refresh a bounded capture lease to keep the independent source fresh
-      // while the second generation is published. This operation is never
-      // performed by the export/publish workers.
-      await invoke("/capture");
+      // Capture continues independently on its pinned schedule.
+      const fresh = await captureGenerations();
+      assert.ok(freshCaptureCoverage(initial, fresh, await readSourceState(), Date.now()));
       assert.deepEqual(await invoke("/refresh-ledger"), { ok: true });
     }
     const calls = [];
@@ -341,7 +312,7 @@ try {
     const rows = await sql(
       "SELECT country,generation,status,sha256,expires_at,source_metrics,published_at,last_error FROM discovery_publications WHERE active=1 ORDER BY country",
     );
-    assert.ok(rows.results.length > 0 && rows.results.length <= 32);
+    assert.equal(rows.results.length, sourceRow.expected, "Incomplete all-market publication");
     assert.ok(
       rows.results.every(
         (r) =>

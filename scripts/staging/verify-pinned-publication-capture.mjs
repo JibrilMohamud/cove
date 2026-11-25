@@ -73,3 +73,25 @@ export async function verifyPinnedCapture(token, { fetchImpl = fetch } = {}) {
   );
   return evidence;
 }
+
+export function freshCaptureCoverage(initial, rows, state, now) {
+  return (
+    Number.isSafeInteger(state?.expected) &&
+    state.expected >= 1 &&
+    state.expected <= 32 &&
+    state.available === state.expected &&
+    rows.length === state.expected &&
+    new Set(rows.map((row) => row.country)).size === state.expected &&
+    Number.isSafeInteger(state.last_synced) &&
+    state.last_synced > now - 120000 &&
+    state.last_synced <= now &&
+    rows.every(
+      (row) =>
+        /^[A-Z]{2}$/.test(row.country) &&
+        Number.isSafeInteger(row.generation) &&
+        row.generation > (initial.get(row.country) ?? 0) &&
+        Number.isSafeInteger(row.expires_at) &&
+        row.expires_at > now,
+    )
+  );
+}
