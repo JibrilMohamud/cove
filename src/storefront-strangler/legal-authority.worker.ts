@@ -1,5 +1,4 @@
 /* eslint-disable prettier/prettier -- Private legal-authority boundary is security-sensitive. */
-import { ownerUserIdPattern } from "./owner-user-id";
 import {publishCheckedBiosyncOwned} from "./owner-biosync-checked-publication.stage";
 import {validateStoredEpub} from "../features/fore/stored-epub.server";
 import {canonicalizeRegionalEpub} from "../features/fore/gutenberg-federation.server";
@@ -2473,7 +2472,7 @@ export async function executeOwnerUnpaidCancellation(env:LegalAuthorityEnv,raw:u
   const q=raw as Record<string,unknown>;
   if(Object.keys(q).sort().join(",")!=="orderId,source,userId"||
      typeof q.orderId!=="string"||!cancellableOrderId.test(q.orderId)||
-     typeof q.userId!=="string"||!ownerUserIdPattern.test(q.userId)||
+     typeof q.userId!=="string"||!cancellableOrderId.test(q.userId)||
      !["customer","reconciliation"].includes(String(q.source)))
     throw Error("owner_cancellation_scope_invalid");
   const db=env.PRIMARY_DB;
@@ -17982,7 +17981,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         if(!q||typeof q!=="object"||Array.isArray(q)||
            Object.keys(q).sort().join(",")!=="author,createdAt,id,language,objectKey,operationId,title,userId"||
            typeof q.id!=="string"||!/^upload_[0-9a-f-]{36}$/.test(q.id)||
-           typeof q.userId!=="string"||!ownerUserIdPattern.test(q.userId)||
+           typeof q.userId!=="string"||!/^[a-zA-Z0-9_-]{8,160}$/.test(q.userId)||
            typeof q.title!=="string"||q.title.length>240||
            typeof q.author!=="string"||q.author.length>240||
            typeof q.language!=="string"||!/^[a-zA-Z-]{2,20}$/.test(q.language)||
@@ -18747,7 +18746,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       if(route==="/market/private-admin-upsert") {
         const input=z.object({
           operationId:z.string().regex(/^market-admin:[0-9a-f-]{36}$/),
-          actor:z.object({userId:z.string().regex(ownerUserIdPattern),
+          actor:z.object({userId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
             authProvider:z.string().min(1).max(120),
             authSubject:z.string().min(1).max(240),
             aal:z.enum(["aal1","aal2"])}).strict(),
@@ -19445,7 +19444,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         const x=z.object({
           holdId:z.string().min(3).max(180),
           note:z.string().trim().min(3).max(4000),
-          actor:z.object({userId:z.string().regex(ownerUserIdPattern),
+          actor:z.object({userId:z.string().regex(/^[a-zA-Z0-9_-]{8,160}$/),
             authProvider:z.string().min(1).max(120),
             authSubject:z.string().min(1).max(240),
             aal:z.enum(["aal1","aal2"])}).strict()
@@ -19768,7 +19767,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       }
       if(route==="/catalog/private-grant-free-library"){
         const input=z.object({
-          userId:z.string().regex(ownerUserIdPattern),
+          userId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
           productId:z.string().regex(/^prd_gutenberg_(?:[0-9]{1,10}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90})$/),
           territory:z.string().regex(/^[A-Z]{2}$/)
         }).strict().parse(raw);
@@ -19809,7 +19808,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         const x=z.object({
           grantId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
           tokenHash:z.string().regex(/^[a-f0-9]{64}$/),
-          userId:z.string().regex(ownerUserIdPattern),
+          userId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
           productId:z.string().regex(/^prd_(?!gutenberg_)[A-Za-z0-9_-]{3,120}$/),
           entitlementId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
           publicationVersionId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/).nullable(),
@@ -19901,7 +19900,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         };
         const x=z.object({
           licenseId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
-          userId:z.string().regex(ownerUserIdPattern),
+          userId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
           productId:z.string().regex(/^prd_(?!gutenberg_)[A-Za-z0-9_-]{3,120}$/),
           entitlementId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
           editionId:z.string().min(3).max(160),
@@ -20099,7 +20098,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       }
       if(route==="/delivery/private-record-ownership"){
         const x=z.object({entitlementId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
-          userId:z.string().regex(ownerUserIdPattern),
+          userId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
           productId:z.string().regex(/^prd_[A-Za-z0-9_-]{3,120}$/)
         }).strict().parse(raw);
         const protectedItem=await env.PRIMARY_DB.prepare(
@@ -20796,7 +20795,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           "SELECT id,user_id FROM commerce_orders WHERE id=?"
         ).bind(input.orderId).first<{id:string;user_id:string}>();
         if(!order||order.id!==input.orderId||
-           !ownerUserIdPattern.test(order.user_id))
+           !/^[a-zA-Z0-9_-]{8,160}$/.test(order.user_id))
           return new Response(null,{status:409,headers:noStore});
         const storage=this.ctx.storage as typeof this.ctx.storage & {
           transactionSync<T>(fn:()=>T):T;
@@ -20835,7 +20834,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           return new Response(null,{status:400,headers:noStore});
         const input=raw as {userId?:unknown;orderId?:unknown;quoteId?:unknown};
         if(Object.keys(input).sort().join(",")!=="orderId,quoteId,userId"||
-           typeof input.userId!=="string"||!ownerUserIdPattern.test(input.userId)||
+           typeof input.userId!=="string"||!/^[A-Za-z0-9_-]{8,160}$/.test(input.userId)||
            typeof input.orderId!=="string"||!/^ord_[a-f0-9-]{36}$/.test(input.orderId)||
            typeof input.quoteId!=="string"||!/^[A-Za-z0-9_-]{8,160}$/.test(input.quoteId))
           return new Response(null,{status:400,headers:noStore});
@@ -21099,7 +21098,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         if(!command||typeof command!=="object"||Array.isArray(command)||
            Object.keys(command).sort().join(",")!=="request,userId"||
            typeof command.userId!=="string"||
-           !ownerUserIdPattern.test(command.userId))
+           !/^[A-Za-z0-9_-]{8,160}$/.test(command.userId))
           return new Response(null,{status:400,headers:noStore});
         const ownerEnv={
           DB:env.PRIMARY_DB,STRIPE_SECRET_KEY:env.STRIPE_SECRET_KEY,
@@ -21218,7 +21217,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           throw Error("owner_stripe_customer_invalid");
         const c=raw as {userId?:unknown;customerId?:unknown};
         if(Object.keys(c).sort().join(",")!=="customerId,userId"||
-          typeof c.userId!=="string"||!ownerUserIdPattern.test(c.userId)||
+          typeof c.userId!=="string"||!/^[a-zA-Z0-9_-]{8,160}$/.test(c.userId)||
           typeof c.customerId!=="string"||!/^cus_[a-zA-Z0-9_-]{4,150}$/.test(c.customerId))
           throw Error("owner_stripe_customer_invalid");
         const live=env.STRIPE_LIVEMODE==="true",secret=env.STRIPE_SECRET_KEY||"";
@@ -21663,7 +21662,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         if(!q||typeof q.orderId!=="string"||
            !/^[a-zA-Z0-9_-]{8,160}$/.test(q.orderId)||
            typeof q.userId!=="string"||
-           !ownerUserIdPattern.test(q.userId)||
+           !/^[a-zA-Z0-9_-]{8,160}$/.test(q.userId)||
            typeof q.territory!=="string"||!/^[A-Z]{2}$/.test(q.territory)||
            q.channel!=="retail")
           return new Response(null,{status:400,headers:noStore});

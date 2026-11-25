@@ -1,5 +1,4 @@
 /* eslint-disable prettier/prettier -- Imported by the private owner; never accepts SQL or provider success from a caller. */
-import { ownerUserIdPattern } from "./owner-user-id";
 import type {CatalogDB} from "../features/fore/catalog-model.server";
 import type {CoveEnv} from "../features/fore/api.server";
 import {postPaidSettlementTransaction,type SettlementPayment,type SettlementOrder,type SettlementAcquiredLine} from "../features/fore/paid-settlement-transaction.server";
@@ -77,7 +76,7 @@ export async function executeOwnerPaidSettlement(ctx:OwnerContext,raw:unknown){
     if(!readPaidOrderPermission(sql,{orderId}).allowed)throw Error("owner_settlement_order_withdrawn");
     phase="canonical_order_read";
     const order=await db.prepare("SELECT * FROM commerce_orders WHERE id=?").bind(orderId).first<SettlementOrder>();
-    if(!order||!ownerUserIdPattern.test(order.user_id)||!/^[A-Z]{2}$/.test(order.territory_code)||
+    if(!order||!id.test(order.user_id)||!/^[A-Z]{2}$/.test(order.territory_code)||
        !["pending_payment","processing","authorized","payment_failed","paid"].includes(order.status)||
        marketIsWithdrawn(sql,order.territory_code))throw Error("owner_settlement_order_scope_invalid");
     phase="canonical_lines_read";
