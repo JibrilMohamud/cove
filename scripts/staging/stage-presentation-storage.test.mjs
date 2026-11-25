@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import worker from "./stage-presentation-storage.worker.mjs";
 
-test("stage storage rejects missing, forged, expired, cross-prefix and rights-bearing writes", async () => {
+test("stage storage denies forged, expired, cross-prefix and rights-bearing writes", async () => {
   const gate = "a".repeat(64);
   const objects = new Map();
   const kv = new Map();
@@ -52,10 +52,7 @@ test("stage storage rejects missing, forged, expired, cross-prefix and rights-be
   for (const authorization of ["", "Bearer " + "b".repeat(64)]) {
     assert.equal((await worker.fetch(request("PUT", valid, { authorization }), env)).status, 401);
   }
-  assert.equal(
-    (await worker.fetch(request("PUT", valid), { ...env, EXPIRES: "0" })).status,
-    403,
-  );
+  assert.equal((await worker.fetch(request("PUT", valid), { ...env, EXPIRES: "0" })).status, 403);
   assert.equal(
     (await worker.fetch(request("PUT", valid, {}, "/presentation?prefix=production"), env)).status,
     404,
@@ -69,7 +66,10 @@ test("stage storage rejects missing, forged, expired, cross-prefix and rights-be
     displayBooks: [{ offer: { amount: 100 } }],
   });
   assert.equal((await worker.fetch(request("PUT", invalid), env)).status, 400);
-  assert.equal((await worker.fetch(request("PUT", valid, { "content-length": "1" }), env)).status, 413);
+  assert.equal(
+    (await worker.fetch(request("PUT", valid, { "content-length": "1" }), env)).status,
+    413,
+  );
   assert.equal(objects.size, 0);
   assert.equal(kv.size, 0);
   assert.equal((await worker.fetch(request("PUT", valid), env)).status, 204);

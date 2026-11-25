@@ -7,6 +7,8 @@ on:
         "scripts/performance/strangler-real-catalog-acceptance.mjs",
         "scripts/performance/real-catalog-snapshot-safety.mjs",
         "scripts/performance/real-catalog-snapshot-safety.test.mjs",
+        "scripts/staging/stage-presentation-storage*.mjs",
+        "scripts/staging/seed-versioned-presentation.mjs",
         "scripts/check-storefront-v2-primary-prefix.mjs",
         ".github/workflows/fast-storefront-real-catalog-acceptance.yml",
       ]
@@ -123,8 +125,8 @@ jobs:
             fi
           done
           if [[ "$missing" = 1 ]]; then
-            # Populate this private QA-only bucket once from an independently
-            # passing run. Never use current-PR screenshots as their own goldens.
+            # Restore the pinned approved artifact locally if the immutable R2
+            # copy is missing. Never use current-PR screenshots as goldens.
             mkdir -p "$baseline/approved"
             if ! command -v gh >/dev/null 2>&1; then
               echo "::error::Approved reference missing from private QA R2; restore via the pinned successful Actions artifact before proceeding"

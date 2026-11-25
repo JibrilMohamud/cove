@@ -1,7 +1,8 @@
 // Ephemeral CI-only stage storage; no D1, service binding, route or cron.
 export default {
   async fetch(request, env) {
-    const reply = (status) => new Response(null, { status, headers: { "cache-control": "no-store" } });
+    const reply = (status) =>
+      new Response(null, { status, headers: { "cache-control": "no-store" } });
     const supplied = request.headers.get("authorization") || "";
     if (!/^[a-f0-9]{64}$/.test(env.GATE || "") || !/^Bearer [a-f0-9]{64}$/.test(supplied))
       return reply(401);

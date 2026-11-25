@@ -14,6 +14,7 @@ on:
       - ".github/workflows/strangler-hosted-capacity-evaluation.yml"
       - "scripts/staging/seed-strangler-v2-capacity.mjs"
       - "scripts/staging/cleanup-strangler-v2-capacity.mjs"
+      - "scripts/staging/stage-presentation-storage*.mjs"
       - "scripts/staging/enable-strangler-private-read-model.mjs"
       - "scripts/staging/check-strangler-v2-capacity-config.mjs"
       - "src/storefront-strangler/homepage-presentation.server.ts"

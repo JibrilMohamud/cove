@@ -99,7 +99,11 @@ export async function withStagePresentationStore(mode, operation) {
         redirect: "error",
         signal: AbortSignal.timeout(30000),
       });
-      assert.equal(response.status, method === "GET" ? 200 : 204, "Stage storage operation rejected");
+      assert.equal(
+        response.status,
+        method === "GET" ? 200 : 204,
+        "Stage storage operation rejected",
+      );
       return method === "GET" ? Buffer.from(await response.arrayBuffer()) : undefined;
     };
     // Wait for the new version without using customer ingress or mutating storage.
@@ -121,7 +125,10 @@ export async function withStagePresentationStore(mode, operation) {
     return await operation({
       async put(country, body) {
         await call("PUT", country, body);
-        assert.ok((await call("GET", country)).equals(Buffer.from(body)), "Stage R2 readback mismatch");
+        assert.ok(
+          (await call("GET", country)).equals(Buffer.from(body)),
+          "Stage R2 readback mismatch",
+        );
       },
       async delete(country) {
         await call("DELETE", country);
