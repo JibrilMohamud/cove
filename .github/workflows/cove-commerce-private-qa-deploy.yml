@@ -18,6 +18,8 @@ on:
       - "scripts/staging/qa-refund-operator.mjs"
       - "scripts/staging/cleanup-qa-refund-operators.mjs"
       - "scripts/staging/run-protected-deployed-commerce-qa.mjs"
+      - "scripts/staging/detached-commerce-owner*.mjs"
+      - "scripts/staging/verify-detached-commerce-bridge*.mjs"
       - "scripts/staging/cleanup-qa-offline-epub-signing-key.mjs"
       - "scripts/staging/check-detached-commerce-credentials.mjs"
       - ".github/workflows/deployed-commerce-browser-acceptance.yml"
@@ -54,6 +56,8 @@ jobs:
         run: node scripts/staging/check-commerce-qa-stage-write-gate.mjs
       - name: Verify isolated account and split credential policy
         run: node scripts/staging/check-detached-commerce-credentials.mjs --offline
+      - name: Prove run-bound bridge readiness and unauthorized denial
+        run: node --test scripts/staging/verify-detached-commerce-bridge.test.mjs
       - name: Validate isolated deployed browser / Stripe-CLI harness syntax
         run: |
           node --check scripts/staging/run-protected-deployed-commerce-qa.mjs
