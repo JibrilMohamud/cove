@@ -713,7 +713,13 @@ function useUrlSearch(landingPath: string) {
       }
       const href =
         next.pathname + (next.searchParams.size ? `?${next.searchParams}` : "") + next.hash;
-      window.history[mode === "replace" ? "replaceState" : "pushState"]({}, "", href);
+      const currentHref = window.location.pathname + window.location.search + window.location.hash;
+      if (href === currentHref) return;
+      window.history[mode === "replace" ? "replaceState" : "pushState"](
+        mode === "replace" ? window.history.state : {},
+        "",
+        href,
+      );
       setSearchString(next.search);
       // Native pushState does not emit popstate. Notify TanStack Router when the route itself changes
       // so StorePage's landing preset, head metadata, and URL remain in lockstep without a reload.
@@ -1060,8 +1066,14 @@ export function StorePage({
     window.location.replace(redirectTo);
   }, [storefrontPage.data?.redirectTo]);
   useEffect(() => {
+    // Hydration and URL synchronization are not user search edits. In
+    // particular, do not replace the history entry while an edition Link
+    // is navigating, or reset pagination on a bookmarked catalog visit.
+    const next = query.trim();
+    if (next === q) return;
+    const sourceHref = window.location.href;
     const t = setTimeout(() => {
-      const next = query.trim();
+      if (window.location.href !== sourceHref) return;
       const path = next && ["/", "/store"].includes(landingPath) ? "/search" : undefined;
       update(
         {
@@ -1074,7 +1086,7 @@ export function StorePage({
       );
     }, 400);
     return () => clearTimeout(t);
-  }, [query, explicitSort, landingPath, update]);
+  }, [query, q, explicitSort, landingPath, update]);
   useEffect(() => {
     const t = setTimeout(() => setSuggestQuery(query.trim()), 160);
     return () => clearTimeout(t);
