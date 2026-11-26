@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import {
+  originalQaRoyaltyCoverageSql,
+  assertOriginalQaRoyaltyCoverage,
+} from "./original-commerce-qa-royalties.mjs";
 
 const account = "f51e8ccbc394e2d6016ff8c2c303d54b";
 const token = process.env.CLOUDFLARE_API_TOKEN;
@@ -72,6 +76,10 @@ for (const table of [
   "commercial_audio_chapters",
 ])
   assert.ok(schema.has(table), "Incomplete dedicated QA D1 migration: " + table);
+const royalty = await api("POST", "/accounts/" + account + "/d1/database/" + database + "/query", {
+  sql: originalQaRoyaltyCoverageSql(new Date().toISOString()),
+});
+assertOriginalQaRoyaltyCoverage(royalty[0].results);
 console.log(
-  "PASS: isolated QA full app schema deployed privately with authenticated test-only keys; no public route.",
+  "PASS: isolated QA full app schema and exact royalty prerequisites verified; test-only keys; no public route.",
 );

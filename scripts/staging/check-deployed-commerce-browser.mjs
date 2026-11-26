@@ -588,7 +588,22 @@ try {
     async (path) => (await fetch(path, { credentials: "include" })).status,
     grantUrl.pathname + grantUrl.search,
   );
-  assert.ok([401, 403, 404].includes(oldGrant), "Refund must revoke existing EPUB grant");
+  // The actual delivery endpoint uses HTTP 410 for a revoked grant. Prove
+  // this is a real refund-linked canonical revocation, not merely expiration,
+  // exhaustion, ingress denial, or a missing resource.
+  const revokedGrant = await qaD1(
+    `SELECT g.status AS grant_status,e.status AS entitlement_status,o.status AS order_status
+     FROM commercial_delivery_grants g JOIN entitlements e ON e.id=g.entitlement_id
+     JOIN commerce_order_items i ON i.id=e.order_item_id
+     JOIN commerce_orders o ON o.id=i.order_id
+     WHERE g.id=? AND o.id=? AND g.product_id=? AND g.user_id=?`,
+    [grant.data.grantId, ebook.orderId, q.COVE_QA_EPUB_PRODUCT_ID, buyerId],
+  );
+  assert.equal(revokedGrant.length, 1, "Refund must retain exact historical delivery evidence");
+  assert.equal(revokedGrant[0].order_status, "refunded");
+  assert.equal(revokedGrant[0].entitlement_status, "revoked");
+  assert.equal(revokedGrant[0].grant_status, "revoked");
+  assert.equal(oldGrant, 410, "Refunded EPUB grant must be gone at the actual delivery endpoint");
   await refundAndVerify(refundOperatorPage, audiobook, async () =>
     [401, 403, 404].includes((await request(buyer, "GET", audioPath)).status),
   );
