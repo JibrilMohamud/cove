@@ -30,6 +30,7 @@ export type StorefrontStranglerEnv = CoveEnv & {
   COVE_STRANGLER_DATABASE_ID?: string;
   COVE_STRANGLER_EXPERIENCE?: string;
   COVE_STRANGLER_RELEASE_CERTIFIED?: string;
+  COVE_LEGAL_OWNER_STAGE_READ_ENABLED?: string;
   COVE_FAST_RELAY_KEY?: string;
   COVE_SSR_STAGING_GATE_KEY?: string;
   COVE_GEO_PROBE_ENABLED?: string;
