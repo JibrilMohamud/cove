@@ -264,9 +264,11 @@ async function purchase(page, productId) {
       "Canonical checkout owner could not reserve checkout tenders.": "prepare-draft",
       "Checkout owner receipt differs from canonical order.": "order-readback",
       "Stripe customer owner is not certified.": "customer-admission",
-      "Stripe customer identity was not acknowledged by its canonical owner.": "customer-owner-receipt",
+      "Stripe customer identity was not acknowledged by its canonical owner.":
+        "customer-owner-receipt",
       "Checkout payment owner is not certified.": "payment-admission",
-      "Checkout payment identity was not acknowledged by its canonical owner.": "payment-owner-receipt",
+      "Checkout payment identity was not acknowledged by its canonical owner.":
+        "payment-owner-receipt",
     };
     const message = pay.data?.error;
     const phase =

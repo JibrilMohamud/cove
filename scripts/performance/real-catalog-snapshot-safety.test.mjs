@@ -242,7 +242,10 @@ test("protected source never hardcodes primary D1 and checks snapshot before dep
   assert.match(script, /assert\.equal\(dbId, reviewedSnapshotId,/);
   const runtime = readFileSync("src/storefront-strangler/worker.ts", "utf8");
   assert.match(runtime, /env\.COVE_STRANGLER_MODE === "isolated-real-catalog"/);
-  assert.match(runtime, /env\.COVE_STRANGLER_DATABASE_ID === "15ce2ea3-17f8-4d99-9015-a78a6a3af05d"/);
+  assert.match(
+    runtime,
+    /env\.COVE_STRANGLER_DATABASE_ID === "15ce2ea3-17f8-4d99-9015-a78a6a3af05d"/,
+  );
   assert.match(script, /requireIsolatedCatalogSnapshotTarget\(/);
   assert.match(script, /requireNoPrimaryD1PreviewBinding\(config, dbId\)/);
   assert.match(script, /requireMinimumRealCatalogSnapshot\(fixture\)/);
