@@ -20,7 +20,7 @@ export const plan=[
   spec("gutenberg_source_cache","id","id title authors_json summary subjects_json bookshelves_json languages_json formats_json download_count copyright source_url source_updated_at first_ingested_at updated_at last_seen_at ingest_status ingest_attempts last_error epub_status epub_attempts epub_next_attempt_at epub_cached_at epub_last_error source_id source_item_id source_project source_license_url rights_status rights_territories_json rights_evidence_url rights_checked_at rights_evidence_id commercial_use_status trademark_cleanup_required canonicalization_version source_metadata_json content_hash",linkedCache,{last_error:"''",epub_last_error:"''",source_metadata_json:"'{}'"}),
   spec("digital_assets","id","id edition_id kind current_version_id drm_status downloadable created_at updated_at"),
   spec("asset_versions","id","id asset_id version_number object_key source_url mime_type size_bytes sha256 epub_version created_at","1=1",{object_key:"CASE WHEN object_key IS NOT NULL AND length(object_key)>0 THEN 'snapshot-only/'||id ELSE NULL END"}),
-  spec("rights_parties","id","id display_name party_type publisher_id contributor_id contact_email reference_code status created_at updated_at","1=1",{contact_email:"NULL",reference_code:"NULL"}),
+  spec("rights_parties","id","id display_name party_type publisher_id contributor_id contact_email reference_code status created_at updated_at","1=1",{contact_email:"''",reference_code:"''"}),
   spec("gutenberg_rights_evidence","id","id source_id cache_id source_item_id determination territory_code evidence_url evidence_type evidence_hash parser_version status checked_at created_at"),
   spec("rights_grants","id","id edition_id rightsholder_id territory_code format sales_channel starts_at ends_at license_type drm_requirement subscription_permitted library_permitted created_at rightsholder_party_id decision status promotion_restrictions_json contract_reference source notes updated_at contract_id exclusivity scope_summary source_evidence_id contract_version_id","source LIKE 'gutenberg-%' AND contract_id IS NULL AND contract_version_id IS NULL",{notes:"''",contract_reference:"''"}),
   spec("rights_grant_territories","grant_id territory_code","grant_id territory_code resolved_from snapshotted_at"),
@@ -72,7 +72,7 @@ export function validateRows(item,rows){
     if(item.keys.some(k=>get(k)===null||get(k)===undefined))throw Error("Null key");
     if(item.table==="products"&&get("source_name")!=="gutenberg")throw Error("Non-Gutenberg product");
     if(item.table==="rights_grants"&&(!String(get("source")).startsWith("gutenberg-")||get("contract_id")!==null||get("contract_version_id")!==null||get("notes")!==""||get("contract_reference")!==""))throw Error("Private grant");
-    if(item.table==="rights_parties"&&(get("contact_email")!==null||get("reference_code")!==null))throw Error("Private party");
+    if(item.table==="rights_parties"&&(get("contact_email")!==""||get("reference_code")!==""))throw Error("Private party");
     if(item.table==="asset_versions"&&get("object_key")!==null&&get("object_key")!=="snapshot-only/"+get("id"))throw Error("Private object reference");
     if(item.table==="gutenberg_source_cache"&&(get("last_error")!==""||get("epub_last_error")!==""||get("source_metadata_json")!=="{}"))throw Error("Private source metadata");
     if(item.table==="catalog_state"&&(get("next_url")!==null||get("last_error")!==""||get("lease_token")!==null||get("lease_until")!==null))throw Error("Private catalog state");

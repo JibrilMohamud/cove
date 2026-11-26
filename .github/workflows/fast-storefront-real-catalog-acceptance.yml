@@ -68,8 +68,8 @@ jobs:
       HOME: /root
       CI: "1"
       COVE_REAL_ACCEPTANCE_V2: "1"
-      # A missing or unapproved dedicated staging snapshot stops before any
-      # R2, KV, Worker or D1 network action. Never default to production D1.
+      # Pin the separately provisioned and reviewed isolated target. A successful
+      # protected population and cleanup receipt is mandatory before deployment.
       COVE_REAL_CATALOG_SNAPSHOT_D1_ID: "15ce2ea3-17f8-4d99-9015-a78a6a3af05d"
       COVE_REAL_CATALOG_SNAPSHOT_D1_NAME: "cove-real-catalog-snapshot-20261125"
       CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
@@ -105,6 +105,10 @@ jobs:
           );
           console.log("Dedicated isolated D1 target validated; legal generation still requires separate certification.");
           NODE
+      - name: Require complete protected catalog population and importer retirement
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/staging/real-catalog-copy-receipt.mjs --verify
       # Avoid a 100MB Actions cache restore that can stall at the account
       # egress limit; preserve all cold, mobile LCP and visual assertions.
       - run: npm ci --no-audit --no-fund

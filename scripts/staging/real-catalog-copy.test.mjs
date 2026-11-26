@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {test} from "node:test";
 import {source,target,plan,mustBeEmpty,insertSql,readSql,validateRows} from "./real-catalog-copy-plan.mjs";
 import worker from "./real-catalog-copy.worker.mjs";
+import {verifyReceipt} from "./real-catalog-copy-receipt.mjs";
 const item=plan.find(x=>x.table==="products");
 test("snapshot target is physically separate and private tables are not imported",()=>{
   assert.notEqual(source,target);
@@ -35,4 +36,16 @@ test("only fixed projected table and bound JSON can write",async()=>{
   assert.equal((await call({operation:"copy",table:"products",rows:[row],sql:"DROP TABLE products"})).status,400);
   assert.equal((await call({operation:"copy",table:"products",rows:[row]})).status,204);
   assert.equal(writes,1);
+});
+
+test("complete receipt requires actual protected run and cleanup, never a skipped PR job",()=>{
+  const digest="a".repeat(64);
+  const receipt={run_id:"12345678",run_attempt:"1",sha:"b".repeat(40),manifest_digest:"c".repeat(64),transfer_digest:digest,products:82247,editions:82247};
+  const run={id:12345678,run_attempt:1,path:".github/workflows/provision-real-catalog-snapshot.yml",head_sha:receipt.sha,event:"workflow_dispatch",head_branch:"main",conclusion:"success"};
+  const job={name:"populate-isolated-snapshot",conclusion:"success",steps:[{name:"Remove isolated importer even if interrupted",conclusion:"success"}]};
+  assert.equal(verifyReceipt(receipt,run,[job],digest),true);
+  assert.throws(()=>verifyReceipt(receipt,{...run,event:"pull_request"},[job],digest));
+  assert.throws(()=>verifyReceipt(receipt,run,[{...job,conclusion:"skipped"}],digest));
+  assert.throws(()=>verifyReceipt(receipt,run,[{...job,steps:[]}],digest));
+  assert.throws(()=>verifyReceipt(receipt,run,[job],"d".repeat(64)));
 });

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {createHash,randomBytes} from "node:crypto";
 import {readFileSync,mkdirSync,writeFileSync} from "node:fs";
 import {setTimeout as sleep} from "node:timers/promises";
+import {transferDigest} from "./real-catalog-copy-receipt.mjs";
 import {account,source,target,targetName,maxBytes,pageSize,plan,initialTables,mustBeEmpty,forbiddenSourceRows,readSql,validateRows} from "./real-catalog-copy-plan.mjs";
 const env=process.env;
 assert.equal(env.GITHUB_REPOSITORY,"JibrilMohamud/cove");
@@ -129,6 +130,8 @@ try{
   assert.ok(settings.bindings.every(x=>["d1","secret_text","plain_text"].includes(x.type)));
   await cf(root+"/subdomain",deploy,"POST",{enabled:true,previews_enabled:false});
   await ready();
+  const unsealed=await call({operation:"unseal"});
+  assert.equal(unsealed.status,204);assert.ok(marked(unsealed));
   // Table order preserves FK parents. Read-back hashes include every projected value.
   for(const item of plan){
     const before=await scan(source,item,true);
@@ -149,6 +152,10 @@ try{
   assert.equal(ftsEn,await scalar(target,"SELECT count(*) n FROM catalog_search_documents d JOIN products p ON p.id=d.product_id JOIN editions e ON e.id=p.edition_id WHERE d.suppressed=0 AND lower(e.language)='en'"));
   for(const t of mustBeEmpty)assert.equal(await scalar(target,'SELECT count(*) n FROM "'+t+'"'),0);
   for(const sql of ["SELECT count(*) n FROM products p LEFT JOIN editions e ON e.id=p.edition_id WHERE e.id IS NULL","SELECT count(*) n FROM editions e LEFT JOIN works w ON w.id=e.work_id WHERE w.id IS NULL","SELECT count(*) n FROM rights_grants g LEFT JOIN editions e ON e.id=g.edition_id WHERE e.id IS NULL","SELECT count(*) n FROM edition_taxonomy_nodes n LEFT JOIN editions e ON e.id=n.edition_id LEFT JOIN storefront_taxonomy_nodes t ON t.id=n.taxonomy_node_id WHERE e.id IS NULL OR t.id IS NULL"])assert.equal(await scalar(target,sql),0);
-  evidence.counts=final;evidence.fts={all:fts,english:ftsEn};evidence.rightsStatuses=await statuses(target);evidence.privateTablesEmpty=true;evidence.complete=true;save();
+  evidence.counts=final;evidence.fts={all:fts,english:ftsEn};evidence.rightsStatuses=await statuses(target);evidence.privateTablesEmpty=true;
+  const digest=createHash("sha256").update(JSON.stringify({tables:evidence.tables,counts:final,fts:evidence.fts,rightsStatuses:evidence.rightsStatuses})).digest("hex");
+  const sealed=await call({operation:"seal",sha:env.GITHUB_SHA,transferDigest:transferDigest(),manifestDigest:digest,products:final.products,editions:final.editions});
+  assert.equal(sealed.status,204,"Completed snapshot receipt refused");assert.ok(marked(sealed));
+  evidence.manifestDigest=digest;evidence.complete=true;save();
 }finally{await cleanup();evidence.importerRemoved=true;save();}
 console.log("PASS: isolated full-catalog projection; not independent legal or release certification.");
