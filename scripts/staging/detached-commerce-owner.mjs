@@ -107,10 +107,19 @@ export async function provisionDetachedOwner(wrangler) {
   const published = await fetch(origin + "/publish", {
     method: "POST",
     headers,
+    body: "publish:" + instance,
+    cache: "no-store",
+    redirect: "manual",
     signal: AbortSignal.timeout(60_000),
   });
-  assert.equal(published.status, 204, "Detached owner did not certify both synthetic products");
-  assert.equal(published.headers.get("x-cove-qa-bridge-instance"), instance);
+  const marked = published.headers.get("x-cove-qa-bridge-instance") === instance;
+  const phase = published.headers.get("x-cove-qa-bridge-phase") || "none";
+  assert.ok(
+    marked,
+    "Detached publication outcome unverified; no automatic replay: " + published.status,
+  );
+  assert.equal(published.status, 204, "Detached owner publication failed: " + phase);
+  assert.equal(published.headers.get("cache-control"), "no-store");
   await remove(bridge);
   return {
     secret,
