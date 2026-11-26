@@ -275,9 +275,13 @@ try{
     assert.throws(()=>assertOriginalQaRoyaltyCoverage(coverage()),/missing or ambiguous/);
     for(let i=0;i<2;i++)hosted.primary.exec(originalQaRoyaltyStatements(at).join(";")+";");
     assertOriginalQaRoyaltyCoverage(coverage());
-    hosted.primary.prepare("UPDATE finance_royalty_splits SET share_bps=9999 WHERE id=?").run("qa-owner-v2-finance-ebook-v1-split");
-    assert.throws(()=>assertOriginalQaRoyaltyCoverage(coverage()),/terms drifted/);
-    hosted.primary.prepare("UPDATE finance_royalty_splits SET share_bps=10000 WHERE id=?").run("qa-owner-v2-finance-ebook-v1-split");
+    // The real schema protects immutable royalty terms; do not disable it
+    // to simulate drift. Check a distinct fixture seeded with a bad split.
+    assert.throws(()=>hosted.primary.prepare("UPDATE finance_royalty_splits SET share_bps=9999 WHERE id=?").run("qa-owner-v2-finance-ebook-v1-split"),/royalty splits are immutable/);
+    const drifted=fixture({stripe:200,gift:0,store:0,hostedFixture:true});
+    const badStatements=originalQaRoyaltyStatements(at).map(sql=>sql.includes("qa-owner-v2-finance-ebook-v1-split")?sql.replace(",10000,0,",",9999,0,"):sql);
+    drifted.primary.exec(badStatements.join(";")+";");
+    assert.throws(()=>assertOriginalQaRoyaltyCoverage(drifted.primary.prepare(originalQaRoyaltyCoverageSql(new Date().toISOString())).all()),/terms drifted/);
     assertOriginalQaRoyaltyCoverage(coverage());
     const settled=await hosted.command();assert.equal(settled.status,200,settled.headers.get("x-cove-owner-settlement-failure")||"Hosted fixture owner settlement");
     assert.equal(hosted.snapshot().entitlements,2);assert.equal(hosted.snapshot().receipt,1);
