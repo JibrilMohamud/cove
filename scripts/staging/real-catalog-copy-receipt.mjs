@@ -5,7 +5,7 @@ import {readFileSync} from "node:fs";
 import {account,target,targetName} from "./real-catalog-copy-plan.mjs";
 export function transferDigest(){
   const digest=createHash("sha256");
-  for(const f of ["real-catalog-copy-plan.mjs","real-catalog-copy.worker.mjs","real-catalog-copy.mjs"])digest.update(readFileSync("scripts/staging/"+f));
+  for(const f of ["real-catalog-copy-plan.mjs","real-catalog-copy.worker.mjs","real-catalog-copy.mjs","real-catalog-copy-budget.mjs","real-catalog-copy-resume.mjs"])digest.update(readFileSync("scripts/staging/"+f));
   return digest.digest("hex");
 }
 export function verifyReceipt(receipt,run,jobs,digest){
