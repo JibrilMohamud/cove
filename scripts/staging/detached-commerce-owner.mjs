@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { randomBytes } from "node:crypto";
+import { verifyDetachedBridge } from "./verify-detached-commerce-bridge.mjs";
 
 const account = "f51e8ccbc394e2d6016ff8c2c303d54b";
 const primary = "f9354381-bd9f-496b-bd05-d6f62a32ec0c";
@@ -55,6 +56,7 @@ export async function provisionDetachedOwner(wrangler) {
   assert.match(stripe || "", /^(sk|rk|rkcs)_test_/);
   const secret = randomBytes(32).toString("hex");
   const gate = randomBytes(32).toString("hex");
+  const instance = randomBytes(16).toString("hex");
   console.log("::add-mask::" + secret);
   console.log("::add-mask::" + gate);
   const expires = String(Date.now() + 14 * 60_000);
@@ -91,33 +93,21 @@ export async function provisionDetachedOwner(wrangler) {
       preview_urls: false,
       routes: [],
       services: [{ binding: "LEGAL_PRIVATE", service: owner }],
-      vars: { EXPIRES: expires },
+      vars: { EXPIRES: expires, BRIDGE_INSTANCE: instance },
     },
     { GATE: gate, OWNER_SECRET: secret },
   );
   const origin = "https://" + bridge + ".cove-qa-reads.workers.dev";
   const headers = { authorization: "Bearer " + gate };
-  let ready = false;
-  for (let i = 0; i < 30; i++) {
-    const response = await fetch(origin + "/ready", {
-      headers,
-      signal: AbortSignal.timeout(5000),
-    }).catch(() => null);
-    if (response?.status === 204) {
-      ready = true;
-      break;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-  }
-  assert.ok(ready, "Detached owner bridge never became ready");
-  const anonymous = await fetch(origin + "/ready", { signal: AbortSignal.timeout(5000) });
-  assert.equal(anonymous.status, 401);
+  const observations = await verifyDetachedBridge({ origin, gate, instance });
+  console.log("PASS: exact detached bridge readiness and anonymous/invalid bearer denial", JSON.stringify(observations));
   const published = await fetch(origin + "/publish", {
     method: "POST",
     headers,
     signal: AbortSignal.timeout(60_000),
   });
   assert.equal(published.status, 204, "Detached owner did not certify both synthetic products");
+  assert.equal(published.headers.get("x-cove-qa-bridge-instance"), instance);
   await remove(bridge);
   return {
     secret,

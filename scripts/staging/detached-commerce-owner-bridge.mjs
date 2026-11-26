@@ -2,9 +2,13 @@
 // products can be published by the private owner, under a short-lived gate.
 export default {
   async fetch(request, env) {
-    const headers = { "cache-control": "no-store" };
+    const headers = {
+      "cache-control": "no-store",
+      "x-cove-qa-bridge-instance": env.BRIDGE_INSTANCE || "",
+    };
     const now = Date.now();
     if (
+      !/^[a-f0-9]{32}$/.test(env.BRIDGE_INSTANCE || "") ||
       !/^[a-f0-9]{64}$/.test(env.GATE || "") ||
       !/^[a-f0-9]{64}$/.test(env.OWNER_SECRET || "") ||
       !(Number(env.EXPIRES) > now && Number(env.EXPIRES) <= now + 15 * 60_000)
