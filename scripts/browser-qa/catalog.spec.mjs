@@ -82,7 +82,9 @@ test("filtered catalog navigation reuses cache and suppresses obsolete updater w
   }
 });
 
-test("bookmarked pagination survives search hydration and actual edits reset it", async ({ page }) => {
+test("bookmarked pagination survives search hydration and actual edits reset it", async ({
+  page,
+}) => {
   await page.goto("/?sort=popular&page=2");
   await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
   // Observe beyond the 400ms search debounce, which previously erased page
