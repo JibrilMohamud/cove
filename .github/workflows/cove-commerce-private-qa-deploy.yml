@@ -9,6 +9,11 @@ on:
       - "scripts/staging/seed-original-commerce-qa-catalog.mjs"
       - "scripts/staging/original-commerce-qa-royalties.mjs"
       - "scripts/check-owner-paid-settlement.mjs"
+      - "src/features/fore/delivery.server.ts"
+      - "src/features/fore/commerce.server.ts"
+      - "src/storefront-strangler/refund-provider-independent-verification.ts"
+      - "scripts/check-owner-refund-provider.mjs"
+      - "scripts/check-commercial-epub-asset-scope.mjs"
       - "scripts/staging/verify-commerce-private-qa-stage.mjs"
       - "drizzle/0085_canonical_terminal_rights_resurrection_guard.sql"
       - "drizzle/0086_rights_contract_version_terminal_guard.sql"
@@ -62,6 +67,10 @@ jobs:
         run: node --test scripts/staging/verify-detached-commerce-bridge.test.mjs
       - name: Prove the exact hosted royalty fixture through full-schema owner settlement
         run: node scripts/check-owner-paid-settlement.mjs
+      - name: Prove nullable delivery terms and independent Stripe refund provenance
+        run: |
+          node scripts/check-commercial-epub-asset-scope.mjs
+          node scripts/check-owner-refund-provider.mjs
       - name: Validate isolated deployed browser / Stripe-CLI harness syntax
         run: |
           node --check scripts/staging/run-protected-deployed-commerce-qa.mjs

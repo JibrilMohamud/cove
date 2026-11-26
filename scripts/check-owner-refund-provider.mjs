@@ -29,14 +29,14 @@ try{
   const originalFetch=globalThis.fetch;
   let stripeStatus="pending",stripeFailure=false,providerOverride={};
   globalThis.fetch=async (url,options)=>{
-    assert.equal(url,"https://api.stripe.com/v1/refunds/"+providerRefundId);
+    assert.equal(url,"https://api.stripe.com/v1/refunds/"+providerRefundId+"?expand%5B%5D=payment_intent");
     assert.equal(options.method,"GET");
     assert.equal(options.redirect,"manual");
     assert.equal(options.headers.authorization,"Bearer sk_test_private_owner_fixture");
     if(stripeFailure)throw Error("stripe_temporarily_unavailable");
     return new Response(JSON.stringify({
-      object:"refund",id:providerRefundId,livemode:false,
-      payment_intent:paymentIntentId,amount:100,currency:"usd",
+      object:"refund",id:providerRefundId,
+      payment_intent:{id:paymentIntentId,object:"payment_intent",livemode:false},amount:100,currency:"usd",
       metadata:{fore_order_id:orderId,fore_refund_id:refundId},
       status:stripeStatus,...providerOverride
     }),{status:200});
@@ -136,6 +136,10 @@ try{
   for(const altered of [
     {id:"re_unrelated_refund"},{amount:101},{currency:"cad"},
     {livemode:true},{payment_intent:"pi_other_payment"},
+    {payment_intent:paymentIntentId},
+    {payment_intent:{id:paymentIntentId,object:"payment_intent",livemode:true}},
+    {payment_intent:{id:paymentIntentId,object:"payment_intent"}},
+    {payment_intent:{id:"pi_other_payment",object:"payment_intent",livemode:false}},
     {metadata:{fore_order_id:"order_wrong",fore_refund_id:refundId}},
     {metadata:{fore_order_id:orderId,fore_refund_id:"ref_wrong"}}
   ]){
@@ -165,7 +169,9 @@ try{
   assert.equal(state.status,"succeeded");
   const commerce=readFileSync("src/features/fore/commerce.server.ts","utf8");
   assert.match(commerce,/recordOwnerStripeRefundReceipt\(env, String\(o.id\), id, refund\)/);
-  assert.match(commerce,/recordOwnerStripeRefundReceipt\(env, String\(r.order_id\), String\(r.id\), obj\)/);
+  assert.match(commerce,/recordOwnerStripeRefundReceipt\(\s*env,\s*String\(r.order_id\),\s*String\(r.id\),\s*obj,?\s*\)/);
+  assert.match(commerce,/SELECT \* FROM commerce_refunds WHERE id=\? AND order_id=\?/);
+  assert.match(commerce,/verified.status === "succeeded"\) await applyRefundSuccess/);
   assert.doesNotMatch(commerce,/UPDATE commerce_refunds SET provider_refund_id=/,
     "The caller may not write provider refund status directly into shared D1");
   assert.match(commerce,/Refund completion requires the private commerce owner/,

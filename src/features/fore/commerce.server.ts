@@ -1448,7 +1448,7 @@ async function recordOwnerStripeRefundReceipt(
     typeof refund?.payment_intent === "string"
       ? refund.payment_intent
       : refund?.payment_intent?.id || "";
-  await recordStageOwnerRefundProvider(env, {
+  return await recordStageOwnerRefundProvider(env, {
     orderId,
     refundId,
     providerRefundId: String(refund?.id || ""),
@@ -1512,12 +1512,12 @@ async function completeRequestedRefund(env: CoveEnv, o: RefundOrder, intent: Ref
             metadata: { fore_order_id: o.id, fore_refund_id: id, fore_total_refund_minor: amount },
           },
         });
-    await recordOwnerStripeRefundReceipt(env, String(o.id), id, refund);
-    if (refund.status === "succeeded") await applyRefundSuccess(env, id, refund);
+    const verified = await recordOwnerStripeRefundReceipt(env, String(o.id), id, refund);
+    if (verified.status === "succeeded") await applyRefundSuccess(env, id, refund);
     return {
       id,
       providerRefundId: refund.id,
-      status: refund.status,
+      status: verified.status,
       amountMinor: amount,
       stripeAmountMinor: stripeAmount,
       giftCardAmountMinor: giftAmount,
@@ -2001,13 +2001,37 @@ async function processStripeEvent(env: CoveEnv, event: any) {
         console.error("Subscription payment-failure notification enqueue failed", e);
       }
   } else if (type === "refund.updated" || type === "refund.created") {
-    const r = await db
+    // A genuine signed event can precede the API's provider receipt or
+    // repair a lost acknowledgement. The private owner still independently
+    // retrieves the refund and verifies the exact reservation and PI.
+    let r = await db
       .prepare("SELECT * FROM commerce_refunds WHERE provider_refund_id=?")
       .bind(obj.id)
       .first<any>();
+    const taggedRefund = obj.metadata?.fore_refund_id;
+    const taggedOrder = obj.metadata?.fore_order_id;
+    if (!r && (taggedRefund || taggedOrder)) {
+      if (
+        typeof taggedRefund !== "string" ||
+        !/^ref_[a-zA-Z0-9_-]{8,160}$/.test(taggedRefund) ||
+        typeof taggedOrder !== "string" ||
+        !/^ord_[a-zA-Z0-9_-]{8,160}$/.test(taggedOrder)
+      )
+        throw new ApiError(409, "Invalid Cove refund metadata.");
+      r = await db
+        .prepare("SELECT * FROM commerce_refunds WHERE id=? AND order_id=?")
+        .bind(taggedRefund, taggedOrder)
+        .first<any>();
+      if (!r) throw new ApiError(409, "Cove refund reservation not yet available. Retry delivery.");
+    }
     if (r) {
-      await recordOwnerStripeRefundReceipt(env, String(r.order_id), String(r.id), obj);
-      if (obj.status === "succeeded") await applyRefundSuccess(env, r.id, obj);
+      const verified = await recordOwnerStripeRefundReceipt(
+        env,
+        String(r.order_id),
+        String(r.id),
+        obj,
+      );
+      if (verified.status === "succeeded") await applyRefundSuccess(env, r.id, obj);
     }
   } else if (type.startsWith("charge.dispute.")) {
     await syncDispute(db, obj, type, env);

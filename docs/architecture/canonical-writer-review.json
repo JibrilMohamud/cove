@@ -41,7 +41,7 @@
       "reason": "This exact SQLite statement mutates only buyer-scoped audiobook listening position (chapter, seconds, speed, version, timestamp) or deletes a deleting account's position. It never grants rights, access, delivery tokens, asset availability or entitlements. The production audio endpoint separately requires authentication, current entitlements, risk check and private owner permission before writes; source-bound SQL, optimistic concurrency, unrelated buyer and revoked-entitlement behavior are exercised in scripts/check-audio-playback-remaining-nonauthorizing.mjs. The enclosing account deletion transaction remains owner-required for its other protected mutations."
     },
     {
-      "siteId": "8b8c7c1ab518512151737327149ce54d9e96b4d7198a0c90e8518b64ecf3a67e",
+      "siteId": "8dba9ce4ccbf02bb91f311bdba160d04c1b4738c249ac538505fdbe8be184ab6",
       "file": "src/features/fore/delivery.server.ts",
       "line": 309,
       "functionName": "audit",
