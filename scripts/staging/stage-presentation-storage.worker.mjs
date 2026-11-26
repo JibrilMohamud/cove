@@ -16,10 +16,7 @@ export default {
       return reply(403);
     if (!/^[1-9][0-9]{7,14}$/.test(env.RUN) || !["synthetic", "real"].includes(env.MODE))
       return reply(403);
-    if (
-      !/^[a-f0-9]{32}$/.test(env.INSTANCE || "") ||
-      !["publish", "cleanup"].includes(env.PURPOSE)
-    )
+    if (!/^[a-f0-9]{32}$/.test(env.INSTANCE || "") || !["publish", "cleanup"].includes(env.PURPOSE))
       return reply(403);
     headers["x-cove-stage-storage-instance"] = env.INSTANCE;
     const url = new URL(request.url);
@@ -35,9 +32,7 @@ export default {
     }
     if (request.method === "GET") {
       const object = await env.PRESENTATION.get(key);
-      return object
-        ? new Response(object.body, { headers })
-        : reply(404);
+      return object ? new Response(object.body, { headers }) : reply(404);
     }
     if (request.method !== "PUT") return reply(405);
     if (env.PURPOSE !== "publish") return reply(403);
