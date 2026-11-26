@@ -21,6 +21,8 @@ const validConfig = () => ({
   observability: { enabled: false },
   vars: {
     COVE_STRANGLER_DATABASE_ID: SNAPSHOT_ID,
+    COVE_STRANGLER_MODE: "isolated-real-catalog",
+    COVE_SSR_STAGING: "1",
     FORE_PUBLIC_URL: "https://cove-strangler-real-preview-12345-1.cove-jibrilmohamud.workers.dev",
   },
 });
@@ -153,6 +155,15 @@ test("a preview has no service, owner-DO, credential or customer-origin indirect
       c.vars.COVE_RIGHTS_OWNER_ENABLED = "1";
     },
     (c) => {
+      c.vars.COVE_STRANGLER_MODE = "production-acceptance";
+    },
+    (c) => {
+      c.vars.COVE_STRANGLER_RELEASE_CERTIFIED = "1";
+    },
+    (c) => {
+      c.vars.COVE_SSR_STAGING = "0";
+    },
+    (c) => {
       c.vars.STRIPE_SECRET_KEY = "injected";
     },
     (c) => {
@@ -227,6 +238,14 @@ test("protected source never hardcodes primary D1 and checks snapshot before dep
     "utf8",
   );
   assert.ok(!script.includes(PRIMARY_D1), "Production D1 ID must not appear in preview source");
+  assert.match(script, /config\.vars\.COVE_STRANGLER_MODE = "isolated-real-catalog"/);
+  assert.match(script, /assert\.equal\(dbId, reviewedSnapshotId,/);
+  const runtime = readFileSync("src/storefront-strangler/worker.ts", "utf8");
+  assert.match(runtime, /env\.COVE_STRANGLER_MODE === "isolated-real-catalog"/);
+  assert.match(
+    runtime,
+    /env\.COVE_STRANGLER_DATABASE_ID === "15ce2ea3-17f8-4d99-9015-a78a6a3af05d"/,
+  );
   assert.match(script, /requireIsolatedCatalogSnapshotTarget\(/);
   assert.match(script, /requireNoPrimaryD1PreviewBinding\(config, dbId\)/);
   assert.match(script, /requireMinimumRealCatalogSnapshot\(fixture\)/);

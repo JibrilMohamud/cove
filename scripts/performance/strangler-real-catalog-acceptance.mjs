@@ -7,6 +7,10 @@ import { spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
 import { verifyGeoEdgeIngress } from "../staging/verify-geo-edge-ingress.mjs";
 import {
+  target as reviewedSnapshotId,
+  targetName as reviewedSnapshotName,
+} from "../staging/real-catalog-copy-plan.mjs";
+import {
   requireIsolatedCatalogSnapshotTarget,
   requireNoPrimaryD1PreviewBinding,
   requireMinimumRealCatalogSnapshot,
@@ -19,6 +23,8 @@ const { id: dbId, name: isolatedDbName } = requireIsolatedCatalogSnapshotTarget(
   process.env.COVE_REAL_CATALOG_SNAPSHOT_D1_ID,
   process.env.COVE_REAL_CATALOG_SNAPSHOT_D1_NAME,
 );
+assert.equal(dbId, reviewedSnapshotId, "Snapshot is not enrolled in the isolated runtime");
+assert.equal(isolatedDbName, reviewedSnapshotName);
 const token = process.env.CLOUDFLARE_API_TOKEN;
 const readToken = process.env.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN;
 assert.ok(readToken && readToken.length >= 20 && readToken !== token);
@@ -33,7 +39,7 @@ const config = JSON.parse(fs.readFileSync("wrangler.storefront-strangler.stage.j
 assert.equal(config.d1_databases[0].database_id, "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3");
 config.d1_databases[0].database_id = dbId;
 config.d1_databases[0].database_name = isolatedDbName;
-config.vars.COVE_STRANGLER_MODE = "production-acceptance";
+config.vars.COVE_STRANGLER_MODE = "isolated-real-catalog";
 config.vars.COVE_STRANGLER_DATABASE_ID = dbId;
 assert.equal(config.workers_dev, false);
 assert.equal(config.vars.COVE_STRANGLER_EXPERIENCE, "1");
@@ -451,6 +457,11 @@ try {
   evidence.observedColdCountries = [
     ...new Set(evidence.cold.filter((cold) => cold.ok).map((cold) => cold.observedCountry)),
   ];
+  assert.ok(
+    evidence.observedColdCountries.length > 0,
+    "No valid cold storefront response; statuses: " +
+      evidence.cold.map((cold) => cold.status ?? "transport-error").join(","),
+  );
   assert.equal(
     evidence.observedColdCountries.length,
     1,
@@ -518,7 +529,7 @@ try {
   const mobileLcp = mobileSamples.map((s) => s.lcpMs).filter(Number.isFinite);
   evidence.stageMobileLcp = {
     description:
-      "Bearer-gated real production D1 with Vercel asset fetch, Chromium 390x844, 4x CPU, 150ms RTT",
+      "Bearer-gated isolated full-catalog snapshot with Vercel assets, Chromium 390x844, 4x CPU, 150ms RTT",
     samples: mobileSamples,
     p75Ms: percentile(mobileLcp, 0.75),
   };

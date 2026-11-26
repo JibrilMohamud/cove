@@ -256,6 +256,28 @@ async function purchase(page, productId) {
     quoteId: quote.data.id,
     idempotencyKey: idem,
   });
+  // Map only fixed internal errors to a bounded phase label. Never print
+  // Stripe payloads, buyer data, client secrets, or arbitrary provider text.
+  if (pay.status !== 200) {
+    const paymentPhase = {
+      "Canonical checkout owner could not materialize the order.": "materialize-draft",
+      "Canonical checkout owner could not reserve checkout tenders.": "prepare-draft",
+      "Checkout owner receipt differs from canonical order.": "order-readback",
+      "Stripe customer owner is not certified.": "customer-admission",
+      "Stripe customer identity was not acknowledged by its canonical owner.":
+        "customer-owner-receipt",
+      "Checkout payment owner is not certified.": "payment-admission",
+      "Checkout payment identity was not acknowledged by its canonical owner.":
+        "payment-owner-receipt",
+    };
+    const message = pay.data?.error;
+    const phase =
+      typeof message === "string" && Object.hasOwn(paymentPhase, message)
+        ? paymentPhase[message]
+        : "unclassified";
+    report.paymentFailure = { status: pay.status, phase, appHeader: pay.appHeader };
+    console.log("QA_PAYMENT_FAILURE", JSON.stringify(report.paymentFailure));
+  }
   assert.equal(pay.status, 200);
   assert.match(pay.data?.paymentIntentId, /^pi_/);
   const repeated = await request(page, "POST", "/checkout/payment", {
