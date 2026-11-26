@@ -100,7 +100,10 @@ export async function provisionDetachedOwner(wrangler) {
   const origin = "https://" + bridge + ".cove-qa-reads.workers.dev";
   const headers = { authorization: "Bearer " + gate };
   const observations = await verifyDetachedBridge({ origin, gate, instance });
-  console.log("PASS: exact detached bridge readiness and anonymous/invalid bearer denial", JSON.stringify(observations));
+  console.log(
+    "PASS: exact detached bridge readiness and anonymous/invalid bearer denial",
+    JSON.stringify(observations),
+  );
   const published = await fetch(origin + "/publish", {
     method: "POST",
     headers,

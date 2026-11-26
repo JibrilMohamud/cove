@@ -17,7 +17,7 @@ const request = (url, init) => bridge.fetch(new Request(url, init), env);
 const verify = (fetcher, attempts = 2) =>
   verifyDetachedBridge({ origin, gate, instance, fetcher, attempts, pause: async () => {} });
 
-test("real bridge returns instance-bound authenticated readiness and denies both invalid credentials", async () => {
+test("bridge proves readiness and denies both invalid credentials", async () => {
   const result = await verify(request);
   assert.equal(result["authorized:204:instance"], 1);
   assert.equal(result["anonymous:401:instance"], 1);
@@ -30,7 +30,7 @@ test("real bridge returns instance-bound authenticated readiness and denies both
   }
 });
 
-test("provider 404 after authenticated readiness requires a new complete verified sequence", async () => {
+test("provider 404 requires a new complete verified sequence", async () => {
   let calls = 0;
   const result = await verify((url, init) => {
     if (++calls === 2) return Promise.resolve(new Response(null, { status: 404 }));

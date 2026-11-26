@@ -46,8 +46,14 @@ export async function verifyDetachedBridge({
       } else {
         // A routing 404, temporary provider error or unmarked 401 proves
         // nothing about the application. Never count it as verified denial.
-        if (status !== 0 && status !== 404 && status !== 401 && status !== 429 &&
-            !(status >= 500 && status <= 599) && !(expected === 204 && status === 204))
+        if (
+          status !== 0 &&
+          status !== 404 &&
+          status !== 401 &&
+          status !== 429 &&
+          !(status >= 500 && status <= 599) &&
+          !(expected === 204 && status === 204)
+        )
           throw Error("Unexpected detached bridge provider status: " + name + ":" + status);
         complete = false;
         break;
@@ -56,5 +62,7 @@ export async function verifyDetachedBridge({
     if (complete) return observations;
     if (attempt + 1 < attempts) await pause();
   }
-  throw Error("Detached bridge readiness/authorization unverified: " + JSON.stringify(observations));
+  throw Error(
+    "Detached bridge readiness/authorization unverified: " + JSON.stringify(observations),
+  );
 }
