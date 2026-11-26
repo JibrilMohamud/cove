@@ -1,5 +1,10 @@
 /* eslint-disable prettier/prettier -- Private, typed canonical authority RPC. Never expose SQL or a caller-chosen route. */
 import { ownerUserIdPattern } from "./owner-user-id";
+import {safeForwardedSettlementCode} from "./owner-settlement-diagnostic";
+
+export class CanonicalSettlementRefusal extends Error {
+  constructor(readonly reason:string){super("canonical_command_owner_refused");}
+}
 import {z} from "zod/v3";
 
 export type CanonicalOwnerPort={fetch(request:Request):Promise<Response>};
@@ -458,7 +463,11 @@ export async function dispatchCanonicalOwnerCommand(
       "cache-control":"no-store"
     },body:encoded
   }));
-  if(response.status!==200)throw Error("canonical_command_owner_refused");
+  if(response.status!==200){
+    if(kind==="commerce.settle-order")throw new CanonicalSettlementRefusal(
+      safeForwardedSettlementCode(response.headers.get("x-cove-owner-settlement-failure")));
+    throw Error("canonical_command_owner_refused");
+  }
   const bytes=await response.text();
   if(bytes.length>(["publishing.worker-jobs","publishing.audio-qc-jobs"].includes(kind)?524288:131072))throw Error("canonical_command_receipt_too_large");
   let ack:unknown;

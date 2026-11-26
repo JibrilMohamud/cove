@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { randomBytes, generateKeyPairSync } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
+import { createServer } from "node:http";
 import { provisionDetachedOwner, cleanupDetachedOwner } from "./detached-commerce-owner.mjs";
 
 const qaWorker = "cove-commerce-customer-qa-stage";
@@ -83,6 +84,7 @@ const env = {
 };
 let opened = false;
 let listener;
+let relay;
 let consoleText = "";
 const secretFile = ".output/commerce-qa-temporary-secrets.json";
 try {
@@ -91,6 +93,55 @@ try {
   // Obtain the listener signing key before opening the gated QA ingress.
   // Install all fresh credentials together in the serving deployment.
   const { privateKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+  // Forward the original signed bytes to the exact gated hosted ingress.
+  // Capture only HTTP status and fixed settlement classifications, not payloads,
+  // signatures, provider event IDs, buyer identities or arbitrary error text.
+  relay = createServer(async (req, res) => {
+    try {
+      if (req.method !== "POST" || req.url !== "/webhook") {
+        res.writeHead(404).end();
+        return;
+      }
+      const signature = req.headers["stripe-signature"];
+      if (typeof signature !== "string") {
+        res.writeHead(400).end();
+        return;
+      }
+      const chunks = [];
+      let size = 0;
+      for await (const chunk of req) {
+        size += chunk.length;
+        if (size > 1_048_576) {
+          res.writeHead(413).end();
+          return;
+        }
+        chunks.push(chunk);
+      }
+      const response = await fetch(origin + "api/fore/stripe/webhook", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer " + gate,
+          "content-type": "application/json",
+          "stripe-signature": signature,
+        },
+        body: Buffer.concat(chunks),
+        redirect: "manual",
+        signal: AbortSignal.timeout(60_000),
+      });
+      const data = await response.json().catch(() => null);
+      const match = /^QA settlement: ([a-z_]{1,80})$/.exec(data?.error || "");
+      console.log("QA_STRIPE_WEBHOOK_RESULT", response.status, match?.[1] || "none");
+      res.writeHead(response.status).end();
+    } catch {
+      console.warn("QA_STRIPE_WEBHOOK_TRANSPORT_FAILED");
+      res.writeHead(502).end();
+    }
+  });
+  await new Promise((resolve, reject) => {
+    relay.once("error", reject);
+    relay.listen(0, "127.0.0.1", resolve);
+  });
+  const relayOrigin = "http://127.0.0.1:" + relay.address().port;
   listener = spawn(
     "stripe",
     [
@@ -98,9 +149,7 @@ try {
       "--events",
       "payment_intent.succeeded,payment_intent.payment_failed,charge.refunded",
       "--forward-to",
-      origin + "api/fore/stripe/webhook",
-      "--headers",
-      "Authorization:Bearer " + gate,
+      relayOrigin + "/webhook",
     ],
     {
       stdio: ["ignore", "pipe", "pipe"],
@@ -234,6 +283,10 @@ try {
     if (!(await closed)) listener.kill("SIGKILL");
     listener.stdout?.destroy();
     listener.stderr?.destroy();
+  }
+  if (relay) {
+    relay.closeAllConnections();
+    await new Promise((resolve) => relay.close(resolve));
   }
   if (opened) {
     // Teardown also runs as a separate always() CI step in case Node aborts.

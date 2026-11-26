@@ -55,7 +55,8 @@ try{
   const internalPayment={provider:"internal",paymentIntentId:null,chargeId:null,receiptUrl:null,paymentMethod:"Internal balance"};
   const templatePath=join(folder,"schema.sqlite"),template=new DatabaseSync(templatePath);
   migrations.forEach(sql=>template.exec(sql));template.close();let fixtureNumber=0;
-  function fixture({stripe=50,gift=30,store=20,count=2,preorder=false}={}){
+  function fixture({stripe=50,gift=30,store=20,count=2,preorder=false,buyerId=userId}={}){
+    const userId=buyerId;
     const fixturePath=join(folder,"fixture-"+(fixtureNumber++)+".sqlite");copyFileSync(templatePath,fixturePath);
     const primary=new DatabaseSync(fixturePath),owned=new DatabaseSync(":memory:");databases.push(primary,owned);
     primary.exec("PRAGMA foreign_keys=ON; PRAGMA journal_mode=MEMORY; PRAGMA synchronous=OFF");
@@ -204,6 +205,12 @@ try{
   assert.equal(typeResponse.headers.get("x-cove-owner-settlement-failure"),
     "owner_settlement_phase_canonical_order_read");
   assert.equal(typeFault.snapshot().receipt,0);
+  const detachedCallerEnv={...callerEnv,DB:makeStageLegalWriterLock(typeFault.DB),COVE_LEGAL_WRITER_PRIMARY_ID:"f9354381-bd9f-496b-bd05-d6f62a32ec0c",LEGAL_AUTHORITY:{getByName(){return typeFault.owner;}}};
+  // A separate stub checks propagation without reusing the faulting caller read.
+  const diagnosticCaller={...detachedCallerEnv,DB:callerEnv.DB,LEGAL_AUTHORITY:{getByName(){return {fetch:async()=>new Response(null,{status:503,headers:{"x-cove-owner-settlement-failure":"owner_stripe_fee_not_available"}})};}}};
+  await assert.rejects(()=>finalizePaidOrder(diagnosticCaller,orderId,internalPayment),/QA settlement: owner_stripe_fee_not_available/);
+  const untrustedDiagnostic={...diagnosticCaller,LEGAL_AUTHORITY:{getByName(){return {fetch:async()=>new Response(null,{status:503,headers:{"x-cove-owner-settlement-failure":"private customer data"}})};}}};
+  await assert.rejects(()=>finalizePaidOrder(untrustedDiagnostic,orderId,internalPayment),/QA settlement: unclassified_failure/);
   const missingHold=fixture({stripe:0,gift:0,store:100});
   const holdsDdl=missingHold.primary.prepare("SELECT sql FROM sqlite_master WHERE name='royalty_holds'").get().sql;
   missingHold.primary.exec("DROP TABLE royalty_holds");
@@ -238,11 +245,16 @@ try{
       const bad=fixture();globalThis.fetch=async()=>Response.json({id:stripePayment.paymentIntentId,object:"payment_intent",status:"succeeded",livemode:false,amount:50,amount_received:50,currency:"usd",metadata:{fore_order_id:orderId},...overrides});
       assert.equal((await bad.command()).status,503);assert.equal(bad.snapshot().receipt,0);
     }
-    const real=fixture();let attempts=0;
+    const real=fixture({buyerId:"sb:12345678-1234-4abc-8def-123456789abc"});let attempts=0;
     globalThis.fetch=async()=>Response.json({id:stripePayment.paymentIntentId,object:"payment_intent",status:"succeeded",livemode:false,amount:50,amount_received:50,currency:"usd",metadata:{fore_order_id:orderId},latest_charge:{id:"ch_atomic_settlement",payment_intent:stripePayment.paymentIntentId,refunded:false,amount_refunded:0,disputed:false,balance_transaction:++attempts===1?null:{id:"txn_atomic_settlement",fee:2,net:48,currency:"usd"}}});
     assert.equal((await real.command()).status,200,"Verified provider, all tender, fees, royalties and buyer proofs must succeed together");
     assert.equal(attempts,2,"Delayed verified fee evidence must recover without a second settlement");
     const complete=real.snapshot();assert.equal(complete.ledger,10);
+    assert.equal(real.primary.prepare("SELECT COUNT(*) n FROM entitlements WHERE user_id=? AND status=\'active\'").get("sb:12345678-1234-4abc-8def-123456789abc").n,2);
+    for(const buyerId of ["sb:not-a-uuid","other:12345678-1234-4abc-8def-123456789abc"]){
+      const invalidBuyer=fixture({buyerId});await assert.rejects(()=>invalidBuyer.post(),/Invalid settlement buyer identity/);
+      assert.equal(invalidBuyer.snapshot().receipt,0);assert.equal(invalidBuyer.snapshot().entitlements,0);
+    }
     assert.equal(real.primary.prepare("SELECT SUM(amount_minor) n FROM commerce_ledger_entries").get().n,0);
     assert.equal((await real.command()).status,200);assert.deepEqual(real.snapshot(),complete);
   }finally{globalThis.fetch=nativeFetch;}

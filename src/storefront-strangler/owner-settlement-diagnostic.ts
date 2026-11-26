@@ -12,6 +12,7 @@ export function ownerSettlementDiagnostic(error:unknown):string {
     "Settlement provider does not match canonical tender.":"settlement_tender_mismatch",
     "Settlement receipt has been superseded.":"settlement_receipt_conflict",
     "Terminal or invalid order cannot be settled.":"settlement_terminal_order",
+    "Invalid settlement buyer identity.":"settlement_buyer_identity_invalid",
     "Settlement amounts do not balance.":"settlement_amount_mismatch",
     "Settlement line inventory is invalid or already partially written.":"settlement_line_inventory_invalid",
     "Settlement reservations do not cover canonical tender.":"settlement_reservation_mismatch",
@@ -57,5 +58,40 @@ export function ownerSettlementDiagnostic(error:unknown):string {
   }
   if(error.name==="TypeError")return "settlement_type_error";
   if(error.name==="RangeError")return "settlement_range_error";
+  return "unclassified_failure";
+}
+
+// Bound propagation to fixed codes; never echo raw owner header text or database identifiers.
+const forwardableSettlementCodes=new Set([
+  "invalid_owner_settlement_command","internal_order_has_stripe_identity",
+  "owner_stripe_verifier_unavailable","owner_stripe_redirect_forbidden",
+  "owner_stripe_credential_rejected","owner_stripe_permission_denied","owner_stripe_payment_not_found",
+  "owner_stripe_verification_rate_limited","owner_stripe_verification_request_rejected","owner_stripe_verification_failed",
+  "owner_stripe_receipt_too_large","owner_stripe_order_scope_mismatch","owner_stripe_charge_not_settleable",
+  "owner_stripe_fee_pending","owner_stripe_fee_not_available",
+  "owner_settlement_already_executing","owner_settlement_order_withdrawn","owner_settlement_order_scope_invalid",
+  "owner_settlement_line_inventory_invalid","owner_settlement_acquired_rights_changed",
+  "owner_settlement_identity_collision","owner_settlement_publication_incomplete",
+  "settlement_order_not_found","settlement_tender_mismatch","settlement_receipt_conflict",
+  "settlement_terminal_order","settlement_buyer_identity_invalid","settlement_amount_mismatch",
+  "settlement_line_inventory_invalid","settlement_reservation_mismatch","settlement_product_unavailable",
+  "settlement_preorder_plan_invalid","settlement_fee_evidence_missing","settlement_journal_unbalanced",
+  "settlement_commit_unacknowledged","settlement_effects_receipt_missing","settlement_revoked_during_recovery",
+  "qa_expected_effect_interruption","settlement_royalty_contract_missing","settlement_royalty_splits_missing",
+  "settlement_royalty_splits_invalid","database_parameter_limit","database_check_rejected",
+  "database_foreign_key_rejected","database_duplicate_rejected","database_required_value_missing",
+  "database_execution_failed","settlement_royalty_calculation_failed","settlement_royalty_accrual_failed",
+  "settlement_atomic_transaction_failed","settlement_postcommit_effects_failed","settlement_tax_effects_failed",
+  "settlement_promotion_effects_failed","settlement_provider_verification_failed","settlement_owner_execution_failed",
+  "settlement_type_error","settlement_range_error",
+  ...["owner_authority_gate","canonical_order_read","canonical_lines_read","initial_rights_check",
+    "stripe_payment_verification","verified_rights_recheck","durable_owner_command",
+    "atomic_canonical_transaction","postcommit_effects","effects_receipt","owner_permission_publication",
+    "publication_receipt"].map(phase=>"owner_settlement_phase_"+phase),
+]);
+export function safeForwardedSettlementCode(value:string|null):string {
+  if(value&&forwardableSettlementCodes.has(value))return value;
+  if(value?.startsWith("missing_table:"))return "database_missing_table";
+  if(value?.startsWith("missing_column:"))return "database_missing_column";
   return "unclassified_failure";
 }
