@@ -24,7 +24,9 @@ export async function verifyDetachedBridge({
   for (let attempt = 0; attempt < attempts; attempt++) {
     let complete = true;
     for (const { name, credential, expected } of probes) {
-      const response = await fetcher(origin + "/ready", {
+      const response = await fetcher(origin + "/publish", {
+        method: "POST",
+        body: "probe:" + instance,
         headers: credential === null ? {} : { authorization: "Bearer " + credential },
         cache: "no-store",
         redirect: "manual",

@@ -87,8 +87,86 @@ test("matching bridge marker with wrong denial status fails, not retries", async
 test("expired bridge remains fail-closed and cannot issue a readiness receipt", async () => {
   const expired = { ...env, EXPIRES: String(Date.now() - 1) };
   const response = await bridge.fetch(
-    new Request(origin + "/ready", { headers: { authorization: "Bearer " + gate } }),
+    new Request(origin + "/publish", {
+      method: "POST",
+      body: "probe:" + instance,
+      headers: { authorization: "Bearer " + gate },
+    }),
     expired,
   );
   assert.equal(response.status, 503);
+});
+
+test("same POST route and framing prove readiness without executing owner calls", async () => {
+  await verify((url, init) => {
+    assert.equal(url, origin + "/publish");
+    assert.equal(init.method, "POST");
+    assert.equal(init.body, "probe:" + instance);
+    return request(url, init);
+  });
+});
+
+test("publication rejects empty streams, incorrect instance and overlong payloads", async () => {
+  for (const body of ["", "publish:" + "d".repeat(32), "x".repeat(41)]) {
+    const response = await request(origin + "/publish", {
+      method: "POST",
+      body,
+      headers: { authorization: "Bearer " + gate },
+    });
+    assert.equal(response.status, 400);
+  }
+});
+
+test("exact publish command certifies both fixed products in owner order", async () => {
+  const calls = [];
+  const published = await bridge.fetch(
+    new Request(origin + "/publish", {
+      method: "POST",
+      body: "publish:" + instance,
+      headers: { authorization: "Bearer " + gate },
+    }),
+    {
+      ...env,
+      LEGAL_PRIVATE: {
+        fetch: async (url, init) => {
+          const payload = JSON.parse(init.body);
+          calls.push([new URL(url).pathname, payload.productId]);
+          assert.equal(init.headers.authorization, "Bearer " + env.OWNER_SECRET);
+          return Response.json({ applied: true, epoch: 1 });
+        },
+      },
+    },
+  );
+  assert.equal(published.status, 204);
+  assert.equal(published.headers.get("x-cove-qa-bridge-instance"), instance);
+  assert.deepEqual(calls, [
+    ["/commercial/publish-verified", "prd_qa_owner_v2_ebook"],
+    ["/storefront/publish-commercial", "prd_qa_owner_v2_ebook"],
+    ["/commercial/publish-verified", "prd_qa_owner_v2_audio"],
+    ["/storefront/publish-commercial", "prd_qa_owner_v2_audio"],
+  ]);
+});
+
+test("owner refusal exposes only a fixed phase and status and stops publication", async () => {
+  let calls = 0;
+  const response = await bridge.fetch(
+    new Request(origin + "/publish", {
+      method: "POST",
+      body: "publish:" + instance,
+      headers: { authorization: "Bearer " + gate },
+    }),
+    {
+      ...env,
+      LEGAL_PRIVATE: {
+        fetch: async () => {
+          calls++;
+          return new Response("private diagnostic", { status: 409 });
+        },
+      },
+    },
+  );
+  assert.equal(response.status, 502);
+  assert.equal(response.headers.get("x-cove-qa-bridge-phase"), "ebook:rights:409");
+  assert.equal(await response.text(), "");
+  assert.equal(calls, 1);
 });
