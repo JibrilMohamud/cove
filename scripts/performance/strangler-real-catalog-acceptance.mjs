@@ -6,7 +6,10 @@ import { createHash, randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
 import { verifyGeoEdgeIngress } from "../staging/verify-geo-edge-ingress.mjs";
-import { target as reviewedSnapshotId, targetName as reviewedSnapshotName } from "../staging/real-catalog-copy-plan.mjs";
+import {
+  target as reviewedSnapshotId,
+  targetName as reviewedSnapshotName,
+} from "../staging/real-catalog-copy-plan.mjs";
 import {
   requireIsolatedCatalogSnapshotTarget,
   requireNoPrimaryD1PreviewBinding,

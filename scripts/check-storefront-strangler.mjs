@@ -166,13 +166,13 @@ try {
   }
   const realGeo = new Request("https://cove.test/__cove_geo_probe");
   Object.defineProperty(realGeo, "cf", { value: { country: "US", colo: "DFW" } });
-  const probe = await worker.fetch(realGeo, {
+  const realGeoResponse = await worker.fetch(realGeo, {
     ...isolatedCatalog,
     COVE_GEO_PROBE_ENABLED: "1",
     COVE_GEO_PROBE_RELEASE_SHA: "a".repeat(40),
   });
-  assert.equal(probe.status, 200);
-  assert.deepEqual(await probe.json(), {
+  assert.equal(realGeoResponse.status, 200);
+  assert.deepEqual(await realGeoResponse.json(), {
     schema: "cove.geo-ingress.v1",
     sha: "a".repeat(40),
     colo: "DFW",
