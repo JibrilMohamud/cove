@@ -1,8 +1,8 @@
 // Ephemeral CI-only stage storage; no D1, service binding, route or cron.
 export default {
   async fetch(request, env) {
-    const reply = (status) =>
-      new Response(null, { status, headers: { "cache-control": "no-store" } });
+    const headers = { "cache-control": "no-store" };
+    const reply = (status) => new Response(null, { status, headers });
     const supplied = request.headers.get("authorization") || "";
     if (!/^[a-f0-9]{64}$/.test(env.GATE || "") || !/^Bearer [a-f0-9]{64}$/.test(supplied))
       return reply(401);
@@ -16,23 +16,26 @@ export default {
       return reply(403);
     if (!/^[1-9][0-9]{7,14}$/.test(env.RUN) || !["synthetic", "real"].includes(env.MODE))
       return reply(403);
+    if (!/^[a-f0-9]{32}$/.test(env.INSTANCE || "") || !["publish", "cleanup"].includes(env.PURPOSE))
+      return reply(403);
+    headers["x-cove-stage-storage-instance"] = env.INSTANCE;
     const url = new URL(request.url);
     if (url.search || url.pathname !== "/presentation") return reply(404);
     const country = request.headers.get("x-cove-country") || "";
     if (!/^[A-Z]{2}$/.test(country)) return reply(400);
     const key = `campaign/${env.RUN}/${env.MODE}/private/presentation/v2/home/${country}.json`;
     if (request.method === "DELETE") {
+      if (env.PURPOSE !== "cleanup") return reply(403);
       await env.PRESENTATION.delete(key);
       await env.PRESENTATION_KV.delete(key);
       return reply(204);
     }
     if (request.method === "GET") {
       const object = await env.PRESENTATION.get(key);
-      return object
-        ? new Response(object.body, { headers: { "cache-control": "no-store" } })
-        : reply(404);
+      return object ? new Response(object.body, { headers }) : reply(404);
     }
     if (request.method !== "PUT") return reply(405);
+    if (env.PURPOSE !== "publish") return reply(403);
     const length = Number(request.headers.get("content-length"));
     if (!Number.isSafeInteger(length) || length < 1 || length > 524288) return reply(413);
     const reader = request.body?.getReader();

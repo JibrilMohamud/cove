@@ -91,16 +91,34 @@ const stageKvStore = new WeakMap<
   {
     kv: NonNullable<OptimizedEnv["PRESENTATION_KV"]>;
     adapter: PrivatePresentationStore;
+    parallel: boolean;
   }
 >();
 function stageAcceleratedPresentation(
   r2: PrivatePresentationStore,
   kv: NonNullable<OptimizedEnv["PRESENTATION_KV"]>,
+  parallel = false,
 ): PrivatePresentationStore {
   const existing = stageKvStore.get(r2);
-  if (existing?.kv === kv) return existing.adapter;
+  if (existing?.kv === kv && existing.parallel === parallel) return existing.adapter;
   const adapter: PrivatePresentationStore = {
     async get(key) {
+      if (parallel) {
+        // Isolated immutable campaign only. Both copies are display bytes;
+        // neither can bypass the fresh primary-D1 authorization below.
+        const fromKv = kv.get(key, { type: "text", cacheTtl: 30 }).then((body) => {
+          if (body === null) throw Error("KV presentation absent");
+          return { size: new TextEncoder().encode(body).byteLength, text: async () => body };
+        });
+        const fromR2 = r2.get(key);
+        return Promise.any([
+          fromKv,
+          fromR2.then((body) => {
+            if (!body) throw Error("R2 presentation absent");
+            return body;
+          }),
+        ]).catch(() => fromR2);
+      }
       let body: string | null;
       try {
         body = await kv.get(key, { type: "text", cacheTtl: 30 });
@@ -113,7 +131,7 @@ function stageAcceleratedPresentation(
       return { size: new TextEncoder().encode(body).byteLength, text: async () => body };
     },
   };
-  stageKvStore.set(r2, { kv, adapter });
+  stageKvStore.set(r2, { kv, adapter, parallel });
   return adapter;
 }
 
@@ -231,7 +249,11 @@ export async function serveLeanAnonymousBootstrap(
     throw Error("Presentation accelerator requires certified KV/R2 v2 bindings");
   const presentationBinding =
     kvStage && env.PRESENTATION && env.PRESENTATION_KV
-      ? stageAcceleratedPresentation(env.PRESENTATION, env.PRESENTATION_KV)
+      ? stageAcceleratedPresentation(
+          env.PRESENTATION,
+          env.PRESENTATION_KV,
+          env.COVE_SSR_STAGING === "1" && env.COVE_STRANGLER_MODE === "isolated-real-catalog",
+        )
       : env.PRESENTATION;
   // Never trust owner-only positive grants unless the staging writer lock
   // and private owner binding are both present on the same gateway.
