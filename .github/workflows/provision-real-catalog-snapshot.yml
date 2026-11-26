@@ -42,7 +42,7 @@ jobs:
       inputs.confirm_isolated_catalog_copy == true
     environment: cove-production-release-audit
     runs-on: ubuntu-latest
-    timeout-minutes: 105
+    timeout-minutes: 155
     env:
       REVIEWED_SHA: ${{ inputs.reviewed_main_sha }}
       COVE_BIOSYNC_PROD_D1_READ_TOKEN: ${{ secrets.COVE_BIOSYNC_PROD_D1_READ_TOKEN }}
@@ -62,7 +62,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: isolated-real-catalog-copy-${{ github.sha }}
+          name: isolated-real-catalog-copy-${{ github.sha }}-${{ github.run_attempt }}
           path: artifacts/real-catalog-snapshot/evidence.json
           if-no-files-found: warn
           retention-days: 45

@@ -4,6 +4,9 @@ import {test} from "node:test";
 import {source,target,plan,mustBeEmpty,insertSql,readSql,validateRows} from "./real-catalog-copy-plan.mjs";
 import worker from "./real-catalog-copy.worker.mjs";
 import {verifyReceipt} from "./real-catalog-copy-receipt.mjs";
+import {createProviderBudget,ratePause} from "./real-catalog-copy-budget.mjs";
+import {reconcilePage} from "./real-catalog-copy-resume.mjs";
+import {pageLimit} from "./real-catalog-copy-plan.mjs";
 const item=plan.find(x=>x.table==="products");
 test("snapshot target is physically separate and private tables are not imported",()=>{
   assert.notEqual(source,target);
@@ -48,4 +51,54 @@ test("complete receipt requires actual protected run and cleanup, never a skippe
   assert.throws(()=>verifyReceipt(receipt,run,[{...job,conclusion:"skipped"}],digest));
   assert.throws(()=>verifyReceipt(receipt,run,[{...job,steps:[]}],digest));
   assert.throws(()=>verifyReceipt(receipt,run,[job],"d".repeat(64)));
+});
+
+test("shared provider budget serializes different credentials and respects full reset window",async()=>{
+  let now=0;const times=[],waits=[],events=[];
+  const statuses=[429,200,200,200];
+  const request=createProviderBudget({
+    clock:()=>now,wait:async ms=>{waits.push(ms);now+=ms;},
+    onBackoff:event=>events.push(event),
+    fetcher:async()=>{times.push(now);return new Response(null,{status:statuses.shift(),headers:times.length===1?{"retry-after":"300"}:{}});}
+  });
+  await Promise.all(["source","target","control"].map(x=>request("https://example.invalid",{}, {safeRead:true,label:x})));
+  assert.deepEqual(times,[0,301000,301500,302000]);
+  assert.equal(events[0].kind,"429");assert.equal(waits[0],301000);
+});
+test("missing Retry-After conservatively waits a full window",async()=>{
+  let now=0;let attempts=0;const waits=[];
+  const request=createProviderBudget({clock:()=>now,wait:async ms=>{now+=ms;waits.push(ms);},fetcher:async()=>new Response(null,{status:++attempts===1?429:200})});
+  assert.equal((await request("https://example.invalid",{}, {safeRead:true})).status,200);
+  assert.equal(waits[0],301000);
+});
+test("low quota stalls next call and 5xx mutation is never blindly replayed",async()=>{
+  let now=0;let attempts=0;
+  const request=createProviderBudget({clock:()=>now,wait:async ms=>{now+=ms;},fetcher:async()=>new Response(null,{status:++attempts===1?200:503,headers:attempts===1?{ratelimit:'"default";r=2;t=40'}:{}})});
+  await request("https://example.invalid",{}, {safeRead:true});
+  assert.equal((await request("https://example.invalid",{},{})).status,503);
+  assert.equal(now,41000);assert.equal(attempts,2);
+  assert.equal(ratePause(new Headers({"retry-after":"7"}),0).explicit,7000);
+});
+test("temporary read errors retry, forbidden access does not",async()=>{
+  let now=0;let calls=0;
+  const request=createProviderBudget({clock:()=>now,wait:async ms=>{now+=ms;},fetcher:async()=>new Response(null,{status:++calls===1?503:403})});
+  assert.equal((await request("https://example.invalid",{}, {safeRead:true})).status,403);
+  assert.equal(calls,2);assert.ok(now>=1000);
+});
+test("complete page is reused only after exact independent comparison",async()=>{
+  const data=[["a",1],["b",2]];let writes=0;
+  const result=await reconcilePage(data,{readTarget:async()=>structuredClone(data),write:async()=>{writes++;},checkExisting:true});
+  assert.equal(result.reused,true);assert.equal(writes,0);
+});
+test("partial page repaired and reread; stale readback rejected",async()=>{
+  const data=[["a",1],["b",2]];let stored=[["a",1]],writes=0,reads=0;
+  const result=await reconcilePage(data,{readTarget:async()=>{reads++;return stored;},write:async rows=>{writes++;stored=structuredClone(rows);},checkExisting:true});
+  assert.equal(result.reused,false);assert.equal(writes,1);assert.equal(reads,2);
+  await assert.rejects(reconcilePage(data,{readTarget:async()=>[["a",9]],write:async()=>{},checkExisting:false}),/page parity failed/);
+});
+test("narrow pages widened while wide metadata stays bounded",()=>{
+  assert.equal(pageLimit(item),2800);assert.match(readSql(item),/LIMIT 2800$/);
+  const works=plan.find(x=>x.table==="works");
+  assert.equal(pageLimit(works),700);assert.match(readSql(works),/LIMIT 700$/);
+  assert.throws(()=>readSql(works,null,false,2800),/Invalid page limit/);
 });

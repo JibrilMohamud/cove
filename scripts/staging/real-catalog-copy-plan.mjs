@@ -6,7 +6,9 @@ export const source="4bd657ac-8789-403e-a28c-93aba8d0a989";
 export const target="15ce2ea3-17f8-4d99-9015-a78a6a3af05d";
 export const targetName="cove-real-catalog-snapshot-20261125";
 export const maxBytes=1_250_000;
-export const pageSize=700;
+export const pageSize=2800;
+const wideTables=new Set(["works","editions","gutenberg_source_cache","catalog_search_documents","contributors","edition_accessibility_profiles","edition_format_profiles"]);
+export function pageLimit(item){return wideTables.has(item.table)?700:pageSize;}
 const spec=(table,key,cols,filter="1=1",redact={})=>({
   table,keys:key.split(" "),columns:cols.split(" "),filter,redact
 });
@@ -51,10 +53,11 @@ export const initialTables=["territories","territory_historical_entities","terri
 export const mustBeEmpty=["api_cache","reviews","search_index_outbox","search_query_events","storefront_user_preferences","personal_imports","publishing_release_lifecycles","publishing_publication_versions","publishing_publications","publishing_publication_disclosures","publishing_edition_drafts","publishing_submission_snapshots","publishing_accounts","finance_royalty_contracts","publishing_asset_versions","publishing_ai_disclosures","publishing_titles","finance_parties","publishing_assets","rights_contracts","rights_contract_versions","rights_contract_version_territories","rights_contract_version_formats","rights_contract_version_channels","rights_contract_languages","promotions","search_merchandising_rules"];
 export const forbiddenSourceRows=["rights_contracts","rights_contract_versions","rights_contract_languages","rights_contract_version_territories","rights_contract_version_formats","rights_contract_version_channels","publishing_publications","promotions","search_merchandising_rules","rights_grant_scope_snapshots","edition_accessibility_profiles","edition_format_profiles"];
 const identifier=(s)=>{if(!/^[a-z][a-z0-9_]*$/.test(s))throw Error("Invalid identifier");return '"'+s+'"';};
-export function readSql(item,last=null,targetRead=false){
+export function readSql(item,last=null,targetRead=false,limit=pageLimit(item)){
+  if(!Number.isSafeInteger(limit)||limit<1||limit>pageLimit(item))throw Error("Invalid page limit");
   const cs=item.columns.map(c=>targetRead?identifier(c):(item.redact[c]||identifier(c))+" AS "+identifier(c));
   const keys=item.keys.map(identifier);
-  return "SELECT "+cs.join(",")+" FROM "+identifier(item.table)+" WHERE "+(targetRead?"1=1":item.filter)+(last===null?"":" AND ("+keys.join(",")+") > ("+keys.map(()=>"?").join(",")+")").replace(/^ AND \(([^,()]+)\) > \(\?\)$/," AND $1 > ?")+" ORDER BY "+keys.join(",")+" LIMIT "+pageSize;
+  return "SELECT "+cs.join(",")+" FROM "+identifier(item.table)+" WHERE "+(targetRead?"1=1":item.filter)+(last===null?"":" AND ("+keys.join(",")+") > ("+keys.map(()=>"?").join(",")+")").replace(/^ AND \(([^,()]+)\) > \(\?\)$/," AND $1 > ?")+" ORDER BY "+keys.join(",")+" LIMIT "+limit;
 }
 export function insertSql(item){
   const columns=item.columns.map(identifier), keys=item.keys.map(identifier);

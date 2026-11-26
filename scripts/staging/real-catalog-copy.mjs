@@ -4,7 +4,9 @@ import {createHash,randomBytes} from "node:crypto";
 import {readFileSync,mkdirSync,writeFileSync} from "node:fs";
 import {setTimeout as sleep} from "node:timers/promises";
 import {transferDigest} from "./real-catalog-copy-receipt.mjs";
-import {account,source,target,targetName,maxBytes,pageSize,plan,initialTables,mustBeEmpty,forbiddenSourceRows,readSql,validateRows} from "./real-catalog-copy-plan.mjs";
+import {createProviderBudget} from "./real-catalog-copy-budget.mjs";
+import {reconcilePage} from "./real-catalog-copy-resume.mjs";
+import {account,source,target,targetName,maxBytes,pageLimit,plan,initialTables,mustBeEmpty,forbiddenSourceRows,readSql,validateRows} from "./real-catalog-copy-plan.mjs";
 const env=process.env;
 assert.equal(env.GITHUB_REPOSITORY,"JibrilMohamud/cove");
 assert.equal(env.GITHUB_REF,"refs/heads/main");
@@ -27,12 +29,17 @@ const artifact="artifacts/real-catalog-snapshot";
 mkdirSync(artifact,{recursive:true});
 const evidence={sha:env.GITHUB_SHA,source,target,targetName,run,tables:{},privateTablesEmpty:false,sourceWrites:0,legalGenerationAttested:false,releaseCertified:false,complete:false,importerRemoved:false};
 const save=()=>writeFileSync(artifact+"/evidence.json",JSON.stringify(evidence,null,2)+"\n");
-save();
+const providerRequest=createProviderBudget({fetcher:(url,init)=>fetch(url,{...init,signal:AbortSignal.timeout(60000)}),onBackoff:event=>console.log("CATALOG_PROVIDER_BACKOFF "+JSON.stringify(event))});
 async function cf(path,token,method="GET",body,missing=false){
-  const r=await fetch(api+path,{method,headers:{authorization:"Bearer "+token,...(body&&!(body instanceof FormData)?{"content-type":"application/json"}:{})},...(body?{body:body instanceof FormData?body:JSON.stringify(body)}:{}),redirect:"error",signal:AbortSignal.timeout(60000)});
+  const queryPath=/^\/d1\/database\/[a-f0-9-]{36}\/query$/.test(path);
+  const safeRead=method==="GET"||(method==="POST"&&queryPath&&typeof body?.sql==="string"&&/^SELECT\s/i.test(body.sql));
+  const idempotentCleanup=(method==="DELETE"&&path===root+"?force=true")||(method==="POST"&&path===root+"/subdomain"&&body?.enabled===false&&body?.previews_enabled===false);
+  const label=queryPath?(path.includes(source)?"source-read":"snapshot-read"):"worker-control";
+  const r=await providerRequest(api+path,{method,headers:{authorization:"Bearer "+token,...(body&&!(body instanceof FormData)?{"content-type":"application/json"}:{})},...(body?{body:body instanceof FormData?body:JSON.stringify(body)}:{}),redirect:"error"},{safeRead,idempotentCleanup,label});
   if(missing&&r.status===404)return null;
+  assert.ok(r.ok,"Cloudflare operation rejected: "+label+" "+method+" "+r.status);
   const data=await r.json();
-  assert.ok(r.ok&&data.success,"Cloudflare operation rejected: "+method+" "+r.status);
+  assert.ok(data.success,"Cloudflare API rejected "+label+" "+method+" "+r.status);
   return data.result;
 }
 async function query(id,sql,params=[]){
@@ -54,6 +61,8 @@ async function cleanup(){
   assert.equal(await cf(root+"/subdomain",deploy,"GET",undefined,true),null,"Import Worker still exists");
 }
 if(process.argv.includes("--cleanup")){await cleanup();process.exit(0);}
+// The always-run cleanup must never overwrite the actual import evidence.
+save();
 const gate=randomBytes(32).toString("hex");console.log("::add-mask::"+gate);
 const origin="https://"+name+".cove-jibrilmohamud.workers.dev/copy";
 async function call(body,credential=gate){
@@ -65,7 +74,7 @@ async function ready(){
     const first=await call({operation:"probe"}).catch(()=>null);
     if(first?.status===204&&marked(first)){
       const denied=await call({operation:"probe"},"").catch(()=>null);
-      const wrong=await call({operation:"probe"},"f".repeat(64)).catch(()=>null);
+      const wrong=await call({operation:"probe"},(gate[0]==="0"?"1":"0")+gate.slice(1)).catch(()=>null);
       if([denied,wrong].some(r=>r&&r.status>=200&&r.status<300))throw Error("Unauthorized import accepted");
       if(denied?.status===401&&wrong?.status===401&&marked(denied)&&marked(wrong))return;
     }
@@ -87,22 +96,31 @@ async function copy(item,rows){
   }
   throw Error("Isolated import acknowledgement missing for "+item.table);
 }
-async function scan(id,item,importRows=false){
-  const hash=createHash("sha256");let cursor=null,count=0;
+async function reconcileTable(item){
+  const hash=createHash("sha256");let cursor=null,count=0,reused=0,written=0,pages=0;
+  const initialCount=await scalar(target,'SELECT count(*) n FROM "'+item.table+'"');
+  const limit=pageLimit(item);
+  console.log("CATALOG_COPY_START "+JSON.stringify({table:item.table,existing:initialCount,pageLimit:limit}));
   for(;;){
-    const rows=await query(id,readSql(item,cursor,id===target),cursor||[]);
+    const rows=await query(source,readSql(item,cursor,false,limit),cursor||[]);
     if(!rows.length)break;
     const data=rows.map(r=>item.columns.map(c=>r[c]));
-    for(const row of data)hash.update(JSON.stringify(row)+"\n");
-    if(importRows)await copy(item,data);
-    count+=data.length;
-    const last=rows.at(-1);
-    const next=item.keys.map(k=>last[k]);assert.ok(next.every(x=>x!==null&&x!==undefined));
-    assert.notDeepEqual(next,cursor,"Cursor failed to advance");cursor=next;
-    if(rows.length<pageSize)break;
-    if(id===source)await sleep(25);
+    const last=rows.at(-1);const next=item.keys.map(k=>last[k]);
+    assert.ok(next.every(x=>x!==null&&x!==undefined));assert.notDeepEqual(next,cursor,"Cursor failed to advance");
+    const readTarget=async()=> (await query(target,readSql(item,cursor,true,limit),cursor||[])).map(r=>item.columns.map(c=>r[c]));
+    const result=await reconcilePage(data,{readTarget,write:rows=>copy(item,rows),checkExisting:count<initialCount});
+    if(result.reused)reused+=data.length;else written+=data.length;
+    for(const row of result.verified)hash.update(JSON.stringify(row)+"\n");
+    count+=data.length;cursor=next;pages++;
+    if(pages%20===0){
+      evidence.progress={table:item.table,count,reused,written,pages};save();
+      console.log("CATALOG_COPY_PROGRESS "+JSON.stringify(evidence.progress));
+    }
+    if(rows.length<limit)break;
   }
-  return {count,sha256:hash.digest("hex")};
+  const finalCount=await scalar(target,'SELECT count(*) n FROM "'+item.table+'"');
+  assert.equal(finalCount,count,"Unexpected extra or missing snapshot rows: "+item.table);
+  return {count,sha256:hash.digest("hex"),reused,written,pages};
 }
 const countSet=async(id,tables)=>Object.fromEntries(await Promise.all(tables.map(async t=>[t,await scalar(id,'SELECT count(*) n FROM "'+t+'"')])));
 const targetInfo=await cf("/d1/database/"+target,targetRead);
@@ -118,7 +136,7 @@ for(const t of initialTables)assert.equal(await scalar(target,'SELECT count(*) n
 for(const t of mustBeEmpty)assert.equal(await scalar(target,'SELECT count(*) n FROM "'+t+'"'),0,"Private target table populated: "+t);
 try{
   await cleanup();
-  const metadata={main_module:"real-catalog-copy.worker.mjs",compatibility_date:"2026-10-25",observability:{enabled:false},bindings:[{type:"d1",name:"SNAPSHOT",id:target},{type:"plain_text",name:"TARGET",text:target},{type:"plain_text",name:"RUN",text:run},{type:"plain_text",name:"EXPIRES",text:String(Date.now()+100*60_000)},{type:"secret_text",name:"GATE",text:gate}]};
+  const metadata={main_module:"real-catalog-copy.worker.mjs",compatibility_date:"2026-10-25",observability:{enabled:false},bindings:[{type:"d1",name:"SNAPSHOT",id:target},{type:"plain_text",name:"TARGET",text:target},{type:"plain_text",name:"RUN",text:run},{type:"plain_text",name:"EXPIRES",text:String(Date.now()+145*60_000)},{type:"secret_text",name:"GATE",text:gate}]};
   assert.equal(metadata.bindings.filter(x=>x.type==="d1").length,1);
   assert.ok(!JSON.stringify(metadata).includes(source));
   const form=new FormData();form.append("metadata",new Blob([JSON.stringify(metadata)],{type:"application/json"}));
@@ -134,10 +152,14 @@ try{
   assert.equal(unsealed.status,204);assert.ok(marked(unsealed));
   // Table order preserves FK parents. Read-back hashes include every projected value.
   for(const item of plan){
-    const before=await scan(source,item,true);
-    const after=await scan(target,item);
-    assert.deepEqual(after,before,"Target content parity failed: "+item.table);
-    evidence.tables[item.table]=after;save();console.log("CATALOG_COPY_VERIFIED "+item.table+" "+after.count);
+    try{
+      const verified=await reconcileTable(item);
+      evidence.tables[item.table]=verified;delete evidence.progress;save();
+      console.log("CATALOG_COPY_VERIFIED "+item.table+" "+JSON.stringify(verified));
+    }catch(error){
+      evidence.failedTable=item.table;save();
+      throw new Error("Catalog copy failed at "+item.table+": "+error.message,{cause:error});
+    }
   }
   // Count/status gates are distinct from independent rights-owner generation.
   const final=await countSet(target,Object.keys(sourceCounts));
