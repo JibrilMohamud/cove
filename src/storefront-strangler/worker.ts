@@ -114,9 +114,20 @@ export default {
     const syntheticEvaluation =
       env.COVE_STRANGLER_MODE === "isolated-evaluation" &&
       env.COVE_STRANGLER_DATABASE_ID === "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
+    // The full-catalog snapshot has a distinct, exact read-only preview mode.
+    // It must not inherit a production owner, CORE or release authority.
+    const isolatedRealCatalogAcceptance =
+      env.COVE_STRANGLER_MODE === "isolated-real-catalog" &&
+      env.COVE_STRANGLER_DATABASE_ID === "15ce2ea3-17f8-4d99-9015-a78a6a3af05d" &&
+      env.COVE_STRANGLER_RELEASE_CERTIFIED !== "1" &&
+      env.COVE_LEGAL_OWNER_STAGE_READ_ENABLED !== "1" &&
+      !env.LEGAL_AUTHORITY &&
+      !env.COVE_RIGHTS_OWNER_SECRET &&
+      !env.CORE;
     const productionAcceptance =
-      env.COVE_STRANGLER_MODE === "production-acceptance" &&
-      env.COVE_STRANGLER_DATABASE_ID === "4bd657ac-8789-403e-a28c-93aba8d0a989";
+      isolatedRealCatalogAcceptance ||
+      (env.COVE_STRANGLER_MODE === "production-acceptance" &&
+        env.COVE_STRANGLER_DATABASE_ID === "4bd657ac-8789-403e-a28c-93aba8d0a989");
     const customerGateway =
       env.COVE_SSR_STAGING !== "1" &&
       env.COVE_STRANGLER_MODE === "customer-gateway" &&
@@ -222,8 +233,8 @@ export default {
     };
     // Stage bearer authorizes this gateway, not a customer session at CORE.
     const delegate = () => {
-      // This production-D1 acceptance origin has no authenticated CORE
-      // service and must never become an alternate checkout/reader gateway.
+      // The read-only acceptance origin has no authenticated CORE service
+      // and must never become an alternate checkout/reader gateway.
       if (productionAcceptance || customerGateway)
         return Promise.resolve(new Response("Not an application route", { status: 404 }));
       const headers = new Headers(request.headers);
