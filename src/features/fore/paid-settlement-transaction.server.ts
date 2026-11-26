@@ -1,6 +1,7 @@
 /* eslint-disable prettier/prettier -- Every monetary and fulfillment mutation below commits in one D1 transaction. */
 import type {CatalogDB} from "./catalog-model.server";
 import {ApiError} from "./service";
+import {ownerUserIdPattern} from "../../storefront-strangler/owner-user-id";
 import {accrueSaleRoyaltiesForOrder} from "./royalty-engine.server";
 
 export type SettlementPayment={
@@ -54,7 +55,8 @@ export async function postPaidSettlementTransaction(
   if(!mutable.includes(order.status))throw new ApiError(409,"Terminal or invalid order cannot be settled.");
   const fields=["subtotal_minor","promo_discount_minor","tax_minor","tax_inclusive_minor",
     "gift_card_minor","store_credit_minor","total_minor","stripe_due_minor","refunded_minor"] as const;
-  if(!id.test(order.user_id)||!/^[A-Z]{3}$/.test(order.currency)||!/^[A-Z]{2}$/.test(order.territory_code)||
+  if(!ownerUserIdPattern.test(order.user_id))throw new ApiError(409,"Invalid settlement buyer identity.");
+  if(!/^[A-Z]{3}$/.test(order.currency)||!/^[A-Z]{2}$/.test(order.territory_code)||
      fields.some(k=>!money(Number(order[k]||0)))||Number(order.refunded_minor)!==0||
      Number(order.promo_discount_minor)>Number(order.subtotal_minor)||
      Number(order.tax_inclusive_minor)>Number(order.subtotal_minor)-Number(order.promo_discount_minor)||
