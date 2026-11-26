@@ -52,7 +52,8 @@ config.observability = { enabled: false };
 // All protected commerce, account, and reader delegation is separately
 // exercised with a fake CORE by the same-SHA local integration suite.
 config.services = [];
-config.placement = { region: "aws:us-east-1" };
+// Keep the preview edge-local; forced remote placement adds a serving hop.
+delete config.placement;
 config.vars.FORE_PUBLIC_URL = origin;
 // Measure the guarded real-data optimization rather than silently testing
 // the unoptimized main path. All statements remain read-only; no 100-RPS
@@ -335,9 +336,26 @@ async function pixelMismatch(page, baseline, candidate) {
 // In production, Vercel continues to own all /covers and /api assets.
 // Route stage-only browser requests through that public origin to compare
 // equivalent customer resource loading; never forward the stage bearer.
-async function stageBrowserRoute(route) {
+async function stageBrowserRoute(route, pinnedVisual = false) {
   const resource = new URL(route.request().url());
   if (resource.origin !== origin) return route.continue();
+  // The v2 reference is a pinned visual fixture. Use the exact checked-in
+  // public JPEG bytes for its covers, rather than an unrelated live rollout.
+  // This does not certify production asset delivery or substitute catalog rows.
+  if (
+    pinnedVisual &&
+    v2 &&
+    route.request().method() === "GET" &&
+    /^\/covers\/[1-9][0-9]*\.jpg$/.test(resource.pathname) &&
+    !resource.search &&
+    fs.existsSync("public" + resource.pathname)
+  ) {
+    return route.fulfill({
+      status: 200,
+      contentType: "image/jpeg",
+      body: fs.readFileSync("public" + resource.pathname),
+    });
+  }
   const forwardedAsset =
     ["/covers/", "/assets/", "/images/", "/fonts/"].some((prefix) =>
       resource.pathname.startsWith(prefix),
@@ -373,6 +391,7 @@ async function settleCatalog(page) {
         );
         return (
           covers.length >= 6 &&
+          covers.some((img) => img.complete && img.naturalWidth > 0) &&
           categoriesReady &&
           visible.every((img) => img.complete && img.naturalWidth > 0) &&
           !/(?:Finding books(?:\.{3}|…)|Catalog updating)/i.test(count)
@@ -408,6 +427,7 @@ async function settleCatalog(page) {
       pendingCatalog,
       settled:
         covers.length >= 6 &&
+        loaded > 0 &&
         categoriesReady &&
         visible.length === loadedVisible &&
         !pendingCatalog,
@@ -489,7 +509,7 @@ try {
       const page = await context.newPage();
       const pageErrors = [];
       page.on("pageerror", (error) => pageErrors.push(error.message));
-      await page.route("**/*", stageBrowserRoute);
+      await page.route("**/*", (route) => stageBrowserRoute(route));
       await page.addInitScript(() => {
         window.__coveVitals = { lcp: null, cls: 0 };
         new PerformanceObserver((list) => {
@@ -550,7 +570,7 @@ try {
       deviceScaleFactor: 1,
     });
     const candidate = await auditCtx.newPage();
-    await candidate.route("**/*", stageBrowserRoute);
+    await candidate.route("**/*", (route) => stageBrowserRoute(route, true));
     const live = await auditCtx.newPage();
     const liveResponse = await live.goto("https://cove-puce-theta.vercel.app/", {
       waitUntil: "domcontentloaded",
@@ -571,7 +591,10 @@ try {
     // the live loading skeleton, but do not waive a candidate mismatch.
     // Retry ONLY an incomplete reference navigation, with a hard bound.
     let liveBaselineReloads = 0;
-    while (!v2 && !liveCatalogPaint.settled && liveBaselineReloads < 2) {
+    while (
+      (!liveCatalogPaint.count || (!v2 && !liveCatalogPaint.settled)) &&
+      liveBaselineReloads < 2
+    ) {
       liveBaselineReloads++;
       console.log(
         "LIVE_BASELINE_UNSETTLED",
@@ -614,6 +637,8 @@ try {
       mismatchPercent,
       comparableMobileState: mobileComparable,
       visualReference: v2 ? "checksum-pinned-approved-2026-10-23" : "live-vercel",
+      candidateCoverSource: v2 ? "same-sha-public-jpeg-fixture" : "public-origin",
+      productionAssetDeliveryCertified: false,
       liveReferenceSettled: liveCatalogPaint.settled,
       liveBaselineReloads,
       covers,
@@ -638,7 +663,7 @@ try {
       deviceScaleFactor: 1,
     });
     const desktopCandidate = await desktopContext.newPage();
-    await desktopCandidate.route("**/*", stageBrowserRoute);
+    await desktopCandidate.route("**/*", (route) => stageBrowserRoute(route, true));
     const desktopLive = await desktopContext.newPage();
     const [desktopBaselineResponse, desktopStageResponse] = await Promise.all([
       desktopLive.goto("https://cove-puce-theta.vercel.app/", {

@@ -232,15 +232,16 @@ try{
     // Provider confirmation succeeds, fee evidence unavailable: atomic money
     // remains committed and access remains denied until provider retry.
     const unavailableFee=await provider.command();
-    assert.equal(unavailableFee.status,503);assert.equal(unavailableFee.headers.get("x-cove-owner-settlement-failure"),"owner_stripe_fee_not_available");assert.ok(requests>=1);assert.equal(provider.snapshot().receipt,0);
+    assert.equal(unavailableFee.status,503);assert.equal(unavailableFee.headers.get("x-cove-owner-settlement-failure"),"owner_stripe_fee_not_available");assert.equal(requests,4);assert.equal(provider.snapshot().receipt,0);
     assert.equal(provider.owned.prepare("SELECT COUNT(*) n FROM cove_paid_settlement_commands").get().n,0);
     for(const overrides of [{amount_received:49},{amount:49},{currency:"eur"},{livemode:true},{status:"processing"},{metadata:{fore_order_id:"other_order"}}]){
       const bad=fixture();globalThis.fetch=async()=>Response.json({id:stripePayment.paymentIntentId,object:"payment_intent",status:"succeeded",livemode:false,amount:50,amount_received:50,currency:"usd",metadata:{fore_order_id:orderId},...overrides});
       assert.equal((await bad.command()).status,503);assert.equal(bad.snapshot().receipt,0);
     }
-    const real=fixture();
-    globalThis.fetch=async()=>Response.json({id:stripePayment.paymentIntentId,object:"payment_intent",status:"succeeded",livemode:false,amount:50,amount_received:50,currency:"usd",metadata:{fore_order_id:orderId},latest_charge:{id:"ch_atomic_settlement",payment_intent:stripePayment.paymentIntentId,refunded:false,amount_refunded:0,disputed:false,balance_transaction:{id:"txn_atomic_settlement",fee:2,net:48,currency:"usd"}}});
+    const real=fixture();let attempts=0;
+    globalThis.fetch=async()=>Response.json({id:stripePayment.paymentIntentId,object:"payment_intent",status:"succeeded",livemode:false,amount:50,amount_received:50,currency:"usd",metadata:{fore_order_id:orderId},latest_charge:{id:"ch_atomic_settlement",payment_intent:stripePayment.paymentIntentId,refunded:false,amount_refunded:0,disputed:false,balance_transaction:++attempts===1?null:{id:"txn_atomic_settlement",fee:2,net:48,currency:"usd"}}});
     assert.equal((await real.command()).status,200,"Verified provider, all tender, fees, royalties and buyer proofs must succeed together");
+    assert.equal(attempts,2,"Delayed verified fee evidence must recover without a second settlement");
     const complete=real.snapshot();assert.equal(complete.ledger,10);
     assert.equal(real.primary.prepare("SELECT SUM(amount_minor) n FROM commerce_ledger_entries").get().n,0);
     assert.equal((await real.command()).status,200);assert.deepEqual(real.snapshot(),complete);

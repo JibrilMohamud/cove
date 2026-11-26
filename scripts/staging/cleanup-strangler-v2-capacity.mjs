@@ -28,7 +28,7 @@ for (const { country, objectKey } of manifest.objects) {
   assert.ok(!seen.has(objectKey), "Refuse duplicate deletion");
   seen.add(objectKey);
 }
-await withStagePresentationStore("synthetic", async (storage) => {
+async function deleteManifest(storage) {
   for (const { country } of manifest.objects) {
     try {
       await storage.delete(country);
@@ -38,7 +38,8 @@ await withStagePresentationStore("synthetic", async (storage) => {
       failures++;
     }
   }
-});
+}
+await withStagePresentationStore("synthetic", deleteManifest, "cleanup");
 
 console.log("COVE_STAGE_V2_CLEANUP " + JSON.stringify({ targets: seen.size, failures }));
 assert.equal(failures, 0, "Private synthetic R2/KV cleanup failed");

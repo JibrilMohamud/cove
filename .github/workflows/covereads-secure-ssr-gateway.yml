@@ -158,16 +158,20 @@ jobs:
           NODE
           grep -q '^name = "cove-asset-auth-stage"$' wrangler.frontend.private.test.toml
           grep -q '^workers_dev = false$' wrangler.frontend.private.test.toml
-          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.frontend.private.test.toml
-          # The public gateway has NO static assets and only a service binding.
-          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.staging-auth-gateway.test.toml
           COVE_GATE_TEST_BEARER="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
           echo "::add-mask::$COVE_GATE_TEST_BEARER"
           echo "COVE_GATE_TEST_BEARER=$COVE_GATE_TEST_BEARER" >> "$GITHUB_ENV"
-          printf '%s' "$COVE_GATE_TEST_BEARER" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put COVE_SSR_STAGING_GATE_KEY --config wrangler.frontend.private.test.toml
-          printf '%s' "$COVE_GATE_TEST_BEARER" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put COVE_SSR_STAGING_GATE_KEY --config wrangler.staging-auth-gateway.test.toml
+          umask 077
+          secret_file="$(mktemp --suffix=.json)"
+          trap 'rm -f "$secret_file"' EXIT
+          export COVE_GATE_TEST_BEARER
+          node -e 'process.stdout.write(JSON.stringify({COVE_SSR_STAGING_GATE_KEY:process.env.COVE_GATE_TEST_BEARER}))' > "$secret_file"
+          # Deploy the private Worker and asset-free gateway with the bearer
+          # already present in each new version, not a second secret rotation.
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.frontend.private.test.toml --secrets-file "$secret_file"
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.staging-auth-gateway.test.toml --secrets-file "$secret_file"
           # No HTTP prewarm. The first HTTP will be a counted auth check.
-          sleep 30
+          sleep 75
       - name: Verify missing/forged credential, authorized manifest, denial of mutation and no direct backend
         run: node scripts/check-covereads-canary-deny.mjs
       - name: Attach ONLY protected gateway to owned canary domain

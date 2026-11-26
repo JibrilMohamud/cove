@@ -599,6 +599,35 @@ try {
     "PASS: genuine deployed browser Auth, signed Stripe fulfillment, EPUB, playable audio, outsider denial and refund revocation",
   );
 } finally {
+  // Preserve sanitized order/receipt evidence before refund cleanup changes it.
+  for (const payment of payments) {
+    try {
+      const rows = await qaD1(
+        `SELECT o.status, r.effects_completed_at IS NOT NULL AS effects_complete,
+         r.owner_published_at IS NOT NULL AS owner_published,
+         (SELECT COUNT(*) FROM entitlements e JOIN commerce_order_items i
+          ON i.id=e.order_item_id WHERE i.order_id=o.id AND e.status=\'active\') AS active_count
+         FROM commerce_orders o LEFT JOIN commerce_settlement_receipts r ON r.order_id=o.id
+         WHERE o.id=?`,
+        [payment.orderId],
+      );
+      console.log(
+        "QA_SETTLEMENT_STATE",
+        JSON.stringify(
+          rows.map((r) => ({
+            status: r.status,
+            effectsComplete: Boolean(r.effects_complete),
+            ownerPublished: Boolean(r.owner_published),
+            activeCount: Number(r.active_count),
+          })),
+        ),
+      );
+    } catch {
+      console.warn("QA_SETTLEMENT_STATE_UNAVAILABLE");
+    }
+  }
+  fs.mkdirSync("artifacts/deployed-commerce", { recursive: true });
+  fs.writeFileSync("artifacts/deployed-commerce/report.json", JSON.stringify(report, null, 2));
   // First clean up *through Cove* so entitlement revocation and the refund
   // ledger are actually processed; only fall back to a Stripe test-mode
   // refund if the real Cove admin path itself is unavailable.

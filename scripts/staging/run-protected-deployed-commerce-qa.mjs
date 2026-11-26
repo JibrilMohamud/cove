@@ -83,27 +83,14 @@ const env = {
 };
 let opened = false;
 let listener;
+let consoleText = "";
+const secretFile = ".output/commerce-qa-temporary-secrets.json";
 try {
   const owner = await provisionDetachedOwner(wrangler);
   fs.writeFileSync(publicConfig, owner.browserConfig(src));
-  // Install the new credentials while ingress is still disabled.
-  wrangler(
-    ["secret", "put", "COVE_SSR_STAGING_GATE_KEY", "--config", "wrangler.commerce-qa.stage.toml"],
-    gate,
-  );
-  wrangler(
-    ["secret", "put", "COVE_RIGHTS_OWNER_SECRET", "--config", "wrangler.commerce-qa.stage.toml"],
-    owner.secret,
-  );
-  opened = true;
-  wrangler(["deploy", "--config", publicConfig]);
-  // A new, short-lived signer belongs ONLY to this disposable commerce QA
-  // Worker. Never reuse a production key or print the private JWK in CI.
+  // Obtain the listener signing key before opening the gated QA ingress.
+  // Install all fresh credentials together in the serving deployment.
   const { privateKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
-  wrangler(
-    ["secret", "put", "FORE_OFFLINE_AUDIO_SIGNING_JWK", "--config", publicConfig],
-    JSON.stringify(privateKey.export({ format: "jwk" })),
-  );
   listener = spawn(
     "stripe",
     [
@@ -120,7 +107,6 @@ try {
       env: { ...process.env, STRIPE_API_KEY: process.env.COVE_SANDBOX_SECRET_KEY },
     },
   );
-  let consoleText = "";
   for (const stream of [listener.stdout, listener.stderr])
     stream.on("data", (chunk) => {
       consoleText = (consoleText + String(chunk)).slice(-15000);
@@ -139,7 +125,22 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
   assert.ok(whsec, "Stripe TEST CLI never supplied its webhook signing secret");
-  wrangler(["secret", "put", "STRIPE_WEBHOOK_SECRET", "--config", publicConfig], whsec);
+  fs.writeFileSync(
+    secretFile,
+    JSON.stringify({
+      COVE_SSR_STAGING_GATE_KEY: gate,
+      COVE_RIGHTS_OWNER_SECRET: owner.secret,
+      FORE_OFFLINE_AUDIO_SIGNING_JWK: JSON.stringify(privateKey.export({ format: "jwk" })),
+      STRIPE_WEBHOOK_SECRET: whsec,
+    }),
+    { mode: 0o600, flag: "wx" },
+  );
+  opened = true;
+  try {
+    wrangler(["deploy", "--config", publicConfig, "--secrets-file", secretFile]);
+  } finally {
+    fs.rmSync(secretFile, { force: true });
+  }
   // Rotating a Worker secret creates a new deployment; a successful Wrangler
   // response is not proof that every ingress colo serves that deployment yet.
   // This is browser QA (not a cold performance sample), so wait for a genuine
@@ -169,9 +170,19 @@ try {
         const data = api.status === 200 ? await api.json().catch(() => null) : null;
         await api.body?.cancel().catch(() => {});
         if (api.status === 200 && data?.available === true) {
-          console.log("QA_INGRESS_READY", attempt, 200, "auth-api-ready");
-          ingressReady = true;
-          break;
+          const hook = await fetch(origin + "api/fore/stripe/webhook", {
+            method: "POST",
+            headers: { authorization: "Bearer " + gate, "content-type": "application/json" },
+            body: "{}",
+            signal: AbortSignal.timeout(5000),
+          });
+          const rejected = await hook.json().catch(() => null);
+          if (hook.status === 400 && rejected?.error === "Invalid Stripe webhook signature.") {
+            console.log("QA_INGRESS_READY", attempt, 200, "auth-and-webhook-ready");
+            ingressReady = true;
+            break;
+          }
+          console.warn("QA_WEBHOOK_NOT_READY", attempt, hook.status);
         }
         console.warn("QA_AUTH_API_NOT_READY", attempt, api.status);
       }
@@ -204,6 +215,9 @@ try {
   assert.equal(result.code, 0, "Authenticated deployed browser QA did not pass");
   console.log("PASS: protected QA customer journey ran against real nonproduction Worker.");
 } finally {
+  // Emit only fixed HTTP statuses, never CLI lines, event IDs or secrets.
+  const forwarded = Array.from(consoleText.matchAll(/\[([1-5][0-9]{2})\]\s+POST\s+/g));
+  console.log("QA_STRIPE_FORWARD_STATUSES", JSON.stringify(forwarded.map((m) => Number(m[1]))));
   // Stripe CLI sometimes leaves its piped stdout/stderr open after SIGTERM,
   // keeping Actions Node alive even after protected QA ingress is restored.
   // Bound teardown; never leave a webhook listener on the test runner.

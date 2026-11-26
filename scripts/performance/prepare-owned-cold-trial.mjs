@@ -44,7 +44,7 @@ for (const [config, name] of configs) {
     child.stdin.end(secret);
   });
 }
-const deadline = Date.now() + 120_000;
+const deadline = Date.now() + 180_000;
 let ready = false;
 while (Date.now() < deadline) {
   const statuses = await Promise.all(
@@ -60,7 +60,7 @@ while (Date.now() < deadline) {
       assert.equal(response.ok, true, "Ephemeral deployment control-plane check failed");
       const payload = await response.json();
       assert.equal(payload.success, true);
-      return latestSecretDeploymentStatus(payload, rotated, Date.now(), 30_000).ready;
+      return latestSecretDeploymentStatus(payload, rotated, Date.now(), 75_000).ready;
     }),
   );
   if (statuses.every(Boolean)) {

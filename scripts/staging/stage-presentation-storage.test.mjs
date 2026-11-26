@@ -11,6 +11,8 @@ test("stage storage denies forged, expired, cross-prefix and rights-bearing writ
     EXPIRES: String(Date.now() + 60_000),
     RUN: "45552506145",
     MODE: "synthetic",
+    INSTANCE: "c".repeat(32),
+    PURPOSE: "publish",
     PRESENTATION: {
       async put(key, value) {
         objects.set(key, value);
@@ -77,7 +79,14 @@ test("stage storage denies forged, expired, cross-prefix and rights-bearing writ
   assert.deepEqual([...objects.keys()], [key]);
   assert.deepEqual([...kv.keys()], [key]);
   assert.equal(await (await worker.fetch(request("GET"), env)).text(), valid);
-  assert.equal((await worker.fetch(request("DELETE"), env)).status, 204);
+  assert.equal((await worker.fetch(request("DELETE"), env)).status, 403);
+  const cleanup = { ...env, PURPOSE: "cleanup" };
+  const ready = await worker.fetch(request("POST"), cleanup);
+  assert.equal(ready.status, 405);
+  assert.equal(ready.headers.get("x-cove-stage-storage-instance"), env.INSTANCE);
+  assert.equal((await worker.fetch(request("PUT", valid), cleanup)).status, 403);
+  assert.equal((await worker.fetch(request("DELETE"), cleanup)).status, 204);
+  assert.equal((await worker.fetch(request("DELETE"), cleanup)).status, 204);
   assert.equal(objects.size, 0);
   assert.equal(kv.size, 0);
 });

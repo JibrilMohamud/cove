@@ -6,18 +6,20 @@ const account = "d26430caa63ec55f6612e32f36aca5e9";
 const bucket = "cove-strangler-private-presentation-stage";
 const namespace = "8245d5f2116a445d9571405b41b7c8c3";
 
-function coordinates(mode) {
+function coordinates(mode, purpose = "publish") {
   assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, account);
   assert.equal(process.env.GITHUB_REF, "refs/heads/main");
   assert.equal(process.env.GITHUB_EVENT_NAME, "workflow_dispatch");
   assert.match(process.env.GITHUB_RUN_ID || "", /^[1-9][0-9]{7,14}$/);
   assert.match(process.env.GITHUB_RUN_ATTEMPT || "", /^[1-9][0-9]{0,3}$/);
   assert.ok(["real", "synthetic"].includes(mode));
+  assert.ok(["publish", "cleanup"].includes(purpose));
   const deploy = process.env.CLOUDFLARE_API_TOKEN || "";
   const read = process.env.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN || "";
   assert.ok(deploy.length >= 20 && read.length >= 20 && deploy !== read);
   const run = process.env.GITHUB_RUN_ID;
-  const name = "cove-stage-presentation-" + run + "-" + process.env.GITHUB_RUN_ATTEMPT + "-" + mode;
+  const base = "cove-stage-presentation-" + run + "-" + process.env.GITHUB_RUN_ATTEMPT + "-" + mode;
+  const name = purpose === "cleanup" ? base + "-cleanup" : base;
   return {
     deploy,
     run,
@@ -44,8 +46,8 @@ async function provider(c, method, suffix = "", body, missingOk = false) {
   );
   return data.result ?? true;
 }
-export async function removeStagePresentationWorker(mode) {
-  const c = coordinates(mode);
+export async function removeStagePresentationWorker(mode, purpose = "publish") {
+  const c = coordinates(mode, purpose);
   const existing = await provider(c, "GET", "/subdomain", undefined, true);
   if (existing === null) return;
   await provider(c, "POST", "/subdomain", { enabled: false, previews_enabled: false });
@@ -56,8 +58,9 @@ export async function removeStagePresentationWorker(mode) {
     "Ephemeral storage Worker still exists",
   );
 }
-export async function withStagePresentationStore(mode, operation) {
-  const c = coordinates(mode);
+export async function withStagePresentationStore(mode, operation, purpose = "publish") {
+  const c = coordinates(mode, purpose);
+  const instance = randomBytes(16).toString("hex");
   const gate = randomBytes(32).toString("hex");
   console.log("::add-mask::" + gate);
   // Unique run/attempt name, fixed stage storage, no D1 or owner binding.
@@ -70,6 +73,8 @@ export async function withStagePresentationStore(mode, operation) {
       { type: "kv_namespace", name: "PRESENTATION_KV", namespace_id: namespace },
       { type: "plain_text", name: "RUN", text: c.run },
       { type: "plain_text", name: "MODE", text: mode },
+      { type: "plain_text", name: "INSTANCE", text: instance },
+      { type: "plain_text", name: "PURPOSE", text: purpose },
       { type: "plain_text", name: "EXPIRES", text: String(Date.now() + 15 * 60_000) },
       { type: "secret_text", name: "GATE", text: gate },
     ],
@@ -85,7 +90,7 @@ export async function withStagePresentationStore(mode, operation) {
   );
   // A previous aborted operation may leave this exact run/attempt helper.
   // Close it before provisioning the next operation with a fresh bearer.
-  await removeStagePresentationWorker(mode);
+  await removeStagePresentationWorker(mode, purpose);
   try {
     await provider(c, "PUT", "", form);
     await provider(c, "POST", "/subdomain", { enabled: true, previews_enabled: false });
@@ -99,11 +104,18 @@ export async function withStagePresentationStore(mode, operation) {
         redirect: "error",
         signal: AbortSignal.timeout(30000),
       });
+      if (response.status === 404 && !response.headers.has("x-cove-stage-storage-instance")) {
+        throw Object.assign(new Error("Stage storage route not propagated"), {
+          actual: 404,
+          routePending: true,
+        });
+      }
       assert.equal(
         response.status,
         method === "GET" ? 200 : 204,
         "Stage storage operation rejected",
       );
+      assert.equal(response.headers.get("x-cove-stage-storage-instance"), instance);
       return method === "GET" ? Buffer.from(await response.arrayBuffer()) : undefined;
     };
     // Wait for the new version without using customer ingress or mutating storage.
@@ -115,7 +127,10 @@ export async function withStagePresentationStore(mode, operation) {
         signal: AbortSignal.timeout(5000),
         redirect: "error",
       }).catch(() => null);
-      if (response?.status === 405) {
+      if (
+        response?.status === 405 &&
+        response.headers.get("x-cove-stage-storage-instance") === instance
+      ) {
         ready = true;
         break;
       }
@@ -138,17 +153,21 @@ export async function withStagePresentationStore(mode, operation) {
             return;
           } catch (error) {
             const retryable =
+              error.routePending === true ||
               [429, 500, 502, 503, 504].includes(error.actual) ||
               error.name === "TimeoutError" ||
               error.name === "TypeError";
-            if (!retryable || attempt === 4) throw error;
+            if (!retryable || attempt === 8) throw error;
             await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
           }
         }
       },
     });
   } finally {
-    await removeStagePresentationWorker(mode);
+    await removeStagePresentationWorker(mode, purpose);
   }
 }
-if (process.argv[2] === "--cleanup") await removeStagePresentationWorker(process.argv[3]);
+if (process.argv[2] === "--cleanup") {
+  await removeStagePresentationWorker(process.argv[3], "publish");
+  await removeStagePresentationWorker(process.argv[3], "cleanup");
+}
