@@ -1,6 +1,7 @@
 /* eslint-disable prettier/prettier -- Real SQLite transactions, full schema and actual private owner handlers. */
 import assert from "node:assert/strict";
 import {isPaidOwnerQaSchemaTable} from "./staging/paid-owner-schema-policy.mjs";
+import {originalQaRoyaltyStatements,originalQaRoyaltyCoverageSql,assertOriginalQaRoyaltyCoverage} from "./staging/original-commerce-qa-royalties.mjs";
 import {DatabaseSync} from "node:sqlite";
 import {build} from "esbuild";
 import {loadPrivateFinance} from "./test-private-finance-loader.mjs";
@@ -55,16 +56,18 @@ try{
   const internalPayment={provider:"internal",paymentIntentId:null,chargeId:null,receiptUrl:null,paymentMethod:"Internal balance"};
   const templatePath=join(folder,"schema.sqlite"),template=new DatabaseSync(templatePath);
   migrations.forEach(sql=>template.exec(sql));template.close();let fixtureNumber=0;
-  function fixture({stripe=50,gift=30,store=20,count=2,preorder=false,buyerId=userId}={}){
+  function fixture({stripe=50,gift=30,store=20,count=2,preorder=false,buyerId=userId,hostedFixture=false}={}){
     const userId=buyerId;
     const fixturePath=join(folder,"fixture-"+(fixtureNumber++)+".sqlite");copyFileSync(templatePath,fixturePath);
     const primary=new DatabaseSync(fixturePath),owned=new DatabaseSync(":memory:");databases.push(primary,owned);
     primary.exec("PRAGMA foreign_keys=ON; PRAGMA journal_mode=MEMORY; PRAGMA synchronous=OFF");
     const insert=(table,row)=>{const keys=Object.keys(row);primary.prepare(`INSERT INTO ${table}(${keys.join(',')}) VALUES(${keys.map(()=>'?').join(',')})`).run(...keys.map(k=>row[k]));};
+    if(!hostedFixture){
     insert("finance_parties",{id:"party_atomic",party_type:"author",display_name:"Fixture author",created_at:at,updated_at:at});
     insert("finance_royalty_contracts",{id:"finance_contract_atomic",name:"Fixture terms",effective_from:at,created_at:at,updated_at:at});
     insert("finance_royalty_contract_versions",{id:"finance_version_atomic",contract_id:"finance_contract_atomic",version:1,effective_from:at,created_at:at});
     insert("finance_royalty_splits",{id:"split_atomic",contract_version_id:"finance_version_atomic",party_id:"party_atomic",share_bps:10000,created_at:at});
+    }
     const total=stripe+gift+store;
     insert("commerce_orders",{id:orderId,user_id:userId,invoice_number:"ATOMIC-1",status:"pending_payment",currency:"USD",territory_code:"US",subtotal_minor:total,total_minor:total,stripe_due_minor:stripe,gift_card_minor:gift,store_credit_minor:store,billing_address_json:"{}",idempotency_key:"atomic:settlement",stripe_payment_intent_id:stripe?stripePayment.paymentIntentId:null,created_at:at,updated_at:at});
     if(gift){
@@ -75,11 +78,15 @@ try{
       insert("commerce_store_credit_ledger",{id:"initial_credit",user_id:userId,entry_type:"adjustment",amount_minor:1000,currency:"USD",created_at:at});
       insert("commerce_balance_reservations",{id:"reserve_credit_atomic",user_id:userId,order_id:orderId,source_type:"store_credit",source_key:userId,amount_minor:store,currency:"USD",status:"reserved",expires_at:"2099-01-01T00:00:00Z",created_at:at,updated_at:at});
     }
+    const fixtureProducts=[];
     for(let i=0;i<count;i++){
-      const productId="prd_atomic_settlement_"+i,editionId="edition_atomic_"+i;
+      const key=i===0?"ebook":"audio";
+      const productId=hostedFixture?"prd_qa_owner_v2_"+key:"prd_atomic_settlement_"+i;
+      const editionId=hostedFixture?"qa-owner-v2-"+key+"-edition":"edition_atomic_"+i;
+      fixtureProducts.push({productId,editionId});
       insert("works",{id:"work_atomic_"+i,title:"Atomic title",created_at:at,updated_at:at});
       insert("editions",{id:editionId,work_id:"work_atomic_"+i,title:"Atomic title",release_status:preorder?"preorder":"released",release_date:preorder?"2099-01-01T00:00:00Z":null,created_at:at,updated_at:at});
-      insert("products",{id:productId,edition_id:editionId,sku:productId,format:"ebook",source_name:"publisher",source_external_id:productId,created_at:at,updated_at:at});
+      insert("products",{id:productId,edition_id:editionId,sku:productId,format:hostedFixture&&i===1?"audiobook":"ebook",source_name:"publisher",source_external_id:productId,created_at:at,updated_at:at});
       insert("commerce_order_items",{id:"item_atomic_settlement_"+i,order_id:orderId,product_id:productId,title_snapshot:"Atomic title",sku_snapshot:productId,unit_amount_minor:total/count,total_minor:total/count,rights_grant_id:"grant_atomic_"+i,rights_snapshot_json:JSON.stringify({grantId:"grant_atomic_"+i,editionId,contractId:"contract_atomic",contractVersionId:"contract_version_atomic",territory:"US",salesChannel:"retail"}),created_at:at});
       if(preorder){
         insert("publishing_accounts",{id:"account_atomic_"+i,account_type:"person",legal_name:"Fixture",display_name:"Fixture",country_code:"US",created_at:at,updated_at:at});
@@ -105,7 +112,7 @@ try{
     const env={PRIMARY_DB:DB,COVE_RIGHTS_OWNER_ENABLED:"1",COVE_RIGHTS_OWNER_PRIMARY_ID:"7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",COVE_RIGHTS_OWNER_TEST_EXPIRES_AT:String(Date.now()+10*60_000),COVE_RIGHTS_OWNER_SECRET:secret,STRIPE_LIVEMODE:"false",STRIPE_TAX_ENABLED:"false",STRIPE_SECRET_KEY:"sk_test_fixture_only"};
     const ctx={storage:{sql,transactionSync(fn){owned.exec("BEGIN");try{const r=fn();owned.exec("COMMIT");return r;}catch(e){owned.exec("ROLLBACK");throw e;}}}};
     let owner=new CoveLegalAuthority(ctx,env);
-    for(let i=0;i<count;i++)legal.publishFreshCommercialProof(sql,{productId:"prd_atomic_settlement_"+i,editionId:"edition_atomic_"+i,grantId:"grant_atomic_"+i,contractId:"contract_atomic",contractVersionId:"contract_version_atomic",territory:"US",channel:"retail",validUntil:new Date(Date.now()+10*60_000).toISOString()},0);
+    for(let i=0;i<count;i++)legal.publishFreshCommercialProof(sql,{...fixtureProducts[i],grantId:"grant_atomic_"+i,contractId:"contract_atomic",contractVersionId:"contract_version_atomic",territory:"US",channel:"retail",validUntil:new Date(Date.now()+10*60_000).toISOString()},0);
     env.LEGAL_AUTHORITY={getByName(){return owner;}};
     const request=(path,body)=>new Request("https://legal-authority.internal"+path,{method:"POST",headers:{authorization:"Bearer "+secret,"content-type":"application/json"},body:JSON.stringify(body)});
     const command=(body={orderId})=>worker.fetch(request("/commercial/order/settle",body),env);
@@ -257,6 +264,27 @@ try{
     }
     assert.equal(real.primary.prepare("SELECT SUM(amount_minor) n FROM commerce_ledger_entries").get().n,0);
     assert.equal((await real.command()).status,200);assert.deepEqual(real.snapshot(),complete);
+    // Reproduce the exact detached catalog finance omission, then exercise
+    // the actual owner against the same two scoped fixture contracts.
+    const hosted=fixture({stripe:200,gift:0,store:0,hostedFixture:true,buyerId:"sb:12345678-1234-4abc-8def-123456789abc"});
+    globalThis.fetch=async()=>Response.json({id:stripePayment.paymentIntentId,object:"payment_intent",status:"succeeded",livemode:false,amount:200,amount_received:200,currency:"usd",metadata:{fore_order_id:orderId},latest_charge:{id:"ch_atomic_settlement",payment_intent:stripePayment.paymentIntentId,refunded:false,amount_refunded:0,disputed:false,balance_transaction:{id:"txn_atomic_settlement",fee:10,net:190,currency:"usd"}}});
+    const refused=await hosted.command();assert.equal(refused.status,503);
+    assert.equal(refused.headers.get("x-cove-owner-settlement-failure"),"settlement_royalty_contract_missing");
+    assert.equal(hosted.snapshot().receipt,0);assert.equal(hosted.snapshot().entitlements,0);
+    const coverage=()=>hosted.primary.prepare(originalQaRoyaltyCoverageSql(new Date().toISOString())).all();
+    assert.throws(()=>assertOriginalQaRoyaltyCoverage(coverage()),/missing or ambiguous/);
+    for(let i=0;i<2;i++)hosted.primary.exec(originalQaRoyaltyStatements(at).join(";")+";");
+    assertOriginalQaRoyaltyCoverage(coverage());
+    hosted.primary.prepare("UPDATE finance_royalty_splits SET share_bps=9999 WHERE id=?").run("qa-owner-v2-finance-ebook-v1-split");
+    assert.throws(()=>assertOriginalQaRoyaltyCoverage(coverage()),/terms drifted/);
+    hosted.primary.prepare("UPDATE finance_royalty_splits SET share_bps=10000 WHERE id=?").run("qa-owner-v2-finance-ebook-v1-split");
+    assertOriginalQaRoyaltyCoverage(coverage());
+    const settled=await hosted.command();assert.equal(settled.status,200,settled.headers.get("x-cove-owner-settlement-failure")||"Hosted fixture owner settlement");
+    assert.equal(hosted.snapshot().entitlements,2);assert.equal(hosted.snapshot().receipt,1);
+    assert.equal(hosted.primary.prepare("SELECT COUNT(*) n FROM finance_royalty_calculations WHERE order_id=? AND source_type=\'sale\'").get(orderId).n,2);
+    assert.equal(hosted.primary.prepare("SELECT COUNT(*) n FROM finance_royalty_allocations WHERE status=\'held\'").get().n,2);
+    assert.equal(hosted.primary.prepare("SELECT SUM(amount_minor) n FROM commerce_ledger_entries").get().n,0);
+    const hostedComplete=hosted.snapshot();assert.equal((await hosted.command()).status,200);assert.deepEqual(hosted.snapshot(),hostedComplete);
   }finally{globalThis.fetch=nativeFetch;}
   console.log(`PASS: ${batchSize} atomic failure boundaries, mixed tender, multi-line accounting, transaction-current races, lost ACK/replay, preorder reservation, real owner restart, pending-proof exclusion, provider provenance and terminal denial`);
 }finally{databases.forEach(x=>x.close());rmSync(folder,{recursive:true,force:true});}

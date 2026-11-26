@@ -7,6 +7,8 @@ on:
       - "scripts/staging/check-commerce-qa-stage-write-gate.mjs"
       - "scripts/staging/upload-original-commerce-qa-media.mjs"
       - "scripts/staging/seed-original-commerce-qa-catalog.mjs"
+      - "scripts/staging/original-commerce-qa-royalties.mjs"
+      - "scripts/check-owner-paid-settlement.mjs"
       - "scripts/staging/verify-commerce-private-qa-stage.mjs"
       - "drizzle/0085_canonical_terminal_rights_resurrection_guard.sql"
       - "drizzle/0086_rights_contract_version_terminal_guard.sql"
@@ -58,6 +60,8 @@ jobs:
         run: node scripts/staging/check-detached-commerce-credentials.mjs --offline
       - name: Prove run-bound bridge readiness and unauthorized denial
         run: node --test scripts/staging/verify-detached-commerce-bridge.test.mjs
+      - name: Prove the exact hosted royalty fixture through full-schema owner settlement
+        run: node scripts/check-owner-paid-settlement.mjs
       - name: Validate isolated deployed browser / Stripe-CLI harness syntax
         run: |
           node --check scripts/staging/run-protected-deployed-commerce-qa.mjs
@@ -131,7 +135,7 @@ jobs:
           printf '%s' "$QA_SUPABASE_PUBLIC" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put SUPABASE_PUBLISHABLE_KEY --config wrangler.commerce-qa.stage.toml
       - name: Generate and upload original synthetic EPUB and WAV to private QA R2
         run: node scripts/staging/upload-original-commerce-qa-media.mjs
-      - name: Seed idempotent paid synthetic ebook and US rights into private QA D1
+      - name: Seed idempotent paid synthetic EPUB, audio, US rights and royalty terms into private QA D1
         run: node scripts/staging/seed-original-commerce-qa-catalog.mjs
       - name: Preserve fixture checksums
         uses: actions/upload-artifact@v4

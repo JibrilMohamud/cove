@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import {
+  originalQaRoyaltyStatements,
+  originalQaRoyaltyCoverageSql,
+  assertOriginalQaRoyaltyCoverage,
+} from "./original-commerce-qa-royalties.mjs";
 
 // Seed only the separate, non-routable customer QA database. All content is
 // synthetic and original; nobody can purchase it in customer production.
@@ -109,6 +114,7 @@ const sql =
     `INSERT OR IGNORE INTO publishing_release_lifecycles(id,publishing_edition_id,state,created_at,updated_at) VALUES('qa-owner-v2-audio-lifecycle','qa-owner-v2-audio-draft','live','${now}','${now}')`,
     `INSERT OR IGNORE INTO publishing_publication_versions(id,lifecycle_id,publication_id,submission_id,version_number,snapshot_sha256,manifest_json,release_state,activated_at,created_by_user_id,created_at) VALUES('qa-owner-v2-audio-version','qa-owner-v2-audio-lifecycle','qa-owner-v2-audio-publication','qa-owner-v2-audio-submission',1,'qa-synthetic-snapshot','${audioManifest}','live','${now}','qa-synthetic-publisher','${now}')`,
     `UPDATE publishing_release_lifecycles SET current_publication_version_id='qa-owner-v2-audio-version' WHERE id='qa-owner-v2-audio-lifecycle'`,
+    ...originalQaRoyaltyStatements(now),
   ].join(";") + ";";
 await api("POST", "/accounts/" + account + "/d1/database/" + db + "/query", { sql });
 // A newly detached database has no prior search projection. Populate only
@@ -152,6 +158,10 @@ const audio = await api("POST", "/accounts/" + account + "/d1/database/" + db + 
 assert.equal(audio[0].results?.length, 1, "Original published-audio fixture missing");
 assert.equal(audio[0].results[0].release_state, "live");
 assert.equal(audio[0].results[0].amount_minor, 100);
+const royalty = await api("POST", "/accounts/" + account + "/d1/database/" + db + "/query", {
+  sql: originalQaRoyaltyCoverageSql(new Date().toISOString()),
+});
+assertOriginalQaRoyaltyCoverage(royalty[0].results);
 console.log(
-  "PASS: original US-only, $1 test EPUB and published WAV fixtures seeded in isolated QA D1.",
+  "PASS: original US-only, $1 test EPUB and published WAV fixtures with exact royalty terms seeded in isolated QA D1.",
 );
