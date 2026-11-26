@@ -147,7 +147,7 @@ try {
     [
       "listen",
       "--events",
-      "payment_intent.succeeded,payment_intent.payment_failed,charge.refunded",
+      "payment_intent.succeeded,payment_intent.payment_failed,refund.created,refund.updated,charge.refunded",
       "--forward-to",
       relayOrigin + "/webhook",
     ],

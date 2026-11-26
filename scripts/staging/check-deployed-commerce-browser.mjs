@@ -289,14 +289,18 @@ async function purchase(page, productId) {
   assert.equal(intent.livemode, false);
   assert.ok(intent.amount > 0 && intent.amount <= 500, "Synthetic QA maximum is $5");
   assert.equal(intent.currency, "usd");
-  payments.push({ intentId: pay.data.paymentIntentId, orderId: pay.data.orderId });
+  payments.push({
+    intentId: pay.data.paymentIntentId,
+    orderId: pay.data.orderId,
+    refundKey: "qa-refund-" + randomUUID(),
+  });
   const confirmed = await stripe("POST", "payment_intents/" + intent.id + "/confirm", {
     payment_method: "pm_card_visa",
     return_url: origin.href,
   });
   assert.equal(confirmed.status, "succeeded");
   assert.equal(confirmed.livemode, false);
-  return { intentId: intent.id, orderId: pay.data.orderId };
+  return payments[payments.length - 1];
 }
 async function refundAndVerify(adminPage, purchase, checkRevoked) {
   // Run the SAME commerce refund path used by Cove's staff. Directly calling
@@ -305,15 +309,15 @@ async function refundAndVerify(adminPage, purchase, checkRevoked) {
   const returned = await request(adminPage, "POST", "/admin/commerce/refund", {
     orderId: purchase.orderId,
     reason: "requested_by_customer",
-    idempotencyKey: "qa-refund-" + randomUUID(),
+    idempotencyKey: purchase.refundKey,
   });
   assert.equal(returned.status, 200, "Authorized Cove refund endpoint rejected QA request");
   assert.ok(["pending", "succeeded"].includes(returned.data?.status));
-  refunded.add(purchase.intentId);
   await until(async () => {
     const rows = await qaD1("SELECT status FROM commerce_orders WHERE id=?", [purchase.orderId]);
     return rows[0]?.status === "refunded" && (await checkRevoked());
   }, "Real Cove refund must update order, entitlement and protected access");
+  refunded.add(purchase.intentId);
 }
 try {
   const buyer = await openUser(q.COVE_QA_BUYER_EMAIL, q.COVE_QA_BUYER_PASSWORD);
@@ -381,7 +385,7 @@ try {
     productId: q.COVE_QA_EPUB_PRODUCT_ID,
     purpose: "read",
   });
-  assert.equal(grant.status, 201);
+  assert.equal(grant.status, 201, "Purchased EPUB grant must be issued by private owner");
   const grantUrl = new URL(grant.data?.url, origin);
   assert.equal(grantUrl.origin, origin.origin);
   const book = await buyer.evaluate(async (path) => {
@@ -653,12 +657,28 @@ try {
         const local = await request(refundOperatorPage, "POST", "/admin/commerce/refund", {
           orderId: payment.orderId,
           reason: "requested_by_customer",
-          idempotencyKey: "qa-cleanup-" + randomUUID(),
+          idempotencyKey: payment.refundKey,
         });
         if (local.status === 200 && ["pending", "succeeded"].includes(local.data?.status)) {
+          await until(async () => {
+            const rows = await qaD1("SELECT status FROM commerce_orders WHERE id=?", [
+              payment.orderId,
+            ]);
+            return rows[0]?.status === "refunded";
+          }, "Cleanup refund canonical accounting");
           refunded.add(payment.intentId);
           continue;
         }
+      }
+      // Never create an unrelated provider refund when the owner has already
+      // reserved this paid order. Preserve the original key and fail visibly.
+      const reservations = await qaD1(
+        "SELECT status FROM commerce_refunds WHERE order_id=? AND status IN ('pending','succeeded')",
+        [payment.orderId],
+      );
+      if (reservations.length) {
+        console.error("QA cleanup retained canonical refund reservation for exact-key recovery");
+        continue;
       }
       const intent = await stripe("GET", "payment_intents/" + payment.intentId);
       if (intent.status === "succeeded") {
