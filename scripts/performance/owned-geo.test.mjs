@@ -207,3 +207,28 @@ test("regional timed phases retain all four real measurement IDs", () => {
   phases[0].status = "in-progress";
   assert.throws(() => parseOwnedGeoEvidence(phases, sha, 1));
 });
+
+test("broad route discovery retains ORD beyond rerouted Chicago networks without selecting by latency", async () => {
+  const { routeCandidates } = await import("./owned-geo-selection.mjs");
+  const m = measurement();
+  const sample = m.results[0];
+  m.results = Array.from({ length: 20 }, (_, index) => {
+    const colo = index < 10 ? "ATL" : "ORD";
+    return {
+      probe: { country: "US", city: "Chicago", asn: 400000 + index },
+      result: {
+        ...sample.result,
+        headers: { "cf-ray": "abc-" + colo },
+        timings: { firstByte: index < 10 ? 1 : 99999 },
+        rawBody: JSON.stringify({ schema: "cove.owned-geo-route.v1", sha, country: "US", colo }),
+      },
+    };
+  });
+  const candidates = routeCandidates(m, sha);
+  assert.equal(candidates.length, 10);
+  assert.ok(candidates.every((candidate) => candidate.colo === "ORD"));
+  assert.deepEqual(
+    candidates.map((candidate) => candidate.location.asn),
+    Array.from({ length: 10 }, (_, index) => 400010 + index),
+  );
+});

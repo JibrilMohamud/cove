@@ -115,7 +115,10 @@ try {
   }
   const discovery = await measure(
     [
-      { country: "US", city: "Chicago", limit: 10 },
+      // Chicago networks can be served in ATL/CMH even while other Chicago
+      // probes reach ORD. Discover broadly before pinning by actual ingress;
+      // 42 route-only probes remain below Globalping's 50-probe request cap.
+      { country: "US", city: "Chicago", limit: 30 },
       ...["Los Angeles", "Ashburn", "Dallas"].map((city) => ({ country: "US", city, limit: 4 })),
     ],
     "route",
