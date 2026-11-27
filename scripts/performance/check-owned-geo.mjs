@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import { parseOwnedGeoEvidence } from "./owned-geo-evidence.mjs";
+import { routeCandidates, pinnedRoute, routeSelectionEvidence } from "./owned-geo-selection.mjs";
 
 const name = "cove-owned-geo-measurement";
 const account = "d26430caa63ec55f6612e32f36aca5e9";
@@ -82,39 +83,87 @@ try {
   fs.rmSync(secrets, { force: true });
   // Control-plane settling only; no authenticated homepage is prewarmed.
   await wait(75000);
-  for (const concurrency of [1, 4, 8, 16, 32]) {
+  async function measure(locations, suffix) {
     const created = await fetch(service, {
       method: "POST",
       headers,
       body: JSON.stringify({
         type: "http",
         target: name + ".cove-jibrilmohamud.workers.dev",
-        locations: ["Chicago", "Los Angeles", "Ashburn", "Dallas"].map((city) => ({
-          country: "US",
-          city,
-          limit: 1,
-        })),
+        locations,
         measurementOptions: {
           protocol: "HTTPS",
-          request: { method: "GET", path: "/" + campaign + "/" + concurrency },
+          request: { method: "GET", path: "/" + campaign + "/" + suffix },
         },
       }),
       signal: AbortSignal.timeout(20000),
     });
-    assert.equal(created.status, 202, "Distributed owned-homepage measurement not admitted");
+    assert.equal(created.status, 202, "Distributed measurement not admitted");
     const queued = await created.json();
     assert.match(queued.id, /^[a-zA-Z0-9-]{10,100}$/);
-    let measurement;
     for (let i = 0; i < 45; i++) {
       await wait(1000);
       const result = await fetch(service + "/" + queued.id, {
         headers,
         signal: AbortSignal.timeout(20000),
       });
-      assert.equal(result.status, 200, "Distributed owned-homepage evidence unavailable");
-      measurement = await result.json();
-      if (measurement.status !== "in-progress") break;
+      assert.equal(result.status, 200, "Distributed evidence unavailable");
+      const measurement = await result.json();
+      if (measurement.status !== "in-progress") return measurement;
     }
+    throw Error("Distributed measurement incomplete");
+  }
+  const discovery = await measure(
+    [
+      { country: "US", city: "Chicago", limit: 10 },
+      ...["Los Angeles", "Ashburn", "Dallas"].map((city) => ({ country: "US", city, limit: 4 })),
+    ],
+    "route",
+  );
+  report.routeDiscovery = routeSelectionEvidence(discovery, sha);
+  report.routePins = [];
+  const candidates = routeCandidates(discovery, sha);
+  save();
+  const pinResults = await Promise.allSettled(
+    report.regions.map(async (colo) => {
+      const options = candidates.filter((value) => value.colo === colo);
+      assert.ok(options.length > 0, "No independent probe reaches required ingress " + colo);
+      const seen = new Set();
+      for (const candidate of options) {
+        const key = JSON.stringify(candidate.location);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const verified = await measure([candidate.location], "route");
+        report.routePins.push(routeSelectionEvidence(verified, sha));
+        save();
+        const pin = pinnedRoute(verified, sha, colo);
+        if (pin) return pin;
+      }
+      throw Error("No stable independent probe reaches required ingress " + colo);
+    }),
+  );
+  assert.ok(
+    pinResults.every((result) => result.status === "fulfilled"),
+    "Independent route-only probe pinning failed: " +
+      pinResults
+        .filter((result) => result.status === "rejected")
+        .map((result) => result.reason.message)
+        .join("; "),
+  );
+  const pins = pinResults.map((result) => result.value);
+  report.pinnedProbes = pins;
+  save();
+  for (const concurrency of [1, 4, 8, 16, 32]) {
+    // Reuse the four exact verified probe sets for every measured phase.
+    // Do not retry failed timed samples or replace probes by their latency.
+    const completed = await Promise.allSettled(
+      pins.map((pin) => measure(pin.measurementId, concurrency)),
+    );
+    assert.ok(
+      completed.every((result) => result.status === "fulfilled"),
+      "Timed regional measurement failed; no samples retried",
+    );
+    const measurement = completed.map((result) => result.value);
     const phase = parseOwnedGeoEvidence(measurement, sha, concurrency);
     report.phases.push(phase);
     save();

@@ -138,6 +138,7 @@ try {
   };
   const first = await gateway.fetch(req("/", { "x-cove-client-country": "ZZ" }), env);
   assert.equal(first.status, 200);
+  assert.match(first.headers.get("cache-control"), /no-store.*no-transform/);
   const html = await first.text();
   assert.match(html, /data-rights-country="US"/);
   assert.match(html, /data-cove-client-ready|dataset.coveClientReady/);

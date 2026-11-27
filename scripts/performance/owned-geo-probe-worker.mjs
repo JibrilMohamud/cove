@@ -11,7 +11,10 @@ export async function measureOwnedGeo(request, env, fetcher = fetch) {
   if (
     request.method !== "GET" ||
     url.hostname !== "cove-owned-geo-measurement.cove-jibrilmohamud.workers.dev" ||
-    ![1, 4, 8, 16, 32].some((n) => url.pathname === "/" + env.COVE_GEO_CAMPAIGN + "/" + n) ||
+    !(
+      url.pathname === "/" + env.COVE_GEO_CAMPAIGN + "/route" ||
+      [1, 4, 8, 16, 32].some((n) => url.pathname === "/" + env.COVE_GEO_CAMPAIGN + "/" + n)
+    ) ||
     url.search ||
     !/^[a-f0-9]{32}$/.test(env.COVE_GEO_CAMPAIGN || "")
   )
@@ -26,6 +29,15 @@ export async function measureOwnedGeo(request, env, fetcher = fetch) {
   )
     return reply({ error: "configuration" }, 503);
   const colo = request.cf?.colo;
+  // Route discovery never contacts or prewarms the catalog. Probe selection
+  // depends only on actual ingress, never on a measured homepage latency.
+  if (url.pathname.endsWith("/route"))
+    return reply({
+      schema: "cove.owned-geo-route.v1",
+      sha: env.COVE_GEO_SHA,
+      country: request.cf?.country || null,
+      colo: colo || null,
+    });
   if (request.cf?.country !== "US" || !ownedGeoColos.includes(colo))
     return reply({ error: "wrong-ingress", colo: colo || null }, 409);
   const concurrency = Number(url.pathname.split("/").at(-1));

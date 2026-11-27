@@ -71,7 +71,10 @@ export default {
         request,
       );
       const headers = new Headers(upstream.headers);
-      headers.set("cache-control", "no-store, max-age=0");
+      // Keep the protected staging document byte-stable. Automatic edge RUM
+      // injection otherwise adds an external script that the application CSP
+      // correctly denies. Preserve CSP rather than allowing another origin.
+      headers.set("cache-control", "no-store, max-age=0, no-transform");
       headers.set("x-robots-tag", "noindex, nofollow, noarchive");
       // Diagnostic only. The underlying SSR cove_total excludes this gate,
       // so the measured Cloudflare/network residual can now be separated
