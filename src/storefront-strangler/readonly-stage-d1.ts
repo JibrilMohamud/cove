@@ -1,3 +1,5 @@
+import { checkedQaOwnerReadSql } from "./qa-owner-primary-read-transport.mjs";
+
 /** Hard prohibit D1 writes by the real-catalog, credential-gated preview. */
 export function readOnlyStageD1<T extends object>(
   db: T,
@@ -20,15 +22,9 @@ export function readOnlyStageD1<T extends object>(
     get(target, key) {
       if (key === "prepare") {
         return (sql: string) => {
-          const trimmed = sql.trim();
-          if (
-            !/^(?:SELECT|WITH)\s/i.test(trimmed) ||
-            /;\s*\S/.test(trimmed) ||
-            /\b(?:INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER|ATTACH|DETACH|PRAGMA|VACUUM)\b/i.test(
-              trimmed,
-            )
-          )
-            throw new Error("Production catalog acceptance is read-only");
+          // Reuse the reviewed read validator: SQLite replace(value,from,to)
+          // is a scalar read function; REPLACE INTO remains a write statement.
+          checkedQaOwnerReadSql(sql);
           const real = (target as { prepare(sql: string): object }).prepare(sql);
           return wrapStatement(real);
         };

@@ -92,7 +92,9 @@ const application = {
   main: ".output/server/owned-isolated-entry.mjs",
   assets: { directory: ".output/public", binding: "ASSETS", run_worker_first: true },
   d1_databases: isolatedD1,
-  vars,
+  // Full application APIs use their canonical read adapter. Only the
+  // separate homepage renderer has the prepared presentation bindings.
+  vars: { ...vars, COVE_STRANGLER_READ_MODEL: "0" },
   ratelimits: homepage.ratelimits,
 };
 const gateway = {
