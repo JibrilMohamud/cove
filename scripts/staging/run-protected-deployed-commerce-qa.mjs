@@ -1,6 +1,7 @@
 // One-shot, fail-closed, protected browser + Stripe CLI acceptance.
 // Production routing, D1 and R2 never change. No public QA URL persists
 // after a completed job, regardless of assertions passing or failing.
+import { waitForCommerceDeployment } from "./commerce-browser-readiness.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { randomBytes, generateKeyPairSync } from "node:crypto";
@@ -202,11 +203,14 @@ try {
     { mode: 0o600, flag: "wx" },
   );
   opened = true;
+  const deployedAfter = Date.now();
   try {
     wrangler(["deploy", "--config", publicConfig, "--secrets-file", secretFile]);
   } finally {
     fs.rmSync(secretFile, { force: true });
   }
+  await waitForCommerceDeployment({ token: process.env.CLOUDFLARE_API_TOKEN, deployedAfter });
+  console.log("QA_DEPLOYMENT_SETTLED", "fresh-100-percent-at-least-75s");
   // Rotating a Worker secret creates a new deployment; a successful Wrangler
   // response is not proof that every ingress colo serves that deployment yet.
   // This is browser QA (not a cold performance sample), so wait for a genuine

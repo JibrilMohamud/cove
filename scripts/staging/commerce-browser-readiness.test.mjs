@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { commerceQaIngress } from "../../src/cloudflare/commerce-qa-ingress.mjs";
-import { prepareCommerceBrowser } from "./commerce-browser-readiness.mjs";
+import {
+  prepareCommerceBrowser,
+  waitForCommerceDeployment,
+} from "./commerce-browser-readiness.mjs";
 
 const origin = "https://cove-commerce-customer-qa-stage.cove-qa-reads.workers.dev";
 const instance = "a".repeat(32);
@@ -74,8 +77,8 @@ test("a Chromium edge 404 delays preparation; both exact-instance HTML and auth 
         : response(200, {}, true),
   );
   const outcome = await prepareCommerceBrowser(h.options);
-  assert.deepEqual(outcome, { waves: 3, edge404: 2 });
-  assert.deepEqual(h.counts(), { navigations: 3, reads: 2, sleeps: 2 });
+  assert.deepEqual(outcome, { waves: 5, edge404: 2 });
+  assert.deepEqual(h.counts(), { navigations: 5, reads: 4, sleeps: 4 });
 });
 test("persistent unmarked 404s fail at a hard bound and never call any mutation", async () => {
   const h = harness(edge404);
@@ -163,4 +166,79 @@ test("QA wrapper refuses production origin, live payments and wrong data-plane i
   ])
     assert.equal((await wrapper.fetch(new Request(url), env, {})).status, 503);
   assert.throws(() => commerceQaIngress({}, "not-a-run-instance"));
+});
+
+test("browser preparation requires three consecutive clean waves after an intermittent edge 404", async () => {
+  const h = harness((n) => (n === 3 ? edge404() : response()));
+  assert.deepEqual(await prepareCommerceBrowser(h.options), { waves: 6, edge404: 1 });
+  assert.deepEqual(h.counts(), { navigations: 6, reads: 5, sleeps: 5 });
+});
+function deploymentHarness(change = () => null) {
+  let clock = 1000000,
+    calls = 0;
+  return {
+    get calls() {
+      return calls;
+    },
+    options: {
+      token: "offline-qa-token-00000000000",
+      deployedAfter: 1000000,
+      now: () => clock,
+      sleep: async (ms) => {
+        assert.equal(ms, 2000);
+        clock += ms;
+      },
+      fetchImpl: async (url, init) => {
+        calls++;
+        assert.equal(
+          url,
+          "https://api.cloudflare.com/client/v4/accounts/f51e8ccbc394e2d6016ff8c2c303d54b/workers/scripts/cove-commerce-customer-qa-stage/deployments",
+        );
+        assert.equal(init.method, "GET");
+        assert.equal(init.redirect, "error");
+        return (
+          change(calls) ||
+          Response.json({
+            success: true,
+            result: {
+              deployments: [
+                {
+                  created_on: new Date(1000000).toISOString(),
+                  versions: [
+                    { version_id: "12345678-1234-1234-1234-123456789abc", percentage: 100 },
+                  ],
+                },
+              ],
+            },
+          })
+        );
+      },
+    },
+  };
+}
+test("fresh deployment must have one 100% version and settle 75 seconds before browser preparation", async () => {
+  const h = deploymentHarness();
+  await waitForCommerceDeployment(h.options);
+  assert.equal(h.calls, 39);
+});
+test("stale or split deployments expire at a hard bound; permission failure is never retried", async () => {
+  for (const patch of [
+    () => ({ created_on: new Date(900000).toISOString(), versions: [{ percentage: 100 }] }),
+    () => ({
+      created_on: new Date(1000000).toISOString(),
+      versions: [{ percentage: 50 }, { percentage: 50 }],
+    }),
+  ]) {
+    const h = deploymentHarness(() =>
+      Response.json({ success: true, result: { deployments: [patch()] } }),
+    );
+    await assert.rejects(() => waitForCommerceDeployment(h.options), /did not settle/);
+    assert.equal(h.calls, 90);
+  }
+  const denied = deploymentHarness(() => Response.json({ success: false }, { status: 403 }));
+  await assert.rejects(
+    () => waitForCommerceDeployment(denied.options),
+    /control-plane read failed/,
+  );
+  assert.equal(denied.calls, 1);
 });
