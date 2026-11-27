@@ -87,6 +87,7 @@ export async function publishDetachedBridge({
   assert.match(instance, /^[a-f0-9]{32}$/);
   assert.match(gate, /^[a-f0-9]{64}$/);
   const observations = {};
+  const deadline = Date.now() + 120_000;
   async function send(operation) {
     const response = await fetcher(origin + "/publish", {
       method: "POST",
@@ -94,7 +95,7 @@ export async function publishDetachedBridge({
       headers: { authorization: "Bearer " + gate },
       cache: "no-store",
       redirect: "manual",
-      signal: AbortSignal.timeout(60_000),
+      signal: AbortSignal.timeout(Math.max(1, Math.min(60_000, deadline - Date.now()))),
     }).catch(() => null);
     const status = response?.status || 0;
     const marked = response?.headers.get("x-cove-qa-bridge-instance") === instance;
@@ -104,7 +105,14 @@ export async function publishDetachedBridge({
     if (marked) {
       assert.equal(response.headers.get("cache-control"), "no-store");
       const expected = operation === "verify" ? [204, 409] : [204];
-      assert.ok(expected.includes(status), "Detached owner " + operation + " refused: " + status);
+      const phase = response.headers.get("x-cove-qa-bridge-phase") || "";
+      const safePhase = /^(?:(?:ebook|audio):(?:rights|offer)|readback):[1-5][0-9]{2}$/.test(phase)
+        ? " (" + phase + ")"
+        : "";
+      assert.ok(
+        expected.includes(status),
+        "Detached owner " + operation + " refused: " + status + safePhase,
+      );
       return status;
     }
     // No unmarked result can certify publication or authorize another write.
@@ -116,11 +124,12 @@ export async function publishDetachedBridge({
   }
 
   let mayPublish = true;
-  for (let attempt = 0; attempt < attempts; attempt++) {
+  for (let attempt = 0; attempt < attempts && Date.now() < deadline; attempt++) {
     if (mayPublish) {
       await send("publish");
       mayPublish = false;
     }
+    if (Date.now() >= deadline) break;
     const state = await send("verify");
     if (state === 204) return observations;
     // Only a real owner readback of incomplete proof can permit replay.

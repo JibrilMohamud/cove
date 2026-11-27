@@ -195,8 +195,10 @@ try {
   // This is browser QA (not a cold performance sample), so wait for a genuine
   // bearer-gated 200 response before attempting Supabase login and payment.
   let ingressReady = false;
+  let cleanWaves = 0;
   const ingressStatuses = new Map();
   for (let attempt = 1; attempt <= 45; attempt++) {
+    let waveReady = false;
     try {
       const response = await fetch(origin, {
         headers: { authorization: "Bearer " + gate },
@@ -227,16 +229,39 @@ try {
           });
           const rejected = await hook.json().catch(() => null);
           if (hook.status === 400 && rejected?.error === "Invalid Stripe webhook signature.") {
-            console.log("QA_INGRESS_READY", attempt, 200, "auth-and-webhook-ready");
-            ingressReady = true;
-            break;
+            // A single ready edge can be followed by an unpropagated edge.
+            // Require the exact gate denial for both missing and wrong
+            // credentials before counting this nonmutating readiness wave.
+            const wrongGate = (gate[0] === "0" ? "1" : "0") + gate.slice(1);
+            const denials = await Promise.all(
+              [{}, { authorization: "Bearer " + wrongGate }].map(async (headers) => {
+                const denied = await fetch(origin + "api/fore/auth/options", {
+                  headers,
+                  redirect: "manual",
+                  signal: AbortSignal.timeout(5000),
+                });
+                const status = denied.status;
+                await denied.body?.cancel();
+                if (status >= 200 && status < 300)
+                  throw new Error("QA_INGRESS_UNAUTHORIZED_SUCCESS");
+                return status === 401 && denied.headers.get("cache-control")?.includes("no-store");
+              }),
+            );
+            waveReady = denials.every(Boolean);
           }
-          console.warn("QA_WEBHOOK_NOT_READY", attempt, hook.status);
+          if (!waveReady) console.warn("QA_WEBHOOK_NOT_READY", attempt, hook.status);
         }
-        console.warn("QA_AUTH_API_NOT_READY", attempt, api.status);
+        if (!waveReady) console.warn("QA_AUTH_API_NOT_READY", attempt, api.status);
       }
-    } catch {
+    } catch (error) {
+      if (error?.message === "QA_INGRESS_UNAUTHORIZED_SUCCESS") throw error;
       // The next short attempt may see the new secret/version after routing.
+    }
+    cleanWaves = waveReady ? cleanWaves + 1 : 0;
+    if (cleanWaves === 3) {
+      console.log("QA_INGRESS_READY", attempt, 200, "three-clean-auth-and-webhook-waves");
+      ingressReady = true;
+      break;
     }
     await new Promise((resolve) => setTimeout(resolve, 2000));
   }
