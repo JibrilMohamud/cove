@@ -43,6 +43,9 @@ try {
       name,
       main: "scripts/performance/owned-geo-probe-worker.mjs",
       compatibility_date: "2026-10-19",
+      // The target is another Worker in this account. Explicitly traverse
+      // its public HTTPS front door, never a private-origin routing shortcut.
+      compatibility_flags: ["global_fetch_strictly_public"],
       workers_dev: true,
       preview_urls: false,
       observability: { enabled: false },
