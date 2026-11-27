@@ -16,6 +16,7 @@ try {
       authority: "src/storefront-strangler/isolated-homepage-authority.ts",
       presentation: "src/storefront-strangler/homepage-presentation.server.ts",
       api: "src/features/fore/api.server.ts",
+      readonly: "src/storefront-strangler/readonly-stage-d1.ts",
     },
     bundle: true,
     platform: "node",
@@ -28,8 +29,9 @@ try {
     { default: authority },
     { produceHomepagePresentation },
     { handleCoveApi },
+    { readOnlyStageD1 },
   ] = await Promise.all(
-    ["worker", "authority", "presentation", "api"].map(
+    ["worker", "authority", "presentation", "api", "readonly"].map(
       (name) => import(path.join(root, name + ".js")),
     ),
   );
@@ -259,6 +261,41 @@ try {
       JSON.parse(fs.readFileSync(path.join(deployRoot, `wrangler.owned-${name}.run.json`), "utf8")),
     ]),
   );
+  // Delegation must exercise the actual application with its generated vars,
+  // not only prove that a fake CORE receives the correct URL.
+  const readFence = readOnlyStageD1(native.DB);
+  assert.equal(
+    (await readFence.prepare("SELECT replace('a-b','-','_') AS value").first()).value,
+    "a_b",
+  );
+  for (const sql of [
+    "REPLACE INTO products(id) VALUES('forged')",
+    "WITH candidates AS (SELECT 1) REPLACE INTO products(id) VALUES('forged')",
+    "WITH candidates AS (SELECT 1) DELETE FROM products",
+    "SELECT 1; DELETE FROM products",
+    "SELECT load_extension('untrusted')",
+    "SELECT 1 /* hidden operation */",
+  ])
+    assert.throws(() => readFence.prepare(sql));
+  assert.throws(() => readFence.batch([native.DB.prepare("SELECT 1")]));
+  const applicationEnv = {
+    ...native,
+    ...configs.application.vars,
+    DB: readOnlyStageD1(native.DB),
+    COVE_STOREFRONT_READ_LIMITER: homepageEnv.COVE_STOREFRONT_READ_LIMITER,
+  };
+  for (const route of ["/health/ready", "/storefront/bootstrap"]) {
+    const result = await handleCoveApi(
+      new Request("https://owned.test/api/fore" + route, {
+        headers: { "x-cove-client-country": "US", "cf-connecting-ip": "203.0.113.1" },
+      }),
+      applicationEnv,
+    );
+    assert.equal(result.status, 200, "Delegated application route failed: " + route);
+    const body = await result.json();
+    if (route === "/storefront/bootstrap") assert.ok(body.catalog.results.length > 0);
+    else assert.equal(body.database, true);
+  }
   assert.equal(configs.homepage.d1_databases, undefined);
   assert.deepEqual(configs.homepage.services, [
     { binding: "COVE_ISOLATED_HOMEPAGE_AUTHORITY", service: configs.authority.name },
