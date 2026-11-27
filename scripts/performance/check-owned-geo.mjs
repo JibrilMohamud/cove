@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import { parseOwnedGeoEvidence } from "./owned-geo-evidence.mjs";
-import { routeCandidates, pinnedRoute, routeSelectionEvidence } from "./owned-geo-selection.mjs";
+import { routeCandidates, pinnedRoute, routeSelectionEvidence, measurePinnedRegion } from "./owned-geo-selection.mjs";
 
 const name = "cove-owned-geo-measurement";
 const account = "d26430caa63ec55f6612e32f36aca5e9";
@@ -27,6 +27,8 @@ const report = {
   sustainedRegionalCapacityCertified: false,
   regions: ["ORD", "LAX", "IAD", "DFW"],
   phases: [],
+  routingRejections: [],
+  receiptMetric: "external-evidence-receipt-not-homepage-ttfb",
   passed: false,
   cleanup: false,
 };
@@ -127,22 +129,29 @@ try {
   report.routePins = [];
   const candidates = routeCandidates(discovery, sha);
   save();
+  // Candidate order is fixed by route-only discovery, never by timed latency.
+  // Remember already tried networks per region so a drifted pin can be replaced
+  // by another independently verified network without redoing timed work.
+  const used = new Map(report.regions.map((colo) => [colo, new Set()]));
+  async function pinRegion(colo) {
+    const seen = used.get(colo);
+    for (const candidate of candidates.filter((value) => value.colo === colo)) {
+      const key = JSON.stringify(candidate.location);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const verified = await measure([candidate.location], "route");
+      report.routePins.push(routeSelectionEvidence(verified, sha));
+      save();
+      const pin = pinnedRoute(verified, sha, colo);
+      if (pin) return pin;
+    }
+    return null;
+  }
   const pinResults = await Promise.allSettled(
     report.regions.map(async (colo) => {
-      const options = candidates.filter((value) => value.colo === colo);
-      assert.ok(options.length > 0, "No independent probe reaches required ingress " + colo);
-      const seen = new Set();
-      for (const candidate of options) {
-        const key = JSON.stringify(candidate.location);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        const verified = await measure([candidate.location], "route");
-        report.routePins.push(routeSelectionEvidence(verified, sha));
-        save();
-        const pin = pinnedRoute(verified, sha, colo);
-        if (pin) return pin;
-      }
-      throw Error("No stable independent probe reaches required ingress " + colo);
+      const pin = await pinRegion(colo);
+      assert.ok(pin, "No stable independent probe reaches required ingress " + colo);
+      return pin;
     }),
   );
   assert.ok(
@@ -154,19 +163,31 @@ try {
         .join("; "),
   );
   const pins = pinResults.map((result) => result.value);
-  report.pinnedProbes = pins;
+  report.pinnedProbes = [...pins];
   save();
   for (const concurrency of [1, 4, 8, 16, 32]) {
-    // Reuse the four exact verified probe sets for every measured phase.
-    // Do not retry failed timed samples or replace probes by their latency.
+    // All actual timed bursts remain concurrent across the four regions.
+    // Retry ONLY run-bound zero-upstream route rejections; retain each in
+    // the evidence. A failed actual homepage sample is never replaced.
     const completed = await Promise.allSettled(
-      pins.map((pin) => measure(pin.measurementId, concurrency)),
+      pins.map((pin) => measurePinnedRegion({
+        pin, sha, campaign, concurrency, measure,
+        rePin: (previous) => pinRegion(previous.colo),
+        onRejected: (rejection) => {
+          report.routingRejections.push(rejection);
+          save();
+        },
+      })),
     );
     assert.ok(
       completed.every((result) => result.status === "fulfilled"),
       "Timed regional measurement failed; no samples retried",
     );
-    const measurement = completed.map((result) => result.value);
+    const measurement = completed.map((result, index) => {
+      pins[index] = result.value.pin;
+      return result.value.measurement;
+    });
+    report.finalPinnedProbes = [...pins];
     const phase = parseOwnedGeoEvidence(measurement, sha, concurrency);
     report.phases.push(phase);
     save();
@@ -175,6 +196,10 @@ try {
         concurrency,
         passed: phase.passed,
         colos: phase.observations.map((item) => item.colo),
+        observations: phase.observations.map(({ colo, valid, receiptMs, maxHomepageTtfbMs, rows }) => ({
+          colo, valid, receiptMs, maxHomepageTtfbMs, samples: rows.length,
+          invalid: rows.filter((row) => !row.valid || !Number.isFinite(row.ttfbMs) || row.ttfbMs >= 800).length,
+        })),
       }),
     );
   }

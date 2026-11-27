@@ -22,9 +22,11 @@ export function parseOwnedGeoEvidence(measurement, sha, concurrency) {
       const ray = Array.isArray(rawRay) ? rawRay[0] : rawRay;
       const ingress = /-([A-Z]{3})$/.exec(ray || "")?.[1];
       const rows = Array.isArray(body.rows) ? body.rows : [];
-      // Globalping firstByte excludes DNS/TCP/TLS. Include those costs by
-      // subtracting only body download from total; never call the shorter
-      // server-wait field end-to-end TTFB.
+      // External receipt includes probe DNS/TCP/TLS, the slowest upstream
+      // response, complete HTML body reads/validation, and JSON serialization.
+      // It measures delivery of the evidence report, NOT homepage TTFB.
+      // Preserve it as a separate diagnostic; every actual homepage row
+      // independently retains the strict <800ms header-arrival limit.
       const total = result.timings?.total;
       const download = result.timings?.download;
       const receiptMs =
@@ -38,12 +40,12 @@ export function parseOwnedGeoEvidence(measurement, sha, concurrency) {
         body.schema === "cove.owned-geo.v1" &&
         body.sha === sha &&
         body.colo === ingress &&
+        body.expectedColo === ingress &&
         ownedGeoColos.includes(ingress) &&
         body.concurrency === concurrency &&
         rows.length === concurrency &&
         Number.isFinite(receiptMs) &&
         receiptMs >= 0 &&
-        receiptMs < 800 &&
         rows.every(
           (row) =>
             row.status === 200 &&
@@ -59,6 +61,9 @@ export function parseOwnedGeoEvidence(measurement, sha, concurrency) {
         colo: ingress || null,
         probeCountry: item.probe?.country || null,
         receiptMs,
+        maxHomepageTtfbMs: rows.length && rows.every((row) => Number.isFinite(row.ttfbMs))
+          ? Math.max(...rows.map((row) => row.ttfbMs))
+          : null,
         rows,
         valid,
       };
