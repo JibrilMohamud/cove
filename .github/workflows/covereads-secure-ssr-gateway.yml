@@ -4,6 +4,8 @@ on:
     paths:
       - "src/storefront-strangler/**"
       - "scripts/staging/prepare-owned-storefront.mjs"
+      - "scripts/staging/isolated-presentation-read*.mjs"
+      - "scripts/staging/seed-versioned-presentation.mjs"
       - "scripts/check-owned-storefront-integration.mjs"
       - "scripts/performance/visual-cover-fixtures*"
       - "scripts/performance/check-owned-ssr-capacity.mjs"
@@ -74,6 +76,8 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Verify integrated prepared homepage and isolated authority
         run: node scripts/check-owned-storefront-integration.mjs
+      - name: Verify isolated read-only preparation and provider failure handling
+        run: node --test scripts/staging/isolated-presentation-read.test.mjs
       - name: Reject false regional evidence and unsafe geographic measurement requests
         run: node --test scripts/performance/owned-geo.test.mjs
       - name: Verify strict owned canary edge-denial retry contract

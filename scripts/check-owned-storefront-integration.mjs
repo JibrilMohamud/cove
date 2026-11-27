@@ -6,6 +6,7 @@ import { build } from "esbuild";
 import { spawnSync } from "node:child_process";
 import { localBindings } from "./local-api.mjs";
 import gateway from "../src/cloudflare/staging-auth-gateway.mjs";
+import { createIsolatedPresentationReader } from "./staging/isolated-presentation-read.mjs";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "cove-owned-storefront-"));
 try {
@@ -51,7 +52,30 @@ try {
       return body ? { size: Buffer.byteLength(body), text: async () => body } : null;
     },
   };
-  await produceHomepagePresentation(native.DB, "US", store);
+  let preparationReads = 0;
+  const preparation = createIsolatedPresentationReader({
+    readToken: "offline-fixture-token-000000000000",
+    source: "15ce2ea3-17f8-4d99-9015-a78a6a3af05d",
+    sourceName: "cove-real-catalog-snapshot-20261125",
+    fetchImpl: async (_url, init) => {
+      preparationReads++;
+      const { sql, params } = JSON.parse(init.body);
+      const rows = await native.DB.prepare(sql)
+        .bind(...params)
+        .all();
+      return Response.json({
+        success: true,
+        result: [
+          { ...rows, success: true, meta: { changed_db: false, changes: 0, rows_written: 0 } },
+        ],
+      });
+    },
+  });
+  await produceHomepagePresentation(preparation, "US", store);
+  assert.ok(
+    preparationReads > 4,
+    "Presentation seed must exercise real metadata projections through the read-only HTTP adapter",
+  );
   const gate = "a".repeat(64),
     privateKey = "b".repeat(64);
   const scope = {
