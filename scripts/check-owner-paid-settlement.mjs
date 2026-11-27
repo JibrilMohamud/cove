@@ -289,6 +289,35 @@ try{
     assert.equal(hosted.primary.prepare("SELECT COUNT(*) n FROM finance_royalty_allocations WHERE status=\'held\'").get().n,2);
     assert.equal(hosted.primary.prepare("SELECT SUM(amount_minor) n FROM commerce_ledger_entries").get().n,0);
     const hostedComplete=hosted.snapshot();assert.equal((await hosted.command()).status,200);assert.deepEqual(hosted.snapshot(),hostedComplete);
+    // Extend the paid fixture through the real owner routes; settlement alone
+    // does not establish that the private delivery owner accepts or spends a grant.
+    const purchased=hosted.primary.prepare("SELECT id,user_id,product_id FROM entitlements WHERE product_id=? AND status='active'").get("prd_qa_owner_v2_ebook");
+    assert.ok(purchased);
+    hosted.insert("digital_assets",{id:"qa-owner-v2-ebook-asset",edition_id:"qa-owner-v2-ebook-edition",kind:"epub",current_version_id:"qa-owner-v2-ebook-v1",created_at:at,updated_at:at});
+    hosted.insert("asset_versions",{id:"qa-owner-v2-ebook-v1",asset_id:"qa-owner-v2-ebook-asset",version_number:1,object_key:"original-fixtures/cove-synthetic-qa.epub",mime_type:"application/epub+zip",created_at:at});
+    const issuedAt=new Date().toISOString();
+    const grant={grantId:"grant_qa_hosted_read",tokenHash:"a".repeat(64),userId:purchased.user_id,productId:purchased.product_id,entitlementId:purchased.id,publicationVersionId:null,assetVersionId:"qa-owner-v2-ebook-v1",deviceId:null,purpose:"read",watermarkId:null,policySnapshotJson:JSON.stringify({maxUses:2,ttlSeconds:300,maxDownloads:50,encryptionMode:"none",contractPolicy:{}}),issuedAt,expiresAt:new Date(Date.parse(issuedAt)+300000).toISOString(),maxUses:2,territory:"US",channel:"retail"};
+    const issue=(payload)=>hosted.owner.fetch(hosted.request("/delivery/private-issue-epub-grant",payload));
+    const consume=(payload)=>hosted.owner.fetch(hosted.request("/delivery/private-consume-epub-grant",payload));
+    // Fail closed on a millisecond beyond policy, foreign asset or buyer.
+    for(const mutation of [{expiresAt:new Date(Date.parse(issuedAt)+300001).toISOString()},{assetVersionId:"foreign_asset_version"},{userId:"sb:87654321-1234-4abc-8def-123456789abc"}]){
+      assert.notEqual((await issue({...grant,...mutation})).status,200);
+    }
+    const issued=await issue(grant);
+    assert.equal(issued.status,200,"Actual private owner must issue paid EPUB grant after settlement");
+    assert.deepEqual(await issued.json(),{schema:"cove.owner-epub-grant.v1",ownerFirst:true,grantId:grant.grantId,saved:true});
+    const spend={grantId:grant.grantId,tokenHash:grant.tokenHash,territory:"US",channel:"retail"};
+    assert.notEqual((await consume({...spend,tokenHash:"b".repeat(64)})).status,200);
+    for(const uses of [1,2]){
+      const consumed=await consume(spend);
+      assert.equal(consumed.status,200,"Actual private owner must redeem paid EPUB grant");
+      assert.equal((await consumed.json()).uses,uses);
+    }
+    assert.notEqual((await consume(spend)).status,200,"Exhausted bearer must not redeem");
+    const persisted=hosted.primary.prepare("SELECT status,uses FROM commercial_delivery_grants WHERE id=?").get(grant.grantId);
+    assert.equal(persisted.status,"exhausted");assert.equal(persisted.uses,2);
+    assert.ok(readFileSync("src/features/fore/delivery.server.ts","utf8").includes("expires = new Date(Date.parse(issued) + Number(policy.token_ttl_seconds || 300) * 1000).toISOString(),"),"Caller must derive expiry from the identical issued timestamp");
+
   }finally{globalThis.fetch=nativeFetch;}
   console.log(`PASS: ${batchSize} atomic failure boundaries, mixed tender, multi-line accounting, transaction-current races, lost ACK/replay, preorder reservation, real owner restart, pending-proof exclusion, provider provenance and terminal denial`);
 }finally{databases.forEach(x=>x.close());rmSync(folder,{recursive:true,force:true});}

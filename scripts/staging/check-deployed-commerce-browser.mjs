@@ -385,6 +385,22 @@ try {
     productId: q.COVE_QA_EPUB_PRODUCT_ID,
     purpose: "read",
   });
+  if (grant.status !== 201) {
+    // Fixed metadata only: never log a bearer URL, response body or buyer data.
+    const message = typeof grant.data?.error === "string" ? grant.data.error : "";
+    const phase =
+      message === "Private legal owner refused commercial EPUB grant."
+        ? "owner-rejected"
+        : message === "Commercial EPUB grant requires private legal authority."
+          ? "owner-context-missing"
+          : "unclassified";
+    console.error("Purchased EPUB grant failure", {
+      status: grant.status,
+      phase,
+      appHeader: grant.appHeader,
+      redirected: grant.redirected,
+    });
+  }
   assert.equal(grant.status, 201, "Purchased EPUB grant must be issued by private owner");
   const grantUrl = new URL(grant.data?.url, origin);
   assert.equal(grantUrl.origin, origin.origin);
