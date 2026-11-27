@@ -73,10 +73,12 @@ const mask = (secret) => {
   return secret;
 };
 const gate = mask(randomBytes(32).toString("hex"));
+const browserInstance = randomBytes(16).toString("hex");
 const env = {
   ...process.env,
   COVE_QA_DEPLOYED_ORIGIN: origin,
   COVE_QA_STAGE_BEARER: gate,
+  COVE_QA_INGRESS_INSTANCE: browserInstance,
   COVE_QA_EPUB_PRODUCT_ID: "prd_qa_owner_v2_ebook",
   COVE_QA_AUDIO_PRODUCT_ID: "prd_qa_owner_v2_audio",
   COVE_QA_AUDIO_PUBLIC_ID: "ca_qa-owner-v2-audio-draft",
@@ -89,7 +91,22 @@ let consoleText = "";
 const secretFile = ".output/commerce-qa-temporary-secrets.json";
 try {
   const owner = await provisionDetachedOwner(wrangler);
-  fs.writeFileSync(publicConfig, owner.browserConfig(src));
+  assert.ok(src.includes('main = ".output/server/index.mjs"'));
+  fs.writeFileSync(
+    ".output/server/commerce-qa-ingress.mjs",
+    'import app from "./index.mjs";\nimport { commerceQaIngress } from "../../src/cloudflare/commerce-qa-ingress.mjs";\nexport default commerceQaIngress(app,' +
+      JSON.stringify(browserInstance) +
+      ");\n",
+  );
+  fs.writeFileSync(
+    publicConfig,
+    owner
+      .browserConfig(src)
+      .replace(
+        'main = ".output/server/index.mjs"',
+        'main = ".output/server/commerce-qa-ingress.mjs"',
+      ),
+  );
   // Obtain the listener signing key before opening the gated QA ingress.
   // Install all fresh credentials together in the serving deployment.
   const { privateKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
@@ -208,6 +225,7 @@ try {
       ingressStatuses.set(status, (ingressStatuses.get(status) || 0) + 1);
       const htmlReady =
         response.status === 200 &&
+        response.headers.get("x-cove-qa-ingress-instance") === browserInstance &&
         (response.headers.get("content-type") || "").includes("text/html");
       await response.body?.cancel();
       // A 200 homepage may be available before the routed application API.
@@ -220,7 +238,11 @@ try {
         });
         const data = api.status === 200 ? await api.json().catch(() => null) : null;
         await api.body?.cancel().catch(() => {});
-        if (api.status === 200 && data?.available === true) {
+        if (
+          api.status === 200 &&
+          data?.available === true &&
+          api.headers.get("x-cove-qa-ingress-instance") === browserInstance
+        ) {
           const hook = await fetch(origin + "api/fore/stripe/webhook", {
             method: "POST",
             headers: { authorization: "Bearer " + gate, "content-type": "application/json" },
@@ -228,7 +250,11 @@ try {
             signal: AbortSignal.timeout(5000),
           });
           const rejected = await hook.json().catch(() => null);
-          if (hook.status === 400 && rejected?.error === "Invalid Stripe webhook signature.") {
+          if (
+            hook.status === 400 &&
+            rejected?.error === "Invalid Stripe webhook signature." &&
+            hook.headers.get("x-cove-qa-ingress-instance") === browserInstance
+          ) {
             // A single ready edge can be followed by an unpropagated edge.
             // Require the exact gate denial for both missing and wrong
             // credentials before counting this nonmutating readiness wave.
@@ -244,7 +270,11 @@ try {
                 await denied.body?.cancel();
                 if (status >= 200 && status < 300)
                   throw new Error("QA_INGRESS_UNAUTHORIZED_SUCCESS");
-                return status === 401 && denied.headers.get("cache-control")?.includes("no-store");
+                return (
+                  status === 401 &&
+                  denied.headers.get("cache-control")?.includes("no-store") &&
+                  denied.headers.get("x-cove-qa-ingress-instance") === browserInstance
+                );
               }),
             );
             waveReady = denials.every(Boolean);

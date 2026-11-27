@@ -25,6 +25,8 @@ on:
       - "scripts/staging/qa-refund-operator.mjs"
       - "scripts/staging/cleanup-qa-refund-operators.mjs"
       - "scripts/staging/run-protected-deployed-commerce-qa.mjs"
+      - "scripts/staging/commerce-browser-readiness*.mjs"
+      - "src/cloudflare/commerce-qa-ingress.mjs"
       - "scripts/staging/detached-commerce-owner*.mjs"
       - "scripts/staging/verify-detached-commerce-bridge*.mjs"
       - "scripts/staging/cleanup-qa-offline-epub-signing-key.mjs"
@@ -64,7 +66,7 @@ jobs:
       - name: Verify isolated account and split credential policy
         run: node scripts/staging/check-detached-commerce-credentials.mjs --offline
       - name: Prove run-bound bridge readiness and unauthorized denial
-        run: node --test scripts/staging/verify-detached-commerce-bridge.test.mjs
+        run: node --test scripts/staging/verify-detached-commerce-bridge.test.mjs scripts/staging/commerce-browser-readiness.test.mjs
       - name: Prove the exact hosted royalty fixture through full-schema owner settlement
         run: node scripts/check-owner-paid-settlement.mjs
       - name: Prove nullable delivery terms and independent Stripe refund provenance
