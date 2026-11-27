@@ -63,10 +63,24 @@ try {
             const tag = el?.tagName?.toLowerCase();
             window.__covePaint = {
               lcp: entry.startTime,
-              target: tag === "img" ? "image" : tag === "h1" ? "heading" :
-                tag === "h2" ? "subheading" : tag === "p" ? "paragraph" : "other",
-              loadDelay: entry.loadTime > 0 ? Math.round(entry.loadTime - performance.getEntriesByType("navigation")[0].responseStart) : null,
-              renderDelay: entry.loadTime > 0 ? Math.round(entry.renderTime - entry.loadTime) : null,
+              target:
+                tag === "img"
+                  ? "image"
+                  : tag === "h1"
+                    ? "heading"
+                    : tag === "h2"
+                      ? "subheading"
+                      : tag === "p"
+                        ? "paragraph"
+                        : "other",
+              loadDelay:
+                entry.loadTime > 0
+                  ? Math.round(
+                      entry.loadTime - performance.getEntriesByType("navigation")[0].responseStart,
+                    )
+                  : null,
+              renderDelay:
+                entry.loadTime > 0 ? Math.round(entry.renderTime - entry.loadTime) : null,
             };
           }
         }).observe({ type: "largest-contentful-paint", buffered: true });
@@ -79,6 +93,8 @@ try {
       let consoleErrors = 0;
       let failedScriptRequests = 0;
       let failedStylesheetRequests = 0;
+      let imageFailures = 0,
+        imageHttpFailures = 0;
       const scripts = {
         ok: 0,
         redirects: 0,
@@ -95,9 +111,12 @@ try {
       });
       page.on("requestfailed", (request) => {
         if (request.resourceType() === "script") failedScriptRequests++;
+        if (request.resourceType() === "image") imageFailures++;
         if (request.resourceType() === "stylesheet") failedStylesheetRequests++;
       });
       page.on("response", (response) => {
+        if (response.request().resourceType() === "image" && response.status() >= 400)
+          imageHttpFailures++;
         if (response.request().resourceType() !== "script") return;
         const status = response.status();
         if (status >= 200 && status < 300) scripts.ok++;
@@ -149,17 +168,24 @@ try {
             lcpLoadDelayMs: window.__covePaint?.loadDelay ?? null,
             lcpRenderDelayMs: window.__covePaint?.renderDelay ?? null,
             // Only aggregate initiator/timing buckets; never asset URLs.
-            resourceByType: performance.getEntriesByType("resource")
-              .reduce((acc, resource) => {
-                const category = resource.initiatorType === "img" ? "image" :
-                  resource.initiatorType === "script" ? "script" :
-                  resource.initiatorType === "link" ? "link" : "other";
-                const bucket = acc[category] || { count: 0, lastResponseEndMs: 0 };
-                bucket.count++;
-                bucket.lastResponseEndMs = Math.max(bucket.lastResponseEndMs, Math.round(resource.responseEnd));
-                acc[category] = bucket;
-                return acc;
-              }, {}),
+            resourceByType: performance.getEntriesByType("resource").reduce((acc, resource) => {
+              const category =
+                resource.initiatorType === "img"
+                  ? "image"
+                  : resource.initiatorType === "script"
+                    ? "script"
+                    : resource.initiatorType === "link"
+                      ? "link"
+                      : "other";
+              const bucket = acc[category] || { count: 0, lastResponseEndMs: 0 };
+              bucket.count++;
+              bucket.lastResponseEndMs = Math.max(
+                bucket.lastResponseEndMs,
+                Math.round(resource.responseEnd),
+              );
+              acc[category] = bucket;
+              return acc;
+            }, {}),
             cards: document.querySelectorAll(".book-card").length,
             hydrated: document.documentElement.dataset.coveClientReady === "true",
             scriptTags: document.querySelectorAll("script[src]").length,
@@ -190,6 +216,8 @@ try {
         consoleErrors,
         failedScriptRequests,
         failedStylesheetRequests,
+        imageFailures,
+        imageHttpFailures,
         scripts,
         interceptionErrors,
         ...responseTelemetry,
@@ -208,6 +236,14 @@ const profiles = ["desktop", "mobile-4g"].map((profile) => {
       !r.failure &&
       !r.pageErrors &&
       !r.interceptionErrors &&
+      !r.failedScriptRequests &&
+      !r.failedStylesheetRequests &&
+      !r.imageFailures &&
+      !r.imageHttpFailures &&
+      !r.scripts.unauthorized &&
+      !r.scripts.missing &&
+      !r.scripts.other4xx &&
+      !r.scripts.server5xx &&
       r.cards > 0 &&
       Number.isFinite(r.lcpMs) &&
       Number.isFinite(r.ttfbMs) &&
