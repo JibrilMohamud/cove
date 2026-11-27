@@ -151,3 +151,59 @@ test("regional evidence requires all four actual ingress colos, every response a
     assert.equal(parseOwnedGeoEvidence(changed, sha, 1).passed, false);
   }
 });
+
+test("route discovery never prewarms the catalog, and pins probes only by actual ingress", async () => {
+  const result = await measureOwnedGeo(request("/route"), env, () =>
+    assert.fail("Route selection contacted catalog"),
+  );
+  assert.deepEqual(await result.json(), {
+    schema: "cove.owned-geo-route.v1",
+    sha,
+    country: "US",
+    colo: "ORD",
+  });
+  const { routeCandidates, pinnedRoute } = await import("./owned-geo-selection.mjs");
+  const m = measurement();
+  m.results = m.results.slice(0, 1);
+  m.results[0].probe = { country: "US", city: "Chicago", asn: 12345 };
+  m.results[0].result.rawBody = JSON.stringify({
+    schema: "cove.owned-geo-route.v1",
+    sha,
+    country: "US",
+    colo: "ORD",
+  });
+  const pin = pinnedRoute(m, sha, "ORD");
+  assert.equal(pin.measurementId, m.id);
+  assert.deepEqual(pin.location, { country: "US", city: "Chicago", asn: 12345, limit: 1 });
+  m.results[0].result.timings.total = 99999;
+  assert.deepEqual(pinnedRoute(m, sha, "ORD"), pin, "No latency-based probe selection");
+  assert.equal(pinnedRoute(m, sha, "IAD"), null);
+  m.results.push(m.results[0]);
+  assert.equal(pinnedRoute(m, sha, "ORD"), null, "Pins must identify a single probe");
+  m.results = m.results.slice(0, 1);
+  for (const raw of [
+    { schema: "cove.owned-geo-route.v1", sha, country: "US", colo: "CMH" },
+    { schema: "cove.owned-geo-route.v1", sha: "d".repeat(40), country: "US", colo: "ORD" },
+    { schema: "cove.owned-geo-route.v1", sha, country: "ZZ", colo: "ORD" },
+  ]) {
+    m.results[0].result.rawBody = JSON.stringify(raw);
+    assert.deepEqual(routeCandidates(m, sha), []);
+  }
+});
+
+test("regional timed phases retain all four real measurement IDs", () => {
+  const m = measurement();
+  const phases = m.results.map((item, index) => ({
+    id: "actual-measurement-" + index,
+    status: "finished",
+    results: [item],
+  }));
+  const phase = parseOwnedGeoEvidence(phases, sha, 1);
+  assert.equal(phase.passed, true);
+  assert.deepEqual(
+    phase.measurementIds,
+    phases.map((value) => value.id),
+  );
+  phases[0].status = "in-progress";
+  assert.throws(() => parseOwnedGeoEvidence(phases, sha, 1));
+});

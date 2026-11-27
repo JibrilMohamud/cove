@@ -1,3 +1,5 @@
+import { authorizeIsolatedContractlessPrefix } from "./isolated-contractless-authority";
+import { bootstrapFailureKind } from "./failure";
 import { readOnlyStageD1 } from "./readonly-stage-d1";
 import { authorizeStorefrontPresentationIds } from "../features/fore/catalog-model.server";
 import type { CatalogDB } from "../features/fore/catalog-model.server";
@@ -92,14 +94,17 @@ export default {
         typeof native.withSession === "function" ? native.withSession("first-primary") : native,
       );
       const prefix = body.ids.slice(0, 25);
-      let rows = await authorizeStorefrontPresentationIds(
+      let rows = await authorizeIsolatedContractlessPrefix(
         primary,
         prefix,
         body.territory,
         body.currency,
       );
       // Preserve stable replacements after withdrawal; never cache a decision.
-      if (body.ids.length > 25 && rows.length !== 25)
+      if (
+        rows.length !== prefix.length ||
+        rows.some((row, index) => row.product_id !== prefix[index])
+      )
         rows = await authorizeStorefrontPresentationIds(
           primary,
           body.ids,
@@ -107,8 +112,10 @@ export default {
           body.currency,
         );
       return respond(200, { schema: "cove.storefront-owner.v1", rows });
-    } catch {
-      return respond(503);
+    } catch (error) {
+      const response = respond(503);
+      response.headers.set("x-cove-isolated-authority-failure", bootstrapFailureKind(error));
+      return response;
     }
   },
 };

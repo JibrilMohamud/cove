@@ -1,3 +1,4 @@
+import { requireIsolatedMembershipProfile } from "./isolated-membership-profile.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { withStagePresentationStore } from "./stage-presentation-storage.mjs";
@@ -15,6 +16,7 @@ export async function seedReadOnlyPresentation({
   prefix,
   directory,
   kvNamespaceId,
+  assertContractlessView = false,
 }) {
   assert.ok(readToken && readToken.length >= 20);
   assert.equal(requireIsolatedCatalogSnapshotTarget(source, sourceName).id, source);
@@ -22,6 +24,13 @@ export async function seedReadOnlyPresentation({
   assert.equal(prefix, `campaign/${process.env.GITHUB_RUN_ID}/real/`);
   if (kvNamespaceId) assert.equal(kvNamespaceId, "8245d5f2116a445d9571405b41b7c8c3");
   const db = createIsolatedPresentationReader({ readToken, source, sourceName });
+  if (assertContractlessView) {
+    const profile = await requireIsolatedMembershipProfile(db);
+    fs.mkdirSync(directory, { recursive: true });
+    fs.writeFileSync(directory + "/authority-profile.json", JSON.stringify(profile), {
+      mode: 0o600,
+    });
+  }
   await withStagePresentationStore("real", async (storage) => {
     await produceHomepagePresentation(db, "US", {
       async get() {

@@ -126,6 +126,7 @@ for (const [file, config] of [
   write(`wrangler.owned-${file}.run.json`, serialized);
 }
 await seedReadOnlyPresentation({
+  assertContractlessView: true,
   readToken: process.env.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN,
   source: id,
   sourceName: databaseName,
