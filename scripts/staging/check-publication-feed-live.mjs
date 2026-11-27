@@ -1,5 +1,6 @@
 // Real public source -> independent leased ledger -> private R2, using native
 // Worker bindings. No source writes, production route, cron or signing keys.
+import { preparePublicationExport } from "./publication-source-readiness.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { randomBytes } from "node:crypto";
@@ -56,6 +57,7 @@ async function api(method, path, body) {
     ...(body ? { body: JSON.stringify(body) } : {}),
     signal: AbortSignal.timeout(30000),
   });
+  if (method === "DELETE" && r.status === 404) return null;
   const b = await r.json();
   assert.ok(
     r.ok && b.success,
@@ -113,7 +115,7 @@ function cleanup() {
   return (cleanupPromise ||= (async () => {
     for (const name of [...names].reverse()) {
       try {
-        await api("DELETE", `/accounts/${account}/workers/workers/${name}`);
+        await api("DELETE", `/accounts/${account}/workers/scripts/${name}`);
       } catch {
         evidence.cleanupFailed = true;
       }
@@ -281,6 +283,13 @@ try {
     }
     const calls = [];
     for (let turn = 0; turn < 20; turn++) {
+      const prepared = await preparePublicationExport({
+        initial,
+        read: async () => ({ rows: await captureGenerations(), state: await readSourceState() }),
+      });
+      evidence.exportPreparations ||= [];
+      evidence.exportPreparations.push({ cycle, turn, ...prepared });
+      save();
       const exported = await invoke("/export");
       const published = await invoke("/publish");
       calls.push({ exported, published });
