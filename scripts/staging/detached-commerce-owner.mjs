@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { randomBytes } from "node:crypto";
-import { verifyDetachedBridge } from "./verify-detached-commerce-bridge.mjs";
+import { verifyDetachedBridge, publishDetachedBridge } from "./verify-detached-commerce-bridge.mjs";
 
 const account = "f51e8ccbc394e2d6016ff8c2c303d54b";
 const primary = "f9354381-bd9f-496b-bd05-d6f62a32ec0c";
@@ -98,28 +98,13 @@ export async function provisionDetachedOwner(wrangler) {
     { GATE: gate, OWNER_SECRET: secret },
   );
   const origin = "https://" + bridge + ".cove-qa-reads.workers.dev";
-  const headers = { authorization: "Bearer " + gate };
   const observations = await verifyDetachedBridge({ origin, gate, instance });
   console.log(
     "PASS: exact detached bridge readiness and anonymous/invalid bearer denial",
     JSON.stringify(observations),
   );
-  const published = await fetch(origin + "/publish", {
-    method: "POST",
-    headers,
-    body: "publish:" + instance,
-    cache: "no-store",
-    redirect: "manual",
-    signal: AbortSignal.timeout(60_000),
-  });
-  const marked = published.headers.get("x-cove-qa-bridge-instance") === instance;
-  const phase = published.headers.get("x-cove-qa-bridge-phase") || "none";
-  assert.ok(
-    marked,
-    "Detached publication outcome unverified; no automatic replay: " + published.status,
-  );
-  assert.equal(published.status, 204, "Detached owner publication failed: " + phase);
-  assert.equal(published.headers.get("cache-control"), "no-store");
+  const publication = await publishDetachedBridge({ origin, gate, instance });
+  console.log("PASS: exact detached owner rights and offer readback", JSON.stringify(publication));
   await remove(bridge);
   return {
     secret,
