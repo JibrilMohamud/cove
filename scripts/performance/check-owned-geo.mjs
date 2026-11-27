@@ -3,7 +3,12 @@ import { randomBytes } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import { parseOwnedGeoEvidence } from "./owned-geo-evidence.mjs";
-import { routeCandidates, pinnedRoute, routeSelectionEvidence, measurePinnedRegion } from "./owned-geo-selection.mjs";
+import {
+  routeCandidates,
+  pinnedRoute,
+  routeSelectionEvidence,
+  measurePinnedRegion,
+} from "./owned-geo-selection.mjs";
 
 const name = "cove-owned-geo-measurement";
 const account = "d26430caa63ec55f6612e32f36aca5e9";
@@ -170,14 +175,20 @@ try {
     // Retry ONLY run-bound zero-upstream route rejections; retain each in
     // the evidence. A failed actual homepage sample is never replaced.
     const completed = await Promise.allSettled(
-      pins.map((pin) => measurePinnedRegion({
-        pin, sha, campaign, concurrency, measure,
-        rePin: (previous) => pinRegion(previous.colo),
-        onRejected: (rejection) => {
-          report.routingRejections.push(rejection);
-          save();
-        },
-      })),
+      pins.map((pin) =>
+        measurePinnedRegion({
+          pin,
+          sha,
+          campaign,
+          concurrency,
+          measure,
+          rePin: (previous) => pinRegion(previous.colo),
+          onRejected: (rejection) => {
+            report.routingRejections.push(rejection);
+            save();
+          },
+        }),
+      ),
     );
     assert.ok(
       completed.every((result) => result.status === "fulfilled"),
@@ -196,10 +207,18 @@ try {
         concurrency,
         passed: phase.passed,
         colos: phase.observations.map((item) => item.colo),
-        observations: phase.observations.map(({ colo, valid, receiptMs, maxHomepageTtfbMs, rows }) => ({
-          colo, valid, receiptMs, maxHomepageTtfbMs, samples: rows.length,
-          invalid: rows.filter((row) => !row.valid || !Number.isFinite(row.ttfbMs) || row.ttfbMs >= 800).length,
-        })),
+        observations: phase.observations.map(
+          ({ colo, valid, receiptMs, maxHomepageTtfbMs, rows }) => ({
+            colo,
+            valid,
+            receiptMs,
+            maxHomepageTtfbMs,
+            samples: rows.length,
+            invalid: rows.filter(
+              (row) => !row.valid || !Number.isFinite(row.ttfbMs) || row.ttfbMs >= 800,
+            ).length,
+          }),
+        ),
       }),
     );
   }

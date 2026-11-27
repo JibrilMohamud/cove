@@ -241,22 +241,39 @@ test("reproduce latest 32-concurrency incident: all 128 homepage TTFBs pass whil
   for (const [i, item] of m.results.entries()) {
     const body = JSON.parse(item.result.rawBody);
     body.concurrency = 32;
-    body.rows = Array.from({length: 32}, (_, j) => ({
-      ...body.rows[0], ttfbMs: j === 31 ? actual[i] : 250,
+    body.rows = Array.from({ length: 32 }, (_, j) => ({
+      ...body.rows[0],
+      ttfbMs: j === 31 ? actual[i] : 250,
     }));
     item.result.rawBody = JSON.stringify(body);
     item.result.timings.total = receipts[i] + 1;
   }
   const result = parseOwnedGeoEvidence(m, sha, 32);
   assert.equal(result.passed, true);
-  assert.deepEqual(result.observations.map((o) => o.maxHomepageTtfbMs), actual);
-  assert.deepEqual(result.observations.map((o) => o.receiptMs), receipts);
+  assert.deepEqual(
+    result.observations.map((o) => o.maxHomepageTtfbMs),
+    actual,
+  );
+  assert.deepEqual(
+    result.observations.map((o) => o.receiptMs),
+    receipts,
+  );
   for (const invalid of [
-    (row) => { row.ttfbMs = 800; },
-    (row) => { row.status = 503; },
-    (row) => { row.valid = false; },
-    (row) => { row.targetColo = "ATL"; },
-    (row) => { row.ttfbMs = null; },
+    (row) => {
+      row.ttfbMs = 800;
+    },
+    (row) => {
+      row.status = 503;
+    },
+    (row) => {
+      row.valid = false;
+    },
+    (row) => {
+      row.targetColo = "ATL";
+    },
+    (row) => {
+      row.ttfbMs = null;
+    },
   ]) {
     const copy = structuredClone(m);
     const body = JSON.parse(copy.results[0].result.rawBody);
@@ -273,13 +290,19 @@ test("reproduce latest 32-concurrency incident: all 128 homepage TTFBs pass whil
 
 test("wrong ingress (including another required colo) rejects before any homepage request", async () => {
   for (const colo of ["ATL", "IAD"]) {
-    const result = await measureOwnedGeo(request("/ORD/4", {country: "US", colo}), env,
-      () => assert.fail("Wrong ingress issued upstream traffic"));
+    const result = await measureOwnedGeo(request("/ORD/4", { country: "US", colo }), env, () =>
+      assert.fail("Wrong ingress issued upstream traffic"),
+    );
     assert.equal(result.status, 409);
     assert.deepEqual(await result.json(), {
-      schema: "cove.owned-geo-not-admitted.v1", sha,
-      campaign: env.COVE_GEO_CAMPAIGN, country: "US", colo,
-      expectedColo: "ORD", concurrency: 4, upstreamRequests: 0,
+      schema: "cove.owned-geo-not-admitted.v1",
+      sha,
+      campaign: env.COVE_GEO_CAMPAIGN,
+      country: "US",
+      colo,
+      expectedColo: "ORD",
+      concurrency: 4,
+      upstreamRequests: 0,
     });
   }
 });
@@ -287,52 +310,112 @@ test("wrong ingress (including another required colo) rejects before any homepag
 test("only attested zero-work rerouting can be replaced; timed failures never retry", async () => {
   const { zeroWorkRouteRejection, measurePinnedRegion } = await import("./owned-geo-selection.mjs");
   const makeRejection = async () => {
-    const result = await measureOwnedGeo(request("/ORD/4", {country:"US", colo:"ATL"}), env,
-      () => assert.fail("Route rejection issued work"));
-    return { id:"route-reject-1", status:"finished", results:[{
-      probe:{country:"US"}, result:{status:"finished", statusCode:409, truncated:false,
-        headers:{"cf-ray":"abc-ATL"},rawBody:await result.text()},
-    }] };
+    const result = await measureOwnedGeo(
+      request("/ORD/4", { country: "US", colo: "ATL" }),
+      env,
+      () => assert.fail("Route rejection issued work"),
+    );
+    return {
+      id: "route-reject-1",
+      status: "finished",
+      results: [
+        {
+          probe: { country: "US" },
+          result: {
+            status: "finished",
+            statusCode: 409,
+            truncated: false,
+            headers: { "cf-ray": "abc-ATL" },
+            rawBody: await result.text(),
+          },
+        },
+      ],
+    };
   };
   const rejected = await makeRejection();
   const campaign = env.COVE_GEO_CAMPAIGN;
   assert.ok(zeroWorkRouteRejection(rejected, sha, campaign, "ORD", 4));
   for (const change of [
-    (r) => {r.statusCode=503;},
-    (r) => {r.truncated=true;},
-    (r) => {r.headers["cf-ray"]="abc-ORD";},
-    (r) => {r.rawBody=r.rawBody.replace(campaign,"e".repeat(32));},
-    (r) => {r.rawBody=r.rawBody.replace('"upstreamRequests":0','"upstreamRequests":1');},
-    (r) => {r.rawBody=r.rawBody.replace('"concurrency":4','"concurrency":8');},
-    (r) => {r.rawBody="{}";},
+    (r) => {
+      r.statusCode = 503;
+    },
+    (r) => {
+      r.truncated = true;
+    },
+    (r) => {
+      r.headers["cf-ray"] = "abc-ORD";
+    },
+    (r) => {
+      r.rawBody = r.rawBody.replace(campaign, "e".repeat(32));
+    },
+    (r) => {
+      r.rawBody = r.rawBody.replace('"upstreamRequests":0', '"upstreamRequests":1');
+    },
+    (r) => {
+      r.rawBody = r.rawBody.replace('"concurrency":4', '"concurrency":8');
+    },
+    (r) => {
+      r.rawBody = "{}";
+    },
   ]) {
-    const copy=structuredClone(rejected);
+    const copy = structuredClone(rejected);
     change(copy.results[0].result);
-    assert.equal(zeroWorkRouteRejection(copy,sha,campaign,"ORD",4),null);
+    assert.equal(zeroWorkRouteRejection(copy, sha, campaign, "ORD", 4), null);
   }
-  const first = {colo:"ORD",measurementId:"pin-original"};
-  const next = {colo:"ORD",measurementId:"pin-replacement"};
+  const first = { colo: "ORD", measurementId: "pin-original" };
+  const next = { colo: "ORD", measurementId: "pin-replacement" };
   const timed = measurement();
-  timed.results=timed.results.slice(0,1);
-  const calls=[], admissions=[];
-  const result=await measurePinnedRegion({pin:first,sha,campaign,concurrency:4,
-    measure:async(id,path)=>{calls.push([id,path]);return calls.length===1?rejected:timed;},
-    rePin:async()=>next,onRejected:(r)=>admissions.push(r)});
-  assert.deepEqual(calls,[["pin-original","ORD/4"],["pin-replacement","ORD/4"]]);
-  assert.equal(admissions.length,1);
-  assert.equal(result.measurement,timed);
-  assert.equal(result.pin,next);
-  for (const measured of [timed,{...timed, status:"in-progress"}, {...timed,results:[]}]) {
-    let count=0;
-    const value=await measurePinnedRegion({pin:first,sha,campaign,concurrency:4,
-      measure:async()=>{count++;return measured;},
-      rePin:async()=>assert.fail("Timed result repinned"),
-      onRejected:()=>assert.fail("Timed result discarded")});
-    assert.equal(count,1);
-    assert.equal(value.measurement,measured);
+  timed.results = timed.results.slice(0, 1);
+  const calls = [],
+    admissions = [];
+  const result = await measurePinnedRegion({
+    pin: first,
+    sha,
+    campaign,
+    concurrency: 4,
+    measure: async (id, path) => {
+      calls.push([id, path]);
+      return calls.length === 1 ? rejected : timed;
+    },
+    rePin: async () => next,
+    onRejected: (r) => admissions.push(r),
+  });
+  assert.deepEqual(calls, [
+    ["pin-original", "ORD/4"],
+    ["pin-replacement", "ORD/4"],
+  ]);
+  assert.equal(admissions.length, 1);
+  assert.equal(result.measurement, timed);
+  assert.equal(result.pin, next);
+  for (const measured of [timed, { ...timed, status: "in-progress" }, { ...timed, results: [] }]) {
+    let count = 0;
+    const value = await measurePinnedRegion({
+      pin: first,
+      sha,
+      campaign,
+      concurrency: 4,
+      measure: async () => {
+        count++;
+        return measured;
+      },
+      rePin: async () => assert.fail("Timed result repinned"),
+      onRejected: () => assert.fail("Timed result discarded"),
+    });
+    assert.equal(count, 1);
+    assert.equal(value.measurement, measured);
   }
-  let count=0;
-  await measurePinnedRegion({pin:first,sha,campaign,concurrency:4,
-    measure:async()=>{count++;return rejected;},rePin:async()=>null,onRejected:()=>{}});
-  assert.equal(count,3);
+  let count = 0;
+  await measurePinnedRegion({
+    pin: first,
+    sha,
+    campaign,
+    concurrency: 4,
+    measure: async () => {
+      count++;
+      return rejected;
+    },
+    rePin: async () => null,
+    onRejected: () => {},
+  });
+  assert.equal(count, 3);
 });

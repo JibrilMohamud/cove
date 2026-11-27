@@ -13,8 +13,10 @@ export async function measureOwnedGeo(request, env, fetcher = fetch) {
   if (
     request.method !== "GET" ||
     url.hostname !== "cove-owned-geo-measurement.cove-jibrilmohamud.workers.dev" ||
-    !(url.pathname === routePath ||
-      (phase && url.pathname === "/" + env.COVE_GEO_CAMPAIGN + "/" + phase[1] + "/" + phase[2])) ||
+    !(
+      url.pathname === routePath ||
+      (phase && url.pathname === "/" + env.COVE_GEO_CAMPAIGN + "/" + phase[1] + "/" + phase[2])
+    ) ||
     url.search ||
     !/^[a-f0-9]{32}$/.test(env.COVE_GEO_CAMPAIGN || "")
   )
@@ -44,16 +46,19 @@ export async function measureOwnedGeo(request, env, fetcher = fetch) {
   // The controller may replace only this attested zero-work routing rejection.
   // An unexpected target colo AFTER fetch is a failed timed sample, never retried.
   if (request.cf?.country !== "US" || colo !== expectedColo)
-    return reply({
-      schema: "cove.owned-geo-not-admitted.v1",
-      sha: env.COVE_GEO_SHA,
-      campaign: env.COVE_GEO_CAMPAIGN,
-      country: request.cf?.country || null,
-      colo: colo || null,
-      expectedColo,
-      concurrency,
-      upstreamRequests: 0,
-    }, 409);
+    return reply(
+      {
+        schema: "cove.owned-geo-not-admitted.v1",
+        sha: env.COVE_GEO_SHA,
+        campaign: env.COVE_GEO_CAMPAIGN,
+        country: request.cf?.country || null,
+        colo: colo || null,
+        expectedColo,
+        concurrency,
+        upstreamRequests: 0,
+      },
+      409,
+    );
   const rows = await Promise.all(
     Array.from({ length: concurrency }, async () => {
       const started = performance.now();
@@ -89,7 +94,14 @@ export async function measureOwnedGeo(request, env, fetcher = fetch) {
       }
     }),
   );
-  return reply({ schema: "cove.owned-geo.v1", sha: env.COVE_GEO_SHA, colo, expectedColo, concurrency, rows });
+  return reply({
+    schema: "cove.owned-geo.v1",
+    sha: env.COVE_GEO_SHA,
+    colo,
+    expectedColo,
+    concurrency,
+    rows,
+  });
 }
 
 export default { fetch: (request, env) => measureOwnedGeo(request, env) };

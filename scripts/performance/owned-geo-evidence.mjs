@@ -61,9 +61,10 @@ export function parseOwnedGeoEvidence(measurement, sha, concurrency) {
         colo: ingress || null,
         probeCountry: item.probe?.country || null,
         receiptMs,
-        maxHomepageTtfbMs: rows.length && rows.every((row) => Number.isFinite(row.ttfbMs))
-          ? Math.max(...rows.map((row) => row.ttfbMs))
-          : null,
+        maxHomepageTtfbMs:
+          rows.length && rows.every((row) => Number.isFinite(row.ttfbMs))
+            ? Math.max(...rows.map((row) => row.ttfbMs))
+            : null,
         rows,
         valid,
       };
