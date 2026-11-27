@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import bridge from "./detached-commerce-owner-bridge.mjs";
-import { verifyDetachedBridge } from "./verify-detached-commerce-bridge.mjs";
+import { verifyDetachedBridge, publishDetachedBridge } from "./verify-detached-commerce-bridge.mjs";
 
 const gate = "a".repeat(64);
 const instance = "b".repeat(32);
@@ -169,4 +169,96 @@ test("owner refusal exposes only a fixed phase and status and stops publication"
   assert.equal(response.headers.get("x-cove-qa-bridge-phase"), "ebook:rights:409");
   assert.equal(await response.text(), "");
   assert.equal(calls, 1);
+});
+
+const publish = (fetcher, attempts = 5) =>
+  publishDetachedBridge({ origin, gate, instance, fetcher, attempts, pause: async () => {} });
+const marked = (status) =>
+  new Response(null, {
+    status,
+    headers: { "x-cove-qa-bridge-instance": instance, "cache-control": "no-store" },
+  });
+
+test("exact hosted failure: readiness then 404, verified incomplete then publish", async () => {
+  const calls = [];
+  const responses = [new Response(null, { status: 404 }), marked(409), marked(204), marked(204)];
+  await publish(async (_url, init) => {
+    calls.push(init.body.split(":")[0]);
+    return responses.shift();
+  });
+  assert.deepEqual(calls, ["publish", "verify", "publish", "verify"]);
+});
+
+test("lost committed publication response is recovered without another write", async () => {
+  const calls = [];
+  const responses = [null, new Response(null, { status: 404 }), marked(204)];
+  await publish(async (_url, init) => {
+    calls.push(init.body.split(":")[0]);
+    const response = responses.shift();
+    if (!response) throw Error("lost response");
+    return response;
+  });
+  assert.deepEqual(calls, ["publish", "verify", "verify"]);
+});
+
+test("unverified readbacks and explicit owner refusal never authorize a replay", async () => {
+  let writes = 0;
+  await assert.rejects(
+    publish(async (_url, init) => {
+      if (init.body.startsWith("publish:")) writes++;
+      return new Response(null, { status: 404 });
+    }, 3),
+    /remains unverified/,
+  );
+  assert.equal(writes, 1);
+  await assert.rejects(
+    publish(async () => marked(502)),
+    /owner publish refused/,
+  );
+});
+
+test("readback requires the two exact current rights and the two exact offers", async () => {
+  const keys = ["ebook", "audio"];
+  const rights = keys.map((key) => ({
+    product_id: "prd_qa_owner_v2_" + key,
+    edition_id: "qa-owner-v2-" + key + "-edition",
+    grant_id: "qa-owner-v2-" + key + "-us-retail",
+    contract_id: "qa-owner-v2-contract",
+    contract_version_id: "qa-owner-v2-contract-v1",
+    epoch: 1,
+    valid_until: new Date(Date.now() + 60_000).toISOString(),
+  }));
+  const offers = rights.map((r) => ({
+    product_id: r.product_id,
+    edition_id: r.edition_id,
+    offer_json: JSON.stringify({ type: "purchase", currency: "USD", amountMinor: 100 }),
+  }));
+  const read = (legal, prices) =>
+    bridge.fetch(
+      new Request(origin + "/publish", {
+        method: "POST",
+        headers: { authorization: "Bearer " + gate },
+        body: "verify:" + instance,
+      }),
+      {
+        ...env,
+        LEGAL_PRIVATE: {
+          fetch: async (url, init) => {
+            assert.equal(init.headers.authorization, "Bearer " + env.OWNER_SECRET);
+            const path = new URL(url).pathname;
+            assert.ok(["/commercial/authorize-batch", "/storefront/authorize-batch"].includes(path));
+            return path === "/commercial/authorize-batch"
+              ? Response.json({ schema: "cove.commercial-legal.v1", rows: legal })
+              : Response.json({ schema: "cove.storefront-owner.v1", rows: prices });
+          },
+        },
+      },
+    );
+  assert.equal((await read(rights, offers)).status, 204);
+  assert.equal((await read(rights, offers.slice(0, 1))).status, 409);
+  assert.equal((await read([], [])).status, 409);
+  assert.equal((await read([], offers)).status, 502);
+  assert.equal((await read([rights[0], rights[0]], offers)).status, 502);
+  assert.equal((await read([{ ...rights[0], grant_id: "unrelated" }, rights[1]], offers)).status, 502);
+  assert.equal((await read(rights, [{ ...offers[0], offer_json: "{}" }, offers[1]])).status, 502);
 });
