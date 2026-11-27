@@ -1,6 +1,7 @@
 // Opt-in deployed-browser acceptance. NEVER target production or use live Stripe.
 // The origin, users, media fixtures and keys must be provisioned out of band.
 // The workflow must FAIL, not substitute local module-level identity mocks.
+import { prepareCommerceBrowser } from "./commerce-browser-readiness.mjs";
 import assert from "node:assert/strict";
 import { randomUUID, createHash } from "node:crypto";
 import fs from "node:fs";
@@ -37,6 +38,11 @@ assert.match(origin.hostname, /(?:^|[.-])(?:qa|staging)(?:[.-])/i);
 const isEphemeralQaWorker =
   origin.hostname === "cove-commerce-customer-qa-stage.cove-qa-reads.workers.dev";
 if (isEphemeralQaWorker) {
+  assert.match(
+    q.COVE_QA_INGRESS_INSTANCE || "",
+    /^[a-f0-9]{32}$/,
+    "Run-bound QA browser instance required",
+  );
   assert.match(
     q.COVE_QA_STAGE_BEARER || "",
     /^[a-f0-9]{64}$/,
@@ -79,6 +85,7 @@ const report = {
   revision: process.env.GITHUB_SHA || "unreported",
   target: "protected isolated QA origin",
   stripeMode: "test",
+  browserIngressPreparations: [],
   buyerAuthenticated: false,
   outsiderAuthenticated: false,
   protectedEpub: false,
@@ -116,8 +123,21 @@ async function openUser(email, password) {
   });
   contexts.push(context);
   const page = await context.newPage();
-  const navigated = await page.goto(origin.href, { waitUntil: "domcontentloaded" });
-  assert.equal(navigated.status(), 200, "QA preview must be browser-accessible");
+  if (isEphemeralQaWorker) {
+    const preparation = await prepareCommerceBrowser({
+      page,
+      origin: origin.href,
+      headers: qaIngressHeaders(),
+      instance: q.COVE_QA_INGRESS_INSTANCE,
+    });
+    report.browserIngressPreparations.push(preparation);
+    console.log("QA_BROWSER_INGRESS_READY", JSON.stringify(preparation));
+  } else {
+    const navigated = await page.goto(origin.href, { waitUntil: "domcontentloaded" });
+    assert.equal(navigated.status(), 200, "QA preview must be browser-accessible");
+  }
+  // The mutation is dispatched exactly once, only after this browser's own
+  // read-only preparation. Readiness can never replay a credential submission.
   const login = await request(page, "POST", "/auth/login", { login: email, password });
   // Log status only: never echo account email, password, session cookies or
   // arbitrary provider error responses into CI logs.

@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - "scripts/staging/check-publication-feed-live.mjs"
+      - "scripts/staging/publication-source-readiness*.mjs"
       - "scripts/staging/verify-pinned-publication-capture*.mjs"
       - "src/storefront-strangler/publication-capture.server.ts"
       - "src/storefront-strangler/publication-capture.worker.ts"
@@ -42,7 +43,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: node scripts/check-publication-feed.mjs
       - run: node --check scripts/staging/check-publication-feed-live.mjs
-      - run: node --test scripts/staging/verify-pinned-publication-capture.test.mjs
+      - run: node --test scripts/staging/verify-pinned-publication-capture.test.mjs scripts/staging/publication-source-readiness.test.mjs
   physically-isolated-publication:
     needs: offline-publication-boundary
     if: >-
