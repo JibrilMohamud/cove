@@ -246,7 +246,9 @@ test("readback requires the two exact current rights and the two exact offers", 
           fetch: async (url, init) => {
             assert.equal(init.headers.authorization, "Bearer " + env.OWNER_SECRET);
             const path = new URL(url).pathname;
-            assert.ok(["/commercial/authorize-batch", "/storefront/authorize-batch"].includes(path));
+            assert.ok(
+              ["/commercial/authorize-batch", "/storefront/authorize-batch"].includes(path),
+            );
             return path === "/commercial/authorize-batch"
               ? Response.json({ schema: "cove.commercial-legal.v1", rows: legal })
               : Response.json({ schema: "cove.storefront-owner.v1", rows: prices });
@@ -259,6 +261,9 @@ test("readback requires the two exact current rights and the two exact offers", 
   assert.equal((await read([], [])).status, 409);
   assert.equal((await read([], offers)).status, 502);
   assert.equal((await read([rights[0], rights[0]], offers)).status, 502);
-  assert.equal((await read([{ ...rights[0], grant_id: "unrelated" }, rights[1]], offers)).status, 502);
+  assert.equal(
+    (await read([{ ...rights[0], grant_id: "unrelated" }, rights[1]], offers)).status,
+    502,
+  );
   assert.equal((await read(rights, [{ ...offers[0], offer_json: "{}" }, offers[1]])).status, 502);
 });
