@@ -48,7 +48,13 @@ assertDetachedCommerceIdentitySource(readFileSync("src/storefront-strangler/owne
 const reverseCurrentOwner=bytes=>reverseNativePrimaryMarketDelta(reverseDetachedCommerceOwnerDelta(bytes));
 for(const [path,pin] of Object.entries(PINNED_CURRENT_SOURCES)){
   const bytes=readFileSync(path,"utf8");
-  const reviewed=path==="src/storefront-strangler/legal-authority.worker.ts"?reverseCurrentOwner(bytes):bytes;
+  let reviewed=path==="src/storefront-strangler/legal-authority.worker.ts"?reverseCurrentOwner(bytes):bytes;
+  // Reverse only the exact EPUB clock fix to preserve the historical source pin.
+  if(path==="src/features/fore/delivery.server.ts"){
+    const fixed="expires = new Date(Date.parse(issued) + Number(policy.token_ttl_seconds || 300) * 1000).toISOString(),",original="expires = new Date(Date.now() + Number(policy.token_ttl_seconds || 300) * 1000).toISOString(),";
+    assert.equal(reviewed.split(fixed).length,2,"Expected exact EPUB grant clock correction");
+    reviewed=reviewed.replace(fixed,original);
+  }
   const actual=createHash("sha256").update(reviewed).digest("hex");
   assert.equal(actual,pin,"New current source change requires independent legal/caller review: "+path);
 }

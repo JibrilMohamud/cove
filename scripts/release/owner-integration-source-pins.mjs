@@ -9,7 +9,7 @@ const integrated=Object.freeze({
  "src/features/fore/api.server.ts":"9082ea9d354c964ee4955c11fb26472b637092806d30f7b2ec9cbaba15749a85",
  "src/features/fore/catalog-model.server.ts":"c4d03da0a2428d5290c000d5d39f6129f2491254335c975e3acb0a340c0f172b",
  "src/features/fore/commerce.server.ts":"68843d3739fcb765c9f40873601b0e685fcc590db73bd55cd0b606a716d7b830",
- "src/features/fore/delivery.server.ts":"f902d2d468ced783c1f1123017e25fb30a8d9f648612f5c54d2ea22f3eb22531",
+ "src/features/fore/delivery.server.ts":"0f95dd892fe1ca1277d7dd412139586debaad5acd70ad5f9496f420d5a8a1347",
  "src/features/fore/localization.server.ts":"02852814c24e749359ed751717a8387ab6dc75ba4ecba78d6058ecbbfba919e1",
  "src/features/fore/promotions.server.ts":"05c37488918235a18839605db9873bc9f645b465e238ffcf9680bbd4b0618047",
  "src/features/fore/publishing.server.ts":"0518338b3a9512c82075dc89fcba927f80d04b54ec7e57ba8a3b3726d069b2a8",

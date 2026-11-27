@@ -385,6 +385,30 @@ try {
     productId: q.COVE_QA_EPUB_PRODUCT_ID,
     purpose: "read",
   });
+  if (grant.status !== 201) {
+    // Fixed metadata only: never log a bearer URL, response body or buyer data.
+    const message = typeof grant.data?.error === "string" ? grant.data.error : "";
+    const phases = {
+      "Private legal owner refused commercial EPUB grant.": "owner-rejected",
+      "Commercial EPUB grant requires private legal authority.": "owner-context-missing",
+      "Protected paid-entitlement owner unavailable.": "owner-proof-transport",
+      "Paid entitlement proof malformed.": "owner-proof-malformed",
+      "Paid entitlement proof expired or corrupt.": "owner-proof-invalid",
+      "Paid entitlement owner is not configured or scoped.": "owner-proof-scope",
+      "The commercial asset is not present in Cove-controlled storage.": "asset-storage",
+      "This title's contract requires a DRM form that is not present on the resolved commercial asset.":
+        "asset-drm",
+      "This title requires an external DRM/key-wrapping service that is not configured for direct EPUB delivery.":
+        "external-drm",
+    };
+    const phase = Object.hasOwn(phases, message) ? phases[message] : "unclassified";
+    console.error("Purchased EPUB grant failure", {
+      status: grant.status,
+      phase,
+      appHeader: grant.appHeader,
+      redirected: grant.redirected,
+    });
+  }
   assert.equal(grant.status, 201, "Purchased EPUB grant must be issued by private owner");
   const grantUrl = new URL(grant.data?.url, origin);
   assert.equal(grantUrl.origin, origin.origin);

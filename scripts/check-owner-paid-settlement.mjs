@@ -289,6 +289,107 @@ try{
     assert.equal(hosted.primary.prepare("SELECT COUNT(*) n FROM finance_royalty_allocations WHERE status=\'held\'").get().n,2);
     assert.equal(hosted.primary.prepare("SELECT SUM(amount_minor) n FROM commerce_ledger_entries").get().n,0);
     const hostedComplete=hosted.snapshot();assert.equal((await hosted.command()).status,200);assert.deepEqual(hosted.snapshot(),hostedComplete);
+    // Extend the paid fixture through the real owner routes; settlement alone
+    // does not establish that the private delivery owner accepts or spends a grant.
+    const purchased=hosted.primary.prepare("SELECT id,user_id,product_id FROM entitlements WHERE product_id=? AND status='active'").get("prd_qa_owner_v2_ebook");
+    assert.ok(purchased);
+    hosted.insert("digital_assets",{id:"qa-owner-v2-ebook-asset",edition_id:"qa-owner-v2-ebook-edition",kind:"epub",current_version_id:"qa-owner-v2-ebook-v1",created_at:at,updated_at:at});
+    hosted.insert("asset_versions",{id:"qa-owner-v2-ebook-v1",asset_id:"qa-owner-v2-ebook-asset",version_number:1,object_key:"original-fixtures/cove-synthetic-qa.epub",mime_type:"application/epub+zip",created_at:at});
+    const issuedAt=new Date().toISOString();
+    const grant={grantId:"grant_qa_hosted_read",tokenHash:"a".repeat(64),userId:purchased.user_id,productId:purchased.product_id,entitlementId:purchased.id,publicationVersionId:null,assetVersionId:"qa-owner-v2-ebook-v1",deviceId:null,purpose:"read",watermarkId:null,policySnapshotJson:JSON.stringify({maxUses:2,ttlSeconds:300,maxDownloads:50,encryptionMode:"none",contractPolicy:{}}),issuedAt,expiresAt:new Date(Date.parse(issuedAt)+300000).toISOString(),maxUses:2,territory:"US",channel:"retail"};
+    const issue=(payload)=>hosted.owner.fetch(hosted.request("/delivery/private-issue-epub-grant",payload));
+    const consume=(payload)=>hosted.owner.fetch(hosted.request("/delivery/private-consume-epub-grant",payload));
+    // Fail closed on a millisecond beyond policy, foreign asset or buyer.
+    for(const mutation of [{expiresAt:new Date(Date.parse(issuedAt)+300001).toISOString()},{assetVersionId:"foreign_asset_version"},{userId:"sb:87654321-1234-4abc-8def-123456789abc"}]){
+      assert.notEqual((await issue({...grant,...mutation})).status,200);
+    }
+    const issued=await issue(grant);
+    assert.equal(issued.status,200,"Actual private owner must issue paid EPUB grant after settlement");
+    assert.deepEqual(await issued.json(),{schema:"cove.owner-epub-grant.v1",ownerFirst:true,grantId:grant.grantId,saved:true});
+    const spend={grantId:grant.grantId,tokenHash:grant.tokenHash,territory:"US",channel:"retail"};
+    assert.notEqual((await consume({...spend,tokenHash:"b".repeat(64)})).status,200);
+    for(const uses of [1,2]){
+      const consumed=await consume(spend);
+      assert.equal(consumed.status,200,"Actual private owner must redeem paid EPUB grant");
+      assert.equal((await consumed.json()).uses,uses);
+    }
+    assert.notEqual((await consume(spend)).status,200,"Exhausted bearer must not redeem");
+    const persisted=hosted.primary.prepare("SELECT status,uses FROM commercial_delivery_grants WHERE id=?").get(grant.grantId);
+    assert.equal(persisted.status,"exhausted");assert.equal(persisted.uses,2);
+    assert.ok(readFileSync("src/features/fore/delivery.server.ts","utf8").includes("expires = new Date(Date.parse(issued) + Number(policy.token_ttl_seconds || 300) * 1000).toISOString(),"),"Caller must derive expiry from the identical issued timestamp");
+    // Run the *actual caller* through the same staging write lock and owner
+    // routing used by hosted requests. Direct owner tests alone do not see
+    // a post-commit failure in the public caller's download audit.
+    const mediaFile=join(folder,"locked-media.mjs");
+    await build({stdin:{resolveDir:process.cwd(),contents:
+      'export {issueCommercialEpubGrant,serveCommercialEpubGrant} from "./src/features/fore/delivery.server.ts";'+
+      'export {issueOfflineEpubLicense,offlineEpubVerificationKey} from "./src/features/fore/offline-epub.server.ts";'+
+      'export {registerDevice,revokeDevice} from "./src/features/fore/account-management.server.ts";'+
+      'export {hasAudioAccess} from "./src/features/fore/commercial-audio.server.ts";'+
+      'export {scopePublicationOwnerEnv} from "./src/storefront-strangler/publication-owner-routing.server.ts";'+
+      'export {makeStageLegalWriterLock} from "./src/storefront-strangler/legal-primary-write-lock.ts";'},
+      outfile:mediaFile,bundle:true,format:"esm",platform:"node",target:"node22",logLevel:"silent",
+      alias:{jszip:"jszip/dist/jszip.min.js"}});
+    const media=await import(pathToFileURL(mediaFile).href);
+    const pair=await crypto.subtle.generateKey({name:"ECDSA",namedCurve:"P-256"},true,["sign","verify"]);
+    const bytes=new Uint8Array([69,80,85,66,81,65]);
+    const mediaEnv=media.scopePublicationOwnerEnv({
+      DB:media.makeStageLegalWriterLock(hosted.DB),COVE_PUBLICATION_COMMANDS_ENABLED:"1",
+      COVE_PUBLICATION_COMMAND_TERRITORY:"US",COVE_PUBLICATION_COMMAND_CURRENCY:"USD",
+      COVE_SSR_STAGING:"1",COVE_CANONICAL_LEGAL_WRITE_LOCK:"1",COVE_LEGAL_CONSUMER_STAGE_ENABLED:"1",
+      COVE_LEGAL_WRITER_PRIMARY_ID:hosted.env.COVE_RIGHTS_OWNER_PRIMARY_ID,COVE_RIGHTS_OWNER_SECRET:secret,
+      LEGAL_AUTHORITY:hosted.env.LEGAL_AUTHORITY,FORE_DEFAULT_TERRITORY:"US",
+      FORE_OFFLINE_AUDIO_SIGNING_JWK:JSON.stringify(await crypto.subtle.exportKey("jwk",pair.privateKey)),
+      BUCKET:{async get(key){assert.equal(key,"original-fixtures/cove-synthetic-qa.epub");return {body:bytes,size:bytes.length};}}
+    });
+    const webRequest=new Request("https://qa.test/api/fore/delivery/epub/grant",{headers:{"cf-ipcountry":"US"}});
+    const buyer=purchased.user_id,other="sb:87654321-1234-4abc-8def-123456789abc",productId=purchased.product_id;
+    for(const id of [buyer,other])hosted.insert("auth_accounts",{provider_id:id.slice(3),app_id:id,email:id.slice(3)+"@test.invalid",created_at:at});
+    const requestGrant=(user=buyer)=>media.issueCommercialEpubGrant(mediaEnv,user,{productId,purpose:"read"},webRequest);
+    await assert.rejects(()=>requestGrant(other),e=>e.status===403);
+    const readGrant=await requestGrant();
+    const redeem=(value,deviceId)=>media.serveCommercialEpubGrant(mediaEnv,value.url.split("/").at(-1),
+      new Request("https://qa.test"+value.url,{headers:{"cf-ipcountry":"US",...(deviceId?{"x-fore-device-id":deviceId}:{})}}));
+    const delivered=await redeem(readGrant);
+    assert.equal(delivered.status,200);
+    assert.deepEqual(new Uint8Array(await delivered.arrayBuffer()),bytes);
+    assert.equal(hosted.primary.prepare("SELECT COUNT(*) n FROM commercial_download_audit WHERE grant_id=? AND event_type IN ('grant_issued','stream_started')").get(readGrant.grantId).n,2);
+    const registration={deviceKey:"qa-hosted-registered-device",name:"Isolated QA",platform:"reader"};
+    const device=await media.registerDevice(mediaEnv.DB,buyer,webRequest,registration);
+    const outsider=await media.registerDevice(mediaEnv.DB,other,webRequest,registration);
+    const license=()=>media.issueOfflineEpubLicense(mediaEnv,buyer,{productId,deviceKey:registration.deviceKey},webRequest);
+    await assert.rejects(()=>media.issueOfflineEpubLicense(mediaEnv,other,{productId,deviceKey:registration.deviceKey},webRequest),e=>e.status===403);
+    const receipt=await license();
+    const claims=JSON.parse(Buffer.from(receipt.receipt.payload,"base64url").toString("utf8"));
+    assert.equal(claims.userId,buyer);assert.equal(claims.productId,productId);
+    assert.equal(Date.parse(claims.expiresAt)-Date.parse(claims.issuedAt),7*86400000);
+    const verification=await media.offlineEpubVerificationKey(mediaEnv);
+    assert.equal(verification.keyId,receipt.receipt.keyId);
+    assert.equal(await crypto.subtle.verify({name:"ECDSA",hash:"SHA-256"},pair.publicKey,
+      Buffer.from(receipt.receipt.signature,"base64url"),new TextEncoder().encode("cove-offline-epub:v1\n"+receipt.receipt.payload)),true);
+    await assert.rejects(()=>redeem(receipt,outsider.id),e=>e.status===403);
+    assert.equal((await redeem(receipt,device.id)).status,200);
+    assert.equal(hosted.primary.prepare("SELECT download_count FROM commercial_entitlement_delivery_usage WHERE entitlement_id=?").get(purchased.id).download_count,1);
+    await media.revokeDevice(mediaEnv.DB,buyer,device.id,webRequest);
+    await assert.rejects(()=>redeem(receipt,device.id),e=>e.status===410);
+    await assert.rejects(license,e=>e.status===428);
+    const replacement=await media.registerDevice(mediaEnv.DB,buyer,webRequest,{...registration,deviceKey:"qa-hosted-replacement-device"});
+    const freshOffline=await media.issueOfflineEpubLicense(mediaEnv,buyer,{productId,deviceKey:"qa-hosted-replacement-device"},webRequest);
+    assert.equal(await media.hasAudioAccess(mediaEnv.DB,buyer,"prd_qa_owner_v2_audio","US"),true);
+    assert.equal(await media.hasAudioAccess(mediaEnv.DB,other,"prd_qa_owner_v2_audio","US"),false);
+    // Deny-first actual private refund revocation command, not a fabricated
+    // active/revoked entitlement. The provider refund is tested separately.
+    const deniedAccess=await hosted.owner.fetch(hosted.request("/commercial/order/revoke",{orderId,operationId:"refund:qa-media-lifecycle"}));
+    assert.equal(deniedAccess.status,200);
+    assert.equal(hosted.primary.prepare("SELECT status FROM commercial_delivery_grants WHERE id=?").get(readGrant.grantId).status,"revoked");
+    await assert.rejects(()=>redeem(readGrant),e=>e.status===410);
+    await assert.rejects(()=>redeem(freshOffline,replacement.id),e=>e.status===410);
+    await assert.rejects(()=>requestGrant(),e=>e.status===403);
+    await assert.rejects(()=>media.issueOfflineEpubLicense(mediaEnv,buyer,{productId,deviceKey:"qa-hosted-replacement-device"},webRequest),e=>e.status===403);
+    assert.equal(await media.hasAudioAccess(mediaEnv.DB,buyer,"prd_qa_owner_v2_audio","US"),false);
+    console.log("PASS: real locked caller, private grant and redemption, download audit, signed device-bound offline EPUB, device revocation and deny-first refund access");
+
+
   }finally{globalThis.fetch=nativeFetch;}
   console.log(`PASS: ${batchSize} atomic failure boundaries, mixed tender, multi-line accounting, transaction-current races, lost ACK/replay, preorder reservation, real owner restart, pending-proof exclusion, provider provenance and terminal denial`);
 }finally{databases.forEach(x=>x.close());rmSync(folder,{recursive:true,force:true});}
