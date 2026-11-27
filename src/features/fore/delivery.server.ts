@@ -598,7 +598,7 @@ export async function issueCommercialEpubGrant(
     hash = await sha256(rawToken),
     grantId = uid("grant"),
     issued = now(),
-    expires = new Date(Date.now() + Number(policy.token_ttl_seconds || 300) * 1000).toISOString(),
+    expires = new Date(Date.parse(issued) + Number(policy.token_ttl_seconds || 300) * 1000).toISOString(),
     watermarkId = String(policy.watermark_mode) === "license_marker" ? uid("wm") : null,
     policySnapshot = {
       requireDeviceRegistration: !!policy.require_device_registration,

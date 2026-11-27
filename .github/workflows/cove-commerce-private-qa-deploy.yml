@@ -8,6 +8,13 @@ on:
       - "scripts/staging/upload-original-commerce-qa-media.mjs"
       - "scripts/staging/seed-original-commerce-qa-catalog.mjs"
       - "scripts/staging/original-commerce-qa-royalties.mjs"
+      - "scripts/staging/original-commerce-qa-catalog.mjs"
+      - "src/storefront-strangler/legal-primary-write-lock.ts"
+      - "scripts/check-legal-primary-write-lock.mjs"
+      - "src/storefront-strangler/legal-authority.worker.ts"
+      - "src/features/fore/commercial-audio.server.ts"
+      - "src/features/fore/offline-epub.server.ts"
+      - "src/features/fore/account-management.server.ts"
       - "scripts/check-owner-paid-settlement.mjs"
       - "src/features/fore/delivery.server.ts"
       - "src/features/fore/commerce.server.ts"
@@ -65,8 +72,10 @@ jobs:
         run: node scripts/staging/check-detached-commerce-credentials.mjs --offline
       - name: Prove run-bound bridge readiness and unauthorized denial
         run: node --test scripts/staging/verify-detached-commerce-bridge.test.mjs
-      - name: Prove the exact hosted royalty fixture through full-schema owner settlement
-        run: node scripts/check-owner-paid-settlement.mjs
+      - name: Prove the exact hosted catalog through owner settlement, delivery, offline, audio and refund
+        run: |
+          node scripts/check-legal-primary-write-lock.mjs
+          node scripts/check-owner-paid-settlement.mjs
       - name: Prove nullable delivery terms and independent Stripe refund provenance
         run: |
           node scripts/check-commercial-epub-asset-scope.mjs

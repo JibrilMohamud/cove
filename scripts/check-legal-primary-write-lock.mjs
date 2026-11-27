@@ -97,6 +97,15 @@ try {
     assert.throws(()=>guardProtectedLegalSql(sql),
       /canonical_legal_write_requires_owner_fence/);
   }
+  const deliveryAudit="INSERT INTO commercial_download_audit(id,grant_id,user_id,product_id,entitlement_id,asset_version_id,publication_version_id,device_id,event_type,bytes_served,ip_country,user_agent,reason_code,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+  assert.deepEqual(classifyProtectedLegalSql(deliveryAudit),[]);
+  for(const sql of [deliveryAudit+"; UPDATE entitlements SET status='active'",
+    deliveryAudit.replace("INSERT INTO","INSERT OR REPLACE INTO"),
+    deliveryAudit.replace("event_type,","event_type,"+"other_column,"),
+    "DELETE FROM commercial_download_audit","UPDATE commercial_download_audit SET reason_code='x'",
+    "INSERT INTO commercial_download_audit(id) VALUES(?)"]){
+    assert.throws(()=>guardProtectedLegalSql(sql),/canonical_legal_write_requires_owner_fence/);
+  }
   const allow=[
     "SELECT * FROM rights_grants WHERE edition_id=?",
     "SELECT product_id FROM offers WHERE active=1",

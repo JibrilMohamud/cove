@@ -41,6 +41,12 @@ const NONAUTH_AUDIO_POSITION_SQL=new Set([
   // Account deletion can erase progress but cannot thereby grant access.
   "DELETE"+" FROM commercial_audio_playback WHERE user_id=?",
 ]);
+// Independently reviewed non-authorizing delivery telemetry. The one exact
+// append-only statement records issuance/consumption/denial AFTER the owner
+// decision. It cannot grant access, change counters or modify a grant.
+// Keep this staging-only exception separate from physical production writer
+// exclusivity. No table-wide exemption, arbitrary INSERT or SQL replay.
+const NONAUTH_DELIVERY_AUDIT_SQL="INSERT"+" INTO commercial_download_audit(id,grant_id,user_id,product_id,entitlement_id,asset_version_id,publication_version_id,device_id,event_type,bytes_served,ip_country,user_agent,reason_code,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 // SQLite accepts SQL comments BETWEEN mutation keywords and object names.
 // Scrubbing via a regex is unsafe: a quoted literal containing "--" could
 // remove all subsequent SQL, including a later unowned legal mutation.
@@ -84,7 +90,7 @@ export function classifyProtectedLegalSql(sql:string) {
     throw Error("invalid_legal_sql");
   // Match the reviewed safe SQL *exactly*, never normalized whitespace,
   // comments or substrings that could hide a second protected statement.
-  if(NONAUTH_AUDIO_POSITION_SQL.has(sql))return [];
+  if(NONAUTH_AUDIO_POSITION_SQL.has(sql)||sql===NONAUTH_DELIVERY_AUDIT_SQL)return [];
   // Writable CTEs and multi-statement strings stay visible, even if an
   // untrusted-looking SQL fragment interposes comments between tokens.
   const visible=neutralizeSqlComments(sql);
