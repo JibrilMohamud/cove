@@ -12,6 +12,7 @@ on:
         "scripts/performance/real-catalog-snapshot-safety.test.mjs",
         "scripts/staging/stage-presentation-storage*.mjs",
         "scripts/staging/seed-versioned-presentation.mjs",
+        "scripts/staging/isolated-presentation-read*.mjs",
         "scripts/check-storefront-v2-primary-prefix.mjs",
         ".github/workflows/fast-storefront-real-catalog-acceptance.yml",
       ]
@@ -49,6 +50,8 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Verify identity-bound cover integrity
         run: node --test scripts/performance/visual-cover-fixtures.test.mjs
+      - name: Verify isolated read-only preparation and provider failure handling
+        run: node --test scripts/staging/isolated-presentation-read.test.mjs
       - name: Fail closed for direct production D1, 50k synthetic substitutes and absent snapshot
         run: |
           node --test scripts/performance/real-catalog-snapshot-safety.test.mjs
