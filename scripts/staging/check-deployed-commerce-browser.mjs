@@ -385,7 +385,17 @@ try {
     productId: q.COVE_QA_EPUB_PRODUCT_ID,
     purpose: "read",
   });
+  const grantEvidence = await qaD1(
+    `SELECT g.purpose,g.status,COUNT(a.id) AS audits FROM commercial_delivery_grants g
+     JOIN entitlements e ON e.id=g.entitlement_id JOIN commerce_order_items i ON i.id=e.order_item_id
+     LEFT JOIN commercial_download_audit a ON a.grant_id=g.id AND a.event_type=\'grant_issued\'
+     WHERE i.order_id=? GROUP BY g.id,g.purpose,g.status`,
+    [ebook.orderId],
+  );
+  console.log("QA_EPUB_GRANT_STATE", grant.status, JSON.stringify(grantEvidence));
   assert.equal(grant.status, 201, "Purchased EPUB grant must be issued by private owner");
+  assert.equal(grantEvidence.length, 1);
+  assert.equal(Number(grantEvidence[0].audits), 1);
   const grantUrl = new URL(grant.data?.url, origin);
   assert.equal(grantUrl.origin, origin.origin);
   const book = await buyer.evaluate(async (path) => {

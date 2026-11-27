@@ -1,6 +1,8 @@
 /* eslint-disable prettier/prettier -- Real SQLite transactions, full schema and actual private owner handlers. */
 import assert from "node:assert/strict";
 import {isPaidOwnerQaSchemaTable} from "./staging/paid-owner-schema-policy.mjs";
+import {originalCommerceQaCatalogSql} from "./staging/original-commerce-qa-catalog.mjs";
+import JSZip from "jszip";
 import {originalQaRoyaltyStatements,originalQaRoyaltyCoverageSql,assertOriginalQaRoyaltyCoverage} from "./staging/original-commerce-qa-royalties.mjs";
 import {DatabaseSync} from "node:sqlite";
 import {build} from "esbuild";
@@ -22,6 +24,19 @@ try{
   const {testPaidSettlement:post,testBindFinance}=await loadPrivateFinance(join(folder,"transaction.mjs"));
   const {CoveLegalAuthority,default:worker}=await load("src/storefront-strangler/legal-authority.worker.ts","owner",true);
   const {finalizePaidOrder}=await load("src/features/fore/commerce.server.ts","caller");
+  // All real caller modules share the very same publication owner WeakMap.
+  const journeyFile=join(folder,"journey.mjs");
+  await build({stdin:{resolveDir:process.cwd(),contents:`
+    export {issueCommercialEpubGrant,serveCommercialEpubGrant} from "./src/features/fore/delivery.server";
+    export {issueOfflineEpubLicense,offlineEpubVerificationKey} from "./src/features/fore/offline-epub.server";
+    export {registerDevice,revokeDevice} from "./src/features/fore/account-management.server";
+    export {handleCommercialAudio} from "./src/features/fore/commercial-audio.server";
+    export {resolveProductRights} from "./src/features/fore/rights.server";
+    export {refundOrder} from "./src/features/fore/commerce.server";
+    export {scopeStageLegalWriterEnv} from "./src/storefront-strangler/legal-primary-write-lock";
+    export {scopePublicationOwnerEnv} from "./src/storefront-strangler/publication-owner-routing.server";
+  `},outfile:journeyFile,bundle:true,format:"esm",platform:"node",target:"node22",logLevel:"silent",alias:{jszip:"jszip/dist/jszip.min.js"}});
+  const journey=await import(pathToFileURL(journeyFile).href);
   const {makeStageLegalWriterLock}=await load("src/storefront-strangler/legal-primary-write-lock.ts","lock");
   const legal=await load("src/storefront-strangler/commercial-legal-core.ts","legal");
   const {ownerSettlementDiagnostic:diagnostic}=await load(
@@ -56,13 +71,14 @@ try{
   const internalPayment={provider:"internal",paymentIntentId:null,chargeId:null,receiptUrl:null,paymentMethod:"Internal balance"};
   const templatePath=join(folder,"schema.sqlite"),template=new DatabaseSync(templatePath);
   migrations.forEach(sql=>template.exec(sql));template.close();let fixtureNumber=0;
-  function fixture({stripe=50,gift=30,store=20,count=2,preorder=false,buyerId=userId,hostedFixture=false}={}){
+  function fixture({stripe=50,gift=30,store=20,count=2,preorder=false,buyerId=userId,hostedFixture=false,fullHostedFixture=false}={}){
     const userId=buyerId;
     const fixturePath=join(folder,"fixture-"+(fixtureNumber++)+".sqlite");copyFileSync(templatePath,fixturePath);
     const primary=new DatabaseSync(fixturePath),owned=new DatabaseSync(":memory:");databases.push(primary,owned);
     primary.exec("PRAGMA foreign_keys=ON; PRAGMA journal_mode=MEMORY; PRAGMA synchronous=OFF");
     const insert=(table,row)=>{const keys=Object.keys(row);primary.prepare(`INSERT INTO ${table}(${keys.join(',')}) VALUES(${keys.map(()=>'?').join(',')})`).run(...keys.map(k=>row[k]));};
-    if(!hostedFixture){
+    if(fullHostedFixture)primary.exec(originalCommerceQaCatalogSql(at));
+    if(!hostedFixture&&!fullHostedFixture){
     insert("finance_parties",{id:"party_atomic",party_type:"author",display_name:"Fixture author",created_at:at,updated_at:at});
     insert("finance_royalty_contracts",{id:"finance_contract_atomic",name:"Fixture terms",effective_from:at,created_at:at,updated_at:at});
     insert("finance_royalty_contract_versions",{id:"finance_version_atomic",contract_id:"finance_contract_atomic",version:1,effective_from:at,created_at:at});
@@ -81,13 +97,17 @@ try{
     const fixtureProducts=[];
     for(let i=0;i<count;i++){
       const key=i===0?"ebook":"audio";
-      const productId=hostedFixture?"prd_qa_owner_v2_"+key:"prd_atomic_settlement_"+i;
-      const editionId=hostedFixture?"qa-owner-v2-"+key+"-edition":"edition_atomic_"+i;
+      const productId=hostedFixture||fullHostedFixture?"prd_qa_owner_v2_"+key:"prd_atomic_settlement_"+i;
+      const editionId=hostedFixture||fullHostedFixture?"qa-owner-v2-"+key+"-edition":"edition_atomic_"+i;
       fixtureProducts.push({productId,editionId});
+      if(!fullHostedFixture){
       insert("works",{id:"work_atomic_"+i,title:"Atomic title",created_at:at,updated_at:at});
       insert("editions",{id:editionId,work_id:"work_atomic_"+i,title:"Atomic title",release_status:preorder?"preorder":"released",release_date:preorder?"2099-01-01T00:00:00Z":null,created_at:at,updated_at:at});
       insert("products",{id:productId,edition_id:editionId,sku:productId,format:hostedFixture&&i===1?"audiobook":"ebook",source_name:"publisher",source_external_id:productId,created_at:at,updated_at:at});
-      insert("commerce_order_items",{id:"item_atomic_settlement_"+i,order_id:orderId,product_id:productId,title_snapshot:"Atomic title",sku_snapshot:productId,unit_amount_minor:total/count,total_minor:total/count,rights_grant_id:"grant_atomic_"+i,rights_snapshot_json:JSON.stringify({grantId:"grant_atomic_"+i,editionId,contractId:"contract_atomic",contractVersionId:"contract_version_atomic",territory:"US",salesChannel:"retail"}),created_at:at});
+      }
+      const grantId=fullHostedFixture?"qa-owner-v2-"+key+"-us-retail":"grant_atomic_"+i;
+      const contractId=fullHostedFixture?"qa-owner-v2-contract":"contract_atomic",contractVersionId=fullHostedFixture?"qa-owner-v2-contract-v1":"contract_version_atomic";
+      insert("commerce_order_items",{id:"item_atomic_settlement_"+i,order_id:orderId,product_id:productId,title_snapshot:"Atomic title",sku_snapshot:productId,unit_amount_minor:total/count,total_minor:total/count,rights_grant_id:grantId,rights_snapshot_json:JSON.stringify({grantId,editionId,contractId,contractVersionId,territory:"US",salesChannel:"retail"}),created_at:at});
       if(preorder){
         insert("publishing_accounts",{id:"account_atomic_"+i,account_type:"person",legal_name:"Fixture",display_name:"Fixture",country_code:"US",created_at:at,updated_at:at});
         insert("publishing_titles",{id:"title_atomic_"+i,account_id:"account_atomic_"+i,title:"Fixture",created_at:at,updated_at:at});
@@ -112,7 +132,7 @@ try{
     const env={PRIMARY_DB:DB,COVE_RIGHTS_OWNER_ENABLED:"1",COVE_RIGHTS_OWNER_PRIMARY_ID:"7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",COVE_RIGHTS_OWNER_TEST_EXPIRES_AT:String(Date.now()+10*60_000),COVE_RIGHTS_OWNER_SECRET:secret,STRIPE_LIVEMODE:"false",STRIPE_TAX_ENABLED:"false",STRIPE_SECRET_KEY:"sk_test_fixture_only"};
     const ctx={storage:{sql,transactionSync(fn){owned.exec("BEGIN");try{const r=fn();owned.exec("COMMIT");return r;}catch(e){owned.exec("ROLLBACK");throw e;}}}};
     let owner=new CoveLegalAuthority(ctx,env);
-    for(let i=0;i<count;i++)legal.publishFreshCommercialProof(sql,{...fixtureProducts[i],grantId:"grant_atomic_"+i,contractId:"contract_atomic",contractVersionId:"contract_version_atomic",territory:"US",channel:"retail",validUntil:new Date(Date.now()+10*60_000).toISOString()},0);
+    if(!fullHostedFixture)for(let i=0;i<count;i++)legal.publishFreshCommercialProof(sql,{...fixtureProducts[i],grantId:"grant_atomic_"+i,contractId:"contract_atomic",contractVersionId:"contract_version_atomic",territory:"US",channel:"retail",validUntil:new Date(Date.now()+10*60_000).toISOString()},0);
     env.LEGAL_AUTHORITY={getByName(){return owner;}};
     const request=(path,body)=>new Request("https://legal-authority.internal"+path,{method:"POST",headers:{authorization:"Bearer "+secret,"content-type":"application/json"},body:JSON.stringify(body)});
     const command=(body={orderId})=>worker.fetch(request("/commercial/order/settle",body),env);
@@ -289,6 +309,99 @@ try{
     assert.equal(hosted.primary.prepare("SELECT COUNT(*) n FROM finance_royalty_allocations WHERE status=\'held\'").get().n,2);
     assert.equal(hosted.primary.prepare("SELECT SUM(amount_minor) n FROM commerce_ledger_entries").get().n,0);
     const hostedComplete=hosted.snapshot();assert.equal((await hosted.command()).status,200);assert.deepEqual(hosted.snapshot(),hostedComplete);
+    // Exercise the actual hosted fixture, actual caller with the stage lock,
+    // actual owner and all migrations. Only Stripe/R2 external transport and
+    // the already independently hosted-authenticated identities are simulated.
+    const buyer="sb:12345678-1234-4abc-8def-123456789abc",outsider="sb:abcdef01-2345-4abc-8def-123456789abc";
+    const bookProduct="prd_qa_owner_v2_ebook",audioProduct="prd_qa_owner_v2_audio";
+    const full=fixture({stripe:200,gift:0,store:0,fullHostedFixture:true,buyerId:buyer});
+    assert.equal(full.primary.prepare("SELECT count(*) n FROM sqlite_master WHERE type='trigger' AND tbl_name='commercial_download_audit'").get().n,0,
+      "Non-authorizing audit append cannot trigger a grant or other mutation");
+    for(const productId of [bookProduct,audioProduct]){
+      const decision=await journey.resolveProductRights(full.DB,productId,"US",{salesChannel:"retail",persist:false});
+      assert.equal(decision.allowed,true,"Exact original catalog must authorize "+productId);
+      full.primary.prepare("UPDATE commerce_order_items SET rights_snapshot_json=? WHERE product_id=?")
+        .run(JSON.stringify(decision),productId);
+      for(const path of ["/commercial/publish-verified","/storefront/publish-commercial"]){
+        const result=await full.owner.fetch(full.request(path,{productId,territory:"US",currency:"USD",channel:"retail"}));
+        assert.equal(result.status,200,path+" "+productId);
+      }
+    }
+    const fullSettled=await full.command();
+    assert.equal(fullSettled.status,200,fullSettled.headers.get("x-cove-owner-settlement-failure")||"Full hosted catalog settlement");
+    const archive=new JSZip();archive.file("chapter.xhtml","Original synthetic content");
+    const epub=await archive.generateAsync({type:"uint8array"}),wav=new Uint8Array(48044);
+    const keys=await crypto.subtle.generateKey({name:"ECDSA",namedCurve:"P-256"},true,["sign","verify"]);
+    const scoped=journey.scopePublicationOwnerEnv(journey.scopeStageLegalWriterEnv({
+      DB:full.DB,COVE_SSR_STAGING:"1",COVE_CANONICAL_LEGAL_WRITE_LOCK:"1",
+      COVE_LEGAL_CONSUMER_STAGE_ENABLED:"1",COVE_PUBLICATION_COMMANDS_ENABLED:"1",
+      COVE_LEGAL_WRITER_PRIMARY_ID:full.env.COVE_RIGHTS_OWNER_PRIMARY_ID,
+      COVE_RIGHTS_OWNER_SECRET:secret,COVE_PUBLICATION_COMMAND_TERRITORY:"US",
+      COVE_PUBLICATION_COMMAND_CURRENCY:"USD",FORE_DEFAULT_TERRITORY:"US",
+      STRIPE_SECRET_KEY:"sk_test_fixture_only",STRIPE_LIVEMODE:"false",STRIPE_TAX_ENABLED:"false",
+      LEGAL_AUTHORITY:full.env.LEGAL_AUTHORITY,
+      FORE_OFFLINE_AUDIO_SIGNING_JWK:JSON.stringify(await crypto.subtle.exportKey("jwk",keys.privateKey)),
+      BUCKET:{async get(key){
+        const bytes=key==="original-fixtures/cove-synthetic-qa.epub"?epub:key==="original-fixtures/cove-synthetic-tone.wav"?wav:null;
+        assert.ok(bytes,"Unexpected media key");return {body:bytes,size:bytes.byteLength,async arrayBuffer(){return bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength);}};
+      }}
+    }));
+    const req=new Request("https://cove.test/api/fore/delivery/epub/grant",{headers:{"cf-ipcountry":"US"}});
+    const issue=(userId)=>journey.issueCommercialEpubGrant(scoped,userId,{productId:bookProduct,purpose:"read"},req);
+    await assert.rejects(()=>issue(outsider),e=>e.status===403);
+    const grant=await issue(buyer),token=grant.url.split("/").at(-1);
+    const grantRow=full.primary.prepare("SELECT * FROM commercial_delivery_grants WHERE id=?").get(grant.grantId);
+    assert.equal(Date.parse(grantRow.expires_at)-Date.parse(grantRow.issued_at),300000);
+    assert.equal(full.primary.prepare("SELECT COUNT(*) n FROM commercial_download_audit WHERE grant_id=? AND event_type='grant_issued'").get(grant.grantId).n,1);
+    const redeemed=await journey.serveCommercialEpubGrant(scoped,token,req);
+    assert.equal(redeemed.status,200);
+    const decoded=await JSZip.loadAsync(await redeemed.arrayBuffer());
+    assert.equal(await decoded.file("chapter.xhtml").async("string"),"Original synthetic content");
+    assert.equal(full.primary.prepare("SELECT uses FROM commercial_delivery_grants WHERE id=?").get(grant.grantId).uses,1);
+    assert.equal(full.primary.prepare("SELECT COUNT(*) n FROM commercial_download_audit WHERE grant_id=? AND event_type='stream_started'").get(grant.grantId).n,1);
+    const deviceKey="qa-11111111-1111-4111-8111-111111111111";
+    const device=await journey.registerDevice(scoped.DB,buyer,req,{deviceKey,name:"Isolated offline EPUB QA",platform:"playwright-test"});
+    assert.ok(device.id);
+    const offline=await journey.issueOfflineEpubLicense(scoped,buyer,{productId:bookProduct,deviceKey},req);
+    const claims=JSON.parse(Buffer.from(offline.receipt.payload,"base64url").toString());
+    assert.equal(claims.userId,buyer);assert.equal(claims.productId,bookProduct);
+    assert.equal(Date.parse(claims.expiresAt)-Date.parse(claims.issuedAt),7*86400000);
+    assert.equal(await crypto.subtle.verify({name:"ECDSA",hash:"SHA-256"},keys.publicKey,
+      Buffer.from(offline.receipt.signature,"base64url"),new TextEncoder().encode("cove-offline-epub:v1\n"+offline.receipt.payload)),true);
+    const outsiderKey="qa-22222222-2222-4222-8222-222222222222";
+    const outsiderDevice=await journey.registerDevice(scoped.DB,outsider,req,{deviceKey:outsiderKey,name:"Unentitled QA",platform:"playwright-test"});
+    await assert.rejects(()=>journey.issueOfflineEpubLicense(scoped,outsider,{productId:bookProduct,deviceKey:outsiderKey},req),e=>e.status===403);
+    assert.equal((await journey.revokeDevice(scoped.DB,outsider,outsiderDevice.id,req)).revoked,true);
+    const audioPath="/audio/ca_qa-owner-v2-audio-draft/tracks/intro";
+    const audio=(userId)=>journey.handleCommercialAudio(new Request("https://cove.test/api/fore"+audioPath),scoped,audioPath,userId,"US");
+    await assert.rejects(()=>audio(outsider),e=>e.status===403);
+    const stream=await audio(buyer);assert.equal(stream.status,200);assert.equal(stream.headers.get("content-type"),"audio/wav");
+    assert.equal((await stream.arrayBuffer()).byteLength,wav.byteLength);
+    let providerRefund;
+    globalThis.fetch=async(url,options)=>{
+      assert.match(String(url),/^https:\/\/api\.stripe\.com\/v1\/refunds/);
+      if(options.method==="POST"){
+        providerRefund={id:"re_atomic_journey",object:"refund",status:"succeeded",amount:200,currency:"usd",
+          payment_intent:stripePayment.paymentIntentId,metadata:{fore_order_id:options.body.get("metadata[fore_order_id]"),fore_refund_id:options.body.get("metadata[fore_refund_id]")}};
+        return Response.json(providerRefund);
+      }
+      assert.ok(providerRefund);
+      return Response.json({...providerRefund,payment_intent:{id:stripePayment.paymentIntentId,object:"payment_intent",livemode:false}});
+    };
+    const refund=await journey.refundOrder(scoped,{orderId,idempotencyKey:"qa-full-journey-refund-01"});
+    assert.equal(refund.status,"succeeded");
+    assert.equal(full.snapshot().status,"refunded");
+    assert.equal(full.primary.prepare("SELECT COUNT(*) n FROM entitlements WHERE status='revoked'").get().n,2);
+    await assert.rejects(()=>issue(buyer),e=>e.status===403);
+    await assert.rejects(()=>journey.issueOfflineEpubLicense(scoped,buyer,{productId:bookProduct,deviceKey},req),e=>e.status===403);
+    assert.equal((await journey.revokeDevice(scoped.DB,buyer,device.id,req)).revoked,true);
+    await assert.rejects(()=>journey.serveCommercialEpubGrant(scoped,token,req),e=>e.status===410);
+    await assert.rejects(()=>audio(buyer),e=>e.status===403);
+    assert.equal(full.primary.prepare("SELECT status FROM commercial_delivery_grants WHERE id=?").get(grant.grantId).status,"revoked");
+    assert.equal(full.primary.prepare("SELECT COUNT(*) n FROM commercial_download_audit WHERE grant_id=? AND event_type='denied'").get(grant.grantId).n,1);
+    assert.equal(full.primary.prepare("SELECT SUM(amount_minor) n FROM commerce_ledger_entries").get().n,0);
+    console.log("PASS: exact hosted catalog and locked real caller: owner settlement, grant, EPUB bytes, offline signature, device, audio, refund accounting, outsider/refund denial");
+
   }finally{globalThis.fetch=nativeFetch;}
   console.log(`PASS: ${batchSize} atomic failure boundaries, mixed tender, multi-line accounting, transaction-current races, lost ACK/replay, preorder reservation, real owner restart, pending-proof exclusion, provider provenance and terminal denial`);
 }finally{databases.forEach(x=>x.close());rmSync(folder,{recursive:true,force:true});}
