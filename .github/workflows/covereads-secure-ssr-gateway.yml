@@ -8,6 +8,7 @@ on:
       - "scripts/performance/visual-cover-fixtures*"
       - "scripts/performance/check-owned-ssr-capacity.mjs"
       - "scripts/performance/check-owned-ssr-capacity.test.mjs"
+      - "scripts/performance/*owned-geo*"
       - "scripts/performance/prepare-owned-cold-trial.mjs"
       - "scripts/check-covereads-canary-deny.mjs"
       - "scripts/check-staging-auth-gateway.mjs"
@@ -73,6 +74,8 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Verify integrated prepared homepage and isolated authority
         run: node scripts/check-owned-storefront-integration.mjs
+      - name: Reject false regional evidence and unsafe geographic measurement requests
+        run: node --test scripts/performance/owned-geo.test.mjs
       - name: Verify strict owned canary edge-denial retry contract
         run: node --test scripts/staging/strict-owned-canary-denial.test.mjs
       - name: Reject HTTP 200 for staging home without live rights shelf
@@ -217,6 +220,9 @@ jobs:
       - name: Install Chromium for owned-domain LCP and hydration gate
         if: ${{ !cancelled() && steps.owned-security.outcome == 'success' }}
         run: npx playwright install --with-deps chromium
+      - name: Repeat actual owned catalog bursts through ORD, LAX, IAD and DFW
+        if: ${{ !cancelled() && steps.owned-security.outcome == 'success' }}
+        run: node scripts/performance/check-owned-geo.mjs
       - name: Check browser hydration and mobile-4G LCP through owned ingress
         if: ${{ !cancelled() && steps.owned-security.outcome == 'success' }}
         shell: bash
@@ -254,7 +260,7 @@ jobs:
           rm -f .owned-*-secrets.json
           # Even if canary security fails, detach custom domain first.
           node scripts/covereads-owned-canary-domain.mjs detach || failures=1
-          for name in cove-asset-auth-gateway cove-asset-auth-stage cove-owned-homepage-stage cove-owned-homepage-authority; do
+          for name in cove-asset-auth-gateway cove-asset-auth-stage cove-owned-homepage-stage cove-owned-homepage-authority cove-owned-geo-measurement; do
             response="$(curl --retry 3 --retry-delay 2 -sS --max-time 25 -w '\n%{http_code}' -X DELETE \
               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
               "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$name?force=true")"
