@@ -19,6 +19,8 @@ const origin = productionOrigin(
     "https://cove-storefront-ssr-staging.cove-jibrilmohamud.workers.dev",
 );
 const token = process.env.COVE_SSR_STAGING_GATE_KEY;
+const preparedOwned = process.env.COVE_OWNED_PREPARED_ACCEPTANCE === "1";
+if (preparedOwned) assert.equal(origin, "https://ssr-canary.covereads.com");
 assert.match(token || "", /^[a-f0-9]{64}$/, "Ephemeral staging key required.");
 
 // Undici request lifecycle is strictly diagnostic: these events never affect
@@ -68,7 +70,7 @@ function integerDelta(after, before) {
 function numericWorkerTiming(headers) {
   const parts = (headers.get("server-timing") || "").split(",");
   const matched = parts
-    .map((item) => item.trim().match(/^cove_total;dur=(\d+(?:\.\d+)?)$/))
+    .map((item) => item.trim().match(/^(?:cove_total|cove_handler);dur=(\d+(?:\.\d+)?)$/))
     .find(Boolean);
   return matched ? Number(matched[1]) : null;
 }
@@ -221,15 +223,26 @@ async function probe(language, sample, sequence) {
     activeProbe = null;
   }
   const html = await response.text();
+  if (preparedOwned)
+    assert.equal(response.headers.get("x-cove-homepage-authority"), "isolated-canonical-primary");
   const totalMs = Math.round(performance.now() - started);
   const cards = validateHtml(response.status, response.headers.get("content-type") || "", html);
   if (!/no-store/.test(response.headers.get("cache-control") || ""))
     throw new Error("Stage homepage must never be cached.");
-  if (!/cove_ssr_local_rights;dur=0/.test(response.headers.get("server-timing") || ""))
+  if (
+    !(preparedOwned
+      ? response.headers.get("x-cove-renderer") === "strangler-evaluation" &&
+        /cove_catalog;dur=[0-9.]+/.test(response.headers.get("server-timing") || "")
+      : /cove_ssr_local_rights;dur=0/.test(response.headers.get("server-timing") || ""))
+  )
     throw new Error("No evidence of in-Worker D1 rights authority.");
   // Stage anonymous SSR is an exact expected use of the lightweight Worker
   // reader. Fail rather than unknowingly measuring a heavyweight API fallback.
-  if (!/cove_backend_lean;dur=0(?:\.0)?(?:,|$)/.test(response.headers.get("server-timing") || ""))
+  if (
+    !(
+      preparedOwned ? /cove_lean;dur=0(?:\.0)?(?:,|$)/ : /cove_backend_lean;dur=0(?:\.0)?(?:,|$)/
+    ).test(response.headers.get("server-timing") || "")
+  )
     throw new Error("Native first-paint did not use the rights-authoritative lean guest path.");
   const workerMs = numericWorkerTiming(response.headers);
   return {

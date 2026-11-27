@@ -49,7 +49,27 @@ export default {
       // No network fetch to an arbitrary URL, no stale or anonymous fallback.
       // This service binding can reach the protected native SSR/asset Worker,
       // but ONLY after the gateway validates the exact ephemeral bearer.
-      const upstream = await env.STAGING.fetch(request);
+      const url = new URL(request.url);
+      const anonymousHomepage =
+        request.method === "GET" &&
+        url.pathname === "/" &&
+        !url.search &&
+        ![
+          "cookie",
+          "oai-authenticated-user-id",
+          "oai-authenticated-user-email",
+          "x-fore-authenticated-user-id",
+        ].some((name) => request.headers.has(name));
+      // The same prepared renderer used by real-catalog acceptance now serves
+      // the owned ingress. Full application/asset routes keep their adapter.
+      if (
+        env.HOMEPAGE &&
+        env.COVE_OWNED_ISOLATED_SNAPSHOT !== "15ce2ea3-17f8-4d99-9015-a78a6a3af05d"
+      )
+        return denied(503, "Isolated homepage configuration unavailable");
+      const upstream = await (anonymousHomepage && env.HOMEPAGE ? env.HOMEPAGE : env.STAGING).fetch(
+        request,
+      );
       const headers = new Headers(upstream.headers);
       headers.set("cache-control", "no-store, max-age=0");
       headers.set("x-robots-tag", "noindex, nofollow, noarchive");

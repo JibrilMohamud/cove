@@ -5,6 +5,7 @@ import { chromium } from "@playwright/test";
 
 const html = fs.readFileSync("artifacts/strangler-fixture.html", "utf8");
 assert.match(html, /data-rights-country="US"/);
+let discoveryUnavailable = false;
 const calls = { discovery: 0, merchandising: 0, language: 0, suggestions: 0, save: 0 };
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url || "/", "http://localhost");
@@ -18,6 +19,11 @@ const server = http.createServer(async (request, response) => {
   } else if (url.pathname === "/api/fore/recommendations/discover") {
     assert.equal(request.method, "POST");
     calls.discovery++;
+    if (discoveryUnavailable) {
+      response.writeHead(503);
+      response.end();
+      return;
+    }
     json({
       rails: [
         {
@@ -65,7 +71,10 @@ const server = http.createServer(async (request, response) => {
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const address = server.address();
 const origin = `http://127.0.0.1:${address.port}`;
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({
+  headless: true,
+  ...(process.env.COVE_TEST_CHROMIUM ? { executablePath: process.env.COVE_TEST_CHROMIUM } : {}),
+});
 try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   const errors = [];
@@ -103,6 +112,20 @@ try {
   await page.getByText("Example title").waitFor();
   assert.equal(calls.discovery, 1);
   assert.match(await page.locator("#thin-discovery-status").innerText(), /suggestions/);
+
+  discoveryUnavailable = true;
+  await page.locator('#thin-discovery-form button[type="submit"]').click();
+  await page.getByText("Discovery is unavailable. Open the full bookstore to retry.").waitFor();
+  assert.equal(await page.locator('#thin-discovery-form button[type="submit"]').isEnabled(), true);
+  assert.ok(
+    (await page.locator(".book-card").count()) > 0,
+    "Failed optional API cannot erase the authorized shelf",
+  );
+  discoveryUnavailable = false;
+  await page.locator('#thin-discovery-form button[type="submit"]').click();
+  await page.getByText("Example title").waitFor();
+  assert.match(await page.locator("#thin-discovery-status").innerText(), /suggestions/);
+  assert.equal(calls.discovery, 3, "Post-load API recovery must work without reloading the page");
 
   await page.locator("#thin-merchandising").scrollIntoViewIfNeeded();
   await page.getByText("Featured collection").waitFor();

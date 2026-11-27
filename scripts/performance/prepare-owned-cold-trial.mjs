@@ -12,14 +12,18 @@ assert.equal(account, "d26430caa63ec55f6612e32f36aca5e9");
 assert.ok(token && token.length > 20);
 assert.ok(process.env.GITHUB_ENV, "Run only inside the isolated owned-canary workflow");
 const configs = [
-  ["wrangler.frontend.private.test.toml", "cove-asset-auth-stage"],
-  ["wrangler.staging-auth-gateway.test.toml", "cove-asset-auth-gateway"],
+  ["wrangler.owned-authority.run.json", "cove-owned-homepage-authority"],
+  ["wrangler.owned-application.run.json", "cove-asset-auth-stage"],
+  ["wrangler.owned-homepage.run.json", "cove-owned-homepage-stage"],
+  ["wrangler.owned-gateway.run.json", "cove-asset-auth-gateway"],
 ];
 const secret = randomBytes(32).toString("hex");
+const authorityKey = randomBytes(32).toString("hex");
+console.log("::add-mask::" + authorityKey);
 console.log("::add-mask::" + secret);
 const rotated = Date.now();
 for (const [config, name] of configs) {
-  assert.match(fs.readFileSync(config, "utf8"), new RegExp(`^name = "${name}"$`, "m"));
+  assert.equal(JSON.parse(fs.readFileSync(config, "utf8")).name, name);
   await new Promise((resolve, reject) => {
     const child = spawn(
       "npm",
@@ -31,7 +35,9 @@ for (const [config, name] of configs) {
         "wrangler",
         "secret",
         "put",
-        "COVE_SSR_STAGING_GATE_KEY",
+        name === "cove-owned-homepage-authority"
+          ? "COVE_HOMEPAGE_AUTHORITY_KEY"
+          : "COVE_SSR_STAGING_GATE_KEY",
         "--config",
         config,
       ],
@@ -41,8 +47,33 @@ for (const [config, name] of configs) {
     child.on("exit", (code) =>
       code === 0 ? resolve() : reject(new Error("Ephemeral secret deployment failed")),
     );
-    child.stdin.end(secret);
+    child.stdin.end(name === "cove-owned-homepage-authority" ? authorityKey : secret);
   });
+  if (name === "cove-owned-homepage-stage") {
+    await new Promise((resolve, reject) => {
+      const child = spawn(
+        "npm",
+        [
+          "exec",
+          "--yes",
+          "--package=wrangler@4.151.0",
+          "--",
+          "wrangler",
+          "secret",
+          "put",
+          "COVE_HOMEPAGE_AUTHORITY_KEY",
+          "--config",
+          config,
+        ],
+        { stdio: ["pipe", "ignore", "ignore"] },
+      );
+      child.on("error", reject);
+      child.on("exit", (code) =>
+        code === 0 ? resolve() : reject(new Error("Private authority rotation failed")),
+      );
+      child.stdin.end(authorityKey);
+    });
+  }
 }
 const deadline = Date.now() + 180_000;
 let ready = false;
@@ -75,5 +106,5 @@ fs.appendFileSync(
   `COVE_GATE_TEST_BEARER=${secret}\nCOVE_SSR_STAGING_GATE_KEY=${secret}\n`,
 );
 console.log(
-  "PASS: both ephemeral owned-canary deployments settled at 100%; no serving HTTP prewarm",
+  "PASS: all four ephemeral owned-canary deployments settled at 100%; no serving HTTP prewarm",
 );

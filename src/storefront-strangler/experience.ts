@@ -325,6 +325,7 @@ installButton?.addEventListener("click", async () => {
   await installPrompt.prompt();
   installPrompt = null;
 });
+document.documentElement.dataset.coveClientReady = "true";
 `;
   const canonical = new URL("/", origin).href;
   return `<!doctype html><html data-theme="dark" class="dark" lang="${escape(context.locale)}" dir="${context.direction === "rtl" ? "rtl" : "ltr"}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escape(page.seoTitle || headline)} | Cove</title><meta name="description" content="${escape(page.seoDescription || description)}"><link rel="canonical" href="${escape(canonical)}"><style>

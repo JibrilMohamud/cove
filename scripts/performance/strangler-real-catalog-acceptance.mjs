@@ -16,6 +16,13 @@ import {
   requireMinimumRealCatalogSnapshot,
 } from "./real-catalog-snapshot-safety.mjs";
 
+import {
+  loadVisualCoverFixtures,
+  coverFixtureForUrl,
+  decodeVisualCatalog,
+  observeBrowserFailures,
+} from "./visual-cover-fixtures.mjs";
+
 const account = "d26430caa63ec55f6612e32f36aca5e9";
 // Fail before touching remote Worker, R2 or KV APIs if a dedicated snapshot
 // has not been created and independently approved. No default production ID.
@@ -59,6 +66,7 @@ config.vars.FORE_PUBLIC_URL = origin;
 // the unoptimized main path. All statements remain read-only; no 100-RPS
 // campaign is offered against production D1.
 const v2 = process.env.COVE_REAL_ACCEPTANCE_V2 === "1";
+const visualFixtures = v2 ? loadVisualCoverFixtures() : null;
 // Reviewed, immutable screenshots from the last verified visual-parity pass,
 // GitHub Actions run 39922882111 (24 matching edition cards). This pins only
 // the visual design reference; live D1 catalog/rights and real browser LCP are
@@ -306,8 +314,10 @@ async function pixelMismatch(page, baseline, candidate) {
           image.src = "data:image/png;base64," + base64;
         });
       const [a, b] = await Promise.all([load(first), load(second)]);
-      const width = Math.min(a.width, b.width);
-      const height = Math.min(a.height, b.height);
+      if (a.width !== b.width || a.height !== b.height)
+        throw Error("Visual reference dimensions differ");
+      const width = a.width;
+      const height = a.height;
       const canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = height;
@@ -338,24 +348,14 @@ async function pixelMismatch(page, baseline, candidate) {
 // equivalent customer resource loading; never forward the stage bearer.
 async function stageBrowserRoute(route, pinnedVisual = false) {
   const resource = new URL(route.request().url());
-  if (resource.origin !== origin) return route.continue();
-  // The v2 reference is a pinned visual fixture. Use the exact checked-in
-  // public JPEG bytes for its covers, rather than an unrelated live rollout.
-  // This does not certify production asset delivery or substitute catalog rows.
-  if (
-    pinnedVisual &&
-    v2 &&
-    route.request().method() === "GET" &&
-    /^\/covers\/[1-9][0-9]*\.jpg$/.test(resource.pathname) &&
-    !resource.search &&
-    fs.existsSync("public" + resource.pathname)
-  ) {
-    return route.fulfill({
-      status: 200,
-      contentType: "image/jpeg",
-      body: fs.readFileSync("public" + resource.pathname),
-    });
+  const fixture =
+    pinnedVisual && visualFixtures && route.request().method() === "GET"
+      ? coverFixtureForUrl(visualFixtures, resource.href, origin)
+      : null;
+  if (fixture) {
+    return route.fulfill({ status: 200, contentType: fixture.contentType, body: fixture.body });
   }
+  if (resource.origin !== origin) return route.continue();
   const forwardedAsset =
     ["/covers/", "/assets/", "/images/", "/fonts/"].some((prefix) =>
       resource.pathname.startsWith(prefix),
@@ -570,6 +570,7 @@ try {
       deviceScaleFactor: 1,
     });
     const candidate = await auditCtx.newPage();
+    const mobileDiagnostics = observeBrowserFailures(candidate);
     await candidate.route("**/*", (route) => stageBrowserRoute(route, true));
     const live = await auditCtx.newPage();
     const liveResponse = await live.goto("https://cove-puce-theta.vercel.app/", {
@@ -582,6 +583,12 @@ try {
     });
     assert.equal(liveResponse?.status(), 200);
     assert.equal(stageResponse?.status(), 200);
+    evidence.mobileImageDiagnostics = mobileDiagnostics;
+    try {
+      if (v2) evidence.mobileCoverDecode = await decodeVisualCatalog(candidate, visualFixtures);
+    } finally {
+      save();
+    }
     let [liveCatalogPaint, stageCatalogPaint] = await Promise.all([
       settleCatalog(live),
       settleCatalog(candidate),
@@ -637,7 +644,7 @@ try {
       mismatchPercent,
       comparableMobileState: mobileComparable,
       visualReference: v2 ? "checksum-pinned-approved-2026-10-23" : "live-vercel",
-      candidateCoverSource: v2 ? "same-sha-public-jpeg-fixture" : "public-origin",
+      candidateCoverSource: v2 ? "edition-bound-checksummed-canonical-covers" : "public-origin",
       productionAssetDeliveryCertified: false,
       liveReferenceSettled: liveCatalogPaint.settled,
       liveBaselineReloads,
@@ -663,6 +670,7 @@ try {
       deviceScaleFactor: 1,
     });
     const desktopCandidate = await desktopContext.newPage();
+    const desktopDiagnostics = observeBrowserFailures(desktopCandidate);
     await desktopCandidate.route("**/*", (route) => stageBrowserRoute(route, true));
     const desktopLive = await desktopContext.newPage();
     const [desktopBaselineResponse, desktopStageResponse] = await Promise.all([
@@ -709,6 +717,10 @@ try {
       save();
     }
     assert.equal(desktopStageResponse?.status(), 200);
+    if (v2)
+      evidence.desktopCoverDecode = await decodeVisualCatalog(desktopCandidate, visualFixtures);
+    evidence.desktopImageDiagnostics = desktopDiagnostics;
+    save();
     let [desktopLivePaint, desktopStagePaint] = await Promise.all([
       settleCatalog(desktopLive),
       settleCatalog(desktopCandidate),
@@ -798,7 +810,7 @@ try {
   save();
   for (const workerName of createdWorkers) {
     try {
-      await cloudflare("DELETE", `/accounts/${account}/workers/workers/${workerName}?force=true`);
+      await cloudflare("DELETE", `/accounts/${account}/workers/scripts/${workerName}?force=true`);
     } catch {
       evidence.cleanupFailed = true;
       console.error("Stage cleanup not confirmed; remove only " + workerName);
