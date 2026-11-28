@@ -86,3 +86,28 @@ test("atomic generation seal rejects stale CAS, owner epoch drift, current holds
     assert.equal(inspectBaselineCandidate(db,r,7,now).candidateAllowed,false);
   }finally{db.close();}
 });
+
+
+test("paged owner publication binds independent evidence and complete captured membership",async()=>{
+  const {prepareCurrentLegalOwnerPublication:prepare}=await import("./prepare-current-legal-owner-publication.mjs");
+  const inventory=[row("p1"),row("p2"),row("p3",{canonicalAllowed:false})];
+  const input=fixture(inventory,[evidence(inventory[0]),evidence(inventory[2])]);
+  const pages=[{kind:"products",rows:inventory.map(r=>({productId:r.productId}))},{kind:"scopes",rows:inventory}]
+    .map((p,index)=>({...p,index,sha256:hashCurrentBaseline(p)}));
+  let root=hashCurrentBaseline({schema:"cove.canonical-owner-capture-seed.v1",ownerEpoch:7,withdrawalSequence:2});
+  for(const p of pages)root=hashCurrentBaseline({prior:root,index:p.index,kind:p.kind,sha256:p.sha256});
+  const descriptor={schema:"cove.canonical-owner-paged-inventory.v1",ownerEpoch:7,withdrawalSequence:2,
+    productCount:3,scopeCount:3,pageCount:2,rootSha256:root,defaultVerdict:"deny"};
+  const capture={primaryId:"4bd657ac-8789-403e-a28c-93aba8d0a989",descriptor,pages,inventorySha256:hashCurrentBaseline(descriptor)};
+  const args={capture,review:input.review,trust:input.trust,generation:1,nowMs:now};
+  const result=prepare(args);
+  assert.equal(result.authorizing,false);
+  assert.equal(result.requiresIndependentSignatures,true);
+  assert.equal(result.header.inventorySha256,capture.inventorySha256);
+  assert.deepEqual(result.batches[0].map(r=>r.verdict),["allow","quarantine","deny"]);
+  assert.equal(result.header.batchSha256[0],hashCurrentBaseline(result.batches[0]));
+  assert.throws(()=>prepare({...args,capture:{...capture,pages:[pages[1],pages[0]]}}),/publication_capture_page/);
+  assert.throws(()=>prepare({...args,capture:{...capture,pages:[pages[0],{...pages[1],rows:[]}]}}),/publication_capture_page/);
+  assert.throws(()=>prepare({...args,review:{...input.review,rows:[]}}),/review_signature/);
+  assert.throws(()=>prepare({...args,nowMs:now+3000}),/review_scope_or_time/);
+});

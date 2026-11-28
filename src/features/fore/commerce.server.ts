@@ -1,3 +1,4 @@
+import { hasProductionQuarantineBusinessDb } from "../../storefront-strangler/production-quarantine-owner";
 import { confirmStageOwnerStripeTax } from "../../storefront-strangler/owner-stripe-tax-confirmation.server";
 import { z } from "zod/v3";
 import { formatMinorCurrency } from "./currency";
@@ -1376,7 +1377,7 @@ export async function refundOrder(env: CoveEnv, raw: unknown) {
   // Owner-disabled production MUST stop before any Stripe API call or refund
   // intent mutation. Zero production refunds does not authorize a split
   // provider/ledger transaction; an owner outage must never be best-effort.
-  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1" && !hasProductionQuarantineBusinessDb(env.DB))
     throw new ApiError(503, "Refunds require the private financial owner.");
   const input = z
       .object({
@@ -1387,7 +1388,7 @@ export async function refundOrder(env: CoveEnv, raw: unknown) {
       })
       .parse(raw),
     db = env.DB;
-  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1") {
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1" || hasProductionQuarantineBusinessDb(env.DB)) {
     // Enrolled requests never write a refund intent through caller-owned D1.
     // The owner atomically reserves the original tender and returns a strictly
     // verified receipt before the caller may contact Stripe.
@@ -1460,7 +1461,7 @@ async function recordOwnerStripeRefundReceipt(
 }
 
 async function completeRequestedRefund(env: CoveEnv, o: RefundOrder, intent: RefundIntent) {
-  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1" && !hasProductionQuarantineBusinessDb(env.DB))
     throw new ApiError(503, "Refund completion requires the private commerce owner.");
   const db = env.DB,
     id = String(intent.id),
@@ -1543,7 +1544,7 @@ async function stageRevokeRefundEntitlements(env: CoveEnv, orderId: string, refu
 }
 
 async function applyRefundSuccess(env: CoveEnv, refundId: string, refundPayload: any) {
-  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1" && !hasProductionQuarantineBusinessDb(env.DB))
     throw new ApiError(503, "Refund accounting requires the private commerce owner.");
   const db = env.DB,
     r = await db.prepare("SELECT * FROM commerce_refunds WHERE id=?").bind(refundId).first<any>();
@@ -1564,7 +1565,11 @@ async function applyRefundSuccess(env: CoveEnv, refundId: string, refundPayload:
   // owner has tombstoned every affected paid entitlement. Partial external
   // refunds deny the entire order in this staged proof until item-scoped
   // owner revocation is implemented.
-  if (full || env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1")
+  if (
+    full ||
+    env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1" ||
+    hasProductionQuarantineBusinessDb(env.DB)
+  )
     await stageRevokeRefundEntitlements(env, String(o.id), refundId);
   await postStageOwnerRefundAccounting(env, String(o.id), refundId);
   const refundItems = await db

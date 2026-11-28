@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Exact reviewed integration source-pinning; never a production release approval. */
 import assert from "node:assert/strict";
+import {reverseProductionQuarantineDelta,reverseProductionQuarantineCommerceDelta} from "./production-quarantine-source-delta.mjs";
 import {reverseOwnerCompletionDelta} from "./owner-completion-source-delta.mjs";
 import {createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
@@ -46,10 +47,10 @@ assert.ok(review.sites.every(s=>s.productionOwnerGuarded===false),
 // PR #916: validate the exact new imported identity helper, and restore
 // the prior legal owner bytes before applying the unchanged historical chain.
 assertDetachedCommerceIdentitySource(readFileSync("src/storefront-strangler/owner-user-id.ts","utf8"));
-const reverseCurrentOwner=bytes=>reverseNativePrimaryMarketDelta(reverseDetachedCommerceOwnerDelta(reverseOwnerCompletionDelta("src/storefront-strangler/legal-authority.worker.ts",bytes)));
+const reverseCurrentOwner=bytes=>reverseNativePrimaryMarketDelta(reverseDetachedCommerceOwnerDelta(reverseOwnerCompletionDelta("src/storefront-strangler/legal-authority.worker.ts",reverseProductionQuarantineDelta(bytes))));
 for(const [path,pin] of Object.entries(PINNED_CURRENT_SOURCES)){
   const bytes=readFileSync(path,"utf8");
-  let reviewed=path==="src/storefront-strangler/legal-authority.worker.ts"?reverseCurrentOwner(bytes):path==="src/features/fore/search.server.ts"?reverseOwnerCompletionDelta(path,bytes):bytes;
+  let reviewed=path==="src/storefront-strangler/legal-authority.worker.ts"?reverseCurrentOwner(bytes):path==="src/features/fore/search.server.ts"?reverseOwnerCompletionDelta(path,bytes):path==="src/features/fore/commerce.server.ts"?reverseProductionQuarantineCommerceDelta(bytes):bytes;
   // Reverse only the exact EPUB clock fix to preserve the historical source pin.
   if(path==="src/features/fore/delivery.server.ts"){
     const fixed="expires = new Date(Date.parse(issued) + Number(policy.token_ttl_seconds || 300) * 1000).toISOString(),",original="expires = new Date(Date.now() + Number(policy.token_ttl_seconds || 300) * 1000).toISOString(),";

@@ -4,6 +4,10 @@ on:
     paths:
       - "src/storefront-strangler/consolidated-*-qa.worker.ts"
       - "src/storefront-strangler/legal-authority.worker.ts"
+      - "src/storefront-strangler/production-*.ts"
+      - "src/storefront-strangler/current-legal-owner*.ts"
+      - "src/storefront-strangler/owner-refund-*.ts"
+      - "src/storefront-strangler/paid-order-revocation.server.ts"
       - "src/storefront-strangler/qa-owner-*.ts"
       - "src/storefront-strangler/*d1-write-fence.ts"
       - "src/features/fore/**"
@@ -36,3 +40,9 @@ jobs:
       - name: Prove native Stripe settlement, persisted ledgers, streaming delivery and revocation
         run: |
           npm exec --yes --package=wrangler@4.151.0 -- sh -c 'COVE_MINIFLARE_MODULE="$(dirname "$(command -v wrangler)")/../miniflare" node --no-warnings scripts/test-native-owner-commerce.mjs'
+      - name: Prove production quarantine, persisted denial, account writes and seven schedules
+        run: |
+          npm exec --yes --package=wrangler@4.151.0 -- sh -c 'COVE_MINIFLARE_MODULE="$(dirname "$(command -v wrangler)")/../miniflare" node --no-warnings scripts/release/prove-consolidated-owner-native.mjs --production-quarantine'
+      - name: Prove production refund retries and ledger rows after complete quarantine
+        run: |
+          npm exec --yes --package=wrangler@4.151.0 -- sh -c 'COVE_MINIFLARE_MODULE="$(dirname "$(command -v wrangler)")/../miniflare" node --no-warnings scripts/test-native-owner-commerce.mjs --production-quarantine'

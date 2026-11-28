@@ -1,3 +1,4 @@
+import { hasProductionQuarantineBusinessDb } from "./production-quarantine-owner";
 /* eslint-disable prettier/prettier -- Exact owner-command receipts are a payment trust boundary. */
 import {ApiError} from "../features/fore/service";
 import {isReviewedPaidQaPrimary} from "./reviewed-paid-qa-primary";
@@ -13,10 +14,10 @@ import type {CoveEnv} from "../features/fore/api.server";
 export async function revokePaidOrderAccess(
   env:CoveEnv,orderId:string,operationId:string
 ):Promise<void> {
-  if(env.COVE_LEGAL_CONSUMER_STAGE_ENABLED!=="1")return;
-  if(env.COVE_SSR_STAGING!=="1"||
+  if(env.COVE_LEGAL_CONSUMER_STAGE_ENABLED!=="1"&&!hasProductionQuarantineBusinessDb(env.DB))return;
+  if((!hasProductionQuarantineBusinessDb(env.DB)&&(env.COVE_SSR_STAGING!=="1"||
      env.COVE_CANONICAL_LEGAL_WRITE_LOCK!=="1"||
-     !isReviewedPaidQaPrimary(env.COVE_LEGAL_WRITER_PRIMARY_ID)||
+     !isReviewedPaidQaPrimary(env.COVE_LEGAL_WRITER_PRIMARY_ID)))||
      !env.LEGAL_AUTHORITY?.getByName||
      !/^[a-f0-9]{64}$/.test(env.COVE_RIGHTS_OWNER_SECRET||"")||
      !/^[a-zA-Z0-9_-]{8,160}$/.test(orderId)||
