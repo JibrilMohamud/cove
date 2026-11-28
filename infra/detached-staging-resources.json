@@ -1,0 +1,55 @@
+{
+  "schema": "cove.detached-staging-resource-map.v1",
+  "sourceAccount": "d26430caa63ec55f6612e32f36aca5e9",
+  "targetAccount": "f51e8ccbc394e2d6016ff8c2c303d54b",
+  "targetSubdomain": "cove-qa-reads",
+  "databases": [
+    {
+      "name": "cove-perf-isolated-candidate-20261019",
+      "oldId": "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
+      "newId": "ee57db5e-4e89-4c41-8b56-37d973473098"
+    },
+    {
+      "name": "cove-perf-isolated-control-20261019",
+      "oldId": "cc842ee5-c526-431e-96ee-5e093fb45e6d",
+      "newId": "4a025b93-cddc-4570-9b52-5691030dbb2b"
+    },
+    {
+      "name": "cove-publication-source-stage-20261022",
+      "oldId": "1825b4a1-0329-408d-9cc2-a40e6a17c822",
+      "newId": "77972018-7574-4995-9160-8a5c16544823"
+    },
+    {
+      "name": "cove-discovery-publication-stage-20261022",
+      "oldId": "b299be94-f885-47a5-9d0b-3a3ac494065a",
+      "newId": "e8f413d9-5685-418f-8f16-a10dd985b96b"
+    },
+    {
+      "name": "cove-publication-continuous-ledger-qa-20261022",
+      "oldId": "34cf996a-830d-4ec3-8071-8cc3ec7b6df9",
+      "newId": "d75d9736-12e6-471b-9c4f-ae7133519c8e"
+    },
+    {
+      "name": "cove-canonical-publication-qa-20261025",
+      "oldId": "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87",
+      "newId": "84c0e248-a0e6-4519-9c5b-079937157520"
+    },
+    {
+      "name": "cove-real-catalog-snapshot-20261125",
+      "oldId": "15ce2ea3-17f8-4d99-9015-a78a6a3af05d",
+      "newId": "3d7cea65-e91b-47b7-8496-2af60ae44d82"
+    }
+  ],
+  "buckets": [
+    "cove-strangler-private-presentation-stage",
+    "cove-public-presentation-stage-20261114",
+    "cove-discovery-models-benchmark"
+  ],
+  "kv": [
+    {
+      "name": "cove-private-presentation-kv-stage-20261023",
+      "oldId": "8245d5f2116a445d9571405b41b7c8c3",
+      "newId": "4ee2b29f7abd40c1b3e9d1b04fd2205c"
+    }
+  ]
+}

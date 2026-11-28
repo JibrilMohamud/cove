@@ -1,0 +1,91 @@
+name: provision-detached-real-catalog-snapshot
+on:
+  pull_request:
+    paths:
+      - "scripts/staging/*real-catalog-copy*"
+      - ".github/workflows/provision-detached-real-catalog-snapshot.yml"
+  workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        description: Exact reviewed main SHA
+        required: true
+        type: string
+      confirm_isolated_catalog_copy:
+        description: Approve read-only public catalog projection into the dedicated isolated snapshot
+        required: true
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: cove-exclusive-real-primary-cold-acceptance
+  cancel-in-progress: false
+jobs:
+  source-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - run: node --test scripts/staging/real-catalog-copy.test.mjs
+      - run: node --check scripts/staging/detached-real-catalog-copy.mjs
+      - run: node --test scripts/staging/detached-real-catalog-copy.test.mjs
+  populate-isolated-snapshot:
+    needs: source-contract
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.reviewed_main_sha == github.sha &&
+      inputs.confirm_isolated_catalog_copy == true
+    environment: cove-production-release-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 155
+    env:
+      REVIEWED_SHA: ${{ inputs.reviewed_main_sha }}
+      CLOUDFLARE_ACCOUNT_ID: "f51e8ccbc394e2d6016ff8c2c303d54b"
+      COVE_BIOSYNC_PROD_D1_READ_TOKEN: ${{ secrets.COVE_BIOSYNC_PROD_D1_READ_TOKEN }}
+      COVE_CF_QA_DATA_PLANE_READ_TOKEN: ${{ secrets.COVE_CF_QA_DATA_PLANE_READ_TOKEN }}
+      COVE_CF_QA_WORKERS_DEPLOY_TOKEN: ${{ secrets.COVE_CF_QA_WORKERS_DEPLOY_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Verify detached account identity before schema setup
+        run: |
+          set -euo pipefail
+          test "$CLOUDFLARE_ACCOUNT_ID" = "f51e8ccbc394e2d6016ff8c2c303d54b"
+          test "$(git rev-parse HEAD)" = "$REVIEWED_SHA"
+          test "$GITHUB_SHA" = "$REVIEWED_SHA"
+          test -n "$COVE_CF_QA_DATA_PLANE_READ_TOKEN"
+          test -n "$COVE_CF_QA_WORKERS_DEPLOY_TOKEN"
+          test "$COVE_BIOSYNC_PROD_D1_READ_TOKEN" != "$COVE_CF_QA_DATA_PLANE_READ_TOKEN"
+          test "$COVE_CF_QA_WORKERS_DEPLOY_TOKEN" != "$COVE_CF_QA_DATA_PLANE_READ_TOKEN"
+      - name: Initialize only the new detached snapshot schema
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_QA_D1_MUTATION_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test "$CLOUDFLARE_API_TOKEN" != "$COVE_BIOSYNC_PROD_D1_READ_TOKEN"
+          test "$CLOUDFLARE_API_TOKEN" != "$COVE_CF_QA_WORKERS_DEPLOY_TOKEN"
+          test "$CLOUDFLARE_API_TOKEN" != "$COVE_CF_QA_DATA_PLANE_READ_TOKEN"
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler d1 migrations apply "cove-real-catalog-snapshot-20261125" --remote --config wrangler.detached-real-catalog-snapshot.jsonc
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler d1 execute "cove-real-catalog-snapshot-20261125" --remote --config wrangler.detached-real-catalog-snapshot.jsonc --file infra/detached-catalog-copy-receipt.sql
+      - run: node scripts/staging/detached-real-catalog-copy.mjs
+      - name: Remove isolated importer even if interrupted
+        if: always()
+        run: node scripts/staging/detached-real-catalog-copy.mjs --cleanup
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: detached-real-catalog-copy-${{ github.sha }}-${{ github.run_attempt }}
+          path: artifacts/detached-real-catalog-snapshot/evidence.json
+          if-no-files-found: warn
+          retention-days: 45

@@ -7,7 +7,7 @@ test("locked production owner uses separate deployment, metadata and zone-route 
   const w=read(".github/workflows/production-legal-owner-locked.yml");
   const owner=read("scripts/check-locked-production-legal-owner.mjs");
   for(const value of [
-    "CLOUDFLARE_API_TOKEN: \${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}",
+    "CLOUDFLARE_API_TOKEN: \${{ secrets.COVE_CF_PROD_MAINTENANCE_TOKEN }}",
     "COVE_CF_WORKERS_METADATA_READ_TOKEN: \${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}",
     "COVE_CF_ZONE_ROUTES_READ_TOKEN: \${{ secrets.COVE_CF_ZONE_ROUTES_READ_TOKEN }}",
     "inputs.reviewed_main_sha == github.sha",

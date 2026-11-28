@@ -1,0 +1,31 @@
+name: cove-temporary-production-maintenance-offline
+on:
+  pull_request:
+    paths:
+      - 'scripts/release/verify-temporary-worker-maintenance*'
+      - '.github/workflows/production-*.yml'
+      - '.github/workflows/literary-*.yml'
+      - '.github/workflows/deploy-locked-fast-storefront-gateway.yml'
+      - '.github/workflows/cove-temporary-production-maintenance-offline.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/release/verify-temporary-worker-maintenance*'
+      - '.github/workflows/production-*.yml'
+      - '.github/workflows/literary-*.yml'
+      - '.github/workflows/deploy-locked-fast-storefront-gateway.yml'
+      - '.github/workflows/cove-temporary-production-maintenance-offline.yml'
+permissions:
+  contents: read
+jobs:
+  provider-policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: node --test scripts/release/verify-temporary-worker-maintenance.test.mjs

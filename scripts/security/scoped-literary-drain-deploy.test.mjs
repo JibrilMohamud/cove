@@ -11,8 +11,12 @@ test("protected literary drain and replay use independent narrow deployment and 
   for(const path of workflows){
     const body=read(path);
     assert.ok(!body.includes("secrets.CLOUDFLARE_API_TOKEN"),path);
+    assert.ok(!body.includes("secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN"),path);
+    const profile=path.includes("replay")?"literary-replay":"literary-drain";
+    const guard=body.indexOf("node scripts/release/verify-temporary-worker-maintenance.mjs "+profile);
+    assert.ok(guard>=0&&guard<body.indexOf("wrangler deploy --config"),path+" missing pre-deploy provider scope verification");
     for(const name of [
-      "COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN",
+      "COVE_CF_PROD_MAINTENANCE_TOKEN",
       "COVE_CF_STAGE_DATA_PLANE_READ_TOKEN",
       "COVE_CF_WORKERS_METADATA_READ_TOKEN"
     ]) assert.ok(body.includes("secrets."+name),path+": "+name);

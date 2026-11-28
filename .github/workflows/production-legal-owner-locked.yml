@@ -71,7 +71,7 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
       # Only Worker deployment is required. Metadata and route audits use
       # distinct read-only principals; this job must never receive D1 Write.
-      CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_PROD_MAINTENANCE_TOKEN }}
       COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
       COVE_CF_ZONE_ROUTES_READ_TOKEN: ${{ secrets.COVE_CF_ZONE_ROUTES_READ_TOKEN }}
       CLOUDFLARE_ZONE_ID: "07e218b2e74bc522122e0994b8e37576"
@@ -85,6 +85,11 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci --no-audit --no-fund
+      - name: Independently verify temporary exact-Worker production maintenance authorization
+        env:
+          COVE_CF_PROD_MAINTENANCE_TOKEN: ${{ secrets.COVE_CF_PROD_MAINTENANCE_TOKEN }}
+          COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN: ${{ secrets.COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN }}
+        run: node scripts/release/verify-temporary-worker-maintenance.mjs owner
       - name: Require independent scoped Workers deploy and read-only auditors
         shell: bash
         run: |

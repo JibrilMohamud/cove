@@ -38,10 +38,15 @@ jobs:
         run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
       - run: npm ci --no-audit --no-fund
       - run: node scripts/release/build-production-consolidation.mjs
+      - name: Independently verify temporary exact-Worker production maintenance authorization
+        env:
+          COVE_CF_PROD_MAINTENANCE_TOKEN: ${{ secrets.COVE_CF_PROD_MAINTENANCE_TOKEN }}
+          COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN: ${{ secrets.COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN }}
+        run: node scripts/release/verify-temporary-worker-maintenance.mjs owner
       - name: Upload archived owner version only; retain every existing binding
         env:
           COVE_REVIEWED_MAIN_SHA: ${{ inputs.reviewed_main_sha }}
           COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
-          COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
+          COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN: ${{ secrets.COVE_CF_PROD_MAINTENANCE_TOKEN }}
           COVE_BIOSYNC_PROD_CLIENT_SECRET: ${{ secrets.COVE_BIOSYNC_PROD_CLIENT_SECRET }}
         run: node scripts/release/archive-production-biosync-bridge.mjs
