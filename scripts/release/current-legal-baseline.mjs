@@ -108,7 +108,7 @@ export function compileCurrentLegalBaseline({inventory,review,trust,ownerEpoch,n
     if(allowed)counts.candidateAllow++;
     else{counts.quarantine++;counts.reasons[reason]=(counts.reasons[reason]||0)+1;}
     return {productId:r.productId,territory:r.territory,format:r.format,channel:r.channel,
-      allowed,reason,artifactSha256:r.artifactSha256,policySha256:r.policySha256,
+      source:r.source,sourceItemId:r.sourceItemId,allowed,reason,artifactSha256:r.artifactSha256,policySha256:r.policySha256,
       basisSha256:allowed?e.basisSha256:null,validUntilMs:allowed?e.validUntilMs:0};
   });
   const manifest={schema:"cove.current-legal-baseline-candidate.v1",inventorySha256,

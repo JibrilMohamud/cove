@@ -75,7 +75,7 @@ test("atomic generation seal rejects stale CAS, owner epoch drift, current holds
     assert.equal(sealBaselineGeneration(db,input,0).generation,1);
     assert.deepEqual(inspectBaselineCandidate(db,r,7,now),{candidateAllowed:true,authorizing:false});
     for(const [current,epoch,time] of [[{...r,outstandingHold:true},7,now],[{...r,canonicalAllowed:false},7,now],
-      [{...r,artifactSha256:c},7,now],[row("unknown"),7,now],[r,8,now],[r,7,now+1000]])
+      [{...r,source:"contract"},7,now],[{...r,sourceItemId:"other"},7,now],[{...r,artifactSha256:c},7,now],[row("unknown"),7,now],[r,8,now],[r,7,now+1000]])
       assert.equal(inspectBaselineCandidate(db,current,epoch,time).candidateAllowed,false);
     assert.throws(()=>sealBaselineGeneration(db,input,0),/generation_conflict/);
     assert.throws(()=>sealBaselineGeneration(db,{...input,ownerEpoch:6},1),/generation_conflict/);
@@ -85,4 +85,33 @@ test("atomic generation seal rejects stale CAS, owner epoch drift, current holds
     db.exec("UPDATE baseline_generation SET manifest_json='{}' WHERE generation=2");
     assert.equal(inspectBaselineCandidate(db,r,7,now).candidateAllowed,false);
   }finally{db.close();}
+});
+
+test("separate owner signature binds complete discovered scopes, epoch and independent review",async()=>{
+  const {compileAttestedCurrentLegalBaseline}=await import("./attested-current-legal-baseline.mjs");
+  const r=row("p1"),input=fixture([r],[evidence(r)]);
+  const manifest={schema:"cove.legal-scope-discovery.v1",products:[
+    {productId:"p1",format:"ebook",status:"active"},{productId:"p2",format:"ebook",status:"inactive"}],
+    scopes:[{productId:"p1",territory:"US",format:"ebook",channel:"retail",grantIds:["g1"]}],
+    unresolvedGrantIds:[],productsWithoutRecordedScopes:["p2"]};
+  const discoverySha256=hashCurrentBaseline(manifest);
+  const discovery={manifest,manifestSha256:discoverySha256};
+  const owner=generateKeyPairSync("ec",{namedCurve:"prime256v1"});
+  const ownerTrust={issuer:"owner",primaryId:"primary",ownerEpoch:7,discoverySha256,
+    spkiSha256:createHash("sha256").update(owner.publicKey.export({type:"spki",format:"der"})).digest("hex"),
+    publicKeyPem:owner.publicKey.export({type:"spki",format:"pem"}).toString()};
+  const payload={schema:"cove.owner-inventory-attestation.v1",issuer:"owner",primaryId:"primary",ownerEpoch:7,
+    discoverySha256,inventorySha256:input.trust.inventorySha256,observedAtMs:now-2000,validUntilMs:now+500};
+  const attestation={...payload,signature:sign("sha256",Buffer.from(hashCurrentBaseline(payload)),owner.privateKey).toString("base64url")};
+  const args={...input,discovery,ownerTrust,attestation};
+  const result=compileAttestedCurrentLegalBaseline(args);
+  assert.equal(result.counts.candidateAllow,1);
+  assert.equal(result.productsQuarantined,1);
+  assert.equal(result.manifest.validUntilMs,now+500);
+  assert.equal(result.authorizing,false);
+  assert.throws(()=>compileAttestedCurrentLegalBaseline({...args,inventory:[]}),/scope_coverage/);
+  assert.throws(()=>compileAttestedCurrentLegalBaseline({...args,inventory:[{...r,sourceItemId:"changed"}]}),/attestation_scope_or_time/);
+  assert.throws(()=>compileAttestedCurrentLegalBaseline({...args,ownerTrust:{...ownerTrust,ownerEpoch:8}}),/attestation_scope_or_time/);
+  assert.throws(()=>compileAttestedCurrentLegalBaseline({...args,ownerTrust:{...ownerTrust,spkiSha256:input.trust.spkiSha256}}),/independent_signers/);
+  assert.throws(()=>compileAttestedCurrentLegalBaseline({...args,attestation:{...attestation,signature:attestation.signature.replace(/^./,attestation.signature[0]==="A"?"B":"A")}}),/signature/);
 });

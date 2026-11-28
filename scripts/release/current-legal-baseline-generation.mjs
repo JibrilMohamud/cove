@@ -81,6 +81,8 @@ export function inspectBaselineCandidate(db, current, ownerEpoch, nowMs) {
   if (
     !row?.allowed ||
     nowMs >= row.validUntilMs ||
+    row.source !== current.source ||
+    row.sourceItemId !== current.sourceItemId ||
     row.artifactSha256 !== current.artifactSha256 ||
     row.policySha256 !== current.policySha256
   )
