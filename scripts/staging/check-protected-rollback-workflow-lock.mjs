@@ -56,7 +56,11 @@ assert.equal(assertProtectedRollbackWorkflow(source), true);
 for (const mutation of [
   (s) => s.replace("  workflow_dispatch:", "  push:"),
   (s) => s.replace("f51e8ccbc394e2d6016ff8c2c303d54b", "d26430caa63ec55f6612e32f36aca5e9"),
-  (s) => s.replace("secrets.COVE_CF_QA_WORKERS_DEPLOY_TOKEN", "secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN"),
+  (s) =>
+    s.replace(
+      "secrets.COVE_CF_QA_WORKERS_DEPLOY_TOKEN",
+      "secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN",
+    ),
   (s) => s.replace("    environment: cove-production-release-audit\n", ""),
   (s) => s.replace("github.ref == 'refs/heads/main' &&", "true &&"),
   (s) => s.replace("inputs.reviewed_main_sha == github.sha", "true"),
