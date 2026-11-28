@@ -15,6 +15,8 @@ import {
   seedLocalCatalogFixture,
   markLocalRegionalSourcesFresh,
   seedLocalScheduledRecommendationJob,
+  seedLocalProductionMaintenanceQueues,
+  seedLocalBlockedProductionFeed,
 } from "../test-local-catalog-fixture.mjs";
 const { Miniflare, convertV4MiniflareOptions } = createRequire(import.meta.url)(
   process.env.COVE_MINIFLARE_MODULE || "miniflare",
@@ -95,6 +97,7 @@ try {
   seedLocalCatalogFixture(fixtureDb);
   markLocalRegionalSourcesFresh(fixtureDb);
   seedLocalScheduledRecommendationJob(fixtureDb);
+  if (production) seedLocalProductionMaintenanceQueues(fixtureDb);
   const common = {
     bundle: true,
     format: "esm",
@@ -415,6 +418,33 @@ try {
     { status: "done", attempts: 2 },
     "Populated expired lease must be reclaimed and completed",
   );
+  if (production) {
+    assert.equal(
+      (await db.prepare("SELECT status FROM account_deletion_requests WHERE id='qa_maintenance_erasure'").first()).status,
+      "blocked_legal_hold",
+      "A real queued erasure must persist its publisher-ownership hold",
+    );
+    assert.equal(
+      (await db.prepare("SELECT status FROM publisher_feed_submissions WHERE id='qa_maintenance_feed'").first()).status,
+      "applied",
+      "A real queued sandbox preview must persist application",
+    );
+    assert.equal(
+      (await db.prepare("SELECT applied_entity_type FROM publisher_feed_items WHERE id='qa_maintenance_item'").first()).applied_entity_type,
+      "sandbox_preview",
+    );
+    await seedLocalBlockedProductionFeed(db);
+    const denied = await tick("23 * * * *", scheduledTime + 60000);
+    assert.equal(denied, 503, "An actual pending live feed requires positive authority");
+    assert.equal(
+      (await db.prepare("SELECT status FROM publisher_feed_submissions WHERE id='qa_unverified_live_feed'").first()).status,
+      "accepted",
+      "The unverified production feed must remain untouched",
+    );
+    const beforeDeniedReplay = await changes();
+    assert.equal(await tick("23 * * * *", scheduledTime + 60000), 503);
+    assert.equal(await changes(), beforeDeniedReplay);
+  }
   await db
     .prepare(
       "UPDATE recommendation_jobs SET job_type='unsupported-fixture-job',status='running',available_at='2000-01-01',lease_until='2000-01-01' WHERE id='qa_scheduled_rec'",
