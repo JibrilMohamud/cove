@@ -74,3 +74,82 @@ export function routeSelectionEvidence(measurement, sha) {
     }),
   };
 }
+
+/** Only an exact, run-bound, zero-upstream admission rejection is retryable.
+ * Neither a slow valid response, target-colo drift after fetch, missing rows,
+ * generic 409, timeout, truncated result nor any other error can qualify. */
+export function zeroWorkRouteRejection(measurement, sha, campaign, colo, concurrency) {
+  if (
+    measurement.status !== "finished" ||
+    measurement.results?.length !== 1 ||
+    !/^[a-zA-Z0-9-]{10,100}$/.test(measurement.id || "")
+  )
+    return null;
+  const item = measurement.results[0];
+  const result = item.result || {};
+  if (
+    result.status !== "finished" ||
+    result.statusCode !== 409 ||
+    result.truncated ||
+    item.probe?.country !== "US"
+  )
+    return null;
+  let body;
+  try {
+    body = JSON.parse(result.rawBody);
+  } catch {
+    return null;
+  }
+  const rawRay = Object.entries(result.headers || {}).find(
+    ([key]) => key.toLowerCase() === "cf-ray",
+  )?.[1];
+  const ingress = /-([A-Z]{3})$/.exec(Array.isArray(rawRay) ? rawRay[0] : rawRay || "")?.[1];
+  if (
+    body?.schema !== "cove.owned-geo-not-admitted.v1" ||
+    body.sha !== sha ||
+    body.campaign !== campaign ||
+    body.country !== "US" ||
+    !ingress ||
+    body.colo !== ingress ||
+    body.expectedColo !== colo ||
+    ingress === colo ||
+    !ownedGeoColos.includes(colo) ||
+    body.concurrency !== concurrency ||
+    body.upstreamRequests !== 0 ||
+    Object.hasOwn(body, "rows")
+  )
+    return null;
+  return {
+    measurementId: measurement.id,
+    expectedColo: colo,
+    observedColo: ingress,
+    concurrency,
+    upstreamRequests: 0,
+  };
+}
+
+/** A maximum of three routing admissions. The first measurement that might
+ * have issued homepage traffic is final, regardless of its result or latency. */
+export async function measurePinnedRegion({
+  pin,
+  sha,
+  campaign,
+  concurrency,
+  measure,
+  rePin,
+  onRejected,
+}) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const measurement = await measure(pin.measurementId, pin.colo + "/" + concurrency);
+    const rejected = zeroWorkRouteRejection(measurement, sha, campaign, pin.colo, concurrency);
+    if (!rejected) return { measurement, pin };
+    onRejected(rejected);
+    if (attempt === 2) return { measurement, pin };
+    const replacement = await rePin(pin);
+    if (replacement) {
+      assert.equal(replacement.colo, pin.colo);
+      pin = replacement;
+    }
+  }
+  throw Error("Unreachable regional admission");
+}
