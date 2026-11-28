@@ -618,3 +618,156 @@ test("public provider definitions are evidence of semantics, never token authori
     assert.doesNotMatch(JSON.stringify(evidence), /Cosmetic|Provider:|redacted/);
   }
 });
+
+const CACHE_PURGE = {
+  id: "e17beae8b8cb423a99b1730f21238bed",
+  name: "Cache Purge",
+  scopes: ["com.cloudflare.api.account.zone"],
+};
+const COVE_ZONE_KEY = "com.cloudflare.api.account.zone.07e218b2e74bc522122e0994b8e37576";
+const OTHER_ZONE_KEY = "com.cloudflare.api.account.zone." + "a".repeat(32);
+const purgePolicy = (overrides = {}) => ({
+  effect: "allow",
+  resources: { [OTHER_ZONE_KEY]: "*" },
+  permission_groups: [{ id: CACHE_PURGE.id, name: CACHE_PURGE.name }],
+  ...overrides,
+});
+const purgeToken = (...policies) => ({ name: "redacted", status: "active", policies });
+function purgeTransport(tokens, catalogResponse = { result: [CACHE_PURGE] }) {
+  const aliases = aliasTransport(tokens);
+  return async (path, key) => {
+    assert.equal(key, USER_TOKEN);
+    if (path === "/user/tokens/permission_groups?scope=com.cloudflare.api.account.zone")
+      return typeof catalogResponse === "function" ? catalogResponse() : catalogResponse;
+    return aliases(path, key);
+  };
+}
+
+test("exact provider Cache Purge is reported separately as a non-Cove mutation, never as Read", async () => {
+  const evidence = await inspectUserTokenEvidence(
+    purgeTransport([purgeToken(purgePolicy()), aliasedPolicy(READ_GROUPS[0].id, "API Tokens")]),
+    USER_TOKEN,
+  );
+  assert.deepEqual(evidence, {
+    verified: true,
+    reason: "current_user_inventory_clear",
+    verifiedUnrelatedNonD1Mutations: ["zone_cache_purge"],
+  });
+  assert.doesNotMatch(JSON.stringify(evidence), /redacted|e17beae8|aaaaaaaa|07e218b2/);
+});
+
+test("every Cache Purge policy must explicitly exclude Cove, including misleading Read labels", async () => {
+  for (const resources of [
+    undefined,
+    null,
+    {},
+    [],
+    { [COVE_ZONE_KEY]: "*" },
+    { [OTHER_ZONE_KEY]: "*", [COVE_ZONE_KEY]: "*" },
+    { "com.cloudflare.api.account.zone.*": "*" },
+    { "com.cloudflare.api.account.zone": "*" },
+    { "com.cloudflare.api.account.*": "*" },
+    { [OTHER_ZONE_KEY]: { "*": "*" } },
+    { [OTHER_ZONE_KEY]: "unknown" },
+    { [OTHER_ZONE_KEY + ".extra"]: "*" },
+  ]) {
+    const evidence = await inspectUserTokenEvidence(
+      purgeTransport([
+        purgeToken(
+          purgePolicy(),
+          purgePolicy({
+            resources,
+            permission_groups: [{ id: CACHE_PURGE.id, name: "Cache Purge Read" }],
+          }),
+        ),
+      ]),
+      USER_TOKEN,
+    );
+    assert.equal(evidence.verified, false);
+    assert.equal(evidence.detail, "cache_purge_zone_exclusion_unverified");
+  }
+  for (const effect of [undefined, "deny", "unknown"]) {
+    const evidence = await inspectUserTokenEvidence(
+      purgeTransport([purgeToken(purgePolicy({ effect }))]),
+      USER_TOKEN,
+    );
+    assert.equal(evidence.verified, false);
+    assert.equal(evidence.detail, "cache_purge_zone_exclusion_unverified");
+  }
+});
+
+test("Cache Purge requires exact ID, exact canonical provider name and exclusively zone scope", async () => {
+  for (const result of [
+    [],
+    [{ ...CACHE_PURGE, id: "f".repeat(32) }],
+    [{ ...CACHE_PURGE, name: "Cache Purge Read" }],
+    [{ ...CACHE_PURGE, scopes: ["com.cloudflare.api.account"] }],
+    [{ ...CACHE_PURGE, scopes: [...CACHE_PURGE.scopes, "com.cloudflare.api.account"] }],
+    [CACHE_PURGE, CACHE_PURGE],
+  ]) {
+    const evidence = await inspectUserTokenEvidence(
+      purgeTransport([purgeToken(purgePolicy())], { result }),
+      USER_TOKEN,
+    );
+    assert.equal(evidence.verified, false);
+    assert.equal(evidence.detail, "cache_purge_provider_identity_unverified");
+  }
+  const wrongId = await inspectUserTokenEvidence(
+    purgeTransport([
+      purgeToken(purgePolicy({ permission_groups: [{ id: "f".repeat(32), name: "Cache Purge" }] })),
+    ]),
+    USER_TOKEN,
+  );
+  assert.equal(wrongId.verified, false);
+  assert.equal(wrongId.detail, "cache_purge_identifier_mismatch");
+  for (const [response, detail] of [
+    [
+      { result: [CACHE_PURGE], result_info: { page: 2, count: 1 } },
+      "read_group_catalog_page_invalid",
+    ],
+    [{ result: null }, "read_group_catalog_shape_invalid"],
+    [
+      () => {
+        throw Error("writer_audit_http_403");
+      },
+      "read_group_catalog_unauthorized",
+    ],
+  ]) {
+    const evidence = await inspectUserTokenEvidence(
+      purgeTransport([purgeToken(purgePolicy())], response),
+      USER_TOKEN,
+    );
+    assert.equal(evidence.verified, false);
+    assert.equal(evidence.detail, detail);
+  }
+});
+
+test("verified Cache Purge never exempts companion D1, Worker or token-write privileges", async () => {
+  for (const name of [
+    "D1 Write",
+    "Workers Scripts Write",
+    "API Tokens Write",
+    "Workers CI Write",
+  ]) {
+    const evidence = await inspectUserTokenEvidence(
+      purgeTransport([
+        purgeToken(
+          purgePolicy({
+            permission_groups: [{ id: CACHE_PURGE.id, name: CACHE_PURGE.name }, { name }],
+          }),
+        ),
+      ]),
+      USER_TOKEN,
+    );
+    assert.deepEqual(evidence, {
+      verified: false,
+      reason: "active_user_token_mutation_capability",
+    });
+  }
+  const unknown = await inspectUserTokenEvidence(
+    purgeTransport([purgeToken(purgePolicy()), aliasedPolicy(undefined, "Unknown Mutation")]),
+    USER_TOKEN,
+  );
+  assert.equal(unknown.verified, false);
+  assert.equal(unknown.detail, "read_group_identifier_missing");
+});

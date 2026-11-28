@@ -85,6 +85,59 @@ const DOCUMENTED_USER_READ_GROUPS=[
   {name:"Account Analytics Read",alias:"Account Analytics",scope:"com.cloudflare.api.account"},
 ];
 const GROUP_ID=/^[a-f0-9]{32}$/;
+// Cloudflare zone ID independently resolved by exact covereads.com name
+// under ACCOUNT on 2026-11-27. Review this pin if Cove's zone ever changes.
+const COVE_ZONE="07e218b2e74bc522122e0994b8e37576";
+const CACHE_PURGE_ID="e17beae8b8cb423a99b1730f21238bed";
+const CACHE_PURGE_NAME="Cache Purge";
+const ZONE_SCOPE="com.cloudflare.api.account.zone";
+const CACHE_PURGE_RESOURCE=/^com\.cloudflare\.api\.account\.zone\.([a-f0-9]{32})$/;
+const isCachePurgeCandidate=group=>
+  group.id===CACHE_PURGE_ID||group.name===CACHE_PURGE_NAME;
+
+// This is a MUTATION capability, not a read alias. Require fresh provider
+// identity plus explicit zone UUID allow selectors for EVERY applicable
+// policy. Never infer exclusion from token names, deny rules, account-wide
+// scopes, nested selectors, wildcards in resource keys or missing metadata.
+async function proveUnrelatedCachePurge(get,userToken,userTokens){
+  const policies=userTokens.filter(t=>t.status==="active")
+    .flatMap(t=>t.policies)
+    .filter(p=>p.permission_groups.some(isCachePurgeCandidate));
+  if(!policies.length)return {verified:false};
+  for(const policy of policies){
+    if(policy.permission_groups.filter(isCachePurgeCandidate)
+      .some(g=>g.id!==CACHE_PURGE_ID))
+      return {verified:false,detail:"cache_purge_identifier_mismatch"};
+    const resources=policy.resources;
+    if(policy.effect!=="allow"||!resources||typeof resources!=="object"||
+      Array.isArray(resources)||!Object.keys(resources).length||
+      !Object.entries(resources).every(([key,value])=>{
+        const zone=CACHE_PURGE_RESOURCE.exec(key)?.[1];
+        return !!zone&&zone!==COVE_ZONE&&value==="*";
+      }))
+      return {verified:false,detail:"cache_purge_zone_exclusion_unverified"};
+  }
+  let page;
+  try{
+    page=await get("/user/tokens/permission_groups?scope="+ZONE_SCOPE,userToken);
+  }catch(error){
+    return {verified:false,detail:
+      ["writer_audit_http_401","writer_audit_http_403"].includes(error?.message)
+        ?"read_group_catalog_unauthorized":"read_group_catalog_unavailable"};
+  }
+  const rows=page?.result,info=page?.result_info;
+  if(!Array.isArray(rows)||rows.length>2048)
+    return {verified:false,detail:"read_group_catalog_shape_invalid"};
+  if(info&&(info.page!==1||info.count!==rows.length))
+    return {verified:false,detail:"read_group_catalog_page_invalid"};
+  const matches=rows.filter(row=>row?.id===CACHE_PURGE_ID||row?.name===CACHE_PURGE_NAME);
+  if(matches.length!==1||matches[0].id!==CACHE_PURGE_ID||
+     matches[0].name!==CACHE_PURGE_NAME||
+     !Array.isArray(matches[0].scopes)||matches[0].scopes.length!==1||
+     matches[0].scopes[0]!==ZONE_SCOPE)
+    return {verified:false,detail:"cache_purge_provider_identity_unverified"};
+  return {verified:true};
+}
 const CATALOG_SCOPES=new Set([
   "com.cloudflare.api.user","com.cloudflare.api.account",
   "com.cloudflare.api.account.zone","com.cloudflare.edge.r2.bucket",
@@ -194,11 +247,11 @@ async function proveAdditionalUserReadAliases(get,userToken,unknown){
   return unresolved.length?proveReadIdsByScope(get,userToken,unresolved):null;
 }
 
-async function proveUnreviewedUserGroupsReadOnly(get,userToken,userTokens){
+async function proveUnreviewedUserGroupsReadOnly(get,userToken,userTokens,cachePurgeVerified=false){
   const unreviewed=userTokens.filter(t=>t.status==="active")
     .flatMap(t=>t.policies.flatMap(p=>p.permission_groups))
-    .filter(group=>!PRIVILEGED_GROUPS.has(group.name)&&
-      !READ_ONLY_GROUP.test(group.name));
+    .filter(group=>!(cachePurgeVerified&&group.id===CACHE_PURGE_ID)&&
+      !PRIVILEGED_GROUPS.has(group.name)&&!READ_ONLY_GROUP.test(group.name));
   if(!unreviewed.length)return null;
   if(unreviewed.some(group=>!GROUP_ID.test(group.id||"")))
     return "read_group_identifier_missing";
@@ -297,11 +350,16 @@ export async function inspectUserTokenEvidence(get,userToken){
     return {verified:false,reason:"user_token_policy_incomplete"};
   if(userTokens.some(t=>t.status==="active"&&tokenCanMutate(t)))
     return {verified:false,reason:"active_user_token_mutation_capability"};
+  // Check the immutable Cache Purge ID even if its cosmetic label looks Read.
+  const cachePurge=await proveUnrelatedCachePurge(get,userToken,userTokens);
+  if(cachePurge.detail)return {verified:false,reason:"active_user_token_permission_unreviewed",
+    detail:cachePurge.detail};
   if(userTokens.some(t=>t.status==="active"&&tokenHasUnreviewedPermissions(t))){
-    const detail=await proveUnreviewedUserGroupsReadOnly(get,userToken,userTokens);
+    const detail=await proveUnreviewedUserGroupsReadOnly(get,userToken,userTokens,cachePurge.verified);
     if(detail)return {verified:false,reason:"active_user_token_permission_unreviewed",detail};
   }
-  return {verified:true,reason:"current_user_inventory_clear"};
+  return {verified:true,reason:"current_user_inventory_clear",
+    ...(cachePurge.verified?{verifiedUnrelatedNonD1Mutations:["zone_cache_purge"]}:{})};
 }
 
 export function evaluatePhysicalWriterInventory({
@@ -558,6 +616,7 @@ async function main(){
     activeVersionCount:workers.reduce((sum,worker)=>sum+worker.activeVersionCount,0),
     userTokenEvidenceReason:userEvidence.reason,
     userTokenEvidenceDetail:userEvidence.detail||null,
+    verifiedUnrelatedNonD1Mutations:userEvidence.verifiedUnrelatedNonD1Mutations||[],
     userPrincipalEvidenceReason:principalEvidence.reason,
     userPrincipalScope:principalEvidence.verified?"verified-single-member":"unverified",
     requestStats:transport.stats(),
@@ -567,7 +626,7 @@ async function main(){
   }));
   if(!report.certified)process.exitCode=1;
 }
-// Diagnostic-only: at most twenty scoped read-only metadata GETs, no Worker enumeration.
+// Diagnostic-only: at most twenty-one scoped read-only metadata GETs, no Worker enumeration.
 // A successful user inventory is never a physical writer/identity certificate.
 export async function userTokenPreflight(env=process.env,get){
   assert.equal(env.GITHUB_REPOSITORY,"JibrilMohamud/cove");
