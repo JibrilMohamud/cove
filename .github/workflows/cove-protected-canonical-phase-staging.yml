@@ -14,6 +14,8 @@ on:
       - "scripts/staging/phase-placement-readiness.mjs"
       - "scripts/staging/phase-placement-readiness.test.mjs"
       - "scripts/performance/verify-canonical-phase-evidence.mjs"
+      - "infra/canonical-readonly/worker.ts"
+      - "scripts/check-canonical-readonly-rpc.mjs"
       - "wrangler.canonical-phase.staging.jsonc"
       - "wrangler.frontend.phase.staging.toml"
   workflow_dispatch:
