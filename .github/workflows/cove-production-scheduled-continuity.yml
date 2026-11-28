@@ -37,7 +37,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - run: python3 -m unittest scripts.audio_pipeline.test_biosync_owner_cutover scripts.audio_pipeline.test_biosync_production_owner_transport
