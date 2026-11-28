@@ -30,6 +30,10 @@ export function assertProtectedRollbackWorkflow(yaml) {
   }
   assert.match(job, /^    environment: cove-production-release-audit\s*$/m);
   assert.match(job, /^    timeout-minutes: 15\s*$/m);
+  assert.match(job, /CLOUDFLARE_ACCOUNT_ID: f51e8ccbc394e2d6016ff8c2c303d54b/);
+  assert.ok(job.includes("secrets.COVE_CF_QA_WORKERS_DEPLOY_TOKEN"));
+  assert.ok(!job.includes("secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN"));
+  assert.ok(job.includes("secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN"));
   assert.ok(
     job.indexOf("environment: cove-production-release-audit") <
       job.indexOf("CLOUDFLARE_API_TOKEN:"),
@@ -51,6 +55,8 @@ const source = readFileSync(PATH, "utf8");
 assert.equal(assertProtectedRollbackWorkflow(source), true);
 for (const mutation of [
   (s) => s.replace("  workflow_dispatch:", "  push:"),
+  (s) => s.replace("f51e8ccbc394e2d6016ff8c2c303d54b", "d26430caa63ec55f6612e32f36aca5e9"),
+  (s) => s.replace("secrets.COVE_CF_QA_WORKERS_DEPLOY_TOKEN", "secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN"),
   (s) => s.replace("    environment: cove-production-release-audit\n", ""),
   (s) => s.replace("github.ref == 'refs/heads/main' &&", "true &&"),
   (s) => s.replace("inputs.reviewed_main_sha == github.sha", "true"),
