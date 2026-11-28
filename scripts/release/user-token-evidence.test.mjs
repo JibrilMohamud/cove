@@ -721,7 +721,10 @@ test("Cache Purge requires exact ID, exact canonical provider name and exclusive
   assert.equal(wrongId.verified, false);
   assert.equal(wrongId.detail, "cache_purge_identifier_mismatch");
   for (const [response, detail] of [
-    [{ result: [CACHE_PURGE], result_info: { page: 2, count: 1 } }, "read_group_catalog_page_invalid"],
+    [
+      { result: [CACHE_PURGE], result_info: { page: 2, count: 1 } },
+      "read_group_catalog_page_invalid",
+    ],
     [{ result: null }, "read_group_catalog_shape_invalid"],
     [
       () => {
@@ -740,7 +743,12 @@ test("Cache Purge requires exact ID, exact canonical provider name and exclusive
 });
 
 test("verified Cache Purge never exempts companion D1, Worker or token-write privileges", async () => {
-  for (const name of ["D1 Write", "Workers Scripts Write", "API Tokens Write", "Workers CI Write"]) {
+  for (const name of [
+    "D1 Write",
+    "Workers Scripts Write",
+    "API Tokens Write",
+    "Workers CI Write",
+  ]) {
     const evidence = await inspectUserTokenEvidence(
       purgeTransport([
         purgeToken(
@@ -751,7 +759,10 @@ test("verified Cache Purge never exempts companion D1, Worker or token-write pri
       ]),
       USER_TOKEN,
     );
-    assert.deepEqual(evidence, { verified: false, reason: "active_user_token_mutation_capability" });
+    assert.deepEqual(evidence, {
+      verified: false,
+      reason: "active_user_token_mutation_capability",
+    });
   }
   const unknown = await inspectUserTokenEvidence(
     purgeTransport([purgeToken(purgePolicy()), aliasedPolicy(undefined, "Unknown Mutation")]),
