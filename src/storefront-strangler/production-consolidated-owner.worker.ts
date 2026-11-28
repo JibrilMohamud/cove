@@ -104,6 +104,10 @@ export class CoveLegalAuthority extends ExistingLegalAuthority{
     // that the production positive-rights owner is disabled.
     if(route==="/__cove/legal-owner/attest-disabled")return super.fetch(request);
     if(!productionOwnerInternalRequest(request,env.COVE_RIGHTS_OWNER_SECRET!))return refuse(401);
+    if(route==="/account/private-action"){
+      try{return await this.productionAccountMetadata(request,await body(request,2048));}
+      catch{return refuse();}
+    }
     if(!negativeRoutes.has(route)&&route!==OWNER_BIOSYNC_PATH&&route!==OWNER_SCHEDULE_PATH)
       return refuse(503);
     const storage=this.ctx.storage as unknown as Storage;

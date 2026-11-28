@@ -397,9 +397,9 @@
       "reason": "Evaluation history is written after resolving rights. Authorization re-evaluates grants; the recorded decision is not a reusable positive grant."
     },
     {
-      "siteId": "e80e572198d886a691d761a169ed0dcd4c456e85108a06421867c935d1a2b4ae",
+      "siteId": "6d167fd59fee32b74bf0f187a8ab43406db330a45c07f250ad10f4600486e971",
       "file": "src/features/fore/search.server.ts",
-      "line": 2303,
+      "line": 2324,
       "functionName": "refreshSearchQualitySignals",
       "table": "catalog_search_documents",
       "operation": "UPDATE",

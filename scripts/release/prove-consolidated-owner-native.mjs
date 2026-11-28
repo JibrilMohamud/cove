@@ -11,6 +11,7 @@ import { createRequire } from "node:module";
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { nativeReaderProvider, proveNativeOwnerReader } from "../test-native-owner-reader-fixture.mjs";
 import {
   seedLocalCatalogFixture,
   markLocalRegionalSourcesFresh,
@@ -150,6 +151,9 @@ try {
           COVE_RIGHTS_OWNER_TEST_EXPIRES_AT: String(Date.now() + 840000),
         }),
     FORE_BACKEND_TOKEN_SHA256: tokenHash,
+    FORE_AUTH_MODE: "supabase",
+    SUPABASE_URL: "https://native-auth.invalid",
+    SUPABASE_PUBLISHABLE_KEY: "sb_publishable_local_native_fixture",
     COVE_PUBLICATION_COMMAND_TERRITORY: "US",
     COVE_PUBLICATION_COMMAND_CURRENCY: "USD",
     COVE_RIGHTS_OWNER_SECRET: secret,
@@ -174,6 +178,8 @@ try {
     },
     durableObjects: { LEGAL_AUTHORITY: { className: "CoveLegalAuthority", useSQLite: true } },
     outboundService: async (request) => {
+      const provider = nativeReaderProvider(request);
+      if (provider) return provider;
       upstreamCalls++;
       if (failUpstream) return new Response(null, { status: 503 });
       const url = new URL(request.url);
@@ -358,6 +364,7 @@ try {
       JSON.stringify(counts),
     );
   }
+  const readerRows = await proveNativeOwnerReader({ client, db, backendToken, production });
   const scheduledTime = Date.now();
   const tick = async (cron, time = scheduledTime) => {
     try {
@@ -543,6 +550,7 @@ try {
         closedGatewayRollbackRehearsed: production,
         nativeBusinessEntrypoint: true,
         operationalRows: counts,
+        readerRows,
         ownerNativeD1Bindings: 1,
         runtime: "workerd",
         compatibilityDate: "2026-10-17",

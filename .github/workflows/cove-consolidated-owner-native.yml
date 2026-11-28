@@ -3,6 +3,14 @@ on:
   pull_request:
     paths:
       - "src/storefront-strangler/consolidated-*-qa.worker.ts"
+      - "src/storefront-strangler/legal-authority.worker.ts"
+      - "src/storefront-strangler/qa-owner-*.ts"
+      - "src/storefront-strangler/*d1-write-fence.ts"
+      - "src/features/fore/**"
+      - "src/persistence-backend.worker.ts"
+      - "drizzle/**"
+      - "scripts/test-native-owner-reader-fixture.mjs"
+      - "scripts/test-local-catalog-fixture.mjs"
       - "scripts/release/prove-consolidated-owner-native.mjs"
       - ".github/workflows/cove-consolidated-owner-native.yml"
   workflow_dispatch:
@@ -21,6 +29,6 @@ jobs:
           node-version: "22"
       - run: npm ci --no-audit --no-fund
       - run: npm run typecheck
-      - name: Prove actual native owner HTTP and all scheduled operations
+      - name: Prove native authenticated reader, account, catalog, operational rows and all seven schedules
         run: |
           npm exec --yes --package=wrangler@4.151.0 -- sh -c 'COVE_MINIFLARE_MODULE="$(dirname "$(command -v wrangler)")/../miniflare" node --no-warnings scripts/release/prove-consolidated-owner-native.mjs'

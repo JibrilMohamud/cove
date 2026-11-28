@@ -2,21 +2,28 @@ name: Production consolidated owner candidate
 on:
   pull_request:
     paths:
-      - 'src/storefront-strangler/production-consolidated-*.worker.ts'
-      - 'src/storefront-strangler/production-persistence-enrollment.ts'
-      - 'scripts/release/*production-consolidation*'
-      - 'scripts/release/prove-consolidated-owner-native.mjs'
-      - 'src/persistence-backend.worker.ts'
-      - 'scripts/release/archive-production-biosync-bridge*'
-      - 'scripts/release/activate-production-literary-budget-owner*'
-      - '.github/workflows/production-literary-budget-owner-activation.yml'
-      - '.github/workflows/production-biosync-bridge-version-upload.yml'
-      - 'wrangler.consolidated-*.production-candidate.jsonc'
-      - 'wrangler.biosync-bridge-*.production-candidate.jsonc'
-      - 'src/storefront-strangler/production-biosync-ingress.worker.ts'
-      - 'src/storefront-strangler/*-source-reader.ts'
-      - 'src/storefront-strangler/literary-owner-*.ts'
-      - '.github/workflows/production-consolidated-owner-candidate.yml'
+      - "src/storefront-strangler/production-consolidated-*.worker.ts"
+      - "src/storefront-strangler/production-persistence-enrollment.ts"
+      - "scripts/release/*production-consolidation*"
+      - "scripts/release/prove-consolidated-owner-native.mjs"
+      - "scripts/test-native-owner-reader-fixture.mjs"
+      - "scripts/test-local-catalog-fixture.mjs"
+      - "src/storefront-strangler/legal-authority.worker.ts"
+      - "src/features/fore/auth.server.ts"
+      - "src/features/fore/account-management.server.ts"
+      - "src/features/fore/sync.server.ts"
+      - "drizzle/**"
+      - "src/persistence-backend.worker.ts"
+      - "scripts/release/archive-production-biosync-bridge*"
+      - "scripts/release/activate-production-literary-budget-owner*"
+      - ".github/workflows/production-literary-budget-owner-activation.yml"
+      - ".github/workflows/production-biosync-bridge-version-upload.yml"
+      - "wrangler.consolidated-*.production-candidate.jsonc"
+      - "wrangler.biosync-bridge-*.production-candidate.jsonc"
+      - "src/storefront-strangler/production-biosync-ingress.worker.ts"
+      - "src/storefront-strangler/*-source-reader.ts"
+      - "src/storefront-strangler/literary-owner-*.ts"
+      - ".github/workflows/production-consolidated-owner-candidate.yml"
   workflow_dispatch:
 permissions:
   contents: read
@@ -30,7 +37,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: "22"
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: node --test scripts/release/production-consolidation.test.mjs scripts/release/archive-production-biosync-bridge.test.mjs
@@ -61,7 +68,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: "22"
           cache: npm
       - run: npm ci --no-audit --no-fund
       - name: Exercise all seven production-mode schedules in disposable workerd
