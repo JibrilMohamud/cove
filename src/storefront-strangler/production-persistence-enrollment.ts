@@ -7,6 +7,21 @@ export const PRODUCTION_OWNER_OBJECT="cove-staged-legal-global-v1";
 export const BIOSYNC_PATH="/__cove/biosync/publish-checked";
 export const OWNER_BIOSYNC_PATH="/biosync/publish-checked";
 export const OWNER_SCHEDULE_PATH="/production/private-backend-scheduled-tick";
+export const OWNER_PUBLICATION_RECOVERY_PATH="/publication/recover-recorded";
+/** The disabled-positive maintenance owner must still distinguish an empty
+ * recovery journal from real work that it cannot legally resume. No journal
+ * rows or cursors may be modified by this check. */
+export function emptyProductionPublicationRecovery(raw:unknown,hasPending:()=>boolean){
+  const input=raw as {operationId?:unknown}|null;
+  if(!input||typeof input!=="object"||Array.isArray(input)||
+    Object.keys(input).join(",")!=="operationId"||
+    typeof input.operationId!=="string"||
+    !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,95}$/.test(input.operationId))
+    throw Error("production_publication_recovery_invalid");
+  if(hasPending())throw Error("production_publication_recovery_requires_authority");
+  return {schema:"cove.publication-recovery.v1",ownerFirst:true,
+    operationId:input.operationId,checked:0,recovered:0,blocked:0};
+}
 export const PRODUCTION_SCHEDULES=Object.freeze([
   "* * * * *","*/5 * * * *","*/10 * * * *","7-57/10 * * * *","23 * * * *","17 3 * * *","41 4 * * *"
 ]);
@@ -71,6 +86,9 @@ export function productionPersistenceEnrolled(env:ProductionPersistenceEnv){
  */
 const operations=new Set([
   "GET /__cove/health",
+  "GET /api/fore/health/live",
+  "GET /api/fore/health/ready",
+  "GET /api/fore/service-status",
   "POST /api/fore/account/preferences",
   "GET /api/fore/reader/settings",
   "POST /api/fore/reader/settings",

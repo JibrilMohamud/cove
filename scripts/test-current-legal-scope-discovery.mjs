@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import { discoverLegalScopes } from "./current-legal-scope-discovery.mjs";
+import { discoverLegalScopes } from "./release/current-legal-scope-discovery.mjs";
 
 test("discovery includes inactive products, deny-only grants, expanded channels and unresolved scopes", () => {
   const db = new DatabaseSync(":memory:");
