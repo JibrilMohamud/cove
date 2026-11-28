@@ -420,24 +420,44 @@ try {
   );
   if (production) {
     assert.equal(
-      (await db.prepare("SELECT status FROM account_deletion_requests WHERE id='qa_maintenance_erasure'").first()).status,
+      (
+        await db
+          .prepare("SELECT status FROM account_deletion_requests WHERE id='qa_maintenance_erasure'")
+          .first()
+      ).status,
       "blocked_legal_hold",
       "A real queued erasure must persist its publisher-ownership hold",
     );
     assert.equal(
-      (await db.prepare("SELECT status FROM publisher_feed_submissions WHERE id='qa_maintenance_feed'").first()).status,
+      (
+        await db
+          .prepare("SELECT status FROM publisher_feed_submissions WHERE id='qa_maintenance_feed'")
+          .first()
+      ).status,
       "applied",
       "A real queued sandbox preview must persist application",
     );
     assert.equal(
-      (await db.prepare("SELECT applied_entity_type FROM publisher_feed_items WHERE id='qa_maintenance_item'").first()).applied_entity_type,
+      (
+        await db
+          .prepare(
+            "SELECT applied_entity_type FROM publisher_feed_items WHERE id='qa_maintenance_item'",
+          )
+          .first()
+      ).applied_entity_type,
       "sandbox_preview",
     );
     await seedLocalBlockedProductionFeed(db);
     const denied = await tick("23 * * * *", scheduledTime + 60000);
     assert.equal(denied, 503, "An actual pending live feed requires positive authority");
     assert.equal(
-      (await db.prepare("SELECT status FROM publisher_feed_submissions WHERE id='qa_unverified_live_feed'").first()).status,
+      (
+        await db
+          .prepare(
+            "SELECT status FROM publisher_feed_submissions WHERE id='qa_unverified_live_feed'",
+          )
+          .first()
+      ).status,
       "accepted",
       "The unverified production feed must remain untouched",
     );
