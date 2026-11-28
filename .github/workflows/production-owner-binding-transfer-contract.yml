@@ -1,0 +1,32 @@
+name: Production owner binding transfer contract
+on:
+  pull_request:
+    paths:
+      - "scripts/release/production-owner-secret-transfer*.mjs"
+      - "scripts/test-production-owner-secret-transfer-native.mjs"
+      - ".github/workflows/production-owner-binding-transfer-contract.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/release/production-owner-secret-transfer*.mjs"
+      - "scripts/test-production-owner-secret-transfer-native.mjs"
+      - ".github/workflows/production-owner-binding-transfer-contract.yml"
+permissions:
+  contents: read
+jobs:
+  isolated-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - run: npm ci --no-audit --no-fund
+      - name: Verify exact active-version inheritance, original runtime restoration and credential cleanup
+        run: node --test scripts/release/production-owner-secret-transfer*.test.mjs
+      - name: Verify private native service calls, fixed secret target, proof and refusal cases
+        run: |
+          npm exec --yes --package=wrangler@4.151.0 -- sh -c 'COVE_MINIFLARE_MODULE="$(dirname "$(command -v wrangler)")/../miniflare" node scripts/test-production-owner-secret-transfer-native.mjs'
