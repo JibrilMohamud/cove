@@ -2,23 +2,29 @@ name: Current legal baseline contract
 on:
   pull_request:
     paths:
-      - 'scripts/release/current-legal-baseline.mjs'
-      - 'scripts/release/current-legal-baseline-generation.mjs'
-      - 'scripts/release/current-legal-scope-discovery*.mjs'
-      - 'scripts/test-current-legal-scope-discovery.mjs'
-      - 'scripts/release/current-legal-baseline.test.mjs'
-      - 'scripts/release/compile-current-legal-baseline.local.mjs'
-      - '.github/workflows/current-legal-baseline.yml'
+      - "src/storefront-strangler/current-legal-owner*.ts"
+      - "scripts/test-current-legal-owner-baseline.mjs"
+      - "scripts/release/prepare-current-legal-owner-publication*.mjs"
+      - "scripts/release/current-legal-baseline.mjs"
+      - "scripts/release/current-legal-baseline-generation.mjs"
+      - "scripts/release/current-legal-scope-discovery*.mjs"
+      - "scripts/test-current-legal-scope-discovery.mjs"
+      - "scripts/release/current-legal-baseline.test.mjs"
+      - "scripts/release/compile-current-legal-baseline.local.mjs"
+      - ".github/workflows/current-legal-baseline.yml"
   push:
     branches: [main]
     paths:
-      - 'scripts/release/current-legal-baseline.mjs'
-      - 'scripts/release/current-legal-baseline-generation.mjs'
-      - 'scripts/release/current-legal-scope-discovery*.mjs'
-      - 'scripts/test-current-legal-scope-discovery.mjs'
-      - 'scripts/release/current-legal-baseline.test.mjs'
-      - 'scripts/release/compile-current-legal-baseline.local.mjs'
-      - '.github/workflows/current-legal-baseline.yml'
+      - "src/storefront-strangler/current-legal-owner*.ts"
+      - "scripts/test-current-legal-owner-baseline.mjs"
+      - "scripts/release/prepare-current-legal-owner-publication*.mjs"
+      - "scripts/release/current-legal-baseline.mjs"
+      - "scripts/release/current-legal-baseline-generation.mjs"
+      - "scripts/release/current-legal-scope-discovery*.mjs"
+      - "scripts/test-current-legal-scope-discovery.mjs"
+      - "scripts/release/current-legal-baseline.test.mjs"
+      - "scripts/release/compile-current-legal-baseline.local.mjs"
+      - ".github/workflows/current-legal-baseline.yml"
 permissions:
   contents: read
 jobs:
@@ -31,6 +37,8 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: "22"
+      - run: npm ci --no-audit --no-fund
+      - run: node scripts/test-current-legal-owner-baseline.mjs
       - run: node --check scripts/release/compile-current-legal-baseline.local.mjs
       - run: node --test scripts/release/current-legal-baseline.test.mjs scripts/test-current-legal-scope-discovery.mjs

@@ -17749,7 +17749,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
   protected async productionAccountMetadata(request:Request,raw:unknown):Promise<Response>{
     const env=this.env as LegalAuthorityEnv&ProductionPersistenceEnv;
     const noStore={"cache-control":"no-store"};
-    if(!productionPersistenceEnrolled(env)||
+    if(!this.productionMaintenanceAdmission()||
       !productionOwnerInternalRequest(request,env.COVE_RIGHTS_OWNER_SECRET!)||
       new URL(request.url).origin!=="https://legal-authority.internal")
       return new Response(null,{status:503,headers:noStore});
@@ -17769,7 +17769,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     const env=this.env as LegalAuthorityEnv&ProductionPersistenceEnv;
     const headers={"cache-control":"no-store"};
     const refuse=(status=503)=>new Response(null,{status,headers});
-    if(!productionPersistenceEnrolled(env)||env.COVE_PRODUCTION_PERSISTENCE_CRON_ENABLED!=="1")
+    if(!this.productionMaintenanceAdmission()||env.COVE_PRODUCTION_PERSISTENCE_CRON_ENABLED!=="1")
       return refuse();
     if(!productionOwnerInternalRequest(request,env.COVE_RIGHTS_OWNER_SECRET!))return refuse(401);
     const url=new URL(request.url);
@@ -17814,6 +17814,15 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     }catch{return refuse();}
   }
 
+  protected productionMaintenanceAdmission():boolean{
+    return productionPersistenceEnrolled(this.env as LegalAuthorityEnv&ProductionPersistenceEnv);
+  }
+
+  /** Additional admission is disabled by default; the original QA lease remains. */
+  protected async ownerRuntimeAdmission(_request:Request):Promise<boolean>{
+    return false;
+  }
+
   async fetch(request: Request): Promise<Response> {
     const noStore={ "cache-control": "no-store" };
     const env=this.env;
@@ -17839,8 +17848,10 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       return Response.json(disabledOwnerReceipt((parsed as {challenge:string}).challenge),
         {headers:noStore});
     }
-    if (!qaOwnerLeaseLive(env))
-      return new Response(null,{status:503,headers:noStore});
+    if (!qaOwnerLeaseLive(env)) {
+      if (!await this.ownerRuntimeAdmission(request))
+        return new Response(null,{status:503,headers:noStore});
+    }
     // All calls must arrive by private service binding with an independent
     // operator secret. Nothing on this Worker should be publicly routed.
     if (request.headers.get("authorization")!=="Bearer "+env.COVE_RIGHTS_OWNER_SECRET)

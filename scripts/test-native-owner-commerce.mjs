@@ -10,6 +10,7 @@ import { build } from "esbuild";
 const { Miniflare, convertV4MiniflareOptions } = createRequire(import.meta.url)(
   process.env.COVE_MINIFLARE_MODULE || "miniflare",
 );
+const productionQuarantine = process.argv.includes("--production-quarantine");
 const root = mkdtempSync(join(tmpdir(), "cove-native-commerce-"));
 const primary = "969f1ea0-5f57-4f3a-aa25-9c74e58f5af3";
 const secret = "d".repeat(64),
@@ -490,6 +491,69 @@ try {
     ).n,
     2,
   );
+  if (productionQuarantine) {
+    await mf.dispose();
+    await build({
+      ...common,
+      entryPoints: ["src/storefront-strangler/production-consolidated-owner.worker.ts"],
+      outfile: join(root, "owner.mjs"),
+    });
+    await build({
+      ...common,
+      entryPoints: ["src/storefront-strangler/production-consolidated-gateway.worker.ts"],
+      outfile: join(root, "caller.mjs"),
+    });
+    for (const name of Object.keys(owner.bindings))
+      if (name.startsWith("COVE_QA_") || name === "COVE_RIGHTS_OWNER_TEST_EXPIRES_AT")
+        delete owner.bindings[name];
+    Object.assign(owner.bindings, {
+      COVE_PRODUCTION_PERSISTENCE_OWNER_ENABLED: "1",
+      COVE_PRODUCTION_QUARANTINE_OWNER_ENABLED: "1",
+      COVE_PRODUCTION_PERSISTENCE_CRON_ENABLED: "0",
+      FORE_ENVIRONMENT: "production",
+      COVE_SSR_STAGING: "0",
+      COVE_RIGHTS_OWNER_PRIMARY_ID: "4bd657ac-8789-403e-a28c-93aba8d0a989",
+      COVE_LEGAL_WRITER_PRIMARY_ID: "4bd657ac-8789-403e-a28c-93aba8d0a989",
+      COVE_LEGAL_CONSUMER_STAGE_ENABLED: "0",
+      COVE_CANONICAL_LEGAL_WRITE_LOCK: "0",
+    });
+    owner.d1Databases.LITERARY_CONTENT_DB = "22222222-2222-4222-8222-222222222222";
+    caller.bindings = {
+      COVE_PRODUCTION_PERSISTENCE_GATEWAY_ENABLED: "1",
+      FORE_ENVIRONMENT: "production",
+      FORE_BACKEND_TOKEN_SHA256: owner.bindings.FORE_BACKEND_TOKEN_SHA256,
+    };
+    mf = new Miniflare(convertV4MiniflareOptions ? convertV4MiniflareOptions(options) : options);
+    db = await mf.getD1Database("PRIMARY_DB", "owner");
+    client = await mf.getWorker("caller");
+    legalClient = await mf.getWorker("owner");
+    const baseline = async (route, value) => {
+      const response = await legalClient.fetch(
+        "https://legal-authority.internal/legal-baseline/" + route,
+        {
+          method: "POST",
+          headers: { authorization: "Bearer " + secret, "content-type": "application/json" },
+          body: JSON.stringify(value),
+        },
+      );
+      assert.equal(response.status, 200, route + ": " + (await response.clone().text()));
+      return response.json();
+    };
+    let captured = await baseline("capture", { challenge: "c".repeat(32) });
+    for (let i = 0; !captured.complete && i < 100; i++)
+      captured = await baseline("capture-next", {
+        captureId: captured.captureId,
+        index: captured.nextIndex,
+      });
+    assert.equal(captured.complete, true);
+    const denial = await baseline("quarantine-all", { captureId: captured.captureId });
+    assert.equal(denial.independentlyAuthorized, 0);
+    assert.equal(
+      (await acquireGrant()).status,
+      451,
+      "Production cannot reuse the synthetic QA grant",
+    );
+  }
   // A disposable local staff principal reaches the original RBAC-protected
   // refund API. No production user/role or extra refund entrypoint is created.
   await insert("staff_roles", {
@@ -556,8 +620,8 @@ try {
     ).status,
     "revoked",
   );
-  assert.equal((await redeem()).status, 410);
-  assert.equal((await acquireGrant()).status, 403);
+  assert.equal((await redeem()).status, productionQuarantine ? 451 : 410);
+  assert.equal((await acquireGrant()).status, productionQuarantine ? 451 : 403);
   // A genuine runtime restart loses in-memory commands while retaining the
   // owner/D1 journals and the provider's idempotent accepted refund.
   await mf.dispose();
@@ -621,7 +685,7 @@ try {
   await mf.dispose();
   mf = new Miniflare(convertV4MiniflareOptions ? convertV4MiniflareOptions(options) : options);
   client = await mf.getWorker("caller");
-  assert.equal((await post()).status, 200);
+  assert.equal((await post()).status, productionQuarantine ? 451 : 200);
   assert.equal(
     providerCalls,
     callsBeforeRestart,
@@ -632,6 +696,7 @@ try {
     JSON.stringify({
       migrations: migrations.length,
       callerD1Bindings: 0,
+      productionQuarantineMode: productionQuarantine,
       persisted,
       postedRefund,
       refundCreations,

@@ -29,7 +29,8 @@ const root = mkdtempSync(join(tmpdir(), "cove-native-schedules-"));
 const raw = new DatabaseSync(":memory:");
 const primary = "969f1ea0-5f57-4f3a-aa25-9c74e58f5af3";
 const secret = "a".repeat(64);
-const production = process.argv.includes("--production-maintenance");
+const quarantine = process.argv.includes("--production-quarantine");
+const production = quarantine || process.argv.includes("--production-maintenance");
 const productionPrimaryLabel = "4bd657ac-8789-403e-a28c-93aba8d0a989";
 const literary = "22222222-2222-4222-8222-222222222222";
 // D1 exec treats each line as a command. Compact only lexical whitespace;
@@ -139,7 +140,8 @@ try {
           COVE_PRODUCTION_PERSISTENCE_CRON_ENABLED: "1",
           FORE_ENVIRONMENT: "production",
           FORE_AUTH_MODE: "supabase",
-          COVE_RIGHTS_OWNER_ENABLED: "0",
+          COVE_RIGHTS_OWNER_ENABLED: quarantine ? "1" : "0",
+          ...(quarantine ? { COVE_PRODUCTION_QUARANTINE_OWNER_ENABLED: "1" } : {}),
           COVE_RIGHTS_OWNER_PRIMARY_ID: productionPrimaryLabel,
           COVE_LEGAL_WRITER_PRIMARY_ID: productionPrimaryLabel,
         }
@@ -262,6 +264,62 @@ try {
     200,
     "Legal default entrypoint must not serve business routes",
   );
+  if (quarantine) {
+    const invoke = async (route, value) => {
+      const response = await ownerClient.fetch(
+        "https://legal-authority.internal/legal-baseline/" + route,
+        {
+          method: "POST",
+          headers: { authorization: "Bearer " + secret, "content-type": "application/json" },
+          body: JSON.stringify(value),
+        },
+      );
+      assert.equal(response.status, 200, route + ": " + (await response.clone().text()));
+      return response.json();
+    };
+    assert.equal(
+      (
+        await client.fetch("https://fixture.invalid/__cove/health", {
+          headers: { "x-cove-backend-token": backendToken },
+        })
+      ).status,
+      503,
+      "Flags without persisted classification cannot enable business execution",
+    );
+    let capture = await invoke("capture", { challenge: "b".repeat(32) });
+    let replayed = false;
+    for (let attempts = 0; !capture.complete && attempts < 200; attempts++) {
+      const input = { captureId: capture.captureId, index: capture.nextIndex };
+      const next = await invoke("capture-next", input);
+      if (next.page && !replayed) {
+        const retry = await invoke("capture-next", input);
+        assert.equal(
+          retry.page.sha256,
+          next.page.sha256,
+          "Lost capture acknowledgement must recover the exact page",
+        );
+        replayed = true;
+      }
+      capture = next;
+    }
+    assert.equal(capture.complete, true, "Bounded canonical capture must finish");
+    assert.ok(capture.productCount >= 24);
+    assert.ok(replayed);
+    const denial = await invoke("quarantine-all", { captureId: capture.captureId });
+    assert.equal(denial.independentlyAuthorized, 0);
+    const scope = await invoke("inspect", {
+      productId: "unknown-native-product",
+      territory: "US",
+      format: "ebook",
+      channel: "retail",
+    });
+    assert.equal(scope.allowed, false);
+    assert.equal(scope.baselineAllowed, false);
+    console.log(
+      "PASS: actual production all-deny baseline capture, exact page recovery, atomic publication and unknown-scope denial",
+      JSON.stringify({ products: capture.productCount, scopes: capture.scopeCount }),
+    );
+  }
   const apiRoutes = production
     ? [
         "/__cove/health",
@@ -315,7 +373,11 @@ try {
       const response = await client.fetch("https://fixture.invalid" + path, {
         headers: { "x-cove-backend-token": backendToken },
       });
-      assert.equal(response.status, 503, "Maintenance must not grant unverified rights: " + path);
+      assert.equal(
+        response.status,
+        quarantine ? 451 : 503,
+        "Maintenance must not grant unverified rights: " + path,
+      );
     }
     const isolated = await mf.getD1Database("LITERARY_CONTENT_DB", "owner");
     await isolated.exec(
@@ -549,6 +611,7 @@ try {
           ? "cove.production-maintenance-native.v1"
           : "cove.consolidated-owner-native.v1",
         productionMaintenanceMode: production,
+        productionQuarantineMode: quarantine,
         ...(production ? { positiveRightsEnrolled: false } : {}),
         closedGatewayRollbackRehearsed: production,
         nativeBusinessEntrypoint: true,

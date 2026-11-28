@@ -1,4 +1,7 @@
 /* eslint-disable prettier/prettier -- private production persistence candidate */
+import {createCurrentLegalOwnerServiceSchema,handleCurrentLegalOwnerService,CURRENT_LEGAL_BASELINE_PREFIX} from "./current-legal-owner-service";
+import {invalidateCurrentLegalBaseline,hashLegalBaseline} from "./current-legal-owner-baseline";
+import {bindProductionQuarantineBusinessDb,productionOwnerConfigured,productionQuarantineConfigured,productionQuarantineReady,quarantineNegativeCommand,quarantineBusinessRoute,QUARANTINE_STATUS,type QuarantineEnv} from "./production-quarantine-owner";
 import {WorkerEntrypoint} from "cloudflare:workers";
 import {handleLiteraryOwnerService,type LiteraryOwnerServiceEnv} from "./literary-owner-service";
 import {LITERARY_READ_ROUTE,LITERARY_HANDOFF_ROUTE,LITERARY_PUBLICATION_ROUTE} from "./literary-owner-protocol";
@@ -25,12 +28,16 @@ import {productionPersistenceEnrolled,productionBiosyncEnrolled,productionBiosyn
   type ProductionPersistenceEnv} from "./production-persistence-enrollment";
 
 type LegalEnv=Parameters<typeof legacyLegal.fetch>[1];
-type Env=LegalEnv&ProductionPersistenceEnv&LiteraryOwnerServiceEnv&{
+type Env=LegalEnv&ProductionPersistenceEnv&LiteraryOwnerServiceEnv&QuarantineEnv&{
+  COVE_CURRENT_LEGAL_BASELINE_TRUST_JSON?:string;
   COVE_PUBLICATION_SOURCE_READER_SECRET?:string;
   COVE_PRODUCTION_LITERARY_BUDGET_CRON_ENABLED?:string;
   COVE_PRODUCTION_LITERARY_BUDGET_RELEASE_SHA?:string;
   COVE_SOUNDS_SOURCE_READER_SECRET?:string;
 };
+function maintenanceEnrollmentEnv(env:Env):Env{
+  return productionQuarantineConfigured(env)?{...env,COVE_RIGHTS_OWNER_ENABLED:"0"}:env;
+}
 type Port={fetch(request:Request):Promise<Response>};
 type Storage={sql:AuthoritySql;transactionSync<T>(fn:()=>T):T};
 
@@ -61,7 +68,7 @@ const body=async(request:Request,max:number)=>{
   return JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(bytes)) as unknown;
 };
 function nativeBusinessEnv(env:Env,owner:Port):BackendEnv{
-  if(!productionPersistenceEnrolled(env))throw Error("production_persistence_not_enrolled");
+  if(!productionOwnerConfigured(env))throw Error("production_persistence_not_enrolled");
   // Remove raw primary, separate literary storage and owner-only secrets.
   // Backend receives only the native business facade and closed command port.
   const bindings=Object.fromEntries(Object.entries(env).filter(([key])=>
@@ -71,6 +78,7 @@ function nativeBusinessEnv(env:Env,owner:Port):BackendEnv{
   const db=bindPublicationOwner(nativeFencedBusinessDb(env.PRIMARY_DB),{
     owner,secret:env.COVE_RIGHTS_OWNER_SECRET!,territory:"US",currency:"USD"
   });
+  if(productionQuarantineConfigured(env))bindProductionQuarantineBusinessDb(db,env);
   return {...bindings,DB:db,COVE_QA_SCHEDULE_OWNER_ENABLED:"0",
     COVE_PUBLICATION_COMMANDS_ENABLED:"0",COVE_QA_OWNER_UNBOUND_READ_ENABLED:"0"} as BackendEnv;
 }
@@ -90,6 +98,17 @@ function scheduleInput(raw:unknown){
   return {cron:x.cron,slot:Number(x.slot)};
 }
 export class CoveLegalAuthority extends ExistingLegalAuthority{
+  protected override productionMaintenanceAdmission():boolean{
+    const env=this.env as Env;
+    return productionOwnerConfigured(env)&&(!productionQuarantineConfigured(env)||
+      !!productionQuarantineReady(env,this.ctx.storage.sql as AuthoritySql));
+  }
+  protected override async ownerRuntimeAdmission(request:Request):Promise<boolean>{
+    const env=this.env as Env;
+    if(!productionQuarantineConfigured(env))return super.ownerRuntimeAdmission(request);
+    return !!productionQuarantineReady(env,this.ctx.storage.sql as AuthoritySql)&&
+      productionOwnerInternalRequest(request,env.COVE_RIGHTS_OWNER_SECRET!)&&quarantineNegativeCommand(request);
+  }
   override async fetch(request:Request):Promise<Response>{
     const env=this.env as Env,route=new URL(request.url).pathname;
     if(env.COVE_PRODUCTION_BIOSYNC_BRIDGE_ENABLED==="1"&&route===OWNER_BIOSYNC_PATH){
@@ -99,22 +118,35 @@ export class CoveLegalAuthority extends ExistingLegalAuthority{
       catch{return refuse();}
     }
     if(env.COVE_PRODUCTION_PERSISTENCE_OWNER_ENABLED!=="1")return super.fetch(request);
-    if(!productionPersistenceEnrolled(env))return refuse();
+    if(!productionOwnerConfigured(env))return refuse();
     // Preserve the old explicitly nonauthorizing challenge. It is still true
     // that the production positive-rights owner is disabled.
     if(route==="/__cove/legal-owner/attest-disabled")return super.fetch(request);
     if(!productionOwnerInternalRequest(request,env.COVE_RIGHTS_OWNER_SECRET!))return refuse(401);
+    if(productionQuarantineConfigured(env)){
+      const storage=this.ctx.storage as unknown as Storage;
+      createCurrentLegalOwnerServiceSchema(storage);
+      if(route===QUARANTINE_STATUS)return reply({ready:!!productionQuarantineReady(env,storage.sql)});
+      if(!route.startsWith(CURRENT_LEGAL_BASELINE_PREFIX)&&!productionQuarantineReady(env,storage.sql))return refuse();
+      if(quarantineNegativeCommand(request))return super.fetch(request);
+    }
     if(route==="/account/private-action"){
       try{return await this.productionAccountMetadata(request,await body(request,2048));}
       catch{return refuse();}
     }
-    if(!negativeRoutes.has(route)&&route!==OWNER_BIOSYNC_PATH&&route!==OWNER_SCHEDULE_PATH)
+    if(!negativeRoutes.has(route)&&!route.startsWith(CURRENT_LEGAL_BASELINE_PREFIX)&&route!==OWNER_BIOSYNC_PATH&&route!==OWNER_SCHEDULE_PATH)
       return refuse(503);
     const storage=this.ctx.storage as unknown as Storage;
     try{
-      const raw=await body(request,route===OWNER_SCHEDULE_PATH?512:route===OWNER_BIOSYNC_PATH?1024:24000);
+      createCurrentLegalOwnerServiceSchema(storage);
+      const raw=await body(request,route.startsWith(CURRENT_LEGAL_BASELINE_PREFIX)?262144:route===OWNER_SCHEDULE_PATH?512:route===OWNER_BIOSYNC_PATH?1024:24000);
+      if(route.startsWith(CURRENT_LEGAL_BASELINE_PREFIX)){
+        if(new URL(request.url).origin!=="https://legal-authority.internal")return refuse(400);
+        return reply(await handleCurrentLegalOwnerService({route,raw,db:env.PRIMARY_DB,storage,
+          primaryId:env.COVE_RIGHTS_OWNER_PRIMARY_ID!,trustJson:env.COVE_CURRENT_LEGAL_BASELINE_TRUST_JSON}));
+      }
       if(route===OWNER_BIOSYNC_PATH){
-        if(!productionBiosyncEnrolled(env))return refuse();
+        if(!productionBiosyncEnrolled(maintenanceEnrollmentEnv(env)))return refuse();
         return reply(await publishCheckedBiosyncOwned(env.PRIMARY_DB,env.BUCKET,raw));
       }
       if(route===OWNER_SCHEDULE_PATH){
@@ -178,7 +210,9 @@ export class CoveLegalAuthority extends ExistingLegalAuthority{
       }
       // Same existing negative primitives and existing legal DO tables.
       // They issue tombstones only, not a positive grant or serving receipt.
+      const invalidationId="withdrawal:"+await hashLegalBaseline({route,raw});
       const result=storage.transactionSync(()=>{
+        invalidateCurrentLegalBaseline(storage.sql,invalidationId);
         switch(route){
           case "/deny-next":return persistSourceWithdrawal(storage.sql,raw);
           case "/deny-next-batch":return persistSourceWithdrawalsBatch(storage.sql,raw);
@@ -200,7 +234,7 @@ export class CoveLegalAuthority extends ExistingLegalAuthority{
 export class CoveBioSyncEntrypoint extends WorkerEntrypoint<Env>{
   async fetch(request:Request):Promise<Response>{
     const env=this.env;
-    if(!productionNamedBiosyncEnrolled(env))return refuse();
+    if(!productionNamedBiosyncEnrolled(maintenanceEnrollmentEnv(env)))return refuse();
     if(!productionBiosyncRequest(request))return refuse(404);
     if(!await checkToken(bearer(request),env.COVE_BIOSYNC_CLIENT_TOKEN_SHA256))return refuse(401);
     try{return await ownerCall(env,OWNER_BIOSYNC_PATH,await body(request,1024));}catch{return refuse();}
@@ -209,20 +243,24 @@ export class CoveBioSyncEntrypoint extends WorkerEntrypoint<Env>{
 export class CoveBusinessEntrypoint extends WorkerEntrypoint<Env>{
   async fetch(request:Request):Promise<Response>{
     const env=this.env;
-    if(!productionPersistenceEnrolled(env))return refuse();
+    if(!productionOwnerConfigured(env))return refuse();
     if(productionBiosyncRequest(request)){
-      if(!productionBiosyncEnrolled(env))return refuse();
+      if(!productionBiosyncEnrolled(maintenanceEnrollmentEnv(env)))return refuse();
       if(!await checkToken(bearer(request),env.COVE_BIOSYNC_CLIENT_TOKEN_SHA256))return refuse(401);
       try{return await ownerCall(env,OWNER_BIOSYNC_PATH,await body(request,1024));}catch{return refuse();}
     }
     if(!await checkToken(request.headers.get("x-cove-backend-token")||"",env.FORE_BACKEND_TOKEN_SHA256))return refuse(401);
-    if(!maintenanceBusinessRoute(request))return refuse();
+    if(productionQuarantineConfigured(env)){
+      const status=await ownerCall(env,QUARANTINE_STATUS,{});
+      if(status.status!==200||(await status.json() as {ready?:unknown}).ready!==true)return refuse();
+      if(!quarantineBusinessRoute(request))return refuse(451);
+    }else if(!maintenanceBusinessRoute(request))return refuse();
     // Original authenticated handler, original legal/commerce SQL fences,
     // no remotely supplied SQL, no second primary binding.
     return backend.fetch(request,nativeBusinessEnv(env,env.LEGAL_AUTHORITY!.getByName(PRODUCTION_OWNER_OBJECT)),this.ctx);
   }
   async attestDisabledOwner(){
-    if(!productionPersistenceEnrolled(this.env))throw Error("production_persistence_not_enrolled");
+    if(!productionOwnerConfigured(this.env))throw Error("production_persistence_not_enrolled");
     return attestDisabledOwnerFromBackend(this.env);
   }
 }
@@ -234,7 +272,7 @@ export default {
     // their exact protocols even while positive legal issuance is disabled.
     if([LITERARY_READ_ROUTE,LITERARY_HANDOFF_ROUTE,LITERARY_PUBLICATION_ROUTE,
       PUBLICATION_SOURCE_ROUTE,SOUNDS_SOURCE_ROUTE].includes(route)){
-      if(env.COVE_RIGHTS_OWNER_ENABLED!=="0"||env.COVE_RIGHTS_OWNER_TEST_EXPIRES_AT||
+      if((env.COVE_RIGHTS_OWNER_ENABLED!=="0"&&!productionQuarantineConfigured(env))||env.COVE_RIGHTS_OWNER_TEST_EXPIRES_AT||
         env.COVE_SSR_STAGING==="1"||env.FORE_ENVIRONMENT!=="production")return refuse();
       if([LITERARY_READ_ROUTE,LITERARY_HANDOFF_ROUTE,LITERARY_PUBLICATION_ROUTE].includes(route))
         return handleLiteraryOwnerService(request,env);
@@ -242,18 +280,24 @@ export default {
         return readPublicationSource(request,env as unknown as Parameters<typeof readPublicationSource>[1]);
       return readSoundsPublicationSource(request,env);
     }
+    if(route.startsWith(CURRENT_LEGAL_BASELINE_PREFIX)){
+      if(!productionOwnerConfigured(env))return refuse();
+      if(!productionOwnerInternalRequest(request,env.COVE_RIGHTS_OWNER_SECRET!))return refuse(401);
+      if(new URL(request.url).origin!=="https://legal-authority.internal")return refuse(400);
+      return env.LEGAL_AUTHORITY!.getByName(PRODUCTION_OWNER_OBJECT).fetch(request);
+    }
     return legacyLegal.fetch(request,env);
   },
   async scheduled(controller:{cron:string;scheduledTime:number},env:Env){
     if([LITERARY_BUDGET_CRON,LITERARY_BUDGET_PROBE_CRON].includes(controller.cron)){
-      if(env.COVE_PRODUCTION_LITERARY_BUDGET_CRON_ENABLED!=="1"||!productionLiteraryBudgetEnrolled(env))
+      if(env.COVE_PRODUCTION_LITERARY_BUDGET_CRON_ENABLED!=="1"||!productionLiteraryBudgetEnrolled(maintenanceEnrollmentEnv(env)))
         throw Error("literary_budget_owner_not_enrolled");
       const receipt=await rollOwnedLiteraryBudget(env.PRIMARY_DB,env.LITERARY_CONTENT_DB!);
       await recordOwnedBudgetTick(env.LITERARY_CONTENT_DB!,receipt,controller.scheduledTime,env.COVE_PRODUCTION_LITERARY_BUDGET_RELEASE_SHA||"",controller.cron);
       console.info(JSON.stringify(receipt));
       return;
     }
-    if(!productionPersistenceEnrolled(env)||env.COVE_PRODUCTION_PERSISTENCE_CRON_ENABLED!=="1")
+    if(!productionOwnerConfigured(env)||env.COVE_PRODUCTION_PERSISTENCE_CRON_ENABLED!=="1")
       throw Error("production_schedule_not_enrolled");
     const x=scheduleInput({cron:controller.cron,slot:Math.floor(controller.scheduledTime/60000)});
     const response=await ownerCall(env,OWNER_SCHEDULE_PATH,x);

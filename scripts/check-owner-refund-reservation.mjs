@@ -1,4 +1,5 @@
 /* eslint-disable prettier/prettier -- Deterministic private owner refund reservation regression. */
+import {reverseProductionQuarantineCommerceDelta} from "./release/production-quarantine-source-delta.mjs";
 import assert from "node:assert/strict";
 import {build} from "esbuild";
 import {mkdtempSync,rmSync,readFileSync} from "node:fs";
@@ -104,7 +105,7 @@ try{
   const race=fixture({concurrent:true});
   await assert.rejects(()=>invoke(race,request),/owner_refund_concurrent_reservation_conflict/);
   assert.equal(race.refunds.size,1,"Competing idempotency key keeps its own original tender");
-  const commerce=readFileSync("src/features/fore/commerce.server.ts","utf8");
+  const commerce=reverseProductionQuarantineCommerceDelta(readFileSync("src/features/fore/commerce.server.ts","utf8"));
   const entry=commerce.indexOf("export async function refundOrder(");
   const ownerBranch=commerce.indexOf('if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1") {',entry);
   const nextFunction=commerce.indexOf("function refundResponse(",entry);

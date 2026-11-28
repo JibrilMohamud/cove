@@ -592,6 +592,56 @@ test("journeys show their audience and enforce named-member links", async ({
   }
 });
 
+test("background journey refresh preserves a pending private audience and its conflict fence", async ({
+  browser,
+  request,
+}, testInfo) => {
+  const fixture = await setup(browser, request, testInfo);
+  try {
+    const alice = await fixture.pageFor("alice"),
+      path = `/api/fore/social/journeys/${fixture.journeyId}`;
+    await alice.goto(`/community?journey=${fixture.journeyId}`);
+    await expect(alice.getByText("Current audience:", { exact: false })).toContainText("Followers");
+    const original = await (await alice.request.get(path)).json();
+    await alice
+      .getByRole("combobox", { name: "Journey visibility", exact: true })
+      .selectOption("private");
+    const changed = await alice.request.patch(path, {
+      data: { visibility: "public", expectedVersion: original.version },
+    });
+    expect(changed.ok()).toBeTruthy();
+    const refresh = alice.waitForResponse(
+      (r) => r.request().method() === "GET" && new URL(r.url()).pathname === path,
+    );
+    // A real reconnect refreshes stale queries, including another device's edit.
+    await alice.evaluate(() => {
+      window.dispatchEvent(new Event("offline"));
+      window.dispatchEvent(new Event("online"));
+    });
+    await refresh;
+    await expect(alice.getByText("Current audience:", { exact: false })).toContainText("Public");
+    await expect(
+      alice.getByRole("combobox", { name: "Journey visibility", exact: true }),
+    ).toHaveValue("private");
+    const mutation = alice.waitForRequest(
+      (r) => r.method() === "PATCH" && new URL(r.url()).pathname === path,
+    );
+    const result = alice.waitForResponse(
+      (r) => r.request().method() === "PATCH" && new URL(r.url()).pathname === path,
+    );
+    await alice.getByRole("button", { name: "Save journey settings", exact: true }).click();
+    const submitted = JSON.parse((await mutation).postData() || "{}");
+    expect(submitted.visibility).toBe("private");
+    expect(submitted.expectedVersion).toBe(original.version);
+    expect((await result).status()).toBe(409);
+    const persisted = await (await alice.request.get(path)).json();
+    expect(persisted.visibility).toBe("public");
+    expect(persisted.version).toBe(original.version + 1);
+  } finally {
+    await fixture.close();
+  }
+});
+
 test("zero density persists and hides passage markers", async ({ browser, request }, testInfo) => {
   const fixture = await setup(browser, request, testInfo);
   try {
