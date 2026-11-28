@@ -133,7 +133,16 @@ export class CoveLegalAuthority extends ExistingLegalAuthority{
         const tasks:Promise<unknown>[]=[];let failed=false;
         try{
           const {scheduleBackendOwnedWork}=await import("../persistence-backend.worker");
-          scheduleBackendOwnedWork({cron:x.cron},nativeBusinessEnv(env,this),{
+          // Keep these existing private executors reachable only from the
+          // in-process scheduled dispatch, not the owner's HTTP fetch.
+          const scheduledPort:Port={fetch:async(request)=>{
+            const route=new URL(request.url).pathname;
+            if(["/account/private-action","/publishing/partner/process-feed","/preorder/private-action"].includes(route)){
+              return this.productionMaintenanceQueue(request,await body(request,1024));
+            }
+            return this.fetch(request);
+          }};
+          scheduleBackendOwnedWork({cron:x.cron},nativeBusinessEnv(env,scheduledPort),{
             waitUntil(promise){const task=Promise.resolve(promise);task.catch(()=>{});tasks.push(task);}
           },true);
         }catch{failed=true;}
