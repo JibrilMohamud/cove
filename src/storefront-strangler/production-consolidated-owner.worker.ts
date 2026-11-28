@@ -135,7 +135,7 @@ export class CoveLegalAuthority extends ExistingLegalAuthority{
           const {scheduleBackendOwnedWork}=await import("../persistence-backend.worker");
           scheduleBackendOwnedWork({cron:x.cron},nativeBusinessEnv(env,this),{
             waitUntil(promise){const task=Promise.resolve(promise);task.catch(()=>{});tasks.push(task);}
-          });
+          },true);
         }catch{failed=true;}
         const settled=await Promise.allSettled(tasks);
         try{

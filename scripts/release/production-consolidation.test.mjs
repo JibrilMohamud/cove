@@ -55,6 +55,11 @@ test("production enrollment never accepts QA, positive grants, a competing datab
 test("only exact nonauthorizing operations; storefront, delivery and payments denied",()=>{
   const req=(path,method="GET")=>new Request("https://fixture.invalid"+path,{method});
   assert.equal(p.maintenanceBusinessRoute(req("/__cove/health")),true);
+  for(const path of ["/api/fore/health/live","/api/fore/health/ready","/api/fore/service-status"]){
+    assert.equal(p.maintenanceBusinessRoute(req(path)),true,path);
+    assert.equal(p.maintenanceBusinessRoute(req(path,"POST")),false,path);
+    assert.equal(p.maintenanceBusinessRoute(req(path+"?x=1")),false,path);
+  }
   assert.equal(p.maintenanceBusinessRoute(req("/api/fore/reader/settings","POST")),true);
   for(const path of ["/api/fore/catalog","/api/fore/storefront/context","/api/fore/commerce/checkout","/api/fore/library","/api/fore/reader/content","/api/fore/reader/settings?x=1","/__cove/health/","/api/fore/admin/rights","/api/fore/reader%2fsettings"])
     assert.equal(p.maintenanceBusinessRoute(req(path)),false,path);

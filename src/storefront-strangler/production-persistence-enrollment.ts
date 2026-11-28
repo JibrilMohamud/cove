@@ -71,6 +71,9 @@ export function productionPersistenceEnrolled(env:ProductionPersistenceEnv){
  */
 const operations=new Set([
   "GET /__cove/health",
+  "GET /api/fore/health/live",
+  "GET /api/fore/health/ready",
+  "GET /api/fore/service-status",
   "POST /api/fore/account/preferences",
   "GET /api/fore/reader/settings",
   "POST /api/fore/reader/settings",
