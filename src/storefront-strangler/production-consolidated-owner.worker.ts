@@ -21,6 +21,7 @@ import {assertCronSettled} from "../lib/cron-result-guard";
 import {productionPersistenceEnrolled,productionBiosyncEnrolled,productionBiosyncBridgeEnrolled,productionNamedBiosyncEnrolled,productionLiteraryBudgetEnrolled,productionBiosyncRequest,
   productionOwnerInternalRequest,maintenanceBusinessRoute,checkToken,bearer,refuse,noStore,
   PRODUCTION_OWNER_OBJECT,PRODUCTION_SCHEDULES,OWNER_SCHEDULE_PATH,OWNER_BIOSYNC_PATH,
+  OWNER_PUBLICATION_RECOVERY_PATH,emptyProductionPublicationRecovery,
   type ProductionPersistenceEnv} from "./production-persistence-enrollment";
 
 type LegalEnv=Parameters<typeof legacyLegal.fetch>[1];
@@ -137,6 +138,20 @@ export class CoveLegalAuthority extends ExistingLegalAuthority{
           // in-process scheduled dispatch, not the owner's HTTP fetch.
           const scheduledPort:Port={fetch:async(request)=>{
             const route=new URL(request.url).pathname;
+            // The normal publishing maintenance entrypoint always requests
+            // recovery before scanning the D1 release schedule. With positive
+            // authority disabled, only a proven EMPTY owner journal is safe.
+            // Keep this private to this one cron and never dispatch a positive
+            // recovery handler or advance its cursor.
+            if(route===OWNER_PUBLICATION_RECOVERY_PATH){
+              if(x.cron!=="41 4 * * *"||
+                !productionOwnerInternalRequest(request,env.COVE_RIGHTS_OWNER_SECRET!)||
+                new URL(request.url).origin!=="https://legal-authority.internal")return refuse();
+              try{
+                return reply(emptyProductionPublicationRecovery(await body(request,1024),()=>
+                  sql.exec("SELECT operation_id FROM cove_publication_commands WHERE state='pending' OR published_epoch IS NULL LIMIT 1").toArray().length!==0));
+              }catch{return refuse();}
+            }
             if(["/account/private-action","/publishing/partner/process-feed","/preorder/private-action"].includes(route)){
               return this.productionMaintenanceQueue(request,await body(request,1024));
             }
