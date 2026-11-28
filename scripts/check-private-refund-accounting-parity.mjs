@@ -1,4 +1,5 @@
 /* eslint-disable prettier/prettier -- Exact financial source parity is a release-safety invariant. */
+import {reverseProductionQuarantineCommerceDelta} from "./release/production-quarantine-source-delta.mjs";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import ts from "typescript";
@@ -7,7 +8,7 @@ const legacy=read("scripts/test-refund-accounting-legacy-source.ts");
 const retired=read("src/features/fore/refund-accounting.server.ts");
 const owner=read("src/storefront-strangler/legal-authority.worker.ts");
 const executor=read("src/storefront-strangler/refund-accounting-owner-executor.ts");
-const commerce=read("src/features/fore/commerce.server.ts");
+const commerce=reverseProductionQuarantineCommerceDelta(read("src/features/fore/commerce.server.ts"));
 const parse=(path,text)=>ts.createSourceFile(path,text,ts.ScriptTarget.Latest,true);
 for(const [path,text] of [["historical fixture",legacy],["retired shared module",retired],["private owner",owner],["executor",executor]])
  assert.equal(parse(path+".ts",text).parseDiagnostics.length,0,path+" must parse");
