@@ -11,6 +11,7 @@ on:
       - "scripts/release/certify-exclusive-primary-d1.mjs"
       - "scripts/release/user-token-evidence.test.mjs"
       - "scripts/release/user-token-preflight.test.mjs"
+      - "scripts/release/diagnose-user-token-remediation*.mjs"
       - "scripts/release/physical-d1-writer-read-transport.mjs"
       - "scripts/release/physical-d1-writer-read-transport.test.mjs"
       - ".github/workflows/cove-protected-user-token-readonly.yml"
@@ -35,7 +36,7 @@ jobs:
         with: { persist-credentials: false }
       - uses: actions/setup-node@v6
         with: { node-version: "22" }
-      - run: node --test scripts/release/user-token-evidence.test.mjs scripts/release/user-token-preflight.test.mjs
+      - run: node --test scripts/release/user-token-evidence.test.mjs scripts/release/user-token-preflight.test.mjs scripts/release/diagnose-user-token-remediation.test.mjs
   protected-user-metadata:
     needs: offline
     if: >-
