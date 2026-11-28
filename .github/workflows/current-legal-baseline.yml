@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'scripts/release/current-legal-baseline.mjs'
+      - 'scripts/release/current-legal-baseline-generation.mjs'
+      - 'scripts/release/current-legal-scope-discovery*.mjs'
       - 'scripts/release/current-legal-baseline.test.mjs'
       - 'scripts/release/compile-current-legal-baseline.local.mjs'
       - '.github/workflows/current-legal-baseline.yml'
@@ -10,6 +12,8 @@ on:
     branches: [main]
     paths:
       - 'scripts/release/current-legal-baseline.mjs'
+      - 'scripts/release/current-legal-baseline-generation.mjs'
+      - 'scripts/release/current-legal-scope-discovery*.mjs'
       - 'scripts/release/current-legal-baseline.test.mjs'
       - 'scripts/release/compile-current-legal-baseline.local.mjs'
       - '.github/workflows/current-legal-baseline.yml'

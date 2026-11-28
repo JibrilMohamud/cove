@@ -79,7 +79,9 @@ export function discoverLegalScopes(db) {
         .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
         .map(([, row]) => row),
       unresolvedGrantIds: [...unresolved].sort(),
-      productsWithoutRecordedScopes: products.filter((p) => !covered.has(p.productId)).map((p) => p.productId),
+      productsWithoutRecordedScopes: products
+        .filter((p) => !covered.has(p.productId))
+        .map((p) => p.productId),
     };
     db.exec("COMMIT");
     return {
