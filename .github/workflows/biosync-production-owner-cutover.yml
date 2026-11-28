@@ -1,0 +1,45 @@
+name: Protected production BioSync owner cutover
+on:
+  workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        type: string
+        required: true
+      confirm_owner_publication:
+        type: boolean
+        required: true
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: cove-biosync-production-canary
+  cancel-in-progress: false
+jobs:
+  owner-publication:
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.reviewed_main_sha == github.sha &&
+      inputs.confirm_owner_publication == true
+    runs-on: ubuntu-latest
+    environment: cove-production-release-audit
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: python3 -m unittest scripts.audio_pipeline.test_biosync_production_owner_transport
+      - name: Run actual scheduled discovery and checked owner commit, no legacy D1 token
+        env:
+          COVE_BIOSYNC_PROD_OWNER_MODE: "1"
+          BIOSYNC_AUTO_SHORT: "1"
+          COVE_BIOSYNC_PROD_D1_READ_TOKEN: ${{ secrets.COVE_BIOSYNC_PROD_D1_READ_TOKEN }}
+          COVE_BIOSYNC_PROD_R2_TOKEN: ${{ secrets.COVE_BIOSYNC_PROD_R2_TOKEN }}
+          COVE_BIOSYNC_PROD_CLIENT_SECRET: ${{ secrets.COVE_BIOSYNC_PROD_CLIENT_SECRET }}
+        run: python3 -m scripts.audio_pipeline.biosync_canary

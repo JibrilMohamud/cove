@@ -92,7 +92,12 @@ export async function authorizeHomepageWithUnifiedOwner(
         territory:candidates.country,currency:candidates.currency})
     }
   ));
-  if(response.status!==200)throw Error("legal_owner_unavailable");
+  if(response.status!==200){
+    const kind=response.headers.get("x-cove-isolated-authority-failure");
+    if(response.status===503 && /^(d1-resource-window|d1-queue-full|d1-queue-wait|service-overloaded|transient-service|database|unclassified)$/.test(kind||""))
+      throw Error("isolated_authority:"+kind);
+    throw Error("legal_owner_unavailable");
+  }
   const payload=await response.json() as {schema?:unknown;rows?:unknown};
   if(!payload||payload.schema!=="cove.storefront-owner.v1"||
      !Array.isArray(payload.rows)||payload.rows.length>25)

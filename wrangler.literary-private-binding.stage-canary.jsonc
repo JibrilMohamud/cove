@@ -1,23 +1,24 @@
 {
+  "account_id": "f51e8ccbc394e2d6016ff8c2c303d54b",
   "compatibility_date": "2026-10-09",
   "workers_dev": false,
   "preview_urls": false,
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "cove-literary-cutover-qa-primary-20261024",
-      "database_id": "24c0eda2-6a43-4d7e-b787-502745d4d781"
+      "database_name": "cove-literary-synthetic-primary-qa",
+      "database_id": "2dd68956-06a6-4b21-b729-596b94744c6b"
     },
     {
       "binding": "CONTENT_DB",
-      "database_name": "cove-literary-cutover-qa-content-20261024",
-      "database_id": "fce5742c-29ca-4bc3-85da-e174dd9bf42e"
+      "database_name": "cove-literary-synthetic-content-qa",
+      "database_id": "d2c5673a-7497-4924-8b06-0be32f32555a"
     }
   ],
   "r2_buckets": [
     {
       "binding": "BUCKET",
-      "bucket_name": "cove-literary-cutover-qa-objects-20261024"
+      "bucket_name": "cove-literary-synthetic-objects-qa"
     }
   ],
   "name": "cove-literary-binding-stage-qa-20261024",

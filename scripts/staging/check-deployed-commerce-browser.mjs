@@ -1,6 +1,7 @@
 // Opt-in deployed-browser acceptance. NEVER target production or use live Stripe.
 // The origin, users, media fixtures and keys must be provisioned out of band.
 // The workflow must FAIL, not substitute local module-level identity mocks.
+import { prepareCommerceBrowser } from "./commerce-browser-readiness.mjs";
 import assert from "node:assert/strict";
 import { randomUUID, createHash } from "node:crypto";
 import fs from "node:fs";
@@ -19,7 +20,7 @@ const required = [
   "COVE_QA_AUDIO_PUBLIC_ID",
   "COVE_QA_AUDIO_TRACK_ID",
   "COVE_SANDBOX_SECRET_KEY",
-  "CLOUDFLARE_API_TOKEN",
+  "COVE_CF_QA_D1_MUTATION_TOKEN",
 ];
 const missing = required.filter((name) => !process.env[name]);
 assert.equal(
@@ -35,8 +36,13 @@ assert.match(origin.hostname, /(?:^|[.-])(?:qa|staging)(?:[.-])/i);
 // Allow only this one disposable, ingress-gated Cloudflare Worker as a
 // temporary test origin. Other workers.dev hosts remain rejected.
 const isEphemeralQaWorker =
-  origin.hostname === "cove-commerce-customer-qa-stage.cove-jibrilmohamud.workers.dev";
+  origin.hostname === "cove-commerce-customer-qa-stage.cove-qa-reads.workers.dev";
 if (isEphemeralQaWorker) {
+  assert.match(
+    q.COVE_QA_INGRESS_INSTANCE || "",
+    /^[a-f0-9]{32}$/,
+    "Run-bound QA browser instance required",
+  );
   assert.match(
     q.COVE_QA_STAGE_BEARER || "",
     /^[a-f0-9]{64}$/,
@@ -79,6 +85,7 @@ const report = {
   revision: process.env.GITHUB_SHA || "unreported",
   target: "protected isolated QA origin",
   stripeMode: "test",
+  browserIngressPreparations: [],
   buyerAuthenticated: false,
   outsiderAuthenticated: false,
   protectedEpub: false,
@@ -116,8 +123,21 @@ async function openUser(email, password) {
   });
   contexts.push(context);
   const page = await context.newPage();
-  const navigated = await page.goto(origin.href, { waitUntil: "domcontentloaded" });
-  assert.equal(navigated.status(), 200, "QA preview must be browser-accessible");
+  if (isEphemeralQaWorker) {
+    const preparation = await prepareCommerceBrowser({
+      page,
+      origin: origin.href,
+      headers: qaIngressHeaders(),
+      instance: q.COVE_QA_INGRESS_INSTANCE,
+    });
+    report.browserIngressPreparations.push(preparation);
+    console.log("QA_BROWSER_INGRESS_READY", JSON.stringify(preparation));
+  } else {
+    const navigated = await page.goto(origin.href, { waitUntil: "domcontentloaded" });
+    assert.equal(navigated.status(), 200, "QA preview must be browser-accessible");
+  }
+  // The mutation is dispatched exactly once, only after this browser's own
+  // read-only preparation. Readiness can never replay a credential submission.
   const login = await request(page, "POST", "/auth/login", { login: email, password });
   // Log status only: never echo account email, password, session cookies or
   // arbitrary provider error responses into CI logs.
@@ -204,21 +224,26 @@ const billingAddress = {
 // production or another user's cart.
 async function clearStaleQaFixtureCart(userId) {
   assert.match(userId, /^sb:[a-f0-9-]{36}$/);
-  assert.equal(origin.hostname, "cove-commerce-customer-qa-stage.cove-jibrilmohamud.workers.dev");
-  const knownProducts = new Set([q.COVE_QA_EPUB_PRODUCT_ID, q.COVE_QA_AUDIO_PRODUCT_ID]);
+  assert.equal(origin.hostname, "cove-commerce-customer-qa-stage.cove-qa-reads.workers.dev");
+  const knownProducts = new Set([
+    q.COVE_QA_EPUB_PRODUCT_ID,
+    q.COVE_QA_AUDIO_PRODUCT_ID,
+    "qa-original-ebook-product",
+    "qa-original-audio-product",
+  ]);
   const previous = await qaD1(
     "SELECT i.product_id FROM shopping_cart_items i JOIN shopping_carts c ON c.id=i.cart_id WHERE c.user_id=? LIMIT 20",
     [userId],
   );
-  assert.ok(previous.length <= 2, "Unexpected existing QA cart size; never clear arbitrary items");
+  assert.ok(previous.length <= 4, "Unexpected existing QA cart size; never clear arbitrary items");
   assert.ok(
     previous.every((row) => knownProducts.has(row.product_id)),
     "Unexpected QA cart product; refuse automatic cleanup",
   );
   if (previous.length) {
     await qaD1(
-      "DELETE FROM shopping_cart_items WHERE cart_id IN (SELECT id FROM shopping_carts WHERE user_id=?) AND product_id IN (?,?)",
-      [userId, q.COVE_QA_EPUB_PRODUCT_ID, q.COVE_QA_AUDIO_PRODUCT_ID],
+      "DELETE FROM shopping_cart_items WHERE cart_id IN (SELECT id FROM shopping_carts WHERE user_id=?) AND product_id IN (?,?,?,?)",
+      [userId, ...knownProducts],
     );
   }
   const remaining = await qaD1(
@@ -251,6 +276,28 @@ async function purchase(page, productId) {
     quoteId: quote.data.id,
     idempotencyKey: idem,
   });
+  // Map only fixed internal errors to a bounded phase label. Never print
+  // Stripe payloads, buyer data, client secrets, or arbitrary provider text.
+  if (pay.status !== 200) {
+    const paymentPhase = {
+      "Canonical checkout owner could not materialize the order.": "materialize-draft",
+      "Canonical checkout owner could not reserve checkout tenders.": "prepare-draft",
+      "Checkout owner receipt differs from canonical order.": "order-readback",
+      "Stripe customer owner is not certified.": "customer-admission",
+      "Stripe customer identity was not acknowledged by its canonical owner.":
+        "customer-owner-receipt",
+      "Checkout payment owner is not certified.": "payment-admission",
+      "Checkout payment identity was not acknowledged by its canonical owner.":
+        "payment-owner-receipt",
+    };
+    const message = pay.data?.error;
+    const phase =
+      typeof message === "string" && Object.hasOwn(paymentPhase, message)
+        ? paymentPhase[message]
+        : "unclassified";
+    report.paymentFailure = { status: pay.status, phase, appHeader: pay.appHeader };
+    console.log("QA_PAYMENT_FAILURE", JSON.stringify(report.paymentFailure));
+  }
   assert.equal(pay.status, 200);
   assert.match(pay.data?.paymentIntentId, /^pi_/);
   const repeated = await request(page, "POST", "/checkout/payment", {
@@ -262,14 +309,18 @@ async function purchase(page, productId) {
   assert.equal(intent.livemode, false);
   assert.ok(intent.amount > 0 && intent.amount <= 500, "Synthetic QA maximum is $5");
   assert.equal(intent.currency, "usd");
-  payments.push({ intentId: pay.data.paymentIntentId, orderId: pay.data.orderId });
+  payments.push({
+    intentId: pay.data.paymentIntentId,
+    orderId: pay.data.orderId,
+    refundKey: "qa-refund-" + randomUUID(),
+  });
   const confirmed = await stripe("POST", "payment_intents/" + intent.id + "/confirm", {
     payment_method: "pm_card_visa",
     return_url: origin.href,
   });
   assert.equal(confirmed.status, "succeeded");
   assert.equal(confirmed.livemode, false);
-  return { intentId: intent.id, orderId: pay.data.orderId };
+  return payments[payments.length - 1];
 }
 async function refundAndVerify(adminPage, purchase, checkRevoked) {
   // Run the SAME commerce refund path used by Cove's staff. Directly calling
@@ -278,15 +329,15 @@ async function refundAndVerify(adminPage, purchase, checkRevoked) {
   const returned = await request(adminPage, "POST", "/admin/commerce/refund", {
     orderId: purchase.orderId,
     reason: "requested_by_customer",
-    idempotencyKey: "qa-refund-" + randomUUID(),
+    idempotencyKey: purchase.refundKey,
   });
   assert.equal(returned.status, 200, "Authorized Cove refund endpoint rejected QA request");
   assert.ok(["pending", "succeeded"].includes(returned.data?.status));
-  refunded.add(purchase.intentId);
   await until(async () => {
     const rows = await qaD1("SELECT status FROM commerce_orders WHERE id=?", [purchase.orderId]);
     return rows[0]?.status === "refunded" && (await checkRevoked());
   }, "Real Cove refund must update order, entitlement and protected access");
+  refunded.add(purchase.intentId);
 }
 try {
   const buyer = await openUser(q.COVE_QA_BUYER_EMAIL, q.COVE_QA_BUYER_PASSWORD);
@@ -354,7 +405,31 @@ try {
     productId: q.COVE_QA_EPUB_PRODUCT_ID,
     purpose: "read",
   });
-  assert.equal(grant.status, 201);
+  if (grant.status !== 201) {
+    // Fixed metadata only: never log a bearer URL, response body or buyer data.
+    const message = typeof grant.data?.error === "string" ? grant.data.error : "";
+    const phases = {
+      "Private legal owner refused commercial EPUB grant.": "owner-rejected",
+      "Commercial EPUB grant requires private legal authority.": "owner-context-missing",
+      "Protected paid-entitlement owner unavailable.": "owner-proof-transport",
+      "Paid entitlement proof malformed.": "owner-proof-malformed",
+      "Paid entitlement proof expired or corrupt.": "owner-proof-invalid",
+      "Paid entitlement owner is not configured or scoped.": "owner-proof-scope",
+      "The commercial asset is not present in Cove-controlled storage.": "asset-storage",
+      "This title's contract requires a DRM form that is not present on the resolved commercial asset.":
+        "asset-drm",
+      "This title requires an external DRM/key-wrapping service that is not configured for direct EPUB delivery.":
+        "external-drm",
+    };
+    const phase = Object.hasOwn(phases, message) ? phases[message] : "unclassified";
+    console.error("Purchased EPUB grant failure", {
+      status: grant.status,
+      phase,
+      appHeader: grant.appHeader,
+      redirected: grant.redirected,
+    });
+  }
+  assert.equal(grant.status, 201, "Purchased EPUB grant must be issued by private owner");
   const grantUrl = new URL(grant.data?.url, origin);
   assert.equal(grantUrl.origin, origin.origin);
   const book = await buyer.evaluate(async (path) => {
@@ -561,7 +636,22 @@ try {
     async (path) => (await fetch(path, { credentials: "include" })).status,
     grantUrl.pathname + grantUrl.search,
   );
-  assert.ok([401, 403, 404].includes(oldGrant), "Refund must revoke existing EPUB grant");
+  // The actual delivery endpoint uses HTTP 410 for a revoked grant. Prove
+  // this is a real refund-linked canonical revocation, not merely expiration,
+  // exhaustion, ingress denial, or a missing resource.
+  const revokedGrant = await qaD1(
+    `SELECT g.status AS grant_status,e.status AS entitlement_status,o.status AS order_status
+     FROM commercial_delivery_grants g JOIN entitlements e ON e.id=g.entitlement_id
+     JOIN commerce_order_items i ON i.id=e.order_item_id
+     JOIN commerce_orders o ON o.id=i.order_id
+     WHERE g.id=? AND o.id=? AND g.product_id=? AND g.user_id=?`,
+    [grant.data.grantId, ebook.orderId, q.COVE_QA_EPUB_PRODUCT_ID, buyerId],
+  );
+  assert.equal(revokedGrant.length, 1, "Refund must retain exact historical delivery evidence");
+  assert.equal(revokedGrant[0].order_status, "refunded");
+  assert.equal(revokedGrant[0].entitlement_status, "revoked");
+  assert.equal(revokedGrant[0].grant_status, "revoked");
+  assert.equal(oldGrant, 410, "Refunded EPUB grant must be gone at the actual delivery endpoint");
   await refundAndVerify(refundOperatorPage, audiobook, async () =>
     [401, 403, 404].includes((await request(buyer, "GET", audioPath)).status),
   );
@@ -572,6 +662,35 @@ try {
     "PASS: genuine deployed browser Auth, signed Stripe fulfillment, EPUB, playable audio, outsider denial and refund revocation",
   );
 } finally {
+  // Preserve sanitized order/receipt evidence before refund cleanup changes it.
+  for (const payment of payments) {
+    try {
+      const rows = await qaD1(
+        `SELECT o.status, r.effects_completed_at IS NOT NULL AS effects_complete,
+         r.owner_published_at IS NOT NULL AS owner_published,
+         (SELECT COUNT(*) FROM entitlements e JOIN commerce_order_items i
+          ON i.id=e.order_item_id WHERE i.order_id=o.id AND e.status=\'active\') AS active_count
+         FROM commerce_orders o LEFT JOIN commerce_settlement_receipts r ON r.order_id=o.id
+         WHERE o.id=?`,
+        [payment.orderId],
+      );
+      console.log(
+        "QA_SETTLEMENT_STATE",
+        JSON.stringify(
+          rows.map((r) => ({
+            status: r.status,
+            effectsComplete: Boolean(r.effects_complete),
+            ownerPublished: Boolean(r.owner_published),
+            activeCount: Number(r.active_count),
+          })),
+        ),
+      );
+    } catch {
+      console.warn("QA_SETTLEMENT_STATE_UNAVAILABLE");
+    }
+  }
+  fs.mkdirSync("artifacts/deployed-commerce", { recursive: true });
+  fs.writeFileSync("artifacts/deployed-commerce/report.json", JSON.stringify(report, null, 2));
   // First clean up *through Cove* so entitlement revocation and the refund
   // ledger are actually processed; only fall back to a Stripe test-mode
   // refund if the real Cove admin path itself is unavailable.
@@ -582,12 +701,28 @@ try {
         const local = await request(refundOperatorPage, "POST", "/admin/commerce/refund", {
           orderId: payment.orderId,
           reason: "requested_by_customer",
-          idempotencyKey: "qa-cleanup-" + randomUUID(),
+          idempotencyKey: payment.refundKey,
         });
         if (local.status === 200 && ["pending", "succeeded"].includes(local.data?.status)) {
+          await until(async () => {
+            const rows = await qaD1("SELECT status FROM commerce_orders WHERE id=?", [
+              payment.orderId,
+            ]);
+            return rows[0]?.status === "refunded";
+          }, "Cleanup refund canonical accounting");
           refunded.add(payment.intentId);
           continue;
         }
+      }
+      // Never create an unrelated provider refund when the owner has already
+      // reserved this paid order. Preserve the original key and fail visibly.
+      const reservations = await qaD1(
+        "SELECT status FROM commerce_refunds WHERE order_id=? AND status IN ('pending','succeeded')",
+        [payment.orderId],
+      );
+      if (reservations.length) {
+        console.error("QA cleanup retained canonical refund reservation for exact-key recovery");
+        continue;
       }
       const intent = await stripe("GET", "payment_intents/" + payment.intentId);
       if (intent.status === "succeeded") {

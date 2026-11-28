@@ -1,0 +1,60 @@
+name: Protected production BioSync bridge activation
+on:
+  workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        type: string
+        required: true
+      confirm_bridge_activation:
+        type: boolean
+        required: true
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: cove-biosync-production-canary
+  cancel-in-progress: false
+jobs:
+  activation:
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.reviewed_main_sha == github.sha &&
+      inputs.confirm_bridge_activation == true
+    runs-on: ubuntu-latest
+    environment: cove-production-release-audit
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Verify exact reviewed source and unchanged archived owner and ingress source
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git diff --exit-code 11af1069da22bae6908513a696881985932652f1 HEAD -- src package.json package-lock.json scripts/release/build-production-consolidation.mjs
+      - run: npm ci --no-audit --no-fund
+      - run: node scripts/release/build-production-consolidation.mjs
+      - name: Independently verify temporary exact-Worker production maintenance authorization
+        env:
+          COVE_CF_PROD_MAINTENANCE_TOKEN: ${{ secrets.COVE_CF_PROD_MAINTENANCE_TOKEN }}
+          COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN: ${{ secrets.COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN }}
+        run: node scripts/release/verify-temporary-worker-maintenance.mjs biosync-activate
+      - name: Activate archived owner and narrow ingress, verify production replay or restore original owner
+        env:
+          COVE_REVIEWED_MAIN_SHA: ${{ inputs.reviewed_main_sha }}
+          COVE_CONFIRM_BRIDGE_ACTIVATION: ${{ inputs.confirm_bridge_activation }}
+          COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
+          COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN: ${{ secrets.COVE_CF_PROD_MAINTENANCE_TOKEN }}
+          COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN: ${{ secrets.COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN }}
+          COVE_BIOSYNC_PROD_D1_READ_TOKEN: ${{ secrets.COVE_BIOSYNC_PROD_D1_READ_TOKEN }}
+          COVE_BIOSYNC_PROD_R2_TOKEN: ${{ secrets.COVE_BIOSYNC_PROD_R2_TOKEN }}
+          COVE_BIOSYNC_PROD_CLIENT_SECRET: ${{ secrets.COVE_BIOSYNC_PROD_CLIENT_SECRET }}
+        run: node scripts/release/activate-production-biosync-bridge.mjs

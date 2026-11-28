@@ -1,3 +1,4 @@
+import { dispatchQaOperationalWrite } from "../../storefront-strangler/qa-owner-operational-protocol";
 import type { CatalogDB } from "./catalog-model.server";
 import { writeCatalogCache } from "./catalog-cache.server";
 
@@ -57,16 +58,26 @@ async function refreshPresentationCounts(
   // Only its owner may publish results or remove the lease. In particular,
   // an older request may NOT delete a newer owner's lease after takeover.
   const owner = crypto.randomUUID();
-  const acquired = await db
-    .prepare(
-      `INSERT INTO api_cache(key,body,expires_at) VALUES(?,?,?)
+  const remoteAcquire = dispatchQaOperationalWrite(db, {
+    kind: "cache.lease-acquire",
+    key: refreshKey,
+    owner,
+    expiresAt: nowMs() + LEASE_MS,
+  });
+  const acquired = remoteAcquire
+    ? (await remoteAcquire)
+      ? { body: owner }
+      : null
+    : await db
+        .prepare(
+          `INSERT INTO api_cache(key,body,expires_at) VALUES(?,?,?)
        ON CONFLICT(key) DO UPDATE SET
          body=excluded.body,expires_at=excluded.expires_at
        WHERE api_cache.expires_at<=?
        RETURNING body`,
-    )
-    .bind(refreshKey, owner, nowMs() + LEASE_MS, nowMs())
-    .first<{ body: string }>();
+        )
+        .bind(refreshKey, owner, nowMs() + LEASE_MS, nowMs())
+        .first<{ body: string }>();
   if (acquired?.body !== owner) return;
 
   try {
@@ -85,11 +96,18 @@ async function refreshPresentationCounts(
     );
   } finally {
     // Protect a replacement lease from completion of an older request.
-    await db
-      .prepare("DELETE FROM api_cache WHERE key=? AND body=?")
-      .bind(refreshKey, owner)
-      .run()
-      .catch(() => undefined);
+    const remoteRelease = dispatchQaOperationalWrite(db, {
+      kind: "cache.lease-release",
+      key: refreshKey,
+      owner,
+    });
+    if (remoteRelease) await remoteRelease.catch(() => undefined);
+    else
+      await db
+        .prepare("DELETE FROM api_cache WHERE key=? AND body=?")
+        .bind(refreshKey, owner)
+        .run()
+        .catch(() => undefined);
   }
 }
 
@@ -187,8 +205,10 @@ export async function presentationTaxonomyCounts(
 export function taxonomyPresentationReadDb(db: CatalogDB): CatalogDB {
   const replicaCapable = db as CatalogDB & {
     withSession?: (consistency: "first-unconstrained") => CatalogDB;
+    covePrimaryOnlyReadTransport?: boolean;
   };
-  return typeof replicaCapable.withSession === "function"
+  return replicaCapable.covePrimaryOnlyReadTransport !== true &&
+    typeof replicaCapable.withSession === "function"
     ? replicaCapable.withSession("first-unconstrained")
     : db;
 }

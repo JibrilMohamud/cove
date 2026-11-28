@@ -21,8 +21,8 @@ HERE = pathlib.Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location("commons_credit_audit", HERE / "commons-structured-credits.py")
 credits = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(credits)
-ACCOUNT = "d26430caa63ec55f6612e32f36aca5e9"
-MUSIC_DB = "fe9a9dd2-64b8-451c-a356-9ec71d9ee211"
+ACCOUNT = "f51e8ccbc394e2d6016ff8c2c303d54b"
+MUSIC_DB = "ecd15e38-6350-4806-abe2-3e26acead4ac"
 API = "https://api.openverse.org/v1/audio/"
 # Rotate distinct music queries; one permitted API page per query.
 # Do not enumerate Openverse's search index or bypass its pagination limits.
@@ -447,13 +447,16 @@ def main():
     args=p.parse_args()
     if not 0<=args.queries<=3 or not 0<=args.commons_categories<=3 or not 1<=args.max_verifications<=32 or (args.queries==0 and args.commons_categories==0):
         p.error("At least one bounded Openverse or native Commons discovery source is required")
-    cursors=(load_isolated_cursors(os.environ.get("CLOUDFLARE_API_TOKEN",""))
+    if args.apply_isolated:
+        if os.environ.get("COVE_COMMONS_QA_MIGRATION_VERIFIED") != "1" or os.environ.get("CLOUDFLARE_API_TOKEN"):
+            raise RuntimeError("Detached QA migration receipt required; legacy credential forbidden")
+    cursors=(load_isolated_cursors(os.environ.get("COVE_CF_QA_D1_MUTATION_TOKEN",""))
              if args.apply_isolated else None)
     result=discover(args.queries,args.max_verifications,
                     commons_categories=args.commons_categories,commons_cursors=cursors)
     safe_report_path(args.output).write_text(json.dumps(result,indent=2,ensure_ascii=False)+"\n")
     if args.apply_isolated:
-        record_isolated(result,os.environ.get("CLOUDFLARE_API_TOKEN",""))
+        record_isolated(result,os.environ.get("COVE_CF_QA_D1_MUTATION_TOKEN",""))
     if result["verified"] == 0:
         print("::warning::Openverse returned no matching Commons originals; no rights decisions made")
     print(json.dumps({"searched":result["searches"],"indexedResults":result["indexedResults"],

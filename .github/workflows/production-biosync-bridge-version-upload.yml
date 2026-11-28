@@ -1,0 +1,52 @@
+name: Protected BioSync bridge zero-traffic owner upload
+on:
+  workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        type: string
+        required: true
+      confirm_archive_only:
+        type: boolean
+        required: true
+        default: false
+permissions:
+  contents: read
+jobs:
+  archive-owner:
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.reviewed_main_sha == github.sha &&
+      inputs.confirm_archive_only == true
+    environment: cove-production-release-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: cove-exclusive-real-primary-cold-acceptance
+      queue: max
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Verify immutable reviewed main
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - run: npm ci --no-audit --no-fund
+      - run: node scripts/release/build-production-consolidation.mjs
+      - name: Independently verify temporary exact-Worker production maintenance authorization
+        env:
+          COVE_CF_PROD_MAINTENANCE_TOKEN: ${{ secrets.COVE_CF_PROD_MAINTENANCE_TOKEN }}
+          COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN: ${{ secrets.COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN }}
+        run: node scripts/release/verify-temporary-worker-maintenance.mjs owner
+      - name: Upload archived owner version only; retain every existing binding
+        env:
+          COVE_REVIEWED_MAIN_SHA: ${{ inputs.reviewed_main_sha }}
+          COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
+          COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN: ${{ secrets.COVE_CF_PROD_MAINTENANCE_TOKEN }}
+          COVE_BIOSYNC_PROD_CLIENT_SECRET: ${{ secrets.COVE_BIOSYNC_PROD_CLIENT_SECRET }}
+        run: node scripts/release/archive-production-biosync-bridge.mjs

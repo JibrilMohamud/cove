@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import {randomBytes} from "node:crypto";
 import {mkdirSync,writeFileSync} from "node:fs";
 
-const ACCOUNT="d26430caa63ec55f6612e32f36aca5e9";
+const ACCOUNT="f51e8ccbc394e2d6016ff8c2c303d54b";
 const run=process.env.GITHUB_RUN_ID,attempt=process.env.GITHUB_RUN_ATTEMPT;
 assert.match(run||"",/^[0-9]{8,15}$/);
 assert.match(attempt||"",/^[1-9][0-9]{0,2}$/);
@@ -33,7 +33,7 @@ const script=v=>[
 for(const v of ["A","B"]){
   writeFileSync(root+"/worker-"+v+".mjs",script(v),{mode:0o600});
   const config={
-    name,main:"worker-"+v+".mjs",
+    name,account_id:ACCOUNT,main:"worker-"+v+".mjs",
     compatibility_date:"2026-11-15",
     workers_dev:true,preview_urls:false,routes:[],
     observability:{enabled:false},

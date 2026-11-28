@@ -1,7 +1,7 @@
 """One-shot, idempotent, independently verified BioSync production canary.
 
-GitHub Actions has enough ephemeral disk to index Cove's pinned EPUB and uses
-the existing Cloudflare API token, without copying any Vercel service secret.
+GitHub Actions indexes the pinned EPUB, reads D1 with a read-only token,
+uses bucket-scoped S3, and commits solely through the production owner.
 Do not publish invented word timestamps or confidence values.
 """
 from __future__ import annotations
@@ -10,15 +10,13 @@ import hashlib
 import json
 import os
 import re
-import sys
-import urllib.error
 import urllib.parse
-import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .align import align
 from .epub_index import build
+from . import biosync_production_owner_transport as owner_transport
 
 ACCOUNT = "d26430caa63ec55f6612e32f36aca5e9"
 DATABASE = "4bd657ac-8789-403e-a28c-93aba8d0a989"
@@ -30,19 +28,7 @@ BASE = f"https://api.cloudflare.com/client/v4/accounts/{ACCOUNT}"
 
 
 def authorized_request(method: str, endpoint: str, payload: bytes | None = None, *, json_body=False) -> bytes:
-    token = os.environ["CLOUDFLARE_API_TOKEN"]
-    headers = {"Authorization": f"Bearer {token}"}
-    if json_body:
-        headers["Content-Type"] = "application/json"
-    elif payload is not None:
-        headers["Content-Type"] = "application/octet-stream"
-    request = urllib.request.Request(endpoint, data=payload, headers=headers, method=method)
-    try:
-        with urllib.request.urlopen(request, timeout=120) as response:
-            return response.read()
-    except urllib.error.HTTPError as error:
-        raise RuntimeError(f"Cloudflare {method} {urllib.parse.urlparse(endpoint).path} returned HTTP {error.code}") from None
-
+    return owner_transport.request(method, endpoint, payload, json_body=json_body)
 
 def query(sql: str, params: list[object] | None = None) -> list[dict]:
     payload = json.dumps({"sql": sql, "params": params or []}).encode()
@@ -94,19 +80,15 @@ def choose_queued_short_track() -> bool:
     """Pick an independently transcribed and pinned short queued track."""
     global EDITION, TRACK, JOB
     prefix = "biosync/transcripts/cloudflare-whisper-v1/"
-    try:
-        result = json.loads(authorized_request(
-            "GET", f"{BASE}/r2/buckets/{BUCKET}/objects?prefix={urllib.parse.quote(prefix)}&per_page=1000"
-        ))
-    except RuntimeError as error:
-        print(f"Short BioSync auto-selector unavailable: {error}")
-        return False
+    result = json.loads(authorized_request(
+        "GET", f"{BASE}/r2/buckets/{BUCKET}/objects?prefix={urllib.parse.quote(prefix)}&per_page=1000"
+    ))
     objects = result.get("result", [])
     if isinstance(objects, dict):
         objects = objects.get("objects", [])
     cached = {str(item.get("key", "")) for item in objects if isinstance(item, dict)}
     if not cached:
-        print("No independently hosted short-track ASR transcript is cached yet.")
+        print("cove_biosync_no_eligible_publication: no cached transcript")
         return False
     candidates = query(
         "SELECT j.id job_id,e.id edition_id,json_extract(t.value,'$.id') track_id,"
@@ -123,7 +105,7 @@ def choose_queued_short_track() -> bool:
     possible = [x for x in candidates
                 if f"{prefix}{x['audio_sha']}.json" in cached]
     if not possible:
-        print("No queued short BioSync tracks have a complete hosted transcript and EPUB yet.")
+        print("cove_biosync_no_eligible_publication: no queued track with hosted transcript")
         return False
     # Rotate only among actually transcribed candidates. A track failing
     # exact-text verification never blocks other candidates indefinitely.
@@ -134,8 +116,9 @@ def choose_queued_short_track() -> bool:
 
 
 def main() -> None:
-    if not os.environ.get("CLOUDFLARE_API_TOKEN"):
-        raise RuntimeError("Configure CLOUDFLARE_API_TOKEN in GitHub Actions")
+    if not owner_transport.enabled():
+        raise RuntimeError("Production BioSync requires owner mode; legacy publisher retired")
+    owner_transport.require_credentials()
     if os.environ.get("BIOSYNC_AUTO_SHORT") == "1" and not choose_queued_short_track():
         return
     meta = query(
@@ -158,6 +141,11 @@ def main() -> None:
     if existing:
         map_hash = existing[0]["map_sha256"]
         download_verified(f"biosync/maps/{map_hash}.json", map_hash)
+        if os.environ.get("BIOSYNC_PROVE_OWNER_REPLAY") == "1":
+            receipt = owner_transport.commit(EDITION, TRACK, JOB, map_hash)
+            if receipt.get("replay") is not True:
+                raise RuntimeError("Owner replay witness was not idempotent")
+            print("cove_biosync_production_owner_replay_verified")
         print("BioSync canary already published and verified in D1 and R2")
         return
 
@@ -215,29 +203,15 @@ def main() -> None:
     if fresh["epub_sha256"] != epub_sha or current_track is None or current_track.get("sha256") != audio_sha:
         raise RuntimeError("Audio/text identity changed during canary publication")
 
-    first, last = mapping["words"][0], mapping["words"][-1]
-    summary = {
-        "trackId": TRACK, "sha256": map_sha, "wordCount": len(mapping["words"]),
-        "coverage": mapping["verification"]["coverage"],
-        "firstCfi": first["cfi"], "lastCfi": last["endCfi"],
-        "firstSecond": first["start"], "lastSecond": last["end"],
-    }
-    now = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
-    query(
-        "INSERT INTO audio_timing(edition_id,track_id,audio_sha256,epub_sha256,map_sha256,summary_json,updated_at) "
-        "VALUES(?,?,?,?,?,?,?) ON CONFLICT(edition_id,track_id) DO UPDATE SET "
-        "audio_sha256=excluded.audio_sha256,epub_sha256=excluded.epub_sha256,"
-        "map_sha256=excluded.map_sha256,summary_json=excluded.summary_json,updated_at=excluded.updated_at",
-        [EDITION, TRACK, audio_sha, epub_sha, map_sha, json.dumps(summary), now],
-    )
-    query(
-        "UPDATE audio_jobs SET status='done',last_error=?,lease_token=NULL,lease_until=NULL,updated_at=? "
-        "WHERE id=? AND status IN ('queued','review')",
-        [f"Verified {len(mapping['words'])} independent ASR words; {mapping['verification']['coverage']:.1%} coverage", now, JOB],
-    )
+    receipt = owner_transport.commit(EDITION, TRACK, JOB, map_sha)
     final = query("SELECT map_sha256 FROM audio_timing WHERE edition_id=? AND track_id=?", [EDITION, TRACK])
     if not final or final[0]["map_sha256"] != map_sha:
         raise RuntimeError("Published map could not be verified in D1")
+    job = query("SELECT status FROM audio_jobs WHERE id=?", [JOB])
+    if len(job) != 1 or job[0]["status"] != "done":
+        raise RuntimeError("Published job could not be verified in D1")
+    if receipt.get("replay") is not True:
+        print("cove_biosync_production_owner_new_commit_verified")
     print(f"BioSync published first checked map: {len(mapping['words'])} words, "
           f"{mapping['verification']['coverage']:.1%} anchored passage coverage, sha={map_sha}")
 

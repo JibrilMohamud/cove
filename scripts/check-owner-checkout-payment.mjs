@@ -119,7 +119,12 @@ try{
   ])await assert.rejects(()=>attach({...stage,...overrides},cmd));
   // The same real owner also enrolls a new Stripe customer after independently
   // checking provider identity. A replay never reassigns the customer.
-  const newCustomer={userId:"user_customer_new_qa",customerId:"cus_customer_new_qa"};
+  // Real detached commerce uses the exact Supabase namespace and a different
+  // QA primary than the historical synthetic payment fixture.
+  const newCustomer={userId:"sb:12345678-1234-4abc-8def-123456789abc",customerId:"cus_customer_new_qa"};
+  const detachedPrimary="f9354381-bd9f-496b-bd05-d6f62a32ec0c";
+  const detachedStage={...stage,COVE_LEGAL_WRITER_PRIMARY_ID:detachedPrimary};
+  ownerEnv.COVE_RIGHTS_OWNER_PRIMARY_ID=detachedPrimary;
   let provider={object:"customer",id:newCustomer.customerId,livemode:false,
     deleted:false,email:"NEW@EXAMPLE.TEST",metadata:{fore_user_id:newCustomer.userId}};
   globalThis.fetch=async(url,options)=>{
@@ -128,23 +133,30 @@ try{
     assert.equal(options.redirect,"manual");
     return Response.json(provider);
   };
-  const firstCustomer=await registerCustomer(stage,newCustomer);
+  const firstCustomer=await registerCustomer(detachedStage,newCustomer);
   assert.equal(firstCustomer.bound,true);assert.equal(firstCustomer.applied,true);
   assert.equal(primary.prepare("SELECT stripe_customer_id,email FROM commerce_customers WHERE user_id=?")
     .get(newCustomer.userId).email,"new@example.test");
-  assert.equal((await registerCustomer(stage,newCustomer)).applied,false);
+  assert.equal((await registerCustomer(detachedStage,newCustomer)).applied,false);
+  for(const overrides of [
+    {COVE_LEGAL_WRITER_PRIMARY_ID:"4bd657ac-8789-403e-a28c-93aba8d0a989"},
+    {COVE_LEGAL_WRITER_PRIMARY_ID:"15ce2ea3-17f8-4d99-9015-a78a6a3af05d"},
+    {COVE_SSR_STAGING:"0"},{COVE_LEGAL_CONSUMER_STAGE_ENABLED:"0"},
+    {COVE_CANONICAL_LEGAL_WRITE_LOCK:"0"},{COVE_RIGHTS_OWNER_SECRET:"invalid"}
+  ])await assert.rejects(()=>registerCustomer({...detachedStage,...overrides},newCustomer),/not certified/);
   for(const patch of [
     {livemode:true},{id:"cus_different_qa_01"},
     {metadata:{fore_user_id:"user_different_qa_01"}},{deleted:true}
   ]) {
     const prev=provider;provider={...prev,...patch};
-    await assert.rejects(()=>registerCustomer(stage,newCustomer),/not acknowledged/);
+    await assert.rejects(()=>registerCustomer(detachedStage,newCustomer),/not acknowledged/);
     provider=prev;
   }
-  await assert.rejects(()=>registerCustomer(stage,{...newCustomer,userId:"user_customer_other_qa"}));
-  await assert.rejects(()=>registerCustomer(stage,{...newCustomer,sql:"UPDATE commerce_customers"}));
+  await assert.rejects(()=>registerCustomer(detachedStage,{...newCustomer,userId:"user_customer_other_qa"}));
+  await assert.rejects(()=>registerCustomer(detachedStage,{...newCustomer,sql:"UPDATE commerce_customers"}));
   assert.equal(primary.prepare("SELECT count(*) n FROM commerce_customers WHERE stripe_customer_id=?")
     .get(newCustomer.customerId).n,1);
+  ownerEnv.COVE_RIGHTS_OWNER_PRIMARY_ID=stage.COVE_LEGAL_WRITER_PRIMARY_ID;
   ownerEnv.COVE_RIGHTS_OWNER_ENABLED="0";
   await assert.rejects(()=>attach(stage,cmd),/not acknowledged/);
   assert.equal(primary.prepare("SELECT count(*) n FROM commerce_payment_attempts").get().n,1);

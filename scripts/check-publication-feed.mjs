@@ -37,6 +37,7 @@ try {
       presentation: "src/storefront-strangler/homepage-presentation.server.ts",
       driver: "src/storefront-strangler/publication-driver.worker.ts",
       capture: "src/storefront-strangler/publication-capture.server.ts",
+      captureWorker: "src/storefront-strangler/publication-capture.worker.ts",
     },
     outdir: dir,
     bundle: true,
@@ -55,6 +56,25 @@ try {
   const { handleCoveApi } = await import(path.join(dir, "api.js"));
   const { default: driver } = await import(path.join(dir, "driver.js"));
   const { capturePublicSource } = await import(path.join(dir, "capture.js"));
+  const { default: captureWorker } = await import(path.join(dir, "captureWorker.js"));
+  const captureConfig = JSON.parse(
+    fs.readFileSync("wrangler.publication-capture.stage.jsonc", "utf8"),
+  );
+  assert.deepEqual(
+    captureConfig.d1_databases.map((b) => b.binding),
+    ["PUBLIC_SOURCE_DB"],
+  );
+  assert.deepEqual(captureConfig.services, [
+    { binding: "COVE_CANONICAL_READONLY", service: "cove-canonical-d1-readonly" },
+  ]);
+  for (const env of [{}, { SOURCE_DB: {}, COVE_CANONICAL_READONLY: { query() {} } }]) {
+    const response = await captureWorker.fetch(
+      new Request("https://private/run", { method: "POST" }),
+      env,
+    );
+    assert.equal(response.status, 503);
+    assert.deepEqual(await response.json(), { error: "capture_provider_readonly_required" });
+  }
   let invoked = 0;
   const control = {
     GATE: "a".repeat(64),
@@ -83,6 +103,17 @@ try {
     200,
   );
   assert.equal(invoked, 1);
+  for (const [url, auth, expected] of [
+    ["/reset-ledger", "", 401],
+    ["/reset-ledger", "Bearer " + control.GATE, 403],
+    ["/refresh-ledger", "Bearer " + control.GATE, 403],
+  ]) {
+    const response = await driver.fetch(
+      new Request("https://private" + url, { method: "POST", headers: { authorization: auth } }),
+      control,
+    );
+    assert.equal(response.status, expected);
+  }
   const primary = localBindings(dir);
   const initial = await handleCoveApi(new Request("https://test/api/fore/storefront/bootstrap"), {
     ...primary,

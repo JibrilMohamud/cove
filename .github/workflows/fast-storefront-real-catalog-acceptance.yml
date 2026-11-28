@@ -5,8 +5,14 @@ on:
       [
         "src/storefront-strangler/**",
         "scripts/performance/strangler-real-catalog-acceptance.mjs",
+        "scripts/performance/visual-cover-fixtures*",
+        "scripts/fixtures/real-catalog-cover-manifest.json",
+        "public/covers/**",
         "scripts/performance/real-catalog-snapshot-safety.mjs",
         "scripts/performance/real-catalog-snapshot-safety.test.mjs",
+        "scripts/staging/stage-presentation-storage*.mjs",
+        "scripts/staging/seed-versioned-presentation.mjs",
+        "scripts/staging/isolated-presentation-read*.mjs",
         "scripts/check-storefront-v2-primary-prefix.mjs",
         ".github/workflows/fast-storefront-real-catalog-acceptance.yml",
       ]
@@ -39,14 +45,36 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v6
         with: { node-version: "22" }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22" }
+      - run: npm ci --no-audit --no-fund
+      - name: Verify identity-bound cover integrity
+        run: node --test scripts/performance/visual-cover-fixtures.test.mjs
+      - name: Verify isolated read-only preparation and provider failure handling
+        run: node --test scripts/staging/isolated-presentation-read.test.mjs
       - name: Fail closed for direct production D1, 50k synthetic substitutes and absent snapshot
         run: |
           node --test scripts/performance/real-catalog-snapshot-safety.test.mjs
+          node --test scripts/staging/stage-presentation-storage.test.mjs
           node --check scripts/performance/strangler-real-catalog-acceptance.mjs
           git diff --check
 
+  cover-browser-regression:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.0-noble
+      options: --ipc=host
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22" }
+      - run: npm ci --no-audit --no-fund
+      - run: node scripts/performance/visual-cover-browser.mjs
+
   protected-real-catalog-acceptance:
-    needs: [offline-isolation]
+    needs: [offline-isolation, cover-browser-regression]
     if: >-
       github.repository == 'JibrilMohamud/cove' &&
       github.event_name == 'workflow_dispatch' &&
@@ -65,11 +93,12 @@ jobs:
       HOME: /root
       CI: "1"
       COVE_REAL_ACCEPTANCE_V2: "1"
-      # A missing or unapproved dedicated staging snapshot stops before any
-      # R2, KV, Worker or D1 network action. Never default to production D1.
-      COVE_REAL_CATALOG_SNAPSHOT_D1_ID: ${{ vars.COVE_REAL_CATALOG_SNAPSHOT_D1_ID }}
-      COVE_REAL_CATALOG_SNAPSHOT_D1_NAME: ${{ vars.COVE_REAL_CATALOG_SNAPSHOT_D1_NAME }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      # Pin the separately provisioned and reviewed isolated target. A successful
+      # protected population and cleanup receipt is mandatory before deployment.
+      COVE_REAL_CATALOG_SNAPSHOT_D1_ID: "15ce2ea3-17f8-4d99-9015-a78a6a3af05d"
+      COVE_REAL_CATALOG_SNAPSHOT_D1_NAME: "cove-real-catalog-snapshot-20261125"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
+      COVE_CF_STAGE_DATA_PLANE_READ_TOKEN: ${{ secrets.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
       CLOUDFLARE_SEND_METRICS: "false"
     steps:
@@ -77,11 +106,14 @@ jobs:
         with:
           persist-credentials: false
       - name: Verify exact approved main source before build and privileged activity
+        shell: bash
         env:
           EXPECTED_SHA: ${{ inputs.reviewed_main_sha }}
           DISPATCH_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
+          # Trust only the exact Actions checkout across container HOME/UID changes.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
           test "$DISPATCH_SHA" = "$EXPECTED_SHA"
       - uses: actions/setup-node@v6
@@ -98,6 +130,10 @@ jobs:
           );
           console.log("Dedicated isolated D1 target validated; legal generation still requires separate certification.");
           NODE
+      - name: Require complete protected catalog population and importer retirement
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/staging/real-catalog-copy-receipt.mjs --verify
       # Avoid a 100MB Actions cache restore that can stall at the account
       # egress limit; preserve all cold, mobile LCP and visual assertions.
       - run: npm ci --no-audit --no-fund
@@ -106,6 +142,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN }}
         run: |
           set -euo pipefail
           baseline="artifacts/strangler-acceptance/reference"
@@ -120,8 +157,8 @@ jobs:
             fi
           done
           if [[ "$missing" = 1 ]]; then
-            # Populate this private QA-only bucket once from an independently
-            # passing run. Never use current-PR screenshots as their own goldens.
+            # Restore the pinned approved artifact locally if the immutable R2
+            # copy is missing. Never use current-PR screenshots as goldens.
             mkdir -p "$baseline/approved"
             if ! command -v gh >/dev/null 2>&1; then
               echo "::error::Approved reference missing from private QA R2; restore via the pinned successful Actions artifact before proceeding"
@@ -133,7 +170,6 @@ jobs:
             echo "ef0214c40ec039eafb207bd96f3cf21724aa3dd12dc431899930a27e640d6b49  $baseline/approved/live-mobile.png" | sha256sum -c -
             echo "32f02dbf2c43015b87d18cff2c10ddd2b5b35e119d55fcd8179633bc15843c73  $baseline/approved/live-desktop.png" | sha256sum -c -
             for screen in mobile desktop; do
-              wr r2 object put "$bucket/$prefix/live-$screen.png" --remote --file "$baseline/approved/live-$screen.png" >/dev/null
               cp "$baseline/approved/live-$screen.png" "$baseline/live-$screen.png"
             done
           fi
@@ -141,6 +177,7 @@ jobs:
           echo "ef0214c40ec039eafb207bd96f3cf21724aa3dd12dc431899930a27e640d6b49  $baseline/live-mobile.png" | sha256sum -c -
           echo "32f02dbf2c43015b87d18cff2c10ddd2b5b35e119d55fcd8179633bc15843c73  $baseline/live-desktop.png" | sha256sum -c -
       - name: Assert pinned Chromium is runnable (no Ubuntu apt downloads)
+        shell: bash
         run: |
           node --input-type=module - <<'NODE'
           import { chromium } from "@playwright/test";
@@ -154,9 +191,14 @@ jobs:
         run: node scripts/check-storefront-v2-primary-prefix.mjs
       - run: node scripts/build-storefront-strangler.mjs
       - name: Require actual isolated literary canonical publication before postcutover capacity testing
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_BIOSYNC_PROD_D1_READ_TOKEN }}
         run: node scripts/staging/verify-literary-postpublication-readonly.mjs
       - name: Isolated full-catalog snapshot preview (NOT legal generation or release proof)
         run: node scripts/performance/strangler-real-catalog-acceptance.mjs
+      - name: Close run-scoped storage helper even after cancellation
+        if: always()
+        run: node scripts/staging/stage-presentation-storage.mjs --cleanup real
       - name: Preserve captured evidence
         if: always()
         uses: actions/upload-artifact@v4

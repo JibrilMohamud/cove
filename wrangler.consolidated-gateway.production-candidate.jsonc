@@ -1,0 +1,25 @@
+{
+  "name": "cove-persistence-backend",
+  "main": ".output/production-consolidation/gateway.mjs",
+  "compatibility_date": "2026-10-25",
+  "workers_dev": true,
+  "preview_urls": false,
+  "keep_vars": false,
+  "services": [
+    {
+      "binding": "BUSINESS_OWNER",
+      "service": "cove-legal-authority-production",
+      "entrypoint": "CoveBusinessEntrypoint"
+    }
+  ],
+  "vars": {
+    "FORE_ENVIRONMENT": "production",
+    "COVE_PRODUCTION_PERSISTENCE_GATEWAY_ENABLED": "0"
+  },
+  "secrets": {
+    "required": [
+      "FORE_BACKEND_TOKEN_SHA256",
+      "COVE_BIOSYNC_CLIENT_TOKEN_SHA256"
+    ]
+  }
+}

@@ -11,7 +11,7 @@ test("dormant literary workflows require three distinct narrow scopes, not broad
   for(const path of workflows){
     const w=read(path);
     assert.ok(!w.includes("secrets.CLOUDFLARE_API_TOKEN"),path);
-    for(const name of ["COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN","COVE_CF_STAGE_D1_READ_TOKEN","COVE_CF_WORKERS_METADATA_READ_TOKEN"])
+    for(const name of ["COVE_CF_PROD_MAINTENANCE_TOKEN","COVE_CF_STAGE_D1_READ_TOKEN","COVE_CF_WORKERS_METADATA_READ_TOKEN"])
       assert.ok(w.includes("secrets."+name),path+" missing "+name);
     assert.ok(w.includes('test "$CLOUDFLARE_API_TOKEN" != "$COVE_CF_STAGE_D1_READ_TOKEN"'));
     assert.ok(w.includes('test "$CLOUDFLARE_API_TOKEN" != "$COVE_CF_WORKERS_METADATA_READ_TOKEN"'));

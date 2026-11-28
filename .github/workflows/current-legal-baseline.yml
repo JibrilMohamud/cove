@@ -3,6 +3,9 @@ on:
   pull_request:
     paths:
       - 'scripts/release/current-legal-baseline.mjs'
+      - 'scripts/release/current-legal-baseline-generation.mjs'
+      - 'scripts/release/current-legal-scope-discovery*.mjs'
+      - 'scripts/test-current-legal-scope-discovery.mjs'
       - 'scripts/release/current-legal-baseline.test.mjs'
       - 'scripts/release/compile-current-legal-baseline.local.mjs'
       - '.github/workflows/current-legal-baseline.yml'
@@ -10,6 +13,9 @@ on:
     branches: [main]
     paths:
       - 'scripts/release/current-legal-baseline.mjs'
+      - 'scripts/release/current-legal-baseline-generation.mjs'
+      - 'scripts/release/current-legal-scope-discovery*.mjs'
+      - 'scripts/test-current-legal-scope-discovery.mjs'
       - 'scripts/release/current-legal-baseline.test.mjs'
       - 'scripts/release/compile-current-legal-baseline.local.mjs'
       - '.github/workflows/current-legal-baseline.yml'
@@ -27,4 +33,4 @@ jobs:
         with:
           node-version: '22'
       - run: node --check scripts/release/compile-current-legal-baseline.local.mjs
-      - run: node --test scripts/release/current-legal-baseline.test.mjs
+      - run: node --test scripts/release/current-legal-baseline.test.mjs scripts/test-current-legal-scope-discovery.mjs

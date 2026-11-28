@@ -20,9 +20,9 @@ import urllib.parse
 import urllib.request
 
 HERE = pathlib.Path(__file__).resolve().parent
-ACCOUNT = "d26430caa63ec55f6612e32f36aca5e9"
-DATABASE = "fe9a9dd2-64b8-451c-a356-9ec71d9ee211"
-BUCKET = "cove-music-supply-qa-20261023"
+ACCOUNT = "f51e8ccbc394e2d6016ff8c2c303d54b"
+DATABASE = "ecd15e38-6350-4806-abe2-3e26acead4ac"
+BUCKET = "cove-commons-detached-objects-qa"
 API = f"https://api.cloudflare.com/client/v4/accounts/{ACCOUNT}/d1/database/{DATABASE}/query"
 MAX_BYTES = 25 * 1024 * 1024
 AGENT = "CoveOpenMusicTechnicalQA/1.0 (https://github.com/JibrilMohamud/cove)"
@@ -177,7 +177,7 @@ class PrivateCloudflareR2:
     """Authenticated Cloudflare API private bucket transport.
 
     No S3 credential, public domain, redirect, URL signing or customer access.
-    The same dedicated release-run API token already protects MUSIC_DB.
+    Uses a separate storage credential scoped to the isolated QA account.
     """
     def __init__(self, token, opener=OPENER):
         if (not token or os.environ.get("CLOUDFLARE_ACCOUNT_ID") != ACCOUNT):
@@ -224,7 +224,7 @@ class PrivateCloudflareR2:
 
 def make_r2():
     if os.environ.get("COVE_MUSIC_R2_BACKEND") == "cloudflare_api":
-        return PrivateCloudflareR2(os.environ.get("CLOUDFLARE_API_TOKEN", ""))
+        return PrivateCloudflareR2(os.environ.get("COVE_CF_QA_R2_STORAGE_TOKEN", ""))
     key = os.environ.get("COVE_MUSIC_R2_ACCESS_KEY_ID")
     secret = os.environ.get("COVE_MUSIC_R2_SECRET_ACCESS_KEY")
     if not key or not secret:
@@ -303,7 +303,7 @@ def run(max_records=1, apply=False, profile_dsp=False, token=None, r2=None, limi
         raise ValueError("Strict isolated cohort/time cap required")
     if apply and os.environ.get("COVE_MUSIC_OPEN_QA_APPLY") != "1":
         raise ValueError("Technical QA private-R2 application explicitly disabled")
-    token = token or os.environ.get("CLOUDFLARE_API_TOKEN", "")
+    token = token or os.environ.get("COVE_CF_QA_D1_MUTATION_TOKEN", "")
     r2 = (r2 or make_r2()) if apply else None
     profiler = load("profile-audio.py", "audio_dsp_profile").analyze if profile_dsp else None
     started = time.monotonic()
@@ -372,6 +372,8 @@ def main():
     parser.add_argument("--apply-private", action="store_true")
     parser.add_argument("--output", type=pathlib.Path, default=pathlib.Path("music-open-qa.json"))
     args = parser.parse_args()
+    if os.environ.get("COVE_COMMONS_QA_MIGRATION_VERIFIED") != "1" or os.environ.get("CLOUDFLARE_API_TOKEN"):
+        raise RuntimeError("Detached QA migration receipt required; legacy credential forbidden")
     report = run(args.max_recordings, args.apply_private, args.profile_dsp,
                  limit_seconds=args.max_seconds)
     args.output.write_text(json.dumps(report, indent=2) + "\n")

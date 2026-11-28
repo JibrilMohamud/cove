@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'scripts/audio_pipeline/biosync_canary.py'
+      - 'scripts/audio_pipeline/biosync_production_owner_transport.py'
+      - 'scripts/audio_pipeline/biosync_owner_https.mjs'
       - '.github/workflows/biosync-canary.yml'
   schedule:
     - cron: '42 * * * *'
@@ -19,15 +21,28 @@ concurrency:
 
 jobs:
   verify:
+    if: github.repository == 'JibrilMohamud/cove' && github.ref == 'refs/heads/main'
+    environment: cove-production-release-audit
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - name: Publish independently verified BioSync canary
+      - name: Verify live owner replay before processing eligible publication
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          BIOSYNC_AUTO_SHORT: ${{ github.event_name == 'schedule' && '1' || '0' }}
-        run: python3 -m scripts.audio_pipeline.biosync_canary
+          COVE_BIOSYNC_PROD_OWNER_MODE: "1"
+          COVE_BIOSYNC_PROD_D1_READ_TOKEN: ${{ secrets.COVE_BIOSYNC_PROD_D1_READ_TOKEN }}
+          COVE_BIOSYNC_PROD_R2_TOKEN: ${{ secrets.COVE_BIOSYNC_PROD_R2_TOKEN }}
+          COVE_BIOSYNC_PROD_CLIENT_SECRET: ${{ secrets.COVE_BIOSYNC_PROD_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          BIOSYNC_AUTO_SHORT=0 BIOSYNC_PROVE_OWNER_REPLAY=1 python3 -m scripts.audio_pipeline.biosync_canary | tee /tmp/cove-biosync-replay.log
+          grep -Fx cove_biosync_production_owner_replay_verified /tmp/cove-biosync-replay.log
+          BIOSYNC_AUTO_SHORT=1 python3 -m scripts.audio_pipeline.biosync_canary

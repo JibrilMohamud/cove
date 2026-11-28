@@ -1,8 +1,10 @@
 /* eslint-disable prettier/prettier -- Exact reviewed integration source-pinning; never a production release approval. */
 import assert from "node:assert/strict";
+import {reverseOwnerCompletionDelta} from "./owner-completion-source-delta.mjs";
 import {createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
 import {reverseNativePrimaryMarketDelta} from "./native-primary-market-source-delta.mjs";
+import {assertDetachedCommerceIdentitySource,reverseDetachedCommerceOwnerDelta} from "./detached-commerce-owner-source-delta.mjs";
 import {currentWriterSites,reconcileWriterSites} from "../reconcile-canonical-writers.mjs";
 
 // Historical retirement attestations certify the files that existed when
@@ -16,7 +18,8 @@ import {currentWriterSites,reconcileWriterSites} from "../reconcile-canonical-wr
 const PINNED_CURRENT_SOURCES=Object.freeze({
   "src/features/fore/api.server.ts":"9082ea9d354c964ee4955c11fb26472b637092806d30f7b2ec9cbaba15749a85",
   "src/features/fore/catalog-model.server.ts":"c4d03da0a2428d5290c000d5d39f6129f2491254335c975e3acb0a340c0f172b",
-  "src/features/fore/commerce.server.ts":"52ba9bb4feec5b2b7c5586687d72cd3498751a0601061823b95a5adbc6ac955f",
+  "src/features/fore/commerce.server.ts":"68843d3739fcb765c9f40873601b0e685fcc590db73bd55cd0b606a716d7b830",
+  "src/features/fore/delivery.server.ts":"f902d2d468ced783c1f1123017e25fb30a8d9f648612f5c54d2ea22f3eb22531",
   "src/features/fore/localization.server.ts":"02852814c24e749359ed751717a8387ab6dc75ba4ecba78d6058ecbbfba919e1",
   "src/features/fore/promotions.server.ts":"05c37488918235a18839605db9873bc9f645b465e238ffcf9680bbd4b0618047",
   "src/features/fore/publishing.server.ts":"0518338b3a9512c82075dc89fcba927f80d04b54ec7e57ba8a3b3726d069b2a8",
@@ -40,9 +43,19 @@ const counts=Object.fromEntries(["isolated-test-fixture","non-authorizing-write"
 assert.deepEqual(counts,{"isolated-test-fixture":1,"non-authorizing-write":22,"private-owner-qa-executor":23,"owner-command-required":0});
 assert.ok(review.sites.every(s=>s.productionOwnerGuarded===false),
   "Current source audit cannot certify deployed ownership");
+// PR #916: validate the exact new imported identity helper, and restore
+// the prior legal owner bytes before applying the unchanged historical chain.
+assertDetachedCommerceIdentitySource(readFileSync("src/storefront-strangler/owner-user-id.ts","utf8"));
+const reverseCurrentOwner=bytes=>reverseNativePrimaryMarketDelta(reverseDetachedCommerceOwnerDelta(reverseOwnerCompletionDelta("src/storefront-strangler/legal-authority.worker.ts",bytes)));
 for(const [path,pin] of Object.entries(PINNED_CURRENT_SOURCES)){
   const bytes=readFileSync(path,"utf8");
-  const reviewed=path==="src/storefront-strangler/legal-authority.worker.ts"?reverseNativePrimaryMarketDelta(bytes):bytes;
+  let reviewed=path==="src/storefront-strangler/legal-authority.worker.ts"?reverseCurrentOwner(bytes):path==="src/features/fore/search.server.ts"?reverseOwnerCompletionDelta(path,bytes):bytes;
+  // Reverse only the exact EPUB clock fix to preserve the historical source pin.
+  if(path==="src/features/fore/delivery.server.ts"){
+    const fixed="expires = new Date(Date.parse(issued) + Number(policy.token_ttl_seconds || 300) * 1000).toISOString(),",original="expires = new Date(Date.now() + Number(policy.token_ttl_seconds || 300) * 1000).toISOString(),";
+    assert.equal(reviewed.split(fixed).length,2,"Expected exact EPUB grant clock correction");
+    reviewed=reviewed.replace(fixed,original);
+  }
   const actual=createHash("sha256").update(reviewed).digest("hex");
   assert.equal(actual,pin,"New current source change requires independent legal/caller review: "+path);
 }
@@ -52,7 +65,7 @@ for(const [path,pin] of Object.entries(PINNED_CURRENT_SOURCES)){
 // must reproduce that exact previous file SHA; no unrelated SQL, caller,
 // commerce or publication code may change while refreshing this pin.
 const ownerPath="src/storefront-strangler/legal-authority.worker.ts";
-let priorOwner=reverseNativePrimaryMarketDelta(readFileSync(ownerPath,"utf8"));
+let priorOwner=reverseCurrentOwner(readFileSync(ownerPath,"utf8"));
 // The 2026-11-24 schedule change adds only this import, flag and private
 // dispatch. Removing these exact ranges must recover the previous full
 // owner bytes. The new RPC's QA lease/domain/replay tests run separately;
@@ -152,7 +165,7 @@ assert.equal(createHash("sha256").update(priorOwner,"utf8").digest("hex"),
   "BioSync owner changes must be ONLY reviewed QA enroll/deny additions");
 assert.equal(current.filter(s=>s.file==="src/features/fore/api.server.ts").length,0,
   "Shared API regained a direct protected SQL site");
-console.log("PASS: 12 exact integrated source pins plus five byte-exact reversible owner edits; 46 literal SQL sites reconciled (0 owner-required); 38 historical attestation claims remain historical, not recertified.");
+console.log("PASS: 12 historical integrated source pins, exact detached commerce owner/identity delta, and prior reversible owner edits; 46 literal SQL sites reconciled (0 owner-required); historical attestation claims remain historical, not recertified.");
 console.log("NO-GO: source closure is not active D1 binding/token exclusivity or current rightsholder authority.");
 
 // 2026-11-24: the explicitly primary-only QA facade cannot initialize state.

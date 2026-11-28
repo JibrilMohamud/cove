@@ -8,34 +8,39 @@ import {
   authorizeHomepagePresentation,
 } from "./homepage-presentation.server";
 import { authorizeHomepageWithUnifiedOwner } from "./legal-authority-read.server";
+import {
+  hasIsolatedHomepageAuthority,
+  type IsolatedHomepageAuthorityEnv,
+} from "./isolated-homepage-authority";
 import type { FirstPaintD1QueryMetrics } from "../features/fore/catalog-model.server";
 import { networkCountry, resolveAnonymousHomepageContext } from "./localization-optimized.server";
 import { formatGenericStorefrontPageRecord } from "./page-record";
 import { firstPaintStorefrontShelf } from "../features/fore/search.server";
 import { enforceFirstPaintRateLimit } from "../features/fore/storefront-read-rate-limit.server";
 import type { CoveEnv } from "../features/fore/api.server";
-type OptimizedEnv = CoveEnv & {
-  COVE_SSR_DIAGNOSTICS?: string;
-  COVE_THIN_METADATA_COALESCE?: string;
-  COVE_STRANGLER_READ_MODEL?: string;
-  PRESENTATION?: PrivatePresentationStore;
-  PRESENTATION_KV?: {
-    get(key: string, options: { type: "text"; cacheTtl: number }): Promise<string | null>;
+type OptimizedEnv = CoveEnv &
+  IsolatedHomepageAuthorityEnv & {
+    COVE_SSR_DIAGNOSTICS?: string;
+    COVE_THIN_METADATA_COALESCE?: string;
+    COVE_STRANGLER_READ_MODEL?: string;
+    PRESENTATION?: PrivatePresentationStore;
+    PRESENTATION_KV?: {
+      get(key: string, options: { type: "text"; cacheTtl: number }): Promise<string | null>;
+    };
+    COVE_PRESENTATION_KV_ACCELERATE?: string;
+    COVE_PRESENTATION_PREFIX?: string;
+    COVE_STRANGLER_MODE?: string;
+    COVE_STRANGLER_RELEASE_CERTIFIED?: string;
+    // Explicitly staging-only: production continues using primary-D1 rights.
+    COVE_LEGAL_OWNER_STAGE_READ_ENABLED?: string;
+    COVE_LEGAL_OWNER_WRITER_CLOSURE_AUDITED?: string;
+    COVE_CANONICAL_LEGAL_WRITE_LOCK?: string;
+    COVE_RIGHTS_OWNER_SECRET?: string;
+    COVE_STRANGLER_DATABASE_ID?: string;
+    LEGAL_AUTHORITY?: {
+      getByName(name: string): { fetch(request: Request): Promise<Response> };
+    };
   };
-  COVE_PRESENTATION_KV_ACCELERATE?: string;
-  COVE_PRESENTATION_PREFIX?: string;
-  COVE_STRANGLER_MODE?: string;
-  COVE_STRANGLER_RELEASE_CERTIFIED?: string;
-  // Explicitly staging-only: production continues using primary-D1 rights.
-  COVE_LEGAL_OWNER_STAGE_READ_ENABLED?: string;
-  COVE_LEGAL_OWNER_WRITER_CLOSURE_AUDITED?: string;
-  COVE_CANONICAL_LEGAL_WRITE_LOCK?: string;
-  COVE_RIGHTS_OWNER_SECRET?: string;
-  COVE_STRANGLER_DATABASE_ID?: string;
-  LEGAL_AUTHORITY?: {
-    getByName(name: string): { fetch(request: Request): Promise<Response> };
-  };
-};
 
 // Preserve the exact serialized JSON from this freshly authorized bootstrap.
 // The caller is in the SAME Worker isolate; consuming its own Response body
@@ -57,7 +62,7 @@ export function readTrustedLeanBootstrapJson(response: Response): string | undef
  */
 export function canUseLeanAnonymousBootstrap(
   request: Request,
-  env: Pick<CoveEnv, "DB" | "COVE_STOREFRONT_READ_LIMITER">,
+  env: Pick<CoveEnv, "DB" | "COVE_STOREFRONT_READ_LIMITER"> & IsolatedHomepageAuthorityEnv,
 ): boolean {
   if (request.method !== "GET") return false;
   if (new URL(request.url).pathname !== "/api/fore/storefront/bootstrap") return false;
@@ -77,8 +82,7 @@ export function canUseLeanAnonymousBootstrap(
   // It also removes spoofable client-IP headers, leaving cf-connecting-ip.
   if (!request.headers.get("cf-connecting-ip")?.trim()) return false;
   return (
-    !!env.DB &&
-    typeof env.DB.prepare === "function" &&
+    ((!!env.DB && typeof env.DB.prepare === "function") || hasIsolatedHomepageAuthority(env)) &&
     typeof env.COVE_STOREFRONT_READ_LIMITER?.limit === "function"
   );
 }
@@ -91,16 +95,34 @@ const stageKvStore = new WeakMap<
   {
     kv: NonNullable<OptimizedEnv["PRESENTATION_KV"]>;
     adapter: PrivatePresentationStore;
+    parallel: boolean;
   }
 >();
 function stageAcceleratedPresentation(
   r2: PrivatePresentationStore,
   kv: NonNullable<OptimizedEnv["PRESENTATION_KV"]>,
+  parallel = false,
 ): PrivatePresentationStore {
   const existing = stageKvStore.get(r2);
-  if (existing?.kv === kv) return existing.adapter;
+  if (existing?.kv === kv && existing.parallel === parallel) return existing.adapter;
   const adapter: PrivatePresentationStore = {
     async get(key) {
+      if (parallel) {
+        // Isolated immutable campaign only. Both copies are display bytes;
+        // neither can bypass the fresh primary-D1 authorization below.
+        const fromKv = kv.get(key, { type: "text", cacheTtl: 30 }).then((body) => {
+          if (body === null) throw Error("KV presentation absent");
+          return { size: new TextEncoder().encode(body).byteLength, text: async () => body };
+        });
+        const fromR2 = r2.get(key);
+        return Promise.any([
+          fromKv,
+          fromR2.then((body) => {
+            if (!body) throw Error("R2 presentation absent");
+            return body;
+          }),
+        ]).catch(() => fromR2);
+      }
       let body: string | null;
       try {
         body = await kv.get(key, { type: "text", cacheTtl: 30 });
@@ -113,7 +135,7 @@ function stageAcceleratedPresentation(
       return { size: new TextEncoder().encode(body).byteLength, text: async () => body };
     },
   };
-  stageKvStore.set(r2, { kv, adapter });
+  stageKvStore.set(r2, { kv, adapter, parallel });
   return adapter;
 }
 
@@ -210,6 +232,9 @@ export async function serveLeanAnonymousBootstrap(
     request.headers.get("x-cove-perf-no-metadata-flight") !== "1" &&
     (request.headers.get("accept-language") || "").length <= 512;
   const model = env.COVE_STRANGLER_READ_MODEL;
+  const isolatedAuthority = hasIsolatedHomepageAuthority(env);
+  if (env.COVE_ISOLATED_HOMEPAGE_AUTHORITY && !isolatedAuthority)
+    throw Error("Isolated homepage authority outside reviewed snapshot");
   if (model !== undefined && !["0", "1", "2"].includes(model))
     throw Error("Unknown storefront read model");
   const kvStage = env.COVE_PRESENTATION_KV_ACCELERATE === "1";
@@ -231,7 +256,11 @@ export async function serveLeanAnonymousBootstrap(
     throw Error("Presentation accelerator requires certified KV/R2 v2 bindings");
   const presentationBinding =
     kvStage && env.PRESENTATION && env.PRESENTATION_KV
-      ? stageAcceleratedPresentation(env.PRESENTATION, env.PRESENTATION_KV)
+      ? stageAcceleratedPresentation(
+          env.PRESENTATION,
+          env.PRESENTATION_KV,
+          env.COVE_SSR_STAGING === "1" && env.COVE_STRANGLER_MODE === "isolated-real-catalog",
+        )
       : env.PRESENTATION;
   // Never trust owner-only positive grants unless the staging writer lock
   // and private owner binding are both present on the same gateway.
@@ -284,13 +313,19 @@ export async function serveLeanAnonymousBootstrap(
       ? Promise.all([projection!, admission]).then(([p]) =>
           timed(
             "catalog",
-            stagedLegalOwnerRead
+            isolatedAuthority
               ? authorizeHomepageWithUnifiedOwner(
-                  env.LEGAL_AUTHORITY!.getByName("cove-staged-legal-global-v1"),
-                  env.COVE_RIGHTS_OWNER_SECRET!,
+                  env.COVE_ISOLATED_HOMEPAGE_AUTHORITY!,
+                  env.COVE_HOMEPAGE_AUTHORITY_KEY!,
                   p,
                 )
-              : authorizeHomepagePresentation(rawDb, p, d1Metrics),
+              : stagedLegalOwnerRead
+                ? authorizeHomepageWithUnifiedOwner(
+                    env.LEGAL_AUTHORITY!.getByName("cove-staged-legal-global-v1"),
+                    env.COVE_RIGHTS_OWNER_SECRET!,
+                    p,
+                  )
+                : authorizeHomepagePresentation(rawDb, p, d1Metrics),
           ),
         )
       : model === "1"
@@ -346,6 +381,7 @@ export async function serveLeanAnonymousBootstrap(
       "Content-Type": "application/json; charset=utf-8",
       "Cache-Control": "no-store",
       "X-Content-Type-Options": "nosniff",
+      ...(isolatedAuthority ? { "X-Cove-Homepage-Authority": "isolated-canonical-primary" } : {}),
       "Server-Timing": [
         ...Object.entries(timings).map(([name, ms]) => `cove_${name};dur=${ms.toFixed(1)}`),
         // These are counts, not milliseconds. Expose as numeric descriptions

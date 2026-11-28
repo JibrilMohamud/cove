@@ -155,11 +155,12 @@ async function main() {
       const html = await response.text();
       const cards = validateHtml(status, response.headers.get("content-type") || "", html);
       assert.ok(cards > 0, "Full native SSR cards required");
+      assert.equal(response.headers.get("x-cove-homepage-authority"), "isolated-canonical-primary");
       assert.match(response.headers.get("cache-control") || "", /no-store/);
       assert.match(
         response.headers.get("server-timing") || "",
-        /cove_ssr_local_rights;dur=0/,
-        "Every request must execute the real primary legal-rights path",
+        /cove_catalog;dur=[0-9.]+/,
+        "Every prepared homepage must complete fresh bounded canonical authorization",
       );
       return {
         ordinal,

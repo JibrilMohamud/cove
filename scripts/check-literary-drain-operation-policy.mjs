@@ -12,10 +12,11 @@ for (const s of [
   "github.ref == 'refs/heads/main'",
   "persist-credentials: false",
   "cancel-in-progress: false",
-  "if: failure() || cancelled()",
-  "rollback-literary-drain.mjs",
+  "protected-post-drain-observation",
+  "verify-literary-postpublication-readonly.mjs",
+  "secrets.COVE_BIOSYNC_PROD_D1_READ_TOKEN",
 ])
-  assert.ok(workflow.includes(s), "Missing protected rollback workflow invariant " + s);
+  assert.ok(workflow.includes(s), "Missing protected observation workflow invariant " + s);
 for (const s of [
   "literary_processing_owner",
   "literary_budget_domain",
@@ -38,6 +39,31 @@ assert.ok(rollback.includes("Cannot restore primary budget after isolated debit"
 assert.ok(rollback.includes("canonical_legacy_restored"));
 assert.ok(rollback.includes("cron_removed:"));
 assert.ok(lib.includes('assert.equal(process.env.GITHUB_REF, "refs/heads/main")'));
+assert.ok(!workflow.includes("secrets.CLOUDFLARE_API_TOKEN"));
+assert.ok(!workflow.includes("run: node scripts/staging/activate-literary-drain.mjs"));
+assert.ok(!workflow.includes("run: node scripts/staging/rollback-literary-drain.mjs"));
+assert.ok(!lib.includes("fetch("));
+assert.ok(!lib.includes("process.env.CLOUDFLARE_API_TOKEN"));
+const previousRef = process.env.GITHUB_REF;
+process.env.GITHUB_REF = "refs/heads/main";
+try {
+  const retired = await import("./staging/literary-drain-operator-lib.mjs");
+  await assert.rejects(
+    retired.api("POST", "/d1/database/primary/query", { sql: "SELECT 1" }),
+    /literary_legacy_drain_operator_retired/,
+  );
+  await assert.rejects(
+    retired.api("PUT", "/workers/scripts/legacy/schedules", []),
+    /literary_legacy_drain_operator_retired/,
+  );
+  await assert.rejects(retired.owner(), /literary_legacy_drain_operator_retired/);
+} finally {
+  if (previousRef === undefined) delete process.env.GITHUB_REF;
+  else process.env.GITHUB_REF = previousRef;
+}
+const observer = read("scripts/staging/verify-literary-postpublication-readonly.mjs");
+assert.ok(observer.includes(String.raw`assert.match(sql, /^SELECT\b/)`));
+assert.ok(!/\b(?:INSERT INTO|UPDATE literary|DELETE FROM)\b/.test(observer));
 console.log(
-  "LITERARY_GUARDED_DRAIN_POLICY_PASS fail-closed owner, budget fence, evidence, rollback",
+  "LITERARY_GUARDED_DRAIN_POLICY_PASS completed direct-write operator retired; read-only observation retained",
 );

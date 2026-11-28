@@ -7,6 +7,12 @@ export function bootstrapFailureKind(error: unknown): string {
     cause = cause.cause;
   }
   const message = messages.join(" ");
+  // The private isolated port forwards only these fixed infrastructure labels.
+  const remote =
+    /^isolated_authority:(d1-resource-window|d1-queue-full|d1-queue-wait|service-overloaded|transient-service|database|unclassified)$/.exec(
+      message,
+    );
+  if (remote) return remote[1];
   if (/read limiter is unavailable/i.test(message)) return "limiter-unavailable";
   if (/presentation unavailable|missing candidate projection/i.test(message))
     return "presentation-absent";

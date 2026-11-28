@@ -1,4 +1,6 @@
+import { readOnlyStageD1 } from "./readonly-stage-d1";
 import type { CoveEnv } from "../features/fore/api.server";
+import type { IsolatedHomepageAuthorityEnv } from "./isolated-homepage-authority";
 import { isolateWorkerCountry } from "../lib/cloudflare-country.server";
 import { verifyFastCountryClaim } from "../lib/fast-storefront-relay.server";
 import {
@@ -25,85 +27,27 @@ import {
  * Existing domain logic is reused through type-only references. This pilot is
  * deliberately non-routable: no production DNS, no customer credentials.
  */
-export type StorefrontStranglerEnv = CoveEnv & {
-  COVE_STRANGLER_MODE?: string;
-  COVE_STRANGLER_DATABASE_ID?: string;
-  COVE_STRANGLER_EXPERIENCE?: string;
-  COVE_STRANGLER_RELEASE_CERTIFIED?: string;
-  COVE_FAST_RELAY_KEY?: string;
-  COVE_SSR_STAGING_GATE_KEY?: string;
-  COVE_GEO_PROBE_ENABLED?: string;
-  COVE_GEO_PROBE_RELEASE_SHA?: string;
-  COVE_INTERNAL_CORE_STAGE_GATE_KEY?: string;
-  COVE_STRANGLER_READ_MODEL?: string;
-  PRESENTATION?: PrivatePresentationStore;
-  PRESENTATION_KV?: {
-    get(key: string, options: { type: "text"; cacheTtl: number }): Promise<string | null>;
+export type StorefrontStranglerEnv = CoveEnv &
+  IsolatedHomepageAuthorityEnv & {
+    COVE_STRANGLER_MODE?: string;
+    COVE_STRANGLER_DATABASE_ID?: string;
+    COVE_STRANGLER_EXPERIENCE?: string;
+    COVE_STRANGLER_RELEASE_CERTIFIED?: string;
+    COVE_LEGAL_OWNER_STAGE_READ_ENABLED?: string;
+    COVE_FAST_RELAY_KEY?: string;
+    COVE_SSR_STAGING_GATE_KEY?: string;
+    COVE_GEO_PROBE_ENABLED?: string;
+    COVE_GEO_PROBE_RELEASE_SHA?: string;
+    COVE_INTERNAL_CORE_STAGE_GATE_KEY?: string;
+    COVE_STRANGLER_READ_MODEL?: string;
+    PRESENTATION?: PrivatePresentationStore;
+    PRESENTATION_KV?: {
+      get(key: string, options: { type: "text"; cacheTtl: number }): Promise<string | null>;
+    };
+    COVE_PRESENTATION_KV_ACCELERATE?: string;
+    COVE_PRESENTATION_PREFIX?: string;
+    CORE: { fetch(request: Request): Promise<Response> };
   };
-  COVE_PRESENTATION_KV_ACCELERATE?: string;
-  COVE_PRESENTATION_PREFIX?: string;
-  CORE: { fetch(request: Request): Promise<Response> };
-};
-
-/** Hard prohibit D1 writes by the real-catalog, credential-gated preview. */
-function readOnlyStageD1<T extends object>(db: T, approved = new WeakMap<object, object>()): T {
-  const wrapStatement = (statement: object): object => {
-    const proxy = new Proxy(statement, {
-      get(target, key) {
-        if (key === "bind")
-          return (...args: unknown[]) =>
-            wrapStatement((target as { bind(...values: unknown[]): object }).bind(...args));
-        const value = Reflect.get(target, key, target);
-        return typeof value === "function" ? value.bind(target) : value;
-      },
-    });
-    approved.set(proxy, statement);
-    return proxy;
-  };
-  return new Proxy(db, {
-    get(target, key) {
-      if (key === "prepare") {
-        return (sql: string) => {
-          const trimmed = sql.trim();
-          if (
-            !/^(?:SELECT|WITH)\s/i.test(trimmed) ||
-            /;\s*\S/.test(trimmed) ||
-            /\b(?:INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER|ATTACH|DETACH|PRAGMA|VACUUM)\b/i.test(
-              trimmed,
-            )
-          )
-            throw new Error("Production catalog acceptance is read-only");
-          const real = (target as { prepare(sql: string): object }).prepare(sql);
-          return wrapStatement(real);
-        };
-      }
-      if (key === "withSession") {
-        const open = (target as { withSession?: (arg: string) => object }).withSession;
-        if (typeof open !== "function") return undefined;
-        return (constraint: string) => readOnlyStageD1(open.call(target, constraint), approved);
-      }
-      if (key === "batch") {
-        return (statements: object[]) => {
-          if (
-            !Array.isArray(statements) ||
-            !statements.length ||
-            statements.some((statement) => !approved.has(statement))
-          )
-            throw new Error("Only validated SELECT batches may query production D1");
-          return (target as { batch(statements: object[]): unknown }).batch(
-            statements.map((statement) => approved.get(statement)!),
-          );
-        };
-      }
-      if (key === "exec")
-        return () => {
-          throw new Error("Production catalog acceptance cannot exec SQL");
-        };
-      const value = Reflect.get(target, key, target);
-      return typeof value === "function" ? value.bind(target) : value;
-    },
-  });
-}
 
 export default {
   async fetch(request: Request, env: StorefrontStranglerEnv): Promise<Response> {
@@ -114,9 +58,20 @@ export default {
     const syntheticEvaluation =
       env.COVE_STRANGLER_MODE === "isolated-evaluation" &&
       env.COVE_STRANGLER_DATABASE_ID === "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
+    // The full-catalog snapshot has a distinct, exact read-only preview mode.
+    // It must not inherit a production owner, CORE or release authority.
+    const isolatedRealCatalogAcceptance =
+      env.COVE_STRANGLER_MODE === "isolated-real-catalog" &&
+      env.COVE_STRANGLER_DATABASE_ID === "15ce2ea3-17f8-4d99-9015-a78a6a3af05d" &&
+      env.COVE_STRANGLER_RELEASE_CERTIFIED !== "1" &&
+      env.COVE_LEGAL_OWNER_STAGE_READ_ENABLED !== "1" &&
+      !env.LEGAL_AUTHORITY &&
+      !env.COVE_RIGHTS_OWNER_SECRET &&
+      !env.CORE;
     const productionAcceptance =
-      env.COVE_STRANGLER_MODE === "production-acceptance" &&
-      env.COVE_STRANGLER_DATABASE_ID === "4bd657ac-8789-403e-a28c-93aba8d0a989";
+      isolatedRealCatalogAcceptance ||
+      (env.COVE_STRANGLER_MODE === "production-acceptance" &&
+        env.COVE_STRANGLER_DATABASE_ID === "4bd657ac-8789-403e-a28c-93aba8d0a989");
     const customerGateway =
       env.COVE_SSR_STAGING !== "1" &&
       env.COVE_STRANGLER_MODE === "customer-gateway" &&
@@ -222,8 +177,8 @@ export default {
     };
     // Stage bearer authorizes this gateway, not a customer session at CORE.
     const delegate = () => {
-      // This production-D1 acceptance origin has no authenticated CORE
-      // service and must never become an alternate checkout/reader gateway.
+      // The read-only acceptance origin has no authenticated CORE service
+      // and must never become an alternate checkout/reader gateway.
       if (productionAcceptance || customerGateway)
         return Promise.resolve(new Response("Not an application route", { status: 404 }));
       const headers = new Headers(request.headers);
@@ -323,12 +278,12 @@ export default {
         );
       }
       failurePhase = "bootstrap";
-      // The current main-branch canonical bootstrap has a two-argument API.
-      // Preserve it unchanged; all failures remain fail-closed and classified.
-      // No presentation cache or independent authorizer is activated here.
-      // Main's authoritative live territorial-rights bootstrap remains unchanged.
+      // The shared bootstrap supports untrusted prepared display metadata and
+      // a fresh, bounded canonical authorization for every rendered response.
       let bootstrapEnv =
-        productionAcceptance || customerGateway ? { ...env, DB: readOnlyStageD1(env.DB) } : env;
+        (productionAcceptance || customerGateway) && env.DB
+          ? { ...env, DB: readOnlyStageD1(env.DB) }
+          : env;
       // Matched ABBA experiment: only the bearer-protected synthetic Worker
       // can select the canonical control. No client-controlled legal bypass.
       if (syntheticEvaluation && request.headers.get("x-cove-perf-serving-model") === "canonical")
@@ -393,6 +348,11 @@ export default {
               "content-type": "text/html; charset=utf-8",
               "cache-control": "private, no-store",
               "x-cove-renderer": customerGateway ? "strangler-live" : "strangler-evaluation",
+              ...(response.headers.has("x-cove-homepage-authority")
+                ? {
+                    "x-cove-homepage-authority": response.headers.get("x-cove-homepage-authority")!,
+                  }
+                : {}),
               "server-timing": response.headers.get("server-timing") || "",
             },
           },

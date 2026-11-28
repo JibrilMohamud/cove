@@ -201,12 +201,14 @@ try {
     if(options?.headers?.authorization!=="Bearer sk_test_private_owner_fixture")
       return null;
     assert.equal(options.method,"GET");
-    const id=String(url).split("/").at(-1);
+    const parsed=new URL(String(url));
+    assert.equal(parsed.searchParams.get("expand[]"),"payment_intent");
+    const id=parsed.pathname.split("/").at(-1);
     const row=fixture.primary.prepare("SELECT id FROM commerce_refunds WHERE order_id=? ORDER BY created_at DESC LIMIT 1")
       .get(orderId);
     assert.ok(row,"Private owner's independently checked refund must have a canonical intent");
-    return Response.json({object:"refund",id,livemode:false,
-      payment_intent:"pi_test_order_01",amount:1000,currency:"usd",
+    return Response.json({object:"refund",id,
+      payment_intent:{id:"pi_test_order_01",object:"payment_intent",livemode:false},amount:1000,currency:"usd",
       status:"pending",metadata:{fore_order_id:orderId,fore_refund_id:row.id}});
   }
   const recovery=fixture(),requestKey="refund-recovery-original-01";

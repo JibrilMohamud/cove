@@ -31,6 +31,10 @@ const legal=new Set<string>(LEGAL_TABLES);
 // this is an exact-match comparator, NOT an executable writer. The actual
 // three source statements remain visible to the conservative SQL-site audit.
 const NONAUTH_AUDIO_POSITION_SQL=new Set([
+  // Existing reviewed non-authorizing delivery telemetry only. This exact
+  // append-only statement never creates or consumes an entitlement/grant.
+  // All other writes to this table and every authorizing write stay denied.
+  "INSERT"+" INTO commercial_download_audit(id,grant_id,user_id,product_id,entitlement_id,asset_version_id,publication_version_id,device_id,event_type,bytes_served,ip_country,user_agent,reason_code,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
   "DELETE"+" FROM commercial_audio_playback WHERE user_id=? AND product_id=? AND version=?",
   "UPDATE"+" commercial_audio_playback SET chapter_id=?,seconds=?,speed=?,version=?,updated_at=? WHERE user_id=? AND product_id=? AND version=?",
   "INSERT"+" INTO commercial_audio_playback(user_id,product_id,chapter_id,seconds,speed,version,updated_at) VALUES(?,?,?,?,?,?,?)",

@@ -7,10 +7,21 @@ import { spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
 import { verifyGeoEdgeIngress } from "../staging/verify-geo-edge-ingress.mjs";
 import {
+  target as reviewedSnapshotId,
+  targetName as reviewedSnapshotName,
+} from "../staging/real-catalog-copy-plan.mjs";
+import {
   requireIsolatedCatalogSnapshotTarget,
   requireNoPrimaryD1PreviewBinding,
   requireMinimumRealCatalogSnapshot,
 } from "./real-catalog-snapshot-safety.mjs";
+
+import {
+  loadVisualCoverFixtures,
+  coverFixtureForUrl,
+  decodeVisualCatalog,
+  observeBrowserFailures,
+} from "./visual-cover-fixtures.mjs";
 
 const account = "d26430caa63ec55f6612e32f36aca5e9";
 // Fail before touching remote Worker, R2 or KV APIs if a dedicated snapshot
@@ -19,7 +30,11 @@ const { id: dbId, name: isolatedDbName } = requireIsolatedCatalogSnapshotTarget(
   process.env.COVE_REAL_CATALOG_SNAPSHOT_D1_ID,
   process.env.COVE_REAL_CATALOG_SNAPSHOT_D1_NAME,
 );
+assert.equal(dbId, reviewedSnapshotId, "Snapshot is not enrolled in the isolated runtime");
+assert.equal(isolatedDbName, reviewedSnapshotName);
 const token = process.env.CLOUDFLARE_API_TOKEN;
+const readToken = process.env.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN;
+assert.ok(readToken && readToken.length >= 20 && readToken !== token);
 assert.ok(token && token.length > 16, "Isolated hosted acceptance requires Cloudflare credentials");
 assert.match(process.env.GITHUB_RUN_ID || "", /^\d+$/);
 const namePrefix = "cove-strangler-real-preview-" + process.env.GITHUB_RUN_ID;
@@ -31,7 +46,7 @@ const config = JSON.parse(fs.readFileSync("wrangler.storefront-strangler.stage.j
 assert.equal(config.d1_databases[0].database_id, "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3");
 config.d1_databases[0].database_id = dbId;
 config.d1_databases[0].database_name = isolatedDbName;
-config.vars.COVE_STRANGLER_MODE = "production-acceptance";
+config.vars.COVE_STRANGLER_MODE = "isolated-real-catalog";
 config.vars.COVE_STRANGLER_DATABASE_ID = dbId;
 assert.equal(config.workers_dev, false);
 assert.equal(config.vars.COVE_STRANGLER_EXPERIENCE, "1");
@@ -44,12 +59,14 @@ config.observability = { enabled: false };
 // All protected commerce, account, and reader delegation is separately
 // exercised with a fake CORE by the same-SHA local integration suite.
 config.services = [];
-config.placement = { region: "aws:us-east-1" };
+// Keep the preview edge-local; forced remote placement adds a serving hop.
+delete config.placement;
 config.vars.FORE_PUBLIC_URL = origin;
 // Measure the guarded real-data optimization rather than silently testing
 // the unoptimized main path. All statements remain read-only; no 100-RPS
 // campaign is offered against production D1.
 const v2 = process.env.COVE_REAL_ACCEPTANCE_V2 === "1";
+const visualFixtures = v2 ? loadVisualCoverFixtures() : null;
 // Reviewed, immutable screenshots from the last verified visual-parity pass,
 // GitHub Actions run 39922882111 (24 matching edition cards). This pins only
 // the visual design reference; live D1 catalog/rights and real browser LCP are
@@ -134,7 +151,7 @@ async function cloudflare(method, path, body) {
   const response = await fetch("https://api.cloudflare.com/client/v4" + path, {
     method,
     headers: {
-      authorization: "Bearer " + token,
+      authorization: "Bearer " + (path.includes("/d1/database/") ? readToken : token),
       "content-type": "application/json",
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
@@ -297,8 +314,10 @@ async function pixelMismatch(page, baseline, candidate) {
           image.src = "data:image/png;base64," + base64;
         });
       const [a, b] = await Promise.all([load(first), load(second)]);
-      const width = Math.min(a.width, b.width);
-      const height = Math.min(a.height, b.height);
+      if (a.width !== b.width || a.height !== b.height)
+        throw Error("Visual reference dimensions differ");
+      const width = a.width;
+      const height = a.height;
       const canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = height;
@@ -327,8 +346,15 @@ async function pixelMismatch(page, baseline, candidate) {
 // In production, Vercel continues to own all /covers and /api assets.
 // Route stage-only browser requests through that public origin to compare
 // equivalent customer resource loading; never forward the stage bearer.
-async function stageBrowserRoute(route) {
+async function stageBrowserRoute(route, pinnedVisual = false) {
   const resource = new URL(route.request().url());
+  const fixture =
+    pinnedVisual && visualFixtures && route.request().method() === "GET"
+      ? coverFixtureForUrl(visualFixtures, resource.href, origin)
+      : null;
+  if (fixture) {
+    return route.fulfill({ status: 200, contentType: fixture.contentType, body: fixture.body });
+  }
   if (resource.origin !== origin) return route.continue();
   const forwardedAsset =
     ["/covers/", "/assets/", "/images/", "/fonts/"].some((prefix) =>
@@ -365,6 +391,7 @@ async function settleCatalog(page) {
         );
         return (
           covers.length >= 6 &&
+          covers.some((img) => img.complete && img.naturalWidth > 0) &&
           categoriesReady &&
           visible.every((img) => img.complete && img.naturalWidth > 0) &&
           !/(?:Finding books(?:\.{3}|…)|Catalog updating)/i.test(count)
@@ -400,6 +427,7 @@ async function settleCatalog(page) {
       pendingCatalog,
       settled:
         covers.length >= 6 &&
+        loaded > 0 &&
         categoriesReady &&
         visible.length === loadedVisible &&
         !pendingCatalog,
@@ -425,8 +453,9 @@ try {
   if (v2) {
     const { seedReadOnlyPresentation } = await import("../staging/seed-versioned-presentation.mjs");
     await seedReadOnlyPresentation({
-      token,
+      readToken,
       source: dbId,
+      sourceName: isolatedDbName,
       prefix: config.vars.COVE_PRESENTATION_PREFIX,
       directory: "artifacts/strangler-acceptance",
       kvNamespaceId: "8245d5f2116a445d9571405b41b7c8c3",
@@ -448,6 +477,11 @@ try {
   evidence.observedColdCountries = [
     ...new Set(evidence.cold.filter((cold) => cold.ok).map((cold) => cold.observedCountry)),
   ];
+  assert.ok(
+    evidence.observedColdCountries.length > 0,
+    "No valid cold storefront response; statuses: " +
+      evidence.cold.map((cold) => cold.status ?? "transport-error").join(","),
+  );
   assert.equal(
     evidence.observedColdCountries.length,
     1,
@@ -475,7 +509,7 @@ try {
       const page = await context.newPage();
       const pageErrors = [];
       page.on("pageerror", (error) => pageErrors.push(error.message));
-      await page.route("**/*", stageBrowserRoute);
+      await page.route("**/*", (route) => stageBrowserRoute(route));
       await page.addInitScript(() => {
         window.__coveVitals = { lcp: null, cls: 0 };
         new PerformanceObserver((list) => {
@@ -515,7 +549,7 @@ try {
   const mobileLcp = mobileSamples.map((s) => s.lcpMs).filter(Number.isFinite);
   evidence.stageMobileLcp = {
     description:
-      "Bearer-gated real production D1 with Vercel asset fetch, Chromium 390x844, 4x CPU, 150ms RTT",
+      "Bearer-gated isolated full-catalog snapshot with Vercel assets, Chromium 390x844, 4x CPU, 150ms RTT",
     samples: mobileSamples,
     p75Ms: percentile(mobileLcp, 0.75),
   };
@@ -536,7 +570,8 @@ try {
       deviceScaleFactor: 1,
     });
     const candidate = await auditCtx.newPage();
-    await candidate.route("**/*", stageBrowserRoute);
+    const mobileDiagnostics = observeBrowserFailures(candidate);
+    await candidate.route("**/*", (route) => stageBrowserRoute(route, true));
     const live = await auditCtx.newPage();
     const liveResponse = await live.goto("https://cove-puce-theta.vercel.app/", {
       waitUntil: "domcontentloaded",
@@ -548,6 +583,12 @@ try {
     });
     assert.equal(liveResponse?.status(), 200);
     assert.equal(stageResponse?.status(), 200);
+    evidence.mobileImageDiagnostics = mobileDiagnostics;
+    try {
+      if (v2) evidence.mobileCoverDecode = await decodeVisualCatalog(candidate, visualFixtures);
+    } finally {
+      save();
+    }
     let [liveCatalogPaint, stageCatalogPaint] = await Promise.all([
       settleCatalog(live),
       settleCatalog(candidate),
@@ -557,7 +598,10 @@ try {
     // the live loading skeleton, but do not waive a candidate mismatch.
     // Retry ONLY an incomplete reference navigation, with a hard bound.
     let liveBaselineReloads = 0;
-    while (!v2 && !liveCatalogPaint.settled && liveBaselineReloads < 2) {
+    while (
+      (!liveCatalogPaint.count || (!v2 && !liveCatalogPaint.settled)) &&
+      liveBaselineReloads < 2
+    ) {
       liveBaselineReloads++;
       console.log(
         "LIVE_BASELINE_UNSETTLED",
@@ -600,6 +644,8 @@ try {
       mismatchPercent,
       comparableMobileState: mobileComparable,
       visualReference: v2 ? "checksum-pinned-approved-2026-10-23" : "live-vercel",
+      candidateCoverSource: v2 ? "edition-bound-checksummed-canonical-covers" : "public-origin",
+      productionAssetDeliveryCertified: false,
       liveReferenceSettled: liveCatalogPaint.settled,
       liveBaselineReloads,
       covers,
@@ -624,7 +670,8 @@ try {
       deviceScaleFactor: 1,
     });
     const desktopCandidate = await desktopContext.newPage();
-    await desktopCandidate.route("**/*", stageBrowserRoute);
+    const desktopDiagnostics = observeBrowserFailures(desktopCandidate);
+    await desktopCandidate.route("**/*", (route) => stageBrowserRoute(route, true));
     const desktopLive = await desktopContext.newPage();
     const [desktopBaselineResponse, desktopStageResponse] = await Promise.all([
       desktopLive.goto("https://cove-puce-theta.vercel.app/", {
@@ -670,6 +717,10 @@ try {
       save();
     }
     assert.equal(desktopStageResponse?.status(), 200);
+    if (v2)
+      evidence.desktopCoverDecode = await decodeVisualCatalog(desktopCandidate, visualFixtures);
+    evidence.desktopImageDiagnostics = desktopDiagnostics;
+    save();
     let [desktopLivePaint, desktopStagePaint] = await Promise.all([
       settleCatalog(desktopLive),
       settleCatalog(desktopCandidate),
@@ -759,7 +810,7 @@ try {
   save();
   for (const workerName of createdWorkers) {
     try {
-      await cloudflare("DELETE", `/accounts/${account}/workers/workers/${workerName}?force=true`);
+      await cloudflare("DELETE", `/accounts/${account}/workers/scripts/${workerName}?force=true`);
     } catch {
       evidence.cleanupFailed = true;
       console.error("Stage cleanup not confirmed; remove only " + workerName);

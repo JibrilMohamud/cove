@@ -1,4 +1,5 @@
 /* eslint-disable prettier/prettier -- Private legal-authority boundary is security-sensitive. */
+import { ownerUserIdPattern } from "./owner-user-id";
 import {publishCheckedBiosyncOwned} from "./owner-biosync-checked-publication.stage";
 import {validateStoredEpub} from "../features/fore/stored-epub.server";
 import {canonicalizeRegionalEpub} from "../features/fore/gutenberg-federation.server";
@@ -26,7 +27,10 @@ import {issueQaOwnerPositiveGenerationCertificate,QA_POSITIVE_CERTIFICATE_PATH,
   type QAOwnerPrimaryDB} from "./qa-owner-positive-certificate-issuer.stage";
 import { DurableObject } from "cloudflare:workers";
 import { QA_OWNER_PRIMARY_READ_ROUTE, serveQaOwnerPrimaryRead } from "./qa-owner-primary-read-transport.mjs";
+import { QA_OPERATIONAL_ROUTE } from "./qa-owner-operational-protocol";
+import { serveQaOperationalWrite } from "./qa-owner-operational-execution";
 import { QA_SCHEDULE_ROUTE, serveQaOwnerScheduledTick } from "./qa-owner-scheduled-execution";
+import {productionPersistenceEnrolled,productionOwnerInternalRequest,type ProductionPersistenceEnv} from "./production-persistence-enrollment";
 import {DISABLED_OWNER_ATTEST_ROUTE,PRODUCTION_OWNER_OBJECT,isDisabledProductionOwner,validOwnerChallenge,disabledOwnerReceipt} from "./production-disabled-owner-attestation";
 import {publishVerifiedPaidOrderAtomic,type VerifiedPaidOrderLine} from "./paid-order-atomic-publication";
 import {executeOwnerRefundAccounting} from "./refund-accounting-owner-executor";
@@ -137,6 +141,7 @@ type LegalAuthorityEnv = Pick<CoveEnv,"FORE_AUTH_MODE"|"SUPABASE_URL"|"SUPABASE_
   BUCKET?:PublishingEnv["BUCKET"];
   FORE_PUBLISHING_AUTO_APPROVE_LOW_RISK?:string;
   COVE_QA_OWNER_JOURNAL_VERSION?: string;
+  COVE_QA_OPERATIONAL_OWNER_ENABLED?: string;
   COVE_QA_SCHEDULE_OWNER_ENABLED?: string;
   COVE_QA_OWNER_REHEARSAL_REVISION?: string;
   COVE_QA_OWNER_POSITIVE_CERTIFICATE_ONLY?: string;
@@ -161,6 +166,7 @@ const QA_PRIMARIES = new Set([
   "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
   "3ffb3c0b-72b2-4a47-b63a-18aaf77762ea",
   "969f1ea0-5f57-4f3a-aa25-9c74e58f5af3",
+  "f9354381-bd9f-496b-bd05-d6f62a32ec0c",
   // Dedicated synthetic BioSync QA account primary; never production.
   "4e17ba6f-444f-4245-801a-a7d4969045b0",
 ]);
@@ -169,6 +175,7 @@ const BIOSYNC_QA_PRIMARY="4e17ba6f-444f-4245-801a-a7d4969045b0";
 const QA_PAID_PRIMARIES = new Set([
   "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
   "969f1ea0-5f57-4f3a-aa25-9c74e58f5af3",
+  "f9354381-bd9f-496b-bd05-d6f62a32ec0c",
 ]);
 function qaOwnerLeaseLive(env:LegalAuthorityEnv) {
   const expires=Number(env.COVE_RIGHTS_OWNER_TEST_EXPIRES_AT);
@@ -2472,7 +2479,7 @@ export async function executeOwnerUnpaidCancellation(env:LegalAuthorityEnv,raw:u
   const q=raw as Record<string,unknown>;
   if(Object.keys(q).sort().join(",")!=="orderId,source,userId"||
      typeof q.orderId!=="string"||!cancellableOrderId.test(q.orderId)||
-     typeof q.userId!=="string"||!cancellableOrderId.test(q.userId)||
+     typeof q.userId!=="string"||!ownerUserIdPattern.test(q.userId)||
      !["customer","reconciliation"].includes(String(q.source)))
     throw Error("owner_cancellation_scope_invalid");
   const db=env.PRIMARY_DB;
@@ -17667,6 +17674,146 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     }
   }
 
+  /** Shared metadata-only account executor. It does not grant media rights,
+   * create entitlements, accept identity cookies or revive a revoked session. */
+  async #accountMetadataCommand(raw:unknown):Promise<Response>{
+    const env=this.env,sql=this.ctx.storage.sql as AuthoritySql;
+    const noStore={"cache-control":"no-store"};
+        const input=z.discriminatedUnion("action",[
+          z.object({action:z.literal("register-device"),userId:z.string().regex(/^[a-zA-Z0-9:_-]{3,160}$/),
+            device:z.object({deviceKey:z.string().min(16).max(200),name:z.string().trim().min(1).max(120),platform:z.string().trim().min(1).max(80)}).strict()}).strict(),
+          z.object({action:z.literal("revoke-device"),userId:z.string().regex(/^[a-zA-Z0-9:_-]{3,160}$/),deviceId:z.string().regex(/^[a-zA-Z0-9_-]{3,160}$/)}).strict(),
+          z.object({action:z.literal("erasure-tick"),limit:z.number().int().min(1).max(25)}).strict(),
+          // Digest only. Reject the original cookie, mutable session IDs and
+          // caller-selected timestamps before any owner-side storage.
+          z.object({action:z.literal("touch-session"),userId:z.string().regex(/^[a-zA-Z0-9:_-]{3,160}$/),
+            sessionHash:z.string().regex(/^[a-f0-9]{64}$/),
+            userAgentSummary:z.string().max(240),
+            ipCountry:z.string().regex(/^[A-Z]{0,2}$/)}).strict()
+        ]).parse(raw);
+        if(this.accountExecution){
+          if(input.action==="erasure-tick")return Response.json({schema:"cove.private-account-qa.v1",ownerFirst:true,action:input.action,userId:null,
+            result:{processed:0,completed:0,blocked:0,retrying:0}},{headers:noStore});
+          return new Response(null,{status:409,headers:noStore});
+        }
+        this.accountExecution=true;
+        try{
+          let result:unknown;
+          const db=env.PRIMARY_DB;
+          if(input.action==="erasure-tick"){
+            result=await privateAccount.processAccountDeletionQueue({...env,DB:db} as unknown as CoveEnv,sql,input.limit);
+          }else{
+            const user=await db.prepare("SELECT app_id,disabled_at FROM auth_accounts WHERE app_id=?")
+              .bind(input.userId).first<{app_id:string;disabled_at:string|null}>();
+            const denied=sql.exec("SELECT 1 ok FROM cove_account_access_denials WHERE user_id=?",input.userId).toArray().length;
+            if(!user||user.disabled_at||denied)return new Response(null,{status:403,headers:noStore});
+            if(input.action==="touch-session"){
+              // This metadata-only operation has a natural idempotency key:
+              // (verified account, SHA-256 cookie/session fingerprint). A
+              // retry cannot create a second session or revive a revoked one.
+              const at=new Date().toISOString();
+              const sessionId="sess_"+crypto.randomUUID();
+              await db.prepare(
+                "INSERT INTO account_sessions(id,user_id,provider_session_id_hash,user_agent_summary,ip_country,created_at,last_seen_at) VALUES(?,?,?,?,?,?,?) "+
+                "ON CONFLICT(user_id,provider_session_id_hash) DO UPDATE SET "+
+                "last_seen_at=CASE WHEN excluded.last_seen_at>account_sessions.last_seen_at THEN excluded.last_seen_at ELSE account_sessions.last_seen_at END,"+
+                "user_agent_summary=excluded.user_agent_summary,ip_country=excluded.ip_country "+
+                "WHERE account_sessions.revoked_at IS NULL")
+                .bind(sessionId,input.userId,input.sessionHash,input.userAgentSummary,input.ipCountry,at,at)
+                .run();
+              const current=await db.prepare(
+                "SELECT id,revoked_at FROM account_sessions WHERE user_id=? AND provider_session_id_hash=?")
+                .bind(input.userId,input.sessionHash).first<{id:string;revoked_at:string|null}>();
+              // A concurrent legal owner denial must never be mistaken for
+              // permission merely because a D1 metadata write committed.
+              const deniedAfter=sql.exec(
+                "SELECT 1 ok FROM cove_account_access_denials WHERE user_id=?",input.userId
+              ).toArray().length;
+              if(!current||current.revoked_at||deniedAfter)
+                return new Response(null,{status:403,headers:noStore});
+              result={sessionId:current.id};
+            }else{
+              // Cookies and caller-selected identity headers never cross this
+              // protocol. The authenticated API supplies its verified app ID.
+              const auditRequest=new Request("https://legal-authority.internal/account/device");
+              result=input.action==="register-device"?
+                await privateAccount.registerDevice(db,input.userId,auditRequest,input.device):
+                await privateAccount.revokeDevice(db,input.userId,input.deviceId,auditRequest);
+            }
+          }
+          return Response.json({schema:"cove.private-account-qa.v1",ownerFirst:true,action:input.action,
+            userId:input.action==="erasure-tick"?null:input.userId,result},{headers:noStore});
+        }finally{this.accountExecution=false;}
+  }
+
+  protected async productionAccountMetadata(request:Request,raw:unknown):Promise<Response>{
+    const env=this.env as LegalAuthorityEnv&ProductionPersistenceEnv;
+    const noStore={"cache-control":"no-store"};
+    if(!productionPersistenceEnrolled(env)||
+      !productionOwnerInternalRequest(request,env.COVE_RIGHTS_OWNER_SECRET!)||
+      new URL(request.url).origin!=="https://legal-authority.internal")
+      return new Response(null,{status:503,headers:noStore});
+    // Erasure remains confined to the enrolled scheduled queue. This private
+    // ingress admits only the three existing authenticated metadata actions.
+    const action=(raw as {action?:unknown}|null)?.action;
+    if(!["touch-session","register-device","revoke-device"].includes(String(action)))
+      return new Response(null,{status:503,headers:noStore});
+    try{return await this.#accountMetadataCommand(raw);}
+    catch{return new Response(null,{status:503,headers:noStore});}
+  }
+
+  /** Narrow production schedule bridge. No generic QA lease or positive grants.
+   * Only the enrolled owner may reuse the existing private negative erasure
+   * and sandbox preview executors. All positive release work stays blocked. */
+  protected async productionMaintenanceQueue(request:Request,raw:unknown):Promise<Response>{
+    const env=this.env as LegalAuthorityEnv&ProductionPersistenceEnv;
+    const headers={"cache-control":"no-store"};
+    const refuse=(status=503)=>new Response(null,{status,headers});
+    if(!productionPersistenceEnrolled(env)||env.COVE_PRODUCTION_PERSISTENCE_CRON_ENABLED!=="1")
+      return refuse();
+    if(!productionOwnerInternalRequest(request,env.COVE_RIGHTS_OWNER_SECRET!))return refuse(401);
+    const url=new URL(request.url);
+    if(url.hostname!=="legal-authority.internal")return refuse(400);
+    try{
+      if(url.pathname==="/account/private-action"){
+        const input=z.object({action:z.literal("erasure-tick"),limit:z.number().int().min(1).max(25)}).strict().parse(raw);
+        if(this.accountExecution)return refuse(409);
+        this.accountExecution=true;
+        try{
+          const result=await privateAccount.processAccountDeletionQueue({...env,DB:env.PRIMARY_DB} as unknown as CoveEnv,
+            this.ctx.storage.sql as AuthoritySql,input.limit);
+          if(result.retrying!==0||result.completed+result.blocked!==result.processed)return refuse();
+          return Response.json({schema:"cove.private-account-qa.v1",ownerFirst:true,action:input.action,userId:null,result},{headers});
+        }finally{this.accountExecution=false;}
+      }
+      if(url.pathname==="/publishing/partner/process-feed"){
+        const input=z.object({limit:z.number().int().min(1).max(25),operationId:z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,95}$/)}).strict().parse(raw);
+        if(this.partnerFeedRunning)return refuse(409);
+        this.partnerFeedRunning=true;
+        try{
+          // An unprocessed production feed, asset manifest or interrupted
+          // application cannot be disguised as a successful sandbox tick.
+          const blocked=()=>env.PRIMARY_DB.prepare(
+            "SELECT id FROM publisher_feed_submissions WHERE status IN ('accepted','accepted_with_warnings','applying') AND (environment<>'sandbox' OR feed_type='assets_manifest' OR status='applying') LIMIT 1"
+          ).first();
+          if(await blocked())return refuse();
+          const result=await processPartnerFeedQueuePrivate(env.PRIMARY_DB,input.limit);
+          if(result.failed!==0||result.applied!==result.leased||result.sandbox!==result.leased||await blocked())return refuse();
+          return Response.json({schema:"cove.owner-partner-feed-sandbox.v1",ownerFirst:true,operationId:input.operationId,...result},{headers});
+        }finally{this.partnerFeedRunning=false;}
+      }
+      if(url.pathname==="/preorder/private-action"){
+        const input=z.object({action:z.literal("advance"),operationId:z.string().regex(/^preorder:[a-f0-9-]{36}$/),payload:z.object({}).strict()}).strict().parse(raw);
+        // A complete empty-plan check is NOT a positive preorder executor.
+        // Do not advance even unpaid plans until that executor is enrolled.
+        if(await env.PRIMARY_DB.prepare("SELECT id FROM preorder_release_plans WHERE status IN ('scheduled','open','locked') LIMIT 1").first())return refuse();
+        return Response.json({schema:"cove.owner-preorder-qa.v1",ownerFirst:true,
+          operationId:input.operationId,action:input.action,result:{opened:0,locked:0,released:0,failed:0}},{headers});
+      }
+      return refuse();
+    }catch{return refuse();}
+  }
+
   async fetch(request: Request): Promise<Response> {
     const noStore={ "cache-control": "no-store" };
     const env=this.env;
@@ -17700,6 +17847,9 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       return new Response(null,{status:401,headers:noStore});
     if(request.method!=="POST") return new Response(null,{status:405,headers:noStore});
     const route=new URL(request.url).pathname;
+    if(route===QA_OPERATIONAL_ROUTE){
+      return serveQaOperationalWrite(request,env,this.ctx.storage as Parameters<typeof serveQaOperationalWrite>[2]);
+    }
     if(route===QA_SCHEDULE_ROUTE){
       return serveQaOwnerScheduledTick(request,env,
         this.ctx.storage as Parameters<typeof serveQaOwnerScheduledTick>[2],this);
@@ -17981,7 +18131,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         if(!q||typeof q!=="object"||Array.isArray(q)||
            Object.keys(q).sort().join(",")!=="author,createdAt,id,language,objectKey,operationId,title,userId"||
            typeof q.id!=="string"||!/^upload_[0-9a-f-]{36}$/.test(q.id)||
-           typeof q.userId!=="string"||!/^[a-zA-Z0-9_-]{8,160}$/.test(q.userId)||
+           typeof q.userId!=="string"||!ownerUserIdPattern.test(q.userId)||
            typeof q.title!=="string"||q.title.length>240||
            typeof q.author!=="string"||q.author.length>240||
            typeof q.language!=="string"||!/^[a-zA-Z-]{2,20}$/.test(q.language)||
@@ -18148,73 +18298,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
             after:input.after,limit:input.limit,result},{headers:noStore});
         }finally{this.regionalRepairExecution=false;}
       }
-      if(route==="/account/private-action"){
-        const input=z.discriminatedUnion("action",[
-          z.object({action:z.literal("register-device"),userId:z.string().regex(/^[a-zA-Z0-9:_-]{3,160}$/),
-            device:z.object({deviceKey:z.string().min(16).max(200),name:z.string().trim().min(1).max(120),platform:z.string().trim().min(1).max(80)}).strict()}).strict(),
-          z.object({action:z.literal("revoke-device"),userId:z.string().regex(/^[a-zA-Z0-9:_-]{3,160}$/),deviceId:z.string().regex(/^[a-zA-Z0-9_-]{3,160}$/)}).strict(),
-          z.object({action:z.literal("erasure-tick"),limit:z.number().int().min(1).max(25)}).strict(),
-          // Digest only. Reject the original cookie, mutable session IDs and
-          // caller-selected timestamps before any owner-side storage.
-          z.object({action:z.literal("touch-session"),userId:z.string().regex(/^[a-zA-Z0-9:_-]{3,160}$/),
-            sessionHash:z.string().regex(/^[a-f0-9]{64}$/),
-            userAgentSummary:z.string().max(240),
-            ipCountry:z.string().regex(/^[A-Z]{0,2}$/)}).strict()
-        ]).parse(raw);
-        if(this.accountExecution){
-          if(input.action==="erasure-tick")return Response.json({schema:"cove.private-account-qa.v1",ownerFirst:true,action:input.action,userId:null,
-            result:{processed:0,completed:0,blocked:0,retrying:0}},{headers:noStore});
-          return new Response(null,{status:409,headers:noStore});
-        }
-        this.accountExecution=true;
-        try{
-          let result:unknown;
-          const db=env.PRIMARY_DB;
-          if(input.action==="erasure-tick"){
-            result=await privateAccount.processAccountDeletionQueue({...env,DB:db} as unknown as CoveEnv,sql,input.limit);
-          }else{
-            const user=await db.prepare("SELECT app_id,disabled_at FROM auth_accounts WHERE app_id=?")
-              .bind(input.userId).first<{app_id:string;disabled_at:string|null}>();
-            const denied=sql.exec("SELECT 1 ok FROM cove_account_access_denials WHERE user_id=?",input.userId).toArray().length;
-            if(!user||user.disabled_at||denied)return new Response(null,{status:403,headers:noStore});
-            if(input.action==="touch-session"){
-              // This metadata-only operation has a natural idempotency key:
-              // (verified account, SHA-256 cookie/session fingerprint). A
-              // retry cannot create a second session or revive a revoked one.
-              const at=new Date().toISOString();
-              const sessionId="sess_"+crypto.randomUUID();
-              await db.prepare(
-                "INSERT INTO account_sessions(id,user_id,provider_session_id_hash,user_agent_summary,ip_country,created_at,last_seen_at) VALUES(?,?,?,?,?,?,?) "+
-                "ON CONFLICT(user_id,provider_session_id_hash) DO UPDATE SET "+
-                "last_seen_at=CASE WHEN excluded.last_seen_at>account_sessions.last_seen_at THEN excluded.last_seen_at ELSE account_sessions.last_seen_at END,"+
-                "user_agent_summary=excluded.user_agent_summary,ip_country=excluded.ip_country "+
-                "WHERE account_sessions.revoked_at IS NULL")
-                .bind(sessionId,input.userId,input.sessionHash,input.userAgentSummary,input.ipCountry,at,at)
-                .run();
-              const current=await db.prepare(
-                "SELECT id,revoked_at FROM account_sessions WHERE user_id=? AND provider_session_id_hash=?")
-                .bind(input.userId,input.sessionHash).first<{id:string;revoked_at:string|null}>();
-              // A concurrent legal owner denial must never be mistaken for
-              // permission merely because a D1 metadata write committed.
-              const deniedAfter=sql.exec(
-                "SELECT 1 ok FROM cove_account_access_denials WHERE user_id=?",input.userId
-              ).toArray().length;
-              if(!current||current.revoked_at||deniedAfter)
-                return new Response(null,{status:403,headers:noStore});
-              result={sessionId:current.id};
-            }else{
-              // Cookies and caller-selected identity headers never cross this
-              // protocol. The authenticated API supplies its verified app ID.
-              const auditRequest=new Request("https://legal-authority.internal/account/device");
-              result=input.action==="register-device"?
-                await privateAccount.registerDevice(db,input.userId,auditRequest,input.device):
-                await privateAccount.revokeDevice(db,input.userId,input.deviceId,auditRequest);
-            }
-          }
-          return Response.json({schema:"cove.private-account-qa.v1",ownerFirst:true,action:input.action,
-            userId:input.action==="erasure-tick"?null:input.userId,result},{headers:noStore});
-        }finally{this.accountExecution=false;}
-      }
+      if(route==="/account/private-action")return await this.#accountMetadataCommand(raw);
       if(route==="/finance/private-action"){
         const input=z.object({
           action:z.enum(["createFinanceParty","createRoyaltyContract","createRoyaltyContractVersion",
@@ -18746,7 +18830,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       if(route==="/market/private-admin-upsert") {
         const input=z.object({
           operationId:z.string().regex(/^market-admin:[0-9a-f-]{36}$/),
-          actor:z.object({userId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
+          actor:z.object({userId:z.string().regex(ownerUserIdPattern),
             authProvider:z.string().min(1).max(120),
             authSubject:z.string().min(1).max(240),
             aal:z.enum(["aal1","aal2"])}).strict(),
@@ -19444,7 +19528,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         const x=z.object({
           holdId:z.string().min(3).max(180),
           note:z.string().trim().min(3).max(4000),
-          actor:z.object({userId:z.string().regex(/^[a-zA-Z0-9_-]{8,160}$/),
+          actor:z.object({userId:z.string().regex(ownerUserIdPattern),
             authProvider:z.string().min(1).max(120),
             authSubject:z.string().min(1).max(240),
             aal:z.enum(["aal1","aal2"])}).strict()
@@ -19767,7 +19851,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       }
       if(route==="/catalog/private-grant-free-library"){
         const input=z.object({
-          userId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
+          userId:z.string().regex(ownerUserIdPattern),
           productId:z.string().regex(/^prd_gutenberg_(?:[0-9]{1,10}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90})$/),
           territory:z.string().regex(/^[A-Z]{2}$/)
         }).strict().parse(raw);
@@ -19808,7 +19892,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         const x=z.object({
           grantId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
           tokenHash:z.string().regex(/^[a-f0-9]{64}$/),
-          userId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
+          userId:z.string().regex(ownerUserIdPattern),
           productId:z.string().regex(/^prd_(?!gutenberg_)[A-Za-z0-9_-]{3,120}$/),
           entitlementId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
           publicationVersionId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/).nullable(),
@@ -19900,7 +19984,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         };
         const x=z.object({
           licenseId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
-          userId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
+          userId:z.string().regex(ownerUserIdPattern),
           productId:z.string().regex(/^prd_(?!gutenberg_)[A-Za-z0-9_-]{3,120}$/),
           entitlementId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
           editionId:z.string().min(3).max(160),
@@ -20098,7 +20182,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       }
       if(route==="/delivery/private-record-ownership"){
         const x=z.object({entitlementId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
-          userId:z.string().regex(/^[A-Za-z0-9_-]{8,160}$/),
+          userId:z.string().regex(ownerUserIdPattern),
           productId:z.string().regex(/^prd_[A-Za-z0-9_-]{3,120}$/)
         }).strict().parse(raw);
         const protectedItem=await env.PRIMARY_DB.prepare(
@@ -20795,7 +20879,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           "SELECT id,user_id FROM commerce_orders WHERE id=?"
         ).bind(input.orderId).first<{id:string;user_id:string}>();
         if(!order||order.id!==input.orderId||
-           !/^[a-zA-Z0-9_-]{8,160}$/.test(order.user_id))
+           !ownerUserIdPattern.test(order.user_id))
           return new Response(null,{status:409,headers:noStore});
         const storage=this.ctx.storage as typeof this.ctx.storage & {
           transactionSync<T>(fn:()=>T):T;
@@ -20834,7 +20918,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           return new Response(null,{status:400,headers:noStore});
         const input=raw as {userId?:unknown;orderId?:unknown;quoteId?:unknown};
         if(Object.keys(input).sort().join(",")!=="orderId,quoteId,userId"||
-           typeof input.userId!=="string"||!/^[A-Za-z0-9_-]{8,160}$/.test(input.userId)||
+           typeof input.userId!=="string"||!ownerUserIdPattern.test(input.userId)||
            typeof input.orderId!=="string"||!/^ord_[a-f0-9-]{36}$/.test(input.orderId)||
            typeof input.quoteId!=="string"||!/^[A-Za-z0-9_-]{8,160}$/.test(input.quoteId))
           return new Response(null,{status:400,headers:noStore});
@@ -21098,7 +21182,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         if(!command||typeof command!=="object"||Array.isArray(command)||
            Object.keys(command).sort().join(",")!=="request,userId"||
            typeof command.userId!=="string"||
-           !/^[A-Za-z0-9_-]{8,160}$/.test(command.userId))
+           !ownerUserIdPattern.test(command.userId))
           return new Response(null,{status:400,headers:noStore});
         const ownerEnv={
           DB:env.PRIMARY_DB,STRIPE_SECRET_KEY:env.STRIPE_SECRET_KEY,
@@ -21108,6 +21192,23 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           // This flag is minted *inside* the independently authorized QA owner,
           // never by a public backend request or its D1 capability.
           COVE_LEGAL_CONSUMER_STAGE_ENABLED:"1",
+          COVE_SSR_STAGING:"1",
+          COVE_CANONICAL_LEGAL_WRITE_LOCK:"1",
+          COVE_LEGAL_WRITER_PRIMARY_ID:env.COVE_RIGHTS_OWNER_PRIMARY_ID,
+          COVE_RIGHTS_OWNER_SECRET:env.COVE_RIGHTS_OWNER_SECRET,
+          // The shared pricing function independently rechecks the exact
+          // grant/version. Resolve ONLY its read-only proofs at this same
+          // owner, not another Durable Object or an unguarded D1 fallback.
+          LEGAL_AUTHORITY:{getByName:(name:string)=>{
+            if(name!=="cove-staged-legal-global-v1")throw Error("quote_owner_namespace_invalid");
+            return {fetch:(request:Request)=>{
+              const url=new URL(request.url);
+              if(request.method!=="POST"||url.hostname!=="legal-authority.internal"||
+                 url.search||!["/commercial/authorize-batch","/authorize-batch"].includes(url.pathname))
+                return Promise.resolve(new Response(null,{status:404,headers:noStore}));
+              return this.fetch(request);
+            }};
+          }},
         } as CoveEnv;
         const quote=await checkoutQuote(ownerEnv,{id:command.userId},command.request,async row=>{
           // Only this private owner writes canonical quotes after it has
@@ -21217,7 +21318,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           throw Error("owner_stripe_customer_invalid");
         const c=raw as {userId?:unknown;customerId?:unknown};
         if(Object.keys(c).sort().join(",")!=="customerId,userId"||
-          typeof c.userId!=="string"||!/^[a-zA-Z0-9_-]{8,160}$/.test(c.userId)||
+          typeof c.userId!=="string"||!ownerUserIdPattern.test(c.userId)||
           typeof c.customerId!=="string"||!/^cus_[a-zA-Z0-9_-]{4,150}$/.test(c.customerId))
           throw Error("owner_stripe_customer_invalid");
         const live=env.STRIPE_LIVEMODE==="true",secret=env.STRIPE_SECRET_KEY||"";
@@ -21662,7 +21763,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         if(!q||typeof q.orderId!=="string"||
            !/^[a-zA-Z0-9_-]{8,160}$/.test(q.orderId)||
            typeof q.userId!=="string"||
-           !/^[a-zA-Z0-9_-]{8,160}$/.test(q.userId)||
+           !ownerUserIdPattern.test(q.userId)||
            typeof q.territory!=="string"||!/^[A-Z]{2}$/.test(q.territory)||
            q.channel!=="retail")
           return new Response(null,{status:400,headers:noStore});

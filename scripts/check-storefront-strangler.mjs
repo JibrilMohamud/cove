@@ -8,6 +8,7 @@ import { localBindings } from "./local-api.mjs";
 
 const PROD_DB = "4bd657ac-8789-403e-a28c-93aba8d0a989";
 const STAGE_DB = "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
+const REAL_SNAPSHOT_DB = "15ce2ea3-17f8-4d99-9015-a78a6a3af05d";
 const configPath = "wrangler.storefront-strangler.stage.jsonc";
 const source = fs.readFileSync(configPath, "utf8");
 function validateConfig(raw) {
@@ -134,6 +135,49 @@ try {
     return r;
   }
   assert.equal((await worker.fetch(new Request("https://cove.test"), env)).status, 401);
+  // Exercise the actual runtime branch that hosted #27 could not enter.
+  const isolatedCatalog = {
+    ...env,
+    COVE_STRANGLER_MODE: "isolated-real-catalog",
+    COVE_STRANGLER_DATABASE_ID: REAL_SNAPSHOT_DB,
+    CORE: undefined,
+  };
+  const realCatalogPage = await worker.fetch(request(), isolatedCatalog);
+  assert.equal(realCatalogPage.status, 200);
+  assert.match(await realCatalogPage.text(), /data-rights-country="US"/);
+  assert.equal((await worker.fetch(new Request("https://cove.test"), isolatedCatalog)).status, 401);
+  assert.equal((await worker.fetch(request("US", {}, "/checkout"), isolatedCatalog)).status, 404);
+  assert.equal(
+    (await worker.fetch(request("US", {}, "/api/fore/orders"), isolatedCatalog)).status,
+    404,
+  );
+  for (const overrides of [
+    { COVE_STRANGLER_DATABASE_ID: PROD_DB },
+    { COVE_STRANGLER_DATABASE_ID: STAGE_DB },
+    { COVE_STRANGLER_DATABASE_ID: "00000000-0000-0000-0000-000000000000" },
+    { COVE_SSR_STAGING: "0" },
+    { COVE_STRANGLER_RELEASE_CERTIFIED: "1" },
+    { COVE_LEGAL_OWNER_STAGE_READ_ENABLED: "1" },
+    { COVE_RIGHTS_OWNER_SECRET: "b".repeat(64) },
+    { LEGAL_AUTHORITY: {} },
+    { CORE: env.CORE },
+  ]) {
+    assert.equal((await worker.fetch(request(), { ...isolatedCatalog, ...overrides })).status, 503);
+  }
+  const realGeo = new Request("https://cove.test/__cove_geo_probe");
+  Object.defineProperty(realGeo, "cf", { value: { country: "US", colo: "DFW" } });
+  const realGeoResponse = await worker.fetch(realGeo, {
+    ...isolatedCatalog,
+    COVE_GEO_PROBE_ENABLED: "1",
+    COVE_GEO_PROBE_RELEASE_SHA: "a".repeat(40),
+  });
+  assert.equal(realGeoResponse.status, 200);
+  assert.deepEqual(await realGeoResponse.json(), {
+    schema: "cove.geo-ingress.v1",
+    sha: "a".repeat(40),
+    colo: "DFW",
+    country: "US",
+  });
   const transport = await worker.fetch(request(null, {}, "/__cove_perf/transport"), {
     ...env,
     DB: {

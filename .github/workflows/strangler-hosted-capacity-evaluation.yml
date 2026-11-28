@@ -14,6 +14,7 @@ on:
       - ".github/workflows/strangler-hosted-capacity-evaluation.yml"
       - "scripts/staging/seed-strangler-v2-capacity.mjs"
       - "scripts/staging/cleanup-strangler-v2-capacity.mjs"
+      - "scripts/staging/stage-presentation-storage*.mjs"
       - "scripts/staging/enable-strangler-private-read-model.mjs"
       - "scripts/staging/check-strangler-v2-capacity-config.mjs"
       - "src/storefront-strangler/homepage-presentation.server.ts"
@@ -74,6 +75,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Prove v2 experiment uses only ephemeral synthetic staging resources
         run: node scripts/staging/check-strangler-v2-capacity-config.mjs
+      - run: node --test scripts/staging/stage-presentation-storage.test.mjs
       - name: Verify independent display projection never authorizes rights
         run: |
           node scripts/check-storefront-strangler.mjs
@@ -93,7 +95,7 @@ jobs:
     timeout-minutes: 42
     env:
       CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
       COVE_CF_STAGE_DATA_PLANE_READ_TOKEN: ${{ secrets.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN }}
       CLOUDFLARE_SEND_METRICS: "false"
     steps:
@@ -112,6 +114,8 @@ jobs:
           node scripts/check-storefront-v2-primary-prefix.mjs
           node scripts/staging/check-strangler-core-stage.mjs
       - name: Confirm production literary owner and rights-guarded publication before staged capacity
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_BIOSYNC_PROD_D1_READ_TOKEN }}
         run: node scripts/staging/verify-literary-postpublication-readonly.mjs
       - name: Compile independent thin Worker and snapshot publisher
         run: node scripts/build-storefront-strangler.mjs
@@ -187,6 +191,9 @@ jobs:
       - name: Remove run-scoped private synthetic R2/KV publication
         if: always()
         run: node scripts/staging/cleanup-strangler-v2-capacity.mjs
+      - name: Close run-scoped storage helper even after cancellation
+        if: always()
+        run: node scripts/staging/stage-presentation-storage.mjs --cleanup synthetic
       - uses: actions/upload-artifact@v4
         if: always()
         with:

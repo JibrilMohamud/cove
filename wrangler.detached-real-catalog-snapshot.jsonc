@@ -1,0 +1,12 @@
+{
+  "name": "cove-detached-catalog-schema-only",
+  "account_id": "f51e8ccbc394e2d6016ff8c2c303d54b",
+  "d1_databases": [
+    {
+      "binding": "SNAPSHOT",
+      "database_id": "3d7cea65-e91b-47b7-8496-2af60ae44d82",
+      "database_name": "cove-real-catalog-snapshot-20261125",
+      "migrations_dir": "drizzle"
+    }
+  ]
+}

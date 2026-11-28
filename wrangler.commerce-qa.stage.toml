@@ -1,6 +1,7 @@
 # Private, disposable full-commerce QA application. No production database, R2,
 # custom routes, Workers URL, live Stripe keys, or customer traffic.
 name = "cove-commerce-customer-qa-stage"
+account_id = "f51e8ccbc394e2d6016ff8c2c303d54b"
 main = ".output/server/index.mjs"
 minify = false
 compatibility_date = "2026-10-19"
@@ -22,13 +23,13 @@ period = 60
 
 [[d1_databases]]
 binding = "DB"
-database_name = "cove-commerce-customer-qa-20261022"
-database_id = "5be15110-44a6-4090-b0a1-36599d809b28"
+database_name = "cove-commerce-customer-detached-qa"
+database_id = "f9354381-bd9f-496b-bd05-d6f62a32ec0c"
 migrations_dir = "drizzle"
 
 [[r2_buckets]]
 binding = "BUCKET"
-bucket_name = "cove-commerce-original-media-qa-20261022"
+bucket_name = "cove-commerce-detached-media-qa"
 
 [vars]
 COVE_SSR_STAGING = "1"
@@ -36,7 +37,7 @@ COVE_SSR_STAGING_COMMERCE_QA = "1"
 FORE_ENVIRONMENT = "production"
 FORE_AUTH_MODE = "supabase"
 FORE_DEFAULT_TERRITORY = "US"
-FORE_PUBLIC_URL = "https://cove-commerce-customer-qa-stage.cove-jibrilmohamud.workers.dev"
+FORE_PUBLIC_URL = "https://cove-commerce-customer-qa-stage.cove-qa-reads.workers.dev"
 SUPABASE_URL = "https://qhympmfucmfdtylxpfcx.supabase.co"
 STRIPE_LIVEMODE = "false"
 STRIPE_TAX_ENABLED = "false"

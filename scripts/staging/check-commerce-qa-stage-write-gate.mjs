@@ -15,7 +15,7 @@ const { rejectUnauthenticatedStagingRequest: check } = await import(
 const token = "b".repeat(64);
 const secretEnv = { COVE_SSR_STAGING: "1", COVE_SSR_STAGING_GATE_KEY: token };
 const qaEnv = { ...secretEnv, COVE_SSR_STAGING_COMMERCE_QA: "1" };
-const origin = "https://cove-commerce-customer-qa-stage.cove-jibrilmohamud.workers.dev";
+const origin = "https://cove-commerce-customer-qa-stage.cove-qa-reads.workers.dev";
 function req(path, method = "POST", authorized = true, host = origin) {
   return new Request(host + path, {
     method,
@@ -38,6 +38,20 @@ for (const path of allowed) {
   assert.equal(await check(req(path), qaEnv), null, "QA endpoint must be available: " + path);
   assert.equal((await check(req(path), secretEnv)).status, 405, "All old stages stay read-only");
   assert.equal((await check(req(path, "POST", false), qaEnv)).status, 401);
+  assert.equal(
+    (
+      await check(
+        req(
+          path,
+          "POST",
+          true,
+          "https://cove-commerce-customer-qa-stage.cove-jibrilmohamud.workers.dev",
+        ),
+        qaEnv,
+      )
+    ).status,
+    405,
+  );
   assert.equal(
     (await check(req(path, "POST", true, "https://other-qa.workers.dev"), qaEnv)).status,
     405,

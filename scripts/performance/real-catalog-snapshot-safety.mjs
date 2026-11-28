@@ -112,6 +112,9 @@ export function requireNoPrimaryD1PreviewBinding(config, expectedIsolatedId) {
     expectedIsolatedId,
     "Isolated runtime must identify only its authorized staging DB",
   );
+  assert.equal(config.vars.COVE_STRANGLER_MODE, "isolated-real-catalog");
+  assert.equal(config.vars.COVE_SSR_STAGING, "1");
+  assert.notEqual(config.vars.COVE_STRANGLER_RELEASE_CERTIFIED, "1");
   assert.equal(
     config.vars.FORE_PUBLIC_URL,
     `https://${config.name}.cove-jibrilmohamud.workers.dev`,

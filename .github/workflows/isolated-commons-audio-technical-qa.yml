@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "scripts/soundtracks/qualify-isolated-commons.py"
+      - "scripts/soundtracks/migrate-detached-commons-qa.py"
+      - "scripts/soundtracks/test-migrate-detached-commons-qa.py"
       - "scripts/soundtracks/test-qualify-isolated-commons.py"
       - "scripts/soundtracks/test-isolated-commons-real-audio.py"
       - "scripts/soundtracks/queue-open-review-cases.py"
@@ -15,6 +17,8 @@ on:
     paths:
       - ".github/workflows/isolated-commons-audio-technical-qa.yml"
       - "scripts/soundtracks/qualify-isolated-commons.py"
+      - "scripts/soundtracks/migrate-detached-commons-qa.py"
+      - "scripts/soundtracks/test-migrate-detached-commons-qa.py"
       - "scripts/soundtracks/test-qualify-isolated-commons.py"
   workflow_dispatch:
   schedule:
@@ -22,6 +26,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: cove-isolated-commons-audio-technical-qa
@@ -42,18 +47,24 @@ jobs:
       - run: python -m py_compile scripts/soundtracks/qualify-isolated-commons.py scripts/soundtracks/queue-open-review-cases.py
       - run: python scripts/soundtracks/test-queue-open-review-cases.py -q
       - run: python scripts/soundtracks/test-qualify-isolated-commons.py -q
+      - run: python scripts/soundtracks/test-migrate-detached-commons-qa.py -q
       - run: python -m pip install --disable-pip-version-check numpy==2.2.6 scipy==1.15.3
       - run: python scripts/soundtracks/test-isolated-commons-real-audio.py
 
 
   detached-one-original-dry-run:
     needs: no-network-safety-tests
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.repository == 'JibrilMohamud/cove' && github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    concurrency:
+      group: cove-detached-commons-qa-account
+      queue: max
+      cancel-in-progress: false
+    environment: cove-production-release-audit
+    timeout-minutes: 55
     env:
-      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: f51e8ccbc394e2d6016ff8c2c303d54b
+      COVE_CF_QA_D1_MUTATION_TOKEN: ${{ secrets.COVE_CF_QA_D1_MUTATION_TOKEN }}
       COVE_MUSIC_OPEN_QA_APPLY: "0"
     steps:
       - uses: actions/checkout@v6
@@ -64,11 +75,23 @@ jobs:
           python-version: "3.12"
       - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg
       - run: python -m pip install --disable-pip-version-check numpy==2.2.6 scipy==1.15.3
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Verify detached Commons QA migration before reading or writing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COVE_CF_STAGE_DATA_PLANE_READ_TOKEN: ${{ secrets.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN }}
+          COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN: ${{ secrets.COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN }}
+          COVE_CF_USER_TOKENS_AUDIT_READ_TOKEN: ${{ secrets.COVE_CF_USER_TOKENS_AUDIT_READ_TOKEN }}
+          COVE_CF_QA_R2_STORAGE_TOKEN: ${{ secrets.COVE_CF_QA_R2_STORAGE_TOKEN }}
+        run: python scripts/soundtracks/migrate-detached-commons-qa.py
       - name: Require an isolated account credential and leave all publication flags off
         shell: bash
         run: |
           set -euo pipefail
-          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          test -n "${COVE_CF_QA_D1_MUTATION_TOKEN:-}"
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
           test "$COVE_MUSIC_OPEN_QA_APPLY" = 0
           command -v ffmpeg
           command -v ffprobe
@@ -88,15 +111,21 @@ jobs:
     # licensing nor quietness nor playback is approved by this job.
     # Protected main is the only source of credentials; PR jobs have none.
     if: >-
-      github.ref == 'refs/heads/main' &&
+      github.repository == 'JibrilMohamud/cove' && github.ref == 'refs/heads/main' &&
       (github.event_name == 'schedule' ||
        (github.event_name == 'workflow_dispatch' && vars.COVE_MUSIC_OPEN_QA_ENABLED == '1') ||
        (github.event_name == 'push' && contains(github.event.head_commit.message, '[one-source-qa]')))
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    concurrency:
+      group: cove-detached-commons-qa-account
+      queue: max
+      cancel-in-progress: false
+    environment: cove-production-release-audit
+    timeout-minutes: 55
     env:
-      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: f51e8ccbc394e2d6016ff8c2c303d54b
+      COVE_CF_QA_D1_MUTATION_TOKEN: ${{ secrets.COVE_CF_QA_D1_MUTATION_TOKEN }}
+      COVE_CF_QA_R2_STORAGE_TOKEN: ${{ secrets.COVE_CF_QA_R2_STORAGE_TOKEN }}
       COVE_MUSIC_R2_BACKEND: "cloudflare_api"
       COVE_MUSIC_OPEN_QA_APPLY: "1"
       COVE_MUSIC_REVIEW_APPLY: "1"
@@ -109,11 +138,22 @@ jobs:
         with:
           python-version: "3.12"
       - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Verify detached Commons QA migration before reading or writing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COVE_CF_STAGE_DATA_PLANE_READ_TOKEN: ${{ secrets.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN }}
+          COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN: ${{ secrets.COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN }}
+          COVE_CF_USER_TOKENS_AUDIT_READ_TOKEN: ${{ secrets.COVE_CF_USER_TOKENS_AUDIT_READ_TOKEN }}
+          COVE_CF_QA_R2_STORAGE_TOKEN: ${{ secrets.COVE_CF_QA_R2_STORAGE_TOKEN }}
+        run: python scripts/soundtracks/migrate-detached-commons-qa.py
       - name: Confirm private isolated credentials and actual FFmpeg
         shell: bash
         run: |
           set -euo pipefail
-          [[ -n "${CLOUDFLARE_API_TOKEN:-}" && "$COVE_MUSIC_R2_BACKEND" = cloudflare_api && "$COVE_MUSIC_OPEN_QA_APPLY" = 1 ]]
+          [[ -n "${COVE_CF_QA_D1_MUTATION_TOKEN:-}" && -n "${COVE_CF_QA_R2_STORAGE_TOKEN:-}" && "$COVE_MUSIC_R2_BACKEND" = cloudflare_api && "$COVE_MUSIC_OPEN_QA_APPLY" = 1 ]]
           command -v ffmpeg
           command -v ffprobe
       - run: python -m pip install --disable-pip-version-check numpy==2.2.6 scipy==1.15.3

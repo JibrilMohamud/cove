@@ -1,0 +1,74 @@
+{
+  "name": "cove-legal-authority-production",
+  "main": ".output/production-consolidation/owner.mjs",
+  "compatibility_date": "2026-10-25",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [],
+  "keep_vars": true,
+  "limits": {
+    "cpu_ms": 300000
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "LEGAL_AUTHORITY",
+        "class_name": "CoveLegalAuthority"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "legal-authority-production-locked-v1",
+      "new_sqlite_classes": [
+        "CoveLegalAuthority"
+      ]
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "PRIMARY_DB",
+      "database_name": "cove-production",
+      "database_id": "4bd657ac-8789-403e-a28c-93aba8d0a989"
+    },
+    {
+      "binding": "LITERARY_CONTENT_DB",
+      "database_name": "cove-literary-content-isolated-20261024",
+      "database_id": "400c3af3-5d40-41fd-83cc-98228e40ddac"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "cove-production-media"
+    },
+    {
+      "binding": "LITERARY_BUCKET",
+      "bucket_name": "cove-literary-originals-isolated-20261024"
+    }
+  ],
+  "vars": {
+    "COVE_RIGHTS_OWNER_ENABLED": "0",
+    "COVE_RIGHTS_OWNER_PRIMARY_ID": "4bd657ac-8789-403e-a28c-93aba8d0a989",
+    "STRIPE_LIVEMODE": "true",
+    "FORE_ENVIRONMENT": "production",
+    "COVE_PRODUCTION_BIOSYNC_BRIDGE_ENABLED": "0",
+    "COVE_PRODUCTION_LITERARY_BUDGET_CRON_ENABLED": "0",
+    "COVE_PRODUCTION_LITERARY_BUDGET_RELEASE_SHA": ""
+  },
+  "secrets": {
+    "required": [
+      "COVE_LITERARY_HANDOFF_SECRET",
+      "COVE_LITERARY_PUBLICATION_SECRET",
+      "COVE_LITERARY_READ_SECRET",
+      "COVE_PUBLICATION_SOURCE_READER_SECRET",
+      "COVE_RIGHTS_OWNER_SECRET",
+      "COVE_SOUNDS_SOURCE_READER_SECRET",
+      "STRIPE_SECRET_KEY",
+      "COVE_BIOSYNC_CLIENT_TOKEN_SHA256"
+    ]
+  }
+}

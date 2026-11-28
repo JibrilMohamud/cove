@@ -1,7 +1,8 @@
 /* eslint-disable prettier/prettier -- Exact owner checkout draft normalization; no caller-supplied SQL or prices. */
+import { ownerUserIdPattern } from "./owner-user-id";
 import {z} from "zod/v3";
 
-const buyer=z.string().regex(/^[A-Za-z0-9_-]{8,160}$/);
+const buyer=z.string().regex(ownerUserIdPattern);
 const quoteId=z.string().regex(/^[A-Za-z0-9_-]{8,160}$/);
 const money=z.number().int().min(0).max(1_000_000_000_000);
 export const checkoutDraftCommand=z.object({

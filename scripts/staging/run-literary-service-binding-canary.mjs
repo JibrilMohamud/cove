@@ -2,17 +2,29 @@ import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 
-const account = "d26430caa63ec55f6612e32f36aca5e9";
-const primary = "24c0eda2-6a43-4d7e-b787-502745d4d781";
-const secondary = "fce5742c-29ca-4bc3-85da-e174dd9bf42e";
+const account = "f51e8ccbc394e2d6016ff8c2c303d54b";
+const primary = "2dd68956-06a6-4b21-b729-596b94744c6b";
+const secondary = "d2c5673a-7497-4924-8b06-0be32f32555a";
 const publisher = "cove-literary-publisher-stage-qa-20261024";
 const caller = "cove-literary-binding-stage-qa-20261024";
-const apiToken = process.env.CLOUDFLARE_API_TOKEN;
-assert.ok(apiToken);
+const workersToken = process.env.COVE_CF_QA_WORKERS_DEPLOY_TOKEN;
+const d1Token = process.env.COVE_CF_QA_D1_MUTATION_TOKEN;
+assert.ok(workersToken && d1Token && workersToken !== d1Token);
+assert.ok(!process.env.CLOUDFLARE_API_TOKEN);
 assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, account);
 assert.match(process.env.GITHUB_SHA || "", /^[0-9a-f]{40}$/);
 const root = "https://api.cloudflare.com/client/v4/accounts/" + account;
 async function api(method, path, body) {
+  const d1 = [primary, secondary].some((id) => path === "/d1/database/" + id + "/query");
+  const worker = [publisher, caller].some(
+    (name) =>
+      path === "/workers/workers/" + name ||
+      ["/settings", "/schedules", "/secrets"].some(
+        (suffix) => path === "/workers/scripts/" + name + suffix,
+      ),
+  );
+  assert.ok(d1 !== worker, "Unapproved QA resource");
+  const apiToken = d1 ? d1Token : workersToken;
   const response = await fetch(root + path, {
     method,
     headers: {
@@ -20,6 +32,7 @@ async function api(method, path, body) {
       ...(body === undefined ? {} : { "content-type": "application/json" }),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    redirect: "error",
     signal: AbortSignal.timeout(30000),
   });
   assert.ok(response.ok, "Staging Service Binding API request " + response.status);
@@ -128,6 +141,7 @@ const report = {
   observedAt: new Date().toISOString(),
   sha: process.env.GITHUB_SHA,
   stagingOnly: true,
+  separateQaAccount: account,
   productionTouched: false,
   noPublicIngress: true,
   canaryCronRemoved: true,

@@ -22,12 +22,13 @@ async function digest(body: string) {
   const value = new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode(body)));
   return [...value].map((x) => x.toString(16).padStart(2, "0")).join("");
 }
-function checkedSource(db: CanonicalDB): StorefrontDB {
+export function checkedSource(db: CanonicalDB): StorefrontDB {
   // Reopen only *read-only* source statements after a reported D1 transport
   // loss. A new session is essential: retrying the broken sticky connection
   // simply repeats the same error. Never replay writes, rights decisions or
   // downstream publication acknowledgements.
   const session = db.withSession("first-unconstrained");
+  const descriptors = new WeakMap<object, { sql: string; args: unknown[] }>();
   function prepare(sql: string, args: unknown[] = []) {
     if (
       !/^(SELECT|WITH)\s/i.test(sql.trim()) ||
@@ -52,7 +53,7 @@ function checkedSource(db: CanonicalDB): StorefrontDB {
           .all<T>();
       }
     };
-    return {
+    const checked = {
       bind: (...next: unknown[]) => prepare(sql, next),
       all,
       async first<T>() {
@@ -62,15 +63,27 @@ function checkedSource(db: CanonicalDB): StorefrontDB {
         throw Error("capture_canonical_read_only");
       },
     };
+    descriptors.set(checked, { sql, args });
+    return checked;
   }
   return {
     prepare,
-    // Statements are ordered and bounded, never executed in parallel against
-    // the primary; this avoids a full fan-out during source refresh.
+    // Send one ordered read-only batch instead of multiplying upstream REST
+    // requests for each locale. Revalidate each descriptor before dispatch.
     async batch(statements: ReturnType<StorefrontDB["prepare"]>[]) {
-      const results = [];
-      for (const stmt of statements) results.push(await stmt.all());
-      return results;
+      const queries = statements.map((stmt) => {
+        const descriptor = descriptors.get(stmt);
+        if (!descriptor) throw Error("capture_foreign_statement");
+        return descriptor;
+      });
+      const bound = queries.map(({ sql, args }) => session.prepare(sql).bind(...args));
+      try {
+        return await session.batch(bound);
+      } catch (error) {
+        if (!/\bNetwork connection lost\b/i.test(String(error))) throw error;
+        const fresh = db.withSession("first-unconstrained");
+        return fresh.batch(queries.map(({ sql, args }) => fresh.prepare(sql).bind(...args)));
+      }
     },
   };
 }

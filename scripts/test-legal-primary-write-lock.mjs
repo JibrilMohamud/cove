@@ -40,6 +40,15 @@ try {
     "PRAGMA writable_schema=ON"
   ]) assert.throws(()=>guardProtectedLegalSql(sql),
     /canonical_legal_write_requires_owner_fence/,sql);
+  // Exact reviewed append-only download telemetry is allowed; not arbitrary
+  // audit writes or a second statement that changes delivery authority.
+  const deliveryAudit="INSERT"+" INTO commercial_download_audit(id,grant_id,user_id,product_id,entitlement_id,asset_version_id,publication_version_id,device_id,event_type,bytes_served,ip_country,user_agent,reason_code,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+  guardProtectedLegalSql(deliveryAudit);
+  for(const sql of [deliveryAudit+"; UPDATE commercial_delivery_grants SET status='active'",
+    deliveryAudit.replace("event_type","reason_code"),
+    deliveryAudit.replace("INSERT INTO","INSERT OR REPLACE INTO"),
+    "DELETE FROM commercial_download_audit","UPDATE commercial_download_audit SET event_type='grant_issued'"])
+    assert.throws(()=>guardProtectedLegalSql(sql),/canonical_legal_write_requires_owner_fence/);
   guardProtectedLegalSql("SELECT * FROM rights_grants WHERE id='x'");
   guardProtectedLegalSql("UPDATE local_transient_metrics SET value=1");
   const calls=[];

@@ -1,4 +1,5 @@
 /* eslint-disable prettier/prettier -- Imported by the private owner; never accepts SQL or provider success from a caller. */
+import { ownerUserIdPattern } from "./owner-user-id";
 import type {CatalogDB} from "../features/fore/catalog-model.server";
 import type {CoveEnv} from "../features/fore/api.server";
 import {postPaidSettlementTransaction,type SettlementPayment,type SettlementOrder,type SettlementAcquiredLine} from "../features/fore/paid-settlement-transaction.server";
@@ -16,7 +17,7 @@ const id=/^[a-zA-Z0-9_-]{8,160}$/;
  * retrieves Stripe's result with its own server key. Metadata, caller-supplied
  * success flags and HTTP-200 alone cannot manufacture a payment.
  */
-async function verifiedPayment(env:OwnerEnv,order:SettlementOrder):Promise<SettlementPayment>{
+async function verifyPaymentOnce(env:OwnerEnv,order:SettlementOrder):Promise<SettlementPayment>{
   if(Number(order.stripe_due_minor)===0){
     if(order.stripe_payment_intent_id)throw Error("internal_order_has_stripe_identity");
     return {provider:"internal",paymentIntentId:null,chargeId:null,receiptUrl:null,paymentMethod:"Internal balance"};
@@ -53,13 +54,27 @@ async function verifiedPayment(env:OwnerEnv,order:SettlementOrder):Promise<Settl
      Number(charge.amount_refunded||0)>0||charge.disputed===true))
     throw Error("owner_stripe_charge_not_settleable");
   const bt=charge?.balance_transaction;
-  if(!bt||typeof bt!=="object"||!Number.isSafeInteger(bt.fee)||bt.fee<0||
+  if(!bt||typeof bt==="string")throw Error("owner_stripe_fee_pending");
+  if(typeof bt!=="object"||!Number.isSafeInteger(bt.fee)||bt.fee<0||
      !Number.isSafeInteger(bt.net)||typeof bt.id!=="string"||!/^txn_[a-zA-Z0-9_-]{3,200}$/.test(bt.id)||
      typeof bt.currency!=="string"||bt.currency.toUpperCase()!==order.currency)
     throw Error("owner_stripe_fee_not_available");
   return {provider:"stripe",paymentIntentId:pi.id,chargeId:charge?.id||null,
     processorFee:{amountMinor:bt.fee,currency:bt.currency.toUpperCase(),reference:bt.id,netMinor:bt.net},
     receiptUrl:charge?.receipt_url||null,paymentMethod:charge?.payment_method_details?.type||"Stripe"};
+}
+
+// Stripe may publish the charge balance transaction after payment success.
+// Re-fetch only this transient missing-evidence case; never waive fee or identity checks.
+async function verifiedPayment(env:OwnerEnv,order:SettlementOrder):Promise<SettlementPayment>{
+  for(let attempt=0;;attempt++){
+    try{return await verifyPaymentOnce(env,order);}
+    catch(error){
+      if(!(error instanceof Error)||error.message!=="owner_stripe_fee_pending")throw error;
+      if(attempt===3)throw Error("owner_stripe_fee_not_available");
+      await new Promise(resolve=>setTimeout(resolve,1000*2**attempt));
+    }
+  }
 }
 
 export async function executeOwnerPaidSettlement(ctx:OwnerContext,raw:unknown){
@@ -76,7 +91,7 @@ export async function executeOwnerPaidSettlement(ctx:OwnerContext,raw:unknown){
     if(!readPaidOrderPermission(sql,{orderId}).allowed)throw Error("owner_settlement_order_withdrawn");
     phase="canonical_order_read";
     const order=await db.prepare("SELECT * FROM commerce_orders WHERE id=?").bind(orderId).first<SettlementOrder>();
-    if(!order||!id.test(order.user_id)||!/^[A-Z]{2}$/.test(order.territory_code)||
+    if(!order||!ownerUserIdPattern.test(order.user_id)||!/^[A-Z]{2}$/.test(order.territory_code)||
        !["pending_payment","processing","authorized","payment_failed","paid"].includes(order.status)||
        marketIsWithdrawn(sql,order.territory_code))throw Error("owner_settlement_order_scope_invalid");
     phase="canonical_lines_read";

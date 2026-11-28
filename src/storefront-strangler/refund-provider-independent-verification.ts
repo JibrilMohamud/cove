@@ -22,7 +22,7 @@ export async function independentlyVerifyOwnerStripeRefund(
   if(!/^re_[A-Za-z0-9_-]{4,200}$/.test(claim.providerRefundId))
     throw Error("owner_refund_provider_id_invalid");
   const response=await fetch(
-    "https://api.stripe.com/v1/refunds/"+encodeURIComponent(claim.providerRefundId),
+    "https://api.stripe.com/v1/refunds/"+encodeURIComponent(claim.providerRefundId)+"?expand%5B%5D=payment_intent",
     {method:"GET",headers:{authorization:"Bearer "+secret},
       redirect:"manual",signal:AbortSignal.timeout(15_000)}
   );
@@ -34,14 +34,18 @@ export async function independentlyVerifyOwnerStripeRefund(
   if(!provider||typeof provider!=="object"||Array.isArray(provider))
     throw Error("owner_refund_stripe_response_invalid");
   const reference=provider.payment_intent;
-  const paymentIntent=typeof reference==="string"?reference:
-    (reference&&typeof reference==="object"&&!Array.isArray(reference)
-      ?(reference as Record<string,unknown>).id:null);
+  // Stripe Refund objects do not expose livemode. Require the independently
+  // expanded PaymentIntent, which does, under the same mode-scoped credential.
+  const payment=reference&&typeof reference==="object"&&!Array.isArray(reference)?
+    reference as Record<string,unknown>:null;
+  const paymentIntent=payment?.id;
   const metadata=provider.metadata;
   const m=metadata&&typeof metadata==="object"&&!Array.isArray(metadata)?
     metadata as Record<string,unknown>:null;
   if(provider.object!=="refund"||provider.id!==claim.providerRefundId||
-     provider.livemode!==live||paymentIntent!==claim.paymentIntentId||
+     (provider.livemode!==undefined&&provider.livemode!==live)||
+     payment?.object!=="payment_intent"||payment.livemode!==live||
+     paymentIntent!==claim.paymentIntentId||
      !money(provider.amount)||provider.amount!==claim.amountMinor||
      typeof provider.currency!=="string"||
      provider.currency.toUpperCase()!==claim.currency||

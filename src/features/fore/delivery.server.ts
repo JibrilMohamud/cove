@@ -153,16 +153,16 @@ function stricterLimit(base: number, contract: any) {
   if (contract == null || !Number.isFinite(Number(contract)) || Number(contract) <= 0) return base;
   return Math.min(base, Number(contract));
 }
-function applyContractDeliveryPolicy(base: any, contractPolicy: any) {
+export function applyContractDeliveryPolicy(base: any, contractPolicy: any) {
   const out = { ...base },
     format = contractPolicy?.formatPolicy || {},
     rules = contractPolicy?.deliveryRules || {};
-  if (Number(format.deviceLimit) === 0) out.contract_delivery_blocked = 1;
+  if (format.deviceLimit != null && Number(format.deviceLimit) === 0) out.contract_delivery_blocked = 1;
   else if (format.deviceLimit != null) {
     out.require_device_registration = 1;
     out.max_active_devices = stricterLimit(Number(out.max_active_devices || 6), format.deviceLimit);
   }
-  if (Number(format.downloadLimit) === 0) {
+  if (format.downloadLimit != null && Number(format.downloadLimit) === 0) {
     out.allow_file_download = 0;
     out.contract_offline_permitted = 0;
   } else if (format.downloadLimit != null)
@@ -172,13 +172,13 @@ function applyContractDeliveryPolicy(base: any, contractPolicy: any) {
     );
   if (format.offlinePermitted === false) out.contract_offline_permitted = 0;
   if (rules.requireDeviceRegistration === true) out.require_device_registration = 1;
-  if (Number(rules.maxActiveDevices) === 0) out.contract_delivery_blocked = 1;
+  if (rules.maxActiveDevices != null && Number(rules.maxActiveDevices) === 0) out.contract_delivery_blocked = 1;
   else if (rules.maxActiveDevices != null)
     out.max_active_devices = stricterLimit(
       Number(out.max_active_devices || 6),
       rules.maxActiveDevices,
     );
-  if (Number(rules.maxDownloadsPerEntitlement) === 0) {
+  if (rules.maxDownloadsPerEntitlement != null && Number(rules.maxDownloadsPerEntitlement) === 0) {
     out.allow_file_download = 0;
     out.contract_offline_permitted = 0;
   } else if (rules.maxDownloadsPerEntitlement != null)
@@ -598,7 +598,7 @@ export async function issueCommercialEpubGrant(
     hash = await sha256(rawToken),
     grantId = uid("grant"),
     issued = now(),
-    expires = new Date(Date.now() + Number(policy.token_ttl_seconds || 300) * 1000).toISOString(),
+    expires = new Date(Date.parse(issued) + Number(policy.token_ttl_seconds || 300) * 1000).toISOString(),
     watermarkId = String(policy.watermark_mode) === "license_marker" ? uid("wm") : null,
     policySnapshot = {
       requireDeviceRegistration: !!policy.require_device_registration,

@@ -13,8 +13,8 @@ const workerDeployPaths = [
 const scopedWorkerSecret =
   "CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}";
 
-export function assertScopedStageWorkerWorkflow(source) {
-  assert.ok(source.includes(scopedWorkerSecret), "Stage Worker deploy must use its scoped secret");
+export function assertScopedStageWorkerWorkflow(source, expectedSecret=scopedWorkerSecret) {
+  assert.ok(source.includes(expectedSecret), "Stage Worker deploy must use its scoped secret");
   assert.doesNotMatch(source, /secrets\.CLOUDFLARE_API_TOKEN/,
     "Stage deploy must never fall back to broad Cloudflare secret");
   assert.match(source, /environment: cove-production-release-audit/,
@@ -32,13 +32,24 @@ export function assertScopedStageWorkerWorkflow(source) {
 for (const path of workerDeployPaths) {
   test(path + " uses existing narrowly scoped stage Worker credential", () => {
     const source = readFileSync(path, "utf8");
-    assertScopedStageWorkerWorkflow(source);
+    const rollback=path.endsWith("cove-stage-protected-worker-rollback.yml");
+    const production=path.endsWith("deploy-locked-fast-storefront-gateway.yml");
+    const expected=production?"CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_PROD_MAINTENANCE_TOKEN }}":rollback
+      ?"CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_QA_WORKERS_DEPLOY_TOKEN }}"
+      :scopedWorkerSecret;
+    assertScopedStageWorkerWorkflow(source,expected);
+    if(rollback){
+      assert.ok(source.includes("CLOUDFLARE_ACCOUNT_ID: f51e8ccbc394e2d6016ff8c2c303d54b"));
+      assert.ok(!source.includes("secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN"));
+      assert.ok(source.includes("secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN"));
+      assert.ok(source.includes("secrets.COVE_CF_WORKERS_CONTENT_READ_TOKEN"));
+    }
     assert.throws(() => assertScopedStageWorkerWorkflow(
-      source.replace(scopedWorkerSecret,
-        "CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}")),
+      source.replace(expected,
+        "CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}"),expected),
       /scoped secret/);
     assert.throws(() => assertScopedStageWorkerWorkflow(
-      source.replace("environment: cove-production-release-audit", "environment: bypass")),
+      source.replace("environment: cove-production-release-audit", "environment: bypass"),expected),
       /protected environment/);
   });
 }
@@ -104,9 +115,9 @@ test("older private legal-owner QA never exposes a deploy or D1 secret to PR cod
 test("disabled production legal owner uses three distinct non-D1 principals",()=>{
   const workflow=readFileSync(".github/workflows/production-legal-owner-locked.yml","utf8");
   const checker=readFileSync("scripts/check-locked-production-legal-owner.mjs","utf8");
-  assertScopedStageWorkerWorkflow(workflow);
+  assertScopedStageWorkerWorkflow(workflow,"CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_PROD_MAINTENANCE_TOKEN }}");
   for(const credential of [
-    "secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN",
+    "secrets.COVE_CF_PROD_MAINTENANCE_TOKEN",
     "secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN",
     "secrets.COVE_CF_ZONE_ROUTES_READ_TOKEN",
   ]) assert.ok(workflow.includes(credential),"Missing independent scoped credential: "+credential);

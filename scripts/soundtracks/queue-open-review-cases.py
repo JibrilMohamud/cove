@@ -135,7 +135,9 @@ def main():
     args=parser.parse_args()
     if not safe_output_filename(args.output):
         raise ValueError("unsafe_output_filename")
-    token=os.environ.get("CLOUDFLARE_API_TOKEN","")
+    if os.environ.get("COVE_COMMONS_QA_MIGRATION_VERIFIED") != "1" or os.environ.get("CLOUDFLARE_API_TOKEN"):
+        raise RuntimeError("Detached QA migration receipt required; legacy credential forbidden")
+    token=os.environ.get("COVE_CF_QA_D1_MUTATION_TOKEN","")
     result=run(token,args.apply_isolated,args.max_recordings)
     pathlib.Path(args.output).write_text(
         json.dumps(result,indent=2,ensure_ascii=False)+"\n",encoding="utf-8")

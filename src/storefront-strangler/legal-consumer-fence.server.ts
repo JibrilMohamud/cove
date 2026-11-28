@@ -1,4 +1,5 @@
 /* eslint-disable prettier/prettier -- Owner proof is a customer-access trust boundary. */
+import {ownerUserIdPattern} from "./owner-user-id";
 import {ApiError} from "../features/fore/service";
 import {isReviewedPaidQaPrimary} from "./reviewed-paid-qa-primary";
 
@@ -40,7 +41,7 @@ export async function requireStagePaidEntitlementAccess(
      !input||typeof input.entitlementId!=="string"||
      !/^[a-zA-Z0-9_-]{8,160}$/.test(input.entitlementId) ||
      typeof input.userId!=="string" ||
-     !/^[a-zA-Z0-9_-]{8,160}$/.test(input.userId) ||
+     !ownerUserIdPattern.test(input.userId) ||
      typeof input.productId!=="string" ||
      !commercialPattern.test(input.productId) ||
      input.productId.startsWith("prd_gutenberg_") ||

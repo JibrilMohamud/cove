@@ -3,10 +3,14 @@ on:
   pull_request:
     paths:
       - "scripts/staging/check-publication-feed-live.mjs"
+      - "scripts/staging/publication-source-readiness*.mjs"
+      - "scripts/staging/verify-pinned-publication-capture*.mjs"
       - "src/storefront-strangler/publication-capture.server.ts"
       - "src/storefront-strangler/publication-capture.worker.ts"
       - "src/storefront-strangler/publication-feed.server.ts"
       - "src/storefront-strangler/publication-driver.worker.ts"
+      - "scripts/check-publication-feed.mjs"
+      - "scripts/staging/verify-canonical-readonly-service.mjs"
       - "infra/publication-source/**"
       - "wrangler.publication-capture.stage.jsonc"
       - "wrangler.publication-export.stage.jsonc"
@@ -26,9 +30,22 @@ permissions:
   contents: read
 concurrency:
   group: cove-publication-source-isolation-qa
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
+  offline-publication-boundary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - run: node scripts/check-publication-feed.mjs
+      - run: node --check scripts/staging/check-publication-feed-live.mjs
+      - run: node --test scripts/staging/verify-pinned-publication-capture.test.mjs scripts/staging/publication-source-readiness.test.mjs
   physically-isolated-publication:
+    needs: offline-publication-boundary
     if: >-
       github.repository == 'JibrilMohamud/cove' &&
       github.event_name == 'workflow_dispatch' &&
@@ -37,9 +54,12 @@ jobs:
       inputs.reviewed_main_sha == github.sha
     environment: cove-production-release-audit
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
+      COVE_CF_STAGE_DATA_PLANE_READ_TOKEN: ${{ secrets.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN }}
+      COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
+      COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN: ${{ secrets.COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
       CLOUDFLARE_SEND_METRICS: "false"
     steps:
@@ -48,6 +68,8 @@ jobs:
       - uses: actions/setup-node@v6
         with: { node-version: "22", cache: npm }
       - run: npm ci
+      - name: Verify provider-enforced canonical reader before capture
+        run: node scripts/staging/verify-canonical-readonly-service.mjs --require-distinct-inventory
       - run: node scripts/build-storefront-strangler.mjs
       - name: Backfill an independent source and publish two fenced R2 generations
         run: node scripts/staging/check-publication-feed-live.mjs

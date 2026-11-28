@@ -2,8 +2,18 @@ name: covereads-secure-ssr-gateway
 on:
   pull_request:
     paths:
+      - "src/storefront-strangler/**"
+      - "scripts/staging/prepare-owned-storefront.mjs"
+      - "scripts/staging/isolated-presentation-read*.mjs"
+      - "scripts/staging/seed-versioned-presentation.mjs"
+      - "scripts/check-owned-storefront-integration.mjs"
+      - "scripts/check-isolated-homepage-authority.mjs"
+      - "scripts/staging/isolated-membership-profile.mjs"
+      - "scripts/staging/owned-storefront-rollback*.mjs"
+      - "scripts/performance/visual-cover-fixtures*"
       - "scripts/performance/check-owned-ssr-capacity.mjs"
       - "scripts/performance/check-owned-ssr-capacity.test.mjs"
+      - "scripts/performance/*owned-geo*"
       - "scripts/performance/prepare-owned-cold-trial.mjs"
       - "scripts/check-covereads-canary-deny.mjs"
       - "scripts/check-staging-auth-gateway.mjs"
@@ -48,6 +58,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: cove-owned-${{ github.event.pull_request.number || github.run_id }}
@@ -66,8 +77,16 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci --no-audit --no-fund
+      - name: Verify integrated prepared homepage and isolated authority
+        run: |
+          node scripts/check-isolated-homepage-authority.mjs
+          node scripts/check-owned-storefront-integration.mjs
+      - name: Verify isolated read-only preparation and provider failure handling
+        run: node --test scripts/staging/isolated-presentation-read.test.mjs
+      - name: Reject false regional evidence and unsafe geographic measurement requests
+        run: node --test scripts/performance/owned-geo.test.mjs
       - name: Verify strict owned canary edge-denial retry contract
-        run: node --test scripts/staging/strict-owned-canary-denial.test.mjs
+        run: node --test scripts/staging/strict-owned-canary-denial.test.mjs scripts/staging/owned-storefront-rollback.test.mjs
       - name: Reject HTTP 200 for staging home without live rights shelf
         run: node scripts/test-staging-empty-catalog-response.mjs
       - name: Distinguish thrown edge quota from genuine D1 7429 overload
@@ -104,10 +123,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
+      COVE_OWNED_PREPARED_ACCEPTANCE: "1"
       VERCEL: "0"
       COVE_CLOUDFLARE_SSR_PILOT: "1"
       CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
+      COVE_CF_STAGE_DATA_PLANE_READ_TOKEN: ${{ secrets.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN }}
+      COVE_REAL_CATALOG_SNAPSHOT_D1_ID: "15ce2ea3-17f8-4d99-9015-a78a6a3af05d"
+      COVE_REAL_CATALOG_SNAPSHOT_D1_NAME: "cove-real-catalog-snapshot-20261125"
       CLOUDFLARE_SEND_METRICS: "false"
       COVE_SSR_PROTECTED_TEST_ORIGIN: "https://cove-asset-auth-gateway.cove-jibrilmohamud.workers.dev"
     steps:
@@ -133,41 +156,27 @@ jobs:
           set -euo pipefail
           test -n "$CLOUDFLARE_API_TOKEN"
           test "$COVE_SSR_PROTECTED_TEST_ORIGIN" = "https://cove-asset-auth-gateway.cove-jibrilmohamud.workers.dev"
-      - name: Build Cloudflare-native SSR
-        run: npm run build
-      - name: Deploy private assets Worker and public auth-only gateway
+      - name: Verify previously populated catalog and retired importer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/staging/real-catalog-copy-receipt.mjs --verify
+      - name: Build Cloudflare-native SSR and shared prepared renderer
+        run: |
+          npm run build
+          node scripts/build-storefront-strangler.mjs
+      - name: Deploy isolated typed authority, shared homepage, private application and protected ingress
         shell: bash
         run: |
           set -euo pipefail
-          # The assets-bound backend must have NO public workers.dev ingress.
-          cp wrangler.frontend.staging.toml wrangler.frontend.private.test.toml
-          sed -i 's/^name = "cove-storefront-ssr-staging"$/name = "cove-asset-auth-stage"/' wrangler.frontend.private.test.toml
-          sed -i 's/^workers_dev = true$/workers_dev = false/' wrangler.frontend.private.test.toml
-          # Separate ephemeral namespace permits the explicitly authorized
-          # capacity campaign; production's 180/minute policy is untouched.
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          const p='wrangler.frontend.private.test.toml';
-          const namespace=String(800000+Number(process.env.GITHUB_RUN_ID)%100000);
-          let text=fs.readFileSync(p,'utf8');
-          if(!text.includes('namespace_id = "731903"')||!text.includes('limit = 180'))
-            throw Error('Unexpected staging rate-limit configuration');
-          text=text.replace('namespace_id = "731903"',`namespace_id = "${namespace}"`)
-            .replace('limit = 180','limit = 10000');
-          fs.writeFileSync(p,text);
-          NODE
-          grep -q '^name = "cove-asset-auth-stage"$' wrangler.frontend.private.test.toml
-          grep -q '^workers_dev = false$' wrangler.frontend.private.test.toml
-          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.frontend.private.test.toml
-          # The public gateway has NO static assets and only a service binding.
-          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.staging-auth-gateway.test.toml
-          COVE_GATE_TEST_BEARER="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
-          echo "::add-mask::$COVE_GATE_TEST_BEARER"
-          echo "COVE_GATE_TEST_BEARER=$COVE_GATE_TEST_BEARER" >> "$GITHUB_ENV"
-          printf '%s' "$COVE_GATE_TEST_BEARER" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put COVE_SSR_STAGING_GATE_KEY --config wrangler.frontend.private.test.toml
-          printf '%s' "$COVE_GATE_TEST_BEARER" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put COVE_SSR_STAGING_GATE_KEY --config wrangler.staging-auth-gateway.test.toml
-          # No HTTP prewarm. The first HTTP will be a counted auth check.
-          sleep 30
+          node scripts/staging/prepare-owned-storefront.mjs
+          trap 'rm -f .owned-*-secrets.json' EXIT
+          wr() { npm exec --yes --package=wrangler@4.151.0 -- wrangler "$@"; }
+          wr deploy --config wrangler.owned-authority.run.json --secrets-file .owned-authority-secrets.json
+          wr deploy --config wrangler.owned-homepage.run.json --secrets-file .owned-homepage-secrets.json
+          wr deploy --config wrangler.owned-application.run.json --secrets-file .owned-gate-secrets.json
+          wr deploy --config wrangler.owned-gateway.run.json --secrets-file .owned-gate-secrets.json
+          # Control-plane settling only; first HTTP remains counted.
+          sleep 75
       - name: Verify missing/forged credential, authorized manifest, denial of mutation and no direct backend
         run: node scripts/check-covereads-canary-deny.mjs
       - name: Attach ONLY protected gateway to owned canary domain
@@ -175,6 +184,8 @@ jobs:
       - name: Verify owned TLS canary cannot expose any anonymous static assets
         id: owned-security
         run: node scripts/check-covereads-owned-canary-live.mjs
+      - name: Pin every isolated serving version before cold redeployments
+        run: node scripts/staging/owned-storefront-rollback.mjs capture
       - name: Strict licensed SSR cold-path check through owned Cloudflare ingress
         shell: bash
         env:
@@ -218,6 +229,9 @@ jobs:
       - name: Install Chromium for owned-domain LCP and hydration gate
         if: ${{ !cancelled() && steps.owned-security.outcome == 'success' }}
         run: npx playwright install --with-deps chromium
+      - name: Repeat actual owned catalog bursts through ORD, LAX, IAD and DFW
+        if: ${{ !cancelled() && steps.owned-security.outcome == 'success' }}
+        run: node scripts/performance/check-owned-geo.mjs
       - name: Check browser hydration and mobile-4G LCP through owned ingress
         if: ${{ !cancelled() && steps.owned-security.outcome == 'success' }}
         shell: bash
@@ -227,6 +241,9 @@ jobs:
           set -euo pipefail
           export COVE_SSR_STAGING_GATE_KEY="$COVE_GATE_TEST_BEARER"
           node scripts/performance/cloudflare-browser.mjs
+      - name: Restore pinned isolated serving versions and verify rights path and asset denial
+        if: ${{ !cancelled() && steps.owned-security.outcome == 'success' }}
+        run: node scripts/staging/owned-storefront-rollback.mjs restore
       - name: Upload owned canary performance evidence even after a failed hard gate
         if: always()
         uses: actions/upload-artifact@v4
@@ -236,9 +253,10 @@ jobs:
             artifacts/cloudflare-ssr-staging-performance.json
             artifacts/owned-ssr-capacity-performance*.json
             artifacts/cloudflare-browser-performance.json
+            artifacts/owned-storefront/
           if-no-files-found: ignore
           retention-days: 14
-      - name: Detach owned canary and delete ONLY the two ephemeral test Workers
+      - name: Detach owned canary and delete ONLY the four isolated test Workers
         if: always()
         shell: bash
         run: |
@@ -248,9 +266,10 @@ jobs:
             echo "::error::No token to verify temporary Worker cleanup"
             exit 1
           fi
+          rm -f .owned-*-secrets.json
           # Even if canary security fails, detach custom domain first.
           node scripts/covereads-owned-canary-domain.mjs detach || failures=1
-          for name in cove-asset-auth-gateway cove-asset-auth-stage; do
+          for name in cove-asset-auth-gateway cove-asset-auth-stage cove-owned-homepage-stage cove-owned-homepage-authority cove-owned-geo-measurement; do
             response="$(curl --retry 3 --retry-delay 2 -sS --max-time 25 -w '\n%{http_code}' -X DELETE \
               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
               "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$name?force=true")"
@@ -261,3 +280,6 @@ jobs:
             fi
           done
           exit "$failures"
+      - name: Retire run-scoped presentation helper
+        if: always()
+        run: node scripts/staging/stage-presentation-storage.mjs --cleanup real

@@ -7,6 +7,13 @@ on:
       - "scripts/staging/check-commerce-qa-stage-write-gate.mjs"
       - "scripts/staging/upload-original-commerce-qa-media.mjs"
       - "scripts/staging/seed-original-commerce-qa-catalog.mjs"
+      - "scripts/staging/original-commerce-qa-royalties.mjs"
+      - "scripts/check-owner-paid-settlement.mjs"
+      - "src/features/fore/delivery.server.ts"
+      - "src/features/fore/commerce.server.ts"
+      - "src/storefront-strangler/refund-provider-independent-verification.ts"
+      - "scripts/check-owner-refund-provider.mjs"
+      - "scripts/check-commercial-epub-asset-scope.mjs"
       - "scripts/staging/verify-commerce-private-qa-stage.mjs"
       - "drizzle/0085_canonical_terminal_rights_resurrection_guard.sql"
       - "drizzle/0086_rights_contract_version_terminal_guard.sql"
@@ -18,7 +25,12 @@ on:
       - "scripts/staging/qa-refund-operator.mjs"
       - "scripts/staging/cleanup-qa-refund-operators.mjs"
       - "scripts/staging/run-protected-deployed-commerce-qa.mjs"
+      - "scripts/staging/commerce-browser-readiness*.mjs"
+      - "src/cloudflare/commerce-qa-ingress.mjs"
+      - "scripts/staging/detached-commerce-owner*.mjs"
+      - "scripts/staging/verify-detached-commerce-bridge*.mjs"
       - "scripts/staging/cleanup-qa-offline-epub-signing-key.mjs"
+      - "scripts/staging/check-detached-commerce-credentials.mjs"
       - ".github/workflows/deployed-commerce-browser-acceptance.yml"
   workflow_dispatch:
     inputs:
@@ -51,6 +63,16 @@ jobs:
         run: node scripts/staging/check-commerce-private-qa-stage.mjs
       - name: Prove only bearer-gated synthetic commerce API writes
         run: node scripts/staging/check-commerce-qa-stage-write-gate.mjs
+      - name: Verify isolated account and split credential policy
+        run: node scripts/staging/check-detached-commerce-credentials.mjs --offline
+      - name: Prove run-bound bridge readiness and unauthorized denial
+        run: node --test scripts/staging/verify-detached-commerce-bridge.test.mjs scripts/staging/commerce-browser-readiness.test.mjs
+      - name: Prove the exact hosted royalty fixture through full-schema owner settlement
+        run: node scripts/check-owner-paid-settlement.mjs
+      - name: Prove nullable delivery terms and independent Stripe refund provenance
+        run: |
+          node scripts/check-commercial-epub-asset-scope.mjs
+          node scripts/check-owner-refund-provider.mjs
       - name: Validate isolated deployed browser / Stripe-CLI harness syntax
         run: |
           node --check scripts/staging/run-protected-deployed-commerce-qa.mjs
@@ -67,8 +89,10 @@ jobs:
     environment: cove-production-release-audit
     timeout-minutes: 35
     env:
-      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: f51e8ccbc394e2d6016ff8c2c303d54b
+      CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_QA_WORKERS_DEPLOY_TOKEN }}
+      COVE_CF_QA_D1_MUTATION_TOKEN: ${{ secrets.COVE_CF_QA_D1_MUTATION_TOKEN }}
+      COVE_CF_QA_R2_STORAGE_TOKEN: ${{ secrets.COVE_CF_QA_R2_STORAGE_TOKEN }}
       CLOUDFLARE_SEND_METRICS: "false"
     steps:
       - uses: actions/checkout@v6
@@ -76,12 +100,21 @@ jobs:
       - uses: actions/setup-node@v6
         with: { node-version: "22", cache: npm }
       - run: npm ci
+      - name: Require distinct isolated QA principals before any remote operation
+        run: node scripts/staging/check-detached-commerce-credentials.mjs
       - name: Verify all remote bindings remain isolated and private
         run: node scripts/staging/check-commerce-private-qa-stage.mjs
       - run: node scripts/staging/check-commerce-qa-stage-write-gate.mjs
+      - name: Validate public Supabase key before provisioning
+        env:
+          QA_SUPABASE_PUBLIC: ${{ secrets.COVE_QA_SUPABASE_PUBLISHABLE_KEY || secrets.SUPABASE_PUBLISHABLE_KEY || secrets.SUPABASE_ANON_KEY }}
+        run: node scripts/staging/check-detached-commerce-credentials.mjs --supabase
       - name: Apply full app schema to disposable QA D1 ONLY
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_QA_D1_MUTATION_TOKEN }}
         run: npm exec --yes --package=wrangler@4.151.0 -- wrangler d1 migrations apply DB --remote --config wrangler.commerce-qa.stage.toml
       - run: npm run build
+      - run: node scripts/build-storefront-strangler.mjs
       - name: Deploy private Cloudflare application, never workers.dev
         run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.commerce-qa.stage.toml
       - name: Install fresh stage-only ingress gate
@@ -103,9 +136,17 @@ jobs:
           [[ "${QA_STRIPE_PUBLIC:-}" == pk_test_* ]] || { echo "::error::Missing Cove TEST publishable key"; exit 1; }
           printf "%s" "$QA_STRIPE_SECRET" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put STRIPE_SECRET_KEY --config wrangler.commerce-qa.stage.toml
           printf "%s" "$QA_STRIPE_PUBLIC" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put STRIPE_PUBLISHABLE_KEY --config wrangler.commerce-qa.stage.toml
+      - name: Install only the public Supabase authentication key
+        shell: bash
+        env:
+          QA_SUPABASE_PUBLIC: ${{ secrets.COVE_QA_SUPABASE_PUBLISHABLE_KEY || secrets.SUPABASE_PUBLISHABLE_KEY || secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          node scripts/staging/check-detached-commerce-credentials.mjs --supabase
+          printf '%s' "$QA_SUPABASE_PUBLIC" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put SUPABASE_PUBLISHABLE_KEY --config wrangler.commerce-qa.stage.toml
       - name: Generate and upload original synthetic EPUB and WAV to private QA R2
         run: node scripts/staging/upload-original-commerce-qa-media.mjs
-      - name: Seed idempotent paid synthetic ebook and US rights into private QA D1
+      - name: Seed idempotent paid synthetic EPUB, audio, US rights and royalty terms into private QA D1
         run: node scripts/staging/seed-original-commerce-qa-catalog.mjs
       - name: Preserve fixture checksums
         uses: actions/upload-artifact@v4
@@ -130,8 +171,10 @@ jobs:
     environment: cove-production-release-audit
     timeout-minutes: 35
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_QA_WORKERS_DEPLOY_TOKEN }}
+      COVE_CF_QA_D1_MUTATION_TOKEN: ${{ secrets.COVE_CF_QA_D1_MUTATION_TOKEN }}
+      COVE_CF_QA_R2_STORAGE_TOKEN: ${{ secrets.COVE_CF_QA_R2_STORAGE_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: f51e8ccbc394e2d6016ff8c2c303d54b
       CLOUDFLARE_SEND_METRICS: "false"
       COVE_QA_BUYER_EMAIL: ${{ secrets.COVE_QA_BUYER_EMAIL }}
       COVE_QA_BUYER_PASSWORD: ${{ secrets.COVE_QA_BUYER_PASSWORD }}
@@ -144,12 +187,14 @@ jobs:
       - uses: actions/setup-node@v6
         with: { node-version: "22", cache: npm }
       - run: npm ci
+      - name: Require distinct isolated QA principals before any remote operation
+        run: node scripts/staging/check-detached-commerce-credentials.mjs
       - name: Reject missing QA identities before opening any ingress
         shell: bash
         run: |
           set -euo pipefail
           missing=()
-          for name in CLOUDFLARE_API_TOKEN COVE_QA_BUYER_EMAIL COVE_QA_BUYER_PASSWORD COVE_QA_OUTSIDER_EMAIL COVE_QA_OUTSIDER_PASSWORD COVE_SANDBOX_SECRET_KEY; do
+          for name in CLOUDFLARE_API_TOKEN COVE_CF_QA_D1_MUTATION_TOKEN COVE_CF_QA_R2_STORAGE_TOKEN COVE_QA_BUYER_EMAIL COVE_QA_BUYER_PASSWORD COVE_QA_OUTSIDER_EMAIL COVE_QA_OUTSIDER_PASSWORD COVE_SANDBOX_SECRET_KEY; do
             if [[ -z "${!name:-}" ]]; then missing+=("$name"); fi
           done
           if (( ${#missing[@]} )); then
@@ -161,8 +206,10 @@ jobs:
       - run: node scripts/staging/check-commerce-private-qa-stage.mjs
       - run: node scripts/staging/check-commerce-qa-stage-write-gate.mjs
       - run: npm run build
+      - run: node scripts/build-storefront-strangler.mjs
       - run: npm install --global @stripe/cli
       - run: npx playwright install --with-deps chromium
+      - run: node scripts/staging/verify-commerce-private-qa-stage.mjs
       - name: Signed webhook, two genuine accounts, EPUB/audio, refund and revocation
         run: node scripts/staging/run-protected-deployed-commerce-qa.mjs
       - uses: actions/upload-artifact@v4
@@ -186,3 +233,6 @@ jobs:
       - name: Remove ephemeral EPUB signer and verify no public QA ingress
         if: always()
         run: node scripts/staging/cleanup-qa-offline-epub-signing-key.mjs
+      - name: Remove run-scoped detached commerce owner
+        if: always()
+        run: node scripts/staging/detached-commerce-owner.mjs --cleanup

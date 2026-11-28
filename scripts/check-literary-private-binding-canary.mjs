@@ -15,16 +15,17 @@ const workflow = readFileSync(
 );
 const cleanup = readFileSync("scripts/staging/cleanup-literary-private-binding-canary.mjs", "utf8");
 for (const config of [publisher, caller]) {
+  assert.equal(config.account_id, "f51e8ccbc394e2d6016ff8c2c303d54b");
   assert.equal(config.workers_dev, false);
   assert.equal(config.preview_urls, false);
   assert.ok(!config.routes && !config.route && !config.triggers && !config.queues);
   assert.deepEqual(
     config.d1_databases.map((x) => x.database_id).sort(),
-    ["24c0eda2-6a43-4d7e-b787-502745d4d781", "fce5742c-29ca-4bc3-85da-e174dd9bf42e"].sort(),
+    ["2dd68956-06a6-4b21-b729-596b94744c6b", "d2c5673a-7497-4924-8b06-0be32f32555a"].sort(),
   );
   assert.deepEqual(
     config.r2_buckets.map((x) => x.bucket_name),
-    ["cove-literary-cutover-qa-objects-20261024"],
+    ["cove-literary-synthetic-objects-qa"],
   );
 }
 assert.deepEqual(caller.services, [{ binding: "LITERARY_PUBLISHER", service: publisher.name }]);
@@ -48,6 +49,10 @@ for (const term of [
 assert.ok(script.includes("publication_state"), "Missing secondary publication receipt check");
 assert.ok(workflow.includes("github.ref == 'refs/heads/main'"));
 assert.ok(workflow.includes("needs: static-private-qa-contract"));
+assert.ok(!workflow.includes("secrets.CLOUDFLARE_API_TOKEN"));
+assert.ok(workflow.includes("secrets.COVE_CF_QA_WORKERS_DEPLOY_TOKEN"));
+assert.ok(workflow.includes("secrets.COVE_CF_QA_D1_MUTATION_TOKEN"));
+assert.ok(workflow.includes("certify-literary-remote-synthetic-journey.mjs"));
 assert.ok(workflow.includes("persist-credentials: false"));
 assert.ok(script.includes('await api("PUT", "/workers/scripts/" + caller + "/schedules", []);'));
 assert.ok(script.includes("attempt < 72"), "QA cron propagation grace too short");

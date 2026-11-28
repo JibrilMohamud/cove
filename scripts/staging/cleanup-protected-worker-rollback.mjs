@@ -1,7 +1,7 @@
 /* eslint-disable prettier/prettier -- Verified isolated script cleanup; never production. */
 import assert from "node:assert/strict";
 import {rmSync} from "node:fs";
-const ACCOUNT="d26430caa63ec55f6612e32f36aca5e9";
+const ACCOUNT="f51e8ccbc394e2d6016ff8c2c303d54b";
 const run=process.env.GITHUB_RUN_ID,attempt=process.env.GITHUB_RUN_ATTEMPT;
 assert.match(run||"",/^[0-9]{8,15}$/);
 assert.match(attempt||"",/^[1-9][0-9]{0,2}$/);
@@ -12,7 +12,7 @@ assert.ok(token);
 const endpoint="https://api.cloudflare.com/client/v4/accounts/"+ACCOUNT+"/workers/scripts/"+worker;
 async function request(method,suffix=""){
   const resp=await fetch(endpoint+suffix,{method,
-    headers:{authorization:"Bearer "+token},signal:AbortSignal.timeout(12000)});
+    headers:{authorization:"Bearer "+token},redirect:"error",signal:AbortSignal.timeout(12000)});
   if(resp.status===404)return null;
   if(!resp.ok)throw Error("Isolated rollback cleanup HTTP "+resp.status);
   const j=await resp.json();

@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { withStagePresentationStore } from "./stage-presentation-storage.mjs";
 import { produceHomepagePresentation } from "../../.output/strangler/presentation.mjs";
 
 // OUT-OF-BAND, STAGING-ONLY. No production D1 binding, customer traffic,
@@ -10,9 +9,8 @@ import { produceHomepagePresentation } from "../../.output/strangler/presentatio
 const account = "d26430caa63ec55f6612e32f36aca5e9";
 const databaseId = "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
 const bucket = "cove-strangler-private-presentation-stage";
-const kvId = "8245d5f2116a445d9571405b41b7c8c3";
 const run = process.env.GITHUB_RUN_ID || "";
-const token = process.env.CLOUDFLARE_API_TOKEN || "";
+const token = process.env.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN || "";
 assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, account);
 assert.match(run, /^[1-9][0-9]{7,14}$/);
 assert.ok(token.length > 20, "A protected workflow credential is required");
@@ -86,19 +84,7 @@ assert.ok(activeCountries.every((country) => /^[A-Z]{2}$/.test(country)));
 // trial. Multi-market rights parity is checked by the independent fixtures.
 const countries = ["US"];
 
-function wrangler(args) {
-  const result = spawnSync(
-    "npm",
-    ["exec", "--yes", "--package=wrangler@4.151.0", "--", "wrangler", ...args],
-    {
-      encoding: "utf8",
-      timeout: 90_000,
-      env: { ...process.env, CLOUDFLARE_SEND_METRICS: "false" },
-    },
-  );
-  if (result.status !== 0) throw Error("Private R2 staging operation failed");
-}
-async function writeCountry(country) {
+async function writeCountry(country, storage) {
   const written = [];
   const store = {
     async put(key, body) {
@@ -118,37 +104,7 @@ async function writeCountry(country) {
       fs.writeFileSync(file, body, { mode: 0o600 });
       const objectKey = prefix + key;
       manifest.push({ country, objectKey });
-      wrangler([
-        "r2",
-        "object",
-        "put",
-        bucket + "/" + objectKey,
-        "--remote",
-        "--file",
-        file,
-        "--content-type",
-        "application/json",
-      ]);
-      const response = await fetch(
-        `https://api.cloudflare.com/client/v4/accounts/${account}/storage/kv/namespaces/${kvId}/values/${encodeURIComponent(objectKey)}?expiration_ttl=1800`,
-        {
-          method: "PUT",
-          headers: {
-            authorization: "Bearer " + token,
-            "content-type": "application/octet-stream",
-          },
-          body,
-          signal: AbortSignal.timeout(30000),
-        },
-      );
-      const ack = await response.json();
-      assert.ok(response.ok && ack.success, "Isolated presentation KV seed rejected");
-      // Read back R2 bytes; KV is an advisory accelerator and never authority.
-      const verified = path.join(directory, country + "-verified.json");
-      wrangler(["r2", "object", "get", bucket + "/" + objectKey, "--remote", "--file", verified]);
-      const digest = (fileName) =>
-        createHash("sha256").update(fs.readFileSync(fileName)).digest("hex");
-      assert.equal(digest(file), digest(verified), "Private stage R2 bytes mismatch");
+      await storage.put(country, body);
       written.push({ country, objectKey });
     },
   };
@@ -170,7 +126,9 @@ async function writeCountry(country) {
 }
 const manifest = [];
 try {
-  for (const country of countries) await writeCountry(country);
+  await withStagePresentationStore("synthetic", async (storage) => {
+    for (const country of countries) await writeCountry(country, storage);
+  });
 } finally {
   fs.writeFileSync(
     path.join(directory, "manifest.json"),

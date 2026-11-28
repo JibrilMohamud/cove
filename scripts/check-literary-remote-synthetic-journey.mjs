@@ -6,9 +6,9 @@ const script = readFileSync(
 );
 const workflow = readFileSync(".github/workflows/literary-remote-staging-e2e.yml", "utf8");
 for (const token of [
-  "24c0eda2-6a43-4d7e-b787-502745d4d781",
-  "fce5742c-29ca-4bc3-85da-e174dd9bf42e",
-  "cove-literary-cutover-qa-objects-20261024",
+  "2dd68956-06a6-4b21-b729-596b94744c6b",
+  "d2c5673a-7497-4924-8b06-0be32f32555a",
+  "cove-literary-synthetic-objects-qa",
   "canonicalOwnerDrainDenied: true",
   "publisherServiceBindingEmulated: true",
   "productionTouched: false",
@@ -29,7 +29,11 @@ assert.ok(workflow.includes("github.ref == 'refs/heads/main'"));
 assert.ok(workflow.includes("needs: static-synthetic-only"));
 assert.ok(workflow.includes("persist-credentials: false"));
 assert.ok(workflow.includes("cancel-in-progress: false"));
-assert.ok(workflow.includes("secrets.CLOUDFLARE_API_TOKEN"));
+assert.ok(workflow.includes("secrets.COVE_CF_QA_D1_MUTATION_TOKEN"));
+assert.ok(workflow.includes("secrets.COVE_CF_QA_R2_STORAGE_TOKEN"));
+assert.ok(!workflow.includes("secrets.CLOUDFLARE_API_TOKEN"));
+assert.ok(script.includes("Unapproved QA resource"));
+assert.ok(workflow.includes("f51e8ccbc394e2d6016ff8c2c303d54b"));
 console.log(
   "LITERARY_REMOTE_QA_CONTAINMENT_PASS no primary production bindings, synthetic staged assets",
 );

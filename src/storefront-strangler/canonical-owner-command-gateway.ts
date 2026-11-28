@@ -1,8 +1,15 @@
 /* eslint-disable prettier/prettier -- Private, typed canonical authority RPC. Never expose SQL or a caller-chosen route. */
+import { ownerUserIdPattern } from "./owner-user-id";
+import {safeForwardedSettlementCode} from "./owner-settlement-diagnostic";
+
+export class CanonicalSettlementRefusal extends Error {
+  constructor(readonly reason:string){super("canonical_command_owner_refused");}
+}
 import {z} from "zod/v3";
 
 export type CanonicalOwnerPort={fetch(request:Request):Promise<Response>};
 const ownerId=z.string().regex(/^[a-zA-Z0-9_-]{8,160}$/);
+const ownerUserId=z.string().regex(ownerUserIdPattern);
 const subject=z.string().regex(/^[a-zA-Z0-9_-]{3,160}$/);
 const operation=z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/);
 const shortOperation=z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,95}$/);
@@ -19,7 +26,7 @@ const routes={
     refundId:ownerId.optional(),taxTransactionId:z.string().regex(/^tax_[a-zA-Z0-9_]{4,180}$/)
   }).strict()},
   "commerce.create-quote":{path:"/commercial/checkout/create-quote",schema:z.object({
-    userId:ownerId,
+    userId:ownerUserId,
     request:z.object({
       territory:z.string().regex(/^[A-Za-z]{2}$/).optional(),
       billingAddress:z.object({
@@ -37,13 +44,13 @@ const routes={
   "commerce.recover-settlements":{path:"/commercial/order/recover-settlements",schema:z.object({limit:z.number().int().min(1).max(25)}).strict()},
   "commerce.revoke-order":{path:"/commercial/order/revoke",schema:z.object({orderId:ownerId,operationId:operation}).strict()},
   "commerce.register-stripe-customer":{path:"/commercial/checkout/register-stripe-customer",schema:z.object({
-    userId:ownerId,customerId:z.string().regex(/^cus_[a-zA-Z0-9_-]{4,150}$/)
+    userId:ownerUserId,customerId:z.string().regex(/^cus_[a-zA-Z0-9_-]{4,150}$/)
   }).strict()},
   "commerce.prepare-checkout-draft":{path:"/commercial/checkout/prepare-draft",schema:z.object({
-    userId:ownerId,orderId:ownerId,quoteId:ownerId
+    userId:ownerUserId,orderId:ownerId,quoteId:ownerId
   }).strict()},
   "commerce.materialize-checkout-draft":{path:"/commercial/checkout/materialize-draft",schema:z.object({
-    userId:ownerId,quoteId:ownerId,
+    userId:ownerUserId,quoteId:ownerId,
     idempotencyKey:z.string().min(16).max(200),
     cartFingerprint:z.string().min(16).max(1024),
     captureMethod:z.enum(["manual","automatic","automatic_async"]),
@@ -51,7 +58,7 @@ const routes={
     soundsRecording:z.string().regex(/^(?:cm_[0-9]{1,15}|ex_[0-9a-f-]{36})$/).optional()
   }).strict()},
   "commerce.attach-payment-intent":{path:"/commercial/checkout/attach-payment-intent",schema:z.object({
-    orderId:ownerId,userId:ownerId,
+    orderId:ownerId,userId:ownerUserId,
     paymentIntentId:z.string().regex(/^pi_[a-zA-Z0-9_-]{4,150}$/),
     customerId:z.string().regex(/^cus_[a-zA-Z0-9_-]{4,150}$/)
   }).strict()},
@@ -61,7 +68,7 @@ const routes={
     failureCode:z.string().max(100).regex(/^[a-zA-Z0-9_]*$/).nullable()
   }).strict()},
   "commerce.cancel-unpaid":{path:"/commercial/checkout/cancel-unpaid",schema:z.object({
-    orderId:ownerId,userId:ownerId,source:z.enum(["customer","reconciliation"])
+    orderId:ownerId,userId:ownerUserId,source:z.enum(["customer","reconciliation"])
   }).strict()},
   "commerce.record-reconciliation":{path:"/commercial/reconciliation/record",schema:z.object({
     runId:z.string().regex(/^recon_[0-9a-f-]{36}$/),
@@ -108,9 +115,9 @@ const routes={
     status:z.enum(["pending","requires_action","succeeded","failed","canceled"])
   }).strict()},
   "commerce.publish-order":{path:"/commercial/entitlement/publish-order-verified",schema:z.object({
-    orderId:ownerId,userId:ownerId,territory,channel:z.literal("retail")}).strict()},
+    orderId:ownerId,userId:ownerUserId,territory,channel:z.literal("retail")}).strict()},
   "commerce.publish-entitlement":{path:"/commercial/entitlement/publish-verified",schema:z.object({
-    entitlementId:ownerId,userId:ownerId,productId:product,territory,channel:z.literal("retail")}).strict()},
+    entitlementId:ownerId,userId:ownerUserId,productId:product,territory,channel:z.literal("retail")}).strict()},
   "biosync.publish-checked":{path:"/biosync/publish-checked",schema:z.object({
     editionId:subject,trackId:z.string().regex(/^[a-zA-Z0-9_-]{1,160}$/),jobId:subject,
     mapSha256:z.string().regex(/^[0-9a-f]{64}$/)
@@ -119,7 +126,7 @@ const routes={
     limit:z.number().int().min(1).max(25),operationId:shortOperation
   }).strict()},
   "delivery.register-entitlement-device":{path:"/delivery/register-entitlement-device",schema:z.object({
-    userId:ownerId,entitlementId:ownerId,productId:product,deviceId:ownerId,
+    userId:ownerUserId,entitlementId:ownerId,productId:product,deviceId:ownerId,
     maxActiveDevices:z.number().int().min(1).max(100)
   }).strict()},
   "delivery.private-negative":{path:"/delivery/private-negative",schema:z.object({
@@ -143,7 +150,7 @@ const routes={
   }).strict()},
   "market.admin-upsert":{path:"/market/private-admin-upsert",schema:z.object({
     operationId:operation,
-    actor:z.object({userId:ownerId,authProvider:z.string().min(1).max(120),
+    actor:z.object({userId:ownerUserId,authProvider:z.string().min(1).max(120),
       authSubject:z.string().min(1).max(240),aal:z.enum(["aal1","aal2"])}).strict(),
     market:z.object({
       countryCode:territory,displayName:z.string().min(1).max(120),
@@ -168,13 +175,13 @@ const routes={
     sha256:z.string().regex(/^[a-f0-9]{64}$/)
   }).strict()},
   "catalog.grant-verified-free-library":{path:"/catalog/private-grant-free-library",schema:z.object({
-    userId:ownerId,
+    userId:ownerUserId,
     productId:z.string().regex(/^prd_gutenberg_(?:[0-9]{1,10}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90})$/),
     territory
   }).strict()},
   "delivery.issue-epub-grant":{path:"/delivery/private-issue-epub-grant",schema:z.object({
     grantId:ownerId,tokenHash:z.string().regex(/^[a-f0-9]{64}$/),
-    userId:ownerId,productId:product,entitlementId:ownerId,
+    userId:ownerUserId,productId:product,entitlementId:ownerId,
     publicationVersionId:ownerId.nullable(),assetVersionId:ownerId,
     deviceId:ownerId.nullable(),purpose:z.enum(["read","download","offline_package"]),
     watermarkId:ownerId.nullable(),policySnapshotJson:z.string().min(2).max(8192),
@@ -187,7 +194,7 @@ const routes={
     territory,channel:z.enum(["retail","subscription","library"])
   }).strict()},
   "delivery.record-ownership":{path:"/delivery/private-record-ownership",schema:z.object({
-    entitlementId:ownerId,userId:ownerId,
+    entitlementId:ownerId,userId:ownerUserId,
     productId:product
   }).strict()},
   "risk.apply-assessment":{path:"/risk/private-apply-assessment",schema:z.object({
@@ -200,7 +207,7 @@ const routes={
   "risk.release-hold":{path:"/risk/private-release-hold",schema:z.object({
     holdId:z.string().min(3).max(180),
     note:z.string().trim().min(3).max(4000),
-    actor:z.object({userId:ownerId,authProvider:z.string().min(1).max(120),
+    actor:z.object({userId:ownerUserId,authProvider:z.string().min(1).max(120),
       authSubject:z.string().min(1).max(240),
       aal:z.enum(["aal1","aal2"])}).strict()
   }).strict()},
@@ -212,7 +219,7 @@ const routes={
       "PAYOUT_RISK_REVIEW","COMMUNITY_MANIPULATION_REVIEW"])
   }).strict()},
   "audio.issue-offline-license":{path:"/audio/private-offline-license",schema:z.object({
-    licenseId:ownerId,userId:ownerId,productId:product,entitlementId:ownerId,
+    licenseId:ownerId,userId:ownerUserId,productId:product,entitlementId:ownerId,
     editionId:z.string().min(3).max(160),deviceId:ownerId,
     deviceKeyHash:z.string().regex(/^[a-f0-9]{64}$/),
     tokenHash:z.string().regex(/^[a-f0-9]{64}$/),
@@ -270,7 +277,7 @@ const routes={
   }).strict()},
   "catalog.personal-import":{path:"/catalog/personal-import",schema:z.object({
     id:z.string().regex(/^upload_[0-9a-f-]{36}$/),
-    userId:ownerId,title:z.string().max(240),author:z.string().max(240),
+    userId:ownerUserId,title:z.string().max(240),author:z.string().max(240),
     language:z.string().regex(/^[a-zA-Z-]{2,20}$/),
     objectKey:z.string().max(500),createdAt:z.string().datetime(),
     operationId:shortOperation
@@ -456,7 +463,11 @@ export async function dispatchCanonicalOwnerCommand(
       "cache-control":"no-store"
     },body:encoded
   }));
-  if(response.status!==200)throw Error("canonical_command_owner_refused");
+  if(response.status!==200){
+    if(kind==="commerce.settle-order")throw new CanonicalSettlementRefusal(
+      safeForwardedSettlementCode(response.headers.get("x-cove-owner-settlement-failure")));
+    throw Error("canonical_command_owner_refused");
+  }
   const bytes=await response.text();
   if(bytes.length>(["publishing.worker-jobs","publishing.audio-qc-jobs"].includes(kind)?524288:131072))throw Error("canonical_command_receipt_too_large");
   let ack:unknown;

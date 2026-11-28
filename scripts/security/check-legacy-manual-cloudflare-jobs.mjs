@@ -4,7 +4,7 @@ import {readFileSync} from "node:fs";
 
 const jobs=[
   ["literary-drain-worker-deploy","protected-deploy"],
-  ["literary-guarded-owner-drain","protected-activate"],
+  ["literary-guarded-owner-drain","protected-post-drain-observation"],
   ["literary-isolated-replay-handoff-deploy","protected-redeploy"],
   ["literary-private-binding-stage-canary","protected-real-service-binding"],
   ["literary-progressive-canonical-publication","protected-publish"],
@@ -40,7 +40,54 @@ function check(source,name){
   assert.ok(!admission.includes("github.event_name == 'push'"));
   assert.ok(!admission.includes("github.event_name == 'schedule'"));
   assert.match(job,/^    environment: cove-production-release-audit\s*$/m);
-  assert.ok(job.indexOf("environment: cove-production-release-audit")<job.indexOf("CLOUDFLARE_API_TOKEN:"));
+  const qaOnly = ["protected-real-service-binding","protected-real-d1-r2-canary"].includes(name);
+  const approval = job.indexOf("environment: cove-production-release-audit");
+  if(qaOnly){
+    assert.ok(!job.includes("secrets.CLOUDFLARE_API_TOKEN"));
+    assert.ok(job.includes("CLOUDFLARE_ACCOUNT_ID: f51e8ccbc394e2d6016ff8c2c303d54b"));
+    const credentials=["COVE_CF_QA_D1_MUTATION_TOKEN","COVE_CF_QA_R2_STORAGE_TOKEN"];
+    if(name==="protected-real-service-binding")credentials.push("COVE_CF_QA_WORKERS_DEPLOY_TOKEN");
+    for(const field of credentials)assert.ok(job.indexOf(field+": ${{ secrets."+field+" }}")>approval);
+  }else if(name==="protected-publish"){
+    assert.ok(!job.includes("secrets.CLOUDFLARE_API_TOKEN"));
+    assert.ok(job.indexOf("secrets.COVE_BIOSYNC_PROD_D1_READ_TOKEN")>approval);
+    assert.ok(job.includes("run: node scripts/staging/verify-literary-postpublication-readonly.mjs"));
+    assert.ok(!/wrangler deploy|run: node scripts\/staging\/(?:promote|rollback|fence-prior)-/.test(job));
+    assert.deepEqual([...job.matchAll(/secrets\.([A-Z0-9_]+)/g)].map(m=>m[1]),["COVE_BIOSYNC_PROD_D1_READ_TOKEN"]);
+  }else if(name==="physically-isolated-publication"){
+    assert.ok(!job.includes("secrets.CLOUDFLARE_API_TOKEN"));
+    for(const token of ["COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN","COVE_CF_STAGE_DATA_PLANE_READ_TOKEN","COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN"])
+      assert.ok(job.indexOf("secrets."+token)>approval);
+  }else if(name==="protected-staging-only"){
+    assert.ok(!job.includes("secrets.CLOUDFLARE_API_TOKEN"));
+    for(const token of ["COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN","COVE_CF_STAGE_DATA_PLANE_READ_TOKEN","COVE_BIOSYNC_PROD_D1_READ_TOKEN"])
+      assert.ok(job.indexOf("secrets."+token)>approval);
+  }else if(name==="authenticated-commerce"){
+    assert.ok(!job.includes("secrets.CLOUDFLARE_API_TOKEN"));
+    assert.ok(job.includes("CLOUDFLARE_ACCOUNT_ID: f51e8ccbc394e2d6016ff8c2c303d54b"));
+    for(const token of ["COVE_CF_QA_WORKERS_DEPLOY_TOKEN","COVE_CF_QA_D1_MUTATION_TOKEN","COVE_CF_QA_R2_STORAGE_TOKEN"])
+      assert.ok(job.indexOf("secrets."+token)>approval);
+  }else if(name==="protected-post-drain-observation"){
+    assert.ok(!source.includes("secrets.CLOUDFLARE_API_TOKEN"),"Retired drain must not regain broad credentials");
+    assert.ok(!/^  protected-activate:\s*$/m.test(source),"Retired drain mutation job reintroduced");
+    assert.ok(job.indexOf("CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_BIOSYNC_PROD_D1_READ_TOKEN }}")>approval);
+    assert.ok(job.includes("CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9"));
+    assert.ok(job.includes("run: node scripts/staging/verify-literary-postpublication-readonly.mjs"));
+    // Historical filenames may appear only in path filters or exact syntax-only
+    // checks. Reject execution even in a multiline shell or chained command.
+    const retiredScript=/(?:activate-literary-drain|rollback-literary-drain|verify-literary-drain-progress)\.mjs/;
+    const syntaxOnly=/^      - run: node --check scripts\/staging\/(?:activate-literary-drain|rollback-literary-drain|verify-literary-drain-progress)\.mjs$/;
+    const pathFilter=/^      - "scripts\/staging\/(?:activate-literary-drain|rollback-literary-drain|verify-literary-drain-progress)\.mjs"$/;
+    for(const line of source.split(/\r?\n/)){
+      if(retiredScript.test(line))assert.ok(syntaxOnly.test(line)||pathFilter.test(line),"Retired drain executable reference");
+    }
+    assert.ok(!retiredScript.test(job),"Protected observer must not invoke retired scripts");
+    assert.ok(!/\bwrangler\b/.test(job));
+    const secretRefs=[...job.matchAll(/secrets\.([A-Z0-9_]+)/g)].map(m=>m[1]);
+    assert.deepEqual(secretRefs,["COVE_BIOSYNC_PROD_D1_READ_TOKEN"]);
+  }else{
+    assert.ok(job.indexOf("CLOUDFLARE_API_TOKEN:")>approval);
+  }
   assert.match(source,/^permissions:\n  contents: read\s*$/m);
   return true;
 }
@@ -59,6 +106,22 @@ for(const [name,job] of jobs){
     assert.throws(()=>check(changed,job),"Unprotected mutation accepted in "+name);
   }
 }
+const retiredDrain=readFileSync(".github/workflows/literary-guarded-owner-drain.yml","utf8");
+const observation="protected-post-drain-observation";
+for(const [from,to] of [
+  ["secrets.COVE_BIOSYNC_PROD_D1_READ_TOKEN","secrets.CLOUDFLARE_API_TOKEN"],
+  ["secrets.COVE_BIOSYNC_PROD_D1_READ_TOKEN","secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN"],
+  ["run: node scripts/staging/verify-literary-postpublication-readonly.mjs","run: node scripts/staging/activate-literary-drain.mjs"],
+  ["run: node scripts/staging/verify-literary-postpublication-readonly.mjs","run: node scripts/staging/rollback-literary-drain.mjs"],
+  ["run: node --check scripts/staging/activate-literary-drain.mjs","run: node scripts/staging/activate-literary-drain.mjs"],
+  ["run: node --check scripts/staging/rollback-literary-drain.mjs","run: node --check scripts/staging/rollback-literary-drain.mjs && node scripts/staging/rollback-literary-drain.mjs"],
+  ["run: node --check scripts/staging/verify-literary-drain-progress.mjs","run: |\n          node scripts/staging/verify-literary-drain-progress.mjs"]
+]){
+  const changed=retiredDrain.replace(from,to);
+  assert.notEqual(changed,retiredDrain);
+  assert.throws(()=>check(changed,observation),"Retired drain privilege restored");
+}
+assert.throws(()=>check(retiredDrain+"\n  protected-activate:\n    runs-on: ubuntu-latest\n",observation));
 const music=readFileSync(".github/workflows/hosted-music-supply-disabled-qa.yml","utf8");
 assert.ok(!music.includes("secrets.CLOUDFLARE_API_TOKEN"));
 for(const field of ["COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN","COVE_CF_WORKERS_METADATA_READ_TOKEN","COVE_CF_STAGE_D1_READ_TOKEN"])
@@ -68,4 +131,4 @@ assert.ok(inspector.includes("authorization: \"Bearer \" + metadataToken"));
 assert.ok(inspector.includes("authorization: \"Bearer \" + qaReadToken"));
 assert.match(inspector, /new Set\(\[deployToken,\s*metadataToken,\s*qaReadToken\]\)\.size,\s*3/);
 assert.ok(!inspector.includes('authorization: "Bearer " + process.env.CLOUDFLARE_API_TOKEN'));
-console.log("PASS: twelve legacy privileged jobs require exact-main protected manual authorization; disabled music QA splits deploy/metadata/D1-read principals");
+console.log("PASS: twelve protected jobs require exact-main manual authorization; retired drain is read-only and disabled music QA splits principals");

@@ -8,9 +8,9 @@ import { randomBytes, createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import JSZip from "jszip";
 
-const bucket = "cove-commerce-original-media-qa-20261022";
-assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, "d26430caa63ec55f6612e32f36aca5e9");
-assert.ok(process.env.CLOUDFLARE_API_TOKEN);
+const bucket = "cove-commerce-detached-media-qa";
+assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, "f51e8ccbc394e2d6016ff8c2c303d54b");
+assert.ok(process.env.COVE_CF_QA_R2_STORAGE_TOKEN);
 const out = fs.mkdtempSync(path.join(os.tmpdir(), "cove-original-qa-"));
 const zip = new JSZip();
 zip.file("mimetype", "application/epub+zip", { compression: "STORE" });
@@ -75,7 +75,11 @@ for (const asset of assets) {
       asset.type,
     ],
     {
-      env: { ...process.env, CLOUDFLARE_SEND_METRICS: "false" },
+      env: {
+        ...process.env,
+        CLOUDFLARE_API_TOKEN: process.env.COVE_CF_QA_R2_STORAGE_TOKEN,
+        CLOUDFLARE_SEND_METRICS: "false",
+      },
       encoding: "utf8",
       timeout: 120000,
     },
@@ -101,7 +105,11 @@ for (const asset of assets) {
       verified,
     ],
     {
-      env: { ...process.env, CLOUDFLARE_SEND_METRICS: "false" },
+      env: {
+        ...process.env,
+        CLOUDFLARE_API_TOKEN: process.env.COVE_CF_QA_R2_STORAGE_TOKEN,
+        CLOUDFLARE_SEND_METRICS: "false",
+      },
       encoding: "utf8",
       timeout: 120000,
     },

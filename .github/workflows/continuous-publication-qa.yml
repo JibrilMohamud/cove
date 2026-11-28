@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - "scripts/staging/deploy-continuous-publication-qa.mjs"
+      - "scripts/staging/verify-pinned-publication-capture*.mjs"
       - "scripts/staging/verify-continuous-publication-qa.mjs"
       - "scripts/security/scoped-continuous-publication-qa.test.mjs"
       - ".github/workflows/continuous-publication-qa.yml"
@@ -35,6 +36,7 @@ jobs:
           node-version: "22"
       - run: node --test scripts/security/scoped-continuous-publication-qa.test.mjs
       - run: node --check scripts/staging/deploy-continuous-publication-qa.mjs
+      - run: node --test scripts/staging/verify-pinned-publication-capture.test.mjs
       - run: node --check scripts/staging/verify-continuous-publication-qa.mjs
   private-qa:
     if: >-
@@ -50,6 +52,7 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
       COVE_CF_STAGE_DATA_PLANE_READ_TOKEN: ${{ secrets.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN }}
       COVE_CF_WORKERS_METADATA_READ_TOKEN: ${{ secrets.COVE_CF_WORKERS_METADATA_READ_TOKEN }}
+      COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN: ${{ secrets.COVE_CF_ACCOUNT_TOKEN_INVENTORY_READ_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
       CLOUDFLARE_SEND_METRICS: "false"
     steps:
@@ -68,6 +71,8 @@ jobs:
           test "$CLOUDFLARE_API_TOKEN" != "$COVE_CF_STAGE_DATA_PLANE_READ_TOKEN"
           test "$CLOUDFLARE_API_TOKEN" != "$COVE_CF_WORKERS_METADATA_READ_TOKEN"
           test "$COVE_CF_STAGE_DATA_PLANE_READ_TOKEN" != "$COVE_CF_WORKERS_METADATA_READ_TOKEN"
+      - name: Verify provider-enforced canonical reader before capture deployment
+        run: node scripts/staging/verify-canonical-readonly-service.mjs --require-distinct-inventory
       - run: node scripts/build-storefront-strangler.mjs
       - name: Deploy nonpublic fenced QA publication cron Workers
         run: node scripts/staging/deploy-continuous-publication-qa.mjs

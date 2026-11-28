@@ -1,0 +1,22 @@
+{
+  "name": "cove-biosync-production-ingress",
+  "main": ".output/production-consolidation/biosync-ingress.mjs",
+  "compatibility_date": "2026-10-25",
+  "workers_dev": true,
+  "preview_urls": false,
+  "services": [
+    {
+      "binding": "BIOSYNC_OWNER",
+      "service": "cove-legal-authority-production",
+      "entrypoint": "CoveBioSyncEntrypoint"
+    }
+  ],
+  "vars": {
+    "COVE_PRODUCTION_BIOSYNC_INGRESS_ENABLED": "0"
+  },
+  "secrets": {
+    "required": [
+      "COVE_BIOSYNC_CLIENT_TOKEN_SHA256"
+    ]
+  }
+}

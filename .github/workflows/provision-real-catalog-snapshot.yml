@@ -1,0 +1,68 @@
+name: provision-real-catalog-snapshot
+on:
+  pull_request:
+    paths:
+      - "scripts/staging/real-catalog-copy*"
+      - ".github/workflows/provision-real-catalog-snapshot.yml"
+  workflow_dispatch:
+    inputs:
+      reviewed_main_sha:
+        description: Exact reviewed main SHA
+        required: true
+        type: string
+      confirm_isolated_catalog_copy:
+        description: Approve read-only public catalog projection into the dedicated isolated snapshot
+        required: true
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: cove-exclusive-real-primary-cold-acceptance
+  cancel-in-progress: false
+jobs:
+  source-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - run: node --test scripts/staging/real-catalog-copy.test.mjs
+      - run: node --check scripts/staging/real-catalog-copy.mjs
+  populate-isolated-snapshot:
+    needs: source-contract
+    if: >-
+      github.repository == 'JibrilMohamud/cove' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.reviewed_main_sha == github.sha &&
+      inputs.confirm_isolated_catalog_copy == true
+    environment: cove-production-release-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 155
+    env:
+      REVIEWED_SHA: ${{ inputs.reviewed_main_sha }}
+      COVE_BIOSYNC_PROD_D1_READ_TOKEN: ${{ secrets.COVE_BIOSYNC_PROD_D1_READ_TOKEN }}
+      COVE_CF_STAGE_DATA_PLANE_READ_TOKEN: ${{ secrets.COVE_CF_STAGE_DATA_PLANE_READ_TOKEN }}
+      COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN: ${{ secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - run: node scripts/staging/real-catalog-copy.mjs
+      - name: Remove isolated importer even if interrupted
+        if: always()
+        run: node scripts/staging/real-catalog-copy.mjs --cleanup
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: isolated-real-catalog-copy-${{ github.sha }}-${{ github.run_attempt }}
+          path: artifacts/real-catalog-snapshot/evidence.json
+          if-no-files-found: warn
+          retention-days: 45

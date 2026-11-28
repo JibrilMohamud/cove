@@ -721,3 +721,19 @@ export function seedLocalScheduledRecommendationJob(db, failing = false) {
   db.prepare("INSERT INTO recommendation_jobs(id,job_type,entity_id,status,attempts,queued_at,available_at,lease_until) VALUES('qa_scheduled_rec',?,'prd_gutenberg_1342','running',1,'2000-01-01T00:00:00.000Z','2000-01-01T00:00:00.000Z','2000-01-01T00:00:00.000Z')")
     .run(failing ? 'unsupported-fixture-job' : 'product-metrics');
 }
+
+/** Disposable full-schema fixture for the native production maintenance mode.
+ * Publisher ownership is a genuine erasure hold; sandbox preview must not
+ * activate a product. No identity provider or external storage is contacted. */
+export function seedLocalProductionMaintenanceQueues(db) {
+  const at="2000-01-01T00:00:00.000Z";
+  db.prepare("INSERT INTO publishing_accounts(id,account_type,legal_name,display_name,country_code,status,created_at,updated_at) VALUES('qa_maintenance_account','person','Fixture','Fixture','US','active',?,?)").run(at,at);
+  db.prepare("INSERT INTO publishing_account_members(account_id,user_id,role,status,created_at,updated_at) VALUES('qa_maintenance_account','qa_maintenance_user','owner','active',?,?)").run(at,at);
+  db.prepare("INSERT INTO account_deletion_requests(id,user_id,status,requested_at,execute_after,confirmation_hash,created_at,updated_at) VALUES('qa_maintenance_erasure','qa_maintenance_user','queued',?,?,'fixture',?,?)").run(at,at,at,at);
+  db.prepare("INSERT INTO publisher_feed_submissions(id,account_id,environment,feed_type,feed_format,source_sha256,status,item_count,accepted_count,received_at) VALUES('qa_maintenance_feed','qa_maintenance_account','sandbox','metadata','fore_json',?,'accepted',1,1,?)").run("a".repeat(64),at);
+  db.prepare("INSERT INTO publisher_feed_items(id,submission_id,ordinal,partner_product_key,normalized_json,source_fragment_sha256,status,created_at,updated_at) VALUES('qa_maintenance_item','qa_maintenance_feed',1,'fixture-product','{}',?,'valid',?,?)").run("b".repeat(64),at,at);
+}
+
+export async function seedLocalBlockedProductionFeed(db) {
+  await db.prepare("INSERT INTO publisher_feed_submissions(id,account_id,environment,feed_type,feed_format,source_sha256,status,received_at) VALUES('qa_unverified_live_feed','qa_maintenance_account','production','metadata','fore_json',?,'accepted',?)").bind("c".repeat(64),"2000-01-01T00:00:00.000Z").run();
+}

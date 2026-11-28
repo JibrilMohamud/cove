@@ -49,7 +49,28 @@ try {
   const compiled=join(folder,"delivery.mjs");
   await build({entryPoints:["src/features/fore/delivery.server.ts"],outfile:compiled,
     bundle:true,platform:"node",format:"esm",target:"node22",logLevel:"silent"});
-  const {serveCommercialEpubGrant}=await import(pathToFileURL(compiled).href);
+  const {serveCommercialEpubGrant,applyContractDeliveryPolicy}=await import(pathToFileURL(compiled).href);
+  const base={allow_browser_read:1,allow_file_download:1,require_device_registration:0,
+    max_active_devices:6,max_downloads_per_entitlement:50};
+  // Exact nullable limits observed in the hosted purchased contract. Null
+  // means unspecified; explicit zero still denies or prevents downloading.
+  const acquired=applyContractDeliveryPolicy(base,{formatPolicy:{drmRequirement:"none",
+    deviceLimit:null,downloadLimit:null,offlinePermitted:true},
+    deliveryRules:{maxActiveDevices:null,maxDownloadsPerEntitlement:null}});
+  assert.equal(acquired.contract_delivery_blocked,undefined);
+  assert.equal(acquired.contract_offline_permitted,undefined);
+  assert.equal(acquired.allow_file_download,1);
+  assert.equal(acquired.require_device_registration,0);
+  assert.equal(applyContractDeliveryPolicy(base,{formatPolicy:{deviceLimit:0}}).contract_delivery_blocked,1);
+  assert.equal(applyContractDeliveryPolicy(base,{deliveryRules:{maxActiveDevices:0}}).contract_delivery_blocked,1);
+  for(const policy of [{formatPolicy:{downloadLimit:0}},{deliveryRules:{maxDownloadsPerEntitlement:0}}]){
+    const blocked=applyContractDeliveryPolicy(base,policy);
+    assert.equal(blocked.allow_file_download,0);assert.equal(blocked.contract_offline_permitted,0);
+  }
+  const limited=applyContractDeliveryPolicy(base,{formatPolicy:{deviceLimit:2,downloadLimit:3}});
+  assert.equal(limited.require_device_registration,1);assert.equal(limited.max_active_devices,2);
+  assert.equal(limited.max_downloads_per_entitlement,3);
+  assert.equal(applyContractDeliveryPolicy(base,{formatPolicy:{offlinePermitted:false}}).contract_offline_permitted,0);
   const token="Z".repeat(64),request=new Request("https://cove.test/api/fore/delivery/epub/"+token),
     buyer="buyer_epub_asset_01",product="prd_buyer_book",entId="ent_epub_asset_01";
 

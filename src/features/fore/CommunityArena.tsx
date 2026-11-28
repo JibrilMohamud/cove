@@ -387,7 +387,10 @@ export function CommunityArena({ fullPage = false }: { fullPage?: boolean }) {
   const bPercent = headlineMatch && totalVotes ? 100 - aPercent : 0;
 
   return (
-    <section className={"cove-arena" + (fullPage ? " cove-arena-debates-page" : "")}>
+    <section
+      className={"cove-arena" + (fullPage ? " cove-arena-debates-page" : "")}
+      data-cove-arena-ready={hydrated ? "true" : undefined}
+    >
       <header className="cove-arena-head">
         <div>
           <span className="cove-arena-eyebrow">

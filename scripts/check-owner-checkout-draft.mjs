@@ -51,6 +51,18 @@ try {
   const deny=(c,q,pattern)=>assert.throws(
     ()=>planOwnerCheckoutDraft(c,q,now,makeId),pattern);
   deny({...command,userId:"other_buyer_original_2026"},quote,/quote_stale/);
+  // Supabase authentication mints this exact identity; preserve the full ID
+  // through quote, order and ownership instead of stripping the namespace.
+  const supabaseBuyer="sb:01234567-89ab-4cde-8fab-0123456789ab";
+  const sbCommand={...command,userId:supabaseBuyer};
+  const sbQuote={...quote,user_id:supabaseBuyer};
+  assert.equal(planOwnerCheckoutDraft(sbCommand,sbQuote,now,makeId).command.userId,supabaseBuyer);
+  deny(sbCommand,quote,/quote_stale/);
+  for(const userId of ["sb:invalid","other:01234567-89ab-4cde-8fab-0123456789ab",
+    supabaseBuyer+"/extra",supabaseBuyer+"\n","sb:01234567-89ab-4cde-8fab-0123456789aZ"]){
+    assert.equal(checkoutDraftCommand.safeParse({...command,userId}).success,false);
+  }
+  assert.equal(checkoutDraftCommand.safeParse({...sbCommand,quoteId:supabaseBuyer}).success,false);
   deny({...command,cartFingerprint:"sha256:changed_cart_fingerprint"},quote,/quote_stale/);
   deny(command,{...quote,consumed_at:now},/quote_stale/);
   deny(command,{...quote,expires_at:now},/quote_stale/);

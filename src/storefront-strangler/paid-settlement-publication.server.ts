@@ -1,4 +1,5 @@
 /* eslint-disable prettier/prettier -- Private payment-to-owner handoff is a security-sensitive boundary. */
+import { ownerUserIdPattern } from "./owner-user-id";
 import type {CoveEnv} from "../features/fore/api.server";
 import {ApiError} from "../features/fore/service";
 import {isReviewedPaidQaPrimary} from "./reviewed-paid-qa-primary";
@@ -74,7 +75,7 @@ export async function assertStagePaidOrderNotWithdrawn(env:CoveEnv,orderId:strin
   const order=await env.DB.prepare(
     "SELECT id,user_id,territory_code,status FROM commerce_orders WHERE id=?"
   ).bind(orderId).first<PaidOrder>();
-  if(!order||!identity.test(order.user_id)||
+  if(!order||!ownerUserIdPattern.test(order.user_id)||
      !/^[A-Z]{2}$/.test(order.territory_code)||
      !["pending_payment","processing","authorized","payment_failed"].includes(order.status))
     throw new ApiError(409,"Canonical paid-order settlement scope invalid.");
@@ -147,7 +148,7 @@ export async function certifyStagePaidSettlement(
      !isReviewedPaidQaPrimary(env.COVE_LEGAL_WRITER_PRIMARY_ID)||
      !/^[a-f0-9]{64}$/.test(env.COVE_RIGHTS_OWNER_SECRET||"")||
      !env.LEGAL_AUTHORITY?.getByName||
-     !identity.test(orderId)||!identity.test(userId))
+     !identity.test(orderId)||!ownerUserIdPattern.test(userId))
     throw new ApiError(503,"Paid settlement owner is not certified.");
   const order=await env.DB.prepare(
     "SELECT id,user_id,territory_code,status FROM commerce_orders WHERE id=? AND user_id=?"

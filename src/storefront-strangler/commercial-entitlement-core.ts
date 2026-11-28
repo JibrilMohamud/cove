@@ -1,9 +1,10 @@
 /* eslint-disable prettier/prettier -- Strong private paid-entitlement revocation is a separate legal trust boundary. */
+import { ownerUserIdPattern } from "./owner-user-id";
 import type {AuthoritySql} from "./legal-authority-core";
 import {commercialProductId,readCommercialProofs,type CommercialChannel} from "./commercial-legal-core";
 
 const entityId=/^[a-zA-Z0-9_-]{8,160}$/;
-const userIdPattern=/^[a-zA-Z0-9_-]{8,160}$/;
+const userIdPattern=ownerUserIdPattern;
 const opIdPattern=/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/;
 type EntitlementScope={entitlementId:string;userId:string;productId:string};
 export function validatePaidEntitlementScope(raw:unknown):EntitlementScope {

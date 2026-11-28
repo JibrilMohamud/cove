@@ -4,11 +4,11 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 
-const account = "d26430caa63ec55f6612e32f36aca5e9";
-const database = "5be15110-44a6-4090-b0a1-36599d809b28";
+const account = "f51e8ccbc394e2d6016ff8c2c303d54b";
+const database = "f9354381-bd9f-496b-bd05-d6f62a32ec0c";
 const role = "role_cove_synthetic_qa_refunds";
 const actor = "cove-isolated-qa-harness";
-const token = process.env.CLOUDFLARE_API_TOKEN;
+const token = process.env.COVE_CF_QA_D1_MUTATION_TOKEN;
 assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, account);
 assert.ok(token, "Cloudflare QA token required; never infer production credentials");
 

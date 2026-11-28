@@ -149,3 +149,19 @@ await build({
   external: ["node:*", "cloudflare:*"],
   logLevel: "silent",
 });
+
+for (const [entry, output] of [
+  ["isolated-homepage-authority", "isolated-homepage-authority"],
+  ["readonly-stage-d1", "readonly-stage-d1"],
+]) {
+  await build({
+    entryPoints: [`src/storefront-strangler/${entry}.ts`],
+    outfile: `.output/strangler/${output}.mjs`,
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    target: "es2022",
+    external: ["node:*", "cloudflare:*"],
+    logLevel: "silent",
+  });
+}

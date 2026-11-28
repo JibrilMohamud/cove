@@ -64,3 +64,25 @@ test("full-catalog-sized baseline compiles without per-record signatures or stac
   assert.equal(report.manifest.decisions.length,82247);
   assert.equal(report.permitsPublication,false);
 });
+
+test("atomic generation seal rejects stale CAS, owner epoch drift, current holds and tampering",async()=>{
+  const {DatabaseSync}=await import("node:sqlite");
+  const {initializeBaselineStore,sealBaselineGeneration,inspectBaselineCandidate}=await import("./current-legal-baseline-generation.mjs");
+  const db=new DatabaseSync(":memory:");
+  try{
+    initializeBaselineStore(db);
+    const r=row("p1"), input=fixture([r],[evidence(r)]);
+    assert.equal(sealBaselineGeneration(db,input,0).generation,1);
+    assert.deepEqual(inspectBaselineCandidate(db,r,7,now),{candidateAllowed:true,authorizing:false});
+    for(const [current,epoch,time] of [[{...r,outstandingHold:true},7,now],[{...r,canonicalAllowed:false},7,now],
+      [{...r,artifactSha256:c},7,now],[row("unknown"),7,now],[r,8,now],[r,7,now+1000]])
+      assert.equal(inspectBaselineCandidate(db,current,epoch,time).candidateAllowed,false);
+    assert.throws(()=>sealBaselineGeneration(db,input,0),/generation_conflict/);
+    assert.throws(()=>sealBaselineGeneration(db,{...input,ownerEpoch:6},1),/generation_conflict/);
+    assert.throws(()=>sealBaselineGeneration(db,{...input,review:{...input.review,signature:"bad"}},1),/review_scope_or_time/);
+    assert.equal(db.prepare("SELECT generation FROM baseline_head").get().generation,1);
+    assert.equal(sealBaselineGeneration(db,input,1).generation,2);
+    db.exec("UPDATE baseline_generation SET manifest_json='{}' WHERE generation=2");
+    assert.equal(inspectBaselineCandidate(db,r,7,now).candidateAllowed,false);
+  }finally{db.close();}
+});

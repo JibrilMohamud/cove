@@ -41,8 +41,16 @@ test("filtered catalog navigation reuses cache and suppresses obsolete updater w
         },
       });
     });
+    const fullCatalog = page.waitForResponse(
+      (response) => new URL(response.url()).pathname === "/api/fore/catalog" && response.ok(),
+    );
     await page.goto("/?sort=popular");
     await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
+    await fullCatalog;
+    // The first-paint shelf may be replaced by the full catalog while a
+    // pointer is moving. Assert the settled full catalog before sampling
+    // the cache and exercising the real cover link (no click retry).
+    await expect(page.locator(".catalog-count")).toHaveText(/^\d[\d,]* books/);
     await expect(page.locator(".book-grid:not(.merch-grid) .book-card").first()).toBeVisible();
     await expect(
       page.getByText(
@@ -72,6 +80,22 @@ test("filtered catalog navigation reuses cache and suppresses obsolete updater w
     await context.close();
     if (isolated !== browser) await isolated.close();
   }
+});
+
+test("bookmarked pagination survives search hydration and actual edits reset it", async ({
+  page,
+}) => {
+  await page.goto("/?sort=popular&page=2");
+  await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
+  // Observe beyond the 400ms search debounce, which previously erased page
+  // two even though the user had not typed anything.
+  await page.waitForTimeout(650);
+  await expect(page).toHaveURL(/\?sort=popular&page=2$/);
+  await page.getByRole("textbox", { name: /Search books by title/ }).fill("Pride");
+  await expect(page).toHaveURL(/\/search\?/);
+  const actual = new URL(page.url());
+  expect(actual.searchParams.get("q")).toBe("Pride");
+  expect(actual.searchParams.has("page")).toBe(false);
 });
 
 test("initial bookstore serves books without JavaScript and refreshes full catalog safely", async ({

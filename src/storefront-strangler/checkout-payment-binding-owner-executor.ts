@@ -1,4 +1,5 @@
 /* eslint-disable prettier/prettier -- Canonical checkout PaymentIntent binding is owner-only and verified against Stripe. */
+import { ownerUserIdPattern } from "./owner-user-id";
 import type {CatalogDB} from "../features/fore/catalog-model.server";
 
 type OwnerEnv={PRIMARY_DB:CatalogDB;STRIPE_SECRET_KEY?:string;STRIPE_LIVEMODE?:string};
@@ -18,7 +19,7 @@ function parse(raw:unknown):Command{
   const v=raw as Record<string,unknown>;
   if(Object.keys(v).sort().join(",")!=="customerId,orderId,paymentIntentId,userId"||
      typeof v.orderId!=="string"||!orderIdPattern.test(v.orderId)||
-     typeof v.userId!=="string"||!orderIdPattern.test(v.userId)||
+     typeof v.userId!=="string"||!ownerUserIdPattern.test(v.userId)||
      typeof v.paymentIntentId!=="string"||!stripeId("pi").test(v.paymentIntentId)||
      typeof v.customerId!=="string"||!stripeId("cus").test(v.customerId))
     throw Error("invalid_owner_payment_binding");

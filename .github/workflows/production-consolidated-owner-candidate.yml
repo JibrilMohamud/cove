@@ -1,0 +1,76 @@
+name: Production consolidated owner candidate
+on:
+  pull_request:
+    paths:
+      - "src/storefront-strangler/production-consolidated-*.worker.ts"
+      - "src/storefront-strangler/production-persistence-enrollment.ts"
+      - "scripts/release/*production-consolidation*"
+      - "scripts/release/prove-consolidated-owner-native.mjs"
+      - "scripts/test-native-owner-reader-fixture.mjs"
+      - "scripts/test-local-catalog-fixture.mjs"
+      - "src/storefront-strangler/legal-authority.worker.ts"
+      - "src/features/fore/auth.server.ts"
+      - "src/features/fore/account-management.server.ts"
+      - "src/features/fore/sync.server.ts"
+      - "drizzle/**"
+      - "src/persistence-backend.worker.ts"
+      - "scripts/release/archive-production-biosync-bridge*"
+      - "scripts/release/activate-production-literary-budget-owner*"
+      - ".github/workflows/production-literary-budget-owner-activation.yml"
+      - ".github/workflows/production-biosync-bridge-version-upload.yml"
+      - "wrangler.consolidated-*.production-candidate.jsonc"
+      - "wrangler.biosync-bridge-*.production-candidate.jsonc"
+      - "src/storefront-strangler/production-biosync-ingress.worker.ts"
+      - "src/storefront-strangler/*-source-reader.ts"
+      - "src/storefront-strangler/literary-owner-*.ts"
+      - ".github/workflows/production-consolidated-owner-candidate.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: node --test scripts/release/production-consolidation.test.mjs scripts/release/archive-production-biosync-bridge.test.mjs
+      - run: python3 -m unittest scripts.audio_pipeline.test_biosync_production_owner_transport
+      - run: python3 -m py_compile scripts/audio_pipeline/biosync_canary.py scripts/audio_pipeline/biosync_production_owner_transport.py
+      - run: node --test scripts/release/activate-production-literary-budget-owner.test.mjs
+      - run: node scripts/release/audit-legacy-cloudflare-credential.mjs --audit
+      - run: node --no-warnings scripts/release/prove-production-consolidation-literary-budget.mjs
+      - run: node scripts/release/build-production-consolidation.mjs
+      - name: Exercise exact production-mode BioSync owner with disposable local bindings
+        run: |
+          npm exec --yes --package=wrangler@4.151.0 -- sh -c 'COVE_MINIFLARE_MODULE="$(dirname "$(command -v wrangler)")/../miniflare" node --no-warnings scripts/release/prove-production-consolidation-biosync-native.mjs'
+      - name: Exercise independent production BioSync bridge with no backend secrets
+        run: |
+          npm exec --yes --package=wrangler@4.151.0 -- sh -c 'COVE_MINIFLARE_MODULE="$(dirname "$(command -v wrangler)")/../miniflare" node --no-warnings scripts/release/prove-production-consolidation-biosync-native.mjs --bridge'
+      - name: Dry-run exact production scripts, never upload or activate
+        run: |
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.consolidated-owner.production-candidate.jsonc
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.consolidated-gateway.production-candidate.jsonc
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.biosync-bridge-owner.production-candidate.jsonc
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.biosync-bridge-ingress.production-candidate.jsonc
+  production-schedules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Exercise all seven production-mode schedules in disposable workerd
+        run: |
+          npm exec --yes --package=wrangler@4.151.0 -- sh -c 'COVE_MINIFLARE_MODULE="$(dirname "$(command -v wrangler)")/../miniflare" node --no-warnings scripts/release/prove-consolidated-owner-native.mjs --production-maintenance'

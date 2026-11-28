@@ -58,20 +58,25 @@ export function verifyScheduledProductionContinuity({
   );
   assert.ok(
     biosyncWorkflow.includes(
-      "BIOSYNC_AUTO_SHORT: ${{ github.event_name == 'schedule' && '1' || '0' }}",
-    ),
-    "The hourly canary must retain autonomous queued-short-track discovery",
+      "BIOSYNC_AUTO_SHORT=1 python3 -m scripts.audio_pipeline.biosync_canary",
+    ) &&
+      biosyncWorkflow.includes(
+        "BIOSYNC_AUTO_SHORT=0 BIOSYNC_PROVE_OWNER_REPLAY=1 python3 -m scripts.audio_pipeline.biosync_canary",
+      ) &&
+      biosyncWorkflow.includes("grep -Fx cove_biosync_production_owner_replay_verified") &&
+      biosyncWorkflow.includes("set -euo pipefail"),
+    "Preserve autonomous discovery and real owner replay",
   );
   assert.ok(
-    biosyncWorkflow.includes("python3 -m scripts.audio_pipeline.biosync_canary"),
-    "The live schedule must continue invoking the production canary",
-  );
-  // Deliberately retain the existing execution principal until a tested
-  // owner-transport replacement can safely remove it. This is not permission
-  // to keep the broad credential after completed cutover.
-  assert.ok(
-    biosyncWorkflow.includes("CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}"),
-    "The legacy producer credential cannot disappear before owner replacement",
+    biosyncWorkflow.includes("environment: cove-production-release-audit") &&
+      biosyncWorkflow.includes('COVE_BIOSYNC_PROD_OWNER_MODE: "1"') &&
+      [
+        "COVE_BIOSYNC_PROD_D1_READ_TOKEN",
+        "COVE_BIOSYNC_PROD_R2_TOKEN",
+        "COVE_BIOSYNC_PROD_CLIENT_SECRET",
+      ].every((name) => biosyncWorkflow.includes(name + ": ${{ secrets." + name + " }}")) &&
+      !biosyncWorkflow.includes("CLOUDFLARE_API_TOKEN"),
+    "Hourly producer must use the three scoped credentials and no legacy token",
   );
   assert.ok(
     biosyncCanary.includes('ACCOUNT = "d26430caa63ec55f6612e32f36aca5e9"') &&
@@ -82,7 +87,9 @@ export function verifyScheduledProductionContinuity({
   assert.ok(
     biosyncCanary.includes("def choose_queued_short_track()") &&
       biosyncCanary.includes("def main()") &&
-      biosyncCanary.includes("UPDATE audio_jobs SET status='done'"),
+      biosyncCanary.includes("owner_transport.commit(EDITION, TRACK, JOB, map_sha)") &&
+      !biosyncCanary.includes("CLOUDFLARE_API_TOKEN") &&
+      !/\b(?:INSERT INTO|UPDATE|DELETE FROM)\s+audio_(?:jobs|timing)\b/i.test(biosyncCanary),
     "The production canary must still perform its real scheduled duties",
   );
   return { backendCronCount: observed.length, hourlyBioSync: true };
@@ -134,9 +141,14 @@ if (process.argv.includes("--self-test")) {
         "python3 -m scripts.audio_pipeline.biosync_owner_qa",
       ),
     },
-    { biosyncWorkflow: actual.biosyncWorkflow.replace("BIOSYNC_AUTO_SHORT:", "BIOSYNC_QA_ONLY:") },
     {
-      biosyncWorkflow: actual.biosyncWorkflow.replace("CLOUDFLARE_API_TOKEN:", "COVE_FAKE_TOKEN:"),
+      biosyncWorkflow: actual.biosyncWorkflow.replace("BIOSYNC_AUTO_SHORT=1", "BIOSYNC_QA_ONLY=1"),
+    },
+    {
+      biosyncWorkflow: actual.biosyncWorkflow.replace(
+        "COVE_BIOSYNC_PROD_D1_READ_TOKEN:",
+        "COVE_FAKE_TOKEN:",
+      ),
     },
     {
       biosyncCanary: actual.biosyncCanary.replace(
@@ -145,8 +157,13 @@ if (process.argv.includes("--self-test")) {
       ),
     },
     {
-      biosyncCanary: actual.biosyncCanary.replace("UPDATE audio_jobs SET status='done'", "QA-only"),
+      biosyncCanary: actual.biosyncCanary.replace(
+        "owner_transport.commit(EDITION, TRACK, JOB, map_sha)",
+        "QA-only",
+      ),
     },
+    { biosyncWorkflow: actual.biosyncWorkflow + "\n# CLOUDFLARE_API_TOKEN" },
+    { biosyncCanary: actual.biosyncCanary + "\n# UPDATE audio_jobs SET status='done'" },
   ];
   for (const [index, patch] of negative.entries()) {
     assert.throws(
@@ -155,7 +172,7 @@ if (process.argv.includes("--self-test")) {
       "Missing negative continuity detection at case " + index,
     );
   }
-  console.log("PASS: eleven scheduler, credential and binding removal attempts are rejected");
+  console.log("PASS: thirteen scheduler, credential and binding regression attempts are rejected");
 }
 console.log(
   "PASS: source retains " +

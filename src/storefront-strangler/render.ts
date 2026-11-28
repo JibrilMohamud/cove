@@ -1,3 +1,4 @@
+import staticCoverPaths from "./static-cover-paths.json";
 import type { CatalogBook } from "../features/fore/client";
 import type { StorefrontBootstrap } from "../features/fore/storefront-bootstrap";
 import { formatMinorCurrency } from "../features/fore/currency";
@@ -24,9 +25,11 @@ export function stranglerBookPath(book: CatalogBook) {
 }
 export function stranglerCover(book: CatalogBook) {
   const ref = String(book.sourceExternalId ?? book.id);
-  const raw = localCovers.has(ref)
-    ? `/covers/${ref}.jpg`
-    : book.formats?.["image/jpeg"] || book.formats?.["image/png"] || "";
+  const raw =
+    (staticCoverPaths as Record<string, string>)[ref] ||
+    (localCovers.has(ref)
+      ? `/covers/${ref}.jpg`
+      : book.formats?.["image/jpeg"] || book.formats?.["image/png"] || "");
   // Metadata never becomes executable markup, even on an isolated experiment.
   if (/^\/(?!\/)/.test(raw) || /^https:\/\//i.test(raw)) return raw;
   return "";

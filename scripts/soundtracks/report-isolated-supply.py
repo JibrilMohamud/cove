@@ -10,8 +10,8 @@ import os
 import pathlib
 import urllib.request
 
-ACCOUNT = "d26430caa63ec55f6612e32f36aca5e9"
-DB = "fe9a9dd2-64b8-451c-a356-9ec71d9ee211"
+ACCOUNT = "f51e8ccbc394e2d6016ff8c2c303d54b"
+DB = "ecd15e38-6350-4806-abe2-3e26acead4ac"
 URL = f"https://api.cloudflare.com/client/v4/accounts/{ACCOUNT}/d1/database/{DB}/query"
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -95,7 +95,9 @@ def main():
     if args.dry_run:
         print(json.dumps({"dryRun":True,"customerD1Queried":False}))
         return
-    result=collect(os.environ.get("CLOUDFLARE_API_TOKEN",""))
+    if os.environ.get("COVE_COMMONS_QA_MIGRATION_VERIFIED") != "1" or os.environ.get("CLOUDFLARE_API_TOKEN"):
+        raise RuntimeError("Detached QA migration receipt required; legacy credential forbidden")
+    result=collect(os.environ.get("COVE_CF_QA_D1_MUTATION_TOKEN",""))
     pathlib.Path(args.output).write_text(json.dumps(result,indent=2)+"\n")
     print(json.dumps({"stages":len(result["stages"]),"backlog":len(result["backlog"]),
                       "customerPlayableCertified":False,"output":args.output}))
