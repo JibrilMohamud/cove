@@ -28,6 +28,7 @@ import {issueQaOwnerPositiveGenerationCertificate,QA_POSITIVE_CERTIFICATE_PATH,
 import { DurableObject } from "cloudflare:workers";
 import { QA_OWNER_PRIMARY_READ_ROUTE, serveQaOwnerPrimaryRead } from "./qa-owner-primary-read-transport.mjs";
 import { QA_SCHEDULE_ROUTE, serveQaOwnerScheduledTick } from "./qa-owner-scheduled-execution";
+import {productionPersistenceEnrolled,productionOwnerInternalRequest,type ProductionPersistenceEnv} from "./production-persistence-enrollment";
 import {DISABLED_OWNER_ATTEST_ROUTE,PRODUCTION_OWNER_OBJECT,isDisabledProductionOwner,validOwnerChallenge,disabledOwnerReceipt} from "./production-disabled-owner-attestation";
 import {publishVerifiedPaidOrderAtomic,type VerifiedPaidOrderLine} from "./paid-order-atomic-publication";
 import {executeOwnerRefundAccounting} from "./refund-accounting-owner-executor";
@@ -17668,6 +17669,58 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       enrollOwnerSqlMutationJournal(ctx.storage.sql as AuthoritySql,
         fn=>storage.transactionSync(fn),env.COVE_QA_OWNER_JOURNAL_VERSION);
     }
+  }
+
+  /** Narrow production schedule bridge. No generic QA lease or positive grants.
+   * Only the enrolled owner may reuse the existing private negative erasure
+   * and sandbox preview executors. All positive release work stays blocked. */
+  protected async productionMaintenanceQueue(request:Request,raw:unknown):Promise<Response>{
+    const env=this.env as LegalAuthorityEnv&ProductionPersistenceEnv;
+    const headers={"cache-control":"no-store"};
+    const refuse=(status=503)=>new Response(null,{status,headers});
+    if(!productionPersistenceEnrolled(env)||env.COVE_PRODUCTION_PERSISTENCE_CRON_ENABLED!=="1")
+      return refuse();
+    if(!productionOwnerInternalRequest(request,env.COVE_RIGHTS_OWNER_SECRET!))return refuse(401);
+    const url=new URL(request.url);
+    if(url.hostname!=="legal-authority.internal")return refuse(400);
+    try{
+      if(url.pathname==="/account/private-action"){
+        const input=z.object({action:z.literal("erasure-tick"),limit:z.number().int().min(1).max(25)}).strict().parse(raw);
+        if(this.accountExecution)return refuse(409);
+        this.accountExecution=true;
+        try{
+          const result=await privateAccount.processAccountDeletionQueue({...env,DB:env.PRIMARY_DB} as unknown as CoveEnv,
+            this.ctx.storage.sql as AuthoritySql,input.limit);
+          if(result.retrying!==0||result.completed+result.blocked!==result.processed)return refuse();
+          return Response.json({schema:"cove.private-account-qa.v1",ownerFirst:true,action:input.action,userId:null,result},{headers});
+        }finally{this.accountExecution=false;}
+      }
+      if(url.pathname==="/publishing/partner/process-feed"){
+        const input=z.object({limit:z.number().int().min(1).max(25),operationId:z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,95}$/)}).strict().parse(raw);
+        if(this.partnerFeedRunning)return refuse(409);
+        this.partnerFeedRunning=true;
+        try{
+          // An unprocessed production feed, asset manifest or interrupted
+          // application cannot be disguised as a successful sandbox tick.
+          const blocked=()=>env.PRIMARY_DB.prepare(
+            "SELECT id FROM publisher_feed_submissions WHERE status IN ('accepted','accepted_with_warnings','applying') AND (environment<>'sandbox' OR feed_type='assets_manifest' OR status='applying') LIMIT 1"
+          ).first();
+          if(await blocked())return refuse();
+          const result=await processPartnerFeedQueuePrivate(env.PRIMARY_DB,input.limit);
+          if(result.failed!==0||result.applied!==result.leased||result.sandbox!==result.leased||await blocked())return refuse();
+          return Response.json({schema:"cove.owner-partner-feed-sandbox.v1",ownerFirst:true,operationId:input.operationId,...result},{headers});
+        }finally{this.partnerFeedRunning=false;}
+      }
+      if(url.pathname==="/preorder/private-action"){
+        const input=z.object({action:z.literal("advance"),operationId:z.string().regex(/^preorder:[a-f0-9-]{36}$/),payload:z.object({}).strict()}).strict().parse(raw);
+        // A complete empty-plan check is NOT a positive preorder executor.
+        // Do not advance even unpaid plans until that executor is enrolled.
+        if(await env.PRIMARY_DB.prepare("SELECT id FROM preorder_release_plans WHERE status IN ('scheduled','open','locked') LIMIT 1").first())return refuse();
+        return Response.json({schema:"cove.owner-preorder-qa.v1",ownerFirst:true,
+          operationId:input.operationId,action:input.action,result:{opened:0,locked:0,released:0,failed:0}},{headers});
+      }
+      return refuse();
+    }catch{return refuse();}
   }
 
   async fetch(request: Request): Promise<Response> {

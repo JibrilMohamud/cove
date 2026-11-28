@@ -5,6 +5,8 @@ on:
       - 'src/storefront-strangler/production-consolidated-*.worker.ts'
       - 'src/storefront-strangler/production-persistence-enrollment.ts'
       - 'scripts/release/*production-consolidation*'
+      - 'scripts/release/prove-consolidated-owner-native.mjs'
+      - 'src/persistence-backend.worker.ts'
       - 'scripts/release/archive-production-biosync-bridge*'
       - 'scripts/release/activate-production-literary-budget-owner*'
       - '.github/workflows/production-literary-budget-owner-activation.yml'
@@ -50,3 +52,18 @@ jobs:
           npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.consolidated-gateway.production-candidate.jsonc
           npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.biosync-bridge-owner.production-candidate.jsonc
           npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.biosync-bridge-ingress.production-candidate.jsonc
+  production-schedules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Exercise all seven production-mode schedules in disposable workerd
+        run: |
+          npm exec --yes --package=wrangler@4.151.0 -- sh -c 'COVE_MINIFLARE_MODULE="$(dirname "$(command -v wrangler)")/../miniflare" node --no-warnings scripts/release/prove-consolidated-owner-native.mjs --production-maintenance'

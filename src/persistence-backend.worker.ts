@@ -428,8 +428,11 @@ async function scheduledCatalog(env: BackendEnv) {
   assertCronResult(await response.json());
 }
 
-async function runCommercialQueues(cron: string, env: BackendEnv) {
-  if (await d1QuotaBlocked()) return;
+async function runCommercialQueues(cron: string, env: BackendEnv, strictReceipt = false) {
+  if (await d1QuotaBlocked()) {
+    if (strictReceipt) throw Error("owner_scheduled_quota_backoff");
+    return;
+  }
   const tasks: Array<[string, () => Promise<unknown>]> = [];
   if (cron === "*/10 * * * *") {
     tasks.push(["notifications", () => processNotificationDeliveryQueue(env, 50)]);
@@ -595,9 +598,10 @@ async function warmOneShortBiosyncTranscript(env: BackendEnv) {
   }
 }
 
-async function runScheduled(cron: string, env: BackendEnv) {
+async function runScheduled(cron: string, env: BackendEnv, strictReceipt = false) {
   if (await d1QuotaBlocked()) {
     console.warn("Cove ingestion paused briefly after a D1 quota limit.");
+    if (strictReceipt) throw Error("owner_scheduled_quota_backoff");
     return;
   }
   try {
@@ -614,6 +618,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
       );
       if (!admission.allowed) {
         console.warn("optional_minute_maintenance_deferred");
+        if (strictReceipt) throw Error("owner_optional_maintenance_deferred");
         return;
       }
       // EPUB preparation shares the Worker's memory with asset ingestion.
@@ -817,6 +822,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
     if (isD1QuotaError(error)) {
       await markD1QuotaBlocked();
       console.warn("Cove ingestion hit a D1 quota limit; backing off for 15 minutes.");
+      if (strictReceipt) throw Error("owner_scheduled_quota_backoff");
       return;
     }
     throw error;
@@ -940,6 +946,7 @@ export function scheduleBackendOwnedWork(
   controller: { cron: string },
   env: BackendEnv,
   ctx: ExecutionContextLike,
+  strictReceipt = false,
 ) {
   if (controller.cron === "*/10 * * * *") {
     // Bounded social-only bracket authority. Winner snapshots, next-round
@@ -956,7 +963,11 @@ export function scheduleBackendOwnedWork(
     controller.cron === "23 * * * *" ||
     controller.cron === "41 4 * * *"
   )
-    ctx.waitUntil?.(runCommercialQueues(controller.cron, env));
+    ctx.waitUntil?.(
+      strictReceipt
+        ? runCommercialQueues(controller.cron, env, true)
+        : runCommercialQueues(controller.cron, env),
+    );
 
   if (controller.cron === "23 * * * *")
     ctx.waitUntil?.(
@@ -971,7 +982,10 @@ export function scheduleBackendOwnedWork(
         }),
     );
   ctx.waitUntil?.(
-    runScheduled(controller.cron, env).catch((error) => {
+    (strictReceipt
+      ? runScheduled(controller.cron, env, true)
+      : runScheduled(controller.cron, env)
+    ).catch((error) => {
       console.error("Cove scheduled ingestion failed");
       throw error;
     }),
