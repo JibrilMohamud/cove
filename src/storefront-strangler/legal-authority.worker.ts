@@ -17818,9 +17818,9 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     return productionPersistenceEnrolled(this.env as LegalAuthorityEnv&ProductionPersistenceEnv);
   }
 
-  /** Default admission is unchanged: only the existing short-lived QA lease. */
+  /** Additional admission is disabled by default; the original QA lease remains. */
   protected async ownerRuntimeAdmission(_request:Request):Promise<boolean>{
-    return qaOwnerLeaseLive(this.env);
+    return false;
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -17848,8 +17848,10 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       return Response.json(disabledOwnerReceipt((parsed as {challenge:string}).challenge),
         {headers:noStore});
     }
-    if (!await this.ownerRuntimeAdmission(request))
-      return new Response(null,{status:503,headers:noStore});
+    if (!qaOwnerLeaseLive(env)) {
+      if (!await this.ownerRuntimeAdmission(request))
+        return new Response(null,{status:503,headers:noStore});
+    }
     // All calls must arrive by private service binding with an independent
     // operator secret. Nothing on this Worker should be publicly routed.
     if (request.headers.get("authorization")!=="Bearer "+env.COVE_RIGHTS_OWNER_SECRET)

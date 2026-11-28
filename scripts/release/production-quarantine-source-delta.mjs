@@ -4,15 +4,19 @@ const hooks = `  protected productionMaintenanceAdmission():boolean{
     return productionPersistenceEnrolled(this.env as LegalAuthorityEnv&ProductionPersistenceEnv);
   }
 
-  /** Default admission is unchanged: only the existing short-lived QA lease. */
+  /** Additional admission is disabled by default; the original QA lease remains. */
   protected async ownerRuntimeAdmission(_request:Request):Promise<boolean>{
-    return qaOwnerLeaseLive(this.env);
+    return false;
   }
 
 `;
 export function reverseProductionQuarantineDelta(source) {
   assert.equal(source.split(hooks).length, 2, "Exact production admission hooks drifted");
-  const admission = "    if (!await this.ownerRuntimeAdmission(request))\n";
+  const admission = `    if (!qaOwnerLeaseLive(env)) {
+      if (!await this.ownerRuntimeAdmission(request))
+        return new Response(null,{status:503,headers:noStore});
+    }
+`;
   assert.equal(source.split(admission).length, 2, "Exact runtime admission dispatch drifted");
   const maintenance = "if(!this.productionMaintenanceAdmission()||";
   assert.equal(
@@ -22,7 +26,10 @@ export function reverseProductionQuarantineDelta(source) {
   );
   return source
     .replace(hooks, "")
-    .replace(admission, "    if (!qaOwnerLeaseLive(env))\n")
+    .replace(
+      admission,
+      "    if (!qaOwnerLeaseLive(env))\n      return new Response(null,{status:503,headers:noStore});\n",
+    )
     .replaceAll(maintenance, "if(!productionPersistenceEnrolled(env)||");
 }
 

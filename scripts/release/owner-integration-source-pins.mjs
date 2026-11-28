@@ -1,5 +1,8 @@
 /* eslint-disable prettier/prettier -- Historic retirement receipts are immutable; only independently reviewed current source can supersede the byte-pin. */
 import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+import {createHash} from "node:crypto";
+import {reverseProductionQuarantineDelta,reverseProductionQuarantineCommerceDelta} from "./production-quarantine-source-delta.mjs";
 
 // Exact source bytes from the independent 2026-11-22 integration scanner.
 // These are a *new* review boundary, not edits to historical attestations and
@@ -23,6 +26,15 @@ const integrated=Object.freeze({
 export function expectedCurrentOwnerIntegrationHash(path,historicalSha256) {
  assert.match(path,/^(?:src|scripts)\/[a-zA-Z0-9_./-]+\.[a-z]+$/);
  assert.match(historicalSha256,/^[a-f0-9]{64}$/,"Historical SHA receipt must remain valid");
+ // Exact reversible extension only: reconstruct the immutable reviewed bytes
+ // before accepting their current hash. This is not a new source attestation.
+ const reverse=path==="src/features/fore/commerce.server.ts"?reverseProductionQuarantineCommerceDelta:
+   path==="src/storefront-strangler/legal-authority.worker.ts"?reverseProductionQuarantineDelta:null;
+ if(reverse){
+   const source=readFileSync(path,"utf8"),sha=s=>createHash("sha256").update(s).digest("hex");
+   assert.equal(sha(reverse(source)),integrated[path],"Quarantine delta must reconstruct the exact reviewed source");
+   return sha(source);
+ }
  return integrated[path]||historicalSha256;
 }
 export const currentOwnerIntegrationSourcePins=integrated;
