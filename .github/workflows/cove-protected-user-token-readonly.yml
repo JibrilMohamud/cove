@@ -22,7 +22,7 @@ on:
         required: true
         type: string
       confirm_user_token_metadata_only:
-        description: "Authorize at most 20 bounded read-only user-token/catalog GETs; no Worker inventory or mutation."
+        description: "Authorize at most 21 bounded read-only user-token/catalog GETs; no Worker inventory or mutation."
         required: true
         default: false
         type: boolean
