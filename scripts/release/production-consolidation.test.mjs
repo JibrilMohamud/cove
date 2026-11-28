@@ -95,3 +95,23 @@ test("consolidated transition preserves named BioSync and literary budget withou
     assert.equal(p.productionLiteraryBudgetEnrolled({...configured,...patch}),false);
   }
 });
+
+test("maintenance publication recovery proves absence and cannot claim pending positive work",()=>{
+  const operationId="publication-recovery:00000000-0000-4000-8000-000000000001";
+  let checks=0;
+  assert.deepEqual(p.emptyProductionPublicationRecovery({operationId},()=>{checks++;return false;}),{
+    schema:"cove.publication-recovery.v1",ownerFirst:true,operationId,checked:0,recovered:0,blocked:0
+  });
+  assert.equal(checks,1);
+  assert.throws(()=>p.emptyProductionPublicationRecovery({operationId},()=>true),/requires_authority/);
+  assert.throws(()=>p.emptyProductionPublicationRecovery({operationId},()=>{throw Error("missing journal");}),/missing journal/);
+  for(const raw of [null,[],{}, {operationId:""},{operationId:"x".repeat(97)},{operationId,sql:"SELECT 1"}]){
+    assert.throws(()=>p.emptyProductionPublicationRecovery(raw,()=>{checks++;return false;}),/invalid/);
+  }
+  assert.equal(checks,1);
+  const source=readFileSync("src/storefront-strangler/production-consolidated-owner.worker.ts","utf8");
+  assert.ok(source.includes("WHERE state='pending' OR published_epoch IS NULL LIMIT 1"));
+  assert.ok(source.includes('if(route===OWNER_PUBLICATION_RECOVERY_PATH)'));
+  assert.ok(source.includes('if(x.cron!=="41 4 * * *"'));
+  assert.ok(source.includes('new URL(request.url).origin!=="https://legal-authority.internal"'));
+});
