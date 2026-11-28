@@ -1042,13 +1042,19 @@ function Journey({ id }: { id: string }) {
   // The next click can fire before React commits the render from onChange.
   // Do not send the previously rendered audience to the private journey API.
   const latestDraft = useRef<any>(null);
+  const draftSource = useRef<{ id: string; version: number; dirty: boolean } | null>(null);
   const patchDraft = (patch: Record<string, unknown>) => {
     const next = { ...(latestDraft.current ?? draft), ...patch };
     latestDraft.current = next;
+    if (draftSource.current) draftSource.current.dirty = true;
     setDraft(next);
   };
   useEffect(() => {
     if (q.data) {
+      // A background refresh may finish after the user changes the audience.
+      // Keep that edit and its original CAS version until it is saved.
+      const source = draftSource.current;
+      if (source && source.id === q.data.id && source.dirty) return;
       const snapshot = {
         visibility: q.data.visibility,
         theme: q.data.theme,
@@ -1060,17 +1066,27 @@ function Journey({ id }: { id: string }) {
         favoriteQuote: q.data.favorite_quote || "",
         shortReview: q.data.short_review || "",
       };
+      draftSource.current = { id: q.data.id, version: Number(q.data.version || 1), dirty: false };
       latestDraft.current = snapshot;
       setDraft(snapshot);
     }
   }, [q.data?.id, q.data?.version]);
   async function save() {
+    const submitted = latestDraft.current ?? draft,
+      source = draftSource.current;
+    if (busy || !submitted || !source || source.id !== q.data.id) return;
     setBusy(true);
     try {
-      await api(`/social/journeys/${q.data.id}`, "PATCH", {
-        ...(latestDraft.current ?? draft),
-        expectedVersion: Number(q.data.version || 1),
+      const saved = await api(`/social/journeys/${source.id}`, "PATCH", {
+        ...submitted,
+        expectedVersion: source.version,
       });
+      // Edits made during the request remain pending; only this acknowledged
+      // version may become their base. A different writer still produces 409.
+      if (draftSource.current === source) {
+        source.version = Number(saved.version);
+        source.dirty = latestDraft.current !== submitted;
+      }
       await q.refetch();
       toast.success(ui("Reading Journey updated"));
     } catch (e) {
@@ -1455,7 +1471,7 @@ function Journey({ id }: { id: string }) {
               <strong>{j.bookmarks_count}</strong> {ui("bookmarks")}
             </span>
           </div>
-          {j.mine && draft && (
+          {j.mine && draft && draftSource.current?.id === j.id && (
             <div className="journey-controls">
               <label>
                 {ui("Visibility")}
