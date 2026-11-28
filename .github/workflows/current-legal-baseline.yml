@@ -27,4 +27,4 @@ jobs:
         with:
           node-version: '22'
       - run: node --check scripts/release/compile-current-legal-baseline.local.mjs
-      - run: node --test scripts/release/current-legal-baseline.test.mjs
+      - run: node --test scripts/release/current-legal-baseline.test.mjs scripts/release/current-legal-scope-discovery.test.mjs
