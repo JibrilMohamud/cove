@@ -25,24 +25,34 @@ try {
   ) VALUES(?,?,?,'purchase','active','commerce',?,?,?)
   ON CONFLICT(user_id,product_id,entitlement_type) WHERE status='active'
   DO UPDATE SET status='active',order_item_id=excluded.order_item_id,updated_at=excluded.updated_at`;
-  assert.ok(
-    source.includes("ON CONFLICT(user_id,product_id,entitlement_type) WHERE status='active'"),
-    "Original signed payment writer must target the current-active partial uniqueness index",
-  );
+  const ownerSource=readFileSync("src/storefront-strangler/legal-authority.worker.ts","utf8");
+  const settlementSource=readFileSync("src/features/fore/paid-settlement-transaction.server.ts","utf8");
+  assert.ok(source.includes("return settleStageOwnerPaidOrder(env, orderId)"),
+    "Signed payment caller must dispatch the private settlement owner");
+  assert.ok(!/INSERT\s+INTO\s+entitlements/i.test(source),
+    "Retired signed payment caller must not retain a competing entitlement writer");
+  assert.ok(settlementSource.includes('const entitlementId="ent_"+item.id;')&&
+    settlementSource.includes("INSERT INTO entitlements(id,user_id,product_id,entitlement_type,status,source,order_item_id,granted_at,updated_at) VALUES(?,?,?,'purchase','active','commerce',?,?,?)"),
+    "Active atomic owner settlement must insert a fresh order-item entitlement identity");
   const preorderSource=readFileSync("src/features/fore/preorder.server.ts","utf8");
   assert.ok(
-    preorderSource.includes("ON CONFLICT(user_id,product_id,entitlement_type) WHERE status='active'"),
-    "Preorder release must not revive the previous refunded purchase",
+    preorderSource.includes('dispatchPrivatePreorderAction(db,"advance",{})')&&
+      !/INSERT\s+INTO\s+entitlements/i.test(preorderSource),
+    "Preorder caller must use its owner without retaining a competing entitlement writer",
   );
   assert.ok(
-    preorderSource.includes("entitlement_type='purchase' AND status='active' AND order_item_id=?"),
-    "Preorder release must select the newly acquired order-linked entitlement, not historical rows",
+    ownerSource.includes('throw new ApiError(503, "Preorder release requires independently verified paid owner authorization.")'),
+    "Preorder owner must deny release until independently verified paid authority exists",
   );
   const librarySource=readFileSync("src/features/fore/api.server.ts","utf8");
   assert.ok(
-    librarySource.includes("ON CONFLICT(user_id,product_id,entitlement_type) WHERE status='active'"),
-    "A legitimate public-domain library acquisition must match the new partial index",
+    librarySource.includes("await dispatchVerifiedFreeLibraryEntitlement(db, {")&&
+      !/INSERT\s+INTO\s+entitlements/i.test(librarySource),
+    "Public-domain library acquisition must dispatch its owner without a competing writer",
   );
+  assert.ok(ownerSource.includes("ON CONFLICT(user_id,product_id,entitlement_type) WHERE status='active' DO NOTHING")&&
+    ownerSource.includes("prior.entitlement_type='public-domain' AND prior.status='revoked'"),
+    "Active free-library owner must use the current-active partial index and reject revoked history");
   const grant=(id,item)=>db.prepare(upsertSql).run(id,"qa-buyer","book-42",item,"2026-10-28","2026-10-28");
   const rows=()=>db.prepare("SELECT id,status,order_item_id FROM entitlements WHERE user_id='qa-buyer' ORDER BY granted_at,id").all().map(row=>({...row}));
   grant("purchase-1","order-item-1");

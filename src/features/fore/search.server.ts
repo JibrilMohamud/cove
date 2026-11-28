@@ -1,3 +1,4 @@
+import { dispatchQaOperationalWrite } from "../../storefront-strangler/qa-owner-operational-protocol";
 import type { CatalogBook } from "./client";
 import {
   canonicalBooksByProductIds,
@@ -1801,6 +1802,26 @@ async function logQuery(
     productId,
     position: (input.page - 1) * input.limit + index + 1,
   }));
+  if (userId === null) {
+    const remote = dispatchQaOperationalWrite(db, {
+      kind: "search.impression",
+      id,
+      query: input.query,
+      normalizedQuery: normalizeQuery(input.query),
+      filtersJson: JSON.stringify({ ...filters, page: input.page, limit: input.limit }),
+      sort: input.sort,
+      count: data.count,
+      backend: data.backend as "d1-fts5" | "meilisearch",
+      duration: Math.max(0, Math.round(data.duration)),
+      correctedQuery: data.correctedQuery || null,
+      impressionsJson: JSON.stringify(impressions),
+      at: new Date().toISOString(),
+    });
+    if (remote) {
+      await remote;
+      return id;
+    }
+  }
   await db
     .prepare(
       "INSERT INTO search_query_events(id,user_id,query,normalized_query,filters_json,sort,result_count,backend,duration_ms,corrected_query,result_impressions_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",

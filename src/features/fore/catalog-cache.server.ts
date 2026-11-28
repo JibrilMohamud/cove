@@ -1,3 +1,4 @@
+import { dispatchQaOperationalWrite } from "../../storefront-strangler/qa-owner-operational-protocol";
 import type { CatalogDB } from "./catalog-model.server";
 
 /** Recycle expired/oldest entries atomically, rather than stop caching new URLs. */
@@ -10,6 +11,24 @@ export async function writeCatalogCache(
   limit: number,
   guard?: { key: string; owner: string; nowMs: number },
 ) {
+  const remote = dispatchQaOperationalWrite(db, {
+    kind: "cache.write",
+    key,
+    body,
+    expiresAt,
+    prefix: prefix as
+      | "search-counts:v1:"
+      | "search-facets:v2:"
+      | "search-page:v1:"
+      | "taxonomy-counts:v1:"
+      | "public-api:v2:",
+    limit: limit as 128 | 256,
+    guard,
+  });
+  if (remote) {
+    await remote;
+    return;
+  }
   // A conditional leased refresh must publish atomically with the owner
   // check inside the D1 transaction. A previous owner's result can never
   // overwrite a replacement refresh after the original lease expires.

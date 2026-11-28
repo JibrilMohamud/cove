@@ -5,9 +5,17 @@ on:
       - "src/storefront-strangler/qa-owner-primary-read-transport.mjs"
       - "src/storefront-strangler/qa-owner-primary-read-transport.d.mts"
       - "src/storefront-strangler/qa-owner-primary-read-entrypoint.ts"
+      - "src/storefront-strangler/qa-owner-operational-protocol.ts"
+      - "src/storefront-strangler/qa-owner-operational-execution.ts"
+      - "scripts/test-qa-owner-operational-writes.mjs"
       - "src/storefront-strangler/legal-authority.worker.ts"
       - "src/persistence-backend.worker.ts"
       - "src/features/fore/api.server.ts"
+      - "src/features/fore/catalog-cache.server.ts"
+      - "src/features/fore/operations.server.ts"
+      - "src/features/fore/search-facet-refresh-lease.server.ts"
+      - "src/features/fore/search.server.ts"
+      - "src/features/fore/taxonomy-counts-cache.server.ts"
       - "src/features/fore/presentation-replica.server.ts"
       - "src/storefront-strangler/qa-owner-scheduled-execution.ts"
       - "src/lib/cron-result-guard.ts"
@@ -26,9 +34,17 @@ on:
       - "src/storefront-strangler/qa-owner-primary-read-transport.mjs"
       - "src/storefront-strangler/qa-owner-primary-read-transport.d.mts"
       - "src/storefront-strangler/qa-owner-primary-read-entrypoint.ts"
+      - "src/storefront-strangler/qa-owner-operational-protocol.ts"
+      - "src/storefront-strangler/qa-owner-operational-execution.ts"
+      - "scripts/test-qa-owner-operational-writes.mjs"
       - "src/storefront-strangler/legal-authority.worker.ts"
       - "src/persistence-backend.worker.ts"
       - "src/features/fore/api.server.ts"
+      - "src/features/fore/catalog-cache.server.ts"
+      - "src/features/fore/operations.server.ts"
+      - "src/features/fore/search-facet-refresh-lease.server.ts"
+      - "src/features/fore/search.server.ts"
+      - "src/features/fore/taxonomy-counts-cache.server.ts"
       - "src/features/fore/presentation-replica.server.ts"
       - "src/storefront-strangler/qa-owner-scheduled-execution.ts"
       - "src/lib/cron-result-guard.ts"
@@ -64,6 +80,8 @@ jobs:
         run: node --test scripts/qa-owner-primary-read-transport.test.mjs
       - name: Prove backend with no D1 binding can read QA owner without production enrollment
         run: node --test scripts/qa-owner-primary-read-entrypoint.test.mjs
+      - name: Prove closed operational writes, replay and denial invariants
+        run: node --no-warnings scripts/test-qa-owner-operational-writes.mjs
       - name: Prove schedule replay, uncertain acknowledgement, domain fences and leased QA isolation
         run: node --no-warnings scripts/test-qa-owner-scheduled-execution.mjs
       - name: Exercise all seven actual owner schedules across every migration and prove exact replay
