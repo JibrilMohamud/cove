@@ -82,7 +82,15 @@ const action = z.discriminatedUnion("kind", [
         .string()
         .min(10)
         .max(512)
-        .regex(/^\/api\/fore\/[^?#\u0000-\u001f\u007f]*$/),
+        .regex(/^\/api\/fore\/[^?#]*$/)
+        .refine(
+          (value) =>
+            [...value].every((character) => {
+              const code = character.charCodeAt(0);
+              return code >= 32 && code !== 127;
+            }),
+          "Control characters are not valid route labels",
+        ),
       status: z.number().int().min(100).max(599),
       actorKind: z.enum(["anonymous", "user"]),
       storefrontCountry: z

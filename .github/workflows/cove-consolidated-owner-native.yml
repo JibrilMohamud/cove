@@ -10,6 +10,7 @@ on:
       - "src/persistence-backend.worker.ts"
       - "drizzle/**"
       - "scripts/test-native-owner-reader-fixture.mjs"
+      - "scripts/test-native-owner-commerce.mjs"
       - "scripts/test-local-catalog-fixture.mjs"
       - "scripts/release/prove-consolidated-owner-native.mjs"
       - ".github/workflows/cove-consolidated-owner-native.yml"
@@ -32,3 +33,6 @@ jobs:
       - name: Prove native authenticated reader, account, catalog, operational rows and all seven schedules
         run: |
           npm exec --yes --package=wrangler@4.151.0 -- sh -c 'COVE_MINIFLARE_MODULE="$(dirname "$(command -v wrangler)")/../miniflare" node --no-warnings scripts/release/prove-consolidated-owner-native.mjs'
+      - name: Prove native Stripe settlement, persisted ledgers, streaming delivery and revocation
+        run: |
+          npm exec --yes --package=wrangler@4.151.0 -- sh -c 'COVE_MINIFLARE_MODULE="$(dirname "$(command -v wrangler)")/../miniflare" node --no-warnings scripts/test-native-owner-commerce.mjs'

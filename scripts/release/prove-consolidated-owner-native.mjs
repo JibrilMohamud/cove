@@ -11,7 +11,10 @@ import { createRequire } from "node:module";
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { nativeReaderProvider, proveNativeOwnerReader } from "../test-native-owner-reader-fixture.mjs";
+import {
+  nativeReaderProvider,
+  proveNativeOwnerReader,
+} from "../test-native-owner-reader-fixture.mjs";
 import {
   seedLocalCatalogFixture,
   markLocalRegionalSourcesFresh,
