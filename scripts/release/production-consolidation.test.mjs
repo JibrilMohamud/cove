@@ -75,3 +75,18 @@ test("BioSync distinct credential and fixed request shape",async()=>{
   assert.equal(p.productionOwnerInternalRequest(req,env.COVE_RIGHTS_OWNER_SECRET),false);
 });
 process.on("exit",()=>rmSync(dir,{recursive:true,force:true}));
+
+test("consolidated transition preserves named BioSync and literary budget without enrolling both modes",()=>{
+  const configured={...env,COVE_PRODUCTION_PERSISTENCE_BIOSYNC_ENABLED:"1",
+    COVE_BIOSYNC_CLIENT_TOKEN_SHA256:"c".repeat(64),BUCKET:{get(){}}};
+  assert.equal(p.productionNamedBiosyncEnrolled(configured),true);
+  assert.equal(p.productionLiteraryBudgetEnrolled(configured),true);
+  assert.equal(p.productionLiteraryBudgetEnrolled(env),true);
+  assert.equal(p.productionNamedBiosyncEnrolled(env),false);
+  for(const patch of [{COVE_PRODUCTION_BIOSYNC_BRIDGE_ENABLED:"1"},
+    {COVE_RIGHTS_OWNER_ENABLED:"1"},{COVE_SSR_STAGING:"1"},{DB:db()},
+    {LITERARY_CONTENT_DB:env.PRIMARY_DB},{COVE_QA_SCHEDULE_OWNER_ENABLED:"1"}]){
+    assert.equal(p.productionNamedBiosyncEnrolled({...configured,...patch}),false);
+    assert.equal(p.productionLiteraryBudgetEnrolled({...configured,...patch}),false);
+  }
+});

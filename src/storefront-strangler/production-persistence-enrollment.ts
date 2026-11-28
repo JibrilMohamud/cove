@@ -83,6 +83,7 @@ export function maintenanceBusinessRoute(request:Request){
 }
 export function productionBiosyncEnrolled(env:ProductionPersistenceEnv){
   return productionPersistenceEnrolled(env)&&
+    [undefined,"0"].includes(env.COVE_PRODUCTION_BIOSYNC_BRIDGE_ENABLED)&&
     env.COVE_PRODUCTION_PERSISTENCE_BIOSYNC_ENABLED==="1"&&
     hashConfigured(env.COVE_BIOSYNC_CLIENT_TOKEN_SHA256)&&
     env.COVE_BIOSYNC_CLIENT_TOKEN_SHA256!==env.FORE_BACKEND_TOKEN_SHA256&&!!env.BUCKET?.get;
@@ -127,4 +128,17 @@ export function productionBiosyncBridgeEnrolled(env:ProductionPersistenceEnv){
       (!key.startsWith("COVE_QA_")||value===undefined||value==="0"))&&
     [undefined,"0"].includes(env.COVE_PUBLICATION_COMMANDS_ENABLED)&&
     [undefined,"0"].includes(env.COVE_LEGAL_CONSUMER_STAGE_ENABLED);
+}
+
+/** Preserve the existing named ingress during the consolidated transition.
+ * Bridge and consolidated enrollment must remain mutually exclusive. */
+export function productionNamedBiosyncEnrolled(env:ProductionPersistenceEnv){
+  return productionBiosyncBridgeEnrolled(env)||productionBiosyncEnrolled(env);
+}
+
+/** Budget rollover is independent of consolidated BioSync client enrollment. */
+export function productionLiteraryBudgetEnrolled(env:ProductionPersistenceEnv){
+  return productionBiosyncBridgeEnrolled(env)||
+    (productionPersistenceEnrolled(env)&&
+      [undefined,"0"].includes(env.COVE_PRODUCTION_BIOSYNC_BRIDGE_ENABLED));
 }
