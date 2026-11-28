@@ -82,6 +82,18 @@ const options = {
         : { BUSINESS_OWNER: { name: "owner", entrypoint: "CoveBusinessEntrypoint" } },
     },
     {
+      name: "retained-biosync-ingress",
+      modules: true,
+      scriptPath: resolve(".output/production-consolidation/biosync-ingress.mjs"),
+      compatibilityDate: "2026-10-17",
+      compatibilityFlags: ["nodejs_compat"],
+      bindings: {
+        COVE_PRODUCTION_BIOSYNC_INGRESS_ENABLED: "1",
+        COVE_BIOSYNC_CLIENT_TOKEN_SHA256: biosyncHash,
+      },
+      serviceBindings: { BIOSYNC_OWNER: { name: "owner", entrypoint: "CoveBioSyncEntrypoint" } },
+    },
+    {
       name: "owner",
       modules: true,
       scriptPath: resolve(".output/production-consolidation/owner.mjs"),
@@ -208,6 +220,18 @@ try {
   await bucket.put("biosync/maps/" + mapSha + ".json", bytes);
   let gateway = await mf.getWorker("gateway");
   const owner = await mf.getWorker("owner");
+  const retainedIngress = await mf.getWorker("retained-biosync-ingress");
+  const retainedPublish = (token, value = command) =>
+    retainedIngress.fetch("https://fixture.invalid/__cove/biosync/publish-checked", {
+      method: "POST",
+      headers: { authorization: "Bearer " + token, "content-type": "application/json" },
+      body: JSON.stringify(value),
+    });
+  assert.equal((await retainedPublish(backendToken)).status, 401);
+  assert.equal(
+    (await retainedPublish(biosyncToken, { ...command, mapSha256: "f".repeat(64) })).status,
+    503,
+  );
   const publish = (token, value = command) =>
     gateway.fetch("https://fixture.invalid/__cove/biosync/publish-checked", {
       method: "POST",
@@ -295,6 +319,7 @@ try {
     committed: true,
     replay: false,
   });
+  assert.equal((await retainedPublish(biosyncToken)).status, 200);
   const receipt = await publish(biosyncToken);
   assert.equal(receipt.status, 200);
   assert.deepEqual(await receipt.json(), {
