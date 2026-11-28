@@ -18,7 +18,7 @@ import {denyMarket} from "./market-authority-core";
 import {denyPaidOrder,denyPaidEntitlement,denyPaidEntitlementsBatch} from "./commercial-entitlement-core";
 import {LITERARY_BUDGET_CRON,LITERARY_BUDGET_PROBE_CRON,rollOwnedLiteraryBudget,recordOwnedBudgetTick} from "./literary-owner-budget-rollover";
 import {assertCronSettled} from "../lib/cron-result-guard";
-import {productionPersistenceEnrolled,productionBiosyncEnrolled,productionBiosyncBridgeEnrolled,productionBiosyncRequest,
+import {productionPersistenceEnrolled,productionBiosyncEnrolled,productionBiosyncBridgeEnrolled,productionNamedBiosyncEnrolled,productionLiteraryBudgetEnrolled,productionBiosyncRequest,
   productionOwnerInternalRequest,maintenanceBusinessRoute,checkToken,bearer,refuse,noStore,
   PRODUCTION_OWNER_OBJECT,PRODUCTION_SCHEDULES,OWNER_SCHEDULE_PATH,OWNER_BIOSYNC_PATH,
   type ProductionPersistenceEnv} from "./production-persistence-enrollment";
@@ -172,7 +172,7 @@ export class CoveLegalAuthority extends ExistingLegalAuthority{
 export class CoveBioSyncEntrypoint extends WorkerEntrypoint<Env>{
   async fetch(request:Request):Promise<Response>{
     const env=this.env;
-    if(!productionBiosyncBridgeEnrolled(env))return refuse();
+    if(!productionNamedBiosyncEnrolled(env))return refuse();
     if(!productionBiosyncRequest(request))return refuse(404);
     if(!await checkToken(bearer(request),env.COVE_BIOSYNC_CLIENT_TOKEN_SHA256))return refuse(401);
     try{return await ownerCall(env,OWNER_BIOSYNC_PATH,await body(request,1024));}catch{return refuse();}
@@ -218,7 +218,7 @@ export default {
   },
   async scheduled(controller:{cron:string;scheduledTime:number},env:Env){
     if([LITERARY_BUDGET_CRON,LITERARY_BUDGET_PROBE_CRON].includes(controller.cron)){
-      if(env.COVE_PRODUCTION_LITERARY_BUDGET_CRON_ENABLED!=="1"||!productionBiosyncBridgeEnrolled(env))
+      if(env.COVE_PRODUCTION_LITERARY_BUDGET_CRON_ENABLED!=="1"||!productionLiteraryBudgetEnrolled(env))
         throw Error("literary_budget_owner_not_enrolled");
       const receipt=await rollOwnedLiteraryBudget(env.PRIMARY_DB,env.LITERARY_CONTENT_DB!);
       await recordOwnedBudgetTick(env.LITERARY_CONTENT_DB!,receipt,controller.scheduledTime,env.COVE_PRODUCTION_LITERARY_BUDGET_RELEASE_SHA||"",controller.cron);
