@@ -5,7 +5,8 @@
  */
 import assert from "node:assert/strict";
 import {readFileSync,writeFileSync} from "node:fs";
-const ACCOUNT="d26430caa63ec55f6612e32f36aca5e9";
+const ACCOUNT="f51e8ccbc394e2d6016ff8c2c303d54b";
+const PRODUCTION_ACCOUNT="d26430caa63ec55f6612e32f36aca5e9";
 const PRODUCTION="cove-persistence-backend";
 const PINNED_PROD_VERSION="401f2af2-6e69-4611-8110-1d127af6eecf";
 const PREVIOUS_PROD_VERSION="3f5fdeed-4f11-411a-8d4e-e86816f865bc";
@@ -20,18 +21,33 @@ assert.equal(name,gate.name);
 assert.match(gate.gate,/^[a-f0-9]{64}$/);
 assert.ok(gate.expires>Date.now() && gate.expires-Date.now()<=12*60*1000);
 const token=process.env.CLOUDFLARE_API_TOKEN;
-assert.ok(token,"Cloudflare staging deployment token required");
-const base="https://api.cloudflare.com/client/v4/accounts/"+ACCOUNT+"/workers/scripts/";
-const permitted=new Set([name,PRODUCTION]);
+const productionRead=process.env.COVE_CF_WORKERS_METADATA_READ_TOKEN;
+const productionContent=process.env.COVE_CF_WORKERS_CONTENT_READ_TOKEN||productionRead;
+assert.ok(token&&productionRead&&productionContent,"Separate QA deploy and production read credentials required");
+assert.notEqual(token,productionRead);
+assert.notEqual(token,productionContent);
 async function cloudflare(method,worker,suffix,body){
-  assert.ok(permitted.has(worker));
-  if(method!=="GET")assert.equal(worker,name,"NEVER mutate production Worker");
-  assert.ok(["GET","POST"].includes(method));
-  const headers={authorization:"Bearer "+token};
+  assert.ok(worker===name||worker===PRODUCTION);
+  let account,credential;
+  if(worker===PRODUCTION){
+    assert.equal(method,"GET","NEVER mutate production Worker");
+    assert.equal(body,undefined);
+    assert.ok(suffix==="/deployments"||
+      [PINNED_PROD_VERSION,PREVIOUS_PROD_VERSION].some(id=>suffix==="/versions/"+id));
+    account=PRODUCTION_ACCOUNT;
+    credential=suffix==="/deployments"?productionRead:productionContent;
+  }else{
+    assert.ok((method==="GET"&&["/deployments","/settings"].includes(suffix))||
+      (method==="POST"&&suffix==="/deployments"));
+    account=ACCOUNT;
+    credential=token;
+  }
+  const base="https://api.cloudflare.com/client/v4/accounts/"+account+"/workers/scripts/";
+  const headers={authorization:"Bearer "+credential};
   if(body!==undefined)headers["content-type"]="application/json";
   const response=await fetch(base+worker+suffix,{
     method,headers,body:body===undefined?undefined:JSON.stringify(body),
-    signal:AbortSignal.timeout(15000),
+    redirect:"error",signal:AbortSignal.timeout(15000),
   });
   if(!response.ok)throw Error("Cloudflare stage API "+method+" HTTP "+response.status);
   const json=await response.json();
@@ -49,7 +65,7 @@ const deployment=async worker=>{
 const currentId=async worker=>(await deployment(worker)).versions[0].version_id;
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function verifyHttp(version){
-  const origin="https://"+name+".cove-jibrilmohamud.workers.dev";
+  const origin="https://"+name+".cove-qa-reads.workers.dev";
   const url=origin+"/__cove/rollback";
   let lastClass="unavailable";
   for(let i=0;i<22;i++){
