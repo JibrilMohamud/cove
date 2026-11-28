@@ -5,9 +5,13 @@ import {readFileSync} from "node:fs";
 import {findStandingStageReferences,inventory,requireCleared} from "./audit-standing-stage-credential.mjs";
 test("no legacy secret alias or computed reference may evade inventory",()=>{
   for(const ref of ["secrets.COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN","secrets [ 'COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN' ]",'secrets["COVE_CF_STAGE_WORKERS_DEPLOY_TOKEN"]']){
-    assert.equal(findStandingStageReferences(ref)[0].kind,"legacy");
+    assert.deepEqual(findStandingStageReferences(ref),[{line:1,kind:"legacy"}]);
   }
-  assert.equal(findStandingStageReferences("secrets[env.DYNAMIC_TOKEN]")[0].kind,"computed");
+  for(const ref of ["secrets[env.DYNAMIC_TOKEN]","secrets [   env.DYNAMIC_TOKEN ]","secrets['foo' + env.DYNAMIC_TOKEN]"]){
+    assert.deepEqual(findStandingStageReferences(ref),[{line:1,kind:"computed"}]);
+  }
+  assert.deepEqual(findStandingStageReferences("SECRETS [ 'cove_cf_stage_workers_deploy_token' ]"),[{line:1,kind:"legacy"}]);
+  assert.deepEqual(findStandingStageReferences("secrets [ 'COVE_CF_QA_WORKERS_DEPLOY_TOKEN' ]"),[]);
   assert.deepEqual(findStandingStageReferences("secrets.COVE_CF_QA_WORKERS_DEPLOY_TOKEN"),[]);
   const report=inventory();
   assert.ok(report.workflowsInspected>=150);

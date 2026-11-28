@@ -8,10 +8,16 @@ export function findStandingStageReferences(source){
   const hits=[];
   // Dot access, literal bracket access, and unresolved computed access.
   // A dynamically chosen secret is not a provably cleared dependency.
-  const exact=new RegExp("\\bsecrets\\s*(?:\\.\\s*"+name+"\\b|\\[\\s*['\"]"+name+"['\"]\\s*\\])","g");
-  const computed=/\bsecrets\s*\[\s*(?!['"])[^\]]+\]/g;
-  for(const [kind,re] of [["legacy",exact],["computed",computed]]){
-    for(const match of source.matchAll(re))hits.push({line:source.slice(0,match.index).split("\n").length,kind});
+  const add=(match,kind)=>hits.push({line:source.slice(0,match.index).split("\n").length,kind});
+  const dot=new RegExp("\\bsecrets\\s*\\.\\s*"+name+"\\b","gi");
+  for(const match of source.matchAll(dot))add(match,"legacy");
+  // Classify a bracket expression exactly once. Trim after matching, not
+  // through a backtracking whitespace quantifier before a negative lookahead.
+  for(const match of source.matchAll(/\bsecrets\s*\[([^\]]*)\]/gi)){
+    const expression=match[1].trim();
+    const literal=expression.match(/^(['"])([a-z0-9_]+)\1$/i);
+    if(!literal)add(match,"computed");
+    else if(literal[2].toUpperCase()===name)add(match,"legacy");
   }
   return hits.sort((a,b)=>a.line-b.line||a.kind.localeCompare(b.kind));
 }
